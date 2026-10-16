@@ -567,6 +567,13 @@ MANIFEST = "just-makeit.toml"
 # "too fast to be a real kernel" for both. A sibling module; this file may
 # be loaded by path, not run.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _gitbase import (  # noqa: E402
+    BaseUnreadableError,
+    added_since_base,
+    in_git_repo,
+    resolve_base,
+    show_at,
+)
 from check_bench_coverage import CEILING_MSA_S  # noqa: E402
 
 #: The families the page groups rows into, in tab order.
@@ -1033,7 +1040,7 @@ def page_data(root: str = ".") -> dict:
             for bench in benches:
                 live.setdefault(row_id(suite, bench), (suite, bench))
 
-    rows, problems = [], []
+    rows, problems, stale_legacy = [], [], []
     for rid in sorted(live):
         suite, bench = live[rid]
         comp = _component(suite, bench)
@@ -1063,9 +1070,9 @@ def page_data(root: str = ".") -> dict:
                     recorded = _recorded_unit(suite, x) or recorded
         label = labels.get(rid)
         if rid in legacy and suite == "c" and recorded:
+            stale_legacy.append(rid)
             problems.append(
-                f"{LEGACY_UNITS}: `{rid}` records its own unit now -- "
-                "remove the entry"
+                f"{LEGACY_UNITS}: `{rid}` records its own unit now {FIXABLE}"
             )
         known = recorded or legacy.get(rid)
         unit = known or (label or {}).get("unit")
@@ -1128,9 +1135,7 @@ def page_data(root: str = ".") -> dict:
             }
         )
     for rid in sorted(set(legacy) - set(live)):
-        problems.append(
-            f"{LEGACY_UNITS}: `{rid}` is no live row -- remove the entry"
-        )
+        problems.append(f"{LEGACY_UNITS}: `{rid}` is no live row {FIXABLE}")
     for m in modules:
         if m not in MODULE_FAMILY:
             problems.append(f"module `{m}` is not in MODULE_FAMILY")
@@ -1160,6 +1165,8 @@ def page_data(root: str = ".") -> dict:
         "head": head,
         "rows": rows,
         "problems": problems,
+        # for fix_labels; never embedded in the page
+        "_stale_legacy": stale_legacy,
     }
 
 
@@ -1175,9 +1182,11 @@ def label_problems(root: str = ".", base: str | None = None) -> list:
     bad = list(data["problems"])
     live = {r["id"] for r in data["rows"]}
     labels = read_labels(root)
+    newest = data["versions"][-1] if data["versions"] else None
+    commit = (data.get("meta", {}).get(newest) or {}).get("commit")
+    _, dead = unpublished_labels(root, labels, live, newest, commit)
+    bad += dead
     for rid, lab in labels.items():
-        if rid not in live:
-            bad.append(f"{LABELS}: `{rid}` is no live row -- remove the label")
         for key in ("name", "unit", "definition"):
             if not str(lab.get(key, "")).strip():
                 bad.append(f"{LABELS}: `{rid}` has no {key}")
@@ -1189,25 +1198,15 @@ def label_problems(root: str = ".", base: str | None = None) -> list:
     exempt = read_exempt(text)
     for rid in exempt:
         if rid in labels:
-            bad.append(
-                f"{LABELS_EXEMPT}: `{rid}` is labelled now -- remove the line"
-            )
+            bad.append(f"{LABELS_EXEMPT}: `{rid}` is labelled now {FIXABLE}")
         elif rid not in live:
-            bad.append(
-                f"{LABELS_EXEMPT}: `{rid}` is no live row -- remove the line"
-            )
+            bad.append(f"{LABELS_EXEMPT}: `{rid}` is no live row {FIXABLE}")
     for rid in sorted(live - set(labels) - set(exempt)):
         bad.append(
             f"`{rid}` has no label: give it a name, unit and definition in "
             f"{LABELS}"
         )
     if base:
-        # A sibling module; this file may be loaded by path, not run.
-        here = os.path.dirname(os.path.abspath(__file__))
-        if here not in sys.path:
-            sys.path.insert(0, here)
-        from _gitbase import added_since_base
-
         for rid in added_since_base(
             Path(root),
             base,
@@ -1220,7 +1219,112 @@ def label_problems(root: str = ".", base: str | None = None) -> list:
                 f"{LABELS_EXEMPT}: `{rid}` was added -- the list only "
                 "shrinks; label the row instead"
             )
+    fixable = sum(1 for b in bad if b.endswith(FIXABLE))
+    if fixable:
+        bad.append(
+            f"{fixable} of these only need a line deleted, which `make "
+            "bench-labels-fix` does; the rest need a label written"
+        )
     return bad
+
+
+#: The tail of every message `fix_labels` clears by itself.
+FIXABLE = "-- remove the line"
+
+
+def unpublished_labels(root, labels, live, newest, commit) -> tuple:
+    """``(pending, problems)`` for labels whose row the newest release
+    does not measure.
+
+    A row is labelled in the PR that adds it, which is before any release
+    has published it (#2373 review: v0.73.0 publishes 31 C rows v0.72.0
+    never had, and the exempt list may not grow to take them). Such a
+    label is PENDING if ``labels.toml`` at the commit the newest release was
+    measured at did not hold it: the row was added since. A label that
+    release WAS measured with, for a row it did not record, is dead -- a
+    retired row or a wrong ID -- and so is every non-live label in a tree
+    with no history to ask (a test's synthetic tree).
+    """
+    waiting = [rid for rid in labels if rid not in live]
+    if not waiting:
+        return [], []
+    then = None
+    if commit and in_git_repo(Path(root)):
+        try:
+            rev = resolve_base(Path(root), commit)
+        except BaseUnreadableError:
+            return [], [
+                f"{LABELS}: {len(waiting)} label(s) for rows no release "
+                f"measures, and {newest}'s commit `{commit}` cannot be "
+                "read to tell new from dead: fetch the full history"
+            ]
+        text = show_at(Path(root), rev, LABELS)
+        then = set(_toml.loads(text)) if text else set()
+    pending, dead = [], []
+    for rid in waiting:
+        if then is not None and rid not in then:
+            pending.append(rid)
+        else:
+            dead.append(
+                f"{LABELS}: `{rid}` is no live row -- {newest} was measured "
+                "with this label and recorded no such row: remove the "
+                "label, or correct its ID"
+            )
+    return pending, dead
+
+
+def fix_labels(root: str = ".") -> list:
+    """Delete every line the label gate only wants deleted; say which.
+
+    A ``legacy-units.toml`` entry whose row now records its own unit, or is
+    no longer published, and a ``.labels-exempt`` line whose row is
+    labelled or no longer published. The legacy file goes once it holds no
+    entry -- the first release measured after #2314 empties it. Labels are
+    never touched: a dead one may be a new row's mistyped ID, which needs a
+    person.
+    """
+    data = page_data(root)
+    live = {r["id"] for r in data["rows"]}
+    labels = read_labels(root)
+    done = []
+    stale = set(data.get("_stale_legacy", []))
+    path = os.path.join(root, LEGACY_UNITS)
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines(keepends=True)
+        keep, entries = [], 0
+        for ln in lines:
+            m = re.match(r'^"([^"]+)"\s*=', ln)
+            if m and (m.group(1) in stale or m.group(1) not in live):
+                done.append(f"{LEGACY_UNITS}: removed `{m.group(1)}`")
+                continue
+            entries += bool(m)
+            keep.append(ln)
+        if not entries:
+            os.remove(path)
+            done.append(f"{LEGACY_UNITS}: no entry left, deleted the file")
+        elif len(keep) != len(lines):
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(keep)
+    path = os.path.join(root, LABELS_EXEMPT)
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines(keepends=True)
+        keep = []
+        for ln in lines:
+            rid = ln.strip()
+            if (
+                rid
+                and not rid.startswith("#")
+                and (rid in labels or rid not in live)
+            ):
+                done.append(f"{LABELS_EXEMPT}: removed `{rid}`")
+                continue
+            keep.append(ln)
+        if len(keep) != len(lines):
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(keep)
+    return done
 
 
 #: Rate suffixes per domain, as the page prints them.
@@ -1419,7 +1523,11 @@ def render_page(root: str = ".") -> str:
         " `make bench-python` (Python) reports it as.",
         "",
     ]
-    blob = {k: v for k, v in data.items() if k != "problems"}
+    blob = {
+        k: v
+        for k, v in data.items()
+        if k != "problems" and not k.startswith("_")
+    }
     payload = json.dumps(blob, separators=(",", ":"), sort_keys=True)
     # `</` cannot appear inside a <script> element, and JSON allows `\/`.
     payload = payload.replace("</", "<\\/")
@@ -1614,7 +1722,17 @@ def main() -> int:
         help="stamp THIS machine's latest run into published/",
     )
     p.add_argument("--build", choices=BUILDS, default="portable")
+    p.add_argument(
+        "--fix-labels",
+        action="store_true",
+        help="delete the legacy-unit and exempt lines the label gate "
+        "only wants deleted",
+    )
     a = p.parse_args()
+    if a.fix_labels:
+        for line in fix_labels(".") or ["nothing to delete"]:
+            print(f"bench-labels-fix: {line}")
+        return 0
     if a.publish:
         return cmd_publish(a.publish, a.build)
     if a.check_labels:
@@ -1622,7 +1740,24 @@ def main() -> int:
         for b in bad:
             print(f"bench-labels: {b}")
         if not bad:
-            print("bench-labels: every published row is labelled or exempt")
+            data = page_data(".")
+            v = data["versions"][-1] if data["versions"] else None
+            pending, _ = unpublished_labels(
+                ".",
+                read_labels("."),
+                {r["id"] for r in data["rows"]},
+                v,
+                (data["meta"].get(v) or {}).get("commit"),
+            )
+            print(
+                "bench-labels: every published row is labelled or exempt"
+                + (
+                    f"; {len(pending)} label(s) wait for the first release"
+                    " that measures their row"
+                    if pending
+                    else ""
+                )
+            )
         return 1 if bad else 0
     if a.page:
         return cmd_page(a.out, check=a.check)

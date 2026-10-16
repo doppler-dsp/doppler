@@ -1807,6 +1807,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 release-smoke-packages \
                 bench-python \
                 bench-preflight bench-interleaved bench-publish bench-docs \
+                bench-labels-fix \
                 bench-stream bench-report bench-restamp \
                 docker-runtime docker-sdk docker-downstream docker-stream \
                 docker-examples smoke-image
@@ -4858,6 +4859,14 @@ endif
 
 bench-docs: ## Render docs/benchmarks.md from the published numbers
 	$(UV) run python scripts/bench_report.py --page --out docs/benchmarks.md
+
+# The label gate's housekeeping (#2372): delete the legacy-units entries and
+# exempt lines it refuses only because they are no longer needed -- a row
+# that records its own unit now, is labelled now, or is retired. A release
+# measured after #2314 records every C row's unit, so its PR runs this once
+# and benchmarks/legacy-units.toml goes. Labels are never touched.
+bench-labels-fix: ## Delete the legacy-unit and exempt lines the label gate refuses
+	$(UV) run python scripts/bench_report.py --fix-labels
 
 # A set measured on a branch that was then squash- or rebase-merged names a
 # commit main never receives, which bench-commits-check refuses (#1322).

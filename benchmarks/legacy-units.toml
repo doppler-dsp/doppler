@@ -10,7 +10,8 @@
 # A RATCHET that empties: an entry whose row now records its own unit in
 # the newest release fails the label gate (`make lint`, bench-coverage-check),
 # and so does one naming a row no longer published. The first release
-# measured after #2314 records every C row's unit, and this file goes.
+# measured after #2314 records every C row's unit; its PR runs
+# `make bench-labels-fix`, which deletes this file.
 
 "c:HalfbandDecimator::execute[block=1024]" = "sample"
 "c:HalfbandDecimator::execute[block=32768]" = "sample"

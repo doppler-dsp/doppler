@@ -369,3 +369,194 @@ unit = "call"
 definition = "Checking one CCSDS (255,223) codeword's syndromes and nothing else through the Python binding, a receiver's cheap error detector; read in coded bits per second."
 domain = "bit"
 count = 2040
+
+# Rows the tree measures that no release has published yet: v0.73.0 is the
+# first to record them. A label for an unpublished row is pending until
+# then (`make lint` checks it against the commit the newest release was
+# measured at), so a new row is labelled in the PR that adds it.
+
+["c:acq::op2M_U50k_D61_t1_nc1"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 61, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 61 under a 500 Hz/s rate bound, the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op2M_U50k_D61_t4_nc1"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 61, 4 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 61 under a 500 Hz/s rate bound, the roll fanned across 4 threads; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_D154_t1_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_D154_t2_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 2 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 2 threads; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_D154_t4_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 4 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 4 threads; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_D154_t8_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 8 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 8 threads; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U5k_D154_t1_nc1"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 154, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U5k_D154_t4_nc1"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 154, 4 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 4 threads; throughput counts searched input samples."
+samples = 1
+
+["c:psd::frame_linear[nfft=16384]"]
+name = "PSD frame, linear power, 16,384 points"
+unit = "frame"
+definition = "One 16,384-point frame of the PSD kernel (window, FFT, power, the per-bin normalisation, no dB conversion); a frame consumes 16,384 input samples, so it reads in samples per second."
+samples = 16384
+
+["c:psd::frame_linear[nfft=4096]"]
+name = "PSD frame, linear power, 4,096 points"
+unit = "frame"
+definition = "One 4,096-point frame of the PSD kernel (window, FFT, power, the per-bin normalisation, no dB conversion); a frame consumes 4,096 input samples, so it reads in samples per second."
+samples = 4096
+
+["c:spectrogram::direct[nfft=1024,hop=512]"]
+name = "Spectrogram rows by hand, 1,024 points, hop 512"
+unit = "sample"
+definition = "The same dB rows as a 1,024-point, hop-512 spectrogram push, from a hand-written loop over the block with no ring, carry or copy: a measuring stick for the push path, not a library call; per input sample."
+samples = 1
+
+["c:spectrogram::direct[nfft=16384,hop=8192]"]
+name = "Spectrogram rows by hand, 16,384 points, hop 8,192"
+unit = "sample"
+definition = "The same dB rows as a 16,384-point, hop-8,192 spectrogram push, from a hand-written loop over the block with no ring, carry or copy: a measuring stick for the push path, not a library call; per input sample."
+samples = 1
+
+["c:spectrogram::direct[nfft=256,hop=128]"]
+name = "Spectrogram rows by hand, 256 points, hop 128"
+unit = "sample"
+definition = "The same dB rows as a 256-point, hop-128 spectrogram push, from a hand-written loop over the block with no ring, carry or copy: a measuring stick for the push path, not a library call; per input sample."
+samples = 1
+
+["c:spectrogram::direct[nfft=4096,hop=2048]"]
+name = "Spectrogram rows by hand, 4,096 points, hop 2,048"
+unit = "sample"
+definition = "The same dB rows as a 4,096-point, hop-2,048 spectrogram push, from a hand-written loop over the block with no ring, carry or copy: a measuring stick for the push path, not a library call; per input sample."
+samples = 1
+
+["c:spectrogram::direct[nfft=65536,hop=32768]"]
+name = "Spectrogram rows by hand, 65,536 points, hop 32,768"
+unit = "sample"
+definition = "The same dB rows as a 65,536-point, hop-32,768 spectrogram push, from a hand-written loop over the block with no ring, carry or copy: a measuring stick for the push path, not a library call; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=1024,chunk=1024]"]
+name = "Spectrogram push, 1,024 points, hop 1,024, 1,024-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-1,024 streaming spectrogram (dB rows) fed its block 1,024 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=1024,chunk=16384]"]
+name = "Spectrogram push, 1,024 points, hop 1,024, 16,384-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-1,024 streaming spectrogram (dB rows) fed its block 16,384 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=1024,chunk=1]"]
+name = "Spectrogram push, 1,024 points, hop 1,024, 1-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-1,024 streaming spectrogram (dB rows) fed its block 1 sample per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=512,chunk=256]"]
+name = "Spectrogram push, 1,024 points, hop 512, 256-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-512 streaming spectrogram (dB rows) fed its block 256 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=512]"]
+name = "Spectrogram push, 1,024 points, hop 512"
+unit = "sample"
+definition = "A 1,024-point, hop-512 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=64,chunk=1024]"]
+name = "Spectrogram push, 1,024 points, hop 64, 1,024-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-64 streaming spectrogram (dB rows) fed its block 1,024 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=64,chunk=16384]"]
+name = "Spectrogram push, 1,024 points, hop 64, 16,384-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-64 streaming spectrogram (dB rows) fed its block 16,384 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=64,chunk=1]"]
+name = "Spectrogram push, 1,024 points, hop 64, 1-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-64 streaming spectrogram (dB rows) fed its block 1 sample per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=64,chunk=256]"]
+name = "Spectrogram push, 1,024 points, hop 64, 256-sample chunks"
+unit = "sample"
+definition = "A 1,024-point, hop-64 streaming spectrogram (dB rows) fed its block 256 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=1024,hop=64]"]
+name = "Spectrogram push, 1,024 points, hop 64"
+unit = "sample"
+definition = "A 1,024-point, hop-64 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=16384,hop=8192]"]
+name = "Spectrogram push, 16,384 points, hop 8,192"
+unit = "sample"
+definition = "A 16,384-point, hop-8,192 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=256,hop=128,chunk=256]"]
+name = "Spectrogram push, 256 points, hop 128, 256-sample chunks"
+unit = "sample"
+definition = "A 256-point, hop-128 streaming spectrogram (dB rows) fed its block 256 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=256,hop=128]"]
+name = "Spectrogram push, 256 points, hop 128"
+unit = "sample"
+definition = "A 256-point, hop-128 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=4096,hop=2048,chunk=256]"]
+name = "Spectrogram push, 4,096 points, hop 2,048, 256-sample chunks"
+unit = "sample"
+definition = "A 4,096-point, hop-2,048 streaming spectrogram (dB rows) fed its block 256 samples per push, as a socket or pull source delivers it; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=4096,hop=2048]"]
+name = "Spectrogram push, 4,096 points, hop 2,048"
+unit = "sample"
+definition = "A 4,096-point, hop-2,048 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1
+
+["c:spectrogram::push[nfft=65536,hop=32768]"]
+name = "Spectrogram push, 65,536 points, hop 32,768"
+unit = "sample"
+definition = "A 65,536-point, hop-32,768 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
+samples = 1

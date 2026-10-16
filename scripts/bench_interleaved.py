@@ -93,9 +93,18 @@ def bench_args_set(environ=None) -> str:
 
 
 #: What a release's bench run leaves in the clone it ran from: the snapshot
-#: (untracked until its PR merges) and the page `make bench-docs` renders
-#: from it (tracked, so left modified). Paths are relative to the root.
-BENCH_OUTPUTS = ("benchmarks/published", "docs/benchmarks.md")
+#: (untracked until its PR merges), the page `make bench-docs` renders from
+#: it, and the label files `make bench-labels-fix` and a new row's label
+#: change for it (tracked, so left modified; legacy-units.toml is deleted
+#: by the first release that records every C row's unit). Paths are
+#: relative to the root.
+BENCH_OUTPUTS = (
+    "benchmarks/published",
+    "docs/benchmarks.md",
+    "benchmarks/labels.toml",
+    "benchmarks/.labels-exempt",
+    "benchmarks/legacy-units.toml",
+)
 
 
 def _unit(path: str) -> str:

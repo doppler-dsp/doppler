@@ -564,6 +564,12 @@ the full suite comes from the *filename* (`conftest.py`'s
 `module::case` label from it). See [Benchmarking](benchmarking.md) for
 the full naming convention.
 
+Give each new row, C and Python, a label in `benchmarks/labels.toml` in
+the same PR: a plain name, its unit and a one-sentence definition, which
+is what [the benchmarks page](../../benchmarks.md) shows. `make lint`
+holds it as pending until a release publishes the row, and refuses a
+published row without one ([Benchmarking](benchmarking.md#the-benchmarks-page-reads-every-row-through-a-label)).
+
 CI commits a snapshot automatically on every push to `main` and on every
 release tag — no manual step required. Run locally when you want an
 immediate result during development:

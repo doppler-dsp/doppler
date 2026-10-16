@@ -497,3 +497,101 @@ def test_the_page_prints_a_python_row_per_call_never_per_round(
         cell == "| [Create](#d1) | 22.88 ns / call | 22.88 ns / call | +0.0% |"
     )
     assert "round" not in cell
+
+
+def _commit(root: Path, msg: str) -> str:
+    _git(root, "add", "-A")
+    _git(
+        root,
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "commit",
+        "--allow-empty",
+        "-qm",
+        msg,
+    )
+    return subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _stamp(root: Path, version: str, commit: str) -> None:
+    """Record `commit` as the one `version` was measured at."""
+    for build in ("portable", "native"):
+        f = root / "benchmarks" / "published" / version / f"{build}.json"
+        data = json.loads(f.read_text(encoding="utf-8"))
+        data["doppler_meta"] = {"commit": commit}
+        f.write_text(json.dumps(data), encoding="utf-8")
+
+
+NEW_LABEL = (
+    '\n["c:costas::steps[new]"]\nname = "New"\nunit = "sample"\n'
+    'definition = "A row no release has published yet."\nsamples = 1\n'
+)
+
+
+def test_a_new_rows_label_waits_for_its_release(tmp_path: Path) -> None:
+    """A row is labelled in the PR that adds it, before a release publishes
+    it (#2373 review): the label is pending while the newest release was
+    measured without it, and dead once a release measured with it records
+    no such row."""
+    rel = {"v0.71.0": [_c("costas::steps", 1e-3, 4096, {"unit": "sample"})]}
+    tree = _tree(tmp_path, rel, LABEL)
+    _git(tree, "init", "-q", "-b", "main")
+    measured = _commit(tree, "v0.71.0 measured here")
+    _stamp(tree, "v0.71.0", measured)
+    (tree / "benchmarks" / "labels.toml").write_text(
+        LABEL + NEW_LABEL, encoding="utf-8"
+    )
+    _commit(tree, "label the new row")
+    br = _load()
+    assert br.label_problems(str(tree)) == []
+    # The next release is measured WITH the label, and has no such row.
+    _stamp(tree, "v0.71.0", _commit(tree, "measured again"))
+    bad = br.label_problems(str(tree))
+    assert any("`c:costas::steps[new]` is no live row" in b for b in bad)
+
+
+def test_the_fixer_deletes_what_the_gate_only_wants_deleted(
+    tmp_path: Path,
+) -> None:
+    """v0.73.0 records every C row's unit, so every legacy-units entry goes
+    stale at once (#2373 review). The gate says which command clears it,
+    and the command deletes those lines -- and the file once it is empty
+    -- plus every exempt line whose row is labelled or retired."""
+    rel = {
+        "v0.73.0": [
+            _c("costas::steps", 1e-3, 4096, {"unit": "sample"}),
+            _c("acc_f32::step", ROUND_S, ITERS, {"unit": "sample"}),
+        ]
+    }
+    tree = _tree(
+        tmp_path,
+        rel,
+        LABEL,
+        exempt=[
+            "# header",
+            "c:costas::steps",
+            "c:gone::row",
+            "c:acc_f32::step",
+        ],
+    )
+    legacy = tree / "benchmarks" / "legacy-units.toml"
+    legacy.write_text(
+        '# header\n"c:costas::steps" = "sample"\n"c:gone::row" = "call"\n',
+        encoding="utf-8",
+    )
+    br = _load()
+    bad = br.label_problems(str(tree))
+    assert "4 of these only need a line deleted" in bad[-1], bad
+    done = br.fix_labels(str(tree))
+    assert len(done) == 5, done
+    assert not legacy.exists()
+    exempt = (tree / "benchmarks" / ".labels-exempt").read_text("utf-8")
+    assert exempt == "# header\nc:acc_f32::step\n"
+    assert br.label_problems(str(tree)) == []

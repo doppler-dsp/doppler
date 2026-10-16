@@ -290,12 +290,11 @@ dll_chip_sign(uint8_t c)
  *
  * The tap's phase is a PHASE WORD: its code phase as a fraction of one
  * period in 32 bits, the code NCO's own unit, already moved to the grid's
- * origin a quarter chip in (dll_tap_base()). The period's wrap is the
- * word's own overflow, and one 32x32->64 multiply by the grid's 2*sf
- * points puts the grid index in the high word and the interpolation weight
- * in the low one: no division, no fmod and no double per tap, which is
- * where the loop's time went when a tap was a chip count in double
- * (doppler#2397).
+ * origin a quarter chip in (dll_tap_base()). nco_word_to_grid() reads it
+ * on the 2*sf-point grid -- the NCO header's grid face, which any table
+ * read at an NCO's phase shares -- so a tap costs no division, no fmod and
+ * no double, which is where the loop's time went when a tap was a chip
+ * count in double (doppler#2397).
  *
  * @param s  DLL state (for the code and period length).
  * @param w  The tap's phase word, from dll_tap_base() plus a tap offset.
@@ -304,12 +303,12 @@ dll_chip_sign(uint8_t c)
 JM_FORCEINLINE float
 dll_replica_word(const dp_dll_state_t *s, uint32_t w)
 {
-    const uint64_t g  = (uint64_t)w * (uint64_t)(2u * s->sf);
-    const size_t   i  = (size_t)(g >> 32); /* grid index, [0, 2*sf) */
-    size_t         c1 = (i + 1) >> 1;      /* the next point's chip */
+    uint32_t     frac;
+    const size_t i  = nco_word_to_grid(w, (uint32_t)(2u * s->sf), &frac);
+    size_t       c1 = (i + 1) >> 1; /* the next point's chip */
     if (c1 == s->sf)
         c1 = 0;
-    const float mu = (float)(uint32_t)g * 0x1p-32f;
+    const float mu = nco_frac_to_weight(frac);
     const float v0 = dll_chip_sign(s->code[i >> 1]);
     const float v1 = dll_chip_sign(s->code[c1]);
     return v0 + mu * (v1 - v0);
@@ -347,24 +346,12 @@ void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t
               double init_chip, double bn, double zeta, double spacing);
 
 /**
- * @brief This sample's prompt tap as a phase word: its dwell CENTER, on the
- *        replica grid's origin.
+ * @brief This sample's prompt tap as a phase word: its dwell CENTER
+ *        (nco_dwell_center(), the zero-order-hold rule), on the replica
+ *        grid's origin.
  *
- * A received sample is a zero-order hold over its dwell interval
- * `[chip_pos, chip_pos + step)`, `step` = one `phase_inc` in chip units
- * (~1/sps). Evaluating the replica taps at the dwell's START (the raw
- * pre-advance `chip_pos`) treats every sample as landing at the very
- * first instant of its hold interval rather than at the interval's
- * continuous-time representative point — this biases the correlation by
- * half a sample's worth of chip phase (0.5/sps chips). Found via a
- * direct symmetry check: the autocorrelation of a real signal must
- * satisfy R(tau) = R(-tau), and the S-curve didn't — it was offset from
- * tau=0 by exactly 0.5/sps, vanishing when taps are evaluated at the
- * dwell midpoint instead. Advancing by half of `phase_inc` gives that
- * midpoint.
- *
- * The result is the NCO's own phase word, so it wraps over the period as
- * the word overflows, less `tap_grid`, the quarter chip that puts it on
+ * The result is the code NCO's own phase word, so it wraps over the period
+ * as the word overflows, less `tap_grid`, the quarter chip that puts it on
  * dll_replica_word()'s grid. Every other tap is this plus a constant word:
  * `tap_spacing` either side for early and late, `tap_off` for the noise
  * tap.
@@ -375,7 +362,7 @@ void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t
 JM_FORCEINLINE uint32_t
 dll_tap_base(const dp_dll_state_t *s)
 {
-    return s->code_nco.phase + (s->code_nco.phase_inc >> 1) - s->tap_grid;
+    return nco_dwell_center(&s->code_nco) - s->tap_grid;
 }
 
 /**

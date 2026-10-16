@@ -177,12 +177,12 @@ dll_chip_sign(uint8_t c)
 JM_FORCEINLINE float
 dll_replica_word(const dp_dll_state_t *s, uint32_t w)
 {
-    const uint64_t g  = (uint64_t)w * (uint64_t)(2u * s->sf);
-    const size_t   i  = (size_t)(g >> 32); /* grid index, [0, 2*sf) */
-    size_t         c1 = (i + 1) >> 1;      /* the next point's chip */
+    uint32_t     frac;
+    const size_t i  = nco_word_to_grid(w, (uint32_t)(2u * s->sf), &frac);
+    size_t       c1 = (i + 1) >> 1; /* the next point's chip */
     if (c1 == s->sf)
         c1 = 0;
-    const float mu = (float)(uint32_t)g * 0x1p-32f;
+    const float mu = nco_frac_to_weight(frac);
     const float v0 = dll_chip_sign(s->code[i >> 1]);
     const float v1 = dll_chip_sign(s->code[c1]);
     return v0 + mu * (v1 - v0);
@@ -201,7 +201,7 @@ void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t
 JM_FORCEINLINE uint32_t
 dll_tap_base(const dp_dll_state_t *s)
 {
-    return s->code_nco.phase + (s->code_nco.phase_inc >> 1) - s->tap_grid;
+    return nco_dwell_center(&s->code_nco) - s->tap_grid;
 }
 
 JM_FORCEINLINE JM_HOT int

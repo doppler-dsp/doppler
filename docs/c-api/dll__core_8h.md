@@ -73,7 +73,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_lock\_accumulate**](#function-dll_lock_accumulate) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, float \_Complex d) <br>_Per-sample offset (noise) tap for the always-on lock detector._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_replica\_word**](#function-dll_replica_word) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, uint32\_t w) <br>_Sub-chip code replica at one tap's phase word._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_steer**](#function-dll_steer) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double ep, double lp, double pp) <br>_The code discriminator, its filter and the NCO steer_  _the ONE steer both correlation paths call (doppler#1280)._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**dll\_tap\_base**](#function-dll_tap_base) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_This sample's prompt tap as a phase word: its dwell CENTER, on the replica grid's origin._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**dll\_tap\_base**](#function-dll_tap_base) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_This sample's prompt tap as a phase word: its dwell CENTER (_ [_**nco\_dwell\_center()**_](nco__core_8h.md#function-nco_dwell_center) _, the zero-order-hold rule), on the replica grid's origin._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_update**](#function-dll_update) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Per-period code discriminator + loop update + NCO steer on the dumped accumulators (the coherent full-epoch path)._  |
 |  int | [**dp\_dll\_configure**](#function-dp_dll_configure) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); keep the code state._  |
 |  int | [**dp\_dll\_configure\_lock**](#function-dp_dll_configure_lock) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double pfa, size\_t n\_looks, double ref\_snr\_db) <br>_Tune the always-on code-lock detector to a target (pfa, n\_looks)._  |
@@ -284,7 +284,7 @@ JM_FORCEINLINE float dll_replica_word (
 The code is treated as held at a fixed 2 samples/chip, sampled at chip-relative positions {0.25, 0.75} (a quarter and three-quarters into each chip) and linearly interpolated at any fractional position — NOT at {0, 0.5}, which would confine the whole linear-interpolation transition zone to one side of each chip boundary (found during the initial port: a real bug, not a cosmetic asymmetry — it broke E/L symmetry around P badly enough to leave a large discriminator offset at perfect lock). Quarter/three-quarter placement centers the transition zone symmetrically on each boundary (spanning `[chip-0.25, chip+0.25)`), and both quarter-chip flat regions are pure `sign(code[chip])` (no table is materialised — the 2x-oversampled index converts straight back to a chip index via `>> 1`, same as an unshifted grid would, only the phase origin moves). A point-sample interpolation, not a dwell-width-aware blend: this replaces the earlier exact matched-filter integral (which varied its blend width with the sample's chip-phase dwell time) with the simpler, validated design from `docs/design/async-dsss-receiver.md` §3.6 — the dwell-integral model was mathematically fancier but did not, on its own, fix the long-run false-lock that motivated this redesign; this one does.
 
 
-The tap's phase is a PHASE WORD: its code phase as a fraction of one period in 32 bits, the code NCO's own unit, already moved to the grid's origin a quarter chip in ([**dll\_tap\_base()**](dll__core_8h.md#function-dll_tap_base)). The period's wrap is the word's own overflow, and one 32x32-&gt;64 multiply by the grid's 2\*sf points puts the grid index in the high word and the interpolation weight in the low one: no division, no fmod and no double per tap, which is where the loop's time went when a tap was a chip count in double (doppler#2397).
+The tap's phase is a PHASE WORD: its code phase as a fraction of one period in 32 bits, the code NCO's own unit, already moved to the grid's origin a quarter chip in ([**dll\_tap\_base()**](dll__core_8h.md#function-dll_tap_base)). [**nco\_word\_to\_grid()**](nco__core_8h.md#function-nco_word_to_grid) reads it on the 2\*sf-point grid  the NCO header's grid face, which any table read at an NCO's phase shares  so a tap costs no division, no fmod and no double, which is where the loop's time went when a tap was a chip count in double (doppler#2397).
 
 
 
@@ -355,7 +355,7 @@ The NCO free-runs at its own nominal rate (`1/tsamps` cycles/sample, set once in
 
 ### function dll\_tap\_base 
 
-_This sample's prompt tap as a phase word: its dwell CENTER, on the replica grid's origin._ 
+_This sample's prompt tap as a phase word: its dwell CENTER (_ [_**nco\_dwell\_center()**_](nco__core_8h.md#function-nco_dwell_center) _, the zero-order-hold rule), on the replica grid's origin._
 ```C++
 JM_FORCEINLINE uint32_t dll_tap_base (
     const dp_dll_state_t * s
@@ -364,10 +364,7 @@ JM_FORCEINLINE uint32_t dll_tap_base (
 
 
 
-A received sample is a zero-order hold over its dwell interval `[chip_pos, chip_pos + step)`, `step` = one `phase_inc` in chip units (~1/sps). Evaluating the replica taps at the dwell's START (the raw pre-advance `chip_pos`) treats every sample as landing at the very first instant of its hold interval rather than at the interval's continuous-time representative point — this biases the correlation by half a sample's worth of chip phase (0.5/sps chips). Found via a direct symmetry check: the autocorrelation of a real signal must satisfy R(tau) = R(-tau), and the S-curve didn't — it was offset from tau=0 by exactly 0.5/sps, vanishing when taps are evaluated at the dwell midpoint instead. Advancing by half of `phase_inc` gives that midpoint.
-
-
-The result is the NCO's own phase word, so it wraps over the period as the word overflows, less `tap_grid`, the quarter chip that puts it on [**dll\_replica\_word()**](dll__core_8h.md#function-dll_replica_word)'s grid. Every other tap is this plus a constant word: `tap_spacing` either side for early and late, `tap_off` for the noise tap.
+The result is the code NCO's own phase word, so it wraps over the period as the word overflows, less `tap_grid`, the quarter chip that puts it on [**dll\_replica\_word()**](dll__core_8h.md#function-dll_replica_word)'s grid. Every other tap is this plus a constant word: `tap_spacing` either side for early and late, `tap_off` for the noise tap.
 
 
 

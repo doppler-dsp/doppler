@@ -1863,6 +1863,8 @@
 ## n
 
 * **nco\_add\_ovf\_** ([**nco\_core.h**](nco__core_8h.md))
+* **nco\_dwell\_center** ([**nco\_core.h**](nco__core_8h.md))
+* **nco\_frac\_to\_weight** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_norm\_fold\_** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_norm\_freq\_to\_inc** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_norm\_phase\_to\_word** ([**nco\_core.h**](nco__core_8h.md))
@@ -1875,6 +1877,7 @@
 * **nco\_step\_u32\_ovf\_ctrl** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_step\_u32\_scaled** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_step\_u32\_scaled\_ctrl** ([**nco\_core.h**](nco__core_8h.md))
+* **nco\_word\_to\_grid** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_word\_to\_norm** ([**nco\_core.h**](nco__core_8h.md))
 
 

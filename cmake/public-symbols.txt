@@ -1784,6 +1784,8 @@ mpsk_rx_steer function
 mpsk_rx_take_output function
 mpsk_rx_updates_per_symbol function
 mpsk_slice function
+nco_dwell_center function
+nco_frac_to_weight function
 nco_norm_fold_ function
 nco_norm_freq_to_inc function
 nco_norm_phase_to_word function
@@ -1796,6 +1798,7 @@ nco_step_u32_ovf function
 nco_step_u32_ovf_ctrl function
 nco_step_u32_scaled function
 nco_step_u32_scaled_ctrl function
+nco_word_to_grid function
 nco_word_to_norm function
 pn_fits_register function
 pn_mls_poly function

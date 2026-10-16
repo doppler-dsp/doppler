@@ -220,6 +220,11 @@ RUN_VALUED_UNLISTED = frozenset(
         "--config-settings",
     }
 )
+#: The uv RUN_VALUED_UNLISTED was read from. The help cannot show a new
+#: hidden option, so a test fails once the uv pin moves past this: re-read
+#: the new uv's crates/uv-cli/src/lib.rs for hidden options and aliases that
+#: take a value, update the set, then this version.
+RUN_VALUED_UNLISTED_UV = "0.12.24"
 _VALUED = RUN_VALUED | RUN_VALUED_UNLISTED
 
 

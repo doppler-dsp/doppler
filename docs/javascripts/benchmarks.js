@@ -136,9 +136,11 @@
     return '<svg viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="none"' +
       ' role="img" aria-label="speed across releases">' + out + "</svg>";
   }
-  function bigChart(r, V, tip) {
+  // W is the width the chart is shown at, so its 10px text stays 10px:
+  // a fixed 640-wide viewBox shrank it to about 5px on a phone.
+  function bigChart(r, V, tip, W) {
     const NV = V.length, LAST = NV - 1;
-    const W = 640, H = 240, L = 72, R = 12, T = 14, B = 34;
+    const H = 240, L = 72, R = 12, T = 14, B = 34;
     const conv = (s) => (s == null ? null : r.dom ? r.cnt / s : s * r.cnt);
     const P = r.p.map(conv), N = r.n.map(conv);
     const all = P.concat(N).filter((v) => v != null);
@@ -176,7 +178,7 @@
         '" y2="' + yy + '"/><text class="dpb-axis" x="' + (L - 6) + '" y="' +
         (+yy + 4) + '" text-anchor="end">' + esc(lab(v)) + "</text>";
     }
-    const step = Math.ceil(NV / 8);
+    const step = Math.ceil(NV / Math.max(2, Math.floor((W - L) / 70)));
     // Regular ticks stop short of the last release, whose label is drawn
     // on its own and would otherwise overprint the tick before it.
     for (let i = 0; i <= LAST - step; i += step) {
@@ -218,7 +220,11 @@
           (P[i] == null ? "—" : esc(lab(P[i]))) +
           '<br><span class="dpb-k-n">native</span> ' + (N[i] == null ? "—" : esc(lab(N[i])));
         tip.hidden = false;
-        tip.style.left = ev.pageX + 12 + "px";
+        // Kept inside the viewport: near the right edge it flips left.
+        const room = window.scrollX + document.documentElement.clientWidth;
+        const left = ev.pageX + 12 + tip.offsetWidth > room - 8
+          ? ev.pageX - 12 - tip.offsetWidth : ev.pageX + 12;
+        tip.style.left = Math.max(window.scrollX + 4, left) + "px";
         tip.style.top = ev.pageY + 12 + "px";
       });
       hit.addEventListener("mouseleave", () => {
@@ -357,7 +363,11 @@
         '</td><td class="dpb-trend">' + spark(r, NV, 132, 28) + "</td></tr>";
     }
     function detailHTML(r) {
-      const c = bigChart(r, V, tip);
+      // Stacked (narrow) panels give the chart the box's width; side by
+      // side it keeps 640.
+      const avail = box.clientWidth - 40;
+      const c = bigChart(r, V, tip,
+        Math.round(avail < 900 ? Math.max(300, Math.min(640, avail)) : 640));
       const first = r.p.findIndex((v) => v != null);
       const lab = labels[r.id];
       const repro = r.k === "c"
@@ -503,7 +513,16 @@
       });
     }
     syncPresets(); renderCards(); render();
+    // The open panel's width and the chart's are measured when drawn, so
+    // a rotate or a resize redraws it.
+    onResize = () => { if (state.open) render(); };
   }
+
+  let onResize = null, resizeTimer = 0;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (onResize) onResize(); }, 150);
+  });
 
   // Material's instant navigation swaps pages without a reload; document$
   // fires on every page it shows, including the first.

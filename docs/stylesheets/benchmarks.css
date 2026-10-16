@@ -239,7 +239,7 @@
   position: absolute;
   z-index: 10;
   pointer-events: none;
-  white-space: nowrap;
+  max-width: min(18rem, calc(100vw - 1rem));
   font-size: 0.65rem;
   padding: 0.3rem 0.45rem;
   color: var(--md-default-fg-color);

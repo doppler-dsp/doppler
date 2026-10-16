@@ -107,9 +107,44 @@ CMAKE       := cmake
 # Defaults to the uv-managed venv Python so the extension suffix always
 # matches the active interpreter.  Override on the command line:
 #   make pyext PYTHON_EXECUTABLE=/usr/bin/python3.13
-PYTHON_EXECUTABLE ?= $(shell uv run python -c \
-    'import sys; print(sys.executable)' 2>/dev/null || which python3)
-PYTHON_EXECUTABLE := $(or $(JUST_BUILDIT_PYTHON),$(PYTHON_EXECUTABLE))
+#
+# Who decides, in order (#2364):
+#   1. JUST_BUILDIT_PYTHON (just-buildit's wheel build), or a
+#      PYTHON_EXECUTABLE given on the command line or in the environment.
+#   2. uv is not installed at all: `python3` from PATH. This is the fallback
+#      the old `|| which python3` was for -- a box provisioned without uv.
+#   3. uv's venv interpreter.
+#   4. uv IS installed but refuses (most often: not the version pinned in
+#      pyproject.toml): EMPTY, with uv's reason in _PY_ERROR, and every
+#      target that builds for or runs the interpreter fails through
+#      `python-executable-check` (below). It used to fall through to case 2
+#      silently, so `pyext` built for the system Python -- the stale-.so
+#      mismatch CLAUDE.md warns about -- and nothing said so.
+#
+# `$(or $(UV),uv)` because `UV = uv` is defined further down, under Tooling,
+# and this block is expanded NOW; a `UV=` on the command line is already
+# set, and otherwise the value is the same `uv` the Tooling line assigns.
+# Not a `$(error)`: standard.mk's _std_require expands PYEXT_CMD and
+# COVERAGE_CMD at parse time, so an error there would stop `make lint` and
+# every other target on the same box, not just the ones that need Python.
+_PY_UV := $(or $(UV),uv)
+ifneq ($(JUST_BUILDIT_PYTHON),)
+PYTHON_EXECUTABLE := $(JUST_BUILDIT_PYTHON)
+else ifeq ($(origin PYTHON_EXECUTABLE),undefined)
+ifeq ($(shell command -v $(_PY_UV) 2>/dev/null),)
+PYTHON_EXECUTABLE := $(shell command -v python3 2>/dev/null)
+else
+_PY_PROBE := $(shell out=$$($(_PY_UV) run python -c \
+    'import sys; print(sys.executable)' 2>/dev/null) && echo "ok $$out")
+ifeq ($(firstword $(_PY_PROBE)),ok)
+PYTHON_EXECUTABLE := $(wordlist 2,$(words $(_PY_PROBE)),$(_PY_PROBE))
+else
+PYTHON_EXECUTABLE :=
+_PY_ERROR := $(or $(shell $(_PY_UV) run python -c pass 2>&1 >/dev/null \
+    | head -n 1),`$(_PY_UV) run python` failed)
+endif
+endif
+endif
 
 # $(call CONTAINER_CHECKOUT,<build dir>) -- the `docker run` flags for "this
 # checkout, bind-mounted read-write at /w, worked on by a `make` inside".
@@ -914,9 +949,13 @@ nats-vendor-fresh-check: ## Prove the vendored nats.c keeps its options after a 
 CCACHE_BIN   := $(shell command -v ccache 2>/dev/null)
 CCACHE_FLAGS := $(if $(CCACHE_BIN),-DCMAKE_C_COMPILER_LAUNCHER=ccache,)
 
-CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-              -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) $(CCACHE_FLAGS) \
-              $(CMAKE_ARGS)
+# Only when there is one (#2364): an empty -DPython3_EXECUTABLE= would make
+# CMake search PATH and pick the system Python silently, which is the very
+# swap this guards against. Absent, a configured tree keeps its cached one.
+PY_CMAKE_FLAG = $(if $(PYTHON_EXECUTABLE),\
+                    -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE))
+CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON $(PY_CMAKE_FLAG) \
+              $(CCACHE_FLAGS) $(CMAKE_ARGS)
 
 # `CMAKE_FLAGS` reaches the CONFIGURE step only, and the standard's `build`
 # ends with a bare `cmake --build $(BUILD_DIR)` — so there is no flag surface
@@ -970,6 +1009,25 @@ $(CMAKE) -B $(BUILD_DIR) -S . -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 $(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
 uv sync $(UV_SYNC_FLAGS)
 endef
+
+# Every target that builds for, or runs, PYTHON_EXECUTABLE goes through this
+# first, so a uv that refuses fails THEM, loudly, instead of quietly building
+# for the system Python (#2364). Targets that need no interpreter -- lint, the
+# C suite -- are untouched.
+# uv's reason is quoted with single quotes (it carries backticks), so any
+# single quote inside it is closed, escaped and reopened.
+_PY_ERROR_Q = '$(subst ','\'',$(_PY_ERROR))'
+python-executable-check: ## Fail when there is no interpreter to build for
+	@if [ -n $(_PY_ERROR_Q) ]; then \
+	  echo "python-executable-check: $(_PY_UV) run python failed, so there"; \
+	  echo "  is no venv interpreter to build for:"; \
+	  printf '    %s\n' $(_PY_ERROR_Q); \
+	  echo "  Fix uv (or pass UV=<the pinned uv>), or name one with"; \
+	  echo "  PYTHON_EXECUTABLE=<python>. Not falling back to python3: that"; \
+	  echo "  builds the extension for the wrong interpreter (#2364)."; \
+	  exit 1; \
+	fi
+pyext coverage warnings-check: python-executable-check
 
 # `wheel` used to be a .PHONY with no rule: advertised in help, exiting 0 with
 # no wheel produced. This is what it should always have been.
@@ -1210,7 +1268,9 @@ COV_GUARD     ?= $(MEM_GUARD_CMD)
 # so the two suites' escape hatches read the same. The measurement that
 # justifies it is at the ctest call site below. `COV_SWEEP=1` restores them.
 COV_EXCLUDE_SWEEP = $(if $(COV_SWEEP),,-LE sweep)
-export MEM_GUARD_PYTHON ?= $(PYTHON_EXECUTABLE)
+# Only the memory probe's interpreter, so it need not be the venv's: when uv
+# refuses (#2364) the probe still runs on python3.
+export MEM_GUARD_PYTHON ?= $(or $(PYTHON_EXECUTABLE),python3)
 # Excluded from the report: vendored code, jm-generated binding aggregators
 # (`<mod>_ext.c`) and per-object fragments, and the test/bench/validation
 # harnesses — only first-party _core.c counts.
@@ -1636,7 +1696,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 jm-apply jm-apply-downstream jm-adopt \
                 jm-upgrade changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
-                gen-c-api-check \
+                gen-c-api-check python-executable-check \
                 gen-c-api-run \
                 package-c package-c-tarball package-c-smoke vcpkg-smoke \
                 package-deb package-rpm package-linux package-linux-smoke \

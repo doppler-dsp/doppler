@@ -1864,5 +1864,36 @@ main (void)
   DP_CHECK (coast_order_resumes_exact (1) == 0);
   DP_CHECK (coast_order_resumes_exact (2) == 0);
 
+  /* dp_fmod_pos stays in [0, m) (doppler#2110). A negative remainder within
+     half an ulp of zero rounded r + m up to exactly m, and dll_replica, which
+     indexes the code with the fold of 2c - 0.5 over 2*sf, then read
+     code[sf], one past the copy. The issue's worked case is sf = 31: the
+     early tap at a spacing of 0.25 - 2^-55 from a dwell centre at chip 0
+     gives -2^-54. The fold of such a sliver is 0, its equal on the circle;
+     the ordinary negative fold and an exact multiple are unchanged. */
+  /* Run-time inputs: a constant argument is folded at compile time, and
+     the folded answer was right while the -O3 -ffast-math code was not.
+     Both period shapes are pinned. With a CONSTANT period gcc rewrote
+     `r + m < m` as `r < 0` and returned 62 (callers folding a phase over a
+     fixed period); dll_replica's period, 2*sf, is a run-time value. */
+  {
+    volatile double sliver = -0x1p-54, tap = 2.0 * (0.25 - 0x1p-55) - 0.5;
+    volatile double neg1 = -1.0, negm = -62.0, wrap = 124.5, nan_in = NAN;
+    volatile double m = 62.0;
+    DP_CHECK (dp_fmod_pos (sliver, 62.0) < 62.0);
+    DP_CHECK (dp_fmod_pos (sliver, 62.0) == 0.0);
+    DP_CHECK (dp_fmod_pos (tap, 62.0) < 62.0);
+    DP_CHECK (isnan (dp_fmod_pos (nan_in, 62.0)));
+    DP_CHECK (dp_fmod_pos (sliver, m) < 62.0);
+    DP_CHECK (dp_fmod_pos (sliver, m) == 0.0);
+    DP_CHECK (dp_fmod_pos (tap, m) < 62.0);
+    DP_CHECK (dp_fmod_pos (neg1, m) == 61.0);
+    DP_CHECK (dp_fmod_pos (negm, m) == 0.0);
+    DP_CHECK (dp_fmod_pos (wrap, m) == 0.5);
+    /* A NaN stays NaN, visible, rather than becoming the plausible phase
+       0. */
+    DP_CHECK (isnan (dp_fmod_pos (nan_in, m)));
+  }
+
   DP_TEST_END ("test_dll_core");
 }

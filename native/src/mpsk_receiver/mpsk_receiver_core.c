@@ -282,19 +282,21 @@ dp_mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   if (rc != DP_OK)
     return rc;
 
-  dp_reader_t r    = dp_reader_init (blob, total);
-  r.off            = sizeof (dp_state_hdr_t);
-  l->freq_ctrl     = dp_r_f64 (&r);
-  l->car_error     = dp_r_f64 (&r);
-  l->lock          = dp_r_f64 (&r);
-  l->sym_count     = (size_t)dp_r_u64 (&r);
-  uint64_t flags   = dp_r_u64 (&r);
-  l->prev_idx      = (unsigned)dp_r_u64 (&r);
-  l->lock_time     = (int64_t)dp_r_u64 (&r);
-  l->have_prev_idx = (flags & 1u) ? 1 : 0;
-
-  l->car_lock.cnt    = dp_r_u32 (&r);
-  l->car_lock.locked = (int)dp_r_u32 (&r);
+  /* DECODE the loops' own fields, restore both CHILDREN, then COMMIT the
+     fields, so a refused child never leaves them holding the blob's values
+     (doppler#2104). A carrier-filter refusal after the timing loop took its
+     part is the two-child case #2104's transaction covers. */
+  dp_reader_t r             = dp_reader_init (blob, total);
+  r.off                     = sizeof (dp_state_hdr_t);
+  const double   freq_ctrl  = dp_r_f64 (&r);
+  const double   car_error  = dp_r_f64 (&r);
+  const double   lock       = dp_r_f64 (&r);
+  const size_t   sym_count  = (size_t)dp_r_u64 (&r);
+  const uint64_t flags      = dp_r_u64 (&r);
+  const unsigned prev_idx   = (unsigned)dp_r_u64 (&r);
+  const int64_t  lock_time  = (int64_t)dp_r_u64 (&r);
+  const uint32_t car_cnt    = dp_r_u32 (&r);
+  const int      car_locked = (int)dp_r_u32 (&r);
 
   const char *p = (const char *)blob + r.off;
   rc            = dp_ratesync_loop_set_state (&l->timing, p);
@@ -304,6 +306,16 @@ dp_mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   rc = dp_loop_filter_set_state (&l->car_lf, p);
   if (rc != DP_OK)
     return rc;
+
+  l->freq_ctrl       = freq_ctrl;
+  l->car_error       = car_error;
+  l->lock            = lock;
+  l->sym_count       = sym_count;
+  l->prev_idx        = prev_idx;
+  l->lock_time       = lock_time;
+  l->have_prev_idx   = (flags & 1u) ? 1 : 0;
+  l->car_lock.cnt    = car_cnt;
+  l->car_lock.locked = car_locked;
   return DP_OK;
 }
 

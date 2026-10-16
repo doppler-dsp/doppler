@@ -98,10 +98,6 @@ adr_handover_phase (const dp_async_dsss_receiver_state_t *state,
           = (double)samples_consumed_refine / (double)state->spc;
       phase = dp_fmod_pos (phase + dilation * chips_elapsed,
                            (double)state->code_len);
-      /* dp_fmod_pos can return exactly code_len for a value a hair under it:
-         that is the phase zero, not an out-of-code phase to refuse. */
-      if (phase == (double)state->code_len)
-        phase = 0.0;
     }
   return phase;
 }

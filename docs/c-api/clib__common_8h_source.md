@@ -54,6 +54,12 @@
   (-9) 
 #define DP_ERR_EOF                                                            \
   (-10) 
+#if defined(__GNUC__) || defined(__clang__)
+#define DP_NODISCARD __attribute__ ((warn_unused_result))
+#else
+#define DP_NODISCARD
+#endif
+
 #include "doppler/jm_perf.h"
 
 /* ------------------------------------------------------------------ */
@@ -114,7 +120,10 @@ JM_FORCEINLINE double
 dp_fmod_pos (double x, double m)
 {
   double r = fmod (x, m);
-  return r < 0.0 ? r + m : r;
+  if (r >= 0.0)
+    return r;
+  double y = r + m;
+  return y >= m ? 0.0 : y;
 }
 
 double dp_lgamma (double x);

@@ -9,7 +9,7 @@ depends_on = [{ name = "loop_filter", link = true }]
 serializable = "true"
 fragment = "generated"
 create_error = "ValueError"
-create_error_message = "BurstDespreader: invalid parameter (need a code of at least sf chips, sf >= 1, sps >= 2, and a finite init_norm_freq and init_chip_phase)"
+create_error_message = "BurstDespreader: invalid parameter (need a code of at least sf chips, sf >= 1, sps >= 2, a finite init_norm_freq and init_chip_phase, and bn_carrier and bn_code within the loop filter's domain: finite, >= 0, and gains that do not overflow)"
 
 [[burst_despreader.init_params]]
 name = "code"
@@ -82,11 +82,19 @@ return_type = "void"
 name = "bn_carrier"
 type = "double"
 writable = true
+# The setter refuses outside the loop filter's domain and keeps the
+# bandwidth (#2071); jm raises on its non-zero return (just-makeit#2182).
+error = "ValueError"
+error_message = "BurstDespreader: bn_carrier is outside the loop filter's domain (finite, >= 0, and gains that do not overflow)"
 
 [[burst_despreader.properties]]
 name = "bn_code"
 type = "double"
 writable = true
+# The setter refuses outside the loop filter's domain and keeps the
+# bandwidth (#2071); jm raises on its non-zero return (just-makeit#2182).
+error = "ValueError"
+error_message = "BurstDespreader: bn_code is outside the loop filter's domain (finite, >= 0, and gains that do not overflow)"
 
 [[burst_despreader.properties]]
 name = "norm_freq"

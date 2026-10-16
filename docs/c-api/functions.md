@@ -1490,6 +1490,7 @@
 * **dp\_spectrogram\_set\_state** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **dp\_spectrogram\_state\_bytes** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **dp\_tlm\_sink\_close** ([**tlm\_sink.h**](tlm__sink_8h.md))
+* **dp\_tlm\_sink\_lost** ([**tlm\_sink.h**](tlm__sink_8h.md))
 * **dp\_tlm\_sink\_open** ([**tlm\_sink.h**](tlm__sink_8h.md))
 * **dp\_tlm\_sink\_pump** ([**tlm\_sink.h**](tlm__sink_8h.md))
 * **dp\_tlm\_sink\_sent** ([**tlm\_sink.h**](tlm__sink_8h.md))

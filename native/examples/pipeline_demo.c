@@ -89,6 +89,8 @@ DP_THREAD_FN (producer_thread, arg)
 
   printf ("Producer: done.\n");
   free (samples);
+  /* No drain needed: a Push send returns only once the server has stored
+     the frame (a JetStream publish), so there is no tail to lose. */
   dp_push_destroy (ctx);
   DP_THREAD_RETURN;
 }

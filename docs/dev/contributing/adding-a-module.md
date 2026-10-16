@@ -566,9 +566,11 @@ the full naming convention.
 
 Give each new row, C and Python, a label in `benchmarks/labels.toml` in
 the same PR: a plain name, its unit and a one-sentence definition, which
-is what [the benchmarks page](../../benchmarks.md) shows. `make lint`
-holds it as pending until a release publishes the row, and refuses a
-published row without one ([Benchmarking](benchmarking.md#the-benchmarks-page-reads-every-row-through-a-label)).
+is what [the benchmarks page](../../benchmarks.md) shows. Nothing checks
+this at PR time yet ([#2390](https://github.com/doppler-dsp/doppler/issues/2390)):
+`make lint` sees only rows a release has published, so a missing or
+mistyped label surfaces when the next release is measured
+([Benchmarking](benchmarking.md#the-benchmarks-page-reads-every-row-through-a-label)).
 
 CI commits a snapshot automatically on every push to `main` and on every
 release tag — no manual step required. Run locally when you want an

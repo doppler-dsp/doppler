@@ -468,6 +468,13 @@ label for a row no release has published yet is held as pending -- the
 gate checks it was added after the newest release was measured -- and
 the release that first measures the row makes it live.
 
+**Nothing checks a PR's own rows yet.** The gate sees only the rows a
+release has published, so a new row with no label, a unit change that
+contradicts its label, or a pending label with a mistyped ID surfaces at
+the next release's `make bench-docs`, not in the PR. A PR-time check
+needs each row's name and unit without timing it; that is
+[#2390](https://github.com/doppler-dsp/doppler/issues/2390).
+
 ______________________________________________________________________
 
 ## Saving history — when and how

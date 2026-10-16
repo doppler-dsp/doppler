@@ -37,14 +37,16 @@
 # outlasted the whole 75 s window in every leg logged so far. So that
 # message stops the retries at once, and the image is pulled from
 # STOCK_MIRROR instead, as is one whose retries ran out: the same Docker
-# Official Image under the same tag, which a mirror serves at the same
-# digest. It is then tagged with the primary's name, so the `docker run
-# --pull=never` and the FROM that name it find it in the local store. A
-# permanent failure is not sent to the mirror: a tag the primary does not
-# have is a typo, not an outage.
+# Official Image under the same tag (the index digests of every tag doppler
+# pulls matched on both on 2026-10-16; a tag can move on either). It is then
+# tagged with the primary's name, so the `docker run --pull=never` and the
+# FROM that name it find it in the local store. A permanent failure is not
+# sent to the mirror: a tag the primary does not have is a typo, not an
+# outage. Only an image named under STOCK_REGISTRY has a mirror.
 #
-# Each pull prints the image's size as docker reports it: under a volume
-# quota, the biggest pullers are the number to read.
+# Each pull prints the image's size as docker reports it, an upper bound on
+# the bytes it pulled: under a volume quota, the biggest pullers are the
+# number to read.
 #
 #   STOCK_MIRROR          the fallback registry; the Makefile sets it. Unset,
 #                         there is none.
@@ -107,11 +109,17 @@ try_pull() {
         if out="$("$docker" pull --quiet "$ref" 2>&1)"; then
             return 0
         fi
+        # The quota first: its wording need not carry a code transient()
+        # knows, and it is what the mirror is for.
+        if quota "$out"; then
+            printf '%s\n' "$out" >&2
+            return 3
+        fi
         if ! transient "$out"; then
             printf '%s\n' "$out" >&2
             return 1
         fi
-        if quota "$out" || [ "$tries" -ge "$attempts" ]; then
+        if [ "$tries" -ge "$attempts" ]; then
             printf '%s\n' "$out" >&2
             return 3
         fi
@@ -122,7 +130,9 @@ try_pull() {
     done
 }
 
-# The image's size in MB as `docker image inspect` reports it, or `?`.
+# The image's size in MB as `docker image inspect` reports it, or `?`: the
+# unpacked layers (and, on the containerd store, the compressed content
+# too), so never less than the pull transferred.
 size_mb() {
     local b
     b="$("$docker" image inspect --format '{{.Size}}' "$1" 2>/dev/null)" || b=

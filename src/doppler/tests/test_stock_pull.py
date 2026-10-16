@@ -20,6 +20,7 @@ knob), so the registry's behaviour is scripted rather than hoped for, and
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -276,6 +277,26 @@ def test_without_a_mirror_a_quota_fails_after_one_try(
     assert f"FAILED {IMAGE} after 1 attempt(s)" in r.stderr
 
 
+def test_an_image_outside_the_registry_has_no_mirror(tmp_path: Path) -> None:
+    """Only a stock image maps: a ghcr pin through the helper (the package
+    smoke's CI image) fails under its own name."""
+    r, pulled = _helper(
+        tmp_path, [RATE], "ghcr.io/x/y:1", attempts=2, mirror=MIRROR
+    )
+    assert r.returncode == 1
+    assert [p.split()[-1] for p in pulled] == ["ghcr.io/x/y:1"] * 2
+    assert "FAILED ghcr.io/x/y:1 after 2 attempt(s)" in r.stderr
+
+
+def test_a_quota_needs_no_rate_limit_code(tmp_path: Path) -> None:
+    """The quota is read before transient(), so its wording alone, with no
+    `toomanyrequests` or 429, still reaches the mirror."""
+    bare = "Error response from daemon: Data limit exceeded"
+    r, pulled = _helper(tmp_path, [bare, "ok"], IMAGE, mirror=MIRROR)
+    assert r.returncode == 0, r.stderr
+    assert len(pulled) == 2
+
+
 def test_dockerfile_mode_reaches_the_mirror(tmp_path: Path) -> None:
     """A pre-pull's FROM is named through STOCK_REGISTRY, so it maps."""
     df = tmp_path / "Dockerfile"
@@ -290,16 +311,34 @@ def test_dockerfile_mode_reaches_the_mirror(tmp_path: Path) -> None:
     assert _tags(tmp_path) == [f"{MIRROR}/ubuntu:24.04 r.io/lib/ubuntu:24.04"]
 
 
-def test_the_makefile_hands_the_helper_its_mirror() -> None:
-    """The route is only as good as the variable that reaches it: a
-    pre-pull's recipe, printed, passes STOCK_MIRROR."""
+@pytest.mark.parametrize(
+    ("target", "script"),
+    [
+        ("glibc-image", "scripts/stock-pull.sh"),
+        # start-nats.sh calls the helper itself, so the variable rides in
+        # its environment.
+        ("nats-up", "scripts/start-nats.sh"),
+    ],
+)
+def test_the_makefile_hands_the_helper_its_mirror(
+    target: str, script: str
+) -> None:
+    """The route is only as good as the variable that reaches it: each
+    recipe that reaches the helper, printed, passes STOCK_MIRROR."""
+    # The recipe as the Makefile writes it, not as an outer make or the
+    # caller's shell would override it.
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
+        and not k.startswith("STOCK_")
+    }
     r = subprocess.run(
-        ["make", "-n", "-C", str(REPO), "glibc-image"],
+        ["make", "-n", "-C", str(REPO), target],
         capture_output=True,
         text=True,
+        env=env,
     )
     assert r.returncode == 0, r.stderr
-    assert (
-        "STOCK_MIRROR=mirror.gcr.io/library bash scripts/stock-pull.sh"
-        in r.stdout
-    )
+    recipe = re.sub(r"\s+", " ", r.stdout.replace("\\\n", " "))
+    assert f"STOCK_MIRROR=mirror.gcr.io/library bash {script}" in recipe

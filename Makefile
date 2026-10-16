@@ -729,7 +729,8 @@ TEST_ALL_DEPS = test test-examples test-python test-examples-python
 # a fresh runner, wrong for a dev box running it twice.
 nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
 	@docker rm -f nats >/dev/null 2>&1 || true
-	@STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/start-nats.sh
+	@STOCK_REGISTRY=$(STOCK_REGISTRY) STOCK_MIRROR=$(STOCK_MIRROR) \
+	    bash scripts/start-nats.sh
 	@$(NATS_STREAMS) --check
 
 # The remedy `nats-up` names. Deleting is prefix-guarded to DP_WORK_*, so a

@@ -403,13 +403,14 @@ fails immediately if any probed file disagrees with the tag or with the others:
 
 If it fails, bump the missed file manually, push a fixup commit on main, then re-tag.
 
-**A container build that dies on `toomanyrequests` at a `FROM`** (`Rate exceeded` or `Data limit exceeded`, ECR Public's anonymous per-IP limits):
-re-run the failed jobs, and cite
+**A container build that dies on `toomanyrequests` at a `FROM`** (either
+`Rate exceeded` or `Data limit exceeded`, ECR Public's anonymous per-IP
+limits): re-run the failed jobs, and cite
 [#1982](https://github.com/doppler-dsp/doppler/issues/1982) where you report
-it. `publish-container` builds on buildx's container driver, where
-`scripts/stock-pull.sh`'s retry and its `STOCK_MIRROR` fallback (#1979,
-#2256) cannot reach, so neither covers it yet. A release's amd64 image has
-died this way, and its re-run passed.
+it. `publish-container` builds on buildx's container driver, which neither
+`scripts/stock-pull.sh`'s retry nor its `STOCK_MIRROR` fallback reaches
+(#1979, #2256). Release run 38841117463's amd64 image died this way, and
+re-running its failed jobs passed.
 
 ______________________________________________________________________
 

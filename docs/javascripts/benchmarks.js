@@ -207,15 +207,21 @@
     }
     cards.innerHTML = head.map((id, i) => {
       const r = byId.get(id), p = r.p[LAST], n = r.n[LAST];
-      const big = isRate(r)
-        ? fmtRate(1 / p, r).replace(/ (\S+)$/, " <small>$1</small>")
-        : fmtTime(p) + " <small>/ " + esc(unitWord(r)) + "</small>";
+      // A label's `per` reads the whole round per that word (an FFT per
+      // transform, not per bin); the row and its chart keep the unit.
+      const per = labels[id].per;
+      const one = (s) => (per ? fmtTime(s * r.it) : isRate(r) ? fmtRate(1 / s, r) : fmtTime(s));
+      const big = per
+        ? one(p) + " <small>/ " + esc(per) + "</small>"
+        : isRate(r)
+          ? fmtRate(1 / p, r).replace(/ (\S+)$/, " <small>$1</small>")
+          : fmtTime(p) + " <small>/ " + esc(unitWord(r)) + "</small>";
       return '<button type="button" class="dpb-card" data-id="' + esc(id) + '">' +
         '<span class="dpb-what">' + esc(nameOf(r)) + '<sup><a href="#d' + (i + 1) +
         '" tabindex="-1">' + (i + 1) + "</a></sup></span>" +
         '<span class="dpb-big">' + big + "</span>" + spark(r, NV, 240, 38) +
-        '<span class="dpb-row"><span>native ' + (isRate(r) ? fmtRate(1 / n, r) :
-        fmtTime(n)) + "</span>" + chip(speedup(p, n), "from src") + "</span></button>";
+        '<span class="dpb-row"><span>native ' + one(n) + "</span>" +
+        chip(speedup(p, n), "from src") + "</span></button>";
     }).join("");
     cards.classList.add("dpb-cards");
 

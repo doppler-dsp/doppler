@@ -8,6 +8,9 @@
 #               records one.
 #   definition  one sentence: what one round does, and what the unit counts
 #   headline    true for the "At a glance" set, shown in this file's order
+#   per         optional: the headline reads the whole ROUND per this word
+#               ("transform") instead of the time per unit; the row, its
+#               chart and its unit are unchanged
 #
 # `make lint` (bench-coverage-check) refuses a published row with no label
 # here and no line in benchmarks/.labels-exempt, which only shrinks: label
@@ -16,8 +19,9 @@
 ["c:fft::execute_cf32[n=4096]"]
 name = "FFT, complex float, 4,096 points"
 unit = "bin"
-definition = "One forward transform of 4,096 complex float samples (cf32), out of place; the time is per output bin, so a whole transform is 4,096 times it."
+definition = "One forward transform of 4,096 complex float samples (cf32), out of place. The row records its time per output bin; the headline reads the whole transform."
 headline = true
+per = "transform"
 
 ["c:psd::accumulate[nfft=1024]"]
 name = "Power spectrum, 1,024 bins (Welch)"

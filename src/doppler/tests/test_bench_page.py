@@ -265,3 +265,19 @@ def test_check_catches_a_stale_page(tmp_path: Path) -> None:
     assert "Costas carrier loop" in page.read_text(encoding="utf-8")
     page.write_text("# Benchmarks\n", encoding="utf-8")
     assert br.cmd_page("docs/benchmarks.md", check=True, root=str(tree)) == 1
+
+
+def test_a_labels_per_reads_the_whole_round(tmp_path: Path) -> None:
+    """An FFT's row is per output bin; its headline reads per transform."""
+    label = (
+        '["c:costas::steps"]\nname = "FFT-like"\nunit = "bin"\n'
+        'definition = "One transform."\nheadline = true\nper = "transform"\n'
+    )
+    rel = {"v0.71.0": [_c("costas::steps", 6.18e-6, 4096)]}
+    tree = _tree(tmp_path, rel, label)
+    (tree / "docs").mkdir()
+    assert _load().cmd_page("docs/benchmarks.md", root=str(tree)) == 0
+    page = (tree / "docs" / "benchmarks.md").read_text(encoding="utf-8")
+    assert "| 6.18 µs / transform |" in page, page
+    row = _row(_load().page_data(str(tree)), "c:costas::steps")
+    assert row["unit"] == "bin"

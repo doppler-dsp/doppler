@@ -874,6 +874,7 @@ def page_data(root: str = ".") -> dict:
             rid: {
                 "name": lab.get("name", ""),
                 "def": lab.get("definition", ""),
+                **({"per": lab["per"]} if lab.get("per") else {}),
             }
             for rid, lab in labels.items()
             if rid in live
@@ -944,10 +945,16 @@ def label_problems(root: str = ".", base: str | None = None) -> list:
     return bad
 
 
-def _fmt_row(row: dict, secs) -> str:
-    """One value as the static table shows it: a rate or a time per unit."""
+def _fmt_row(row: dict, secs, per=None) -> str:
+    """One value as the static table shows it: a rate or a time per unit.
+
+    ``per`` (a label's) shows the whole ROUND per that word instead -- an
+    FFT read per transform rather than per output bin.
+    """
     if secs is None:
         return "—"
+    if per:
+        return f"{fmt_time(secs * row['it'])} / {per}"
     if row["unit"] in RATE_UNITS:
         return fmt_tput(1.0 / secs / 1e6)
     return f"{fmt_time(secs)} / {row['unit'].replace('_', ' ')}"
@@ -999,9 +1006,10 @@ def render_page(root: str = ".") -> str:
         r, lab = rows[rid], data["labels"][rid]
         p, n = r["p"][-1], r["n"][-1]
         src = f"{(p / n - 1) * 100:+.0f}%" if p and n else "—"
+        per = lab.get("per")
         L.append(
-            f"| [{lab['name']}](#d{i}) | {_fmt_row(r, p)} |"
-            f" {_fmt_row(r, n)} | {src} |"
+            f"| [{lab['name']}](#d{i}) | {_fmt_row(r, p, per)} |"
+            f" {_fmt_row(r, n, per)} | {src} |"
         )
     L += [
         "",

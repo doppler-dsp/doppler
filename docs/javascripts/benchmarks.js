@@ -1,13 +1,24 @@
 /* The benchmarks page (doppler#2372): headline cards, one family at a time,
    and a chart per row, drawn from the JSON that `scripts/bench_report.py
-   --page` embeds in docs/benchmarks.md. Every value is seconds per unit.
-   Loaded on every page; does nothing where that JSON is absent. */
+   --page` embeds in docs/benchmarks.md. Every value is seconds per unit;
+   each row also carries how many units of its domain one unit is (`cnt`,
+   `dom`), so a stream row reads in input samples per second and a setup row
+   (`dom` null) in time per call. Loaded on every page; does nothing where
+   that JSON is absent. */
 (function () {
   "use strict";
 
+  const SUFFIX = { Sa: "Sa/s", sym: "sym/s", bit: "bit/s", codeword: "cw/s", frame: "frames/s" };
+  const NOUN = { Sa: "input sample", sym: "symbol", bit: "bit", codeword: "codeword", frame: "frame" };
+  const PRESETS = [1, 2.4, 10, 20, 61.44, 125, 250];
+  const GROUPS = [
+    ["Sa", "Sample throughput", "input samples per second, higher is faster"],
+    ["other", "Symbols, bits and other units", "their own rate, higher is faster"],
+    ["ctl", "Setup, control and per-call", "time per call, lower is faster"],
+  ];
+  const COLS = 7;
+
   /* ---- formatting ---- */
-  const RATE_UNITS = ["sample", "in_sample", "in_pair"];
-  const isRate = (r) => RATE_UNITS.indexOf(r.unit) >= 0;
   function fmtNum(v) {
     return v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
   }
@@ -17,21 +28,25 @@
     for (const x of T) if (s >= x[0]) u = x;
     return fmtNum(s / u[0]) + " " + u[1];
   }
-  function fmtRate(perSec, r) {
+  function fmtRate(perSec, dom) {
     const S = [[1e9, "G"], [1e6, "M"], [1e3, "k"], [1, ""]];
     let u = S[S.length - 1];
     for (const x of S) if (perSec >= x[0]) { u = x; break; }
-    const what = r && r.unit === "in_pair" ? "pairs/s" : "Sa/s";
-    return fmtNum(perSec / u[0]) + " " + u[1] + what;
-  }
-  const unitWord = (r) => r.unit.replace(/_/g, " ");
-  function fmtVal(r, s) {
-    if (s == null) return "—";
-    if (isRate(r)) return fmtRate(1 / s, r);
-    return fmtTime(s) + " <small>/ " + esc(unitWord(r)) + "</small>";
+    return fmtNum(perSec / u[0]) + " " + u[1] + (SUFFIX[dom] || dom + "/s");
   }
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  // A row's value in its own terms: a rate, or time per call for setup.
+  const rateOf = (r, s) => (r.dom && s != null ? r.cnt / s : null);
+  function fmtVal(r, s, plain) {
+    if (s == null) return "—";
+    const out = r.dom ? fmtRate(r.cnt / s, r.dom) : fmtTime(s) + " / call";
+    if (plain) return out;
+    return r.dom ? out.replace(/ (\S+)$/, " <small>$1</small>")
+      : out.replace(" / call", " <small>/ call</small>");
+  }
+  const group = (r) => (!r.dom ? "ctl" : r.dom === "Sa" ? "Sa" : "other");
+  const unitWord = (r) => r.unit.replace(/_/g, " ");
   function prevIdx(a, i) {
     for (let j = i - 1; j >= 0; j--) if (a[j] != null) return j;
     return -1;
@@ -47,6 +62,23 @@
     const cls = Math.abs(x) < 0.03 ? "dpb-flat" : x > 0 ? "dpb-up" : "dpb-down";
     return '<span class="dpb-delta ' + cls + '">' + pct(x) +
       (word ? " " + word : "") + "</span>";
+  }
+
+  /* ---- the reader's sample rate, remembered per viewer ---- */
+  let RATE = 20;
+  try {
+    const v = parseFloat(localStorage.getItem("dpb-rate"));
+    if (v > 0) RATE = v;
+  } catch (e) { /* storage unavailable: the default */ }
+  // Throughput / your rate, for stream rows only.
+  const headroom = (r, s) => (r.dom === "Sa" && s != null ? r.cnt / s / (RATE * 1e6) : null);
+  function headChip(x) {
+    if (x == null) return '<span class="dpb-flat">—</span>';
+    const cls = x < 1 ? "dpb-down" : x < 1.5 ? "dpb-warn" : "dpb-up";
+    const txt = "×" + (x >= 10 ? Math.round(x).toLocaleString() : x.toFixed(x < 1 ? 2 : 1));
+    return '<span class="dpb-delta ' + cls + '" title="' +
+      (x < 1 ? "falls behind" : "keeps up") + " at " + RATE + ' MSa/s">' + txt +
+      (x < 1 ? " behind" : "") + "</span>";
   }
 
   /* An unlabelled row's name, from its ID: `obj · op` plus its params. */
@@ -110,8 +142,7 @@
   function bigChart(r, V, tip) {
     const NV = V.length, LAST = NV - 1;
     const W = 640, H = 240, L = 72, R = 12, T = 14, B = 34;
-    const rate = isRate(r);
-    const conv = (s) => (s == null ? null : rate ? 1 / s : s);
+    const conv = (s) => (s == null ? null : r.dom ? r.cnt / s : s);
     const P = r.p.map(conv), N = r.n.map(conv);
     const all = P.concat(N).filter((v) => v != null);
     let lo = Math.min(...all), hi = Math.max(...all);
@@ -119,8 +150,15 @@
     lo = Math.max(0, lo - pad); hi = hi + pad;
     const x = (i) => L + (W - L - R) * i / Math.max(1, NV - 1);
     const y = (v) => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
-    const lab = (v) => (rate ? fmtRate(v, r) : fmtTime(v));
+    const lab = (v) => (r.dom ? fmtRate(v, r.dom) : fmtTime(v));
     let g = "";
+    // The reader's rate, where it falls inside the chart.
+    if (r.dom === "Sa" && RATE * 1e6 > lo && RATE * 1e6 < hi) {
+      const yr = y(RATE * 1e6).toFixed(1);
+      g += '<line class="dpb-rate" x1="' + L + '" x2="' + (W - R) + '" y1="' + yr +
+        '" y2="' + yr + '"/><text class="dpb-rate-t" x="' + (W - R - 4) + '" y="' +
+        (+yr - 5) + '" text-anchor="end">your rate, ' + RATE + " MSa/s</text>";
+    }
     for (let k = 0; k <= 4; k++) {
       const v = lo + (hi - lo) * k / 4, yy = y(v).toFixed(1);
       g += '<line class="dpb-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + yy +
@@ -128,7 +166,9 @@
         (+yy + 4) + '" text-anchor="end">' + esc(lab(v)) + "</text>";
     }
     const step = Math.ceil(NV / 8);
-    for (let i = 0; i < LAST; i += step) {
+    // Regular ticks stop short of the last release, whose label is drawn
+    // on its own and would otherwise overprint the tick before it.
+    for (let i = 0; i <= LAST - Math.ceil(step / 2); i += step) {
       g += '<text class="dpb-axis" x="' + x(i).toFixed(1) + '" y="' + (H - 12) +
         '" text-anchor="middle">' + V[i] + "</text>";
     }
@@ -182,6 +222,7 @@
     const blob = document.getElementById("dp-bench-data");
     const cards = document.getElementById("dp-bench-cards");
     const browser = document.getElementById("dp-bench-browser");
+    const ratebox = document.getElementById("dp-bench-rate");
     if (!blob || !cards || !browser || browser.dataset.ready) return;
     browser.dataset.ready = "1";
     const D = JSON.parse(blob.textContent);
@@ -198,6 +239,28 @@
     }
     const nameOf = (r) => (labels[r.id] ? labels[r.id].name : null);
 
+    /* the rate box */
+    if (ratebox) {
+      ratebox.classList.add("dpb-ratebox");
+      ratebox.innerHTML =
+        '<label for="dpb-rate-in">Your sample rate</label>' +
+        '<span><input id="dpb-rate-in" type="number" min="0.001" step="any"' +
+        ' inputmode="decimal"> MSa/s</span><span class="dpb-presets"></span>' +
+        '<p>Every stream kernel reads in samples per second, so its' +
+        ' <a href="#headroom">headroom</a> is its throughput ÷ your rate. Below' +
+        " ×1 it falls behind in real time on this machine.</p>";
+    }
+    const rateIn = ratebox && ratebox.querySelector("#dpb-rate-in");
+    // `typed` leaves the box alone: rewriting it mid-entry would eat a
+    // trailing "." while the reader types 61.44.
+    function syncPresets(typed) {
+      if (!ratebox) return;
+      if (!typed) rateIn.value = RATE;
+      ratebox.querySelector(".dpb-presets").innerHTML = PRESETS.map((v) =>
+        '<button type="button" data-v="' + v + '" aria-pressed="' + (v === RATE) +
+        '">' + v + "</button>").join("");
+    }
+
     /* headline cards replace the static table that follows them */
     const fallback = cards.nextElementSibling;
     if (fallback && fallback.querySelector && fallback.querySelector("table")) {
@@ -205,25 +268,20 @@
     } else if (fallback && fallback.tagName === "TABLE") {
       fallback.hidden = true;
     }
-    cards.innerHTML = head.map((id, i) => {
-      const r = byId.get(id), p = r.p[LAST], n = r.n[LAST];
-      // A label's `per` reads the whole round per that word (an FFT per
-      // transform, not per bin); the row and its chart keep the unit.
-      const per = labels[id].per;
-      const one = (s) => (per ? fmtTime(s * r.it) : isRate(r) ? fmtRate(1 / s, r) : fmtTime(s));
-      const big = per
-        ? one(p) + " <small>/ " + esc(per) + "</small>"
-        : isRate(r)
-          ? fmtRate(1 / p, r).replace(/ (\S+)$/, " <small>$1</small>")
-          : fmtTime(p) + " <small>/ " + esc(unitWord(r)) + "</small>";
-      return '<button type="button" class="dpb-card" data-id="' + esc(id) + '">' +
-        '<span class="dpb-what">' + esc(nameOf(r)) + '<sup><a href="#d' + (i + 1) +
-        '" tabindex="-1">' + (i + 1) + "</a></sup></span>" +
-        '<span class="dpb-big">' + big + "</span>" + spark(r, NV, 240, 38) +
-        '<span class="dpb-row"><span>native ' + one(n) + "</span>" +
-        chip(speedup(p, n), "from src") + "</span></button>";
-    }).join("");
     cards.classList.add("dpb-cards");
+    function renderCards() {
+      cards.innerHTML = head.map((id, i) => {
+        const r = byId.get(id), p = r.p[LAST], n = r.n[LAST];
+        return '<button type="button" class="dpb-card" data-id="' + esc(id) + '">' +
+          '<span class="dpb-what">' + esc(nameOf(r)) + '<sup><a href="#d' + (i + 1) +
+          '" tabindex="-1">' + (i + 1) + "</a></sup></span>" +
+          '<span class="dpb-big">' + fmtVal(r, p) + "</span>" + spark(r, NV, 240, 38) +
+          '<span class="dpb-row"><span>native ' + esc(fmtVal(r, n, true)) + "</span>" +
+          chip(speedup(p, n), "from src") + "</span>" +
+          (r.dom === "Sa" ? '<span class="dpb-row"><span>at ' + RATE + " MSa/s</span>" +
+            headChip(headroom(r, p)) + "</span>" : "") + "</button>";
+      }).join("");
+    }
 
     /* family browser */
     const count = {};
@@ -251,6 +309,8 @@
       '<button type="button" data-lang="c">C</button>' +
       '<button type="button" data-lang="py">Python</button></span>' +
       '<label>Sort <select class="dpb-sort"><option value="name">by name</option>' +
+      '<option value="tput">by throughput</option>' +
+      '<option value="head">by headroom</option>' +
       '<option value="delta">by change since last release</option>' +
       '<option value="src">by from-src gain</option></select></label>' +
       '<span class="dpb-count"></span></div>' +
@@ -258,6 +318,7 @@
       '<th scope="col">Benchmark</th><th scope="col">Portable</th>' +
       '<th scope="col">Native</th><th scope="col"><a href="#from-src">From src</a></th>' +
       '<th scope="col"><a href="#since-last">Since last</a></th>' +
+      '<th scope="col"><a href="#headroom">Headroom</a></th>' +
       '<th scope="col"><a href="#trend">Trend</a></th></tr></thead>' +
       "<tbody></tbody></table></div>";
     const tbody = browser.querySelector("tbody");
@@ -281,8 +342,8 @@
         esc(r.id.slice(r.id.indexOf(":") + 1)) + "</div></td>" +
         '<td class="dpb-v">' + fmtVal(r, r.p[LAST]) + '</td><td class="dpb-v">' +
         fmtVal(r, r.n[LAST]) + "</td><td>" + chip(speedup(r.p[LAST], r.n[LAST])) +
-        "</td><td>" + chip(since) + '</td><td class="dpb-trend">' + spark(r, NV, 132, 28) +
-        "</td></tr>";
+        "</td><td>" + chip(since) + "</td><td>" + headChip(headroom(r, r.p[LAST])) +
+        '</td><td class="dpb-trend">' + spark(r, NV, 132, 28) + "</td></tr>";
     }
     function detailHTML(r) {
       const c = bigChart(r, V, tip);
@@ -291,10 +352,16 @@
       const repro = r.k === "c"
         ? 'make bench BENCH_ARGS="--c-only ' + r.comp + '"'
         : "make bench-python PYTEST_BENCH_DIRS=src/doppler/" + r.mod + "/benchmarks";
+      const noun = r.dom && (NOUN[r.dom] || r.dom);
+      const counts = r.dom
+        ? r.cnt.toLocaleString() + " " + noun + (r.cnt === 1 ? "" : "s") + " per " +
+          unitWord(r) + (r.inf ? ", inferred from the name" : "")
+        : "not a stream rate, so it reads as time per call";
       const dl = [
         ["What it times", lab ? esc(lab.def)
           : "No definition yet: this row is on benchmarks/.labels-exempt."],
-        ["Unit", esc(unitWord(r)) + (r.k === "c" ? ", " + r.it.toLocaleString() +
+        ["Counts", esc(counts)],
+        ["Recorded unit", esc(unitWord(r)) + (r.k === "c" ? ", " + r.it.toLocaleString() +
           " per round" : "")],
         ["Measured since", V[first]],
         ["Breaks", r.brk.length ? r.brk.map((i) => V[i]).join(", ") +
@@ -303,7 +370,7 @@
         ["ID", "<code>" + esc(r.id.slice(r.id.indexOf(":") + 1)) + "</code>"],
       ];
       return {
-        html: '<tr class="dpb-detail"><td colspan="6"><div class="dpb-dpanel"><div>' +
+        html: '<tr class="dpb-detail"><td colspan="' + COLS + '"><div class="dpb-dpanel"><div>' +
           '<div class="dpb-key"><span class="dpb-k-p">portable</span>' +
           '<span class="dpb-k-n">native</span></div>' + c.svg + "</div><dl>" +
           dl.map(([k, v]) => "<dt>" + k + "</dt><dd>" + v + "</dd>").join("") +
@@ -321,6 +388,8 @@
         (!state.q || (r.id + " " + (nameOf(r) || "")).toLowerCase().indexOf(state.q) >= 0));
       const key = {
         name: (r) => [headIdx.has(r.id) ? 0 : nameOf(r) ? 1 : 2, r.comp.toLowerCase(), r.id],
+        tput: (r) => [-(rateOf(r, r.p[LAST]) || 0), r.p[LAST]],
+        head: (r) => [-(headroom(r, r.p[LAST]) || 0), r.p[LAST]],
         delta: (r) => {
           const pi = prevIdx(r.p, LAST);
           return [-Math.abs((pi >= 0 ? speedup(r.p[pi], r.p[LAST]) : 0) || 0)];
@@ -335,17 +404,28 @@
         }
         return 0;
       });
-      browser.querySelector(".dpb-count").textContent = list.length + " rows";
+      const behind = list.filter((r) => {
+        const x = headroom(r, r.p[LAST]);
+        return x != null && x < 1;
+      }).length;
+      browser.querySelector(".dpb-count").textContent = list.length + " rows" +
+        (behind ? ", " + behind + " behind at " + RATE + " MSa/s" : "");
       if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="dpb-empty">No benchmark in this' +
-          " family matches “" + esc(state.q) + "”. Clear the filter or pick another" +
-          " family.</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="' + COLS + '" class="dpb-empty">No benchmark' +
+          " in this family matches “" + esc(state.q) + "”. Clear the filter or pick" +
+          " another family.</td></tr>";
         return;
       }
       let html = "", att = null;
-      for (const r of list) {
-        html += rowHTML(r);
-        if (state.open === r.id) { const d = detailHTML(r); html += d.html; att = d.attach; }
+      for (const [gid, title, note] of GROUPS) {
+        const part = list.filter((r) => group(r) === gid);
+        if (!part.length) continue;
+        html += '<tr class="dpb-sep"><th colspan="' + COLS + '" scope="rowgroup">' +
+          title + " <span>· " + note + " · " + part.length + "</span></th></tr>";
+        for (const r of part) {
+          html += rowHTML(r);
+          if (state.open === r.id) { const d = detailHTML(r); html += d.html; att = d.attach; }
+        }
       }
       tbody.innerHTML = html;
       const det = tbody.querySelector("tr.dpb-detail");
@@ -358,6 +438,12 @@
         panel.classList.toggle("dpb-stack", box.clientWidth < 900);
         if (att) att(det);
       }
+    }
+    function setRate(v, typed) {
+      if (!(v > 0)) return;
+      RATE = v;
+      try { localStorage.setItem("dpb-rate", String(v)); } catch (e) { /* no storage */ }
+      syncPresets(typed); renderCards(); render();
     }
     const toggle = (id) => { state.open = state.open === id ? null : id; render(); };
     browser.querySelector(".dpb-tabs").addEventListener("click", (e) => {
@@ -399,7 +485,14 @@
       const tr = tbody.querySelector('tr.dpb-r[data-id="' + CSS.escape(r.id) + '"]');
       if (tr) box.scrollTop = tr.offsetTop - 44;
     });
-    render();
+    if (ratebox) {
+      rateIn.addEventListener("input", () => setRate(parseFloat(rateIn.value), true));
+      ratebox.querySelector(".dpb-presets").addEventListener("click", (e) => {
+        const b = e.target.closest("button");
+        if (b) setRate(parseFloat(b.dataset.v));
+      });
+    }
+    syncPresets(); renderCards(); render();
   }
 
   // Material's instant navigation swaps pages without a reload; document$

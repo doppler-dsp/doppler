@@ -546,6 +546,8 @@ def cmd_publish(version, build) -> int:
 LABELS = "benchmarks/labels.toml"
 #: Live rows that have no label yet. A RATCHET: it only shrinks.
 LABELS_EXEMPT = "benchmarks/.labels-exempt"
+#: C units for releases that never recorded one (#2314); it only empties.
+LEGACY_UNITS = "benchmarks/legacy-units.toml"
 #: The jm manifest: which module each object belongs to.
 MANIFEST = "just-makeit.toml"
 
@@ -612,8 +614,133 @@ COMPONENT_MODULE = {
     "timing": "sample_clock",
 }
 
-#: Units a reader wants as a rate (samples per second), not a time.
-RATE_UNITS = ("sample", "in_sample", "in_pair")
+#: How many INPUT SAMPLES one recorded unit consumes (#2372): the page
+#: reads every stream row in samples per second, because a real-time chain
+#: has to eat its input faster than the sample rate brings it. An FFT bin is
+#: one input sample (an n-point transform eats n); an input pair is two. A
+#: frame consumes its `nfft`, read from the row's name.
+UNIT_SAMPLES = {
+    "sample": 1,
+    "in_sample": 1,
+    "bin": 1,
+    "elem": 1,
+    "in_pair": 2,
+}
+#: Units whose input is not samples read in their own rate.
+UNIT_DOMAIN = {
+    "symbol": "sym",
+    "sym": "sym",
+    "bit": "bit",
+    "codeword": "codeword",
+    "chip": "chip",
+    "event": "event",
+    "eval": "eval",
+    "tap": "tap",
+    "boundary": "boundary",
+}
+#: Units that are setup, not a stream: read as time per call.
+CONTROL_UNITS = ("create", "arm")
+#: Operation names that are setup, control or per-call bookkeeping -- they
+#: leave the throughput view whatever unit they recorded as `call`.
+CONTROL_OP = re.compile(
+    r"(^|[^a-z])(create|destroy|reset|retune|configure|reseed|set_|"
+    r"get_state|set_state|state_bytes|dump|get$|get\[|value|baseline|init|"
+    r"open|close|alloc|clear|plan)",
+    re.I,
+)
+#: A stream verb, for a row whose unit nothing records yet.
+STREAM_OP = re.compile(
+    r"steps?|execute|generate|push|accumulate|decimate|interp|filter|"
+    r"convert|madd|add2d|search|process|run|demod|despread|rotate|prod|"
+    r"fold|correlate|mix|write|read|analy[sz]e|encode|decode|map|find",
+    re.I,
+)
+
+
+def rate_of(rid: str, unit, label=None):
+    """``(count, domain, inferred)`` for one row, or None for setup/control.
+
+    ``count`` units of ``domain`` per recorded unit: ``(1, "Sa", False)``
+    for a sample row, ``(2040, "bit", False)`` for an RS codeword read in
+    coded bits. A label's ``samples`` or ``domain``/``count`` decides; else
+    the unit; else the operation's name, and the result says it is inferred.
+
+    >>> rate_of("c:fft::execute_cf32[n=4096]", "bin")
+    (1, 'Sa', False)
+    >>> rate_of("c:psd::fft[nfft=256]", "frame")
+    (256, 'Sa', False)
+    >>> rs = {"domain": "bit", "count": 2040}
+    >>> rate_of("c:rs::decode[e=8]", "codeword", rs)
+    (2040, 'bit', False)
+    >>> rate_of("c:acc_f32::get", "call") is None
+    True
+    >>> rate_of("c:acc_f32::step", None)
+    (1, 'Sa', True)
+    >>> rate_of("py:i16_to_f32::test_bench_steps_64k", "call")
+    (65536, 'Sa', False)
+    """
+    label = label or {}
+    if "samples" in label:
+        return int(label["samples"]), "Sa", False
+    if label.get("domain") == "call":
+        return None
+    if label.get("domain"):
+        return int(label.get("count", 1)), label["domain"], False
+    op = rid.split("::", 1)[1] if "::" in rid else rid
+    nfft = re.search(r"nfft\s*=\s*(\d+)", op)
+    if unit in UNIT_SAMPLES:
+        return UNIT_SAMPLES[unit], "Sa", False
+    if unit == "frame":
+        return (
+            (int(nfft.group(1)), "Sa", False) if nfft else (1, "frame", False)
+        )
+    if unit in UNIT_DOMAIN:
+        return 1, UNIT_DOMAIN[unit], False
+    if unit in CONTROL_UNITS or CONTROL_OP.search(op):
+        return None
+    guess = unit is None
+    blk = re.search(r"(\d+)k(?![a-z])", op, re.I)
+    if rid.startswith("py:") and blk and STREAM_OP.search(op):
+        return int(blk.group(1)) * 1024, "Sa", guess
+    if re.search(r"(^|_)steps?(_|$|\[)", op):
+        return 1, "Sa", guess
+    if unit == "call" and nfft:
+        return int(nfft.group(1)), "Sa", False
+    if unit is None and STREAM_OP.search(op):
+        return 1, "Sa", True
+    return None
+
+
+def label_count_problem(rid: str, label: dict, unit):
+    """Why a label's count contradicts the row's recorded unit, or None."""
+    if "samples" not in label and not label.get("domain"):
+        return (
+            f"{rid}: label declares no count -- `samples = N`, or a "
+            "`domain` and `count`"
+        )
+    if unit is None:
+        return None
+    want = UNIT_SAMPLES.get(unit)
+    if (
+        "samples" in label
+        and want is not None
+        and int(label["samples"]) != want
+    ):
+        return (
+            f"{rid}: label counts {label['samples']} samples per unit, but "
+            f"the snapshot's unit `{unit}` is {want}"
+        )
+    if label.get("domain") and want is not None:
+        return (
+            f"{rid}: label reads in `{label['domain']}`, but the snapshot's "
+            f"unit `{unit}` is samples"
+        )
+    if unit in CONTROL_UNITS and (
+        "samples" in label or label.get("domain") not in (None, "call")
+    ):
+        return f"{rid}: label gives a rate, but `{unit}` is setup"
+    return None
+
 
 try:  # 3.11+; tomli is the same parser, marker-gated in the dev group
     import tomllib as _toml
@@ -725,6 +852,15 @@ def read_labels(root: str = ".") -> dict:
         return dict(_toml.load(fh))
 
 
+def read_legacy_units(root: str = ".") -> dict:
+    """{row id: unit} from LEGACY_UNITS; absent is empty."""
+    path = os.path.join(root, LEGACY_UNITS)
+    if not os.path.exists(path):
+        return {}
+    with open(path, "rb") as fh:
+        return dict(_toml.load(fh))
+
+
 def read_exempt(text: str) -> list:
     """The row ids an exempt list holds; `#` comments and blanks out."""
     return [
@@ -786,6 +922,7 @@ def page_data(root: str = ".") -> dict:
     versions = [v for v, _, _ in releases]
     obj2mod, modules = read_manifest(root)
     labels = read_labels(root)
+    legacy = read_legacy_units(root)
     if not releases:
         return {"versions": [], "rows": [], "problems": []}
     _, newest, _ = releases[-1]
@@ -831,12 +968,24 @@ def page_data(root: str = ".") -> dict:
                 brk.append(i)
             prev = basis
         label = labels.get(rid)
-        unit = recorded or (label or {}).get("unit") or "iter"
-        if label and recorded and label.get("unit") != recorded:
+        if rid in legacy and suite == "c" and recorded:
+            problems.append(
+                f"{LEGACY_UNITS}: `{rid}` records its own unit now -- "
+                "remove the entry"
+            )
+        known = recorded or legacy.get(rid)
+        unit = known or (label or {}).get("unit")
+        if label and known and label.get("unit") != known:
             problems.append(
                 f"{rid}: labelled unit `{label.get('unit')}` but the "
-                f"snapshot records `{recorded}`"
+                f"snapshot records `{known}`"
             )
+        if label:
+            why = label_count_problem(rid, label, known)
+            if why:
+                problems.append(why)
+        rate = rate_of(rid, unit, label)
+        unit = unit or "iter"
         last_basis = next(b for b in reversed(bases) if b is not None)
         rows.append(
             {
@@ -846,11 +995,19 @@ def page_data(root: str = ".") -> dict:
                 "mod": mod,
                 "fam": fam,
                 "unit": unit,
+                # count of `dom` per unit; dom None = setup/control
+                "cnt": rate[0] if rate else None,
+                "dom": rate[1] if rate else None,
+                "inf": bool(rate and rate[2]),
                 "it": last_basis[1] if last_basis[0] == "it" else 1,
                 "p": series["portable"],
                 "n": series["native"],
                 "brk": brk,
             }
+        )
+    for rid in sorted(set(legacy) - set(live)):
+        problems.append(
+            f"{LEGACY_UNITS}: `{rid}` is no live row -- remove the entry"
         )
     for m in modules:
         if m not in MODULE_FAMILY:
@@ -874,7 +1031,6 @@ def page_data(root: str = ".") -> dict:
             rid: {
                 "name": lab.get("name", ""),
                 "def": lab.get("definition", ""),
-                **({"per": lab["per"]} if lab.get("per") else {}),
             }
             for rid, lab in labels.items()
             if rid in live
@@ -945,19 +1101,41 @@ def label_problems(root: str = ".", base: str | None = None) -> list:
     return bad
 
 
-def _fmt_row(row: dict, secs, per=None) -> str:
-    """One value as the static table shows it: a rate or a time per unit.
+#: Rate suffixes per domain, as the page prints them.
+DOMAIN_SUFFIX = {
+    "Sa": "Sa/s",
+    "sym": "sym/s",
+    "bit": "bit/s",
+    "codeword": "cw/s",
+    "frame": "frames/s",
+}
 
-    ``per`` (a label's) shows the whole ROUND per that word instead -- an
-    FFT read per transform rather than per output bin.
+
+def fmt_rate(per_sec: float, dom: str) -> str:
+    """``per_sec`` units of ``dom`` per second, SI-prefixed.
+
+    >>> fmt_rate(6.63e8, "Sa")
+    '663 MSa/s'
+    >>> fmt_rate(9.2e7, "bit")
+    '92.0 Mbit/s'
     """
+    scale, p = next(
+        (sc, px)
+        for sc, px in ((1e9, "G"), (1e6, "M"), (1e3, "k"), (1, ""))
+        if per_sec >= sc or sc == 1
+    )
+    v = per_sec / scale
+    num = f"{v:.0f}" if v >= 100 else f"{v:.1f}" if v >= 10 else f"{v:.2f}"
+    return f"{num} {p}{DOMAIN_SUFFIX.get(dom, dom + '/s')}"
+
+
+def _fmt_row(row: dict, secs) -> str:
+    """One value as the static table shows it: its rate, or time per call."""
     if secs is None:
         return "—"
-    if per:
-        return f"{fmt_time(secs * row['it'])} / {per}"
-    if row["unit"] in RATE_UNITS:
-        return fmt_tput(1.0 / secs / 1e6)
-    return f"{fmt_time(secs)} / {row['unit'].replace('_', ' ')}"
+    if row["dom"]:
+        return fmt_rate(row["cnt"] / secs, row["dom"])
+    return f"{fmt_time(secs)} / call"
 
 
 def render_page(root: str = ".") -> str:
@@ -995,6 +1173,8 @@ def render_page(root: str = ".") -> str:
         )
         + ".",
         "",
+        '<div class="dp-bench" id="dp-bench-rate"></div>',
+        "",
         "## At a glance",
         "",
         '<div class="dp-bench" id="dp-bench-cards"></div>',
@@ -1006,10 +1186,9 @@ def render_page(root: str = ".") -> str:
         r, lab = rows[rid], data["labels"][rid]
         p, n = r["p"][-1], r["n"][-1]
         src = f"{(p / n - 1) * 100:+.0f}%" if p and n else "—"
-        per = lab.get("per")
         L.append(
-            f"| [{lab['name']}](#d{i}) | {_fmt_row(r, p, per)} |"
-            f" {_fmt_row(r, n, per)} | {src} |"
+            f"| [{lab['name']}](#d{i}) | {_fmt_row(r, p)} |"
+            f" {_fmt_row(r, n)} | {src} |"
         )
     L += [
         "",
@@ -1061,12 +1240,23 @@ def render_page(root: str = ".") -> str:
         " row's round changed size, so its per-unit value changed meaning"
         " there; the line breaks rather than draw a jump that is not real.",
         "",
-        '<span id="units"></span>**Units.** A C row times a round of *N*'
-        " units and reports time per unit: a call, a sample, a bin, a frame,"
-        " a codeword. Rows whose unit is a sample read as throughput."
-        " A row from before the snapshots recorded units (v0.43.0 to"
-        " v0.72.0), with no label to supply one, reads *per iter*: the round"
-        " divided by its iteration count.",
+        '<span id="units"></span>**Units.** Every row that processes a'
+        " stream reads in **samples per second**: input samples consumed,"
+        " whatever the row's own unit. An FFT bin, a one-sample `step()` and"
+        " an input sample count 1; an input pair counts 2; a frame counts its"
+        " `nfft`; a Python call over a 64k block counts 65,536. Rows whose"
+        " input is not samples read in their own rate: symbols, bits or"
+        " codewords per second. Setup and control calls (create, reset,"
+        " retune, configure) are not stream rates and read as time per call."
+        " The count comes from the row's label, else its recorded unit, else"
+        " its name, and then says *inferred*: a row from before the snapshots"
+        " recorded units (v0.43.0 to v0.72.0) with no label to supply one.",
+        "",
+        '<span id="headroom"></span>**Headroom.** Throughput ÷ your sample'
+        " rate, for stream rows. ×1 is exactly real time on this machine, one"
+        " core, portable build: green is ×1.5 or more, amber between ×1 and"
+        " ×1.5, red falls behind. A receiver is a chain: its headroom is set"
+        " by its slowest stage, and the stages share the core.",
         "",
         '<span id="row-ids"></span>**Row IDs.** The small monospace line'
         " under each name is the benchmark's own ID: what"

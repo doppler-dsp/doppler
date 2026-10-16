@@ -250,3 +250,73 @@
 }
 
 .md-typeset .dpb-dpanel.dpb-stack { grid-template-columns: 1fr; }
+
+/* The reader's sample rate and headroom (#2372). */
+.md-typeset .dpb-ratebox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.7rem;
+  margin: 1em 0;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 6px;
+}
+.md-typeset .dpb-ratebox label { font-weight: 600; }
+.md-typeset .dpb-ratebox input {
+  width: 6rem;
+  font: inherit;
+  font-family: var(--md-code-font-family);
+  text-align: right;
+  color: var(--md-default-fg-color);
+  background: var(--md-code-bg-color);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+}
+.md-typeset .dpb-presets { display: flex; flex-wrap: wrap; gap: 0.2rem; }
+.md-typeset .dpb-presets button {
+  font: inherit;
+  font-family: var(--md-code-font-family);
+  font-size: 0.65rem;
+  padding: 0 0.35rem;
+  color: var(--md-default-fg-color--light);
+  background: var(--md-default-bg-color);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.md-typeset .dpb-presets button[aria-pressed="true"] {
+  color: var(--md-default-fg-color);
+  border-color: var(--md-default-fg-color);
+}
+.md-typeset .dpb-ratebox p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--md-default-fg-color--light);
+}
+.md-typeset .dpb-warn {
+  color: var(--dpb-native);
+  background: color-mix(in srgb, var(--dpb-native) 14%, transparent);
+}
+.md-typeset .dpb-table tr.dpb-sep th {
+  position: sticky;
+  left: 0;
+  top: auto;
+  z-index: 1;
+  text-align: left;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--md-default-fg-color);
+  background: var(--md-code-bg-color);
+}
+.md-typeset .dpb-table tr.dpb-sep th span {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--md-default-fg-color--light);
+}
+.dpb-rate { stroke: var(--dpb-bad); stroke-width: 1.2; stroke-dasharray: 6 4; }
+.dpb-rate-t { fill: var(--dpb-bad); font-size: 10px; }

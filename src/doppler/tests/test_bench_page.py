@@ -174,6 +174,7 @@ LABEL = """\
 name = "Costas carrier loop"
 unit = "sample"
 definition = "A Costas loop, per input sample."
+samples = 1
 headline = true
 """
 
@@ -200,13 +201,19 @@ def test_an_unlabelled_row_fails_and_an_exempt_one_passes(
         (LABEL.replace('name = "Costas carrier loop"\n', ""), [], "no name"),
         (
             LABEL + '\n["c:gone::row"]\nname = "x"\nunit = "call"\n'
-            'definition = "x"\n',
+            'definition = "x"\nsamples = 1\n',
             [],
             "is no live row",
         ),
         (LABEL, ["c:costas::steps"], "labelled now"),
         (LABEL, ["c:gone::row"], "no live row -- remove the line"),
         (LABEL.replace('"sample"', '"call"'), [], "but the snapshot records"),
+        (LABEL.replace("samples = 1\n", ""), [], "declares no count"),
+        (
+            LABEL.replace("samples = 1", "samples = 4"),
+            [],
+            "counts 4 samples per unit",
+        ),
     ],
 )
 def test_the_label_gate_refuses(
@@ -267,17 +274,42 @@ def test_check_catches_a_stale_page(tmp_path: Path) -> None:
     assert br.cmd_page("docs/benchmarks.md", check=True, root=str(tree)) == 1
 
 
-def test_a_labels_per_reads_the_whole_round(tmp_path: Path) -> None:
-    """An FFT's row is per output bin; its headline reads per transform."""
+def test_a_stream_row_reads_in_samples_and_rs_in_bits(tmp_path: Path) -> None:
+    """The page's rate is input samples per second, or the row's own domain:
+    a frame counts its nfft, a codeword its label's 2,040 bits, and a getter
+    is setup -- time per call, no rate."""
     label = (
-        '["c:costas::steps"]\nname = "FFT-like"\nunit = "bin"\n'
-        'definition = "One transform."\nheadline = true\nper = "transform"\n'
+        '["c:costas::decode[e=8]"]\nname = "RS-like"\nunit = "codeword"\n'
+        'definition = "One codeword."\ndomain = "bit"\ncount = 2040\n'
     )
-    rel = {"v0.71.0": [_c("costas::steps", 6.18e-6, 4096)]}
-    tree = _tree(tmp_path, rel, label)
-    (tree / "docs").mkdir()
-    assert _load().cmd_page("docs/benchmarks.md", root=str(tree)) == 0
-    page = (tree / "docs" / "benchmarks.md").read_text(encoding="utf-8")
-    assert "| 6.18 µs / transform |" in page, page
-    row = _row(_load().page_data(str(tree)), "c:costas::steps")
-    assert row["unit"] == "bin"
+    rel = {
+        "v0.71.0": [
+            _c("costas::fft[nfft=256]", 1e-3, 64, {"unit": "frame"}),
+            _c("costas::decode[e=8]", 1e-3, 64, {"unit": "codeword"}),
+            _c("costas::get", 1e-3, 64, {"unit": "call"}),
+        ]
+    }
+    data = _load().page_data(str(_tree(tmp_path, rel, label)))
+    fft = _row(data, "c:costas::fft[nfft=256]")
+    assert (fft["cnt"], fft["dom"], fft["inf"]) == (256, "Sa", False)
+    rs = _row(data, "c:costas::decode[e=8]")
+    assert (rs["cnt"], rs["dom"]) == (2040, "bit")
+    assert _row(data, "c:costas::get")["dom"] is None
+
+
+def test_a_legacy_unit_is_used_then_must_go(tmp_path: Path) -> None:
+    """Before #2314 a C row records no unit; LEGACY_UNITS supplies it, and
+    an entry whose row now records its own unit fails the gate."""
+    seed = '"c:costas::steps" = "sample"\n'
+    old = {"v0.71.0": [_c("costas::steps", 1e-3, 4096)]}
+    tree = _tree(tmp_path / "old", old, "", exempt=["c:costas::steps"])
+    (tree / "benchmarks" / "legacy-units.toml").write_text(seed, "utf-8")
+    br = _load()
+    row = _row(br.page_data(str(tree)), "c:costas::steps")
+    assert (row["unit"], row["cnt"], row["inf"]) == ("sample", 1, False)
+    assert br.label_problems(str(tree)) == []
+    new = {"v0.73.0": [_c("costas::steps", 1e-3, 4096, {"unit": "sample"})]}
+    tree = _tree(tmp_path / "new", new, "", exempt=["c:costas::steps"])
+    (tree / "benchmarks" / "legacy-units.toml").write_text(seed, "utf-8")
+    bad = br.label_problems(str(tree))
+    assert any("records its own unit now" in b for b in bad), bad

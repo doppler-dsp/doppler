@@ -1836,8 +1836,9 @@ HOOK_DISPATCH_EXEMPT = check-yaml check-toml end-of-file-fixer trailing-whitespa
 # or executed by the test matrix, so treating them as source ran the whole
 # matrix twice per release (the PR, then main) over code its parent had
 # already passed. The page's label files move with a release too
-# (`make bench-labels-fix`), and they feed only the page and `make lint`. The Docs workflow still builds the site from them, so a
-# broken asset is still caught -- just not by re-running the C/Python tests.
+# (`make bench-labels-fix`), and they feed only the page and `make lint`.
+# The Docs workflow still builds the site from them, so a broken asset is
+# still caught -- just not by re-running the C/Python tests.
 CI_INERT_RE = ^(CHANGELOG\.md|changelog\.d/.+|docs/assets/[^/]+\.png|benchmarks/published/.+|benchmarks/[^/]*\.toml|benchmarks/\.labels-exempt|docs/benchmarks\.md)$$
 
 # THE one declaration of what doppler's docs are, for standard.mk's
@@ -4867,7 +4868,10 @@ bench-docs: ## Render docs/benchmarks.md from the published numbers
 # exempt lines it refuses only because they are no longer needed -- a row
 # that records its own unit now, is labelled now, or is retired. A release
 # measured after #2314 records every C row's unit, so its PR runs this once
-# and benchmarks/legacy-units.toml goes. Labels are never touched.
+# and benchmarks/legacy-units.toml goes. Labels are never touched. An exempt
+# line goes as soon as the newest release lacks its row, so a row missing
+# from ONE set (a broker-dependent Python bench that skipped) needs a label,
+# not its old line, when it returns: check the removals it prints.
 bench-labels-fix: ## Delete the legacy-unit and exempt lines the label gate refuses
 	$(UV) run python scripts/bench_report.py --fix-labels
 

@@ -1009,7 +1009,10 @@ def page_data(root: str = ".") -> dict:
                     if row_id(suite, x) != rid:
                         continue
                     got = seconds_per_unit(suite, x)
-                    if got is None:
+                    # A name recorded more than once in one set (acq's
+                    # rows, once per Pd point) keeps its FIRST value, as
+                    # `live` keeps its first row.
+                    if got is None or series[b][i] is not None:
                         continue
                     series[b][i] = _sig(got[0])
                     if b == "portable" or bases[i] is None:
@@ -1469,10 +1472,11 @@ def render_page(root: str = ".") -> str:
         " *inferred*.",
         "",
         '<span id="headroom"></span>**Headroom.** Throughput ÷ your sample'
-        " rate, for stream rows. ×1 is exactly real time on this machine, one"
-        " core, portable build: green is ×1.5 or more, amber between ×1 and"
-        " ×1.5, red falls behind. A receiver is a chain: its headroom is set"
-        " by its slowest stage, and the stages share the core.",
+        " rate, for stream rows. ×1 is exactly real time on this machine,"
+        " portable build, on one core unless the row says otherwise (a `_t4`"
+        " row fans across 4 threads): green is ×1.5 or more, amber between"
+        " ×1 and ×1.5, red falls behind. A receiver is a chain: its headroom"
+        " is set by its slowest stage, and the stages share the core.",
         "",
         '<span id="row-ids"></span>**Row IDs.** The small monospace line'
         " under each name is the benchmark's own ID: what"

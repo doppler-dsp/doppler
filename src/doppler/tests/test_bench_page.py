@@ -387,13 +387,18 @@ def test_a_python_row_reads_in_the_unit_its_rate_names(
     py = [
         _py("test_bench_pn", 1e-4, {"MSa_s": 650.0, "Mbit_s": 650.0}),
         _py("test_bench_rx", 1e-4, {"MSa_s": 40.0, "Msym_s": 10.0}),
+        _py("test_bench_gold", 1e-4, {"MSa_s": 650.0, "Mchip_s": 650.0}),
         _py("test_bench_find_64k", 8.7e-5),
     ]
     tree = _tree(
         tmp_path,
         {"v0.71.0": []},
         label,
-        exempt=["py:costas::test_bench_pn", "py:costas::test_bench_rx"],
+        exempt=[
+            "py:costas::test_bench_pn",
+            "py:costas::test_bench_rx",
+            "py:costas::test_bench_gold",
+        ],
         py={"v0.71.0": py},
     )
     br = _load()
@@ -402,6 +407,7 @@ def test_a_python_row_reads_in_the_unit_its_rate_names(
     pn = _row(data, "py:costas::test_bench_pn")
     assert (pn["unit"], pn["dom"], pn["inf"]) == ("bit", "bit", False)
     assert _row(data, "py:costas::test_bench_rx")["dom"] == "Sa"
+    assert _row(data, "py:costas::test_bench_gold")["dom"] == "chip"
     find = _row(data, "py:costas::test_bench_find_64k")
     assert (find["cnt"], find["dom"]) == (65536, "bit")
 
@@ -615,3 +621,16 @@ def test_an_unreadable_release_commit_fails_the_gate_not_the_page(
     assert any("cannot be read" in b for b in bad), bad
     assert br.cmd_page("docs/benchmarks.md", root=str(tree)) == 0
     assert br.cmd_page("docs/benchmarks.md", check=True, root=str(tree)) == 0
+
+
+def test_a_name_recorded_twice_keeps_its_first_value(tmp_path: Path) -> None:
+    """acq records some rows once per Pd point under one name; the page
+    keeps the first, for the row and for its trend alike."""
+    rel = {
+        "v0.71.0": [
+            _c("costas::steps", 1e-3, 4096, {"unit": "sample"}),
+            _c("costas::steps", 9e-3, 4096, {"unit": "sample"}),
+        ]
+    }
+    row = _row(_load().page_data(str(_tree(tmp_path, rel))), "c:costas::steps")
+    assert row["p"] == [pytest.approx(1e-3 / 4096, rel=1e-3)]

@@ -141,7 +141,10 @@ routine at a release, and `make bench-labels-fix` clears both: a
 `benchmarks/legacy-units.toml` entry whose row records its own unit now
 (the first set measured after #2314, v0.73.0, records every C row's unit,
 so the fix deletes the whole file), and an exempt line whose row the new
-set no longer measures. A row the set publishes for the first time needs
+set no longer measures -- read the lines it prints, because a row missing
+from this one set only (a Python bench whose broker was down) loses its
+exempt line too, and needs a label when it comes back. A row the set
+publishes for the first time needs
 a label written, not an exempt line -- the exempt list only shrinks -- and
 it should already have one: a new row is labelled in the PR that adds it,
 where the gate holds the label as pending until a release measures the

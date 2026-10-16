@@ -609,6 +609,15 @@ UNIT_DOMAIN = {
 }
 #: Units that are setup, not a stream: read as time per call.
 CONTROL_UNITS = ("create", "arm")
+#: Every unit word the page knows how to read; a recorded unit outside
+#: it fails the label gate. `call` and `frame` are read by rule, not table.
+KNOWN_UNITS = {
+    *UNIT_SAMPLES,
+    *UNIT_DOMAIN,
+    *CONTROL_UNITS,
+    "call",
+    "frame",
+}
 #: Operation names that are setup, control or per-call bookkeeping -- they
 #: leave the throughput view whatever unit they recorded as `call`.
 CONTROL_OP = re.compile(
@@ -1031,9 +1040,11 @@ def page_data(root: str = ".") -> dict:
         if not fam:
             problems.append(
                 f"{rid}: no family -- component `{comp}` is no manifest "
-                "object or module and not in COMPONENT_MODULE"
+                "object or module and not in COMPONENT_MODULE "
+                "(scripts/bench_report.py)"
                 if not mod
-                else f"{rid}: module `{mod}` is not in MODULE_FAMILY"
+                else f"{rid}: module `{mod}` is not in MODULE_FAMILY "
+                "(scripts/bench_report.py): file it under a page family"
             )
         series = {b: [None] * len(versions) for b in BUILDS}
         bases = [None] * len(versions)
@@ -1072,6 +1083,14 @@ def page_data(root: str = ".") -> dict:
             why = label_count_problem(rid, label, known)
             if why:
                 problems.append(why)
+        if known and known not in KNOWN_UNITS:
+            # jm_bench takes any unit word; one the page has no reading for
+            # would otherwise fall through to "time per call" unannounced.
+            problems.append(
+                f"{rid}: the snapshot records unit `{known}`, which the page "
+                "cannot read -- add it to UNIT_SAMPLES, UNIT_DOMAIN or "
+                "CONTROL_UNITS in scripts/bench_report.py"
+            )
         rate = rate_of(rid, unit, label)
         if rate[1] == "Sa":
             # A sample rate past the coverage gate's ceiling is a hollow
@@ -1119,7 +1138,10 @@ def page_data(root: str = ".") -> dict:
         problems.append(f"{LEGACY_UNITS}: `{rid}` is no live row {FIXABLE}")
     for m in modules:
         if m not in MODULE_FAMILY:
-            problems.append(f"module `{m}` is not in MODULE_FAMILY")
+            problems.append(
+                f"module `{m}` is not in MODULE_FAMILY "
+                "(scripts/bench_report.py): file it under a page family"
+            )
     meta = {}
     for v, _, m in releases:
         meta[v] = {

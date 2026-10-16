@@ -564,6 +564,11 @@ the full suite comes from the *filename* (`conftest.py`'s
 `module::case` label from it). See [Benchmarking](benchmarking.md) for
 the full naming convention.
 
+A new **module** also needs a family on the benchmarks page:
+`make lint` refuses one missing from `MODULE_FAMILY` in
+`scripts/bench_report.py` -- add a line naming which of the page's six
+families its rows belong to.
+
 Give each new row, C and Python, a label in `benchmarks/labels.toml` in
 the same PR: a plain name, its unit and a one-sentence definition, which
 is what [the benchmarks page](../../benchmarks.md) shows. Nothing checks

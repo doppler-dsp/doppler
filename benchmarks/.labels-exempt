@@ -423,16 +423,8 @@ c:resample::ciccompmf[M=19]
 c:resample::ciccompmf[M=5]
 c:resample::kaiser_beta
 c:resample::kaiser_num_taps
-c:rs::decode[e=0]
-c:rs::decode[e=16]
-c:rs::encode
-c:rs::verify
 c:rs_codec::create[J=4]
 c:rs_codec::create[J=8]
-c:rs_codec::decode[e=0]
-c:rs_codec::decode[e=E]
-c:rs_codec::encode
-c:rs_codec::encode_kernel
 c:snr::data_aided_db
 c:snr::series[window=1024]
 c:specan::execute[rbw=100k]

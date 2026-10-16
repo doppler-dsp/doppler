@@ -670,3 +670,25 @@ def test_a_unit_change_breaks_a_trend_and_a_bigger_round_does_not(
     )
     get = _row(data, "c:costas::get")
     assert (get["brk"], get["sl"], get["slb"]) == ([1, 2], None, True)
+
+
+def test_an_unknown_unit_word_is_refused(tmp_path: Path) -> None:
+    """jm_bench records any unit word; one the page cannot read would be
+    shown per call unannounced, so the gate names it and where to add it."""
+    rel = {"v0.73.0": [_c("costas::steps", 1e-3, 4096, {"unit": "widget"})]}
+    tree = _tree(tmp_path, rel, exempt=["c:costas::steps"])
+    bad = _load().label_problems(str(tree))
+    assert any("records unit `widget`" in b for b in bad), bad
+
+
+def test_a_module_with_no_family_names_the_file(tmp_path: Path) -> None:
+    rel = {"v0.73.0": [_c("costas::steps", 1e-3, 4096, {"unit": "sample"})]}
+    tree = _tree(tmp_path, rel, exempt=["c:costas::steps"])
+    (tree / "just-makeit.toml").write_text(
+        MANIFEST + '\n[module.newmod]\nobjects = ["x"]\n', encoding="utf-8"
+    )
+    bad = _load().label_problems(str(tree))
+    assert any(
+        "`newmod` is not in MODULE_FAMILY (scripts/bench_report.py)" in b
+        for b in bad
+    ), bad

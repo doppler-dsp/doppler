@@ -560,3 +560,63 @@ name = "Spectrogram push, 65,536 points, hop 32,768"
 unit = "sample"
 definition = "A 65,536-point, hop-32,768 streaming spectrogram (dB rows) fed its whole block in one push; per input sample."
 samples = 1
+
+# The rest of the Reed-Solomon rows, in coded bits like the headline row:
+# every one is a CCSDS RS(255,223) codeword, 255 bytes, 2,040 bits, so the
+# family reads in one unit and sorts against itself.
+
+["c:rs::encode"]
+name = "Reed-Solomon encode"
+unit = "codeword"
+definition = "Encoding one CCSDS RS(255,223) codeword: 223 information bytes through the generator polynomial into 32 parity bytes; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs::verify"]
+name = "Reed-Solomon codeword check"
+unit = "codeword"
+definition = "Checking one CCSDS RS(255,223) codeword's syndromes and nothing else, the clean path a receiver's error detector runs; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs::decode[e=0]"]
+name = "Reed-Solomon decode, no errors"
+unit = "codeword"
+definition = "Decoding one clean CCSDS RS(255,223) codeword: the syndromes, all zero, are the whole cost; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs::decode[e=16]"]
+name = "Reed-Solomon decode, 16 errors"
+unit = "codeword"
+definition = "Decoding one CCSDS RS(255,223) codeword carrying 16 symbol errors, the most the code corrects: the full Berlekamp-Massey, Chien and Forney chain; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs_codec::encode"]
+name = "Reed-Solomon object encode"
+unit = "codeword"
+definition = "Encoding one CCSDS RS(255,223) codeword through the rs_codec object; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs_codec::encode_kernel"]
+name = "Reed-Solomon encode kernel"
+unit = "codeword"
+definition = "Encoding one CCSDS RS(255,223) codeword through the bare kernel the rs_codec object wraps, so the gap to the object row is the wrapper; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs_codec::decode[e=0]"]
+name = "Reed-Solomon object decode, no errors"
+unit = "codeword"
+definition = "Copying one clean CCSDS RS(255,223) codeword and decoding it in place through the rs_codec object; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["c:rs_codec::decode[e=E]"]
+name = "Reed-Solomon object decode, 16 errors"
+unit = "codeword"
+definition = "Copying one CCSDS RS(255,223) codeword, damaging 16 symbols (the most the code corrects) and decoding it in place through the rs_codec object; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040

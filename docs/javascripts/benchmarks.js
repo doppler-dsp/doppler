@@ -410,7 +410,9 @@
         (!state.q || (r.id + " " + (nameOf(r) || "")).toLowerCase().indexOf(state.q) >= 0));
       const key = {
         name: (r) => [headIdx.has(r.id) ? 0 : nameOf(r) ? 1 : 2, r.comp.toLowerCase(), r.id],
-        tput: (r) => [-(rateOf(r, r.p[LAST]) || 0), r.p[LAST]],
+        // Within a group a rate compares only with its own unit: bit/s
+        // never ranks against codewords/s.
+        tput: (r) => [r.dom || "", -(rateOf(r, r.p[LAST]) || 0), r.p[LAST]],
         head: (r) => [-(headroom(r, r.p[LAST]) || 0), r.p[LAST]],
         // `sl` is computed in bench_report.py, which honours breaks.
         delta: (r) => [-Math.abs(r.sl || 0)],

@@ -16,11 +16,10 @@ with the suite.
 
 from __future__ import annotations
 
-import os
 import shlex
 import subprocess
 
-from doppler.tests._repo import repo_root
+from doppler.tests._repo import nested_make_env, repo_root
 
 REPO = repo_root(__file__)
 
@@ -32,8 +31,7 @@ def _clean_env() -> dict[str, str]:
     line to children through MAKEFLAGS, and the `make -n` below would
     inherit that TEST_PATHS instead of reading its own default.
     """
-    drop = {"MAKEFLAGS", "MFLAGS", "MAKELEVEL", "TEST_PATHS", "PYTEST_ARGS"}
-    return {k: v for k, v in os.environ.items() if k not in drop}
+    return nested_make_env("TEST_PATHS", "PYTEST_ARGS")
 
 
 def _pytest_line(*make_args: str, **env: str) -> str:

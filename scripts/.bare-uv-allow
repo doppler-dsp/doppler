@@ -7,6 +7,3 @@
 # with no reason is refused, and an entry whose text no longer appears in any
 # makefile fails the gate, so it is deleted in the change that retires its
 # reason. Text, not a line number, so unrelated edits do not move it.
-
-PYTHON_EXECUTABLE ?= $(shell uv run python -c -- #2364: PR #2368 rewrites this probe (it needs $(or $(UV),uv), since UV is defined later in the file); drop this line when it lands
-uv run python scripts/list_hand_ext_c.py; } -- #2361: PR #2365 rewrites C_FILES through $(UV); drop this line when it lands

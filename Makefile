@@ -92,7 +92,13 @@ STOCK_REGISTRY      ?= public.ecr.aws/docker/library
 # rate limit with backoff (#1979): before a `docker run --pull=never`, and as
 # `$(STOCK_PULL) --dockerfile F` before a `docker build -f F`, because
 # BuildKit does not retry a FROM. `make lint-stock-images` holds every site.
-STOCK_PULL          = STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/stock-pull.sh
+# When ECR Public refuses an IP its anonymous data quota, the helper pulls
+# the same tag from STOCK_MIRROR, Google's anonymous mirror of the official
+# images, at the same digests (checked 2026-10-16 for every tag doppler
+# pulls), and names it as the primary's (#2256).
+STOCK_MIRROR        ?= mirror.gcr.io/library
+STOCK_PULL          = STOCK_REGISTRY=$(STOCK_REGISTRY) \
+                      STOCK_MIRROR=$(STOCK_MIRROR) bash scripts/stock-pull.sh
 
 # The uv pin, read from pyproject.toml's [tool.uv] required-version by the
 # script that gates it -- one parser for one declaration (doppler#1940).
@@ -107,9 +113,56 @@ CMAKE       := cmake
 # Defaults to the uv-managed venv Python so the extension suffix always
 # matches the active interpreter.  Override on the command line:
 #   make pyext PYTHON_EXECUTABLE=/usr/bin/python3.13
-PYTHON_EXECUTABLE ?= $(shell uv run python -c \
-    'import sys; print(sys.executable)' 2>/dev/null || which python3)
-PYTHON_EXECUTABLE := $(or $(JUST_BUILDIT_PYTHON),$(PYTHON_EXECUTABLE))
+#
+# Who decides, in order (#2364):
+#   1. JUST_BUILDIT_PYTHON (just-buildit's wheel build), or a
+#      PYTHON_EXECUTABLE given on the command line or in the environment.
+#   2. uv is not installed at all: `python3` from PATH. This is the fallback
+#      the old `|| which python3` was for -- a box provisioned without uv.
+#   3. uv's venv interpreter.
+#   4. uv IS installed but refuses (most often: not the version pinned in
+#      pyproject.toml): EMPTY, with uv's reason in _PY_ERROR, and every
+#      target that builds for or runs the interpreter fails through
+#      `python-executable-check` (below). It used to fall through to case 2
+#      silently, so `pyext` built for the system Python -- the stale-.so
+#      mismatch CLAUDE.md warns about -- and nothing said so.
+#   Empty by any route -- `PYTHON_EXECUTABLE=` given empty, or case 2 with
+#   no python3 -- is case 4's refusal too, with its own reason.
+#
+# `$(or $(UV),uv)` because `UV = uv` is defined further down, under Tooling,
+# and this block is expanded NOW; a `UV=` on the command line is already
+# set, and otherwise the value is the same `uv` the Tooling line assigns.
+# Not a `$(error)`: standard.mk's _std_require expands PYEXT_CMD and
+# COVERAGE_CMD at parse time, so an error there would stop `make lint` and
+# every other target on the same box, not just the ones that need Python.
+_PY_UV := $(or $(UV),uv)
+ifneq ($(JUST_BUILDIT_PYTHON),)
+PYTHON_EXECUTABLE := $(JUST_BUILDIT_PYTHON)
+else ifeq ($(origin PYTHON_EXECUTABLE),undefined)
+ifeq ($(shell command -v $(_PY_UV) 2>/dev/null),)
+PYTHON_EXECUTABLE := $(shell command -v python3 2>/dev/null)
+else
+_PY_PROBE := $(shell out=$$($(_PY_UV) run python -c \
+    'import sys; print(sys.executable)' 2>/dev/null) && echo "ok $$out")
+ifeq ($(firstword $(_PY_PROBE)),ok)
+PYTHON_EXECUTABLE := $(wordlist 2,$(words $(_PY_PROBE)),$(_PY_PROBE))
+else
+PYTHON_EXECUTABLE :=
+# uv's error line, not a `warning:` printed ahead of it; the first line of
+# any kind when uv says nothing starting `error`.
+_PY_ERROR := $(or $(shell out=$$($(_PY_UV) run python -c pass 2>&1 \
+    >/dev/null); printf '%s\n' "$$out" | grep -m1 '^error' \
+    || printf '%s\n' "$$out" | head -n 1),`$(_PY_UV) run python` failed)
+endif
+endif
+endif
+# Whichever way it came out empty -- an explicit `PYTHON_EXECUTABLE=`, or no
+# uv and no python3 -- there is nothing to build for, and an empty value
+# would silently drop -DPython3_EXECUTABLE and let CMake pick one.
+ifeq ($(strip $(PYTHON_EXECUTABLE)),)
+_PY_ERROR := $(or $(_PY_ERROR),PYTHON_EXECUTABLE is empty (set empty, or \
+    no uv and no python3 on PATH))
+endif
 
 # $(call CONTAINER_CHECKOUT,<build dir>) -- the `docker run` flags for "this
 # checkout, bind-mounted read-write at /w, worked on by a `make` inside".
@@ -258,10 +311,20 @@ C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|(^|/)jm_(bench|test)\.h$$|_ext\.c$$|_s
 # pass walks all of native/src, rewrote it under whoever applied next
 # (buffer_ext.c after doppler#1432). Derived from the manifest, so a migrated
 # module leaves the set by itself.
-C_FILES = { git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'; \
-            uv run python scripts/list_hand_ext_c.py; }
+#
+# The hand-written list is taken BEFORE the pipe, and its failure stops the
+# target (#2361). It used to be the second half of a `{ ...; }` group piped
+# into xargs: POSIX sh has no pipefail, so a failing `list_hand_ext_c.py`
+# only shortened the list and the target still exited 0 -- a gate reading
+# green while checking less. It also ran a bare `uv`, which ignores the
+# `UV=` override, so a box whose uv is not the pin dropped those files
+# every time.
+C_FILES     = git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'
+HAND_EXT_C  = $(UV) run python scripts/list_hand_ext_c.py
 
-LINT_clang-format = @$(C_FILES) | xargs -r $(CLANG_FORMAT) -i --style=file
+LINT_clang-format = @hand=$$($(HAND_EXT_C)) || exit $$?; \
+    { $(C_FILES); printf '%s\n' "$$hand"; } \
+    | xargs -r $(CLANG_FORMAT) -i --style=file
 
 # clang-tidy does NOT take clang-format's file list, and sharing C_FILES was
 # the reason its first real run emitted 6916 lines of which ~1700 were noise.
@@ -729,7 +792,8 @@ TEST_ALL_DEPS = test test-examples test-python test-examples-python
 # a fresh runner, wrong for a dev box running it twice.
 nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
 	@docker rm -f nats >/dev/null 2>&1 || true
-	@STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/start-nats.sh
+	@STOCK_REGISTRY=$(STOCK_REGISTRY) STOCK_MIRROR=$(STOCK_MIRROR) \
+	    bash scripts/start-nats.sh
 	@$(NATS_STREAMS) --check
 
 # The remedy `nats-up` names. Deleting is prefix-guarded to DP_WORK_*, so a
@@ -920,9 +984,13 @@ nats-vendor-fresh-check: ## Prove the vendored nats.c keeps its options after a 
 CCACHE_BIN   := $(shell command -v ccache 2>/dev/null)
 CCACHE_FLAGS := $(if $(CCACHE_BIN),-DCMAKE_C_COMPILER_LAUNCHER=ccache,)
 
-CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-              -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) $(CCACHE_FLAGS) \
-              $(CMAKE_ARGS)
+# Only when there is one (#2364): an empty -DPython3_EXECUTABLE= would make
+# CMake search PATH and pick the system Python silently, which is the very
+# swap this guards against. Absent, a configured tree keeps its cached one.
+PY_CMAKE_FLAG = $(if $(PYTHON_EXECUTABLE),\
+                    -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE))
+CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON $(PY_CMAKE_FLAG) \
+              $(CCACHE_FLAGS) $(CMAKE_ARGS)
 
 # `CMAKE_FLAGS` reaches the CONFIGURE step only, and the standard's `build`
 # ends with a bare `cmake --build $(BUILD_DIR)` — so there is no flag surface
@@ -976,6 +1044,25 @@ $(CMAKE) -B $(BUILD_DIR) -S . -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 $(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
 $(UV) sync $(UV_SYNC_FLAGS)
 endef
+
+# Every target that builds for, or runs, PYTHON_EXECUTABLE goes through this
+# first, so a uv that refuses fails THEM, loudly, instead of quietly building
+# for the system Python (#2364). Targets that need no interpreter -- lint, the
+# C suite -- are untouched.
+# uv's reason is quoted with single quotes (it carries backticks), so any
+# single quote inside it is closed, escaped and reopened.
+_PY_ERROR_Q = '$(subst ','\'',$(_PY_ERROR))'
+python-executable-check: ## Fail when there is no interpreter to build for
+	@if [ -n $(_PY_ERROR_Q) ]; then \
+	  echo "python-executable-check: no interpreter to build for:"; \
+	  printf '    %s\n' $(_PY_ERROR_Q); \
+	  echo "  Fix uv (or pass UV=<the pinned uv>), or name one with"; \
+	  echo "  PYTHON_EXECUTABLE=<python>. Not falling back to python3: that"; \
+	  echo "  builds the extension for the wrong interpreter (#2364)."; \
+	  exit 1; \
+	fi
+pyext coverage warnings-check test-example-downstream-python: \
+    python-executable-check
 
 # `wheel` used to be a .PHONY with no rule: advertised in help, exiting 0 with
 # no wheel produced. This is what it should always have been.
@@ -1097,9 +1184,31 @@ DOXYGEN_CMD      = doxygen Doxyfile
 # The version assertion moved with it: an upstream bump in the image must fail
 # LOUDLY here rather than silently changing generated output, so both fallback
 # paths below check the image's doxygen against DOXYGEN_VERSION first.
+#
+# "CI has moved" is said only when the image RAN and reported another version.
+# A missing docker, or an image that would not run, used to reach the same
+# message with an empty version -- "ships doxygen , not 1.9.8" -- and told the
+# reader to bump a pin that was right (#2362). Each now says what is missing;
+# docker's own stderr is left visible, since it is the reason.
 DOXYGEN_IMAGE_CHECK = \
-  got=$$(docker run --rm $(CI_IMAGE) doxygen --version 2>/dev/null \
-         | cut -d' ' -f1); \
+  if ! command -v docker >/dev/null 2>&1; then \
+      echo "doxygen: the local doxygen is not $(DOXYGEN_VERSION), and docker is"; \
+      echo "  not installed, so CI's doxygen cannot run from $(CI_IMAGE)."; \
+      echo "  Install doxygen $(DOXYGEN_VERSION), or docker."; \
+      exit 1; \
+  fi; \
+  ver=$$(docker run --rm $(CI_IMAGE) doxygen --version) || { \
+      rc=$$?; \
+      echo "doxygen: docker could not run doxygen in $(CI_IMAGE) (exit $$rc)."; \
+      echo "  Nothing is known about CI's doxygen from this; see docker's"; \
+      echo "  message above (daemon not running, image not pulled, ...)."; \
+      exit 1; }; \
+  got=$$(printf '%s\n' "$$ver" | cut -d' ' -f1); \
+  if [ -z "$$got" ]; then \
+      echo "doxygen: $(CI_IMAGE) ran but reported no doxygen version."; \
+      echo "  Nothing is known about CI's doxygen from this; check the image."; \
+      exit 1; \
+  fi; \
   if [ "$$got" != "$(DOXYGEN_VERSION)" ]; then \
       echo "doxygen: the CI image ships doxygen $$got, not $(DOXYGEN_VERSION)."; \
       echo "  CI runs the doxygen job INSIDE that image, so CI has moved too."; \
@@ -1216,7 +1325,9 @@ COV_GUARD     ?= $(MEM_GUARD_CMD)
 # so the two suites' escape hatches read the same. The measurement that
 # justifies it is at the ctest call site below. `COV_SWEEP=1` restores them.
 COV_EXCLUDE_SWEEP = $(if $(COV_SWEEP),,-LE sweep)
-export MEM_GUARD_PYTHON ?= $(PYTHON_EXECUTABLE)
+# Only the memory probe's interpreter, so it need not be the venv's: when uv
+# refuses (#2364) the probe still runs on python3.
+export MEM_GUARD_PYTHON ?= $(or $(PYTHON_EXECUTABLE),python3)
 # Excluded from the report: vendored code, jm-generated binding aggregators
 # (`<mod>_ext.c`) and per-object fragments, and the test/bench/validation
 # harnesses — only first-party _core.c counts.
@@ -1284,7 +1395,7 @@ $(CMAKE) -B $(COV_DIR) -S . \
     -DCMAKE_C_COMPILER=clang \
     $(CCACHE_FLAGS) \
     -DDOPPLER_COVERAGE=ON -DBUILD_PYTHON=ON \
-    -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
+    $(PY_CMAKE_FLAG) \
     -DPYTHON_PACKAGE_DIR=$(CURDIR)/$(COV_DIR)/pkg/doppler \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     $(CMAKE_ARGS)
@@ -1642,7 +1753,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 jm-apply jm-apply-downstream jm-adopt \
                 jm-upgrade changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
-                gen-c-api-check \
+                gen-c-api-check python-executable-check \
                 gen-c-api-run \
                 package-c package-c-tarball package-c-smoke vcpkg-smoke \
                 package-deb package-rpm package-linux package-linux-smoke \
@@ -4673,7 +4784,7 @@ test-example-downstream-python: ## Build + test the downstream example (Python)
 	@cmake -B $(DOWNSTREAM_BUILD_DIR)-py $(DOWNSTREAM_DIR) \
 	    -Ddoppler_DIR=$(abspath $(BUILD_DIR)) \
 	    -DBUILD_PYTHON=ON \
-	    -DPython3_EXECUTABLE=$$($(UV) run python -c 'import sys; print(sys.executable)') \
+	    $(PY_CMAKE_FLAG) \
 	    -DCMAKE_BUILD_TYPE=Release \
 	    > $(DOWNSTREAM_BUILD_DIR)-py.log 2>&1 \
 	    || { echo "  configure FAILED"; cat $(DOWNSTREAM_BUILD_DIR)-py.log; exit 1; }

@@ -291,13 +291,39 @@ def _fake_interleaved(inter, monkeypatch, tmp_path, c_names):
 def test_interleaved_refuses_a_c_set_short_of_the_tree(
     tmp_path, monkeypatch, capsys
 ):
-    """A bench that crashed in every pass wrote no JSON and jm skips it, so
-    the merged set lacks it: refused, nothing written."""
+    """A merged set short of the tree's C benchmarks is refused, nothing
+    written. jm fails a crashed binary first (just-makeit#2189); this is the
+    backstop for a set short any other way."""
     inter = _load("bench_interleaved")
     published = _fake_interleaved(inter, monkeypatch, tmp_path, ["fir"])
     assert inter.main() == 1
     assert "rs" in capsys.readouterr().out
     assert not published.exists() or not any(published.rglob("*.json"))
+
+
+def test_a_failed_bench_run_replays_its_stderr(tmp_path, monkeypatch, capsys):
+    """A failed `make bench` stops the measurement with the benchmark's own
+    reason on stderr, not a bare CalledProcessError (#2062). `jm bench`
+    fails a run whose binary exited non-zero (just-makeit#2189), and the
+    binary said why on stderr, so the run must capture it to replay it."""
+    inter = _load("bench_interleaved")
+    why = 'jm_bench: row "push[nfft=1024,hop=64]": out of memory\n'
+
+    class _Failed:
+        returncode = 2
+        stderr = why
+
+    seen = {}
+
+    def fake_run(cmd, cwd, **kw):
+        seen.update(kw)
+        return _Failed()
+
+    monkeypatch.setattr(inter, "_run", fake_run)
+    with pytest.raises(SystemExit, match=r"`make bench` failed .*exit 2"):
+        inter.bench_once(str(tmp_path))
+    assert seen["stderr"] is inter.subprocess.PIPE
+    assert why in capsys.readouterr().err
 
 
 def test_interleaved_publishes_a_whole_run(tmp_path, monkeypatch):

@@ -364,3 +364,32 @@ def test_a_stale_allow_entry_fails(tmp_path: Path) -> None:
     r = _run(_seed(tmp_path, files=files))
     assert r.returncode == 1, r.stdout
     assert "matches no makefile line" in r.stdout, r.stdout
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "\tuvx diff-cover cov.lcov --fail-under=80\n",
+        "\t$(UV) tool run diff-cover cov.lcov\n",
+        "\tuv tool run diff-cover cov.lcov\n",
+        "GATE_CMD = uvx some-tool --check\n",
+    ],
+)
+def test_a_tool_run_outside_the_lock_is_refused(
+    tmp_path: Path, line: str
+) -> None:
+    """uvx / `uv tool run` resolve the tool unpinned (doppler#2371): even a
+    $(UV) spelling is refused -- the tool belongs in the dev group."""
+    r = _run(_seed(tmp_path, files={"Makefile": "t:\n" + line}))
+    assert r.returncode == 1, r.stdout
+    assert "Makefile:2: runs a tool outside the lock" in r.stdout, r.stdout
+
+
+def test_a_locked_tool_through_dev_run_passes(tmp_path: Path) -> None:
+    mk = (
+        "UV = uv\nDEV_RUN = $(UV) run --group dev\n"
+        "t:\n\t$(DEV_RUN) diff-cover cov.lcov --fail-under=80\n"
+        "# a comment may say uvx diff-cover\n"
+    )
+    r = _run(_seed(tmp_path, files={"Makefile": mk}))
+    assert r.returncode == 0, r.stdout

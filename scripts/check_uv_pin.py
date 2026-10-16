@@ -38,7 +38,11 @@ INSTALL uv to the same value:
    UV=...`` still failed at its last step, a bare ``uv sync``. Lines that
    must stay bare for now are listed in ``scripts/.bare-uv-allow`` with
    their reason; an entry that no longer matches a line fails, so the list
-   only shrinks.
+   only shrinks. Nor may a makefile run a tool OUTSIDE the lock -- ``uvx``,
+   or ``uv tool run`` however uv is spelled (doppler#2371): it resolves
+   the tool unpinned, so a gate's verdict can change with no commit here,
+   and it does not enforce ``required-version`` either. The tool goes in
+   the dev group with an exact pin and runs through ``$(DEV_RUN)``.
 
 Files are every tracked file (``git ls-files``; every file under ``--root``
 when it is not a checkout), less prose -- ``docs/``, ``*.md``, the changelog
@@ -108,6 +112,10 @@ _MAKEFILE = re.compile(r"(?:^|/)(?:GNU)?[Mm]akefile$|\.mk$")
 _BARE_UV = re.compile(
     r"(?<![\w./-])uv\s+(?:run|sync|lock|pip|build|venv|tool|export|tree"
     r"|add|remove|cache|python)\b"
+)
+#: Rule 4's other half: a tool run outside the lock, by any spelling of uv.
+_UNLOCKED_TOOL = re.compile(
+    r"(?<![\w./-])uvx\b|(?:\$\(UV\)|(?<![\w./-])uv)\s+tool\s+run\b"
 )
 #: Rule 4's allowlist, relative to the root: `<line text> -- <reason>`.
 BARE_UV_ALLOW = "scripts/.bare-uv-allow"
@@ -261,6 +269,13 @@ def bare_uv_offenders(root: Path, files: list[str]) -> list[str]:
         for n, line in _logical_lines(text):
             # A recipe's `@# ...` is a shell comment: prose, not a call.
             if line.lstrip().startswith("@#"):
+                continue
+            if _UNLOCKED_TOOL.search(line):
+                bad.append(
+                    f"{rel}:{n}: runs a tool outside the lock -- "
+                    f"`{line.strip()[:70]}`; pin it in the dev group and run "
+                    "it through $(DEV_RUN)"
+                )
                 continue
             if not _BARE_UV.search(line):
                 continue

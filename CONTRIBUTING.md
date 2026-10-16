@@ -447,11 +447,15 @@ ______________________________________________________________________
 
 ## Code style
 
-| Language | Tool                               | Config          |
-| -------- | ---------------------------------- | --------------- |
-| C        | `clang-format`                     | `.clang-format` |
-| Python   | `uvx ruff format --line-length=79` | —               |
-| Rust     | `rustfmt`                          | `rustfmt.toml`  |
+| Language | Tool           | Config                           |
+| -------- | -------------- | -------------------------------- |
+| C        | `clang-format` | `.clang-format`                  |
+| Python   | `ruff format`  | `pyproject.toml`'s `[tool.ruff]` |
+| Rust     | `rustfmt`      | `rustfmt.toml`                   |
+
+`make format` runs the C and Python formatters, and `make lint` checks
+them, at the versions `uv.lock` pins. Do not run them through `uvx`: it
+resolves an unpinned release, which can format differently from CI.
 
 Line width: **79 characters** across all languages.
 

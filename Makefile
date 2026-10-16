@@ -1620,7 +1620,7 @@ sed -i 's|SF:$(CURDIR)/|SF:|' $(COV_DIR)/coverage.lcov
 endef
 
 define COVERAGE_GATE_CMD
-uvx diff-cover $(COV_DIR)/coverage.lcov \
+$(DEV_RUN) diff-cover $(COV_DIR)/coverage.lcov \
     --compare-branch=$(COV_BASE) \
     --fail-under=$(COV_PATCH_MIN) \
     --format html:$(COV_DIR)/patch.html \

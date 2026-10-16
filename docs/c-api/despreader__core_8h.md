@@ -709,7 +709,7 @@ int dp_despreader_set_bn_carrier (
 
 **Returns:**
 
-DP\_OK; DP\_ERR\_INVALID, changing nothing, outside the carrier loop's domain ([**dp\_costas\_configure()**](costas__core_8h.md#function-dp_costas_configure)). 
+DP\_OK; DP\_ERR\_INVALID, changing nothing, outside the loop filter's domain ([**dp\_costas\_configure()**](costas__core_8h.md#function-dp_costas_configure)). 
 
 
 
@@ -736,7 +736,7 @@ int dp_despreader_set_bn_code (
 
 **Returns:**
 
-DP\_OK; DP\_ERR\_INVALID, changing nothing, outside the code loop's domain ([**dp\_dll\_configure()**](dll__core_8h.md#function-dp_dll_configure)). 
+DP\_OK; DP\_ERR\_INVALID, changing nothing, outside the loop filter's domain ([**dp\_dll\_configure()**](dll__core_8h.md#function-dp_dll_configure)). 
 
 
 

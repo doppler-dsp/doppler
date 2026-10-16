@@ -122,9 +122,10 @@ def _git(root: Path, *args: str) -> str:
     A failure raises: a gate that cannot ask git which headers are committed
     must not read the answer as "none". Git finds the repository from
     *root*, as a person running the command would: an inherited ``GIT_*``
-    variable is dropped, because ``git rebase -x 'make lint'`` exports
-    ``GIT_DIR``, and with it set git takes the downstream example's
-    directory for the top of the work tree and lists nothing there.
+    variable is dropped. ``git rebase -x 'make lint'`` in a linked worktree
+    exports ``GIT_DIR``, and with it set git takes the downstream example's
+    directory for the top of the work tree, so it lists only paths the root
+    also tracks there: the example's ``jm_test.h`` went ungated.
     """
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     return subprocess.run(

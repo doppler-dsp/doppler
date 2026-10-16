@@ -302,9 +302,10 @@ def test_jm_still_compares_every_committed_header(
 
 
 def test_an_inherited_git_dir_is_ignored(monkeypatch, tmp_path: Path):
-    """`git rebase -x 'make lint'` exports GIT_DIR. With it set, git takes
-    the downstream example's directory for the top of the work tree and
-    lists nothing there, so a stale committed header would pass."""
+    """`git rebase -x 'make lint'` in a linked worktree exports GIT_DIR.
+    With it set, git reads another index from the project's directory, so
+    a committed header it does not list there would pass stale. Here the
+    other repository is empty, so the header vanishes outright."""
     mod = _load()
     proj = tmp_path / "proj"
     _repo(proj, ["native/benchmarks/jm_bench.h"])

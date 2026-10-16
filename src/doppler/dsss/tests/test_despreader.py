@@ -313,20 +313,22 @@ def test_create_refuses_a_bad_code_loop_parameter(kw, names):
         Despreader(_code(), SPS, **kw)
 
 
-def test_a_nan_code_bandwidth_changes_nothing():
-    """The C setter refuses a NaN bandwidth. A jm writable property cannot
-    yet raise what its setter returns (just-buildit/just-makeit#2182), so the
-    refusal shows as the value staying put rather than a ValueError."""
+def test_a_nan_code_bandwidth_raises_and_changes_nothing():
+    """The C setter refuses a NaN bandwidth, the assignment raises, and the
+    value stays put (#1987)."""
     d = Despreader(_code(), SPS)
     before = d.bn_code
-    d.bn_code = float("nan")
+    with pytest.raises(ValueError, match="Despreader: bn_code is outside"):
+        d.bn_code = float("nan")
     assert d.bn_code == before
 
 
-def test_a_nan_carrier_bandwidth_changes_nothing():
+def test_a_nan_carrier_bandwidth_raises_and_changes_nothing():
     """The carrier loop refuses a NaN bandwidth exactly as the code loop does
-    (doppler#2103): the setter's refusal leaves bn_carrier where it was."""
+    (doppler#2103): the assignment raises and bn_carrier stays where it was
+    (#1987)."""
     d = Despreader(_code(), SPS)
     before = d.bn_carrier
-    d.bn_carrier = float("nan")
+    with pytest.raises(ValueError, match="Despreader: bn_carrier is outside"):
+        d.bn_carrier = float("nan")
     assert d.bn_carrier == before

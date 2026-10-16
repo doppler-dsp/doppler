@@ -117,6 +117,10 @@ type = "double"
 name = "bn"
 type = "double"
 writable = true
+# The C setter refuses and keeps the value; jm raises on its
+# non-zero return (just-makeit#2182, doppler#1987).
+error = "ValueError"
+error_message = "CarrierNda: bn is outside the loop filter's domain (need bn >= 0, finite, whose loop gains come out finite)"
 
 [[carrier_nda.properties]]
 name = "m"

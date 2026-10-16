@@ -188,7 +188,8 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
         dp_async_dsss_receiver_destroy (rx);
       }
     (void)snprintf (name, sizeof name, "steps[cold%s]", w->tag);
-    jm_bench_add (bench, name, t_cold, ITERATIONS, (int)n);
+    jm_bench_add_unit (bench, name, t_cold, ITERATIONS, (int)n,
+                       JM_BENCH_SAMPLE);
     double sec = min_sec (t_cold, ITERATIONS);
     printf ("  %-20s %8.3f ms/capture  %7.2f ns/sample  %8.3f Msym/s\n", name,
             sec * 1e3, sec / (double)n * 1e9, (double)N_SYM / sec / 1e6);
@@ -228,7 +229,8 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
         t_warm[r] = jm_bench_elapsed_sec (t0, t1);
       }
     (void)snprintf (name, sizeof name, "steps[warm%s]", w->tag);
-    jm_bench_add (bench, name, t_warm, ITERATIONS, (int)(n - half));
+    jm_bench_add_unit (bench, name, t_warm, ITERATIONS, (int)(n - half),
+                       JM_BENCH_SAMPLE);
     double sec = min_sec (t_warm, ITERATIONS);
     printf ("  %-20s %8.3f ms/block    %7.2f ns/sample  %6.2fx real time "
             "on one core\n",
@@ -286,7 +288,8 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
         t_cell[r] = jm_bench_elapsed_sec (t0, t1);
       }
     (void)snprintf (name, sizeof name, "steps[cell%s]", w->tag);
-    jm_bench_add (bench, name, t_cell, ITERATIONS, (int)(n - half));
+    jm_bench_add_unit (bench, name, t_cell, ITERATIONS, (int)(n - half),
+                       JM_BENCH_SAMPLE);
     double sec = min_sec (t_cell, ITERATIONS);
     printf ("  %-20s %8.3f ms/block    %7.2f ns/sample  %6.2fx real time "
             "on one core\n",

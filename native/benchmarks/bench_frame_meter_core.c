@@ -76,7 +76,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_add[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "add", t_add, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "add", t_add, ITERATIONS, BENCH_N,
+                     JM_BENCH_CALL);
   printf ("  %-14s %8.2f ns/frame\n", "add",
           min_sec (t_add, ITERATIONS) / BENCH_N * 1e9);
 
@@ -90,7 +91,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_get[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "get_frames", t_get, ITERATIONS, STAT_N);
+  jm_bench_add_unit (&_bench, "get_frames", t_get, ITERATIONS, STAT_N,
+                     JM_BENCH_CALL);
   printf ("  %-14s %8.2f ns/call\n", "get_frames",
           min_sec (t_get, ITERATIONS) / STAT_N * 1e9);
 
@@ -102,7 +104,7 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_fer[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "fer", t_fer, ITERATIONS, STAT_N);
+  jm_bench_add_unit (&_bench, "fer", t_fer, ITERATIONS, STAT_N, JM_BENCH_CALL);
   printf ("  %-14s %8.2f ns/call\n", "fer",
           min_sec (t_fer, ITERATIONS) / STAT_N * 1e9);
 
@@ -114,7 +116,8 @@ main (void)
       t1        = jm_bench_now_ns ();
       t_sync[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "sync_miss", t_sync, ITERATIONS, STAT_N);
+  jm_bench_add_unit (&_bench, "sync_miss", t_sync, ITERATIONS, STAT_N,
+                     JM_BENCH_CALL);
   printf ("  %-14s %8.2f ns/call\n", "sync_miss",
           min_sec (t_sync, ITERATIONS) / STAT_N * 1e9);
 

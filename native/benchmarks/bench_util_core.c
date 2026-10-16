@@ -69,7 +69,7 @@ min_per_op (double *t)
 static void
 report (jm_bench_t *b, const char *name, double *t, double base)
 {
-  jm_bench_add (b, name, t, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (b, name, t, ITERATIONS, BENCH_N, JM_BENCH_CALL);
   double per = min_per_op (t);
   if (base > 0.0)
     printf ("  %-20s %7.3f ns/op   %+6.1f%%\n", name, per,

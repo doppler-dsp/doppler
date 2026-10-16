@@ -107,7 +107,8 @@ main (void)
         char name[64];
         (void)snprintf (name, sizeof name, "steps[pad=%zu%s]", pads[p],
                         seqs[q] ? ",seq" : "");
-        jm_bench_add (&_bench, name, t_st[p][q], ITERATIONS, BENCH_N);
+        jm_bench_add_unit (&_bench, name, t_st[p][q], ITERATIONS, BENCH_N,
+                           JM_BENCH_SAMPLE);
         double sec = min_sec (t_st[p][q], ITERATIONS);
         printf ("  %-22s %8.3f ms/block  %7.2f ns/sample\n", name, sec * 1e3,
                 sec / (double)BENCH_N * 1e9);

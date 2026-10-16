@@ -142,7 +142,8 @@ main (void)
 
   for (int d = 0; d < 2; d++)
     {
-      jm_bench_add (&_bench, names[d], t_dec[d], ITERATIONS, (int)n_in);
+      jm_bench_add_unit (&_bench, names[d], t_dec[d], ITERATIONS, (int)n_in,
+                         "bit");
       const double sec = min_sec (t_dec[d], ITERATIONS);
       printf ("  %-18s %8.2f ns/info-bit   %7.2f Mbit/s\n", names[d],
               sec / (double)n_in * 1e9, (double)n_in / sec / 1e6);

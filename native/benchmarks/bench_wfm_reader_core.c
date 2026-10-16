@@ -49,7 +49,7 @@ bench_cfg (const char *name, const char *path, int ft, int stype,
     }
   printf ("  %-26s %8.1f MSa/s\n", name,
           BENCH_N / (times[0] > 0 ? times[0] : 1e-9) / 1e6);
-  jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (bench, name, times, ITERATIONS, BENCH_N, JM_BENCH_SAMPLE);
   remove (path);
 }
 
@@ -90,7 +90,7 @@ bench_seek (const char *name, const char *path, int ft, int stype,
   dp_wfm_reader_destroy (rd);
   printf ("  %-26s %8.1f kseek/s\n", name,
           (double)(2 * batch) / (times[0] > 0 ? times[0] : 1e-9) / 1e3);
-  jm_bench_add (bench, name, times, ITERATIONS, 2 * batch);
+  jm_bench_add_unit (bench, name, times, ITERATIONS, 2 * batch, JM_BENCH_CALL);
   remove (path);
 }
 

@@ -174,7 +174,7 @@ time_rows (jm_bench_t *b, const char *name, wfm_data_src_t *src, int pipe_wr,
         }
       t[r] = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
     }
-  jm_bench_add (b, name, t, ITERATIONS, FRAMES);
+  jm_bench_add_unit (b, name, t, ITERATIONS, FRAMES, JM_BENCH_FRAME);
   report (name, t);
   return bad;
 }
@@ -291,7 +291,7 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_one[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "bits[1]", t_one, ITERATIONS, 1);
+  jm_bench_add_unit (&_bench, "bits[1]", t_one, ITERATIONS, 1, JM_BENCH_FRAME);
   printf ("  %-14s %9.3f us/frame  %8.2f Mbit/s\n", "bits[1]",
           min_sec (t_one, ITERATIONS) * 1e6,
           (double)nb1 / min_sec (t_one, ITERATIONS) / 1e6);
@@ -303,7 +303,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_bat[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "bits[16]", t_bat, ITERATIONS, BATCH);
+  jm_bench_add_unit (&_bench, "bits[16]", t_bat, ITERATIONS, BATCH,
+                     JM_BENCH_FRAME);
   printf ("  %-14s %9.3f us/frame  %8.2f Mbit/s\n", "bits[16]",
           min_sec (t_bat, ITERATIONS) / BATCH * 1e6,
           (double)nbB / min_sec (t_bat, ITERATIONS) / 1e6);
@@ -316,7 +317,7 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_crc[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "crc_ok", t_crc, ITERATIONS, 1);
+  jm_bench_add_unit (&_bench, "crc_ok", t_crc, ITERATIONS, 1, JM_BENCH_CALL);
   printf ("  %-14s %9.3f us/frame\n", "crc_ok",
           min_sec (t_crc, ITERATIONS) * 1e6);
 

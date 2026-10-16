@@ -44,7 +44,7 @@ bench_one (jm_bench_t *b, const char *name, size_t L, double max_rate)
     }
   printf ("  %-8s L=%5zu n_rate=%5zu  f=%.4f r=%.2e snr=%.0f\n", name, L,
           p->n_rate, e.freq_norm, e.rate_norm, e.snr_db);
-  jm_bench_add (b, name, times, ITERATIONS, (int)L);
+  jm_bench_add_unit (b, name, times, ITERATIONS, (int)L, JM_BENCH_SAMPLE);
   free (y);
   dp_ppe_destroy (p);
 }

@@ -265,7 +265,8 @@ main (void)
 
           char name[JM_BENCH_NAME_LEN];
           snprintf (name, sizeof (name), "%s_nc%zu", cfg->label, nc);
-          jm_bench_add (&_bench, name, times, ITERATIONS, (int)n_in);
+          jm_bench_add_unit (&_bench, name, times, ITERATIONS, (int)n_in,
+                             JM_BENCH_SAMPLE);
 
           free (buf);
           dp_acq_destroy (a);

@@ -113,7 +113,7 @@ main (void)
       t1       = jm_bench_now_ns ();
       t_enc[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "encode", t_enc, ITERATIONS, (int)n_in);
+  jm_bench_add_unit (&_bench, "encode", t_enc, ITERATIONS, (int)n_in, "bit");
   report ("encode", t_enc, n_in);
 
   printf ("\n  Decoding is measured at its own object, in\n"

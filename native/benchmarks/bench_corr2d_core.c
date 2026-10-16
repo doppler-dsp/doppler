@@ -67,7 +67,8 @@ main (void)
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "single_row_fast_path", times, ITERATIONS, n);
+    jm_bench_add_unit (&_bench, "single_row_fast_path", times, ITERATIONS, n,
+                       JM_BENCH_SAMPLE);
     double sum = 0.0;
     for (int r = 0; r < ITERATIONS; r++)
       sum += times[r];
@@ -93,7 +94,8 @@ main (void)
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "multi_row_general_path", times, ITERATIONS, n);
+    jm_bench_add_unit (&_bench, "multi_row_general_path", times, ITERATIONS, n,
+                       JM_BENCH_SAMPLE);
     double sum = 0.0;
     for (int r = 0; r < ITERATIONS; r++)
       sum += times[r];

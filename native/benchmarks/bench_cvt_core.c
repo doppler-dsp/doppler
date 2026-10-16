@@ -50,7 +50,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "int_to_bin", times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "int_to_bin", times, ITERATIONS, BENCH_N,
+                     JM_BENCH_CALL);
 
   /* The same 32 bits, from text. The difference IS the parsing. */
   for (int r = 0; r < ITERATIONS; r++)
@@ -62,7 +63,8 @@ main (void)
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "hex_to_bin", times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "hex_to_bin", times, ITERATIONS, BENCH_N,
+                     JM_BENCH_CALL);
 
   /* A whole frame's worth of bits to symbols, one branch per bit. */
   for (int i = 0; i < BENCH_N; i++)
@@ -74,7 +76,7 @@ main (void)
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "bin_to_nrz", times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "bin_to_nrz", times, ITERATIONS, BENCH_N, "bit");
 
   (void)sink;
   jm_bench_write_json (&_bench, "cvt");

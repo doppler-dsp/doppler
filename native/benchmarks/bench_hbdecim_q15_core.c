@@ -129,7 +129,7 @@ main (void)
     {
       (void)snprintf (name, sizeof name, "execute[taps=%zu,K_pad=%zu]",
                       branch_taps[c], k_pad_for (branch_taps[c]));
-      dp_bench_record (&_bench, name, t[c], ITERATIONS, BLOCK, "in-pair");
+      dp_bench_record (&_bench, name, t[c], ITERATIONS, BLOCK, "in_pair");
     }
 
   printf ("\n  the staircase (taps=%zu = 1.00x):\n", branch_taps[REF_IDX]);

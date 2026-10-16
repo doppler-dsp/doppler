@@ -107,7 +107,7 @@ main (void)
   for (int c = 0; c < N_CFG; c++)
     {
       (void)snprintf (name, sizeof name, "%s[rate=%.2f]", face_name[c], RATE);
-      dp_bench_record (&_bench, name, t[c], ITERATIONS, BLOCK, "in-sample");
+      dp_bench_record (&_bench, name, t[c], ITERATIONS, BLOCK, "in_sample");
     }
 
   printf ("\n  %zu outputs from %d real inputs\n", emitted, BLOCK);
@@ -116,7 +116,7 @@ main (void)
     printf ("    %-20s %.2fx\n", face_name[c],
             dp_bench_min (t[c], ITERATIONS)
                 / dp_bench_min (t[CFG_EXECUTE], ITERATIONS));
-  printf ("  Compare the execute row's ns/in-sample against ddc's at the\n"
+  printf ("  Compare the execute row's ns/in_sample against ddc's at the\n"
           "  same rate: that difference is what a real input buys, and it\n"
           "  is the only place the two components can be compared. A push\n"
           "  penalty matching ddc's says the per-call overhead, not the\n"

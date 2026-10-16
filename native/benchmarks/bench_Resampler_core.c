@@ -32,7 +32,8 @@ main (void)
         t1              = jm_bench_now_ns ();
         _times_reset[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "reset", _times_reset, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "reset", _times_reset, ITERATIONS, BENCH_N,
+                       JM_BENCH_CALL);
     {
       double _s = 0.0;
       for (int r = 0; r < ITERATIONS; r++)

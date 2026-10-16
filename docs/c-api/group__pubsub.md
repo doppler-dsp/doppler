@@ -54,15 +54,15 @@
 |  [**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* | [**dp\_pub\_create**](#function-dp_pub_create) (const char \* endpoint, [**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) sample\_type) <br>_Create a Publisher and connect to_ `endpoint` _._ |
 |  [**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* | [**dp\_pub\_create\_tlm**](#function-dp_pub_create_tlm) (const char \* endpoint) <br>_Create a Publisher that emits telemetry frames._  |
 |  void | [**dp\_pub\_destroy**](#function-dp_pub_destroy) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx) <br>_Destroy a Publisher context and release all resources._  |
-|  int | [**dp\_pub\_flush**](#function-dp_pub_flush) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, int timeout\_ms) <br>_Wait until the server has everything published so far._  |
-|  int | [**dp\_pub\_send\_cf32**](#function-dp_pub_send_cf32) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF32 samples via a Publisher._  |
-|  int | [**dp\_pub\_send\_cf64**](#function-dp_pub_send_cf64) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF64 samples via a Publisher._  |
-|  int | [**dp\_pub\_send\_ci16**](#function-dp_pub_send_ci16) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI16 samples via a Publisher._  |
-|  int | [**dp\_pub\_send\_ci32**](#function-dp_pub_send_ci32) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI32 samples via a Publisher._  |
-|  int | [**dp\_pub\_send\_ci8**](#function-dp_pub_send_ci8) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI8 samples via a Publisher._  |
-|  int | [**dp\_pub\_send\_eos**](#function-dp_pub_send_eos) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx) <br>_Tell subscribers the stream has ended._  |
-|  int | [**dp\_pub\_send\_tlm16**](#function-dp_pub_send_tlm16) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const void \* records, size\_t num\_records, double sample\_rate, double center\_freq) <br>_Send an array of 16-byte telemetry records via a Publisher._  |
-|  int | [**dp\_stream\_drain**](#function-dp_stream_drain) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, int timeout\_ms) <br>_Shut a context down gracefully: drain, then closed._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_pub\_flush**](#function-dp_pub_flush) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, int timeout\_ms) <br>_Wait until the server has everything published so far._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_pub\_send\_cf32**](#function-dp_pub_send_cf32) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF32 samples via a Publisher._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_pub\_send\_cf64**](#function-dp_pub_send_cf64) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF64 samples via a Publisher._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_pub\_send\_ci16**](#function-dp_pub_send_ci16) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI16 samples via a Publisher._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_pub\_send\_ci32**](#function-dp_pub_send_ci32) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI32 samples via a Publisher._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_pub\_send\_ci8**](#function-dp_pub_send_ci8) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI8 samples via a Publisher._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_pub\_send\_eos**](#function-dp_pub_send_eos) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx) <br>_Tell subscribers the stream has ended._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_pub\_send\_tlm16**](#function-dp_pub_send_tlm16) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const void \* records, size\_t num\_records, double sample\_rate, double center\_freq) <br>_Send an array of 16-byte telemetry records via a Publisher._  |
+|  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_stream\_drain**](#function-dp_stream_drain) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, int timeout\_ms) <br>_Shut a context down gracefully: drain, then closed._  |
 |  [**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* | [**dp\_sub\_create**](#function-dp_sub_create) (const char \* endpoint) <br>_Create a Subscriber and connect to_ `endpoint` _._ |
 |  void | [**dp\_sub\_destroy**](#function-dp_sub_destroy) ([**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* ctx) <br>_Destroy a Subscriber context and release all resources._  |
 |  int | [**dp\_sub\_recv**](#function-dp_sub_recv) ([**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive one frame from a Subscriber socket (zero-copy)._  |
@@ -211,7 +211,7 @@ void dp_pub_destroy (
 
 _Wait until the server has everything published so far._ 
 ```
-int dp_pub_flush (
+DP_NODISCARD int dp_pub_flush (
     dp_pub_t * ctx,
     int timeout_ms
 ) 
@@ -260,7 +260,7 @@ DP\_OK when the server has it, [**DP\_ERR\_TIMEOUT**](clib__common_8h.md#define-
 
 _Send an array of CF32 samples via a Publisher._ 
 ```
-int dp_pub_send_cf32 (
+DP_NODISCARD int dp_pub_send_cf32 (
     dp_pub_t * ctx,
     const float _Complex * samples,
     size_t num_samples,
@@ -302,7 +302,7 @@ DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when 
 
 _Send an array of CF64 samples via a Publisher._ 
 ```
-int dp_pub_send_cf64 (
+DP_NODISCARD int dp_pub_send_cf64 (
     dp_pub_t * ctx,
     const double _Complex * samples,
     size_t num_samples,
@@ -344,7 +344,7 @@ DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when 
 
 _Send an array of CI16 samples via a Publisher._ 
 ```
-int dp_pub_send_ci16 (
+DP_NODISCARD int dp_pub_send_ci16 (
     dp_pub_t * ctx,
     const int16_t * samples,
     size_t num_samples,
@@ -386,7 +386,7 @@ DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when 
 
 _Send an array of CI32 samples via a Publisher._ 
 ```
-int dp_pub_send_ci32 (
+DP_NODISCARD int dp_pub_send_ci32 (
     dp_pub_t * ctx,
     const int32_t * samples,
     size_t num_samples,
@@ -428,7 +428,7 @@ DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when 
 
 _Send an array of CI8 samples via a Publisher._ 
 ```
-int dp_pub_send_ci8 (
+DP_NODISCARD int dp_pub_send_ci8 (
     dp_pub_t * ctx,
     const int8_t * samples,
     size_t num_samples,
@@ -470,7 +470,7 @@ DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when 
 
 _Tell subscribers the stream has ended._ 
 ```
-int dp_pub_send_eos (
+DP_NODISCARD int dp_pub_send_eos (
     dp_pub_t * ctx
 ) 
 ```
@@ -513,7 +513,7 @@ DP\_OK once handed to the client, [**DP\_ERR\_INVALID**](clib__common_8h.md#defi
 
 _Send an array of 16-byte telemetry records via a Publisher._ 
 ```
-int dp_pub_send_tlm16 (
+DP_NODISCARD int dp_pub_send_tlm16 (
     dp_pub_t * ctx,
     const void * records,
     size_t num_records,
@@ -558,7 +558,7 @@ DP\_OK (0) on success, negative error code on failure.
 
 _Shut a context down gracefully: drain, then closed._ 
 ```
-int dp_stream_drain (
+DP_NODISCARD int dp_stream_drain (
     dp_pub_t * ctx,
     int timeout_ms
 ) 

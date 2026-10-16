@@ -101,3 +101,21 @@ def test_close_after_drain_is_just_the_free() -> None:
     sink.send(np.zeros(512, dtype=np.complex64), 1e6, 2.4e9)
     sink.drain(2000)
     sink.close()
+
+
+def test_send_after_drain_raises() -> None:
+    """A refused block raises: it never left this process (#2011).
+
+    A drained sink refuses every send, which makes the refusal
+    deterministic without a broker that misbehaves on cue. `send` used to
+    hand that status back as an int, and both in-tree callers dropped it,
+    so the refusal was invisible. It raises now, as `Publisher.send` does.
+    """
+    sink = wfm.StreamSink(ENDPOINT, "cf32")
+    try:
+        sink.send(np.zeros(256, dtype=np.complex64), 1e6, 2.4e9)
+        sink.drain(2000)
+        with pytest.raises(OSError, match="never left this process"):
+            sink.send(np.zeros(256, dtype=np.complex64), 1e6, 2.4e9)
+    finally:
+        sink.close()

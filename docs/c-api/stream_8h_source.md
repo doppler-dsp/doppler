@@ -126,36 +126,45 @@ extern "C"
 
   dp_pub_t *dp_pub_create (const char *endpoint, dp_sample_type_t sample_type);
 
+  DP_NODISCARD
   int dp_pub_send_ci32 (dp_pub_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
+  DP_NODISCARD
   int dp_pub_send_cf64 (dp_pub_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
+  DP_NODISCARD
   int dp_pub_send_ci8 (dp_pub_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
 
+  DP_NODISCARD
   int dp_pub_send_ci16 (dp_pub_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
+  DP_NODISCARD
   int dp_pub_send_cf32 (dp_pub_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
+  DP_NODISCARD
   int dp_pub_send_tlm16 (dp_pub_t *ctx, const void *records,
                          size_t num_records, double sample_rate,
                          double center_freq);
 
   dp_pub_t *dp_pub_create_tlm (const char *endpoint);
 
+  DP_NODISCARD
   int dp_pub_flush (dp_pub_t *ctx, int timeout_ms);
 
+  DP_NODISCARD
   int dp_pub_send_eos (dp_pub_t *ctx);
 
+  DP_NODISCARD
   int dp_stream_drain (dp_pub_t *ctx, int timeout_ms);
 
   void dp_pub_destroy (dp_pub_t *ctx);
@@ -178,22 +187,27 @@ extern "C"
 
   dp_pull_t *dp_pull_create (const char *endpoint);
 
+  DP_NODISCARD
   int dp_push_send_ci32 (dp_push_t *ctx, const int32_t *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
+  DP_NODISCARD
   int dp_push_send_cf64 (dp_push_t *ctx, const double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
+  DP_NODISCARD
   int dp_push_send_ci8 (dp_push_t *ctx, const int8_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
+  DP_NODISCARD
   int dp_push_send_ci16 (dp_push_t *ctx, const int16_t *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
+  DP_NODISCARD
   int dp_push_send_cf32 (dp_push_t *ctx, const float _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
@@ -217,46 +231,58 @@ extern "C"
 
   /* -- Raw-bytes send/recv (control plane) ------------------------------ */
 
+  DP_NODISCARD
   int dp_req_send (dp_req_t *ctx, const void *data, size_t size);
 
   int dp_req_recv (dp_req_t *ctx, dp_msg_t **msg, size_t *size);
 
   int dp_rep_recv (dp_rep_t *ctx, dp_msg_t **msg, size_t *size);
 
+  DP_NODISCARD
   int dp_rep_send (dp_rep_t *ctx, const void *data, size_t size);
 
   /* -- Signal-frame send/recv (data plane) ------------------------------ */
 
+  DP_NODISCARD
   int dp_req_send_ci32 (dp_req_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
+  DP_NODISCARD
   int dp_req_send_cf64 (
       dp_req_t *ctx, const double _Complex *samples, size_t num_samples,
       double sample_rate,
       double center_freq); 
+  DP_NODISCARD
   int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
+  DP_NODISCARD
   int dp_req_send_ci16 (dp_req_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
+  DP_NODISCARD
   int dp_req_send_cf32 (dp_req_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
+  DP_NODISCARD
   int dp_rep_send_ci32 (dp_rep_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
+  DP_NODISCARD
   int dp_rep_send_cf64 (
       dp_rep_t *ctx, const double _Complex *samples, size_t num_samples,
       double sample_rate,
       double center_freq); 
+  DP_NODISCARD
   int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
+  DP_NODISCARD
   int dp_rep_send_ci16 (dp_rep_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
+  DP_NODISCARD
   int dp_rep_send_cf32 (dp_rep_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);

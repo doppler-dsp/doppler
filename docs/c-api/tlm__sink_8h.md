@@ -58,6 +58,7 @@ _NATS PUB sink for telemetry records._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_tlm\_sink\_close**](#function-dp_tlm_sink_close) ([**dp\_tlm\_sink\_t**](tlm__sink_8h.md#typedef-dp_tlm_sink_t) \* sink) <br>_Close the sink and destroy the publisher._  |
+|  uint64\_t | [**dp\_tlm\_sink\_lost**](#function-dp_tlm_sink_lost) (const [**dp\_tlm\_sink\_t**](tlm__sink_8h.md#typedef-dp_tlm_sink_t) \* sink) <br>_Total records lost since open: drained from the ring, then refused by the stream._  |
 |  [**dp\_tlm\_sink\_t**](tlm__sink_8h.md#typedef-dp_tlm_sink_t) \* | [**dp\_tlm\_sink\_open**](#function-dp_tlm_sink_open) (const char \* endpoint) <br>_Open a telemetry sink (PUB) bound to a NATS subject._  |
 |  int | [**dp\_tlm\_sink\_pump**](#function-dp_tlm_sink_pump) ([**dp\_tlm\_sink\_t**](tlm__sink_8h.md#typedef-dp_tlm_sink_t) \* sink, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm) <br>_Drain every available record from_ `tlm` _and publish them._ |
 |  uint64\_t | [**dp\_tlm\_sink\_sent**](#function-dp_tlm_sink_sent) (const [**dp\_tlm\_sink\_t**](tlm__sink_8h.md#typedef-dp_tlm_sink_t) \* sink) <br>_Total records published since open._  |
@@ -171,6 +172,43 @@ void dp_tlm_sink_close (
 
 
 
+### function dp\_tlm\_sink\_lost 
+
+_Total records lost since open: drained from the ring, then refused by the stream._ 
+```C++
+uint64_t dp_tlm_sink_lost (
+    const dp_tlm_sink_t * sink
+) 
+```
+
+
+
+[**dp\_tlm\_sink\_pump()**](tlm__sink_8h.md#function-dp_tlm_sink_pump) returns the error for the batch it lost, once; this is the running total, so a caller that only polls now and then can still tell that records went missing, and how many.
+
+
+
+
+**Parameters:**
+
+
+* `sink` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Records lost to refused publishes. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_tlm\_sink\_open 
 
 _Open a telemetry sink (PUB) bound to a NATS subject._ 
@@ -224,7 +262,7 @@ int dp_tlm_sink_pump (
 
 
 
-Reads the ring in batches and publishes one TLM16 frame per batch until the ring is empty. Non-blocking on the ring; the NATS publish is fire-and-forget fan-out (PUB). On a publish failure the records already drained from the ring for that frame are lost (telemetry is lossy end-to-end by design) and the error is returned.
+Reads the ring in batches and publishes one TLM16 frame per batch until the ring is empty. Non-blocking on the ring; the NATS publish is fire-and-forget fan-out (PUB). On a publish failure the records already drained from the ring for that frame are lost (telemetry is lossy end-to-end by design), counted in [**dp\_tlm\_sink\_lost()**](tlm__sink_8h.md#function-dp_tlm_sink_lost), and the error is returned.
 
 
 

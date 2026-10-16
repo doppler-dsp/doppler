@@ -25,22 +25,35 @@ class StreamSink:
     """
 
     def __init__(self, endpoint: int, sample_type: str = ...) -> None: ...
-    def send(self, iq: npt.NDArray[np.complex64], fs: float, fc: float) -> int:
+    def send(
+        self,
+        iq: npt.NDArray[np.complex64],
+        fs: float,
+        fc: float,
+    ) -> None:
         """Convert a cf32 block to the wire type and publish it.
+
+        A refused block never left this process: the client refuses publishes
+        while a reconnect has 8 MiB pending, and a drained sink refuses
+        outright. The stream goes on, so the next block may go; a caller that
+        keeps sending counts the refusals and reports them, as wfmgen does
+        (#2011).
 
         Parameters
         ----------
         iq : npt.NDArray[np.complex64]
-            Complex-float samples; @param n complex sample count.
+            Complex-float samples.
         fs : float
-            sample rate (Hz); @param fc center frequency (Hz) — wire header.
+            Sample rate (Hz), carried in the wire header.
         fc : float
-            the sink handle.
+            Center frequency (Hz), carried in the wire header.
 
-        Returns
-        -------
-        int
-            0 on success, non-zero on a send/allocation error.
+        Raises
+        ------
+        OSError
+            If the C call returns a non-zero status. The exception message is
+            ``the stream refused the block; it never left this process``, with
+            the return code appended (gh-869).
         """
     def send_eos(self) -> None:
         """Tell subscribers this stream has ended.

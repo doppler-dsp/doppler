@@ -75,8 +75,8 @@ _BurstDespreader component API._ [More...](#detailed-description)
 |  void | [**dp\_burst\_despreader\_get\_state**](#function-dp_burst_despreader_get_state) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, void \* blob) <br> |
 |  void | [**dp\_burst\_despreader\_reset**](#function-dp_burst_despreader_reset) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Re-seed the loops to the create-time phase/frequency and re-arm the burst statistics; preserve config._  |
 |  void | [**dp\_burst\_despreader\_set\_acq**](#function-dp_burst_despreader_set_acq) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t acq\_reps) <br>_Enable preamble-aided pull-in with a distinct acquisition code._  |
-|  void | [**dp\_burst\_despreader\_set\_bn\_carrier**](#function-dp_burst_despreader_set_bn_carrier) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Set the carrier loop bandwidth (recomputes the loop gains)._  |
-|  void | [**dp\_burst\_despreader\_set\_bn\_code**](#function-dp_burst_despreader_set_bn_code) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Set the code loop bandwidth (recomputes the loop gains)._  |
+|  int | [**dp\_burst\_despreader\_set\_bn\_carrier**](#function-dp_burst_despreader_set_bn_carrier) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Set the carrier loop bandwidth (recomputes the loop gains)._  |
+|  int | [**dp\_burst\_despreader\_set\_bn\_code**](#function-dp_burst_despreader_set_bn_code) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Set the code loop bandwidth (recomputes the loop gains)._  |
 |  void | [**dp\_burst\_despreader\_set\_norm\_freq**](#function-dp_burst_despreader_set_norm_freq) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Override the carrier frequency estimate, cycles/sample (re-seed)._  |
 |  int | [**dp\_burst\_despreader\_set\_state**](#function-dp_burst_despreader_set_state) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**dp\_burst\_despreader\_state\_bytes**](#function-dp_burst_despreader_state_bytes) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br> |
@@ -614,7 +614,7 @@ Track `acq_reps` periods of `acq_code` coherently (the unmodulated, repeated acq
 
 _Set the carrier loop bandwidth (recomputes the loop gains)._ 
 ```C++
-void dp_burst_despreader_set_bn_carrier (
+int dp_burst_despreader_set_bn_carrier (
     dp_burst_despreader_state_t * state,
     double val
 ) 
@@ -622,6 +622,17 @@ void dp_burst_despreader_set_bn_carrier (
 
 
 
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID with the bandwidth unchanged when `val` is outside the loop filter's domain (finite and &gt;= 0; dp\_loop\_filter\_params\_ok). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -631,7 +642,7 @@ void dp_burst_despreader_set_bn_carrier (
 
 _Set the code loop bandwidth (recomputes the loop gains)._ 
 ```C++
-void dp_burst_despreader_set_bn_code (
+int dp_burst_despreader_set_bn_code (
     dp_burst_despreader_state_t * state,
     double val
 ) 
@@ -639,6 +650,17 @@ void dp_burst_despreader_set_bn_code (
 
 
 
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID with the bandwidth unchanged when `val` is outside the loop filter's domain (finite and &gt;= 0; dp\_loop\_filter\_params\_ok). 
+
+
+
+
+
+        
 
 <hr>
 

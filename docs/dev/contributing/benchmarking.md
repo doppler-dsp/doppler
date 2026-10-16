@@ -273,15 +273,9 @@ Each `bench_<component>_core.c` uses the header-only `jm_bench.h` library
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 
 #define BENCH_N    65536
 #define ITERATIONS 200
-
-static double elapsed_sec(struct timespec a, struct timespec b) {
-    return (double)(b.tv_sec - a.tv_sec)
-           + (double)(b.tv_nsec - a.tv_nsec) * 1e-9;
-}
 
 int main(void) {
     comp_state_t *obj = comp_create(/* defaults */);
@@ -290,17 +284,16 @@ int main(void) {
 
     jm_bench_t bench = {0};
     double times[ITERATIONS];
-    struct timespec t0, t1;
 
     /* warmup */
     for (int i = 0; i < 16; i++) comp_step(obj, in[0]);
 
     for (int r = 0; r < ITERATIONS; r++) {
-        clock_gettime(CLOCK_MONOTONIC, &t0);
+        uint64_t t0 = jm_bench_now_ns();
         for (int i = 0; i < BENCH_N; i++)
             comp_step(obj, in[i]);
-        clock_gettime(CLOCK_MONOTONIC, &t1);
-        times[r] = elapsed_sec(t0, t1);
+        uint64_t t1 = jm_bench_now_ns();
+        times[r] = jm_bench_elapsed_sec(t0, t1);
     }
     jm_bench_add_unit(&bench, "step", times, ITERATIONS, BENCH_N,
                       JM_BENCH_SAMPLE);

@@ -35,11 +35,13 @@ neither a duplicate of the bench timer nor a Windows problem.
 
 A row names its unit (#2314). A row is one ROUND of `iters` units of work,
 and the report prints its time per unit -- so it must know whether a unit is
-a call, a sample, a frame. `jm_bench_add()` does not ask: it records every
-row as calls. That default is what had `acc_f32::steps`, one call over
-65,536 samples, labelled the same way as `acc_f32::step`, 65,536 calls of
-one sample each, and is how 545 of 566 published rows read a whole round as
-"time/call" for 25 releases. So a bare `jm_bench_add()` is banned: every
+a call, a sample, a frame. Before jm 0.106.0 a row recorded no unit at all,
+and the page printed every C row's round as one call: 545 of v0.71.0's 566
+published C rows read a whole round as "time/call", as they had in every
+release from v0.43.0. jm 0.106.0's `jm_bench_add()` still does not ask: it
+records every row as calls, which would label `acc_f32::steps`, one call
+over 65,536 samples, the same way as `acc_f32::step`, 65,536 calls of one
+sample each. So a bare `jm_bench_add()` is banned: every
 row goes through `jm_bench_add_unit()` (or doppler's `dp_bench_record()`,
 which forwards its unit), and the author says what one of `iters` is. The
 gate cannot tell whether the noun is RIGHT; it only stops the silent
@@ -131,8 +133,10 @@ def main() -> int:
             print(f"  {rel}:{n}: {line}")
         print(
             "  Use jm_bench_add_unit(..., unit), where unit is what ONE of\n"
-            "  `iters` is: JM_BENCH_CALL for a loop of `iters` calls,\n"
-            "  JM_BENCH_SAMPLE for one call over `iters` samples,\n"
+            "  `iters` is: JM_BENCH_SAMPLE for one call over `iters`\n"
+            "  samples or a loop of `iters` one-sample step() calls (as\n"
+            "  jm's scaffold labels it), JM_BENCH_CALL for a loop of\n"
+            "  calls that are not one sample each (a getter, a setter),\n"
             '  JM_BENCH_FRAME, or the counted noun ("bit", "codeword").\n'
             "  jm_bench_add() records every row as calls, and the report\n"
             "  prints time per unit from it (#2314)."

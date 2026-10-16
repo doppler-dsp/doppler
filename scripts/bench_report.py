@@ -85,33 +85,45 @@ def _display_name(suite: str, bench: dict) -> str:
     return name
 
 
-def _per_unit(b):
+def _per_unit(b, suite):
     """(seconds, per) for one benchmark row: its time and what it is per.
 
-    A pytest-benchmark row times one call per round, so its ``mean`` is
-    per call. A C row times one ROUND of ``iterations`` units of work;
-    jm_bench (0.106.0+, gh-2282) names that unit in ``extra_info.unit``
-    and writes ``stats.mean_per_unit`` = ``mean / iterations``, which is
-    the time to report (#2314). A C row from before that (v0.43.0 to
-    v0.72.0) names no unit, so its mean cannot be divided honestly: it is
-    reported per round, with the round's size, unless the round was one
-    call.
+    ``suite`` is whose JSON the row is, ``"python"`` or ``"c"``, because
+    the two producers mean different things by ``iterations``:
+
+    - pytest-benchmark divides each round by ``iterations`` itself
+      (calibrating it per build), so a Python row's ``mean`` is already
+      per call, whatever ``iterations`` says.
+    - A C row times one ROUND of ``iterations`` units of work. jm_bench
+      (0.106.0+, gh-2282) names that unit in ``extra_info.unit`` and writes
+      ``stats.mean_per_unit`` = ``mean / iterations``, which is the time
+      to report (#2314). A C row from before that (v0.43.0 to v0.72.0)
+      names no unit, so its mean cannot be divided honestly: it is
+      reported per round, with the round's size, unless the round was
+      one call.
+
+    jm reads rows by the same rule (``just_makeit._bench._row_basis``).
 
     >>> rnd = {"mean": 4e-5, "iterations": 65536}
     >>> _per_unit(
     ...     {
     ...         "stats": {**rnd, "mean_per_unit": 6e-10},
     ...         "extra_info": {"unit": "call"},
-    ...     }
+    ...     },
+    ...     "c",
     ... )
     (6e-10, 'call')
-    >>> _per_unit({"stats": rnd, "extra_info": {}})
+    >>> _per_unit({"stats": rnd, "extra_info": {}}, "c")
     (4e-05, 'round of 65,536')
-    >>> _per_unit({"stats": {"mean": 2e-7, "iterations": 1}})
+    >>> _per_unit({"stats": {"mean": 2e-7, "iterations": 1}}, "c")
     (2e-07, 'call')
+    >>> _per_unit({"stats": {"mean": 2.288e-8, "iterations": 220}}, "python")
+    (2.288e-08, 'call')
     """
     stats = b.get("stats", {})
     mean = float(stats["mean"])
+    if suite == "python":
+        return mean, "call"
     unit = b.get("extra_info", {}).get("unit")
     if unit:
         return float(stats["mean_per_unit"]), unit
@@ -131,7 +143,7 @@ def _parse(data, suite):
         if not (isinstance(mean, (int, float)) and mean > 0):
             continue
         msas = b.get("extra_info", {}).get("MSa_s")
-        secs, per = _per_unit(b)
+        secs, per = _per_unit(b, suite)
         out[b.get("fullname") or b["name"]] = {
             "disp": _display_name(suite, b),
             "mean": secs,

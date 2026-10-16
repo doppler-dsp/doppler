@@ -59,12 +59,17 @@ def _c_row(name: str, mean: float, iters: int, extra: dict) -> dict:
     }
 
 
-def _page(tmp_path: Path, c_rows: list[dict]) -> str:
-    """Render the benchmark page for one release holding ``c_rows``."""
+def _page(
+    tmp_path: Path, c_rows: list[dict], py_rows: list[dict] | None = None
+) -> str:
+    """Render the benchmark page for one release holding ``c_rows`` (and
+    ``py_rows`` in its Python snapshot)."""
     rel = tmp_path / "published" / "v9.9.9"
     rel.mkdir(parents=True)
     (rel / "portable.json").write_text(
-        json.dumps({"machine_info": {"cpu": "fixture"}, "benchmarks": []})
+        json.dumps(
+            {"machine_info": {"cpu": "fixture"}, "benchmarks": py_rows or []}
+        )
     )
     (rel / "portable-c.json").write_text(json.dumps({"benchmarks": c_rows}))
     report = _load("bench_report")
@@ -121,3 +126,17 @@ def test_a_sample_row_is_throughput(tmp_path):
     assert _cell(page, "steps") == "1.68 GSa/s"
     latency = page.split("### Latency")[1] if "### Latency" in page else ""
     assert "`steps`" not in latency
+
+
+def test_a_python_row_is_one_call_whatever_its_iterations(tmp_path):
+    """pytest-benchmark divides each round by ``iterations`` itself, so a
+    Python row's mean is per call even when ``iterations`` is 220 -- as
+    v0.72.0's ``bench_acc_q15.py::test_bench_step`` was, at 22.88 ns."""
+    row = {
+        "name": "test_bench_step",
+        "fullname": "src/doppler/benchmarks/bench_acc_q15.py::test_bench_step",
+        "extra_info": {},
+        "stats": {"mean": 22.88e-9, "iterations": 220, "ops": 1 / 22.88e-9},
+    }
+    page = _page(tmp_path, [], [row])
+    assert _cell(page, "acc_q15::step") == "22.88 ns / call"

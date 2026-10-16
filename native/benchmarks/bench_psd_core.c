@@ -198,9 +198,9 @@ main (void)
           for (int c = 0; c < calls; c++)
             sink += (double)dp_psd_power_onesided (p, out, cap);
           t1 = jm_bench_now_ns ();
-          /* Per call, not per round: the report reads stats.mean as
-             time per call, and jm_bench's ops is iters / mean, so the
-             batch goes into the time and the unit count stays 1. */
+          /* Per call, not per round: the row's unit is one call
+             (iters 1), so jm_bench's mean_per_unit and ops are per
+             call. The batch goes into the time instead. */
           t_rd[r] = jm_bench_elapsed_sec (t0, t1) / calls;
         }
       (void)snprintf (name, sizeof name, "power_onesided[nfft=%zu]", nffts[k]);

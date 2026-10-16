@@ -65,7 +65,7 @@ main (void)
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add_unit (&_bench, "step", times, ITERATIONS, BENCH_N,
-                       JM_BENCH_CALL);
+                       JM_BENCH_SAMPLE);
     report ("step", times);
     (void)sink;
   }
@@ -112,7 +112,7 @@ main (void)
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add_unit (&_bench, "cexpf_baseline", times, ITERATIONS, BENCH_N,
-                       JM_BENCH_CALL);
+                       JM_BENCH_SAMPLE);
     report ("cexpf", times);
     (void)sink;
   }

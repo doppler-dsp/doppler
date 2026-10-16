@@ -367,7 +367,16 @@ CarrierMpsk_setprop_bn (CarrierMpskObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_carrier_mpsk_set_bn (self->handle, v);
+  int _rc = dp_carrier_mpsk_set_bn (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "CarrierMpsk: bn is outside the loop filter's domain "
+                    "(need bn >= 0, finite, whose loop gains come out "
+                    "finite)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -454,21 +463,31 @@ CarrierMpsk_getprop_m (CarrierMpskObject *self, void *Py_UNUSED (closure))
   return PyLong_FromLong ((long)dp_carrier_mpsk_get_m (self->handle));
 }
 
-static PyGetSetDef CarrierMpsk_getset[]
-    = { { "bn", (getter)CarrierMpsk_getprop_bn, (setter)CarrierMpsk_setprop_bn,
-          "PLL loop noise bandwidth (retained).\n", NULL },
-        { "norm_freq", (getter)CarrierMpsk_getprop_norm_freq,
-          (setter)CarrierMpsk_setprop_norm_freq, "Norm freq.\n", NULL },
-        { "lock_metric", (getter)CarrierMpsk_getprop_lock_metric, NULL,
-          "EMA of Re(P conj a)/|P| (1 = locked).\n", NULL },
-        { "last_error", (getter)CarrierMpsk_getprop_last_error, NULL,
-          "last PLL discriminator (loop stress).\n", NULL },
-        { "bn_fll", (getter)CarrierMpsk_getprop_bn_fll,
-          (setter)CarrierMpsk_setprop_bn_fll,
-          "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
-        { "m", (getter)CarrierMpsk_getprop_m, NULL,
-          "constellation order M (2, 4, 8).\n", NULL },
-        { NULL, NULL, NULL, NULL, NULL } };
+static PyGetSetDef CarrierMpsk_getset[] = {
+  { "bn", (getter)CarrierMpsk_getprop_bn, (setter)CarrierMpsk_setprop_bn,
+    "PLL loop noise bandwidth (retained).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_carrier_mpsk_set_bn`` refuses the value by\n"
+    "    returning non-zero. The exception message is ``CarrierMpsk: bn is\n"
+    "    outside the loop filter's domain (need bn >= 0, finite, whose loop\n"
+    "    gains come out finite)``, with the return code appended.\n",
+    NULL },
+  { "norm_freq", (getter)CarrierMpsk_getprop_norm_freq,
+    (setter)CarrierMpsk_setprop_norm_freq, "Norm freq.\n", NULL },
+  { "lock_metric", (getter)CarrierMpsk_getprop_lock_metric, NULL,
+    "EMA of Re(P conj a)/|P| (1 = locked).\n", NULL },
+  { "last_error", (getter)CarrierMpsk_getprop_last_error, NULL,
+    "last PLL discriminator (loop stress).\n", NULL },
+  { "bn_fll", (getter)CarrierMpsk_getprop_bn_fll,
+    (setter)CarrierMpsk_setprop_bn_fll,
+    "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
+  { "m", (getter)CarrierMpsk_getprop_m, NULL,
+    "constellation order M (2, 4, 8).\n", NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
 
 static PyObject *
 CarrierMpskObj_destroy (CarrierMpskObject *self, PyObject *Py_UNUSED (ignored))

@@ -52,8 +52,13 @@ def _seed(
     pyproject: str = PIN,
     composite: str | None = GOOD_COMPOSITE,
     files: dict[str, str] | None = None,
+    allow: str | None = "# the bare-uv allow list, empty\n",
 ) -> Path:
+    """A project tree. ``allow`` is the bare-uv list's text (None: no list),
+    unless ``files`` gives the list itself."""
     tmp_path.mkdir(parents=True, exist_ok=True)
+    if allow is not None:
+        files = {"scripts/.bare-uv-allow": allow, **(files or {})}
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "x"\n\n' + pyproject, encoding="utf-8"
     )
@@ -299,3 +304,187 @@ def test_a_lock_no_pinned_uv_wrote_is_refused(
     assert "is not what uv" in r.stdout
     # Read-only: the probe must not have repaired the copy behind our back.
     assert edit[1] in (tmp_path / "uv.lock").read_text(encoding="utf-8")
+
+
+# ── rule 4: a makefile runs uv through $(UV) (doppler#2369) ──────────────────
+
+ALLOW = "scripts/.bare-uv-allow"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "\tuv run python scripts/x.py\n",
+        "\tuv sync --group dev\n",
+        "X_CMD = uv run pytest -q\n",
+        # A shell substitution is a bare call too.
+        "\tcmake -DPy=$$(uv run python -c 'print(1)')\n",
+        "\tcd sub && uv run --project $(CURDIR) tool\n",
+        # make's ignore-errors prefix still runs it (#2370 review).
+        "\t-uv sync\n",
+        "\t@-uv run x\n",
+        # A global flag before the subcommand.
+        "\tuv -q sync\n",
+        "\tuv --project . run x\n",
+        "\tuv version\n",
+        "X := $(shell uv run x)\n",
+        # A continuation joins the call onto the logical line it starts.
+        "\techo a \\\n\t  uv run x\n",
+        # A shell comment ends at the newline, backslash or not: the next
+        # physical line runs.
+        "\t@# note \\\n\tuv run x\n",
+    ],
+)
+def test_a_bare_uv_in_a_makefile_is_refused(tmp_path: Path, line: str) -> None:
+    r = _run(_seed(tmp_path, files={"Makefile": "t:\n" + line}))
+    assert r.returncode == 1, r.stdout
+    assert "Makefile:2: bare uv" in r.stdout, r.stdout
+
+
+def test_uv_through_the_variable_passes(tmp_path: Path) -> None:
+    mk = (
+        "UV = uv\n"
+        "t:\n"
+        "\t$(UV) run python scripts/x.py\n"
+        "\t$(UV) sync --group dev\n"
+        "\tcmake -DPy=$$($(UV) run python -c 'print(1)')\n"
+        "\t@# a recipe comment may say uv sync\n"
+        "\tmake foo-uv sync\n"
+        "# so may a makefile comment: uv run pytest\n"
+    )
+    r = _run(_seed(tmp_path, files={"Makefile": mk, "sub/rules.mk": mk}))
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_bare_uv_in_an_included_mk_is_refused(tmp_path: Path) -> None:
+    r = _run(_seed(tmp_path, files={"mk/x.mk": "t:\n\tuv run tool\n"}))
+    assert r.returncode == 1, r.stdout
+    assert "mk/x.mk:2: bare uv" in r.stdout, r.stdout
+
+
+def test_an_allowed_line_passes_and_needs_a_reason(tmp_path: Path) -> None:
+    files = {
+        "Makefile": "t:\n\tuv run keep-me\n",
+        ALLOW: "# header\nuv run keep-me -- stays bare because of a reason\n",
+    }
+    assert _run(_seed(tmp_path / "ok", files=files)).returncode == 0
+    files[ALLOW] = "uv run keep-me\n"
+    r = _run(_seed(tmp_path / "noreason", files=files))
+    assert r.returncode == 1, r.stdout
+    assert "no reason" in r.stdout, r.stdout
+
+
+def test_a_stale_allow_entry_fails(tmp_path: Path) -> None:
+    """The list only shrinks: an entry whose line is gone is red."""
+    files = {
+        "Makefile": "t:\n\t$(UV) run keep-me\n",
+        ALLOW: "uv run keep-me -- was bare until its fix landed\n",
+    }
+    r = _run(_seed(tmp_path, files=files))
+    assert r.returncode == 1, r.stdout
+    assert "matches no makefile line" in r.stdout, r.stdout
+
+
+def test_an_allow_entry_matching_two_lines_fails(tmp_path: Path) -> None:
+    """An entry exempts exactly one line, so a short one cannot cover many."""
+    files = {
+        "Makefile": "t:\n\tuv run a\n\tuv run b\n",
+        ALLOW: "uv run -- too short to name one line\n",
+    }
+    r = _run(_seed(tmp_path, files=files))
+    assert r.returncode == 1, r.stdout
+    assert "matches 2 lines" in r.stdout, r.stdout
+
+
+def _git(root: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+
+
+def _ratchet_repo(tmp_path: Path, base_allow: str | None) -> Path:
+    """A checkout whose `base` branch holds ``base_allow`` as the list
+    (None: no list there), and whose HEAD is one commit past it."""
+    files = {"Makefile": "t:\n\tuv run keep-me\n\tuv run new-one\n"}
+    if base_allow is not None:
+        files[ALLOW] = base_allow
+    root = _seed(tmp_path, files=files, allow=None)
+    _git(root, "init", "-q", "-b", "base")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "base")
+    _git(root, "checkout", "-q", "-b", "head")
+    return root
+
+
+def test_an_allow_entry_the_base_lacks_is_refused(tmp_path: Path) -> None:
+    """The list only shrinks: a new entry fails even with a reason."""
+    keep = "uv run keep-me -- an old entry\n"
+    root = _ratchet_repo(tmp_path, keep)
+    (root / ALLOW).write_text(
+        keep + "uv run new-one -- a new entry\n", encoding="utf-8"
+    )
+    _git(root, "commit", "-q", "-am", "grow the list")
+    r = _run(root, "--base", "base")
+    assert r.returncode == 1, r.stdout
+    assert "`uv run new-one` is not in the list at the merge base" in (
+        r.stdout
+    ), r.stdout
+    assert "keep-me` is not" not in r.stdout, r.stdout
+
+
+def test_the_change_that_brings_the_list_adds_nothing(tmp_path: Path) -> None:
+    """No list at the base: the first list is its own baseline."""
+    root = _ratchet_repo(tmp_path, None)
+    (root / ALLOW).parent.mkdir(parents=True)
+    (root / ALLOW).write_text(
+        "uv run keep-me -- one\nuv run new-one -- two\n", encoding="utf-8"
+    )
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "bring the list")
+    r = _run(root, "--base", "base")
+    assert r.returncode == 0, r.stdout
+
+
+def test_an_unreadable_base_fails_closed(tmp_path: Path) -> None:
+    both = "uv run keep-me -- one\nuv run new-one -- two\n"
+    root = _ratchet_repo(tmp_path, both)
+    assert _run(root, "--base", "base").returncode == 0
+    r = _run(root, "--base", "no-such-ref")
+    assert r.returncode == 1, r.stdout
+    assert "cannot resolve no-such-ref" in r.stdout, r.stdout
+
+
+def test_a_missing_list_is_refused(tmp_path: Path) -> None:
+    """Absent is not empty: a deletable list could come back as a new
+    baseline (#2370 review, the #1976 hole)."""
+    r = _run(_seed(tmp_path, files={"Makefile": "t:\n"}, allow=None))
+    assert r.returncode == 1, r.stdout
+    assert ".bare-uv-allow: missing" in r.stdout, r.stdout
+
+
+def test_deleting_the_list_then_recreating_it_with_an_entry_fails(
+    tmp_path: Path,
+) -> None:
+    """The base holds an emptied list. Deleting it is refused; recreating it
+    with an entry the base lacks is refused as an addition."""
+    root = _ratchet_repo(tmp_path, "# emptied\n")
+    (root / "Makefile").write_text("t:\n\t$(UV) run x\n", encoding="utf-8")
+    _git(root, "rm", "-q", ALLOW)
+    _git(root, "commit", "-q", "-am", "delete the list")
+    r = _run(root, "--base", "base")
+    assert r.returncode == 1, r.stdout
+    assert ".bare-uv-allow: missing" in r.stdout, r.stdout
+
+    (root / "Makefile").write_text("t:\n\tuv run new-one\n", encoding="utf-8")
+    (root / ALLOW).parent.mkdir(exist_ok=True)
+    (root / ALLOW).write_text("uv run new-one -- back\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "recreate it")
+    r = _run(root, "--base", "base")
+    assert r.returncode == 1, r.stdout
+    assert "`uv run new-one` is not in the list at the merge base" in (
+        r.stdout
+    ), r.stdout

@@ -35,7 +35,11 @@ def main() -> None:
             continue
         path = pathlib.Path("native/src") / name / f"{name}_ext.c"
         if (ROOT / path).exists():
-            print(path)
+            # POSIX separators on every OS: the list is read by make's shell
+            # and xargs, which eat a Windows backslash as an escape, so
+            # `native\src\x\x_ext.c` would reach clang-format as a file
+            # that does not exist (#2365's Windows leg).
+            print(path.as_posix())
 
 
 if __name__ == "__main__":

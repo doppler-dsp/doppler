@@ -119,8 +119,8 @@ BurstDespreaderObj_init (BurstDespreaderObject *self, PyObject *args,
                        "BurstDespreader: invalid parameter (need a code of "
                        "at least sf chips, sf >= 1, sps >= 2, a finite "
                        "init_norm_freq and init_chip_phase, and bn_carrier "
-                       "and bn_code within the loop filter's domain: finite, "
-                       ">= 0, and gains that do not overflow)");
+                       "and bn_code within the loop filter's domain: each >= "
+                       "0, finite, whose loop gains come out finite)");
       return -1;
     }
   return 0;
@@ -607,8 +607,8 @@ BurstDespreader_setprop_bn_carrier (BurstDespreaderObject *self,
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
                     "BurstDespreader: bn_carrier is outside the loop "
-                    "filter's domain (finite, >= 0, and gains that do not "
-                    "overflow)",
+                    "filter's domain (need bn_carrier >= 0, finite, whose "
+                    "loop gains come out finite)",
                     (long long)_rc);
       return -1;
     }
@@ -642,7 +642,8 @@ BurstDespreader_setprop_bn_code (BurstDespreaderObject *self, PyObject *value,
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
                     "BurstDespreader: bn_code is outside the loop filter's "
-                    "domain (finite, >= 0, and gains that do not overflow)",
+                    "domain (need bn_code >= 0, finite, whose loop gains "
+                    "come out finite)",
                     (long long)_rc);
       return -1;
     }
@@ -745,8 +746,8 @@ static PyGetSetDef BurstDespreader_getset[] = {
     "    On assignment, if ``dp_burst_despreader_set_bn_carrier`` refuses\n"
     "    the value by returning non-zero. The exception message is\n"
     "    ``BurstDespreader: bn_carrier is outside the loop filter's domain\n"
-    "    (finite, >= 0, and gains that do not overflow)``, with the return\n"
-    "    code appended.\n",
+    "    (need bn_carrier >= 0, finite, whose loop gains come out finite)``,\n"
+    "    with the return code appended.\n",
     NULL },
   { "bn_code", (getter)BurstDespreader_getprop_bn_code,
     (setter)BurstDespreader_setprop_bn_code,
@@ -758,8 +759,8 @@ static PyGetSetDef BurstDespreader_getset[] = {
     "    On assignment, if ``dp_burst_despreader_set_bn_code`` refuses the\n"
     "    value by returning non-zero. The exception message is\n"
     "    ``BurstDespreader: bn_code is outside the loop filter's domain\n"
-    "    (finite, >= 0, and gains that do not overflow)``, with the return\n"
-    "    code appended.\n",
+    "    (need bn_code >= 0, finite, whose loop gains come out finite)``,\n"
+    "    with the return code appended.\n",
     NULL },
   { "norm_freq", (getter)BurstDespreader_getprop_norm_freq,
     (setter)BurstDespreader_setprop_norm_freq,
@@ -1150,9 +1151,9 @@ static PyTypeObject BurstDespreaderObjType = {
     "2,\n"
     "    a finite init_norm_freq and init_chip_phase, and bn_carrier and "
     "bn_code\n"
-    "    within the loop filter's domain: finite, >= 0, and gains that do "
-    "not\n"
-    "    overflow)``.\n"
+    "    within the loop filter's domain: each >= 0, finite, whose loop "
+    "gains\n"
+    "    come out finite)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

@@ -472,9 +472,11 @@ def main() -> int:
             samples[b]["py"].append(py)
             samples[b]["c"].append(c)
 
-    # Every C benchmark the tree has must be in each build's merged set: a
-    # bench that crashed in every pass wrote no JSON, and jm skips a binary
-    # with none, so the snapshot would be short without saying so.
+    # Every C benchmark the tree has must be in each build's merged set. jm
+    # now fails a run whose binary exits non-zero or writes no JSON
+    # (just-makeit#2189), and bench_once stops on that; this is the backstop
+    # for a set short of the tree any other way, which would otherwise
+    # publish short without saying so.
     short = {
         b: missing_components(_merge_best(samples[b]["c"]), BENCH_SRC)
         for b in BUILD_ARGS

@@ -511,8 +511,8 @@ extern "C"
   int    dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta);
   double dp_symsync_get_bn (const dp_symsync_state_t *state);
   /** @brief Retune bn, keeping zeta: dp_symsync_configure()'s refusal and status.
-   *  As a writable property it refuses without raising until
-   *  just-buildit/just-makeit#2182: the value stays put. */
+   *  As a writable property a refusal raises ValueError and the value stays
+   *  put (doppler#1987). */
   int    dp_symsync_set_bn (dp_symsync_state_t *state, double val);
   double dp_symsync_get_timing_error (const dp_symsync_state_t *state);
   double dp_symsync_get_rate (const dp_symsync_state_t *state);

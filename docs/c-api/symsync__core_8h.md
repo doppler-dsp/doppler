@@ -86,7 +86,7 @@ _SymbolSync component API._ [More...](#detailed-description)
 |  double | [**dp\_symsync\_get\_timing\_error**](#function-dp_symsync_get_timing_error) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br> |
 |  void | [**dp\_symsync\_init**](#function-dp_symsync_init) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* s, size\_t sps, double bn, double zeta, int order, int ted) <br>_Initialise a SymbolSync in place (no allocation)._  |
 |  void | [**dp\_symsync\_reset**](#function-dp_symsync_reset) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Re-seed the timing loop to its nominal rate and zero phase._  |
-|  int | [**dp\_symsync\_set\_bn**](#function-dp_symsync_set_bn) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_symsync\_configure()**_](symsync__core_8h.md#function-dp_symsync_configure) _'s refusal and status. As a writable property it refuses without raising until just-buildit/just-makeit#2182: the value stays put._ |
+|  int | [**dp\_symsync\_set\_bn**](#function-dp_symsync_set_bn) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_symsync\_configure()**_](symsync__core_8h.md#function-dp_symsync_configure) _'s refusal and status. As a writable property a refusal raises ValueError and the value stays put (doppler#1987)._ |
 |  int | [**dp\_symsync\_set\_state**](#function-dp_symsync_set_state) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**dp\_symsync\_set\_telemetry**](#function-dp_symsync_set_telemetry) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers five probes, emitted once per recovered symbol and further thinned by decim: "&lt;prefix&gt;.e" (the normalised TED error — the loop stress), "&lt;prefix&gt;.freq" (the loop-filter control steering the timing NCO, fractional rate offset), "&lt;prefix&gt;.rate" (the smoothed tracked samples/symbol), "&lt;prefix&gt;.lock" (the last block-averaged lock\_signal, held between avgs-look updates) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**dp\_symsync\_state\_bytes**](#function-dp_symsync_state_bytes) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br> |
@@ -599,7 +599,7 @@ Restores the object to its post-create state: the timing NCO is zeroed to the no
 
 ### function dp\_symsync\_set\_bn 
 
-_Retune bn, keeping zeta:_ [_**dp\_symsync\_configure()**_](symsync__core_8h.md#function-dp_symsync_configure) _'s refusal and status. As a writable property it refuses without raising until just-buildit/just-makeit#2182: the value stays put._
+_Retune bn, keeping zeta:_ [_**dp\_symsync\_configure()**_](symsync__core_8h.md#function-dp_symsync_configure) _'s refusal and status. As a writable property a refusal raises ValueError and the value stays put (doppler#1987)._
 ```C++
 int dp_symsync_set_bn (
     dp_symsync_state_t * state,

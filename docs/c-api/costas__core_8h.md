@@ -82,7 +82,7 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 |  void | [**dp\_costas\_get\_state**](#function-dp_costas_get_state) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, void \* blob) <br>_Serialize the full loop state into_ `blob` _._ |
 |  void | [**dp\_costas\_init**](#function-dp_costas_init) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll) <br>_Initialise a Costas loop in place (no allocation)._  |
 |  void | [**dp\_costas\_reset**](#function-dp_costas_reset) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Re-seed the loop to its create-time frequency/phase; keep config._  |
-|  int | [**dp\_costas\_set\_bn**](#function-dp_costas_set_bn) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_costas\_configure()**_](costas__core_8h.md#function-dp_costas_configure) _'s refusal and status. As a writable property it refuses without raising until just-buildit/just-makeit#2182: the value stays put._ |
+|  int | [**dp\_costas\_set\_bn**](#function-dp_costas_set_bn) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_costas\_configure()**_](costas__core_8h.md#function-dp_costas_configure) _'s refusal and status. As a writable property a refusal raises ValueError and the value stays put (doppler#1987)._ |
 |  void | [**dp\_costas\_set\_bn\_fll**](#function-dp_costas_set_bn_fll) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br> |
 |  void | [**dp\_costas\_set\_norm\_freq**](#function-dp_costas_set_norm_freq) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br> |
 |  int | [**dp\_costas\_set\_state**](#function-dp_costas_set_state) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
@@ -617,7 +617,7 @@ True
 
 ### function dp\_costas\_set\_bn 
 
-_Retune bn, keeping zeta:_ [_**dp\_costas\_configure()**_](costas__core_8h.md#function-dp_costas_configure) _'s refusal and status. As a writable property it refuses without raising until just-buildit/just-makeit#2182: the value stays put._
+_Retune bn, keeping zeta:_ [_**dp\_costas\_configure()**_](costas__core_8h.md#function-dp_costas_configure) _'s refusal and status. As a writable property a refusal raises ValueError and the value stays put (doppler#1987)._
 ```C++
 int dp_costas_set_bn (
     dp_costas_state_t * state,

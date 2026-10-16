@@ -24,7 +24,7 @@ import os
 import sys
 from pathlib import Path
 
-__all__ = ["build_dir", "exe", "header_root", "repo_root"]
+__all__ = ["build_dir", "exe", "header_root", "nested_make_env", "repo_root"]
 
 
 def repo_root(start: Path | str | None = None) -> Path:
@@ -163,3 +163,33 @@ def header_root(start: Path | str | None = None) -> Path:
     layout = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(layout)
     return root / layout.HEADER_ROOT
+
+
+def nested_make_env(*drop: str) -> dict[str, str]:
+    """This process's environment, minus an enclosing make's variables.
+
+    A test that runs ``make`` is itself run by ``make test-python``, which
+    exports its command line to children through ``MAKEFLAGS`` (and its
+    depth through ``MFLAGS``/``MAKELEVEL``). A nested ``make`` would inherit
+    that command line -- ``TEST_PATHS``, ``UV``, whatever the outer run was
+    given -- instead of reading its own defaults and the test's arguments.
+
+    Parameters
+    ----------
+    *drop : str
+        Further variables to remove, e.g. ``"TEST_PATHS"``.
+
+    Returns
+    -------
+    dict of str to str
+        A copy of ``os.environ`` without those keys.
+
+    Examples
+    --------
+    >>> from doppler.tests._repo import nested_make_env
+    >>> env = nested_make_env("TEST_PATHS")
+    >>> "MAKEFLAGS" in env or "TEST_PATHS" in env
+    False
+    """
+    gone = {"MAKEFLAGS", "MFLAGS", "MAKELEVEL", *drop}
+    return {k: v for k, v in os.environ.items() if k not in gone}

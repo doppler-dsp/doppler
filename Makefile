@@ -1697,12 +1697,15 @@ endef
 # (just-buildit/just-buildit.github.io#29). Inert until that lands.
 PROJECT = DOPPLER
 
+# A pointer, not the steps: docs/dev/release.md §2b is their one home. A
+# copy here went stale the day the label gate added a step (#2373 review):
+# followed at v0.73.0 it skipped `bench-labels-fix` and left the label files
+# uncommitted, so the release PR's lint went red.
 define RELEASE_BRANCH_NOTES
-@echo "  - if perf-relevant code changed since the last release (release.md"
-@echo "    §2b), in the bench box's one clone: git fetch origin &&"
-@echo "    make bench-preflight && git checkout --detach origin/main, then"
-@echo "    make bench-interleaved VERSION=$(VERSION) && make bench-docs,"
-@echo "    then commit benchmarks/published + docs/benchmarks.md"
+@echo "  - if perf-relevant code changed since the last release, refresh"
+@echo "    the benchmarks for $(VERSION) in the bench box's one clone,"
+@echo "    exactly as docs/dev/release.md §2b lists (it is the one copy of"
+@echo "    those steps: measure, fix the labels, render, commit)"
 endef
 
 # The script is VENDORED from canonical (just-buildit.github.io) and held to it

@@ -26,17 +26,13 @@ The page converts every release to one quantity, seconds per unit
 (`seconds_per_unit`), and reads each row as a rate in its domain -- input
 samples per second for a stream -- or as time per call (`rate_of`).
 
-Workflow / commands
--------------------
-::
+Workflow
+--------
+A release's numbers are published by the steps in docs/dev/release.md §2b,
+their one home (`make bench-interleaved`, `make bench-labels-fix`, `make
+bench-docs`). The entry points here are those targets' and:
 
-    # on a representative machine, for each build:
-    make pyext                                  # portable (default)
-    make bench && make bench-publish VERSION=0.10.1 BUILD=portable
-    make pyext CMAKE_ARGS=-DDOPPLER_NATIVE=ON   # native
-    make bench && make bench-publish VERSION=0.10.1 BUILD=native
-
-    make bench-docs        # render docs/benchmarks.md from published/
+    make bench-publish VERSION=X.Y.Z BUILD=portable   # stamp one build by hand
     make bench-report      # portable trend across releases, to stdout
 """
 

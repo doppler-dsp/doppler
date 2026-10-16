@@ -35,7 +35,7 @@ bench_n (int n, int iters, jm_bench_t *bench)
 
   char label[64];
   snprintf (label, sizeof label, "generate(n=%d)", n);
-  jm_bench_add (bench, label, times, iters, (size_t)n);
+  jm_bench_add_unit (bench, label, times, iters, (size_t)n, JM_BENCH_SAMPLE);
 
   free (buf);
   dp_awgn_destroy (g);

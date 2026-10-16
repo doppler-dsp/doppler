@@ -125,7 +125,8 @@ main (void)
   printf ("  %-14s %14s %14s\n", "", "ns/info-bit", "Mbit/s");
   for (size_t c = 0; c < N_CODES; c++)
     {
-      jm_bench_add (&_bench, CODES[c].name, t_enc[c], ITERATIONS, (int)n_in);
+      jm_bench_add_unit (&_bench, CODES[c].name, t_enc[c], ITERATIONS,
+                         (int)n_in, "bit");
       const double sec = min_sec (t_enc[c], ITERATIONS);
       printf ("  %-14s %14.2f %14.2f\n", CODES[c].name,
               sec / (double)n_in * 1e9, (double)n_in / sec / 1e6);
@@ -154,9 +155,10 @@ main (void)
         t1       = jm_bench_now_ns ();
         t_obj[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "encode[raw kernel]", t_raw, ITERATIONS, (int)n_in);
-    jm_bench_add (&_bench, "encode[through the object]", t_obj, ITERATIONS,
-                  (int)n_in);
+    jm_bench_add_unit (&_bench, "encode[raw kernel]", t_raw, ITERATIONS,
+                       (int)n_in, "bit");
+    jm_bench_add_unit (&_bench, "encode[through the object]", t_obj,
+                       ITERATIONS, (int)n_in, "bit");
 
     const double raw_s = min_sec (t_raw, ITERATIONS);
     const double obj_s = min_sec (t_obj, ITERATIONS);

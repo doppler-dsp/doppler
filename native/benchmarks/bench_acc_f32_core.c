@@ -67,7 +67,8 @@ main (void)
       t1             = jm_bench_now_ns ();
       _times_step[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "step", _times_step, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "step", _times_step, ITERATIONS, BENCH_N,
+                     JM_BENCH_SAMPLE);
   {
     double _s = 0.0;
     for (int r = 0; r < ITERATIONS; r++)
@@ -83,7 +84,8 @@ main (void)
       t1              = jm_bench_now_ns ();
       _times_steps[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "steps", _times_steps, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "steps", _times_steps, ITERATIONS, BENCH_N,
+                     JM_BENCH_SAMPLE);
   {
     double _s = 0.0;
     for (int r = 0; r < ITERATIONS; r++)
@@ -106,7 +108,8 @@ main (void)
         t1            = jm_bench_now_ns ();
         _times_get[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "get", _times_get, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "get", _times_get, ITERATIONS, BENCH_N,
+                       JM_BENCH_CALL);
     (void)get_sink; /* consume the DCE sink */
     {
       double _s = 0.0;
@@ -131,7 +134,8 @@ main (void)
         t1             = jm_bench_now_ns ();
         _times_dump[r] = jm_bench_elapsed_sec (t0, t1);
       }
-    jm_bench_add (&_bench, "dump", _times_dump, ITERATIONS, BENCH_N);
+    jm_bench_add_unit (&_bench, "dump", _times_dump, ITERATIONS, BENCH_N,
+                       JM_BENCH_CALL);
     (void)dump_sink; /* consume the DCE sink */
     {
       double _s = 0.0;
@@ -196,7 +200,8 @@ main (void)
                            COMPONENT, names[k], BENCH_N, GET_RE (obj), want);
             return 1;
           }
-        jm_bench_add (&_bench, names[k], t, ITERATIONS, BENCH_N);
+        jm_bench_add_unit (&_bench, names[k], t, ITERATIONS, BENCH_N,
+                           JM_BENCH_SAMPLE);
         double best = t[0];
         for (int r = 1; r < ITERATIONS; r++)
           if (t[r] < best)

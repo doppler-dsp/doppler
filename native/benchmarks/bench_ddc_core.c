@@ -134,14 +134,14 @@ main (void)
   for (int s = 0; s < N_RATE; s++)
     {
       (void)snprintf (name, sizeof name, "execute[rate=%.2f]", rates[s]);
-      dp_bench_record (&_bench, name, t[s], ITERATIONS, BLOCK, "in-sample");
+      dp_bench_record (&_bench, name, t[s], ITERATIONS, BLOCK, "in_sample");
     }
   for (int f = 1; f < N_FACE; f++)
     {
       (void)snprintf (name, sizeof name, "%s[rate=%.2f]", face_name[f],
                       rates[REF_RATE_IDX]);
       dp_bench_record (&_bench, name, t[N_RATE + f - 1], ITERATIONS, BLOCK,
-                       "in-sample");
+                       "in_sample");
     }
 
   printf ("\n  rate sweep, per INPUT sample (rate=%.2f = 1.00x):\n",

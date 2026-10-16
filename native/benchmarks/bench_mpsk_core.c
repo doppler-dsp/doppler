@@ -104,7 +104,8 @@ main (void)
           t_map[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "map[m=%d]", m);
-      jm_bench_add (&_bench, name, t_map[mi], ITERATIONS, BENCH_N);
+      jm_bench_add_unit (&_bench, name, t_map[mi], ITERATIONS, BENCH_N,
+                         "symbol");
       report (name, t_map[mi], m);
 
       for (int r = 0; r < ITERATIONS; r++)
@@ -115,7 +116,8 @@ main (void)
           t_dem[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "demap[m=%d]", m);
-      jm_bench_add (&_bench, name, t_dem[mi], ITERATIONS, BENCH_N);
+      jm_bench_add_unit (&_bench, name, t_dem[mi], ITERATIONS, BENCH_N,
+                         "symbol");
       report (name, t_dem[mi], m);
 
       for (int r = 0; r < ITERATIONS; r++)
@@ -126,7 +128,8 @@ main (void)
           t_dmap[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "diff_map[m=%d]", m);
-      jm_bench_add (&_bench, name, t_dmap[mi], ITERATIONS, BENCH_N);
+      jm_bench_add_unit (&_bench, name, t_dmap[mi], ITERATIONS, BENCH_N,
+                         "symbol");
       report (name, t_dmap[mi], m);
 
       for (int r = 0; r < ITERATIONS; r++)
@@ -137,7 +140,8 @@ main (void)
           t_ddem[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "diff_demap[m=%d]", m);
-      jm_bench_add (&_bench, name, t_ddem[mi], ITERATIONS, BENCH_N);
+      jm_bench_add_unit (&_bench, name, t_ddem[mi], ITERATIONS, BENCH_N,
+                         "symbol");
       report (name, t_ddem[mi], m);
 
       dp_mpsk_map (sym, BENCH_N, iq, m);
@@ -150,7 +154,8 @@ main (void)
           t_soft[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "soft_demap[m=%d]", m);
-      jm_bench_add (&_bench, name, t_soft[mi], ITERATIONS, BENCH_N);
+      jm_bench_add_unit (&_bench, name, t_soft[mi], ITERATIONS, BENCH_N,
+                         "symbol");
       report (name, t_soft[mi], m);
 
       printf ("\n");

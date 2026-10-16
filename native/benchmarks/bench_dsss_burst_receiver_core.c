@@ -222,7 +222,7 @@ time_push (const float _Complex *x, const char *name, jm_bench_t *bench,
       dp_dsss_burst_receiver_destroy (rx);
     }
 
-  jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (bench, name, times, ITERATIONS, BENCH_N, JM_BENCH_SAMPLE);
   free (out);
   return decoded;
 }

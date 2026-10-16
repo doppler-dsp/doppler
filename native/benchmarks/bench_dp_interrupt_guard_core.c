@@ -68,7 +68,8 @@ main (void)
       sink += acc;
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "raw_load", times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "raw_load", times, ITERATIONS, BENCH_N,
+                     JM_BENCH_CALL);
 
   /* What a spin iteration actually pays to be stoppable. */
   for (int r = 0; r < ITERATIONS; r++)
@@ -81,7 +82,8 @@ main (void)
       sink += acc;
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "interrupted", times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "interrupted", times, ITERATIONS, BENCH_N,
+                     JM_BENCH_CALL);
 
   dp_interrupt_guard_destroy (g);
 
@@ -106,7 +108,7 @@ main (void)
       t1       = jm_bench_now_ns ();
       times[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "arm_disarm", times, ITERATIONS, ARM_N);
+  jm_bench_add_unit (&_bench, "arm_disarm", times, ITERATIONS, ARM_N, "arm");
 
   jm_bench_write_json (&_bench, "dp_interrupt_guard");
   return 0;

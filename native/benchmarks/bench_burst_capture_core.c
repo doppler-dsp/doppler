@@ -131,7 +131,7 @@ time_push (jm_bench_t *b, const char *name, const char *path,
       times[r] = jm_bench_elapsed_sec (t0, t1);
       dp_burst_capture_destroy (c);
     }
-  jm_bench_add (b, name, times, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (b, name, times, ITERATIONS, BENCH_N, JM_BENCH_SAMPLE);
 }
 
 int

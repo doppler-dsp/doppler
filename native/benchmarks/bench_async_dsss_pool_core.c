@@ -125,7 +125,8 @@ main (void)
       char name[64];
       (void)snprintf (name, sizeof name, "push[%d slots, %s]", N_SLOTS,
                       threads[k] == 1 ? "serial" : "all cores");
-      jm_bench_add (&_bench, name, times, ITERATIONS, (int)TE);
+      jm_bench_add_unit (&_bench, name, times, ITERATIONS, (int)TE,
+                         JM_BENCH_SAMPLE);
       double sec = min_sec (times, ITERATIONS);
       printf ("  %-28s %8.3f us/epoch  %7.2f ns/sample  (assigned %zu)\n",
               name, sec * 1e6, sec / (double)TE * 1e9, sink / ITERATIONS);

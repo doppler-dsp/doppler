@@ -83,7 +83,8 @@ main (void)
           t1         = jm_bench_now_ns ();
           t_ex[m][r] = jm_bench_elapsed_sec (t0, t1);
         }
-      jm_bench_add (&_bench, mname[m], t_ex[m], ITERATIONS, BENCH_N);
+      jm_bench_add_unit (&_bench, mname[m], t_ex[m], ITERATIONS, BENCH_N,
+                         JM_BENCH_SAMPLE);
       double s2 = min_sec (t_ex[m], ITERATIONS);
       printf ("  %-20s %7.2f ns/sample  %8.1f MSa/s\n", mname[m],
               s2 / (double)BENCH_N * 1e9, (double)BENCH_N / s2 / 1e6);

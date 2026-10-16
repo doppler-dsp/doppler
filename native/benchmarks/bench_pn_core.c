@@ -89,7 +89,8 @@ main (void)
         char name[64];
         (void)snprintf (name, sizeof name, "generate[%s,len=%u]", kname[k],
                         lens[i]);
-        jm_bench_add (&_bench, name, times[k][i], ITERATIONS, BENCH_N);
+        jm_bench_add_unit (&_bench, name, times[k][i], ITERATIONS, BENCH_N,
+                           "bit");
         double s = min_sec (times[k][i], ITERATIONS);
         printf ("  %-28s %7.2f ns/bit  %8.1f Mbit/s\n", name,
                 s / (double)BENCH_N * 1e9, (double)BENCH_N / s / 1e6);
@@ -110,7 +111,8 @@ main (void)
       t1         = jm_bench_now_ns ();
       t_floor[r] = jm_bench_elapsed_sec (t0, t1);
     }
-  jm_bench_add (&_bench, "store_floor", t_floor, ITERATIONS, BENCH_N);
+  jm_bench_add_unit (&_bench, "store_floor", t_floor, ITERATIONS, BENCH_N,
+                     "bit");
   {
     double s = min_sec (t_floor, ITERATIONS);
     printf ("  %-28s %7.2f ns/bit  %8.1f Mbit/s  (no feedback)\n",

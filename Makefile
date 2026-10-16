@@ -1098,9 +1098,31 @@ DOXYGEN_CMD      = doxygen Doxyfile
 # The version assertion moved with it: an upstream bump in the image must fail
 # LOUDLY here rather than silently changing generated output, so both fallback
 # paths below check the image's doxygen against DOXYGEN_VERSION first.
+#
+# "CI has moved" is said only when the image RAN and reported another version.
+# A missing docker, or an image that would not run, used to reach the same
+# message with an empty version -- "ships doxygen , not 1.9.8" -- and told the
+# reader to bump a pin that was right (#2362). Each now says what is missing;
+# docker's own stderr is left visible, since it is the reason.
 DOXYGEN_IMAGE_CHECK = \
-  got=$$(docker run --rm $(CI_IMAGE) doxygen --version 2>/dev/null \
-         | cut -d' ' -f1); \
+  if ! command -v docker >/dev/null 2>&1; then \
+      echo "doxygen: the local doxygen is not $(DOXYGEN_VERSION), and docker is"; \
+      echo "  not installed, so CI's doxygen cannot run from $(CI_IMAGE)."; \
+      echo "  Install doxygen $(DOXYGEN_VERSION), or docker."; \
+      exit 1; \
+  fi; \
+  ver=$$(docker run --rm $(CI_IMAGE) doxygen --version) || { \
+      rc=$$?; \
+      echo "doxygen: docker could not run doxygen in $(CI_IMAGE) (exit $$rc)."; \
+      echo "  Nothing is known about CI's doxygen from this; see docker's"; \
+      echo "  message above (daemon not running, image not pulled, ...)."; \
+      exit 1; }; \
+  got=$$(printf '%s\n' "$$ver" | cut -d' ' -f1); \
+  if [ -z "$$got" ]; then \
+      echo "doxygen: $(CI_IMAGE) ran but reported no doxygen version."; \
+      echo "  Nothing is known about CI's doxygen from this; check the image."; \
+      exit 1; \
+  fi; \
   if [ "$$got" != "$(DOXYGEN_VERSION)" ]; then \
       echo "doxygen: the CI image ships doxygen $$got, not $(DOXYGEN_VERSION)."; \
       echo "  CI runs the doxygen job INSIDE that image, so CI has moved too."; \

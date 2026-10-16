@@ -430,6 +430,14 @@ def test_a_stale_allow_entry_fails(tmp_path: Path) -> None:
         "\t$(UV) -q run --with some-tool some-tool\n",
         "\t$(UV) run --group dev --with-requirements r.txt x\n",
         "\t$(_PY_UV) run --python 3.12 --with-editable ./x x\n",
+        # past a hidden option or an alias that takes a value, which
+        # `uv run --help` never lists (#2374 review)
+        "\t$(UV) run --trusted-host pypi.org --with some-tool x\n",
+        "\t$(UV) run --preview-features f --with some-tool x\n",
+        # short flags clustered, or a short option's value attached
+        "\t$(UV) run -qw some-tool x\n",
+        "\t$(UV) run -wsome-tool x\n",
+        "\t$(UV) run -qp 3.12 --with some-tool x\n",
         # A recipe comment ends at the newline: the line after a `\` runs.
         "\t@# a note \\\n\tuvx some-tool\n",
     ],
@@ -460,6 +468,9 @@ def test_a_locked_tool_through_dev_run_passes(tmp_path: Path) -> None:
         "\t$(DEV_RUN) auditwheel repair x.whl -w dist/\n"
         "\t$(UV) run --frozen pytest -w dist\n"
         "\t$(UV) run --group dev --python 3.12 pytest --with x\n"
+        "\t$(UV) run -q pytest -w dist\n"
+        "\t$(UV) run -qp 3.12 pytest --with x\n"
+        "\t$(UV) run -Ck=v pytest -w dist\n"
     )
     r = _run(_seed(tmp_path, files={"Makefile": mk}))
     assert r.returncode == 0, r.stdout
@@ -587,10 +598,19 @@ def test_the_valued_run_options_are_the_pinned_uvs():
     """RUN_VALUED tells uv's own options from the command's, so it must be
     the set of value-taking options the pinned uv's `uv run --help` lists:
     an option missing from it would end the scan early and miss a
-    `--with` after it. `UV` is the uv that `make test-python` runs pytest
-    under -- the pin, not whichever uv PATH reaches first."""
-    uv = os.environ.get("UV")
-    assert uv, "UV is unset: run this through `make test-python`"
+    `--with` after it. The uv asked is the one `make test-python` runs
+    pytest under (`$UV`), else the one on PATH -- the coverage job runs
+    pytest directly -- and either must be the pin, or the help is the
+    wrong one to compare with."""
+    gate = _load()
+    uv = os.environ.get("UV") or shutil.which("uv")
+    assert uv, "no uv: run through `make test-python`, or put uv on PATH"
+    pin, problem = gate.read_pin(REPO)
+    assert pin, problem
+    ver = subprocess.run(
+        [uv, "--version"], capture_output=True, text=True, check=True
+    ).stdout.split()[1]
+    assert ver == pin, f"{uv} is uv {ver}, not the pin {pin}"
     out = subprocess.run(
         [uv, "run", "--help"], capture_output=True, text=True, check=True
     ).stdout
@@ -600,4 +620,7 @@ def test_the_valued_run_options_are_the_pinned_uvs():
     ):
         valued.update(x for x in m.groups() if x)
     assert valued, out[:400]
-    assert set(_load().RUN_VALUED) == valued
+    assert set(gate.RUN_VALUED) == valued
+    # The unlisted spellings are the ones the help hides: once the help
+    # shows one, it belongs in RUN_VALUED instead.
+    assert not (gate.RUN_VALUED_UNLISTED & valued)

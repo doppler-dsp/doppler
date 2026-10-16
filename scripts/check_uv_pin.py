@@ -206,18 +206,52 @@ RUN_VALUED = frozenset(
 )
 
 
+#: Value-taking spellings `uv run --help` does not show, so the test that
+#: holds RUN_VALUED to the help cannot see them: hidden options and aliases,
+#: read from uv 0.12.24's CLI source (crates/uv-cli/src/lib.rs).
+RUN_VALUED_UNLISTED = frozenset(
+    {
+        "--python-preference",
+        "--python-fetch",
+        "--preview-features",
+        "--preview-feature",
+        "--max-recursion-depth",
+        "--trusted-host",
+        "--config-settings",
+    }
+)
+_VALUED = RUN_VALUED | RUN_VALUED_UNLISTED
+
+
 def _run_with(line: str) -> bool:
     """Whether a `uv run` in ``line`` adds a package with `--with` or its
     kin among uv's own options, which end at the command: the first token
-    that is neither an option nor the value of one in RUN_VALUED."""
+    that is neither an option nor the value of one.
+
+    A single-dash token longer than two characters is read a character at
+    a time, as uv reads it: a cluster of short flags (``-qw X``) or a short
+    option with its value attached (``-wX``).
+    """
     for m in _RUN.finditer(line):
         toks = line[m.end() :].split()
         i = 0
         while i < len(toks) and toks[i].startswith("-"):
-            name, eq, _ = toks[i].partition("=")
+            tok = toks[i]
+            name, eq, _ = tok.partition("=")
             if name in _RUN_WITH:
                 return True
-            i += 2 if name in RUN_VALUED and not eq else 1
+            if tok.startswith("--") or len(tok) <= 2:
+                i += 2 if name in _VALUED and not eq else 1
+                continue
+            step = 1
+            for j, ch in enumerate(tok[1:], 1):
+                if "-" + ch in _RUN_WITH:
+                    return True
+                if "-" + ch in _VALUED:
+                    # Its value is the rest of the token, or the next one.
+                    step = 1 if j < len(tok) - 1 else 2
+                    break
+            i += step
     return False
 
 

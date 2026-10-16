@@ -1,0 +1,104 @@
+# Acquisition & DSSS, set C -- labels for the KEEP rows only (see C-notes.md,
+# "KEEP / CUT"). 12 of the set's 31 rows are kept; the other 19 get no label
+# and should leave the page with their benchmark code. Grouped by object,
+# C and Python twins adjacent.
+#
+# One existing label belongs to a CUT row and should be deleted with it:
+# "c:burst_demod::demod[clean]".
+
+# -- burst_acq: the burst preamble search ------------------------------------
+# The two ends of the C sweep. The two middle points and both Python push
+# rows fall inside this range.
+
+["c:burst_acq::push[sf=15,spc=2]"]
+name = "Burst preamble search, 15-chip code, 2 samples per chip"
+unit = "sample"
+definition = "A burst-mode preamble search for a pseudo-random 15-chip code at 2 samples per chip (a 30-sample period, up to 8 repetitions, sized for 65 dB-Hz at a 0.01 false-alarm target, no Doppler search past the native span), reset and run over 32,768 samples of pseudo-random ±1 input with no preamble in it; throughput counts the input samples given to it, and the period, which sets the correlation length, is 8.4 times shorter than the 63-chip row's."
+samples = 1
+
+["c:burst_acq::push[sf=63,spc=4]"]
+name = "Burst preamble search, 63-chip code, 4 samples per chip"
+unit = "sample"
+definition = "A burst-mode preamble search for a pseudo-random 63-chip code at 4 samples per chip (a 252-sample period, up to 8 repetitions, sized for 65 dB-Hz at a 0.01 false-alarm target, no Doppler search past the native span), reset and run over 32,768 samples of pseudo-random ±1 input with no preamble in it; throughput counts the input samples given to it, and the period, which sets the correlation length, is 8.4 times the 15-chip row's."
+samples = 1
+
+["py:burst_acq::test_bench_construct"]
+name = "Burst preamble search setup, from Python"
+unit = "call"
+definition = "Building one BurstAcquisition for a 255-chip m-sequence at 2 samples per chip (5 repetitions, 2 MHz, 60 dB-Hz design point, 0.001 false-alarm target): sizing the search evaluates its detection-probability model about 9,000 times, a quadrature over the Doppler offset, the code delay and where the burst lands in the search blocks, then it builds the FFT plans and buffers; paid once per object, and BurstCapture and DsssBurstReceiver pay the same because they build this engine."
+domain = "call"
+count = 1
+
+# -- burst_capture: search, refine, window copy -------------------------------
+# One C row and one Python row, at two different geometries: they are the
+# two operating points, not a C/Python pair (C-notes.md, "STILL CONFLICTING").
+
+["c:burst_capture::push[4 bursts]"]
+name = "Burst capture, four bursts, 31-chip preamble"
+unit = "sample"
+definition = "A new burst capture each round (preamble search, refine, window copy) for a 31-chip m-sequence preamble at 4 samples per chip, repeated 4 times, 2,448-sample bursts, 4 MHz, sized for 55 dB-Hz, given 65,536 samples of weak uniform noise with four bursts at unit amplitude, one every 16,384 samples; it takes every sample, and throughput counts input samples."
+samples = 1
+
+["py:burst_capture::test_bench_push_bursts"]
+name = "Burst capture, four bursts, 255-chip preamble, from Python"
+unit = "sample"
+definition = "A new BurstCapture each round at the burst chain's operating point (a 255-chip m-sequence preamble at 2 samples per chip, repeated 5 times, 8,316-sample bursts, 2 MHz, sized for 60 dB-Hz), given 65,536 samples of white noise with four bursts at 12 dB Es/N0, 15,147 samples apart from sample 0, through the Python binding; it takes every sample, and throughput counts input samples."
+samples = 1
+
+# -- burst_demod: one burst, demodulated ----------------------------------------
+
+# REDRAFT: the old text said demod() acquires the preamble and checks the
+# CRC; it does neither (burst_demod_core.h:13, :17-23). It also did not say
+# that this row and the chirp row run different estimators.
+["c:burst_demod::demod[offset]"]
+name = "Burst demodulator, carrier offset"
+unit = "call"
+definition = "One 28,600-sample DSSS burst (a 500-chip preamble sent 5 times, then a 93-bit frame spread by a 50-chip code, 4 samples per chip) demodulated, with a carrier at 0.012 cycles per sample, an exact prior and the rate search off: four preamble estimate passes of one FFT each, a timing check, two despreads around a one-FFT payload frequency refinement, a sync-word search and slicing to bits, with no acquisition and no CRC check; read in input samples per second."
+samples = 28600
+
+# REDRAFT: same two errors as above, and "the rate search engages" did not
+# say what it costs; the search size accounts for the tenfold gap.
+["c:burst_demod::demod[chirp]"]
+name = "Burst demodulator, carrier offset and Doppler rate"
+unit = "call"
+definition = "The same 28,600-sample burst and chain as the offset row, but with the carrier sweeping at 6e-7 cycles per sample squared, a prior 0.0005 cycles per sample off and the rate search on (maximum 1e-6): each of the four preamble passes tries 401 chirp rates with one 256-point FFT each, and the payload refinement tries 693 with 512 points, against one FFT each in the offset row, which is why it costs about ten times as much; read in input samples per second."
+samples = 28600
+
+# -- burst_despreader: tracked despreading --------------------------------------
+
+# The two ends of the spreading-factor sweep (the maintainer's rule: a knob
+# that can change cost per sample keeps its smallest and largest point).
+
+["c:burst_despreader::steps[sf=15]"]
+name = "Burst despreader, 15-chip code"
+unit = "sample"
+definition = "A burst despreader (carrier and code tracking loops on early, prompt and late correlators, one symbol out per code period) on a pseudo-random 15-chip code at 4 samples per chip with no preamble, run on 65,536 samples of pseudo-random ±1 input per round; throughput counts input samples. Each sample costs the same at any spreading factor and only the once-per-symbol loop update is shared over more samples as the code grows, so this row and the 63-chip row read alike."
+samples = 1
+
+["c:burst_despreader::steps[sf=63]"]
+name = "Burst despreader, 63-chip code"
+unit = "sample"
+definition = "A burst despreader (carrier and code tracking loops on early, prompt and late correlators, one symbol out per code period) on a pseudo-random 63-chip code at 4 samples per chip with no preamble, run on 65,536 samples of pseudo-random ±1 input per round; throughput counts input samples. Each sample costs the same at any spreading factor and only the once-per-symbol loop update is shared over more samples as the code grows, so this row and the 15-chip row read alike."
+samples = 1
+
+# -- despreader: continuous Costas + DLL ------------------------------------------
+
+["c:despreader::steps"]
+name = "Continuous DSSS despreader, 127-chip code"
+unit = "sample"
+definition = "The continuous despreader (a Costas carrier loop and an early-prompt-late code loop sharing one integrate-and-dump, with the code lock detector's extra noise correlator and both always-on lock detectors) tracking a noiseless 127-chip pseudo-random code at 8 samples per chip with a 5e-5 cycles-per-sample carrier offset, reset before each 65,536-sample round; throughput counts input samples."
+samples = 1
+
+# -- ppe: the polynomial-phase estimator BurstDemod drives ------------------------
+
+["c:ppe::doppler"]
+name = "Frequency estimate, 4,096 samples"
+unit = "sample"
+definition = "One frequency estimate of a 4,096-sample complex tone with the chirp-rate search off (maximum rate 0, the setting BurstDemod uses unless a rate is declared): a Kaiser window, one 16,384-point zero-padded FFT, its magnitude in dB and a peak search; throughput counts input samples, 4,096 per estimate."
+samples = 1
+
+["c:ppe::chirp"]
+name = "Frequency and chirp-rate estimate, 512 samples"
+unit = "sample"
+definition = "One joint frequency and chirp-rate estimate of a 512-sample tone sweeping at 1e-5 cycles per sample squared, trying 53 chirp rates across ±5e-5: for each rate, a dechirp, a 2,048-point zero-padded FFT, its magnitude in dB and a peak search, so 53 transforms where the 4,096-sample row runs one; throughput counts input samples, 512 per estimate."
+samples = 1

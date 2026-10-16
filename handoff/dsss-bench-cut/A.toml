@@ -1,0 +1,105 @@
+# Labels for the KEEP rows of A.tsv (Acquisition & DSSS family, part A):
+# 12 of 39. The 27 CUT rows, and the kept row that covers each, are in
+# A-notes.md ("KEEP / CUT"), with the source evidence for every claim here.
+
+# ── acq: the continuous DSSS searcher (bench_acq_core.c) ────────────────────
+# Every row: a 1,023-chip code at 2 samples per chip (an epoch is one code
+# period, 2,046 samples), C/N0 37.31 dB-Hz, Pfa 1e-3, depth D = 1, one round
+# = one push of exactly one non-coherent dwell. Cost is per epoch, so the
+# epoch count does not move the per-sample rate; the frequency-window count
+# and the thread count do. Kept: the floor (no Doppler search), the corners
+# of the operating range (2 and 5 Mcps, at +/-5 and +/-50 kHz), and the two
+# ends of the thread sweep at 5 Mcps, +/-50 kHz (1 and 8 threads).
+
+# REDRAFT: the old definition says neither why 256 (its 90- and 176-epoch
+# siblings differ only in the detection target) nor the chip rate that sets
+# it apart from the 2 and 5 Mcps rows, and the bench's code is 1,023
+# pseudo-random chips standing in for a Gold code (bench_acq_core.c:149-156),
+# not a Gold code. Renamed into the family's "DSSS search" form; still a
+# headline.
+["c:acq::native_nc256"]
+name = "DSSS search, 3.069 Mcps, no Doppler search, 256 epochs"
+unit = "sample"
+definition = "The continuous DSSS searcher at 3.069 Mcps (1,023-chip code, 2 samples per chip, 6.138 MSa/s) with no Doppler search (one frequency window), integrating 256 epochs of 2,046 samples non-coherently, the engine's ceiling and what its sizer gives for a 0.999 detection probability at 37.31 dB-Hz; one round is one 523,776-sample dwell ending in one detection test, and throughput counts searched input samples, so the epoch count sets the dwell, not the rate."
+samples = 1
+headline = true
+
+["c:acq::op5M_U50k_nc254"]
+name = "DSSS search, 5 Mcps, ±50 kHz, 254 epochs, 1 thread"
+unit = "sample"
+definition = "The continuous DSSS searcher at the 5 Mcps operating point (1,023-chip code, 2 samples per chip, 10 MSa/s) over ±50 kHz of Doppler (21 frequency windows) on one thread, integrating 254 epochs of 2,046 samples non-coherently, the count its sizer picks for a 0.9 detection probability at 37.31 dB-Hz; one round is one 519,684-sample dwell ending in one detection test, and throughput counts searched input samples, so the epoch count sets the dwell, not the rate."
+samples = 1
+
+["c:acq::op5M_U50k_t8_nc254"]
+name = "DSSS search, 5 Mcps, ±50 kHz, 254 epochs, 8 threads"
+unit = "sample"
+definition = "The 254-epoch, 0.9-detection-probability search of the 1-thread row (5 Mcps, 10 MSa/s, ±50 kHz in 21 frequency windows, 37.31 dB-Hz) with each epoch's 21 window transforms fanned across 8 threads; one round is one 519,684-sample dwell ending in one detection test, and throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U5k_nc225"]
+name = "DSSS search, 5 Mcps, ±5 kHz, 225 epochs, 1 thread"
+unit = "sample"
+definition = "The continuous DSSS searcher at the 5 Mcps operating point (1,023-chip code, 2 samples per chip, 10 MSa/s) over ±5 kHz of Doppler, the uncertainty once Doppler is pre-compensated (3 frequency windows), on one thread, integrating 225 epochs of 2,046 samples non-coherently, the count its sizer picks for a 0.9 detection probability at 37.31 dB-Hz; one round is one 460,350-sample dwell ending in one detection test, and throughput counts searched input samples, so the epoch count sets the dwell, not the rate."
+samples = 1
+
+["c:acq::op2M_U50k_nc57"]
+name = "DSSS search, 2 Mcps, ±50 kHz, 57 epochs, 1 thread"
+unit = "sample"
+definition = "The continuous DSSS searcher at the 2 Mcps operating point (1,023-chip code, 2 samples per chip, 4 MSa/s) over ±50 kHz of Doppler (53 frequency windows, the narrowest tiles and so the most), on one thread, integrating 57 epochs of 2,046 samples non-coherently, the count its sizer picks for a 0.9 detection probability at 37.31 dB-Hz; one round is one 116,622-sample dwell ending in one detection test, and throughput counts searched input samples, so the epoch count sets the dwell, not the rate."
+samples = 1
+
+["c:acq::op2M_U5k_nc51"]
+name = "DSSS search, 2 Mcps, ±5 kHz, 51 epochs, 1 thread"
+unit = "sample"
+definition = "The continuous DSSS searcher at the 2 Mcps operating point (1,023-chip code, 2 samples per chip, 4 MSa/s) over ±5 kHz of Doppler, the uncertainty once Doppler is pre-compensated (7 frequency windows), on one thread, integrating 51 epochs of 2,046 samples non-coherently, the count its sizer picks for a 0.9 detection probability at 37.31 dB-Hz; one round is one 104,346-sample dwell ending in one detection test, and throughput counts searched input samples, so the epoch count sets the dwell, not the rate."
+samples = 1
+
+# ── acq from Python: the BURST engine, one coherent dwell (bench_acq.py) ────
+
+["py:acq::test_bench_tile_test_grid"]
+name = "Burst acquisition, 31-chip code, 16-period dwell, from Python"
+unit = "sample"
+definition = "One BurstAcquisition push of 1,984 samples of complex noise through the Python binding, the burst engine built for a 31-chip maximal-length code at 4 samples per chip (1 Mcps, 124 samples a period) and searched coherently over 16 periods, so the push is exactly one dwell: ring write, a 16-point slow-time Doppler FFT, the code correlation and the detection test; throughput counts input samples."
+samples = 1
+
+["py:acq::test_bench_tile_worked"]
+name = "Burst acquisition, 1,023-chip code, 10-period dwell, from Python"
+unit = "sample"
+definition = "One BurstAcquisition push of 20,460 samples of complex noise through the Python binding, the burst engine built for a 1,023-chip maximal-length code at 2 samples per chip (1 Mcps, 2,046 samples a period) and searched coherently over 10 periods, so the push is exactly one dwell: ring write, a 10-point slow-time Doppler FFT, the code correlation and the detection test; throughput counts input samples."
+samples = 1
+
+# ── carrier_acq: coarse carrier acquisition ─────────────────────────────────
+# The C row records 65,536 samples a round, but the detector stops reading
+# at its 8-block give-up cap after 320; its input's bits change every
+# sample, so its spectrum is flat and nothing fires. It is kept, per call,
+# only as the C bench's one row until #1967/#2388 make that bench honest.
+# The Python rows are the honest per-sample measurement, at a different
+# configuration (4,096-sample blocks, 100x the C row's).
+
+["c:carrier_acq::steps[pad=4,seq]"]
+name = "Carrier search, zero-pad 4, sequential, gives up after 8 blocks"
+unit = "sample"
+definition = "One steps() call offered 65,536 samples at 4 MSa/s by a detector built for 1 Msym/s BPSK (40-sample blocks, Hann window, 4x zero-pad to a 256-point transform) in sequential mode with an 8-block cap: it folds and tests block after block, nothing fires (the input's bits change every sample, so its spectrum is flat) and it gives up at the cap, having read 320 of the 65,536 samples, so it reads as time per call."
+domain = "call"
+count = 65536
+
+["py:carrier_acq::test_bench_steps_search[4]"]
+name = "Carrier search, zero-pad 4, listening 16 blocks, from Python"
+unit = "sample"
+definition = "One steps() call through the Python binding on 65,536 samples of noise at 4 MSa/s, the detector built for 1 Msym/s BPSK in sequential mode with 4,096-sample blocks (Hann window, 4x zero-pad to a 16,384-point transform): nothing fires, so all 16 blocks are folded and tested, the sustained price of listening, and a carrier found on the first block costs one of those blocks; throughput counts input samples."
+samples = 1
+
+["py:carrier_acq::test_bench_steps_search[16]"]
+name = "Carrier search, zero-pad 16, listening 16 blocks, from Python"
+unit = "sample"
+definition = "One steps() call through the Python binding on 65,536 samples of noise at 4 MSa/s, the detector built for 1 Msym/s BPSK in sequential mode with 4,096-sample blocks (Hann window, 16x zero-pad to a 65,536-point transform): nothing fires, so all 16 blocks are folded and tested, the sustained price of listening, and a carrier found on the first block costs one of those blocks; throughput counts input samples."
+samples = 1
+
+# ── acquire: the signed-bin helper ──────────────────────────────────────────
+
+["c:acquire::bin_to_signed (wrapper, not inlinable)"]
+name = "FFT bin to signed index"
+unit = "call"
+definition = "One call of dp_bin_to_signed, the acquire module's function mapping an FFT bin to its signed frequency index in numpy's fftfreq order, an out-of-line wrapper over the inline dp_fftfreq_index that the Python face calls and a C caller cannot inline (it lives in its own file), timed in a loop of 65,536 calls over an 8-bin grid: time per call."
+domain = "call"
+count = 1

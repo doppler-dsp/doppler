@@ -508,12 +508,7 @@ replica_word_matches_its_definition (void)
             w = (uint32_t)((uint32_t[]){ 0u, 1u, 0xFFFFFFFFu,
                                          0xFFFFFFFEu }[n]);
           else
-            {
-              rng ^= rng << 13;
-              rng ^= rng >> 17;
-              rng ^= rng << 5;
-              w = rng;
-            }
+            w = dp_xs32 (&rng);
           const double c = ((double)(uint32_t)(w + d->tap_grid) / 4294967296.0)
                            * (double)sf;
           double       p = fmod (2.0 * c - 0.5 + sf2, sf2);

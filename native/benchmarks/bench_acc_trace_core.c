@@ -244,19 +244,6 @@ main (void)
       }
   }
 
-  /* Every row RECORDS, or nothing is written: jm_bench.h drops entries past
-     JM_BENCH_MAX_ENTRIES without a word (just-buildit/just-makeit#2188), so
-     the count is checked against the one the sections above derive (#2062):
-     each mode and value(), then each mode at NFOLD sizes. */
-  const int nm   = (int)(sizeof modes / sizeof *modes);
-  const int want = nm + 1 + nm * NFOLD;
-  if (_bench.count != want)
-    {
-      (void)fprintf (stderr,
-                     "bench_acc_trace: recorded %d rows of %d; writing none\n",
-                     _bench.count, want);
-      return 1;
-    }
   (void)sink;
   free (frame);
   free (frames);

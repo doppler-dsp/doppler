@@ -394,6 +394,22 @@ def test_a_stale_allow_entry_fails(tmp_path: Path) -> None:
         "GATE_CMD = uvx some-tool --check\n",
         "\t-uvx some-tool\n",
         "\tuv -q tool run some-tool\n",
+        # make's prefixes, and the two substitutions (#2374 review).
+        "\t@uvx some-tool\n",
+        "\t@-uvx some-tool\n",
+        "\tv=$$(uvx some-tool --version)\n",
+        "V := $(shell uvx some-tool --version)\n",
+        # uv's other spellings: make's brace form, flags after `tool`,
+        # and a uvx named by its path.
+        "\t${UV} tool run some-tool\n",
+        "\t$(UV) tool -q run some-tool\n",
+        "\t$(HOME)/.local/bin/uvx some-tool\n",
+        # `--with` adds a package the lock does not hold.
+        "\t$(UV) run --with diff-cover diff-cover cov.lcov\n",
+        "\t$(DEV_RUN) --with some-tool some-tool\n",
+        "\t$(UV) run --group dev --with-requirements r.txt x\n",
+        # A recipe comment ends at the newline: the line after a `\` runs.
+        "\t@# a note \\\n\tuvx some-tool\n",
     ],
 )
 def test_a_tool_run_outside_the_lock_is_refused(
@@ -411,9 +427,25 @@ def test_a_locked_tool_through_dev_run_passes(tmp_path: Path) -> None:
         "UV = uv\nDEV_RUN = $(UV) run --group dev\n"
         "t:\n\t$(DEV_RUN) diff-cover cov.lcov --fail-under=80\n"
         "# a comment may say uvx diff-cover\n"
+        "\t@# so may a recipe comment: uvx diff-cover\n"
+        # Names that only contain the word are not a run of it.
+        "\tscripts/uvx_helper.sh\n\tfoo-uvx --version\n"
     )
     r = _run(_seed(tmp_path, files={"Makefile": mk}))
     assert r.returncode == 0, r.stdout
+
+
+def test_an_allow_entry_cannot_exempt_a_tool_run(tmp_path: Path) -> None:
+    """The bare-uv list exempts a bare uv, never a tool run outside the
+    lock: the uvx check runs first, so the entry matches nothing."""
+    files = {
+        "Makefile": "t:\n\tuvx some-tool\n",
+        ALLOW: "uvx some-tool -- an entry that tries to exempt it\n",
+    }
+    r = _run(_seed(tmp_path, files=files))
+    assert r.returncode == 1, r.stdout
+    assert "Makefile:2: runs a tool outside the lock" in r.stdout, r.stdout
+    assert "matches no makefile line" in r.stdout, r.stdout
 
 
 def test_an_allow_entry_matching_two_lines_fails(tmp_path: Path) -> None:

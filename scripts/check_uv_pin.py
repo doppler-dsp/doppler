@@ -40,8 +40,8 @@ INSTALL uv to the same value:
    their reason. The list is a ratchet: an entry must match exactly one
    logical makefile line, one that matches none fails, and with ``--base``
    one the list at the merge base did not hold is refused. Nor may a
-   makefile run a tool OUTSIDE the lock -- ``uvx``, or ``uv tool run``
-   however uv is spelled (doppler#2371): it resolves the tool unpinned, so
+   makefile run a tool OUTSIDE the lock -- ``uvx``, ``uv tool run``, or
+   ``uv run --with`` (doppler#2371): it resolves the tool unpinned, so
    a gate's verdict can change with no commit here, and it does not enforce
    ``required-version`` either. The tool goes in the dev group with an
    exact pin and runs through ``$(DEV_RUN)``.
@@ -122,11 +122,21 @@ _BARE_UV = re.compile(
     r"(?:run|sync|lock|pip|build|venv|tool|export|tree|add|remove|cache"
     r"|python|version|init|publish|format)\b"
 )
-#: Rule 4's other half: a tool run outside the lock, by any spelling of uv,
-#: with the same `-` prefix and global flags as _BARE_UV.
+#: Rule 4's other half: a tool run outside the lock. Three forms, each with
+#: the same `-` prefix and global flags as _BARE_UV, by any spelling of uv
+#: (bare, `$(UV)`, `${UV}`):
+#:
+#: - `uvx`, bare or by path (`$(HOME)/.local/bin/uvx`), but not the head of
+#:   a longer name (`uvx_helper`);
+#: - `uv tool run`, with flags before or after `tool`;
+#: - `uv run --with X` (and `--with-requirements`/`--with-editable`), or
+#:   `$(DEV_RUN) --with X`: the extra package resolves outside the lock.
+_ANY_UV = r"(?:\$\(UV\)|\$\{UV\}|(?<![\w./])(?<!\w-)uv)"
+_FLAGS = r"(?:-\S+(?:\s+[^-\s]\S*)?\s+)*"
 _UNLOCKED_TOOL = re.compile(
-    r"(?<![\w./])(?<!\w-)uvx\b|(?:\$\(UV\)|(?<![\w./])(?<!\w-)uv)\s+"
-    r"(?:-\S+(?:\s+[^-\s]\S*)?\s+)*tool\s+run\b"
+    r"(?<![\w.])(?<!\w-)uvx\b"
+    rf"|{_ANY_UV}\s+{_FLAGS}tool\s+{_FLAGS}run\b"
+    rf"|(?:{_ANY_UV}\s+{_FLAGS}run\b|\$[({{]DEV_RUN[)}}])[^;&|]*?\s--with\b"
 )
 #: Rule 4's allowlist, relative to the root: `<line text> -- <reason>`.
 BARE_UV_ALLOW = "scripts/.bare-uv-allow"

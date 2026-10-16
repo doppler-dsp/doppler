@@ -692,3 +692,17 @@ def test_a_module_with_no_family_names_the_file(tmp_path: Path) -> None:
         "`newmod` is not in MODULE_FAMILY (scripts/bench_report.py)" in b
         for b in bad
     ), bad
+
+
+def test_the_first_set_with_units_does_not_break_without_legacy_units(
+    tmp_path: Path,
+) -> None:
+    """`make bench-labels-fix` deletes legacy-units.toml at the release that
+    first records units, so the old unit is unknown there: the round's size
+    decides. Rehearsing v0.73.0 without this broke all 566 C rows."""
+    rel = {
+        "v0.72.0": [_c("costas::steps", 1e-3, 4096)],
+        "v0.73.0": [_c("costas::steps", 1e-3, 4096, {"unit": "sample"})],
+    }
+    row = _row(_load().page_data(str(_tree(tmp_path, rel))), "c:costas::steps")
+    assert (row["brk"], row["slb"]) == ([], False)

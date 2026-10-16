@@ -950,7 +950,9 @@ def breaks(bases: list, units: list, legacy_unit=None) -> list:
     two releases that recorded no unit, the round's size is all there is to
     go on, so a change in ``iterations`` breaks. From a unit-less release to
     one with a unit, the earlier one's unit is ``legacy_unit`` (its
-    legacy-units.toml entry), and only a different unit breaks.
+    legacy-units.toml entry), and only a different unit breaks; with no
+    entry -- the file is deleted the release units arrive -- the round's
+    size decides, as it did before.
 
     >>> c = [("it", 4096), ("it", 65536), ("it", 65536), ("it", 1)]
     >>> breaks(c, [None, None, "sample", "sample"], "sample")
@@ -959,6 +961,8 @@ def breaks(bases: list, units: list, legacy_unit=None) -> list:
     [1]
     >>> breaks([("it", 8), ("it", 8)], [None, "call"], "sample")
     [1]
+    >>> breaks([("it", 8), ("it", 8)], [None, "call"])
+    []
     >>> breaks([("call",), ("bit",)], ["call", "bit"])
     [1]
     """
@@ -969,6 +973,13 @@ def breaks(bases: list, units: list, legacy_unit=None) -> list:
         if prev is not None:
             pb, pu = prev
             if basis[0] != "it" or (pu is None and units[i] is None):
+                changed = basis != pb
+            elif (pu or legacy_unit) is None or (
+                units[i] or legacy_unit
+            ) is None:
+                # Into the first set with units, once legacy-units.toml is
+                # gone (`make bench-labels-fix` deletes it at that release),
+                # the old unit is unknown: the round's size is what is left.
                 changed = basis != pb
             else:
                 changed = (pu or legacy_unit) != (units[i] or legacy_unit)

@@ -118,7 +118,25 @@ main (void)
     printf ("  (locked after %zu samples, tracking=%d)\n", pos,
             dp_dsss_receiver_get_tracking (rx));
 
-    for (int r = 0; r < ITERATIONS && pos + BENCH_N <= total; r++)
+    /* Every round must run, and on a locked receiver (#2363). `times[]` is
+       shared with the search row above, so a round that does not run keeps
+       a SEARCH timing and the row records it as tracking; and a receiver
+       that never locked would time acquisition under the "track" name.
+       The signal has two blocks of slack past ITERATIONS for the lock, so
+       either one means acquisition changed -- refuse rather than record. */
+    if (!dp_dsss_receiver_get_tracking (rx)
+        || pos + (size_t)ITERATIONS * BENCH_N > total)
+      {
+        fprintf (stderr,
+                 "bench_dsss_receiver: track needs a lock with %d blocks of "
+                 "signal left; locked=%d after %zu of %zu samples. The row "
+                 "would record search timings or acquisition as tracking -- "
+                 "lengthen n_track or check acquisition\n",
+                 ITERATIONS, dp_dsss_receiver_get_tracking (rx), pos, total);
+        return 1;
+      }
+
+    for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
         dp_dsss_receiver_steps (rx, x + pos, BENCH_N, out, BENCH_N);

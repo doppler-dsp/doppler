@@ -166,3 +166,56 @@ unit = "bin"
 definition = "The equivalent noise bandwidth of a 4,096-point window, a property computed once per window and cached, read as time per call."
 domain = "call"
 count = 4096
+
+# Bit-stream rows from Python. Their input is bits, not samples, so they
+# read in bits per second like their C twins; these record no rate of their
+# own, so the label gives the count per call.
+
+["py:syncword::test_bench_find_64k"]
+name = "Sync-word search, 64k bits, from Python"
+unit = "call"
+definition = "Searching 65,536 random bits for the 32-bit CCSDS marker with up to 4 errors allowed, which is absent, so every offset is examined; the input is bits, read in bits per second like the C row."
+domain = "bit"
+count = 65536
+
+["py:interleaver::test_bench_interleave[1-8192]"]
+name = "Block interleave, 8,192 bits by bit, from Python"
+unit = "call"
+definition = "Interleaving 8,192 hard bits at depth 8, permuted one bit at a time, through the Python binding; the input is bits, read in bits per second."
+domain = "bit"
+count = 8192
+
+["py:interleaver::test_bench_interleave[1-65536]"]
+name = "Block interleave, 65,536 bits by bit, from Python"
+unit = "call"
+definition = "Interleaving 65,536 hard bits at depth 8, permuted one bit at a time, through the Python binding; the input is bits, read in bits per second."
+domain = "bit"
+count = 65536
+
+["py:interleaver::test_bench_interleave[8-8192]"]
+name = "Block interleave, 8,192 bits by octet, from Python"
+unit = "call"
+definition = "Interleaving 8,192 hard bits at depth 8, permuted one octet at a time, through the Python binding; the input is bits, read in bits per second."
+domain = "bit"
+count = 8192
+
+["py:interleaver::test_bench_interleave[8-65536]"]
+name = "Block interleave, 65,536 bits by octet, from Python"
+unit = "call"
+definition = "Interleaving 65,536 hard bits at depth 8, permuted one octet at a time, through the Python binding; the input is bits, read in bits per second."
+domain = "bit"
+count = 65536
+
+["py:interleaver::test_bench_deinterleave_soft[8192]"]
+name = "Soft deinterleave, 8,192 LLRs, from Python"
+unit = "call"
+definition = "Deinterleaving 8,192 float log-likelihood ratios, one per coded bit, at depth 8 through the Python binding; read in bits per second."
+domain = "bit"
+count = 8192
+
+["py:interleaver::test_bench_deinterleave_soft[65536]"]
+name = "Soft deinterleave, 65,536 LLRs, from Python"
+unit = "call"
+definition = "Deinterleaving 65,536 float log-likelihood ratios, one per coded bit, at depth 8 through the Python binding; read in bits per second."
+domain = "bit"
+count = 65536

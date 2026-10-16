@@ -71,14 +71,30 @@ def _c(name: str, mean: float, iters: int, extra=None) -> dict:
     }
 
 
-def _tree(tmp_path: Path, releases: dict, labels="", exempt=None) -> Path:
-    """A repo-shaped tree: {version: [C rows]} published, both builds."""
+def _py(test: str, mean: float, extra=None, iters: int = 1) -> dict:
+    """A pytest-benchmark row of `bench_costas.py` (the track module)."""
+    return {
+        "name": f"bench_costas::{test}",
+        "fullname": (f"src/doppler/track/benchmarks/bench_costas.py::{test}"),
+        "extra_info": extra or {},
+        "stats": {"mean": mean, "iterations": iters},
+    }
+
+
+def _tree(
+    tmp_path: Path, releases: dict, labels="", exempt=None, py=None
+) -> Path:
+    """A repo-shaped tree: {version: [C rows]} published, both builds, and
+    {version: [Python rows]} when ``py`` gives them."""
     for v, rows in releases.items():
         d = tmp_path / "benchmarks" / "published" / v
         d.mkdir(parents=True)
         for build in ("portable", "native"):
+            pyrows = (py or {}).get(v, [])
             (d / f"{build}.json").write_text(
-                json.dumps({"machine_info": {"cpu": "x"}, "benchmarks": []}),
+                json.dumps(
+                    {"machine_info": {"cpu": "x"}, "benchmarks": pyrows}
+                ),
                 encoding="utf-8",
             )
             (d / f"{build}-c.json").write_text(
@@ -355,3 +371,36 @@ def test_a_legacy_unit_is_used_then_must_go(tmp_path: Path) -> None:
     (tree / "benchmarks" / "legacy-units.toml").write_text(seed, "utf-8")
     bad = br.label_problems(str(tree))
     assert any("records its own unit now" in b for b in bad), bad
+
+
+def test_a_python_row_reads_in_the_unit_its_rate_names(
+    tmp_path: Path,
+) -> None:
+    """A Python bench names its rate's unit in its key (#2373 review): a bit
+    or chip generator that also wrote MSa_s produced no samples, and a
+    receiver writing Msym_s beside MSa_s eats samples. A row with no rate
+    reads per call; a label gives a bit stream its count per call."""
+    label = (
+        '["py:costas::test_bench_find_64k"]\nname = "Find"\nunit = "call"\n'
+        'definition = "65,536 bits."\ndomain = "bit"\ncount = 65536\n'
+    )
+    py = [
+        _py("test_bench_pn", 1e-4, {"MSa_s": 650.0, "Mbit_s": 650.0}),
+        _py("test_bench_rx", 1e-4, {"MSa_s": 40.0, "Msym_s": 10.0}),
+        _py("test_bench_find_64k", 8.7e-5),
+    ]
+    tree = _tree(
+        tmp_path,
+        {"v0.71.0": []},
+        label,
+        exempt=["py:costas::test_bench_pn", "py:costas::test_bench_rx"],
+        py={"v0.71.0": py},
+    )
+    br = _load()
+    assert br.label_problems(str(tree)) == []
+    data = br.page_data(str(tree))
+    pn = _row(data, "py:costas::test_bench_pn")
+    assert (pn["unit"], pn["dom"], pn["inf"]) == ("bit", "bit", False)
+    assert _row(data, "py:costas::test_bench_rx")["dom"] == "Sa"
+    find = _row(data, "py:costas::test_bench_find_64k")
+    assert (find["cnt"], find["dom"]) == (65536, "bit")

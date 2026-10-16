@@ -649,6 +649,7 @@ UNIT_DOMAIN = {
     "eval": "eval",
     "tap": "tap",
     "boundary": "boundary",
+    "record": "record",
 }
 #: Units that are setup, not a stream: read as time per call.
 CONTROL_UNITS = ("create", "arm")
@@ -788,15 +789,51 @@ def row_id(suite: str, bench: dict) -> str:
     return "py:" + bench["name"].removeprefix("bench_")
 
 
+#: The rate a Python bench records, by ``extra_info`` key, and the unit it
+#: counts -- in precedence order, because a row may record two. A generator
+#: of bits or chips that ALSO wrote ``MSa_s`` (pn, gold) produces no samples,
+#: so its own key wins; a receiver that records ``Msym_s`` beside ``MSa_s``
+#: (carrier_mpsk) eats samples, so ``MSa_s`` wins over symbols out.
+PY_RATE_KEYS = (
+    ("Mbit_s", "bit"),
+    ("Mchip_s", "chip"),
+    ("MSa_s", "sample"),
+    ("Msym_s", "symbol"),
+    ("Mevent_s", "event"),
+    ("Mframe_s", "frame"),
+    ("Mrecord_s", "record"),
+)
+
+
+def _py_rate(bench: dict):
+    """``(per second in millions, unit)`` a Python row records, or None.
+
+    >>> _py_rate({"extra_info": {"MSa_s": 2.0, "Mbit_s": 2.0}})
+    (2.0, 'bit')
+    >>> _py_rate({"extra_info": {"MSa_s": 4.0, "Msym_s": 1.0}})
+    (4.0, 'sample')
+    >>> _py_rate({"extra_info": {}}) is None
+    True
+    """
+    extra = bench.get("extra_info") or {}
+    for key, unit in PY_RATE_KEYS:
+        v = extra.get(key)
+        if isinstance(v, (int, float)) and v > 0:
+            return float(v), unit
+    return None
+
+
 def seconds_per_unit(suite: str, bench: dict):
     """(seconds per unit, basis) for one row, or None.
 
     The one quantity every release is converted to (#2372). ``MSa_s``, where
-    a row carries it, is samples per second, so a unit is a sample. A C row
-    without it is ``stats.mean`` over ``stats.iterations`` -- what jm_bench's
-    ``mean_per_unit`` is, and what v0.43.0 to v0.72.0 never wrote. A Python
-    row times one call per round. ``basis`` is what the value is per; the
-    trend breaks where it changes between releases.
+    a C row carries it, is samples per second, so a unit is a sample. A C
+    row without it is ``stats.mean`` over ``stats.iterations`` -- what
+    jm_bench's ``mean_per_unit`` is, and what v0.43.0 to v0.72.0 never
+    wrote. A Python row is per unit of the rate it records (`_py_rate`),
+    else per call: pytest-benchmark's mean is already per call, whatever
+    its ``iterations`` says. ``basis`` is what the value is per; the trend
+    breaks where it changes between releases.
 
     >>> rnd = {"mean": 4e-5, "iterations": 8}
     >>> seconds_per_unit("c", {"stats": rnd, "extra_info": {}})
@@ -805,6 +842,11 @@ def seconds_per_unit(suite: str, bench: dict):
     (5e-06, ('it', 8))
     >>> seconds_per_unit("python", {"stats": {"mean": 2e-6}, "extra_info": {}})
     (2e-06, ('call',))
+    >>> py = {"stats": {"mean": 2.288e-8, "iterations": 220}}
+    >>> seconds_per_unit("python", {**py, "extra_info": {}})
+    (2.288e-08, ('call',))
+    >>> seconds_per_unit("python", {**py, "extra_info": {"Mbit_s": 500.0}})
+    (2e-09, ('bit',))
     """
     stats = bench.get("stats", {})
     mean = stats.get("mean")
@@ -817,8 +859,9 @@ def seconds_per_unit(suite: str, bench: dict):
         if isinstance(msas, (int, float)) and msas > 0:
             return 1.0 / (msas * 1e6), basis
         return mean / iters, basis
-    if isinstance(msas, (int, float)) and msas > 0:
-        return 1.0 / (msas * 1e6), ("sample",)
+    rate = _py_rate(bench)
+    if rate:
+        return 1.0 / (rate[0] * 1e6), (rate[1],)
     return float(mean), ("call",)
 
 
@@ -826,8 +869,8 @@ def _recorded_unit(suite: str, bench: dict):
     """The unit the snapshot itself states, or None (#2314)."""
     if suite == "c":
         return (bench.get("extra_info") or {}).get("unit")
-    has_rate = (bench.get("extra_info") or {}).get("MSa_s") is not None
-    return "sample" if has_rate else "call"
+    rate = _py_rate(bench)
+    return rate[1] if rate else "call"
 
 
 def _component(suite: str, bench: dict) -> str:

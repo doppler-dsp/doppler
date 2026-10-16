@@ -735,12 +735,6 @@ py:i8_to_f32::test_bench_steps_64k
 py:imdmeas::test_bench_analyze[16384]
 py:imdmeas::test_bench_analyze[4096]
 py:imdmeas::test_bench_analyze[65536]
-py:interleaver::test_bench_deinterleave_soft[65536]
-py:interleaver::test_bench_deinterleave_soft[8192]
-py:interleaver::test_bench_interleave[1-65536]
-py:interleaver::test_bench_interleave[1-8192]
-py:interleaver::test_bench_interleave[8-65536]
-py:interleaver::test_bench_interleave[8-8192]
 py:interp_table::test_bench_execute[floor]
 py:interp_table::test_bench_execute[linear]
 py:interp_table::test_bench_execute[nearest]
@@ -795,7 +789,6 @@ py:specan::test_bench_retune
 py:spectrogram::test_bench_create
 py:spectrogram::test_bench_push
 py:symsync::test_bench_steps_64k
-py:syncword::test_bench_find_64k
 py:syncword::test_bench_find_call_overhead
 py:syncword::test_bench_max_errors_for
 py:timing::test_bench_pace_nowait

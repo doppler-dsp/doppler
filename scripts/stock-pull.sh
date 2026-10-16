@@ -38,11 +38,12 @@
 # message stops the retries at once, and the image is pulled from
 # STOCK_MIRROR instead, as is one whose retries ran out: the same Docker
 # Official Image under the same tag (the index digests of every tag doppler
-# pulls matched on both on 2026-10-16; a tag can move on either). It is then
-# tagged with the primary's name, so the `docker run --pull=never` and the
-# FROM that name it find it in the local store. A permanent failure is not
-# sent to the mirror: a tag the primary does not have is a typo, not an
-# outage. Only an image named under STOCK_REGISTRY has a mirror.
+# pulls matched on both registries on 2026-10-16; a tag can move on
+# either). It is then tagged with the primary's name, so the `docker run
+# --pull=never` and the FROM that name it find it in the local store. A
+# permanent failure is not sent to the mirror: a tag the primary does not
+# have is a typo, not an outage. Only an image named under STOCK_REGISTRY
+# has a mirror.
 #
 # Each pull prints the image's size as docker reports it, an upper bound on
 # the bytes it pulled: under a volume quota, the biggest pullers are the

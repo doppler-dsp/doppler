@@ -1835,9 +1835,10 @@ HOOK_DISPATCH_EXEMPT = check-yaml check-toml end-of-file-fixer trailing-whitespa
 # docs/benchmarks.md rendered from them. None of them is compiled, imported
 # or executed by the test matrix, so treating them as source ran the whole
 # matrix twice per release (the PR, then main) over code its parent had
-# already passed. The Docs workflow still builds the site from them, so a
+# already passed. The page's label files move with a release too
+# (`make bench-labels-fix`), and they feed only the page and `make lint`. The Docs workflow still builds the site from them, so a
 # broken asset is still caught -- just not by re-running the C/Python tests.
-CI_INERT_RE = ^(CHANGELOG\.md|changelog\.d/.+|docs/assets/[^/]+\.png|benchmarks/published/.+|docs/benchmarks\.md)$$
+CI_INERT_RE = ^(CHANGELOG\.md|changelog\.d/.+|docs/assets/[^/]+\.png|benchmarks/published/.+|benchmarks/[^/]*\.toml|benchmarks/\.labels-exempt|docs/benchmarks\.md)$$
 
 # THE one declaration of what doppler's docs are, for standard.mk's
 # `make ci-docs` (canonical; just-makeit#1801). A diff touching any of these
@@ -1845,8 +1846,10 @@ CI_INERT_RE = ^(CHANGELOG\.md|changelog\.d/.+|docs/assets/[^/]+\.png|benchmarks/
 # job docs cannot break (CODE_ONLY in ci.yml). A deletion outside
 # CI_DOCS_DIRS is never docs-only. README.md is generated from
 # docs/index.md, so the two move together; benchmarks/published/ feeds the
-# site and nothing compiled.
-CI_DOCS_RE = ^(docs/|benchmarks/published/|mkdocs[^/]*\.yml$$|CHANGELOG\.md$$|changelog\.d/|README\.md$$|CONTRIBUTING\.md$$)
+# site and nothing compiled, and so do the page's label files
+# (benchmarks/*.toml, benchmarks/.labels-exempt), which `make lint` --
+# never skipped -- gates.
+CI_DOCS_RE = ^(docs/|benchmarks/published/|benchmarks/[^/]*\.toml$$|benchmarks/\.labels-exempt$$|mkdocs[^/]*\.yml$$|CHANGELOG\.md$$|changelog\.d/|README\.md$$|CONTRIBUTING\.md$$)
 
 include standard.mk
 

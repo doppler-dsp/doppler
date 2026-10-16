@@ -13,6 +13,193 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-10-15
+
+### Breaking
+
+- **`BurstCapture`'s state blob is version 6, and a blob saved by v0.71.0 or
+    earlier is refused** (`set_state()` raises `ValueError`), as is any blob
+    that embeds one. Restore it with the release that wrote it, or re-create
+    the object. In C, `burst_capture_event_t` gains `doppler_rate_hz_s`, so
+    rebuild everything that includes it (#2219).
+
+- **`StreamSink.send()` raises `OSError` on a refused block and returns
+    `None`, and the C send calls must be checked** (#2011). A block is refused
+    when the client is reconnecting with 8 MiB already pending, or the sink
+    was drained. `send()` used to return the C status as an `int`; delete any
+    test of its return value (`if sink.send(b) != 0:` now always reads as a
+    failure) and catch `OSError`. In C, the `dp_pub_*`, `dp_push_*`,
+    `dp_req_*` and `dp_rep_*` sends, `dp_pub_flush`, `dp_pub_send_eos`,
+    `dp_stream_drain` and `dp_wfm_stream_sink_send`/`_send_eos`/`_drain`
+    are `DP_NODISCARD`: a call that drops the status warns, and fails under
+    `-Werror`. Check it: under GCC a `(void)` cast does not silence
+    the warning.
+
+- **A synth's state blob carries its DSSS window and is version 5; a blob
+    saved by v0.71.0 or earlier is refused** (`set_state()` raises
+    `ValueError`), as is any blob that embeds a synth's. Re-create the object.
+    The window is `set_dsss_window`'s two counts, so a synth restored without
+    that call resumes the framed stream, and a blob whose window breaks the
+    setter's rule is refused (#2022; one setter of #2082, which stays
+    open).
+
+- **`_SynthEngine`'s constructor takes the manifest's positional order, and
+    `seed` defaults to 1** (`type, fs, freq, snr, snr_mode, …`, was
+    `type, snr_mode, fs, …`; the documented default was always 1, the code's
+    was 0; #2335). Keywords bind as before, so pass its arguments by keyword,
+    and pass `seed=0` where code relied on the old default.
+
+### Added
+
+- **`make bench-preflight` clears a release's bench outputs once main has
+    them.** Every per-release bench clone kept its snapshot and rendered page:
+    26 clones, about 10 GB, by 2026-10-14. The box now keeps one clone. The
+    preflight removes what origin/main already holds, refuses over anything
+    it lacks, and runs in `make bench-interleaved` before any build. The
+    procedure is in `docs/dev/release.md` §2b.
+
+- **A captured burst's event carries its Doppler rate.**
+    `BurstCapture.events()` gains `doppler_rate_hz_s` (and
+    `BurstCapture.doppler_rate_hz_s` holds the last event's): the rate, in
+    Hz/s, of the best rate hypothesis over the whole preamble. At 23 dB over
+    the design point it is the grid point nearest the true rate in every
+    event (#2219).
+
+- **The burst engine's false-alarm rows run in CI, at enough dwells for
+    n = 1 to see a doubled rate.** `validate_acq_rate_pd_pfa` holds n = 1, 3
+    and auto over 100,000 dwells each, with 3 and auto as backstops (#2324),
+    and `validate_capture_dwell_pd`'s full run now asserts its bounds at
+    every depth (#1566).
+
+- **The Doppler-rate validator checks a PN preamble too.** Beside Zadoff-Chu
+    and LFM, `validate_acq_rate_pd` repeats its capture claims on one period
+    of a 127-chip m-sequence (`dp_mls_poly(7)`) from the shipped generator:
+    the capture delivers its `pd_burst`, compensation beats the capped depth
+    3 dB under the design point, and Pfa holds (#2219).
+
+- **`Synth.prod(x)` multiplies a block by the synth's own output.** `x` must
+    be a 1-D C-contiguous complex64 block (a strided block or another dtype
+    is refused); `doppler.wfm.rotate`, its swept-carrier special case, takes
+    any 1-D complex64 view. The synth advances exactly as `steps(n)` does,
+    and the result matches `x * synth.steps(len(x))` to float rounding, not
+    bit for bit. C kernel: `dp_wfm_synth_prod (state, in, n, out)`.
+
+### Changed
+
+- **just-makeit pin 0.105.0 → 0.106.0: `close()` on another thread no
+    longer frees a generated binding under a running GIL-free call.**
+    `Ddcr.close()` during `execute` segfaulted; it now waits, then frees, and
+    a later call raises `RuntimeError` (gh-2272), as does
+    `wfm.Reader.read_follow`. `doppler.stream` does not yet: closing a `Pull`
+    while another thread is inside `recv()` can still crash, so join that
+    thread first (#2063). `help(wfm.Synth)` and the seven source factories
+    print the stub's docs (gh-2283). An out-of-range `int32_t` gets jm's
+    range message on Windows too (gh-2269; not yet verified on
+    Windows), but
+    `Telemetry.emit` does not yet (#2280). Skips 0.105.1 and 0.105.2.
+
+- **Refine's two rate refinements are held by deterministic tests.**
+    `test_burst_capture_core.c` places a swept burst in cases where removing
+    the rate-widened Doppler cells, or the denser rate grid, names the wrong
+    repetition. `validate_acq_rate_pd --check` keeps its seeded capture-Pd
+    pin as a broad backstop for smaller regressions (#2219). Test-only.
+
+- **`_SynthEngine`'s binding is jm's now.** `prod` refuses a strided or
+    non-complex64 block like `Synth.prod`, `pn_poly` and `set_chirp_span`
+    refuse an out-of-range integer instead of wrapping it (#2279), and
+    `close()` waits for a running `prod`. The six hand-written setters
+    (`set_rrc`, `set_bits`, `set_symbols`, `set_dsss_chips`,
+    `set_dsss_cont`, `set_dsss_window`) keep their behavior and gain stubs
+    and Parameters docs; three of their messages no longer name a wrong
+    waveform type, which the C treats as a no-op.
+
+### Fixed
+
+- **One acquisition hypothesis with a declared Doppler rate now places swept
+    bursts.** Refine searched rates only when the engine had several
+    hypotheses, so a capped capture (every `DsssBurstReceiver` with a
+    `max_rate`) named the wrong repetition for about 40% of the bursts its
+    engine found (0.555 against the engine's 0.946 at the design point, on
+    the old stimulus). It now searches whenever a rate is declared; on the
+    library's swept carrier it delivers 0.905 against the engine's 0.958. It
+    costs about 0.42 ms a burst. An event's `doppler_rate_hz_s` is 0 only
+    without a declared rate (#2219).
+
+- **The accumulators' `madd`, `add2d` and `madd2d` benchmarks measure the
+    kernels.** They timed `(NULL, 0)` calls, so the published number was
+    call overhead, and code alignment moved it 20%. Each row is now one
+    call over 64k samples that checks its own result. Time per call now
+    scales linearly with n (#1366).
+
+- **An acquisition engine with a coherent depth above 1 now false-alarms at
+    or under its `pfa`, not twice it (#2218).** The gate is priced over the
+    Doppler-interpolated surface its maximum searches, a never-exceed bound
+    that costs about 0.25 dB at a given `pd`. So an auto-sized engine may
+    pick a deeper D; if it now reports `underpowered`, give it more SNR, a
+    lower `pd` or a higher `pfa`.
+
+- **`BurstDespreader` refuses a `bn_carrier` or `bn_code` outside the loop
+    filter's domain** (NaN, infinite, negative, or so large that its loop
+    gains overflow; #2071): the constructor and both setters raise
+    `ValueError`, and a refused setter keeps the loop's bandwidth.
+
+- **A `DopplerChannel` that refuses a state blob is left as it was.** Its
+    own fields were written before its resampler could refuse the blob;
+    they are now written only once the resampler accepts (#2104).
+
+- **`dp_fmod_pos` stays in `[0, m)`, and a NaN stays NaN.** It could return
+    exactly its period, and the DLL's replica tap then read one chip past
+    its code (#2110).
+
+- **Every Python benchmark now times the call it is named for.** 17
+    `bench_*.py` files were jm's scaffold: a fixture and no test at all, so
+    they collected nothing. Each is filled in and asserts what its row
+    claims, and `PY_HOLLOW_ALLOW` is empty. Separately, a test that requests
+    the `benchmark` fixture and never calls it is now an error in doppler's
+    own test suite (#1010).
+
+- **The AWGN and LO sine tables and the CCSDS marker's bits are built once,
+    safely, however many threads make the first object.** Each sat behind a
+    plain `ready` flag, so two threads making their first AWGN or LO at once
+    (a plan's first parallel `prepare`, any GIL-free caller) raced, and one
+    could read a half-written table. All four lazy tables, rs.c's included,
+    now go through one guard, `dp_once()` in `doppler/dp_once.h`, which
+    `test_dp_once` checks from eight threads under `make test-tsan`
+    (#2328).
+
+- **The `nats-down` test no longer purges the broker the rest of the suite
+    is using.** It ran the real recipe, whose first step deletes every
+    `DP_WORK_*` stream, and under xdist that removed other workers' work
+    queues mid-test: a Pull read stopped short 5 times in 200 CI runs.
+    `scripts/nats_streams.py` takes `--port` (or `NATS_STREAMS_PORT`), and
+    the test aims the purge and `docker` away from shared state (#2319).
+
+- **A refused send is no longer silent.** wfmgen exits 1 when the stream
+    refused a block or the end-of-stream, and `dp_tlm_sink_lost()` counts
+    dropped telemetry (#2011).
+
+- **`psd::power_onesided` is timed over a batch of calls, not one**
+    (#2143). One call per round put each pass on the clock's ~10 ns step,
+    so at 1,024 bins the cell moved in 7% steps: #2131's +7.1% was one.
+    A round now reads 16,384 bins' worth (16 calls at 1,024, at least 4),
+    and the row still reports per call. Its first run after this is a new
+    baseline: the clock read's own cost is now shared by the batch.
+
+- **`RateConverter.set_state()` reports a stage that refuses its part of
+    the blob.** It reported such a blob as restored; it now raises
+    `ValueError`. Earlier stages may already hold the blob's values, so
+    discard the converter after that error and re-create it (#2104).
+
+- **`RateSync`'s and `MpskReceiver`'s loops write their own fields only
+    after their children accept,** so a child's refusal leaves those fields
+    unchanged (#2104). One case remains: when `MpskReceiver`'s carrier filter
+    refuses after its timing loop was restored, the receiver is left partly
+    restored, so discard it after that `ValueError` and re-create it.
+
+- **`Resampler.set_state()` refuses a forged delay-line head.** A head
+    outside the line made the next output read past it. Such a blob now
+    raises `ValueError` and leaves the resampler unchanged (#2111).
+
 ## [0.71.0] - 2026-10-14
 
 ### Breaking
@@ -16969,6 +17156,7 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.70.0]: https://github.com/doppler-dsp/doppler/compare/v0.69.0...v0.70.0
 [0.71.0]: https://github.com/doppler-dsp/doppler/compare/v0.70.0...v0.71.0
+[0.72.0]: https://github.com/doppler-dsp/doppler/compare/v0.71.0...v0.72.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.71.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.72.0...HEAD

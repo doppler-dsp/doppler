@@ -634,14 +634,16 @@ def test_the_valued_run_options_are_the_pinned_uvs():
 def test_the_unlisted_options_were_read_from_the_pinned_uv():
     """`uv run --help` hides RUN_VALUED_UNLISTED's spellings, so the test
     above cannot see a hidden option a newer uv adds. The set names the uv
-    it was read from, and a pin bump fails here until that uv's CLI source
-    (crates/uv-cli/src/lib.rs) is re-read and the version moved."""
+    it was read from, and a pin bump fails here until someone moves the
+    version -- which is the moment to re-read that uv's CLI source
+    (crates/uv-cli/src/lib.rs). It cannot make them read it."""
     gate = _load()
     pin, problem = gate.read_pin(REPO)
     assert pin, problem
     assert pin == gate.RUN_VALUED_UNLISTED_UV, (
-        f"the uv pin is {pin}; RUN_VALUED_UNLISTED was read from uv "
-        f"{gate.RUN_VALUED_UNLISTED_UV}'s CLI source. Re-read the pinned "
-        "uv's hidden and alias value-taking `uv run` options, update the "
-        "set, then RUN_VALUED_UNLISTED_UV."
+        f"the uv pin is {pin}; scripts/check_uv_pin.py's "
+        f"RUN_VALUED_UNLISTED was read from uv "
+        f"{gate.RUN_VALUED_UNLISTED_UV}'s crates/uv-cli/src/lib.rs. Read "
+        f"uv {pin}'s copy for the hidden and alias `uv run` options that "
+        "take a value, update the set, then RUN_VALUED_UNLISTED_UV."
     )

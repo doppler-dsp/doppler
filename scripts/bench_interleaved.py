@@ -2,7 +2,7 @@
 """Interleaved portable-vs-native benchmark measurement.
 
 `make bench-publish` measures the two builds in separate runs minutes apart, so
-the page's *from src* column picks up cross-run system drift (a build looking
+the page's *%Δ* column picks up cross-run system drift (a build looking
 slower than itself). This measures both builds **interleaved** and keeps the
 per-benchmark best, which cancels that drift:
 

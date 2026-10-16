@@ -2,11 +2,13 @@
  *
  * A jm scaffold that recorded nothing until now (doppler#891), and the last
  * of the thirty to be filled along with async_dsss_receiver. Both needed a
- * real fixture rather than a block of noise: `dp_burst_demod_demod` acquires a
- * preamble, finds a sync word, despreads a payload and checks a CRC, and
- * every one of those stages exits early on a signal that is not there. A
- * benchmark over noise would time the give-up path and report a burst
- * demodulator four times faster than it is.
+ * real fixture rather than a block of noise: `dp_burst_demod_demod`
+ * estimates frequency and chirp rate from the preamble, dechirps, despreads
+ * the data section and finds the sync word, then slices the frame's bits;
+ * it checks no CRC (burst_demod_core.h, doppler#1022). Those stages exit
+ * early on a signal that is not there, so a benchmark over noise would time
+ * the give-up path and report a burst demodulator four times faster than it
+ * is.
  *
  * So this builds the burst the way `test_burst_demod_core.c` does --
  * ACQ_REPS repeats of an unmodulated acquisition code, a Barker-13 sync
@@ -18,12 +20,14 @@
  * questions -- how many bursts a receiver can process per second, and
  * whether it keeps up with the sample rate feeding it.
  *
- * The rows sweep the carrier the demodulator has to find:
+ * The rows are the rate search's two settings (doppler#2386):
  *
- *   clean         no offset, prior exact -- the acquisition search converges
- *                 immediately, the floor of the cost
- *   offset        a real frequency offset with a matching prior
+ *   offset        a real frequency offset with a matching prior, the rate
+ *                 search off
  *   chirp         offset plus a Doppler rate, so the rate search engages
+ *
+ * A zero-offset carrier runs the offset row's code path and reads about the
+ * same, so it is not a row.
  *
  * Timing is MIN over rounds, not mean, after a WARMUP_S settle.
  */
@@ -140,19 +144,18 @@ main (void)
           ACQ_REPS, ACQ_SF, DATA_SF, PAYLOAD, SPC, ITERATIONS);
 
   /* f0 in cycles/sample, mu the Doppler rate; max_rate must admit mu. */
-  /* The test's own two working cases, plus a clean floor. `max_rate` is a
+  /* The test's own two working cases. `max_rate` is a
      chirp-rate half-span in cycles/sample^2 -- not Hz/s. Guessing 1.0e4
      which the precondition below refused to time. */
-  const double      f0s[3]    = { 0.0, 0.012, 0.012 };
-  const double      priors[3] = { 0.0, 0.012, 0.0115 };
-  const double      mus[3]    = { 0.0, 0.0, 6.0e-7 };
-  const double      rates[3]  = { 0.0, 0.0, 1.0e-6 };
-  const char *const rname[3]
-      = { "demod[clean]", "demod[offset]", "demod[chirp]" };
-  static double t_dm[3][ITERATIONS];
-  size_t        n_samples = 0;
+  const double      f0s[2]    = { 0.012, 0.012 };
+  const double      priors[2] = { 0.012, 0.0115 };
+  const double      mus[2]    = { 0.0, 6.0e-7 };
+  const double      rates[2]  = { 0.0, 1.0e-6 };
+  const char *const rname[2]  = { "demod[offset]", "demod[chirp]" };
+  static double     t_dm[2][ITERATIONS];
+  size_t            n_samples = 0;
 
-  for (int k = 0; k < 3; k++)
+  for (int k = 0; k < 2; k++)
     {
       size_t n  = build_burst (y, &f, acode, dcode, f0s[k], mus[k]);
       n_samples = n;
@@ -216,11 +219,11 @@ main (void)
       "\n  A burst is %zu samples (%.2f ms at %.0f MHz chip rate), so the\n"
       "  ns/sample column says whether a demodulator keeps up with the\n"
       "  stream feeding it and the bursts/s column says how many it can\n"
-      "  retire. The chirp row costs %.2fx the clean one -- that is the\n"
+      "  retire. The chirp row costs %.2fx the offset one -- that is the\n"
       "  Doppler-rate search, and it is the price of admitting a moving\n"
       "  transmitter.\n",
       n_samples, (double)n_samples / CHIP_RATE / SPC * 1e3, CHIP_RATE / 1e6,
-      min_sec (t_dm[2], ITERATIONS) / min_sec (t_dm[0], ITERATIONS));
+      min_sec (t_dm[1], ITERATIONS) / min_sec (t_dm[0], ITERATIONS));
 
   (void)sink;
   free (y);

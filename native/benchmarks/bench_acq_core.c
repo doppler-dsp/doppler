@@ -1,34 +1,27 @@
-/* bench_acq_core.c — full C end-to-end wideband D=1 search: real
- * dp_acq_push(), real n_noncoh non-coherent accumulation, at the
- * SPEC-realistic waveform this story settled on
- * (docs/design/async-dsss-receiver.md): Rc = 3.069 Mcps Gold-1023 code (spc=2
- * -> code_bins=2046, native span = chip_rate/ (2*sf) = 1500 Hz exactly), +/-50
- * kHz Doppler uncertainty -> window_bins = ceil(50000/1500) = 34 parallel
- * roll-FFT frequency-window hypotheses per epoch (see acq_core.h's "Wideband
- * window-tiling mode" doc comment and bench_freq_bank.py, the Python prototype
- * this reuses), cn0_dbhz = 37.31 (this waveform's real link budget). Built via
- * dp_acq_create_continuous() -- this is exactly the continuous/async scenario
- * that engine always window-tiles for.
+/* bench_acq_core.c — the code-phase searcher end to end in C: one timed
+ * dp_acq_push() per round, each pushing exactly one full non-coherent dwell
+ * (n_noncoh * D epochs) of an injected signal in AWGN, through the real
+ * auto-sizer, CFAR gate and peak report. Built via
+ * dp_acq_create_continuous(), the continuous/async engine that window-tiles
+ * a Doppler uncertainty into roll-FFT frequency hypotheses off one shared
+ * forward FFT per epoch (acq_core.h, "Wideband window-tiling mode").
  *
- * Task #71: a frequency-bank benchmark only measured the
- * per-epoch cost of forming the 34-bin grid (a Python/numpy prototype); this
- * measures the real, full acquisition latency in C -- n_noncoh consecutive
- * epochs non-coherently accumulated before the CFAR gate fires -- via one
- * timed dp_acq_push() call per iteration, each pushing exactly
- * n_noncoh*code_bins samples (one full non-coherent dwell) of a real
- * injected burst + AWGN.
+ * What the rows span, and why only these (doppler#2386: a row exists only
+ * if it reads differently from every kept sibling, and a sweep keeps its
+ * two ends):
+ *   native      one window, no Doppler search: the floor.
+ *   op<R>_U<u>  the continuous async-DSSS operating range's four corners
+ *               (docs/design/async-dsss-receiver.md section 6.1): chip rate
+ *               2 or 5 Mcps, uncertainty +/-5 or +/-50 kHz. The searcher's
+ *               cost per sample scales with the tile count, so the 2 Mcps,
+ *               +/-50 kHz corner is its worst case.
+ *   _t<n>       the same push fanned across n threads: 1 and 8, the ends.
+ *   _D<d>       the block-coherent depth (section 12 step 13).
  *
- * n_noncoh itself is picked by dp_acq_create_continuous()'s real
- * physics-driven auto-sizer at three pd targets (0.9/0.99/0.999) rather than
- * forced to SPEC.md's earlier n_noncoh=96/128/192 sweep -- that sweep was a
- * standalone Python sizing sketch predating this wideband mode's C
- * implementation, and the REAL 34-bin Sidak-corrected model here turns
- * out considerably more optimistic (pd_predicted ~0.999 already by
- * n_noncoh~96-123 at this cn0, not ~0.917 at 96 / ~0.994 at 192 as
- * estimated there) -- see the memory note accompanying this benchmark. The
- * auto-sizer's internal safety-valve ceiling (ACQ_N_NONCOH_SAFETY_CEILING =
- * 256, replacing the old caller-supplied max_noncoh cap) comfortably covers
- * the n_noncoh~96-123 this waveform actually lands on. */
+ * The detection target is the API default, pd = 0.9, and the auto-sizer
+ * picks n_noncoh from it; the row name records the n_noncoh it chose. A
+ * stricter target only lengthens the dwell, not the cost per input sample,
+ * so one target is enough. */
 #include "doppler/acq/acq_core.h"
 #include "doppler/dp_complex.h"
 #include "jm_bench.h"
@@ -41,25 +34,18 @@
 #define ITERATIONS 15
 #define SF 1023            /* Gold-1023 code length. */
 #define SPC 2              /* samples/chip -> code_bins = 2046.            */
-#define CHIP_RATE 3.069e6  /* Hz.                                          */
+#define CHIP_RATE 3.069e6  /* Hz: the no-Doppler floor's chip rate.       */
 #define CN0_DBHZ 37.31     /* dB-Hz -- this waveform's real link budget.   */
 #define SYMBOL_RATE 2700.0 /* bps -- async BPSK data clock.               */
-#define DOPPLER_UNCERTAINTY 50000.0 /* Hz -- +/-50 kHz.                   */
 #define PFA 1e-3
 /* Frequency-window hypothesis (0 .. window_bins-1) the injected burst
    lands in. */
 #define INJECT_WINDOW 5
 #define INJECT_PHASE 777 /* code phase (samples) to inject the burst at. */
 
-static const double PD_POINTS[] = { 0.9, 0.99, 0.999 };
+/* The API default (objects/acq.toml); see the file comment for why one. */
+static const double PD_POINTS[] = { 0.9 };
 
-/* Two search geometries, so the wideband tiling cost is reported against its
- * own baseline rather than in isolation.  "native" is the no-coarse-Doppler
- * case (doppler_uncertainty = 0 -> window_bins == 1, a single native-span
- * window, one forward+inverse FFT per epoch); "wideband" tiles +/-50 kHz into
- * 35 roll-FFT hypotheses off ONE shared forward FFT.  The ratio between them
- * is the real price of covering SPEC.md's uncertainty, which the wideband
- * number alone never showed. */
 typedef struct
 {
   double      chip_rate;        /* Hz                                       */
@@ -71,40 +57,26 @@ typedef struct
   int         threads;          /* the fan; 1 = serial, 0 = the machine     */
 } acq_bench_cfg_t;
 
-/* The first two rows are the SPEC waveform above. The four after them are
- * the continuous async-DSSS operating point
- * (docs/design/async-dsss-receiver.md §6.1): a chip rate anywhere in 2 to 5
- * Mcps, the uncertainty +/-50 kHz to start and +/-5 kHz once Doppler
- * pre-compensation exists. The tile count is the engine's own
- * (acq_cover_window_bins: 2*ceil((du - span)/(2*span)) + 1), and it is what
- * the searcher's cost scales with -- so the low chip rate, which has the
- * narrowest tiles, is the searcher's worst case per output sample. */
+/* The tile count is the engine's own (acq_cover_window_bins:
+ * 2*ceil((du - span)/(2*span)) + 1), and it is what the searcher's cost
+ * scales with -- so the low chip rate, which has the narrowest tiles, is the
+ * searcher's worst case per output sample. */
 static const acq_bench_cfg_t CFGS[] = {
   { CHIP_RATE, 0.0, "native", 1, 0, 1, 1 },
-  { CHIP_RATE, DOPPLER_UNCERTAINTY, "wideband", 35, INJECT_WINDOW, 1, 1 },
   { 5.0e6, 50000.0, "op5M_U50k", 21, INJECT_WINDOW, 1, 1 },
   { 2.0e6, 50000.0, "op2M_U50k", 53, INJECT_WINDOW, 1, 1 },
   { 5.0e6, 5000.0, "op5M_U5k", 3, 1, 1, 1 },
   { 2.0e6, 5000.0, "op2M_U5k", 7, 1, 1, 1 },
-  /* One third of +/-50 kHz: what one of three engines pays when the
-     uncertainty is sliced across processes instead of tiled in one
-     engine (docs/design/async-dsss-receiver-measurements.md §12.1).
-     Three of these
-     against one U50k row is the price of the slice. */
-  { 5.0e6, 50000.0 / 3.0, "op5M_U17k", 7, 1, 1, 1 },
-  { 2.0e6, 50000.0 / 3.0, "op2M_U17k", 19, 1, 1, 1 },
   /* Design section 12 step 13: the per-tile cost with the block-coherent
      depth in it (D = 154 at 5 Mcps, 61 at 2: the window's 813 and 324
      whole epochs under a 500 Hz/s rate bound), and the same push fanned
-     across 1, 2, 4 and 8 threads by the roll per thread (section 2.3) --
-     the fraction of the tiles' cost that scales. A D = 1 row per count
-     beside them is the fan on the epoch-by-epoch searcher alone. */
-  { 5.0e6, 50000.0, "op5M_U50k_t2", 21, INJECT_WINDOW, 1, 2 },
-  { 5.0e6, 50000.0, "op5M_U50k_t4", 21, INJECT_WINDOW, 1, 4 },
+     across threads by the roll per thread (section 2.3) -- the fraction of
+     the tiles' cost that scales. Each fan is measured at its two ends; a
+     D = 1 row at the same counts beside them is the fan on the
+     epoch-by-epoch searcher alone. The published run is pinned to 4 cores
+     and their SMT siblings, so 8 threads run two to a core (#2394). */
   { 5.0e6, 50000.0, "op5M_U50k_t8", 21, INJECT_WINDOW, 1, 8 },
   { 5.0e6, 50000.0, "op5M_U50k_D154_t1", 21, INJECT_WINDOW, 813, 1 },
-  { 5.0e6, 50000.0, "op5M_U50k_D154_t2", 21, INJECT_WINDOW, 813, 2 },
-  { 5.0e6, 50000.0, "op5M_U50k_D154_t4", 21, INJECT_WINDOW, 813, 4 },
   { 5.0e6, 50000.0, "op5M_U50k_D154_t8", 21, INJECT_WINDOW, 813, 8 },
   { 2.0e6, 50000.0, "op2M_U50k_D61_t1", 53, INJECT_WINDOW, 324, 1 },
   { 2.0e6, 50000.0, "op2M_U50k_D61_t4", 53, INJECT_WINDOW, 324, 4 },
@@ -141,10 +113,9 @@ main (void)
   const double PI     = acos (-1.0);
   const size_t nx     = SF * SPC; /* code_bins = 2046. */
 
-  printf ("=== acq wideband D=1 benchmark (SPEC.md waveform) ===\n");
-  printf ("sf=%d spc=%d code_bins=%zu chip_rate=%.0f cn0_dbhz=%.2f "
-          "doppler_uncertainty=+/-%.0f\n\n",
-          SF, SPC, nx, CHIP_RATE, CN0_DBHZ, DOPPLER_UNCERTAINTY);
+  printf ("=== acq search benchmark ===\n");
+  printf ("sf=%d spc=%d code_bins=%zu cn0_dbhz=%.2f pd=%.2f\n\n", SF, SPC, nx,
+          CN0_DBHZ, PD_POINTS[0]);
 
   /* Synthetic 1023-chip code (a real Gold code's exact chips don't matter
    * for a latency benchmark -- correctness of the roll-FFT math was already
@@ -184,11 +155,11 @@ main (void)
                        pd_target);
               continue;
             }
-          /* The wideband case expects 35, not the 34 this once did: window
-           * sizing is against the spacing bins are actually reported at
-           * (doppler_res_hz = 2*span), and forced odd so coverage is symmetric
-           * and no ambiguous n/2 index exists -- see acq_cover_window_bins() /
-           * dp_fftfreq_index(). */
+          /* expect_bins is odd by construction: window sizing is against the
+           * spacing bins are actually reported at (doppler_res_hz = 2*span),
+           * and forced odd so coverage is symmetric and no ambiguous n/2
+           * index exists -- see acq_cover_window_bins() / dp_fftfreq_index().
+           */
           (void)dp_acq_set_threads (a, cfg->threads);
           const size_t D = a->coherent_bins;
           if ((cfg->code_only_epochs == 1 && D != 1)

@@ -260,9 +260,11 @@ Each `bench_<component>_core.c` uses the header-only `jm_bench.h` library
 1. **Time** — outer loop of `ITERATIONS` independent rounds; inner loop
     of `BENCH_N` calls; `clock_gettime(CLOCK_MONOTONIC)` around the inner
     loop.
-1. **Record** — `jm_bench_add()` stores the per-round elapsed times.
-1. **Write JSON** — `jm_bench_write_json()` computes stats and writes
-    `bench_<component>_core.json` to the current working directory.
+1. **Record** — `jm_bench_add_unit()` stores the per-round elapsed times
+    and names what one round counted: its `iters` units of `unit`.
+1. **Write JSON** — `jm_bench_write_json()` computes stats, writes
+    `bench_<component>_core.json` to the current working directory, and
+    frees the rows.
 
 <!-- docs-snippet: skip=template scaffold (placeholder <component> token), not compilable -->
 
@@ -300,7 +302,8 @@ int main(void) {
         clock_gettime(CLOCK_MONOTONIC, &t1);
         times[r] = elapsed_sec(t0, t1);
     }
-    jm_bench_add(&bench, "step", times, ITERATIONS, BENCH_N);
+    jm_bench_add_unit(&bench, "step", times, ITERATIONS, BENCH_N,
+                      JM_BENCH_SAMPLE);
 
     jm_bench_write_json(&bench, "comp");
     comp_destroy(obj);
@@ -319,27 +322,35 @@ All functions are `static` (header-only, no link dependency).
  *   name   — display name, e.g. "step" or "execute[block=1024]"
  *   times  — array of per-round elapsed seconds, length rounds
  *   rounds — outer iteration count (ITERATIONS)
- *   iters  — inner calls per round (BENCH_N); ops = iters / mean
+ *   iters  — units of work per round (BENCH_N samples for a steps())
+ *   unit   — what one of those is: JM_BENCH_SAMPLE, JM_BENCH_CALL,
+ *            JM_BENCH_FRAME, or a word of your own ("bin", "bit")
  */
-void jm_bench_add(jm_bench_t *b, const char *name,
-                  const double *times, int rounds, int iters);
+void jm_bench_add_unit(jm_bench_t *b, const char *name,
+                       const double *times, int rounds, int iters,
+                       const char *unit);
 
-/* Compute stats and write bench_<component>_core.json.
- * JSON schema matches pytest-benchmark output (machine_info,
- * benchmarks[], stats{min,max,mean,stddev,median,iqr,ops,...}).
+/* Compute stats, write bench_<component>_core.json, then free the
+ * rows (the bench is empty afterwards). JSON schema matches
+ * pytest-benchmark output (machine_info, benchmarks[],
+ * stats{min,max,mean,...,ops, *_per_unit}, extra_info{unit,rate_unit}).
  */
-void jm_bench_write_json(const jm_bench_t *b, const char *component);
+void jm_bench_write_json(jm_bench_t *b, const char *component);
 ```
 
-`ops = iters / mean` gives the natural throughput unit: for a scalar
-`step()` bench with `BENCH_N = 65536`, ops is samples per second. For a
-block bench parameterised by block size, set `iters = TOTAL_PER_ROUND`
-so ops still reflects input samples per second.
+`ops = iters / mean` is units per second, in the unit the row names:
+for a scalar `step()` bench with `BENCH_N = 65536` and `JM_BENCH_SAMPLE`,
+samples per second. For a block bench parameterised by block size, set
+`iters = TOTAL_PER_ROUND` input samples so the rate stays per sample. The
+five-argument `jm_bench_add()` still compiles, but records every row as a
+*call*; doppler's bench-timer gate refuses it, so a row always says what
+it counted (#2314). `dp_bench_record()` (`native/benchmarks/dp_bench.h`)
+takes the unit too and forwards it.
 
 ### Parametrised block-size / rate sweeps
 
 For algorithms where block size or rate affects throughput (resampler,
-decimator), the convention is to call `jm_bench_add` once per
+decimator), the convention is to call `jm_bench_add_unit` once per
 configuration with a bracketed name:
 
 <!-- docs-snippet: skip=illustrative excerpt (bench/times/rate/block undeclared here), not standalone -->
@@ -348,7 +359,8 @@ configuration with a bracketed name:
 /* "execute[rate=1.0001,block=1024]", "execute[rate=0.5000,block=65536]", … */
 char name[64];
 snprintf(name, sizeof(name), "execute[rate=%.4f,block=%zu]", rate, block);
-jm_bench_add(&bench, name, times, ITERATIONS, TOTAL_PER_ROUND);
+jm_bench_add_unit(&bench, name, times, ITERATIONS, TOTAL_PER_ROUND,
+                  JM_BENCH_SAMPLE);
 ```
 
 The combined JSON then has one entry per (rate, block) pair, all

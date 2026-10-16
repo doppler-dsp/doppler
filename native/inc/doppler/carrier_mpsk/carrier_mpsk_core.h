@@ -318,8 +318,8 @@ size_t dp_carrier_mpsk_steps(dp_carrier_mpsk_state_t *state, const float _Comple
 int dp_carrier_mpsk_configure(dp_carrier_mpsk_state_t *state, double bn, double zeta);
 double dp_carrier_mpsk_get_bn(const dp_carrier_mpsk_state_t *state);
 /** @brief Retune bn, keeping zeta: dp_carrier_mpsk_configure()'s refusal and status.
- *  As a writable property it refuses without raising until
- *  just-buildit/just-makeit#2182: the value stays put. */
+ *  As a writable property a refusal raises ValueError and the value stays
+ *  put (doppler#1987). */
 int dp_carrier_mpsk_set_bn(dp_carrier_mpsk_state_t *state, double val);
 double dp_carrier_mpsk_get_norm_freq(const dp_carrier_mpsk_state_t *state);
 void dp_carrier_mpsk_set_norm_freq(dp_carrier_mpsk_state_t *state, double val);

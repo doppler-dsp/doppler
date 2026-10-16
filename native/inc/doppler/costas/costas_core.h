@@ -347,8 +347,8 @@ size_t dp_costas_steps(dp_costas_state_t *state, const float _Complex *x, size_t
 int dp_costas_configure(dp_costas_state_t *state, double bn, double zeta);
 double dp_costas_get_bn(const dp_costas_state_t *state);
 /** @brief Retune bn, keeping zeta: dp_costas_configure()'s refusal and status.
- *  As a writable property it refuses without raising until
- *  just-buildit/just-makeit#2182: the value stays put. */
+ *  As a writable property a refusal raises ValueError and the value stays
+ *  put (doppler#1987). */
 int dp_costas_set_bn(dp_costas_state_t *state, double val);
 double dp_costas_get_norm_freq(const dp_costas_state_t *state);
 /** @brief Effective NCO frequency command (loop-filter output = integrator +

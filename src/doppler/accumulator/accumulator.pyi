@@ -926,7 +926,15 @@ class AccTrace:
 
     @property
     def alpha(self) -> float:
-        """EMA smoothing factor (exp mode)."""
+        """EMA smoothing factor (exp mode).
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_acc_trace_set_alpha`` refuses the value by
+            returning non-zero. The exception message is ``AccTrace: alpha must
+            lie in (0, 1] in exp mode``, with the return code appended.
+        """
     @alpha.setter
     def alpha(self, value: float) -> None: ...
     @property

@@ -385,11 +385,11 @@ A row is ready when the push carrying its last sample returns. For a chunk
 that completes one row, that push is mostly the row itself: about 7 µs at
 `nfft` 1024 (entry 5.8's `frame_db`).
 
-**What this does not cover.** As built (#2061), the chunk rows run at
-`nfft` 1024 and `hop` 256 only, so U2 *against `hop`* is unmeasured. The
-rows for the other hops wait on the bench's 32-row cap
-(just-buildit/just-makeit#2188), and they are added to #2062's work beside
-U1's `nfft/2` rows.
+**What this does not cover.** This run had chunk rows at `nfft` 1024 and
+`hop` 256 only (#2061), so U2 *against `hop`* is unmeasured. The bench now
+has them at `hop` 64 and 1024 too, beside U1's `nfft/2` rows. The 32-row cap
+that kept them out went with the jm_bench.h re-vendor. They are measured in
+#2062's run on this machine.
 
 ### 5.8 Where a row's time goes (2026-10-10) — U3
 

@@ -35,20 +35,16 @@
  *
  * The chunked rows are the same rows (the object is chunk-invariant, pinned
  * by test_spectrogram_core.c); only the cost can differ. U1 is push/direct
- * over nfft 256..65536 at hop nfft/4 and nfft; U2 (latency in time) is the
- * chunk rows at nfft 1024, hop 256, chunk 1, hop, nfft and 16 nfft. The
- * answers live in the design's measurement record, not here
+ * over nfft 256..65536 at hop nfft/4, nfft/2 and nfft; U2 (latency in time)
+ * is the chunk rows at nfft 1024, chunk 1, 256, nfft and 16 nfft, at hop 64,
+ * 256 and nfft, each beside the one push its c_s comes from. The answers
+ * live in the design's measurement record, not here
  * (docs/design/spectrogram-measurements.md).
  *
  * The block is 65536 samples, or 8 nfft where that is longer, so the largest
  * transform still makes several rows a pass; push and direct always share a
  * block. Settled once per process, rounds on the outside and configurations
  * on the inside, MIN over rounds -- dp_bench.h says why each.
- *
- * 32 rows, the cap: jm_bench.h keeps at most JM_BENCH_MAX_ENTRIES (32) and
- * drops the rest WITHOUT A WORD (just-buildit/just-makeit#2188), so a row
- * added past 32 runs, prints and never reaches the JSON. The power rows took
- * the last three; re-vendor after that ships before adding another.
  */
 #include "doppler/psd/psd_core.h"
 #include "doppler/spectrogram/spectrogram_core.h"
@@ -109,6 +105,12 @@ static config_t *
 add (config_t *cfg, int *nc, size_t nfft, size_t hop, size_t chunk, int direct,
      size_t block, int mode)
 {
+  if (*nc >= NCFG)
+    {
+      (void)fprintf (stderr, "bench_spectrogram: more than NCFG (%d) rows\n",
+                     NCFG);
+      return NULL;
+    }
   config_t *c = &cfg[(*nc)++];
   c->mate     = -1;
   c->twin     = -1;
@@ -153,11 +155,10 @@ main (void)
   /* One table. Every (nfft, hop): a one-push row and, beside it, its direct
      twin (U1), so the two are timed adjacently at every size; and for the
      original sizes 256/1024/4096 the CHUNK-sample row they always had. Hop
-     nfft and nfft/4 (the midpoint nfft/2 would pass jm_bench.h's 32-row
-     cap; see the top). */
+     nfft, nfft/2 and nfft/4. */
   static const size_t u1[] = { 256, 1024, 4096, 16384, 65536 };
   for (int k = 0; k < 5; k++)
-    for (size_t div = 1; div <= 4; div *= 4)
+    for (size_t div = 1; div <= 4; div *= 2)
       {
         const size_t n = u1[k], hop = n / div;
         const size_t block = n <= 4096 ? BLOCK : block_for (n);
@@ -183,12 +184,25 @@ main (void)
             && !add (cfg, &nc, n, hop, CHUNK, 0, BLOCK, DP_SPECTROGRAM_DB))
           return 1;
       }
-  /* U2: chunk 1, nfft and 16 nfft at nfft 1024, hop 256 (CHUNK = 256 = hop
-     is an original row) */
-  static const size_t u2[] = { 1, 1024, 16384 };
-  for (int i = 0; i < 3; i++)
-    if (!add (cfg, &nc, 1024, 256, u2[i], 0, BLOCK, DP_SPECTROGRAM_DB))
-      return 1;
+  /* U2, at nfft 1024: chunk 1, CHUNK, nfft and 16 nfft against hop 64, 256
+     and nfft, each beside the one push its c_s comes from. A row U1 already
+     made (both pushes at hop 256 and nfft, and their CHUNK rows) is not made
+     twice: two rows of one name would be one row in the JSON. */
+  static const size_t u2h[] = { 64, 256, 1024 };
+  static const size_t u2c[] = { 0, 1, CHUNK, 1024, 16384 }; /* 0: one push */
+  for (int h = 0; h < 3; h++)
+    for (int i = 0; i < 5; i++)
+      {
+        int made = 0;
+        for (int j = 0; j < nc; j++)
+          made |= !cfg[j].direct && cfg[j].mode == DP_SPECTROGRAM_DB
+                  && cfg[j].nfft == 1024 && cfg[j].hop == u2h[h]
+                  && cfg[j].chunk == u2c[i];
+        if (!made
+            && !add (cfg, &nc, 1024, u2h[h], u2c[i], 0, BLOCK,
+                     DP_SPECTROGRAM_DB))
+          return 1;
+      }
   /* U4 for power rows (#2094): one push at hop nfft/4, beside the dB push
      of the same shape, at the two ends of the range and U4's own 1024 */
   static const size_t u4p[] = { 256, 1024, 65536 };
@@ -273,18 +287,6 @@ main (void)
       free (cfg[i].out);
     }
   printf ("\n(sink %zu)\n", (size_t)sink);
-  /* Every row RECORDS, or nothing is written: jm_bench.h drops entries past
-     JM_BENCH_MAX_ENTRIES without a word (just-buildit/just-makeit#2188), so
-     the count is checked against nc, which the tables above DERIVE. A short
-     set then reaches the publish gate as a missing component (#2062). */
-  if (_bench.count != nc)
-    {
-      (void)fprintf (stderr,
-                     "bench_spectrogram: recorded %d rows of %d; writing "
-                     "none\n",
-                     _bench.count, nc);
-      return 1;
-    }
   jm_bench_write_json (&_bench, "spectrogram");
   free (x);
   return 0;

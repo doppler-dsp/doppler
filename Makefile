@@ -92,7 +92,13 @@ STOCK_REGISTRY      ?= public.ecr.aws/docker/library
 # rate limit with backoff (#1979): before a `docker run --pull=never`, and as
 # `$(STOCK_PULL) --dockerfile F` before a `docker build -f F`, because
 # BuildKit does not retry a FROM. `make lint-stock-images` holds every site.
-STOCK_PULL          = STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/stock-pull.sh
+# When ECR Public refuses an IP its anonymous data quota, the helper pulls
+# the same tag from STOCK_MIRROR, Google's anonymous mirror of the official
+# images, at the same digests (checked 2026-10-16 for every tag doppler
+# pulls), and names it as the primary's (#2256).
+STOCK_MIRROR        ?= mirror.gcr.io/library
+STOCK_PULL          = STOCK_REGISTRY=$(STOCK_REGISTRY) \
+                      STOCK_MIRROR=$(STOCK_MIRROR) bash scripts/stock-pull.sh
 
 # The uv pin, read from pyproject.toml's [tool.uv] required-version by the
 # script that gates it -- one parser for one declaration (doppler#1940).
@@ -302,10 +308,20 @@ C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|(^|/)jm_(bench|test)\.h$$|_ext\.c$$|_s
 # pass walks all of native/src, rewrote it under whoever applied next
 # (buffer_ext.c after doppler#1432). Derived from the manifest, so a migrated
 # module leaves the set by itself.
-C_FILES = { git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'; \
-            uv run python scripts/list_hand_ext_c.py; }
+#
+# The hand-written list is taken BEFORE the pipe, and its failure stops the
+# target (#2361). It used to be the second half of a `{ ...; }` group piped
+# into xargs: POSIX sh has no pipefail, so a failing `list_hand_ext_c.py`
+# only shortened the list and the target still exited 0 -- a gate reading
+# green while checking less. It also ran a bare `uv`, which ignores the
+# `UV=` override, so a box whose uv is not the pin dropped those files
+# every time.
+C_FILES     = git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'
+HAND_EXT_C  = $(UV) run python scripts/list_hand_ext_c.py
 
-LINT_clang-format = @$(C_FILES) | xargs -r $(CLANG_FORMAT) -i --style=file
+LINT_clang-format = @hand=$$($(HAND_EXT_C)) || exit $$?; \
+    { $(C_FILES); printf '%s\n' "$$hand"; } \
+    | xargs -r $(CLANG_FORMAT) -i --style=file
 
 # clang-tidy does NOT take clang-format's file list, and sharing C_FILES was
 # the reason its first real run emitted 6916 lines of which ~1700 were noise.
@@ -770,7 +786,8 @@ TEST_ALL_DEPS = test test-examples test-python test-examples-python
 # a fresh runner, wrong for a dev box running it twice.
 nats-up: ## Start the NATS JetStream broker the nats:// stream tests need
 	@docker rm -f nats >/dev/null 2>&1 || true
-	@STOCK_REGISTRY=$(STOCK_REGISTRY) bash scripts/start-nats.sh
+	@STOCK_REGISTRY=$(STOCK_REGISTRY) STOCK_MIRROR=$(STOCK_MIRROR) \
+	    bash scripts/start-nats.sh
 	@$(NATS_STREAMS) --check
 
 # The remedy `nats-up` names. Deleting is prefix-guarded to DP_WORK_*, so a
@@ -1161,9 +1178,31 @@ DOXYGEN_CMD      = doxygen Doxyfile
 # The version assertion moved with it: an upstream bump in the image must fail
 # LOUDLY here rather than silently changing generated output, so both fallback
 # paths below check the image's doxygen against DOXYGEN_VERSION first.
+#
+# "CI has moved" is said only when the image RAN and reported another version.
+# A missing docker, or an image that would not run, used to reach the same
+# message with an empty version -- "ships doxygen , not 1.9.8" -- and told the
+# reader to bump a pin that was right (#2362). Each now says what is missing;
+# docker's own stderr is left visible, since it is the reason.
 DOXYGEN_IMAGE_CHECK = \
-  got=$$(docker run --rm $(CI_IMAGE) doxygen --version 2>/dev/null \
-         | cut -d' ' -f1); \
+  if ! command -v docker >/dev/null 2>&1; then \
+      echo "doxygen: the local doxygen is not $(DOXYGEN_VERSION), and docker is"; \
+      echo "  not installed, so CI's doxygen cannot run from $(CI_IMAGE)."; \
+      echo "  Install doxygen $(DOXYGEN_VERSION), or docker."; \
+      exit 1; \
+  fi; \
+  ver=$$(docker run --rm $(CI_IMAGE) doxygen --version) || { \
+      rc=$$?; \
+      echo "doxygen: docker could not run doxygen in $(CI_IMAGE) (exit $$rc)."; \
+      echo "  Nothing is known about CI's doxygen from this; see docker's"; \
+      echo "  message above (daemon not running, image not pulled, ...)."; \
+      exit 1; }; \
+  got=$$(printf '%s\n' "$$ver" | cut -d' ' -f1); \
+  if [ -z "$$got" ]; then \
+      echo "doxygen: $(CI_IMAGE) ran but reported no doxygen version."; \
+      echo "  Nothing is known about CI's doxygen from this; check the image."; \
+      exit 1; \
+  fi; \
   if [ "$$got" != "$(DOXYGEN_VERSION)" ]; then \
       echo "doxygen: the CI image ships doxygen $$got, not $(DOXYGEN_VERSION)."; \
       echo "  CI runs the doxygen job INSIDE that image, so CI has moved too."; \

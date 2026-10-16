@@ -104,6 +104,18 @@ add_test(NAME test_stream_wire COMMAND test_stream_wire)
   set_tests_properties(test_tlm_sink PROPERTIES
       SKIP_RETURN_CODE 77)
 
+  # tlm_sink's loss accounting, transport-free (#2011): the test compiles
+  # tlm_sink.c itself beside stand-in dp_pub_* functions that take or
+  # refuse each publish on cue, so it needs no broker and no NATS.
+  add_executable(test_tlm_sink_lost
+      ${CMAKE_SOURCE_DIR}/native/tests/test_tlm_sink_lost.c
+      ${CMAKE_CURRENT_SOURCE_DIR}/tlm_sink.c)
+  target_link_libraries(test_tlm_sink_lost PRIVATE
+      dp_tlm_core ${DP_MATH_LIBRARY} Threads::Threads)
+  target_include_directories(test_tlm_sink_lost PRIVATE
+      ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+  add_test(NAME test_tlm_sink_lost COMMAND test_tlm_sink_lost)
+
 if(BUILD_PYTHON)
     Python3_add_library(stream MODULE WITH_SOABI stream_ext.c)
     target_link_libraries(stream PRIVATE

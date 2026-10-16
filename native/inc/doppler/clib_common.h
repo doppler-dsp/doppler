@@ -53,6 +53,23 @@
              means "not yet". Every transport spells it the same way -- see \
              docs/design/io-termination.md. */
 
+/**
+ * @brief Marks a function whose status must not be dropped.
+ *
+ * A refusal nobody reads is invisible: the call returns DP_ERR_*, the
+ * caller carries on as if it had worked, and no flag can see it, because
+ * -Wunused-result only checks a function that asks for it (#1663). Put
+ * this in front of the return type of any function that returns a
+ * refusal, and gcc and clang warn at every call site that discards it; the
+ * library's -Werror builds fail there. A `(void)` cast does NOT silence
+ * gcc: handle the status. Empty where the compiler has no such attribute.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define DP_NODISCARD __attribute__ ((warn_unused_result))
+#else
+#define DP_NODISCARD
+#endif
+
 #include "doppler/jm_perf.h"
 
 /* ------------------------------------------------------------------ */
@@ -183,15 +200,31 @@ dp_fftfreq (size_t bin, size_t n, double fs)
  * C99 6.7.4 forbids such a function from referencing one with internal
  * linkage -- the compiler said so.
  *
+ * A negative remainder within half an ulp of zero rounds `r + m` up to
+ * exactly @p m, outside the range; it folds to 0, its equal on the circle.
+ * The DLL's replica tap indexes the code with this result, and read
+ * `code[sf]`, one past the copy, at a spacing just off a phase-grid point
+ * (doppler#2110).
+ *
+ * The test is `y >= m`, not `y < m`: doppler builds with -ffast-math,
+ * and gcc 14 at -O1 and above rewrote `r + m < m` as `r < 0`, always true
+ * here, so for a constant period that spelling returned @p m at run time.
+ * Written this way a NaN @p x also stays NaN rather than folding to a
+ * plausible phase 0. test_dll_core pins both with run-time inputs, over a
+ * constant and a run-time period.
+ *
  * @param x  Any real value.
  * @param m  The period (> 0).
- * @return @p x modulo @p m, in `[0, m)`.
+ * @return @p x modulo @p m, in `[0, m)`; NaN for a NaN @p x.
  */
 JM_FORCEINLINE double
 dp_fmod_pos (double x, double m)
 {
   double r = fmod (x, m);
-  return r < 0.0 ? r + m : r;
+  if (r >= 0.0)
+    return r;
+  double y = r + m;
+  return y >= m ? 0.0 : y;
 }
 
 /**

@@ -3,7 +3,7 @@ include = ["objects/*.toml"]
 [project]
 jm_version = "0.106.0"
 name = "doppler"
-version = "0.71.0"
+version = "0.72.0"
 build = "cmake"
 # c_prefix (jm#1591, #1545): every C symbol jm derives carries dp_, so two
 # installed jm libraries that share a component name (fir, fft, agc) link
@@ -615,7 +615,15 @@ kwonly = true
 [[module.wfm_sink.methods]]
 name = "send"
 fn = "dp_wfm_stream_sink_send"
+# A refused block never left the process (a reconnect stops taking
+# publishes at 8 MiB pending; a drained sink refuses outright), so the
+# binding RAISES, as Publisher.send does, rather than hand back a status
+# both in-tree callers ignored (#2011). `status_return`: with an array
+# argument jm otherwise reads the C return as a count.
 returns = "int"
+status_return = true
+error = "OSError"
+error_message = "the stream refused the block; it never left this process"
 nogil = true
 
 [[module.wfm_sink.methods.args]]

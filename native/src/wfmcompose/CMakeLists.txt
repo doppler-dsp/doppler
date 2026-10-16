@@ -365,6 +365,20 @@ if(NOT WIN32)
     target_include_directories(test_wfmgen_entry PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
     add_test(NAME test_wfmgen_entry COMMAND test_wfmgen_entry)
+
+    # wfmgen exits 1 when the stream refuses a block (doppler#2011). The
+    # test defines every dp_wfm_stream_sink_* symbol itself, overriding
+    # libdoppler's weak stubs, so a broker is not needed to refuse on cue.
+    # POSIX for its own reason: that override is the ELF/Mach-O weak-symbol
+    # seam (wfm_sink_stub.c). wfmgen.c is the same C on Windows.
+    add_executable(test_wfmgen_stream_refusal
+        ${CMAKE_SOURCE_DIR}/native/tests/test_wfmgen_stream_refusal.c)
+    target_link_libraries(test_wfmgen_stream_refusal PRIVATE
+        doppler_lib_static ${DP_MATH_LIBRARY})
+    target_include_directories(test_wfmgen_stream_refusal PRIVATE
+        ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+    add_test(NAME test_wfmgen_stream_refusal
+        COMMAND test_wfmgen_stream_refusal)
 endif()
 
 if(DP_WITH_STREAM) # the CLI links the stream layer (#1575)

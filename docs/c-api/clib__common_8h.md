@@ -112,6 +112,7 @@
 | define  | [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send)  `(-2)`<br> |
 | define  | [**DP\_ERR\_TIMEOUT**](clib__common_8h.md#define-dp_err_timeout)  `(-5)`<br> |
 | define  | [**DP\_ERR\_TOO\_LARGE**](clib__common_8h.md#define-dp_err_too_large)  `(-7)`<br> |
+| define  | [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard)  <br>_Marks a function whose status must not be dropped._  |
 | define  | [**DP\_OK**](clib__common_8h.md#define-dp_ok)  `0`<br> |
 
 ## Public Functions Documentation
@@ -137,6 +138,12 @@ C's `fmod()` keeps the dividend's sign, so a negative `x` comes back in `(-m, 0]
 External inline (JM\_FORCEINLINE), not `static inline` like its neighbours: the DLL's replica tap is an external inline in a header, and C99 6.7.4 forbids such a function from referencing one with internal linkage  the compiler said so.
 
 
+A negative remainder within half an ulp of zero rounds `r + m` up to exactly `m`, outside the range; it folds to 0, its equal on the circle. The DLL's replica tap indexes the code with this result, and read `code[sf]`, one past the copy, at a spacing just off a phase-grid point (doppler#2110).
+
+
+The test is `y >= m`, not `y < m`: doppler builds with -ffast-math, and gcc 14 at -O1 and above rewrote `r + m < m` as `r < 0`, always true here, so for a constant period that spelling returned `m` at run time. Written this way a NaN `x` also stays NaN rather than folding to a plausible phase 0. test\_dll\_core pins both with run-time inputs, over a constant and a run-time period.
+
+
 
 
 **Parameters:**
@@ -149,7 +156,7 @@ External inline (JM\_FORCEINLINE), not `static inline` like its neighbours: the 
 
 **Returns:**
 
-`x` modulo `m`, in `[0, m)`. 
+`x` modulo `m`, in `[0, m)`; NaN for a NaN `x`. 
 
 
 
@@ -552,6 +559,24 @@ Operation timed out.
 
 
 Frame exceeds transport max payload. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_NODISCARD 
+
+_Marks a function whose status must not be dropped._ 
+```C++
+#define DP_NODISCARD 
+```
+
+
+
+A refusal nobody reads is invisible: the call returns DP\_ERR\_\*, the caller carries on as if it had worked, and no flag can see it, because -Wunused-result only checks a function that asks for it (#1663). Put this in front of the return type of any function that returns a refusal, and gcc and clang warn at every call site that discards it; the library's -Werror builds fail there. A `(void)` cast does NOT silence gcc: handle the status. Empty where the compiler has no such attribute. 
 
 
         

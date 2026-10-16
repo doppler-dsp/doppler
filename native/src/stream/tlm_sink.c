@@ -20,6 +20,7 @@ struct dp_tlm_sink
 {
   dp_pub_t *pub;
   uint64_t  sent;
+  uint64_t  lost; /* drained from the ring, then refused by the stream */
 };
 
 dp_tlm_sink_t *
@@ -51,7 +52,12 @@ dp_tlm_sink_pump (dp_tlm_sink_t *sink, dp_tlm_t *tlm)
        * are self-describing (probe id + caller-stamped n). */
       int rc = dp_pub_send_tlm16 (sink->pub, batch, n, 0.0, 0.0);
       if (rc != DP_OK)
-        return rc; /* the drained batch is lost — lossy by design */
+        {
+          /* The batch is already out of the ring, so it is lost: lossy by
+             design, but counted, so a caller can see it (#2011). */
+          sink->lost += n;
+          return rc;
+        }
       sink->sent += n;
       total += n;
     }
@@ -62,6 +68,12 @@ uint64_t
 dp_tlm_sink_sent (const dp_tlm_sink_t *sink)
 {
   return sink->sent;
+}
+
+uint64_t
+dp_tlm_sink_lost (const dp_tlm_sink_t *sink)
+{
+  return sink->lost;
 }
 
 void

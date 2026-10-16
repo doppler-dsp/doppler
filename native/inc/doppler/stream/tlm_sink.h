@@ -64,7 +64,8 @@ extern "C"
    * until the ring is empty. Non-blocking on the ring; the NATS publish
    * is fire-and-forget fan-out (PUB). On a publish failure the records
    * already drained from the ring for that frame are lost (telemetry is
-   * lossy end-to-end by design) and the error is returned.
+   * lossy end-to-end by design), counted in dp_tlm_sink_lost(), and the
+   * error is returned.
    *
    * @param sink  Sink handle.  Must be non-NULL.
    * @param tlm   Telemetry context to drain.  Must be non-NULL.
@@ -76,6 +77,19 @@ extern "C"
   /** @brief Total records published since open. @param sink Must be
    *  non-NULL. */
   uint64_t dp_tlm_sink_sent (const dp_tlm_sink_t *sink);
+
+  /**
+   * @brief Total records lost since open: drained from the ring, then
+   *        refused by the stream.
+   *
+   * dp_tlm_sink_pump() returns the error for the batch it lost, once; this
+   * is the running total, so a caller that only polls now and then can
+   * still tell that records went missing, and how many.
+   *
+   * @param sink Must be non-NULL.
+   * @return Records lost to refused publishes.
+   */
+  uint64_t dp_tlm_sink_lost (const dp_tlm_sink_t *sink);
 
   /** @brief Close the sink and destroy the publisher. @param sink May be
    *  NULL. */

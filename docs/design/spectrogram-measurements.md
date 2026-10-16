@@ -824,14 +824,18 @@ on main, on **cachyos-x8664-ai465**, from 07:28 to 09:35 UTC:
 - **The bench changed too.** Three of the one-push dB rows (`hop`
     `nfft/4` at `nfft` 256, 1024 and 65,536) are now timed beside a power
     twin (5.14), where 5.6 timed each beside its direct row alone. The
-    re-vendored `jm_bench.h` records each row's unit.
+    re-vendored `jm_bench.h` writes a unit for each row, but at this commit
+    `dp_bench_record` did not pass the row's own unit on yet (#2314), so
+    every row records `call`. The cells do not read it: they are
+    `stats.min / iterations`, per sample, as in 5.6.
 - No other job was started on the machine. Load was not logged.
 
 **So this run is not 5.6's numbers re-measured, and a cross-run comparison
 reads as such.** Of the 29 rows the two runs share, every portable row is
-1.8–3.8% faster here, and every native row is within −0.4% and +1.1%. A
-change in the machine alone would not pick one build. The tables below
-compare rows only within this run.
+1.8–3.8% faster here, and every native row is within −0.4% and +1.1%.
+That one build moved and the other barely did points at the code or the
+build rather than the machine, but nothing here separates them. The tables
+below compare rows only within this run.
 
 The ten per-pass snapshots, filtered to the `spectrogram::` rows, are in
 `docs/design/spectrogram-measurements/b2062/`. Every table below is the
@@ -933,8 +937,10 @@ numbers.
 
 **A correction to 5.9 and 5.14.** Both say their run's merged set stays on
 the measuring machine. On 2026-10-16 neither `v0.66.0-a4/` nor
-`v0.66.0-b2094/` is there: `~/doppler-bench/benchmarks/published/` holds
-neither, and the clone they were written in was removed that day. 5.12's
-`doppler_meta` survives as `b2094/meta.json`. 5.6's was never committed, so
-its machine claims rest on the entry's own text. `_record.py` now refuses a
-run with no `meta.json`, waived only for 5.6's.
+`v0.66.0-b2094/` is on cachyos-x8664-ai465: listing
+`~/doppler-bench/benchmarks/published/` there shows neither. The machine's
+other clone, `~/doppler`, was removed that day at the owner's request, and
+nothing kept from it holds them. 5.12's `doppler_meta` survives as
+`b2094/meta.json`. 5.6's was never committed, so its machine claims rest on
+the entry's own text. `_record.py` now refuses a run with no `meta.json`,
+waived only for 5.6's.

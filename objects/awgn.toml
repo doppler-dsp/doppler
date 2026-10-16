@@ -40,4 +40,8 @@ params = [{name = "seed", type = "uint64_t"}]
 name = "amplitude"
 type = "float"
 writable = true
-doc = "Per-component standard deviation. Assigning an invalid value (NaN, infinite or negative) is ignored: the amplitude keeps its old value, and the property does not raise."
+# The C setter refuses and keeps the value; jm raises on its
+# non-zero return (just-makeit#2182, doppler#1987).
+error = "ValueError"
+error_message = "AWGN: amplitude must be finite and >= 0"
+doc = "Per-component standard deviation. Assigning an invalid value (NaN, infinite or negative) raises ValueError, and the amplitude keeps its old value."

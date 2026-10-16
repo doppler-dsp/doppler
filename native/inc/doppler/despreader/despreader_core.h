@@ -365,12 +365,12 @@ extern "C"
 
   size_t dp_despreader_get_bit_phase (const dp_despreader_state_t *state);
   double dp_despreader_get_bn_carrier (const dp_despreader_state_t *state);
-  /** @return DP_OK; DP_ERR_INVALID, changing nothing, outside the carrier
-   *          loop's domain (dp_costas_configure()). */
+  /** @return DP_OK; DP_ERR_INVALID, changing nothing, outside the loop
+   *          filter's domain (dp_costas_configure()). */
   int    dp_despreader_set_bn_carrier (dp_despreader_state_t *state, double val);
   double dp_despreader_get_bn_code (const dp_despreader_state_t *state);
-  /** @return DP_OK; DP_ERR_INVALID, changing nothing, outside the code
-   *          loop's domain (dp_dll_configure()). */
+  /** @return DP_OK; DP_ERR_INVALID, changing nothing, outside the loop
+   *          filter's domain (dp_dll_configure()). */
   int    dp_despreader_set_bn_code (dp_despreader_state_t *state, double val);
 
   /**

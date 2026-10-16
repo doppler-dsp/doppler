@@ -7,16 +7,23 @@ loop's ``th`` to infinity and its integral gain to NaN, so it is outside.
 
 A refused retune changes nothing. The getter then never reports a bandwidth
 the loop is not running, and ``CarrierNda`` no longer rescales its unchanged
-gains by 1/2pi on each refusal. The writable ``bn`` property refuses without
-raising until just-buildit/just-makeit#2182, so the refusal shows as the value
-and the serialized state staying put.
+gains by 1/2pi on each refusal. The writable ``bn`` property raises the
+refusal as a ValueError (#1987), and the value and the serialized state stay
+put.
 """
+
+import re
 
 import pytest
 
 from doppler.track import CarrierMpsk, CarrierNda, Costas, SymbolSync
 
 LOOP = "bn >= 0 and zeta > 0, both finite, whose loop gains come out finite"
+# A setter's refusal: the whole message every loop's bn setter shares.
+SETTER = (
+    "bn is outside the loop filter's domain"
+    " (need bn >= 0, finite, whose loop gains come out finite)"
+)
 
 # Each loop at a configuration it builds; a case changes only the loop's
 # own bandwidth or damping.
@@ -73,8 +80,12 @@ def test_a_refused_retune_changes_nothing(name):
     held, bn = loop.get_state(), loop.bn
     # Twice: a refusal must not compound.
     for _ in range(2):
-        loop.bn = float("nan")
-        loop.bn = 1e200
+        for bad in (float("nan"), 1e200):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(f"{name}: {SETTER}"),
+            ):
+                loop.bn = bad
     assert loop.bn == bn
     assert loop.get_state() == held
     if hasattr(loop, "configure"):

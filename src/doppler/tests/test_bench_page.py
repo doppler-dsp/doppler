@@ -634,3 +634,39 @@ def test_a_name_recorded_twice_keeps_its_first_value(tmp_path: Path) -> None:
     }
     row = _row(_load().page_data(str(_tree(tmp_path, rel))), "c:costas::steps")
     assert row["p"] == [pytest.approx(1e-3 / 4096, rel=1e-3)]
+
+
+def test_a_unit_change_breaks_a_trend_and_a_bigger_round_does_not(
+    tmp_path: Path,
+) -> None:
+    """From v0.73.0 every C row records its unit (#2373 review): a round
+    that only grew is the same quantity, so its since-last change is
+    real; a changed unit is a different quantity and breaks. Into the
+    first set with units, the legacy unit stands in for the old ones."""
+    rel = {
+        "v0.72.0": [
+            _c("costas::steps", 1e-3, 4096),
+            _c("costas::get", 1e-6, 1),
+        ],
+        "v0.73.0": [
+            _c("costas::steps", 1e-3, 4096, {"unit": "sample"}),
+            _c("costas::get", 1e-6, 1, {"unit": "call"}),
+        ],
+        "v0.74.0": [
+            _c("costas::steps", 8e-3, 65536, {"unit": "sample"}),
+            _c("costas::get", 1e-6, 1, {"unit": "bin"}),
+        ],
+    }
+    tree = _tree(tmp_path, rel)
+    (tree / "benchmarks" / "legacy-units.toml").write_text(
+        '"c:costas::steps" = "sample"\n"c:costas::get" = "bin"\n', "utf-8"
+    )
+    data = _load().page_data(str(tree))
+    steps = _row(data, "c:costas::steps")
+    assert steps["brk"] == []
+    # values carry four significant digits, so `sl` does too
+    assert steps["sl"] == pytest.approx(
+        1e-3 / 4096 / (8e-3 / 65536) - 1, rel=1e-3
+    )
+    get = _row(data, "c:costas::get")
+    assert (get["brk"], get["sl"], get["slb"]) == ([1, 2], None, True)

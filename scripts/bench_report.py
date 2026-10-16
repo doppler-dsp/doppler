@@ -934,6 +934,45 @@ def _sig(x):
     return None if x is None else float(f"{x:.4g}")
 
 
+def breaks(bases: list, units: list, legacy_unit=None) -> list:
+    """Indices of the releases where a row's value changed meaning.
+
+    ``bases[i]`` is what release i's value is per (`seconds_per_unit`),
+    ``units[i]`` the unit that release recorded, None for a C row from
+    before #2314 (v0.43.0 to v0.72.0). What breaks a trend is the UNIT
+    changing: a round that only grew, same unit, is the same quantity, and
+    a break there would hide a real change since the last release. Between
+    two releases that recorded no unit, the round's size is all there is to
+    go on, so a change in ``iterations`` breaks. From a unit-less release to
+    one with a unit, the earlier one's unit is ``legacy_unit`` (its
+    legacy-units.toml entry), and only a different unit breaks.
+
+    >>> c = [("it", 4096), ("it", 65536), ("it", 65536), ("it", 1)]
+    >>> breaks(c, [None, None, "sample", "sample"], "sample")
+    [1]
+    >>> breaks(c[2:], ["sample", "call"])
+    [1]
+    >>> breaks([("it", 8), ("it", 8)], [None, "call"], "sample")
+    [1]
+    >>> breaks([("call",), ("bit",)], ["call", "bit"])
+    [1]
+    """
+    out, prev = [], None
+    for i, basis in enumerate(bases):
+        if basis is None:
+            continue
+        if prev is not None:
+            pb, pu = prev
+            if basis[0] != "it" or (pu is None and units[i] is None):
+                changed = basis != pb
+            else:
+                changed = (pu or legacy_unit) != (units[i] or legacy_unit)
+            if changed:
+                out.append(i)
+        prev = basis, units[i]
+    return out
+
+
 def since_last(p: list, brk: list) -> tuple:
     """``(change, broke)``: the newest value against the release before it.
 
@@ -1002,6 +1041,7 @@ def page_data(root: str = ".") -> dict:
             )
         series = {b: [None] * len(versions) for b in BUILDS}
         bases = [None] * len(versions)
+        units = [None] * len(versions)
         recorded = None
         for i, (_, builds, _) in enumerate(releases):
             for b in BUILDS:
@@ -1017,6 +1057,7 @@ def page_data(root: str = ".") -> dict:
                     series[b][i] = _sig(got[0])
                     if b == "portable" or bases[i] is None:
                         bases[i] = got[1]
+                        units[i] = _recorded_unit(suite, x)
                     recorded = _recorded_unit(suite, x) or recorded
         label = labels.get(rid)
         if rid in legacy and suite == "c" and recorded:
@@ -1049,13 +1090,7 @@ def page_data(root: str = ".") -> dict:
                         series[b][i] = None
                 if all(series[b][i] is None for b in BUILDS):
                     bases[i] = None
-        brk, prev = [], None
-        for i, basis in enumerate(bases):
-            if basis is None:
-                continue
-            if prev is not None and basis != prev:
-                brk.append(i)
-            prev = basis
+        brk = breaks(bases, units, legacy.get(rid))
         sl, slb = since_last(series["portable"], brk)
         unit = unit or "iter"
         last_basis = next(

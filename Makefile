@@ -261,10 +261,20 @@ C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|(^|/)jm_(bench|test)\.h$$|_ext\.c$$|_s
 # pass walks all of native/src, rewrote it under whoever applied next
 # (buffer_ext.c after doppler#1432). Derived from the manifest, so a migrated
 # module leaves the set by itself.
-C_FILES = { git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'; \
-            uv run python scripts/list_hand_ext_c.py; }
+#
+# The hand-written list is taken BEFORE the pipe, and its failure stops the
+# target (#2361). It used to be the second half of a `{ ...; }` group piped
+# into xargs: POSIX sh has no pipefail, so a failing `list_hand_ext_c.py`
+# only shortened the list and the target still exited 0 -- a gate reading
+# green while checking less. It also ran a bare `uv`, which ignores the
+# `UV=` override, so a box whose uv is not the pin dropped those files
+# every time.
+C_FILES     = git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'
+HAND_EXT_C  = $(UV) run python scripts/list_hand_ext_c.py
 
-LINT_clang-format = @$(C_FILES) | xargs -r $(CLANG_FORMAT) -i --style=file
+LINT_clang-format = @hand=$$($(HAND_EXT_C)) || exit $$?; \
+    { $(C_FILES); printf '%s\n' "$$hand"; } \
+    | xargs -r $(CLANG_FORMAT) -i --style=file
 
 # clang-tidy does NOT take clang-format's file list, and sharing C_FILES was
 # the reason its first real run emitted 6916 lines of which ~1700 were noise.

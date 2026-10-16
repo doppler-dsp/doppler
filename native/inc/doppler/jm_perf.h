@@ -20,11 +20,29 @@
 /* Mark a function as performance-critical; compiler may place it in a hot section and optimise more aggressively. */
 #define JM_HOT           JM_HOT_IMPL
 
+/* gh-1205: `restrict` is a C99 keyword and NOT a C++ one, so every spelling
+ * below has to answer for both languages. gh-1148 removed the `extern "C"`
+ * wrapper from the umbrella header so a C++ caller could include jm's headers,
+ * and this macro was the one place that still could not be: a `perf = "true"`
+ * project's `jm_simd.h` prototypes use JM_RESTRICT, and g++ stopped at
+ * `expected ',' or '...' before 'a'`. GCC, Clang and MSVC all spell it with
+ * leading underscores in C++, which is exactly why `jm_simd.h`'s own fallback
+ * (used when this header is not included first) was already correct — it
+ * reached for `__restrict__` and this one did not. */
+#if defined(__cplusplus)
+#  if defined(_MSC_VER)
+#    define JM_RESTRICT_IMPL    __restrict
+#  else
+#    define JM_RESTRICT_IMPL    __restrict__
+#  endif
+#else
+#  define JM_RESTRICT_IMPL      restrict
+#endif
+
 /* GCC / Clang */
 #if defined(__GNUC__) || defined(__clang__)
 #  define JM_LIKELY_IMPL(x)     __builtin_expect(!!(x), 1)
 #  define JM_UNLIKELY_IMPL(x)   __builtin_expect(!!(x), 0)
-#  define JM_RESTRICT_IMPL      restrict
 #  define JM_FORCEINLINE_IMPL   __attribute__((always_inline)) inline
 #  define JM_ALIGNED_IMPL(n)    __attribute__((aligned(n)))
 #  define JM_HOT_IMPL           __attribute__((hot))
@@ -33,7 +51,6 @@
 #elif defined(_MSC_VER)
 #  define JM_LIKELY_IMPL(x)     (x)
 #  define JM_UNLIKELY_IMPL(x)   (x)
-#  define JM_RESTRICT_IMPL      __restrict
 #  define JM_FORCEINLINE_IMPL   __forceinline
 #  define JM_ALIGNED_IMPL(n)    __declspec(align(n))
 #  define JM_HOT_IMPL
@@ -42,7 +59,6 @@
 #else
 #  define JM_LIKELY_IMPL(x)     (x)
 #  define JM_UNLIKELY_IMPL(x)   (x)
-#  define JM_RESTRICT_IMPL      restrict
 #  define JM_FORCEINLINE_IMPL   inline
 #  define JM_ALIGNED_IMPL(n)
 #  define JM_HOT_IMPL

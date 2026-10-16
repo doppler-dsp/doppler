@@ -144,9 +144,6 @@ c:burst_acq::push[sf=63,spc=4]
 c:burst_capture::push[4 bursts, file-backed]
 c:burst_capture::push[4 bursts]
 c:burst_capture::push[quiet]
-c:burst_demod::demod[chirp]
-c:burst_demod::demod[clean]
-c:burst_demod::demod[offset]
 c:burst_despreader::steps[sf=15]
 c:burst_despreader::steps[sf=31]
 c:burst_despreader::steps[sf=63]
@@ -322,9 +319,6 @@ c:i32_to_f32::step
 c:i32_to_f32::steps
 c:i8_to_f32::step
 c:i8_to_f32::steps
-c:imdmeas::analyze[n=16384]
-c:imdmeas::analyze[n=4096]
-c:imdmeas::analyze[n=65536]
 c:interleaver::bit-1x8k
 c:interleaver::deep
 c:interleaver::octet-1x8k
@@ -369,9 +363,6 @@ c:nco::steps_u32_ovf
 c:nco::steps_u32_ovf_ctrl
 c:nco::steps_u32_scaled
 c:nco::steps_u32_scaled_ctrl
-c:nprmeas::analyze[n=16384]
-c:nprmeas::analyze[n=4096]
-c:nprmeas::analyze[n=65536]
 c:pn::generate[fibonacci,len=11]
 c:pn::generate[fibonacci,len=15]
 c:pn::generate[fibonacci,len=23]
@@ -492,12 +483,6 @@ c:syncword::find[n=64]
 c:syncword::max_errors_for[n=32]
 c:timing::pace (no-wait overhead)
 c:timing::stamp
-c:tonemeas::analyze[n=16384]
-c:tonemeas::analyze[n=4096]
-c:tonemeas::analyze[n=65536]
-c:tonemeas::analyze_complex[n=16384]
-c:tonemeas::analyze_complex[n=4096]
-c:tonemeas::analyze_complex[n=65536]
 c:u8_to_f32::step[midpoint]
 c:u8_to_f32::step[shift]
 c:u8_to_f32::steps[midpoint]
@@ -585,7 +570,6 @@ py:adc::test_bench_step
 py:adc::test_bench_steps_64k
 py:agc::test_bench_step
 py:agc::test_bench_steps_64k
-py:async_dsss_pool::test_push_epoch
 py:async_dsss_receiver::test_bench_steps_cold
 py:async_dsss_receiver::test_bench_steps_warm
 py:awgn::test_bench_generate_64k
@@ -777,17 +761,12 @@ py:ratesync::test_bench_steps_gardner
 py:resample::test_bench_hbdecim
 py:resample::test_bench_resample_down
 py:resample::test_bench_resample_up
-py:rs_codec::test_bench_codeword_ok
 py:rs_codec::test_bench_create
-py:rs_codec::test_bench_decode_clean
-py:rs_codec::test_bench_decode_full
-py:rs_codec::test_bench_encode
 py:specan::test_bench_execute[10000.0]
 py:specan::test_bench_execute[2000.0]
 py:specan::test_bench_execute[500.0]
 py:specan::test_bench_retune
 py:spectrogram::test_bench_create
-py:spectrogram::test_bench_push
 py:symsync::test_bench_steps_64k
 py:syncword::test_bench_find_call_overhead
 py:syncword::test_bench_max_errors_for
@@ -806,8 +785,6 @@ py:u8_to_f32::test_bench_steps_64k[shift]
 py:uq15_to_f32::test_bench_step
 py:uq15_to_f32::test_bench_steps_64k
 py:util::test_ema_alpha_decim_binding
-py:util::test_ema_block_python_loop[100000]
-py:util::test_ema_block_python_loop[1000]
 py:util::test_ema_step_binding
 py:util::test_ema_step_pure_python
 py:viterbi::test_bench_constraint_length[3]

@@ -404,3 +404,26 @@ def test_a_python_row_reads_in_the_unit_its_rate_names(
     assert _row(data, "py:costas::test_bench_rx")["dom"] == "Sa"
     find = _row(data, "py:costas::test_bench_find_64k")
     assert (find["cnt"], find["dom"]) == (65536, "bit")
+
+
+def test_a_per_call_stream_row_reads_its_block_in_samples(
+    tmp_path: Path,
+) -> None:
+    """A capture analysed per call is a stream (#2373 review): a label's
+    `samples` is the block one call consumes, and the page reads it in
+    samples per second, not under setup and control."""
+    label = (
+        '["c:costas::analyze[n=4096]"]\nname = "Analyze"\nunit = "call"\n'
+        'definition = "One 4,096-sample capture."\nsamples = 4096\n'
+    )
+    rel = {
+        "v0.71.0": [
+            _c("costas::analyze[n=4096]", 2.0e-5, 1, {"unit": "call"}),
+        ]
+    }
+    tree = _tree(tmp_path, rel, label)
+    br = _load()
+    assert br.label_problems(str(tree)) == []
+    row = _row(br.page_data(str(tree)), "c:costas::analyze[n=4096]")
+    assert (row["cnt"], row["dom"], row["inf"]) == (4096, "Sa", False)
+    assert br._fmt_row(row, row["p"][-1]) == "205 MSa/s"

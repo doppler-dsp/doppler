@@ -219,3 +219,153 @@ unit = "call"
 definition = "Deinterleaving 65,536 float log-likelihood ratios, one per coded bit, at depth 8 through the Python binding; read in bits per second."
 domain = "bit"
 count = 65536
+
+# Stream rows recorded per call: each call consumes a block of input
+# samples, so they read in samples per second like the rest of the stream,
+# and `samples` is the block one call consumes.
+
+["c:tonemeas::analyze[n=4096]"]
+name = "Single-tone ADC metrics, 4,096-sample capture"
+unit = "call"
+definition = "Single-tone ADC metrics (SINAD, SFDR, ENOB) over a real capture of 4,096 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 4096
+
+["c:tonemeas::analyze[n=16384]"]
+name = "Single-tone ADC metrics, 16,384-sample capture"
+unit = "call"
+definition = "Single-tone ADC metrics (SINAD, SFDR, ENOB) over a real capture of 16,384 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 16384
+
+["c:tonemeas::analyze[n=65536]"]
+name = "Single-tone ADC metrics, 65,536-sample capture"
+unit = "call"
+definition = "Single-tone ADC metrics (SINAD, SFDR, ENOB) over a real capture of 65,536 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 65536
+
+["c:tonemeas::analyze_complex[n=4096]"]
+name = "Single-tone ADC metrics, complex, 4,096-sample capture"
+unit = "call"
+definition = "Single-tone metrics over a complex capture of 4,096 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 4096
+
+["c:tonemeas::analyze_complex[n=16384]"]
+name = "Single-tone ADC metrics, complex, 16,384-sample capture"
+unit = "call"
+definition = "Single-tone metrics over a complex capture of 16,384 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 16384
+
+["c:tonemeas::analyze_complex[n=65536]"]
+name = "Single-tone ADC metrics, complex, 65,536-sample capture"
+unit = "call"
+definition = "Single-tone metrics over a complex capture of 65,536 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 65536
+
+["c:imdmeas::analyze[n=4096]"]
+name = "Two-tone intermodulation metrics, 4,096-sample capture"
+unit = "call"
+definition = "Two-tone intermodulation metrics of 4,096 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 4096
+
+["c:imdmeas::analyze[n=16384]"]
+name = "Two-tone intermodulation metrics, 16,384-sample capture"
+unit = "call"
+definition = "Two-tone intermodulation metrics of 16,384 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 16384
+
+["c:imdmeas::analyze[n=65536]"]
+name = "Two-tone intermodulation metrics, 65,536-sample capture"
+unit = "call"
+definition = "Two-tone intermodulation metrics of 65,536 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 65536
+
+["c:nprmeas::analyze[n=4096]"]
+name = "Noise power ratio, 4,096-sample capture"
+unit = "call"
+definition = "Noise power ratio of 4,096 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 4096
+
+["c:nprmeas::analyze[n=16384]"]
+name = "Noise power ratio, 16,384-sample capture"
+unit = "call"
+definition = "Noise power ratio of 16,384 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 16384
+
+["c:nprmeas::analyze[n=65536]"]
+name = "Noise power ratio, 65,536-sample capture"
+unit = "call"
+definition = "Noise power ratio of 65,536 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
+samples = 65536
+
+["c:burst_demod::demod[clean]"]
+name = "Burst demodulator, clean"
+unit = "call"
+definition = "One whole burst of 28,600 samples demodulated end to end (acquire the preamble, find the sync word, despread the payload, check the CRC) with no carrier offset, so acquisition converges at once; read in input samples per second, so it compares with the sample rate feeding it."
+samples = 28600
+
+["c:burst_demod::demod[offset]"]
+name = "Burst demodulator, offset"
+unit = "call"
+definition = "One whole burst of 28,600 samples demodulated end to end (acquire the preamble, find the sync word, despread the payload, check the CRC) with a real frequency offset with a matching prior; read in input samples per second, so it compares with the sample rate feeding it."
+samples = 28600
+
+["c:burst_demod::demod[chirp]"]
+name = "Burst demodulator, chirp"
+unit = "call"
+definition = "One whole burst of 28,600 samples demodulated end to end (acquire the preamble, find the sync word, despread the payload, check the CRC) with a frequency offset plus a Doppler rate, so the rate search engages; read in input samples per second, so it compares with the sample rate feeding it."
+samples = 28600
+
+["py:spectrogram::test_bench_push"]
+name = "Spectrogram push, from Python"
+unit = "call"
+definition = "One push of 8,192 complex samples into a 256-point, hop-256 Hann spectrogram through the Python binding, rows out; read in input samples per second."
+samples = 8192
+
+["py:util::test_ema_block_python_loop[1000]"]
+name = "EMA in a Python loop, 1,000 samples"
+unit = "call"
+definition = "An exponential moving average driven one sample at a time from a pure-Python loop over 1,000 samples: what the C objects avoid by looping internally, read in samples per second."
+samples = 1000
+
+["py:util::test_ema_block_python_loop[100000]"]
+name = "EMA in a Python loop, 100,000 samples"
+unit = "call"
+definition = "An exponential moving average driven one sample at a time from a pure-Python loop over 100,000 samples: what the C objects avoid by looping internally, read in samples per second."
+samples = 100000
+
+["py:async_dsss_pool::test_push_epoch"]
+name = "Async DSSS pool, one epoch, from Python"
+unit = "call"
+definition = "One push of a 2,046-sample epoch (a Gold-1023 code at 2 samples per chip) through twelve idle receivers and the searcher, through the Python binding; read in input samples per second."
+samples = 2046
+
+# Reed-Solomon from Python, one CCSDS (255,223) codeword per call. Coded
+# data, so these read in bits per second like the C headline row: one
+# codeword is 255 bytes, 2,040 bits.
+
+["py:rs_codec::test_bench_encode"]
+name = "Reed-Solomon encode, from Python"
+unit = "call"
+definition = "Encoding 223 information bytes into one CCSDS (255,223) codeword through the Python binding, which allocates the output; read in coded bits per second, 2,040 per codeword."
+domain = "bit"
+count = 2040
+
+["py:rs_codec::test_bench_decode_clean"]
+name = "Reed-Solomon decode, no errors, from Python"
+unit = "call"
+definition = "Decoding one clean CCSDS (255,223) codeword in place through the Python binding: the syndromes, all zero, are the whole cost; read in coded bits per second."
+domain = "bit"
+count = 2040
+
+["py:rs_codec::test_bench_decode_full"]
+name = "Reed-Solomon decode, 16 errors, from Python"
+unit = "call"
+definition = "Copying one CCSDS (255,223) codeword, damaging 16 bytes and decoding it through the Python binding, the whole Berlekamp-Massey, Chien and Forney chain; read in coded bits per second."
+domain = "bit"
+count = 2040
+
+["py:rs_codec::test_bench_codeword_ok"]
+name = "Reed-Solomon codeword check, from Python"
+unit = "call"
+definition = "Checking one CCSDS (255,223) codeword's syndromes and nothing else through the Python binding, a receiver's cheap error detector; read in coded bits per second."
+domain = "bit"
+count = 2040

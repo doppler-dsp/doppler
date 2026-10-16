@@ -238,6 +238,66 @@ def implausible(published: Path = PUBLISHED) -> dict[str, float]:
     return out
 
 
+def _calls_fixture(tree: ast.AST) -> bool:
+    """Is there a Call under *tree* whose func is `benchmark[.<attr>]`?"""
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        if isinstance(f, ast.Attribute):
+            f = f.value
+        if isinstance(f, ast.Name) and f.id == "benchmark":
+            return True
+    return False
+
+
+def _helper_records(tree: ast.Module) -> bool:
+    """Is the fixture handed to an imported helper that calls it?
+
+    The burst chain's benches time through one shared helper,
+    ``on_fresh(benchmark, make, call)`` in ``_burst_stimulus.py``, which
+    calls ``benchmark.pedantic``. A file whose every row goes through it
+    records, though it never names ``benchmark(`` itself. So a call that
+    passes the ``benchmark`` name to a function imported ``from doppler.X
+    import f`` counts when ``f``, read from its own file, calls the fixture.
+    A helper that only takes the fixture and never calls it does not count:
+    that is the hollow shape this rule exists for, one file over.
+    """
+    imported = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            if node.module.split(".")[0] != "doppler" or node.level:
+                continue
+            for a in node.names:
+                imported[a.asname or a.name] = (node.module, a.name)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(
+            node.func, ast.Name
+        ):
+            continue
+        if node.func.id not in imported:
+            continue
+        args = list(node.args) + [k.value for k in node.keywords]
+        if not any(
+            isinstance(a, ast.Name) and a.id == "benchmark" for a in args
+        ):
+            continue
+        module, name = imported[node.func.id]
+        src = SRC.parent.joinpath(*module.split(".")).with_suffix(".py")
+        try:
+            helper_tree = ast.parse(src.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        for d in helper_tree.body:
+            if (
+                isinstance(d, ast.FunctionDef)
+                and d.name == name
+                and _calls_fixture(d)
+            ):
+                return True
+    return False
+
+
 def _py_records(path: Path) -> bool:
     r"""Does this file actually CALL pytest-benchmark's fixture?
 
@@ -251,21 +311,14 @@ def _py_records(path: Path) -> bool:
     docstring and reported a deliberately hollowed-out file as measured.
     Caught by sabotaging the gate rather than by reading it. This is a
     Python file, so ask Python: a Call node whose func is `benchmark` or
-    `benchmark.<attr>`. A mention in prose is not a Call, and cannot be.
+    `benchmark.<attr>`, here or in an imported helper the fixture is handed
+    to (`_helper_records`). A mention in prose is not a Call, and cannot be.
     """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except SyntaxError:
         return False  # it cannot record anything if it cannot parse
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        f = node.func
-        if isinstance(f, ast.Attribute):
-            f = f.value
-        if isinstance(f, ast.Name) and f.id == "benchmark":
-            return True
-    return False
+    return _calls_fixture(tree) or _helper_records(tree)
 
 
 #: A recorded measurement, at the start of a line or after whitespace --

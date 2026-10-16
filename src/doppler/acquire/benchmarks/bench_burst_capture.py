@@ -3,22 +3,25 @@
 Run:
     make bench-python PYTEST_ARGS="-k bench_burst_capture --benchmark-only"
 
-The same two rows, over the same 64k stimulus, as every other object in the
-chain (`_burst_stimulus.py`), so this number reads against `BurstAcquisition`'s
-and `DsssBurstReceiver`'s rather than in isolation. `BurstCapture` is
-acquisition plus the refine stage and the window copy, so the gap between this
-and `bench_burst_acq` is exactly what the capture layer costs.
+Over the same 64k stimulus as every other object in the chain
+(`_burst_stimulus.py`), so this number reads against `DsssBurstReceiver`'s
+rather than in isolation.
 
-- ``push_idle``   — 64k of noise. What listening costs.
-- ``push_bursts`` — the same 64k carrying complete bursts.
-- ``push_bursts_backed`` — the same block through a file-backed ring. The
-  design claims backing the ring costs nothing, because the pages ARE the
-  file rather than being copied to it; a claim nobody times is prose.
+One row, ``push_bursts``: the same 64k carrying complete bursts, at the
+chain's real operating point (a 255x5 preamble at 2 samples per chip,
+8,316-sample bursts, AWGN), with the captures asserted. The C
+``burst_capture::push[4 bursts]`` row uses a smaller geometry, so this is a
+different case rather than a re-measure.
+
+Cut (doppler#2386): ``push_idle`` (the 4-burst row without refine),
+``push_bursts_backed`` (the same cost as ``push_bursts``, 46.5 against 45.9
+MSa/s) and ``construct`` (the same 6.6 ms as ``BurstAcquisition``, whose
+sizing is the cost; ``bench_burst_acq.py`` keeps that row).
 """
 
 import pytest
 
-from doppler.acquire import BurstCapture, PersistentBurstCapture
+from doppler.acquire import BurstCapture
 from doppler.acquire.tests._preamble import code_preamble
 from doppler.dsss.benchmarks._burst_stimulus import (
     BURST_LEN,
@@ -43,7 +46,7 @@ def n_bursts(waveform):
     return packing(acq_code, data_code)[1]
 
 
-def _cap(acq_code, path=None):
+def _cap(acq_code):
     """Rebuilt per round: the object carries a ring, an acquisition
     accumulator and a detection queue, so a reused instance would measure a
     warm one from round two onward."""
@@ -53,24 +56,7 @@ def _cap(acq_code, path=None):
         "fs": CHIP_RATE * SPC,
         "cn0_dbhz": 60.0,
     }
-    pre = code_preamble(acq_code, SPC)
-    if path is None:
-        return BurstCapture(pre, **kw)
-    return PersistentBurstCapture(path, pre, **kw)
-
-
-def test_bench_construct(benchmark, waveform):
-    """Construction: the search sized on the burst, plus the history ring."""
-    acq_code = waveform[0]
-    benchmark(lambda: _cap(acq_code))
-
-
-def test_bench_push_idle(benchmark, waveform):
-    """The floor — what listening costs when nothing is there."""
-    acq_code, _, _, _, idle = waveform
-    win = on_fresh(benchmark, lambda: _cap(acq_code), lambda c: c.push(idle))
-    assert win.size % BURST_LEN == 0, "a partial window is not a window"
-    rate(benchmark)
+    return BurstCapture(code_preamble(acq_code, SPC), **kw)
 
 
 def test_bench_push_bursts(benchmark, waveform, n_bursts):
@@ -83,24 +69,7 @@ def test_bench_push_bursts(benchmark, waveform, n_bursts):
         "row is timing a capture that is no longer capturing"
     )
     assert win.size > idle_win.size, (
-        f"{win.size} samples on bursts vs {idle_win.size} on noise — the two "
-        "rows are not measuring different work"
+        f"{win.size} samples on bursts vs {idle_win.size} on noise — this "
+        "row is not measuring a capture"
     )
-    rate(benchmark)
-
-
-def test_bench_push_bursts_backed(benchmark, waveform, n_bursts, tmp_path):
-    """The same block, with the ring's pages backed by a file.
-
-    Read against `push_bursts`: the design's claim is that this row costs
-    nothing extra, because MAP_SHARED means the samples ARE the file rather
-    than being copied into it. If this row ever separates from its sibling,
-    that claim has stopped being true.
-    """
-    acq_code, _, _, bursts, _ = waveform
-    path = tmp_path / "ring.cf32"
-    win = on_fresh(
-        benchmark, lambda: _cap(acq_code, path), lambda c: c.push(bursts)
-    )
-    assert win.size >= n_bursts * BURST_LEN
     rate(benchmark)

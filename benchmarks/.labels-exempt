@@ -62,32 +62,25 @@ c:acc_trace::fold[minhold,nfft=256]
 c:acc_trace::fold[minhold,nfft=4096]
 c:acc_trace::fold[minhold,nfft=65536]
 c:acq::native_nc176
-c:acq::native_nc90
 c:acq::op2M_U17k_nc101
 c:acq::op2M_U17k_nc144
 c:acq::op2M_U17k_nc54
 c:acq::op2M_U50k_nc107
 c:acq::op2M_U50k_nc151
-c:acq::op2M_U50k_nc57
 c:acq::op2M_U5k_nc137
-c:acq::op2M_U5k_nc51
 c:acq::op2M_U5k_nc96
 c:acq::op5M_U17k_nc238
 c:acq::op5M_U17k_nc256
-c:acq::op5M_U50k_nc254
 c:acq::op5M_U50k_nc256
 c:acq::op5M_U50k_t2_nc254
 c:acq::op5M_U50k_t2_nc256
 c:acq::op5M_U50k_t4_nc254
 c:acq::op5M_U50k_t4_nc256
-c:acq::op5M_U50k_t8_nc254
 c:acq::op5M_U50k_t8_nc256
-c:acq::op5M_U5k_nc225
 c:acq::op5M_U5k_nc256
 c:acq::wideband_nc112
 c:acq::wideband_nc215
 c:acq::wideband_nc256
-c:acquire::bin_to_signed (wrapper, not inlinable)
 c:acquire::dp_fftfreq_index (inlined)
 c:adc::step
 c:adc::steps
@@ -107,8 +100,6 @@ c:arith::shr_q15
 c:arith::shr_q8
 c:arith::sub_q15
 c:arith::sub_q8
-c:async_dsss_pool::push[12 slots, all cores]
-c:async_dsss_pool::push[12 slots, serial]
 c:async_dsss_receiver::steps[cell,op5M]
 c:async_dsss_receiver::steps[cell]
 c:async_dsss_receiver::steps[cold,op5M]
@@ -142,11 +133,8 @@ c:burst_acq::push[sf=15,spc=4]
 c:burst_acq::push[sf=63,spc=2]
 c:burst_acq::push[sf=63,spc=4]
 c:burst_capture::push[4 bursts, file-backed]
-c:burst_capture::push[4 bursts]
 c:burst_capture::push[quiet]
-c:burst_despreader::steps[sf=15]
 c:burst_despreader::steps[sf=31]
-c:burst_despreader::steps[sf=63]
 c:carrier_acq::steps[pad=16,seq]
 c:carrier_acq::steps[pad=16]
 c:carrier_acq::steps[pad=4,seq]
@@ -196,7 +184,6 @@ c:ddcr::execute_ctrl[rate=0.25]
 c:ddcr::execute_ctrl_push[rate=0.25]
 c:delay::push
 c:delay::write
-c:despreader::steps
 c:detection::det_dwell[max=256]
 c:detection::det_ema_alpha
 c:detection::det_pd[dwell=1]
@@ -231,10 +218,7 @@ c:dp_tlm::full
 c:dp_tlm_capture::boundary
 c:dp_tlm_capture::drain
 c:dp_tlm_capture::uncaptured
-c:dsss_burst_receiver::push_burst
-c:dsss_burst_receiver::push_idle
 c:dsss_receiver::search
-c:dsss_receiver::track
 c:f32_buffer::write_some_view+peek_view
 c:f32_to_i16::step
 c:f32_to_i16::steps
@@ -370,8 +354,6 @@ c:pn::generate[galois,len=11]
 c:pn::generate[galois,len=15]
 c:pn::generate[galois,len=23]
 c:pn::store_floor
-c:ppe::chirp
-c:ppe::doppler
 c:psd::accumulate[nfft=16384]
 c:psd::accumulate[nfft=4096]
 c:psd::accumulate_frame[nfft=1024]
@@ -556,8 +538,6 @@ py:acc_trace::test_bench_accumulate[maxhold]
 py:acc_trace::test_bench_accumulate[mean]
 py:acc_trace::test_bench_accumulate[minhold]
 py:acc_trace::test_bench_value
-py:acq::test_bench_tile_test_grid
-py:acq::test_bench_tile_worked
 py:adc::test_bench_step
 py:adc::test_bench_steps_64k
 py:agc::test_bench_step
@@ -569,11 +549,9 @@ py:ber_meter::test_bench_align
 py:ber_meter::test_bench_score
 py:boxcar::test_bench_step
 py:boxcar::test_bench_steps_64k
-py:burst_acq::test_bench_construct
 py:burst_acq::test_bench_push_bursts
 py:burst_acq::test_bench_push_idle
 py:burst_capture::test_bench_construct
-py:burst_capture::test_bench_push_bursts
 py:burst_capture::test_bench_push_bursts_backed
 py:burst_capture::test_bench_push_idle
 py:burst_demod::test_bench_demod_burst
@@ -583,8 +561,6 @@ py:burst_despreader::test_bench_steps_bursts
 py:burst_despreader::test_bench_steps_idle
 py:carrier_acq::test_bench_steps_detect[16]
 py:carrier_acq::test_bench_steps_detect[4]
-py:carrier_acq::test_bench_steps_search[16]
-py:carrier_acq::test_bench_steps_search[4]
 py:carrier_mpsk::test_bench_steps[2-fll]
 py:carrier_mpsk::test_bench_steps[2-pll]
 py:carrier_mpsk::test_bench_steps[4-fll]
@@ -652,10 +628,8 @@ py:dp_tlm::test_bench_read
 py:dp_tlm_capture::test_bench_attached_no_capture
 py:dp_tlm_capture::test_bench_captured
 py:dp_tlm_capture::test_bench_uninstrumented
-py:dsss_burst_receiver::test_bench_construct
 py:dsss_burst_receiver::test_bench_push_bursts
 py:dsss_burst_receiver::test_bench_push_idle
-py:dsss_receiver::test_bench_steps_search
 py:dsss_receiver::test_bench_steps_track
 py:f32_buffer::test_bench_write_some_oversize
 py:f32_buffer::test_bench_write_some_peek
@@ -791,7 +765,3 @@ py:wfm_synth::test_bench_step
 py:wfm_synth::test_bench_steps_64k
 py:wfm_writer::test_write_64k[cf32]
 py:wfm_writer::test_write_64k[ci16]
-py:widedoppler::test_bench_2d_roll[burst_5x4094-5-4094-49]
-py:widedoppler::test_bench_2d_roll[gps_16x2046-16-2046-79]
-py:widedoppler::test_bench_column_tile[burst_5x4094-5-4094-49]
-py:widedoppler::test_bench_column_tile[gps_16x2046-16-2046-79]

@@ -48,10 +48,6 @@
   }
   const group = (r) => (!r.dom ? "ctl" : r.dom === "Sa" ? "Sa" : "other");
   const unitWord = (r) => r.unit.replace(/_/g, " ");
-  function prevIdx(a, i) {
-    for (let j = i - 1; j >= 0; j--) if (a[j] != null) return j;
-    return -1;
-  }
   // a, b in seconds: how much faster b is than a.
   const speedup = (a, b) => (a != null && b != null ? a / b - 1 : null);
   function pct(x) {
@@ -349,15 +345,15 @@
           (a.op ? " · " + esc(a.op) : "") + "</span>";
       const params = (lab ? [] : a.params).map((p) =>
         '<span class="dpb-pm">' + esc(p) + "</span>").join("");
-      const pi = prevIdx(r.p, LAST);
-      const since = pi >= 0 ? speedup(r.p[pi], r.p[LAST]) : null;
       return '<tr class="dpb-r" data-id="' + esc(r.id) + '" tabindex="0" aria-expanded="' +
         (state.open === r.id) + '"><td>' + name + '<span class="dpb-lang">' +
         (r.k === "c" ? "C" : "Py") + "</span><br>" + params + '<div class="dpb-rid">' +
         esc(r.id.slice(r.id.indexOf(":") + 1)) + "</div></td>" +
         '<td class="dpb-v">' + fmtVal(r, r.p[LAST]) + '</td><td class="dpb-v">' +
         fmtVal(r, r.n[LAST]) + "</td><td>" + chip(speedup(r.p[LAST], r.n[LAST])) +
-        "</td><td>" + chip(since) + "</td><td>" + headChip(headroom(r, r.p[LAST])) +
+        "</td><td>" + (r.slb ? '<span class="dpb-flat" title="the round' +
+          ' changed size since the last release, so the two are different' +
+          ' quantities">break</span>' : chip(r.sl)) + "</td><td>" + headChip(headroom(r, r.p[LAST])) +
         '</td><td class="dpb-trend">' + spark(r, NV, 132, 28) + "</td></tr>";
     }
     function detailHTML(r) {
@@ -406,10 +402,8 @@
         name: (r) => [headIdx.has(r.id) ? 0 : nameOf(r) ? 1 : 2, r.comp.toLowerCase(), r.id],
         tput: (r) => [-(rateOf(r, r.p[LAST]) || 0), r.p[LAST]],
         head: (r) => [-(headroom(r, r.p[LAST]) || 0), r.p[LAST]],
-        delta: (r) => {
-          const pi = prevIdx(r.p, LAST);
-          return [-Math.abs((pi >= 0 ? speedup(r.p[pi], r.p[LAST]) : 0) || 0)];
-        },
+        // `sl` is computed in bench_report.py, which honours breaks.
+        delta: (r) => [-Math.abs(r.sl || 0)],
         src: (r) => [-(speedup(r.p[LAST], r.n[LAST]) || 0)],
       }[state.sort];
       list.sort((a, b) => {

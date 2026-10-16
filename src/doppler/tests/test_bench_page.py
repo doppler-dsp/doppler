@@ -427,3 +427,73 @@ def test_a_per_call_stream_row_reads_its_block_in_samples(
     row = _row(br.page_data(str(tree)), "c:costas::analyze[n=4096]")
     assert (row["cnt"], row["dom"], row["inf"]) == (4096, "Sa", False)
     assert br._fmt_row(row, row["p"][-1]) == "205 MSa/s"
+
+
+def test_since_last_is_computed_here_and_honours_a_break(
+    tmp_path: Path,
+) -> None:
+    """ber_meter::align went from 65,536 iterations a round to 1 and read
+    -100% since last, topping the sort (#2373 review). Across a break the
+    two releases are different quantities: no change, and `slb` says why.
+    """
+    rel = {
+        "v0.70.0": [
+            _c("costas::align", 8e-4 * 65536, 65536),
+            _c("costas::steps", 2e-3, 4096, {"unit": "sample"}),
+        ],
+        "v0.71.0": [
+            _c("costas::align", 8e-4, 1),
+            _c("costas::steps", 1e-3, 4096, {"unit": "sample"}),
+        ],
+    }
+    data = _load().page_data(str(_tree(tmp_path, rel)))
+    align = _row(data, "c:costas::align")
+    assert (align["brk"], align["sl"], align["slb"]) == ([1], None, True)
+    steps = _row(data, "c:costas::steps")
+    assert (steps["sl"], steps["slb"]) == (1.0, False)
+
+
+def test_a_hollow_point_is_dropped_not_drawn(tmp_path: Path) -> None:
+    """py:corr read 203 GSa/s before v0.65.0 (#1918): past the coverage
+    gate's ceiling a point is a hollow benchmark, so it is no point, and
+    the since-last change is measured against the last real one."""
+    py = {
+        "v0.69.0": [_py("test_bench_execute_64k", 1.0, {"MSa_s": 2.0e5})],
+        "v0.70.0": [_py("test_bench_execute_64k", 1.0, {"MSa_s": 250.0})],
+        "v0.71.0": [_py("test_bench_execute_64k", 1.0, {"MSa_s": 250.0})],
+    }
+    rel = {v: [] for v in py}
+    tree = _tree(
+        tmp_path, rel, exempt=["py:costas::test_bench_execute_64k"], py=py
+    )
+    row = _row(
+        _load().page_data(str(tree)), "py:costas::test_bench_execute_64k"
+    )
+    assert row["p"][0] is None
+    assert row["p"][1:] == [pytest.approx(4e-9)] * 2
+    assert (row["sl"], row["brk"]) == (0.0, [])
+
+
+def test_the_page_prints_a_python_row_per_call_never_per_round(
+    tmp_path: Path,
+) -> None:
+    """pytest-benchmark's mean is per call whatever its `iterations`
+    says; #2360's case was a Python row with 220 iterations a round. The
+    rendered headline table must read it per call."""
+    label = (
+        '["py:costas::test_bench_create"]\nname = "Create"\nunit = "call"\n'
+        'definition = "One create."\ndomain = "call"\ncount = 1\n'
+        "headline = true\n"
+    )
+    py = {"v0.71.0": [_py("test_bench_create", 2.288e-8, iters=220)]}
+    tree = _tree(tmp_path, {"v0.71.0": []}, label, py=py)
+    br = _load()
+    assert br.label_problems(str(tree)) == []
+    row = _row(br.page_data(str(tree)), "py:costas::test_bench_create")
+    assert (row["it"], row["unit"]) == (1, "call")
+    page = br.render_page(str(tree))
+    (cell,) = [ln for ln in page.splitlines() if ln.startswith("| [Create]")]
+    assert (
+        cell == "| [Create](#d1) | 22.88 ns / call | 22.88 ns / call | +0.0% |"
+    )
+    assert "round" not in cell

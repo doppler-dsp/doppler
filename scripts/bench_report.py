@@ -563,6 +563,12 @@ LEGACY_UNITS = "benchmarks/legacy-units.toml"
 #: The jm manifest: which module each object belongs to.
 MANIFEST = "just-makeit.toml"
 
+# The coverage gate's plausibility ceiling, in MSa/s: one definition of
+# "too fast to be a real kernel" for both. A sibling module; this file may
+# be loaded by path, not run.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from check_bench_coverage import CEILING_MSA_S  # noqa: E402
+
 #: The families the page groups rows into, in tab order.
 FAMILIES = (
     ("spectral", "Spectra & measurement"),
@@ -974,6 +980,35 @@ def _sig(x):
     return None if x is None else float(f"{x:.4g}")
 
 
+def since_last(p: list, brk: list) -> tuple:
+    """``(change, broke)``: the newest value against the release before it.
+
+    ``p`` is seconds per unit per release, None where unmeasured, and
+    ``change`` is how much faster the newest is than the previous release
+    that measured the row (``prev / newest - 1``, four significant digits).
+    A break between the two (``brk``: a release whose basis changed) makes
+    them different quantities, so there is no change to report: ``(None,
+    True)``. A row the newest release measures for the first time is
+    ``(None, False)``.
+
+    >>> since_last([2e-9, None, 1e-9], [])
+    (1.0, False)
+    >>> since_last([8e-4, 8e-4, 8e-9], [2])
+    (None, True)
+    >>> since_last([None, 1e-9], [])
+    (None, False)
+    """
+    last = len(p) - 1
+    if last < 0 or p[last] is None:
+        return None, False
+    prev = next((j for j in range(last - 1, -1, -1) if p[j] is not None), -1)
+    if prev < 0:
+        return None, False
+    if any(prev < b <= last for b in brk):
+        return None, True
+    return _sig(p[prev] / p[last] - 1), False
+
+
 def page_data(root: str = ".") -> dict:
     """Everything the page draws, from the committed snapshots.
 
@@ -1026,13 +1061,6 @@ def page_data(root: str = ".") -> dict:
                     if b == "portable" or bases[i] is None:
                         bases[i] = got[1]
                     recorded = _recorded_unit(suite, x) or recorded
-        brk, prev = [], None
-        for i, basis in enumerate(bases):
-            if basis is None:
-                continue
-            if prev is not None and basis != prev:
-                brk.append(i)
-            prev = basis
         label = labels.get(rid)
         if rid in legacy and suite == "c" and recorded:
             problems.append(
@@ -1051,8 +1079,31 @@ def page_data(root: str = ".") -> dict:
             if why:
                 problems.append(why)
         rate = rate_of(rid, unit, label)
+        if rate[1] == "Sa":
+            # A sample rate past the coverage gate's ceiling is a hollow
+            # benchmark, not a fast one (#1918): py:corr read 203 GSa/s
+            # before v0.65.0. The point is dropped, so the trend neither
+            # draws the jump nor measures "since last" against it.
+            floor = rate[0] / (CEILING_MSA_S * 1e6)
+            for i in range(len(versions)):
+                for b in BUILDS:
+                    s = series[b][i]
+                    if s is not None and s < floor:
+                        series[b][i] = None
+                if all(series[b][i] is None for b in BUILDS):
+                    bases[i] = None
+        brk, prev = [], None
+        for i, basis in enumerate(bases):
+            if basis is None:
+                continue
+            if prev is not None and basis != prev:
+                brk.append(i)
+            prev = basis
+        sl, slb = since_last(series["portable"], brk)
         unit = unit or "iter"
-        last_basis = next(b for b in reversed(bases) if b is not None)
+        last_basis = next(
+            (b for b in reversed(bases) if b is not None), ("call",)
+        )
         rows.append(
             {
                 "id": rid,
@@ -1070,6 +1121,10 @@ def page_data(root: str = ".") -> dict:
                 "p": series["portable"],
                 "n": series["native"],
                 "brk": brk,
+                # since last: portable speed-up over the previous release
+                # that measured the row; None, with `slb`, across a break
+                "sl": sl,
+                "slb": slb,
             }
         )
     for rid in sorted(set(legacy) - set(live)):
@@ -1196,6 +1251,22 @@ def fmt_rate(per_sec: float, dom: str) -> str:
     return f"{num} {p}{DOMAIN_SUFFIX.get(dom, dom + '/s')}"
 
 
+def fmt_pct(x: float) -> str:
+    """A change as the page prints it, the same in the static table and in
+    benchmarks.js's ``pct``: a true minus sign, one decimal under 10%.
+
+    >>> fmt_pct(-0.003)
+    '−0.3%'
+    >>> fmt_pct(0.42)
+    '+42%'
+    >>> fmt_pct(0.0)
+    '+0.0%'
+    """
+    sign = "+" if x >= 0 else "−"
+    digits = 1 if abs(x) < 0.1 else 0
+    return f"{sign}{abs(x) * 100:.{digits}f}%"
+
+
 def _fmt_row(row: dict, secs) -> str:
     """One value as the static table shows it: its rate, or time per call.
 
@@ -1263,7 +1334,7 @@ def render_page(root: str = ".") -> str:
     for i, rid in enumerate(data["head"], 1):
         r, lab = rows[rid], data["labels"][rid]
         p, n = r["p"][-1], r["n"][-1]
-        src = f"{(p / n - 1) * 100:+.0f}%" if p and n else "—"
+        src = fmt_pct(p / n - 1) if p and n else "—"
         L.append(
             f"| [{lab['name']}](#d{i}) | {_fmt_row(r, p)} |"
             f" {_fmt_row(r, n)} | {src} |"
@@ -1310,11 +1381,15 @@ def render_page(root: str = ".") -> str:
         "",
         '<span id="since-last"></span>**Since last.** Portable speed against'
         " the previous release that measured the row. Changes under 3% are"
-        " grey: repeat runs of an unchanged tree move about that much.",
+        " grey: repeat runs of an unchanged tree move about that much. Where"
+        " the row's round changed size in between, the two are different"
+        " quantities and it reads *break*.",
         "",
         '<span id="trend"></span>**Trend.** One point per release, portable'
         " build, drawn as speed (higher is faster). A gap is a release that"
-        " did not measure the row. A dashed line marks a release where the"
+        " did not measure the row, or measured it faster than"
+        f" {CEILING_MSA_S / 1000:.0f} GSa/s: a hollow benchmark, not a fast"
+        " kernel. A dashed line marks a release where the"
         " row's round changed size, so its per-unit value changed meaning"
         " there; the line breaks rather than draw a jump that is not real.",
         "",

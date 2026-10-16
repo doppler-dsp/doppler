@@ -1633,7 +1633,7 @@ endef
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 docs-invariants \
-                jm-apply jm-apply-downstream jm-adopt \
+                jm-apply jm-apply-downstream jm-adopt jm-revendor \
                 jm-upgrade changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
                 gen-c-api-check \
@@ -3499,6 +3499,16 @@ jm-adopt: ## JM_ADOPT_ARGS='<obj>... [--accept-additions] | --check --all' — f
 	uv sync --group dev --no-install-project
 	uv run just-makeit adopt $(JM_ADOPT_ARGS)
 
+# The write half of check_jm_status.py's vendored-header question: delete each
+# jm_*.h that is behind the pin, and `just-makeit apply` writes the pinned
+# render -- apply creates a missing create-only file and never rewrites one,
+# so this is the one way to replace it. Both projects, same pin.
+jm-revendor: ## Re-vendor every jm_*.h that is behind the pinned jm (both projects)
+	$(UV) sync --group dev --no-install-project
+	$(UV) run python scripts/check_jm_status.py --fix
+	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) \
+	    python $(CURDIR)/scripts/check_jm_status.py --fix
+
 jm-apply-downstream: ## Regenerate the downstream example's jm glue (same pin)
 	cd $(DOWNSTREAM_DIR) && uv run --project $(CURDIR) just-makeit apply
 
@@ -3513,13 +3523,19 @@ drift-check: ## jm manifest drift gate (CI's 'jm manifest drift')
 # and gating with a manifest that names another.
 	uv run python scripts/gen_jm_pin.py --check
 	uv sync --group dev --no-install-project
-	uv run just-makeit status --check
+# ONE status per project, as --check --json: jm's exit code stays the drift
+# verdict, and the same report says whether a vendored jm_*.h -- jm's own
+# file, written once and never rewritten -- is behind the pin (#2377). jm
+# lists those as OUTDATED and counts them as nothing, which is how
+# jm_bench.h kept its 32-row cap three releases past the fix.
+	$(UV) run python scripts/check_jm_status.py
 	@echo "── downstream jm example ──"
 # The example is a just-makeit project in its own right, so its generated
 # bindings/stubs/CMake can drift from its manifest exactly like doppler's can.
 # Checked with the SAME pinned jm, so the example cannot silently document a jm
 # version doppler is not on.
-	cd $(DOWNSTREAM_DIR) && uv run --project $(CURDIR) just-makeit status --check
+	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) \
+	    python $(CURDIR)/scripts/check_jm_status.py
 
 # One definition of "code", used by BOTH questions below — and by
 # `issue-link-check`, which asks a third question of the same branch. Splitting

@@ -29,7 +29,7 @@
 #ifndef JM_TEST_H
 #define JM_TEST_H
 
-#include <complex.h>
+#include "iqtools/clib_common.h"
 #include <math.h>
 #include <stdio.h>
 

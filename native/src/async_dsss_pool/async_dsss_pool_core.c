@@ -468,21 +468,14 @@ pool_tlm_detach (dp_async_dsss_pool_state_t *s)
   s->tlm = NULL;
 }
 
-int
-dp_async_dsss_pool_set_telemetry (dp_async_dsss_pool_state_t *s, dp_tlm_t *tlm,
-                                  const char *prefix, uint32_t decim)
+/* Attach the searcher, every slot and the pool's own probes to `tlm`. On
+   success the pool emits on it; on failure what registered stays
+   registered and the caller detaches. */
+static int
+pool_tlm_attach (dp_async_dsss_pool_state_t *s, dp_tlm_t *tlm, const char *p,
+                 uint32_t decim)
 {
-  if (!tlm)
-    {
-      pool_tlm_detach (s);
-      return DP_OK;
-    }
-  /* One producer per context: a pool on threads > 1 steps its receivers
-     on several (step 3 of push), and their records would race. */
-  if (decim == 0 || s->threads != 1)
-    return DP_ERR_INVALID;
-  const char *p = prefix ? prefix : "pool";
-  char        acq[DP_TLM_NAME_MAX], assigned[DP_TLM_NAME_MAX],
+  char acq[DP_TLM_NAME_MAX], assigned[DP_TLM_NAME_MAX],
       dropped[DP_TLM_NAME_MAX], events[DP_TLM_NAME_MAX];
   if (dp_tlm_name_join (acq, p, "acq") != DP_OK
       || dp_tlm_name_join (assigned, p, "assigned") != DP_OK
@@ -506,14 +499,45 @@ dp_async_dsss_pool_set_telemetry (dp_async_dsss_pool_state_t *s, dp_tlm_t *tlm,
       id_events   = dp_tlm_probe (tlm, events, decim);
     }
   if (r != DP_OK || id_assigned < 0 || id_dropped < 0 || id_events < 0)
-    {
-      pool_tlm_detach (s); /* whole or nothing */
-      return DP_ERR_INVALID;
-    }
+    return DP_ERR_INVALID;
   s->tlm_assigned = id_assigned;
   s->tlm_dropped  = id_dropped;
   s->tlm_events   = id_events;
   s->tlm          = tlm; /* set last: push() emits on it */
+  return DP_OK;
+}
+
+int
+dp_async_dsss_pool_set_telemetry (dp_async_dsss_pool_state_t *s, dp_tlm_t *tlm,
+                                  const char *prefix, uint32_t decim)
+{
+  if (!tlm)
+    {
+      pool_tlm_detach (s);
+      return DP_OK;
+    }
+  /* One producer per context: a pool on threads > 1 steps its receivers
+     on several (step 3 of push), and their records would race. */
+  if (decim == 0 || s->threads != 1)
+    return DP_ERR_INVALID;
+  const char *p = prefix ? prefix : "pool";
+  /* Every name must fit before ANY registers on the caller's context: the
+     searcher and the slots join their own, so the attach runs first on a
+     scratch context and reaches the caller's only if that took them all
+     (#1897's dead slots, avoided rather than added). */
+  dp_tlm_t *scratch = dp_tlm_create (1);
+  if (!scratch)
+    return DP_ERR_INVALID;
+  const int fits = pool_tlm_attach (s, scratch, p, decim) == DP_OK;
+  pool_tlm_detach (s);
+  dp_tlm_destroy (scratch);
+  if (!fits)
+    return DP_ERR_INVALID;
+  if (pool_tlm_attach (s, tlm, p, decim) != DP_OK)
+    {
+      pool_tlm_detach (s); /* whole or nothing */
+      return DP_ERR_INVALID;
+    }
   return DP_OK;
 }
 

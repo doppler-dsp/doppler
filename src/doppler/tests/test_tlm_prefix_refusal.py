@@ -60,7 +60,12 @@ import pytest
 import doppler
 from doppler.acquire import Acquisition
 from doppler.agc import AGC
-from doppler.dsss import Despreader
+from doppler.dsss import (
+    AsyncDsssPool,
+    AsyncDsssReceiver,
+    CellAsyncDsssReceiver,
+    Despreader,
+)
 from doppler.telemetry import Telemetry
 from doppler.track import (
     BpskReceiver,
@@ -88,6 +93,9 @@ FACES: dict[str, Callable[[], Any]] = {
         _CODE, spc=2, chip_rate=1e6, cn0_dbhz=50.0
     ),
     "doppler.agc.AGC": lambda: AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05),
+    "doppler.dsss.AsyncDsssPool": lambda: AsyncDsssPool(_CODE, n_slots=2),
+    "doppler.dsss.AsyncDsssReceiver": lambda: AsyncDsssReceiver(_CODE),
+    "doppler.dsss.CellAsyncDsssReceiver": lambda: CellAsyncDsssReceiver(_CODE),
     "doppler.dsss.Despreader": lambda: Despreader(code=_CODE, sps=4),
     "doppler.track.BpskReceiver": lambda: BpskReceiver(
         sample_rate_hz=8e6, symbol_rate_hz=1e6
@@ -179,6 +187,11 @@ def _fits(suffixes: set[str]) -> int:
 
 def _feed(obj: Any) -> None:
     """Run one block through ``obj``: enough for every face to emit."""
+    if isinstance(obj, AsyncDsssPool):  # its own counters, once a push
+        obj.push(np.ones(8192, np.complex64))
+        return
+    if isinstance(obj, CellAsyncDsssReceiver):  # idle runs nothing: seed it
+        obj.seed(0.0, 0.0, 50.0)
     if hasattr(obj, "push"):  # Acquisition: a few dwells of its 31-chip code
         obj.push(np.ones(obj.n_noncoh * _CODE.size * 2 * 4, np.complex64))
         return

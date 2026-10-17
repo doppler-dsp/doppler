@@ -1170,8 +1170,24 @@ dp_async_dsss_receiver_set_telemetry (dp_async_dsss_receiver_state_t *state,
   if (decim == 0 || len >= DP_TLM_NAME_MAX)
     return DP_ERR_INVALID;
   memcpy (state->tlm_prefix, p, len + 1);
-  state->tlm       = tlm;
   state->tlm_decim = decim;
+  /* Every name must fit before ANY registers on the caller's context. The
+     loops join their own names, so the one test that cannot drift from what
+     they will register is to let them: attach to a scratch context first,
+     and to the caller's only if that took every probe. Without it a prefix
+     that fits the carrier's names and not the demodulator's leaves the
+     carrier's in the caller's table, unused (#1897). */
+  dp_tlm_t *scratch = dp_tlm_create (1);
+  if (!scratch)
+    return DP_ERR_INVALID;
+  state->tlm     = scratch;
+  const int fits = adr_tlm_attach (state) == DP_OK;
+  adr_tlm_detach (state);
+  state->tlm = NULL;
+  dp_tlm_destroy (scratch);
+  if (!fits)
+    return DP_ERR_INVALID;
+  state->tlm = tlm;
   if (adr_tlm_attach (state) != DP_OK)
     {
       /* Whole or nothing: a half-attached receiver would report some loops

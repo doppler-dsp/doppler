@@ -267,9 +267,17 @@ def test_set_telemetry_failure_raises():
 
     tlm = Telemetry(1 << 10)
     obj = AGC(0.0, 0.0025, 0.05)
-    # fill the probe table; the attach must then fail whole -> ValueError
-    for i in range(64):
-        tlm.probe(f"p{i}")
+    # fill the probe table until it refuses -- its capacity is measured, not
+    # restated (it was 64 until a pool needed more) -- then the attach must
+    # fail whole -> ValueError
+    i = 0
+    while True:
+        try:
+            tlm.probe(f"p{i}")
+        except ValueError:
+            break
+        i += 1
+    assert i > 0
     with pytest.raises(ValueError):
         obj.set_telemetry(tlm, "agc")
     # failed attach leaves the object detached

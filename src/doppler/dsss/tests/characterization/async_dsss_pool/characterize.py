@@ -257,7 +257,9 @@ def s6_1_tracking(
 
 
 def s6_2_search_depth(
-    blocks: int = 2, code_only_154: int = DESIGN_CODE_ONLY
+    blocks: int = 4,
+    code_only_154: int = DESIGN_CODE_ONLY,
+    min_pushes: int = 1024,
 ) -> list[dict]:
     """6.2: one receiver searching, on noise, by range and by depth.
 
@@ -266,12 +268,13 @@ def s6_2_search_depth(
     The receiver's own search is one-epoch looks; the slow-time rows are
     the same continuous engine with a coherent block of D epochs, as a
     receiver would carry it on command. The first block of each run is
-    warm-up and is dropped.
+    warm-up and is dropped; at least `min_pushes` pushes and `blocks`
+    dwells are timed after it.
     """
     rows = []
     for rng_name, du in (("one tile", 0.49 * SPAN), ("+/-1/T_E", SPAN)):
         rx = make_receiver(du=du)
-        t = per_push([rx.steps], noise(), 64 * blocks)[0][16:]
+        t = per_push([rx.steps], noise(), 16 + max(64, min_pushes))[0][16:]
         rows.append(
             {
                 "range": rng_name,
@@ -288,7 +291,8 @@ def s6_2_search_depth(
         ):
             a = make_searcher(du=du, code_only=code_only, rate=rate)
             d = a.coherent_bins
-            t = per_push([a.push], noise(), (blocks + 1) * d)[0][d:]
+            n = d + max(blocks * d, min_pushes)
+            t = per_push([a.push], noise(), n)[0][d:]
             _, w, m = split(t, d)
             rows.append(
                 {
@@ -318,7 +322,7 @@ def s7_1_split(x: np.ndarray) -> list[dict]:
 
 
 def s7_2_design_point(
-    blocks: int = 2,
+    blocks: int = 4,
     counts: tuple[int, ...] = (1, 4, 8),
     code_only: int = DESIGN_CODE_ONLY,
 ) -> list[dict]:

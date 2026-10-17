@@ -888,7 +888,7 @@ size_t dp_async_dsss_receiver_state_t::refine_min_blocks;
 
 
 
-floor on the refine's dwell, blocks: the detection sizing above needs fewer blocks the higher the C/N0, but the estimate the carrier chain must pull in from does not sharpen with it (design section 12.16, #1265). Config; set\_refine\_min\_blocks(). 
+floor on the refine's dwell, blocks: the detection sizing above needs fewer blocks the higher the C/N0, but the estimate the carrier chain must pull in from does not sharpen with it (#1265). Config; the measurement is at set\_refine\_min\_blocks(). 
 
 
         

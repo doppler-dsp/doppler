@@ -11,8 +11,9 @@
  * two-epoch rule for a pick at an already-listed code phase (one emitter's
  * data transition splits it into twins at its own code phase on other
  * tiles; a twin moves with the transition, a real second emitter at that
- * code phase stays at its tile). §12 steps 2-4 ask what that buys and
- * costs, and this harness measures them on the engine as built:
+ * code phase stays at its tile). This harness measures what that buys
+ * and costs on the engine as built
+ * (docs/design/async-dsss-receiver-measurements.md §12.6):
  *
  *   separability   two equal emitters `df` tiles and `dtau` chips apart:
  *                  how often BOTH are listed, and where they are reported.

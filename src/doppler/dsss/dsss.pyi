@@ -2583,15 +2583,16 @@ class AsyncDsssReceiver:
         """
 
     def status(self) -> ReceiverStatus:
-        """One consistent picture of the receiver, by value (design section
-        11.3): state, where the emitter is now (the whole carrier estimate --
-        loop 1's plus what loop 2 took up beyond it -- only as good as
-        `locked`; chip phase, code rate, C/N0), both lock flags with the
-        symbol-lock metric and threshold, both residual carrier errors, and the
-        two clocks in input samples (since the state was entered; both flags
-        down without a break). Read on demand by the holder of a pool -- the
-        one-at-a-time properties are the same fields' other face. No timestamp:
-        the holder owns the sample clock and stamps it.
+        """One consistent picture of the receiver, by value
+        (docs/design/async-dsss-receiver.md §11.3): state, where the emitter is
+        now (the whole carrier estimate -- loop 1's plus what loop 2 took up
+        beyond it -- only as good as `locked`; chip phase, code rate, C/N0),
+        both lock flags with the symbol-lock metric and threshold, both
+        residual carrier errors, and the two clocks in input samples (since the
+        state was entered; both flags down without a break). Read on demand by
+        the holder of a pool -- the one-at-a-time properties are the same
+        fields' other face. No timestamp: the holder owns the sample clock and
+        stamps it.
 
         Cheap and allocation-free: every field is a read of live state. The
         one-at-a-time getters below report the same fields; this is the face a
@@ -2661,14 +2662,14 @@ class AsyncDsssReceiver:
 
     def set_refine_min_blocks(self, n_blocks: int) -> None:
         """Floor the refine's dwell at n_blocks whatever the detection sizing
-        asks (design section 12.16, #1265): CarrierAcquisition's dwell is sized
-        for detection at the derated C/N0 and shortens as the C/N0 rises -- two
-        blocks at 45 dB-Hz with the shipped margin -- while the noise of the
-        estimate it hands the tracking chain does not shorten with it (210 Hz
-        at two blocks against a chain that pulls in from a few hundred). The
-        default of 7 blocks (42 ms) holds it to 77 Hz. Applied to the next
-        refine chain built; 0 removes the floor; clamped by
-        refine_max_n_blocks. Config, not running state.
+        asks (docs/design/async-dsss-receiver-measurements.md §12.16, #1265):
+        CarrierAcquisition's dwell is sized for detection at the derated C/N0
+        and shortens as the C/N0 rises -- two blocks at 45 dB-Hz with the
+        shipped margin -- while the noise of the estimate it hands the tracking
+        chain does not shorten with it (210 Hz at two blocks against a chain
+        that pulls in from a few hundred). The default of 7 blocks (42 ms)
+        holds it to 77 Hz. Applied to the next refine chain built; 0 removes
+        the floor; clamped by refine_max_n_blocks. Config, not running state.
 
         CarrierAcquisition's dwell is sized for DETECTION at the derated C/N0
         (`cn0_dbhz - refine_design_margin_db`), so it shortens as the C/N0
@@ -3435,15 +3436,16 @@ class CellAsyncDsssReceiver:
         """
 
     def status(self) -> ReceiverStatus:
-        """One consistent picture of the receiver, by value (design section
-        11.3): state, where the emitter is now (the whole carrier estimate --
-        loop 1's plus what loop 2 took up beyond it -- only as good as
-        `locked`; chip phase, code rate, C/N0), both lock flags with the
-        symbol-lock metric and threshold, both residual carrier errors, and the
-        two clocks in input samples (since the state was entered; both flags
-        down without a break). Read on demand by the holder of a pool -- the
-        one-at-a-time properties are the same fields' other face. No timestamp:
-        the holder owns the sample clock and stamps it.
+        """One consistent picture of the receiver, by value
+        (docs/design/async-dsss-receiver.md §11.3): state, where the emitter is
+        now (the whole carrier estimate -- loop 1's plus what loop 2 took up
+        beyond it -- only as good as `locked`; chip phase, code rate, C/N0),
+        both lock flags with the symbol-lock metric and threshold, both
+        residual carrier errors, and the two clocks in input samples (since the
+        state was entered; both flags down without a break). Read on demand by
+        the holder of a pool -- the one-at-a-time properties are the same
+        fields' other face. No timestamp: the holder owns the sample clock and
+        stamps it.
 
         Cheap and allocation-free: every field is a read of live state. The
         one-at-a-time getters below report the same fields; this is the face a
@@ -3914,7 +3916,8 @@ class CellAsyncDsssReceiver:
 @final
 class AsyncDsssPool:
     """Create a async_dsss_pool instance: the population on cell receivers, the
-    searcher's timing driving every slot (design section 12.22-12.28, #1283).
+    searcher's timing driving every slot
+    (docs/design/async-dsss-receiver-measurements.md §12.22-12.28, #1283).
 
     Parameters
     ----------
@@ -4055,22 +4058,23 @@ class AsyncDsssPool:
         """
 
     def push(self, x: npt.NDArray[np.complex64]) -> int:
-        """One block of raw cf32 samples through the population (design section
-        8.2), in order: the searcher; the table refreshed from every live
-        receiver's status(); every peak within one chip of a live row's code
-        phase, at any Doppler, dropped as that emitter's own (the zone is the
-        code axis alone: a tracked emitter's data blocks put smeared copies of
-        it at its own phase rows away, section 12.14); each survivor seeded
-        into a free slot, or counted dropped when there is none (a hit outside
-        the seed domain is logged refused, not dropped); every receiver fed (an
-        idle or lost one consumes and discards, so the feed has no per-state
-        branch), across the threads the pool was given; then every receiver
-        that reports lost, or has held its slot past max_emitter_on_time_secs,
-        released -- the row cleared, the receiver reset to idle. Every
-        transition -- seeded, tracking, degrade, lost, released, dropped,
-        refused -- goes to the attached event log at the sample it happened.
-        Accepts any block size; a searcher dwell is decided when its samples
-        arrive. Returns the receivers assigned after this push.
+        """One block of raw cf32 samples through the population
+        (docs/design/async-dsss-receiver.md §8.2), in order: the searcher; the
+        table refreshed from every live receiver's status(); every peak within
+        one chip of a live row's code phase, at any Doppler, dropped as that
+        emitter's own (the zone is the code axis alone: a tracked emitter's
+        data blocks put smeared copies of it at its own phase rows away,
+        section 12.14); each survivor seeded into a free slot, or counted
+        dropped when there is none (a hit outside the seed domain is logged
+        refused, not dropped); every receiver fed (an idle or lost one consumes
+        and discards, so the feed has no per-state branch), across the threads
+        the pool was given; then every receiver that reports lost, or has held
+        its slot past max_emitter_on_time_secs, released -- the row cleared,
+        the receiver reset to idle. Every transition -- seeded, tracking,
+        degrade, lost, released, dropped, refused -- goes to the attached event
+        log at the sample it happened. Accepts any block size; a searcher dwell
+        is decided when its samples arrive. Returns the receivers assigned
+        after this push.
 
         In order: the searcher; the table refreshed; every peak within one chip
         of a live row's code phase, at any Doppler, dropped as that emitter's
@@ -4196,13 +4200,13 @@ class AsyncDsssPool:
         """
 
     def set_event_log(self, log: object | None) -> None:
-        """Attach the run's event log (design section 8.1): from now on every
-        transition -- seeded, tracking, degrade, lost, released, dropped,
-        refused -- is appended at the sample it happened, with the slot, the
-        receiver's state, the Doppler, the chip phase and the C/N0 staged as
-        doppler:<name> fields beside the label (core:label). The pool is the
-        one component that stamps; the log is borrowed, never owned. None
-        detaches.
+        """Attach the run's event log (docs/design/async-dsss-receiver.md
+        §8.1): from now on every transition -- seeded, tracking, degrade, lost,
+        released, dropped, refused -- is appended at the sample it happened,
+        with the slot, the receiver's state, the Doppler, the chip phase and
+        the C/N0 staged as doppler:<name> fields beside the label (core:label).
+        The pool is the one component that stamps; the log is borrowed, never
+        owned. None detaches.
 
         Borrowed, never owned: the holder opens, finalizes and closes it. From
         now on every transition is appended at the sample it happened, with

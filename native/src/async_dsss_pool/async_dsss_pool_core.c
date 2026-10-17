@@ -1,7 +1,8 @@
 /**
  * @file async_dsss_pool_core.c
- * @brief AsyncDsssPool -- the holder of the population (design section
- *        8.2). See async_dsss_pool_core.h for the lifecycle.
+ * @brief AsyncDsssPool -- the holder of the population
+ *        (docs/design/async-dsss-receiver.md §8.2). See async_dsss_pool_core.h
+ * for the lifecycle.
  */
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include <math.h>
@@ -15,12 +16,12 @@
    pool's depth (D = 154, a 31.7 Hz row) a tracked emitter puts far more
    than its main lobe on the surface at its own code phase. Every block the
    searcher sums across its data is a smeared copy spread over the rows of
-   its column (design section 12.7), at 45 dB-Hz still over the gate, and
-   its argmax lands hundreds of Hz from the emitter block to block; with
-   the zone one row wide each one seeded a fresh receiver onto the same
-   emitter until the pool was full (section 12.14). The searcher's list
-   carries no per-peak concentration to tell that copy from a whole
-   emitter, and a strong emitter's coherent tile sidelobes at its own
+   its column (docs/design/async-dsss-receiver-measurements.md §12.7), at 45
+   dB-Hz still over the gate, and its argmax lands hundreds of Hz from the
+   emitter block to block; with the zone one row wide each one seeded a fresh
+   receiver onto the same emitter until the pool was full (section 12.14). The
+   searcher's list carries no per-peak concentration to tell that copy from a
+   whole emitter, and a strong emitter's coherent tile sidelobes at its own
    phase would read concentrated anyway; the code axis is the one key
    that holds. The cost is the resolution it gives up: a second emitter
    within a chip of a live one is not seen until the first leaves -- a

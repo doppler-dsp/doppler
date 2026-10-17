@@ -65,21 +65,24 @@
  *     and not acted on. `lost_confirm_s = 0` (the searching flavor's
  *     default) never enters it. While the confirm interval runs -- both
  *     flags down after a lock -- the loops HOLD what they settled on with
- *     both flags up rather than run on noise (dp_dll_set_coast(); design
- *     section 10, section 12.19, doppler#1271): a departed emitter's
- *     receiver stands where the emitter left it, and neither sweeps onto
- *     a neighbour's code nor restarts its release clock on one it
- *     followed. One flag down is a degrade and the loops run, which is
- *     what rides out two live emitters crossing each other's code phase.
+ *     both flags up rather than run on noise (dp_dll_set_coast();
+ *     docs/design/async-dsss-receiver.md §10;
+ *     docs/design/async-dsss-receiver-measurements.md §12.19,
+ *     doppler#1271): a departed emitter's receiver stands where the
+ *     emitter left it, and neither sweeps onto a neighbour's code nor
+ *     restarts its release clock on one it followed. One flag down is a
+ *     degrade and the loops run, which is what rides out two live emitters
+ *     crossing each other's code phase.
  *
  * **Cell mode** (`dp_async_dsss_receiver_create_cell()`) is the same object
  * with NO embedded `Acquisition` and no refine chain: the search is
  * somebody else's -- a searcher covering one channel for every emitter on
  * it -- and the receiver takes its detection from outside through
  * `dp_async_dsss_receiver_seed()`, exactly the record its own hit would have
- * produced, then runs on the searcher's timing (design section
- * 12.22-12.28). It starts idle, `reset()` returns it to idle, and the
- * searching branch of `steps()` is unreachable. `seed()` is a method of
+ * produced, then runs on the searcher's timing
+ * (docs/design/async-dsss-receiver-measurements.md §12.22-12.28). It starts
+ * idle, `reset()` returns it to idle, and the searching branch of `steps()`
+ * is unreachable. `seed()` is a method of
  * BOTH flavors (a hit is a seed the object made for itself), and it
  * refuses on a receiver that already holds one: "assigned once" is
  * enforced here, not by the caller's discipline. The hand-off flavor that
@@ -211,8 +214,9 @@ extern "C"
    * slope: for a rectangular chip the normalised power discriminator reads
    * (2 - spacing) units per chip of offset, 1.5 here -- the cell mode's
    * correction divides by it so its gain is in chips, gain 1 putting the
-   * phase at the read (design section 12.24's semantics; measured 1.6 on
-   * the channel's resampled pulse, 12.22). */
+   * phase at the read (docs/design/async-dsss-receiver-measurements.md
+   * §12.24's semantics; measured 1.6 on the channel's resampled pulse,
+   * §12.22). */
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
 #define ASYNC_DSSS_RX_DLL_DISC_SLOPE (2.0 - ASYNC_DSSS_RX_DLL_SPACING)
   /* The damping of both Dlls this receiver builds, the tracker and the
@@ -235,10 +239,11 @@ extern "C"
  *  dwell (77 Hz of estimate noise at 45 dB-Hz); see
  *  dp_async_dsss_receiver_set_refine_min_blocks(). */
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
-/* The cell mode's defaults (dp_async_dsss_receiver_create_cell(), design
- * section 12.23-12.24 as a mode of this receiver): the correction's gain, in
- * chips, on the coasting Dll's interval-mean discriminator, and the
- * intervals at gain 1 that pull the seed's residual in. */
+/* The cell mode's defaults (dp_async_dsss_receiver_create_cell(),
+ * docs/design/async-dsss-receiver-measurements.md §12.23-12.24 as a mode of
+ * this receiver): the correction's gain, in chips, on the coasting Dll's
+ * interval-mean discriminator, and the intervals at gain 1 that pull the
+ * seed's residual in. */
 #define ASYNC_DSSS_RX_CELL_GAIN 0.125
 #define ASYNC_DSSS_RX_CELL_PULLIN 4u
 #define ASYNC_DSSS_RX_LOCK_DWELL 30u
@@ -364,8 +369,9 @@ extern "C"
                                    detection sizing above needs fewer blocks
                                    the higher the C/N0, but the estimate the
                                    carrier chain must pull in from does not
-                                   sharpen with it (design section 12.16,
-                                   #1265). Config; set_refine_min_blocks(). */
+                                   sharpen with it (#1265). Config; the
+                                   measurement is at
+                                   set_refine_min_blocks(). */
     double carrier_freq_hz; /**< nominal RF carrier, Hz; > 0 enables the
                                  carrier->code rate aiding, 0 = off (config,
                                  not running state -- restored by create). */
@@ -400,7 +406,8 @@ extern "C"
     /* The cell mode (dp_async_dsss_receiver_create_cell()): the receiver a
      * searcher's cell drives -- no refine, the Dll held from the first
      * sample and put back once an interval at a held phase corrected by a
-     * gain times what its discriminator read (design section 12.22-12.24);
+     * gain times what its discriminator read
+     * (docs/design/async-dsss-receiver-measurements.md §12.22-12.24);
      * the carrier loop the searching flavor's own. */
     int      cell;             /**< Config: 1 = the cell mode.            */
     size_t   correct_periods;  /**< Config: code periods per correction --
@@ -613,8 +620,9 @@ extern "C"
    * @brief Create the receiver a searcher's cell drives: the cell mode,
    *        idle until seed(), with no refine and no code loop of its own.
    *
-   * The searcher-timed tracker of docs/design/async-dsss-receiver.md
-   * section 12.22-12.24 as a mode of this receiver, by turning stages off.
+   * The searcher-timed tracker of
+   * docs/design/async-dsss-receiver-measurements.md §12.22-12.24 as a mode
+   * of this receiver, by turning stages off.
    * From the seed the live chain runs at once -- no refine stage, no
    * CarrierAcquisition -- with the Dll held from the first sample (it
    * coasts; its own loop never closes). Once every `correct_periods` code
@@ -632,7 +640,8 @@ extern "C"
    * what the RateConverter hands MpskReceiver, no second chain, loop 1
    * held at the seed's frequency meanwhile as the refine's frozen wipe
    * is, the dwell scaled by `sps` over the refine's samples per symbol so
-   * the estimate reaches the refine's noise (design section 12.28) -- and
+   * the estimate reaches the refine's noise
+   * (docs/design/async-dsss-receiver-measurements.md §12.28) -- and
    * folds it into loop 1 once, when the estimator is ready or has given
    * up: a
    * searcher's data-block copy seeds hundreds of Hz off (section 12.14),
@@ -1093,7 +1102,9 @@ extern "C"
 
   /**
    * @brief Floor the refine's dwell at @p n_blocks, whatever the detection
-   *        sizing asks (design section 12.16, #1265).
+   *        sizing asks
+   *        (docs/design/async-dsss-receiver-measurements.md §12.16,
+   *        #1265).
    *
    * CarrierAcquisition's dwell is sized for DETECTION at the derated C/N0
    * (`cn0_dbhz - refine_design_margin_db`), so it shortens as the C/N0

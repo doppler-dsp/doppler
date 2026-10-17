@@ -425,7 +425,8 @@ add_test(NAME validate_wfm_field_explore
 # One emitter on the acquisition engine's own surface: the sidelobe floor
 # per tile distance and the CFAR reference it sets -- the number the
 # continuous async-DSSS design forks on (docs/design/async-dsss-receiver.md
-# §6.3, §12 step 1). Reads the engine's mag_buf after a single-look dwell.
+# §6.3; docs/design/async-dsss-receiver-measurements.md §12.2). Reads the
+# engine's mag_buf after a single-look dwell.
 add_executable(validate_acq_emitter_floor
                ${CMAKE_CURRENT_SOURCE_DIR}/acq_emitter_floor.c)
 target_include_directories(validate_acq_emitter_floor
@@ -448,7 +449,8 @@ add_test(NAME validate_acq_block_coherent
 
 # The tracking receiver's release: samples from switch-off, fade and phase
 # step to each lock flag dropping, and the per-block miss rate while on
-# (docs/design/async-dsss-receiver.md §10, §12 step 6). The emitter is the
+# (docs/design/async-dsss-receiver.md §10;
+# docs/design/async-dsss-receiver-measurements.md §12.3). The emitter is the
 # shipped continuous-DSSS synth and the noise the shipped awgn; native/tests
 # is reached for dp_test.h's assertions only.
 add_executable(validate_async_dsss_receiver_release
@@ -492,9 +494,10 @@ add_test(NAME validate_async_dsss_receiver_lock_telemetry
 
 # The tracking receiver through the frame's pure-code window: what each lock
 # flag does while the symbol clock coasts, the pull-in when the data resumes,
-# and whether the release rule ever fires (docs/design/async-dsss-receiver.md
-# §12 step 12, §12.9). The emitter is the shipped continuous-DSSS synth with
-# its own window, the noise the shipped awgn, the receiver the hand-off flavor;
+# and whether the release rule ever fires
+# (docs/design/async-dsss-receiver-measurements.md §12.9). The emitter is the
+# shipped continuous-DSSS synth with its own window, the noise the shipped
+# awgn, the receiver the searching flavor;
 # native/tests is reached for dp_test.h's assertions only.
 add_executable(validate_tracker_through_window
                ${CMAKE_CURRENT_SOURCE_DIR}/tracker_through_window.c)
@@ -510,9 +513,10 @@ add_test(NAME validate_tracker_through_window
 
 # The refine stage's Doppler estimate on its own: its error against the
 # seed's offset, the dwell, and the despread stream it estimates on
-# (docs/design/async-dsss-receiver.md §4, §12.10, #1252). The capture is the
-# shipped C stimulus at a chosen carrier offset, the receiver the hand-off
-# flavor; native/tests is reached for dp_test.h and dp_dsss_test.h.
+# (docs/design/async-dsss-receiver.md §4;
+# docs/design/async-dsss-receiver-measurements.md §12.10, #1252). The capture
+# is the shipped C stimulus at a chosen carrier offset, the receiver the
+# searching flavor; native/tests is reached for dp_test.h and dp_dsss_test.h.
 add_executable(validate_refine_bias ${CMAKE_CURRENT_SOURCE_DIR}/refine_bias.c)
 target_include_directories(validate_refine_bias
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
@@ -523,7 +527,8 @@ add_test(NAME validate_refine_bias COMMAND validate_refine_bias --check)
 
 # The code loop on the symbol-aided window against the per-epoch look-back:
 # jitter, pull-in and the loop gain under a code-rate ramp at the continuous
-# async-DSSS operating point (docs/design/async-dsss-receiver.md §3.7, §12.5).
+# async-DSSS operating point (docs/design/async-dsss-receiver.md §3.7;
+# docs/design/async-dsss-receiver-measurements.md §12.5).
 # The emitter is the shipped continuous-DSSS synth, the noise the shipped
 # awgn, the ramp the shipped doppler_channel; native/tests is reached for
 # dp_test.h's assertions only.
@@ -558,7 +563,8 @@ add_test(NAME validate_acq_surface_jitter
 
 # The peak list on the searcher's surface: two emitters resolved, the
 # power-spread knee against the weak emitter alone, and the false-alarm rate
-# under the list (docs/design/async-dsss-receiver.md §7.1, §12 steps 2-4).
+# under the list (docs/design/async-dsss-receiver.md §7.1;
+# docs/design/async-dsss-receiver-measurements.md §12.6).
 # Emitters from the shipped continuous-DSSS synth, noise from the shipped
 # awgn; native/tests is reached for dp_test.h's assertions only.
 add_executable(validate_acq_peak_list
@@ -626,7 +632,7 @@ add_test(NAME validate_acq_rate_pd_pfa_smoke
 # window, each through the shipped doppler_channel at its own Doppler,
 # arriving and leaving at the sum; one AsyncDsssPool at the operating point
 # with the event log attached; each emitter scored by its own slot
-# (docs/design/async-dsss-receiver.md §12 step 7, §12.14). Threads::Threads
+# (docs/design/async-dsss-receiver-measurements.md §12.14). Threads::Threads
 # explicitly, as for rx_dynamics: the pool's receivers and the harness's
 # emitters both fan across dp_parallel.h, and doppler_lib_static carries no
 # usage requirement for it.
@@ -648,7 +654,8 @@ if(NOT WIN32)
            COMMAND validate_async_dsss_pool_soak --check)
   # The same subset behind the shipped front end, with the CSV blocks the
   # report's validator parses: `--budget` puts the 13 MSa/s up-conversion and
-  # the DDC in front of the pool and times both (§12 step 8, §6.4), and
+  # the DDC in front of the pool and times both (docs/design/async-dsss-receiver.md §6.4;
+  # docs/design/async-dsss-receiver-measurements.md §12.1), and
   # `--emit` is the validator's own run. Without this twin, both paths ran on
   # no push -- the sweep is `make validate-c`'s -- and the patch gate read the
   # harness at 70%. The budget's real-time ratio is printed, not asserted, so

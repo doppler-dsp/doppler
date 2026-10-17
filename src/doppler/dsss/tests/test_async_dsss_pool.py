@@ -1,5 +1,6 @@
-"""AsyncDsssPool through the binding (design section 8.2): the C test owns
-the lifecycle; this is the Python face -- construction, the slot record,
+"""AsyncDsssPool through the binding (docs/design/async-dsss-receiver.md
+§8.2): the C test owns the lifecycle; this is the Python face --
+construction, the slot record,
 the symbols by slot, the event log attached through its capsule, and the
 composition's state round trip. The searcher's false alarms are part of
 the lifecycle (a noise peak seeds a free slot and is released one

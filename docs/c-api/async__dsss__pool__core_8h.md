@@ -81,12 +81,12 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of cell re
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t code\_only\_epochs, double doppler\_rate, size\_t max\_peaks, size\_t n\_slots, int threads, double carrier\_freq\_hz, double lost\_confirm\_s, double max\_emitter\_on\_time\_secs, size\_t segments, size\_t sps, int differential, double gain, size\_t pullin\_intervals) <br>_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (design section 12.22-12.28, #1283)._  |
+|  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t code\_only\_epochs, double doppler\_rate, size\_t max\_peaks, size\_t n\_slots, int threads, double carrier\_freq\_hz, double lost\_confirm\_s, double max\_emitter\_on\_time\_secs, size\_t segments, size\_t sps, int differential, double gain, size\_t pullin\_intervals) <br>_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (docs/design/async-dsss-receiver-measurements.md §12.22-12.28, #1283)._  |
 |  void | [**dp\_async\_dsss\_pool\_destroy**](#function-dp_async_dsss_pool_destroy) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Destroy a async\_dsss\_pool instance and release all memory._  |
 |  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**dp\_async\_dsss\_pool\_push**](#function-dp_async_dsss_pool_push) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_One block of raw cf32 samples through the population._  |
 |  void | [**dp\_async\_dsss\_pool\_reset**](#function-dp_async_dsss_pool_reset) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Release every slot and start over: the searcher reset, every receiver back to idle, the table cleared, the counters zeroed._  |
-|  int | [**dp\_async\_dsss\_pool\_set\_event\_log**](#function-dp_async_dsss_pool_set_event_log) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_event\_log\_t**](dp__event__log__core_8h.md#typedef-dp_event_log_t) \* log) <br>_Attach the run's event log (design section 8.1); NULL detaches._  |
+|  int | [**dp\_async\_dsss\_pool\_set\_event\_log**](#function-dp_async_dsss_pool_set_event_log) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_event\_log\_t**](dp__event__log__core_8h.md#typedef-dp_event_log_t) \* log) <br>_Attach the run's event log (docs/design/async-dsss-receiver.md §8.1); NULL detaches._  |
 |  int | [**dp\_async\_dsss\_pool\_set\_state**](#function-dp_async_dsss_pool_set_state) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**dp\_async\_dsss\_pool\_set\_telemetry**](#function-dp_async_dsss_pool_set_telemetry) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the pool: the searcher, every slot's receiver, and the pool's own counters._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_state\_bytes**](#function-dp_async_dsss_pool_state_bytes) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br> |
@@ -131,7 +131,7 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of cell re
 ## Detailed Description
 
 
-The multi-emitter use case (design section 6) has one channel searching without pause and one AsyncDsssReceiver per emitter, assigned once from a detection and tracking until its own loss decision. This object is the holder of that lifecycle, in C, with the Python face as glue:
+The multi-emitter use case (docs/design/async-dsss-receiver.md §6) has one channel searching without pause and one AsyncDsssReceiver per emitter, assigned once from a detection and tracking until its own loss decision. This object is the holder of that lifecycle, in C, with the Python face as glue:
 
 
 
@@ -183,7 +183,7 @@ Lifecycle: create, then push / status / symbols / reset as often as wanted, then
 
 ### function dp\_async\_dsss\_pool\_create 
 
-_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (design section 12.22-12.28, #1283)._ 
+_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (docs/design/async-dsss-receiver-measurements.md §12.22-12.28, #1283)._ 
 ```C++
 dp_async_dsss_pool_state_t * dp_async_dsss_pool_create (
     const uint8_t * code,
@@ -431,7 +431,7 @@ The attached log stays attached and nothing is logged  a reset is the holder's d
 
 ### function dp\_async\_dsss\_pool\_set\_event\_log 
 
-_Attach the run's event log (design section 8.1); NULL detaches._ 
+_Attach the run's event log (docs/design/async-dsss-receiver.md §8.1); NULL detaches._ 
 ```C++
 int dp_async_dsss_pool_set_event_log (
     dp_async_dsss_pool_state_t * state,
@@ -725,7 +725,7 @@ size_t dp_async_dsss_pool_symbols_max_out (
 
 
 
-The one constant of design section 6.1: the maximum on-air time of a single emitter, seconds  the default of `max_emitter_on_time_secs`, which the false-release budget and the soak are sized against. 
+The one constant of docs/design/async-dsss-receiver.md §6.1: the maximum on-air time of a single emitter, seconds  the default of `max_emitter_on_time_secs`, which the false-release budget and the soak are sized against. 
 
 
         

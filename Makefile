@@ -2336,14 +2336,18 @@ GALLERY_SCRIPTS := \
 plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness's telemetry
 	$(UV) run python scripts/plot_rx_dynamics.py
 
-# The pool speed-up's instrument: one AsyncDsssReceiver and one AsyncDsssPool
-# timed (telemetry detached), then watched (attached), on the same wfm Gold
-# capture; filed captures, a run record and plot_capture.py's figures in
-# build/pool-telemetry/. POOL_TLM_ARGS passes the script's own flags.
+# The pool speed-up's instrument, a characterization of the async DSSS
+# receiver (phase 7, docs/dev/contributing/adding-algorithms.md): one
+# AsyncDsssReceiver and one AsyncDsssPool timed (telemetry detached), then
+# watched (attached), on the same wfm Gold capture; filed captures, a run
+# record and plot_capture.py's figures in build/pool-telemetry/. Deliberate,
+# never per push: its fast twin is in test_async_dsss_pool.py. POOL_TLM_ARGS
+# passes the script's own flags.
 POOL_TLM_ARGS ?=
+POOL_TLM_PY   := src/doppler/dsss/tests/characterization/async_dsss_receiver/telemetry.py
 .PHONY: pool-telemetry
 pool-telemetry: pyext ## Time + capture telemetry for AsyncDsssReceiver and AsyncDsssPool on one capture (POOL_TLM_ARGS=)
-	$(UV) run python scripts/pool_telemetry.py \
+	$(UV) run python $(POOL_TLM_PY) \
 	    --out $(BUILD_DIR)/pool-telemetry $(POOL_TLM_ARGS)
 
 # The direction a derived move list cannot close: an example whose plot is

@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from doppler.dsss import AsyncDsssPool
+from doppler.dsss.tests.characterization.async_dsss_receiver import telemetry
 from doppler.telemetry import EventLog, Telemetry
 from doppler.wfm import Gold
 
@@ -307,3 +308,26 @@ def test_telemetry_reports_the_searcher_every_slot_and_the_counters():
     pool.set_telemetry(None, "pool")
     _feed(pool, x[: 20 * TE])
     assert all(len(v) == 0 for v in tlm.read_dict().values())
+
+
+def test_telemetry_characterization_fast_twin(tmp_path):
+    """The fast twin of characterization/async_dsss_receiver/telemetry.py,
+    the instrument `make pool-telemetry` runs deliberately: the same script
+    for three hundredths of a second, without figures. Its own refusal is
+    the check that matters -- main() returns 1 if any push returned
+    different symbols with telemetry attached than without -- and what it
+    files must be whole: three captures with nothing dropped, the pool's
+    event log, and a record that saw the pool's dwells."""
+    rc = telemetry.main(
+        ["--seconds", "0.03", "--out", str(tmp_path), "--no-figures"]
+    )
+    assert rc == 0
+    run = json.loads((tmp_path / "run.json").read_text(encoding="utf-8"))
+    assert run["timing"]["pool"]["dwell_pushes"] > 0
+    assert run["probes"] == {"rx": 33, "pool": 13 + 23 * 4}
+    for name in ("rx", "pool", "timing"):
+        meta = json.loads(
+            (tmp_path / f"{name}.tlm-meta").read_text(encoding="utf-8")
+        )
+        assert meta["dropped"] == 0 and meta["records"] > 0, name
+    assert (tmp_path / "pool.events").exists()

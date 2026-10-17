@@ -485,11 +485,11 @@ adr_rebuild_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
  * own live chain (adr_cell_refine). Sized once for both: the resolution
  * is the refine's (refine_samples_per_symbol * symbol_rate / refine_n_fft,
  * so the same Hz per bin at either rate), the design SNR the derated
- * C/N0's, the dwell floored at refine_min_blocks (#1265, design section
- * 12.16: det_n_noncoh sized it for detection at the derated C/N0, two
- * blocks at 45 dB-Hz with the shipped margin, while the estimate's noise
- * the chain must pull in from is 210 Hz there and 77 at seven), bounded
- * by the give-up cap. */
+ * C/N0's, the dwell floored at refine_min_blocks (#1265,
+ * docs/design/async-dsss-receiver-measurements.md §12.16: det_n_noncoh sized
+ * it for detection at the derated C/N0, two blocks at 45 dB-Hz with the
+ * shipped margin, while the estimate's noise the chain must pull in from is
+ * 210 Hz there and 77 at seven), bounded by the give-up cap. */
 static dp_carrier_acq_state_t *
 adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
                      double                                target_rate)
@@ -513,7 +513,8 @@ adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
   return ca;
 }
 
-/* The cell mode's carrier pull-in (design section 12.27): the seed's
+/* The cell mode's carrier pull-in
+ * (docs/design/async-dsss-receiver-measurements.md §12.27): the seed's
  * residual estimated on the live chain's own despread stream -- the
  * retired hand-off flavour's estimator, fed what the RateConverter handed
  * MpskReceiver, no second chain -- and applied once, when the estimator
@@ -634,15 +635,15 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
  * receiver, so this squaring lives here in the consumer, not in dll_core.c.
  * Writes emitted partials into dll_out (capacity max_out); returns count. */
 /* The cell mode's correction, once per `correct_periods` code periods
- * (design section 12.22-12.24 as a mode of this receiver, #1283): the held
- * phase is dead-reckoned across the interval on the carrier loop's Doppler
- * (the chips dilate with the carrier), moved by a gain -- in chips, through
- * the discriminator's design slope -- times what the coasting Dll's
- * discriminator read over the interval (dp_dll_take_error: every steer, the
- * block mean), and the Dll put back at it. A coasting loop drifts on its
- * NCO's quantisation of the aid (1.9 chips/s at 18 ppm, 12.22), so the
- * phase is kept in double here and the loop re-put each interval. Gain 1
- * through the pull-in intervals (the seed's residual, up to the
+ * (docs/design/async-dsss-receiver-measurements.md §12.22-12.24 as a mode of
+ * this receiver, #1283): the held phase is dead-reckoned across the interval
+ * on the carrier loop's Doppler (the chips dilate with the carrier), moved by
+ * a gain -- in chips, through the discriminator's design slope -- times what
+ * the coasting Dll's discriminator read over the interval (dp_dll_take_error:
+ * every steer, the block mean), and the Dll put back at it. A coasting loop
+ * drifts on its NCO's quantisation of the aid (1.9 chips/s at 18 ppm, 12.22),
+ * so the phase is kept in double here and the loop re-put each interval. Gain
+ * 1 through the pull-in intervals (the seed's residual, up to the
  * discriminator's clamp), the design gain after. The correction is applied
  * before the first lock, or while the code flag is up; with the flag down
  * the phase only dead-reckons, so a departed emitter's receiver cannot walk
@@ -1084,10 +1085,10 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
          refine's resolution a block then holds the same symbols in twice
          the samples, and the estimate needs the dwell scaled by that
          ratio to reach the refine's noise. Measured (validate_receiver
-         _pullin, design section 12.28): at 40 dB-Hz the refine's dwell
-         pulled in 7-9 draws of 10 from 100 Hz on, twice it 10 of 10 to
-         1000 Hz -- the retired flavour's own curve -- for 40 ms more per seed
-         at 45 dB-Hz. */
+         _pullin, docs/design/async-dsss-receiver-measurements.md §12.28): at
+         40 dB-Hz the refine's dwell pulled in 7-9 draws of 10 from 100 Hz on,
+         twice it 10 of 10 to 1000 Hz -- the retired flavour's own curve -- for
+         40 ms more per seed at 45 dB-Hz. */
       const size_t ratio = sps > refine_samples_per_symbol
                                ? sps / refine_samples_per_symbol
                                : 1;

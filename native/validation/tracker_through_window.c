@@ -4,7 +4,8 @@
  *        pure-code window -- and does the release rule ever fire on it?
  *
  * The continuous async-DSSS design (docs/design/async-dsss-receiver.md
- * §5.4, §12 step 12) gives every emitter's frame a code-only window: of
+ * §5; measured in docs/design/async-dsss-receiver-measurements.md §12.9)
+ * gives every emitter's frame a code-only window: of
  * every F_SYM symbols the first W_SYM carry the spreading code and no data,
  * on the data clock, with a frame edge at no particular chip phase. The
  * searcher's coherent depth is what the window makes possible (§2.3); this
@@ -110,7 +111,8 @@
 #define SYM_RATE 2700.0
 #define CPS (CHIP_RATE / SYM_RATE) /* chips per symbol, 1851.85       */
 #define W_SYM 450u                 /* code-only symbols per frame     */
-#define F_SYM 4950u                /* frame, symbols (§5.4)           */
+/* The frame: docs/design/async-dsss-receiver.md §5. */
+#define F_SYM 4950u /* frame, symbols                  */
 
 #define SETTLE_BLOCKS 200  /* tracking + symbol lock for this many first */
 #define MAX_LOCK_S 6.0     /* give up on a trial that never settles      */
@@ -182,8 +184,9 @@ static dp_async_dsss_receiver_state_t *
 make_rx (const uint8_t *code, double cn0_dbhz, int cond)
 {
   /* The searching flavour, seeded from outside (the hand-off flavour that
-     carried this validator was retired, design section 12.28; seed() is a
-     method of both, and the refine chain under test is the same). */
+     carried this validator was retired,
+     docs/design/async-dsss-receiver-measurements.md §12.28; seed() is a method
+     of both, and the refine chain under test is the same). */
   return dp_async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 100.0, 4, 8,
       0, 0.5, 4, 14.0, 64, 8, false, 100000,
@@ -556,8 +559,8 @@ main (int argc, char **argv)
                         "the windows are seen");
           DP_CHECK_MSG (!tot.lost, "the release rule never fires on a "
                                    "pure-code window");
-          /* The design's expectations (§12 step 12), pinned where the
-             measurement put them -- see §12.9. */
+          /* The expectations, pinned where the measurement put them
+             (docs/design/async-dsss-receiver-measurements.md §12.9). */
           DP_CHECK_MSG (tot.code_off * 100 <= tot.blocks,
                         "code lock holds through the window (off in at "
                         "most 1% of its blocks)");

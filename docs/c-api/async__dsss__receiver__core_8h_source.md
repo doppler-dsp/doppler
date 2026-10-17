@@ -103,8 +103,9 @@ extern "C"
    * slope: for a rectangular chip the normalised power discriminator reads
    * (2 - spacing) units per chip of offset, 1.5 here -- the cell mode's
    * correction divides by it so its gain is in chips, gain 1 putting the
-   * phase at the read (design section 12.24's semantics; measured 1.6 on
-   * the channel's resampled pulse, 12.22). */
+   * phase at the read (docs/design/async-dsss-receiver-measurements.md
+   * §12.24's semantics; measured 1.6 on the channel's resampled pulse,
+   * §12.22). */
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
 #define ASYNC_DSSS_RX_DLL_DISC_SLOPE (2.0 - ASYNC_DSSS_RX_DLL_SPACING)
   /* The damping of both Dlls this receiver builds, the tracker and the
@@ -124,10 +125,11 @@ extern "C"
    * after LOCK_N_UP consecutive symbols with the metric >= LOCK_UP and drops
    * it after LOCK_N_DOWN below LOCK_DOWN. */
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
-/* The cell mode's defaults (dp_async_dsss_receiver_create_cell(), design
- * section 12.23-12.24 as a mode of this receiver): the correction's gain, in
- * chips, on the coasting Dll's interval-mean discriminator, and the
- * intervals at gain 1 that pull the seed's residual in. */
+/* The cell mode's defaults (dp_async_dsss_receiver_create_cell(),
+ * docs/design/async-dsss-receiver-measurements.md §12.23-12.24 as a mode of
+ * this receiver): the correction's gain, in chips, on the coasting Dll's
+ * interval-mean discriminator, and the intervals at gain 1 that pull the
+ * seed's residual in. */
 #define ASYNC_DSSS_RX_CELL_GAIN 0.125
 #define ASYNC_DSSS_RX_CELL_PULLIN 4u
 #define ASYNC_DSSS_RX_LOCK_DWELL 30u
@@ -237,7 +239,8 @@ extern "C"
     /* The cell mode (dp_async_dsss_receiver_create_cell()): the receiver a
      * searcher's cell drives -- no refine, the Dll held from the first
      * sample and put back once an interval at a held phase corrected by a
-     * gain times what its discriminator read (design section 12.22-12.24);
+     * gain times what its discriminator read
+     * (docs/design/async-dsss-receiver-measurements.md §12.22-12.24);
      * the carrier loop the searching flavor's own. */
     int      cell;             
     size_t   correct_periods;  

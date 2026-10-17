@@ -8,10 +8,11 @@ Run:  python -m doppler.dsss.tests.validation.async_dsss_pool.validate
 population of emitters through the channel, arriving and leaving, is not
 something a validator should rebuild in numpy beside the shipped C stimulus
 that already exists for it: every number here is
-`native/validation/async_dsss_pool_soak.c`'s (design sections 12.14–12.17), the
-lifecycle soak that certified the pool. This file parses its CSV blocks,
-characterises, reviews and asserts the limits through the same `Report`
-every other certified object uses — the `conv` shape.
+`native/validation/async_dsss_pool_soak.c`'s, the lifecycle soak that certified
+the pool (docs/design/async-dsss-receiver-measurements.md §12.14–§12.17).
+This file parses its CSV blocks, characterises, reviews and asserts the
+limits through the same `Report` every other certified object uses — the
+`conv` shape.
 
 **The run is the soak's own regression subset, `--check --emit`** — the
 same downselect `ctest` runs — and not the population soak. A validator
@@ -157,8 +158,8 @@ def section_object() -> None:
     )
     R.md()
     R.md(
-        "`AsyncDsssPool` (design section 8.2) composes one continuous "
-        "`Acquisition` "
+        "`AsyncDsssPool` (docs/design/async-dsss-receiver.md section 8.2) "
+        "composes one continuous `Acquisition` "
         "with the block coherence its code-only window buys, `n_slots` "
         "`CellAsyncDsssReceiver`s created idle, the assigned table and "
         "the event log by attachment, behind one `push()` per block: feed "
@@ -427,8 +428,9 @@ def review(d: Data) -> None:
         "of a live row's code phase is that emitter's own at any Doppler. "
         "A tracked emitter's data blocks put smeared copies of it at its "
         "own phase hundreds of Hz away, and the one-row zone seeded twelve "
-        "receivers onto one emitter in 0.4 s (design section 12.14). The "
-        "cost: a second emitter within a chip of a live one is not seen "
+        "receivers onto one emitter in 0.4 s "
+        "(docs/design/async-dsss-receiver-measurements.md section 12.14). "
+        "The cost: a second emitter within a chip of a live one is not seen "
         "until the first leaves.",
     )
     R.find(

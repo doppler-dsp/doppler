@@ -4,7 +4,8 @@
  *        offset, by the dwell, or by the stream it estimates on?
  *
  * The continuous async-DSSS receiver (docs/design/async-dsss-receiver.md
- * §4, §12.9) hands its carrier loop the refine stage's Doppler: the
+ * §4; docs/design/async-dsss-receiver-measurements.md §12.10) hands its
+ * carrier loop the refine stage's Doppler: the
  * coarse seed plus the residual `CarrierAcquisition` finds on the
  * despread stream, the peak of its averaged PSD correlated with a sinc^2
  * template, parabolically refined between bins. At the floor from a
@@ -138,7 +139,8 @@ run_trial (const uint8_t *code, int sign_idx, size_t seed, double seed_err,
   memset (out, 0, sizeof *out);
   /* The searching flavour, seeded from outside: its refine chain is the
      one under test (the hand-off flavour that carried this validator was
-     retired, design section 12.28; seed() is a method of both). */
+     retired, docs/design/async-dsss-receiver-measurements.md §12.28; seed() is
+     a method of both). */
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-2, 0.9, 100.0, 4, 8, 0,
       lookback_db[lb], 4, margin_db, REFINE_N_FFT, 8, false, 100000,

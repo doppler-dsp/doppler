@@ -6,7 +6,8 @@
  *        each of those took.
  *
  * The continuous async-DSSS design (docs/design/async-dsss-receiver.md
- * §6.1, §12 step 7) has one searcher and a pool of cell receivers
+ * §6.1; the soak is docs/design/async-dsss-receiver-measurements.md
+ * §12.14) has one searcher and a pool of cell receivers
  * holding a population that changes about once a minute: an emitter comes
  * into view at whatever point of its frame it has reached, is detected in
  * its next code-only window, seeded into a free receiver, tracked by that
@@ -92,20 +93,16 @@
  *                                            subset is its run, on every
  *                                            push)
  *   ... --budget                             the whole population as one
- *                                            run (§12 step 8): the shipped
- *                                            DDC from 13 MSa/s in front of
- *                                            the pool, the time inside
- *                                            both as a fraction of real
- *                                            time at 13 and 30 MSa/s,
- *                                            beside the count tracked
+ *                                            run
+ * (docs/design/async-dsss-receiver-measurements.md §12.1): the shipped DDC
+ * from 13 MSa/s in front of the pool, the time inside both as a fraction of
+ * real time at 13 and 30 MSa/s, beside the count tracked
  *   ... --duration S                         the sweep's length per C/N0
  *                                            (SWEEP_S unless given): the
- *                                            duration requirement of §5.1
- *                                            run as long as the machine
- *                                            allows -- the heap after the
- *                                            warm-up is asserted flat
- *                                            (under glibc the process
- *                                            re-execs itself once with
+ *                                            duration requirement of
+ *                                            docs/design/async-dsss-receiver.md
+ * §5 run as long as the machine allows -- the heap after the warm-up is
+ * asserted flat (under glibc the process re-execs itself once with
  *                                            GLIBC_TUNABLES turning the
  *                                            tcache off, so the count is
  *                                            the pool's, not the cache's)
@@ -151,7 +148,8 @@
 #define SYM_RATE 2700.0
 #define CPS (CHIP_RATE / SYM_RATE) /* chips per symbol, 1851.85       */
 #define W_SYM 450u                 /* code-only symbols per frame     */
-#define F_SYM 4950u                /* frame, symbols (§5.4)           */
+/* The frame: docs/design/async-dsss-receiver.md §5. */
+#define F_SYM 4950u /* frame, symbols                  */
 #define FRAME_S ((double)F_SYM / SYM_RATE)
 #define CARRIER_HZ 2.5e9 /* the channel's carrier: ppm -> Hz, and the aid */
 #define MAX_PPM 20.0     /* SPEC's Doppler: ±50 kHz at the carrier        */
@@ -473,18 +471,20 @@ count_log (const char *path, totals_t *t)
 
 static const char *g_events_dir = NULL;
 /* --duration S: the sweep's length per C/N0 -- the duration requirement
-   of section 5.1 run as long as the machine allows; nothing in the pool
+   of docs/design/async-dsss-receiver.md §5 run as long as the machine allows;
+   nothing in the pool
    may grow with time. */
 static double g_duration_s = 0.0;
 static double g_cn0_only   = 0.0; /* --cn0: the sweep at this C/N0 alone */
-/* --budget: the whole population as one run (section 12 step 8, section
-   6.4): the summed stimulus is carried up to the front end's 13 MSa/s
-   (untimed -- it is the stimulus), then the shipped DDC brings it back
-   to two samples per chip on the polyphase arbitrary path, the one the
-   ratio forces, and the pool takes the block; the time inside the DDC
-   and inside push() is the population's cost, reported as a fraction of
-   real time at 13 MSa/s and, the same chain fed 2.3 times faster, at the
-   30 MSa/s floor. */
+/* --budget: the whole population as one run
+   (docs/design/async-dsss-receiver.md §6.4;
+   docs/design/async-dsss-receiver-measurements.md §12.1): the summed stimulus
+   is carried up to the front end's 13 MSa/s (untimed -- it is the stimulus),
+   then the shipped DDC brings it back to two samples per chip on the polyphase
+   arbitrary path, the one the ratio forces, and the pool takes the block; the
+   time inside the DDC and inside push() is the population's cost, reported as
+   a fraction of real time at 13 MSa/s and, the same chain fed 2.3 times
+   faster, at the 30 MSa/s floor. */
 static int g_budget = 0;
 /* --emit: CSV blocks on stdout for the validator that renders the report
    (src/doppler/dsss/tests/validation/async_dsss_pool/validate.py):
@@ -745,11 +745,11 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
       t->push_s += now_s () - t_push;
       t->signal_s += (double)TE / FS;
       const int new_drops = p->dropped > drops_before;
-      /* The duration requirement (section 5.1): after a warm-up long
-         enough for every buffer to reach its high-water mark -- the
-         symbol buffer at the first push, the log's first event of every
-         label, the searcher's and receivers' scratch -- the heap must not
-         grow. Sampled once a second. */
+      /* The duration requirement (docs/design/async-dsss-receiver.md §5):
+         after a warm-up long enough for every buffer to reach its high-water
+         mark -- the symbol buffer at the first push, the log's first event of
+         every label, the searcher's and receivers' scratch -- the heap must
+         not grow. Sampled once a second. */
       if (b % (samples (1.0) / TE) == 0)
         {
           const double t_now = (double)now / FS;
@@ -1249,13 +1249,15 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
           t->log_tracking, t->log_degrade, t->log_lost, t->log_rel_lost,
           t->log_rel_on_time, t->log_dropped);
 
-  /* The lifecycle's expectations (§12 step 7), asserted on every run. */
+  /* The lifecycle's expectations
+     (docs/design/async-dsss-receiver-measurements.md §12.14), asserted on
+     every run. */
   DP_CHECK_MSG (t->scored > 0 && t->n_assign > 0, "stints were scored");
-  /* Nothing grows with time (section 5.1): the heap after the warm-up is
-     the heap for the rest of the run, to within a page of allocator
-     slack. The heap is glibc's in-use count over every arena with the
-     tcache off (main), re-based at a slot's first use and at an arena's,
-     and the harness's own records are sized before the base is taken
+  /* Nothing grows with time (docs/design/async-dsss-receiver.md §11.5): the
+     heap after the warm-up is the heap for the rest of the run, to within a
+     page of allocator slack. The heap is glibc's in-use count over every arena
+     with the tcache off (main), re-based at a slot's first use and at an
+     arena's, and the harness's own records are sized before the base is taken
      (make_emitter), so what it reads is the pool's. The resident
      high-water mark is reported beside it and NOT gated: it is the
      process's, and with twenty workers it moves with the schedule --

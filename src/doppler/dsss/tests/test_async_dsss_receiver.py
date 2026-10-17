@@ -21,6 +21,7 @@ from doppler.dsss import (
     CellAsyncDsssReceiver,
     ReceiverStatus,
 )
+from doppler.telemetry import Telemetry
 from doppler.wfm import Gold
 
 SF = 1023
@@ -652,3 +653,43 @@ def test_state_roundtrip_while_searching():
     rx2.set_state(blob)
     assert rx2.tracking == 0
     assert rx2.refining == 0
+
+
+def test_telemetry_reports_every_loop_and_survives_a_reseed():
+    """set_telemetry, through the capsule: every loop's output reports
+    under the prefix while tracking, and keeps reporting after reset() and
+    a new seed rebuild the chain; None detaches. The cell view shares the
+    method verbatim; the searching flavor adds its search's probes."""
+    search = Telemetry(1 << 12)
+    _new_receiver(70.0).set_telemetry(search, "rx")
+    assert "rx.acq.stat" in search.probe_names
+
+    tlm = Telemetry(1 << 17)
+    x, _data = _make_ramp_signal(70.0, seed=21, n_sym=400)
+    rx = _new_cell(70.0, correct_periods=40, pullin_intervals=4)
+    rx.set_telemetry(tlm, "rx")
+    outputs = (
+        "rx.car.freq",
+        "rx.code.rate",
+        "rx.demod.car.freq",
+        "rx.demod.sync.rate",
+    )
+    assert set(outputs) <= set(tlm.probe_names)
+    assert "rx.acq.stat" not in tlm.probe_names  # a cell has no search
+    n_probes = tlm.probe_count
+    for _ in range(2):  # the second pass runs on a rebuilt chain
+        rx.reset()
+        rx.seed(0.0, 0.0, 70.0)
+        _feed(rx, x[PRE_SILENCE:])
+        assert rx.tracking == 1
+        got = tlm.read_dict()
+        for name in outputs:
+            assert len(got[name]) > 0, name
+        assert tlm.probe_count == n_probes  # the same names, the same ids
+
+    rx.set_telemetry(None, "rx")
+    rx.reset()
+    rx.seed(0.0, 0.0, 70.0)
+    _feed(rx, x[PRE_SILENCE:])
+    got = tlm.read_dict()
+    assert all(len(got[name]) == 0 for name in outputs)

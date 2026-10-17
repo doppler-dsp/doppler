@@ -1002,6 +1002,10 @@ _test_telemetry_follows_the_loops (void)
 
   DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1) == DP_OK);
   const size_t n_probes = dp_tlm_probe_count (t);
+  /* The hold restores car from car_held on entering a coast, and refreshes
+     car_held only while both flags are up: both must carry the attachment,
+     or an attach made with one flag down is undone by the next coast. */
+  DP_CHECK (rx->car.tlm.ctx == t && rx->car_held.tlm.ctx == t);
   /* A cell receiver: the carrier, the code loop, the demodulator -- and no
      search, so no "rx.acq". The loop-filter outputs are among them. */
   const char *outputs[] = { "rx.car.freq", "rx.code.rate", "rx.demod.car.freq",
@@ -1064,9 +1068,17 @@ _test_telemetry_follows_the_loops (void)
       before[i] = now;
     }
 
-  /* NULL detaches every loop, across later rebuilds too. */
+  /* NULL detaches every loop: the live chain first -- a rebuild would hand
+     back fresh, unattached loops and hide a detach that missed one -- and
+     car_held with it, or a later coast would hand the carrier a context
+     the caller may have destroyed. Then across a rebuild too. */
   DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1) == DP_OK);
   DP_CHECK (rx->tlm == NULL);
+  DP_CHECK (rx->car.tlm.ctx == NULL && rx->car_held.tlm.ctx == NULL);
+  n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  for (size_t i = 0; i < 4; i++)
+    DP_CHECK_MSG (_tlm_emitted (t, outputs[i]) == before[i], outputs[i]);
   dp_async_dsss_receiver_reset (rx);
   DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
   n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);

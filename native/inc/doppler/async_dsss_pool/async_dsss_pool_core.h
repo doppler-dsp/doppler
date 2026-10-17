@@ -4,9 +4,10 @@
  *        pool of cell receivers, the assigned table and the event log
  *        (docs/design/async-dsss-receiver.md section 8.2).
  *
- * The multi-emitter use case (design section 6) has one channel searching
- * without pause and one AsyncDsssReceiver per emitter, assigned once from
- * a detection and tracking until its own loss decision. This object is
+ * The multi-emitter use case (docs/design/async-dsss-receiver.md §6) has one
+ * channel searching without pause and one AsyncDsssReceiver per emitter,
+ * assigned once from a detection and tracking until its own loss
+ * decision. This object is
  * the holder of that lifecycle, in C, with the Python face as glue:
  *
  *   - **one searcher**, `Acquisition` in continuous mode with the block
@@ -114,9 +115,10 @@ extern "C"
 {
 #endif
 
-/** The one constant of design section 6.1: the maximum on-air time of a
- *  single emitter, seconds -- the default of `max_emitter_on_time_secs`,
- *  which the false-release budget and the soak are sized against. */
+/** The one constant of docs/design/async-dsss-receiver.md §6.1: the maximum
+ *  on-air time of a single emitter, seconds -- the default of
+ *  `max_emitter_on_time_secs`, which the false-release budget and the soak
+ *  are sized against. */
 #define ASYNC_DSSS_POOL_MAX_EMITTER_ON_TIME_SECS (15.0 * 60.0)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC DP_FOURCC ('A', 'D', 'P', 'L')
@@ -236,8 +238,9 @@ extern "C"
 
 /**
  * @brief Create a async_dsss_pool instance: the population on cell
- *        receivers, the searcher's timing driving every slot (design
- *        section 12.22-12.28, #1283).
+ *        receivers, the searcher's timing driving every slot
+ *        (docs/design/async-dsss-receiver-measurements.md §12.22-12.28,
+ *        #1283).
  *
  * The lifecycle of the file's doc over `n_slots` CellAsyncDsssReceivers
  * (dp_async_dsss_receiver_create_cell()): a seed
@@ -446,7 +449,8 @@ size_t dp_async_dsss_pool_symbols_max_out(dp_async_dsss_pool_state_t *state);
 size_t dp_async_dsss_pool_symbols(dp_async_dsss_pool_state_t *state, size_t slot, float _Complex *out, size_t max_out);
 
 /**
- * @brief Attach the run's event log (design section 8.1); NULL detaches.
+ * @brief Attach the run's event log (docs/design/async-dsss-receiver.md
+ *        §8.1); NULL detaches.
  *
  * Borrowed, never owned: the holder opens, finalizes and closes it. From
  * now on every transition is appended at the sample it happened, with

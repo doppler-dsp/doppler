@@ -836,8 +836,8 @@ _noise_tail (size_t n, double fs, double cn0_dbhz, uint32_t seed)
 /* The CODE7 fixture's seeded receiver: the cell mode with every number the
  * searching-flavor tests use, minus the search half-range, plus the release
  * interval -- the lifecycle tests below ran on the hand-off flavor until it
- * was retired (design section 12.28), and the lifecycle past the seed is
- * the same object's. */
+ * was retired (docs/design/async-dsss-receiver-measurements.md §12.28), and
+ * the lifecycle past the seed is the same object's. */
 static dp_async_dsss_receiver_state_t *
 _seeded_rx (double cn0, double lost_confirm_s)
 {
@@ -1895,7 +1895,8 @@ _test_accessor_coverage (void)
 }
 
 /* ------------------------------------------------------------------ *
- * The cell mode (docs/design/async-dsss-receiver.md section 12.22-12.24  *
+ * The cell mode (docs/design/async-dsss-receiver-measurements.md       *
+ * §12.22-12.24                                                         *
  * as a mode of this receiver, #1283): the receiver a searcher's cell     *
  * drives -- no refine, the carrier frozen, the Dll held from the first   *
  * sample and put back once an interval at a held phase corrected by a  *

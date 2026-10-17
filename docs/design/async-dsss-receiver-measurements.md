@@ -8,6 +8,12 @@ re-baselined in place, and the commit that did it says so. Every number comes
 from a harness under `native/validation/` or `native/benchmarks/`, a test under
 `native/tests/`, or a characterization under `src/doppler/`; the entry names it.*
 
+**Step numbers.** Code and issues cite the step list this record was measured
+against, which the design page's §12 held until 21c8c9cd9 removed it. The map:
+step 1 is §12.2; steps 2–4 are §12.6; step 6 is §12.3; step 7 is §12.14 and
+§12.17; step 8 is §12.1 and §12.17; step 11 is §12.7; step 12 is §12.9; step 13
+is §12.8.
+
 ______________________________________________________________________
 
 ### 12.1 What was measured (2026-09-02) — the budget
@@ -24,6 +30,11 @@ the rows are `rate=0.77`, `op5M_*`/`op2M_*` (the receiver's `op5M` rows were cut
 | searcher, 2 Mcps, ±50 kHz, **53** tiles | **523** per output | **2.09**               | 4.8                         |
 | searcher, 5 Mcps, ±5 kHz, 3 tiles       | 36 per output      | 0.36                   | 0.83                        |
 | searcher, 2 Mcps, ±5 kHz, 7 tiles       | 75 per output      | 0.30                   | 0.69                        |
+| one receiver, tracking (warm), 5 Mcps   | **44** per output  | 0.44                   | 1.0                         |
+| one receiver, cold (search + refine)    | 89 per output      | —                      | —                           |
+
+(The two receiver rows were cut from the bench in bf0926ee1, #2398. They stay
+here because the citations below name their numbers.)
 
 Four things this settles, and one it corrects:
 
@@ -144,10 +155,10 @@ Before the aid, code lock was off 96% of the time at 5.7 dB while the
 receiver tracked and decoded, so a release on it would have released on every
 fade. The pre-fix sweep is not kept; the fix is 0b49f4b9b. The rule that
 replaced it, §10 of the design page, is both flags down for longer than the
-fade. The interval is set by the fade: a 1 s fade holds both flags down for
-1.0–1.5 s, and a healthy signal's longest both-down run is 36–52 ms, so two
-seconds separates them with a margin of forty on one side and two on the
-other. The replica's gate is symbol lock, since a gate on code lock would drop
+fade. The interval is set by the fade. On the pre-aid sweep a 1 s fade held both
+flags down for 1.0–1.5 s, and a healthy signal's longest both-down run was 36–52
+ms, so two seconds separated them with a margin of forty on one side and two on
+the other. The replica's gate is symbol lock, since a gate on code lock would drop
 the replica three times a second. A recovered receiver keeps its assignment
 (the emitter never restarted), so a release during a fade would hand a fresh
 receiver an emitter one is already tracking.
@@ -287,7 +298,7 @@ shipped `awgn` at the strong emitter's C/N0, `max_peaks = 4`; 200 scenes
 per cell, two dwells each and the second scored, since the two-epoch rule
 lists a same-code-phase emitter from the second dwell on.
 
-**Step 2, separability** (two equal emitters at 45 dB-Hz; P(both listed)):
+**Separability** (two equal emitters at 45 dB-Hz; P(both listed)):
 
 | Δτ \\ Δf | 0.5 tile | 1 tile | 2 tiles | 4 tiles |
 | -------- | -------- | ------ | ------- | ------- |
@@ -302,7 +313,7 @@ same-code-phase pairs the twin rule holds for one dwell. Half a tile off
 costs 5%, the straddle. Every listed peak was on its emitter's tile and
 within a chip of its code phase; no false peak in 3 200 dwells.
 
-**Step 3, the knee** (strong emitter fixed, weak stepped down 4 tiles and
+**The knee** (strong emitter fixed, weak stepped down 4 tiles and
 100 chips away, the engine sized at the *weak* emitter's C/N0 so the floor
 decides rather than the sizing; the weak emitter alone as the control):
 
@@ -325,7 +336,7 @@ it: the two curves fall together from 12 dB, and no floor-limited miss is
 seen down to 33 dB-Hz. The fork of §6.3 stays at −13 dB as the single-look
 worst case; a receiver that integrates buys a few dB past it.
 
-**Step 4, pfa under the list** (pure noise, engine sized at 45 dB-Hz,
+**Pfa under the list** (pure noise, engine sized at 45 dB-Hz,
 configured pfa 1e-2, 20 000 dwells): reported dwells 0.0091 / 0.0102 /
 0.0085 at `max_peaks` 1 / 4 / 8, one peak per reported dwell — the list
 does not change the false-alarm rate, and on the same noise the same
@@ -458,7 +469,7 @@ Four things this settles:
 - **The fan works, and it is Amdahl's.** At `D = 1` four threads buy
     3.0× — about 88% of the work is in the tiles — and eight buy little
     more; the searcher over ±50 kHz that was 1.75× real time on one core
-    is 0.58 on four. The pool's hand-off per push is not visible at this
+    is 0.58 on four. The pool's per-push cost is not visible at this
     granularity (an epoch is 0.2 ms; the D = 1 rows are 254-epoch pushes).
 - **The depth costs 3.6× per sample serially, and the transforms are not
     why.** The design estimated the slow-time transform "of the order of
@@ -470,8 +481,8 @@ Four things this settles:
     why four threads buy only 2.2× at `D = 154` (72% fanned) — and inside
     the fanned block-end loop the scatter folds a row index per **cell**
     and the column gather strides by `code_bins`. Both are named in
-    [#1243](https://github.com/doppler-dsp/doppler/issues/1243) with the
-    fix: the magnitude, the reference and the list per tile with a serial
+    [#1243](https://github.com/doppler-dsp/doppler/issues/1243) closed by
+    17230fd25, which took the fix: the magnitude, the reference and the list per tile with a serial
     merge; a per-tile row table; a chunked gather.
 - **Pre-compensation is worth what §12.1 said.** Over ±5 kHz the
     `D = 154` searcher is 0.95× real time on one thread and 0.53 on four.
@@ -483,8 +494,8 @@ Four things this settles:
 What the budget said (§6.4: 100 ns per output sample per core, half as
 the margin): at the operating point the block searcher on four threads
 was 288 ns of wall per sample, about 1150 core-ns — a quarter of a
-48-core server's budget, beside twelve receivers at 44 each (§12.1). It
-fit; it was not comfortable, and #1243 was the next thing to attack.
+48-core server's budget, beside the receivers of §12.1 (the receiver row was cut in bf0926ee1). It
+fit; it was not comfortable. #1243, closed in 17230fd25, is the fix below.
 
 **#1243, measured the same day, same box, same rows.** The per-cell
 passes now run per tile on the pool and merge serially in tile order;
@@ -514,14 +525,14 @@ second emitter in the comparison so the list's second scan is part of it.
     is the one lever left in the engine, unmeasured.
 - **The budget:** four threads at 164 ns of wall per sample is about
     656 core-ns — 14% of a 48-core server's budget at the operating point,
-    beside twelve receivers at 44 each; over ±5 kHz, 0.35× real time on
+    beside the receivers of §12.1; over ±5 kHz, 0.35× real time on
     four threads. Comfortable. Bit-identity across thread counts is
     pinned in `test_acq_core.c` and the C suite runs under TSan.
 
 ### 12.9 What was measured (2026-09-06) — the tracker through the window
 
 `native/validation/tracker_through_window.c` (`make validate-c`; its
-`--check` is in the C suite): the hand-off receiver, seeded by the shipped
+`--check` is in the C suite): the searching receiver, seeded by the shipped
 searcher's first hit on the same received blocks (the pool's own path,
 §8.2), tracking one emitter from the shipped synth with its own window
 (450 code-only symbols of every 4950 on the data clock: a 167 ms window in
@@ -789,8 +800,8 @@ C/N0, noise from the shipped awgn after the channel.
     drives both the block's alignment and the hand-off's advance. Config,
     not running state: it is not in the blob, so a resumed engine wants it
     set again by its holder. The searching receiver sets it from its own
-    `carrier_freq_hz`; the hand-off flavor's holder sets it on the searcher
-    it seeds from, as the window harness does.
+    `carrier_freq_hz`; a holder that seeds from a searcher sets it on
+    that searcher, as the window harness does.
 
 ______________________________________________________________________
 
@@ -1016,10 +1027,11 @@ pull in at 40 dB-Hz (#1273, §12.27–§12.28).
 13 MSa/s the chain, the shipped DDC and the hand-off pool, ran at 4.12× real time
 at 45 dB-Hz and 2.48× at 40 dB-Hz. The cell pool's twin is 3.16× (§12.27). The
 requirement, under 0.5 at the operating point, was missed on this box's twenty
-threads. The searcher's transforms own most of the excess, since the post-fix
-measurement is 1.3–1.6× real time (§12.8, 17230fd25), not the 2.6–2.9× this entry
-first wrote. The fraction scales with the threads the searcher's roll is given,
-so one box's number is not the server's.
+threads. Which stage owns the excess in this run is not measured: the budget run
+did not split the chain's time by stage. §12.8 measured the block searcher alone
+after 17230fd25 at 1.3–1.6× real time on four to eight threads, against the
+2.6–2.9× this entry first wrote. The fraction scales with the threads the
+searcher's roll is given, so one box's number is not the server's.
 
 ______________________________________________________________________
 

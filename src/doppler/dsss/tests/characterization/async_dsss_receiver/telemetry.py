@@ -15,7 +15,12 @@ Every piece is a doppler tool, not a second copy of one:
   object, lossless by construction: ``rx.tlm`` and ``pool.tlm``, each with its
   ``-meta`` sidecar -- every loop's discriminator and filter output, the
   searcher's dwells, the pool's table.
-- **The timing** is a third capture, ``timing.tlm``: each push's wall time
+- **The timing** is a characterization, not a benchmark: it shows how the
+  cost is DISTRIBUTED over pushes (a dwell push against an ordinary one),
+  which a min-over-rounds bench cannot. The published cost is
+  ``make bench``'s (``bench_async_dsss_pool_core``,
+  ``bench_async_dsss_receiver_core``). It is a third capture,
+  ``timing.tlm``: each push's wall time
   as a probe (``timing.rx_push_us``, ``timing.pool_push_us``), so it is read
   and plotted by the same tools as the loops.
 - **The figures** are ``scripts/plot_capture.py --time``, the one plotter for
@@ -33,7 +38,14 @@ Writes into ``--out`` (``make pool-telemetry``: ``build/pool-telemetry/``):
 pool's event log), the three captures and their sidecars, and
 ``timing.png``, ``rx.png``, ``pool.png``, ``pool-s<i>.png``.
 
+It sits beside ``characterize.py`` in this subject because it is the same
+kind of thing: a deliberate run over the receiver's operating envelope, not a
+per-push test. Its fast twin (``test_async_dsss_pool.py``) runs it for a
+twentieth of a second on every push, so it cannot rot between deliberate
+runs.
+
 Run:  make pool-telemetry [POOL_TLM_ARGS='--cn0 45 --seconds 2']
+      (or: uv run python <this file> --out DIR)
 """
 
 from __future__ import annotations
@@ -50,17 +62,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import numpy.typing as npt
 
+import doppler
+from doppler.dsss import AsyncDsssPool, AsyncDsssReceiver
+from doppler.telemetry import Capture, EventLog, Telemetry
+from doppler.tests._validation_common import read_capture
+from doppler.wfm import SampleClock, Synth, field_bits
+
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE.parent / "src"))
-
-import plot_capture  # noqa: E402
-
-import doppler  # noqa: E402
-from doppler.dsss import AsyncDsssPool, AsyncDsssReceiver  # noqa: E402
-from doppler.telemetry import Capture, EventLog, Telemetry  # noqa: E402
-from doppler.tests._validation_common import read_capture  # noqa: E402
-from doppler.wfm import SampleClock, Synth, field_bits  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -88,6 +96,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--decim", type=int, default=1, help="telemetry decim")
     ap.add_argument("--seed", type=int, default=7, help="the synth's seed")
     ap.add_argument("--out", type=Path, default=Path("build/pool-telemetry"))
+    ap.add_argument(
+        "--no-figures",
+        action="store_true",
+        help="the captures and run.json only (the fast twin's run)",
+    )
     return ap.parse_args(argv)
 
 
@@ -208,7 +221,17 @@ def git_head() -> str:
 
 
 def figures(out: Path, slots: list[str]) -> None:
-    """Every figure through the one plotter, on a time axis."""
+    """Every figure through the one plotter, on a time axis.
+
+    The plotter is ``scripts/plot_capture.py``, outside the package, so it
+    is imported here and not at the top: the fast twin imports this module
+    wherever the package is, and only a run that draws needs the checkout.
+    This subject is ``src/doppler/dsss/tests/characterization/
+    async_dsss_receiver/``, six directories below the repo root.
+    """
+    sys.path.insert(0, str(HERE.parents[5] / "scripts"))
+    import plot_capture
+
     plot_capture.main(
         [
             str(out / "timing.tlm"),
@@ -369,9 +392,12 @@ def main(argv: list[str] | None = None) -> int:
         "slots_reporting": slots,
         "symbols": {k: int(v.sum()) for k, v in out.items()},
     }
-    (a.out / "run.json").write_text(json.dumps(record, indent=2) + "\n")
+    (a.out / "run.json").write_text(
+        json.dumps(record, indent=2) + "\n", encoding="utf-8"
+    )
 
-    figures(a.out, slots)
+    if not a.no_figures:
+        figures(a.out, slots)
 
     for name, s in timing_sum.items():
         print(

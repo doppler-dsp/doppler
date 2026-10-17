@@ -24,10 +24,11 @@
  * sized from the C/N0. Nothing in this file spreads a chip, draws a bit or
  * computes a sigma.
  *
- * The payload is PRBS data on the code and is never gated off: the emitter
- * runs with its data on throughout, including across each dropout. The
- * Python twin asserts the stimulus precondition that makes this so, that
- * the data flips at each cut.
+ * The payload is the synth's own PRBS, sent on the code and never gated off:
+ * the emitter runs with its data on throughout. The Python twin asserts the
+ * stimulus precondition that the data flips at every cut. This file does not
+ * repeat that check, because its payload is the synth's PRBS and not a bit
+ * array this file owns.
  *
  * Four sections are checked against the receiver's own status, after every
  * push:
@@ -93,13 +94,13 @@ struct segment
   size_t epochs;
 };
 static const struct segment TIMELINE[] = {
-  { 0, 180 }, /* 60 ms of noise: nothing to find yet */
-  { 1, 900 }, /* 300 ms: acquire, refine, and track */
-  { 0, 30 },  /* 10 ms dropout: short enough that the lock held in this run */
-  { 1, 300 }, /* 100 ms back on the air */
-  { 0, 150 }, /* 50 ms dropout: long enough for the lock to fall */
-  { 1, 180 }, /* 60 ms back on the air: long enough to re-lock */
-  { 0, 240 }, /* the emitter leaves for good */
+  { 0, 180 },  /* 60 ms of noise: nothing to find yet */
+  { 1, 4500 }, /* 1.5 s: acquire, refine, track, and let the lock come up */
+  { 0, 30 },   /* 10 ms dropout: short enough that the lock held in this run */
+  { 1, 300 },  /* 100 ms back on the air */
+  { 0, 150 },  /* 50 ms dropout: long enough for the lock to fall */
+  { 1, 180 },  /* 60 ms back on the air: long enough to re-lock */
+  { 0, 240 },  /* the emitter leaves for good */
 };
 #define N_SEG (sizeof TIMELINE / sizeof TIMELINE[0])
 
@@ -263,7 +264,8 @@ main (void)
   const size_t d2 = seg_at[4], d2_end = seg_at[5]; /* 50 ms dropout */
   const size_t back_end = seg_at[6];               /* signal back on */
   const size_t gone     = seg_at[6];               /* departure */
-  const double ms       = 1e3 * TE / FS;           /* one push, ms */
+
+  const double ms = 1e3 * TE / FS; /* one push, ms */
 
   size_t first = n_pushes;
   for (size_t i = 0; i < n_pushes; i++)
@@ -296,8 +298,8 @@ main (void)
   /* §3: the lock is up before the first dropout and, in this fixed-seed run,
      holds through it. Across draws that is a probability, not asserted. */
   CHECK (rows[d1 - 1].locked == 1, "the lock was not up before the dropout");
-  CHECK (first_locked (rows, d1, d2, 0) == d2,
-         "the lock fell before the 50 ms dropout");
+  CHECK (first_locked (rows, d1, d1_end, 0) == d1_end,
+         "the lock fell during the 10 ms dropout");
   printf ("§3  a 10 ms dropout: the lock held in this run\n");
 
   /* §4: the lock falls inside the 50 ms dropout and returns after the

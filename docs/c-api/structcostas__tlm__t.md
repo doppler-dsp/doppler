@@ -41,6 +41,7 @@ _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (t
 |  int32\_t | [**id\_freq**](#variable-id_freq)  <br> |
 |  int32\_t | [**id\_lock**](#variable-id_lock)  <br> |
 |  int32\_t | [**id\_locked**](#variable-id_locked)  <br> |
+|  int32\_t | [**id\_nco**](#variable-id_nco)  <br> |
 
 
 
@@ -134,8 +135,7 @@ int32_t costas_tlm_t::id_freq;
 
 
 
-"&lt;prefix&gt;.freq" — tracked NCO freq 
- 
+"&lt;prefix&gt;.freq" — the integrator alone 
 
 
         
@@ -172,6 +172,23 @@ int32_t costas_tlm_t::id_locked;
 
 "&lt;prefix&gt;.locked" — lockdet flag 0/1 
  
+
+
+        
+
+<hr>
+
+
+
+### variable id\_nco 
+
+```C++
+int32_t costas_tlm_t::id_nco;
+```
+
+
+
+"&lt;prefix&gt;.nco" — the complete loop-filter output, integrator plus proportional term ([**dp\_costas\_get\_nco\_freq()**](costas__core_8h.md#function-dp_costas_get_nco_freq)), cycles/sample 
 
 
         

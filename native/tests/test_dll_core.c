@@ -1623,15 +1623,27 @@ main (void)
     DP_CHECK (dp_tlm_probe_id (tlm, "code.rate") == d->tlm.id_rate);
     DP_CHECK (dp_tlm_probe_id (tlm, "code.lock") == d->tlm.id_lock);
     DP_CHECK (dp_tlm_probe_id (tlm, "code.locked") == d->tlm.id_locked);
+    DP_CHECK (dp_tlm_probe_id (tlm, "code.nco") == d->tlm.id_nco);
 
+    /* An aid the input does not carry: the NCO's command (".nco") then
+     * sits 1e-4 off the loop's own rate (".rate"), so a ".nco" that
+     * reported the rate instead would show. */
+    dp_dll_set_rate_aid (d, 1e-4);
     size_t k     = dp_dll_steps (d, rx, L, out, 256);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
-    DP_CHECK (k > 0 && n_rec == 4 * k); /* e + rate + lock + locked / epoch */
-    /* The final epoch's rate/lock/locked records mirror the tracked state
-     * (flush order per epoch: e, rate, lock, locked). */
-    DP_CHECK (recs[n_rec - 3].value == (float)d->code_rate);
-    DP_CHECK (recs[n_rec - 2].value == (float)d->lock_stat);
-    DP_CHECK (recs[n_rec - 1].value == (float)dp_dll_get_locked (d));
+    DP_CHECK (k > 0 && n_rec == 5 * k); /* e, rate, lock, locked, nco */
+    /* The final epoch's records mirror the tracked state (flush order per
+     * epoch: e, rate, lock, locked, nco); ".nco" is the commanded
+     * increment in chips per chip. */
+    DP_CHECK (recs[n_rec - 4].value == (float)d->code_rate);
+    DP_CHECK (recs[n_rec - 3].value == (float)d->lock_stat);
+    DP_CHECK (recs[n_rec - 2].value == (float)dp_dll_get_locked (d));
+    const double nco_cmd
+        = nco_word_to_norm (d->code_nco.phase_inc) / d->inv_tsamps;
+    DP_CHECK (recs[n_rec - 1].value == (float)nco_cmd);
+    DP_CHECK_MSG (fabs (nco_cmd - d->code_rate) > 5e-5,
+                  "the aid separates the command from the loop's rate");
+    dp_dll_set_rate_aid (d, 0.0);
 
     /* segments > 1: the partial loop flushes once per epoch (an epoch is
      * `segments` emitted partials), through the same literal-tlm split. */
@@ -1640,9 +1652,9 @@ main (void)
     DP_CHECK (dp_dll_set_telemetry (s2, tlm, "code2", 1) == DP_OK);
     size_t k2 = dp_dll_steps (s2, rx, L, out, 256);
     size_t n2 = dp_tlm_read (tlm, 512, recs, 512);
-    DP_CHECK (k2 > 0 && n2 > 0 && n2 % 4 == 0);
+    DP_CHECK (k2 > 0 && n2 > 0 && n2 % 5 == 0);
     DP_CHECK (n2
-              <= 4 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
+              <= 5 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
     dp_dll_destroy (s2);
 
     /* Blobs zero the attachment (deterministic) and set_state into an

@@ -106,6 +106,8 @@ _Composed receiver state._ [More...](#detailed-description)
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm**](#variable-tlm)  <br> |
 |  uint32\_t | [**tlm\_decim**](#variable-tlm_decim)  <br> |
 |  char | [**tlm\_prefix**](#variable-tlm_prefix)  <br> |
+|  int32\_t | [**tlm\_sym\_lock**](#variable-tlm_sym_lock)  <br> |
+|  int32\_t | [**tlm\_sym\_locked**](#variable-tlm_sym_locked)  <br> |
 |  float \_Complex \* | [**track\_dll\_out\_buf**](#variable-track_dll_out_buf)  <br> |
 |  size\_t | [**track\_dll\_out\_cap**](#variable-track_dll_out_cap)  <br> |
 |  float \_Complex \* | [**track\_rc\_out\_buf**](#variable-track_rc_out_buf)  <br> |
@@ -1243,6 +1245,41 @@ char dp_async_dsss_receiver_state_t::tlm_prefix[DP_TLM_NAME_MAX];
 
 The attach's prefix. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_sym\_lock 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_sym_lock;
+```
+
+
+
+"&lt;prefix&gt;.sym.lock" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_sym\_locked 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_sym_locked;
+```
+
+
+
+"&lt;prefix&gt;.sym.locked" id, -1 detached. 
 
 
         

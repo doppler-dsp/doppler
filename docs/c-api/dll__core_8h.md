@@ -104,7 +104,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  void | [**dp\_dll\_set\_rate\_aid**](#function-dp_dll_set_rate_aid) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double rate\_aid) <br>_Set the carrier-aiding code-rate deviation (ratio; 0 = off)._  |
 |  int | [**dp\_dll\_set\_state**](#function-dp_dll_set_state) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, const void \* blob) <br>_Restore from_ `blob` _._ |
 |  int | [**dp\_dll\_set\_symbol\_period**](#function-dp_dll_set_symbol_period) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double partials\_per\_symbol) <br>_Give the loop the data-symbol period, so the lock detector's looks and the code discriminator's windows are coherent over a symbol instead of a quarter-epoch partial._  |
-|  int | [**dp\_dll\_set\_telemetry**](#function-dp_dll_set_telemetry) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers four probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
+|  int | [**dp\_dll\_set\_telemetry**](#function-dp_dll_set_telemetry) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers five probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock —_ [_**dp\_dll\_get\_code\_rate()**_](dll__core_8h.md#function-dp_dll_get_code_rate) _, the loop's own rate, without the carrier aid; a held loop reports its held integrator's), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold), "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic) and "&lt;prefix&gt;.nco" (what the code NCO is commanded: the complete loop-filter output, the integrator, the proportional term and the carrier aid, as chips per nominal chip, at the NCO's resolution of one phase-increment step; a held loop's held command). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**dp\_dll\_state\_bytes**](#function-dp_dll_state_bytes) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
 |  size\_t | [**dp\_dll\_steps**](#function-dp_dll_steps) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
 |  size\_t | [**dp\_dll\_steps\_max\_out**](#function-dp_dll_steps_max_out) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
@@ -1430,7 +1430,7 @@ DP\_OK; DP\_ERR\_INVALID when `segments <= 1`, or the period is not finite, is n
 
 ### function dp\_dll\_set\_telemetry 
 
-_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers four probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
+_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers five probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock —_ [_**dp\_dll\_get\_code\_rate()**_](dll__core_8h.md#function-dp_dll_get_code_rate) _, the loop's own rate, without the carrier aid; a held loop reports its held integrator's), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold), "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic) and "&lt;prefix&gt;.nco" (what the code NCO is commanded: the complete loop-filter output, the integrator, the proportional term and the carrier aid, as chips per nominal chip, at the NCO's resolution of one phase-increment step; a held loop's held command). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
 ```C++
 int dp_dll_set_telemetry (
     dp_dll_state_t * state,
@@ -1456,7 +1456,7 @@ int dp_dll_set_telemetry (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all four probes (the attach fails whole; the object stays detached). 
+DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all five probes (the attach fails whole; the object stays detached). 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import Dll
@@ -1466,11 +1466,11 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all four probes (th
 >>> d = Dll(code=code, sps=2)
 >>> d.set_telemetry(tlm, "code")
 >>> sorted(tlm.probe_names)
-['code.e', 'code.lock', 'code.locked', 'code.rate']
+['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.rate']
 >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
 >>> _ = d.steps(x)
->>> recs = tlm.read()   # four records per code epoch
->>> len(recs) > 0 and len(recs) % 4 == 0
+>>> recs = tlm.read()   # five records per code epoch
+>>> len(recs) > 0 and len(recs) % 5 == 0
 True
 ```
  

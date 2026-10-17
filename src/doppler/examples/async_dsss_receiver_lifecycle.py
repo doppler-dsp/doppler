@@ -54,9 +54,10 @@ DOPPLER_UNCERTAINTY = FS / TE  # 1/T_E, 3,000 Hz: one epoch resolves this span
 ESN0_DB = 10.0  # Es/N0 of the emitter at the receiver input
 CN0_DBHZ = ESN0_DB + 10.0 * np.log10(SYM_RATE)  # the receiver's C/N0 input
 PFA = 1e-3
-#: The symbol lock's drop level, ASYNC_DSSS_RX_LOCK_DOWN in the receiver's
-#: header. The Python face exposes only the declare level (``lock_threshold``),
-#: so the figure draws this one from the header's value.
+#: The symbol lock's drop level. This is a second copy of
+#: ASYNC_DSSS_RX_LOCK_DOWN in native/inc/doppler/async_dsss_receiver/
+#: async_dsss_receiver_core.h, because the Python face does not expose it.
+#: Until it does, the figure's line is only as current as this constant.
 LOCK_DOWN = 0.3
 
 GOLD = np.asarray(Gold().generate(SF), np.uint8)
@@ -216,7 +217,7 @@ def check(rows: np.ndarray, rx: AsyncDsssReceiver) -> dict[str, float]:
     assert (locked[d2_end:back_on_end] == 1).any(), "the lock never returned"
     back = d2_end + int(np.argmax(locked[d2_end:back_on_end]))
     return_ms = (back - d2_end) * ms
-    assert return_ms >= 0.0, "the lock returned before the signal did"
+    assert return_ms > 0.0, "the lock re-latched on noise during the gap"
 
     # The emitter gone for good: tracking holds, the lock falls once.
     assert (locked[gone:] == 0).any(), "the lock never fell after departure"
@@ -235,6 +236,56 @@ def check(rows: np.ndarray, rx: AsyncDsssReceiver) -> dict[str, float]:
     }
 
 
+def despread_symbols(sig: np.ndarray) -> np.ndarray:
+    """One complex value per symbol: the clean emitter, de-rotated at its
+    known carrier, multiplied by its known code, and summed over the symbol.
+
+    This is analysis of the emitter's own output, not a generator, so it is
+    plain numpy: the code is aligned to sample 0 and the symbol edges fall at
+    multiples of ``FS / SYM_RATE`` samples. A symbol's sum is about ``+/-S``
+    when the code is aligned and the carrier removed.
+    """
+    n = np.arange(len(sig))
+    code_sign = 1.0 - 2.0 * GOLD[(n // SPC) % SF]
+    y = sig * np.exp(-2j * np.pi * CARRIER * n / FS) * code_sign
+    sym_len = FS / SYM_RATE
+    edges = np.round(np.arange(int(len(sig) / sym_len) + 1) * sym_len)
+    csum = np.concatenate([[0.0], np.cumsum(y)])
+    return csum[edges[1:].astype(int)] - csum[edges[:-1].astype(int)]
+
+
+def check_data_flips(seed: int = 7, window: int = 20) -> float:
+    """Assert the stimulus precondition: every event in the timeline is cut
+    while the data is transitioning, and return the flip fraction.
+
+    This is a precondition of the test, not a claim about the symbol lock.
+    The test is meant to run on a data-carrying signal, so the emitter's
+    data must change sign from one symbol to the next, around each dropout
+    and the departure. It is checked on the clean emitter (no noise, no cut):
+
+    - the fraction of boundaries where ``Re(z_k * conj(z_{k-1})) < 0`` is
+      about one half, which is what random data gives;
+    - within ``window`` symbols of each cut the data flips at least once.
+    """
+    sig = emitter(sum(n for _, n in TIMELINE) * TE, seed)
+    z = despread_symbols(sig)
+    # A carrier or code mis-alignment would shrink the sums, so the flip
+    # count would be meaningless. Insist the sums carry the full symbol.
+    sym_len = FS / SYM_RATE
+    assert np.median(np.abs(z)) > 0.9 * sym_len, "the despread is not aligned"
+    flips = np.real(z[1:] * np.conj(z[:-1])) < 0
+    frac = float(flips.mean())
+    assert 0.35 < frac < 0.65, f"data flips at {frac:.2f} of boundaries"
+    seg = spans()
+    for edge in (seg[2][1], seg[2][2], seg[4][1], seg[4][2], seg[6][1]):
+        k = int(edge * TE / sym_len)
+        lo, hi = max(k - window, 0), min(k + window, len(flips))
+        assert flips[lo:hi].any(), (
+            f"no data flip within {window} symbols of epoch {edge}"
+        )
+    return frac
+
+
 # --8<-- [end:validate]
 
 
@@ -244,6 +295,11 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    flip_fraction = check_data_flips()
+    print(
+        f"stimulus precondition: data flips at {flip_fraction:.2f} of symbol "
+        "boundaries, and within 20 symbols of every cut"
+    )
     x = make_timeline()
     rows, rx = receive(x)
     times = check(rows, rx)

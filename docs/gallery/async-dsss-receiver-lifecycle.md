@@ -53,8 +53,12 @@ noise alone, so the noise floor is the same throughout. The noise is the
 library's own unit-noise `Synth`, scaled by
 [`wfm_awgn_amplitude`](../api/python-wfmgen.md).
 
-The emitter's data is never gated off: the payload rides on the code
-throughout, so the signal is not a code-only run at any point.
+Every event is cut while the data is transitioning (the test condition): the
+payload rides on the code throughout, so no dropout falls in a code-only run.
+A check on the clean emitter asserts the stimulus precondition that makes this
+so. Its data flips at about half the symbol boundaries, and flips within twenty
+symbols of every cut. That is a property of the stimulus, not a claim about the
+symbol lock, which holds on code-only symbols as well.
 
 ```python
 --8<-- "src/doppler/examples/async_dsss_receiver_lifecycle.py:signal"

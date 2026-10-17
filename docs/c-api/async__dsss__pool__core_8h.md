@@ -545,7 +545,7 @@ Setup path, never hot; the context is borrowed and must outlive the attachment. 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID on decim 0, a pool with `threads > 1` (refused before anything registers), a prefix too long for some probe's name, or a probe table that cannot take every probe. A refused attach fails whole: the pool stays detached. 
+DP\_OK, or DP\_ERR\_INVALID on decim 0, a pool with `threads > 1`, a prefix too long for some probe's name  all three refused before anything registers on `tlm` (the prefix through a first attach to a scratch context)  or a probe table with no room for every probe. A refused attach fails whole: the pool stays detached (on a full table, what registered before the refusal stays behind, unused). 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import AsyncDsssPool

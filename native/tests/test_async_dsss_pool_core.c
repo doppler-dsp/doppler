@@ -748,6 +748,12 @@ _test_telemetry (void)
   DP_CHECK (dp_async_dsss_pool_set_telemetry (p, t, "pool", 0)
             == DP_ERR_INVALID);
   DP_CHECK (dp_tlm_probe_count (t) == 0);
+  /* A prefix the searcher's names fit ("<p>.acq.n_peaks") and a slot's
+     deepest does not ("<p>.s2.demod.agc.level_db"): refused through the
+     scratch attach before anything registers here (#1897's dead slots). */
+  DP_CHECK (dp_async_dsss_pool_set_telemetry (p, t, "abcdefghijklmn", 1)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_tlm_probe_count (t) == 0);
   DP_CHECK (dp_async_dsss_pool_set_telemetry (p, t, "pool", 1) == DP_OK);
 
   /* The set: the searcher's, the three counters, and one receiver's per

@@ -506,10 +506,13 @@ int dp_async_dsss_pool_set_event_log(dp_async_dsss_pool_state_t *state, dp_event
  * @param tlm    Telemetry context to attach, or NULL to detach.
  * @param prefix Probe-name prefix; NULL means "pool".
  * @param decim  Emit every decim-th event on each probe; >= 1.
- * @return DP_OK, or DP_ERR_INVALID on decim 0, a pool with `threads > 1`
- *         (refused before anything registers), a prefix too long for some
- *         probe's name, or a probe table that cannot take every probe. A
- *         refused attach fails whole: the pool stays detached.
+ * @return DP_OK, or DP_ERR_INVALID on decim 0, a pool with `threads > 1`,
+ *         a prefix too long for some probe's name -- all three refused
+ *         before anything registers on @p tlm (the prefix through a first
+ *         attach to a scratch context) -- or a probe table with no room
+ *         for every probe. A refused attach fails whole: the pool stays
+ *         detached (on a full table, what registered before the refusal
+ *         stays behind, unused).
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import AsyncDsssPool

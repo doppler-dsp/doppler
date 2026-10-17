@@ -998,6 +998,13 @@ _test_telemetry_follows_the_loops (void)
                 rx, t, "abcdefghijklmnopqrstuvwxyz0123", 1)
             == DP_ERR_INVALID);
   DP_CHECK (dp_tlm_probe_count (t) == 0);
+  /* A prefix the carrier's names fit ("<p>.car.locked") and the
+     demodulator's deepest does not ("<p>.demod.agc.level_db"): the loops
+     are attached to a scratch context first, which finds the refusal, so
+     nothing registers here either -- no dead slots (#1897). */
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "abcdefghijklmnop", 1)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_tlm_probe_count (t) == 0);
   DP_CHECK (rx->tlm == NULL);
 
   DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1) == DP_OK);

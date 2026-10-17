@@ -906,7 +906,9 @@ static PyMethodDef util_module_methods[] = {
 static PyModuleDef util_moduledef = {
   PyModuleDef_HEAD_INIT,
   .m_name    = "util",
-  .m_doc     = "Shared numeric utilities used across the doppler modules.\n"
+  .m_doc     = "Shared utilities used across the doppler modules: the numeric "
+               "helpers, and\n"
+               "`fromto`, the path from a calling script to where it writes.\n"
                "\n"
                "Examples\n"
                "--------\n"

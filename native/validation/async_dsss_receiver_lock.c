@@ -35,27 +35,31 @@
  * ARRIVAL. A trial draws the carrier uniformly over +/-1/T_E, the arrival
  * uniformly over 0 to ARRIVAL_DELAY_S of noise (so the signal starts at any
  * sample of a feed block and any code phase against it), and its own data
- * and noise; the receiver is fed ARRIVAL_S. Recorded, from the arrival
- * sample, to one block: when the receiver first reads tracking; the refine
- * stage's carrier there (get_doppler_hz(), frozen once tracking) minus the
- * truth -- the residual the carrier loop must pull in, which
- * `refine_bias.c` measures on its own and doppler#982 found handed over
- * outside the loop's bound; when symbol lock first comes; whether it is up
- * at the end; and the SNR the receiver's own symbols carry over its last
- * M2M4_SYMS (dp_test_m2m4_snr_db, truth-free), which tells a lock on a
- * pulled-in carrier from one that is not.
+ * and noise; the receiver is fed ARRIVAL_S past the arrival. Recorded,
+ * from the arrival sample, to one block: when the receiver first reads
+ * tracking; the refine stage's carrier there (get_doppler_hz(), frozen once
+ * tracking) minus the truth -- the residual the carrier loop must pull in,
+ * which `refine_bias.c` measures on its own and doppler#982 found handed
+ * over outside the loop's bound; when symbol lock first comes; and whether
+ * it is up at the end.
  *
- * DROPOUT. A trial, at 1,500 Hz on its own data and noise, is fed until it
- * tracks with symbol lock up for SETTLE_BLOCKS blocks in a row (or gives
- * up at MAX_LOCK_S, a row marked unsettled: not every draw locks, which
- * ARRIVAL measures), then a further uniform 0 to JITTER_S, then cut at a
- * uniform sample of the next block. The receiver's state there is saved and
- * the next POST_S of signal and noise rendered once, so every case below
- * resumes from the same state on the same noise and differs only in the
- * dropout (the SIGNAL is cut; the noise runs on):
+ * DROPOUT. A trial draws the carrier uniformly over +/-1/T_E, as ARRIVAL
+ * does (a fixed 1,500 Hz, the first sweep's, sits on the edge between two
+ * of the search's 3 kHz tiles), and its own data and noise. It is fed
+ * until it tracks with symbol lock up for SETTLE_BLOCKS blocks in a row,
+ * then a further uniform 0 to JITTER_S, then cut at a uniform sample of
+ * the next block; a draw that has not held lock that long within
+ * MAX_LOCK_S, or whose lock is down at the cut, is a row marked unsettled
+ * (not every draw locks: ARRIVAL measures which). The receiver's state at
+ * the cut is saved and the next POST_S of signal and noise rendered once,
+ * so every case below resumes from the same state on the same noise and
+ * differs only in the dropout (the SIGNAL is cut; the noise runs on). That
+ * rests on the restore into the already-run receiver being exact, so it is
+ * checked: until its signal returns, every case's lock must read the
+ * for-good case's, block for block, their input being the same.
  *
  *   for good       when symbol lock falls after the cut (or `-1`, held
- *                  through DROP_WATCH_S)
+ *                  through the whole blocks of DROP_WATCH_S)
  *   1, 2, ... epochs  whether lock stayed up through a dropout of that
  *                  length and HOLD_WATCH_S after it, every length up to
  *                  two past the drop (past the drop it falls inside the
@@ -73,17 +77,18 @@
  *                  within RELOCK_WATCH_S); the receiver stays tracking
  *                  throughout (lost_confirm_s = 0)
  *
- * What is asserted, the same in the sweep and in --check: every row is
- * mid-data (its flips within FLIPS_MIN..FLIPS_MAX); at 10 dB a signal is
- * tracked within CHECK_TRACK_MS of arriving (measured 44-47 ms, every
- * draw); and in every settled dropout trial a loss for good drops symbol
- * lock within DROP_WATCH_S (measured 11-43 ms). The rest -- lock times,
- * seed errors, holds, re-locks, the 5 dB rows -- is measured and printed,
- * not asserted: a fraction that moves with the draw is a finding for the
- * record, not a gate. A hold of LOCK_N_DOWN symbols is NOT a property of
- * the detector, though it reads like one: the first sweep asserted it and
- * four 5 dB trials held 2.7-4.7 ms, the average sunk in the dropout and
- * its recovery after supplying the run of low symbols.
+ * What is asserted, the same in the sweep and in --check: the emitter
+ * sends the harness's bits (BITS mode, every one of them) and each run's
+ * bits covered it; every row is mid-data (its flips within
+ * FLIPS_MIN..FLIPS_MAX); the restore is exact (above); at 10 dB a signal
+ * is tracked within CHECK_TRACK_MS of arriving; and in every settled
+ * dropout trial a loss for good drops symbol lock within DROP_WATCH_S. The
+ * rest -- lock times, seed errors, holds, re-locks, the 5 dB rows -- is
+ * measured and printed, not asserted: a fraction that moves with the draw
+ * is a finding for the record, not a gate. A hold of LOCK_N_DOWN symbols
+ * is NOT a property of the detector, though it reads like one: the first
+ * sweep asserted it and four 5 dB trials failed it, the average sunk in
+ * the dropout and its recovery after supplying the run of low symbols.
  *
  * Usage:
  *   validate_async_dsss_receiver_lock            the sweep, 10 and 5 dB
@@ -101,7 +106,6 @@
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
-#include "dp_sym_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
@@ -120,13 +124,11 @@
 
 #define ARRIVAL_S 2.0        /* each arrival trial's run              */
 #define ARRIVAL_DELAY_S 0.02 /* noise alone for up to this, first     */
-#define M2M4_SYMS 1000u      /* the receiver's last symbols, scored   */
 #define FLIPS_SYMS 270u      /* 100 ms of symbols each side of an event */
 #define FLIPS_MIN 0.35       /* mid-data: random bits flip at about    */
 #define FLIPS_MAX 0.65       /* half their boundaries                  */
 #define CHECK_TRACK_MS 100.0 /* 10 dB: tracked within this of arrival */
 
-#define DROPOUT_HZ 1500.0
 #define SETTLE_BLOCKS 200u /* symbol lock up this long, then the cut */
 #define MAX_LOCK_S 4.0     /* give up on a draw that never settles   */
 #define JITTER_S 0.01      /* then up to this more, then a random sample */
@@ -199,6 +201,22 @@ symbol_at (size_t n)
   return (size_t)((double)n / (double)SPC / CPS);
 }
 
+/* Whole blocks covering `samples`. */
+static size_t
+blocks_for (size_t samples)
+{
+  return (samples + TE - 1) / TE;
+}
+
+/* Require that the emitter really sends the harness's bits: a synth left
+   on its own PRBS would make the flip count, read off `bits`, describe a
+   stream nobody sent. */
+static int
+sends_bits (const dp_wfm_synth_state_t *syn, size_t n_bits)
+{
+  return syn->data_mode == WFM_DSSS_DATA_BITS && syn->n_bits == n_bits;
+}
+
 /* Of the `FLIPS_SYMS` symbol boundaries either side of symbol `k` (or from
    `k` on, `after`), the fraction where the data flips. */
 static double
@@ -221,8 +239,7 @@ typedef struct
   double t_track_ms;  /* arrival -> first block tracking; NAN: never   */
   double seed_err_hz; /* the refine's carrier at tracking, minus truth */
   double t_lock_ms;   /* arrival -> symbol lock first up; NAN: never   */
-  int    locked_end;  /* symbol lock up after the last block           */
-  double m2m4_db;     /* SNR of the last M2M4_SYMS symbols; NAN: fewer */
+  int    locked_end;  /* symbol lock up ARRIVAL_S after the arrival    */
   double flips;       /* data flips over the first 100 ms of signal    */
 } arrival_t;
 
@@ -235,25 +252,25 @@ run_arrival (const uint8_t *code, double esn0_db, uint32_t seed,
   out->carrier_hz     = (2.0 * dp_uni (&st) - 1.0) * SPAN;
   const size_t delay  = (size_t)(dp_uni (&st) * ARRIVAL_DELAY_S * FS);
   out->delay_s        = (double)delay / FS;
-  const size_t blocks = (size_t)(ARRIVAL_S * FS / (double)TE);
+  const size_t blocks = blocks_for (delay + (size_t)(ARRIVAL_S * FS));
   const size_t n_bits = symbol_at (blocks * TE) + 2;
   uint8_t     *bits   = draw_bits (&st, n_bits);
 
   dp_wfm_synth_state_t *syn
       = dp_dsss_cont_emitter (code, SF, SPC, FS, out->carrier_hz, CPS, seed,
                               WFM_DSSS_DATA_BITS, bits, n_bits);
-  dp_awgn_state_t                *g   = make_noise (seed, cn0);
-  dp_async_dsss_receiver_state_t *rx  = make_rx (code, cn0);
-  float complex                  *sig = dp_xmalloc (TE * sizeof *sig);
-  float complex                  *blk = dp_xmalloc (TE * sizeof *blk);
-  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
-  float complex *syms = dp_xmalloc ((cap ? cap : TE) * sizeof *syms);
-  float complex *last = dp_xmalloc (M2M4_SYMS * sizeof *last);
+  dp_awgn_state_t                *g  = make_noise (seed, cn0);
+  dp_async_dsss_receiver_state_t *rx = make_rx (code, cn0);
   if (!syn || !g || !rx)
     return 1;
+  DP_REQUIRE_MSG (sends_bits (syn, n_bits),
+                  "the arrival's emitter sends the harness's bits");
+  float complex *sig  = dp_xmalloc (TE * sizeof *sig);
+  float complex *blk  = dp_xmalloc (TE * sizeof *blk);
+  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
+  float complex *syms = dp_xmalloc ((cap ? cap : TE) * sizeof *syms);
 
   out->t_track_ms = out->seed_err_hz = out->t_lock_ms = NAN;
-  size_t n_last = 0, w = 0;
   for (size_t b = 0; b < blocks; b++)
     {
       /* Signal for this block, gated off before the arrival, then the
@@ -264,14 +281,7 @@ run_arrival (const uint8_t *code, double esn0_db, uint32_t seed,
       for (size_t i = 0; i < TE; i++)
         if (b * TE + i >= delay)
           blk[i] += sig[i];
-      size_t n
-          = dp_async_dsss_receiver_steps (rx, blk, TE, syms, cap ? cap : TE);
-      for (size_t i = 0; i < n; i++, w = (w + 1) % M2M4_SYMS)
-        {
-          last[w] = syms[i];
-          if (n_last < M2M4_SYMS)
-            n_last++;
-        }
+      (void)dp_async_dsss_receiver_steps (rx, blk, TE, syms, cap ? cap : TE);
       const double t_ms = ((double)((b + 1) * TE) - (double)delay) / FS * 1e3;
       if (isnan (out->t_track_ms) && dp_async_dsss_receiver_get_tracking (rx))
         {
@@ -287,11 +297,8 @@ run_arrival (const uint8_t *code, double esn0_db, uint32_t seed,
   DP_CHECK_MSG (!dp_wfm_synth_data_ended (syn),
                 "the arrival's data covered its run");
   out->locked_end = dp_async_dsss_receiver_get_locked (rx);
-  out->m2m4_db
-      = n_last == M2M4_SYMS ? dp_test_m2m4_snr_db (last, M2M4_SYMS) : NAN;
-  out->flips = flips_near (bits, n_bits, symbol_at (delay), 1);
+  out->flips      = flips_near (bits, n_bits, symbol_at (delay), 1);
 
-  free (last);
   free (syms);
   free (blk);
   free (sig);
@@ -305,6 +312,7 @@ run_arrival (const uint8_t *code, double esn0_db, uint32_t seed,
 typedef struct
 {
   int     settled;           /* tracking, symbol lock held, before MAX  */
+  double  carrier_hz;        /* the trial's carrier, over +/-1/T_E      */
   double  cut_s;             /* the cut, from the emitter's first sample */
   double  flips;             /* data flips within 100 ms of the cut      */
   double  drop_ms;           /* cut -> lock down, gone for good; -1 held */
@@ -342,10 +350,16 @@ branch (dp_async_dsss_receiver_state_t *rx, const void *blob,
   return 0;
 }
 
-static size_t
-blocks_for (size_t samples)
+/* Whether `lk` reads `gone` over every block that ends before the signal
+   returns (the first `before` blocks, at most the `n_gone` recorded). */
+static int
+same_until (const uint8_t *lk, const uint8_t *gone, size_t n_gone,
+            size_t before)
 {
-  return (samples + TE - 1) / TE;
+  for (size_t i = 0; i < before && i < n_gone; i++)
+    if (lk[i] != gone[i])
+      return 0;
+  return 1;
 }
 
 static int
@@ -357,6 +371,7 @@ run_dropout (const uint8_t *code, double esn0_db, uint32_t seed,
   uint32_t     st       = trial_rng (seed + 100000u);
   const double cn0      = cn0_of (esn0_db);
   const size_t lock_b   = (size_t)(MAX_LOCK_S * FS / (double)TE);
+  out->carrier_hz       = (2.0 * dp_uni (&st) - 1.0) * SPAN;
   const size_t jitter_b = (size_t)(dp_uni (&st) * JITTER_S * FS / TE);
   const size_t at       = (size_t)(dp_uni (&st) * (double)TE);
   const size_t post_n   = (size_t)(POST_S * FS / (double)TE) * TE;
@@ -365,17 +380,19 @@ run_dropout (const uint8_t *code, double esn0_db, uint32_t seed,
   uint8_t     *bits     = draw_bits (&st, n_bits);
 
   dp_wfm_synth_state_t *syn = dp_dsss_cont_emitter (
-      code, SF, SPC, FS, DROPOUT_HZ, CPS, seed + 100000u, WFM_DSSS_DATA_BITS,
-      bits, n_bits);
-  dp_awgn_state_t                *g   = make_noise (seed + 100000u, cn0);
-  dp_async_dsss_receiver_state_t *rx  = make_rx (code, cn0);
-  float complex                  *sig = dp_xmalloc (TE * sizeof *sig);
-  float complex                  *blk = dp_xmalloc (TE * sizeof *blk);
-  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
-  float complex *syms = dp_xmalloc ((cap ? cap : TE) * sizeof *syms);
+      code, SF, SPC, FS, out->carrier_hz, CPS, seed + 100000u,
+      WFM_DSSS_DATA_BITS, bits, n_bits);
+  dp_awgn_state_t                *g  = make_noise (seed + 100000u, cn0);
+  dp_async_dsss_receiver_state_t *rx = make_rx (code, cn0);
   if (!syn || !g || !rx)
     return 1;
-  cap = cap ? cap : TE;
+  DP_REQUIRE_MSG (sends_bits (syn, n_bits),
+                  "the dropout's emitter sends the harness's bits");
+  float complex *sig  = dp_xmalloc (TE * sizeof *sig);
+  float complex *blk  = dp_xmalloc (TE * sizeof *blk);
+  size_t         cap  = dp_async_dsss_receiver_steps_max_out (rx);
+  float complex *syms = dp_xmalloc ((cap ? cap : TE) * sizeof *syms);
+  cap                 = cap ? cap : TE;
 
   /* Settle: tracking with symbol lock up SETTLE_BLOCKS in a row, then
      the jitter, then the cut at sample `at` of the next block. */
@@ -416,15 +433,18 @@ run_dropout (const uint8_t *code, double esn0_db, uint32_t seed,
     DP_CHECK_MSG (!dp_wfm_synth_data_ended (syn),
                   "the dropout's data covered the stream after the cut");
     dp_awgn_generate (g, post_n, noip, post_n);
-    uint8_t *lk = dp_xmalloc (post_n / TE);
+    uint8_t *lk   = dp_xmalloc (post_n / TE);
+    uint8_t *gone = dp_xmalloc (post_n / TE);
 
-    /* Gone for good. */
-    size_t m = blocks_for (at + (size_t)(DROP_WATCH_S * FS));
-    DP_REQUIRE (
-        branch (rx, blob, sigp, noip, at, SIZE_MAX, m, blk, syms, cap, lk)
-        == 0);
+    /* Gone for good, over the whole blocks inside DROP_WATCH_S, so a drop
+       is never read past the watch. */
+    const size_t m_gone = (at + (size_t)(DROP_WATCH_S * FS)) / TE;
+    DP_REQUIRE (branch (rx, blob, sigp, noip, at, SIZE_MAX, m_gone, blk, syms,
+                        cap, gone)
+                == 0);
+    size_t m = m_gone;
     for (size_t i = 0; i < m; i++)
-      if (!lk[i])
+      if (!gone[i])
         {
           out->drop_ms = ((double)((i + 1) * TE) - (double)at) / FS * 1e3;
           break;
@@ -440,6 +460,9 @@ run_dropout (const uint8_t *code, double esn0_db, uint32_t seed,
       longest = MAX_HOLD;
     const size_t hold_watch = (size_t)(HOLD_WATCH_S * FS);
     int          failed     = 0;
+    /* The restore check: until the signal returns, a case's input is the
+       for-good case's, so its lock must read the same, block for block. */
+    int exact = 1;
     for (size_t j = 1; j <= longest; j++)
       {
         size_t fade = j * TE;
@@ -447,6 +470,7 @@ run_dropout (const uint8_t *code, double esn0_db, uint32_t seed,
         DP_REQUIRE (
             branch (rx, blob, sigp, noip, at, fade, m, blk, syms, cap, lk)
             == 0);
+        exact &= same_until (lk, gone, m_gone, (at + fade) / TE);
         uint8_t h = 1;
         for (size_t i = 0; i < m; i++)
           h &= lk[i];
@@ -472,6 +496,7 @@ run_dropout (const uint8_t *code, double esn0_db, uint32_t seed,
         DP_REQUIRE (
             branch (rx, blob, sigp, noip, at, fade, m, blk, syms, cap, lk)
             == 0);
+        exact &= same_until (lk, gone, m_gone, back / TE);
         size_t first_after = blocks_for (back); /* first block past it */
         out->back_ms[r]    = -1.0;
         for (size_t i = 0; i < first_after && i < m; i++)
@@ -484,6 +509,9 @@ run_dropout (const uint8_t *code, double esn0_db, uint32_t seed,
               break;
             }
       }
+    DP_CHECK_MSG (exact, "every case's lock reads the for-good case's until "
+                         "its signal returns: the restore is exact");
+    free (gone);
     free (lk);
     free (noip);
     free (sigp);
@@ -528,15 +556,15 @@ static void
 print_arrival (double esn0_db, uint32_t seed, const arrival_t *a, int emit)
 {
   if (emit)
-    printf ("%.1f,%u,%.1f,%.6f,%.2f,%.1f,%.2f,%d,%.2f,%.3f\n", esn0_db, seed,
+    printf ("%.1f,%u,%.1f,%.6f,%.2f,%.1f,%.2f,%d,%.3f\n", esn0_db, seed,
             a->carrier_hz, a->delay_s, a->t_track_ms, a->seed_err_hz,
-            a->t_lock_ms, a->locked_end, a->m2m4_db, a->flips);
+            a->t_lock_ms, a->locked_end, a->flips);
   else
     printf ("  %4.1f dB seed %2u: carrier %+7.1f Hz, tracking %6.1f ms, "
             "seed error %+7.1f Hz, symbol lock %7.1f ms, locked at end %d, "
-            "m2m4 %5.1f dB, flips %.2f\n",
+            "flips %.2f\n",
             esn0_db, seed, a->carrier_hz, a->t_track_ms, a->seed_err_hz,
-            a->t_lock_ms, a->locked_end, a->m2m4_db, a->flips);
+            a->t_lock_ms, a->locked_end, a->flips);
 }
 
 static void
@@ -544,8 +572,8 @@ print_dropout (double esn0_db, uint32_t seed, const dropout_t *d, int emit)
 {
   if (emit)
     {
-      printf ("%.1f,%u,%d,%.6f,%.3f,%.2f,%.2f,%d,", esn0_db, seed, d->settled,
-              d->cut_s, d->flips, d->drop_ms,
+      printf ("%.1f,%u,%.1f,%d,%.6f,%.3f,%.2f,%.2f,%d,", esn0_db, seed,
+              d->carrier_hz, d->settled, d->cut_s, d->flips, d->drop_ms,
               (double)d->hold_epochs * EPOCH_MS, d->non_monotonic);
       for (size_t r = 0; r < N_RELOCK; r++)
         printf ("%d,%.2f,", d->fell[r], d->back_ms[r]);
@@ -556,14 +584,17 @@ print_dropout (double esn0_db, uint32_t seed, const dropout_t *d, int emit)
     }
   if (!d->settled)
     {
-      printf ("  %4.1f dB seed %2u: not settled within %.0f s\n", esn0_db,
-              seed, MAX_LOCK_S);
+      printf ("  %4.1f dB seed %2u: carrier %+7.1f Hz, not settled within "
+              "%.0f s\n",
+              esn0_db, seed, d->carrier_hz, MAX_LOCK_S);
       return;
     }
-  printf ("  %4.1f dB seed %2u: lock falls %5.1f ms after a loss, holds "
+  printf ("  %4.1f dB seed %2u: carrier %+7.1f Hz, lock falls %5.1f ms "
+          "after a loss, holds "
           "%5.1f ms%s; back %5.1f ms after a %g ms dropout, %5.1f ms after "
           "%g ms; flips %.2f\n",
-          esn0_db, seed, d->drop_ms, (double)d->hold_epochs * EPOCH_MS,
+          esn0_db, seed, d->carrier_hz, d->drop_ms,
+          (double)d->hold_epochs * EPOCH_MS,
           d->non_monotonic ? " (NON-MONOTONIC)" : "", d->back_ms[0],
           relock_ms[0], d->back_ms[1], relock_ms[1], d->flips);
 }
@@ -587,7 +618,7 @@ main (int argc, char **argv)
 
   if (emit)
     printf ("# arrival\nesn0_db,seed,carrier_hz,delay_s,t_track_ms,"
-            "seed_err_hz,t_lock_ms,locked_end,m2m4_db,flips\n");
+            "seed_err_hz,t_lock_ms,locked_end,flips\n");
   else
     printf ("arrival: %.3f Mcps, +/-%.0f Hz search, %.1f s a trial\n",
             CHIP_RATE * 1e-6, SPAN, ARRIVAL_S);
@@ -601,10 +632,13 @@ main (int argc, char **argv)
       }
 
   if (emit)
-    printf ("# dropout\nesn0_db,seed,settled,cut_s,flips,drop_ms,hold_ms,"
-            "non_monotonic,fell_50,back_50_ms,fell_200,back_200_ms,held\n");
+    printf ("# dropout\nesn0_db,seed,carrier_hz,settled,cut_s,flips,drop_ms,"
+            "hold_ms,non_monotonic,fell_50,back_50_ms,fell_200,back_200_ms,"
+            "held\n");
   else
-    printf ("dropout: %.0f Hz, the signal cut, the noise on\n", DROPOUT_HZ);
+    printf ("dropout: carrier over +/-%.0f Hz, the signal cut, the noise "
+            "on\n",
+            SPAN);
   for (size_t e = 0; e < n_esn0; e++)
     {
       size_t got = 0;

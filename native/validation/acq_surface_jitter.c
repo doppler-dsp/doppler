@@ -321,13 +321,9 @@ stim_open (stim_t *s, const uint8_t *code, double ppm, double cn0_dbhz,
 {
   memset (s, 0, sizeof *s);
   s->ppm = ppm;
-  s->syn = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN,
-                                1, seed, (int)SPC, 15, 0, 0, 0.0);
-  if (!s->syn
-      || dp_wfm_synth_set_dsss_cont (s->syn, code, SF, CPS, WFM_DSSS_DATA_BITS,
-                                     bits, N_BITS)
-             != 0
-      || dp_wfm_synth_set_dsss_window (s->syn, win_sym, F_SYM) != 0)
+  s->syn = dp_dsss_cont_emitter (code, SF, SPC, FS, 0.0, CPS, seed,
+                                 WFM_DSSS_DATA_BITS, bits, N_BITS);
+  if (!s->syn || dp_wfm_synth_set_dsss_window (s->syn, win_sym, F_SYM) != 0)
     return 1;
   s->ch = dp_doppler_channel_create (FS, CARRIER_HZ, ppm, 0.0);
   if (!s->ch)

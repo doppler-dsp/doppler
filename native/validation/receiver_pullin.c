@@ -88,13 +88,9 @@ draw_open (draw_t *d, const uint8_t *code, double cn0_dbhz, uint32_t seed,
     (void)dp_xs32 (&rng);
   d->ppm        = -20.0 + 40.0 * (double)(dp_xs32 (&rng) >> 8) / 16777216.0;
   d->doppler_hz = d->ppm * 1e-6 * CARRIER_HZ;
-  dp_wfm_synth_state_t *syn
-      = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                             seed, (int)SPC, 15, 0, 0, 0.0);
+  dp_wfm_synth_state_t *syn = dp_dsss_cont_emitter (
+      code, SF, SPC, FS, 0.0, CPS, seed, WFM_DSSS_DATA_PRBS, NULL, 0);
   DP_REQUIRE (syn != NULL);
-  DP_REQUIRE (dp_wfm_synth_set_dsss_cont (syn, code, SF, CPS,
-                                          WFM_DSSS_DATA_PRBS, NULL, 0)
-              == 0);
   DP_REQUIRE (dp_wfm_synth_set_dsss_window (syn, W_SYM, F_SYM) == 0);
   dp_doppler_channel_state_t *ch
       = dp_doppler_channel_create (FS, CARRIER_HZ, d->ppm, 0.0);

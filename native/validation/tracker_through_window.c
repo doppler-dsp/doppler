@@ -163,13 +163,11 @@ typedef struct
 static dp_wfm_synth_state_t *
 make_emitter (const uint8_t *code, uint32_t seed)
 {
-  dp_wfm_synth_state_t *syn
-      = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                             seed, (int)SPC, 15, 0, 0, 0.0);
+  dp_wfm_synth_state_t *syn = dp_dsss_cont_emitter (
+      code, SF, SPC, FS, 0.0, CPS, seed, WFM_DSSS_DATA_PRBS, NULL, 0);
   /* Valid constants: the synth takes them (the caller requires `syn`). */
-  (void)dp_wfm_synth_set_dsss_cont (syn, code, SF, CPS, WFM_DSSS_DATA_PRBS,
-                                    NULL, 0);
-  (void)dp_wfm_synth_set_dsss_window (syn, W_SYM, F_SYM);
+  if (syn)
+    (void)dp_wfm_synth_set_dsss_window (syn, W_SYM, F_SYM);
   return syn;
 }
 

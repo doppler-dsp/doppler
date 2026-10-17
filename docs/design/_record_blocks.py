@@ -10,6 +10,8 @@ markers::
 
     <!-- <prefix>:<block>:end -->
 
+A run may keep blocks on more than one page (``main_pages``): a design
+page that quotes a record's numbers holds them as blocks of the same run.
 ``--write`` rewrites the blocks; ``--check`` (a line in the Makefile's
 ``DOCS_CHECK_PRE_CMDS``, so in ``make docs-invariants`` and
 ``make docs-check``) fails when one differs from what the data renders,
@@ -62,31 +64,11 @@ def cells(text: str) -> list[list[str]]:
     return rows
 
 
-def main(
-    record: Path,
-    prefix: str,
-    label: str,
-    script: str,
-    render: Callable[[], dict[str, str]],
-    doc: str,
-    argv: Sequence[str] | None = None,
-) -> int:
-    """Print, ``--write`` or ``--check`` one run's blocks in ``record``.
-
-    ``render`` is called after the arguments parse, and returns every
-    block's body by name; ``label`` names the run in the messages and
-    ``script`` is what a stale block is told to run.
-    """
-    ap = argparse.ArgumentParser(description=doc.splitlines()[0])
-    mode = ap.add_mutually_exclusive_group()
-    mode.add_argument("--write", action="store_true")
-    mode.add_argument("--check", action="store_true")
-    a = ap.parse_args(argv)
-    rendered = render()
-    if not (a.write or a.check):
-        for name, body in rendered.items():
-            print(f"== {name}\n{body}\n")
-        return 0
+def _sync(
+    record: Path, prefix: str, label: str, rendered: dict[str, str]
+) -> tuple[str, list[str]]:
+    """``record``'s text with every block replaced by its rendering, and the
+    names of the blocks whose cells differed."""
     text = record.read_text(encoding="utf-8")
     stale = []
     for name, body in rendered.items():
@@ -99,18 +81,69 @@ def main(
             lambda m, b=body: m.group(1) + "\n\n" + b + "\n\n" + m.group(3),
             text,
         )
+    return text, stale
+
+
+def main_pages(
+    prefix: str,
+    label: str,
+    script: str,
+    render: Callable[[], dict[Path, dict[str, str]]],
+    doc: str,
+    argv: Sequence[str] | None = None,
+) -> int:
+    """Print, ``--write`` or ``--check`` one run's blocks across pages.
+
+    ``render`` is called after the arguments parse and returns, per page,
+    every block's body by name: a run whose numbers a design page quotes
+    keeps them there as blocks too, so a re-run cannot leave the page
+    stale. ``label`` names the run in the messages and ``script`` is what a
+    stale block is told to run.
+    """
+    ap = argparse.ArgumentParser(description=doc.splitlines()[0])
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--write", action="store_true")
+    mode.add_argument("--check", action="store_true")
+    a = ap.parse_args(argv)
+    pages = render()
+    n = sum(len(r) for r in pages.values())
+    if not (a.write or a.check):
+        for page, rendered in pages.items():
+            for name, body in rendered.items():
+                print(f"== {page.name}: {name}\n{body}\n")
+        return 0
+    stale: list[str] = []
+    texts = {}
+    for page, rendered in pages.items():
+        texts[page], bad = _sync(page, prefix, label, rendered)
+        stale += [f"{page.name}'s {b}" for b in bad]
     if a.write:
-        record.write_text(text, encoding="utf-8")
-        print(
-            f"{label}: wrote {len(rendered)} table block(s) in {record.name}"
-        )
+        for page, text in texts.items():
+            page.write_text(text, encoding="utf-8")
+        names = ", ".join(p.name for p in pages)
+        print(f"{label}: wrote {n} table block(s) in {names}")
         return 0
     if stale:
         print(
-            f"{label}: {record.name}'s {', '.join(stale)} table(s) are not "
-            f"what the run's data renders. Run `python {script} --write`; "
-            f"a cell is the data's output, never an edit."
+            f"{label}: {', '.join(stale)} table(s) are not what the run's "
+            f"data renders. Run `python {script} --write`; a cell is the "
+            f"data's output, never an edit."
         )
         return 1
-    print(f"{label}: OK — {len(rendered)} table block(s) match the run's data")
+    print(f"{label}: OK — {n} table block(s) match the run's data")
     return 0
+
+
+def main(
+    record: Path,
+    prefix: str,
+    label: str,
+    script: str,
+    render: Callable[[], dict[str, str]],
+    doc: str,
+    argv: Sequence[str] | None = None,
+) -> int:
+    """``main_pages`` for a run that keeps its blocks on one page."""
+    return main_pages(
+        prefix, label, script, lambda: {record: render()}, doc, argv
+    )

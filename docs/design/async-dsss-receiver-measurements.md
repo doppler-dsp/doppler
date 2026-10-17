@@ -445,7 +445,7 @@ the worst cell at another code phase.
 Five things this settles:
 
 - **The aligned block gives the transition-free floor, −21 dB at another
-    code phase** — the number §12 step 11 expected, and 8 dB below the −13
+    code phase** — the number §12.7 expected, and 8 dB below the −13
     the single-look surface has under data (§12.2). Inside the emitter's own
     column the slow-time transform's rectangular window puts its first
     sidelobe at −14 dB one row out; a taper would trade that for a wider
@@ -506,7 +506,7 @@ epoch-by-epoch searcher of §12.1 is therefore not one number but the
 whole gap between "never" and 30 dB-Hz at one look; and sized at the
 45 dB-Hz of §12.6, the engine's own sizer buys **15 non-coherent looks
 at D = 1 and one at D = 154** (measured on the same code and span). Its cost per epoch, and how the fan
-across threads takes it, is §12 step 13.
+across threads takes it, is §12.8.
 
 ### 12.8 What was measured (2026-09-05) — step 13, the searcher's cost with D, and the fan
 
@@ -977,7 +977,7 @@ Two things the build found:
 pin is `test_async_dsss_pool_core.c:289–292`. `_test_table_holds_the_locked_doppler`, the
 test that reproduced #1261, was deleted in 9ddb8a3af.
 
-**Next:** the lifecycle soak (§12 step 7) — the shipped synth with the
+**Next:** the lifecycle soak (§12.14) — the shipped synth with the
 window, the block-coherent searcher at D = 154, several emitters at
 random Dopplers through the channel, arrivals and departures — is the
 measurement that certifies the pool. **Done, §12.14.**

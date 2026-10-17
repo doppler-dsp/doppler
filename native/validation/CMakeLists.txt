@@ -463,6 +463,25 @@ dp_gnu_compile_options(validate_async_dsss_receiver_release
 add_test(NAME validate_async_dsss_receiver_release
          COMMAND validate_async_dsss_receiver_release --check)
 
+# Symbol lock through a signal's life at the parallel receivers' operating
+# point, 3.069 Mcps with the receiver's own search over +/-1/T_E: arrival to
+# tracking and to symbol lock, and lock through a dropout and after a loss
+# (docs/design/async-dsss-parallel.md §3, §5). The emitter is the shipped
+# continuous-DSSS synth with the harness's own data bits, so every event is
+# measured mid-data; the noise the shipped awgn. `--emit` is the record's
+# data (docs/design/async-dsss-parallel-measurements/).
+add_executable(validate_async_dsss_receiver_lock
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_receiver_lock.c)
+target_include_directories(validate_async_dsss_receiver_lock
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_async_dsss_receiver_lock
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_async_dsss_receiver_lock
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_receiver_lock
+         COMMAND validate_async_dsss_receiver_lock --check)
+
 # The tracking receiver through the frame's pure-code window: what each lock
 # flag does while the symbol clock coasts, the pull-in when the data resumes,
 # and whether the release rule ever fires (docs/design/async-dsss-receiver.md

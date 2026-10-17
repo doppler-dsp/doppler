@@ -86,6 +86,8 @@
 
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/gold/gold_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_rng_test.h"
 #include <math.h>
 #include <stdint.h>
@@ -93,6 +95,79 @@
 
 /** pi, spelled once for the phase accumulators below. */
 #define DP_DSSS_PI 3.14159265358979323846
+
+/**
+ * The 1023-chip Gold code the continuous-receiver validators run on: CCSDS
+ * code #365, `gold_core.h`'s own worked example, as 0/1 chips.
+ *
+ * Ten validators under `native/validation/` carried this as a private
+ * `gold_1023()`, nine of them byte-identical and the tenth differing only by
+ * a comment; this is the one spelling.
+ *
+ * @param code  receives 1023 chips.
+ */
+static inline void
+dp_dsss_gold_1023 (uint8_t code[1023])
+{
+  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (gd, 1023, code, 1023);
+  dp_gold_destroy (gd);
+}
+
+/**
+ * The continuous asynchronous-data DSSS emitter, clean, from the shipped
+ * generator: `wfm_synth` continuous DSSS, the generator wfmgen renders the
+ * waveform with, at carrier `freq_hz`.
+ *
+ * The validators of the continuous receiver render their emitter this way
+ * and add noise as a separate stream, so an event -- a switch-off, a fade, a
+ * dropout -- is an edit to the signal alone. Six carried this as private
+ * copies (two byte-identical, four the same two calls inline); this is the
+ * one spelling. The user-facing `native/examples/async_dsss_pool_demo.c`
+ * keeps its own, since an example cannot reach `native/tests/`.
+ *
+ * The data is the caller's `data_mode`, passed through: the synth's own
+ * seeded PRBS (`WFM_DSSS_DATA_PRBS`, `bits` NULL), or `n_bits` 0/1 bits sent
+ * once, one per symbol (`WFM_DSSS_DATA_BITS`), for a harness that must know
+ * where the data transitions -- a lock measured mid-data, never in a
+ * data-free stretch. The mode is the caller's to name, not this helper's,
+ * because a pattern sent once runs dry into silence (doppler#1718): the file
+ * that chooses one must check `dp_wfm_synth_data_ended()` after its run, and
+ * `check_stimulus_sources.py` finds that file by the mode it names. No window
+ * is set: the stream is data throughout. Add one with
+ * `dp_wfm_synth_set_dsss_window()`.
+ *
+ * @param code              the spreading code, `sf` chips of 0/1.
+ * @param sf                chips per code period.
+ * @param spc               samples per chip.
+ * @param fs                sample rate, Hz.
+ * @param freq_hz           the carrier, Hz.
+ * @param chips_per_symbol  chip rate over symbol rate; non-integer is what
+ *                          makes the data asynchronous to the code.
+ * @param seed              the synth's seed (its PRBS, when it draws one).
+ * @param data_mode         `WFM_DSSS_DATA_PRBS`, or `_BITS` with `bits`.
+ * @param bits              the data, 0/1 per symbol, or NULL for the PRBS.
+ * @param n_bits            how many; the stream is silent after the last.
+ * @return the synth, or NULL on a refused configuration. Caller destroys.
+ */
+static inline dp_wfm_synth_state_t *
+dp_dsss_cont_emitter (const uint8_t *code, size_t sf, size_t spc, double fs,
+                      double freq_hz, double chips_per_symbol, uint32_t seed,
+                      int data_mode, const uint8_t *bits, size_t n_bits)
+{
+  dp_wfm_synth_state_t *syn
+      = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs, freq_hz, WFM_SYNTH_SNR_CLEAN,
+                             1, seed, (int)spc, 15, 0, 0, 0.0);
+  if (syn
+      && dp_wfm_synth_set_dsss_cont (syn, code, sf, chips_per_symbol,
+                                     data_mode, bits, bits ? n_bits : 0)
+             != 0)
+    {
+      dp_wfm_synth_destroy (syn);
+      syn = NULL;
+    }
+  return syn;
+}
 
 /**
  * A continuous, code-spread BPSK capture with a FIXED residual Doppler:

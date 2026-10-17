@@ -72,6 +72,7 @@
 #include "doppler/dp_complex.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_dsss_test.h"
 #include "dp_test.h"
 #include "dp_tx_test.h"
 #include <math.h>
@@ -107,14 +108,6 @@ code_only_epochs_for (double chip_rate)
 {
   double cps = chip_rate / SYMBOL_RATE;
   return (size_t)floor ((double)W_SYM * cps / (double)SF) - 1;
-}
-
-static void
-gold_1023 (uint8_t *code)
-{
-  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
-  dp_gold_generate (gd, SF, code, SF);
-  dp_gold_destroy (gd);
 }
 
 typedef enum
@@ -481,7 +474,7 @@ main (int argc, char **argv)
 {
   int     check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   uint8_t code[SF];
-  gold_1023 (code);
+  dp_dsss_gold_1023 (code);
 
   /* ── the floor, and the straddles: one clean emitter per block ────── */
   const double rates[2] = { 5.0e6, 2.0e6 };

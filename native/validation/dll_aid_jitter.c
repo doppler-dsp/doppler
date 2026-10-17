@@ -62,6 +62,7 @@
 #include "doppler/dp_complex.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_dsss_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
@@ -107,31 +108,13 @@ typedef struct
   int      settle_ep, meas_ep;
 } cfg_t;
 
-static void
-gold_1023 (uint8_t *code)
-{
-  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
-  dp_gold_generate (gd, SF, code, SF);
-  dp_gold_destroy (gd);
-}
-
 /* The emitter: the shipped continuous-DSSS synth, clean (no AWGN child),
-   PRBS data from its own PN register, seeded per trial. */
+   PRBS data from its own PN register, seeded per trial (dp_dsss_test.h). */
 static dp_wfm_synth_state_t *
 make_emitter (const uint8_t *code, uint32_t seed)
 {
-  dp_wfm_synth_state_t *syn
-      = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                             seed, (int)SPC, 15, 0, 0, 0.0);
-  if (syn
-      && dp_wfm_synth_set_dsss_cont (syn, code, SF, CHIP_RATE / SYM_RATE,
-                                     WFM_DSSS_DATA_PRBS, NULL, 0)
-             != 0)
-    {
-      dp_wfm_synth_destroy (syn);
-      syn = NULL;
-    }
-  return syn;
+  return dp_dsss_cont_emitter (code, SF, SPC, FS, 0.0, CHIP_RATE / SYM_RATE,
+                               seed, WFM_DSSS_DATA_PRBS, NULL, 0);
 }
 
 static double
@@ -314,7 +297,7 @@ main (int argc, char **argv)
 {
   int     check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   uint8_t code[SF];
-  gold_1023 (code);
+  dp_dsss_gold_1023 (code);
 
   printf ("DLL on the symbol-aided window vs the per-epoch look-back: "
           "Gold-1023 at 5 Mcps, spc %u, %.0f sym/s async BPSK "

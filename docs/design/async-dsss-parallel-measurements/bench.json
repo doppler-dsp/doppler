@@ -1,0 +1,151 @@
+{
+ "datetime": "2026-10-17T18:36:27.906645+00:00",
+ "machine_info": {
+  "node": "swiftgo-ai9465",
+  "system": "Linux",
+  "release": "6.12.111+deb13-amd64",
+  "machine": "x86_64",
+  "cpu": {
+   "count": 20,
+   "brand_raw": "AMD Ryzen AI 9 465 w/ Radeon 880M"
+  }
+ },
+ "commit_info": {
+  "id": "bc874bf750761e9bae6b3603c11cd6b34bb69e51",
+  "branch": "HEAD",
+  "dirty": false
+ },
+ "load_before": [
+  1.87,
+  3.52,
+  4.05
+ ],
+ "load_after": [
+  1.83,
+  3.43,
+  4.01
+ ],
+ "benchmarks": [
+  {
+   "name": "async_dsss_receiver::steps[cell,sf=1023,5Mcps]",
+   "stats": {
+    "min": 0.0007247200000000001,
+    "max": 0.0007605670000000001,
+    "mean": 0.0007402698,
+    "median": 0.0007394070000000001,
+    "iterations": 65536,
+    "rounds": 20
+   }
+  },
+  {
+   "name": "acq::native_nc90",
+   "stats": {
+    "min": 0.004098229,
+    "max": 0.004170855,
+    "mean": 0.004123672066666667,
+    "median": 0.004119269,
+    "iterations": 184140,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op5M_U5k_nc225",
+   "stats": {
+    "min": 0.016751999,
+    "max": 0.016848199,
+    "mean": 0.01678051266666667,
+    "median": 0.016766076,
+    "iterations": 460350,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op5M_U5k_D154_t1_nc1",
+   "stats": {
+    "min": 0.027667346000000002,
+    "max": 0.027870718000000003,
+    "mean": 0.027751789333333336,
+    "median": 0.027741775000000003,
+    "iterations": 315084,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op5M_U5k_D154_t4_nc1",
+   "stats": {
+    "min": 0.013879519000000002,
+    "max": 0.018046387,
+    "mean": 0.015441866266666666,
+    "median": 0.014841444,
+    "iterations": 315084,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[12 slots, serial]",
+   "stats": {
+    "min": 9.188200000000001e-05,
+    "max": 0.002092646,
+    "mean": 0.00022100016,
+    "median": 9.622100000000001e-05,
+    "iterations": 2046,
+    "rounds": 200
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[12 slots, all cores]",
+   "stats": {
+    "min": 9.323500000000001e-05,
+    "max": 0.001740926,
+    "mean": 0.00020030559500000002,
+    "median": 0.00010238750000000002,
+    "iterations": 2046,
+    "rounds": 200
+   }
+  },
+  {
+   "name": "acq::op5M_U50k_D154_t1_nc1",
+   "stats": {
+    "min": 0.16573379700000002,
+    "max": 0.166333796,
+    "mean": 0.166032865,
+    "median": 0.16603162600000002,
+    "iterations": 315084,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op5M_U50k_D154_t8_nc1",
+   "stats": {
+    "min": 0.039080800000000006,
+    "max": 0.041611949,
+    "mean": 0.040069648933333334,
+    "median": 0.039924845,
+    "iterations": 315084,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op2M_U50k_D61_t1_nc1",
+   "stats": {
+    "min": 0.26803369600000004,
+    "max": 0.269864274,
+    "mean": 0.2688331341333334,
+    "median": 0.268696414,
+    "iterations": 124806,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op2M_U50k_D61_t4_nc1",
+   "stats": {
+    "min": 0.073953683,
+    "max": 0.08273902500000001,
+    "mean": 0.0752476102,
+    "median": 0.07457999800000001,
+    "iterations": 124806,
+    "rounds": 15
+   }
+  }
+ ]
+}

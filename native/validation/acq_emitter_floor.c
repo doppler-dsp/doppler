@@ -47,6 +47,7 @@
 #include "doppler/dp_complex.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_dsss_test.h"
 #include "dp_test.h"
 #include "dp_tx_test.h"
 #include <math.h>
@@ -233,21 +234,12 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   return 0;
 }
 
-static void
-gold_1023 (uint8_t *code)
-{
-  /* The header's own worked example: CCSDS code #365, length 1023. */
-  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
-  dp_gold_generate (gd, SF, code, SF);
-  dp_gold_destroy (gd);
-}
-
 int
 main (int argc, char **argv)
 {
   int     check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   uint8_t code[SF];
-  gold_1023 (code);
+  dp_dsss_gold_1023 (code);
 
   if (check)
     {

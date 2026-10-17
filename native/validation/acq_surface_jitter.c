@@ -116,6 +116,7 @@
 #include "doppler/lo/lo_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_ber_test.h"
+#include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -292,14 +293,6 @@ static double parabola (double a, double b, double c);
 static double sinv (const struct scurve *sc, double y);
 static int    dll_open (sink_ctx_t *c, double seed_chip, double f_hz);
 
-static void
-gold_1023 (uint8_t *code)
-{
-  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
-  dp_gold_generate (gd, SF, code, SF);
-  dp_gold_destroy (gd);
-}
-
 static double
 wrap_chips (double e)
 {
@@ -328,13 +321,9 @@ stim_open (stim_t *s, const uint8_t *code, double ppm, double cn0_dbhz,
 {
   memset (s, 0, sizeof *s);
   s->ppm = ppm;
-  s->syn = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN,
-                                1, seed, (int)SPC, 15, 0, 0, 0.0);
-  if (!s->syn
-      || dp_wfm_synth_set_dsss_cont (s->syn, code, SF, CPS, WFM_DSSS_DATA_BITS,
-                                     bits, N_BITS)
-             != 0
-      || dp_wfm_synth_set_dsss_window (s->syn, win_sym, F_SYM) != 0)
+  s->syn = dp_dsss_cont_emitter (code, SF, SPC, FS, 0.0, CPS, seed,
+                                 WFM_DSSS_DATA_BITS, bits, N_BITS);
+  if (!s->syn || dp_wfm_synth_set_dsss_window (s->syn, win_sym, F_SYM) != 0)
     return 1;
   s->ch = dp_doppler_channel_create (FS, CARRIER_HZ, ppm, 0.0);
   if (!s->ch)
@@ -1549,7 +1538,7 @@ main (int argc, char **argv)
 {
   int     check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   uint8_t code[SF];
-  gold_1023 (code);
+  dp_dsss_gold_1023 (code);
 
   printf ("the searcher's surface as a code tracker: Gold-1023 at 5 Mcps, "
           "spc %u, %.0f sym/s async BPSK, %u code-only symbols of every %u; "

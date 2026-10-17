@@ -716,10 +716,8 @@ _test_awgn_esn0_floor (void)
   const double cps   = chip_rate / sym_rate; /* 1136.67, non-integer */
   const size_t n_sym = 1500;
 
-  uint8_t         *code = malloc (sf);
-  dp_gold_state_t *g    = dp_gold_create (934, 350, 567, 73, 10);
-  dp_gold_generate (g, sf, code, sf);
-  dp_gold_destroy (g);
+  uint8_t *code = malloc (sf);
+  dp_dsss_gold_1023 (code);
   size_t ones = 0;
   for (size_t i = 0; i < sf; i++)
     ones += code[i];

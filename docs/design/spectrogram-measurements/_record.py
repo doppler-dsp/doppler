@@ -16,22 +16,27 @@ computed or checked:
 - a spread is ``(max - min) / median`` over the same passes.
 
 A run's tables sit between ``<!-- spectrogram-<run>:<block>:start -->`` and
-``:end`` markers in the record. ``--write`` rewrites them, and ``--check``
-(in ``make docs-invariants``) fails when they differ from what the data
-renders, cell by cell, so mdformat's column padding is not a difference.
+``:end`` markers in the record. The marker blocks, ``--write`` and
+``--check`` are ``../_record_blocks.py``'s, the one home every rendered
+record in ``docs/design/`` shares.
 """
 
 from __future__ import annotations
 
-import argparse
 import json
-import re
 import statistics
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import _record_blocks as blocks
+from _record_blocks import table
+
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+__all__ = ["table"]
 
 RECORD = Path(__file__).resolve().parent.parent / "spectrogram-measurements.md"
 BUILDS = ("portable", "native")
@@ -80,30 +85,6 @@ def both(P: Runs, f: Callable[[list[Pass]], float], fmt: str) -> str:
     return " / ".join(format(f(P[b]), fmt) for b in BUILDS)
 
 
-def table(head: list[str], rows: list[list[str]]) -> str:
-    out = ["| " + " | ".join(head) + " |"]
-    out.append("| " + " | ".join("---" for _ in head) + " |")
-    out += ["| " + " | ".join(r) + " |" for r in rows]
-    return "\n".join(out)
-
-
-def _span(run: str, name: str) -> re.Pattern[str]:
-    return re.compile(
-        rf"(<!-- spectrogram-{run}:{name}:start -->)(.*?)"
-        rf"(<!-- spectrogram-{run}:{name}:end -->)",
-        re.S,
-    )
-
-
-def _cells(text: str) -> list[list[str]]:
-    """A block's table rows as stripped cells; padding and dashes ignored."""
-    rows = []
-    for line in text.strip().splitlines():
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        rows.append([re.sub(r"^:?-+:?$", "---", c) for c in cells])
-    return rows
-
-
 def runs(data: Path, commit: str, meta: bool = True) -> Runs:
     """Every pass of both builds of one run, held to its commit and count.
 
@@ -133,44 +114,21 @@ def main(
     run: str,
     data: Path,
     commit: str,
-    blocks: dict[str, Callable[[Runs], str]],
+    blocks_by_name: dict[str, Callable[[Runs], str]],
     doc: str,
     meta: bool = True,
 ) -> int:
     """Print, ``--write`` or ``--check`` one run's tables in the record."""
-    ap = argparse.ArgumentParser(description=doc.splitlines()[0])
-    mode = ap.add_mutually_exclusive_group()
-    mode.add_argument("--write", action="store_true")
-    mode.add_argument("--check", action="store_true")
-    a = ap.parse_args()
-    P = runs(data, commit, meta)
-    rendered = {name: f(P) for name, f in blocks.items()}
-    if not (a.write or a.check):
-        for name, body in rendered.items():
-            print(f"== {name}\n{body}\n")
-        return 0
-    text = RECORD.read_text(encoding="utf-8")
-    stale = []
-    for name, body in rendered.items():
-        m = _span(run, name).search(text)
-        if m is None:
-            raise SystemExit(f"{run}: no {name} markers in {RECORD.name}")
-        if _cells(m.group(2)) != _cells(body):
-            stale.append(name)
-        text = _span(run, name).sub(
-            lambda m, b=body: m.group(1) + "\n" + b + "\n" + m.group(3), text
-        )
-    script = f"docs/design/spectrogram-measurements/{run}.py"
-    if a.write:
-        RECORD.write_text(text, encoding="utf-8")
-        print(f"{run}: wrote {len(rendered)} table block(s) in {RECORD.name}")
-        return 0
-    if stale:
-        print(
-            f"{run}: {RECORD.name}'s {', '.join(stale)} table(s) are not "
-            f"what the run's data renders. Run `python {script} --write`; "
-            f"a cell is the data's output, never an edit."
-        )
-        return 1
-    print(f"{run}: OK — {len(rendered)} table block(s) match the run's data")
-    return 0
+
+    def render() -> dict[str, str]:
+        P = runs(data, commit, meta)
+        return {name: f(P) for name, f in blocks_by_name.items()}
+
+    return blocks.main(
+        RECORD,
+        f"spectrogram-{run}",
+        run,
+        f"docs/design/spectrogram-measurements/{run}.py",
+        render,
+        doc,
+    )

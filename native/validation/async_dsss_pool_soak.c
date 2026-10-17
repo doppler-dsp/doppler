@@ -127,6 +127,7 @@
 #include "doppler/dp_event_log/dp_event_log_core.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -237,14 +238,6 @@ typedef struct
   emitter_t   *e;
 } produce_ctx_t;
 
-static void
-gold_1023 (uint8_t *code)
-{
-  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
-  dp_gold_generate (gd, SF, code, SF);
-  dp_gold_destroy (gd);
-}
-
 static double
 draw (uint32_t *st, double lo, double hi)
 {
@@ -314,11 +307,9 @@ make_emitter (emitter_t *e, size_t k, const cfg_t *cfg, const uint8_t *code)
   e->ppm        = draw (&e->rng, -MAX_PPM, MAX_PPM);
   e->doppler_hz = e->ppm * 1e-6 * CARRIER_HZ;
   e->burn       = (uint64_t)(draw (&e->rng, 0.0, 1.0) * FRAME_S * FS);
-  e->syn = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN,
-                                1, e->rng, (int)SPC, 15, 0, 0, 0.0);
+  e->syn        = dp_dsss_cont_emitter (code, SF, SPC, FS, 0.0, CPS, e->rng,
+                                        WFM_DSSS_DATA_PRBS, NULL, 0);
   DP_REQUIRE_MSG (e->syn != NULL, "the emitter's synth opens");
-  (void)dp_wfm_synth_set_dsss_cont (e->syn, code, SF, CPS, WFM_DSSS_DATA_PRBS,
-                                    NULL, 0);
   (void)dp_wfm_synth_set_dsss_window (e->syn, W_SYM, F_SYM);
   e->ch = dp_doppler_channel_create (FS, CARRIER_HZ, e->ppm, 0.0);
   DP_REQUIRE_MSG (e->ch != NULL, "the emitter's channel opens");
@@ -1376,7 +1367,7 @@ main (int argc, char **argv)
               g_chain_delay, FS / 1e6);
     }
   uint8_t code[SF];
-  gold_1023 (code);
+  dp_dsss_gold_1023 (code);
 
   printf ("the pool's lifecycle soak: Gold-1023 at 5 Mcps, spc 2, 2700 "
           "sym/s async BPSK, %u code-only symbols of every %u (%.2f s "

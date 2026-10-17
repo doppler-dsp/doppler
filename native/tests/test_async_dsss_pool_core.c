@@ -708,10 +708,111 @@ _test_a_block_of_several_dwells_is_searched_whole (void)
   return 0;
 }
 
+/* Records a probe has written (the context's own count), or UINT64_MAX for
+   a name that is not registered. */
+static uint64_t
+tlm_emitted (const dp_tlm_t *t, const char *name)
+{
+  for (uint32_t i = 0; i < t->n_probes; i++)
+    if (strcmp (t->probes[i].name, name) == 0)
+      return t->probes[i].emitted;
+  return UINT64_MAX;
+}
+
+/* set_telemetry: the searcher, every slot and the pool's own counters on
+   one context, the counters once a push; refused on a pool that steps on
+   several threads, since a context has one producer. */
+static int
+_test_telemetry (void)
+{
+  dp_tlm_t *t = dp_tlm_create (1 << 18);
+  DP_CHECK (t != NULL);
+  if (!t)
+    return 1;
+
+  dp_async_dsss_pool_state_t *mt = make_pool (2, 2);
+  DP_CHECK (mt != NULL);
+  DP_CHECK (dp_async_dsss_pool_set_telemetry (mt, t, "pool", 1)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_tlm_probe_count (t) == 0);
+  dp_async_dsss_pool_destroy (mt);
+
+  const size_t                n_slots = 3;
+  dp_async_dsss_pool_state_t *p       = make_pool (n_slots, 1);
+  DP_CHECK (p != NULL);
+  if (!p)
+    {
+      dp_tlm_destroy (t);
+      return 1;
+    }
+  DP_CHECK (dp_async_dsss_pool_set_telemetry (p, t, "pool", 0)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_tlm_probe_count (t) == 0);
+  DP_CHECK (dp_async_dsss_pool_set_telemetry (p, t, "pool", 1) == DP_OK);
+
+  /* The set: the searcher's, the three counters, and one receiver's per
+     slot -- the same count under every slot's prefix. */
+  size_t per_slot[3] = { 0, 0, 0 }, acq = 0, own = 0;
+  for (uint32_t i = 0; i < t->n_probes; i++)
+    {
+      const char *nm = t->probes[i].name;
+      if (strncmp (nm, "pool.acq.", 9) == 0)
+        acq++;
+      else if (strncmp (nm, "pool.s", 6) == 0 && nm[6] >= '0' && nm[6] < '3'
+               && nm[7] == '.')
+        per_slot[nm[6] - '0']++;
+      else
+        own++;
+    }
+  DP_CHECK (acq == 10);
+  DP_CHECK (own == 3);
+  DP_CHECK (per_slot[0] > 0 && per_slot[0] == per_slot[1]
+            && per_slot[1] == per_slot[2]);
+  DP_CHECK (dp_tlm_probe_count (t) == acq + own + n_slots * per_slot[0]);
+
+  /* One emitter: the counters report once a push, the searcher once a
+     decided dwell, and the slot that holds it from its loops. */
+  cap_t        c      = emitter (1500.0, 0, 11);
+  const size_t pushes = c.n / TE;
+  (void)feed (p, c.x, c.n);
+  DP_CHECK (tlm_emitted (t, "pool.assigned") == (uint64_t)pushes);
+  DP_CHECK (tlm_emitted (t, "pool.dropped") == (uint64_t)pushes);
+  DP_CHECK (tlm_emitted (t, "pool.events") == (uint64_t)pushes);
+  DP_CHECK (tlm_emitted (t, "pool.acq.stat") == p->acq->dwells);
+  size_t held;
+  size_t slot = slot_of (p, 1500.0, 0, &held);
+  DP_CHECK (held == 1 && slot < n_slots);
+  if (slot < n_slots)
+    {
+      char nm[DP_TLM_NAME_MAX];
+      (void)snprintf (nm, sizeof nm, "pool.s%zu.code.rate", slot);
+      const uint64_t code = tlm_emitted (t, nm);
+      (void)snprintf (nm, sizeof nm, "pool.s%zu.car.freq", slot);
+      const uint64_t car = tlm_emitted (t, nm);
+      DP_CHECK_MSG (code > 0 && code != UINT64_MAX, "the held slot's Dll");
+      DP_CHECK_MSG (car > 0 && car != UINT64_MAX, "the held slot's carrier");
+    }
+
+  /* NULL detaches the searcher, every slot and the counters. */
+  DP_CHECK (dp_async_dsss_pool_set_telemetry (p, NULL, NULL, 1) == DP_OK);
+  const uint64_t pushed = tlm_emitted (t, "pool.assigned");
+  const uint64_t dwelt  = tlm_emitted (t, "pool.acq.stat");
+  (void)feed (p, c.x, c.n);
+  DP_CHECK (tlm_emitted (t, "pool.assigned") == pushed);
+  DP_CHECK (tlm_emitted (t, "pool.acq.stat") == dwelt);
+
+  free (c.x);
+  free (c.data);
+  dp_async_dsss_pool_destroy (p);
+  dp_tlm_destroy (t);
+  return 0;
+}
+
 int
 main (void)
 {
   make_code ();
+  (void)_test_telemetry ();
   (void)_test_arg_validation ();
   (void)_test_one_emitter_lifecycle ();
   (void)_test_two_emitters_and_a_full_pool ();

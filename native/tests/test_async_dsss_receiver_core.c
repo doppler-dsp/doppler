@@ -949,6 +949,138 @@ _test_cell_seed_and_decode (void)
   return 0;
 }
 
+/* Records a probe has written, from the context's own table (the
+ * post-decimation, post-drop count), or UINT64_MAX when the name is not
+ * registered -- so a missing probe and a silent one read differently. */
+static uint64_t
+_tlm_emitted (const dp_tlm_t *t, const char *name)
+{
+  for (uint32_t i = 0; i < t->n_probes; i++)
+    if (strcmp (t->probes[i].name, name) == 0)
+      return t->probes[i].emitted;
+  return UINT64_MAX;
+}
+
+/* set_telemetry is a forwarder, and its contract is what the forwarding
+ * survives. A seed destroys the Dll, the resampler and the demodulator and
+ * builds new ones, so an attach made once must be re-applied to the new
+ * loops; the hold copies car_held over car, so car_held must carry it too;
+ * and costas_update() emits nothing, so the receiver must flush the
+ * carrier's probes itself. Each of those, if missed, leaves a probe silent
+ * that this test requires to keep counting. */
+static int
+_test_telemetry_follows_the_loops (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs          = 1.0e6 * (double)spc;
+  const double tsym        = fs / 35714.29;
+  const size_t te          = sf * spc;
+  const size_t n_sym       = 400;
+  const size_t pre_silence = te * 5 + 3;
+  const double cn0         = 70.0;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
+                   &x, &n, &data);
+  dp_async_dsss_receiver_state_t *rx = _seeded_rx (cn0, 0.0);
+  dp_tlm_t                       *t  = dp_tlm_create (1 << 18);
+  DP_CHECK (rx != NULL && t != NULL);
+  if (!rx || !t)
+    return 1;
+
+  /* Refusals register nothing: decim 0, and a prefix that leaves even the
+     receiver's first-level names ("<p>.car") no room. */
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 0)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (
+                rx, t, "abcdefghijklmnopqrstuvwxyz0123", 1)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_tlm_probe_count (t) == 0);
+  DP_CHECK (rx->tlm == NULL);
+
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1) == DP_OK);
+  const size_t n_probes = dp_tlm_probe_count (t);
+  /* A cell receiver: the carrier, the code loop, the demodulator -- and no
+     search, so no "rx.acq". The loop-filter outputs are among them. */
+  const char *outputs[] = { "rx.car.freq", "rx.code.rate", "rx.demod.car.freq",
+                            "rx.demod.sync.rate" };
+  for (size_t i = 0; i < 4; i++)
+    DP_CHECK_MSG (_tlm_emitted (t, outputs[i]) == 0, outputs[i]);
+  DP_CHECK (_tlm_emitted (t, "rx.acq.stat") == UINT64_MAX);
+
+  /* Tracking: every loop's output is reporting. */
+  float _Complex *syms;
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1 && n_syms > 20);
+  uint64_t before[4];
+  for (size_t i = 0; i < 4; i++)
+    {
+      before[i] = _tlm_emitted (t, outputs[i]);
+      DP_CHECK_MSG (before[i] > 0 && before[i] != UINT64_MAX, outputs[i]);
+      if (before[i] == 0 || before[i] == UINT64_MAX)
+        DP_TEST_ERR ("  %s wrote %llu records while tracking\n", outputs[i],
+                     (unsigned long long)before[i]);
+    }
+
+  /* reset() and a new seed rebuild the chain twice: the new loops report
+     under the same names, so the same ids and nothing new registers. */
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_tlm_probe_count (t) == n_probes);
+  for (size_t i = 0; i < 4; i++)
+    {
+      const uint64_t now = _tlm_emitted (t, outputs[i]);
+      DP_CHECK_MSG (now > before[i] && now != UINT64_MAX, outputs[i]);
+      if (now <= before[i] || now == UINT64_MAX)
+        DP_TEST_ERR ("  %s: %llu records after the re-seed, %llu before\n",
+                     outputs[i], (unsigned long long)now,
+                     (unsigned long long)before[i]);
+      before[i] = now;
+    }
+
+  /* A restore keeps the attachment: the blob carries none, and the
+     children keep theirs live. */
+  void *blob = malloc (dp_async_dsss_receiver_state_bytes (rx));
+  dp_async_dsss_receiver_get_state (rx, blob);
+  DP_CHECK (dp_async_dsss_receiver_set_state (rx, blob) == DP_OK);
+  free (blob);
+  n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  for (size_t i = 0; i < 4; i++)
+    {
+      const uint64_t now = _tlm_emitted (t, outputs[i]);
+      DP_CHECK_MSG (now > before[i] && now != UINT64_MAX, outputs[i]);
+      if (now <= before[i] || now == UINT64_MAX)
+        DP_TEST_ERR ("  %s: %llu records after the restore, %llu before\n",
+                     outputs[i], (unsigned long long)now,
+                     (unsigned long long)before[i]);
+      before[i] = now;
+    }
+
+  /* NULL detaches every loop, across later rebuilds too. */
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1) == DP_OK);
+  DP_CHECK (rx->tlm == NULL);
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  for (size_t i = 0; i < 4; i++)
+    DP_CHECK_MSG (_tlm_emitted (t, outputs[i]) == before[i], outputs[i]);
+
+  dp_async_dsss_receiver_destroy (rx);
+  dp_tlm_destroy (t);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* seed() is a method of the searching flavor too -- an outside hit beats
  * its own search and skips it -- and it checks its arguments: the phase is
  * a code phase, so [0, code_len), and nothing non-finite. */
@@ -2719,6 +2851,7 @@ main (void)
   (void)_test_awgn_esn0_floor ();
   (void)_test_accessor_coverage ();
   (void)_test_cell_seed_and_decode ();
+  (void)_test_telemetry_follows_the_loops ();
   (void)_test_seed_on_searching_flavor ();
   (void)_test_lost_after_switch_off ();
   (void)_test_one_flag_down_is_a_degrade ();

@@ -1776,7 +1776,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 validate validate-py validate-c validate-check \
                 validate-spellings-check \
                 test-sweep validation-time-baseline \
-                characterize characterization-check \
+                characterize characterization-check pool-telemetry \
                 doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \

@@ -13,6 +13,14 @@ runs of shipped tools, at one commit, and keeps both beside this file:
   load either side of the bench. ``bench`` waits for a quiet machine, runs
   it and keeps the rows.
 
+A third run draws the record's figures: the same validator's lifecycle
+stories, ``--telemetry DIR --emit``, three receivers each through an
+arrival trial of the sweep, three fades and a departure. ``stories`` runs
+it into ``build/lifecycle-stories/``, keeps its rows (``stories.csv``) and
+stamp (``stories-meta.json``), and draws each capture with
+``scripts/plot_capture.py --time --shade stim.on`` into ``<story>.png``
+here. The captures stay in ``build/``; the figures are what is committed.
+
 Every table in the record is this file's output, and so is every number
 the design page (``docs/design/async-dsss-parallel.md``) quotes from it:
 both pages hold them between ``<!-- async-dsss-parallel:<block>:start -->``
@@ -25,6 +33,7 @@ Usage::
 
     python record.py measure            # the validator's sweep -> lock.*
     python record.py bench              # the benches, quiet -> bench.json
+    python record.py stories            # the lifecycle stories -> *.png
     python record.py                    # print the blocks
     python record.py --write            # rewrite them in both pages
     python record.py --check            # fail when they differ (the gate)
@@ -59,6 +68,24 @@ SCRIPT = "docs/design/async-dsss-parallel-measurements/record.py"
 SOURCE = ROOT / "native/validation/async_dsss_receiver_lock.c"
 VALIDATOR = ROOT / "build/native/validation/validate_async_dsss_receiver_lock"
 BENCH_ARGS = "--c-only acq async_dsss_receiver async_dsss_pool"
+STORIES_DIR = ROOT / "build/lifecycle-stories"
+#: Each story figure's panels, top down: the receiver's own symbol-lock
+#: metric and decision; the carrier loop's command and flag; the code
+#: loop's command, its own rate and flag; the demodulator's two flags; and
+#: the stimulus the shading is drawn from. Full names: a suffix such as
+#: ``car.nco`` also matches the demodulator's.
+STORY_PROBES = (
+    "rx.sym.lock",
+    "rx.sym.locked",
+    "rx.car.nco",
+    "rx.car.locked",
+    "rx.code.nco",
+    "rx.code.rate",
+    "rx.code.locked",
+    "rx.demod.car.locked",
+    "rx.demod.sync.locked",
+    "stim.on",
+)
 
 #: The design's sample rate: 3.069 Mcps, two samples a chip.
 FS = 6.138e6
@@ -115,8 +142,9 @@ def _load() -> list[float]:
     return [round(v, 2) for v in os.getloadavg()]
 
 
-def measure() -> int:
-    """Run the built validator's full sweep; write lock.csv and its stamp."""
+def _validator_stamp() -> dict[str, Any]:
+    """The built validator, refused when absent or older than its source,
+    and the stamp of a run about to start."""
     if not VALIDATOR.exists():
         raise SystemExit(
             f"{VALIDATOR.name} is not built: make build "
@@ -124,10 +152,10 @@ def measure() -> int:
         )
     if VALIDATOR.stat().st_mtime < SOURCE.stat().st_mtime:
         raise SystemExit(f"{VALIDATOR.name} is older than its source: rebuild")
-    # The tree as the run found it, before anything is written: lock.csv is
-    # itself tracked, so read after the write it would call its own run
-    # dirty.
-    meta = {
+    # The tree as the run found it, before anything is written: the run's
+    # outputs are themselves tracked, so read after the write it would call
+    # its own run dirty.
+    return {
         "date_utc": datetime.datetime.now(datetime.timezone.utc).strftime(
             "%Y-%m-%d %H:%M"
         ),
@@ -138,6 +166,11 @@ def measure() -> int:
         "dirty": bool(_git("status", "--porcelain", "--untracked-files=no")),
         "load_before": _load(),
     }
+
+
+def measure() -> int:
+    """Run the built validator's full sweep; write lock.csv and its stamp."""
+    meta = _validator_stamp()
     t0 = time.perf_counter()
     run = subprocess.run(
         [str(VALIDATOR), "--emit"], capture_output=True, text=True
@@ -152,6 +185,51 @@ def measure() -> int:
         json.dumps(meta, indent=1) + "\n", encoding="utf-8"
     )
     print(f"measure: {VALIDATOR.name} --emit in {meta['wall_s']} s")
+    return 0
+
+
+def stories() -> int:
+    """Run the lifecycle stories; keep their rows, stamp and figures.
+
+    The figures are drawn by the one capture plotter from the captures this
+    run wrote, so a figure and the row beside it cannot come from
+    different runs.
+    """
+    meta = _validator_stamp()
+    STORIES_DIR.mkdir(parents=True, exist_ok=True)
+    t0 = time.perf_counter()
+    run = subprocess.run(
+        [str(VALIDATOR), "--telemetry", str(STORIES_DIR), "--emit"],
+        capture_output=True,
+        text=True,
+    )
+    if run.returncode != 0:
+        sys.stderr.write(run.stderr)
+        return run.returncode
+    meta["load_after"] = _load()
+    meta["wall_s"] = round(time.perf_counter() - t0, 1)
+    (DATA / "stories.csv").write_text(run.stdout, encoding="utf-8")
+    (DATA / "stories-meta.json").write_text(
+        json.dumps(meta, indent=1) + "\n", encoding="utf-8"
+    )
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import plot_capture
+
+    for row in _csv_blocks(run.stdout)["story"]:
+        rc = plot_capture.main(
+            [
+                str(STORIES_DIR / f"{row['name']}.tlm"),
+                "--time",
+                "--shade",
+                "stim.on",
+                "-o",
+                str(DATA / f"{row['name']}.png"),
+                *STORY_PROBES,
+            ]
+        )
+        if rc != 0:
+            return rc
+    print(f"stories: {VALIDATOR.name} --telemetry in {meta['wall_s']} s")
     return 0
 
 
@@ -622,6 +700,8 @@ if __name__ == "__main__":
         sys.exit(measure())
     if len(sys.argv) > 1 and sys.argv[1] == "bench":
         sys.exit(bench())
+    if len(sys.argv) > 1 and sys.argv[1] == "stories":
+        sys.exit(stories())
     sys.exit(
         blocks.main_pages(
             "async-dsss-parallel",

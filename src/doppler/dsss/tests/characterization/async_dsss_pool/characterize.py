@@ -9,8 +9,9 @@ a number on either page names the function that made it.
 - **5.1** how long one receiver takes from a signal's arrival to tracking,
   by Es/N0: the make-before-break budget.
 - **6.1** what one tracking receiver costs per push, data on and code only.
-- **6.2** what one receiver costs while it searches the whole carrier range
-  (+/-1/T_E) itself, by coherent depth: does it fit one CPU?
+- **6.2** what one receiver costs while it searches, at one tuned offset and
+  over the whole carrier range (+/-1/T_E), by coherent depth: does it fit
+  one CPU?
 - **7.1** the pool as built against one receiver and against its own
   searcher alone, on one capture: where its cost goes.
 - **7.2** that searcher at the design point (+/-50 kHz, the Doppler-rate
@@ -28,9 +29,9 @@ The signal is the shipped `Synth`'s continuous DSSS: Gold-1023 at 5 Mcps,
 from Es/N0 through `snr_mode="fs"`. The search-only rows use noise, because
 what they time is the search, not a detection.
 
-This is a characterization, not an example: it runs for about two minutes
-and is run deliberately. Its fast twin (`test_async_dsss_pool_cost.py`)
-runs every section on a few pushes, per push.
+This is a characterization, not an example: it is run deliberately, and
+its wall time is printed at the end. Its fast twin
+(`test_async_dsss_pool_cost.py`) runs every section on a few pushes.
 
 Run:  make characterize CHARACTERIZATIONS=<this file>
 """
@@ -258,40 +259,47 @@ def s6_1_tracking(
 def s6_2_search_depth(
     blocks: int = 2, code_only_154: int = DESIGN_CODE_ONLY
 ) -> list[dict]:
-    """6.2: one receiver searching +/-1/T_E itself, on noise, by depth.
+    """6.2: one receiver searching, on noise, by range and by depth.
 
-    The receiver's own search is one-epoch looks; the deeper rows are the
-    same continuous engine with a coherent block, as a receiver would
-    carry it. The first block of each is warm-up and is dropped.
+    Two ranges: one tile (+/- just under 1/(2 T_E), the offset the
+    controller tunes a receiver to) and the whole carrier range (+/-1/T_E).
+    The receiver's own search is one-epoch looks; the slow-time rows are
+    the same continuous engine with a coherent block of D epochs, as a
+    receiver would carry it on command. The first block of each run is
+    warm-up and is dropped.
     """
-    rx = make_receiver(du=SPAN)
-    t = per_push([rx.steps], noise(), 64 * blocks)[0][16:]
-    rows = [
-        {
-            "search": "the receiver's own",
-            "depth": 1,
-            "dwell_ms": float("nan"),
-            "cpu": cpu(float(t.mean())),
-            "still_searching": not (rx.tracking or rx.refining),
-        }
-    ]
-    for label, code_only, rate in (
-        ("block, rate-free", CODE_ONLY, 0.0),
-        ("block, rate-bound", code_only_154, DESIGN_RATE),
-    ):
-        a = make_searcher(du=SPAN, code_only=code_only, rate=rate)
-        d = a.coherent_bins
-        t = per_push([a.push], noise(), (blocks + 1) * d)[0][d:]
-        _, w, m = split(t, d)
+    rows = []
+    for rng_name, du in (("one tile", 0.49 * SPAN), ("+/-1/T_E", SPAN)):
+        rx = make_receiver(du=du)
+        t = per_push([rx.steps], noise(), 64 * blocks)[0][16:]
         rows.append(
             {
-                "search": label,
-                "depth": d,
-                "dwell_ms": w / 1e3,
-                "cpu": cpu(m),
-                "still_searching": True,
+                "range": rng_name,
+                "search": "the receiver's own",
+                "depth": 1,
+                "dwell_ms": float("nan"),
+                "cpu": cpu(float(t.mean())),
+                "still_searching": not (rx.tracking or rx.refining),
             }
         )
+        for label, code_only, rate in (
+            ("slow-time, rate-free", CODE_ONLY, 0.0),
+            ("slow-time, rate-bound", code_only_154, DESIGN_RATE),
+        ):
+            a = make_searcher(du=du, code_only=code_only, rate=rate)
+            d = a.coherent_bins
+            t = per_push([a.push], noise(), (blocks + 1) * d)[0][d:]
+            _, w, m = split(t, d)
+            rows.append(
+                {
+                    "range": rng_name,
+                    "search": label,
+                    "depth": d,
+                    "dwell_ms": w / 1e3,
+                    "cpu": cpu(m),
+                    "still_searching": True,
+                }
+            )
     return rows
 
 
@@ -348,15 +356,17 @@ def _table(title: str, rows: list[dict]) -> None:
 
 
 def main() -> int:
+    t0 = time.perf_counter()
     print(
         f"one push = one code epoch: {TE} samples, {EPOCH_US:.1f} us; "
         f"1/T_E = {SPAN:.1f} Hz"
     )
     _table("5.1 arrival to tracking (data on)", s5_1_acquisition())
     _table("6.1 one tracking receiver", s6_1_tracking())
-    _table("6.2 one receiver searching +/-1/T_E (noise)", s6_2_search_depth())
+    _table("6.2 one receiver searching (noise)", s6_2_search_depth())
     _table("7.1 the pool as built: where a push goes", s7_1_split(capture()))
     _table("7.2 its searcher at the design point (noise)", s7_2_design_point())
+    print(f"\nwall time {time.perf_counter() - t0:.0f} s")
     return 0
 
 

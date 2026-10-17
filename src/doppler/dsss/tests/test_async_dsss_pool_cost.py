@@ -41,10 +41,14 @@ def test_tracking_reports_both_signals():
 def test_search_depth_names_every_search():
     # A shallow window keeps the rate-bound row's depth small for the twin.
     rows = s6_2_search_depth(blocks=1, code_only_154=3)
-    assert [r["search"] for r in rows] == [
-        "the receiver's own",
-        "block, rate-free",
-        "block, rate-bound",
+    assert [(r["range"], r["search"]) for r in rows] == [
+        (rng, search)
+        for rng in ("one tile", "+/-1/T_E")
+        for search in (
+            "the receiver's own",
+            "slow-time, rate-free",
+            "slow-time, rate-bound",
+        )
     ]
     assert all(r["cpu"] > 0 and r["still_searching"] for r in rows)
 

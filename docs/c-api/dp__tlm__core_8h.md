@@ -98,6 +98,7 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**dp\_tlm\_has\_room\_for**](#function-dp_tlm_has_room_for) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* want) <br>_Whether every probe registered on_ `want` _would also register on_`t:` _the names_`t` _lacks fit in its free slots._ |
 |  void | [**dp\_tlm\_set\_now**](#function-dp_tlm_set_now) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, uint64\_t n) <br>_Stamps the sample index carried by subsequent records, and — when a capture is open — closes out the block just finished._  |
 
 
@@ -129,7 +130,7 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 | Type | Name |
 | ---: | :--- |
 | define  | [**DP\_TLM**](dp__tlm__core_8h.md#define-dp_tlm) (ctx, id, v) `[**dp\_tlm\_emit**](dp__tlm__core_8h.md#function-dp_tlm_emit) ((ctx), (id), (v))`<br>_Probe-site wrapper around_ [_**dp\_tlm\_emit()**_](dp__tlm__core_8h.md#function-dp_tlm_emit) _._ |
-| define  | [**DP\_TLM\_MAX\_PROBES**](dp__tlm__core_8h.md#define-dp_tlm_max_probes)  `64`<br> |
+| define  | [**DP\_TLM\_MAX\_PROBES**](dp__tlm__core_8h.md#define-dp_tlm_max_probes)  `512`<br> |
 | define  | [**DP\_TLM\_NAME\_MAX**](dp__tlm__core_8h.md#define-dp_tlm_name_max)  `32`<br> |
 | define  | [**DP\_TLM\_REC\_DTYPE\_JSON**](dp__tlm__core_8h.md#define-dp_tlm_rec_dtype_json)  `/* multi line expression */`<br>[_**dp\_tlm\_rec\_t**_](structdp__tlm__rec__t.md) _as a numpy-style dtype, in JSON, for a sidecar._ |
 
@@ -1111,6 +1112,42 @@ doppler.telemetry.TelemetryStats(dropped=0, emitted=1, capacity=4096, probes=1)
 
 
 
+### function dp\_tlm\_has\_room\_for 
+
+_Whether every probe registered on_ `want` _would also register on_`t:` _the names_`t` _lacks fit in its free slots._
+```C++
+static inline int dp_tlm_has_room_for (
+    const dp_tlm_t * t,
+    const dp_tlm_t * want
+) 
+```
+
+
+
+The capacity half of a composite's dry run. A composite attaches its children to a scratch context first, so a prefix too long for some child's name is refused before anything registers on the caller's; the scratch starts empty, though, so it cannot see a caller's table that is nearly full. Asked of the scratch before the real attach, this refuses that case too, and a refused attach then leaves no names behind (#1897). Names `t` already holds take no slot ([**dp\_tlm\_probe()**](dp__tlm__core_8h.md#function-dp_tlm_probe) is idempotent by name), so a re-attach under the same prefix always fits.
+
+
+
+```C++
+dp_tlm_t *have = dp_tlm_create (1);
+dp_tlm_t *want = dp_tlm_create (1);
+dp_tlm_probe (have, "a", 1);
+dp_tlm_probe (want, "a", 1);
+dp_tlm_probe (want, "b", 1);
+int ok = dp_tlm_has_room_for (have, want);   // 1: one new name, room
+dp_tlm_destroy (want);
+dp_tlm_destroy (have);
+return !ok;
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_tlm\_set\_now 
 
 _Stamps the sample index carried by subsequent records, and — when a capture is open — closes out the block just finished._ 
@@ -1188,12 +1225,15 @@ Instrumented hot loops use this form so a consumer building with `-DDP_TLM_DISAB
 ### define DP\_TLM\_MAX\_PROBES 
 
 ```C++
-#define DP_TLM_MAX_PROBES `64`
+#define DP_TLM_MAX_PROBES `512`
 ```
 
 
 
-Maximum probes per context. Registration fails once full. 
+Maximum probes per context. Registration fails once full.
+
+
+Sized for a whole population on one context: an AsyncDsssPool attaches its searcher, its own counters and every slot's receiver (about twenty probes a slot), so an eleven-slot pool needs over 250. The table is a flat array in the context, 48 bytes a probe, and nothing on the emit path scales with it; the lossless capture's ring is sized from the probes actually registered ([**dp\_tlm\_block\_bound()**](dp__tlm__core_8h.md#function-dp_tlm_block_bound)), not from this. 
 
 
         

@@ -21,11 +21,15 @@ validator, so the picture and the report cannot come from different runs.
 Usage
 -----
     python scripts/plot_capture.py <capture.tlm> [-o out.png] [probe ...]
+    python scripts/plot_capture.py <capture.tlm> --time [probe ...]
     python scripts/plot_capture.py <capture.tlm> --list
 
 With no probe names every probe is drawn, one panel per probe, sharing the
 sample-index axis. Names may be given with or without the attach prefix, so
-`car.freq` and `rx.car.freq` both select the same series.
+`car.freq` and `rx.car.freq` both select the same series. `--time` plots
+each record at its stamped sample index over the sidecar's `fs`, so probes
+on different clocks -- once a symbol, once a dwell, once a block -- line
+up in seconds.
 """
 
 from __future__ import annotations
@@ -72,11 +76,32 @@ def main(argv=None):
         action="store_true",
         help="print the probe table and exit — the capture describes itself",
     )
+    ap.add_argument(
+        "--time",
+        action="store_true",
+        help="x is seconds (each record's stamped sample index / the "
+        "sidecar's fs), so probes on different clocks line up",
+    )
     args = ap.parse_args(argv)
 
     if not args.capture.exists():
         raise SystemExit(f"no such capture: {args.capture}")
-    series = read_capture(args.capture)
+    if args.time:
+        import json
+
+        meta = Path(str(args.capture) + "-meta").read_text(encoding="utf-8")
+        fs = json.loads(meta).get("fs")
+        if not fs:
+            raise SystemExit(
+                f"{args.capture.name} has no fs in its sidecar (captured "
+                "with no clock), so it has no time axis: drop --time"
+            )
+        stamped = read_capture(args.capture, index=True)
+        series = {k: v for k, (_, v) in stamped.items()}
+        xs = {k: n / float(fs) for k, (n, _) in stamped.items()}
+    else:
+        series = read_capture(args.capture)
+        xs = {k: range(len(v)) for k, v in series.items()}
 
     if args.list:
         for name in sorted(series):
@@ -105,12 +130,14 @@ def main(argv=None):
         # cloud collapsing as the carrier locks. Loop state is the opposite: a
         # continuous quantity sampled per symbol, so it stays a line.
         if ".sym." in name or name.endswith((".i", ".q")):
-            ax.plot(series[name], ".", ms=1.5)
+            ax.plot(xs[name], series[name], ".", ms=1.5)
         else:
-            ax.plot(series[name], lw=0.9)
+            ax.plot(xs[name], series[name], lw=0.9)
         ax.set_ylabel(name.split(".", 1)[-1], fontsize=8)
         ax.grid(alpha=0.3)
-    axes[-1, 0].set_xlabel("record index (per probe)")
+    axes[-1, 0].set_xlabel(
+        "time (s)" if args.time else "record index (per probe)"
+    )
     axes[0, 0].set_title(f"{args.capture.name} — {len(names)} probe(s)")
     fig.tight_layout()
 

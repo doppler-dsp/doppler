@@ -62,6 +62,12 @@ _AsyncDsssPool state._ [More...](#detailed-description)
 |  size\_t | [**sym\_cap**](#variable-sym_cap)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  int | [**threads**](#variable-threads)  <br> |
+|  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm**](#variable-tlm)  <br> |
+|  int32\_t | [**tlm\_assigned**](#variable-tlm_assigned)  <br> |
+|  uint32\_t | [**tlm\_decim**](#variable-tlm_decim)  <br> |
+|  int32\_t | [**tlm\_dropped**](#variable-tlm_dropped)  <br> |
+|  int32\_t | [**tlm\_events**](#variable-tlm_events)  <br> |
+|  char | [**tlm\_prefix**](#variable-tlm_prefix)  <br> |
 
 
 
@@ -518,6 +524,113 @@ int dp_async_dsss_pool_state_t::threads;
 
 
 
+
+<hr>
+
+
+
+### variable tlm 
+
+```C++
+dp_tlm_t* dp_async_dsss_pool_state_t::tlm;
+```
+
+
+
+NULL = detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_assigned 
+
+```C++
+int32_t dp_async_dsss_pool_state_t::tlm_assigned;
+```
+
+
+
+"&lt;prefix&gt;.assigned": n\_assigned. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_decim 
+
+```C++
+uint32_t dp_async_dsss_pool_state_t::tlm_decim;
+```
+
+
+
+The attach's decimation. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_dropped 
+
+```C++
+int32_t dp_async_dsss_pool_state_t::tlm_dropped;
+```
+
+
+
+"&lt;prefix&gt;.dropped": dropped, running. 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_events 
+
+```C++
+int32_t dp_async_dsss_pool_state_t::tlm_events;
+```
+
+
+
+"&lt;prefix&gt;.events": events, running. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_prefix 
+
+```C++
+char dp_async_dsss_pool_state_t::tlm_prefix[DP_TLM_NAME_MAX];
+```
+
+
+
+The attach's prefix. 
+ 
+
+
+        
 
 <hr>
 

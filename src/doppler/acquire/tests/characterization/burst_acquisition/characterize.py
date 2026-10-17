@@ -118,6 +118,7 @@ from doppler.acquire.tests._acq_pfa import (
     realized_pfa,
 )
 from doppler.acquire.tests._preamble import code_preamble
+from doppler.util import fromto
 from doppler.wfm import PN, Synth, dsss_spread, mls_poly
 
 if TYPE_CHECKING:
@@ -125,7 +126,6 @@ if TYPE_CHECKING:
 
 # Artifacts land beside this script, like the sibling subjects and the
 # validation tree -- `make characterize` runs from the repo root.
-HERE = Path(__file__).resolve().parent
 
 # ── burst geometry ───────────────────────────────────────────────────────────
 PN_LENGTH = 9  # LFSR stages; MLS period SF = 2**9 - 1 = 511 chips
@@ -529,7 +529,7 @@ def main(out_path: str | Path | None = None) -> None:
 
     Defaults to ``burst_acquisition.png`` beside this script.
     """
-    out_path = HERE / "burst_acquisition.png" if out_path is None else out_path
+    out_path = fromto(out_path or "burst_acquisition.png")
     import matplotlib
 
     matplotlib.use("Agg")  # headless: render straight to a file
@@ -721,4 +721,4 @@ if __name__ == "__main__":
     # An explicit destination is how `make gallery` publishes this
     # subject's plot straight into docs/assets/, matching the argv
     # convention the sibling subjects already use.
-    main(out_path=sys.argv[1] if len(sys.argv) > 1 else None)
+    main(out_path=Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else None)

@@ -5,6 +5,7 @@
  */
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -387,6 +388,13 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
       row->prev_code  = st.code_locked;
       row->prev_sym   = st.locked;
     }
+  /* 5. The pool's own probes: the table after this push's releases. */
+  if (s->tlm)
+    {
+      dp_tlm_emit (s->tlm, s->tlm_assigned, (double)s->n_assigned);
+      dp_tlm_emit (s->tlm, s->tlm_dropped, (double)s->dropped);
+      dp_tlm_emit (s->tlm, s->tlm_events, (double)s->events);
+    }
   return s->n_assigned;
 }
 
@@ -447,6 +455,110 @@ dp_async_dsss_pool_set_event_log (dp_async_dsss_pool_state_t *s,
 {
   s->log = log;
   return DP_OK;
+}
+
+/* Detach the searcher and every slot; the pool's own probes go quiet with
+   s->tlm. */
+static void
+pool_tlm_detach (dp_async_dsss_pool_state_t *s)
+{
+  (void)dp_acq_set_telemetry (s->acq, NULL, "acq", 1);
+  for (size_t i = 0; i < s->n_slots; i++)
+    (void)dp_async_dsss_receiver_set_telemetry (s->rx[i], NULL, NULL, 1);
+  s->tlm = NULL;
+}
+
+/* Attach the searcher, every slot and the pool's own probes to `tlm`. On
+   success the pool emits on it; on failure what registered stays
+   registered and the caller detaches. */
+static int
+pool_tlm_attach (dp_async_dsss_pool_state_t *s, dp_tlm_t *tlm, const char *p,
+                 uint32_t decim)
+{
+  char acq[DP_TLM_NAME_MAX], assigned[DP_TLM_NAME_MAX],
+      dropped[DP_TLM_NAME_MAX], events[DP_TLM_NAME_MAX];
+  if (dp_tlm_name_join (acq, p, "acq") != DP_OK
+      || dp_tlm_name_join (assigned, p, "assigned") != DP_OK
+      || dp_tlm_name_join (dropped, p, "dropped") != DP_OK
+      || dp_tlm_name_join (events, p, "events") != DP_OK)
+    return DP_ERR_INVALID;
+  int r = dp_acq_set_telemetry (s->acq, tlm, acq, decim);
+  for (size_t i = 0; i < s->n_slots && r == DP_OK; i++)
+    {
+      char sfx[24], slot[DP_TLM_NAME_MAX];
+      (void)snprintf (sfx, sizeof sfx, "s%zu", i);
+      r = dp_tlm_name_join (slot, p, sfx);
+      if (r == DP_OK)
+        r = dp_async_dsss_receiver_set_telemetry (s->rx[i], tlm, slot, decim);
+    }
+  int id_assigned = -1, id_dropped = -1, id_events = -1;
+  if (r == DP_OK)
+    {
+      id_assigned = dp_tlm_probe (tlm, assigned, decim);
+      id_dropped  = dp_tlm_probe (tlm, dropped, decim);
+      id_events   = dp_tlm_probe (tlm, events, decim);
+    }
+  if (r != DP_OK || id_assigned < 0 || id_dropped < 0 || id_events < 0)
+    return DP_ERR_INVALID;
+  s->tlm_assigned = id_assigned;
+  s->tlm_dropped  = id_dropped;
+  s->tlm_events   = id_events;
+  (void)snprintf (s->tlm_prefix, sizeof s->tlm_prefix, "%s", p);
+  s->tlm_decim = decim;
+  s->tlm       = tlm; /* set last: push() emits on it */
+  return DP_OK;
+}
+
+int
+dp_async_dsss_pool_set_telemetry (dp_async_dsss_pool_state_t *s, dp_tlm_t *tlm,
+                                  const char *prefix, uint32_t decim)
+{
+  if (!tlm)
+    {
+      pool_tlm_detach (s);
+      return DP_OK;
+    }
+  /* One producer per context: a pool on threads != 1 (0 is the core
+     count) may step its receivers on several (step 3 of push), and their
+     records would race. */
+  if (decim == 0 || s->threads != 1)
+    return DP_ERR_INVALID;
+  const char *p = prefix ? prefix : "pool";
+  if (strlen (p) >= DP_TLM_NAME_MAX)
+    return DP_ERR_INVALID;
+  /* A refusal leaves the pool as it was, as a leaf's does: the dry run
+     moves every child off whatever context it was on, so keep the request
+     it replaces and put it back on any refusal. */
+  dp_tlm_t *const old_tlm   = s->tlm;
+  const uint32_t  old_decim = s->tlm_decim;
+  char            old_prefix[DP_TLM_NAME_MAX];
+  memcpy (old_prefix, s->tlm_prefix, sizeof old_prefix);
+  /* Every name must fit before ANY registers on the caller's context: the
+     searcher and the slots join their own, so the attach runs first on a
+     scratch context and reaches the caller's only if that took them all
+     (#1897's dead slots, avoided rather than added), and the scratch, now
+     holding every name the attach needs, says whether the caller's table
+     has room for the ones it lacks. */
+  dp_tlm_t *scratch = dp_tlm_create (1);
+  int       fits    = 0;
+  if (scratch)
+    {
+      fits = pool_tlm_attach (s, scratch, p, decim) == DP_OK
+             && dp_tlm_has_room_for (tlm, scratch);
+      pool_tlm_detach (s);
+      dp_tlm_destroy (scratch);
+    }
+  if (fits)
+    {
+      if (pool_tlm_attach (s, tlm, p, decim) == DP_OK)
+        return DP_OK;
+      pool_tlm_detach (s); /* whole or nothing */
+    }
+  /* Refused: restore the previous request. Its names are already in its
+     context, so re-registering them takes no slot and cannot fail. */
+  if (old_tlm)
+    (void)pool_tlm_attach (s, old_tlm, old_prefix, old_decim);
+  return DP_ERR_INVALID;
 }
 
 /* ── Serializable state ──────────────────────────────────────────────── */

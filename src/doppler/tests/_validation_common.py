@@ -863,13 +863,18 @@ class _Capture:
         self._cap = self._open(self._block)
 
 
-def read_capture(path: Path) -> dict:
+def read_capture(path: Path, index: bool = False) -> dict:
     """Per-probe series by name, read back from a filed capture.
 
     Reads the file rather than the in-memory records on purpose: it is the
     same path a plotting utility takes, so a capture that cannot be read back
     fails here — in the run that produced it — instead of later, in whatever
     reads it next.
+
+    With ``index=True`` each series is ``(n, values)``: the sample index the
+    object stamped on every record beside its value, so probes on different
+    clocks (once a symbol, once a dwell, once a block) share one time axis,
+    ``n / fs`` with ``fs`` from the sidecar.
     """
     import json
 
@@ -888,6 +893,14 @@ def read_capture(path: Path) -> dict:
     names = meta.get("probes", meta.get("probe_names", {}))
     if isinstance(names, list):
         names = {p["name"]: p.get("id", i) for i, p in enumerate(names)}
+    if index:
+        return {
+            n: (
+                rec[rec["probe"] == int(pid)]["n"],
+                rec[rec["probe"] == int(pid)]["value"].astype(float),
+            )
+            for n, pid in names.items()
+        }
     return {
         n: rec[rec["probe"] == int(pid)]["value"].astype(float)
         for n, pid in names.items()

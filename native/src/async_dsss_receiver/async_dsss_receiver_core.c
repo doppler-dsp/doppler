@@ -356,6 +356,61 @@ adr_free_track_chain (dp_async_dsss_receiver_state_t *s)
   s->dll = NULL;
 }
 
+/* Attach the stored telemetry request (tlm, tlm_prefix, tlm_decim) to every
+ * loop the receiver holds right now. set_telemetry calls it, and so does
+ * each track-chain rebuild: a seed destroys the Dll, the resampler and the
+ * symbol receiver and builds new ones, which would otherwise come up
+ * detached. Every name is joined before the first registration, so an
+ * overlong prefix is refused with the registry untouched; a child that
+ * cannot register fails the whole attach. car_held is attached beside car
+ * under the same names, so the same ids: the hold restores car from
+ * car_held on entering a coast, and refreshes car_held only while both
+ * flags are up, so an attach made with one flag down would otherwise be
+ * undone by the next coast -- and the detach clears both, or that restore
+ * would hand the carrier a context the caller may have destroyed. The
+ * refine stage's chain is not instrumented. */
+static int
+adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
+{
+  dp_tlm_t   *t = s->tlm;
+  const char *p = s->tlm_prefix;
+  uint32_t    d = s->tlm_decim;
+  char        car[DP_TLM_NAME_MAX], code[DP_TLM_NAME_MAX], rc[DP_TLM_NAME_MAX],
+      demod[DP_TLM_NAME_MAX], acq[DP_TLM_NAME_MAX];
+  if (dp_tlm_name_join (car, p, "car") != DP_OK
+      || dp_tlm_name_join (code, p, "code") != DP_OK
+      || dp_tlm_name_join (rc, p, "rc") != DP_OK
+      || dp_tlm_name_join (demod, p, "demod") != DP_OK
+      || dp_tlm_name_join (acq, p, "acq") != DP_OK)
+    return DP_ERR_INVALID;
+  int r = dp_costas_set_telemetry (&s->car, t, car, d);
+  if (r == DP_OK)
+    r = dp_costas_set_telemetry (&s->car_held, t, car, d);
+  if (r == DP_OK)
+    r = dp_dll_set_telemetry (s->dll, t, code, d);
+  if (r == DP_OK)
+    r = dp_RateConverter_set_telemetry (s->rc, t, rc, d);
+  if (r == DP_OK)
+    r = dp_mpsk_receiver_set_telemetry (s->rx, t, demod, d);
+  if (r == DP_OK && s->acq)
+    r = dp_acq_set_telemetry (s->acq, t, acq, d);
+  return r;
+}
+
+/* Detach every loop. The request itself is the caller's to clear. */
+static void
+adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
+{
+  const char *p = s->tlm_prefix;
+  (void)dp_costas_set_telemetry (&s->car, NULL, p, 1);
+  (void)dp_costas_set_telemetry (&s->car_held, NULL, p, 1);
+  (void)dp_dll_set_telemetry (s->dll, NULL, p, 1);
+  (void)dp_RateConverter_set_telemetry (s->rc, NULL, p, 1);
+  (void)dp_mpsk_receiver_set_telemetry (s->rx, NULL, p, 1);
+  if (s->acq)
+    (void)dp_acq_set_telemetry (s->acq, NULL, p, 1);
+}
+
 /* Size the track chain's per-period scratch for the chain just built. One
  * output per input sample bounds the Dll; the resampler's output is that
  * times its rate plus its own margin. Grow-only, so a regrid to a lower
@@ -405,6 +460,11 @@ adr_rebuild_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   s->car_carry_len = 0;
   adr_size_track_scratch (s);
   adr_reset_lock (s); /* fresh symbol-lock per pass */
+  /* The rebuilt loops report under the names the old ones did, so the
+     attachment -- and every probe id -- survives the seed. Same names, so
+     nothing new registers and this cannot fill the table. */
+  if (s->tlm)
+    (void)adr_tlm_attach (s);
 }
 
 /* The residual-carrier estimator on a despread stream at `target_rate`
@@ -723,7 +783,13 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
          the flailing; at 40 an 822 Hz data-block seed did not pull in
          (section 12.27). */
       if (!(s->cell && !s->cell_refined))
-        costas_update (&s->car, P);
+        {
+          costas_update (&s->car, P);
+          /* costas_update() emits nothing: the composing caller flushes
+             the loop's probes once per update (costas_core.h). */
+          if (s->car.tlm.ctx)
+            dp_costas_tlm_flush (&s->car);
+        }
       /* Continuous carrier->code aiding: the pre-despread Costas tracks the
          FULL carrier offset (including the 500 Hz/s ramp), so refresh the
          code NCO's rate bias from it every period. This keeps the initial
@@ -1086,6 +1152,67 @@ dp_async_dsss_receiver_reset (dp_async_dsss_receiver_state_t *state)
   state->doppler_hz_est      = 0.0;
   state->cn0_dbhz_est        = 0.0;
   state->refused_hits        = 0;
+}
+
+int
+dp_async_dsss_receiver_set_telemetry (dp_async_dsss_receiver_state_t *state,
+                                      dp_tlm_t *tlm, const char *prefix,
+                                      uint32_t decim)
+{
+  if (!tlm)
+    {
+      adr_tlm_detach (state);
+      state->tlm = NULL;
+      return DP_OK;
+    }
+  const char  *p   = prefix ? prefix : "rx";
+  const size_t len = strlen (p);
+  if (decim == 0 || len >= DP_TLM_NAME_MAX)
+    return DP_ERR_INVALID;
+  /* A refusal leaves the receiver as it was, as a leaf's does: the dry run
+     below moves every loop off whatever context it was on, so keep the
+     request it replaces and put it back on any refusal. */
+  dp_tlm_t *const old_tlm   = state->tlm;
+  const uint32_t  old_decim = state->tlm_decim;
+  char            old_prefix[DP_TLM_NAME_MAX];
+  memcpy (old_prefix, state->tlm_prefix, sizeof old_prefix);
+  memcpy (state->tlm_prefix, p, len + 1);
+  state->tlm_decim = decim;
+  /* Every name must fit before ANY registers on the caller's context. The
+     loops join their own names, so the one test that cannot drift from what
+     they will register is to let them: attach to a scratch context first,
+     and to the caller's only if that took every probe. Without it a prefix
+     that fits the carrier's names and not the demodulator's leaves the
+     carrier's in the caller's table, unused (#1897). The scratch then
+     knows every name the attach needs, so it also answers whether the
+     caller's table has room for the ones it lacks. */
+  dp_tlm_t *scratch = dp_tlm_create (1);
+  int       fits    = 0;
+  if (scratch)
+    {
+      state->tlm = scratch;
+      fits       = adr_tlm_attach (state) == DP_OK
+                   && dp_tlm_has_room_for (tlm, scratch);
+      adr_tlm_detach (state);
+      dp_tlm_destroy (scratch);
+    }
+  if (fits)
+    {
+      state->tlm = tlm;
+      if (adr_tlm_attach (state) == DP_OK)
+        return DP_OK;
+      /* Whole or nothing: a half-attached receiver would report some loops
+         and not others with no way to tell from the context. */
+      adr_tlm_detach (state);
+    }
+  /* Refused: restore the previous request. Its names are already in its
+     context, so re-registering them takes no slot and cannot fail. */
+  memcpy (state->tlm_prefix, old_prefix, sizeof old_prefix);
+  state->tlm_decim = old_decim;
+  state->tlm       = old_tlm;
+  if (old_tlm)
+    (void)adr_tlm_attach (state);
+  return DP_ERR_INVALID;
 }
 
 size_t

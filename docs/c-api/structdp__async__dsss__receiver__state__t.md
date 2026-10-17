@@ -103,6 +103,9 @@ _Composed receiver state._ [More...](#detailed-description)
 |  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
 |  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
+|  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm**](#variable-tlm)  <br> |
+|  uint32\_t | [**tlm\_decim**](#variable-tlm_decim)  <br> |
+|  char | [**tlm\_prefix**](#variable-tlm_prefix)  <br> |
 |  float \_Complex \* | [**track\_dll\_out\_buf**](#variable-track_dll_out_buf)  <br> |
 |  size\_t | [**track\_dll\_out\_cap**](#variable-track_dll_out_cap)  <br> |
 |  float \_Complex \* | [**track\_rc\_out\_buf**](#variable-track_rc_out_buf)  <br> |
@@ -1189,6 +1192,60 @@ double dp_async_dsss_receiver_state_t::symbol_rate;
 
 
 
+
+<hr>
+
+
+
+### variable tlm 
+
+```C++
+dp_tlm_t* dp_async_dsss_receiver_state_t::tlm;
+```
+
+
+
+NULL = detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_decim 
+
+```C++
+uint32_t dp_async_dsss_receiver_state_t::tlm_decim;
+```
+
+
+
+The attach's decimation. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_prefix 
+
+```C++
+char dp_async_dsss_receiver_state_t::tlm_prefix[DP_TLM_NAME_MAX];
+```
+
+
+
+The attach's prefix. 
+ 
+
+
+        
 
 <hr>
 

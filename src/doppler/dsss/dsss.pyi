@@ -2820,6 +2820,77 @@ class AsyncDsssReceiver:
 
         """
 
+    def set_telemetry(
+        self,
+        tlm: object | None,
+        prefix: str,
+        decim: int = 1,
+    ) -> None:
+        """Attach (or detach) a telemetry context across the receiver's loops.
+        A pure forwarder: the receiver registers no probes of its own.
+
+        Each loop reports under the prefix, at its own update rate:
+
+        - "<prefix>.car" -- the chip-domain carrier loop
+          (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked"), once
+          per carrier update, i.e. once a code period while it is not coasting;
+        - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
+          ".rate", ".lock", ".locked"), once per discriminator update;
+        - "<prefix>.rc" -- the resampler's AGC, when it has one
+          (dp_RateConverter_set_telemetry(); none, and DP_OK, when it has not);
+        - "<prefix>.demod" -- the symbol-domain demodulator
+          (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing
+          loops, the symbols, its AGC), once per recovered symbol (the AGC's
+          pair once per gain update);
+        - "<prefix>.acq" -- the searching flavor's acquisition engine
+          (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has
+          no search, so no such probes.
+
+        The loops' frequency and rate probes (".car.freq", ".code.rate",
+        ".demod.car.freq", ".demod.sync.rate") are the loop filters' outputs;
+        ".e" is each discriminator's input to its filter.
+
+        The attachment is a REQUEST kept on the receiver: every seed rebuilds
+        the tracking chain, and the rebuilt loops are attached again under the
+        same names (so the same probe ids). Records are therefore continuous
+        across re-seeds, and a reset keeps the attachment too.
+
+        Setup path, never hot; the context is borrowed and must outlive the
+        attachment, and the receiver must step on one thread (SPSC rules in
+        dp_tlm/dp_tlm_core.h). Passing NULL detaches every loop.
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : str
+            Probe-name prefix; NULL means "rx".
+        decim : int
+            Emit every decim-th event on each probe; >= 1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssReceiver
+        >>> from doppler.telemetry import Telemetry
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+        ...                        spc=2, doppler_uncertainty=500.0)
+        >>> tlm = Telemetry(1 << 12)
+        >>> rx.set_telemetry(tlm, "rx")
+        >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
+        ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.rate']
+        >>> rx.set_telemetry(None, "rx")      # detach
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -3505,6 +3576,77 @@ class CellAsyncDsssReceiver:
 
         """
 
+    def set_telemetry(
+        self,
+        tlm: object | None,
+        prefix: str,
+        decim: int = 1,
+    ) -> None:
+        """Attach (or detach) a telemetry context across the receiver's loops.
+        A pure forwarder: the receiver registers no probes of its own.
+
+        Each loop reports under the prefix, at its own update rate:
+
+        - "<prefix>.car" -- the chip-domain carrier loop
+          (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked"), once
+          per carrier update, i.e. once a code period while it is not coasting;
+        - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
+          ".rate", ".lock", ".locked"), once per discriminator update;
+        - "<prefix>.rc" -- the resampler's AGC, when it has one
+          (dp_RateConverter_set_telemetry(); none, and DP_OK, when it has not);
+        - "<prefix>.demod" -- the symbol-domain demodulator
+          (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing
+          loops, the symbols, its AGC), once per recovered symbol (the AGC's
+          pair once per gain update);
+        - "<prefix>.acq" -- the searching flavor's acquisition engine
+          (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has
+          no search, so no such probes.
+
+        The loops' frequency and rate probes (".car.freq", ".code.rate",
+        ".demod.car.freq", ".demod.sync.rate") are the loop filters' outputs;
+        ".e" is each discriminator's input to its filter.
+
+        The attachment is a REQUEST kept on the receiver: every seed rebuilds
+        the tracking chain, and the rebuilt loops are attached again under the
+        same names (so the same probe ids). Records are therefore continuous
+        across re-seeds, and a reset keeps the attachment too.
+
+        Setup path, never hot; the context is borrowed and must outlive the
+        attachment, and the receiver must step on one thread (SPSC rules in
+        dp_tlm/dp_tlm_core.h). Passing NULL detaches every loop.
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : str
+            Probe-name prefix; NULL means "rx".
+        decim : int
+            Emit every decim-th event on each probe; >= 1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssReceiver
+        >>> from doppler.telemetry import Telemetry
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+        ...                        spc=2, doppler_uncertainty=500.0)
+        >>> tlm = Telemetry(1 << 12)
+        >>> rx.set_telemetry(tlm, "rx")
+        >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
+        ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.rate']
+        >>> rx.set_telemetry(None, "rx")      # detach
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -4072,6 +4214,75 @@ class AsyncDsssPool:
         >>> _ = pool.push(np.zeros(2046, np.complex64))
         >>> pool.set_event_log(None)              # detached
         >>> log.close()
+
+        """
+
+    def set_telemetry(
+        self,
+        tlm: object | None,
+        prefix: str,
+        decim: int = 1,
+    ) -> None:
+        """Attach (or detach) a telemetry context across the pool: the
+        searcher, every slot's receiver, and the pool's own counters.
+
+        Registers, under prefix:
+
+        - "<prefix>.acq" -- the searcher (dp_acq_set_telemetry(): its test
+          statistic, gate, CFAR reference, strongest cell and its coordinates,
+          picks and held twins, concentration and hit flag), once per decided
+          dwell;
+        - "<prefix>.s<i>" -- slot i's receiver, every loop it holds
+          (dp_async_dsss_receiver_set_telemetry()), at each loop's own rate,
+          and continuous across the seeds and releases that reuse the slot;
+        - "<prefix>.assigned", "<prefix>.dropped", "<prefix>.events" -- the
+          pool's `n_assigned` and its running `dropped` and `events` counts,
+          once per push(), after its releases.
+
+        The probes come to 13 plus each slot's (a cell receiver's loops), so a
+        large pool needs a context with room: an attach that cannot register
+        every probe fails whole.
+
+        A context is single-producer (dp_tlm/dp_tlm_core.h), and a pool created
+        with `threads != 1` (more than one, or `<= 0` for the core count) may
+        step its receivers on several, so it is refused: observe a pool on one
+        thread.
+
+        Setup path, never hot; the context is borrowed and must outlive the
+        attachment. Passing NULL detaches everything.
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : str
+            Probe-name prefix; NULL means "pool".
+        decim : int
+            Emit every decim-th event on each probe; >= 1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssPool
+        >>> from doppler.telemetry import Telemetry
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+        ...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+        >>> tlm = Telemetry(1 << 16)
+        >>> pool.set_telemetry(tlm, "pool")
+        >>> sorted(p for p in tlm.probe_names if p.count(".") == 1)
+        ['pool.assigned', 'pool.dropped', 'pool.events']
+        >>> sorted({p.split(".")[1] for p in tlm.probe_names})
+        ['acq', 'assigned', 'dropped', 'events', 's0', 's1']
+        >>> _ = pool.push(np.zeros(2046, np.complex64))
+        >>> pool.set_telemetry(None, "pool")      # detach
 
         """
 

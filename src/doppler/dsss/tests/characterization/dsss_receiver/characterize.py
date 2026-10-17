@@ -77,6 +77,7 @@ import numpy as np
 from doppler.dsss import DsssReceiver
 from doppler.resample import RateConverter
 from doppler.snr import snr_data_aided_db
+from doppler.util import fromto
 from doppler.wfm import Gold, Synth
 
 # Artifacts land beside this script, matching the validation tree's
@@ -84,7 +85,6 @@ from doppler.wfm import Gold, Synth
 # that dropped its PNG into whatever cwd it inherited would scatter
 # output across the tree (the example gate used to hand it a throwaway
 # directory; nothing does that here).
-HERE = Path(__file__).resolve().parent
 
 # ── link geometry (fixed) ────────────────────────────────────────────────
 SF = 1023  # CCSDS Gold code period
@@ -360,7 +360,7 @@ def sweep_cn0_near_zero_doppler(n_per_bucket=8, doppler_hz=20.0, seed0=5000):
 
 
 def main(n_trials=300, out_path=None):
-    out_path = HERE / "dsss_receiver.png" if out_path is None else out_path
+    out_path = fromto(out_path or "dsss_receiver.png")
     rng = np.random.default_rng(0)
     records = [run_trial(int(s)) for s in rng.integers(0, 2**31 - 1, n_trials)]
 
@@ -466,4 +466,4 @@ def main(n_trials=300, out_path=None):
 
 
 if __name__ == "__main__":
-    main(out_path=sys.argv[1] if len(sys.argv) > 1 else None)
+    main(out_path=Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else None)

@@ -947,6 +947,252 @@ _test_cell_seed_and_decode (void)
   return 0;
 }
 
+/* Records a probe has written, from the context's own table (the
+ * post-decimation, post-drop count), or UINT64_MAX when the name is not
+ * registered -- so a missing probe and a silent one read differently. */
+static uint64_t
+_tlm_emitted (const dp_tlm_t *t, const char *name)
+{
+  for (uint32_t i = 0; i < t->n_probes; i++)
+    if (strcmp (t->probes[i].name, name) == 0)
+      return t->probes[i].emitted;
+  return UINT64_MAX;
+}
+
+/* set_telemetry is a forwarder, and its contract is what the forwarding
+ * survives. A seed destroys the Dll, the resampler and the demodulator and
+ * builds new ones, so an attach made once must be re-applied to the new
+ * loops; the hold copies car_held over car, so car_held must carry it too;
+ * and costas_update() emits nothing, so the receiver must flush the
+ * carrier's probes itself. Each of those, if missed, leaves a probe silent
+ * that this test requires to keep counting. */
+static int
+_test_telemetry_follows_the_loops (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs          = 1.0e6 * (double)spc;
+  const double tsym        = fs / 35714.29;
+  const size_t te          = sf * spc;
+  const size_t n_sym       = 400;
+  const size_t pre_silence = te * 5 + 3;
+  const double cn0         = 70.0;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
+                   &x, &n, &data);
+  dp_async_dsss_receiver_state_t *rx = _seeded_rx (cn0, 0.0);
+  dp_tlm_t                       *t  = dp_tlm_create (1 << 18);
+  DP_CHECK (rx != NULL && t != NULL);
+  if (!rx || !t)
+    return 1;
+
+  /* Refusals register nothing: decim 0, and a prefix that leaves even the
+     receiver's first-level names ("<p>.car") no room. */
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 0)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (
+                rx, t, "abcdefghijklmnopqrstuvwxyz0123", 1)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_tlm_probe_count (t) == 0);
+  /* A prefix the carrier's names fit ("<p>.car.locked") and the
+     demodulator's deepest does not ("<p>.demod.agc.level_db"): the loops
+     are attached to a scratch context first, which finds the refusal, so
+     nothing registers here either -- no dead slots (#1897). */
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "abcdefghijklmnop", 1)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_tlm_probe_count (t) == 0);
+  DP_CHECK (rx->tlm == NULL);
+
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1) == DP_OK);
+  const size_t n_probes = dp_tlm_probe_count (t);
+  /* The hold restores car from car_held on entering a coast, and refreshes
+     car_held only while both flags are up: both must carry the attachment,
+     or an attach made with one flag down is undone by the next coast. */
+  DP_CHECK (rx->car.tlm.ctx == t && rx->car_held.tlm.ctx == t);
+  /* A cell receiver: the carrier, the code loop, the demodulator -- and no
+     search, so no "rx.acq". The loop-filter outputs are among them. */
+  const char *outputs[] = { "rx.car.freq", "rx.code.rate", "rx.demod.car.freq",
+                            "rx.demod.sync.rate" };
+  for (size_t i = 0; i < 4; i++)
+    DP_CHECK_MSG (_tlm_emitted (t, outputs[i]) == 0, outputs[i]);
+  DP_CHECK (_tlm_emitted (t, "rx.acq.stat") == UINT64_MAX);
+
+  /* Tracking: every loop's output is reporting. */
+  float _Complex *syms;
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1 && n_syms > 20);
+  uint64_t before[4];
+  for (size_t i = 0; i < 4; i++)
+    {
+      before[i] = _tlm_emitted (t, outputs[i]);
+      DP_CHECK_MSG (before[i] > 0 && before[i] != UINT64_MAX, outputs[i]);
+      if (before[i] == 0 || before[i] == UINT64_MAX)
+        DP_TEST_ERR ("  %s wrote %llu records while tracking\n", outputs[i],
+                     (unsigned long long)before[i]);
+    }
+
+  /* reset() and a new seed rebuild the chain twice: the new loops report
+     under the same names, so the same ids and nothing new registers. */
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_tlm_probe_count (t) == n_probes);
+  for (size_t i = 0; i < 4; i++)
+    {
+      const uint64_t now = _tlm_emitted (t, outputs[i]);
+      DP_CHECK_MSG (now > before[i] && now != UINT64_MAX, outputs[i]);
+      if (now <= before[i] || now == UINT64_MAX)
+        DP_TEST_ERR ("  %s: %llu records after the re-seed, %llu before\n",
+                     outputs[i], (unsigned long long)now,
+                     (unsigned long long)before[i]);
+      before[i] = now;
+    }
+
+  /* A restore keeps the attachment: the blob carries none, and the
+     children keep theirs live. */
+  void *blob = malloc (dp_async_dsss_receiver_state_bytes (rx));
+  dp_async_dsss_receiver_get_state (rx, blob);
+  DP_CHECK (dp_async_dsss_receiver_set_state (rx, blob) == DP_OK);
+  free (blob);
+  n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  for (size_t i = 0; i < 4; i++)
+    {
+      const uint64_t now = _tlm_emitted (t, outputs[i]);
+      DP_CHECK_MSG (now > before[i] && now != UINT64_MAX, outputs[i]);
+      if (now <= before[i] || now == UINT64_MAX)
+        DP_TEST_ERR ("  %s: %llu records after the restore, %llu before\n",
+                     outputs[i], (unsigned long long)now,
+                     (unsigned long long)before[i]);
+      before[i] = now;
+    }
+
+  /* A refused re-attach leaves the receiver as it was, as a leaf's does:
+     the dry run moves every loop off `t`, so the refusal must put them
+     back. A second context and a prefix only the demodulator's deepest
+     name refuses: nothing registers there, and `t` keeps counting. */
+  dp_tlm_t *t2 = dp_tlm_create (1 << 10);
+  DP_CHECK (t2 != NULL);
+  DP_CHECK (
+      dp_async_dsss_receiver_set_telemetry (rx, t2, "abcdefghijklmnop", 1)
+      == DP_ERR_INVALID);
+  DP_CHECK (dp_tlm_probe_count (t2) == 0);
+  DP_CHECK (dp_tlm_probe_count (t) == n_probes);
+  DP_CHECK (rx->tlm == t && strcmp (rx->tlm_prefix, "rx") == 0);
+  DP_CHECK (rx->car.tlm.ctx == t && rx->car_held.tlm.ctx == t);
+  n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  for (size_t i = 0; i < 4; i++)
+    {
+      const uint64_t now = _tlm_emitted (t, outputs[i]);
+      DP_CHECK_MSG (now > before[i] && now != UINT64_MAX, outputs[i]);
+      if (now <= before[i] || now == UINT64_MAX)
+        DP_TEST_ERR ("  %s: %llu records after a refused re-attach, %llu "
+                     "before\n",
+                     outputs[i], (unsigned long long)now,
+                     (unsigned long long)before[i]);
+      before[i] = now;
+    }
+  dp_tlm_destroy (t2);
+
+  /* A table one slot short of the attach is refused with nothing
+     registered (the scratch knows every name, so it knows the count), and
+     one with exactly enough room takes it. Filler names never collide with
+     the receiver's. */
+  for (size_t room = n_probes - 1; room <= n_probes; room++)
+    {
+      dp_tlm_t *full = dp_tlm_create (1 << 10);
+      DP_CHECK (full != NULL);
+      if (!full)
+        break;
+      for (size_t i = 0; i < DP_TLM_MAX_PROBES - room; i++)
+        {
+          char nm[DP_TLM_NAME_MAX];
+          (void)snprintf (nm, sizeof nm, "fill.%zu", i);
+          DP_CHECK (dp_tlm_probe (full, nm, 1) >= 0);
+        }
+      const size_t before_n = dp_tlm_probe_count (full);
+      const int r = dp_async_dsss_receiver_set_telemetry (rx, full, "rx", 1);
+      if (room < n_probes)
+        {
+          DP_CHECK_MSG (r == DP_ERR_INVALID, "one slot short attached");
+          DP_CHECK_MSG (dp_tlm_probe_count (full) == before_n,
+                        "a refused attach left names behind");
+          DP_CHECK (rx->tlm == t);
+        }
+      else
+        {
+          DP_CHECK_MSG (r == DP_OK, "exactly enough room was refused");
+          DP_CHECK (dp_tlm_probe_count (full) == DP_TLM_MAX_PROBES);
+          DP_CHECK (rx->tlm == full);
+          DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1)
+                    == DP_OK);
+        }
+      dp_tlm_destroy (full);
+    }
+  DP_CHECK (rx->tlm == t && dp_tlm_probe_count (t) == n_probes);
+
+  /* NULL detaches every loop: the live chain first -- a rebuild would hand
+     back fresh, unattached loops and hide a detach that missed one -- and
+     car_held with it, or a later coast would hand the carrier a context
+     the caller may have destroyed. Then across a rebuild too. */
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1) == DP_OK);
+  DP_CHECK (rx->tlm == NULL);
+  DP_CHECK (rx->car.tlm.ctx == NULL && rx->car_held.tlm.ctx == NULL);
+  n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  for (size_t i = 0; i < 4; i++)
+    DP_CHECK_MSG (_tlm_emitted (t, outputs[i]) == before[i], outputs[i]);
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  for (size_t i = 0; i < 4; i++)
+    DP_CHECK_MSG (_tlm_emitted (t, outputs[i]) == before[i], outputs[i]);
+
+  dp_async_dsss_receiver_destroy (rx);
+  dp_tlm_destroy (t);
+  free (x);
+  free (data);
+  return 0;
+}
+
+/* The searching flavor carries a fourth instrumented child, its search
+ * engine, which no rebuild touches: attached with the loops, kept by a
+ * refused re-attach, and detached with them -- or a searching receiver
+ * would keep a context the caller may destroy. */
+static int
+_test_telemetry_reaches_the_search (void)
+{
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
+      14.0, 32, 8, false, 100000, 0.0, 0.0);
+  dp_tlm_t *t  = dp_tlm_create (1 << 12);
+  dp_tlm_t *t2 = dp_tlm_create (1 << 12);
+  DP_CHECK (rx != NULL && rx->acq != NULL && t != NULL && t2 != NULL);
+  if (!rx || !rx->acq || !t || !t2)
+    return 1;
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1) == DP_OK);
+  DP_CHECK (rx->acq->tlm.ctx == t);
+  DP_CHECK (dp_tlm_probe_id (t, "rx.acq.stat") >= 0);
+  DP_CHECK (
+      dp_async_dsss_receiver_set_telemetry (rx, t2, "abcdefghijklmnop", 1)
+      == DP_ERR_INVALID);
+  DP_CHECK (rx->acq->tlm.ctx == t && dp_tlm_probe_count (t2) == 0);
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1) == DP_OK);
+  DP_CHECK (rx->acq->tlm.ctx == NULL);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_tlm_destroy (t2);
+  dp_tlm_destroy (t);
+  return 0;
+}
+
 /* seed() is a method of the searching flavor too -- an outside hit beats
  * its own search and skips it -- and it checks its arguments: the phase is
  * a code phase, so [0, code_len), and nothing non-finite. */
@@ -2717,6 +2963,8 @@ main (void)
   (void)_test_awgn_esn0_floor ();
   (void)_test_accessor_coverage ();
   (void)_test_cell_seed_and_decode ();
+  (void)_test_telemetry_follows_the_loops ();
+  (void)_test_telemetry_reaches_the_search ();
   (void)_test_seed_on_searching_flavor ();
   (void)_test_lost_after_switch_off ();
   (void)_test_one_flag_down_is_a_degrade ();

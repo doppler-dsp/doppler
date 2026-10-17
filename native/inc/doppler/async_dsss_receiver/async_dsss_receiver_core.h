@@ -136,6 +136,7 @@
 #include "doppler/acc_trace/acc_trace_core.h"
 #include "doppler/ber/ber_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -443,6 +444,14 @@ extern "C"
     double          lock_metric;
     double          lock_alpha; /**< EMA coeff = 1/dwell (dwell >= 30).    */
     dp_lockdet_state_t sym_lockdet;
+
+    /* Telemetry: the attach REQUEST, kept because every seed destroys and
+     * rebuilds the tracking chain -- the loops it holds are re-attached
+     * from here (dp_async_dsss_receiver_set_telemetry). Borrowed, and never
+     * in a blob: a handle to the outside world is not state. */
+    dp_tlm_t *tlm;                         /**< NULL = detached.          */
+    char      tlm_prefix[DP_TLM_NAME_MAX]; /**< The attach's prefix.      */
+    uint32_t  tlm_decim;                   /**< The attach's decimation.  */
   } dp_async_dsss_receiver_state_t;
 
   /**
@@ -722,6 +731,72 @@ extern "C"
    * @endcode
    */
   void dp_async_dsss_receiver_reset (dp_async_dsss_receiver_state_t *state);
+
+  /**
+   * @brief Attach (or detach) a telemetry context across the receiver's
+   *        loops. A pure forwarder: the receiver registers no probes of its
+   *        own.
+   *
+   * Each loop reports under the prefix, at its own update rate:
+   * - "<prefix>.car" -- the chip-domain carrier loop (dp_costas_set_telemetry():
+   *   ".lock", ".e", ".freq", ".locked"), once per carrier update, i.e. once
+   *   a code period while it is not coasting;
+   * - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
+   *   ".rate", ".lock", ".locked"), once per discriminator update;
+   * - "<prefix>.rc" -- the resampler's AGC, when it has one
+   *   (dp_RateConverter_set_telemetry(); none, and DP_OK, when it has not);
+   * - "<prefix>.demod" -- the symbol-domain demodulator
+   *   (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing
+   *   loops, the symbols, its AGC), once per recovered symbol (the AGC's
+   *   pair once per gain update);
+   * - "<prefix>.acq" -- the searching flavor's acquisition engine
+   *   (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has
+   *   no search, so no such probes.
+   *
+   * The loops' frequency and rate probes (".car.freq", ".code.rate",
+   * ".demod.car.freq", ".demod.sync.rate") are the loop filters' outputs; ".e"
+   * is each discriminator's input to its filter.
+   *
+   * The attachment is a REQUEST kept on the receiver: every seed rebuilds
+   * the tracking chain, and the rebuilt loops are attached again under the
+   * same names (so the same probe ids). Records are therefore continuous
+   * across re-seeds, and a reset keeps the attachment too.
+   *
+   * Setup path, never hot; the context is borrowed and must outlive the
+   * attachment, and the receiver must step on one thread (SPSC rules in
+   * dp_tlm/dp_tlm_core.h). Passing NULL detaches every loop.
+   *
+   * @param state  Must be non-NULL.
+   * @param tlm    Telemetry context to attach, or NULL to detach.
+   * @param prefix Probe-name prefix; NULL means "rx".
+   * @param decim  Emit every decim-th event on each probe; >= 1.
+   * @return DP_OK, or DP_ERR_INVALID on decim 0, a prefix too long for
+   *         some probe's name -- refused before anything registers on @p
+   *         tlm, because the loops are first attached to a scratch context
+   *         that finds the refusal -- or a probe table with no room for
+   *         every probe (found the same way, from the names the scratch
+   *         holds). Every refusal leaves @p tlm's table untouched and the
+   *         receiver as it was: detached, or still on its previous context
+   *         under its previous prefix.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> from doppler.telemetry import Telemetry
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+   * ...                        spc=2, doppler_uncertainty=500.0)
+   * >>> tlm = Telemetry(1 << 12)
+   * >>> rx.set_telemetry(tlm, "rx")
+   * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
+   * ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.rate']
+   * >>> rx.set_telemetry(None, "rx")      # detach
+   *
+   * @endcode
+   */
+  int dp_async_dsss_receiver_set_telemetry (
+      dp_async_dsss_receiver_state_t *state, dp_tlm_t *tlm, const char *prefix,
+      uint32_t decim);
 
   size_t dp_async_dsss_receiver_steps_max_out (dp_async_dsss_receiver_state_t *state);
 

@@ -27,6 +27,7 @@ const jm_any_fn jm_bound_symbols_async_dsss_receiver[] = {
     (jm_any_fn)dp_async_dsss_receiver_create_cell,
     (jm_any_fn)dp_async_dsss_receiver_destroy,
     (jm_any_fn)dp_async_dsss_receiver_reset,
+    (jm_any_fn)dp_async_dsss_receiver_set_telemetry,
     (jm_any_fn)dp_async_dsss_receiver_steps_max_out,
     (jm_any_fn)dp_async_dsss_receiver_steps,
     (jm_any_fn)dp_async_dsss_receiver_seed,

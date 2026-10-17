@@ -635,6 +635,59 @@ AsyncDsssPoolObj_set_event_log (AsyncDsssPoolObject *self, PyObject *args,
 }
 
 static PyObject *
+AsyncDsssPoolObj_set_telemetry (AsyncDsssPoolObject *self, PyObject *args,
+                                PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject    *tlm_obj   = Py_None;
+  const char  *prefix    = NULL;
+  long long    decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|L", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            return NULL;
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  if (decim_raw < 0 || decim_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "decim: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)decim_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  int      _rc
+      = dp_async_dsss_pool_set_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 AsyncDsssPoolObj_state_bytes (AsyncDsssPoolObject *self,
                               PyObject            *Py_UNUSED (ignored))
 {
@@ -1057,6 +1110,71 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     ">>> _ = pool.push(np.zeros(2046, np.complex64))\n"
     ">>> pool.set_event_log(None)              # detached\n"
     ">>> log.close()\n" },
+  { "set_telemetry", (PyCFunction)(void *)AsyncDsssPoolObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> None\n"
+    "\n"
+    "Attach (or detach) a telemetry context across the pool: the\n"
+    "searcher, every slot's receiver, and the pool's own counters.\n"
+    "\n"
+    "Registers, under prefix:\n"
+    "\n"
+    "- \"<prefix>.acq\" -- the searcher (dp_acq_set_telemetry(): its test\n"
+    "  statistic, gate, CFAR reference, strongest cell and its coordinates,\n"
+    "  picks and held twins, concentration and hit flag), once per decided\n"
+    "  dwell;\n"
+    "- \"<prefix>.s<i>\" -- slot i's receiver, every loop it holds\n"
+    "  (dp_async_dsss_receiver_set_telemetry()), at each loop's own rate,\n"
+    "  and continuous across the seeds and releases that reuse the slot;\n"
+    "- \"<prefix>.assigned\", \"<prefix>.dropped\", \"<prefix>.events\" -- "
+    "the\n"
+    "  pool's `n_assigned` and its running `dropped` and `events` counts,\n"
+    "  once per push(), after its releases.\n"
+    "\n"
+    "The probes come to 13 plus each slot's (a cell receiver's loops), so a\n"
+    "large pool needs a context with room: an attach that cannot register\n"
+    "every probe fails whole.\n"
+    "\n"
+    "A context is single-producer (dp_tlm/dp_tlm_core.h), and a pool created\n"
+    "with `threads != 1` (more than one, or `<= 0` for the core count) may\n"
+    "step its receivers on several, so it is refused: observe a pool on one\n"
+    "thread.\n"
+    "\n"
+    "Setup path, never hot; the context is borrowed and must outlive the\n"
+    "attachment. Passing NULL detaches everything.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "tlm : object | None\n"
+    "    Telemetry context to attach, or NULL to detach.\n"
+    "prefix : str\n"
+    "    Probe-name prefix; NULL means \"pool\".\n"
+    "decim : int\n"
+    "    Emit every decim-th event on each probe; >= 1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_telemetry failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssPool\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,\n"
+    "...                      spc=2, cn0_dbhz=45.0, n_slots=2)\n"
+    ">>> tlm = Telemetry(1 << 16)\n"
+    ">>> pool.set_telemetry(tlm, \"pool\")\n"
+    ">>> sorted(p for p in tlm.probe_names if p.count(\".\") == 1)\n"
+    "['pool.assigned', 'pool.dropped', 'pool.events']\n"
+    ">>> sorted({p.split(\".\")[1] for p in tlm.probe_names})\n"
+    "['acq', 'assigned', 'dropped', 'events', 's0', 's1']\n"
+    ">>> _ = pool.push(np.zeros(2046, np.complex64))\n"
+    ">>> pool.set_telemetry(None, \"pool\")      # detach\n" },
   { "state_bytes", (PyCFunction)AsyncDsssPoolObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

@@ -2882,7 +2882,8 @@ objects = ["doppler_channel"]
 
 [module.util]
 doc = """
-Shared numeric utilities used across the doppler modules.
+Shared utilities used across the doppler modules: the numeric helpers, and
+`fromto`, the path from a calling script to where it writes.
 
 Examples
 --------
@@ -2892,6 +2893,12 @@ Examples
 
 """
 objects = []
+
+# `fromto` is path arithmetic, not DSP, so it is plain Python in
+# src/doppler/util/paths.py: there is no C algorithm for a binding to wrap,
+# and the caller's __file__ is only reachable from Python.
+[module.util.reexports]
+paths = ["fromto"]
 
 [[module.util.functions]]
 name = "square_clip"

@@ -1,4 +1,5 @@
-"""Shared numeric utilities used across the doppler modules.
+"""Shared utilities used across the doppler modules: the numeric helpers, and
+`fromto`, the path from a calling script to where it writes.
 
 Examples
 --------
@@ -17,5 +18,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
 del _os, _sys
 
 from .util import square_clip, saturate, ema_step, ema_alpha_decim, next_pow_two, complement_power, sinc, mean_sinc, simpson_weights, midpoint_nodes, gauss_hermite  # noqa: E402
+from .paths import fromto  # noqa: E402
 
-__all__ = ["square_clip", "saturate", "ema_step", "ema_alpha_decim", "next_pow_two", "complement_power", "sinc", "mean_sinc", "simpson_weights", "midpoint_nodes", "gauss_hermite"]
+__all__ = ["square_clip", "saturate", "ema_step", "ema_alpha_decim", "next_pow_two", "complement_power", "sinc", "mean_sinc", "simpson_weights", "midpoint_nodes", "gauss_hermite", "fromto"]

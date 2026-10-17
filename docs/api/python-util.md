@@ -7,7 +7,8 @@ state; `ema_step`/`ema_alpha_decim`, the library's one exponential moving
 average and the coefficient that advances it a whole chunk at a time; the
 `complement_power` kernel behind that coefficient; `sinc`/`mean_sinc`, the
 straddle loss of a correlator or DFT bin; and the quadrature rules
-`simpson_weights`, `midpoint_nodes` and `gauss_hermite`.
+`simpson_weights`, `midpoint_nodes` and `gauss_hermite`. One helper is not
+numeric: `fromto`, the path a script writes an artifact to.
 
 Source:
 [`src/doppler/util/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/util/__init__.py)
@@ -190,6 +191,36 @@ A bad length (an even Simpson length, mismatched Gauss-Hermite arrays) raises.
 
 ______________________________________________________________________
 
+## `fromto`
+
+The path from a start to a destination, `Path(here) / to`, where `here`
+defaults to the directory of the file making the call. A script that names
+its figure with a bare file name writes it into whatever directory the run
+started in. With `fromto` it lands beside the script, from wherever it was
+started.
+
+The destination is joined with pathlib's `/`, which returns an absolute right
+operand unchanged. So one call covers a script's default and its override: a
+relative name lands under the start, an absolute path where it says, and no
+destination is the start itself.
+
+```python
+from doppler.util import fromto
+
+fromto("dll_lock.png", here="/runs").as_posix()       # '/runs/dll_lock.png'
+fromto("/tmp/dll_lock.png", here="/runs").as_posix()  # '/tmp/dll_lock.png'
+fromto(here="/runs").as_posix()                       # '/runs'
+```
+
+A characterization script calls it as `fromto(out or "dll_lock.png")`, and
+resolves a path typed on its command line before passing it
+(`Path(arg).resolve()`). A typed path is relative to the working directory
+by convention; resolved, it is absolute and comes back as given. Called with
+no `here` from a file-less context (a REPL, `python -c`), it raises
+`ValueError`, because there is no script to start from.
+
+______________________________________________________________________
+
 ::: doppler.util.square_clip
 
 ::: doppler.util.saturate
@@ -209,6 +240,8 @@ ______________________________________________________________________
 ::: doppler.util.midpoint_nodes
 
 ::: doppler.util.gauss_hermite
+
+::: doppler.util.fromto
 
 ## Related pages
 

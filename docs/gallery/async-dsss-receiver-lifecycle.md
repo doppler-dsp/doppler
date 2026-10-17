@@ -17,7 +17,7 @@ The timeline has five parts:
 1. **Arrival.** The signal comes on. The receiver acquires, refines the carrier
     estimate and begins tracking. Symbols begin only then.
 1. **A 10 ms dropout.** The signal is cut and the noise runs on. The symbol
-    lock was already up, and it holds.
+    lock was already up, and in this run it holds.
 1. **A 50 ms dropout.** The lock falls partway through the gap. The receiver
     stays in the tracking state. The lock returns after the signal does.
 1. **Departure.** The emitter leaves for good. The lock falls. Tracking holds.
@@ -53,12 +53,8 @@ noise alone, so the noise floor is the same throughout. The noise is the
 library's own unit-noise `Synth`, scaled by
 [`wfm_awgn_amplitude`](../api/python-wfmgen.md).
 
-The emitter's payload is never gated off. The data changes from one symbol to
-the next throughout, so each dropout cuts the signal mid-data, and the symbol
-lock is tested while the symbols are transitioning, not during a data-free
-run of the code. Measured on the clean emitter, the data flips at about half
-of the symbol boundaries, and it flips within twenty symbols of every cut.
-The check is part of the validation below.
+The emitter's data is never gated off: the payload rides on the code
+throughout, so the signal is not a code-only run at any point.
 
 ```python
 --8<-- "src/doppler/examples/async_dsss_receiver_lifecycle.py:signal"
@@ -73,10 +69,9 @@ counted.
 --8<-- "src/doppler/examples/async_dsss_receiver_lifecycle.py:receiver"
 ```
 
-The checks run on those rows. Each bound is a physical margin around what the
-run shows, not a value copied from one draw. The interval from arrival to
-tracking, the lock fall inside the 50 ms dropout and the lock return are each
-bounded by a window several times wider than their spread.
+The checks run on those rows. The bounds are generous windows around one
+measured run. They hold the order of the events and whether the lock held or
+fell. They are not a spread measured across noise draws.
 
 ```python
 --8<-- "src/doppler/examples/async_dsss_receiver_lifecycle.py:validate"
@@ -86,11 +81,15 @@ bounded by a window several times wider than their spread.
 
 1. **State and symbol lock** (top). The black line is the tracking state, and
     the green fill is the symbol lock. The grey spans mark the signal-off
-    intervals. The lock holds through the short dropout. It falls partway
-    through the long one, and it returns after the signal does.
+    intervals. In this run the lock holds through the short dropout. It falls
+    partway through the long one, and it returns after the signal does. How
+    often the short dropout holds across noise draws is a probability. This
+    page does not claim it until that probability is measured.
 1. **The lock metric** (bottom). The metric is the SNR-weighted running mean
-    of cos(2φ) over the symbols. It climbs above `lock_threshold` once the
-    constellation converges, and it falls below the threshold in the gaps.
+    of cos(2φ) over the symbols. It climbs above the declare level,
+    `lock_threshold`, once the constellation converges. The lock drops when it
+    falls below the drop level, `ASYNC_DSSS_RX_LOCK_DOWN`, which the page draws
+    from the header's value.
 
 ## Reproduce
 
@@ -99,9 +98,9 @@ python -m doppler.examples.async_dsss_receiver_lifecycle out.png
 ```
 
 The C twin, which shows the buffers and the lifecycle the binding hides, is
-[`async_dsss_receiver_lifecycle.c`](https://github.com/hunterdsp/doppler/blob/main/native/examples/async_dsss_receiver_lifecycle.c).
+[`async_dsss_receiver_lifecycle.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/async_dsss_receiver_lifecycle.c).
 
 The design, including the state machine and the release rule, is in
 [the async DSSS receiver design](../design/async-dsss-receiver.md).
 
-Source: [`async_dsss_receiver_lifecycle.py`](https://github.com/hunterdsp/doppler/blob/main/src/doppler/examples/async_dsss_receiver_lifecycle.py).
+Source: [`async_dsss_receiver_lifecycle.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/async_dsss_receiver_lifecycle.py).

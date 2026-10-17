@@ -36,7 +36,9 @@ folder. Two subjects shipped that way (doppler#2406).
 **Be clear about what this does NOT check.** It does not run the sweep and it
 does not verify any envelope. The artifact rule reads literals, so a path
 built without one (a name in a variable, ``Path("out") / name``) is not
-seen. A regression that moves a pull-in boundary while
+seen; and a literal on the right of a ``/`` counts as anchored whatever the
+left is, so ``Path("out") / "x.png"``, relative to the cwd through its
+left, passes. A regression that moves a pull-in boundary while
 every import still succeeds passes this gate and waits for the next `make
 characterize`. Claiming otherwise would be the same mistake the validation
 tree made when 44 claims were asserted by nobody
@@ -168,6 +170,10 @@ def cwd_relative_artifacts(source: str) -> list[tuple[int, str]]:
     right operand of a ``/`` (the left names the directory). Anything else
     is a bare name, and a bare name lands wherever the run was started.
 
+    The left of a ``/`` is not judged: ``Path("out") / "x.png"`` passes
+    though its directory is relative to the cwd. The rule catches the bare
+    name that shipped twice (doppler#2406), not every relative path.
+
     Returns ``(line, name)`` for each unanchored one, in source order.
 
     >>> cwd_relative_artifacts('fig.savefig(out or "x.png")')
@@ -260,14 +266,21 @@ def main() -> int:
                 f"nothing exercises it between `make characterize` runs"
             )
 
-        # 4. every script in the subject anchors the files it writes
+        # 4. every script in the subject anchors the files it writes. A
+        # sibling that does not parse is reported here: rule 2 parses only
+        # characterize.py, and a broken telemetry.py would otherwise pass
+        # every rule unread.
         for script in sorted(subject.parent.glob("*.py")):
             try:
                 bare = cwd_relative_artifacts(
                     script.read_text(encoding="utf-8")
                 )
-            except SyntaxError:
-                continue  # reported once, by rule 2, for characterize.py
+            except SyntaxError as exc:
+                if script != subject:  # characterize.py's is rule 2's
+                    problems.append(
+                        f"{script.relative_to(ROOT)}: does not parse — {exc}"
+                    )
+                continue
             for line, name in bare:
                 problems.append(
                     f"{script.relative_to(ROOT)}:{line}: `{name}` is "

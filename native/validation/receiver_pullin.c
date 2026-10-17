@@ -32,6 +32,7 @@
 #include "doppler/dp_complex.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -68,14 +69,6 @@ static const double OFFSETS[]
 #define N_OFFSETS (sizeof OFFSETS / sizeof OFFSETS[0])
 static const double CHECK_OFFSETS[] = { 0.0, 400.0, 800.0 };
 #define N_CHECK_OFFSETS (sizeof CHECK_OFFSETS / sizeof CHECK_OFFSETS[0])
-
-static void
-gold_1023 (uint8_t *code)
-{
-  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
-  dp_gold_generate (gd, SF, code, SF);
-  dp_gold_destroy (gd);
-}
 
 /* One draw's stream: the synth from a random frame position through the
    channel at `ppm`, noise after; the truth is the channel's mapping. */
@@ -209,7 +202,7 @@ main (int argc, char **argv)
 {
   const int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   uint8_t   code[SF];
-  gold_1023 (code);
+  dp_dsss_gold_1023 (code);
   const double *offs    = check ? CHECK_OFFSETS : OFFSETS;
   const size_t  n_offs  = check ? N_CHECK_OFFSETS : N_OFFSETS;
   const size_t  trials  = check ? CHECK_TRIALS : TRIALS;

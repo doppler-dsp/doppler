@@ -116,6 +116,7 @@
 #include "doppler/lo/lo_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_ber_test.h"
+#include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -291,14 +292,6 @@ static double disc (double e, double l);
 static double parabola (double a, double b, double c);
 static double sinv (const struct scurve *sc, double y);
 static int    dll_open (sink_ctx_t *c, double seed_chip, double f_hz);
-
-static void
-gold_1023 (uint8_t *code)
-{
-  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
-  dp_gold_generate (gd, SF, code, SF);
-  dp_gold_destroy (gd);
-}
 
 static double
 wrap_chips (double e)
@@ -1549,7 +1542,7 @@ main (int argc, char **argv)
 {
   int     check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   uint8_t code[SF];
-  gold_1023 (code);
+  dp_dsss_gold_1023 (code);
 
   printf ("the searcher's surface as a code tracker: Gold-1023 at 5 Mcps, "
           "spc %u, %.0f sym/s async BPSK, %u code-only symbols of every %u; "

@@ -236,20 +236,12 @@ print_point (const point_t *p, double truth, double seed_err)
           p->max, p->handed_s * 1e3);
 }
 
-static void
-gold_1023 (uint8_t *code)
-{
-  dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
-  dp_gold_generate (gd, SF, code, SF);
-  dp_gold_destroy (gd);
-}
-
 int
 main (int argc, char **argv)
 {
   int     check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   uint8_t code[SF];
-  gold_1023 (code);
+  dp_dsss_gold_1023 (code);
 
   printf ("refine bias: Gold-1023 at 5 Mcps, spc 2, 2700 sym/s async BPSK "
           "at %.0f dB-Hz (Es/N0 %.1f dB); static capture at a carrier "

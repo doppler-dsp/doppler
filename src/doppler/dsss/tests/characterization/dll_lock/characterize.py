@@ -26,6 +26,7 @@ Run:  python -m doppler.dsss.tests.characterization.dll_lock.characterize
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -33,9 +34,8 @@ import numpy as np
 from doppler.detection import det_n_noncoh, det_threshold_noncoherent
 from doppler.telemetry import Telemetry
 from doppler.track import Dll
+from doppler.util import fromto
 from doppler.wfm import Gold, Synth
-
-HERE = Path(__file__).resolve().parent
 
 SF, SPC, CHIP_RATE, SYM_RATE, K = 1023, 2, 5e6, 2700.0, 4
 FS = CHIP_RATE * SPC
@@ -132,13 +132,13 @@ DETECTORS = (
 )
 
 
-def main(seconds: float = 2.0, out_path: Path | None = None) -> None:
+def main(seconds: float = 2.0, out_path: str | Path | None = None) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    out_path = HERE / "dll_lock.png" if out_path is None else out_path
+    out_path = fromto(out_path or "dll_lock.png")
     cn0s = (45.0, 40.0)
     fig, axes = plt.subplots(4, len(cn0s), figsize=(13, 10), sharex="col")
     for col, cn0 in enumerate(cn0s):
@@ -195,4 +195,4 @@ def main(seconds: float = 2.0, out_path: Path | None = None) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(out_path=Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else None)

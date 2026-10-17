@@ -70,10 +70,12 @@ consumer of the detection event actually depends on.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import numpy as np
 
 from doppler.dsss import DsssBurstReceiver
+from doppler.util import fromto
 from doppler.wfm import Frame, crc16
 
 # ── Geometry ─────────────────────────────────────────────────────────────
@@ -299,8 +301,8 @@ def sweep_cn0() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return cn0, rate, crc
 
 
-def main(out_path: str | None = None) -> None:
-    out_path = out_path or "dsss_burst_receiver_characterization.png"
+def main(out_path: str | Path | None = None) -> None:
+    out_path = fromto(out_path or "dsss_burst_receiver.png")
 
     print(
         f"geometry: code period {CODE_PERIOD} samples, "
@@ -365,7 +367,7 @@ def main(out_path: str | None = None) -> None:
     _plot(results, cn0, rate, crc, out_path)
 
 
-def _plot(results, cn0, rate, crc, out_path: str) -> None:
+def _plot(results, cn0, rate, crc, out_path: Path) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -445,4 +447,4 @@ def _plot(results, cn0, rate, crc, out_path: str) -> None:
 
 
 if __name__ == "__main__":
-    main(out_path=sys.argv[1] if len(sys.argv) > 1 else None)
+    main(out_path=Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else None)

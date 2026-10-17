@@ -33,7 +33,8 @@ first, or the run is refused: what is plotted is what was timed. The pool's
 pushes that decided a dwell come from ``pool.tlm`` (the searcher's records
 carry the push's sample index), which splits its cost in ``run.json``.
 
-Writes into ``--out`` (``make pool-telemetry``: ``build/pool-telemetry/``):
+Writes into ``--out``, beside this script unless pointed elsewhere
+(``make pool-telemetry`` points it at ``build/pool-telemetry/``):
 ``run.json`` (parameters, versions, timing summary), ``pool.events`` (the
 pool's event log), the three captures and their sidecars, and
 ``timing.png``, ``rx.png``, ``pool.png``, ``pool-s<i>.png``.
@@ -66,6 +67,7 @@ import doppler
 from doppler.dsss import AsyncDsssPool, AsyncDsssReceiver
 from doppler.telemetry import Capture, EventLog, Telemetry
 from doppler.tests._validation_common import read_capture
+from doppler.util import fromto
 from doppler.wfm import SampleClock, Synth, field_bits
 
 HERE = Path(__file__).resolve().parent
@@ -95,7 +97,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--pfa", type=float, default=1e-3)
     ap.add_argument("--decim", type=int, default=1, help="telemetry decim")
     ap.add_argument("--seed", type=int, default=7, help="the synth's seed")
-    ap.add_argument("--out", type=Path, default=Path("build/pool-telemetry"))
+    ap.add_argument(
+        "--out",
+        type=lambda s: Path(s).resolve(),
+        default=None,
+        help="where the run is written (default: beside this script)",
+    )
     ap.add_argument(
         "--no-figures",
         action="store_true",
@@ -299,6 +306,7 @@ def figures(out: Path, slots: list[str]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     a = parse_args(argv)
+    a.out = fromto(a.out)
     a.out.mkdir(parents=True, exist_ok=True)
     fs = a.chip_rate * a.spc
     code = field_bits(a.code)

@@ -54,10 +54,14 @@ opinion of itself.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import numpy as np
 
 from doppler.acquire import BurstCapture
 from doppler.acquire.tests._preamble import code_preamble
+from doppler.util import fromto
 from doppler.wfm import PN, STAGE_CRC16, Composer, FrameDesc, Segment
 
 # ── Geometry ────────────────────────────────────────────────────────────────
@@ -238,7 +242,7 @@ def separation(rows) -> dict:
     return out
 
 
-def _plot(gaps, found, extra, rows, out_path: str) -> None:
+def _plot(gaps, found, extra, rows, out_path: Path) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -311,8 +315,8 @@ def _plot(gaps, found, extra, rows, out_path: str) -> None:
     print(f"  wrote {out_path}")
 
 
-def main(out_path: str | None = None) -> None:
-    out_path = out_path or "burst_capture_characterization.png"
+def main(out_path: str | Path | None = None) -> None:
+    out_path = fromto(out_path or "burst_capture.png")
     print("BurstCapture characterization")
     print(f"  burst_len={BURST_LEN}  code_period={CODE_PERIOD}  reps={REPS}")
 
@@ -330,6 +334,4 @@ def main(out_path: str | None = None) -> None:
 
 
 if __name__ == "__main__":
-    import sys
-
-    main(sys.argv[1] if len(sys.argv) > 1 else None)
+    main(Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else None)

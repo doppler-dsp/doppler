@@ -106,6 +106,10 @@
  *   ... --telemetry DIR --check                  the same, checked, and
  *                                                removed once they pass
  *                                                (the ctest form)
+ *   ... --telemetry DIR --emit                   the same, with a `# story`
+ *                                                CSV block on stdout, one
+ *                                                row a story, in the
+ *                                                arrival row's formats
  */
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/awgn/awgn_core.h"
@@ -652,7 +656,8 @@ story_on (size_t n, size_t delay)
 }
 
 static int
-run_story (const uint8_t *code, const story_t *st, const char *dir, int check)
+run_story (const uint8_t *code, const story_t *st, const char *dir, int check,
+           int emit)
 {
   const int    fails_before = dp_test_fails_;
   uint32_t     rng          = trial_rng (st->seed);
@@ -692,6 +697,12 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check)
   DP_REQUIRE (tlm != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)
               == DP_OK);
+  /* The stimulus beside the receiver's own probes, so a plot can shade
+     where the signal was off (scripts/plot_capture.py --shade stim.on):
+     the fraction of each block that carried it, once a block, on the
+     block's own stamp -- 0 is off throughout, 1 on throughout. */
+  const int id_stim = dp_tlm_probe (tlm, "stim.on", 1);
+  DP_REQUIRE (id_stim >= 0);
   dp_sample_clock_t clk;
   dp_sample_clock_init (&clk, FS, 0);
   dp_tlm_capture_t *cap = dp_tlm_capture_open (tlm, TE, path, &clk);
@@ -707,9 +718,14 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check)
       dp_tlm_set_now (tlm, (uint64_t)(b * TE));
       dp_wfm_synth_steps (syn, sig, TE);
       dp_awgn_generate (g, TE, blk, TE);
+      size_t on = 0;
       for (size_t i = 0; i < TE; i++)
         if (story_on (b * TE + i, delay))
-          blk[i] += sig[i];
+          {
+            blk[i] += sig[i];
+            on++;
+          }
+      dp_tlm_emit (tlm, id_stim, (double)on / (double)TE);
       (void)dp_async_dsss_receiver_steps (rx, blk, TE, syms, cap_ ? cap_ : TE);
       if (t_lock < 0.0 && dp_async_dsss_receiver_get_locked (rx))
         t_lock = ((double)((b + 1) * TE) - (double)delay) / FS * 1e3;
@@ -725,15 +741,23 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check)
                 "a story reaches symbol lock exactly when its name says "
                 "(the receiver changed: re-pick its seed from the record's "
                 "arrival trials)");
-  char lock_s[32];
-  if (t_lock < 0.0)
-    (void)snprintf (lock_s, sizeof lock_s, "never");
+  /* --emit: the arrival row's own formats, so the record can hold each
+     story to the sweep's trial of the same draws. */
+  if (emit)
+    printf ("%s,%.1f,%u,%.1f,%.6f,%.2f\n", st->name, st->esn0_db, st->seed,
+            carrier, (double)delay / FS, t_lock < 0.0 ? NAN : t_lock);
   else
-    (void)snprintf (lock_s, sizeof lock_s, "%.1f ms", t_lock);
-  printf ("  %-24s %4.1f dB, carrier %+7.1f Hz, arrival %5.1f ms, symbol "
-          "lock %s -> %s\n",
-          st->name, st->esn0_db, carrier, (double)delay / FS * 1e3, lock_s,
-          path);
+    {
+      char lock_s[32];
+      if (t_lock < 0.0)
+        (void)snprintf (lock_s, sizeof lock_s, "never");
+      else
+        (void)snprintf (lock_s, sizeof lock_s, "%.1f ms", t_lock);
+      printf ("  %-24s %4.1f dB, carrier %+7.1f Hz, arrival %5.1f ms, "
+              "symbol lock %s -> %s\n",
+              st->name, st->esn0_db, carrier, (double)delay / FS * 1e3, lock_s,
+              path);
+    }
   dp_tlm_capture_destroy (cap);
   /* --check is the ctest form: a passing story leaves nothing behind
      (scripts/check_test_leaks.py); a failing one keeps its capture as the
@@ -772,10 +796,15 @@ main (int argc, char **argv)
   dp_dsss_gold_1023 (code);
   if (tlm_dir)
     {
-      printf ("telemetry: %zu lifecycle stories into %s\n", N_STORIES,
-              tlm_dir);
+      if (emit)
+        printf ("# story\nname,esn0_db,seed,carrier_hz,delay_s,t_lock_ms\n");
+      else
+        printf ("telemetry: %zu lifecycle stories into %s\n", N_STORIES,
+                tlm_dir);
       for (size_t k = 0; k < N_STORIES; k++)
-        DP_REQUIRE (run_story (code, &stories[k], tlm_dir, check) == 0);
+        DP_REQUIRE (run_story (code, &stories[k], tlm_dir, check, emit) == 0);
+      if (emit)
+        DP_TEST_EMIT_END ("validate_async_dsss_receiver_lock --telemetry");
       DP_TEST_END ("validate_async_dsss_receiver_lock --telemetry");
     }
 

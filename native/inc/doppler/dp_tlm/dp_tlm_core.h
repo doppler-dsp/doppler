@@ -372,6 +372,42 @@ size_t dp_tlm_capacity (const dp_tlm_t *t);
 int dp_tlm_probe_id_at (const dp_tlm_t *t, size_t i);
 
 /**
+ * @brief Whether every probe registered on @p want would also register on
+ *        @p t: the names @p t lacks fit in its free slots.
+ *
+ * The capacity half of a composite's dry run. A composite attaches its
+ * children to a scratch context first, so a prefix too long for some
+ * child's name is refused before anything registers on the caller's; the
+ * scratch starts empty, though, so it cannot see a caller's table that is
+ * nearly full. Asked of the scratch before the real attach, this refuses
+ * that case too, and a refused attach then leaves no names behind (#1897).
+ * Names @p t already holds take no slot (dp_tlm_probe() is idempotent by
+ * name), so a re-attach under the same prefix always fits.
+ *
+ * @code
+ *   dp_tlm_t *have = dp_tlm_create (1);
+ *   dp_tlm_t *want = dp_tlm_create (1);
+ *   dp_tlm_probe (have, "a", 1);
+ *   dp_tlm_probe (want, "a", 1);
+ *   dp_tlm_probe (want, "b", 1);
+ *   int ok = dp_tlm_has_room_for (have, want);   // 1: one new name, room
+ *   dp_tlm_destroy (want);
+ *   dp_tlm_destroy (have);
+ *   return !ok;
+ * @endcode
+ */
+static inline int
+dp_tlm_has_room_for (const dp_tlm_t *t, const dp_tlm_t *want)
+{
+  size_t       missing = 0;
+  const size_t n       = dp_tlm_probe_count (want);
+  for (size_t i = 0; i < n; i++)
+    if (dp_tlm_probe_id (t, dp_tlm_probe_name (want, (int)i)) < 0)
+      missing++;
+  return dp_tlm_probe_count (t) + missing <= DP_TLM_MAX_PROBES;
+}
+
+/**
  * @brief Records this context can emit while processing @p block_samples
  *        inputs — the number that makes drops preventable.
  *

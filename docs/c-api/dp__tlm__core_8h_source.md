@@ -88,6 +88,17 @@ size_t dp_tlm_capacity (const dp_tlm_t *t);
 
 int dp_tlm_probe_id_at (const dp_tlm_t *t, size_t i);
 
+static inline int
+dp_tlm_has_room_for (const dp_tlm_t *t, const dp_tlm_t *want)
+{
+  size_t       missing = 0;
+  const size_t n       = dp_tlm_probe_count (want);
+  for (size_t i = 0; i < n; i++)
+    if (dp_tlm_probe_id (t, dp_tlm_probe_name (want, (int)i)) < 0)
+      missing++;
+  return dp_tlm_probe_count (t) + missing <= DP_TLM_MAX_PROBES;
+}
+
 size_t dp_tlm_block_bound (const dp_tlm_t *t, size_t block_samples);
 
 size_t dp_tlm_avail (const dp_tlm_t *t);

@@ -1075,6 +1075,71 @@ _test_telemetry_follows_the_loops (void)
       before[i] = now;
     }
 
+  /* A refused re-attach leaves the receiver as it was, as a leaf's does:
+     the dry run moves every loop off `t`, so the refusal must put them
+     back. A second context and a prefix only the demodulator's deepest
+     name refuses: nothing registers there, and `t` keeps counting. */
+  dp_tlm_t *t2 = dp_tlm_create (1 << 10);
+  DP_CHECK (t2 != NULL);
+  DP_CHECK (
+      dp_async_dsss_receiver_set_telemetry (rx, t2, "abcdefghijklmnop", 1)
+      == DP_ERR_INVALID);
+  DP_CHECK (dp_tlm_probe_count (t2) == 0);
+  DP_CHECK (dp_tlm_probe_count (t) == n_probes);
+  DP_CHECK (rx->tlm == t && strcmp (rx->tlm_prefix, "rx") == 0);
+  DP_CHECK (rx->car.tlm.ctx == t && rx->car_held.tlm.ctx == t);
+  n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  for (size_t i = 0; i < 4; i++)
+    {
+      const uint64_t now = _tlm_emitted (t, outputs[i]);
+      DP_CHECK_MSG (now > before[i] && now != UINT64_MAX, outputs[i]);
+      if (now <= before[i] || now == UINT64_MAX)
+        DP_TEST_ERR ("  %s: %llu records after a refused re-attach, %llu "
+                     "before\n",
+                     outputs[i], (unsigned long long)now,
+                     (unsigned long long)before[i]);
+      before[i] = now;
+    }
+  dp_tlm_destroy (t2);
+
+  /* A table one slot short of the attach is refused with nothing
+     registered (the scratch knows every name, so it knows the count), and
+     one with exactly enough room takes it. Filler names never collide with
+     the receiver's. */
+  for (size_t room = n_probes - 1; room <= n_probes; room++)
+    {
+      dp_tlm_t *full = dp_tlm_create (1 << 10);
+      DP_CHECK (full != NULL);
+      if (!full)
+        break;
+      for (size_t i = 0; i < DP_TLM_MAX_PROBES - room; i++)
+        {
+          char nm[DP_TLM_NAME_MAX];
+          (void)snprintf (nm, sizeof nm, "fill.%zu", i);
+          DP_CHECK (dp_tlm_probe (full, nm, 1) >= 0);
+        }
+      const size_t before_n = dp_tlm_probe_count (full);
+      const int r = dp_async_dsss_receiver_set_telemetry (rx, full, "rx", 1);
+      if (room < n_probes)
+        {
+          DP_CHECK_MSG (r == DP_ERR_INVALID, "one slot short attached");
+          DP_CHECK_MSG (dp_tlm_probe_count (full) == before_n,
+                        "a refused attach left names behind");
+          DP_CHECK (rx->tlm == t);
+        }
+      else
+        {
+          DP_CHECK_MSG (r == DP_OK, "exactly enough room was refused");
+          DP_CHECK (dp_tlm_probe_count (full) == DP_TLM_MAX_PROBES);
+          DP_CHECK (rx->tlm == full);
+          DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1)
+                    == DP_OK);
+        }
+      dp_tlm_destroy (full);
+    }
+  DP_CHECK (rx->tlm == t && dp_tlm_probe_count (t) == n_probes);
+
   /* NULL detaches every loop: the live chain first -- a rebuild would hand
      back fresh, unattached loops and hide a detach that missed one -- and
      car_held with it, or a later coast would hand the carrier a context
@@ -1097,6 +1162,36 @@ _test_telemetry_follows_the_loops (void)
   dp_tlm_destroy (t);
   free (x);
   free (data);
+  return 0;
+}
+
+/* The searching flavor carries a fourth instrumented child, its search
+ * engine, which no rebuild touches: attached with the loops, kept by a
+ * refused re-attach, and detached with them -- or a searching receiver
+ * would keep a context the caller may destroy. */
+static int
+_test_telemetry_reaches_the_search (void)
+{
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
+      14.0, 32, 8, false, 100000, 0.0, 0.0);
+  dp_tlm_t *t  = dp_tlm_create (1 << 12);
+  dp_tlm_t *t2 = dp_tlm_create (1 << 12);
+  DP_CHECK (rx != NULL && rx->acq != NULL && t != NULL && t2 != NULL);
+  if (!rx || !rx->acq || !t || !t2)
+    return 1;
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1) == DP_OK);
+  DP_CHECK (rx->acq->tlm.ctx == t);
+  DP_CHECK (dp_tlm_probe_id (t, "rx.acq.stat") >= 0);
+  DP_CHECK (
+      dp_async_dsss_receiver_set_telemetry (rx, t2, "abcdefghijklmnop", 1)
+      == DP_ERR_INVALID);
+  DP_CHECK (rx->acq->tlm.ctx == t && dp_tlm_probe_count (t2) == 0);
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1) == DP_OK);
+  DP_CHECK (rx->acq->tlm.ctx == NULL);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_tlm_destroy (t2);
+  dp_tlm_destroy (t);
   return 0;
 }
 
@@ -2871,6 +2966,7 @@ main (void)
   (void)_test_accessor_coverage ();
   (void)_test_cell_seed_and_decode ();
   (void)_test_telemetry_follows_the_loops ();
+  (void)_test_telemetry_reaches_the_search ();
   (void)_test_seed_on_searching_flavor ();
   (void)_test_lost_after_switch_off ();
   (void)_test_one_flag_down_is_a_degrade ();

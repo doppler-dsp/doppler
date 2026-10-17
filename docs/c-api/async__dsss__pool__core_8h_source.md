@@ -122,6 +122,8 @@ extern "C"
     int32_t   tlm_assigned; 
     int32_t   tlm_dropped;  
     int32_t   tlm_events;   
+    char      tlm_prefix[DP_TLM_NAME_MAX]; 
+    uint32_t  tlm_decim; 
   } dp_async_dsss_pool_state_t;
 
 dp_async_dsss_pool_state_t *dp_async_dsss_pool_create(const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa, double pd, double doppler_uncertainty, size_t code_only_epochs, double doppler_rate, size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz, double lost_confirm_s, double max_emitter_on_time_secs, size_t segments, size_t sps, int differential, double gain, size_t pullin_intervals);

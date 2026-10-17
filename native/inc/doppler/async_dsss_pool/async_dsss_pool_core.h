@@ -230,6 +230,8 @@ extern "C"
     int32_t   tlm_assigned; /**< "<prefix>.assigned": n_assigned.      */
     int32_t   tlm_dropped;  /**< "<prefix>.dropped": dropped, running. */
     int32_t   tlm_events;   /**< "<prefix>.events": events, running.   */
+    char      tlm_prefix[DP_TLM_NAME_MAX]; /**< The attach's prefix.  */
+    uint32_t  tlm_decim; /**< The attach's decimation.                 */
   } dp_async_dsss_pool_state_t;
 
 /**
@@ -496,7 +498,8 @@ int dp_async_dsss_pool_set_event_log(dp_async_dsss_pool_state_t *state, dp_event
  * every probe fails whole.
  *
  * A context is single-producer (dp_tlm/dp_tlm_core.h), and a pool created
- * with `threads > 1` steps its receivers on several, so it is refused:
+ * with `threads != 1` (more than one, or `<= 0` for the core count) may
+ * step its receivers on several, so it is refused:
  * observe a pool on one thread.
  *
  * Setup path, never hot; the context is borrowed and must outlive the
@@ -506,13 +509,14 @@ int dp_async_dsss_pool_set_event_log(dp_async_dsss_pool_state_t *state, dp_event
  * @param tlm    Telemetry context to attach, or NULL to detach.
  * @param prefix Probe-name prefix; NULL means "pool".
  * @param decim  Emit every decim-th event on each probe; >= 1.
- * @return DP_OK, or DP_ERR_INVALID on decim 0, a pool with `threads > 1`,
+ * @return DP_OK, or DP_ERR_INVALID on decim 0, a pool with `threads != 1`,
  *         a prefix too long for some probe's name -- all three refused
  *         before anything registers on @p tlm (the prefix through a first
  *         attach to a scratch context) -- or a probe table with no room
- *         for every probe. A refused attach fails whole: the pool stays
- *         detached (on a full table, what registered before the refusal
- *         stays behind, unused).
+ *         for every probe (found the same way, from the names the scratch
+ *         holds). Every refusal leaves @p tlm's table untouched and the pool
+ *         as it was: detached, or still on its previous context under its
+ *         previous prefix.
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import AsyncDsssPool

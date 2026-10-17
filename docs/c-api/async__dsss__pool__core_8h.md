@@ -525,7 +525,7 @@ Registers, under `prefix:`
 The probes come to 13 plus each slot's (a cell receiver's loops), so a large pool needs a context with room: an attach that cannot register every probe fails whole.
 
 
-A context is single-producer ([**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)), and a pool created with `threads > 1` steps its receivers on several, so it is refused: observe a pool on one thread.
+A context is single-producer ([**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)), and a pool created with `threads != 1` (more than one, or `<= 0` for the core count) may step its receivers on several, so it is refused: observe a pool on one thread.
 
 
 Setup path, never hot; the context is borrowed and must outlive the attachment. Passing NULL detaches everything.
@@ -545,7 +545,7 @@ Setup path, never hot; the context is borrowed and must outlive the attachment. 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID on decim 0, a pool with `threads > 1`, a prefix too long for some probe's name  all three refused before anything registers on `tlm` (the prefix through a first attach to a scratch context)  or a probe table with no room for every probe. A refused attach fails whole: the pool stays detached (on a full table, what registered before the refusal stays behind, unused). 
+DP\_OK, or DP\_ERR\_INVALID on decim 0, a pool with `threads != 1`, a prefix too long for some probe's name  all three refused before anything registers on `tlm` (the prefix through a first attach to a scratch context)  or a probe table with no room for every probe (found the same way, from the names the scratch holds). Every refusal leaves `tlm's` table untouched and the pool as it was: detached, or still on its previous context under its previous prefix. 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import AsyncDsssPool

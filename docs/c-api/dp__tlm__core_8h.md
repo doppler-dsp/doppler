@@ -98,6 +98,7 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**dp\_tlm\_has\_room\_for**](#function-dp_tlm_has_room_for) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* want) <br>_Whether every probe registered on_ `want` _would also register on_`t:` _the names_`t` _lacks fit in its free slots._ |
 |  void | [**dp\_tlm\_set\_now**](#function-dp_tlm_set_now) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, uint64\_t n) <br>_Stamps the sample index carried by subsequent records, and — when a capture is open — closes out the block just finished._  |
 
 
@@ -1108,6 +1109,42 @@ doppler.telemetry.TelemetryStats(dropped=0, emitted=1, capacity=4096, probes=1)
 <hr>
 ## Public Static Functions Documentation
 
+
+
+
+### function dp\_tlm\_has\_room\_for 
+
+_Whether every probe registered on_ `want` _would also register on_`t:` _the names_`t` _lacks fit in its free slots._
+```C++
+static inline int dp_tlm_has_room_for (
+    const dp_tlm_t * t,
+    const dp_tlm_t * want
+) 
+```
+
+
+
+The capacity half of a composite's dry run. A composite attaches its children to a scratch context first, so a prefix too long for some child's name is refused before anything registers on the caller's; the scratch starts empty, though, so it cannot see a caller's table that is nearly full. Asked of the scratch before the real attach, this refuses that case too, and a refused attach then leaves no names behind (#1897). Names `t` already holds take no slot ([**dp\_tlm\_probe()**](dp__tlm__core_8h.md#function-dp_tlm_probe) is idempotent by name), so a re-attach under the same prefix always fits.
+
+
+
+```C++
+dp_tlm_t *have = dp_tlm_create (1);
+dp_tlm_t *want = dp_tlm_create (1);
+dp_tlm_probe (have, "a", 1);
+dp_tlm_probe (want, "a", 1);
+dp_tlm_probe (want, "b", 1);
+int ok = dp_tlm_has_room_for (have, want);   // 1: one new name, room
+dp_tlm_destroy (want);
+dp_tlm_destroy (have);
+return !ok;
+```
+ 
+
+
+        
+
+<hr>
 
 
 

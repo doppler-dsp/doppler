@@ -4244,8 +4244,9 @@ class AsyncDsssPool:
         every probe fails whole.
 
         A context is single-producer (dp_tlm/dp_tlm_core.h), and a pool created
-        with `threads > 1` steps its receivers on several, so it is refused:
-        observe a pool on one thread.
+        with `threads != 1` (more than one, or `<= 0` for the core count) may
+        step its receivers on several, so it is refused: observe a pool on one
+        thread.
 
         Setup path, never hot; the context is borrowed and must outlive the
         attachment. Passing NULL detaches everything.

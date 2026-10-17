@@ -88,6 +88,32 @@ def test_main_applies_the_rule(tmp_path, monkeypatch, capsys):
     assert "characterize.py:2: `subj.png` is relative to the working" in err
 
 
+def test_main_reports_a_sibling_that_does_not_parse(
+    tmp_path, monkeypatch, capsys
+):
+    # Rule 2 parses characterize.py only, so a broken sibling script was
+    # skipped by rule 4 and reported by nothing. It is reported once.
+    g = _gate()
+    src = tmp_path / "src" / "doppler"
+    subject = src / "mod" / "tests" / "characterization" / "subj"
+    subject.mkdir(parents=True)
+    for d in (src, src / "mod", src / "mod" / "tests", subject.parent):
+        (d / "__init__.py").write_text("")
+    (subject / "__init__.py").write_text("")
+    (subject / "characterize.py").write_text(
+        'if __name__ == "__main__":\n    pass\n'
+    )
+    (subject / "telemetry.py").write_text("def broken(:\n")
+    (src / "mod" / "tests" / "test_subj.py").write_text(
+        "import doppler.mod.tests.characterization.subj.characterize\n"
+    )
+    monkeypatch.setattr(g, "ROOT", tmp_path)
+    monkeypatch.setattr(g, "SRC", src)
+    assert g.main() == 1
+    err = capsys.readouterr().err
+    assert err.count("telemetry.py: does not parse") == 1
+
+
 def test_docstring_examples_run():
     result = doctest.testmod(_gate())
     assert result.attempted > 0

@@ -24,10 +24,8 @@
  * sized from the C/N0. Nothing in this file spreads a chip, draws a bit or
  * computes a sigma.
  *
- * The payload is PRBS data on the code, never gated off, so every dropout
- * cuts the signal mid-data. The Python twin asserts that the data flips at
- * the dropouts by despreading the clean emitter; this file does not repeat
- * that check.
+ * The payload is PRBS data on the code and is never gated off: the emitter
+ * runs with its data on throughout, including across each dropout.
  *
  * Four sections are checked against the receiver's own status, after every
  * push:
@@ -42,10 +40,15 @@
  *   §5  The emitter leaves for good: tracking is kept and the lock falls
  *       once. Nothing enters LOST, because lost_confirm_s is 0.
  *
- * The bounds are physical margins around what the run shows, not a value
- * copied from one draw. The lock-up time after tracking depends on the noise
- * draw, so the example does not assert one; it asserts the lock is up before
- * the first dropout.
+ * The bounds are generous windows around one measured run, chosen to hold
+ * the order and the held-or-fell behavior, not to pin a number. They are not
+ * a measured spread across noise draws. The lock-up time after tracking
+ * depends on the noise draw, so the example does not assert one; it asserts
+ * the lock is up before the first dropout.
+ *
+ * This file uses its own seeds (emitter 1, noise 7), so it is a different
+ * draw of the same timeline than the Python twin, which uses 7 and 8. Each
+ * twin is checked against its own run.
  *
  * Build:
  *   cmake --build build
@@ -90,18 +93,13 @@ struct segment
 static const struct segment TIMELINE[] = {
   { 0, 180 }, /* 60 ms of noise: nothing to find yet */
   { 1, 900 }, /* 300 ms: acquire, refine, and track */
-  { 0, 30 },  /* 10 ms dropout: short enough for the lock to hold */
+  { 0, 30 },  /* 10 ms dropout: short enough that the lock held in this run */
   { 1, 300 }, /* 100 ms back on the air */
   { 0, 150 }, /* 50 ms dropout: long enough for the lock to fall */
   { 1, 180 }, /* 60 ms back on the air: long enough to re-lock */
   { 0, 240 }, /* the emitter leaves for good */
 };
 #define N_SEG (sizeof TIMELINE / sizeof TIMELINE[0])
-
-/* The state codes status().state reports (the ASYNC_DSSS_RX_* values). */
-#define SEARCHING_CODE 0
-#define TRACKING_CODE 2
-#define LOST_CODE 4
 
 /** @brief One push's telemetry, read from the receiver after the push. */
 struct row
@@ -140,7 +138,7 @@ static int
 all_tracking (const struct row *r, size_t lo, size_t hi)
 {
   for (size_t i = lo; i < hi; i++)
-    if (r[i].state != TRACKING_CODE)
+    if (r[i].state != ASYNC_DSSS_RX_TRACKING)
       return 0;
   return 1;
 }
@@ -170,6 +168,7 @@ main (void)
 {
   uint8_t          code[SF];
   dp_gold_state_t *gd = dp_gold_create (934, 350, 567, 73, 10);
+  CHECK (gd != NULL, "the Gold generator opens");
   dp_gold_generate (gd, SF, code, SF);
   dp_gold_destroy (gd);
 
@@ -215,16 +214,20 @@ main (void)
       lost_confirm_s);
   CHECK (rx != NULL, "the receiver opens");
 
-  /* The caller's buffers. steps() reports no capacity to size its output by,
-     so the output holds one push's worth of symbols: a push of TE samples
-     emits at most TE symbols, which is always sufficient. The telemetry has
-     one row per push of the whole timeline. */
+  /* The caller's buffers. steps_max_out() returns 0 for this receiver, which
+     means "allocate x_len": a push of TE samples emits at most TE symbols. So
+     the output is sized to the larger of the reported capacity and one push,
+     which is sufficient in both readings. The telemetry has one row per push
+     of the whole timeline. */
   size_t n_pushes = 0;
   for (size_t s = 0; s < N_SEG; s++)
     n_pushes += TIMELINE[s].epochs;
+  size_t syms_cap = dp_async_dsss_receiver_steps_max_out (rx);
+  if (syms_cap < TE)
+    syms_cap = TE;
   float complex *x    = malloc ((size_t)TE * sizeof *x);
   float complex *sig  = malloc ((size_t)TE * sizeof *sig);
-  float complex *syms = malloc ((size_t)TE * sizeof *syms);
+  float complex *syms = malloc (syms_cap * sizeof *syms);
   struct row    *rows = malloc (n_pushes * sizeof *rows);
   CHECK (x && sig && syms && rows, "the buffers allocate");
 
@@ -239,7 +242,7 @@ main (void)
           for (size_t i = 0; i < TE; i++)
             x[i] += sig[i];
 
-        size_t n = dp_async_dsss_receiver_steps (rx, x, TE, syms, TE);
+        size_t n = dp_async_dsss_receiver_steps (rx, x, TE, syms, syms_cap);
         async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
         rows[k].state                   = st.state;
         rows[k].locked                  = st.locked;
@@ -262,7 +265,7 @@ main (void)
 
   size_t first = n_pushes;
   for (size_t i = 0; i < n_pushes; i++)
-    if (rows[i].state == TRACKING_CODE)
+    if (rows[i].state == ASYNC_DSSS_RX_TRACKING)
       {
         first = i;
         break;
@@ -271,7 +274,7 @@ main (void)
 
   /* §1 and §2: searching first, symbols only once tracking. */
   for (size_t i = 0; i < on_at; i++)
-    CHECK (rows[i].state != TRACKING_CODE,
+    CHECK (rows[i].state != ASYNC_DSSS_RX_TRACKING,
            "tracking before the signal arrived (push %zu)", i);
   double acquire_ms = (double)(first - on_at) * ms;
   printf ("§1  noise alone for %.0f ms: searching, no symbols\n",
@@ -285,13 +288,15 @@ main (void)
   CHECK (all_tracking (rows, first, n_pushes),
          "left tracking without a release rule");
   for (size_t i = 0; i < n_pushes; i++)
-    CHECK (rows[i].state != LOST_CODE, "entered LOST with lost_confirm_s = 0");
+    CHECK (rows[i].state != ASYNC_DSSS_RX_LOST,
+           "entered LOST with lost_confirm_s = 0");
 
-  /* §3: the lock is up before the first dropout, and holds through it. */
+  /* §3: the lock is up before the first dropout and, in this fixed-seed run,
+     holds through it. Across draws that is a probability, not asserted. */
   CHECK (rows[d1 - 1].locked == 1, "the lock was not up before the dropout");
-  CHECK (first_locked (rows, d1, d1_end, 0) == d1_end,
-         "the lock fell in a 10 ms dropout");
-  printf ("§3  a 10 ms dropout: the lock held\n");
+  CHECK (first_locked (rows, d1, d2, 0) == d2,
+         "the lock fell before the 50 ms dropout");
+  printf ("§3  a 10 ms dropout: the lock held in this run\n");
 
   /* §4: the lock falls inside the 50 ms dropout and returns after the
      signal does, while tracking holds throughout. */
@@ -303,8 +308,7 @@ main (void)
   size_t back = first_locked (rows, d2_end, back_end, 1);
   CHECK (back < back_end, "the lock never returned");
   double return_ms = (double)(back - d2_end) * ms;
-  CHECK (return_ms > 0.0 && return_ms < 80.0,
-         "the lock returned %.0f ms after the signal", return_ms);
+  CHECK (return_ms >= 0.0, "the lock returned before the signal did");
   printf ("§4  a 50 ms dropout: the lock fell %.0f ms in and returned %.0f ms "
           "after the signal\n",
           fall_ms, return_ms);

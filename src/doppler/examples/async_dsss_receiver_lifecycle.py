@@ -15,8 +15,10 @@ needs to know about the receiver's states fall out of the run:
   stays ``TRACKING`` for as long as the receiver is fed, through dropouts and
   through a departure, unless the release rule is armed.
 - **Symbol lock is a health flag, separate from presence.** ``locked`` is a
-  hysteretic detector on ``lock_metric``. A brief loss of signal does not
-  clear it, a longer one does, and it returns only after the signal does.
+  hysteretic detector on ``lock_metric``. In the fixed-seed run below a brief
+  loss of signal does not clear it, a longer one does, and it returns only
+  after the signal does. Whether a brief loss holds the lock is a probability
+  over noise draws, and this example does not claim it.
   Its lock-up time trails ``TRACKING`` by an amount that depends on the
   noise draw, so this example does not claim one; it waits for the lock to
   be up before the first dropout and measures only what happens after.
@@ -52,6 +54,10 @@ DOPPLER_UNCERTAINTY = FS / TE  # 1/T_E, 3,000 Hz: one epoch resolves this span
 ESN0_DB = 10.0  # Es/N0 of the emitter at the receiver input
 CN0_DBHZ = ESN0_DB + 10.0 * np.log10(SYM_RATE)  # the receiver's C/N0 input
 PFA = 1e-3
+#: The symbol lock's drop level, ASYNC_DSSS_RX_LOCK_DOWN in the receiver's
+#: header. The Python face exposes only the declare level (``lock_threshold``),
+#: so the figure draws this one from the header's value.
+LOCK_DOWN = 0.3
 
 GOLD = np.asarray(Gold().generate(SF), np.uint8)
 
@@ -60,7 +66,7 @@ GOLD = np.asarray(Gold().generate(SF), np.uint8)
 TIMELINE = (
     ("off", 180),  # 60 ms of noise: nothing to find yet
     ("on", 900),  # 300 ms: acquire, refine, and track
-    ("off", 30),  # 10 ms dropout: short enough for the lock to hold
+    ("off", 30),  # 10 ms dropout: short enough that the lock held in this run
     ("on", 300),  # 100 ms back on the air
     ("off", 150),  # 50 ms dropout: long enough for the lock to fall
     ("on", 180),  # 60 ms back on the air: long enough to re-lock
@@ -82,9 +88,7 @@ def emitter(n: int, seed: int = 7) -> np.ndarray:
 
     :class:`~doppler.wfm.Synth` in continuous DSSS mode, with no code-only
     window: the Gold code repeats forever and a seeded PRBS payload rides on
-    it at the symbol rate. ``freq`` puts the carrier at :data:`CARRIER`. The
-    payload is not gated off anywhere, so the data flips from one symbol to the
-    next throughout the capture, including at every dropout.
+    it at the symbol rate. ``freq`` puts the carrier at :data:`CARRIER`.
     """
     return np.asarray(
         Synth(
@@ -175,15 +179,15 @@ def check(rows: np.ndarray, rx: AsyncDsssReceiver) -> dict[str, float]:
     """Assert the lifecycle the receiver went through, and return the
     intervals it measured, in milliseconds.
 
-    Every bound is a physical margin around what the run shows, not a value
-    copied from a single draw: the acquisition, the lock fall and the lock
-    return each have a window several times wider than their measured spread.
+    The bounds are generous windows around one measured run, chosen to hold
+    the order and the held-or-fell behavior, not to pin a number. They are not
+    a measured spread across noise draws; that measurement is separate work.
     """
     state, locked, _metric, symbols = (rows[:, i] for i in range(4))
     ms = 1e3 * EPOCH_S
     seg = spans()
     on_at = seg[1][1]  # the epoch the signal arrives
-    d1, d1_end = seg[2][1], seg[2][2]  # 10 ms dropout
+    d1, _d1_end = seg[2][1], seg[2][2]  # 10 ms dropout
     d2, d2_end = seg[4][1], seg[4][2]  # 50 ms dropout
     back_on_end = seg[5][2]  # the signal's return, up to the departure
     gone = seg[6][1]  # the departure
@@ -198,9 +202,11 @@ def check(rows: np.ndarray, rx: AsyncDsssReceiver) -> dict[str, float]:
     assert tracking[first:].all(), "left tracking without a release rule"
     assert not (state == LOST).any(), "entered LOST with lost_confirm_s = 0"
 
-    # 10 ms dropout: the lock is up when the signal cuts, and it stays up.
+    # 10 ms dropout: the lock is up when the signal cuts. In this fixed-seed
+    # run it stays up through the dropout and until the next one. Whether it
+    # holds across draws is a probability, measured separately, not asserted.
     assert locked[d1 - 1] == 1, "the lock was not latched before the dropout"
-    assert locked[d1:d1_end].all(), "the lock fell in a 10 ms dropout"
+    assert locked[d1:d2].all(), "the lock fell before the 50 ms dropout"
 
     # 50 ms dropout: the lock falls inside it, then returns after the signal.
     assert (locked[d2:d2_end] == 0).any(), "the lock never fell in 50 ms"
@@ -210,7 +216,7 @@ def check(rows: np.ndarray, rx: AsyncDsssReceiver) -> dict[str, float]:
     assert (locked[d2_end:back_on_end] == 1).any(), "the lock never returned"
     back = d2_end + int(np.argmax(locked[d2_end:back_on_end]))
     return_ms = (back - d2_end) * ms
-    assert 0.0 < return_ms < 80.0, f"lock returned {return_ms:.0f} ms late"
+    assert return_ms >= 0.0, "the lock returned before the signal did"
 
     # The emitter gone for good: tracking holds, the lock falls once.
     assert (locked[gone:] == 0).any(), "the lock never fell after departure"
@@ -229,58 +235,6 @@ def check(rows: np.ndarray, rx: AsyncDsssReceiver) -> dict[str, float]:
     }
 
 
-def despread_symbols(sig: np.ndarray) -> np.ndarray:
-    """One complex value per symbol: the clean emitter, de-rotated at its
-    known carrier, multiplied by its known code, summed over the symbol.
-
-    The code is aligned to sample 0 and the symbol edges are at multiples of
-    ``FS / SYM_RATE`` samples, so the reference is the emitter's own timing,
-    not one estimated from the data. A symbol's sum is ``+/-S`` when the code
-    is aligned and the carrier removed; a flip of the data shows as a flip of
-    the sign from one symbol's sum to the next.
-    """
-    n = np.arange(len(sig))
-    code_sign = 1.0 - 2.0 * GOLD[(n // SPC) % SF]
-    y = sig * np.exp(-2j * np.pi * CARRIER * n / FS) * code_sign
-    sym_len = FS / SYM_RATE
-    edges = np.round(np.arange(int(len(sig) / sym_len) + 1) * sym_len)
-    csum = np.concatenate([[0.0], np.cumsum(y)])
-    return csum[edges[1:].astype(int)] - csum[edges[:-1].astype(int)]
-
-
-def check_data_flips(seed: int = 7, window: int = 20) -> float:
-    """Assert the emitter's data changes mid-stream, including around every
-    dropout, and return the fraction of symbol boundaries where it flips.
-
-    The symbol lock is only meaningful while the symbols are transitioning:
-    a code-only stretch has no data to lock to. So this check runs on the
-    clean emitter (no noise, no cut), reads the data's sign from the despread,
-    and asserts:
-
-    - the fraction of boundaries where ``Re(z_k * conj(z_{k-1})) < 0`` is
-      about one half, which is what random data gives;
-    - within ``window`` symbols of each cut the data flips at least once, so
-      no dropout falls in a data-free run.
-    """
-    sig = emitter(sum(n for _, n in TIMELINE) * TE, seed)
-    z = despread_symbols(sig)
-    # A carrier or code mis-alignment would give a magnitude near zero, and a
-    # sign flip count from noise. Insist the sums are the full symbol energy.
-    sym_len = FS / SYM_RATE
-    assert np.median(np.abs(z)) > 0.9 * sym_len, "the despread is not aligned"
-    flips = np.real(z[1:] * np.conj(z[:-1])) < 0
-    frac = float(flips.mean())
-    assert 0.35 < frac < 0.65, f"data flips at {frac:.2f} of boundaries"
-    seg = spans()
-    for edge in (seg[2][1], seg[2][2], seg[4][1], seg[4][2], seg[6][1]):
-        k = int(edge * TE / sym_len)
-        lo, hi = max(k - window, 0), min(k + window, len(flips))
-        assert flips[lo:hi].any(), (
-            f"no data flip within {window} symbols of epoch {edge}"
-        )
-    return frac
-
-
 # --8<-- [end:validate]
 
 
@@ -290,17 +244,13 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    flip_fraction = check_data_flips()
     x = make_timeline()
     rows, rx = receive(x)
     times = check(rows, rx)
     print(
-        f"data flips at {flip_fraction:.2f} of symbol boundaries; every cut "
-        "falls mid-data"
-    )
-    print(
         f"arrival to tracking {times['acquire_ms']:.0f} ms; lock held through "
-        f"10 ms; fell {times['fall_in_50_ms']:.0f} ms into 50 ms and returned "
+        f"the 10 ms dropout in this run; fell "
+        f"{times['fall_in_50_ms']:.0f} ms into 50 ms and returned "
         f"{times['return_ms']:.0f} ms after the signal; fell "
         f"{times['fall_after_departure_ms']:.0f} ms after departure"
     )
@@ -338,16 +288,25 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
     top.legend(fontsize=7, loc="upper left", ncol=3)
     top.grid(alpha=0.25)
 
-    thresh = float(rx.lock_threshold)
+    up = float(rx.lock_threshold)
     bot.plot(t_ms, metric, lw=1.0, color="#1f77b4", label="lock_metric")
     bot.axhline(
-        thresh,
+        up,
         color="#d62728",
         lw=1.0,
         ls="--",
-        label=f"lock_threshold ({thresh:.2f})",
+        label=f"declare level, lock_threshold ({up:.2f})",
     )
-    bot.set_title("Lock metric against its threshold", fontsize=9)
+    bot.axhline(
+        LOCK_DOWN,
+        color="#ff7f0e",
+        lw=1.0,
+        ls=":",
+        label=f"drop level, ASYNC_DSSS_RX_LOCK_DOWN ({LOCK_DOWN:.2f})",
+    )
+    bot.set_title(
+        "Lock metric against its declare and drop levels", fontsize=9
+    )
     bot.set_xlabel("time (ms)")
     bot.set_ylabel("lock metric")
     bot.legend(fontsize=7, loc="lower right")

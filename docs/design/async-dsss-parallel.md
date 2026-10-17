@@ -1,26 +1,206 @@
 # Parallel Asynchronous-Data DSSS Receivers
 
-M out of N ($\leq 10$) possible signals are simultaneously on air with at minimum differing code phase and carrier phase trajectory. Each signal may go off air and be replaced by a new signal at any moment. All signals share a common, periodic,
-simultaneous multi-epoch data-free time block lasting many code epochs.
+*`AsyncDsssPool` keeps its name and its Python face; inside, it becomes N
+independent `AsyncDsssReceiver`s, each pinned to its own CPU, under a
+controller that only watches, tunes and reports. This page is that design.
+**Status: being designed, nothing on it is built (2026-10-17).** It replaces
+the pool [`async-dsss-receiver.md`](async-dsss-receiver.md) describes in its
+§5–§11, the central searcher, the assigned table and the cell receivers
+behind it. Every number here is measured, and the runs behind them are
+[the measurement record](async-dsss-parallel-measurements.md), under the same
+section numbers.*
 
-The carrier frequency, while bounded in range by $\approx T^{-1}_E$ (one inverse code epoch), may take on any value within said range.
+______________________________________________________________________
+
+## 1. The signals
+
+M out of N ($\leq 10$) possible signals are simultaneously on air with at
+minimum differing code phase and carrier phase trajectory. Each signal may go
+off air and be replaced by a new signal at any moment. All signals share a
+common, periodic, simultaneous multi-epoch data-free time block lasting many
+code epochs.
+
+The carrier frequency, while bounded in range by $\approx T^{-1}_E$ (one
+inverse code epoch), may take on any value within said range.
 
 $$\left|f_m\right| \leq \Delta f_c \approx R_s \approx 1/T_E$$
 
-## Receiver operation
+In numbers, at the parameters of §2:
 
-- The initial application is for continuously emitted CCSDS command link-like signals
+| quantity                                                             | value                                       |
+| -------------------------------------------------------------------- | ------------------------------------------- |
+| one code epoch $T_E$ = 1,023 chips at 5 Mcps                         | 204.6 µs, 2,046 samples at 2 samples a chip |
+| $1/T_E$: the carrier bound $\Delta f_c$, and one search tile's width | 4,888 Hz                                    |
+| $E_s/N_0 \geq 5$ dB at 2,700 sym/s                                   | C/N0 ≥ 39.3 dB-Hz, 2.4 dB per epoch         |
+| the data-free block, by default (configurable)                       | 500 all-zero symbols: 185 ms, 905 epochs    |
+
+**A signal changes only after a data-free block.** One goes off air, or a new
+one comes on, at a frame boundary, never inside a frame.
+
+## 2. Receiver operation
+
+- The initial application is for continuously emitted CCSDS command link-like
+    signals
     - $R_c=5$ Mcps
     - $N_E = R_c \times T_E = 1023$ chips per epoch
     - $E_s/N_0 \geq 5$ dB
-- A slot is defined by a carrier offset $f_m$ and code phase with SNR the natural\
-    tie-breaker should signals be otherwise indistinguishable.
+- A slot is defined by a carrier offset $f_m$ and code phase with SNR the
+    natural tie-breaker should signals be otherwise indistinguishable.
 - The "bookkeeper" tracks status of all receivers which are all always online
     either searching or tracking. Search resumes on signal loss or upon command
-    tuned to a particular offset specified by bookkeeper, no frequency acquisition
-    search is performed by the receivers except on command on the slow-time axis
-    in the data-free region
-- Each receiver makes it's current code phase and carrier estimate available
+    tuned to a particular offset specified by bookkeeper, no frequency
+    acquisition search is performed by the receivers except on command on the
+    slow-time axis in the data-free region
+- Each receiver makes its current code phase and carrier estimate available
     for query
 - Receivers are fed from a common DDC that removes any common carrier offset
     and resamples to twice the chip rate.
+
+```mermaid
+flowchart LR
+    DDC["common DDC<br/>removes the common carrier offset<br/>2 samples a chip"] --> B["one block a push<br/>the same samples to every receiver"]
+    subgraph POOL["AsyncDsssPool: N receivers, one pinned CPU each"]
+        B --> R1["receiver 1<br/>searching or tracking"]
+        B --> R2["receiver 2"]
+        B --> RN["receiver N"]
+        R1 -->|"status: state, code phase, carrier"| C["controller<br/>(the bookkeeper)"]
+        R2 --> C
+        RN --> C
+        C -->|"offset, command, exclusions, rank"| R1
+        C --> R2
+        C --> RN
+    end
+    C --> OUT["reports"]
+```
+
+## 3. The receiver
+
+One `AsyncDsssReceiver` per CPU, run by its own state machine. **Without
+symbol lock it searches; with it, it tracks.** Every receiver is always
+online, so one that is not tracking is already searching: there is no
+separate bench of spares.
+
+- **Searching** is code phase only, at the offset the controller tuned it
+    to: one tile, $\pm 1/(2 T_E)$ about that offset.
+- **On command, inside the data-free block,** the search adds the slow-time
+    axis: a coherent block of D epochs resolves the carrier within the tile to
+    $1/(D T_E)$. It is the only frequency search a receiver performs.
+- **Refining, then tracking,** as the receiver does today: the carrier
+    estimate refined, then the Costas, `Dll`, `RateConverter`, `MpskReceiver`
+    chain live.
+- **Tracking ends when symbol lock is lost,** and the receiver goes back to
+    searching at its offset. A signal changes only after a data-free block
+    (§1), so a loss there is normally its signal leaving.
+
+What today's receiver must gain for this:
+
+1. **Re-acquiring on loss.** Today the searching flavor never leaves
+    tracking: its `lost_confirm_s` defaults to 0, so it never enters `lost`
+    and coasts through anything
+    (`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`).
+1. **A tuned offset**: a search centred where the controller says, not at 0.
+1. **The slow-time search on command,** at a depth the data-free block and
+    the Doppler rate allow.
+1. **Exclusions**: code phases (and carriers) the search must not take,
+    because another receiver already tracks them. A receiver's own search
+    takes its strongest hit, and on a shared input the strongest hits are
+    the signals already owned. Refusing the hit afterwards is not enough: a
+    reset receiver finds the same peak again.
+1. **A rank** when more than one receiver searches the same offset: rank r
+    takes the r-th strongest peak that is not excluded, so k new signals
+    arriving together lock on k receivers in one dwell. Ranks line up only
+    if those receivers' dwells start on the same epoch of the shared sample
+    clock. The engine already reports a peak list (`set_max_peaks`; the
+    pool asks for 16).
+
+## 4. The controller
+
+The bookkeeper of §2. It searches nothing, seeds nothing and holds no
+surface. It:
+
+- **reads every receiver's status** (state, code phase, carrier estimate,
+    lock flags) and keeps the table of who tracks what;
+- **tunes each searching receiver to an offset,** and commands the slow-time
+    search in the data-free block;
+- **hands every searching receiver the exclusions** (the signals the others
+    track) and its rank among the receivers sharing its offset;
+- **resolves duplicates**: two receivers holding the same (offset, code
+    phase), the first to lock keeps it and the other adds it to its
+    exclusions; between signals otherwise indistinguishable, SNR decides;
+- **reports**.
+
+## 5. Arrival to tracking
+
+A new signal is found by the receivers already searching, without waiting
+for anyone to be freed. The receiver's own search, data on (§5.1):
+
+| Es/N0 | searching  | refining   | arrival to tracking |
+| ----- | ---------- | ---------- | ------------------- |
+| 10 dB | 17 pushes  | 204 pushes | 45 ms               |
+| 5 dB  | 101 pushes | 349 pushes | 92 ms               |
+
+Both are inside one default data-free block (185 ms).
+
+## 6. What it costs
+
+Every state the design uses fits one CPU (§6.1, §6.2: the share of one CPU
+is the push time over the 204.6 µs of signal it covers):
+
+| receiver                                                            | one tile | the whole range, $\pm 1/T_E$ |
+| ------------------------------------------------------------------- | -------- | ---------------------------- |
+| tracking                                                            | 0.12     | 0.12                         |
+| searching, its own one-epoch looks                                  | 0.24     | 0.51                         |
+| searching, slow-time over D = 16                                    | 0.38     | 0.55                         |
+| searching, slow-time over D = 154 (the 500 Hz/s Doppler-rate bound) | 0.57     | 2.14                         |
+
+A receiver searching one tile, the offset the controller gives it, stays
+within one CPU at every depth. Only a deep search over the whole range would
+not, and the design does not ask for one: the range is covered by offsets,
+which are the controller's. Tracking cost 0.12 with data on at 10 and 5 dB,
+and code only at 10 dB.
+
+## 7. Why the pool as built is replaced
+
+Its push is one receiver's plus a central searcher's that never stops,
+because a new emitter may appear at any time (§7.1):
+
+| per push                      | share of one CPU |
+| ----------------------------- | ---------------- |
+| one receiver                  | 0.14             |
+| the pool, one emitter tracked | 0.85             |
+| the pool's searcher alone     | 0.74             |
+
+At the design point the pool was sized for (±50 kHz, the rate-bound depth
+of 154 epochs) that searcher is 9.2 CPUs serially and still 3.1 on eight
+threads (§7.2). The dwell that decides each 154-epoch block takes 76–225 ms
+against 31.5 ms of signal, so no thread count brings it to real time.
+Parallel receivers spend nothing like that: the search is each idle
+receiver's own, on one tile.
+
+## 8. Open questions
+
+- **Riding out a fade.** Should symbol-lock loss be confirmed for a few
+    symbols before a receiver gives up its signal, or is re-acquiring after a
+    fade acceptable?
+- **Where offsets come from.** A receiver that loses its signal could search
+    at its own last carrier estimate. Which offsets do idle receivers take to
+    catch a new signal anywhere in $|f| \lesssim 1/T_E$, which is three tiles
+    of $1/T_E$?
+- **Ranks against offsets.** "All search, more than one may arrive at once"
+    needs ranks when receivers share an offset; distinct offsets need none.
+    Which does the controller do?
+- **How a receiver knows the data-free block** for the commanded slow-time
+    search: from its own symbols (500 zeros in a row), from configuration, or
+    both?
+- **How many receivers,** against M ≤ 10 and a replacement that comes on
+    before the signal it replaces drops.
+- **What survives of the pool as built**: the cell mode, the release rule
+    (replaced here by loss of symbol lock), `set_telemetry` (#2405).
+
+## Related
+
+- [`async-dsss-receiver.md`](async-dsss-receiver.md): the receiver, and the
+    pool this replaces (§5–§11)
+- [the measurement record](async-dsss-parallel-measurements.md)
+- [Tracking a Population of DSSS Emitters](../guide/async-dsss-pool.md): the
+    pool as built, from the user's side

@@ -14,20 +14,21 @@ a number on either page names the function that made it.
   one CPU?
 - **7.1** the pool as built against one receiver and against its own
   searcher alone, on one capture: where its cost goes.
-- **7.2** that searcher at the design point (+/-50 kHz, the Doppler-rate
-  depth), across thread counts.
+- **7.2** that searcher at the design point it was sized for (+/-50 kHz,
+  the Doppler-rate depth), across thread counts.
 
 Everything is wall-clock time per push, one push per code epoch (2,046
-samples, 204.6 us at 10 MSa/s), taken around the Python call on whatever
+samples, 333.3 us at 6.138 MSa/s), taken around the Python call on whatever
 machine runs it, and expressed as a share of one CPU: the push time over
-the 204.6 us of signal it covers. A rerun moves the timings, which is why
+the 333.3 us of signal it covers. A rerun moves the timings, which is why
 the record stamps each entry with date, machine and commit; what a rerun
 must not move is which state costs what, and what fits one CPU.
 
-The signal is the shipped `Synth`'s continuous DSSS: Gold-1023 at 5 Mcps,
-2 samples a chip, 2,700 sym/s asynchronous BPSK, 1,500 Hz, with C/N0 set
-from Es/N0 through `snr_mode="fs"`. The search-only rows use noise, because
-what they time is the search, not a detection.
+The signal is the shipped `Synth`'s continuous DSSS: Gold-1023 at 3.069
+Mcps (so 1/T_E is 3 kHz), 2 samples a chip, 2,700 sym/s asynchronous
+BPSK, 1,500 Hz, with C/N0 set from Es/N0 through `snr_mode="fs"`. The
+search-only rows use noise, because what they time is the search, not a
+detection.
 
 This is a characterization, not an example: it is run deliberately, and
 its wall time is printed at the end. Its fast twin
@@ -51,19 +52,20 @@ from doppler.wfm import Gold, Synth
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-CHIP_RATE, SPC, SYM_RATE = 5.0e6, 2, 2700.0
+CHIP_RATE, SPC, SYM_RATE = 3.069e6, 2, 2700.0
 FS = CHIP_RATE * SPC
 GOLD = np.asarray(Gold().generate(1023), np.uint8)
 TE = len(GOLD) * SPC  # one code epoch, the push: 2,046 samples
-EPOCH_US = TE / FS * 1e6  # 204.6 us of signal a push
-SPAN = FS / TE  # 1/T_E, about 4,888 Hz
+EPOCH_US = TE / FS * 1e6  # 333.3 us of signal a push
+SPAN = FS / TE  # 1/T_E: 3,000 Hz
 
-#: The one-emitter run (#2405's `make pool-telemetry`): the pool's settings.
-CN0, DOPPLER, PFA, DU, CODE_ONLY = 47.0, 1500.0, 1e-3, 6000.0, 31
+#: One strong emitter, searched over the page's carrier bound (+/-1/T_E),
+#: with a 31-epoch data-free window: the pool-as-built comparison's run.
+CN0, DOPPLER, PFA, DU, CODE_ONLY = 47.0, 1500.0, 1e-3, SPAN, 31
 #: The design point of the pool as built (async-dsss-receiver.md 6.1):
-#: +/-50 kHz, SPEC's 450 code-only symbols (813 epochs), and the 500 Hz/s
-#: Doppler rate that bounds the coherent depth at 154 (its section 2.3).
-DESIGN_DU, DESIGN_CODE_ONLY, DESIGN_RATE = 50000.0, 813, 500.0
+#: +/-50 kHz, SPEC's 450 code-only symbols (500 epochs at 3.069 Mcps), and
+#: the 500 Hz/s Doppler rate that bounds the coherent depth (its 2.3).
+DESIGN_DU, DESIGN_CODE_ONLY, DESIGN_RATE = 50000.0, 500, 500.0
 
 
 def cn0_of(esn0_db: float) -> float:
@@ -214,7 +216,8 @@ def receiver_run(x: np.ndarray, cn0_dbhz: float) -> tuple[np.ndarray, ...]:
 def s5_1_acquisition(
     esn0s: tuple[float, ...] = (10.0, 5.0), seconds: float = 1.0
 ) -> list[dict]:
-    """5.1: arrival to tracking, data on, the receiver's own search."""
+    """5.1: arrival to tracking, data on, the receiver's own search
+    over +/-1/T_E."""
     rows = []
     for esn0 in esn0s:
         s, _ = receiver_run(
@@ -258,7 +261,7 @@ def s6_1_tracking(
 
 def s6_2_search_depth(
     blocks: int = 4,
-    code_only_154: int = DESIGN_CODE_ONLY,
+    code_only_deep: int = DESIGN_CODE_ONLY,
     min_pushes: int = 1024,
 ) -> list[dict]:
     """6.2: one receiver searching, on noise, by range and by depth.
@@ -287,7 +290,7 @@ def s6_2_search_depth(
         )
         for label, code_only, rate in (
             ("slow-time, rate-free", CODE_ONLY, 0.0),
-            ("slow-time, rate-bound", code_only_154, DESIGN_RATE),
+            ("slow-time, rate-bound", code_only_deep, DESIGN_RATE),
         ):
             a = make_searcher(du=du, code_only=code_only, rate=rate)
             d = a.coherent_bins

@@ -32,15 +32,16 @@ def test_acquisition_accounts_for_its_pushes():
 
 
 def test_tracking_reports_both_signals():
-    # Long enough to reach tracking at 10 dB (17 + 204 pushes, measured).
-    rows = s6_1_tracking(esn0s=(10.0,), seconds=0.06)
+    # Long enough to reach tracking at 10 dB: 0.25 s is 750 epochs, and the
+    # record's run tracks within a few hundred.
+    rows = s6_1_tracking(esn0s=(10.0,), seconds=0.25)
     assert [r["signal"] for r in rows] == ["data on", "code only"]
     assert all(r["pushes"] > 0 and r["cpu"] > 0 for r in rows)
 
 
 def test_search_depth_names_every_search():
     # A shallow window keeps the rate-bound row's depth small for the twin.
-    rows = s6_2_search_depth(blocks=1, code_only_154=3, min_pushes=0)
+    rows = s6_2_search_depth(blocks=1, code_only_deep=3, min_pushes=0)
     assert [(r["range"], r["search"]) for r in rows] == [
         (rng, search)
         for rng in ("one tile", "+/-1/T_E")

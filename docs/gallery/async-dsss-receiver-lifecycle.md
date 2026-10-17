@@ -1,6 +1,6 @@
 # AsyncDsssReceiver: a signal's lifecycle
 
-![State, symbol lock and the lock metric against its threshold, through noise, arrival, two dropouts and a departure](../assets/async_dsss_receiver_lifecycle.png)
+![State, symbol lock, and the lock metric the flag reads, through noise, arrival, two dropouts and a departure](../assets/async_dsss_receiver_lifecycle.png)
 
 One [`dsss.AsyncDsssReceiver`](../api/python-dsss.md) follows one emitter
 through the life of its signal. The emitter is CCSDS Gold-1023 at 3.069 Mcps,
@@ -90,10 +90,10 @@ fell. They are not a spread measured across noise draws.
     often the short dropout holds across noise draws is a probability. This
     page does not claim it until that probability is measured.
 1. **The lock metric** (bottom). The metric is the SNR-weighted running mean
-    of cos(2φ) over the symbols. It climbs above the declare level,
-    `lock_threshold`, once the constellation converges. The lock drops when it
-    falls below the drop level, `ASYNC_DSSS_RX_LOCK_DOWN`, which the page draws
-    from the header's value.
+    of cos(2φ) over the symbols, the value the lock flag reads. The flag is the
+    shipped detector's own output and this page does not redraw its thresholds.
+    The panel shows how far the metric dipped in each gap and after the return,
+    which the binary flag does not.
 
 ## Reproduce
 

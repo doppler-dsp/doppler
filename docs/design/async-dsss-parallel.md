@@ -3,12 +3,11 @@
 *`AsyncDsssPool` keeps its name and its Python face; inside, it becomes N
 independent `AsyncDsssReceiver`s, each pinned to its own CPU, under a
 controller that only watches, tunes and reports. This page is that design.
-**Status: being designed, nothing on it is built (2026-10-17).** It replaces
-the pool [`async-dsss-receiver.md`](async-dsss-receiver.md) describes in its
-§5–§11, the central searcher, the assigned table and the cell receivers
-behind it. Every number here is measured, and the runs behind them are
-[the measurement record](async-dsss-parallel-measurements.md), under the same
-section numbers.*
+It replaces the pool [`async-dsss-receiver.md`](async-dsss-receiver.md)
+describes in its §5–§11, the central searcher, the assigned table and the
+cell receivers behind it. Every number here is measured, and the runs behind
+them are [the measurement record](async-dsss-parallel-measurements.md),
+under the same section numbers. The points still to decide are doppler#2409.*
 
 ______________________________________________________________________
 
@@ -179,28 +178,6 @@ four threads and 1.5 on eight (§7.2). On eight threads the dwell that
 decides each 94-epoch block alone takes 33 ms, longer than the block's
 31.3 ms of signal. Parallel receivers spend nothing like that: the search is
 each idle receiver's own.
-
-## 8. Open questions
-
-- **Riding out a fade.** Symbol lock already rides out 10–20 ms (§3.1). Is
-    that enough, or must a longer fade be held? Past it, a receiver that
-    stayed tracking re-locked 18–99 ms after the signal returned, and one
-    that re-searches tracks again 45–88 ms after (§5.1), so re-searching on
-    loss costs little over holding on.
-- **Where offsets come from.** A receiver that loses its signal could search
-    at its own last carrier estimate. Which offsets do idle receivers take to
-    catch a new signal anywhere in $|f| \lesssim 1/T_E$, which is three tiles
-    of $1/T_E$?
-- **Ranks against offsets.** "All search, more than one may arrive at once"
-    needs ranks when receivers share an offset; distinct offsets need none.
-    Which does the controller do?
-- **How a receiver knows the data-free block** for the commanded slow-time
-    search: from its own symbols (500 zeros in a row), from configuration, or
-    both?
-- **How many receivers,** against M ≤ 10 and a replacement that comes on
-    before the signal it replaces drops.
-- **What survives of the pool as built**: the cell mode, the release rule
-    (replaced here by loss of symbol lock), `set_telemetry` (#2405).
 
 ## Related
 

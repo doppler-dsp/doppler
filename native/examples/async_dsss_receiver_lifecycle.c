@@ -30,6 +30,12 @@
  * repeat that check, because its payload is the synth's PRBS and not a bit
  * array this file owns.
  *
+ * It does not use WFM_DSSS_DATA_BITS, though the synth supports it. On the
+ * noise draw this file uses, an explicit bit payload fails to lock: the
+ * carrier loop settles at 875 Hz against the true 1500 Hz, and the PRBS
+ * payload locks on the same draw. That is the refine residual tracked in
+ * doppler#982, not a fault in the bits mode, which locks with the noise off.
+ *
  * Four sections are checked against the receiver's own status, after every
  * push:
  *

@@ -90,7 +90,10 @@ separate bench of spares.
     chain live.
 - **Tracking ends when symbol lock is lost,** and the receiver goes back to
     searching at its offset. A signal changes only after a data-free block
-    (§1), so a loss there is normally its signal leaving.
+    (§1), so a loss there is normally its signal leaving. The lock detector
+    is already hysteretic (§3.1): it rides out a dropout of up to 20 ms at
+    10 dB and 10 ms at 5 dB, and lets go 20–24 ms after a signal leaves for
+    good, well inside one data-free block.
 
 What today's receiver must gain for this:
 
@@ -147,12 +150,12 @@ Both are inside one default data-free block (185 ms).
 Every state fits one CPU, at every depth (§6.1, §6.2: the share of one CPU
 is the push time over the 333.3 µs of signal it covers):
 
-| receiver                                                           | one tile | the whole range, $\pm 1/T_E$ |
-| ------------------------------------------------------------------ | -------- | ---------------------------- |
-| tracking                                                           | 0.07     | 0.07                         |
-| searching, its own one-epoch looks                                 | 0.17     | 0.33                         |
-| searching, slow-time over D = 16                                   | 0.23     | 0.36                         |
-| searching, slow-time over D = 94 (the 500 Hz/s Doppler-rate bound) | 0.32     | 0.64                         |
+| receiver                                                           | one tile  | the whole range, $\pm 1/T_E$ |
+| ------------------------------------------------------------------ | --------- | ---------------------------- |
+| tracking                                                           | 0.07–0.08 | 0.07–0.08                    |
+| searching, its own one-epoch looks                                 | 0.17      | 0.34                         |
+| searching, slow-time over D = 16                                   | 0.24      | 0.39                         |
+| searching, slow-time over D = 94 (the 500 Hz/s Doppler-rate bound) | 0.33      | 0.64                         |
 
 Even a search of the whole range at the rate-bound depth leaves a third of
 its CPU free, so the controller's offsets are for spreading the searching
@@ -167,21 +170,23 @@ because a new emitter may appear at any time (§7.1):
 | per push                      | share of one CPU |
 | ----------------------------- | ---------------- |
 | one receiver                  | 0.09             |
-| the pool, one emitter tracked | 0.62             |
-| the pool's searcher alone     | 0.54             |
+| the pool, one emitter tracked | 0.64             |
+| the pool's searcher alone     | 0.56             |
 
 At the design point the pool was sized for (±50 kHz in 35 tiles, the
-rate-bound depth of 94 epochs) that searcher is 7.6 CPUs serially, 2.4 on
+rate-bound depth of 94 epochs) that searcher is 7.4 CPUs serially, 2.2 on
 four threads and 1.5 on eight (§7.2). On eight threads the dwell that
-decides each 94-epoch block alone takes 31 ms, the block's whole 31.3 ms of
-signal. Parallel receivers spend nothing like that: the search is each idle
-receiver's own.
+decides each 94-epoch block alone takes 33 ms, longer than the block's
+31.3 ms of signal. Parallel receivers spend nothing like that: the search is
+each idle receiver's own.
 
 ## 8. Open questions
 
-- **Riding out a fade.** Should symbol-lock loss be confirmed for a few
-    symbols before a receiver gives up its signal, or is re-acquiring after a
-    fade acceptable?
+- **Riding out a fade.** Symbol lock already rides out 10–20 ms (§3.1). Is
+    that enough, or must a longer fade be held? Past it, a receiver that
+    stayed tracking re-locked 18–99 ms after the signal returned, and one
+    that re-searches tracks again 45–88 ms after (§5.1), so re-searching on
+    loss costs little over holding on.
 - **Where offsets come from.** A receiver that loses its signal could search
     at its own last carrier estimate. Which offsets do idle receivers take to
     catch a new signal anywhere in $|f| \lesssim 1/T_E$, which is three tiles

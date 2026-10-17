@@ -85,10 +85,12 @@ fell. They are not a spread measured across noise draws.
 
 1. **State and symbol lock** (top). The black line is the tracking state, and
     the green fill is the symbol lock. The grey spans mark the signal-off
-    intervals. In this run the lock holds through the short dropout. It falls
-    partway through the long one, and it returns after the signal does. How
-    often the short dropout holds across noise draws is a probability. This
-    page does not claim it until that probability is measured.
+    intervals. In this run the lock holds through the short dropout and for its
+    60 ms watch after the signal returns, which is the definition of a held
+    dropout in the async DSSS validator (doppler#2408). It falls partway
+    through the long dropout, and it returns after the signal does. How often a
+    short dropout holds across noise draws is a probability. This page does not
+    claim it until #2408 measures it.
 1. **The lock metric** (bottom). The metric is the SNR-weighted running mean
     of cos(2φ) over the symbols, the value the lock flag reads. The flag is the
     shipped detector's own output and this page does not redraw its thresholds.

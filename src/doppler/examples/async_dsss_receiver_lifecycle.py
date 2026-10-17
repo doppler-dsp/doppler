@@ -214,13 +214,16 @@ def check(rows: np.ndarray, rx: AsyncDsssReceiver) -> dict[str, float]:
     assert tracking[first:].all(), "left tracking without a release rule"
     assert not (state == LOST).any(), "entered LOST with lost_confirm_s = 0"
 
-    # 10 ms dropout: the lock is up when the signal cuts, and in this
-    # fixed-seed run it holds through the dropout itself. Whether it holds
-    # across draws is a probability, measured separately, not asserted. The
-    # interval after the signal returns is not asserted: on this payload the
-    # lock dips shortly after the return, which is the probabilistic part.
+    # 10 ms dropout: the lock is up when the signal cuts, and it stays up
+    # through the gap and for HOLD_WATCH_S (60 ms) after the return. That is
+    # the definition of a held dropout in doppler#2408's validator
+    # (async_dsss_receiver_lock.c). The lock metric dips just after the return
+    # in this run, but the flag, which is what this example asserts on, does
+    # not drop. Whether the hold holds across draws is a probability measured
+    # in #2408, not asserted here.
+    hold_end = min(d1_end + round(0.060 / EPOCH_S), d2)
     assert locked[d1 - 1] == 1, "the lock was not latched before the dropout"
-    assert locked[d1:d1_end].all(), "the lock fell during the 10 ms dropout"
+    assert locked[d1:hold_end].all(), "the lock fell in the held window"
 
     # 50 ms dropout: the lock falls inside it, then returns after the signal.
     assert (locked[d2:d2_end] == 0).any(), "the lock never fell in 50 ms"
@@ -299,7 +302,7 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
     times = check(rows, rx)
     print(
         f"arrival to tracking {times['acquire_ms']:.0f} ms; lock held through "
-        f"the 10 ms dropout in this run; fell "
+        f"the 10 ms dropout and its 60 ms watch; fell "
         f"{times['fall_in_50_ms']:.0f} ms into 50 ms and returned "
         f"{times['return_ms']:.0f} ms after the signal; fell "
         f"{times['fall_after_departure_ms']:.0f} ms after departure"

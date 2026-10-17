@@ -295,12 +295,16 @@ main (void)
     CHECK (rows[i].state != ASYNC_DSSS_RX_LOST,
            "entered LOST with lost_confirm_s = 0");
 
-  /* §3: the lock is up before the first dropout and, in this fixed-seed run,
-     holds through it. Across draws that is a probability, not asserted. */
+  /* §3: the lock is up before the first dropout, and in this fixed-seed run
+     it stays up through the gap and for HOLD_WATCH_S (60 ms) after the
+     return: the definition of a held dropout in doppler#2408's validator
+     (async_dsss_receiver_lock.c). Across draws that is a probability, not
+     asserted here. */
+  const size_t hold_end = d1_end + (size_t)(0.060 / ((double)TE / FS) + 0.5);
   CHECK (rows[d1 - 1].locked == 1, "the lock was not up before the dropout");
-  CHECK (first_locked (rows, d1, d1_end, 0) == d1_end,
-         "the lock fell during the 10 ms dropout");
-  printf ("§3  a 10 ms dropout: the lock held in this run\n");
+  CHECK (first_locked (rows, d1, hold_end, 0) == hold_end,
+         "the lock fell during the held window");
+  printf ("§3  a 10 ms dropout: the lock held through its 60 ms watch\n");
 
   /* §4: the lock falls inside the 50 ms dropout and returns after the
      signal does, while tracking holds throughout. */

@@ -12,10 +12,9 @@ earlier one in its own words (§12.18 corrects §12.17's attribution of the
 the entry names it.*
 
 **Step numbers.** Code and issues cite the step list this record was measured
-against, which the design page's §12 held until 21c8c9cd9 removed it. The map:
-step 1 is §12.2; steps 2–4 are §12.6; step 6 is §12.3; step 7 is §12.14 and
-§12.17; step 8 is §12.1 and §12.17; step 11 is §12.7; step 12 is §12.9; step 13
-is §12.8.
+against, which the design page's §12 held until 6c732291f removed it. The map:
+step 1 is §12.2; steps 2–4 are §12.6; step 6 is §12.3; step 7 is §12.14 and §12.17;
+step 8 is §12.1 and §12.17; step 11 is §12.7; step 12 is §12.9; step 13 is §12.8.
 
 ______________________________________________________________________
 
@@ -85,11 +84,13 @@ Seven things this settles, and one it corrects:
     ±50 kHz, not the 23 this page derived from `burst-bank.md`'s channel
     formula; the table in §6.1 now carries the engine's number. Nothing
     else moved.
-    *Note, 2026-10-17 (bf0926ee1, #2398): the bench's receiver rows (warm 44 ns, cold
-    89 ns) and the `op5M` rows were cut; §12.1's `*,op5M` rows no longer exist. The
-    current population budget is in the parallel record, §6–§7. §1.1 is not a section
-    of the design page; the shape the sentence above names is the engine's parallel-for
-    (§2.3).*
+
+\*Note, 2026-10-17 (bf0926ee1, #2398): the bench's receiver rows (warm 44 ns, cold
+89 ns) and the `op5M` rows were cut, so the `*,op5M` rows above no longer exist. The
+current population budget is in the parallel record, §6–§7.
+
+\*Note, 2026-10-17: §1.1 is not a section of the design page; the "processes as
+needed" shape named here is the engine's parallel-for (§2.3).
 
 Not measured here: the searcher with the peak list (it does not exist;
 the pick is one pass over the surface and will not move the ~10 ns per
@@ -238,9 +239,10 @@ half a minute (the both-down rate at 5.7 dB is 0.5% of blocks in runs of
 tens of milliseconds; whether a run ever reaches seconds is what fifteen
 minutes would say), and any of this on the hand-off-mode receiver, which
 does not exist.
-*Note, 2026-10-17: the fix is 0b49f4b9b (feat(dll): symbol-period-aided lock looks,
+
+\*Note, 2026-10-17: the fix is 0b49f4b9b (feat(dll): symbol-period-aided lock looks,
 and the receiver sizes its detector). The two tables above are the sweep before and
-after it; the post-fix table is the one the rule of §10 was measured on.*
+after it; the rule of §10 was measured on the post-fix table.
 
 ### 12.4 What was measured (2026-09-02) — the DLL's telemetry, and the aid
 
@@ -283,9 +285,9 @@ What it settles:
     because a fade still takes any CFAR flag down for its duration; what
     changes is that the "both down" clock now starts within milliseconds
     of a real loss and never on a healthy signal.
-    *Note, 2026-10-17: the characterization's README re-runs this table; its symbol-aided
-    look at 40 dB-Hz misses 1.0% of decisions, against 0.4% above, which is the figure
-    `det_verify_count(0.01, 1e-6)` takes.*
+
+\*Note, 2026-10-17: the characterization's README re-runs this table; its symbol-aided
+look at 40 dB-Hz misses 1.0% of decisions, against the 0.4% above.
 
 ### 12.5 What was measured (2026-09-02) — the discriminator on the aided window
 
@@ -413,8 +415,9 @@ in 2 000 of 2 000 dwells with no twin listed.
     cancellation branch's anyway (§6.3) — and it is open
     ([#1190](https://github.com/doppler-dsp/doppler/issues/1191)). At the
     operating point's 15 looks no twin was listed in 2 000 dwells.
-    *Correction, 2026-10-17: the link above names #1191 (the power rule). #1190 is the
-    blob-guard fix, which the link text carried in error. The issue is still open.*
+
+\*Correction, 2026-10-17: the link above names #1191, the power rule. #1190 is the
+blob-guard fix, which the link text carried in error. The issue is still open.
 
 ______________________________________________________________________
 
@@ -427,9 +430,6 @@ of 500 Hz/s deciding: **D = 154 and 61**, a **31.7 Hz row** — over ±50 kHz
 (21 and 53 tiles), one emitter from the shipped synth at tile 5 plus a
 quarter row, sized for one look, the surface read back through §2.4's
 tap in the gate's own units. Everything in dB below the emitter's peak,
-*Note, 2026-10-17: the design page's §5.4 is its §5; the edge's phase is the
-point the design page's §5 gives.*
-
 cells outside the exclusion zone, by Doppler-row distance; `other` is
 the worst cell at another code phase.
 
@@ -475,6 +475,8 @@ Five things this settles:
     does not read it — the list carries no per-peak concentration, and the
     pool keys its zone on the code axis alone (§8.2, §12.14).
 
+\*Note, 2026-10-17: §5.4 is §5 of the design page, which gives the edge's phase.
+
 **Pfa per block** (pure noise, D = 16, 21 tiles, 300 blocks): configured
 0.10, realized **37 of 300 = 0.12** (expected 30 ± 5); configured 0.20 over
 400 blocks, 85 (80 ± 8). The slow-time axis is interpolated twofold and the
@@ -507,10 +509,6 @@ at D = 1 and one at D = 154** (measured on the same code and span). Its cost per
 across threads takes it, is §12 step 13.
 
 ### 12.8 What was measured (2026-09-05) — step 13, the searcher's cost with D, and the fan
-
-*Note, 2026-10-17: #1243 is closed (17230fd25), and the fix is the next subsection.
-The "twelve receivers at 44 each" of this paragraph used the receiver row cut from the
-bench in bf0926ee1 (#2398).*
 
 `bench_acq_core` (`make bench`), on a 20-core Ryzen AI 9 465, minimum of
 15 pushes; the searcher's cost in ns per output sample and as a multiple
@@ -556,15 +554,13 @@ was 288 ns of wall per sample, about 1150 core-ns — a quarter of a
 48-core server's budget, beside twelve receivers at 44 each (§12.1). It
 fit; it was not comfortable, and #1243 was the next thing to attack.
 
+\*Note, 2026-10-17: #1243 is closed (17230fd25); its fix is the next subsection.
+
 **#1243, measured the same day, same box, same rows.** The per-cell
 passes now run per tile on the pool and merge serially in tile order;
 the block-end scatter reads a per-tile row table instead of folding a
 row index per cell; the column gather goes 32 columns at a time so a
 cache line of the block serves eight columns instead of one. The surface
-*Note, 2026-10-17: the harness's receiver is the searching flavour
-(`tracker_through_window.c:27`); the hand-off flavour was retired in 9ddb8a3af, and
-`dp_acq_build_handoff()` still builds the seed (`acq_core.c:2721`).*
-
 and the hits are byte-identical at any thread count, as before, with a
 second emitter in the comparison so the list's second scan is part of it.
 
@@ -609,6 +605,10 @@ conditions: no Doppler, and SPEC's two worst cases through the shipped
 `doppler_channel`, apart, since they do not coincide on a pass — the
 offset (20 ppm of a 2.5 GHz carrier, 50 kHz, the chip clock dilated with
 it) and the rate (500 Hz/s from zero).
+
+\*Note, 2026-10-17: the harness's receiver is the searching flavour
+(`tracker_through_window.c:27`); the hand-off flavour was retired in 9ddb8a3af.
+`dp_acq_build_handoff()` still builds the seed (`acq_core.c:2721`).
 
 | condition, C/N0 (Es/N0) | settled            | window blocks | code lock off | symbol lock off    | both off | release | pull-in after the window |
 | ----------------------- | ------------------ | ------------- | ------------- | ------------------ | -------- | ------- | ------------------------ |
@@ -821,9 +821,6 @@ and the static condition are unchanged.
 **What this left open.** The block-coherent searcher (§12.7) had been
 measured with the Doppler *rate* but never through a dilated chip clock:
 at 20 ppm its D = 154 epochs (31 ms) coherent sum spans 3 chips of code
-*Note, 2026-10-17: the hand-off flavour is retired (9ddb8a3af). The holder that seeds
-from a searcher sets the carrier on that searcher, as the window harness does.*
-
 drift — §12.12 measured it and gave the engine the code-rate hypothesis
 ([#1256](https://github.com/doppler-dsp/doppler/issues/1256)); the carrier
 now lives on the engine (`set_carrier_freq_hz`), one declaration for the
@@ -832,10 +829,10 @@ the Python lag → phase helper `doppler.dsss.handoff.dll_init_chip_from_acq`
 restated `dp_acq_build_handoff()`'s fold and did not carry the advance; it is
 retired, and every hit carries `chip_phase` from the one C helper
 ([#1257](https://github.com/doppler-dsp/doppler/issues/1257)).
-*Note, 2026-10-17: `dp_acq_build_handoff()` takes no carrier now (`acq_core.c:2721`):
+
+\*Note, 2026-10-17: `dp_acq_build_handoff()` takes no carrier now (`acq_core.c:2721`):
 the carrier is on the engine (`dp_acq_set_carrier_freq_hz`, §12.12), and the advance is
-`acq_handoff_chip_phase` (`acq_core.c:73`). Both §12.11 issues are closed (#1256,
-#1257).*
+`acq_handoff_chip_phase` (`acq_core.c:73`). Both issues are closed (#1256, #1257).
 
 ______________________________________________________________________
 
@@ -911,6 +908,9 @@ C/N0, noise from the shipped awgn after the channel.
     `carrier_freq_hz`; the hand-off flavor's holder sets it on the searcher
     it seeds from, as the window harness does.
 
+\*Note, 2026-10-17: the hand-off flavour is retired (9ddb8a3af); a holder that seeds from
+a searcher sets the carrier on that searcher.
+
 ______________________________________________________________________
 
 ### 12.13 What was built (2026-09-06) — the pool, §8.2
@@ -972,8 +972,10 @@ Two things the build found:
     with the carrier unlocked on 4858 of 4858 tracking blocks and the row
     stays the seed's; at pfa 1e-3 the same emitter locks and the row
     follows within 100 Hz.
-    *Note, 2026-10-17: the pool's receivers are cell receivers (9ddb8a3af). The
-    row-coordinate pin of the #1261 bullet is `test_async_dsss_pool_core.c:289–292`.*
+
+\*Note, 2026-10-17: the pool's receivers are cell receivers (9ddb8a3af). The row-coordinate
+pin is `test_async_dsss_pool_core.c:289–292`. `_test_table_holds_the_locked_doppler`, the
+test that reproduced #1261, was deleted in 9ddb8a3af.
 
 **Next:** the lifecycle soak (§12 step 7) — the shipped synth with the
 window, the block-coherent searcher at D = 154, several emitters at
@@ -1338,10 +1340,11 @@ population and the same count tracked, unattributed here; and the number
 is one box's — the fraction scales with the threads the searcher's roll
 is given (§12.8's fan), so what the server does with 48 is a measurement
 on the server. Step 8's next thing to attack is the searcher's depth.
-*Note, 2026-10-17: which stage owns the excess in this run is not measured; the budget
-run did not split the chain's time by stage. §12.8 measured the block searcher alone
-after 17230fd25 at 1.3–1.6× real time on four to eight threads, against the 2.6–2.9×
-this entry first wrote.*
+
+\*Note, 2026-10-17: which stage owns the excess in this run is not measured; the budget run
+did not split the chain's time by stage. §12.8 measured the block searcher alone after
+17230fd25 at 1.3–1.6× real time on four to eight threads, against the 2.6–2.9× this
+entry first wrote.
 
 ______________________________________________________________________
 
@@ -1518,10 +1521,11 @@ dwells per row; the DLL column is §12.5's closed-loop per-epoch jitter):
 | 40, 0     | −0.006, **0.026**   | 0.3 Hz            | −0.213, 0.009          | 57%                        | 0.021      |
 | 40, 18    | −0.007, **0.026**   | 0.8 Hz            | −0.002, **0.116**      | 57%                        | 0.021      |
 
-The three-point parabola on the same cells, the calibration-free alternative, is
-no code phase: it reads 0.26 chip in the window, because the pulse is not a
-parabola (9f7832d2f). The Doppler rows' +3.7 Hz bias at 0 ppm is a quarter of a row
-and is not explained here.
+The three-point parabola on the same cells, the calibration-free
+alternative, reads 0.26 chip in the window and half a chip at 0 ppm: the
+pulse is not a parabola, and an interpolated peak without its S-curve is
+not a code phase. The Doppler rows carry a +3.7 Hz bias at 0 ppm that is
+absent at 18 ppm, a quarter of a row, not explained here.
 
 What it settles, and what it leaves:
 
@@ -1542,11 +1546,15 @@ What it settles, and what it leaves:
     chip per second of rate error — so a tracker dead-reckons on the
     Doppler and corrects on these reads; over the 1.66 s between windows
     that is 53 of them.
-- **The tile-summed S-curve is not one curve, and that is open.** At 0 ppm the
-    tile's sum reads 0.17–0.21 chip biased against the 18 ppm calibration, because
-    the summed pulse's shape moves with the drift the tile's own code-rate
-    hypothesis leaves. A tracker on it needs the S-curve at its working drift, or a
-    read the drift does not shape.
+- **The tile-summed S-curve is not one curve.** At 0 ppm, with the truth
+    held at one sub-cell offset, the tile's sum reads 0.17 and 0.21 chip
+    biased with the S-curve calibrated at 18 ppm, at 0.008 of scatter: the
+    summed pulse's shape moves with the residual drift the tile's own
+    code-rate hypothesis leaves, which is zero at 0 ppm and up to a
+    quarter chip per block at a tile's edge. A tracker on this read needs
+    the S-curve at its working drift, or a read the drift does not shape —
+    the engine holds the block's raw epochs, and a prompt re-summed at
+    the tracked rate is one. Open.
 - **A detector would lose the emitter between windows at the floor.**
     The surface's own maximum is the emitter in every window dwell, and
     under data in 100% of dwells at 45 dB-Hz but **57%** at 40: a tracker
@@ -1601,10 +1609,13 @@ closed-loop per-epoch jitter; the magnitude reads are §12.20's):
 | 45, 0     | 0.015                   | 0.012                  | 0.008 (biased −0.17)       | −0.040, 0.010                        | 0.013 |
 | 40, 0     | 0.026                   | 0.021                  | 0.009 (biased −0.21)       | −0.095, 0.015                        | 0.021 |
 
-The Doppler from the de-rotated phase fit matches the rows only where the
-per-epoch SNR lets it unwrap; at 40 dB-Hz it reads 33 Hz in the window against the
-rows' 0.8, so the rows are the Doppler estimator. The fit's residual, 0.33 rad per
-epoch at 45 dB-Hz, is the carrier phase noise a symbol detector would see per epoch.
+The Doppler from the de-rotated phase fit reads the rows' own number in
+the window at 45 dB-Hz (0.5 Hz against 0.4) and 30 Hz under data; at 40
+dB-Hz the fit's unwrapping fails at 3 dB of per-epoch SNR (33 Hz in the
+window against the rows' 0.8), so the rows are the Doppler estimator
+and the fit is not. The fit's residual is 0.33 rad per epoch in the
+window at 45 dB-Hz: the carrier phase noise a symbol detector would see
+per epoch, before any symbol-length integration.
 
 What it settles, and what it leaves:
 
@@ -1625,10 +1636,15 @@ What it settles, and what it leaves:
     symbol-aligned re-correlation on `block_raw` at the tracked phase is
     the DLL's own window, on the searcher's timing, and it is the next
     number to take.
-- **The normalisation is SNR-dependent.** `Σ |P_k|²` carries the noise power, so
-    the gain calibrated on a clean signal shrinks with C/N0, and at the cell's edge
-    the epoch-dot reads 0.04 chip short at 45 dB-Hz and 0.10 at 40. A tracker wants
-    the gain at its C/N0, the engine's `noise_est`, or an unnormalised loop.
+- **The normalisation is SNR-dependent, as a normalised discriminator's
+    is.** At 0 ppm, with the truth held at one sub-cell offset near the
+    cell's edge, the epoch-dot reads 0.04 chip biased at 45 dB-Hz and 0.10
+    at 40, with 0.01 of scatter: `Σ |P_k|²` carries the noise power, so the
+    gain calibrated clean shrinks with C/N0 and the read falls short of
+    the offset. Over a sweep the bias averages out and hides in the σ. A
+    tracker wants the gain at its C/N0 — the engine's own `noise_est` is
+    the correction — or an unnormalised loop whose gain is set by the
+    prompt's tracked amplitude.
 - **The window's Doppler belongs to the rows; the phase belongs to the
     column.** The rows read the frequency to under a hertz at both C/N0s
     (§12.20); the column's phase fit matches them only where the
@@ -1655,7 +1671,8 @@ returned before computing the discriminator, so a coasting loop's `.e`
 probe read 0 for as long as it coasted; and the header's `dll_update()`,
 the `segments == 1` path and a second copy of the same discriminator and
 steer, had no hold at all and kept steering with `coast` set. Both hold
-after `last_error`, pinned in `test_dll_core`.
+after `last_error` now, pinned in `test_dll_core`; the duplication is
+[#1280](https://github.com/doppler-dsp/doppler/issues/1280).
 
 **Two things the build measured on the way.** A coasting loop drifts on
 its 32-bit NCO's quantisation of the rate aid: **−1.88 chips per second**
@@ -1705,8 +1722,11 @@ What it settles:
     and nothing drifts, and the read sits 0.03 to 0.05 chip off. A
     tracker calibrates at its working drift, or corrects the aid's
     quantisation once it is measured.
-- **Not measured here:** two emitters in one tile, and the symbol detector on the
-    prompt. The correction closed on the searcher's own cell is §12.23.
+- **Not measured here:** the correction closed on the searcher's cell
+    rather than the truth's (§12.20's argmax holds the emitter in every
+    window dwell and under data at 45 dB-Hz; at 40 the cell must be held,
+    and this read is what holds it), two emitters, and the symbol detector
+    on the prompt.
 
 ______________________________________________________________________
 
@@ -1777,7 +1797,8 @@ What it settles:
     reversing the correction's sign (the held phase walks a chip off in
     both classes) and by dropping the dead reckoning (at 18 ppm the
     phase falls 2.8 chips behind per block); both go red.
-- **Not measured here:** two emitters in one tile.
+- **Not measured here:** the filtered correction, two emitters in one
+    tile, and the symbol detector on the prompt.
 
 ______________________________________________________________________
 
@@ -1836,8 +1857,10 @@ What it settles:
     three quarters of the unfiltered jitter (0.0050 against 0.0132 on
     the check's 137 blocks), without bias. Sabotaged by ignoring the
     gain; red.
-- **Not measured here:** the floor's source (§12.24's two candidates, unranked), and
-    two emitters in one tile.
+- **Not measured here:** the floor's source, a gain under 1/8 (the floor
+    says it buys nothing further), the Doppler refreshed from the window
+    dwells, two emitters in one tile, and the symbol detector on the
+    prompt.
 
 ______________________________________________________________________
 
@@ -1959,8 +1982,9 @@ end, the status 1229, the symbol flag never down after the pull-in,
 row is 28.70 ns per input sample in tracking at the operating point
 against the hand-off flavour's warm row at 28.71 — the same, since
 loop 1 runs in both and the refine is in neither's steady state.
-*Note, 2026-10-17: both rows named above were cut from the bench in bf0926ee1
-(#2398); §6 of the parallel record has the current rate.*
+
+\*Note, 2026-10-17: both rows named above were cut from the bench in bf0926ee1 (#2398);
+§6 of the parallel record has the current rate.
 
 **What was measured.** The shipped object on §12.20's harness: the
 held mode's private DLL, LO and bookkeeping replaced by one
@@ -2059,10 +2083,9 @@ lands inside it (`D ≥ 13` here; the operating point's 154 gives 31.7 Hz
 rows). Three C tests (refusals; the lifecycle on two thread counts; the
 flavour-keyed round trip) on a windowed fixture at `D = 16`, and four
 Python tests.
-*Note, 2026-10-17: `CellAsyncDsssPool` was the view of 61469f44c; 9ddb8a3af retired
-it, and the one constructor is the cell one. `--check --cell` is not a flag any more;
-the soak's flags are `--events`, `--duration` and `--budget` (`async_dsss_pool_soak.c:1352–1356`).
-The hand-off path's retirement is §12.28.*
+
+\*Note, 2026-10-17: `CellAsyncDsssPool` was the view of 61469f44c; 9ddb8a3af retired it,
+and the one constructor is the cell one. The hand-off path's retirement is §12.28.
 
 **Two things the searcher hands a cell receiver that the row does not
 bound**, found by the soak's check on its first run and fixed at their
@@ -2163,6 +2186,9 @@ What it settles:
     (#1273); the 600 s soak on the cell flavour; two emitters within a
     chip. The hand-off path's retirement is PR 4 (§12.28).
 
+\*Note, 2026-10-17: `--cell` is not a flag any more. `--check` remains, with `--events`,
+`--duration` and `--budget` (`async_dsss_pool_soak.c:1350–1356`).
+
 ______________________________________________________________________
 
 ### 12.28 What was measured (2026-09-10) — the pull-in as a curve, the 600 s soak, the retirement
@@ -2253,8 +2279,12 @@ What it settles:
 - **Not measured here:** the fold's outcome on the one 40 dB-Hz seed of
     §12.27 (it no longer reproduces at the scaled dwell); the 600 s soak at
     45 dB-Hz; the compose `Synth` window (#1294).
-    *Correction, 2026-10-17: the retirement commit 9ddb8a3af is 55 files changed,
-    +1182/−6103 (`git show --stat`), not the figures above; and `set_refine_min_blocks` was
-    not removed: it is still on AsyncDsssReceiver (`objects/async_dsss_receiver.toml:298`).*
+
+\*Correction, 2026-10-17: the 35 files, +958/−5535 above match neither scope of
+9ddb8a3af. The commit is 55 files, +1182/−6103 (`git show --stat`); its code scope
+(`native`, `src`, `objects`) is 37 files, +962/−5539. The pool's `set_refine_min_blocks`
+and its read-back were removed, and the pool test asserts its absence
+(`test_async_dsss_pool.py:261`). `AsyncDsssReceiver` keeps `set_refine_min_blocks`
+(`objects/async_dsss_receiver.toml:298`).
 
 ______________________________________________________________________

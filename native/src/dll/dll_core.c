@@ -1176,6 +1176,17 @@ held_phase_inc (const dp_dll_state_t *s)
   return nco_norm_freq_to_inc (s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
 }
 
+/* The rate a held loop reports: the same integrator through the steer's
+   rate table, without the proportional term held_phase_inc() leaves out,
+   so code_rate (dp_dll_get_code_rate(), the "<prefix>.rate" probe and
+   every status record that carries it) is the rate the held NCO runs at,
+   less the aid. */
+static double
+held_code_rate (const dp_dll_state_t *s)
+{
+  return 1.0 + s->inv_upd * s->rate_i * s->lf.integ;
+}
+
 void
 dp_dll_set_coast (dp_dll_state_t *state, int coast)
 {
@@ -1190,6 +1201,10 @@ dp_dll_set_coast (dp_dll_state_t *state, int coast)
          at chips per second (measured: +14 chips/s from one such steer). */
       state->lf                 = state->held_lf;
       state->code_nco.phase_inc = held_phase_inc (state);
+      /* And it reports that rate. Without this code_rate kept the last
+         steer's, from the noise-driven updates the restore just undid,
+         for as long as the loop coasted. */
+      state->code_rate = held_code_rate (state);
     }
   state->coast = coast;
 }

@@ -895,6 +895,70 @@ coast_order_resumes_exact (int order)
   return fails;
 }
 
+/* A coast reports the rate it runs at. Entering the hold restores the
+ * filter to the last dp_dll_hold_here() and steers the NCO at that filter's
+ * integrator; code_rate -- dp_dll_get_code_rate(), the ".rate" probe, and
+ * the receiver's and the pool's status records -- must be that same rate,
+ * less the carrier aid, and not the last steer's. The loop is held on one
+ * code Doppler, then driven by another so the live integrator moves well
+ * off the held one, then coasted. Before the fix code_rate kept the last
+ * steer's value for the whole coast while the NCO ran the held filter. A
+ * new aid while coasting re-steers the NCO and must leave the two agreeing.
+ * Returns the number of failed checks. */
+static int
+coast_reports_the_held_rate (size_t segments)
+{
+  int          fails = 0;
+  const size_t sf = 63, sps = 4, nper = 800;
+  uint8_t     *code = malloc (sf);
+  make_code (code, sf, 23u);
+  float _Complex *rx  = malloc (sf * sps * nper * sizeof *rx);
+  float _Complex *sym = malloc (nper * segments * sizeof *sym);
+  dp_dll_state_t *d
+      = dp_dll_create (code, sf, sps, 0.0, 0.01, 0.707, 0.5, segments);
+  DP_REQUIRE (code && rx && sym && d);
+  const double aid = 1e-5;
+  dp_dll_set_rate_aid (d, aid);
+  size_t n = make_signal (rx, code, sf, sps, 3e-4, nper, 9u, 1);
+  (void)dp_dll_steps (d, rx, n, sym, nper * segments);
+  dp_dll_hold_here (d);
+  n = make_signal (rx, code, sf, sps, -3e-4, nper, 11u, 1);
+  (void)dp_dll_steps (d, rx, n, sym, nper * segments);
+  const double live = dp_dll_get_code_rate (d);
+  dp_dll_set_coast (d, 1);
+
+  /* One phase-increment step, in chips per chip: the NCO's resolution. */
+  const double q    = 1.0 / 4294967296.0 / d->inv_tsamps;
+  double       cmd  = (double)d->code_nco.phase_inc * q;
+  double       rate = dp_dll_get_code_rate (d);
+  DP_CHECK_MSG (fabs (live - rate) > 100.0 * q,
+                "the second Doppler moved the live integrator off the hold");
+  DP_CHECK_MSG (fabs (cmd - (rate + aid)) <= q,
+                "coasting, code_rate is the rate the NCO runs at, less the "
+                "aid");
+  if (fabs (cmd - (rate + aid)) > q)
+    DP_TEST_ERR ("  segments %zu: NCO %.9f, code_rate %.9f + aid %.1e\n",
+                 segments, cmd, rate, aid);
+
+  /* A new aid while coasting re-steers the held NCO; the rate stays. */
+  dp_dll_set_rate_aid (d, 4.0 * aid);
+  cmd = (double)d->code_nco.phase_inc * q;
+  DP_CHECK (dp_dll_get_code_rate (d) == rate);
+  DP_CHECK_MSG (fabs (cmd - (rate + 4.0 * aid)) <= q,
+                "a coasting loop's new aid reaches the NCO, not the rate");
+
+  /* And it stays so while coasting: no steer moves either. */
+  (void)dp_dll_steps (d, rx, n, sym, nper * segments);
+  DP_CHECK (dp_dll_get_code_rate (d) == rate);
+  DP_CHECK ((double)d->code_nco.phase_inc * q == cmd);
+
+  dp_dll_destroy (d);
+  free (sym);
+  free (rx);
+  free (code);
+  return fails;
+}
+
 int
 main (void)
 {
@@ -2023,6 +2087,8 @@ main (void)
   DP_CHECK (coast_order_resumes_exact (0) == 0);
   DP_CHECK (coast_order_resumes_exact (1) == 0);
   DP_CHECK (coast_order_resumes_exact (2) == 0);
+  DP_CHECK (coast_reports_the_held_rate (1) == 0);
+  DP_CHECK (coast_reports_the_held_rate (4) == 0);
 
   /* dp_fmod_pos stays in [0, m) (doppler#2110). A negative remainder within
      half an ulp of zero rounded r + m up to exactly m, and dll_replica, which

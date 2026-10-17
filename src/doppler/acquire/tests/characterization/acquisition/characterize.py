@@ -103,10 +103,10 @@ from doppler.dsss.tests.characterization.dsss_receiver.characterize import (
     make_signal_wfmgen,
 )
 from doppler.resample import RateConverter
+from doppler.util import fromto
 
 # Artifacts land beside this script (see the receiver subject and the
 # validation tree): `make characterize` runs from the repo root.
-HERE = Path(__file__).resolve().parent
 
 # Acquisition sizing knobs, matching what DsssReceiver configures internally
 # for its own embedded engine (native_dsss_receiver_core.c's
@@ -387,7 +387,7 @@ def sweep_doppler_acquisition_range(
 
 
 def main(n_trials=300, out_path=None):
-    out_path = HERE / "acquisition.png" if out_path is None else out_path
+    out_path = fromto(out_path or "acquisition.png")
     print(
         f"Acquisition stress: SF={SF}, chip_rate={CHIP_RATE / 1e6:g} MHz, "
         f"native span +/-{SPAN_HZ:.0f} Hz, "
@@ -536,4 +536,4 @@ def main(n_trials=300, out_path=None):
 
 
 if __name__ == "__main__":
-    main(out_path=sys.argv[1] if len(sys.argv) > 1 else None)
+    main(out_path=Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else None)

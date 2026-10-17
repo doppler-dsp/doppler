@@ -55,6 +55,13 @@ nothing for two whole objects (`docs/dev/contributing/validation.md`).
 and those are **gitignored**. The sweep's findings go to stdout; the plot
 is there to look at while you are working.
 
+"Next to" holds whatever directory the run starts in, because a subject
+names its artifacts through `doppler.util.fromto`, which starts at the
+calling script; a path given on the command line goes where it says.
+`characterization-check` refuses a bare artifact name in a subject's
+folder, the shape two subjects shipped with (doppler#2406): their figures
+landed in the repo root under `make characterize`.
+
 A subject with a published gallery page is the exception, and it goes
 through the **gallery pipeline** rather than being committed twice:
 `make gallery` re-runs that subject with an explicit destination under

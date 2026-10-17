@@ -190,8 +190,12 @@ far it lands from the truth (§5.1):
 The loop's acquisition bound is `bn / m`, 60 Hz at this front end, and it
 acquires every draw inside it, reliably to twice it and not at all by four
 times (`costas_pullin.c`, `async_dsss_receiver_core.h`). The whole receiver
-shows the same soft edge: slower to lock as the seed error grows, and not
-locking with the largest. That residual is doppler#982's. Since this design
+is more forgiving than the loop alone: slower to lock as the seed error
+grows, it still locked draws in the 200–300 Hz row, past four times the
+bound, and the table's only evidence of an edge is its last row, on few
+draws. Why it reaches past the loop's edge is open (doppler#2409): the
+error here is read when tracking starts, which need not be the residual
+the loop finally pulls in. That residual is doppler#982's. Since this design
 defines tracking as symbol lock, a receiver at the floor that misses it
 would let go of the signal it holds and search again, so the refine's
 residual is a design input (doppler#2409).

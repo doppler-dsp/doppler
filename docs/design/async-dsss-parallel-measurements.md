@@ -107,8 +107,12 @@ residual the carrier loop must pull in. That loop's acquisition bound is
 `bn / m`, 60 Hz at this front end, and `costas_pullin.c` measures it acquiring
 every draw inside the bound, still reliably to twice it, and dead by four
 times (`async_dsss_receiver_core.h`); doppler#982 found the refine handing
-over outside it. The table shows the same soft edge on the whole receiver:
-lock time grows with the seed error, and the large errors do not lock.
+over outside it. The whole receiver is more forgiving than the loop alone:
+lock time grows with the seed error, the 200–300 Hz row still locks, past
+four times the bound and slowly, and the only evidence of an edge is the
+last row, on few draws. The error is read when tracking starts, which need
+not be the residual the loop finally pulls in; why the receiver reaches
+past the loop's edge is open (doppler#2409).
 
 <!-- async-dsss-parallel:seed:start -->
 

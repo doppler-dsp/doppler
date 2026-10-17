@@ -12,6 +12,7 @@ from __future__ import annotations
 from doppler.dsss.tests.characterization.async_dsss_pool.characterize import (
     TE,
     capture,
+    s3_1_lock_hysteresis,
     s5_1_acquisition,
     s6_1_tracking,
     s6_2_search_depth,
@@ -23,6 +24,15 @@ from doppler.dsss.tests.characterization.async_dsss_pool.characterize import (
 def test_capture_is_whole_epochs():
     x = capture(seconds=0.01, code_only=False)
     assert x.size % TE == 0 and x.size >= 4 * TE
+
+
+def test_lock_hysteresis_reports_each_dropout():
+    rows = s3_1_lock_hysteresis(
+        esn0s=(10.0,), fades=(5.0, None), settle_s=0.3, after_s=0.1
+    )
+    assert [r["fade_ms"] for r in rows] == [5.0, "never ends"]
+    assert all(r["locked_before"] for r in rows)
+    assert not rows[-1]["held"]  # a signal that never returns is let go
 
 
 def test_acquisition_accounts_for_its_pushes():

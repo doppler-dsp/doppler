@@ -6,6 +6,8 @@ Each section below prints one entry of that page's record,
 `docs/design/async-dsss-parallel-measurements.md`, under the same number, so
 a number on either page names the function that made it.
 
+- **3.1** how symbol lock rides out a dropout, and how soon it falls when a
+  signal leaves for good: the hysteresis the re-acquire rule rests on.
 - **5.1** how long one receiver takes from a signal's arrival to tracking,
   by Es/N0: the make-before-break budget.
 - **6.1** what one tracking receiver costs per push, data on and code only.
@@ -47,7 +49,7 @@ import numpy as np
 
 from doppler.acquire import Acquisition
 from doppler.dsss import AsyncDsssPool, AsyncDsssReceiver
-from doppler.wfm import Gold, Synth
+from doppler.wfm import Gold, Synth, wfm_awgn_amplitude
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -66,6 +68,19 @@ CN0, DOPPLER, PFA, DU, CODE_ONLY = 47.0, 1500.0, 1e-3, SPAN, 31
 #: +/-50 kHz, SPEC's 450 code-only symbols (500 epochs at 3.069 Mcps), and
 #: the 500 Hz/s Doppler rate that bounds the coherent depth (its 2.3).
 DESIGN_DU, DESIGN_CODE_ONLY, DESIGN_RATE = 50000.0, 500, 500.0
+
+
+#: Dropouts a tracked signal is given, ms; None is a loss that never ends.
+FADES_MS: tuple[float | None, ...] = (
+    5.0,
+    10.0,
+    20.0,
+    30.0,
+    50.0,
+    100.0,
+    200.0,
+    None,
+)
 
 
 def cn0_of(esn0_db: float) -> float:
@@ -211,6 +226,90 @@ def receiver_run(x: np.ndarray, cn0_dbhz: float) -> tuple[np.ndarray, ...]:
         rx.steps(x[i * TE : (i + 1) * TE])
         times.append((time.perf_counter_ns() - t0) / 1e3)
     return np.asarray(state), np.asarray(times)
+
+
+def faded(
+    esn0_db: float,
+    fade_ms: float | None,
+    settle_s: float = 0.6,
+    after_s: float = 0.5,
+    seed: int = 7,
+) -> tuple[np.ndarray, int, int | None]:
+    """A data-on signal whose SIGNAL is cut for `fade_ms`, noise running on.
+
+    Returns the capture and the epochs the cut starts and ends at (`None`
+    for a cut that never ends). The noise is the library's own relation
+    (`wfm_awgn_amplitude`, per-component, over a unit-noise `Synth`), so
+    the signal can be switched off without touching the noise floor.
+    """
+    epoch_s = TE / FS
+    a = round(settle_s / epoch_s)
+    b = None if fade_ms is None else a + round(fade_ms * 1e-3 / epoch_s)
+    total = a + round(after_s / epoch_s) + (0 if b is None else b - a)
+    n = total * TE
+    sig = np.asarray(
+        Synth(
+            type="dsss",
+            fs=FS,
+            sps=SPC,
+            data_code=GOLD.tobytes(),
+            symbol_rate=SYM_RATE,
+            freq=DOPPLER,
+            seed=seed,
+        ).steps(n),
+        np.complex64,
+    )
+    sig[a * TE : n if b is None else b * TE] = 0.0
+    amp = float(
+        wfm_awgn_amplitude(esn0_db - 10.0 * np.log10(FS / SYM_RATE), 1.0)
+    )
+    unit = np.asarray(Synth(type="noise", fs=FS, seed=seed + 1).steps(n))
+    return (sig + amp * np.sqrt(2.0) * unit).astype(np.complex64), a, b
+
+
+def s3_1_lock_hysteresis(
+    esn0s: tuple[float, ...] = (10.0, 5.0),
+    fades: tuple[float | None, ...] = FADES_MS,
+    settle_s: float = 0.6,
+    after_s: float = 0.5,
+) -> list[dict]:
+    """3.1: symbol lock through a dropout of each length, per Es/N0.
+
+    Per epoch, the receiver's `locked` (symbol lock). A dropout it rides
+    out leaves `locked` up throughout; otherwise the row gives when it fell
+    after the cut began, and when it came back after the signal did.
+    """
+    epoch_ms = TE / FS * 1e3
+    rows = []
+    for esn0 in esn0s:
+        for fade in fades:
+            x, a, b = faded(esn0, fade, settle_s, after_s)
+            rx = make_receiver(cn0_of(esn0), du=SPAN)
+            locked = np.empty(x.size // TE, dtype=bool)
+            for i in range(locked.size):
+                rx.steps(x[i * TE : (i + 1) * TE])
+                locked[i] = bool(rx.locked)
+            down = np.flatnonzero(~locked[a:])
+            drop = None if down.size == 0 else a + int(down[0])
+            relock = None
+            if drop is not None and b is not None:
+                up = np.flatnonzero(locked[max(drop, b) :])
+                relock = None if up.size == 0 else max(drop, b) + int(up[0])
+            rows.append(
+                {
+                    "esn0_db": esn0,
+                    "fade_ms": "never ends" if fade is None else fade,
+                    "locked_before": bool(locked[a - 1]),
+                    "held": drop is None,
+                    "drop_ms": float("nan")
+                    if drop is None
+                    else (drop - a) * epoch_ms,
+                    "relock_ms": float("nan")
+                    if relock is None
+                    else (relock - b) * epoch_ms,
+                }
+            )
+    return rows
 
 
 def s5_1_acquisition(
@@ -368,6 +467,7 @@ def main() -> int:
         f"one push = one code epoch: {TE} samples, {EPOCH_US:.1f} us; "
         f"1/T_E = {SPAN:.1f} Hz"
     )
+    _table("3.1 symbol lock through a dropout", s3_1_lock_hysteresis())
     _table("5.1 arrival to tracking (data on)", s5_1_acquisition())
     _table("6.1 one tracking receiver", s6_1_tracking())
     _table("6.2 one receiver searching (noise)", s6_2_search_depth())

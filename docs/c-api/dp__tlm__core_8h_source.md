@@ -40,7 +40,7 @@ typedef char dp_tlm_rec_fits_slot[sizeof (dp_tlm_rec_t)
   "[[\"n\", \"<u8\"], [\"value\", \"<f4\"], [\"probe\", \"<u2\"], "         \
   "[\"flags\", \"<u2\"]]"
 
-#define DP_TLM_MAX_PROBES 64
+#define DP_TLM_MAX_PROBES 512
 #define DP_TLM_NAME_MAX 32
 
 typedef struct

@@ -129,7 +129,7 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 | Type | Name |
 | ---: | :--- |
 | define  | [**DP\_TLM**](dp__tlm__core_8h.md#define-dp_tlm) (ctx, id, v) `[**dp\_tlm\_emit**](dp__tlm__core_8h.md#function-dp_tlm_emit) ((ctx), (id), (v))`<br>_Probe-site wrapper around_ [_**dp\_tlm\_emit()**_](dp__tlm__core_8h.md#function-dp_tlm_emit) _._ |
-| define  | [**DP\_TLM\_MAX\_PROBES**](dp__tlm__core_8h.md#define-dp_tlm_max_probes)  `64`<br> |
+| define  | [**DP\_TLM\_MAX\_PROBES**](dp__tlm__core_8h.md#define-dp_tlm_max_probes)  `512`<br> |
 | define  | [**DP\_TLM\_NAME\_MAX**](dp__tlm__core_8h.md#define-dp_tlm_name_max)  `32`<br> |
 | define  | [**DP\_TLM\_REC\_DTYPE\_JSON**](dp__tlm__core_8h.md#define-dp_tlm_rec_dtype_json)  `/* multi line expression */`<br>[_**dp\_tlm\_rec\_t**_](structdp__tlm__rec__t.md) _as a numpy-style dtype, in JSON, for a sidecar._ |
 
@@ -1188,12 +1188,15 @@ Instrumented hot loops use this form so a consumer building with `-DDP_TLM_DISAB
 ### define DP\_TLM\_MAX\_PROBES 
 
 ```C++
-#define DP_TLM_MAX_PROBES `64`
+#define DP_TLM_MAX_PROBES `512`
 ```
 
 
 
-Maximum probes per context. Registration fails once full. 
+Maximum probes per context. Registration fails once full.
+
+
+Sized for a whole population on one context: an AsyncDsssPool attaches its searcher, its own counters and every slot's receiver (about twenty probes a slot), so an eleven-slot pool needs over 250. The table is a flat array in the context, 48 bytes a probe, and nothing on the emit path scales with it; the lossless capture's ring is sized from the probes actually registered ([**dp\_tlm\_block\_bound()**](dp__tlm__core_8h.md#function-dp_tlm_block_bound)), not from this. 
 
 
         

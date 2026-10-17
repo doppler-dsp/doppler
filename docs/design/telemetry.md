@@ -102,9 +102,12 @@ int main(void)
     registration always emits (you see the series start immediately). The
     counter lives next to the data the emit already touches — instrumented
     objects carry no decimation state of their own.
-- The table is fixed-capacity (`DP_TLM_MAX_PROBES` = 64 per context,
-    `DP_TLM_NAME_MAX` = 32 chars) — generous for a receiver chain, and keeps
-    the context a flat POD with zero hot-path indirection.
+- The table is fixed-capacity (`DP_TLM_MAX_PROBES` = 512 per context,
+    `DP_TLM_NAME_MAX` = 32 chars) — room for a whole `AsyncDsssPool` on one
+    context (its searcher, its counters and about twenty probes a slot), and
+    it keeps the context a flat POD with zero hot-path indirection. The
+    lossless capture's ring is sized from the probes registered, not from
+    the capacity.
 
 ## Threading
 

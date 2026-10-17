@@ -115,6 +115,13 @@ extern "C"
     /* The feed's scratch: the block every receiver sees, for the fan. */
     const float _Complex *feed_x;
     size_t                feed_n;
+
+    /* Telemetry (dp_async_dsss_pool_set_telemetry): borrowed, never in a
+       blob. The pool's own probes, emitted once a push. */
+    dp_tlm_t *tlm;          
+    int32_t   tlm_assigned; 
+    int32_t   tlm_dropped;  
+    int32_t   tlm_events;   
   } dp_async_dsss_pool_state_t;
 
 dp_async_dsss_pool_state_t *dp_async_dsss_pool_create(const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa, double pd, double doppler_uncertainty, size_t code_only_epochs, double doppler_rate, size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz, double lost_confirm_s, double max_emitter_on_time_secs, size_t segments, size_t sps, int differential, double gain, size_t pullin_intervals);
@@ -132,6 +139,10 @@ size_t dp_async_dsss_pool_symbols_max_out(dp_async_dsss_pool_state_t *state);
 size_t dp_async_dsss_pool_symbols(dp_async_dsss_pool_state_t *state, size_t slot, float _Complex *out, size_t max_out);
 
 int dp_async_dsss_pool_set_event_log(dp_async_dsss_pool_state_t *state, dp_event_log_t * log);
+
+int dp_async_dsss_pool_set_telemetry (dp_async_dsss_pool_state_t *state,
+                                      dp_tlm_t *tlm, const char *prefix,
+                                      uint32_t decim);
 
   /* ── Serializable state (docs/design/state-serialization.md) ──────────
    * A composition: the pool's own counters and the table, then the

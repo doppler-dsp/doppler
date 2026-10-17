@@ -36,6 +36,7 @@
 #include "doppler/acc_trace/acc_trace_core.h"
 #include "doppler/ber/ber_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -261,6 +262,14 @@ extern "C"
     double          lock_metric;
     double          lock_alpha; 
     dp_lockdet_state_t sym_lockdet;
+
+    /* Telemetry: the attach REQUEST, kept because every seed destroys and
+     * rebuilds the tracking chain -- the loops it holds are re-attached
+     * from here (dp_async_dsss_receiver_set_telemetry). Borrowed, and never
+     * in a blob: a handle to the outside world is not state. */
+    dp_tlm_t *tlm;                         
+    char      tlm_prefix[DP_TLM_NAME_MAX]; 
+    uint32_t  tlm_decim;                   
   } dp_async_dsss_receiver_state_t;
 
   dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create (
@@ -283,6 +292,10 @@ extern "C"
   void dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state);
 
   void dp_async_dsss_receiver_reset (dp_async_dsss_receiver_state_t *state);
+
+  int dp_async_dsss_receiver_set_telemetry (
+      dp_async_dsss_receiver_state_t *state, dp_tlm_t *tlm, const char *prefix,
+      uint32_t decim);
 
   size_t dp_async_dsss_receiver_steps_max_out (dp_async_dsss_receiver_state_t *state);
 

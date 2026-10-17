@@ -223,6 +223,13 @@ extern "C"
     /* The feed's scratch: the block every receiver sees, for the fan. */
     const float _Complex *feed_x;
     size_t                feed_n;
+
+    /* Telemetry (dp_async_dsss_pool_set_telemetry): borrowed, never in a
+       blob. The pool's own probes, emitted once a push. */
+    dp_tlm_t *tlm;          /**< NULL = detached.                      */
+    int32_t   tlm_assigned; /**< "<prefix>.assigned": n_assigned.      */
+    int32_t   tlm_dropped;  /**< "<prefix>.dropped": dropped, running. */
+    int32_t   tlm_events;   /**< "<prefix>.events": events, running.   */
   } dp_async_dsss_pool_state_t;
 
 /**
@@ -467,6 +474,64 @@ size_t dp_async_dsss_pool_symbols(dp_async_dsss_pool_state_t *state, size_t slot
  * @endcode
  */
 int dp_async_dsss_pool_set_event_log(dp_async_dsss_pool_state_t *state, dp_event_log_t * log);
+
+/**
+ * @brief Attach (or detach) a telemetry context across the pool: the
+ *        searcher, every slot's receiver, and the pool's own counters.
+ *
+ * Registers, under @p prefix:
+ * - "<prefix>.acq" -- the searcher (dp_acq_set_telemetry(): its test
+ *   statistic, gate, CFAR reference, strongest cell and its coordinates,
+ *   picks and held twins, concentration and hit flag), once per decided
+ *   dwell;
+ * - "<prefix>.s<i>" -- slot i's receiver, every loop it holds
+ *   (dp_async_dsss_receiver_set_telemetry()), at each loop's own rate, and
+ *   continuous across the seeds and releases that reuse the slot;
+ * - "<prefix>.assigned", "<prefix>.dropped", "<prefix>.events" -- the
+ *   pool's `n_assigned` and its running `dropped` and `events` counts,
+ *   once per push(), after its releases.
+ *
+ * The probes come to 13 plus each slot's (a cell receiver's loops), so a
+ * large pool needs a context with room: an attach that cannot register
+ * every probe fails whole.
+ *
+ * A context is single-producer (dp_tlm/dp_tlm_core.h), and a pool created
+ * with `threads > 1` steps its receivers on several, so it is refused:
+ * observe a pool on one thread.
+ *
+ * Setup path, never hot; the context is borrowed and must outlive the
+ * attachment. Passing NULL detaches everything.
+ *
+ * @param state  Must be non-NULL.
+ * @param tlm    Telemetry context to attach, or NULL to detach.
+ * @param prefix Probe-name prefix; NULL means "pool".
+ * @param decim  Emit every decim-th event on each probe; >= 1.
+ * @return DP_OK, or DP_ERR_INVALID on decim 0, a pool with `threads > 1`
+ *         (refused before anything registers), a prefix too long for some
+ *         probe's name, or a probe table that cannot take every probe. A
+ *         refused attach fails whole: the pool stays detached.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import AsyncDsssPool
+ * >>> from doppler.telemetry import Telemetry
+ * >>> from doppler.wfm import Gold
+ * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+ * >>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+ * ...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+ * >>> tlm = Telemetry(1 << 16)
+ * >>> pool.set_telemetry(tlm, "pool")
+ * >>> sorted(p for p in tlm.probe_names if p.count(".") == 1)
+ * ['pool.assigned', 'pool.dropped', 'pool.events']
+ * >>> sorted({p.split(".")[1] for p in tlm.probe_names})
+ * ['acq', 'assigned', 'dropped', 'events', 's0', 's1']
+ * >>> _ = pool.push(np.zeros(2046, np.complex64))
+ * >>> pool.set_telemetry(None, "pool")      # detach
+ *
+ * @endcode
+ */
+int dp_async_dsss_pool_set_telemetry (dp_async_dsss_pool_state_t *state,
+                                      dp_tlm_t *tlm, const char *prefix,
+                                      uint32_t decim);
 
   /* ── Serializable state (docs/design/state-serialization.md) ──────────
    * A composition: the pool's own counters and the table, then the

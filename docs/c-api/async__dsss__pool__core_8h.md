@@ -88,6 +88,7 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of cell re
 |  void | [**dp\_async\_dsss\_pool\_reset**](#function-dp_async_dsss_pool_reset) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Release every slot and start over: the searcher reset, every receiver back to idle, the table cleared, the counters zeroed._  |
 |  int | [**dp\_async\_dsss\_pool\_set\_event\_log**](#function-dp_async_dsss_pool_set_event_log) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_event\_log\_t**](dp__event__log__core_8h.md#typedef-dp_event_log_t) \* log) <br>_Attach the run's event log (design section 8.1); NULL detaches._  |
 |  int | [**dp\_async\_dsss\_pool\_set\_state**](#function-dp_async_dsss_pool_set_state) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const void \* blob) <br> |
+|  int | [**dp\_async\_dsss\_pool\_set\_telemetry**](#function-dp_async_dsss_pool_set_telemetry) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the pool: the searcher, every slot's receiver, and the pool's own counters._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_state\_bytes**](#function-dp_async_dsss_pool_state_bytes) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br> |
 |  [**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md) | [**dp\_async\_dsss\_pool\_status**](#function-dp_async_dsss_pool_status) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot) <br>_One slot's picture, by value (_ [_**async\_dsss\_pool\_slot\_t**_](structasync__dsss__pool__slot__t.md) _)._ |
 |  size\_t | [**dp\_async\_dsss\_pool\_symbols**](#function-dp_async_dsss_pool_symbols) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot, float \_Complex \* out, size\_t max\_out) <br>_The symbols slot_ `slot's` _receiver decided on the last push()._ |
@@ -494,6 +495,81 @@ int dp_async_dsss_pool_set_state (
 
 
 
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_pool\_set\_telemetry 
+
+_Attach (or detach) a telemetry context across the pool: the searcher, every slot's receiver, and the pool's own counters._ 
+```C++
+int dp_async_dsss_pool_set_telemetry (
+    dp_async_dsss_pool_state_t * state,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+Registers, under `prefix:` 
+* "&lt;prefix&gt;.acq"  the searcher ([**dp\_acq\_set\_telemetry()**](acq__core_8h.md#function-dp_acq_set_telemetry): its test statistic, gate, CFAR reference, strongest cell and its coordinates, picks and held twins, concentration and hit flag), once per decided dwell;
+* "&lt;prefix&gt;.s&lt;i&gt;"  slot i's receiver, every loop it holds ([**dp\_async\_dsss\_receiver\_set\_telemetry()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_telemetry)), at each loop's own rate, and continuous across the seeds and releases that reuse the slot;
+* "&lt;prefix&gt;.assigned", "&lt;prefix&gt;.dropped", "&lt;prefix&gt;.events"  the pool's `n_assigned` and its running `dropped` and `events` counts, once per push(), after its releases.
+
+
+
+
+The probes come to 13 plus each slot's (a cell receiver's loops), so a large pool needs a context with room: an attach that cannot register every probe fails whole.
+
+
+A context is single-producer ([**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)), and a pool created with `threads > 1` steps its receivers on several, so it is refused: observe a pool on one thread.
+
+
+Setup path, never hot; the context is borrowed and must outlive the attachment. Passing NULL detaches everything.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `tlm` Telemetry context to attach, or NULL to detach. 
+* `prefix` Probe-name prefix; NULL means "pool". 
+* `decim` Emit every decim-th event on each probe; &gt;= 1. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID on decim 0, a pool with `threads > 1` (refused before anything registers), a prefix too long for some probe's name, or a probe table that cannot take every probe. A refused attach fails whole: the pool stays detached. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import AsyncDsssPool
+>>> from doppler.telemetry import Telemetry
+>>> from doppler.wfm import Gold
+>>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+>>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+>>> tlm = Telemetry(1 << 16)
+>>> pool.set_telemetry(tlm, "pool")
+>>> sorted(p for p in tlm.probe_names if p.count(".") == 1)
+['pool.assigned', 'pool.dropped', 'pool.events']
+>>> sorted({p.split(".")[1] for p in tlm.probe_names})
+['acq', 'assigned', 'dropped', 'events', 's0', 's1']
+>>> _ = pool.push(np.zeros(2046, np.complex64))
+>>> pool.set_telemetry(None, "pool")      # detach
+```
+ 
+
+
+
+
+
+        
 
 <hr>
 

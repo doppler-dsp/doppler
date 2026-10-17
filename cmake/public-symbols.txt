@@ -211,6 +211,7 @@ dp_async_dsss_pool_push function
 dp_async_dsss_pool_reset function
 dp_async_dsss_pool_set_event_log function
 dp_async_dsss_pool_set_state function
+dp_async_dsss_pool_set_telemetry function
 dp_async_dsss_pool_state_bytes function
 dp_async_dsss_pool_status function
 dp_async_dsss_pool_symbols function
@@ -248,6 +249,7 @@ dp_async_dsss_receiver_seed function
 dp_async_dsss_receiver_seed_ok function
 dp_async_dsss_receiver_set_refine_min_blocks function
 dp_async_dsss_receiver_set_state function
+dp_async_dsss_receiver_set_telemetry function
 dp_async_dsss_receiver_state_bytes function
 dp_async_dsss_receiver_status function
 dp_async_dsss_receiver_steps function

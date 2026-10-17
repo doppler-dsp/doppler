@@ -649,6 +649,59 @@ CellAsyncDsssReceiverObj_reset (CellAsyncDsssReceiverObject *self,
 }
 
 static PyObject *
+CellAsyncDsssReceiverObj_set_telemetry (CellAsyncDsssReceiverObject *self,
+                                        PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject    *tlm_obj   = Py_None;
+  const char  *prefix    = NULL;
+  long long    decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|L", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            return NULL;
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  if (decim_raw < 0 || decim_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "decim: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)decim_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  int _rc = dp_async_dsss_receiver_set_telemetry (self->handle, tlm, prefix,
+                                                  decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 CellAsyncDsssReceiverObj_state_bytes (CellAsyncDsssReceiverObject *self,
                                       PyObject *Py_UNUSED (ignored))
 {
@@ -1433,6 +1486,76 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     ">>> rx.reset()                 # abort any lock, hunt from scratch\n"
     ">>> (rx.tracking, rx.refining, rx.chip_phase)   # all cleared\n"
     "(0, 0, 0.0)\n" },
+  { "set_telemetry",
+    (PyCFunction)(void *)CellAsyncDsssReceiverObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> None\n"
+    "\n"
+    "Attach (or detach) a telemetry context across the receiver's loops.\n"
+    "A pure forwarder: the receiver registers no probes of its own.\n"
+    "\n"
+    "Each loop reports under the prefix, at its own update rate:\n"
+    "\n"
+    "- \"<prefix>.car\" -- the chip-domain carrier loop\n"
+    "  (dp_costas_set_telemetry(): \".lock\", \".e\", \".freq\", "
+    "\".locked\"), once\n"
+    "  per carrier update, i.e. once a code period while it is not coasting;\n"
+    "- \"<prefix>.code\" -- the code loop (dp_dll_set_telemetry(): \".e\",\n"
+    "  \".rate\", \".lock\", \".locked\"), once per discriminator update;\n"
+    "- \"<prefix>.rc\" -- the resampler's AGC, when it has one\n"
+    "  (dp_RateConverter_set_telemetry(); none, and DP_OK, when it has not);\n"
+    "- \"<prefix>.demod\" -- the symbol-domain demodulator\n"
+    "  (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing\n"
+    "  loops, the symbols, its AGC), once per recovered symbol (the AGC's\n"
+    "  pair once per gain update);\n"
+    "- \"<prefix>.acq\" -- the searching flavor's acquisition engine\n"
+    "  (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has\n"
+    "  no search, so no such probes.\n"
+    "\n"
+    "The loops' frequency and rate probes (\".car.freq\", \".code.rate\",\n"
+    "\".demod.car.freq\", \".demod.sync.rate\") are the loop filters' "
+    "outputs;\n"
+    "\".e\" is each discriminator's input to its filter.\n"
+    "\n"
+    "The attachment is a REQUEST kept on the receiver: every seed rebuilds\n"
+    "the tracking chain, and the rebuilt loops are attached again under the\n"
+    "same names (so the same probe ids). Records are therefore continuous\n"
+    "across re-seeds, and a reset keeps the attachment too.\n"
+    "\n"
+    "Setup path, never hot; the context is borrowed and must outlive the\n"
+    "attachment, and the receiver must step on one thread (SPSC rules in\n"
+    "dp_tlm/dp_tlm_core.h). Passing NULL detaches every loop.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "tlm : object | None\n"
+    "    Telemetry context to attach, or NULL to detach.\n"
+    "prefix : str\n"
+    "    Probe-name prefix; NULL means \"rx\".\n"
+    "decim : int\n"
+    "    Emit every decim-th event on each probe; >= 1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_telemetry failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
+    "...                        spc=2, doppler_uncertainty=500.0)\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> rx.set_telemetry(tlm, \"rx\")\n"
+    ">>> sorted(p for p in tlm.probe_names if p.startswith(\"rx.c\"))\n"
+    "['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.code.e', "
+    "'rx.code.lock', 'rx.code.locked', 'rx.code.rate']\n"
+    ">>> rx.set_telemetry(None, \"rx\")      # detach\n" },
   { "state_bytes", (PyCFunction)CellAsyncDsssReceiverObj_state_bytes,
     METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"

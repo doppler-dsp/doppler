@@ -5,6 +5,7 @@
  */
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -387,6 +388,13 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
       row->prev_code  = st.code_locked;
       row->prev_sym   = st.locked;
     }
+  /* 5. The pool's own probes: the table after this push's releases. */
+  if (s->tlm)
+    {
+      dp_tlm_emit (s->tlm, s->tlm_assigned, (double)s->n_assigned);
+      dp_tlm_emit (s->tlm, s->tlm_dropped, (double)s->dropped);
+      dp_tlm_emit (s->tlm, s->tlm_events, (double)s->events);
+    }
   return s->n_assigned;
 }
 
@@ -446,6 +454,66 @@ dp_async_dsss_pool_set_event_log (dp_async_dsss_pool_state_t *s,
                                   dp_event_log_t             *log)
 {
   s->log = log;
+  return DP_OK;
+}
+
+/* Detach the searcher and every slot; the pool's own probes go quiet with
+   s->tlm. */
+static void
+pool_tlm_detach (dp_async_dsss_pool_state_t *s)
+{
+  (void)dp_acq_set_telemetry (s->acq, NULL, "acq", 1);
+  for (size_t i = 0; i < s->n_slots; i++)
+    (void)dp_async_dsss_receiver_set_telemetry (s->rx[i], NULL, NULL, 1);
+  s->tlm = NULL;
+}
+
+int
+dp_async_dsss_pool_set_telemetry (dp_async_dsss_pool_state_t *s, dp_tlm_t *tlm,
+                                  const char *prefix, uint32_t decim)
+{
+  if (!tlm)
+    {
+      pool_tlm_detach (s);
+      return DP_OK;
+    }
+  /* One producer per context: a pool on threads > 1 steps its receivers
+     on several (step 3 of push), and their records would race. */
+  if (decim == 0 || s->threads != 1)
+    return DP_ERR_INVALID;
+  const char *p = prefix ? prefix : "pool";
+  char        acq[DP_TLM_NAME_MAX], assigned[DP_TLM_NAME_MAX],
+      dropped[DP_TLM_NAME_MAX], events[DP_TLM_NAME_MAX];
+  if (dp_tlm_name_join (acq, p, "acq") != DP_OK
+      || dp_tlm_name_join (assigned, p, "assigned") != DP_OK
+      || dp_tlm_name_join (dropped, p, "dropped") != DP_OK
+      || dp_tlm_name_join (events, p, "events") != DP_OK)
+    return DP_ERR_INVALID;
+  int r = dp_acq_set_telemetry (s->acq, tlm, acq, decim);
+  for (size_t i = 0; i < s->n_slots && r == DP_OK; i++)
+    {
+      char sfx[24], slot[DP_TLM_NAME_MAX];
+      (void)snprintf (sfx, sizeof sfx, "s%zu", i);
+      r = dp_tlm_name_join (slot, p, sfx);
+      if (r == DP_OK)
+        r = dp_async_dsss_receiver_set_telemetry (s->rx[i], tlm, slot, decim);
+    }
+  int id_assigned = -1, id_dropped = -1, id_events = -1;
+  if (r == DP_OK)
+    {
+      id_assigned = dp_tlm_probe (tlm, assigned, decim);
+      id_dropped  = dp_tlm_probe (tlm, dropped, decim);
+      id_events   = dp_tlm_probe (tlm, events, decim);
+    }
+  if (r != DP_OK || id_assigned < 0 || id_dropped < 0 || id_events < 0)
+    {
+      pool_tlm_detach (s); /* whole or nothing */
+      return DP_ERR_INVALID;
+    }
+  s->tlm_assigned = id_assigned;
+  s->tlm_dropped  = id_dropped;
+  s->tlm_events   = id_events;
+  s->tlm          = tlm; /* set last: push() emits on it */
   return DP_OK;
 }
 

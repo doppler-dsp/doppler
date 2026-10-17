@@ -105,8 +105,17 @@ typedef char dp_tlm_rec_fits_slot[sizeof (dp_tlm_rec_t)
   "[[\"n\", \"<u8\"], [\"value\", \"<f4\"], [\"probe\", \"<u2\"], "         \
   "[\"flags\", \"<u2\"]]"
 
-/** Maximum probes per context.  Registration fails once full. */
-#define DP_TLM_MAX_PROBES 64
+/**
+ * Maximum probes per context.  Registration fails once full.
+ *
+ * Sized for a whole population on one context: an AsyncDsssPool attaches
+ * its searcher, its own counters and every slot's receiver (about twenty
+ * probes a slot), so an eleven-slot pool needs over 250. The table is a
+ * flat array in the context, 48 bytes a probe, and nothing on the emit
+ * path scales with it; the lossless capture's ring is sized from the
+ * probes actually registered (dp_tlm_block_bound()), not from this.
+ */
+#define DP_TLM_MAX_PROBES 512
 /** Maximum probe-name length including the NUL terminator. */
 #define DP_TLM_NAME_MAX 32
 

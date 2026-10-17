@@ -336,6 +336,18 @@ doc = "Return to the searching state: resets the embedded Acquisition and frees 
 arg_type = "void"
 return_type = "void"
 
+# Telemetry across the receiver's loops: the docstring is the header's.
+[[async_dsss_receiver.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "doppler/dp_tlm/dp_tlm_core.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
+
 [[async_dsss_receiver.properties]]
 name = "refine_min_blocks"
 type = "size_t"

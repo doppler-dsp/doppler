@@ -29,10 +29,10 @@ In numbers, at the parameters of §2:
 
 | quantity                                                             | value                                       |
 | -------------------------------------------------------------------- | ------------------------------------------- |
-| one code epoch $T_E$ = 1,023 chips at 5 Mcps                         | 204.6 µs, 2,046 samples at 2 samples a chip |
-| $1/T_E$: the carrier bound $\Delta f_c$, and one search tile's width | 4,888 Hz                                    |
-| $E_s/N_0 \geq 5$ dB at 2,700 sym/s                                   | C/N0 ≥ 39.3 dB-Hz, 2.4 dB per epoch         |
-| the data-free block, by default (configurable)                       | 500 all-zero symbols: 185 ms, 905 epochs    |
+| one code epoch $T_E$ = 1,023 chips at 3.069 Mcps                     | 333.3 µs, 2,046 samples at 2 samples a chip |
+| $1/T_E$: the carrier bound $\Delta f_c$, and one search tile's width | 3,000 Hz                                    |
+| $E_s/N_0 \geq 5$ dB at 2,700 sym/s                                   | C/N0 ≥ 39.3 dB-Hz, 4.5 dB per epoch         |
+| the data-free block, by default (configurable)                       | 500 all-zero symbols: 185 ms, 556 epochs    |
 
 **A signal changes only after a data-free block.** One goes off air, or a new
 one comes on, at a frame boundary, never inside a frame.
@@ -41,7 +41,7 @@ one comes on, at a frame boundary, never inside a frame.
 
 - The initial application is for continuously emitted CCSDS command link-like
     signals
-    - $R_c=5$ Mcps
+    - $R_c=3.069$ Mcps
     - $N_E = R_c \times T_E = 1023$ chips per epoch
     - $E_s/N_0 \geq 5$ dB
 - A slot is defined by a carrier offset $f_m$ and code phase with SNR the
@@ -132,32 +132,32 @@ surface. It:
 ## 5. Arrival to tracking
 
 A new signal is found by the receivers already searching, without waiting
-for anyone to be freed. The receiver's own search, data on (§5.1):
+for anyone to be freed. The receiver's own search over $\pm 1/T_E$, data on
+(§5.1):
 
-| Es/N0 | searching  | refining   | arrival to tracking |
-| ----- | ---------- | ---------- | ------------------- |
-| 10 dB | 17 pushes  | 204 pushes | 45 ms               |
-| 5 dB  | 101 pushes | 349 pushes | 92 ms               |
+| Es/N0 | searching | refining   | arrival to tracking |
+| ----- | --------- | ---------- | ------------------- |
+| 10 dB | 9 pushes  | 127 pushes | 45 ms               |
+| 5 dB  | 45 pushes | 218 pushes | 88 ms               |
 
 Both are inside one default data-free block (185 ms).
 
 ## 6. What it costs
 
-Every state the design uses fits one CPU (§6.1, §6.2: the share of one CPU
-is the push time over the 204.6 µs of signal it covers):
+Every state fits one CPU, at every depth (§6.1, §6.2: the share of one CPU
+is the push time over the 333.3 µs of signal it covers):
 
-| receiver                                                            | one tile | the whole range, $\pm 1/T_E$ |
-| ------------------------------------------------------------------- | -------- | ---------------------------- |
-| tracking                                                            | 0.12     | 0.12                         |
-| searching, its own one-epoch looks                                  | 0.24     | 0.51                         |
-| searching, slow-time over D = 16                                    | 0.38     | 0.55                         |
-| searching, slow-time over D = 154 (the 500 Hz/s Doppler-rate bound) | 0.57     | 2.14                         |
+| receiver                                                           | one tile | the whole range, $\pm 1/T_E$ |
+| ------------------------------------------------------------------ | -------- | ---------------------------- |
+| tracking                                                           | 0.07     | 0.07                         |
+| searching, its own one-epoch looks                                 | 0.17     | 0.33                         |
+| searching, slow-time over D = 16                                   | 0.23     | 0.36                         |
+| searching, slow-time over D = 94 (the 500 Hz/s Doppler-rate bound) | 0.32     | 0.64                         |
 
-A receiver searching one tile, the offset the controller gives it, stays
-within one CPU at every depth. Only a deep search over the whole range would
-not, and the design does not ask for one: the range is covered by offsets,
-which are the controller's. Tracking cost 0.12 with data on at 10 and 5 dB,
-and code only at 10 dB.
+Even a search of the whole range at the rate-bound depth leaves a third of
+its CPU free, so the controller's offsets are for spreading the searching
+receivers across the range, not for fitting one into its CPU. Tracking cost
+0.07–0.08 with data on at 10 and 5 dB, and 0.07 code only at 10 dB.
 
 ## 7. Why the pool as built is replaced
 
@@ -166,16 +166,16 @@ because a new emitter may appear at any time (§7.1):
 
 | per push                      | share of one CPU |
 | ----------------------------- | ---------------- |
-| one receiver                  | 0.14             |
-| the pool, one emitter tracked | 0.85             |
-| the pool's searcher alone     | 0.74             |
+| one receiver                  | 0.09             |
+| the pool, one emitter tracked | 0.62             |
+| the pool's searcher alone     | 0.54             |
 
-At the design point the pool was sized for (±50 kHz, the rate-bound depth
-of 154 epochs) that searcher is 9.2 CPUs serially and still 3.1 on eight
-threads (§7.2). The dwell that decides each 154-epoch block takes 76–225 ms
-against 31.5 ms of signal, so no thread count brings it to real time.
-Parallel receivers spend nothing like that: the search is each idle
-receiver's own, on one tile.
+At the design point the pool was sized for (±50 kHz in 35 tiles, the
+rate-bound depth of 94 epochs) that searcher is 7.6 CPUs serially, 2.4 on
+four threads and 1.5 on eight (§7.2). On eight threads the dwell that
+decides each 94-epoch block alone takes 31 ms, the block's whole 31.3 ms of
+signal. Parallel receivers spend nothing like that: the search is each idle
+receiver's own.
 
 ## 8. Open questions
 

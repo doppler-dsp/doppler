@@ -3,12 +3,15 @@
 *The dated record behind [the design page](async-dsss-parallel.md): what each
 number there was measured by, with the run. Section numbers are shared, so a
 `§3.1` cited on the design page, in an issue or in a code comment is the same
-entry here. Both runs are of shipped tools, at one commit: the lock
-validator, `native/validation/async_dsss_receiver_lock.c`, and the C benches
-of the three objects. Every table below, and every number the design page
-quotes from them, is rendered from their data, committed beside this page in
-`async-dsss-parallel-measurements/` by its `record.py`, whose `--check` (in
-`make docs-invariants`) fails when either page differs from the data.*
+entry here. The tables come from two runs of shipped tools, at one commit:
+the lock validator, `native/validation/async_dsss_receiver_lock.c`, and the
+C benches of the three objects. A third run, of the same validator, draws
+§3.2's figures, and is held to the first instead: each of its stories must
+replay its sweep trial exactly. Every table below, and every number the
+design page quotes from them, is rendered from their data, committed beside
+this page in `async-dsss-parallel-measurements/` by its `record.py`, whose
+`--check` (in `make docs-invariants`) fails when either page differs from
+the data.*
 
 <!-- async-dsss-parallel:stamp:start -->
 
@@ -16,6 +19,7 @@ quotes from them, is rendered from their data, committed beside this page in
 | -------------------------- | -------------------------- | ---------------------------------------------------------------- | ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
 | lock validator, full sweep | 2026-10-17 18:37 UTC, 35 s | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 2.0 / 2.1           | `bc874bf75`, clean | `make build`, then `record.py measure`                                                                                          |
 | C benches                  | 2026-10-17 18:36 UTC       | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 1.9 / 1.8           | `bc874bf75`, clean | `make bench BENCH_ARGS="--c-only acq async_dsss_receiver async_dsss_pool"` once the load fell under 2, rows kept by `record.py` |
+| lifecycle stories (§3.2)   | 2026-10-17 21:31 UTC, 1 s  | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 2.5 / 2.5           | `233007864`, clean | `make build`, then `record.py stories`; each story is the sweep's arrival trial of its draws, checked                           |
 
 <!-- async-dsss-parallel:stamp:end -->
 
@@ -82,6 +86,45 @@ length, never as an edge. The first sweep also asserted that a dropout of
 `LOCK_N_DOWN` symbols cannot drop the lock, which reads like a property of
 the detector; some 5 dB trials held less, the low run supplied by the
 recovery after the dropout, and the assertion went.
+
+### 3.2 A receiver through a signal's life
+
+The validator's lifecycle stories (`--telemetry DIR`): three of §5.1's
+arrival trials, each run on past its own end as one receiver's whole life.
+Its first second is the trial sample for sample, and the table holds each
+story to its trial. Then the signal is cut for 10, 20 and 50 ms at 1.0, 1.3
+and 1.6 s, every cut mid-data, and leaves for good at 2.0 s; the run ends
+at 2.4 s. Each figure is the receiver's own telemetry from that run, drawn
+by `scripts/plot_capture.py`. **Grey is where the signal was off**, read
+from the stimulus the validator records beside the receiver's probes
+(`stim.on`), not drawn from the schedule above. The receiver reports
+nothing until it tracks, so the panels start where its search ends, not at
+the arrival.
+
+<!-- async-dsss-parallel:stories:start -->
+
+| story                   | Es/N0 | seed | carrier    | arrival | symbol lock after arrival |
+| ----------------------- | ----- | ---- | ---------- | ------- | ------------------------- |
+| `lifecycle-10db`        | 10 dB | 1    | +2395.3 Hz | 19.5 ms | 62.2 ms                   |
+| `lifecycle-5db`         | 5 dB  | 13   | +2587.8 Hz | 19.1 ms | 124.9 ms                  |
+| `lifecycle-5db-no-lock` | 5 dB  | 5    | +737.3 Hz  | 13.8 ms | never                     |
+
+![lifecycle-10db](async-dsss-parallel-measurements/lifecycle-10db.png)
+
+![lifecycle-5db](async-dsss-parallel-measurements/lifecycle-5db.png)
+
+![lifecycle-5db-no-lock](async-dsss-parallel-measurements/lifecycle-5db-no-lock.png)
+
+<!-- async-dsss-parallel:stories:end -->
+
+At 10 dB symbol lock falls in each fade and comes back after each, and
+falls for good at the departure, as do the carrier and code flags. The
+demodulator's timing flag (`demod.sync.locked`) does not: it stays up
+through every fade and long after the signal has gone (#2409). The 5 dB
+story that never locks is the trial §5.1 counts as never locking: its
+refine seed is further off than the carrier loop pulls in (§5.1's seed
+table), so the carrier loop never declares and symbol lock never comes,
+while the code loop tracks and the timing flag comes up and stays up.
 
 ### 5.1 Arrival to tracking, and to symbol lock
 

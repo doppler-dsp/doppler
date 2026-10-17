@@ -299,9 +299,41 @@ def _csv_blocks(text: str) -> dict[str, list[dict[str, str]]]:
     return out
 
 
+#: The fields a story shares with the sweep's arrival trial of its draws.
+STORY_TRIAL = ("carrier_hz", "delay_s", "t_lock_ms")
+
+
+def _stories(lock: dict[str, Any]) -> tuple[list[dict[str, str]], Any]:
+    """The lifecycle stories' rows and stamp, each held to the sweep.
+
+    A story is its arrival trial run on, so it may come from a later
+    commit than the sweep only while it still IS that trial: the same
+    carrier, arrival and symbol-lock time, in the same formats. A receiver
+    that changed in between fails here, and the record is re-run whole.
+    """
+    smeta = json.loads((DATA / "stories-meta.json").read_text("utf-8"))
+    rows = _csv_blocks((DATA / "stories.csv").read_text("utf-8"))["story"]
+    if smeta["dirty"]:
+        raise SystemExit("record data from a dirty tree is refused")
+    trials = {(r["esn0_db"], r["seed"]): r for r in lock["arrival"]}
+    for s in rows:
+        t = trials.get((s["esn0_db"], s["seed"]))
+        if t is None or any(s[k] != t[k] for k in STORY_TRIAL):
+            raise SystemExit(
+                f"story {s['name']} is not the sweep's {_db(s['esn0_db'])} "
+                f"seed {s['seed']} arrival trial: re-run measure, bench and "
+                "stories at one commit"
+            )
+        if not (DATA / f"{s['name']}.png").exists():
+            raise SystemExit(f"{s['name']}.png is missing: record.py stories")
+    return rows, smeta
+
+
 def load() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """The lock rows, their stamp and the bench rows, held to one clean
-    commit."""
+    commit. The lifecycle stories ride along, held to the sweep instead
+    (_stories): their rows as `lock["story"]`, their stamp as
+    `meta["stories"]`."""
     meta = json.loads((DATA / "lock-meta.json").read_text(encoding="utf-8"))
     bench_ = json.loads((DATA / "bench.json").read_text(encoding="utf-8"))
     lock = _csv_blocks((DATA / "lock.csv").read_text(encoding="utf-8"))
@@ -312,6 +344,7 @@ def load() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
             f"the validator ran at {meta['commit']}, the benches at "
             f"{bench_['commit_info']['id'][:9]}: one commit, or no record"
         )
+    lock["story"], meta["stories"] = _stories(lock)
     return lock, meta, bench_
 
 
@@ -373,6 +406,7 @@ def held_at(profile: str, ms: float) -> bool:
 
 def stamp(lock: Any, meta: dict[str, Any], bench_: dict[str, Any]) -> str:
     mi = bench_["machine_info"]
+    sm = meta["stories"]
     rows = [
         [
             "lock validator, full sweep",
@@ -392,6 +426,16 @@ def stamp(lock: Any, meta: dict[str, Any], bench_: dict[str, Any]) -> str:
             f"`{bench_['commit_info']['id'][:9]}`, clean",
             f'`make bench BENCH_ARGS="{BENCH_ARGS}"` once the load fell '
             f"under {QUIET_LOAD:g}, rows kept by `record.py`",
+        ],
+        [
+            "lifecycle stories (§3.2)",
+            f"{sm['date_utc']} UTC, {sm['wall_s']:.0f} s",
+            f"`{sm['machine']}`: {sm['cpu_model']} "
+            f"({sm['cpu_threads']} threads)",
+            f"{sm['load_before'][0]:.1f} / {sm['load_after'][0]:.1f}",
+            f"`{sm['commit']}`, clean",
+            "`make build`, then `record.py stories`; each story is the "
+            "sweep's arrival trial of its draws, checked",
         ],
     ]
     return table(
@@ -669,8 +713,41 @@ def design_pool(lock: Any, meta: Any, bench_: dict[str, Any]) -> str:
     return table(["per push", "timed at", "× real time (wall)"], rows)
 
 
+def stories_block(lock: Any, meta: Any, bench_: Any) -> str:
+    """The stories, each against its sweep trial, then their figures."""
+    rows = [
+        [
+            f"`{s['name']}`",
+            _db(s["esn0_db"]),
+            s["seed"],
+            f"{_f(s['carrier_hz']):+.1f} Hz",
+            f"{_f(s['delay_s']) * 1e3:.1f} ms",
+            (
+                f"{_f(s['t_lock_ms']):.1f} ms"
+                if _num(s["t_lock_ms"])
+                else "never"
+            ),
+        ]
+        for s in lock["story"]
+    ]
+    figs = [
+        f"![{s['name']}](async-dsss-parallel-measurements/{s['name']}.png)"
+        for s in lock["story"]
+    ]
+    head = [
+        "story",
+        "Es/N0",
+        "seed",
+        "carrier",
+        "arrival",
+        "symbol lock after arrival",
+    ]
+    return "\n\n".join([table(head, rows), *figs])
+
+
 BLOCKS = {
     "stamp": stamp,
+    "stories": stories_block,
     "arrival": arrival,
     "seed": seed,
     "dropout": dropout,

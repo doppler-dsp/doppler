@@ -64,6 +64,7 @@ validate_async_dsss_pool_soak_budget   138.3
 validate_async_dsss_pool_soak          128.1
 validate_async_dsss_receiver_release    19.7
 validate_async_dsss_receiver_lock        2.2  # CI's sweep job: 2.24 s and 1.17 s on two runners, the whole sweep 0.58x between them; the slower kept
+validate_async_dsss_receiver_lock_telemetry 1.9  # new: 0.91 s here; CI ran its sibling check at 0.94x to 1.8x of this box; re-record from the sweep job
 validate_receiver_pullin                19.3
 validate_acq_peak_list                  23.2
 validate_acq_template_pd                2.0  # prices the CFAR reference (doppler#1501): ~2x per construction

@@ -94,12 +94,22 @@ separate bench of spares.
 - **Tracking ends when symbol lock is lost,** and the receiver goes back to
     searching at its offset. A signal changes only after a data-free block
     (§1), so a loss there is normally its signal leaving, and symbol lock
-    lets go of a signal gone for good within 43 ms at 10 dB and 27 ms at
-    5 dB (§3.1), well inside one data-free block. Inside a frame it is less
-    forgiving (§3.1): of 20 draws it rides out a 5 ms dropout in 20 at
-    10 dB and 17 at the 5 dB floor, a 10 ms one in 16 and 10, and a 20 ms
-    one in 5 and 1. Under this rule, a fade much past 10 ms costs a
-    re-search.
+    lets go of a signal gone for good well inside one data-free block.
+    Inside a frame it is less forgiving: under this rule a fade it does not
+    ride out costs a re-search, and at the 5 dB floor even a short one
+    often does.
+
+Symbol lock through a fade, of the draws that held lock before it; the
+draws that had not are excluded and counted (§3.1):
+
+<!-- async-dsss-parallel:design-fade:start -->
+
+| Es/N0 | draws not settled, excluded | rides out 5 ms       | rides out 10 ms      | rides out 20 ms     | lets go after a loss, the slowest |
+| ----- | --------------------------- | -------------------- | -------------------- | ------------------- | --------------------------------- |
+| 10 dB | 1 of 21                     | 20 of 20 (0.84–1.00) | 17 of 20 (0.64–0.95) | 7 of 20 (0.18–0.57) | 33.9 ms                           |
+| 5 dB  | 8 of 28                     | 20 of 20 (0.84–1.00) | 12 of 20 (0.39–0.78) | 1 of 20 (0.01–0.24) | 30.8 ms                           |
+
+<!-- async-dsss-parallel:design-fade:end -->
 
 What today's receiver must gain for this:
 
@@ -150,52 +160,87 @@ for anyone to be freed. With the receiver's own search over $\pm 1/T_E$, data
 on, and a signal arriving at any time, code phase and carrier in range
 (§5.1):
 
-| Es/N0 | tracking (the state), median | symbol lock, median | symbol lock within 2 s |
-| ----- | ---------------------------- | ------------------- | ---------------------- |
-| 10 dB | 45 ms                        | 86 ms               | 20 of 20               |
-| 5 dB  | 86 ms                        | 380 ms              | 15 of 20               |
+<!-- async-dsss-parallel:design-arrival:start -->
 
-At 10 dB both are inside one default data-free block (185 ms). At the 5 dB
-floor the search is not what is slow: the state reads tracking within
-101 ms on every draw, and it is symbol lock that lags, by seconds on some
-draws and past 2 s on a quarter of them. What decides it is the carrier the
-refine stage hands the carrier loop: every draw within 200 Hz of the truth
-locked, and none 300 Hz or more off (§5.1), the residual outside the loop's
-pull-in that doppler#982 found. Since this design defines tracking as symbol
-lock, a receiver at the floor that misses it would let go of the signal it
-holds and search again, so the refine's residual is a design input
-(doppler#2409).
+| Es/N0 | tracking (the state), median | symbol lock, median of those that lock | locked 2 s after arrival |
+| ----- | ---------------------------- | -------------------------------------- | ------------------------ |
+| 10 dB | 45 ms (slowest 47)           | 86 ms (slowest 698)                    | 20 of 20 (0.84–1.00)     |
+| 5 dB  | 86 ms (slowest 101)          | 380 ms (slowest 1768)                  | 15 of 20 (0.53–0.89)     |
+
+<!-- async-dsss-parallel:design-arrival:end -->
+
+At 10 dB the median arrival locks inside one default data-free block
+(185 ms), though not every draw does. At the 5 dB floor the search is not
+what is slow: the state reads tracking on every draw, and it is symbol lock
+that lags, on some draws for seconds and on some not within 2 s. What
+decides it is the carrier the refine stage hands the carrier loop, by how
+far it lands from the truth (§5.1):
+
+<!-- async-dsss-parallel:design-seed:start -->
+
+| refine seed error | locked, 10 dB                      | locked, 5 dB                       |
+| ----------------- | ---------------------------------- | ---------------------------------- |
+| 0–100 Hz          | 15 of 15 (0.80–1.00), median 67 ms | 6 of 6 (0.61–1.00), median 151 ms  |
+| 100–200 Hz        | 3 of 3 (0.44–1.00), median 143 ms  | 5 of 5 (0.57–1.00), median 419 ms  |
+| 200–300 Hz        | 2 of 2 (0.34–1.00), median 599 ms  | 4 of 7 (0.25–0.84), median 1444 ms |
+| ≥ 300 Hz          | —                                  | 0 of 2 (0.00–0.66)                 |
+
+<!-- async-dsss-parallel:design-seed:end -->
+
+The loop's acquisition bound is `bn / m`, 60 Hz at this front end, and it
+acquires every draw inside it, reliably to twice it and not at all by four
+times (`costas_pullin.c`, `async_dsss_receiver_core.h`). The whole receiver
+shows the same soft edge: slower to lock as the seed error grows, and not
+locking with the largest. That residual is doppler#982's. Since this design
+defines tracking as symbol lock, a receiver at the floor that misses it
+would let go of the signal it holds and search again, so the refine's
+residual is a design input (doppler#2409).
 
 ## 6. What it costs
 
 Every state fits one CPU (§6: the shipped C benches, the mean per sample at
 6.138 MSa/s):
 
-| receiver state                                       | × real time |
-| ---------------------------------------------------- | ----------- |
-| tracking                                             | 0.07        |
-| searching one tile, its own one-epoch looks          | 0.14        |
-| searching $\pm 1/T_E$ (three tiles), one-epoch looks | 0.23        |
-| searching $\pm 1/T_E$, slow time over D = 154 epochs | 0.54        |
+<!-- async-dsss-parallel:design-cost:start -->
+
+| receiver state                              | × real time, one thread |
+| ------------------------------------------- | ----------------------- |
+| tracking                                    | 0.07                    |
+| searching one tile, one-epoch looks         | 0.14                    |
+| searching ±1/T_E (3 tiles), one-epoch looks | 0.22                    |
+| searching ±1/T_E, slow time over D = 154    | 0.54                    |
+
+<!-- async-dsss-parallel:design-cost:end -->
 
 The slow-time row is deeper than the 94 epochs this design's Doppler rate
-allows, so it bounds that search. Even a search of the whole range at that
-depth leaves about half its CPU free, so the controller's offsets are for
-spreading the searching receivers across the range, not for fitting one into
-its CPU.
+allows, so it bounds that search. Even it leaves the CPU spare, so the
+controller's offsets are for spreading the searching receivers across the
+range, not for fitting one into its CPU.
 
 ## 7. Why the pool as built is replaced
 
 Its push is one receiver's plus a central searcher's that never stops,
-because a new emitter may appear at any time (§7). With twelve slots and one
-emitter tracked at 5 Mcps, its push costs 1.03 of real time on one core,
-against 0.11 for one tracking receiver, and its slowest push, a dwell, about
-twenty times its fastest. At the design point it was sized for, ±50 kHz at
-the Doppler-rate depth, its searcher is 5.4 of real time on one thread at
-5 Mcps (21 tiles, D = 154) and 8.8 at 2 Mcps (53 tiles, D = 61); eight threads
-bring the first to 1.3 and four the second to 2.6 of real time, in wall
-time, the CPUs they spend being more. Parallel receivers spend nothing like
-that: the search is each idle receiver's own.
+because a new emitter may appear at any time. At the design point it was
+sized for, ±50 kHz at the Doppler-rate depth, that searcher alone runs
+several times slower than real time on one thread, and threads bring it
+down only in wall time, the CPUs they spend being more (§7):
+
+<!-- async-dsss-parallel:design-pool:start -->
+
+| per push                                   | timed at | × real time (wall) |
+| ------------------------------------------ | -------- | ------------------ |
+| one receiver, tracking                     | 10 MSa/s | 0.11               |
+| the pool, 12 slots, one emitter tracked    | 10 MSa/s | 1.08               |
+| the same, across the machine's cores       | 10 MSa/s | 0.98               |
+| its searcher at ±50 kHz, 21 tiles, D = 154 | 10 MSa/s | 5.27               |
+| the same, eight threads                    | 10 MSa/s | 1.27               |
+| its searcher at ±50 kHz, 53 tiles, D = 61  | 4 MSa/s  | 8.62               |
+| the same, four threads                     | 4 MSa/s  | 2.41               |
+
+<!-- async-dsss-parallel:design-pool:end -->
+
+Parallel receivers spend nothing like that: the search is each idle
+receiver's own.
 
 ## Related
 

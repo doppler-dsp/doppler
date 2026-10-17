@@ -5,9 +5,10 @@ independent `AsyncDsssReceiver`s, each pinned to its own CPU, under a
 controller that only watches, tunes and reports. This page is that design.
 It replaces the pool [`async-dsss-receiver.md`](async-dsss-receiver.md)
 describes in its §5–§11, the central searcher, the assigned table and the
-cell receivers behind it. Every number here is measured, and the runs behind
-them are [the measurement record](async-dsss-parallel-measurements.md),
-under the same section numbers. The points still to decide are doppler#2409.*
+cell receivers behind it. Its measured numbers are [the measurement
+record](async-dsss-parallel-measurements.md)'s, rendered from the runs of
+shipped tools behind it under the same section numbers; the rest are derived
+from §2's parameters. The points still to decide are doppler#2409.*
 
 ______________________________________________________________________
 
@@ -31,10 +32,13 @@ In numbers, at the parameters of §2:
 | one code epoch $T_E$ = 1,023 chips at 3.069 Mcps                     | 333.3 µs, 2,046 samples at 2 samples a chip |
 | $1/T_E$: the carrier bound $\Delta f_c$, and one search tile's width | 3,000 Hz                                    |
 | $E_s/N_0 \geq 5$ dB at 2,700 sym/s                                   | C/N0 ≥ 39.3 dB-Hz, 4.5 dB per epoch         |
-| the data-free block, by default (configurable)                       | 500 all-zero symbols: 185 ms, 556 epochs    |
+| the data-free block, by default (configurable)                       | 500 all-zero symbols: 185 ms, 555.6 epochs  |
 
 **A signal changes only after a data-free block.** One goes off air, or a new
-one comes on, at a frame boundary, never inside a frame.
+one comes on, at a frame boundary, never inside a frame. The 500-symbol block
+is this design's; SPEC's code-only window is 450 symbols (167 ms), which the
+pool as built is sized at, and either holds the 94-epoch depth the 500 Hz/s
+Doppler rate allows at 3.069 Mcps.
 
 ## 2. Receiver operation
 
@@ -89,17 +93,24 @@ separate bench of spares.
     chain live.
 - **Tracking ends when symbol lock is lost,** and the receiver goes back to
     searching at its offset. A signal changes only after a data-free block
-    (§1), so a loss there is normally its signal leaving. The lock detector
-    is already hysteretic (§3.1): it rides out a dropout of up to 20 ms at
-    10 dB and 10 ms at 5 dB, and lets go 20–24 ms after a signal leaves for
-    good, well inside one data-free block.
+    (§1), so a loss there is normally its signal leaving, and symbol lock
+    lets go of a signal gone for good within 43 ms at 10 dB and 27 ms at
+    5 dB (§3.1), well inside one data-free block. Inside a frame it is less
+    forgiving (§3.1): of 20 draws it rides out a 5 ms dropout in 20 at
+    10 dB and 17 at the 5 dB floor, a 10 ms one in 16 and 10, and a 20 ms
+    one in 5 and 1. Under this rule, a fade much past 10 ms costs a
+    re-search.
 
 What today's receiver must gain for this:
 
-1. **Re-acquiring on loss.** Today the searching flavor never leaves
-    tracking: its `lost_confirm_s` defaults to 0, so it never enters `lost`
-    and coasts through anything
+1. **Re-acquiring on loss of symbol lock.** The searching flavor can
+    already reach `lost`: `lost_confirm_s`, a create parameter, releases
+    tracking once BOTH lock flags have been down that long, and `reset()`
+    returns it to searching
     (`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`).
+    By default it is 0, so it never does. What it lacks is the step from
+    `lost` back to searching on its own, and this design's trigger: symbol
+    lock alone, where today's release needs code lock down too.
 1. **A tuned offset**: a search centred where the controller says, not at 0.
 1. **The slow-time search on command,** at a depth the data-free block and
     the Doppler rate allow.
@@ -113,7 +124,8 @@ What today's receiver must gain for this:
     arriving together lock on k receivers in one dwell. Ranks line up only
     if those receivers' dwells start on the same epoch of the shared sample
     clock. The engine already reports a peak list (`set_max_peaks`; the
-    pool asks for 16).
+    pool asks for 16), but the receiver's own search asks it for one hit and
+    exposes no way to ask for more.
 
 ## 4. The controller
 
@@ -134,50 +146,56 @@ surface. It:
 ## 5. Arrival to tracking
 
 A new signal is found by the receivers already searching, without waiting
-for anyone to be freed. The receiver's own search over $\pm 1/T_E$, data on
+for anyone to be freed. With the receiver's own search over $\pm 1/T_E$, data
+on, and a signal arriving at any time, code phase and carrier in range
 (§5.1):
 
-| Es/N0 | searching | refining   | arrival to tracking |
-| ----- | --------- | ---------- | ------------------- |
-| 10 dB | 9 pushes  | 127 pushes | 45 ms               |
-| 5 dB  | 45 pushes | 218 pushes | 88 ms               |
+| Es/N0 | tracking (the state), median | symbol lock, median | symbol lock within 2 s |
+| ----- | ---------------------------- | ------------------- | ---------------------- |
+| 10 dB | 45 ms                        | 86 ms               | 20 of 20               |
+| 5 dB  | 86 ms                        | 380 ms              | 15 of 20               |
 
-Both are inside one default data-free block (185 ms).
+At 10 dB both are inside one default data-free block (185 ms). At the 5 dB
+floor the search is not what is slow: the state reads tracking within
+101 ms on every draw, and it is symbol lock that lags, by seconds on some
+draws and past 2 s on a quarter of them. What decides it is the carrier the
+refine stage hands the carrier loop: every draw within 200 Hz of the truth
+locked, and none 300 Hz or more off (§5.1), the residual outside the loop's
+pull-in that doppler#982 found. Since this design defines tracking as symbol
+lock, a receiver at the floor that misses it would let go of the signal it
+holds and search again, so the refine's residual is a design input
+(doppler#2409).
 
 ## 6. What it costs
 
-Every state fits one CPU, at every depth (§6.1, §6.2: the share of one CPU
-is the push time over the 333.3 µs of signal it covers):
+Every state fits one CPU (§6: the shipped C benches, the mean per sample at
+6.138 MSa/s):
 
-| receiver                                                           | one tile  | the whole range, $\pm 1/T_E$ |
-| ------------------------------------------------------------------ | --------- | ---------------------------- |
-| tracking                                                           | 0.07–0.08 | 0.07–0.08                    |
-| searching, its own one-epoch looks                                 | 0.17      | 0.34                         |
-| searching, slow-time over D = 16                                   | 0.24      | 0.39                         |
-| searching, slow-time over D = 94 (the 500 Hz/s Doppler-rate bound) | 0.33      | 0.64                         |
+| receiver state                                       | × real time |
+| ---------------------------------------------------- | ----------- |
+| tracking                                             | 0.07        |
+| searching one tile, its own one-epoch looks          | 0.14        |
+| searching $\pm 1/T_E$ (three tiles), one-epoch looks | 0.23        |
+| searching $\pm 1/T_E$, slow time over D = 154 epochs | 0.54        |
 
-Even a search of the whole range at the rate-bound depth leaves a third of
-its CPU free, so the controller's offsets are for spreading the searching
-receivers across the range, not for fitting one into its CPU. Tracking cost
-0.07–0.08 with data on at 10 and 5 dB, and 0.07 code only at 10 dB.
+The slow-time row is deeper than the 94 epochs this design's Doppler rate
+allows, so it bounds that search. Even a search of the whole range at that
+depth leaves about half its CPU free, so the controller's offsets are for
+spreading the searching receivers across the range, not for fitting one into
+its CPU.
 
 ## 7. Why the pool as built is replaced
 
 Its push is one receiver's plus a central searcher's that never stops,
-because a new emitter may appear at any time (§7.1):
-
-| per push                      | share of one CPU |
-| ----------------------------- | ---------------- |
-| one receiver                  | 0.09             |
-| the pool, one emitter tracked | 0.64             |
-| the pool's searcher alone     | 0.56             |
-
-At the design point the pool was sized for (±50 kHz in 35 tiles, the
-rate-bound depth of 94 epochs) that searcher is 7.4 CPUs serially, 2.2 on
-four threads and 1.5 on eight (§7.2). On eight threads the dwell that
-decides each 94-epoch block alone takes 33 ms, longer than the block's
-31.3 ms of signal. Parallel receivers spend nothing like that: the search is
-each idle receiver's own.
+because a new emitter may appear at any time (§7). With twelve slots and one
+emitter tracked at 5 Mcps, its push costs 1.03 of real time on one core,
+against 0.11 for one tracking receiver, and its slowest push, a dwell, about
+twenty times its fastest. At the design point it was sized for, ±50 kHz at
+the Doppler-rate depth, its searcher is 5.4 of real time on one thread at
+5 Mcps (21 tiles, D = 154) and 8.8 at 2 Mcps (53 tiles, D = 61); eight threads
+bring the first to 1.3 and four the second to 2.6 of real time, in wall
+time, the CPUs they spend being more. Parallel receivers spend nothing like
+that: the search is each idle receiver's own.
 
 ## Related
 

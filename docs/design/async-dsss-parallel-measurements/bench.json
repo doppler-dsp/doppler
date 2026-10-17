@@ -1,0 +1,141 @@
+{
+ "datetime": "2026-10-17T17:57:16.325968+00:00",
+ "machine_info": {
+  "node": "swiftgo-ai9465",
+  "system": "Linux",
+  "release": "6.12.111+deb13-amd64",
+  "machine": "x86_64",
+  "cpu": {
+   "count": 20,
+   "brand_raw": "AMD Ryzen AI 9 465 w/ Radeon 880M"
+  }
+ },
+ "commit_info": {
+  "id": "24980d08da02880197af28246eeac5ea040a79a5",
+  "branch": "HEAD",
+  "dirty": false
+ },
+ "benchmarks": [
+  {
+   "name": "async_dsss_receiver::steps[cell,sf=1023,5Mcps]",
+   "stats": {
+    "min": 0.000730563,
+    "max": 0.0007645060000000001,
+    "mean": 0.0007437007500000001,
+    "median": 0.0007449395,
+    "iterations": 65536,
+    "rounds": 20
+   }
+  },
+  {
+   "name": "acq::native_nc90",
+   "stats": {
+    "min": 0.004133947000000001,
+    "max": 0.004367246,
+    "mean": 0.004180954466666667,
+    "median": 0.004159014,
+    "iterations": 184140,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op5M_U5k_nc225",
+   "stats": {
+    "min": 0.016824882,
+    "max": 0.01915443,
+    "mean": 0.017104010733333334,
+    "median": 0.016957321,
+    "iterations": 460350,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op5M_U5k_D154_t1_nc1",
+   "stats": {
+    "min": 0.027521356,
+    "max": 0.028141481000000003,
+    "mean": 0.02781087686666667,
+    "median": 0.027804167,
+    "iterations": 315084,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op5M_U5k_D154_t4_nc1",
+   "stats": {
+    "min": 0.013889975,
+    "max": 0.020387252,
+    "mean": 0.017354585066666667,
+    "median": 0.017680286,
+    "iterations": 315084,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[12 slots, serial]",
+   "stats": {
+    "min": 9.2323e-05,
+    "max": 0.0018804730000000001,
+    "mean": 0.00021167928500000002,
+    "median": 9.632600000000001e-05,
+    "iterations": 2046,
+    "rounds": 200
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[12 slots, all cores]",
+   "stats": {
+    "min": 9.310400000000001e-05,
+    "max": 0.0028543830000000003,
+    "mean": 0.00023060620000000005,
+    "median": 0.0001079125,
+    "iterations": 2046,
+    "rounds": 200
+   }
+  },
+  {
+   "name": "acq::op5M_U50k_D154_t1_nc1",
+   "stats": {
+    "min": 0.165497004,
+    "max": 0.189783898,
+    "mean": 0.17028988033333334,
+    "median": 0.167980171,
+    "iterations": 315084,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op5M_U50k_D154_t8_nc1",
+   "stats": {
+    "min": 0.039490186000000004,
+    "max": 0.043090010000000005,
+    "mean": 0.04116148593333334,
+    "median": 0.041424709000000004,
+    "iterations": 315084,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op2M_U50k_D61_t1_nc1",
+   "stats": {
+    "min": 0.268658351,
+    "max": 0.29048818400000004,
+    "mean": 0.27480911006666664,
+    "median": 0.272634293,
+    "iterations": 124806,
+    "rounds": 15
+   }
+  },
+  {
+   "name": "acq::op2M_U50k_D61_t4_nc1",
+   "stats": {
+    "min": 0.074342249,
+    "max": 0.09499265700000001,
+    "mean": 0.08030933073333334,
+    "median": 0.079816566,
+    "iterations": 124806,
+    "rounds": 15
+   }
+  }
+ ]
+}

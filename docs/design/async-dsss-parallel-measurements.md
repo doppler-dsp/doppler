@@ -2,129 +2,161 @@
 
 *The dated record behind [the design page](async-dsss-parallel.md): what each
 number there was measured by, with the run. Section numbers are shared, so a
-`§6.2` cited on the design page, in an issue or in a code comment is the same
-entry here. Every entry comes from one function of
-`src/doppler/dsss/tests/characterization/async_dsss_pool/characterize.py`,
-named in it, and the entries below are one run of all of them:*
+`§3.1` cited on the design page, in an issue or in a code comment is the same
+entry here. Both runs are of shipped tools, at one commit: the lock
+validator, `native/validation/async_dsss_receiver_lock.c`, and the C benches
+of the three objects. Every table below is rendered from their data,
+committed beside this page in `async-dsss-parallel-measurements/` by its
+`record.py`, whose `--check` (in `make docs-invariants`) fails when a table
+differs from the data.*
 
-|         |                                                                                                                     |
-| ------- | ------------------------------------------------------------------------------------------------------------------- |
-| date    | 2026-10-17, 16:42 UTC (load average 3.4)                                                                            |
-| machine | `swiftgo-ai9465`: AMD Ryzen AI 9 465 (20 threads), Python 3.14.8                                                    |
-| commit  | `730af9f2c`, clean tree                                                                                             |
-| command | `make characterize CHARACTERIZATIONS=src/doppler/dsss/tests/characterization/async_dsss_pool/characterize.py` (8 s) |
+<!-- async-dsss-parallel:stamp:start -->
 
-*A share of one CPU is the push time over the 333.3 µs of signal a push
-covers: one push is one code epoch, 2,046 samples at 6.138 MSa/s. Timings
-are wall-clock around the Python call, so a rerun on another machine, or
-under load, moves them; what it must not move is which state costs what, and
-what fits one CPU. The signal is the shipped `Synth`'s continuous DSSS:
-Gold-1023 at 3.069 Mcps (so 1/T_E is 3 kHz), 2 samples a chip, 2,700 sym/s
-asynchronous BPSK, 1,500 Hz. The search-only rows use noise.*
+| run                        | when                       | machine                                                                    | commit             | command                                                                                                 |
+| -------------------------- | -------------------------- | -------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------- |
+| lock validator, full sweep | 2026-10-17 17:57 UTC, 38 s | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads), load 9.7 | `24980d08d`, clean | `make build`, then `record.py measure`                                                                  |
+| C benches                  | 2026-10-17 17:57 UTC       | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads)           | `24980d08d`, clean | `make bench BENCH_ARGS="--c-only acq async_dsss_receiver async_dsss_pool"`, then `record.py take-bench` |
+
+<!-- async-dsss-parallel:stamp:end -->
+
+*The operating point throughout: Gold-1023 (CCSDS #365) at 3.069 Mcps, two
+samples a chip, so one code epoch is 2,046 samples, 333.3 µs, and 1/T_E is
+3 kHz; asynchronous BPSK at 2,700 sym/s. The receiver is the searching flavor
+at the binding's defaults, its own search over ±1/T_E. The emitter is the
+shipped continuous-DSSS synth carrying the validator's own data bits, with no
+data-free window, so every lock measurement is taken where the symbols
+transition: each row's "data flips" is the fraction of symbol boundaries that
+flip around its event, counted from the bits. The noise is the shipped awgn,
+and an arrival or a dropout cuts the signal only. A fraction carries its 95%
+Wilson interval.*
 
 ______________________________________________________________________
 
 ### 3.1 Symbol lock through a dropout
 
-`s3_1_lock_hysteresis`: a receiver searching ±1/T_E, locked on a data-on
-signal for 0.6 s; then the SIGNAL is cut (the noise runs on, the library's
-`wfm_awgn_amplitude` over a unit-noise `Synth`) for the time shown, then
-restored for 0.5 s. The receiver's symbol lock (`locked`) is read every
-epoch. The detector behind it is a power-weighted average over 30 symbols,
-declared after 30 symbols at or above 0.5 and dropped after 15 below 0.3
-(`ASYNC_DSSS_RX_LOCK_*`, `async_dsss_receiver_core.h`).
+The validator's `dropout` trials: the signal at 1,500 Hz, data on, fed until
+the receiver tracks with symbol lock up for 200 epochs in a row, then up to
+10 ms more, then cut at a random sample of the next epoch. A draw with no
+symbol lock within 4 s is excluded and counted (§5.1 says why there are
+some). The receiver's state at the cut is saved, and every case resumes from
+it on the same noise, so they differ only in the dropout. Symbol lock is read
+after every epoch, so every time is to 0.33 ms. The receiver stays tracking
+throughout (`lost_confirm_s` = 0): a lock that falls comes back by itself.
 
-| Es/N0 | dropout      | held | lock fell, after the cut began | lock back, after the signal returned |
-| ----- | ------------ | ---- | ------------------------------ | ------------------------------------ |
-| 10 dB | 5, 10, 20 ms | yes  |                                |                                      |
-| 10 dB | 30 ms        | no   | 24.0 ms                        | 18.0 ms                              |
-| 10 dB | 50 ms        | no   | 24.0 ms                        | 19.3 ms                              |
-| 10 dB | 100 ms       | no   | 24.0 ms                        | 19.3 ms                              |
-| 10 dB | 200 ms       | no   | 24.0 ms                        | 28.7 ms                              |
-| 10 dB | for good     | no   | 24.0 ms                        |                                      |
-| 5 dB  | 5, 10 ms     | yes  |                                |                                      |
-| 5 dB  | 20 ms        | no   | 19.7 ms                        | 57.3 ms                              |
-| 5 dB  | 30 ms        | no   | 19.7 ms                        | 99.0 ms                              |
-| 5 dB  | 50 ms        | no   | 19.7 ms                        | 76.3 ms                              |
-| 5 dB  | 100 ms       | no   | 19.7 ms                        | 61.0 ms                              |
-| 5 dB  | 200 ms       | no   | 19.7 ms                        | 70.7 ms                              |
-| 5 dB  | for good     | no   | 19.7 ms                        |                                      |
+<!-- async-dsss-parallel:dropout:start -->
 
-"Lock back" is the receiver as built, still tracking with its loops running
-through the dropout; it does not leave tracking (§3). One seed per point.
+| Es/N0 | draws with symbol lock at the cut | lock falls after a loss, min / median / max | a 50 ms dropout: fell; back after the signal | a 200 ms dropout: fell; back after the signal | data flips at the cut |
+| ----- | --------------------------------- | ------------------------------------------- | -------------------------------------------- | --------------------------------------------- | --------------------- |
+| 10 dB | 20 of 24 (0.64–0.93)              | 15.3 / 23.1 / 42.5 ms                       | 20 of 20; 21.8 / 30.4 / 40.8 ms              | 20 of 20; 20.9 / 33.8 / 67.1 ms               | 0.44–0.54             |
+| 5 dB  | 20 of 28 (0.53–0.85)              | 10.8 / 18.1 / 26.1 ms                       | 20 of 20; 38.8 / 58.3 / 100.1 ms             | 20 of 20; 22.4 / 89.0 / 144.8 ms              | 0.46–0.54             |
 
-### 5.1 Arrival to tracking
+<!-- async-dsss-parallel:dropout:end -->
 
-`s5_1_acquisition`: one receiver, its own search over ±1/T_E, on 1 s of
-signal with data on, counting the pushes it spent searching and refining
-before it tracked.
+**The hold, by dropout length.** Each trial is run through a dropout of every
+length from one epoch to two past its own drop, each from the saved state:
+held means symbol lock stayed up through the dropout and 60 ms after it.
 
-| Es/N0 | searching | refining | arrival to tracking | tracked |
-| ----- | --------- | -------- | ------------------- | ------- |
-| 10 dB | 9         | 127      | 45.3 ms             | yes     |
-| 5 dB  | 45        | 218      | 87.7 ms             | yes     |
+<!-- async-dsss-parallel:hold:start -->
 
-One seed per point (the synth's seed 7), so these are single draws, not a
-distribution.
+| Es/N0 | draws excluded: no symbol lock within 4 s | held 2 ms            | held 5 ms            | held 10 ms           | held 15 ms           | held 20 ms          | held 25 ms          | held 30 ms          | trials where a longer one held after a shorter fell |
+| ----- | ----------------------------------------- | -------------------- | -------------------- | -------------------- | -------------------- | ------------------- | ------------------- | ------------------- | --------------------------------------------------- |
+| 10 dB | 4 of 24                                   | 20 of 20 (0.84–1.00) | 20 of 20 (0.84–1.00) | 16 of 20 (0.58–0.92) | 12 of 20 (0.39–0.78) | 5 of 20 (0.11–0.47) | 2 of 20 (0.03–0.30) | 1 of 20 (0.01–0.24) | 10                                                  |
+| 5 dB  | 8 of 28                                   | 20 of 20 (0.84–1.00) | 17 of 20 (0.64–0.95) | 10 of 20 (0.30–0.70) | 5 of 20 (0.11–0.47)  | 1 of 20 (0.01–0.24) | 0 of 20 (0.00–0.16) | 0 of 20 (0.00–0.16) | 9                                                   |
 
-### 6.1 One tracking receiver
+<!-- async-dsss-parallel:hold:end -->
 
-`s6_1_tracking`: the same receiver over 2 s of signal, timed per push while
-it tracked.
+The hold is not one number per draw. In about half the trials a longer
+dropout held after a shorter one fell: the lock average (an exponential
+average over 30 symbols) sinks under its threshold in the dropout and climbs
+back too late after it, and where it lands depends on the noise of those few
+milliseconds. So the hold is reported as a fraction per length, never as an
+edge. The first sweep also asserted that a dropout of `LOCK_N_DOWN` symbols
+(5.6 ms) cannot drop the lock, which reads like a property of the detector;
+four 5 dB trials held only 2.7–4.7 ms, the low run supplied by the recovery
+after the dropout, and the assertion went.
 
-| Es/N0 | signal    | tracking pushes | median push | share of one CPU |
-| ----- | --------- | --------------- | ----------- | ---------------- |
-| 10 dB | data on   | 5,864           | 23.8 µs     | 0.074            |
-| 5 dB  | data on   | 5,737           | 24.2 µs     | 0.081            |
-| 10 dB | code only | 5,865           | 23.7 µs     | 0.072            |
+### 5.1 Arrival to tracking, and to symbol lock
 
-### 6.2 One receiver searching
+The validator's `arrival` trials: noise alone for a uniform 0 to 20 ms, so
+the signal starts at any sample of an epoch and any code phase against the
+feed, then the signal at a carrier uniform over ±1/T_E, for 2 s. Times are
+from the arrival sample, to the first epoch the receiver reads tracking and to
+the first after which symbol lock is up. The SNR of its symbols is
+`dp_test_m2m4_snr_db` over its last 1,000, truth-free.
 
-`s6_2_search_depth`: on noise, so the search never stops. At one tile
-(±0.49/T_E about the receiver's offset) and over the whole carrier range
-(±1/T_E). "The receiver's own" is `AsyncDsssReceiver` with that
-`doppler_uncertainty`, its one-epoch looks. The slow-time rows are the
-continuous `Acquisition` engine the receiver carries, with a coherent block
-of D epochs: D = 16 from a 31-epoch data-free window, D = 94 from SPEC's 500
-with the 500 Hz/s Doppler rate bounding it. At least 1,024 pushes and four
-dwells are timed after a warm-up block.
+<!-- async-dsss-parallel:arrival:start -->
 
-| range    | search             | D   | dwell   | share of one CPU |
-| -------- | ------------------ | --- | ------- | ---------------- |
-| one tile | the receiver's own | 1   |         | 0.169            |
-| one tile | slow-time          | 16  | 1.2 ms  | 0.235            |
-| one tile | slow-time          | 94  | 11.0 ms | 0.328            |
-| ±1/T_E   | the receiver's own | 1   |         | 0.340            |
-| ±1/T_E   | slow-time          | 16  | 0.8 ms  | 0.386            |
-| ±1/T_E   | slow-time          | 94  | 14.3 ms | 0.644            |
+| Es/N0 | tracking, after arrival: min / median / max | symbol lock, after arrival                      | locked at 2 s        | SNR of its symbols (m2m4), median | data flips |
+| ----- | ------------------------------------------- | ----------------------------------------------- | -------------------- | --------------------------------- | ---------- |
+| 10 dB | 20 of 20; 43.5 / 44.6 / 47.3 ms             | 20 of 20 (0.84–1.00); 57.9 / 86.2 / 698.0 ms    | 20 of 20 (0.84–1.00) | 12.2 dB                           | 0.47–0.56  |
+| 5 dB  | 20 of 20; 79.4 / 86.3 / 100.8 ms            | 15 of 20 (0.53–0.89); 124.9 / 379.8 / 1768.0 ms | 15 of 20 (0.53–0.89) | 8.1 dB                            | 0.47–0.56  |
 
-### 7.1 The pool as built: where a push goes
+<!-- async-dsss-parallel:arrival:end -->
 
-`s7_1_split`: the pool (four slots, one thread), one receiver, and a
-continuous `Acquisition` built as the pool builds its searcher, each pushed
-the same epoch in turn on 1 s of one code-only emitter at 47 dB-Hz, searched
-over ±1/T_E with 31 code-only epochs. A dwell decides every 16th push.
+**What decides the lock: the refine stage's carrier.** The same trials, by
+how far the refine stage's carrier estimate, read when the receiver first
+tracks (`get_doppler_hz()`, frozen from then), lands from the truth. That is
+the residual the carrier loop must pull in, and its pull-in is about 60 Hz
+(`costas_pullin.c`); doppler#982 found the refine handing over outside it.
 
-| object                    | ordinary push | slowest 1 in 16 | share of one CPU |
-| ------------------------- | ------------- | --------------- | ---------------- |
-| one receiver              | 25.3 µs       | 84.0 µs         | 0.090            |
-| the pool                  | 98.5 µs       | 1,824 µs        | 0.639            |
-| the pool's searcher alone | 74.5 µs       | 1,776 µs        | 0.556            |
+<!-- async-dsss-parallel:seed:start -->
 
-The pool's cost above one receiver is its searcher's: 98.5 − 25.3 = 73.2 µs
-against 74.5 µs on an ordinary push.
+| refine seed error | locked, 10 dB                      | locked, 5 dB                       |
+| ----------------- | ---------------------------------- | ---------------------------------- |
+| 0–100 Hz          | 15 of 15 (0.80–1.00), median 67 ms | 6 of 6 (0.61–1.00), median 151 ms  |
+| 100–200 Hz        | 3 of 3 (0.44–1.00), median 143 ms  | 5 of 5 (0.57–1.00), median 419 ms  |
+| 200–300 Hz        | 2 of 2 (0.34–1.00), median 599 ms  | 4 of 7 (0.25–0.84), median 1444 ms |
+| ≥ 300 Hz          | —                                  | 0 of 2 (0.00–0.66)                 |
 
-### 7.2 That searcher at the design point
+<!-- async-dsss-parallel:seed:end -->
 
-`s7_2_design_point`: the same engine at ±50 kHz (35 tiles), SPEC's 500
-code-only epochs and the 500 Hz/s rate, so D = 94; on noise, four dwells
-timed.
+### 6. What a receiver costs
 
-| threads | ordinary push | dwell  | share of one CPU |
-| ------- | ------------- | ------ | ---------------- |
-| 1       | 703 µs        | 165 ms | 7.37             |
-| 4       | 216 µs        | 50 ms  | 2.25             |
-| 8       | 147 µs        | 33 ms  | 1.51             |
+The C benches, `jm_bench.h`'s wall clock over 15–20 rounds, each round a whole
+dwell (the engine) or 65,536 samples (the receiver). The engine's work per
+2,046-sample epoch depends on its tile count and its coherent depth, not on
+the chip rate, so a row timed at another chip rate is this design's state by
+its tiles: one tile is `acq::native` (3.069 Mcps, no Doppler search), ±1/T_E is
+the 3-tile `op5M_U5k`, and its slow-time search is that row at D = 154,
+deeper than the 94 this design's 500 Hz/s rate allows, so it bounds it. The
+tracking row is the receiver bench's held cell receiver at 1,023 chips, which
+that bench reads as the searching flavor's steady state. The real-time factor
+is the mean per sample times 6.138 MSa/s; the four-thread row is wall time,
+the CPUs it spends are more.
 
-A dwell decides each 94-epoch block, 31.3 ms of signal; on eight threads the
-dwell alone takes longer than the block.
+<!-- async-dsss-parallel:cost:start -->
+
+| receiver state                              | bench row                                        | ns a sample, mean (min–max) | × real time at 6.138 MSa/s |
+| ------------------------------------------- | ------------------------------------------------ | --------------------------- | -------------------------- |
+| tracking                                    | `async_dsss_receiver::steps[cell,sf=1023,5Mcps]` | 11.3 (11.1–11.7)            | 0.07                       |
+| searching one tile, one-epoch looks         | `acq::native_nc90`                               | 22.7 (22.5–23.7)            | 0.14                       |
+| searching ±1/T_E (3 tiles), one-epoch looks | `acq::op5M_U5k_nc225`                            | 37.2 (36.5–41.6)            | 0.23                       |
+| searching ±1/T_E, slow time over D = 154    | `acq::op5M_U5k_D154_t1_nc1`                      | 88.3 (87.3–89.3)            | 0.54                       |
+| the same, four threads                      | `acq::op5M_U5k_D154_t4_nc1`                      | 55.1 (44.1–64.7)            | 0.34 on four threads       |
+
+<!-- async-dsss-parallel:cost:end -->
+
+### 7. The pool as built
+
+The same run's pool bench (twelve slots, one emitter tracked, the searcher's
+31-epoch window) and the engine at the pool's design point of
+async-dsss-receiver.md §6.1, ±50 kHz, at the ends of its chip-rate range: 21
+tiles at 5 Mcps with D = 154, 53 at 2 Mcps with D = 61. Each is at the rate it
+was timed at; a threaded row is wall time.
+
+<!-- async-dsss-parallel:pool:start -->
+
+| per push                                   | bench row                                        | timed at | ns a sample, mean (min–max) | × real time at that rate |
+| ------------------------------------------ | ------------------------------------------------ | -------- | --------------------------- | ------------------------ |
+| one receiver, tracking                     | `async_dsss_receiver::steps[cell,sf=1023,5Mcps]` | 10 MSa/s | 11.3 (11.1–11.7)            | 0.11                     |
+| the pool, 12 slots, one emitter tracked    | `async_dsss_pool::push[12 slots, serial]`        | 10 MSa/s | 103.5 (45.1–919.1)          | 1.03                     |
+| the same, across the machine's cores       | `async_dsss_pool::push[12 slots, all cores]`     | 10 MSa/s | 112.7 (45.5–1395.1)         | 1.13                     |
+| its searcher at ±50 kHz, 21 tiles, D = 154 | `acq::op5M_U50k_D154_t1_nc1`                     | 10 MSa/s | 540.5 (525.2–602.3)         | 5.40                     |
+| the same, eight threads                    | `acq::op5M_U50k_D154_t8_nc1`                     | 10 MSa/s | 130.6 (125.3–136.8)         | 1.31                     |
+| its searcher at ±50 kHz, 53 tiles, D = 61  | `acq::op2M_U50k_D61_t1_nc1`                      | 4 MSa/s  | 2201.9 (2152.6–2327.5)      | 8.81                     |
+| the same, four threads                     | `acq::op2M_U50k_D61_t4_nc1`                      | 4 MSa/s  | 643.5 (595.7–761.1)         | 2.57                     |
+
+<!-- async-dsss-parallel:pool:end -->
+
+The pool's mean push is its searcher's dwell amortized: its slowest push is
+about twenty times its fastest, which is the receivers' share alone.

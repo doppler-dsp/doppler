@@ -1169,6 +1169,13 @@ dp_async_dsss_receiver_set_telemetry (dp_async_dsss_receiver_state_t *state,
   const size_t len = strlen (p);
   if (decim == 0 || len >= DP_TLM_NAME_MAX)
     return DP_ERR_INVALID;
+  /* A refusal leaves the receiver as it was, as a leaf's does: the dry run
+     below moves every loop off whatever context it was on, so keep the
+     request it replaces and put it back on any refusal. */
+  dp_tlm_t *const old_tlm   = state->tlm;
+  const uint32_t  old_decim = state->tlm_decim;
+  char            old_prefix[DP_TLM_NAME_MAX];
+  memcpy (old_prefix, state->tlm_prefix, sizeof old_prefix);
   memcpy (state->tlm_prefix, p, len + 1);
   state->tlm_decim = decim;
   /* Every name must fit before ANY registers on the caller's context. The
@@ -1176,27 +1183,36 @@ dp_async_dsss_receiver_set_telemetry (dp_async_dsss_receiver_state_t *state,
      they will register is to let them: attach to a scratch context first,
      and to the caller's only if that took every probe. Without it a prefix
      that fits the carrier's names and not the demodulator's leaves the
-     carrier's in the caller's table, unused (#1897). */
+     carrier's in the caller's table, unused (#1897). The scratch then
+     knows every name the attach needs, so it also answers whether the
+     caller's table has room for the ones it lacks. */
   dp_tlm_t *scratch = dp_tlm_create (1);
-  if (!scratch)
-    return DP_ERR_INVALID;
-  state->tlm     = scratch;
-  const int fits = adr_tlm_attach (state) == DP_OK;
-  adr_tlm_detach (state);
-  state->tlm = NULL;
-  dp_tlm_destroy (scratch);
-  if (!fits)
-    return DP_ERR_INVALID;
-  state->tlm = tlm;
-  if (adr_tlm_attach (state) != DP_OK)
+  int       fits    = 0;
+  if (scratch)
     {
+      state->tlm = scratch;
+      fits       = adr_tlm_attach (state) == DP_OK
+                   && dp_tlm_has_room_for (tlm, scratch);
+      adr_tlm_detach (state);
+      dp_tlm_destroy (scratch);
+    }
+  if (fits)
+    {
+      state->tlm = tlm;
+      if (adr_tlm_attach (state) == DP_OK)
+        return DP_OK;
       /* Whole or nothing: a half-attached receiver would report some loops
          and not others with no way to tell from the context. */
       adr_tlm_detach (state);
-      state->tlm = NULL;
-      return DP_ERR_INVALID;
     }
-  return DP_OK;
+  /* Refused: restore the previous request. Its names are already in its
+     context, so re-registering them takes no slot and cannot fail. */
+  memcpy (state->tlm_prefix, old_prefix, sizeof old_prefix);
+  state->tlm_decim = old_decim;
+  state->tlm       = old_tlm;
+  if (old_tlm)
+    (void)adr_tlm_attach (state);
+  return DP_ERR_INVALID;
 }
 
 size_t

@@ -270,13 +270,14 @@ def test_set_telemetry_failure_raises():
     # fill the probe table until it refuses -- its capacity is measured, not
     # restated (it was 64 until a pool needed more) -- then the attach must
     # fail whole -> ValueError
-    i = 0
-    while True:
+    # Bounded, so an unbounded table fails here rather than hanging.
+    for i in range(1 << 16):
         try:
             tlm.probe(f"p{i}")
         except ValueError:
             break
-        i += 1
+    else:
+        pytest.fail("the probe table never refused")
     assert i > 0
     with pytest.raises(ValueError):
         obj.set_telemetry(tlm, "agc")

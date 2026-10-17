@@ -736,6 +736,16 @@ _test_telemetry (void)
             == DP_ERR_INVALID);
   DP_CHECK (dp_tlm_probe_count (t) == 0);
   dp_async_dsss_pool_destroy (mt);
+  /* threads <= 0 is the core count, which may be several: refused too. */
+  dp_async_dsss_pool_state_t *auto_t = make_pool (2, 0);
+  DP_CHECK (auto_t != NULL);
+  if (auto_t)
+    {
+      DP_CHECK (dp_async_dsss_pool_set_telemetry (auto_t, t, "pool", 1)
+                == DP_ERR_INVALID);
+      DP_CHECK (dp_tlm_probe_count (t) == 0);
+      dp_async_dsss_pool_destroy (auto_t);
+    }
 
   const size_t                n_slots = 3;
   dp_async_dsss_pool_state_t *p       = make_pool (n_slots, 1);
@@ -798,6 +808,52 @@ _test_telemetry (void)
       DP_CHECK_MSG (code > 0 && code != UINT64_MAX, "the held slot's Dll");
       DP_CHECK_MSG (car > 0 && car != UINT64_MAX, "the held slot's carrier");
     }
+
+  /* A refused re-attach leaves the pool as it was, as a leaf's does: the
+     dry run moves every child off `t`, so the refusal must put them back.
+     Nothing registers on the second context, and `t` keeps counting --
+     the searcher and a slot's loops as well as the pool's own. */
+  {
+    dp_tlm_t *t2 = dp_tlm_create (1 << 10);
+    DP_CHECK (t2 != NULL);
+    const size_t n_before = dp_tlm_probe_count (t);
+    DP_CHECK (dp_async_dsss_pool_set_telemetry (p, t2, "abcdefghijklmn", 1)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_probe_count (t2) == 0);
+    DP_CHECK (dp_tlm_probe_count (t) == n_before);
+    DP_CHECK (p->tlm == t && p->acq->tlm.ctx == t);
+    for (size_t i = 0; i < n_slots; i++)
+      DP_CHECK (p->rx[i]->tlm == t);
+    const uint64_t a0 = tlm_emitted (t, "pool.assigned");
+    const uint64_t d0 = tlm_emitted (t, "pool.acq.stat");
+    (void)feed (p, c.x, c.n);
+    DP_CHECK_MSG (tlm_emitted (t, "pool.assigned") == a0 + (uint64_t)pushes,
+                  "the counters stopped after a refused re-attach");
+    DP_CHECK_MSG (tlm_emitted (t, "pool.acq.stat") > d0,
+                  "the searcher stopped after a refused re-attach");
+    dp_tlm_destroy (t2);
+  }
+
+  /* A table one slot short of the whole pool is refused with nothing
+     registered, and the pool stays on `t`. */
+  {
+    const size_t need = dp_tlm_probe_count (t);
+    dp_tlm_t    *full = dp_tlm_create (1 << 10);
+    DP_CHECK (full != NULL);
+    for (size_t i = 0; full && i < DP_TLM_MAX_PROBES - (need - 1); i++)
+      {
+        char nm[DP_TLM_NAME_MAX];
+        (void)snprintf (nm, sizeof nm, "fill.%zu", i);
+        DP_CHECK (dp_tlm_probe (full, nm, 1) >= 0);
+      }
+    const size_t before_n = dp_tlm_probe_count (full);
+    DP_CHECK (dp_async_dsss_pool_set_telemetry (p, full, "pool", 1)
+              == DP_ERR_INVALID);
+    DP_CHECK_MSG (dp_tlm_probe_count (full) == before_n,
+                  "a refused attach left names behind");
+    DP_CHECK (p->tlm == t && p->acq->tlm.ctx == t);
+    dp_tlm_destroy (full);
+  }
 
   /* NULL detaches the searcher, every slot and the counters. */
   DP_CHECK (dp_async_dsss_pool_set_telemetry (p, NULL, NULL, 1) == DP_OK);

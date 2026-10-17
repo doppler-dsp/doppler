@@ -503,7 +503,9 @@ pool_tlm_attach (dp_async_dsss_pool_state_t *s, dp_tlm_t *tlm, const char *p,
   s->tlm_assigned = id_assigned;
   s->tlm_dropped  = id_dropped;
   s->tlm_events   = id_events;
-  s->tlm          = tlm; /* set last: push() emits on it */
+  (void)snprintf (s->tlm_prefix, sizeof s->tlm_prefix, "%s", p);
+  s->tlm_decim = decim;
+  s->tlm       = tlm; /* set last: push() emits on it */
   return DP_OK;
 }
 
@@ -516,29 +518,47 @@ dp_async_dsss_pool_set_telemetry (dp_async_dsss_pool_state_t *s, dp_tlm_t *tlm,
       pool_tlm_detach (s);
       return DP_OK;
     }
-  /* One producer per context: a pool on threads > 1 steps its receivers
-     on several (step 3 of push), and their records would race. */
+  /* One producer per context: a pool on threads != 1 (0 is the core
+     count) may step its receivers on several (step 3 of push), and their
+     records would race. */
   if (decim == 0 || s->threads != 1)
     return DP_ERR_INVALID;
   const char *p = prefix ? prefix : "pool";
+  if (strlen (p) >= DP_TLM_NAME_MAX)
+    return DP_ERR_INVALID;
+  /* A refusal leaves the pool as it was, as a leaf's does: the dry run
+     moves every child off whatever context it was on, so keep the request
+     it replaces and put it back on any refusal. */
+  dp_tlm_t *const old_tlm   = s->tlm;
+  const uint32_t  old_decim = s->tlm_decim;
+  char            old_prefix[DP_TLM_NAME_MAX];
+  memcpy (old_prefix, s->tlm_prefix, sizeof old_prefix);
   /* Every name must fit before ANY registers on the caller's context: the
      searcher and the slots join their own, so the attach runs first on a
      scratch context and reaches the caller's only if that took them all
-     (#1897's dead slots, avoided rather than added). */
+     (#1897's dead slots, avoided rather than added), and the scratch, now
+     holding every name the attach needs, says whether the caller's table
+     has room for the ones it lacks. */
   dp_tlm_t *scratch = dp_tlm_create (1);
-  if (!scratch)
-    return DP_ERR_INVALID;
-  const int fits = pool_tlm_attach (s, scratch, p, decim) == DP_OK;
-  pool_tlm_detach (s);
-  dp_tlm_destroy (scratch);
-  if (!fits)
-    return DP_ERR_INVALID;
-  if (pool_tlm_attach (s, tlm, p, decim) != DP_OK)
+  int       fits    = 0;
+  if (scratch)
     {
-      pool_tlm_detach (s); /* whole or nothing */
-      return DP_ERR_INVALID;
+      fits = pool_tlm_attach (s, scratch, p, decim) == DP_OK
+             && dp_tlm_has_room_for (tlm, scratch);
+      pool_tlm_detach (s);
+      dp_tlm_destroy (scratch);
     }
-  return DP_OK;
+  if (fits)
+    {
+      if (pool_tlm_attach (s, tlm, p, decim) == DP_OK)
+        return DP_OK;
+      pool_tlm_detach (s); /* whole or nothing */
+    }
+  /* Refused: restore the previous request. Its names are already in its
+     context, so re-registering them takes no slot and cannot fail. */
+  if (old_tlm)
+    (void)pool_tlm_attach (s, old_tlm, old_prefix, old_decim);
+  return DP_ERR_INVALID;
 }
 
 /* ── Serializable state ──────────────────────────────────────────────── */

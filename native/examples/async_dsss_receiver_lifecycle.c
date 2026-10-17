@@ -25,7 +25,9 @@
  * computes a sigma.
  *
  * The payload is PRBS data on the code and is never gated off: the emitter
- * runs with its data on throughout, including across each dropout.
+ * runs with its data on throughout, including across each dropout. The
+ * Python twin asserts the stimulus precondition that makes this so, that
+ * the data flips at each cut.
  *
  * Four sections are checked against the receiver's own status, after every
  * push:
@@ -308,7 +310,7 @@ main (void)
   size_t back = first_locked (rows, d2_end, back_end, 1);
   CHECK (back < back_end, "the lock never returned");
   double return_ms = (double)(back - d2_end) * ms;
-  CHECK (return_ms >= 0.0, "the lock returned before the signal did");
+  CHECK (return_ms > 0.0, "the lock re-latched on noise during the gap");
   printf ("§4  a 50 ms dropout: the lock fell %.0f ms in and returned %.0f ms "
           "after the signal\n",
           fall_ms, return_ms);

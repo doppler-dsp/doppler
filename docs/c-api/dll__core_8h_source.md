@@ -49,6 +49,7 @@ typedef struct {
     int32_t id_rate;   
     int32_t id_lock;   
     int32_t id_locked; 
+    int32_t id_nco;    
 } dll_tlm_t;
 
 typedef struct {

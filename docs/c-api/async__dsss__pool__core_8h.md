@@ -522,7 +522,7 @@ Registers, under `prefix:`
 
 
 
-The probes come to 13 plus each slot's (a cell receiver's loops), so a large pool needs a context with room: an attach that cannot register every probe fails whole.
+The probes come to 13 plus each slot's (a cell receiver's: its loops and its symbol-lock pair), so a large pool needs a context with room: an attach that cannot register every probe fails whole.
 
 
 A context is single-producer ([**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)), and a pool created with `threads != 1` (more than one, or `<= 0` for the core count) may step its receivers on several, so it is refused: observe a pool on one thread.

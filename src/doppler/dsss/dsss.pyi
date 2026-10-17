@@ -385,14 +385,16 @@ class Despreader:
     ) -> None:
         """Attach (or detach) a telemetry context across the despreader. Pure
         forwarder — the despreader registers no probes of its own: the carrier
-        loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked" and the
-        code loop registers "<prefix>.code.e" / ".rate" / ".lock" / ".locked"
-        (the ".locked" pair are the loops' verify-counted lockdet decisions,
-        0/1) — eight probes, all thinned by decim and emitted once per code
-        period (the despreader flushes both loops at its per-period update).
-        Passing NULL detaches both loops. Setup path, never hot; the context is
-        borrowed and must outlive the attachment (SPSC rules in
-        dp_tlm/dp_tlm_core.h).
+        loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked" /
+        ".nco" and the code loop registers "<prefix>.code.e" / ".rate" /
+        ".lock" / ".locked" / ".nco" (the ".locked" pair are the loops'
+        verify-counted lockdet decisions, 0/1; ".freq" / ".rate" the filters'
+        integrators and ".nco" their complete commands, see
+        dp_costas_set_telemetry() and dp_dll_set_telemetry()) — ten probes, all
+        thinned by decim and emitted once per code period (the despreader
+        flushes both loops at its per-period update). Passing NULL detaches
+        both loops. Setup path, never hot; the context is borrowed and must
+        outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -419,15 +421,15 @@ class Despreader:
         >>> ch = Despreader(code=code, sps=4)
         >>> ch.set_telemetry(tlm, "ch0")
         >>> names = sorted(tlm.probe_names)
-        >>> names[:4]
-        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked']
-        >>> names[4:]
-        ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
+        >>> names[:5]
+        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked', 'ch0.car.nco']
+        >>> names[5:]
+        ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.nco', 'ch0.code.rate']
         >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
         >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
         >>> _ = ch.steps(x)
-        >>> recs = tlm.read()   # eight records per code period
-        >>> len(recs) > 0 and len(recs) % 8 == 0
+        >>> recs = tlm.read()   # ten records per code period
+        >>> len(recs) > 0 and len(recs) % 10 == 0
         True
 
         """
@@ -2826,16 +2828,17 @@ class AsyncDsssReceiver:
         prefix: str,
         decim: int = 1,
     ) -> None:
-        """Attach (or detach) a telemetry context across the receiver's loops.
-        A pure forwarder: the receiver registers no probes of its own.
+        """Attach (or detach) a telemetry context across the receiver's loops,
+        and register the receiver's own symbol-lock decision.
 
         Each loop reports under the prefix, at its own update rate:
 
         - "<prefix>.car" -- the chip-domain carrier loop
-          (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked"), once
-          per carrier update, i.e. once a code period while it is not coasting;
+          (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked",
+          ".nco"), once per carrier update, i.e. once a code period while it is
+          not coasting;
         - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
-          ".rate", ".lock", ".locked"), once per discriminator update;
+          ".rate", ".lock", ".locked", ".nco"), once per discriminator update;
         - "<prefix>.rc" -- the resampler's AGC, when it has one
           (dp_RateConverter_set_telemetry(); none, and DP_OK, when it has not);
         - "<prefix>.demod" -- the symbol-domain demodulator
@@ -2844,11 +2847,19 @@ class AsyncDsssReceiver:
           pair once per gain update);
         - "<prefix>.acq" -- the searching flavor's acquisition engine
           (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has
-          no search, so no such probes.
+          no search, so no such probes;
+        - "<prefix>.sym.lock" and "<prefix>.sym.locked" -- the receiver's own
+          symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and its
+          decision (dp_async_dsss_receiver_get_locked()), the one its users act
+          on, once per emitted symbol.
 
-        The loops' frequency and rate probes (".car.freq", ".code.rate",
-        ".demod.car.freq", ".demod.sync.rate") are the loop filters' outputs;
-        ".e" is each discriminator's input to its filter.
+        The carrier and code loops report their filters two ways: ".car.freq"
+        and ".code.rate" (and the demodulator's ".demod.car.freq") are the
+        integrators, each loop's frequency memory, which a coast holds;
+        ".car.nco", ".code.nco" and ".demod.car.nco" are the complete commands
+        the NCOs run at, the proportional term (and the code loop's carrier
+        aid) included. ".demod.sync.rate" is the timing loop's output, and ".e"
+        is each discriminator's input to its filter.
 
         The attachment is a REQUEST kept on the receiver: every seed rebuilds
         the tracking chain, and the rebuilt loops are attached again under the
@@ -2886,7 +2897,9 @@ class AsyncDsssReceiver:
         >>> tlm = Telemetry(1 << 12)
         >>> rx.set_telemetry(tlm, "rx")
         >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
-        ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.rate']
+        ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
+        >>> sorted(p for p in tlm.probe_names if p.startswith("rx.sym"))
+        ['rx.sym.lock', 'rx.sym.locked']
         >>> rx.set_telemetry(None, "rx")      # detach
 
         """
@@ -3582,16 +3595,17 @@ class CellAsyncDsssReceiver:
         prefix: str,
         decim: int = 1,
     ) -> None:
-        """Attach (or detach) a telemetry context across the receiver's loops.
-        A pure forwarder: the receiver registers no probes of its own.
+        """Attach (or detach) a telemetry context across the receiver's loops,
+        and register the receiver's own symbol-lock decision.
 
         Each loop reports under the prefix, at its own update rate:
 
         - "<prefix>.car" -- the chip-domain carrier loop
-          (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked"), once
-          per carrier update, i.e. once a code period while it is not coasting;
+          (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked",
+          ".nco"), once per carrier update, i.e. once a code period while it is
+          not coasting;
         - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
-          ".rate", ".lock", ".locked"), once per discriminator update;
+          ".rate", ".lock", ".locked", ".nco"), once per discriminator update;
         - "<prefix>.rc" -- the resampler's AGC, when it has one
           (dp_RateConverter_set_telemetry(); none, and DP_OK, when it has not);
         - "<prefix>.demod" -- the symbol-domain demodulator
@@ -3600,11 +3614,19 @@ class CellAsyncDsssReceiver:
           pair once per gain update);
         - "<prefix>.acq" -- the searching flavor's acquisition engine
           (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has
-          no search, so no such probes.
+          no search, so no such probes;
+        - "<prefix>.sym.lock" and "<prefix>.sym.locked" -- the receiver's own
+          symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and its
+          decision (dp_async_dsss_receiver_get_locked()), the one its users act
+          on, once per emitted symbol.
 
-        The loops' frequency and rate probes (".car.freq", ".code.rate",
-        ".demod.car.freq", ".demod.sync.rate") are the loop filters' outputs;
-        ".e" is each discriminator's input to its filter.
+        The carrier and code loops report their filters two ways: ".car.freq"
+        and ".code.rate" (and the demodulator's ".demod.car.freq") are the
+        integrators, each loop's frequency memory, which a coast holds;
+        ".car.nco", ".code.nco" and ".demod.car.nco" are the complete commands
+        the NCOs run at, the proportional term (and the code loop's carrier
+        aid) included. ".demod.sync.rate" is the timing loop's output, and ".e"
+        is each discriminator's input to its filter.
 
         The attachment is a REQUEST kept on the receiver: every seed rebuilds
         the tracking chain, and the rebuilt loops are attached again under the
@@ -3642,7 +3664,9 @@ class CellAsyncDsssReceiver:
         >>> tlm = Telemetry(1 << 12)
         >>> rx.set_telemetry(tlm, "rx")
         >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
-        ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.rate']
+        ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
+        >>> sorted(p for p in tlm.probe_names if p.startswith("rx.sym"))
+        ['rx.sym.lock', 'rx.sym.locked']
         >>> rx.set_telemetry(None, "rx")      # detach
 
         """
@@ -4239,9 +4263,9 @@ class AsyncDsssPool:
           pool's `n_assigned` and its running `dropped` and `events` counts,
           once per push(), after its releases.
 
-        The probes come to 13 plus each slot's (a cell receiver's loops), so a
-        large pool needs a context with room: an attach that cannot register
-        every probe fails whole.
+        The probes come to 13 plus each slot's (a cell receiver's: its loops
+        and its symbol-lock pair), so a large pool needs a context with room:
+        an attach that cannot register every probe fails whole.
 
         A context is single-producer (dp_tlm/dp_tlm_core.h), and a pool created
         with `threads != 1` (more than one, or `<= 0` for the core count) may

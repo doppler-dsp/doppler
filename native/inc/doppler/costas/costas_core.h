@@ -62,8 +62,11 @@ typedef struct {
     dp_tlm_t *ctx;     /**< NULL = detached                        */
     int32_t id_lock;   /**< "<prefix>.lock" — lock-metric EMA      */
     int32_t id_e;      /**< "<prefix>.e"    — PLL discriminator    */
-    int32_t id_freq;   /**< "<prefix>.freq" — tracked NCO freq     */
+    int32_t id_freq;   /**< "<prefix>.freq" — the integrator alone */
     int32_t id_locked; /**< "<prefix>.locked" — lockdet flag 0/1   */
+    int32_t id_nco;    /**< "<prefix>.nco" — the complete loop-filter
+                            output, integrator plus proportional term
+                            (dp_costas_get_nco_freq()), cycles/sample */
 } costas_tlm_t;
 
 /**
@@ -407,12 +410,16 @@ int dp_costas_get_locked(const dp_costas_state_t *state);
 /**
  * @brief Attach (or detach) a telemetry context and register the carrier
  * loop's probes on it.
- * Registers four probes, emitted once per dumped symbol and further
+ * Registers five probes, emitted once per dumped symbol and further
  * thinned by decim: "<prefix>.lock" (the |Re P|/|P| lock-metric EMA, 1 =
  * phase-locked), "<prefix>.e" (the PLL discriminator output — the loop
- * stress), "<prefix>.freq" (the tracked NCO frequency, cycles/sample) and
+ * stress), "<prefix>.freq" (the NCO's frequency register, which holds the
+ * loop filter's integrator: the loop's frequency memory, cycles/sample),
  * "<prefix>.locked" (the verify-counted lock decision, 0/1 — see
- * dp_costas_configure_lock). Passing NULL detaches.  Setup path, never hot:
+ * dp_costas_configure_lock) and "<prefix>.nco" (the complete loop-filter
+ * output, the integrator plus the proportional term, cycles/sample —
+ * dp_costas_get_nco_freq(); its mean rides a frequency ramp with no lag,
+ * where ".freq" lags by the loop's ramp error). Passing NULL detaches.  Setup path, never hot:
  * call before the producer thread starts stepping; the context is
  * borrowed and must outlive the attachment (SPSC rules in
  * dp_tlm/dp_tlm_core.h).
@@ -421,7 +428,7 @@ int dp_costas_get_locked(const dp_costas_state_t *state);
  * @param prefix Probe-name prefix, e.g. "car" or "ch0.car".
  * @param decim  Emit every decim-th symbol; >= 1.
  * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
- *         four probes (the attach fails whole; the object stays
+ *         five probes (the attach fails whole; the object stays
  *         detached).
  * @code
  * >>> import numpy as np
@@ -431,11 +438,11 @@ int dp_costas_get_locked(const dp_costas_state_t *state);
  * >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
  * >>> c.set_telemetry(tlm, "car")
  * >>> sorted(tlm.probe_names)
- * ['car.e', 'car.freq', 'car.lock', 'car.locked']
+ * ['car.e', 'car.freq', 'car.lock', 'car.locked', 'car.nco']
  * >>> x = np.ones(64 * 100, dtype=np.complex64)
  * >>> _ = c.steps(x)
- * >>> recs = tlm.read()   # four records per dumped symbol
- * >>> len(recs) == 4 * 100
+ * >>> recs = tlm.read()   # five records per dumped symbol
+ * >>> len(recs) == 5 * 100
  * True
  *
  * @endcode

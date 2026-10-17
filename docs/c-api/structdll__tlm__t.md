@@ -40,6 +40,7 @@ _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (t
 |  int32\_t | [**id\_e**](#variable-id_e)  <br> |
 |  int32\_t | [**id\_lock**](#variable-id_lock)  <br> |
 |  int32\_t | [**id\_locked**](#variable-id_locked)  <br> |
+|  int32\_t | [**id\_nco**](#variable-id_nco)  <br> |
 |  int32\_t | [**id\_rate**](#variable-id_rate)  <br> |
 
 
@@ -153,6 +154,23 @@ int32_t dll_tlm_t::id_locked;
 
 
 "&lt;prefix&gt;.locked" — lockdet decision 0/1 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_nco 
+
+```C++
+int32_t dll_tlm_t::id_nco;
+```
+
+
+
+"&lt;prefix&gt;.nco" — the code NCO's command, the complete loop-filter output (integrator, proportional term and aid) as chips per chip; a held loop's held command 
 
 
         

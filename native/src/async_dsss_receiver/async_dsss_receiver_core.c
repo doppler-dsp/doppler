@@ -363,9 +363,12 @@ adr_free_track_chain (dp_async_dsss_receiver_state_t *s)
  * detached. Every name is joined before the first registration, so an
  * overlong prefix is refused with the registry untouched; a child that
  * cannot register fails the whole attach. car_held is attached beside car
- * under the same names, so the same ids: the hold copies one over the
- * other, and a held copy taken before the attach would detach the carrier
- * at the first restore. The refine stage's chain is not instrumented. */
+ * under the same names, so the same ids: the hold restores car from
+ * car_held on entering a coast, and refreshes car_held only while both
+ * flags are up, so an attach made with one flag down would otherwise be
+ * undone by the next coast -- and the detach clears both, or that restore
+ * would hand the carrier a context the caller may have destroyed. The
+ * refine stage's chain is not instrumented. */
 static int
 adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
 {

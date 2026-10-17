@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from doppler.dsss import AsyncDsssPool
-from doppler.telemetry import EventLog
+from doppler.telemetry import EventLog, Telemetry
 from doppler.wfm import Gold
 
 SF = 1023
@@ -270,3 +270,40 @@ def test_create_refuses_a_searcher_a_cell_receiver_cannot_take():
     ):
         with pytest.raises(ValueError, match="AsyncDsssPool"):
             _pool(**bad)
+
+
+def test_telemetry_reports_the_searcher_every_slot_and_the_counters():
+    """set_telemetry, through the capsule: the searcher's probes, each
+    slot's loops under "<prefix>.s<i>", and the pool's three counters once
+    a push; None detaches. A pool on several threads is refused -- a
+    context has one producer."""
+    tlm = Telemetry(1 << 19)
+    with pytest.raises(ValueError):
+        _pool(threads=2).set_telemetry(tlm, "pool")
+    assert tlm.probe_count == 0
+
+    pool = _pool(n_slots=2)
+    pool.set_telemetry(tlm, "pool")
+    assert {
+        "pool.assigned",
+        "pool.dropped",
+        "pool.events",
+        "pool.acq.stat",
+        "pool.s0.code.rate",
+        "pool.s1.car.freq",
+        "pool.s1.demod.sync.rate",
+    } <= set(tlm.probe_names)
+
+    x = _emitter(1500.0, 0, 3)
+    _feed(pool, x)
+    got = tlm.read_dict()
+    assert len(got["pool.assigned"]) == len(x) // TE  # once a push
+    assert got["pool.assigned"][-1] == pool.n_assigned
+    assert got["pool.events"][-1] == pool.events
+    (slot,) = _slots_of(pool, 1500.0, 0)
+    assert len(got[f"pool.s{slot}.code.rate"]) > 0
+    assert len(got[f"pool.s{slot}.car.freq"]) > 0
+
+    pool.set_telemetry(None, "pool")
+    _feed(pool, x[: 20 * TE])
+    assert all(len(v) == 0 for v in tlm.read_dict().values())

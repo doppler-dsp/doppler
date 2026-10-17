@@ -341,7 +341,7 @@ main (void)
 
     size_t k     = dp_despreader_steps (ch, rx, L, sym, 64);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
-    DP_CHECK (k > 0 && n_rec == 8 * k); /* both loops flush per period */
+    DP_CHECK (k > 0 && n_rec == 10 * k); /* both loops flush per period */
 
     /* bits() flushes telemetry too (the guarded in-loop path). */
     uint8_t bit_out[64];
@@ -355,19 +355,22 @@ main (void)
     (void)dp_despreader_steps (ch, rx, L, sym, 64);
     DP_CHECK (dp_tlm_read (tlm, 512, recs, 512) == 0);
 
-    /* Partial registration failure unwinds: leave exactly four free
-     * slots — the carrier attach succeeds (4 probes), the code attach
-     * cannot fit its 4, and the whole attach fails with the carrier
+    /* Partial registration failure unwinds: leave exactly five free
+     * slots — the carrier attach succeeds (5 probes), the code attach
+     * cannot fit its 5, and the whole attach fails with the carrier
      * detached again. */
     char pname[DP_TLM_NAME_MAX];
     for (size_t i = 0;
-         dp_tlm_probe_count (tlm) < (size_t)(DP_TLM_MAX_PROBES - 4); i++)
+         dp_tlm_probe_count (tlm) < (size_t)(DP_TLM_MAX_PROBES - 5); i++)
       {
         (void)snprintf (pname, sizeof (pname), "fill%zu", i);
         (void)dp_tlm_probe (tlm, pname, 1);
       }
     DP_CHECK (dp_despreader_set_telemetry (ch, tlm, "nope", 1)
               == DP_ERR_INVALID);
+    /* The carrier's names are in the table: its attach did succeed, so
+       this is the partial case and not a carrier that never fit. */
+    DP_CHECK (dp_tlm_probe_id (tlm, "nope.car.nco") >= 0);
     DP_CHECK (ch->tlm_ctx == NULL && ch->car.tlm.ctx == NULL
               && ch->code.tlm.ctx == NULL);
     dp_despreader_destroy (ch);

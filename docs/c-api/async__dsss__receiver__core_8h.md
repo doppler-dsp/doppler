@@ -118,7 +118,7 @@ to tracking the same signal," only back to searching — matching every other ob
 |  int | [**dp\_async\_dsss\_receiver\_seed\_ok**](#function-dp_async_dsss_receiver_seed_ok) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, double chip\_phase, double doppler\_hz\_est) <br>_The seed domain: whether_ `(chip_phase, doppler_hz_est)` _is one_[_**dp\_async\_dsss\_receiver\_seed()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_seed) _accepts, and one a live receiver can hold._ |
 |  int | [**dp\_async\_dsss\_receiver\_set\_refine\_min\_blocks**](#function-dp_async_dsss_receiver_set_refine_min_blocks) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t n\_blocks) <br>_Floor the refine's dwell at_ `n_blocks` _, whatever the detection sizing asks (design section 12.16, #1265)._ |
 |  int | [**dp\_async\_dsss\_receiver\_set\_state**](#function-dp_async_dsss_receiver_set_state) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, const void \* blob) <br> |
-|  int | [**dp\_async\_dsss\_receiver\_set\_telemetry**](#function-dp_async_dsss_receiver_set_telemetry) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the receiver's loops. A pure forwarder: the receiver registers no probes of its own._  |
+|  int | [**dp\_async\_dsss\_receiver\_set\_telemetry**](#function-dp_async_dsss_receiver_set_telemetry) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the receiver's loops, and register the receiver's own symbol-lock decision._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_state\_bytes**](#function-dp_async_dsss_receiver_state_bytes) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br> |
 |  [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) | [**dp\_async\_dsss\_receiver\_status**](#function-dp_async_dsss_receiver_status) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Read the status record (see_ [_**async\_dsss\_receiver\_status\_t**_](structasync__dsss__receiver__status__t.md) _)._ |
 |  size\_t | [**dp\_async\_dsss\_receiver\_steps**](#function-dp_async_dsss_receiver_steps) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once tracking._  |
@@ -1180,7 +1180,7 @@ int dp_async_dsss_receiver_set_state (
 
 ### function dp\_async\_dsss\_receiver\_set\_telemetry 
 
-_Attach (or detach) a telemetry context across the receiver's loops. A pure forwarder: the receiver registers no probes of its own._ 
+_Attach (or detach) a telemetry context across the receiver's loops, and register the receiver's own symbol-lock decision._ 
 ```C++
 int dp_async_dsss_receiver_set_telemetry (
     dp_async_dsss_receiver_state_t * state,
@@ -1193,16 +1193,17 @@ int dp_async_dsss_receiver_set_telemetry (
 
 
 Each loop reports under the prefix, at its own update rate:
-* "&lt;prefix&gt;.car"  the chip-domain carrier loop ([**dp\_costas\_set\_telemetry()**](costas__core_8h.md#function-dp_costas_set_telemetry): ".lock", ".e", ".freq", ".locked"), once per carrier update, i.e. once a code period while it is not coasting;
-* "&lt;prefix&gt;.code"  the code loop ([**dp\_dll\_set\_telemetry()**](dll__core_8h.md#function-dp_dll_set_telemetry): ".e", ".rate", ".lock", ".locked"), once per discriminator update;
+* "&lt;prefix&gt;.car"  the chip-domain carrier loop ([**dp\_costas\_set\_telemetry()**](costas__core_8h.md#function-dp_costas_set_telemetry): ".lock", ".e", ".freq", ".locked", ".nco"), once per carrier update, i.e. once a code period while it is not coasting;
+* "&lt;prefix&gt;.code"  the code loop ([**dp\_dll\_set\_telemetry()**](dll__core_8h.md#function-dp_dll_set_telemetry): ".e", ".rate", ".lock", ".locked", ".nco"), once per discriminator update;
 * "&lt;prefix&gt;.rc"  the resampler's AGC, when it has one ([**dp\_RateConverter\_set\_telemetry()**](RateConverter__core_8h.md#function-dp_rateconverter_set_telemetry); none, and DP\_OK, when it has not);
 * "&lt;prefix&gt;.demod"  the symbol-domain demodulator ([**dp\_mpsk\_receiver\_set\_telemetry()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry): its lock, its carrier and timing loops, the symbols, its AGC), once per recovered symbol (the AGC's pair once per gain update);
-* "&lt;prefix&gt;.acq"  the searching flavor's acquisition engine ([**dp\_acq\_set\_telemetry()**](acq__core_8h.md#function-dp_acq_set_telemetry)), once per decided dwell. A cell receiver has no search, so no such probes.
+* "&lt;prefix&gt;.acq"  the searching flavor's acquisition engine ([**dp\_acq\_set\_telemetry()**](acq__core_8h.md#function-dp_acq_set_telemetry)), once per decided dwell. A cell receiver has no search, so no such probes;
+* "&lt;prefix&gt;.sym.lock" and "&lt;prefix&gt;.sym.locked"  the receiver's own symbol-lock metric ([**dp\_async\_dsss\_receiver\_get\_lock\_metric()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_lock_metric)) and its decision ([**dp\_async\_dsss\_receiver\_get\_locked()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_locked)), the one its users act on, once per emitted symbol.
 
 
 
 
-The loops' frequency and rate probes (".car.freq", ".code.rate", ".demod.car.freq", ".demod.sync.rate") are the loop filters' outputs; ".e" is each discriminator's input to its filter.
+The carrier and code loops report their filters two ways: ".car.freq" and ".code.rate" (and the demodulator's ".demod.car.freq") are the integrators, each loop's frequency memory, which a coast holds; ".car.nco", ".code.nco" and ".demod.car.nco" are the complete commands the NCOs run at, the proportional term (and the code loop's carrier aid) included. ".demod.sync.rate" is the timing loop's output, and ".e" is each discriminator's input to its filter.
 
 
 The attachment is a REQUEST kept on the receiver: every seed rebuilds the tracking chain, and the rebuilt loops are attached again under the same names (so the same probe ids). Records are therefore continuous across re-seeds, and a reset keeps the attachment too.
@@ -1237,7 +1238,9 @@ DP\_OK, or DP\_ERR\_INVALID on decim 0, a prefix too long for some probe's name 
 >>> tlm = Telemetry(1 << 12)
 >>> rx.set_telemetry(tlm, "rx")
 >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
-['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.rate']
+['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
+>>> sorted(p for p in tlm.probe_names if p.startswith("rx.sym"))
+['rx.sym.lock', 'rx.sym.locked']
 >>> rx.set_telemetry(None, "rx")      # detach
 ```
  

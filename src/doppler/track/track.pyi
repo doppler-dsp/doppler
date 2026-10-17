@@ -430,15 +430,19 @@ class Costas:
         decim: int = 1,
     ) -> None:
         """Attach (or detach) a telemetry context and register the carrier
-        loop's probes on it. Registers four probes, emitted once per dumped
+        loop's probes on it. Registers five probes, emitted once per dumped
         symbol and further thinned by decim: "<prefix>.lock" (the |Re P|/|P|
         lock-metric EMA, 1 = phase-locked), "<prefix>.e" (the PLL discriminator
-        output — the loop stress), "<prefix>.freq" (the tracked NCO frequency,
-        cycles/sample) and "<prefix>.locked" (the verify-counted lock decision,
-        0/1 — see dp_costas_configure_lock). Passing NULL detaches. Setup path,
-        never hot: call before the producer thread starts stepping; the context
-        is borrowed and must outlive the attachment (SPSC rules in
-        dp_tlm/dp_tlm_core.h).
+        output — the loop stress), "<prefix>.freq" (the NCO's frequency
+        register, which holds the loop filter's integrator: the loop's
+        frequency memory, cycles/sample), "<prefix>.locked" (the verify-counted
+        lock decision, 0/1 — see dp_costas_configure_lock) and "<prefix>.nco"
+        (the complete loop-filter output, the integrator plus the proportional
+        term, cycles/sample — dp_costas_get_nco_freq(); its mean rides a
+        frequency ramp with no lag, where ".freq" lags by the loop's ramp
+        error). Passing NULL detaches. Setup path, never hot: call before the
+        producer thread starts stepping; the context is borrowed and must
+        outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -464,11 +468,11 @@ class Costas:
         >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
         >>> c.set_telemetry(tlm, "car")
         >>> sorted(tlm.probe_names)
-        ['car.e', 'car.freq', 'car.lock', 'car.locked']
+        ['car.e', 'car.freq', 'car.lock', 'car.locked', 'car.nco']
         >>> x = np.ones(64 * 100, dtype=np.complex64)
         >>> _ = c.steps(x)
-        >>> recs = tlm.read()   # four records per dumped symbol
-        >>> len(recs) == 4 * 100
+        >>> recs = tlm.read()   # five records per dumped symbol
+        >>> len(recs) == 5 * 100
         True
 
         """
@@ -884,17 +888,23 @@ class Dll:
         decim: int = 1,
     ) -> None:
         """Attach (or detach) a telemetry context and register the code loop's
-        probes on it. Registers four probes, emitted once per code epoch
+        probes on it. Registers five probes, emitted once per code epoch
         (period) and further thinned by decim: "<prefix>.e" (the
         early-minus-late envelope discriminator — the loop stress),
         "<prefix>.rate" (the tracked code rate, chips advanced per nominal
-        chip, ~1.0 at lock), "<prefix>.lock" (the CFAR lock statistic R;
-        compare against the configured threshold) and "<prefix>.locked" (the
-        verify-counted lock decision, 0/1 — the lockdet output, so a consumer
-        sees where the declare/drop rule fired without re-deriving it from the
-        statistic). Passing NULL detaches. Setup path, never hot: call before
-        the producer thread starts stepping; the context is borrowed and must
-        outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
+        chip, ~1.0 at lock — dp_dll_get_code_rate(), the loop's own rate,
+        without the carrier aid; a held loop reports its held integrator's),
+        "<prefix>.lock" (the CFAR lock statistic R; compare against the
+        configured threshold), "<prefix>.locked" (the verify-counted lock
+        decision, 0/1 — the lockdet output, so a consumer sees where the
+        declare/drop rule fired without re-deriving it from the statistic) and
+        "<prefix>.nco" (what the code NCO is commanded: the complete
+        loop-filter output, the integrator, the proportional term and the
+        carrier aid, as chips per nominal chip, at the NCO's resolution of one
+        phase-increment step; a held loop's held command). Passing NULL
+        detaches. Setup path, never hot: call before the producer thread starts
+        stepping; the context is borrowed and must outlive the attachment (SPSC
+        rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -921,11 +931,11 @@ class Dll:
         >>> d = Dll(code=code, sps=2)
         >>> d.set_telemetry(tlm, "code")
         >>> sorted(tlm.probe_names)
-        ['code.e', 'code.lock', 'code.locked', 'code.rate']
+        ['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.rate']
         >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
         >>> _ = d.steps(x)
-        >>> recs = tlm.read()   # four records per code epoch
-        >>> len(recs) > 0 and len(recs) % 4 == 0
+        >>> recs = tlm.read()   # five records per code epoch
+        >>> len(recs) > 0 and len(recs) % 5 == 0
         True
 
         """

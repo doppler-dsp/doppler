@@ -270,6 +270,8 @@ extern "C"
     dp_tlm_t *tlm;                         
     char      tlm_prefix[DP_TLM_NAME_MAX]; 
     uint32_t  tlm_decim;                   
+    int32_t   tlm_sym_lock;   
+    int32_t   tlm_sym_locked; 
   } dp_async_dsss_receiver_state_t;
 
   dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create (

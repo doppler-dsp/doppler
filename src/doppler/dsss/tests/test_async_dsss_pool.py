@@ -324,7 +324,7 @@ def test_telemetry_characterization_fast_twin(tmp_path):
     assert rc == 0
     run = json.loads((tmp_path / "run.json").read_text(encoding="utf-8"))
     assert run["timing"]["pool"]["dwell_pushes"] > 0
-    assert run["probes"] == {"rx": 33, "pool": 13 + 23 * 4}
+    assert run["probes"] == {"rx": 37, "pool": 13 + 27 * 4}
     for name in ("rx", "pool", "timing"):
         meta = json.loads(
             (tmp_path / f"{name}.tlm-meta").read_text(encoding="utf-8")

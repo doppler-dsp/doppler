@@ -80,6 +80,10 @@ typedef struct {
     int32_t id_rate;   /**< "<prefix>.rate" — tracked code rate      */
     int32_t id_lock;   /**< "<prefix>.lock" — CFAR lock statistic R  */
     int32_t id_locked; /**< "<prefix>.locked" — lockdet decision 0/1 */
+    int32_t id_nco;    /**< "<prefix>.nco" — the code NCO's command, the
+                            complete loop-filter output (integrator,
+                            proportional term and aid) as chips per chip;
+                            a held loop's held command */
 } dll_tlm_t;
 
 /**
@@ -1239,14 +1243,20 @@ void dp_dll_tlm_flush(const dp_dll_state_t *s);
 /**
  * @brief Attach (or detach) a telemetry context and register the code
  * loop's probes on it.
- * Registers four probes, emitted once per code epoch (period) and
+ * Registers five probes, emitted once per code epoch (period) and
  * further thinned by decim: "<prefix>.e" (the early-minus-late envelope
  * discriminator — the loop stress), "<prefix>.rate" (the tracked code
- * rate, chips advanced per nominal chip, ~1.0 at lock), "<prefix>.lock"
- * (the CFAR lock statistic R; compare against the configured threshold)
- * and "<prefix>.locked" (the verify-counted lock decision, 0/1 — the
+ * rate, chips advanced per nominal chip, ~1.0 at lock —
+ * dp_dll_get_code_rate(), the loop's own rate, without the carrier aid;
+ * a held loop reports its held integrator's), "<prefix>.lock"
+ * (the CFAR lock statistic R; compare against the configured threshold),
+ * "<prefix>.locked" (the verify-counted lock decision, 0/1 — the
  * lockdet output, so a consumer sees where the declare/drop rule fired
- * without re-deriving it from the statistic).  Passing NULL detaches.
+ * without re-deriving it from the statistic) and "<prefix>.nco" (what the
+ * code NCO is commanded: the complete loop-filter output, the integrator,
+ * the proportional term and the carrier aid, as chips per nominal chip,
+ * at the NCO's resolution of one phase-increment step; a held loop's
+ * held command).  Passing NULL detaches.
  * Setup path, never hot: call before the producer thread starts
  * stepping; the context is borrowed and must outlive the attachment
  * (SPSC rules in dp_tlm/dp_tlm_core.h).
@@ -1255,7 +1265,7 @@ void dp_dll_tlm_flush(const dp_dll_state_t *s);
  * @param prefix Probe-name prefix, e.g. "code" or "ch0.code".
  * @param decim  Emit every decim-th epoch; >= 1.
  * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
- *         four probes (the attach fails whole; the object stays
+ *         five probes (the attach fails whole; the object stays
  *         detached).
  * @code
  * >>> import numpy as np
@@ -1266,11 +1276,11 @@ void dp_dll_tlm_flush(const dp_dll_state_t *s);
  * >>> d = Dll(code=code, sps=2)
  * >>> d.set_telemetry(tlm, "code")
  * >>> sorted(tlm.probe_names)
- * ['code.e', 'code.lock', 'code.locked', 'code.rate']
+ * ['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.rate']
  * >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
  * >>> _ = d.steps(x)
- * >>> recs = tlm.read()   # four records per code epoch
- * >>> len(recs) > 0 and len(recs) % 4 == 0
+ * >>> recs = tlm.read()   # five records per code epoch
+ * >>> len(recs) > 0 and len(recs) % 5 == 0
  * True
  *
  * @endcode

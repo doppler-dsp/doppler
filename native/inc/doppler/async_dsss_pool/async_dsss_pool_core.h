@@ -493,9 +493,9 @@ int dp_async_dsss_pool_set_event_log(dp_async_dsss_pool_state_t *state, dp_event
  *   pool's `n_assigned` and its running `dropped` and `events` counts,
  *   once per push(), after its releases.
  *
- * The probes come to 13 plus each slot's (a cell receiver's loops), so a
- * large pool needs a context with room: an attach that cannot register
- * every probe fails whole.
+ * The probes come to 13 plus each slot's (a cell receiver's: its loops and
+ * its symbol-lock pair), so a large pool needs a context with room: an
+ * attach that cannot register every probe fails whole.
  *
  * A context is single-producer (dp_tlm/dp_tlm_core.h), and a pool created
  * with `threads != 1` (more than one, or `<= 0` for the core count) may

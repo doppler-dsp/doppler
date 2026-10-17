@@ -1012,10 +1012,18 @@ _test_telemetry_follows_the_loops (void)
      or an attach made with one flag down is undone by the next coast. */
   DP_CHECK (rx->car.tlm.ctx == t && rx->car_held.tlm.ctx == t);
   /* A cell receiver: the carrier, the code loop, the demodulator -- and no
-     search, so no "rx.acq". The loop-filter outputs are among them. */
-  const char *outputs[] = { "rx.car.freq", "rx.code.rate", "rx.demod.car.freq",
-                            "rx.demod.sync.rate" };
-  for (size_t i = 0; i < 4; i++)
+     search, so no "rx.acq". The loop-filter outputs are among them, both
+     views of each (the integrator, ".freq"/".rate", and the whole command,
+     ".nco"), and so is the receiver's own symbol-lock decision. */
+  const char *outputs[]
+      = { "rx.car.freq", "rx.car.nco",        "rx.code.rate",
+          "rx.code.nco", "rx.demod.car.freq", "rx.demod.sync.rate",
+          "rx.sym.lock", "rx.sym.locked" };
+  enum
+  {
+    N_OUT = sizeof outputs / sizeof outputs[0]
+  };
+  for (size_t i = 0; i < N_OUT; i++)
     DP_CHECK_MSG (_tlm_emitted (t, outputs[i]) == 0, outputs[i]);
   DP_CHECK (_tlm_emitted (t, "rx.acq.stat") == UINT64_MAX);
 
@@ -1025,8 +1033,31 @@ _test_telemetry_follows_the_loops (void)
   size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
   free (syms);
   DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1 && n_syms > 20);
-  uint64_t before[4];
-  for (size_t i = 0; i < 4; i++)
+  /* The symbol-lock pair: one record each per emitted symbol, and the
+     last of each is the receiver's own decision as it stands. */
+  DP_CHECK (_tlm_emitted (t, "rx.sym.lock") == n_syms);
+  DP_CHECK (_tlm_emitted (t, "rx.sym.locked") == n_syms);
+  {
+    const int     id_lock   = dp_tlm_probe_id (t, "rx.sym.lock");
+    const int     id_locked = dp_tlm_probe_id (t, "rx.sym.locked");
+    dp_tlm_rec_t *recs      = malloc ((1u << 18) * sizeof *recs);
+    DP_REQUIRE (recs != NULL);
+    const size_t n_rec     = dp_tlm_read (t, 1u << 18, recs, 1u << 18);
+    float        last_lock = NAN, last_locked = NAN;
+    for (size_t j = 0; j < n_rec; j++)
+      {
+        if (recs[j].probe == id_lock)
+          last_lock = recs[j].value;
+        else if (recs[j].probe == id_locked)
+          last_locked = recs[j].value;
+      }
+    DP_CHECK (last_lock == (float)dp_async_dsss_receiver_get_lock_metric (rx));
+    DP_CHECK (last_locked == (float)dp_async_dsss_receiver_get_locked (rx));
+    DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
+    free (recs);
+  }
+  uint64_t before[N_OUT];
+  for (size_t i = 0; i < N_OUT; i++)
     {
       before[i] = _tlm_emitted (t, outputs[i]);
       DP_CHECK_MSG (before[i] > 0 && before[i] != UINT64_MAX, outputs[i]);
@@ -1043,7 +1074,7 @@ _test_telemetry_follows_the_loops (void)
   free (syms);
   DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (dp_tlm_probe_count (t) == n_probes);
-  for (size_t i = 0; i < 4; i++)
+  for (size_t i = 0; i < N_OUT; i++)
     {
       const uint64_t now = _tlm_emitted (t, outputs[i]);
       DP_CHECK_MSG (now > before[i] && now != UINT64_MAX, outputs[i]);
@@ -1062,7 +1093,7 @@ _test_telemetry_follows_the_loops (void)
   free (blob);
   n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
   free (syms);
-  for (size_t i = 0; i < 4; i++)
+  for (size_t i = 0; i < N_OUT; i++)
     {
       const uint64_t now = _tlm_emitted (t, outputs[i]);
       DP_CHECK_MSG (now > before[i] && now != UINT64_MAX, outputs[i]);
@@ -1088,7 +1119,7 @@ _test_telemetry_follows_the_loops (void)
   DP_CHECK (rx->car.tlm.ctx == t && rx->car_held.tlm.ctx == t);
   n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
   free (syms);
-  for (size_t i = 0; i < 4; i++)
+  for (size_t i = 0; i < N_OUT; i++)
     {
       const uint64_t now = _tlm_emitted (t, outputs[i]);
       DP_CHECK_MSG (now > before[i] && now != UINT64_MAX, outputs[i]);
@@ -1147,13 +1178,13 @@ _test_telemetry_follows_the_loops (void)
   DP_CHECK (rx->car.tlm.ctx == NULL && rx->car_held.tlm.ctx == NULL);
   n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
   free (syms);
-  for (size_t i = 0; i < 4; i++)
+  for (size_t i = 0; i < N_OUT; i++)
     DP_CHECK_MSG (_tlm_emitted (t, outputs[i]) == before[i], outputs[i]);
   dp_async_dsss_receiver_reset (rx);
   DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
   n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
   free (syms);
-  for (size_t i = 0; i < 4; i++)
+  for (size_t i = 0; i < N_OUT; i++)
     DP_CHECK_MSG (_tlm_emitted (t, outputs[i]) == before[i], outputs[i]);
 
   dp_async_dsss_receiver_destroy (rx);

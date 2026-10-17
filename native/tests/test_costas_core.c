@@ -366,8 +366,12 @@ main (void)
     };
     float _Complex rx[L], out[NS];
     dp_tlm_rec_t recs[512];
+    /* A carrier 1e-3 cycles a sample off: the loop pulls it in, so its
+       discriminator (and the proportional term ".nco" carries) moves. */
     for (int i = 0; i < L; i++)
-      rx[i] = ((i / (TS * 4)) % 2 ? -1.0f : 1.0f) + 0.0f * I;
+      rx[i] = ((i / (TS * 4)) % 2 ? -1.0f : 1.0f)
+              * CMPLXF (cosf (2.0f * (float)M_PI * 1e-3f * (float)i),
+                        sinf (2.0f * (float)M_PI * 1e-3f * (float)i));
     dp_tlm_t          *tlm = dp_tlm_create (4096);
     dp_costas_state_t *c   = dp_costas_create (0.05, 0.707, 0.0, TS, 0.0);
     DP_CHECK (tlm != NULL && c != NULL);
@@ -376,15 +380,38 @@ main (void)
     DP_CHECK (dp_tlm_probe_id (tlm, "car.e") == c->tlm.id_e);
     DP_CHECK (dp_tlm_probe_id (tlm, "car.freq") == c->tlm.id_freq);
     DP_CHECK (dp_tlm_probe_id (tlm, "car.locked") == c->tlm.id_locked);
+    DP_CHECK (dp_tlm_probe_id (tlm, "car.nco") == c->tlm.id_nco);
 
     size_t k = dp_costas_steps (c, rx, L, out, NS);
     DP_CHECK (k == NS);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
-    DP_CHECK (n_rec == 4 * NS); /* lock + e + freq + locked per symbol */
+    DP_CHECK (n_rec == 5 * NS); /* lock, e, freq, locked, nco per symbol */
     /* The last records mirror the tracked state (flush order:
-     * lock, e, freq, locked). */
-    DP_CHECK (recs[n_rec - 2].value == (float)c->nco.norm_freq);
-    DP_CHECK (recs[n_rec - 1].value == (float)dp_costas_get_locked (c));
+     * lock, e, freq, locked, nco). */
+    DP_CHECK (recs[n_rec - 3].value == (float)c->nco.norm_freq);
+    DP_CHECK (recs[n_rec - 2].value == (float)dp_costas_get_locked (c));
+    DP_CHECK (recs[n_rec - 1].value == (float)dp_costas_get_nco_freq (c));
+    /* Every symbol: ".nco" is the whole filter output, ".freq" (the
+     * integrator) plus the proportional term on that symbol's ".e" --
+     * kp*e radians a symbol, kp*e / (2 pi tsamps) cycles a sample. The
+     * largest term is checked too, so a ".nco" that reported ".freq"
+     * cannot pass on symbols whose error happened to be zero. */
+    double worst = 0.0, biggest = 0.0;
+    for (size_t j = 0; j + 4 < n_rec; j += 5)
+      {
+        const double prop
+            = c->lf.kp * recs[j + 1].value / (2.0 * M_PI * (double)TS);
+        const double gap = fabs ((double)recs[j + 4].value
+                                 - ((double)recs[j + 2].value + prop));
+        worst            = gap > worst ? gap : worst;
+        biggest          = fabs (prop) > biggest ? fabs (prop) : biggest;
+      }
+    DP_CHECK_MSG (worst < 1e-7, "car.nco is car.freq plus kp*e");
+    DP_CHECK_MSG (biggest > 1e-4, "the proportional term was exercised");
+    if (worst >= 1e-7 || biggest <= 1e-4)
+      DP_TEST_ERR ("  car.nco - (car.freq + kp*e): worst %.3g, largest "
+                   "term %.3g\n",
+                   worst, biggest);
 
     /* Blobs zero the attachment (deterministic) and set_state into an
      * attached instance preserves that instance's live attachment. */
@@ -425,7 +452,7 @@ main (void)
   {
     /* An overlong prefix is refused with nothing registered, and the
      * longest prefix that fits (24 bytes: "<prefix>.locked" is 31) attaches
-     * all four probes. */
+     * all five probes. */
     dp_tlm_t          *tlm = dp_tlm_create (256);
     dp_costas_state_t *c   = dp_costas_create (0.05, 0.707, 0.01, 16, 0.0);
     DP_CHECK (tlm != NULL && c != NULL);
@@ -439,7 +466,7 @@ main (void)
         DP_CHECK (dp_costas_set_telemetry (c, tlm, over, 1) == DP_ERR_INVALID);
         DP_CHECK (c->tlm.ctx == NULL && dp_tlm_probe_count (tlm) == 0);
         DP_CHECK (dp_costas_set_telemetry (c, tlm, fit, 1) == DP_OK);
-        DP_CHECK (dp_tlm_probe_count (tlm) == 4 && c->tlm.ctx == tlm);
+        DP_CHECK (dp_tlm_probe_count (tlm) == 5 && c->tlm.ctx == tlm);
         DP_CHECK (dp_costas_set_telemetry (c, tlm, "car", 1) == DP_OK);
       }
     dp_costas_destroy (c);

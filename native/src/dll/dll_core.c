@@ -548,17 +548,19 @@ dp_dll_set_telemetry (dp_dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
       return DP_OK;
     }
   const char              *p      = prefix ? prefix : "code";
-  static const char *const sfx[4] = { "e", "rate", "lock", "locked" };
-  char                     name[4][DP_TLM_NAME_MAX];
-  for (size_t i = 0; i < 4; i++) /* all names before any registration */
+  static const char *const sfx[5] = { "e", "rate", "lock", "locked", "nco" };
+  char                     name[5][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 5; i++) /* all names before any registration */
     if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
       return DP_ERR_INVALID; /* overlong prefix: nothing registered */
   int id_e      = dp_tlm_probe (tlm, name[0], decim);
   int id_rate   = dp_tlm_probe (tlm, name[1], decim);
   int id_lock   = dp_tlm_probe (tlm, name[2], decim);
   int id_locked = dp_tlm_probe (tlm, name[3], decim);
-  if (id_e < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0)
+  int id_nco    = dp_tlm_probe (tlm, name[4], decim);
+  if (id_e < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0 || id_nco < 0)
     return DP_ERR_INVALID; /* table full: attach fails whole */
+  state->tlm.id_nco    = id_nco;
   state->tlm.id_e      = id_e;
   state->tlm.id_rate   = id_rate;
   state->tlm.id_lock   = id_lock;
@@ -574,6 +576,10 @@ dp_dll_tlm_flush (const dp_dll_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_rate, s->code_rate);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock_stat);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lock.locked);
+  /* What the NCO is commanded: phase_inc is code periods per sample as a
+     phase word, so over inv_tsamps it is periods per nominal period. */
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_nco,
+               nco_word_to_norm (s->code_nco.phase_inc) / s->inv_tsamps);
 }
 
 /* Serializable state — whole-struct snapshot (loop_filter child and the
@@ -1176,6 +1182,17 @@ held_phase_inc (const dp_dll_state_t *s)
   return nco_norm_freq_to_inc (s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
 }
 
+/* The rate a held loop reports: the same integrator through the steer's
+   rate table, without the proportional term held_phase_inc() leaves out,
+   so code_rate (dp_dll_get_code_rate(), the "<prefix>.rate" probe and
+   every status record that carries it) is the rate the held NCO runs at,
+   less the aid. */
+static double
+held_code_rate (const dp_dll_state_t *s)
+{
+  return 1.0 + s->inv_upd * s->rate_i * s->lf.integ;
+}
+
 void
 dp_dll_set_coast (dp_dll_state_t *state, int coast)
 {
@@ -1190,6 +1207,10 @@ dp_dll_set_coast (dp_dll_state_t *state, int coast)
          at chips per second (measured: +14 chips/s from one such steer). */
       state->lf                 = state->held_lf;
       state->code_nco.phase_inc = held_phase_inc (state);
+      /* And it reports that rate. Without this code_rate kept the last
+         steer's, from the noise-driven updates the restore just undid,
+         for as long as the loop coasted. */
+      state->code_rate = held_code_rate (state);
     }
   state->coast = coast;
 }

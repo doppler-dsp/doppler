@@ -452,6 +452,8 @@ extern "C"
     dp_tlm_t *tlm;                         /**< NULL = detached.          */
     char      tlm_prefix[DP_TLM_NAME_MAX]; /**< The attach's prefix.      */
     uint32_t  tlm_decim;                   /**< The attach's decimation.  */
+    int32_t   tlm_sym_lock;   /**< "<prefix>.sym.lock" id, -1 detached.   */
+    int32_t   tlm_sym_locked; /**< "<prefix>.sym.locked" id, -1 detached. */
   } dp_async_dsss_receiver_state_t;
 
   /**
@@ -734,15 +736,14 @@ extern "C"
 
   /**
    * @brief Attach (or detach) a telemetry context across the receiver's
-   *        loops. A pure forwarder: the receiver registers no probes of its
-   *        own.
+   *        loops, and register the receiver's own symbol-lock decision.
    *
    * Each loop reports under the prefix, at its own update rate:
    * - "<prefix>.car" -- the chip-domain carrier loop (dp_costas_set_telemetry():
-   *   ".lock", ".e", ".freq", ".locked"), once per carrier update, i.e. once
-   *   a code period while it is not coasting;
+   *   ".lock", ".e", ".freq", ".locked", ".nco"), once per carrier update,
+   *   i.e. once a code period while it is not coasting;
    * - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
-   *   ".rate", ".lock", ".locked"), once per discriminator update;
+   *   ".rate", ".lock", ".locked", ".nco"), once per discriminator update;
    * - "<prefix>.rc" -- the resampler's AGC, when it has one
    *   (dp_RateConverter_set_telemetry(); none, and DP_OK, when it has not);
    * - "<prefix>.demod" -- the symbol-domain demodulator
@@ -751,10 +752,18 @@ extern "C"
    *   pair once per gain update);
    * - "<prefix>.acq" -- the searching flavor's acquisition engine
    *   (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has
-   *   no search, so no such probes.
+   *   no search, so no such probes;
+   * - "<prefix>.sym.lock" and "<prefix>.sym.locked" -- the receiver's own
+   *   symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and
+   *   its decision (dp_async_dsss_receiver_get_locked()), the one its
+   *   users act on, once per emitted symbol.
    *
-   * The loops' frequency and rate probes (".car.freq", ".code.rate",
-   * ".demod.car.freq", ".demod.sync.rate") are the loop filters' outputs; ".e"
+   * The carrier and code loops report their filters two ways: ".car.freq"
+   * and ".code.rate" (and the demodulator's ".demod.car.freq") are the
+   * integrators, each loop's frequency memory, which a coast holds;
+   * ".car.nco", ".code.nco" and ".demod.car.nco" are the complete commands
+   * the NCOs run at, the proportional term (and the code loop's carrier
+   * aid) included. ".demod.sync.rate" is the timing loop's output, and ".e"
    * is each discriminator's input to its filter.
    *
    * The attachment is a REQUEST kept on the receiver: every seed rebuilds
@@ -789,7 +798,9 @@ extern "C"
    * >>> tlm = Telemetry(1 << 12)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
-   * ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.rate']
+   * ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
+   * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.sym"))
+   * ['rx.sym.lock', 'rx.sym.locked']
    * >>> rx.set_telemetry(None, "rx")      # detach
    *
    * @endcode

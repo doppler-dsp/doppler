@@ -895,6 +895,70 @@ coast_order_resumes_exact (int order)
   return fails;
 }
 
+/* A coast reports the rate it runs at. Entering the hold restores the
+ * filter to the last dp_dll_hold_here() and steers the NCO at that filter's
+ * integrator; code_rate -- dp_dll_get_code_rate(), the ".rate" probe, and
+ * the receiver's and the pool's status records -- must be that same rate,
+ * less the carrier aid, and not the last steer's. The loop is held on one
+ * code Doppler, then driven by another so the live integrator moves well
+ * off the held one, then coasted. Before the fix code_rate kept the last
+ * steer's value for the whole coast while the NCO ran the held filter. A
+ * new aid while coasting re-steers the NCO and must leave the two agreeing.
+ * Returns the number of failed checks. */
+static int
+coast_reports_the_held_rate (size_t segments)
+{
+  int          fails = 0;
+  const size_t sf = 63, sps = 4, nper = 800;
+  uint8_t     *code = malloc (sf);
+  make_code (code, sf, 23u);
+  float _Complex *rx  = malloc (sf * sps * nper * sizeof *rx);
+  float _Complex *sym = malloc (nper * segments * sizeof *sym);
+  dp_dll_state_t *d
+      = dp_dll_create (code, sf, sps, 0.0, 0.01, 0.707, 0.5, segments);
+  DP_REQUIRE (code && rx && sym && d);
+  const double aid = 1e-5;
+  dp_dll_set_rate_aid (d, aid);
+  size_t n = make_signal (rx, code, sf, sps, 3e-4, nper, 9u, 1);
+  (void)dp_dll_steps (d, rx, n, sym, nper * segments);
+  dp_dll_hold_here (d);
+  n = make_signal (rx, code, sf, sps, -3e-4, nper, 11u, 1);
+  (void)dp_dll_steps (d, rx, n, sym, nper * segments);
+  const double live = dp_dll_get_code_rate (d);
+  dp_dll_set_coast (d, 1);
+
+  /* One phase-increment step, in chips per chip: the NCO's resolution. */
+  const double q    = 1.0 / 4294967296.0 / d->inv_tsamps;
+  double       cmd  = (double)d->code_nco.phase_inc * q;
+  double       rate = dp_dll_get_code_rate (d);
+  DP_CHECK_MSG (fabs (live - rate) > 100.0 * q,
+                "the second Doppler moved the live integrator off the hold");
+  DP_CHECK_MSG (fabs (cmd - (rate + aid)) <= q,
+                "coasting, code_rate is the rate the NCO runs at, less the "
+                "aid");
+  if (fabs (cmd - (rate + aid)) > q)
+    DP_TEST_ERR ("  segments %zu: NCO %.9f, code_rate %.9f + aid %.1e\n",
+                 segments, cmd, rate, aid);
+
+  /* A new aid while coasting re-steers the held NCO; the rate stays. */
+  dp_dll_set_rate_aid (d, 4.0 * aid);
+  cmd = (double)d->code_nco.phase_inc * q;
+  DP_CHECK (dp_dll_get_code_rate (d) == rate);
+  DP_CHECK_MSG (fabs (cmd - (rate + 4.0 * aid)) <= q,
+                "a coasting loop's new aid reaches the NCO, not the rate");
+
+  /* And it stays so while coasting: no steer moves either. */
+  (void)dp_dll_steps (d, rx, n, sym, nper * segments);
+  DP_CHECK (dp_dll_get_code_rate (d) == rate);
+  DP_CHECK ((double)d->code_nco.phase_inc * q == cmd);
+
+  dp_dll_destroy (d);
+  free (sym);
+  free (rx);
+  free (code);
+  return fails;
+}
+
 int
 main (void)
 {
@@ -1559,15 +1623,27 @@ main (void)
     DP_CHECK (dp_tlm_probe_id (tlm, "code.rate") == d->tlm.id_rate);
     DP_CHECK (dp_tlm_probe_id (tlm, "code.lock") == d->tlm.id_lock);
     DP_CHECK (dp_tlm_probe_id (tlm, "code.locked") == d->tlm.id_locked);
+    DP_CHECK (dp_tlm_probe_id (tlm, "code.nco") == d->tlm.id_nco);
 
+    /* An aid the input does not carry: the NCO's command (".nco") then
+     * sits 1e-4 off the loop's own rate (".rate"), so a ".nco" that
+     * reported the rate instead would show. */
+    dp_dll_set_rate_aid (d, 1e-4);
     size_t k     = dp_dll_steps (d, rx, L, out, 256);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
-    DP_CHECK (k > 0 && n_rec == 4 * k); /* e + rate + lock + locked / epoch */
-    /* The final epoch's rate/lock/locked records mirror the tracked state
-     * (flush order per epoch: e, rate, lock, locked). */
-    DP_CHECK (recs[n_rec - 3].value == (float)d->code_rate);
-    DP_CHECK (recs[n_rec - 2].value == (float)d->lock_stat);
-    DP_CHECK (recs[n_rec - 1].value == (float)dp_dll_get_locked (d));
+    DP_CHECK (k > 0 && n_rec == 5 * k); /* e, rate, lock, locked, nco */
+    /* The final epoch's records mirror the tracked state (flush order per
+     * epoch: e, rate, lock, locked, nco); ".nco" is the commanded
+     * increment in chips per chip. */
+    DP_CHECK (recs[n_rec - 4].value == (float)d->code_rate);
+    DP_CHECK (recs[n_rec - 3].value == (float)d->lock_stat);
+    DP_CHECK (recs[n_rec - 2].value == (float)dp_dll_get_locked (d));
+    const double nco_cmd
+        = nco_word_to_norm (d->code_nco.phase_inc) / d->inv_tsamps;
+    DP_CHECK (recs[n_rec - 1].value == (float)nco_cmd);
+    DP_CHECK_MSG (fabs (nco_cmd - d->code_rate) > 5e-5,
+                  "the aid separates the command from the loop's rate");
+    dp_dll_set_rate_aid (d, 0.0);
 
     /* segments > 1: the partial loop flushes once per epoch (an epoch is
      * `segments` emitted partials), through the same literal-tlm split. */
@@ -1576,9 +1652,9 @@ main (void)
     DP_CHECK (dp_dll_set_telemetry (s2, tlm, "code2", 1) == DP_OK);
     size_t k2 = dp_dll_steps (s2, rx, L, out, 256);
     size_t n2 = dp_tlm_read (tlm, 512, recs, 512);
-    DP_CHECK (k2 > 0 && n2 > 0 && n2 % 4 == 0);
+    DP_CHECK (k2 > 0 && n2 > 0 && n2 % 5 == 0);
     DP_CHECK (n2
-              <= 4 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
+              <= 5 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
     dp_dll_destroy (s2);
 
     /* Blobs zero the attachment (deterministic) and set_state into an
@@ -2023,6 +2099,8 @@ main (void)
   DP_CHECK (coast_order_resumes_exact (0) == 0);
   DP_CHECK (coast_order_resumes_exact (1) == 0);
   DP_CHECK (coast_order_resumes_exact (2) == 0);
+  DP_CHECK (coast_reports_the_held_rate (1) == 0);
+  DP_CHECK (coast_reports_the_held_rate (4) == 0);
 
   /* dp_fmod_pos stays in [0, m) (doppler#2110). A negative remainder within
      half an ulp of zero rounded r + m up to exactly m, and dll_replica, which

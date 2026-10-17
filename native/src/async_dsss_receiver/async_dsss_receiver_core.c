@@ -376,12 +376,15 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
   const char *p = s->tlm_prefix;
   uint32_t    d = s->tlm_decim;
   char        car[DP_TLM_NAME_MAX], code[DP_TLM_NAME_MAX], rc[DP_TLM_NAME_MAX],
-      demod[DP_TLM_NAME_MAX], acq[DP_TLM_NAME_MAX];
+      demod[DP_TLM_NAME_MAX], acq[DP_TLM_NAME_MAX], sym_lock[DP_TLM_NAME_MAX],
+      sym_locked[DP_TLM_NAME_MAX];
   if (dp_tlm_name_join (car, p, "car") != DP_OK
       || dp_tlm_name_join (code, p, "code") != DP_OK
       || dp_tlm_name_join (rc, p, "rc") != DP_OK
       || dp_tlm_name_join (demod, p, "demod") != DP_OK
-      || dp_tlm_name_join (acq, p, "acq") != DP_OK)
+      || dp_tlm_name_join (acq, p, "acq") != DP_OK
+      || dp_tlm_name_join (sym_lock, p, "sym.lock") != DP_OK
+      || dp_tlm_name_join (sym_locked, p, "sym.locked") != DP_OK)
     return DP_ERR_INVALID;
   int r = dp_costas_set_telemetry (&s->car, t, car, d);
   if (r == DP_OK)
@@ -394,6 +397,15 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
     r = dp_mpsk_receiver_set_telemetry (s->rx, t, demod, d);
   if (r == DP_OK && s->acq)
     r = dp_acq_set_telemetry (s->acq, t, acq, d);
+  /* The receiver's own decision, the one its users act on: the symbol-lock
+     metric and the lockdet's flag, once per emitted symbol. */
+  if (r == DP_OK)
+    {
+      s->tlm_sym_lock   = dp_tlm_probe (t, sym_lock, d);
+      s->tlm_sym_locked = dp_tlm_probe (t, sym_locked, d);
+      if (s->tlm_sym_lock < 0 || s->tlm_sym_locked < 0)
+        r = DP_ERR_INVALID;
+    }
   return r;
 }
 
@@ -409,6 +421,7 @@ adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
   (void)dp_mpsk_receiver_set_telemetry (s->rx, NULL, p, 1);
   if (s->acq)
     (void)dp_acq_set_telemetry (s->acq, NULL, p, 1);
+  s->tlm_sym_lock = s->tlm_sym_locked = -1;
 }
 
 /* Size the track chain's per-period scratch for the chain just built. One
@@ -889,6 +902,12 @@ adr_track_chain (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
           = dp_ema_step (s->lock_den, re * re + im * im, s->lock_alpha);
       s->lock_metric = (s->lock_den > 0.0) ? s->lock_num / s->lock_den : 0.0;
       (void)dp_lockdet_step (&s->sym_lockdet, s->lock_metric);
+      if (s->tlm && s->tlm_sym_lock >= 0)
+        {
+          dp_tlm_emit (s->tlm, s->tlm_sym_lock, s->lock_metric);
+          dp_tlm_emit (s->tlm, s->tlm_sym_locked,
+                       (double)s->sym_lockdet.locked);
+        }
     }
   return emitted;
 }
@@ -951,6 +970,7 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   }
 
   dp_async_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
+  obj->tlm_sym_lock = obj->tlm_sym_locked = -1; /* detached */
 
   obj->code = dp_xmalloc (code_len);
   memcpy (obj->code, code, code_len);

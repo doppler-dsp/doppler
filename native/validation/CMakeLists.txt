@@ -481,6 +481,14 @@ dp_gnu_compile_options(validate_async_dsss_receiver_lock
                        PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_async_dsss_receiver_lock
          COMMAND validate_async_dsss_receiver_lock --check)
+# `--telemetry DIR`: three receivers through a signal's whole life (arrival,
+# three fades, departure), each captured from the receiver's own probes for
+# scripts/plot_capture.py. Under a second; run here so the stories, their
+# checks and the probes they read cannot rot unseen. `--check` removes a
+# passing story's capture, so the run leaves nothing behind.
+add_test(NAME validate_async_dsss_receiver_lock_telemetry
+         COMMAND validate_async_dsss_receiver_lock --telemetry
+                 ${CMAKE_CURRENT_BINARY_DIR} --check)
 
 # The tracking receiver through the frame's pure-code window: what each lock
 # flag does while the symbol clock coasts, the pull-in when the data resumes,

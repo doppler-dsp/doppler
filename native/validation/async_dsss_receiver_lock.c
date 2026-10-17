@@ -98,11 +98,22 @@
  *                                                the record: `# arrival`
  *                                                and `# dropout`, one row
  *                                                a trial
+ *   ... --telemetry DIR                          the lifecycle stories:
+ *                                                DIR/<story>.tlm, one
+ *                                                receiver's own probes
+ *                                                through arrival, three
+ *                                                fades and departure
+ *   ... --telemetry DIR --check                  the same, checked, and
+ *                                                removed once they pass
+ *                                                (the ctest form)
  */
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/clib_common.h"
 #include "doppler/dp_complex.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
+#include "doppler/timing/timing_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
@@ -599,17 +610,174 @@ print_dropout (double esn0_db, uint32_t seed, const dropout_t *d, int emit)
           relock_ms[0], d->back_ms[1], relock_ms[1], d->flips);
 }
 
+/* --telemetry DIR: one receiver through a signal's whole life, its own
+   telemetry captured (dp_tlm_capture) in DIR/<name>.tlm for
+   scripts/plot_capture.py. A story takes an arrival trial's draws -- its
+   carrier, arrival, bits and noise -- so its first second is that trial,
+   sample for sample, and its arrival is the one the record counts; then
+   the signal is cut for each of STORY_FADES (start, length, s) and leaves
+   for good at STORY_GONE_S, every event mid-data. */
+typedef struct
+{
+  const char *name;
+  double      esn0_db;
+  uint32_t    seed;  /* the arrival trial it continues */
+  int         locks; /* whether that trial reaches symbol lock */
+} story_t;
+
+static const story_t stories[] = {
+  { "lifecycle-10db", 10.0, 1u, 1 },       /* locks within 70 ms         */
+  { "lifecycle-5db", 5.0, 13u, 1 },        /* locks within 130 ms        */
+  { "lifecycle-5db-no-lock", 5.0, 5u, 0 }, /* refine 444 Hz off: no lock */
+};
+#define N_STORIES (sizeof stories / sizeof stories[0])
+static const double story_fades[][2]
+    = { { 1.0, 0.010 }, { 1.3, 0.020 }, { 1.6, 0.050 } };
+#define N_STORY_FADES (sizeof story_fades / sizeof story_fades[0])
+#define STORY_GONE_S 2.0
+#define STORY_S 2.4
+
+static int
+story_on (size_t n, size_t delay)
+{
+  if (n < delay || (double)n >= STORY_GONE_S * FS)
+    return 0;
+  for (size_t f = 0; f < N_STORY_FADES; f++)
+    {
+      const double a = story_fades[f][0] * FS;
+      if ((double)n >= a && (double)n < a + story_fades[f][1] * FS)
+        return 0;
+    }
+  return 1;
+}
+
+static int
+run_story (const uint8_t *code, const story_t *st, const char *dir, int check)
+{
+  const int    fails_before = dp_test_fails_;
+  uint32_t     rng          = trial_rng (st->seed);
+  const double cn0          = cn0_of (st->esn0_db);
+  const double carrier      = (2.0 * dp_uni (&rng) - 1.0) * SPAN;
+  const size_t delay        = (size_t)(dp_uni (&rng) * ARRIVAL_DELAY_S * FS);
+  const size_t blocks       = blocks_for ((size_t)(STORY_S * FS));
+  const size_t n_bits       = symbol_at (blocks * TE) + 2;
+  uint8_t     *bits         = draw_bits (&rng, n_bits);
+
+  dp_wfm_synth_state_t *syn
+      = dp_dsss_cont_emitter (code, SF, SPC, FS, carrier, CPS, st->seed,
+                              WFM_DSSS_DATA_BITS, bits, n_bits);
+  dp_awgn_state_t                *g  = make_noise (st->seed, cn0);
+  dp_async_dsss_receiver_state_t *rx = make_rx (code, cn0);
+  if (!syn || !g || !rx)
+    return 1;
+  DP_REQUIRE_MSG (sends_bits (syn, n_bits),
+                  "the story's emitter sends the harness's bits");
+  /* Every event mid-data: each cut and the departure. */
+  for (size_t f = 0; f < N_STORY_FADES; f++)
+    {
+      double fl = flips_near (bits, n_bits,
+                              symbol_at ((size_t)(story_fades[f][0] * FS)), 0);
+      DP_CHECK_MSG (fl >= FLIPS_MIN && fl <= FLIPS_MAX,
+                    "a story's dropout is cut mid-data");
+    }
+  double fl
+      = flips_near (bits, n_bits, symbol_at ((size_t)(STORY_GONE_S * FS)), 0);
+  DP_CHECK_MSG (fl >= FLIPS_MIN && fl <= FLIPS_MAX,
+                "a story's signal leaves mid-data");
+
+  /* Probes first: the capture sizes its ring from the probe table. */
+  char path[1024];
+  (void)snprintf (path, sizeof path, "%s/%s.tlm", dir, st->name);
+  dp_tlm_t *tlm = dp_tlm_create (1u << 16);
+  DP_REQUIRE (tlm != NULL);
+  DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)
+              == DP_OK);
+  dp_sample_clock_t clk;
+  dp_sample_clock_init (&clk, FS, 0);
+  dp_tlm_capture_t *cap = dp_tlm_capture_open (tlm, TE, path, &clk);
+  DP_REQUIRE_MSG (cap != NULL, "the story's capture opens");
+
+  float complex *sig    = dp_xmalloc (TE * sizeof *sig);
+  float complex *blk    = dp_xmalloc (TE * sizeof *blk);
+  size_t         cap_   = dp_async_dsss_receiver_steps_max_out (rx);
+  float complex *syms   = dp_xmalloc ((cap_ ? cap_ : TE) * sizeof *syms);
+  double         t_lock = -1.0;
+  for (size_t b = 0; b < blocks; b++)
+    {
+      dp_tlm_set_now (tlm, (uint64_t)(b * TE));
+      dp_wfm_synth_steps (syn, sig, TE);
+      dp_awgn_generate (g, TE, blk, TE);
+      for (size_t i = 0; i < TE; i++)
+        if (story_on (b * TE + i, delay))
+          blk[i] += sig[i];
+      (void)dp_async_dsss_receiver_steps (rx, blk, TE, syms, cap_ ? cap_ : TE);
+      if (t_lock < 0.0 && dp_async_dsss_receiver_get_locked (rx))
+        t_lock = ((double)((b + 1) * TE) - (double)delay) / FS * 1e3;
+    }
+  DP_CHECK_MSG (!dp_wfm_synth_data_ended (syn),
+                "the story's data covered its run");
+  DP_CHECK_MSG (dp_tlm_capture_close (cap) == DP_OK,
+                "the story's capture lost nothing");
+  /* The story is the trial its seed names, so its outcome is that
+     trial's: a story that stopped locking (or started) no longer shows
+     what its name says. */
+  DP_CHECK_MSG ((t_lock >= 0.0) == (st->locks != 0),
+                "a story reaches symbol lock exactly when its name says "
+                "(the receiver changed: re-pick its seed from the record's "
+                "arrival trials)");
+  char lock_s[32];
+  if (t_lock < 0.0)
+    (void)snprintf (lock_s, sizeof lock_s, "never");
+  else
+    (void)snprintf (lock_s, sizeof lock_s, "%.1f ms", t_lock);
+  printf ("  %-24s %4.1f dB, carrier %+7.1f Hz, arrival %5.1f ms, symbol "
+          "lock %s -> %s\n",
+          st->name, st->esn0_db, carrier, (double)delay / FS * 1e3, lock_s,
+          path);
+  dp_tlm_capture_destroy (cap);
+  /* --check is the ctest form: a passing story leaves nothing behind
+     (scripts/check_test_leaks.py); a failing one keeps its capture as the
+     evidence. */
+  if (check && dp_test_fails_ == fails_before)
+    {
+      char meta[1040];
+      (void)snprintf (meta, sizeof meta, "%s-meta", path);
+      DP_CHECK (remove (path) == 0 && remove (meta) == 0);
+    }
+  (void)dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1);
+  dp_tlm_destroy (tlm);
+  free (syms);
+  free (blk);
+  free (sig);
+  free (bits);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_awgn_destroy (g);
+  dp_wfm_synth_destroy (syn);
+  return 0;
+}
+
 int
 main (int argc, char **argv)
 {
-  int check = 0, emit = 0;
+  int         check = 0, emit = 0;
+  const char *tlm_dir = NULL;
   for (int i = 1; i < argc; i++)
     {
       check |= strcmp (argv[i], "--check") == 0;
       emit |= strcmp (argv[i], "--emit") == 0;
+      if (strcmp (argv[i], "--telemetry") == 0 && i + 1 < argc)
+        tlm_dir = argv[++i];
     }
   uint8_t code[SF];
   dp_dsss_gold_1023 (code);
+  if (tlm_dir)
+    {
+      printf ("telemetry: %zu lifecycle stories into %s\n", N_STORIES,
+              tlm_dir);
+      for (size_t k = 0; k < N_STORIES; k++)
+        DP_REQUIRE (run_story (code, &stories[k], tlm_dir, check) == 0);
+      DP_TEST_END ("validate_async_dsss_receiver_lock --telemetry");
+    }
 
   const size_t n_esn0 = check ? 1 : N_ESN0;
   const size_t n_arr  = check ? 3 : SWEEP_TRIALS;

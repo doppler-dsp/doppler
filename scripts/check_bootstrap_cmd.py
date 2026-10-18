@@ -18,9 +18,11 @@ anything else noticing:
    package not existing on this release (22.04, whose clang bundles the
    runtime). It is run here against stubbed ``clang``, ``apt-get``,
    ``apt-cache`` and ``sudo`` in a directory that holds nothing else, once
-   per case, and must exit 0 for the two benign cases and non-zero for every
-   failure. A command that reports a failed update, install, missing clang
-   or missing sudo as "bundled" fails this.
+   per case, and must exit 0 for the benign cases and non-zero for every
+   failure. A failed ``apt-get update`` only warns, so a package the cached
+   lists hold still installs; absence is claimed only after a successful
+   update. A command that reports a failed install, missing clang, missing
+   sudo, or a package missing from stale lists as "bundled" fails this.
 
 Usage
 -----
@@ -69,7 +71,24 @@ CASES = [
         True,
     ),
     ("install fails", (), {"CLANG_OUT": "19.1.7", "INSTALL_RC": "100"}, False),
-    ("update fails", (), {"CLANG_OUT": "19.1.7", "UPDATE_RC": "100"}, False),
+    (
+        "update fails, cached lists hold it",
+        (),
+        {"CLANG_OUT": "19.1.7", "UPDATE_RC": "100"},
+        True,
+    ),
+    (
+        "update fails, package not in cached lists",
+        (),
+        {"CLANG_OUT": "19.1.7", "UPDATE_RC": "100", "CACHE_RC": "100"},
+        False,
+    ),
+    (
+        "update fails, install fails",
+        (),
+        {"CLANG_OUT": "19.1.7", "UPDATE_RC": "100", "INSTALL_RC": "100"},
+        False,
+    ),
     ("clang reports no version", (), {"CLANG_OUT": ""}, False),
     ("no clang", ("clang",), {}, False),
     ("no sudo when not root", ("sudo",), {"CLANG_OUT": "19.1.7"}, None),

@@ -1,19 +1,28 @@
 {
- "date_utc": "2026-10-17 21:31",
- "machine": "swiftgo-ai9465",
+ "stamp_schema": 2,
+ "date_utc": "2026-10-18 12:37",
+ "machine": "cachyos-x8664-ai465",
  "cpu_model": "AMD Ryzen AI 9 465 w/ Radeon 880M",
  "cpu_threads": 20,
- "commit": "233007864",
+ "commit": "225ac3bd1",
  "dirty": false,
  "load_before": [
-  2.53,
-  1.85,
-  1.21
+  1.46,
+  0.93,
+  0.64
  ],
+ "toolchain": {
+  "compiler": "GNU 16.2.1",
+  "compiler_path": "/usr/bin/cc",
+  "libc": "glibc 2.44",
+  "build_type": "Release",
+  "c_flags": "-O3 -DNDEBUG",
+  "native": "OFF"
+ },
  "load_after": [
-  2.53,
-  1.85,
-  1.21
+  1.46,
+  0.93,
+  0.64
  ],
- "wall_s": 0.9
+ "wall_s": 1.0
 }

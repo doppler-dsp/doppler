@@ -44,8 +44,8 @@ HAS_PR_WATCH = 1
 # every input it was built from in .github/ci-images.env. The flag vendors
 # docker/ci.Dockerfile, scripts/ci-image.py and .github/workflows/ci-image.yml
 # and hangs `ci-image-check` off lint; doppler's own copy of all three is gone.
-# doppler's extras (clang's profile runtime, nats-server) are
-# docker/ci-extra.sh, canonical's extension point.
+# doppler's one extra (nats-server, pinned by hash) is docker/ci-extra.sh,
+# canonical's extension point; clang's runtime is bootstrap.toml's clang-rt.
 #
 # TWO BASES, and the pair is load-bearing rather than thorough: build-and-test
 # runs ubuntu-22.04 and ubuntu-24.04 on purpose (two glibcs). One image for
@@ -1364,12 +1364,12 @@ COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|(^|/)jm_[a-z]+\.h
 # find .../libclang_rt.profile.a", which reads like a broken toolchain rather
 # than a missing package -- it cost a full gates run to diagnose.
 #
-# DERIVED rather than listed in bootstrap.toml's dev group, because whether `clang`
-# already carries its profile runtime is a property of the distro RELEASE and
-# one package list cannot express it: Ubuntu 22.04 ships it inside clang's own
-# packages and has no libclang-rt package at all (naming one fails apt
-# outright), while 26.04 splits it into libclang-rt-21-dev that `clang` does
-# not depend on. See the note in bootstrap.toml.
+# Installed by bootstrap.toml's clang-rt group, which derives apt's versioned
+# name, because whether `clang` already carries its profile runtime is a
+# property of the distro RELEASE: Ubuntu 22.04 ships it inside clang's own
+# packages and has no libclang-rt package at all, while 26.04 splits it into
+# libclang-rt-21-dev that `clang` does not depend on. This probe stays the
+# assertion, and names the package for the distro at hand when it fails.
 define COVERAGE_CMD
 @printf 'int main(void){return 0;}\n' > $(COV_DIR)-probe.c 2>/dev/null \
     || { mkdir -p $(dir $(COV_DIR)) ; \
@@ -1773,7 +1773,7 @@ LOCAL_TARGETS = specan record-demo parallel-record-write gallery blazing \
                 release-notes-size-check workflow-syntax-check \
                 ci-aggregator-check python-versions-check \
                 jm-pin \
-                issue-link-check \
+                issue-link-check bootstrap-cmd-check \
                 validate validate-py validate-c validate-check \
                 validate-spellings-check \
                 test-sweep validation-time-baseline \
@@ -1909,7 +1909,8 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       workflow-syntax-check ci-aggregator-check python-versions-check \
       gates-extra-home-check \
       release-notes-size-check \
-      issue-link-check deps-budget-check ci-image-refs-check cargo-floor-check \
+      issue-link-check bootstrap-cmd-check deps-budget-check \
+      ci-image-refs-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check mem-guard-check \
@@ -2530,8 +2531,9 @@ ASAN_FLAGS  = -fsanitize=address -fno-omit-frame-pointer -g
 # kernel here reads its samples, so a gcc-built test-asan passed while
 # resamp read 19 samples past its delay line. clang reports them. clang's
 # ASan runtime ships apart from clang on Ubuntu/Debian 24.04+
-# (libclang-rt-<major>-dev); CI's image installs it (docker/ci-extra.sh), and
-# the probe at the top of test-asan says so locally. native/tests/asan_canary.c
+# (libclang-rt-<major>-dev); bootstrap.toml's clang-rt group installs it for
+# a dev box and CI's image alike, and the probe at the top of test-asan says
+# so when it is missing. native/tests/asan_canary.c
 # holds the choice: built as the suite was, it must draw an ASan report, so
 # `ASAN_CC=gcc` is red.
 ASAN_CC    ?= clang
@@ -3733,6 +3735,14 @@ CHANGELOG_BASE ?= origin/main
 #
 # Logic in the script rather than inline so the gate's own test can drive it
 # over seeded messages instead of fabricating a scratch repository.
+# bootstrap.toml's `cmd` sections are run verbatim by install-deps, so two
+# failures go unseen elsewhere: just-bashit's TOML reader cutting a string at
+# its first `]`, and [clang-rt.apt] reporting a real failure (no network, no
+# sudo, no clang) as a bundled runtime. The script refuses both, running that
+# command against stubbed apt for every case it must tell apart.
+bootstrap-cmd-check: ## bootstrap.toml cmds are reader-safe; clang-rt.apt fails on real failures
+	@$(UV) run python scripts/check_bootstrap_cmd.py
+
 issue-link-check: ## A branch changing code must declare Closes #N or No-issue:
 	@ISSUE_BASE=$(CHANGELOG_BASE) ISSUE_CODE_PATHS="$(CHANGELOG_CODE_PATHS)" \
 	    ./scripts/issue-link-check.sh

@@ -54,20 +54,14 @@ adr_track_chain_ok (size_t code_len, double chip_rate, double symbol_rate,
                                               partials / (double)segments)));
 }
 
-/* MpskReceiver's terminal outputs per symbol (`m_out`), mirroring
- * dsss_receiver_core.c's own adr_derive_m_out() -- see the full rationale
- * there. Short version: this slot used to hold the retired `n` (the NDA
- * arm's dumps per symbol, so dividing sps exactly was the point) and the old
- * divisor rule survived the rename into a parameter that means something
- * else. It must be EVEN in [2, 8] and need not divide sps, so prefer the
- * coherent-bound default and step down only as far as sps allows. */
+/* MpskReceiver's terminal outputs per symbol (`m_out`) for a chain at
+   `sps`: the one rule, mpsk_rx_derive_m_out() (mpsk_rx_loops.h), on the
+   complex face's inclusive bound, as DsssReceiver and MpskReceiver itself
+   derive it. Even, in [2, 8], since create() refuses sps < 2. */
 static int
-adr_derive_m_out (size_t sps)
+adr_m_out (size_t sps)
 {
-  int m = MPSK_RX_M_OUT_DEFAULT;
-  while (m > 2 && (size_t)m > sps)
-    m -= 2;
-  return m;
+  return (int)mpsk_rx_derive_m_out ((double)sps, 0);
 }
 
 /* Reset the symbol-lock detector's RUNNING state (config -- alpha, lockdet
@@ -322,8 +316,8 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
      steady-state EVM rather than BER (BPSK's BER saturates first, and the
      BER-optimal 0.001 is ~8 dB worse in EVM). */
   /* `n` is inside dp_ratesync_m_ok(): create() derives it
-     (adr_derive_m_out) and configure_chain_raw() refuses outside it, so this
-     create is never refused on `n` (doppler#2421). */
+     (mpsk_rx_derive_m_out) and configure_chain_raw() refuses outside it, so
+     this create is never refused on `n` (doppler#2421). */
   dp_mpsk_receiver_state_t *rx = dp_xnn (dp_mpsk_receiver_create (
       s->m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
       0.005, 0.3, 0.0, s->differential, MPSK_RX_NUM_PHASES, 1,
@@ -1057,11 +1051,11 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
                             &obj->refine_rc_out_buf, &obj->refine_rc_out_cap);
   obj->refine_samples_fed = 0;
 
-  adr_build_track_chain (obj, 0.0, 0.0, segments, sps, adr_derive_m_out (sps),
+  adr_build_track_chain (obj, 0.0, 0.0, segments, sps, adr_m_out (sps),
                          &obj->car, &obj->dll, &obj->rc, &obj->rx);
   obj->segments      = segments;
   obj->sps           = sps;
-  obj->n             = adr_derive_m_out (sps);
+  obj->n             = adr_m_out (sps);
   obj->car_carry_len = 0; /* both placeholder builds share this buffer */
   adr_size_track_scratch (obj);
 

@@ -1125,8 +1125,8 @@ extern "C"
   /**
    * @brief Pin the live-tracking despread/resample/demod grid directly.
    * The escape hatch for the composition-specific knob: `segments` (the
-   * live Dll's tracking parameter) and `sps`/`n` (MpskReceiver's
-   * sample-rate/carrier-arm parameters) are independently overridable,
+   * live Dll's tracking parameter) and `sps`/`n` (MpskReceiver's samples
+   * and terminal outputs per symbol) are independently overridable,
    * still bridged by a freshly-sized `RateConverter` and never coupled to
    * each other. While searching/refining it re-pins the grid used to build
    * the next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
@@ -1136,18 +1136,18 @@ extern "C"
    *
    * The new grid is checked as create() checked the first, before anything
    * is rebuilt, and refused with the receiver left on its prior grid: the
-   * Dll's domain at @p segments, @p sps >= 2, and a symbol period of at most
+   * Dll's domain at @p segments, @p sps >= 2, a symbol period of at most
    * 2^20 Dll partials, which the Dll's aid would otherwise refuse mid-build
-   * (doppler#2103). Not yet refused, and still an abort: an @p n that
-   * MpskReceiver refuses (odd, or over 8), and an allocation failure in the
-   * rebuild (doppler#2112).
+   * (doppler#2103), and an @p n MpskReceiver would refuse (#2421). Still an
+   * abort: an allocation failure in the rebuild (doppler#2112).
    *
    * @param state     Must be non-NULL.
    * @param segments  Live-tracking Dll segments per code period.
    * @param sps       MpskReceiver samples per symbol (the resample target),
    *                  >= 2.
-   * @param n         MpskReceiver's terminal outputs per symbol (`m_out`);
-   *                  must divide @p sps.
+   * @param n         MpskReceiver's terminal outputs per symbol (`m_out`):
+   *                  inside dp_ratesync_m_ok() (even, 2..8), and dividing
+   *                  @p sps.
    * @return 0 on success, -1 on a grid refused as above.
    * @code
    * >>> import numpy as np

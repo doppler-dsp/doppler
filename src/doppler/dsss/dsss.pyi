@@ -2713,22 +2713,21 @@ class AsyncDsssReceiver:
     def configure_chain_raw(self, segments: int, sps: int, n: int) -> None:
         """Pin the live-tracking despread/resample/demod grid directly. The
         escape hatch for the composition-specific knob: `segments` (the live
-        Dll's tracking parameter) and `sps`/`n` (MpskReceiver's
-        sample-rate/carrier-arm parameters) are independently overridable,
-        still bridged by a freshly-sized `RateConverter` and never coupled to
-        each other. While searching/refining it re-pins the grid used to build
-        the next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
+        Dll's tracking parameter) and `sps`/`n` (MpskReceiver's samples and
+        terminal outputs per symbol) are independently overridable, still
+        bridged by a freshly-sized `RateConverter` and never coupled to each
+        other. While searching/refining it re-pins the grid used to build the
+        next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
         place, allocating every replacement before adopting it -- and re-seeds
         the rebuilt carrier loop from the demodulator's residual alone, which
         drops loop 1's Doppler (doppler#2414).
 
         The new grid is checked as create() checked the first, before anything
         is rebuilt, and refused with the receiver left on its prior grid: the
-        Dll's domain at segments, sps >= 2, and a symbol period of at most 2^20
-        Dll partials, which the Dll's aid would otherwise refuse mid-build
-        (doppler#2103). Not yet refused, and still an abort: an n that
-        MpskReceiver refuses (odd, or over 8), and an allocation failure in the
-        rebuild (doppler#2112).
+        Dll's domain at segments, sps >= 2, a symbol period of at most 2^20 Dll
+        partials, which the Dll's aid would otherwise refuse mid-build
+        (doppler#2103), and an n MpskReceiver would refuse (#2421). Still an
+        abort: an allocation failure in the rebuild (doppler#2112).
 
         Parameters
         ----------
@@ -2737,8 +2736,8 @@ class AsyncDsssReceiver:
         sps : int
             MpskReceiver samples per symbol (the resample target), >= 2.
         n : int
-            MpskReceiver's terminal outputs per symbol (`m_out`); must divide
-            sps.
+            MpskReceiver's terminal outputs per symbol (`m_out`): inside
+            dp_ratesync_m_ok() (even, 2..8), and dividing sps.
 
         Raises
         ------
@@ -3479,22 +3478,21 @@ class CellAsyncDsssReceiver:
     def configure_chain_raw(self, segments: int, sps: int, n: int) -> None:
         """Pin the live-tracking despread/resample/demod grid directly. The
         escape hatch for the composition-specific knob: `segments` (the live
-        Dll's tracking parameter) and `sps`/`n` (MpskReceiver's
-        sample-rate/carrier-arm parameters) are independently overridable,
-        still bridged by a freshly-sized `RateConverter` and never coupled to
-        each other. While searching/refining it re-pins the grid used to build
-        the next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
+        Dll's tracking parameter) and `sps`/`n` (MpskReceiver's samples and
+        terminal outputs per symbol) are independently overridable, still
+        bridged by a freshly-sized `RateConverter` and never coupled to each
+        other. While searching/refining it re-pins the grid used to build the
+        next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
         place, allocating every replacement before adopting it -- and re-seeds
         the rebuilt carrier loop from the demodulator's residual alone, which
         drops loop 1's Doppler (doppler#2414).
 
         The new grid is checked as create() checked the first, before anything
         is rebuilt, and refused with the receiver left on its prior grid: the
-        Dll's domain at segments, sps >= 2, and a symbol period of at most 2^20
-        Dll partials, which the Dll's aid would otherwise refuse mid-build
-        (doppler#2103). Not yet refused, and still an abort: an n that
-        MpskReceiver refuses (odd, or over 8), and an allocation failure in the
-        rebuild (doppler#2112).
+        Dll's domain at segments, sps >= 2, a symbol period of at most 2^20 Dll
+        partials, which the Dll's aid would otherwise refuse mid-build
+        (doppler#2103), and an n MpskReceiver would refuse (#2421). Still an
+        abort: an allocation failure in the rebuild (doppler#2112).
 
         Parameters
         ----------
@@ -3503,8 +3501,8 @@ class CellAsyncDsssReceiver:
         sps : int
             MpskReceiver samples per symbol (the resample target), >= 2.
         n : int
-            MpskReceiver's terminal outputs per symbol (`m_out`); must divide
-            sps.
+            MpskReceiver's terminal outputs per symbol (`m_out`): inside
+            dp_ratesync_m_ok() (even, 2..8), and dividing sps.
 
         Raises
         ------

@@ -14,10 +14,10 @@ the states show in the run:
 
 - **Searching and refining emit nothing.** The first symbols come once the
   receiver is tracking.
-- **A 10 ms fade is ridden out on average.** At 10 dB Es/N0 this
-  configuration keeps tracking and the symbol lock through a 10 ms fade on
-  average. Lock-up time varies between noise draws, and the example's run is
-  one draw of that average.
+- **Lock-up time and fade survival vary by draw.** This run keeps tracking
+  and the symbol lock through a 10 ms fade. The measurement record, under its
+  own conditions, says how often a fade is ridden out; this setup is not that
+  measurement.
 - **The release rule is armed.** ``lost_confirm_s`` is the interval both lock
   detectors must stay down before the receiver gives up on the emitter.
 - **Reset returns the receiver to searching.** A receiver that has locked
@@ -30,8 +30,7 @@ order: the state (searching, refining, tracking, lost), then ``code_locked``
 ``lock_metric``, the value the lock flag thresholds. Searching that never ends
 means no detection at this uncertainty. Refining that never ends means the
 carrier estimate has not converged. Tracking with ``locked`` low means the
-symbol lock has not come up yet. That is the estimate varying by draw, not
-a fault.
+symbol lock has not come up yet, and lock-up time varies by draw.
 
 The design, and the reasons for the release rule, are in
 ``docs/design/async-dsss-receiver.md``.
@@ -277,7 +276,7 @@ def check(rows: np.ndarray) -> dict[str, float]:
         "no symbols after re-acquiring"
     )
 
-    lock_up_ms = (int(np.argmax(rows["locked"][on_at:])) + 0) * ms
+    lock_up_ms = int(np.argmax(rows["locked"][on_at:])) * ms
     return {
         "lock_up_ms": lock_up_ms,
         "acquire_ms": acquire_ms,

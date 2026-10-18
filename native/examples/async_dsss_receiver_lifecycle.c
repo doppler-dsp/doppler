@@ -34,7 +34,7 @@
  *   §2  The signal arrives: it acquires and tracks, and symbols begin only
  *       once it is tracking.
  *   §3  A 10 ms fade: in this run, tracking and the symbol lock hold through
- *       it. On average the configuration does, and lock-up varies by draw.
+ *       it in this run. Lock-up time varies by draw.
  *   §4  A 0.3 s departure: the receiver goes LOST, no earlier than its confirm
  *       interval; the caller resets it, and the reset receiver is searching.
  *   §5  A returning emitter: it is acquired afresh, emits no symbols until it
@@ -285,7 +285,10 @@ main (void)
   double acquire_ms = (double)(first - on_at) * ms;
   printf ("§1  noise alone for %.0f ms: searching, no symbols\n",
           (double)on_at * ms);
-  printf ("§2  arrival to tracking: %.0f ms\n", acquire_ms);
+  size_t lock_up = first_locked (rows, on_at, n_pushes, 1);
+  printf ("§2  arrival to tracking: %.0f ms; symbol lock up %.0f ms after "
+          "arrival\n",
+          acquire_ms, (double)(lock_up - on_at) * ms);
   CHECK (acquire_ms > 5.0 && acquire_ms < 250.0, "arrival to tracking %.0f ms",
          acquire_ms);
   for (size_t i = 0; i < first; i++)

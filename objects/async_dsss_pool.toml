@@ -218,7 +218,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 params = [
-  { name = "log", type = "dp_event_log_t *", capsule = "doppler.telemetry.dp_event_log", header = "doppler/dp_event_log/dp_event_log_core.h" },
+  { name = "log", type = "dp_event_log_t *", capsule = "doppler.telemetry.dp_event_log", retain = true, header = "doppler/dp_event_log/dp_event_log_core.h" },
 ]
 
 # Telemetry across the searcher, every slot and the pool's counters: the
@@ -229,7 +229,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 params = [
-  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "doppler/dp_tlm/dp_tlm_core.h" },
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", retain = true, header = "doppler/dp_tlm/dp_tlm_core.h" },
   { name = "prefix", type = "const char *" },
   { name = "decim", type = "uint32_t", default = "1" },
 ]

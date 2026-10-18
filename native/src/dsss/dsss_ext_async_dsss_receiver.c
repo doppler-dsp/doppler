@@ -17,6 +17,7 @@ typedef struct
 {
   PyObject_HEAD dp_async_dsss_receiver_state_t *handle;
   jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
+  PyObject     *_jm_retain_set_telemetry_tlm; /* keeps tlm's owner alive */
 } AsyncDsssReceiverObject;
 
 static void
@@ -25,6 +26,7 @@ AsyncDsssReceiverObj_dealloc (AsyncDsssReceiverObject *self)
   if (self->handle)
     dp_async_dsss_receiver_destroy (self->handle);
   jm_inflight_free (&self->_jm_inflight);
+  Py_XDECREF (self->_jm_retain_set_telemetry_tlm);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -875,6 +877,12 @@ AsyncDsssReceiverObj_set_telemetry (AsyncDsssReceiverObject *self,
                     (long long)_rc);
       return NULL;
     }
+  /* retain: the kernel keeps `tlm`, so this object keeps its owner
+     until the next call replaces it or None detaches it. */
+  if (tlm_obj != Py_None)
+    Py_INCREF (tlm_obj);
+  Py_XSETREF (self->_jm_retain_set_telemetry_tlm,
+              tlm_obj != Py_None ? tlm_obj : NULL);
   Py_RETURN_NONE;
 }
 

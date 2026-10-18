@@ -17,6 +17,8 @@ typedef struct
 {
   PyObject_HEAD dp_async_dsss_pool_state_t *handle;
   jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
+  PyObject     *_jm_retain_set_event_log_log; /* keeps log's owner alive */
+  PyObject     *_jm_retain_set_telemetry_tlm; /* keeps tlm's owner alive */
 } AsyncDsssPoolObject;
 
 static void
@@ -25,6 +27,8 @@ AsyncDsssPoolObj_dealloc (AsyncDsssPoolObject *self)
   if (self->handle)
     dp_async_dsss_pool_destroy (self->handle);
   jm_inflight_free (&self->_jm_inflight);
+  Py_XDECREF (self->_jm_retain_set_event_log_log);
+  Py_XDECREF (self->_jm_retain_set_telemetry_tlm);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -632,6 +636,12 @@ AsyncDsssPoolObj_set_event_log (AsyncDsssPoolObject *self, PyObject *args,
                     (long long)_rc);
       return NULL;
     }
+  /* retain: the kernel keeps `log`, so this object keeps its owner
+     until the next call replaces it or None detaches it. */
+  if (log_obj != Py_None)
+    Py_INCREF (log_obj);
+  Py_XSETREF (self->_jm_retain_set_event_log_log,
+              log_obj != Py_None ? log_obj : NULL);
   Py_RETURN_NONE;
 }
 
@@ -685,6 +695,12 @@ AsyncDsssPoolObj_set_telemetry (AsyncDsssPoolObject *self, PyObject *args,
                     (long long)_rc);
       return NULL;
     }
+  /* retain: the kernel keeps `tlm`, so this object keeps its owner
+     until the next call replaces it or None detaches it. */
+  if (tlm_obj != Py_None)
+    Py_INCREF (tlm_obj);
+  Py_XSETREF (self->_jm_retain_set_telemetry_tlm,
+              tlm_obj != Py_None ? tlm_obj : NULL);
   Py_RETURN_NONE;
 }
 

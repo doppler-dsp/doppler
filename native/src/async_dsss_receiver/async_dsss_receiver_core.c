@@ -321,6 +321,9 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
      is too wide for that on a despread stream, and the value is chosen on
      steady-state EVM rather than BER (BPSK's BER saturates first, and the
      BER-optimal 0.001 is ~8 dB worse in EVM). */
+  /* `n` is inside dp_ratesync_m_ok(): create() derives it
+     (adr_derive_m_out) and configure_chain_raw() refuses outside it, so this
+     create is never refused on `n` (doppler#2421). */
   dp_mpsk_receiver_state_t *rx = dp_xnn (dp_mpsk_receiver_create (
       s->m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
       0.005, 0.3, 0.0, s->differential, MPSK_RX_NUM_PHASES, 1,
@@ -1549,9 +1552,10 @@ dp_async_dsss_receiver_configure_chain_raw (
     dp_async_dsss_receiver_state_t *state, size_t segments, size_t sps, int n)
 {
   /* The new grid's chain is checked as create() checked the first, before
-     anything is rebuilt: a period past what the Dll's aid takes would abort
-     the rebuild (doppler#2103). */
-  if (n < 1
+     anything is rebuilt: a period past what the Dll's aid takes, or an `n`
+     MpskReceiver refuses, would abort the rebuild under dp_xnn (doppler#2103,
+     #2421). A negative `n` is refused before the cast. */
+  if (n < 0 || !dp_ratesync_m_ok ((size_t)n)
       || !adr_track_chain_ok (state->code_len, state->chip_rate,
                               state->symbol_rate, segments, sps)
       || (int)(sps % (size_t)n) != 0)

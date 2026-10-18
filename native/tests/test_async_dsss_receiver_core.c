@@ -1888,6 +1888,13 @@ _test_accessor_coverage (void)
   DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 262145, 8, 4)
             == -1);
   DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 1, 1) == -1);
+  /* An n outside dp_ratesync_m_ok() that still divides sps: odd, under 2,
+     over RATESYNC_MAX_M. Each passed the old n >= 1 && sps % n == 0 check
+     and aborted in the rebuild's MpskReceiver create (doppler#2421). */
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 6, 3) == -1);
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 8, 1) == -1);
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 10, 10) == -1);
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 8, -2) == -1);
   DP_CHECK (rx->segments == 4 && rx->sps == 8 && rx->n == 4);
 
   dp_async_dsss_receiver_destroy (rx);

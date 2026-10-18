@@ -29,8 +29,8 @@
  * table; drop every peak within one chip of a live row's code phase, at
  * any Doppler, as that emitter's own (the zone is the code axis alone: a
  * tracked emitter's data blocks put smeared copies of it at its own phase
- * rows away, section 12.14); for each
- * survivor, `dp_acq_build_handoff()` and `seed()` into a free slot, or count
+ * rows away, docs/design/async-dsss-receiver-measurements.md §12.14);
+ * for each survivor, `dp_acq_build_handoff()` and `seed()` into a free slot, or count
  * it dropped when there is none; feed every receiver; then, for each slot
  * whose receiver reports lost, or has held its slot past the maximum
  * on-air time, clear the row, `reset()` the receiver to idle and log
@@ -179,7 +179,9 @@ extern "C"
                               receiver's state -- a cell receiver reports
                               tracking through its pull-in, and a row
                               frozen there leaves the zone within a block
-                              at 20 ppm (section 12.27).                   */
+                              at 20 ppm
+                              (docs/design/async-dsss-receiver-measurements.md
+                              §12.27).                                     */
   } async_dsss_pool_row_t;
 
   /**
@@ -252,7 +254,8 @@ extern "C"
  * transitions and the releases are section 8.2's: the receivers report
  * the same status record, and `refining` is the pull-in. (The pool on
  * hand-off receivers, with a refine chain per seed, was retired on
- * 2026-09-10 once this one matched it on the soak, section 12.27-12.28.)
+ * 2026-09-10 once this one matched it on the soak,
+ * docs/design/async-dsss-receiver-measurements.md §12.27-12.28.)
  *
  * Two things the searcher must give a cell receiver, checked here and
  * refused with NULL: a block depth above 1 (`code_only_epochs` > 1 with a

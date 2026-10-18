@@ -93,16 +93,20 @@
  *                                            subset is its run, on every
  *                                            push)
  *   ... --budget                             the whole population as one
- *                                            run
- * (docs/design/async-dsss-receiver-measurements.md §12.1): the shipped DDC
- * from 13 MSa/s in front of the pool, the time inside both as a fraction of
- * real time at 13 and 30 MSa/s, beside the count tracked
+ *                                            run: the shipped DDC from
+ *                                            13 MSa/s in front of the
+ *                                            pool, the time inside both
+ *                                            as a fraction of real time
+ *                                            at 13 and 30 MSa/s, beside
+ *                                            the count tracked
  *   ... --duration S                         the sweep's length per C/N0
  *                                            (SWEEP_S unless given): the
- *                                            duration requirement of
- *                                            docs/design/async-dsss-receiver.md
- * §5 run as long as the machine allows -- the heap after the warm-up is
- * asserted flat (under glibc the process re-execs itself once with
+ *                                            duration requirement run as
+ *                                            long as the machine allows
+ *                                            -- the heap after the
+ *                                            warm-up is asserted flat
+ *                                            (under glibc the process
+ *                                            re-execs itself once with
  *                                            GLIBC_TUNABLES turning the
  *                                            tcache off, so the count is
  *                                            the pool's, not the cache's)
@@ -114,6 +118,10 @@
  *                                            (both of 45 and 40 unless
  *                                            given): a 600 s run at the
  *                                            floor alone
+ *
+ * The duration requirement is docs/design/async-dsss-receiver.md §5; the
+ * `--budget` population run is
+ * docs/design/async-dsss-receiver-measurements.md §12.17.
  */
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include "doppler/awgn/awgn_core.h"
@@ -478,7 +486,7 @@ static double g_duration_s = 0.0;
 static double g_cn0_only   = 0.0; /* --cn0: the sweep at this C/N0 alone */
 /* --budget: the whole population as one run
    (docs/design/async-dsss-receiver.md §6.4;
-   docs/design/async-dsss-receiver-measurements.md §12.1): the summed stimulus
+   docs/design/async-dsss-receiver-measurements.md §12.17): the summed stimulus
    is carried up to the front end's 13 MSa/s (untimed -- it is the stimulus),
    then the shipped DDC brings it back to two samples per chip on the polyphase
    arbitrary path, the one the ratio forces, and the pool takes the block; the

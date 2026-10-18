@@ -108,6 +108,18 @@ GOOD = (
         'See `docs/design/widget.md` §3.2, "The NDA discriminator '
         '+ lock signal".\n',
     ),
+    (
+        "section-word",
+        "See docs/design/widget.md section 3.2 for the derivation.\n",
+    ),
+    (
+        "wrapped-before-the-mark",
+        "/* The derivation (docs/design/widget.md\n * §3.2) holds. */\n",
+    ),
+    (
+        "wrapped-before-the-number",
+        "/* The derivation (docs/design/widget.md section\n * 3.2). */\n",
+    ),
 )
 
 BAD = (
@@ -133,6 +145,30 @@ BAD = (
         "See [the widget's §3.2/§4.9](docs/design/widget.md) for it.\n",
     ),
     ("deleted-page", "See `docs/design/gone.md` §5 for the derivation.\n"),
+    (
+        "section-word",
+        "See docs/design/widget.md section 4.9 for the derivation.\n",
+    ),
+    (
+        "wrapped-before-the-mark",
+        "/* The derivation (docs/design/widget.md\n * §4.9) holds. */\n",
+    ),
+    (
+        "wrapped-before-the-number",
+        "/* The derivation (docs/design/widget.md section\n * 4.9). */\n",
+    ),
+    (
+        "wrapped-hash",
+        "# The derivation (docs/design/widget.md\n# §4.9) holds.\n",
+    ),
+    (
+        "wrapped-slashes",
+        "// The derivation (docs/design/widget.md\n// §4.9) holds.\n",
+    ),
+    (
+        "capitalised-section",
+        "See docs/design/widget.md Section 4.9 for the derivation.\n",
+    ),
 )
 
 
@@ -238,6 +274,78 @@ def test_a_tracked_file_anywhere_is_scanned(tmp_path: Path) -> None:
     proc = _run(tmp_path)
     assert proc.returncode == 1, proc.stdout + proc.stderr
     assert "native/benchmarks/bench_widget.c" in proc.stdout
+
+
+def test_any_tracked_text_file_is_scanned(tmp_path: Path) -> None:
+    """Not a suffix list: `native/validation/CMakeLists.txt` cited seven
+    sections of a page that no longer had them while the scan read only
+    `.h .c .md .py`."""
+    design = tmp_path / "docs" / "design"
+    design.mkdir(parents=True)
+    (design / "widget.md").write_text(TARGET, encoding="utf-8")
+    (tmp_path / "CMakeLists.txt").write_text(
+        "# The harness (docs/design/widget.md §4.9).\n", encoding="utf-8"
+    )
+    for cmd in (["git", "init", "-q"], ["git", "add", "-A"]):
+        subprocess.run(cmd, cwd=tmp_path, check=True, capture_output=True)
+    proc = _run(tmp_path)
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "CMakeLists.txt:1" in proc.stdout
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "As the design §3.2 has it.\n",
+        "As design section 3.2 has it.\n",
+        "/* As the design\n * section 3.2 has it. */\n",
+        "Design section 3.2 has it.\n",
+    ],
+    ids=["mark", "word", "wrapped", "capitalised"],
+)
+def test_a_citation_naming_no_page_is_refused(
+    tmp_path: Path, text: str
+) -> None:
+    """`design §3.2` names no page, so nothing can check it: refused unless
+    its file is on the shrink-only list."""
+    proc = _run(_tree(tmp_path, text))
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "without naming the page" in proc.stdout
+
+
+def test_a_link_label_names_its_page(tmp_path: Path) -> None:
+    """`[design §3.2](widget.md)` names the page in the link: not bare."""
+    body = "See [design §3.2](docs/design/widget.md) for it.\n"
+    proc = _run(_tree(tmp_path, body))
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def _exempt(root: Path, line: str) -> None:
+    path = root / "scripts" / ".doc-section-bare-exempt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# the ratchet\n" + line, encoding="utf-8")
+
+
+def test_the_list_admits_what_existed_and_only_shrinks(tmp_path: Path) -> None:
+    """One listed, one present: passes. A second one added: refused. The
+    one removed and the entry left at 1: refused, until it is lowered."""
+    root = _tree(tmp_path, "As the design §3.2 has it.\n")
+    _exempt(root, "1 CHANGELOG.md\n")
+    assert _run(root).returncode == 0
+
+    (root / "CHANGELOG.md").write_text(
+        "As the design §3.2 has it, and design §8 too.\n", encoding="utf-8"
+    )
+    grew = _run(root)
+    assert grew.returncode == 1, grew.stdout
+    assert "2 citation(s) say `design §N`" in grew.stdout
+
+    (root / "CHANGELOG.md").write_text(
+        "As docs/design/widget.md §3.2 has it.\n", encoding="utf-8"
+    )
+    stale = _run(root)
+    assert stale.returncode == 1, stale.stdout
+    assert "lower its entry" in stale.stdout
 
 
 def test_an_empty_scan_fails(tmp_path: Path) -> None:

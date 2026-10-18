@@ -197,7 +197,7 @@ uint64_t dp_async_dsss_pool_state_t::dropped;
 
 
 
-Detections dropped for want of a free slot. 
+Detections dropped for want of a free slot since create or reset. 
  
 
 
@@ -445,7 +445,7 @@ uint64_t dp_async_dsss_pool_state_t::samples_consumed;
 
 
 
-Input samples pushed: the stream position every event is stamped at. 
+Input samples pushed since create or reset: the stream position every event is stamped at. 
  
 
 

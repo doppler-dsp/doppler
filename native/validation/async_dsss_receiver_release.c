@@ -448,11 +448,11 @@ main (int argc, char **argv)
                 "%+.2f chips/s (the neighbour's is %+.2f)\n",
                 t.t_code_s * 1e3, t.watch_s, CROSS_AFTER_S, t.code_returns,
                 t.sym_returns, t.rate_after, CROSS_PPM * 1e-6 * CHIP_RATE);
-        /* Measured (design section 12.19): coasting, the rate is 0.00 on
-           every seed and the code flag blips 8-10 times as the neighbour
-           passes through the held phase; without the coast the receiver
-           follows at the neighbour's 4.00 chips per second and the flag
-           flickers 230-250 times. */
+        /* Measured (docs/design/async-dsss-receiver-measurements.md §12.19):
+           coasting, the rate is 0.00 on every seed and the code flag blips
+           8-10 times as the neighbour passes through the held phase; without
+           the coast the receiver follows at the neighbour's 4.00 chips per
+           second and the flag flickers 230-250 times. */
         DP_CHECK_MSG (fabs (t.rate_after) < 1.0,
                       "a departed receiver does not follow a neighbour "
                       "crossing its code phase");
@@ -460,11 +460,11 @@ main (int argc, char **argv)
                       "its code flag blips as the neighbour passes and no "
                       "more -- not the flicker of a receiver that follows");
       }
-      /* The live crossing (design section 12.19): the emitter stays on
-         and a neighbour 475 Hz off crosses its phase at 0.95 chips per
-         second. The loops run on one flag down, so the receiver rides it
-         out; held on the symbol flag alone (the rejected rule) both flags
-         stayed down for the rest of the watch. */
+      /* The live crossing (docs/design/async-dsss-receiver-measurements.md
+         §12.19): the emitter stays on and a neighbour 475 Hz off crosses its
+         phase at 0.95 chips per second. The loops run on one flag down, so the
+         receiver rides it out; held on the symbol flag alone (the rejected
+         rule) both flags stayed down for the rest of the watch. */
       {
         trial_t t;
         DP_REQUIRE (run_trial (code, EV_CROSS_ON, 45.0, 3u, &t) == 0);

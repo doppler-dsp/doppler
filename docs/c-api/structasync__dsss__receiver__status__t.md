@@ -97,7 +97,7 @@ _One consistent picture of what the receiver is doing, by value._ [More...](#det
 ## Detailed Description
 
 
-The status record of docs/design/async-dsss-receiver.md section 11.3: the holder of a pool reads it on demand  once per data-free window at least, because the searcher's exclusion zone is keyed on the receiver's CURRENT estimate, not on its seed  and gets every field from one call, so a reader on another thread never assembles a picture across a `steps()` from the one-at-a-time getters (which remain the same fields' other face). It is a read of live state, not `get_state()`: the bytes triplet resumes the receiver elsewhere, this describes it here. No timestamp: the counters are in input samples, and the holder, which owns the sample clock, stamps them (section 2.2's rule). 
+The status record of docs/design/async-dsss-receiver.md §11.3: the holder of a pool reads it on demand  at least once per data-free window, because the searcher's exclusion zone is keyed on the receiver's CURRENT code phase, not on its seed  and gets every field from one call between `steps()` calls, rather than assembling a picture from the one-at-a-time getters. It is a read of live state, not `get_state()`: the bytes triplet resumes the receiver elsewhere, this describes it here. Its `doppler_hz` is the live carrier (loop 1 plus loop 2), where get\_doppler\_hz() reports the estimate the chain was built from. No timestamp: the counters are in input samples, and the holder, which owns the sample clock, stamps them (docs/design/async-dsss-receiver.md §8.1). 
 
 
     
@@ -168,7 +168,7 @@ double async_dsss_receiver_status_t::cn0_dbhz_est;
 
 
 
-C/N0 estimate, dB-Hz (the hit's). 
+C/N0 estimate, dB-Hz (the seed's). 
  
 
 
@@ -204,7 +204,7 @@ double async_dsss_receiver_status_t::code_rate;
 
 
 
-Live Dll code rate, chips/sample. 
+The Dll's code rate, chips per nominal chip (~1.0 at lock), without the carrier aid; a coasting Dll's is its held rate. 
  
 
 
@@ -257,7 +257,7 @@ double async_dsss_receiver_status_t::lock_threshold;
 
 
 
-`locked` latches above this. 
+`locked` declares strictly above this. 
  
 
 

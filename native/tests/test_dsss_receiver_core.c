@@ -636,6 +636,15 @@ _test_accessor_coverage (void)
   DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 8, 4) == 0);
   DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 0, 8, 4) == -1);
   DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 8, 3) == -1);
+  /* An n outside dp_ratesync_m_ok() that still divides sps: odd, under 2,
+     over RATESYNC_MAX_M. Each passed the old n >= 1 && sps % n == 0 check
+     and aborted in the rebuild's MpskReceiver create (doppler#2426). Each
+     refusal leaves the receiver on its grid. */
+  DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 6, 3) == -1);
+  DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 8, 1) == -1);
+  DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 10, 10) == -1);
+  DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 8, -2) == -1);
+  DP_CHECK (rx->segments == 4 && rx->sps == 8 && rx->n == 4);
 
   dp_dsss_receiver_destroy (rx);
   return 0;

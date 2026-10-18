@@ -150,6 +150,8 @@ extern "C"
    * Lifecycle
    * ------------------------------------------------------------------ */
 
+  int dp_ratesync_m_ok (size_t m);
+
   dp_ratesync_state_t *dp_ratesync_create (double sps, int pulse, double beta,
                                      size_t span, size_t m, size_t num_phases,
                                      double bn, double zeta, int ted);

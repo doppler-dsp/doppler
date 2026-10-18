@@ -1,0 +1,1 @@
+- **The AsyncDsssReceiver design page states what the code does.** Its loop gains, depth rule, hand-off record and pool push order are corrected against the code, and the four citers that named the old §8 peak list and `DetectionEvent` now name §7.1 and `acq_handoff_t` ([`async-dsss-receiver.md`](../../docs/design/async-dsss-receiver.md)).

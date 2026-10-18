@@ -43,68 +43,47 @@ extern "C"
 {
 #endif
 
-  /* SPEC-derived carrier-loop bandwidth for the pre-despread Costas
-   * (hardcoded, not a public constructor param, matching this object's
-   * "just works" philosophy). The refine-stage's frozen carrier never
-   * calls costas_update(), so its own bn/zeta are irrelevant -- only its
-   * tsamps (the wipe period length) and init_norm_freq matter.
+  /* The pre-despread Costas's loop bandwidth (not a constructor parameter).
+   * The refine stage's frozen carrier never calls costas_update(), so its
+   * own bn/zeta are irrelevant -- only its tsamps and init_norm_freq matter.
    *
-   * Wider than the 0.01 first used, for two reasons the narrow value could
-   * not meet: (1) PULL-IN -- the refined seed still leaves ~tens of Hz of
-   * residual (PSDMF accuracy + the ramp drifting the carrier over the
-   * refine->track latency), and a per-code-period PLL at 0.01 has a pull-in
-   * range far under that, so the residual wraps as a zero-mean sinusoid and
-   * the loop never locks; (2) DYNAMICS -- tracking SPEC's 500 Hz/s ramp with
-   * a per-period Type-II loop needs the bandwidth to keep the velocity lag
-   * (phase error ~ ramp/omega_n^2) small. 0.04 pulls the seed in and rides
-   * the ramp with a clean (~0 deg) despread constellation; the minimum that
-   * works is ~0.03 (0.02 under-pulls). Because the phase detector is
-   * |P|-normalized (unit-slope), this is the true noise bandwidth, so it
-   * costs some phase noise at the 0-Doppler floor -- but the ~5 dB Es/N0
-   * floor is still met.
+   * 0.04 is set by pull-in and dynamics, not jitter: the refined seed
+   * leaves a residual the loop must pull in, and tracking SPEC's 500 Hz/s
+   * ramp with a per-period Type-II loop needs the bandwidth to keep the
+   * velocity lag (~ramp/omega_n^2) small. It rides the ramp with a clean
+   * despread constellation; about 0.03 is the least that works. The phase
+   * detector is |P|-normalized, so this is the true noise bandwidth, and
+   * the ~5 dB Es/N0 floor is still met.
    *
-   * THE PULL-IN NUMBER IS NOW MEASURED, and the "~tens of Hz" above is the
-   * assumption rather than the observation. `native/validation/costas_pullin.c`
-   * sweeps this loop's acquisition range in multiples of the `bn/m` bound
-   * (`m = 2`, the squaring discriminator) and re-derives it on every `make
-   * test`. At bn = 0.04 over a 2046-sample code period that bound is
-   * 9.775e-6 cyc/sample -- 60 Hz at SPEC's 6.138 MHz front end -- and the
-   * loop acquires 100% inside it on BOTH signs, is still reliable at 2x, and
-   * is dead by 4x. (Tighter than the MPSK carrier's measured 4x/5x envelope;
-   * the two are separate sweeps for that reason.)
+   * The pull-in range is measured: native/validation/costas_pullin.c sweeps
+   * it in multiples of the `bn/m` bound (`m = 2`, the squaring
+   * discriminator), its spot check on every push (CI's sweep job, `make
+   * test-sweep`). At bn = 0.04 over a 2046-sample code period the bound is
+   * 9.775e-6 cycles/sample, 60 Hz at SPEC's 6.138 MHz front end; the loop
+   * acquires 100% inside it on both signs, is reliable to 2x and dead by 4x.
+   * The receiver's hand-off residual was measured at -54..+375 Hz, routinely
+   * 2-6x the bound (doppler#982): check the hand-off against the bound
+   * before widening bn.
    *
-   * What the assumption cost: doppler#982. The receiver's own hand-off
-   * residual was measured at -54..+375 Hz, i.e. routinely 2-6x this bound,
-   * so the loop is asked to acquire from outside its range on most draws and
-   * the resulting failures read as an acquisition problem. Before widening
-   * bn again, check the hand-off against the bound -- this value was tuned
-   * empirically against the residual assumption that measurement contradicts.
-   *
-   * NO FLL: the pre-despread Costas always passes bn_fll = 0 (a pure PLL).
-   * The FLL cross-product frequency discriminator is far too noisy on this
-   * loop's data-modulated despread-symbol input. The phase discriminator is
-   * NON-DATA-AIDED (squaring the emitted coherent-I&D partials) so it is
-   * immune to the async data transitions that land inside nearly every code
-   * period (see adr_track_period()); with that clean, transition-robust error
-   * the plain PLL tracks the coupled Doppler (offset AND 500 Hz/s ramp)
-   * pre-despread. So the FLL is not exposed here at all, not merely
-   * defaulted off. */
+   * No FLL: the cross-product frequency discriminator is far too noisy on
+   * this loop's data-modulated input, and the squaring phase discriminator
+   * is immune to the transitions, so the plain PLL tracks the coupled
+   * Doppler. The FLL is not exposed at all. */
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
 #define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(chip_rate, code_len)                  \
   (ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))
-  /* Dll's own bn: the validated stable code-loop bandwidth for the
-   * one-update-per-partial tracking geometry -- same value DsssReceiver's
-   * own Dll uses, not dp_dll_create()'s own default of 0.01. (A wider 0.005 was
-   * tried to chase sustained code-rate Doppler, but with the FLL removed the
-   * carrier-driven slips are gone and the narrower 0.002 keeps its noise
-   * immunity at the low-Es/N0 floor.) */
+  /* The Dll's bn, per epoch whatever the steer rate (the symbol-period aid
+   * steers once per symbol and keeps bn per epoch): DsssReceiver's value,
+   * narrower than dp_dll_create()'s default 0.01 for noise immunity at the
+   * low-Es/N0 floor. */
 #define ASYNC_DSSS_RX_DLL_BN 0.002
   /* The Dll's early-late spacing, chips, and so its discriminator's design
    * slope: for a rectangular chip the normalised power discriminator reads
    * (2 - spacing) units per chip of offset, 1.5 here -- the cell mode's
    * correction divides by it so its gain is in chips, gain 1 putting the
-   * phase at the read (design section 12.24's semantics; measured 1.6 on
-   * the channel's resampled pulse, 12.22). */
+   * phase at the read (docs/design/async-dsss-receiver-measurements.md
+   * §12.24's semantics; measured 1.6 on the channel's resampled pulse,
+   * §12.22). */
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
 #define ASYNC_DSSS_RX_DLL_DISC_SLOPE (2.0 - ASYNC_DSSS_RX_DLL_SPACING)
   /* The damping of both Dlls this receiver builds, the tracker and the
@@ -114,22 +93,23 @@ extern "C"
 #define ASYNC_DSSS_RX_DLL_ZETA 0.707
 #define ASYNC_DSSS_RX_REFINE_DLL_SPACING 0.5
 
-  /* Symbol-lock detector on the emitted symbols. The lock signal is the
-   * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
-   * symbol (locked -> +1, 45deg-rotated/noise -> 0). The lock METRIC is that
-   * signal integrated proportionally to SNR -- a power-weighted running mean,
-   * EMA(I^2-Q^2)/EMA(I^2+Q^2), so high-|symbol| (high-SNR) symbols dominate
-   * and noisy ones contribute little -- over a dwell of LOCK_DWELL symbols
-   * (>= 30). A hysteretic lockdet (lockdet_core.h) then declares `locked`
-   * after LOCK_N_UP consecutive symbols with the metric >= LOCK_UP and drops
-   * it after LOCK_N_DOWN below LOCK_DOWN. */
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
-/* The cell mode's defaults (dp_async_dsss_receiver_create_cell(), design
- * section 12.23-12.24 as a mode of this receiver): the correction's gain, in
- * chips, on the coasting Dll's interval-mean discriminator, and the
- * intervals at gain 1 that pull the seed's residual in. */
+/* The cell mode's defaults (dp_async_dsss_receiver_create_cell(),
+ * docs/design/async-dsss-receiver-measurements.md §12.23-12.24 as a mode of
+ * this receiver): the correction's gain, in chips, on the coasting Dll's
+ * interval-mean discriminator, and the intervals at gain 1 that pull the
+ * seed's residual in. */
 #define ASYNC_DSSS_RX_CELL_GAIN 0.125
 #define ASYNC_DSSS_RX_CELL_PULLIN 4u
+/* Symbol-lock detector on the emitted symbols. The lock signal is the
+ * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
+ * symbol (locked -> +1, 45deg-rotated/noise -> 0). The lock METRIC is that
+ * signal integrated proportionally to SNR -- a power-weighted running mean,
+ * EMA(I^2-Q^2)/EMA(I^2+Q^2), so high-|symbol| (high-SNR) symbols dominate
+ * and noisy ones contribute little -- over a dwell of LOCK_DWELL symbols
+ * (>= 30). A hysteretic lockdet (lockdet_core.h) then declares `locked`
+ * after LOCK_N_UP consecutive symbols with the metric strictly above
+ * LOCK_UP, and drops it after LOCK_N_DOWN below LOCK_DOWN. */
 #define ASYNC_DSSS_RX_LOCK_DWELL 30u
 #define ASYNC_DSSS_RX_LOCK_UP 0.5
 #define ASYNC_DSSS_RX_LOCK_DOWN 0.3
@@ -177,7 +157,8 @@ extern "C"
     dp_RateConverter_state_t *rc;
     dp_mpsk_receiver_state_t *rx;
     /* Scratch, not state -- sized at every track-chain (re)build and never
-     * in the steps() hot path (#1192, the section 11.5 rule): the live
+     * in the steps() hot path (#1192, docs/design/async-dsss-receiver.md
+     * §11.5): the live
      * Dll's partials for ONE code period, then rc's resampled output for
      * it. The chain runs a period at a time, so both are fixed by tsamps
      * and rc->rate; they only ever grow. */
@@ -212,10 +193,8 @@ extern "C"
     double cn0_dbhz; 
     double pfa;      
     double pd;       
-    /* Refine-stage tuning, fixed at construction (see objects/
-     * async_dsss_receiver.toml for the rationale behind each default --
-     * all mirror freq_refine.refine_seed_carrier_acq()'s own already-
-     * validated defaults verbatim). */
+    /* Refine-stage tuning, fixed at construction (see each on
+     * dp_async_dsss_receiver_create()). */
     double refine_max_error_db;
     size_t refine_samples_per_symbol;
     double refine_design_margin_db;
@@ -236,8 +215,10 @@ extern "C"
     dp_costas_state_t car_held;       
     /* The cell mode (dp_async_dsss_receiver_create_cell()): the receiver a
      * searcher's cell drives -- no refine, the Dll held from the first
-     * sample and put back once an interval at a held phase corrected by a
-     * gain times what its discriminator read (design section 12.22-12.24);
+     * sample and steered by a rate bias, re-formed every code period, onto
+     * a held phase corrected once an interval by a gain times what its
+     * discriminator read
+     * (docs/design/async-dsss-receiver-measurements.md §12.22-12.24);
      * the carrier loop the searching flavor's own. */
     int      cell;             
     size_t   correct_periods;  
@@ -393,10 +374,10 @@ extern "C"
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
-   * dll + rc + rx, always all nine in the searching flavor and the eight
-   * without acq in cell mode (a fixed shape per flavor, DsssReceiver's
-   * own rationale). segments/sps/n/refine_segments and the flavor are the
-   * layout key. */
+   * car_held + dll + rc + rx, all ten in the searching flavor; cell mode
+   * has seven, without acq, refine_dll and refine_rc (its `ca` is the
+   * pull-in's estimator). A fixed shape per flavor; segments/sps/n/
+   * refine_segments and the flavor are the layout key. */
 
   typedef struct
   {

@@ -7,9 +7,9 @@
  * The continuous engine now allows a coherent depth inside every window
  * tile, to accommodate waveforms with code-only windows
  * (docs/design/async-dsss-receiver.md §2.3): D epochs per block, D
- * slow-time rows per tile, one Doppler grid of tiles*D bins. Design §12
- * step 11 asks for the numbers behind it, through the engine, on the
- * shipped synth:
+ * slow-time rows per tile, one Doppler grid of tiles*D bins. This harness
+ * measures it through the engine, on the shipped synth
+ * (docs/design/async-dsss-receiver-measurements.md §12.7):
  *
  *   floor        one clean emitter in an ALIGNED block -- pure code for the
  *                whole block, the window's interior -- at the operating

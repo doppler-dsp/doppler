@@ -373,6 +373,23 @@ extern "C"
    * ------------------------------------------------------------------ */
 
   /**
+   * @brief The domain of `m`, the terminal outputs per symbol: even, and
+   *        `2 <= m <= RATESYNC_MAX_M`.
+   *
+   * The ONE predicate. Gardner needs the half-symbol gate, so `m` is even
+   * and at least 2, and RATESYNC_MAX_M bounds the in-struct strobe ring.
+   * dp_ratesync_create() and dp_mpsk_receiver_create() refuse outside it,
+   * and a composition that takes `m` from a caller and builds the chain
+   * later checks it first, so the build never meets the refusal. That is
+   * dp_async_dsss_receiver_configure_chain_raw(), whose rebuild runs under
+   * dp_xnn (doppler#2421).
+   *
+   * @param m  Terminal outputs per symbol.
+   * @return   1 inside the domain, 0 outside it.
+   */
+  int dp_ratesync_m_ok (size_t m);
+
+  /**
    * @brief Create a RateSync instance.
    *
    * Builds a `RateConverter(rate = m/sps, pulse, ..., pulse_sps = m)` with CIC

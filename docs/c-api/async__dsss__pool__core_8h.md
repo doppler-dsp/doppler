@@ -81,17 +81,17 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of cell re
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t code\_only\_epochs, double doppler\_rate, size\_t max\_peaks, size\_t n\_slots, int threads, double carrier\_freq\_hz, double lost\_confirm\_s, double max\_emitter\_on\_time\_secs, size\_t segments, size\_t sps, int differential, double gain, size\_t pullin\_intervals) <br>_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (design section 12.22-12.28, #1283)._  |
+|  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t code\_only\_epochs, double doppler\_rate, size\_t max\_peaks, size\_t n\_slots, int threads, double carrier\_freq\_hz, double lost\_confirm\_s, double max\_emitter\_on\_time\_secs, size\_t segments, size\_t sps, int differential, double gain, size\_t pullin\_intervals) <br>_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (docs/design/async-dsss-receiver-measurements.md §12.22-12.28, #1283)._  |
 |  void | [**dp\_async\_dsss\_pool\_destroy**](#function-dp_async_dsss_pool_destroy) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Destroy a async\_dsss\_pool instance and release all memory._  |
 |  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**dp\_async\_dsss\_pool\_push**](#function-dp_async_dsss_pool_push) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_One block of raw cf32 samples through the population._  |
 |  void | [**dp\_async\_dsss\_pool\_reset**](#function-dp_async_dsss_pool_reset) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Release every slot and start over: the searcher reset, every receiver back to idle, the table cleared, the counters zeroed._  |
-|  int | [**dp\_async\_dsss\_pool\_set\_event\_log**](#function-dp_async_dsss_pool_set_event_log) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_event\_log\_t**](dp__event__log__core_8h.md#typedef-dp_event_log_t) \* log) <br>_Attach the run's event log (design section 8.1); NULL detaches._  |
+|  int | [**dp\_async\_dsss\_pool\_set\_event\_log**](#function-dp_async_dsss_pool_set_event_log) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_event\_log\_t**](dp__event__log__core_8h.md#typedef-dp_event_log_t) \* log) <br>_Attach the run's event log (docs/design/async-dsss-receiver.md §8.1); NULL (None) detaches._  |
 |  int | [**dp\_async\_dsss\_pool\_set\_state**](#function-dp_async_dsss_pool_set_state) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**dp\_async\_dsss\_pool\_set\_telemetry**](#function-dp_async_dsss_pool_set_telemetry) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the pool: the searcher, every slot's receiver, and the pool's own counters._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_state\_bytes**](#function-dp_async_dsss_pool_state_bytes) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br> |
-|  [**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md) | [**dp\_async\_dsss\_pool\_status**](#function-dp_async_dsss_pool_status) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot) <br>_One slot's picture, by value (_ [_**async\_dsss\_pool\_slot\_t**_](structasync__dsss__pool__slot__t.md) _)._ |
-|  size\_t | [**dp\_async\_dsss\_pool\_symbols**](#function-dp_async_dsss_pool_symbols) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot, float \_Complex \* out, size\_t max\_out) <br>_The symbols slot_ `slot's` _receiver decided on the last push()._ |
+|  [**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md) | [**dp\_async\_dsss\_pool\_status**](#function-dp_async_dsss_pool_status) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot) <br>_One slot's picture, by value: whether it is assigned, the seed it was assigned from (sample, chip phase, Doppler, C/N0), the receiver's own status record, and the samples since the assignment._  |
+|  size\_t | [**dp\_async\_dsss\_pool\_symbols**](#function-dp_async_dsss_pool_symbols) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot, float \_Complex \* out, size\_t max\_out) <br>_The symbols the receiver in_ `slot` _decided on the last push()._ |
 |  size\_t | [**dp\_async\_dsss\_pool\_symbols\_max\_out**](#function-dp_async_dsss_pool_symbols_max_out) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_The per-slot symbol capacity_ `symbols()` _can return_ _grown with the largest block pushed so far (0 before the first push)._ |
 
 
@@ -131,28 +131,25 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of cell re
 ## Detailed Description
 
 
-The multi-emitter use case (design section 6) has one channel searching without pause and one AsyncDsssReceiver per emitter, assigned once from a detection and tracking until its own loss decision. This object is the holder of that lifecycle, in C, with the Python face as glue:
+The multi-emitter use case (docs/design/async-dsss-receiver.md §6) has one channel searching without pause and one AsyncDsssReceiver per emitter, assigned once from a detection and tracking until its own loss decision. This object is the holder of that lifecycle, in C, with the Python face as glue:
 
 
 
-* **one searcher**, `Acquisition` in continuous mode with the block coherence its code-only window buys (section 2.3) and a peak list (section 7.1), its tiles fanned across the threads the pool is given;
+* **one searcher**, `Acquisition` in continuous mode with the block coherence its code-only window buys (docs/design/async-dsss-receiver.md §2.3) and a peak list (§7.1), its tiles fanned across the threads the pool is given;
 * \*\*`n_slots` cell receivers\*\*, created idle. An idle or lost receiver consumes and discards what it is fed, so every receiver is fed every block and the feed has no per-state branch; they run across the same threads (`dp_parallel.h`);
-* **the assigned table**, one row per slot: the seed's coordinates, and the row's CURRENT Doppler and chip phase  the live loop's once the receiver tracks, the seed's advanced by the clock dilation before  refreshed before every dwell is read, because an emitter drifts between windows and the seed is the wrong key (section 9);
+* **the assigned table**, one row per slot: the seed's coordinates, and the row's CURRENT Doppler and chip phase  the live loop's once the receiver tracks with code lock, the seed's advanced by the clock dilation before  refreshed before every dwell is read, because an emitter drifts between windows and the seed is the wrong key (docs/design/async-dsss-receiver.md §8.2);
 * **the event log**, borrowed by attachment (the telemetry shape): the pool is the one component that stamps.
 
 
 
 
-One `push()` per block does, in order: feed the searcher; refresh the table; drop every peak within one chip of a live row's code phase, at any Doppler, as that emitter's own (the zone is the code axis alone: a tracked emitter's data blocks put smeared copies of it at its own phase rows away, section 12.14); for each survivor, `dp_acq_build_handoff()` and `seed()` into a free slot, or count it dropped when there is none; feed every receiver; then, for each slot whose receiver reports lost, or has held its slot past the maximum on-air time, clear the row, `reset()` the receiver to idle and log `released`. `seed()`'s own refusal on a receiver that is not idle is the second guard behind the table, so a bookkeeping error cannot become a double assignment. The transitions  `seeded`, `tracking`, `degrade`, `lost`, `released`, `dropped`, `refused`  are the log's annotations, at the sample they happened, with the slot, the receiver's state, the Doppler, the chip phase and the C/N0 staged as `doppler:<name>` fields beside the label (`core:label`).
+One `push()` per block does, in order: refresh the table; feed the searcher, discarding silently every peak within one chip of a live row's code phase, at any Doppler, as that emitter's own (the zone is the code axis alone: a tracked emitter's data blocks put smeared copies of it at its own phase rows away, docs/design/async-dsss-receiver-measurements.md §12.14), and seeding each survivor into a free slot  its phase referred back to the block's start, since the receiver is fed the whole block  or counting it dropped when there is none; feed every receiver; then, for each slot whose receiver reports lost, or has held its slot past the maximum on-air time, clear the row, `reset()` the receiver to idle and log `released`. `seed()`'s own refusal on a receiver that is not idle is the second guard behind the table, so a bookkeeping error cannot become a double assignment. The transitions  `seeded`, `tracking`, `degrade`, `lost`, `released`, `dropped`, `refused`  are the log's annotations, with the slot, the receiver's state, the Doppler, the chip phase and the C/N0 staged as `doppler:<name>` fields beside the label (`core:label`). A seed, a drop and a refusal are stamped at the hit's own sample; a receiver's transitions at the end of the push that saw them; `dropped` and `refused` carry slot `n_slots`, no slot.
 
 
-Nothing about the waveform or the population is baked in: every number is a create parameter whose default is the operating point of section 6.1 (twelve slots, a peak list of sixteen, a 2 s release interval, a 15 min maximum on-air time), and the searcher's and the receivers' own parameters pass through untouched. A physically-coupled carrier (`carrier_freq_hz` &gt; 0) is told to the searcher as well as the receivers: its hand-off advances a hit's code phase by the drift over half its dwell and its coherent blocks align their epochs (#1254, #1256), and the table's rows are advanced by the same dilation.
+Nothing about the population is baked in: every number of it is a create parameter defaulting to the operating point of docs/design/async-dsss-receiver.md §6.1 (twelve slots, a peak list of sixteen, 813 code-only epochs, a 2 s release interval, a 15 min maximum on-air time); the waveform's numbers are the caller's, and the searcher's and the receivers' own parameters pass through untouched. A physically-coupled carrier (`carrier_freq_hz` &gt; 0) is told to the searcher as well as the receivers: its hand-off advances a hit's code phase by the drift over half its dwell and its coherent blocks align their epochs (#1254, #1256), and the table's rows are advanced by the same dilation.
 
 
-What comes out, per slot and by index: the status record by value (`status()`), and the symbols the receiver decided on this push, borrowed from the pool's own buffer (`symbols()`). Nothing allocates per push once a block size has been seen, the pool never exceeds `n_slots`, and a released emitter still on the air is a new detection at its next window into whichever slot is free  the one re-assignment the lifecycle permits. Replay and live runs produce the same records, because nothing here sees a time: every stamp is a stream position.
-
-
-Not built: section 11.4's replica. The operating spread of 10 dB picks the list branch (section 9), so the pool is off the searcher's push path and subtracts nothing.
+What comes out, per slot and by index: the status record by value (`status()`), and the symbols the receiver decided on this push (`symbols()`, copied out of the pool's own buffer). The pool never exceeds `n_slots`, and nothing allocates per push once a block size has been seen, except a seed's chain build (#1269). A released emitter still on the air is a new detection at its next window into whichever slot is free  the one re-assignment the lifecycle permits. Replay and live runs produce the same records, because nothing here sees a time: every stamp is a stream position.
 
 
 Lifecycle: create, then push / status / symbols / reset as often as wanted, then destroy.
@@ -183,7 +180,7 @@ Lifecycle: create, then push / status / symbols / reset as often as wanted, then
 
 ### function dp\_async\_dsss\_pool\_create 
 
-_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (design section 12.22-12.28, #1283)._ 
+_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (docs/design/async-dsss-receiver-measurements.md §12.22-12.28, #1283)._ 
 ```C++
 dp_async_dsss_pool_state_t * dp_async_dsss_pool_create (
     const uint8_t * code,
@@ -214,10 +211,10 @@ dp_async_dsss_pool_state_t * dp_async_dsss_pool_create (
 
 
 
-The lifecycle of the file's doc over `n_slots` CellAsyncDsssReceivers ([**dp\_async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create_cell)): a seed builds no refine stage, the receiver's Dll is held from the first sample and corrected once every `correct_periods` code periods  here the searcher's own block depth D (`coherent_bins`), the timing the design measured  by `gain` chips per chip of its interval-mean discriminator, gain 1 through `pullin_intervals`. push(), the table, the zone, the transitions and the releases are section 8.2's: the receivers report the same status record, and `refining` is the pull-in. (The pool on hand-off receivers, with a refine chain per seed, was retired on 2026-09-10 once this one matched it on the soak, section 12.27-12.28.)
+The lifecycle of the file's doc over `n_slots` CellAsyncDsssReceivers ([**dp\_async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create_cell)): a seed builds no refine stage, the receiver's Dll is held from the first sample and corrected once every `correct_periods` code periods  here the searcher's own block depth D (`coherent_bins`), the timing the design measured  by `gain` chips per chip of its interval-mean discriminator, gain 1 through `pullin_intervals`. push(), the table, the zone, the transitions and the releases are docs/design/async-dsss-receiver.md §8.2's: the receivers report the same status record, and `refining` is the pull-in.
 
 
-Two things the searcher must give a cell receiver, checked here and refused with NULL: a block depth above 1 (`code_only_epochs` &gt; 1 with a window in the waveform  at D = 1 there is no searcher timing to drive), and a Doppler row narrow enough that a seed half a row off lands inside the carrier loop's reliable pull-in  `doppler_res_hz` at most four times ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ (391 Hz at 5 Mcps over Gold-1023, so D &gt;= 13; the operating point's D = 154 gives 31.7 Hz). A The retired hand-off flavour's refine pulled a seed in from half a 4.9 kHz row; a cell receiver has only loop 1, and past twice its bound it never locks.
+Two things the searcher must give a cell receiver, checked here and refused with NULL: a block depth above 1 (`code_only_epochs` &gt; 1 with a window in the waveform  at D = 1 there is no searcher timing to drive), and a Doppler row narrow enough that a seed half a row off lands inside the carrier loop's reliable pull-in  `doppler_res_hz` at most four times ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ (391 Hz at 5 Mcps over Gold-1023, so D &gt;= 13; the operating point's D = 154 gives 31.7 Hz). A cell receiver has only loop 1, and past twice its bound it never locks.
 
 
 
@@ -232,16 +229,16 @@ Two things the searcher must give a cell receiver, checked here and refused with
 * `spc` Samples per chip (default: 2). 
 * `m` PSK order of the receivers (default: 2). 
 * `cn0_dbhz` Design C/N0 for the searcher's sizing and the receivers' (default: 55.0). 
-* `pfa` False-alarm target, the searcher's (default: 1e-3). 
-* `pd` Detection-probability target (default: 0.9). 
+* `pfa` False-alarm target: the searcher's, and the receivers' pull-in estimator's (default: 1e-3). 
+* `pd` Detection-probability target, both as for `pfa` (default: 0.9). 
 * `doppler_uncertainty` The searcher's one-sided span, Hz (default: 100.0). 
-* `code_only_epochs` Whole code-only epochs the waveform's window holds at any chip phase  the block depth of section 2.3; must give D &gt; 1 (default: 813). 
+* `code_only_epochs` Whole code-only epochs the waveform's window holds at any chip phase  the block depth of docs/design/async-dsss-receiver.md §2.3; must give D &gt; 1 (default: 813). 
 * `doppler_rate` Doppler rate the depth is bounded against, Hz/s; 0 leaves the window as the only bound (default: 0.0). 
 * `max_peaks` The searcher's list capacity per dwell (default: 16). 
 * `n_slots` Receivers held (default: 12). 
 * `threads` Threads the receivers and the searcher's fan run across; &lt;= 0 picks the online core count, 1 is serial (default: 1). 
 * `carrier_freq_hz` RF carrier the Doppler is physically coupled to, Hz, told to the searcher and every receiver; 0.0 = uncoupled (default: 0.0). Coupled, it is above half the sample rate ([**dp\_acq\_carrier\_freq\_ok()**](acq__core_8h.md#function-dp_acq_carrier_freq_ok)). 
-* `lost_confirm_s` The release rule's interval, seconds (section 10) (default: 2.0). 
+* `lost_confirm_s` The release rule's interval, seconds (docs/design/async-dsss-receiver.md §10) (default: 2.0). 
 * `max_emitter_on_time_secs` Maximum on-air time of one emitter, seconds; 0 = never (default: 900.0). 
 * `segments` The receivers' live Dll segments (default: 4). 
 * `sps` The receivers' samples per symbol (default: 8). 
@@ -253,7 +250,7 @@ Two things the searcher must give a cell receiver, checked here and refused with
 
 **Returns:**
 
-Heap-allocated state, or NULL on an invalid argument, a searcher whose depth or row a cell receiver cannot take, or allocation failure. 
+Heap-allocated state, or NULL on an invalid argument or a searcher whose depth or row a cell receiver cannot take. 
 
 
 
@@ -343,7 +340,7 @@ size_t dp_async_dsss_pool_push (
 
 
 
-In order: the searcher; the table refreshed; every peak within one chip of a live row's code phase, at any Doppler, dropped as that emitter's own; each survivor seeded into a free slot or counted dropped; every receiver fed, across the pool's threads; every receiver that reports lost, or has held its slot past the maximum on-air time, released. Every transition goes to the attached log at the sample it happened. Accepts any block size: a hit decided inside the block is referred to the block's start before it seeds (the receiver is fed the whole block), on the dilated clock when the carrier is known.
+In order: the table refreshed from every live receiver's status(); the searcher, whose every peak within one chip of a live row's code phase, at any Doppler, is discarded silently as that emitter's own (the zone is the code axis alone: a tracked emitter's data blocks put smeared copies of it at its own phase rows away, docs/design/async-dsss-receiver-measurements.md §12.14), and each survivor seeded into a free slot or counted dropped when there is none (a hit outside the seed domain is logged refused, not dropped); every receiver fed, across the pool's threads (an idle or lost one consumes and discards); then every receiver that reports lost, or has held its slot past `max_emitter_on_time_secs`, released  the row cleared, the receiver reset to idle. Every transition goes to the attached log (the seven labels are set\_event\_log()'s): a seed, a drop and a refusal at the hit's sample, a receiver's transitions at the end of this push. Accepts any block size: a hit decided inside the block is referred to the block's start before it seeds (the receiver is fed the whole block), on the dilated clock when the carrier is known; a dwell is decided when its samples arrive.
 
 
 
@@ -431,7 +428,7 @@ The attached log stays attached and nothing is logged  a reset is the holder's d
 
 ### function dp\_async\_dsss\_pool\_set\_event\_log 
 
-_Attach the run's event log (design section 8.1); NULL detaches._ 
+_Attach the run's event log (docs/design/async-dsss-receiver.md §8.1); NULL (None) detaches._ 
 ```C++
 int dp_async_dsss_pool_set_event_log (
     dp_async_dsss_pool_state_t * state,
@@ -441,7 +438,7 @@ int dp_async_dsss_pool_set_event_log (
 
 
 
-Borrowed, never owned: the holder opens, finalizes and closes it. From now on every transition is appended at the sample it happened, with `slot`, `state`, `doppler_hz`, `chip_phase` and `cn0_dbhz` staged as `doppler:<name>` fields beside the label (`core:label`) and, on `released`, `reason` (`lost` or `on_time`). A log that has already failed keeps failing (its error is sticky); the pool counts the transition either way.
+Borrowed, never owned: the holder opens, finalizes and closes it. From now on every transition is appended, labelled `seeded`, `tracking`, `degrade`, `lost`, `released`, `dropped` or `refused`  a seed, a drop and a refusal at the hit's sample, a receiver's transitions at the end of the push that saw them  with `slot`, `state`, `doppler_hz`, `chip_phase` and `cn0_dbhz` staged as `doppler:<name>` fields beside the label (`core:label`) and, on `released`, `reason` (`lost` or `on_time`). A log that has already failed keeps failing (its error is sticky); the pool counts the transition either way.
 
 
 
@@ -592,7 +589,7 @@ size_t dp_async_dsss_pool_state_bytes (
 
 ### function dp\_async\_dsss\_pool\_status 
 
-_One slot's picture, by value (_ [_**async\_dsss\_pool\_slot\_t**_](structasync__dsss__pool__slot__t.md) _)._
+_One slot's picture, by value: whether it is assigned, the seed it was assigned from (sample, chip phase, Doppler, C/N0), the receiver's own status record, and the samples since the assignment._ 
 ```C++
 async_dsss_pool_slot_t dp_async_dsss_pool_status (
     dp_async_dsss_pool_state_t * state,
@@ -645,7 +642,7 @@ The record.
 
 ### function dp\_async\_dsss\_pool\_symbols 
 
-_The symbols slot_ `slot's` _receiver decided on the last push()._
+_The symbols the receiver in_ `slot` _decided on the last push()._
 ```C++
 size_t dp_async_dsss_pool_symbols (
     dp_async_dsss_pool_state_t * state,
@@ -657,7 +654,7 @@ size_t dp_async_dsss_pool_symbols (
 
 
 
-Copied from the pool's own buffer, which the next push() overwrites. Empty while the slot is idle, refining or lost, and for a slot outside `[0, n_slots)`.
+Copied from the pool's own buffer, which the next push() overwrites. Empty while the slot is idle or lost, and for a slot outside `[0, n_slots)`; a cell receiver's pull-in (refining) emits.
 
 
 
@@ -725,7 +722,7 @@ size_t dp_async_dsss_pool_symbols_max_out (
 
 
 
-The one constant of design section 6.1: the maximum on-air time of a single emitter, seconds  the default of `max_emitter_on_time_secs`, which the false-release budget and the soak are sized against. 
+The one constant of docs/design/async-dsss-receiver.md §6.1: the maximum on-air time of a single emitter, seconds  the default of `max_emitter_on_time_secs`, which the false-release budget and the soak are sized against. 
 
 
         

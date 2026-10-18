@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_agc_state_t *handle;
+  PyObject *_jm_retain_set_telemetry_tlm; /* keeps tlm's owner alive */
 } AGCObject;
 
 static void
@@ -23,6 +24,7 @@ AGCObj_dealloc (AGCObject *self)
 {
   if (self->handle)
     dp_agc_destroy (self->handle);
+  Py_XDECREF (self->_jm_retain_set_telemetry_tlm);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -210,6 +212,12 @@ AGCObj_set_telemetry (AGCObject *self, PyObject *args, PyObject *kwds)
                     (long long)_rc);
       return NULL;
     }
+  /* retain: the kernel keeps `tlm`, so this object keeps its owner
+     until the next call replaces it or None detaches it. */
+  if (tlm_obj != Py_None)
+    Py_INCREF (tlm_obj);
+  Py_XSETREF (self->_jm_retain_set_telemetry_tlm,
+              tlm_obj != Py_None ? tlm_obj : NULL);
   Py_RETURN_NONE;
 }
 

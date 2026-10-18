@@ -2037,26 +2037,30 @@ class DsssReceiver:
 
         The escape hatch for the one composition-specific knob this object adds
         beyond its children's own: `segments` (Dll's tracking parameter) and
-        `sps`/`n` (MpskReceiver's sample-rate/carrier-arm parameters) are
-        indepen­dently overridable here, still bridged by a freshly-sized
-        `RateConverter` — never coupled to each other (see the module
-        docstring). Rebuilds `dll`/`rc`/`rx` with every replacement allocated
-        first, only freeing and adopting the old ones once every allocation has
-        succeeded (mirrors `Acquisition`'s own `acq_regrid()` discipline) — a
-        failed pin leaves the receiver tracking on its prior grid, not
-        half-destroyed. Only meaningful once tracking (the grid defaults still
-        apply to create-time auto-sizing for the next hit while searching; call
-        `dp_dsss_receiver_create()` with different `segments`/`sps` for that,
-        or re-pin here again after the next hit).
+        `sps`/`n` (MpskReceiver's samples and terminal outputs per symbol) are
+        independently overridable here, still bridged by a freshly-sized
+        `RateConverter` -- never coupled to each other (see the module
+        docstring). It rebuilds `dll`/`rc`/`rx` at once, allocating every
+        replacement before freeing the old ones (`Acquisition`'s `acq_regrid()`
+        discipline), and the pinned grid is the one every later chain is built
+        on: the next hit's hand-off and reset() both rebuild at it.
+
+        The new grid is checked before anything is rebuilt, and refused with
+        the receiver left on its prior grid: segments >= 1, sps >= 2, a symbol
+        no faster than a chip and a resampling ratio that is a normal double
+        (doppler#2103), and an n MpskReceiver would accept (doppler#2426).
+        Still an abort: an allocation failure in the rebuild, which runs under
+        dp_xnn (doppler#2112).
 
         Parameters
         ----------
         segments : int
-            Dll tracking segments per code period.
+            Dll tracking segments per code period, >= 1.
         sps : int
-            MpskReceiver samples per symbol (the resample target).
+            MpskReceiver samples per symbol (the resample target), >= 2.
         n : int
-            MpskReceiver's carrier-arm count; must divide sps.
+            MpskReceiver's terminal outputs per symbol (`m_out`): inside
+            dp_ratesync_m_ok() (even, 2..8), and dividing sps.
 
         Raises
         ------

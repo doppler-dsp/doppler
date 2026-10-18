@@ -276,8 +276,12 @@ packages = [
 # The apt `cmd` tolerates exactly one thing: the package not existing on this
 # release (22.04, whose clang bundles the runtime), asked of `apt-cache show`
 # before installing. Everything else fails the install -- no clang or an
-# empty version, a failed `apt-get update`, no sudo, a failed install (a
-# lock, the network) -- rather than being reported as a bundled runtime.
+# empty version, no sudo, a failed install (a lock, the network) -- rather
+# than being reported as a bundled runtime. A failed `apt-get update` only
+# warns, as install-deps' own update does (one broken third-party source must
+# not stop an install the cached lists can serve), but then absence is not
+# claimed: with stale lists a missing package fails instead of reading as
+# bundled.
 # It runs `apt-get update` itself and carries the retry and timeout options,
 # because a `cmd` is run verbatim, without the update and options
 # install-deps applies to a `packages` list. It escalates only when not
@@ -290,7 +294,7 @@ packages = [
 [clang-rt.apt]
 cmd = [
     "sh", "-c",
-    "o='-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30'; v=$(clang -dumpversion) || exit 1; v=${v%%.*}; case $v in '') echo clang-rt: clang reported no version >&2; exit 1;; esac; p=libclang-rt-$v-dev; s=; test $(id -u) -eq 0 || s=sudo; $s apt-get $o update -qq || exit 1; if apt-cache show $p >/dev/null 2>&1; then $s apt-get $o install -y --no-install-recommends $p; else echo clang-rt: no $p on this release - clang bundles its runtime here; fi",
+    "o='-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30'; v=$(clang -dumpversion) || exit 1; v=${v%%.*}; case $v in '') echo clang-rt: clang reported no version >&2; exit 1;; esac; p=libclang-rt-$v-dev; s=; test $(id -u) -eq 0 || s=sudo; u=0; $s apt-get $o update -qq || { echo clang-rt: apt-get update failed - using the cached lists >&2; u=1; }; if apt-cache show $p >/dev/null 2>&1; then $s apt-get $o install -y --no-install-recommends $p; elif test $u -eq 0; then echo clang-rt: no $p on this release - clang bundles its runtime here; else echo clang-rt: $p is not in the cached lists and apt-get update failed >&2; exit 1; fi",
 ]
 
 # Arch and Fedora package the runtime once, unversioned, as `compiler-rt`

@@ -100,7 +100,7 @@ _One slot's picture, by value_  _what_`status()` _returns._[More...](#detailed-d
 ## Detailed Description
 
 
-The seed fields are the searcher's hand-off record, verbatim, at the sample the row was assigned; the live fields are the receiver's own status record ([**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md)) at the last push. For an unassigned slot the live fields are the idle receiver's (state ASYNC\_DSSS\_RX\_IDLE); for a slot outside `[0, n_slots)` the record is zero with `state` -1. 
+The seed fields are the searcher's hand-off record at the sample the row was assigned: its Doppler and C/N0 as reported, its chip phase referred to that block's start (`seed_sample`). The live fields are the receiver's own status record ([**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md)) at the last push. For an unassigned slot the live fields are the idle receiver's (state ASYNC\_DSSS\_RX\_IDLE); for a slot outside `[0, n_slots)` the record is zero with `state` -1. 
 
 
     
@@ -225,7 +225,7 @@ double async_dsss_pool_slot_t::code_rate;
 
 
 
-Live Dll code rate, chips per sample. 
+The Dll's code rate, chips per nominal chip (~1.0), without the aid; a coasting Dll's is its held rate. 
  
 
 

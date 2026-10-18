@@ -103,6 +103,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  int | [**dp\_ratesync\_loop\_set\_telemetry**](#function-dp_ratesync_loop_set_telemetry) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Register the six timing probes; see_ [_**dp\_ratesync\_set\_telemetry()**_](ratesync__core_8h.md#function-dp_ratesync_set_telemetry) _, which forwards here. NULL_`tlm` _detaches._ |
 |  size\_t | [**dp\_ratesync\_loop\_state\_bytes**](#function-dp_ratesync_loop_state_bytes) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Bytes_ [_**dp\_ratesync\_loop\_get\_state()**_](ratesync__core_8h.md#function-dp_ratesync_loop_get_state) _writes (envelope + payload + the loop filter's child blob)._ |
 |  void | [**dp\_ratesync\_loop\_tlm\_flush**](#function-dp_ratesync_loop_tlm_flush) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Emit the timing loop's telemetry for the symbol just recovered._  |
+|  int | [**dp\_ratesync\_m\_ok**](#function-dp_ratesync_m_ok) (size\_t m) <br>_The domain of_ `m` _, the terminal outputs per symbol: even, and_`2 <= m <= RATESYNC_MAX_M` _._ |
 |  void | [**dp\_ratesync\_reset**](#function-dp_ratesync_reset) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Reset to the post-create state: the cascade, the loop integrator, the lock detector, the strobe ring and the prime countdown._  |
 |  void | [**dp\_ratesync\_set\_bn**](#function-dp_ratesync_set_bn) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, double val) <br> |
 |  int | [**dp\_ratesync\_set\_state**](#function-dp_ratesync_set_state) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, const void \* blob) <br>_Restore mutable state from_ `blob` _into an identically built instance._ |
@@ -875,6 +876,43 @@ Out-of-line on purpose: the emit machinery must not inline into the per-sample h
 
 
 * `l` Loop with a non-NULL tlm.ctx (caller-checked). 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ratesync\_m\_ok 
+
+_The domain of_ `m` _, the terminal outputs per symbol: even, and_`2 <= m <= RATESYNC_MAX_M` _._
+```C++
+int dp_ratesync_m_ok (
+    size_t m
+) 
+```
+
+
+
+The ONE predicate. Gardner needs the half-symbol gate, so `m` is even and at least 2, and RATESYNC\_MAX\_M bounds the in-struct strobe ring. [**dp\_ratesync\_create()**](ratesync__core_8h.md#function-dp_ratesync_create) and [**dp\_mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_create) refuse outside it, and a composition that takes `m` from a caller and builds the chain later checks it first, so the build never meets the refusal. That is [**dp\_async\_dsss\_receiver\_configure\_chain\_raw()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_configure_chain_raw), whose rebuild runs under dp\_xnn (doppler#2421).
+
+
+
+
+**Parameters:**
+
+
+* `m` Terminal outputs per symbol. 
+
+
+
+**Returns:**
+
+1 inside the domain, 0 outside it. 
+
 
 
 

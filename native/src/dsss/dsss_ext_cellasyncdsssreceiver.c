@@ -433,12 +433,14 @@ static PyStructSequence_Field CellAsyncDsssReceiverObj_status_fields[] = {
     "idle, frozen where it was when lost). Only as good as `locked`: with the "
     "carrier unlocked, loop 1 free-runs and this wanders." },
   { "chip_phase", "Live Dll code phase, chips." },
-  { "code_rate", "Live Dll code rate, chips/sample." },
-  { "cn0_dbhz_est", "C/N0 estimate, dB-Hz (the hit's)." },
+  { "code_rate",
+    "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
+    "carrier aid; a coasting Dll's is its held rate." },
+  { "cn0_dbhz_est", "C/N0 estimate, dB-Hz (the seed's)." },
   { "code_locked", "Presence flag: the Dll's lock detector." },
   { "locked", "Health flag: the symbol-lock detector." },
   { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
-  { "lock_threshold", "`locked` latches above this." },
+  { "lock_threshold", "`locked` declares strictly above this." },
   { "car_last_error", "Pre-despread Costas residual, rad." },
   { "mpsk_last_error", "Post-despread carrier residual, rad." },
   { "state_samples", "Input samples since `state` was entered." },
@@ -1011,12 +1013,12 @@ CellAsyncDsssReceiver_getprop_code_locked (CellAsyncDsssReceiverObject *self,
 
 static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
   { "tracking", (getter)CellAsyncDsssReceiver_getprop_tracking, NULL,
-    "1 once the live tracking chain is built and demodulating; 0 while "
-    "searching or refining.\n",
+    "1 once the live tracking chain is built and demodulating; 0 in every "
+    "other state.\n",
     NULL },
   { "refining", (getter)CellAsyncDsssReceiver_getprop_refining, NULL,
-    "1 while the refine stage (CarrierAcquisition collection) is active; 0 "
-    "while searching or tracking.\n",
+    "1 while refining: the searching flavor's CarrierAcquisition dwell, or "
+    "the cell mode's pull-in; 0 in every other state.\n",
     NULL },
   { "idle", (getter)CellAsyncDsssReceiver_getprop_idle, NULL,
     "1 while waiting for a seed (cell mode, before seed() or after reset()); "
@@ -1024,82 +1026,91 @@ static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
     NULL },
   { "lost", (getter)CellAsyncDsssReceiver_getprop_lost, NULL,
     "1 once the release rule has fired: both lock flags were down, "
-    "continuously, for longer than lost_confirm_s while tracking. The loops "
-    "have stopped and samples are discarded; the holder releases the "
-    "assignment and calls reset(). Always 0 with lost_confirm_s = 0.\n",
+    "continuously, for longer than `lost_confirm_s` while tracking -- an "
+    "emitter that left, or a seed that never locked. The loops have stopped "
+    "and samples are consumed and discarded; the holder releases the "
+    "assignment and calls reset(). 0 in every other state, and always 0 with "
+    "`lost_confirm_s = 0`.\n",
     NULL },
   { "doppler_hz", (getter)CellAsyncDsssReceiver_getprop_doppler_hz, NULL,
-    "The current best Doppler estimate: the coarse handoff value while "
-    "refining, the CarrierAcquisition-refined value once tracking.\n",
+    "The Doppler estimate the chain was built from, Hz: the seed's while "
+    "refining, the CarrierAcquisition-refined value once tracking (searching "
+    "flavor). In cell mode it stays the seed's: the pull-in moves loop 1, not "
+    "this. The live carrier is status().doppler_hz.\n",
     NULL },
   { "cn0_dbhz_est", (getter)CellAsyncDsssReceiver_getprop_cn0_dbhz_est, NULL,
-    "Cached from the winning acquisition hit.\n", NULL },
+    "The seed's C/N0 estimate, dB-Hz, unchanged until reset().\n", NULL },
   { "segments", (getter)CellAsyncDsssReceiver_getprop_segments, NULL,
-    "Live-tracking Dll's own segments -- distinct from refine_segments above "
-    "(see the module docstring / dp_dll_lookback_segments()'s own doc on the "
-    "WINDOWS vs TRACK_WINDOWS split).\n",
+    "The live-tracking Dll's partial correlations per code period "
+    "(refine_segments is the refine collector's).\n",
     NULL },
   { "sps", (getter)CellAsyncDsssReceiver_getprop_sps, NULL,
-    "MpskReceiver's own samples/symbol.\n", NULL },
+    "MpskReceiver's samples per symbol.\n", NULL },
   { "n", (getter)CellAsyncDsssReceiver_getprop_n, NULL,
-    "MpskReceiver's own carrier-arm count.\n", NULL },
+    "MpskReceiver's terminal outputs per symbol (`m_out`: even, 2..8).\n",
+    NULL },
   { "chip_phase", (getter)CellAsyncDsssReceiver_getprop_chip_phase, NULL,
-    "Live Dll code phase in chips, Dll's own instantaneous-phase convention "
-    "(the mirror image of acq_result_t::code_phase's correlation-lag "
-    "convention -- see dp_acq_build_handoff()'s doc comment).\n",
+    "The live Dll's code phase, chips, in the Dll's instantaneous convention "
+    "-- the mirror of acq_result_t::code_phase's correlation-lag convention "
+    "(dp_acq_build_handoff()).\n",
     NULL },
   { "code_rate", (getter)CellAsyncDsssReceiver_getprop_code_rate, NULL,
-    "Live Dll code rate: chips advanced per nominal chip (~1.0).\n", NULL },
+    "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
+    "carrier aid; a coasting Dll reports its held rate. The cell mode's Dll "
+    "always coasts, so this stays at its seed's 1.0 and the steer shows in "
+    "the \".code.nco\" probe (set_telemetry()).\n",
+    NULL },
   { "lock", (getter)CellAsyncDsssReceiver_getprop_lock, NULL,
     "The carrier lock statistic of the MpskReceiver this receiver tracks "
     "with: the EMA of its M-th-power lock signal, near 1 when locked and near "
-    "0 on noise. 0 until a track chain exists.\n",
+    "0 on noise.\n",
     NULL },
   { "norm_freq", (getter)CellAsyncDsssReceiver_getprop_norm_freq, NULL,
-    "Smoothed carrier estimate (integrator only, cycles/sample of the "
-    "MpskReceiver output rate); lags a Doppler ramp by the constant Type-II "
-    "ramp error.\n",
+    "The post-despread carrier the MpskReceiver tracks: its centre plus its "
+    "loop's integrator, cycles/sample at its input rate (`sps * "
+    "symbol_rate`). Lags a Doppler ramp by the Type-II ramp error.\n",
     NULL },
   { "nco_freq", (getter)CellAsyncDsssReceiver_getprop_nco_freq, NULL,
-    "Live carrier loop-filter output = NCO frequency command (cycles/sample "
-    "of the MpskReceiver output rate): its mean tracks a Doppler ramp with no "
-    "lag, its variance is the carrier loop stress.\n",
+    "The MpskReceiver's carrier NCO command, its loop filter's whole output, "
+    "cycles/sample at its input rate (`sps * symbol_rate`). Its mean tracks a "
+    "Doppler ramp with no lag (unlike get_norm_freq()); its variance is the "
+    "carrier loop's stress.\n",
     NULL },
   { "locked", (getter)CellAsyncDsssReceiver_getprop_locked, NULL,
-    "Binary receiver lock: the hysteretic (up/down verify-counted) lock "
-    "detector on the emitted symbols -- declared when lock_metric stays >= "
-    "lock_threshold for the up-count and dropped below it for the "
-    "down-count.\n",
+    "The receiver's symbol-lock flag: a hysteretic detector over "
+    "get_lock_metric(), declared after 30 consecutive symbols strictly above "
+    "get_lock_threshold() (0.5) and dropped after 15 consecutive symbols "
+    "strictly below 0.3 (ASYNC_DSSS_RX_LOCK_N_UP, _UP, _N_DOWN and _DOWN, "
+    "fixed at create). The flag the release rule and a pool's holder act "
+    "on.\n",
     NULL },
   { "lock_metric", (getter)CellAsyncDsssReceiver_getprop_lock_metric, NULL,
-    "Symbol-lock metric: SNR-weighted running mean of the BPSK lock signal "
-    "(I^2-Q^2)/(I^2+Q^2) = cos(2*phi) over the emitted symbols (locked -> "
-    "~+1). Drives `locked`; exposed for engineering debug.\n",
+    "Symbol-lock metric = SNR-weighted EMA of (I^2-Q^2)/(I^2+Q^2) = "
+    "cos(2*phi) over the emitted symbols (locked -> ~+1). Drives `locked`.\n",
     NULL },
   { "lock_threshold", (getter)CellAsyncDsssReceiver_getprop_lock_threshold,
     NULL,
-    "The lock_metric declare threshold `locked` latches above (the lockdet "
-    "up_thresh); exposed alongside lock_metric for engineering debug.\n",
+    "The lock-metric threshold `locked` is declared strictly above (0.5, "
+    "ASYNC_DSSS_RX_LOCK_UP); exposed alongside lock_metric for engineering "
+    "debug.\n",
     NULL },
   { "car_last_error", (getter)CellAsyncDsssReceiver_getprop_car_last_error,
     NULL,
     "Pre-despread Costas phase discriminator (rad): the residual carrier "
-    "phase loop 1 (de-rotates before the Dll) is not nulling. Engineering "
-    "debug.\n",
+    "phase LOOP 1 (which de-rotates before the Dll) is not nulling.\n",
     NULL },
   { "car_nco_freq", (getter)CellAsyncDsssReceiver_getprop_car_nco_freq, NULL,
-    "Loop 1 (pre-despread Costas) loop-filter output = NCO frequency command, "
-    "cycles/sample of the front-end (chip_rate*spc) rate. Engineering "
-    "debug.\n",
+    "LOOP 1 (pre-despread Costas) loop-filter output = NCO frequency command, "
+    "cycles/sample of the front-end (chip_rate*spc) rate.\n",
     NULL },
   { "mpsk_last_error", (getter)CellAsyncDsssReceiver_getprop_mpsk_last_error,
     NULL,
     "MpskReceiver carrier phase discriminator (rad): the residual carrier "
-    "phase loop 2 (post-despread) is not nulling. Engineering debug.\n",
+    "phase LOOP 2 (post-despread) is not nulling.\n",
     NULL },
   { "code_locked", (getter)CellAsyncDsssReceiver_getprop_code_locked, NULL,
     "Binary code-lock flag from the live tracking Dll's own verify-counted "
-    "(pfa-tuned) lock detector -- the fundamental DSSS \"am I despreading\" "
+    "(pfa-tuned) lock detector — the fundamental DSSS \"am I despreading\" "
     "lock, de-chattered by up/down hysteresis.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
@@ -1160,27 +1171,21 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "steps(x, out) -> ndarray\n"
     "\n"
-    "Stream raw cf32 samples through the receiver. While searching, samples "
-    "feed the embedded Acquisition and nothing is emitted. On a hit, the "
-    "refine stage (a frozen-carrier Dll collection feeding "
-    "CarrierAcquisition) is built and seeded from it, and the unconsumed tail "
-    "of this call is handed straight to it -- no samples dropped. Once "
-    "CarrierAcquisition reports ready (or its own give-up cap is reached), "
-    "the live tracking chain (Dll + per-partial Costas + RateConverter + "
-    "MpskReceiver) is built fresh, seeded from the ORIGINAL handoff chip "
-    "phase and the refined-or-unrefined Doppler estimate, and demodulated "
-    "symbols are returned from then on. Accepts any block size; state carries "
-    "across calls.\n"
+    "Stream raw cf32 samples; emit demodulated symbols once tracking.\n"
     "\n"
-    "Drives the search -> refine -> track state machine. While searching or\n"
-    "refining, nothing is emitted (an empty return is normal, not an error):\n"
-    "a hit seeds the frozen-carrier refine chain, `CarrierAcquisition`\n"
-    "sharpens the coarse Doppler estimate, and only once it is ready (or\n"
-    "gives up) is the live tracking chain built and demodulation begins.\n"
-    "Accepts any block size; state carries across calls, so a capture can be\n"
-    "fed in frames of any length with no seam. Idle (cell mode, before a\n"
-    "seed) and lost (after the release rule fires) consume the samples and\n"
-    "emit nothing, so the feeding loop is the same in every state; while\n"
+    "Drives the state machine. The searching flavor emits nothing while\n"
+    "searching or refining (an empty return is normal, not an error): a hit\n"
+    "seeds the frozen-carrier refine chain, `CarrierAcquisition` sharpens\n"
+    "the coarse Doppler estimate, and only once it is ready (or gives up) is\n"
+    "the live tracking chain built and demodulation begins. A hit inside a\n"
+    "call hands the rest of the call straight to the refine chain, so no\n"
+    "sample is dropped there; at the refine's end, what the refine did not\n"
+    "consume of the last call goes on to the live chain. In cell mode the\n"
+    "live chain runs from the seed, so refining (the pull-in) emits. Accepts\n"
+    "any block size; state carries across calls, so a capture can be fed in\n"
+    "frames of any length with no seam. Idle (cell mode, before a seed) and\n"
+    "lost (after the release rule fires) consume the samples and emit\n"
+    "nothing, so the feeding loop is the same in every state; while\n"
     "tracking, the release clock runs on the two lock flags after every call\n"
     "(see `lost_confirm_s`). Under SPEC's coupled offset + 500 Hz/s Doppler\n"
     "ramp the pre-despread Costas removes the full carrier dynamics before\n"
@@ -1197,8 +1202,9 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    Number of symbols written (0 while searching/refining, or while\n"
-    "    tracking with not yet a full symbol's worth of input).\n"
+    "    Number of symbols written: 0 while searching, idle or lost, while\n"
+    "    the searching flavor refines, or before a full symbol's worth of\n"
+    "    input.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1262,32 +1268,25 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "seed(chip_phase, doppler_hz_est, cn0_dbhz_est) -> None\n"
     "\n"
-    "Take a detection from outside and start refining from it: the hit's chip "
-    "phase (Dll's instantaneous convention, at the next sample fed), coarse "
-    "Doppler estimate and C/N0 estimate -- exactly what the searching "
-    "flavor's own hit produces. Accepted while idle (cell mode) or searching; "
-    "refused on a receiver that already holds a seed (refining, tracking or "
-    "lost -- reset() releases it) and for a chip_phase outside [0, "
-    "code_len).\n"
+    "Take a detection from outside and start refining from it.\n"
     "\n"
-    "The hand-off of docs/design/async-dsss-receiver.md section 11.1: the\n"
-    "three numbers a searcher's hit carries that this receiver uses --\n"
+    "The hand-off of docs/design/async-dsss-receiver.md §11.1: the three\n"
+    "numbers a searcher's hit carries that this receiver uses --\n"
     "`acq_handoff_t`'s `chip_phase`, `doppler_hz_est` and `cn0_dbhz_est` --\n"
     "exactly as its own hit would have produced them (the searching flavor's\n"
     "`steps()` calls this on its own hit). `chip_phase` is the code's\n"
     "instantaneous phase in chips, Dll's convention, at the FIRST sample of\n"
-    "the next `steps()` call; the Python-side conversion from a lag is\n"
-    "`doppler.dsss.handoff`. The refine chain is rebuilt from the seed and\n"
-    "the state becomes refining; the unconsumed tail is the caller's to\n"
-    "feed.\n"
+    "the next `steps()` call; dp_acq_build_handoff() makes it from a hit's\n"
+    "lag. The searching flavor rebuilds its refine chain from the seed; cell\n"
+    "mode rebuilds the live chain with the Dll held. The state becomes\n"
+    "refining; the unconsumed tail is the caller's to feed.\n"
     "\n"
     "Refused (`DP_ERR_INVALID`, nothing changes) on a receiver that is not\n"
     "waiting for one -- refining, tracking or lost -- because \"assigned\n"
     "once\" is a property of the object, not of the caller's bookkeeping;\n"
     "`reset()` releases it. Accepted while idle (cell mode) or searching\n"
     "(the searching flavor: an outside hit simply beats its own). Also\n"
-    "refused for a `chip_phase` outside `[0, code_len)` or a non-finite\n"
-    "value.\n"
+    "refused outside the seed domain, dp_async_dsss_receiver_seed_ok().\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1296,8 +1295,8 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "doppler_hz_est : float\n"
     "    Coarse Doppler estimate, Hz (the refine stage sharpens it).\n"
     "cn0_dbhz_est : float\n"
-    "    The hit's C/N0 estimate, dB-Hz; reported back by get_cn0_dbhz_est()\n"
-    "    until tracking refreshes it.\n"
+    "    The hit's C/N0 estimate, dB-Hz; reported back by\n"
+    "    get_cn0_dbhz_est(), unchanged until reset().\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1341,19 +1340,17 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
     "both_down_samples, refused_hits)\n"
     "\n"
-    "One consistent picture of the receiver, by value (design section 11.3): "
-    "state, where the emitter is now (the whole carrier estimate -- loop 1's "
-    "plus what loop 2 took up beyond it -- only as good as `locked`; chip "
-    "phase, code rate, C/N0), both lock flags with the symbol-lock metric and "
-    "threshold, both residual carrier errors, and the two clocks in input "
-    "samples (since the state was entered; both flags down without a break). "
-    "Read on demand by the holder of a pool -- the one-at-a-time properties "
-    "are the same fields' other face. No timestamp: the holder owns the "
-    "sample clock and stamps it.\n"
+    "Read the status record, by value: the state; where the emitter is\n"
+    "now (the live carrier), its chip phase, code rate and C/N0; both lock\n"
+    "flags with the symbol-lock metric and threshold; both carrier\n"
+    "residuals; and the two clocks in input samples (since the state was\n"
+    "entered; both flags down without a break).\n"
     "\n"
     "Cheap and allocation-free: every field is a read of live state. The\n"
-    "one-at-a-time getters below report the same fields; this is the face a\n"
-    "pool holder uses.\n"
+    "one-at-a-time getters report the same fields, `doppler_hz` apart (see\n"
+    "the record); this is the face a pool holder uses. No timestamp: the\n"
+    "clocks are in input samples, and the holder, which owns the sample\n"
+    "clock, stamps the record.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1384,9 +1381,15 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "configure_lock_raw(up_thresh, down_thresh, n_looks, alpha, n_up, n_down) "
     "-> None\n"
     "\n"
-    "Re-tune the live-tracking Dll's code-lock detector directly. Only "
-    "meaningful once tracking has begun; a no-op while searching or "
-    "refining.\n"
+    "Re-tune the live-tracking Dll's code-lock detector directly.\n"
+    "Forwards to `dp_dll_configure_lock_raw()` on the live tracking Dll (the\n"
+    "one behind `get_code_locked()`), NOT the refine-stage collection Dll.\n"
+    "It retunes the Dll the receiver holds now; every chain build (a seed,\n"
+    "the hand-over, reset() or configure_chain_raw()) replaces that Dll with\n"
+    "a freshly sized one, so call it once tracking. The detector is the\n"
+    "hysteretic lockdet over the DLL's per-N-look CFAR statistic — the\n"
+    "levels and verify counts trade declare latency against false-alarm\n"
+    "rate.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1417,29 +1420,31 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "...                        spc=2, doppler_uncertainty=500.0)\n"
     ">>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,\n"
     "...                       alpha=0.1, n_up=5, n_down=3)\n"
-    ">>> rx.tracking                       # a no-op until tracking begins\n"
+    ">>> rx.tracking                       # replaced at the next chain "
+    "build\n"
     "0\n" },
   { "configure_chain_raw",
     (PyCFunction)(void *)CellAsyncDsssReceiverObj_configure_chain_raw,
     METH_VARARGS | METH_KEYWORDS,
     "configure_chain_raw(segments, sps, n) -> None\n"
     "\n"
-    "Pin the live-tracking despread/resample/demod grid directly, bypassing "
-    "the create-time segments/sps defaults. Only meaningful once tracking; "
-    "rebuilds the chain with every replacement allocated first. Raises "
-    "ValueError, leaving the receiver on its prior grid, for a grid the chain "
-    "cannot be built on: n >= 1 dividing sps, sps >= 2, and a symbol of at "
-    "most 2^20 Dll partials at the new segments, segments * chip_rate / "
-    "(code_len * symbol_rate) <= 1048576. An n MpskReceiver refuses (odd, or "
-    "over 8) still aborts (doppler#2112).\n"
+    "Pin the live-tracking despread/resample/demod grid directly. The\n"
+    "escape hatch for the composition-specific knob: `segments` (the live\n"
+    "Dll's tracking parameter) and `sps`/`n` (MpskReceiver's samples and\n"
+    "terminal outputs per symbol) are independently overridable, still\n"
+    "bridged by a freshly-sized `RateConverter` and never coupled to each\n"
+    "other. While searching/refining it re-pins the grid used to build the\n"
+    "next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in\n"
+    "place, allocating every replacement before adopting it -- and re-seeds\n"
+    "the rebuilt carrier loop from the demodulator's residual alone, which\n"
+    "drops loop 1's Doppler (doppler#2414).\n"
     "\n"
     "The new grid is checked as create() checked the first, before anything\n"
     "is rebuilt, and refused with the receiver left on its prior grid: the\n"
-    "Dll's domain at segments, sps >= 2, and a symbol period of at most 2^20\n"
-    "Dll partials, which the Dll's aid would otherwise refuse mid-build\n"
-    "(doppler#2103). Not yet refused, and still an abort: an n that\n"
-    "MpskReceiver refuses (odd, or over 8), and an allocation failure in the\n"
-    "rebuild (doppler#2112).\n"
+    "Dll's domain at segments, sps >= 2, a symbol period of at most 2^20 Dll\n"
+    "partials, which the Dll's aid would otherwise refuse mid-build\n"
+    "(doppler#2103), and an n MpskReceiver would refuse (#2421). Still an\n"
+    "abort: an allocation failure in the rebuild (doppler#2112).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1448,7 +1453,8 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "sps : int\n"
     "    MpskReceiver samples per symbol (the resample target), >= 2.\n"
     "n : int\n"
-    "    MpskReceiver's carrier-arm count; must divide sps.\n"
+    "    MpskReceiver's terminal outputs per symbol (`m_out`): inside\n"
+    "    dp_ratesync_m_ok() (even, 2..8), and dividing sps.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1471,9 +1477,14 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
   { "reset", (PyCFunction)CellAsyncDsssReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Return to the searching state: resets the embedded Acquisition and frees "
-    "every refine-stage/track-stage child (rebuilt from scratch on the next "
-    "hit).\n"
+    "Return to the searching state -- or, in cell mode, to idle. Resets\n"
+    "the embedded Acquisition and rebuilds the refine-stage chain (the\n"
+    "searching flavor's) and the live tracking chain back to their\n"
+    "placeholder seed (phase 0, no Doppler). A receiver that has locked\n"
+    "cannot be \"reset back to tracking the same signal,\" only back to\n"
+    "searching -- every object's reset() semantics in this codebase. In cell\n"
+    "mode there is no search to return to, so this is how the holder of a\n"
+    "pool releases a lost receiver for its next seed, with no reallocation.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1499,14 +1510,12 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "- \"<prefix>.car\" -- the chip-domain carrier loop\n"
     "  (dp_costas_set_telemetry(): \".lock\", \".e\", \".freq\", "
     "\".locked\",\n"
-    "  \".nco\"), once per carrier update, i.e. once a code period while it "
-    "is\n"
-    "  not coasting;\n"
+    "  \".nco\"), once per carrier update: once a code period, except while "
+    "it\n"
+    "  coasts and through the cell mode's pull-in, when loop 1 is held;\n"
     "- \"<prefix>.code\" -- the code loop (dp_dll_set_telemetry(): \".e\",\n"
     "  \".rate\", \".lock\", \".locked\", \".nco\"), once per discriminator "
     "update;\n"
-    "- \"<prefix>.rc\" -- the resampler's AGC, when it has one\n"
-    "  (dp_RateConverter_set_telemetry(); none, and DP_OK, when it has not);\n"
     "- \"<prefix>.demod\" -- the symbol-domain demodulator\n"
     "  (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing\n"
     "  loops, the symbols, its AGC), once per recovered symbol (the AGC's\n"
@@ -1684,20 +1693,18 @@ static PyTypeObject CellAsyncDsssReceiverObjType = {
     "chip_rate : float, default 1000000.0\n"
     "    Chips per second.\n"
     "symbol_rate : float, default 1000.0\n"
-    "    Data symbols per second: finite, > 0.\n"
+    "    Data symbols per second: as for dp_async_dsss_receiver_create().\n"
     "spc : int, default 2\n"
     "    Samples per chip.\n"
     "m : int, default 2\n"
     "    PSK order (2, 4 or 8).\n"
     "cn0_dbhz : float, default 55.0\n"
-    "    Design C/N0, dB-Hz -- sizes the Dll's lock detector as the "
-    "searching\n"
-    "    flavor's.\n"
+    "    Design C/N0, dB-Hz: sizes the Dll's lock detector and the pull-in\n"
+    "    estimator's design SNR, as the searching flavor's.\n"
     "pfa : float, default 1e-3\n"
-    "    Acquisition false-alarm probability (kept for the flavor's shared\n"
-    "    config; no search runs).\n"
+    "    The pull-in estimator's false-alarm probability, in (0, 1).\n"
     "pd : float, default 0.9\n"
-    "    Likewise.\n"
+    "    Its detection probability, in (0, 1).\n"
     "segments : int, default 4\n"
     "    Partial correlations per code period.\n"
     "sps : int, default 8\n"

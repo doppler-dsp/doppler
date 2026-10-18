@@ -1,9 +1,9 @@
 /**
  * @file test_async_dsss_pool_core.c
  * @brief AsyncDsssPool -- the holder's lifecycle on the shipped C stimulus
- *        (design section 8.2): assigned once, tracked, released, assigned
- *        again; a second emitter takes a second slot and a full pool counts
- *        the drop; the transitions reach the log; the same records across
+ *        (docs/design/async-dsss-receiver.md §8.2): assigned once, tracked,
+ * released, assigned again; a second emitter takes a second slot and a full
+ * pool counts the drop; the transitions reach the log; the same records across
  *        threads; the state round-trips mid-stream.
  *
  * The stimulus is dp_dsss_capture(): a 1023-chip code at 5 Mcps, two
@@ -578,10 +578,10 @@ _test_state_roundtrip (void)
   return 0;
 }
 
-/* The pool is created only on a searcher a cell receiver can take (design
-   section 12.27): no depth is no timing, and a row past four times the
-   carrier loop's pull-in bound puts a seed where loop 1 never locks
-   (sabotage: drop either refusal -> red). */
+/* The pool is created only on a searcher a cell receiver can take (
+   docs/design/async-dsss-receiver-measurements.md §12.27): no depth is no
+   timing, and a row past four times the carrier loop's pull-in bound puts a
+   seed where loop 1 never locks (sabotage: drop either refusal -> red). */
 static int
 _test_refusals (void)
 {

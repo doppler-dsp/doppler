@@ -160,7 +160,7 @@ _Composed receiver state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Every child (acq, both refine-stage children, both track-stage children) is allocated at create() with a placeholder seed (phase 0, no Doppler) and REBUILT (not freed to NULL) on every real transition  a fixed shape, independent of `state`, matching `DsssReceiver`'s own serialization-simplicity rationale. Treat all fields as internal (use the getters). 
+Every child is allocated at create() with a placeholder seed (phase 0, no Doppler) and REBUILT (not freed to NULL) on every real transition: a fixed shape per flavor, independent of `state` (cell mode has no `acq` and no refine collector). Treat all fields as internal (use the getters). 
 
 
     
@@ -294,7 +294,7 @@ dp_costas_state_t dp_async_dsss_receiver_state_t::car_held;
 
 
 
-The carrier as of the last symbol-locked period, restored on entering the hold. 
+The carrier as of the last period with both lock flags up, restored on entering the hold. 
  
 
 
@@ -443,7 +443,7 @@ double dp_async_dsss_receiver_state_t::cn0_dbhz_est;
 
 
 
-Cached from the winning acquisition hit. 
+The seed's C/N0 estimate (its own hit's, or an outside seed's); nothing refreshes it. 
  
 
 
@@ -530,7 +530,7 @@ double dp_async_dsss_receiver_state_t::doppler_hz_est;
 
 
 
-Current best estimate: == seed\_ doppler\_hz\_est while refining, the CarrierAcquisition-refined value once tracking. 
+The seed's Doppler while refining; the CarrierAcquisition-refined value once tracking (searching flavor). The cell mode's pull-in moves loop 1 and leaves this at the seed's. 
  
 
 
@@ -584,7 +584,7 @@ uint64_t dp_async_dsss_receiver_state_t::intervals;
 
 
 
-Running: corrections since the seed  the pull-in schedule's clock. 
+Running: intervals since the seed  the pull-in schedule's clock. 
  
 
 
@@ -707,7 +707,7 @@ int dp_async_dsss_receiver_state_t::n;
 
 
 
-MpskReceiver's own carrier-arm count. 
+MpskReceiver's terminal outputs per symbol (`m_out`: even, 2..8). 
  
 
 
@@ -888,7 +888,7 @@ size_t dp_async_dsss_receiver_state_t::refine_min_blocks;
 
 
 
-floor on the refine's dwell, blocks: the detection sizing above needs fewer blocks the higher the C/N0, but the estimate the carrier chain must pull in from does not sharpen with it (design section 12.16, #1265). Config; set\_refine\_min\_blocks(). 
+Floor on the refine's dwell, in blocks (default 7). The refine's detection sizing needs fewer blocks the higher the C/N0, but the estimate the carrier chain must pull in from does not sharpen with it (#1265). Set with set\_refine\_min\_blocks(), which carries the measurement. 
 
 
         
@@ -957,7 +957,7 @@ uint64_t dp_async_dsss_receiver_state_t::refine_samples_fed;
 
 
 
-Raw samples fed into the refine pipeline since it was last (re)built  the running counter the give-up cap and the tail computation on refine-&gt;track transition both use. 
+Raw samples fed into the refine pipeline since it was last (re)built. At the hand-over, fed minus consumed is the tail of the last call that goes straight on to the live chain. The clock dilation is taken over the consumed count, from the refine's blocks, not over this. 
 
 
         
@@ -987,7 +987,7 @@ size_t dp_async_dsss_receiver_state_t::refine_segments;
 
 
 
-[**dp\_dll\_lookback\_segments()**](dll__core_8h.md#function-dp_dll_lookback_segments) result, cached at the hit that (re)built the refine chain  config for refine\_dll's own layout, needed again by set\_state's check. 
+[**dp\_dll\_lookback\_segments()**](dll__core_8h.md#function-dp_dll_lookback_segments) result, computed once at create: config for refine\_dll's layout, needed again by set\_state's check. 
 
 
         
@@ -1061,7 +1061,7 @@ double dp_async_dsss_receiver_state_t::seed_chip_phase;
 
 
 
-Original handoff chip phase  reused verbatim to seed the FRESH live-tracking Dll, not wherever the refine-stage Dll drifted to. 
+The seed's chip phase; the live chain starts from it advanced by the clock dilation over the refine, not from wherever the refine-stage Dll drifted. 
  
 
 
@@ -1097,7 +1097,7 @@ size_t dp_async_dsss_receiver_state_t::segments;
 
 
 
-Live-tracking Dll's own segments  distinct from refine\_segments above (see the module docstring / [**dp\_dll\_lookback\_segments()**](dll__core_8h.md#function-dp_dll_lookback_segments)'s own doc on the WINDOWS vs TRACK\_WINDOWS split). 
+The live-tracking Dll's partial correlations per code period (refine\_segments is the refine collector's). 
 
 
         
@@ -1127,7 +1127,7 @@ size_t dp_async_dsss_receiver_state_t::sps;
 
 
 
-MpskReceiver's own samples/symbol. 
+MpskReceiver's samples per symbol. 
  
 
 

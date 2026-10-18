@@ -16,7 +16,8 @@
  *               cost per sample scales with the tile count, so the 2 Mcps,
  *               +/-50 kHz corner is its worst case.
  *   _t<n>       the same push fanned across n threads: 1 and 8, the ends.
- *   _D<d>       the block-coherent depth (section 12 step 13).
+ *   _D<d>       the block-coherent depth
+ *               (docs/design/async-dsss-receiver-measurements.md §12.8).
  *
  * The detection target is the API default, pd = 0.9, and the auto-sizer
  * picks n_noncoh from it; the row name records the n_noncoh it chose. A
@@ -67,12 +68,12 @@ static const acq_bench_cfg_t CFGS[] = {
   { 2.0e6, 50000.0, "op2M_U50k", 53, INJECT_WINDOW, 1, 1 },
   { 5.0e6, 5000.0, "op5M_U5k", 3, 1, 1, 1 },
   { 2.0e6, 5000.0, "op2M_U5k", 7, 1, 1, 1 },
-  /* Design section 12 step 13: the per-tile cost with the block-coherent
-     depth in it (D = 154 at 5 Mcps, 61 at 2: the window's 813 and 324
-     whole epochs under a 500 Hz/s rate bound), and the same push fanned
-     across threads by the roll per thread (section 2.3) -- the fraction of
-     the tiles' cost that scales. Each fan is measured at its two ends; a
-     D = 1 row at the same counts beside them is the fan on the
+  /* docs/design/async-dsss-receiver-measurements.md §12.8: the per-tile cost
+     with the block-coherent depth in it (D = 154 at 5 Mcps, 61 at 2: the
+     window's 813 and 324 whole epochs under a 500 Hz/s rate bound), and the
+     same push fanned across threads by the roll per thread (section 2.3) --
+     the fraction of the tiles' cost that scales. Each fan is measured at its
+     two ends; a D = 1 row at the same counts beside them is the fan on the
      epoch-by-epoch searcher alone. The published run is pinned to 4 cores
      and their SMT siblings, so 8 threads run two to a core (#2394). */
   { 5.0e6, 50000.0, "op5M_U50k_t8", 21, INJECT_WINDOW, 1, 8 },

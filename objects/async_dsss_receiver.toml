@@ -221,13 +221,13 @@ name = "carrier_freq_hz"
 type = "double"
 default = "0.0"
 
-# The release rule (docs/design/async-dsss-receiver.md section 11.2): both
-# lock flags down, continuously, for longer than this many seconds while
-# tracking puts the receiver in the lost state (`lost` == 1, loops stopped,
-# samples discarded until reset()). One flag down is a degrade, not a
-# release. 0.0 (this flavor's default) never enters lost -- the searching
-# receiver's exit is reset(), as before; the searching flavor defaults to 2.0,
-# past the measured fades (section 12.3).
+# The release rule (docs/design/async-dsss-receiver.md §11.2): both lock
+# flags down, continuously, for longer than this many seconds while tracking
+# puts the receiver in the lost state (`lost` == 1, loops stopped, samples
+# discarded until reset()). One flag down is a degrade, not a release. 0.0,
+# the searching flavor's default, never enters lost: its exit is reset(). The
+# cell receiver defaults to 2.0, past the measured fades
+# (docs/design/async-dsss-receiver-measurements.md §12.3).
 [[async_dsss_receiver.init_params]]
 name = "lost_confirm_s"
 type = "double"
@@ -235,7 +235,6 @@ default = "0.0"
 
 [[async_dsss_receiver.methods]]
 name = "steps"
-doc = "Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted. On a hit, the refine stage (a frozen-carrier Dll collection feeding CarrierAcquisition) is built and seeded from it, and the unconsumed tail of this call is handed straight to it -- no samples dropped. Once CarrierAcquisition reports ready (or its own give-up cap is reached), the live tracking chain (Dll + per-partial Costas + RateConverter + MpskReceiver) is built fresh, seeded from the ORIGINAL handoff chip phase and the refined-or-unrefined Doppler estimate, and demodulated symbols are returned from then on. Accepts any block size; state carries across calls."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
@@ -245,7 +244,6 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 [[async_dsss_receiver.methods]]
 name = "seed"
-doc = "Take a detection from outside and start refining from it: the hit's chip phase (Dll's instantaneous convention, at the next sample fed), coarse Doppler estimate and C/N0 estimate -- exactly what the searching flavor's own hit produces. Accepted while idle (cell mode) or searching; refused on a receiver that already holds a seed (refining, tracking or lost -- reset() releases it) and for a chip_phase outside [0, code_len)."
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -259,7 +257,6 @@ params = [
 
 [[async_dsss_receiver.methods]]
 name = "status"
-doc = "One consistent picture of the receiver, by value (design section 11.3): state, where the emitter is now (the whole carrier estimate -- loop 1's plus what loop 2 took up beyond it -- only as good as `locked`; chip phase, code rate, C/N0), both lock flags with the symbol-lock metric and threshold, both residual carrier errors, and the two clocks in input samples (since the state was entered; both flags down without a break). Read on demand by the holder of a pool -- the one-at-a-time properties are the same fields' other face. No timestamp: the holder owns the sample clock and stamps it."
 arg_type = "void"
 return_type = "async_dsss_receiver_status_t"
 result_fields = [
@@ -285,7 +282,6 @@ record_module = "doppler.dsss"
 
 [[async_dsss_receiver.methods]]
 name = "configure_search_raw"
-doc = "Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing. Only meaningful while searching."
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -296,7 +292,6 @@ params = [
 
 [[async_dsss_receiver.methods]]
 name = "set_refine_min_blocks"
-doc = "Floor the refine's dwell at n_blocks whatever the detection sizing asks (design section 12.16, #1265): CarrierAcquisition's dwell is sized for detection at the derated C/N0 and shortens as the C/N0 rises -- two blocks at 45 dB-Hz with the shipped margin -- while the noise of the estimate it hands the tracking chain does not shorten with it (210 Hz at two blocks against a chain that pulls in from a few hundred). The default of 7 blocks (42 ms) holds it to 77 Hz. Applied to the next refine chain built; 0 removes the floor; clamped by refine_max_n_blocks. Config, not running state."
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -306,7 +301,6 @@ params = [
 
 [[async_dsss_receiver.methods]]
 name = "configure_lock_raw"
-doc = "Re-tune the live-tracking Dll's code-lock detector directly. Only meaningful once tracking has begun; a no-op while searching or refining."
 arg_type = "void"
 return_type = "void"
 params = [
@@ -320,7 +314,6 @@ params = [
 
 [[async_dsss_receiver.methods]]
 name = "configure_chain_raw"
-doc = "Pin the live-tracking despread/resample/demod grid directly, bypassing the create-time segments/sps defaults. Only meaningful once tracking; rebuilds the chain with every replacement allocated first. Raises ValueError, leaving the receiver on its prior grid, for a grid the chain cannot be built on: n >= 1 dividing sps, sps >= 2, and a symbol of at most 2^20 Dll partials at the new segments, segments * chip_rate / (code_len * symbol_rate) <= 1048576. An n MpskReceiver refuses (odd, or over 8) still aborts (doppler#2112)."
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -332,7 +325,6 @@ params = [
 
 [[async_dsss_receiver.methods]]
 name = "reset"
-doc = "Return to the searching state: resets the embedded Acquisition and frees every refine-stage/track-stage child (rebuilt from scratch on the next hit)."
 arg_type = "void"
 return_type = "void"
 
@@ -352,32 +344,26 @@ params = [
 name = "refine_min_blocks"
 type = "size_t"
 field = true
-doc = "Floor on the refine's dwell, blocks (default 7); set with set_refine_min_blocks()."
 
 [[async_dsss_receiver.properties]]
 name = "tracking"
 type = "int"
-doc = "1 once the live tracking chain is built and demodulating; 0 while searching or refining."
 
 [[async_dsss_receiver.properties]]
 name = "refining"
 type = "int"
-doc = "1 while the refine stage (CarrierAcquisition collection) is active; 0 while searching or tracking."
 
 [[async_dsss_receiver.properties]]
 name = "idle"
 type = "int"
-doc = "1 while waiting for a seed (cell mode, before seed() or after reset()); 0 in every other state."
 
 [[async_dsss_receiver.properties]]
 name = "lost"
 type = "int"
-doc = "1 once the release rule has fired: both lock flags were down, continuously, for longer than lost_confirm_s while tracking. The loops have stopped and samples are discarded; the holder releases the assignment and calls reset(). Always 0 with lost_confirm_s = 0."
 
 [[async_dsss_receiver.properties]]
 name = "doppler_hz"
 type = "double"
-doc = "The current best Doppler estimate: the coarse handoff value while refining, the CarrierAcquisition-refined value once tracking."
 
 [[async_dsss_receiver.properties]]
 name = "cn0_dbhz_est"
@@ -398,12 +384,10 @@ type = "int"
 [[async_dsss_receiver.properties]]
 name = "chip_phase"
 type = "double"
-doc = "Live Dll code phase in chips, Dll's own instantaneous-phase convention (the mirror image of acq_result_t::code_phase's correlation-lag convention -- see dp_acq_build_handoff()'s doc comment)."
 
 [[async_dsss_receiver.properties]]
 name = "code_rate"
 type = "double"
-doc = "Live Dll code rate: chips advanced per nominal chip (~1.0)."
 
 [[async_dsss_receiver.properties]]
 name = "lock"
@@ -412,51 +396,43 @@ type = "double"
 [[async_dsss_receiver.properties]]
 name = "norm_freq"
 type = "double"
-doc = "Smoothed carrier estimate (integrator only, cycles/sample of the MpskReceiver output rate); lags a Doppler ramp by the constant Type-II ramp error."
 
 [[async_dsss_receiver.properties]]
 name = "nco_freq"
 type = "double"
-doc = "Live carrier loop-filter output = NCO frequency command (cycles/sample of the MpskReceiver output rate): its mean tracks a Doppler ramp with no lag, its variance is the carrier loop stress."
 
 [[async_dsss_receiver.properties]]
 name = "locked"
 type = "int"
-doc = "Binary receiver lock: the hysteretic (up/down verify-counted) lock detector on the emitted symbols -- declared when lock_metric stays >= lock_threshold for the up-count and dropped below it for the down-count."
 
 [[async_dsss_receiver.properties]]
 name = "lock_metric"
 type = "double"
-doc = "Symbol-lock metric: SNR-weighted running mean of the BPSK lock signal (I^2-Q^2)/(I^2+Q^2) = cos(2*phi) over the emitted symbols (locked -> ~+1). Drives `locked`; exposed for engineering debug."
 
 [[async_dsss_receiver.properties]]
 name = "lock_threshold"
 type = "double"
-doc = "The lock_metric declare threshold `locked` latches above (the lockdet up_thresh); exposed alongside lock_metric for engineering debug."
 
 [[async_dsss_receiver.properties]]
 name = "car_last_error"
 type = "double"
-doc = "Pre-despread Costas phase discriminator (rad): the residual carrier phase loop 1 (de-rotates before the Dll) is not nulling. Engineering debug."
 
 [[async_dsss_receiver.properties]]
 name = "car_nco_freq"
 type = "double"
-doc = "Loop 1 (pre-despread Costas) loop-filter output = NCO frequency command, cycles/sample of the front-end (chip_rate*spc) rate. Engineering debug."
 
 [[async_dsss_receiver.properties]]
 name = "mpsk_last_error"
 type = "double"
-doc = "MpskReceiver carrier phase discriminator (rad): the residual carrier phase loop 2 (post-despread) is not nulling. Engineering debug."
 
 [[async_dsss_receiver.properties]]
 name = "code_locked"
 type = "int"
-doc = "Binary code-lock flag from the live tracking Dll's own verify-counted (pfa-tuned) lock detector -- the fundamental DSSS \"am I despreading\" lock, de-chattered by up/down hysteresis."
 
 # ── The cell mode: the receiver a searcher's cell drives ────────────────────
 #
-# Design section 12.22-12.24 as a mode of this receiver (#1283): no refine,
+# docs/design/async-dsss-receiver-measurements.md §12.22-12.24 as a mode of
+# this receiver (#1283): no refine,
 # the Dll held from the first sample and put back once an interval at a held
 # phase corrected by a gain (chips) times its interval-mean discriminator;
 # the carrier loop the searching flavor's own. A difference in CONSTRUCTOR is a view:

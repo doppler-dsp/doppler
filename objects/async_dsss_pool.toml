@@ -3,15 +3,11 @@
 #
 # One searcher (Acquisition in continuous mode with the block coherence of
 # §2.3 and a peak list), n_slots cell receivers created idle, the
-# assigned table, and the event log borrowed by attachment. One push() per
-# block: feed the searcher, refresh the table from every live receiver's
-# status(), drop every peak within a chip of a live row's code phase, seed
-# each survivor into a free slot or count it dropped, feed every receiver
-# (across the threads the pool is given), then release every receiver that
-# reports lost or has held its slot past the maximum on-air time. Nothing
-# about the waveform or the population is baked in: every number is a
-# create parameter whose default is the operating point of §6.1, and the
-# searcher's and the receivers' own parameters pass through untouched.
+# assigned table, and the event log borrowed by attachment. What a push()
+# does, and in what order, is the header's
+# (native/inc/doppler/async_dsss_pool/async_dsss_pool_core.h). The
+# population's numbers default to the operating point of §6.1; the
+# waveform's are the caller's.
 
 [async_dsss_pool]
 arg_type = "float _Complex"
@@ -160,7 +156,7 @@ default = "0"
 
 # The receivers' correction: its gain in chips per chip of the interval-mean
 # discriminator after the pull-in, and the intervals at gain 1 before it
-# (design section 12.24, 12.26).
+# (docs/design/async-dsss-receiver-measurements.md §12.24, §12.26).
 [[async_dsss_pool.init_params]]
 name = "gain"
 type = "double"
@@ -174,7 +170,6 @@ default = "4"
 # ── Methods ──────────────────────────────────────────────────────────────
 [[async_dsss_pool.methods]]
 name = "push"
-doc = "One block of raw cf32 samples through the population (design section 8.2), in order: the searcher; the table refreshed from every live receiver's status(); every peak within one chip of a live row's code phase, at any Doppler, dropped as that emitter's own (the zone is the code axis alone: a tracked emitter's data blocks put smeared copies of it at its own phase rows away, section 12.14); each survivor seeded into a free slot, or counted dropped when there is none (a hit outside the seed domain is logged refused, not dropped); every receiver fed (an idle or lost one consumes and discards, so the feed has no per-state branch), across the threads the pool was given; then every receiver that reports lost, or has held its slot past max_emitter_on_time_secs, released -- the row cleared, the receiver reset to idle. Every transition -- seeded, tracking, degrade, lost, released, dropped, refused -- goes to the attached event log at the sample it happened. Accepts any block size; a searcher dwell is decided when its samples arrive. Returns the receivers assigned after this push."
 arg_type = "void"
 return_type = "size_t"
 nogil = true
@@ -182,7 +177,6 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 [[async_dsss_pool.methods]]
 name = "status"
-doc = "One slot's picture, by value: whether it is assigned, the seed it was assigned from (sample, chip phase, Doppler, C/N0 -- the searcher's hand-off record, verbatim), the receiver's own status record (state, the live Doppler, chip phase, code rate and C/N0, both lock flags, the symbol-lock metric, the two clocks), and the samples since the assignment. Raises ValueError for a slot outside [0, n_slots)."
 arg_type = "void"
 return_type = "async_dsss_pool_slot_t"
 params = [{ name = "slot", type = "size_t" }]
@@ -212,7 +206,6 @@ record_module = "doppler.dsss"
 
 [[async_dsss_pool.methods]]
 name = "symbols"
-doc = "The symbols slot `slot`'s receiver decided on the last push(), borrowed from the pool's own buffer (grown on demand to the largest block pushed so far, and never shrunk): empty while the slot is idle, refining or lost. Valid until the next push(), reset() or set_state(). Raises ValueError for a slot outside [0, n_slots)."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
@@ -221,7 +214,6 @@ params = [{ name = "slot", type = "size_t" }]
 
 [[async_dsss_pool.methods]]
 name = "set_event_log"
-doc = "Attach the run's event log (design section 8.1): from now on every transition -- seeded, tracking, degrade, lost, released, dropped, refused -- is appended at the sample it happened, with the slot, the receiver's state, the Doppler, the chip phase and the C/N0 staged as doppler:<name> fields beside the label (core:label). The pool is the one component that stamps; the log is borrowed, never owned. None detaches."
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -247,31 +239,26 @@ params = [
 name = "n_slots"
 type = "size_t"
 field = true
-doc = "Receivers the pool holds; it never exceeds this."
 
 [[async_dsss_pool.properties]]
 name = "n_assigned"
 type = "size_t"
 field = true
-doc = "Slots assigned right now."
 
 [[async_dsss_pool.properties]]
 name = "dropped"
 type = "uint64_t"
 field = true
-doc = "Detections dropped for want of a free slot since create or reset."
 
 [[async_dsss_pool.properties]]
 name = "events"
 type = "uint64_t"
 field = true
-doc = "Transitions since create or reset, logged or not."
 
 [[async_dsss_pool.properties]]
 name = "samples_consumed"
 type = "uint64_t"
 field = true
-doc = "Input samples pushed since create or reset -- the stream position every event is stamped at."
 
 [[async_dsss_pool.properties]]
 name = "doppler_res_hz"
@@ -283,4 +270,4 @@ doc = "The searcher's Doppler row, Hz -- the resolution a seed's Doppler is repo
 name = "coherent_bins"
 type = "size_t"
 expr = "(self->handle->acq->coherent_bins)"
-doc = "The searcher's block-coherent depth D, from code_only_epochs and doppler_rate (section 2.3)."
+doc = "The searcher's block-coherent depth D, from code_only_epochs and doppler_rate (docs/design/async-dsss-receiver.md §2.3)."

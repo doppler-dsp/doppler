@@ -77,7 +77,7 @@ class Capture:
             Output.
         """
 
-    def read_max_out(self, n: int) -> int:
+    def read_max_out(self, n: int, /) -> int:
         """Largest number of samples read() can return for n inputs.
 
         Size an `out=` buffer with this before calling read(), or use it to
@@ -159,6 +159,7 @@ class Capture:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Capture.
 
@@ -237,7 +238,7 @@ class RawCapture:
             Output.
         """
 
-    def read_max_out(self, n: int) -> int:
+    def read_max_out(self, n: int, /) -> int:
         """Largest number of samples read() can return for n inputs.
 
         Size an `out=` buffer with this before calling read(), or use it to
@@ -319,6 +320,7 @@ class RawCapture:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the RawCapture.
 

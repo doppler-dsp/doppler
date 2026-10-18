@@ -361,7 +361,7 @@ static PyMethodDef PNObj_methods[] = {
 
   { "generate", (PyCFunction)(void *)PNObj_generate,
     METH_VARARGS | METH_KEYWORDS,
-    "generate(count=1) -> ndarray\n"
+    "generate(count=1, out=None) -> ndarray\n"
     "\n"
     "Generate ``n`` chips into ``out`` and advance the LFSR by ``n``\n"
     "positions. Each element of ``out`` is 0 or 1. Requesting more than one\n"

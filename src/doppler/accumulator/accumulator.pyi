@@ -49,7 +49,7 @@ class AccF32:
 
         """
 
-    def step(self, x: float) -> None:
+    def step(self, x: float, /) -> None:
         """Add one sample to the running sum (``acc += x``). This is the
         hot-path entry point for sample-by-sample processing. For block inputs
         prefer ``dp_acc_f32_steps`` to amortise call overhead and allow
@@ -261,7 +261,7 @@ class AccF32:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -303,7 +303,7 @@ class AccF32:
 
         """
 
-    def set_acc(self, value: float) -> None:
+    def set_acc(self, value: float, /) -> None:
         """Overwrite the accumulator with a new value. Useful for seeding the
         accumulator to a known baseline before processing a new segment without
         a full ``reset``; subsequent ``step`` / ``steps`` samples accumulate on
@@ -354,6 +354,7 @@ class AccF32:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the AccF32.
 
@@ -419,7 +420,7 @@ class AccCf64:
 
         """
 
-    def step(self, x: complex) -> None:
+    def step(self, x: complex, /) -> None:
         """Add one complex sample to the running sum (``acc += x``). This is
         the hot-path entry for sample-by-sample processing. For block inputs
         prefer ``dp_acc_cf64_steps`` to amortise call overhead.
@@ -628,7 +629,7 @@ class AccCf64:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -670,7 +671,7 @@ class AccCf64:
 
         """
 
-    def set_acc(self, value: complex) -> None:
+    def set_acc(self, value: complex, /) -> None:
         """Overwrite the accumulator with a new complex value. Useful for
         seeding the accumulator to a known baseline before processing a new
         segment without a full ``reset``; subsequent ``step`` / ``steps``
@@ -721,6 +722,7 @@ class AccCf64:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the AccCf64.
 
@@ -900,7 +902,7 @@ class AccTrace:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -974,6 +976,7 @@ class AccTrace:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the AccTrace.
 

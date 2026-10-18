@@ -48,7 +48,7 @@ class Plan:
     """
 
     def __init__(self, spec_json: str) -> None: ...
-    def render(self, overrides_json: str) -> NDArray[Any]:
+    def render(self, overrides_json: str, /) -> NDArray[Any]:
         """General render: apply a JSON override spec, return a cf32 array.
 
         `overrides_json` is a small JSON object, all keys optional:
@@ -71,7 +71,7 @@ class Plan:
             Samples actually written for this draw (<= dp_wfm_plan_len(p)), or
             0 when refused, with `out` untouched.
         """
-    def at(self, snr: float, seed: int) -> NDArray[Any]:
+    def at(self, snr: float, seed: int, /) -> NDArray[Any]:
         """Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).
 
         `out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance;
@@ -190,8 +190,8 @@ class Plan:
     def __exit__(self, *exc: Any) -> None:
         """Exit context and close the handle."""
 
-def PlanFromBlob(blob: bytes) -> Plan:
+def PlanFromBlob(blob: bytes, /) -> Plan:
     """Construct a Plan via dp_wfm_plan_restore."""
 
-def PlanFromFile(path: str | os.PathLike) -> Plan:
+def PlanFromFile(path: str | os.PathLike, /) -> Plan:
     """Construct a Plan via dp_wfm_plan_load."""

@@ -162,6 +162,39 @@ jm_inflight_free (jm_inflight_t *g)
 }
 #endif /* JM_INFLIGHT_DEFINED */
 
+#ifndef JM_CAPSULE_LEND_DEFINED
+#define JM_CAPSULE_LEND_DEFINED
+/* gh-2328: a lent capsule's context is the object that owns its pointer.
+ * The destructor releases that reference and nothing else -- the pointer is
+ * the owner's to free -- so whoever keeps the capsule keeps the owner. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static void
+jm_capsule_lend_release (PyObject *cap)
+{
+  Py_XDECREF ((PyObject *)PyCapsule_GetContext (cap));
+}
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static PyObject *
+jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
+{
+  PyObject *cap = PyCapsule_New (ptr, name, jm_capsule_lend_release);
+  if (!cap)
+    return NULL;
+  Py_INCREF (owner);
+  if (PyCapsule_SetContext (cap, owner) < 0)
+    {
+      Py_DECREF (owner);
+      Py_DECREF (cap);
+      return NULL;
+    }
+  return cap;
+}
+#endif /* JM_CAPSULE_LEND_DEFINED */
+
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 typedef struct
 {
@@ -467,10 +500,10 @@ SampleClock_get__capsule (SampleClockObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "SampleClock is closed");
       return NULL;
     }
-  /* Borrowed: NULL destructor, so the capsule never
-     frees a pointer SampleClock still owns. */
-  return PyCapsule_New ((void *)(self->h), "doppler.wfm.dp_sample_clock",
-                        NULL);
+  /* Lent, not owned: the capsule never frees the pointer, and
+     holds SampleClock, so the pointer lives as long as it. */
+  return jm_capsule_lend ((void *)(self->h), "doppler.wfm.dp_sample_clock",
+                          (PyObject *)self);
 }
 static PyGetSetDef SampleClock_getset[]
     = { { "samples", (getter)SampleClock_get_samples, NULL, NULL, NULL },
@@ -479,8 +512,8 @@ static PyGetSetDef SampleClock_getset[]
           NULL },
         { "_capsule", (getter)SampleClock_get__capsule, NULL,
           "Borrowed doppler.wfm.dp_sample_clock capsule for this handle.\n\n"
-          "Non-owning: the capsule does not free the handle, and\n"
-          "is only valid while this object is alive and open.",
+          "It never frees the handle, and keeps this object alive;\n"
+          "it is valid until the handle is closed.",
           NULL },
         { NULL, NULL, NULL, NULL, NULL } };
 

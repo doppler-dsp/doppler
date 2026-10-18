@@ -1742,9 +1742,9 @@ main (void)
             const double ph = 2.0 * M_PI
                               * (ff / sf * (u - u0)
                                  + 0.5 * r / (sf * sf) * (u * u - u0 * u0));
-            const double complex want = cexp (I * ph);
-            const double complex have
-                = (double complex)y[i] * conj ((double complex)y[0]);
+            const double _Complex want = cexp (I * ph);
+            const double _Complex have
+                = (double _Complex)y[i] * conj ((double _Complex)y[0]);
             const double e = cabs (have - want);
             if (e > worst)
               worst = e;
@@ -1755,10 +1755,10 @@ main (void)
            the angle between neighbors, cycles per sample. */
         for (int e = 0; e < 2; e++)
           {
-            const int    i = e ? RN - 2 : 0;
-            const double w
-                = carg ((double complex)y[i + 1] * conj ((double complex)y[i]))
-                  / (2.0 * M_PI);
+            const int    i    = e ? RN - 2 : 0;
+            const double w    = carg ((double _Complex)y[i + 1]
+                                      * conj ((double _Complex)y[i]))
+                                / (2.0 * M_PI);
             const double u    = (double)i + 0.5 - ctr;
             const double want = ff / sf + r / (sf * sf) * u;
             DP_CHECK_MSG (fabs (w - want) < 1e-4,
@@ -1768,9 +1768,9 @@ main (void)
         if (r != 0.0)
           {
             const double a
-                = carg ((double complex)y[1] * conj ((double complex)y[0]));
-            const double z = carg ((double complex)y[RN - 1]
-                                   * conj ((double complex)y[RN - 2]));
+                = carg ((double _Complex)y[1] * conj ((double _Complex)y[0]));
+            const double z = carg ((double _Complex)y[RN - 1]
+                                   * conj ((double _Complex)y[RN - 2]));
             DP_CHECK_MSG (fabs (z - a) / (2.0 * M_PI)
                               > 0.5 * fabs (r) / (sf * sf) * (RN - 2),
                           "the far end's frequency differs from the near's");

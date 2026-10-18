@@ -43,7 +43,7 @@ class AccQ15:
 
         """
 
-    def step(self, x: int) -> None:
+    def step(self, x: int, /) -> None:
         """Accumulate one Q15 sample into the running total. The sample is
         sign-extended to 64 bits before addition, ensuring that negative
         samples subtract correctly from the accumulator without wrap.
@@ -186,7 +186,7 @@ class AccQ15:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -228,7 +228,7 @@ class AccQ15:
 
         """
 
-    def set_acc(self, value: int) -> None:
+    def set_acc(self, value: int, /) -> None:
         """Overwrite the accumulator with a new value. Useful for setting a
         bias before a new accumulation window, or for restoring a previously
         checkpointed value.
@@ -277,6 +277,7 @@ class AccQ15:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the AccQ15.
 
@@ -333,7 +334,7 @@ class AccQ8:
 
         """
 
-    def step(self, x: int) -> None:
+    def step(self, x: int, /) -> None:
         """Accumulate one Q8 sample into the running total. The sample is
         sign-extended to 32 bits before addition so negative samples correctly
         subtract from the accumulator.
@@ -482,7 +483,7 @@ class AccQ8:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -520,7 +521,7 @@ class AccQ8:
 
         """
 
-    def set_acc(self, value: int) -> None:
+    def set_acc(self, value: int, /) -> None:
         """Overwrite the accumulator with a new value. Useful for applying a
         bias before a new accumulation window, or for restoring a checkpointed
         accumulator state.
@@ -569,6 +570,7 @@ class AccQ8:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the AccQ8.
 

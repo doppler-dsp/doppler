@@ -40,7 +40,7 @@ class LoopFilter:
         zeta: float = 0.707,
         t: float = 1.0,
     ) -> None: ...
-    def step(self, x: float) -> float:
+    def step(self, x: float, /) -> float:
         """Advance the loop one update with error x and return the control
         value the tracker should apply.
 
@@ -219,7 +219,7 @@ class LoopFilter:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -293,6 +293,7 @@ class LoopFilter:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the LoopFilter.
 
@@ -633,7 +634,7 @@ class Costas:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -721,6 +722,7 @@ class Costas:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Costas.
 
@@ -1473,7 +1475,7 @@ class Dll:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -1577,6 +1579,7 @@ class Dll:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Dll.
 
@@ -1981,7 +1984,7 @@ class SymbolSync:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -2067,6 +2070,7 @@ class SymbolSync:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the SymbolSync.
 
@@ -2432,7 +2436,7 @@ class RateSync:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -2531,6 +2535,7 @@ class RateSync:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the RateSync.
 
@@ -2791,7 +2796,7 @@ class CarrierMpsk:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -2876,6 +2881,7 @@ class CarrierMpsk:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the CarrierMpsk.
 
@@ -3195,7 +3201,7 @@ class CarrierNda:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -3290,6 +3296,7 @@ class CarrierNda:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the CarrierNda.
 
@@ -3754,7 +3761,7 @@ class MpskReceiver:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -3948,6 +3955,7 @@ class MpskReceiver:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the MpskReceiver.
 
@@ -4333,7 +4341,7 @@ class BpskReceiver:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -4527,6 +4535,7 @@ class BpskReceiver:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the BpskReceiver.
 
@@ -5007,7 +5016,7 @@ class MpskReceiverR:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -5201,6 +5210,7 @@ class MpskReceiverR:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the MpskReceiverR.
 

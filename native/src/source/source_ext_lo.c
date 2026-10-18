@@ -530,7 +530,7 @@ static PyMethodDef LOObj_methods[] = {
     "0.25\n" },
 
   { "steps", (PyCFunction)(void *)LOObj_steps, METH_VARARGS | METH_KEYWORDS,
-    "steps(count=1) -> ndarray\n"
+    "steps(count=1, out=None) -> ndarray\n"
     "\n"
     "Generate n CF32 phasors at the current norm_freq. Each sample is\n"
     "cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is\n"

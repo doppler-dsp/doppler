@@ -1331,7 +1331,7 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "    `(x_len/burst_len + 1 + q_cap) * frame_syms`.\n" },
   { "llrs", (PyCFunction)(void *)DsssBurstReceiverObj_llrs,
     METH_VARARGS | METH_KEYWORDS,
-    "llrs(count=1) -> ndarray\n"
+    "llrs(count=1, out=None) -> ndarray\n"
     "\n"
     "The SOFT bits of every burst the last push() returned, concatenated: "
     "burst i occupies llr[i*frame_syms:(i+1)*frame_syms], in the same order "
@@ -1408,7 +1408,7 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "    Output.\n" },
   { "events", (PyCFunction)(void *)DsssBurstReceiverObj_events,
     METH_VARARGS | METH_KEYWORDS,
-    "events(count=1) -> ndarray\n"
+    "events(count=1, out=None) -> ndarray\n"
     "\n"
     "The event record for each burst the last push() returned. Row i "
     "describes the frame at bits[i*frame_syms ...] of that push. Valid until "

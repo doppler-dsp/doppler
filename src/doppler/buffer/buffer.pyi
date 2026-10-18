@@ -378,6 +378,7 @@ class F32Buffer:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the F32Buffer.
 
@@ -759,6 +760,7 @@ class F64Buffer:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the F64Buffer.
 
@@ -1157,6 +1159,7 @@ class I16Buffer:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the I16Buffer.
 

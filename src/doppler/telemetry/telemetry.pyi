@@ -426,6 +426,7 @@ class Telemetry:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Telemetry.
 
@@ -741,6 +742,7 @@ class MemoryCapture:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, finalizing the MemoryCapture.
 
@@ -1008,6 +1010,7 @@ class Capture:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, finalizing the Capture.
 
@@ -1408,6 +1411,7 @@ class EventLog:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, finalizing the EventLog.
 

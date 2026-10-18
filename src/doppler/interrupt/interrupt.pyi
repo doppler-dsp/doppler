@@ -141,6 +141,7 @@ class Interrupt:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Interrupt.
 

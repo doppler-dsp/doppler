@@ -409,7 +409,7 @@ static PyMethodDef AWGNObj_methods[] = {
 
   { "generate", (PyCFunction)(void *)AWGNObj_generate,
     METH_VARARGS | METH_KEYWORDS,
-    "generate(count=1) -> ndarray\n"
+    "generate(count=1, out=None) -> ndarray\n"
     "\n"
     "Generate n complex CF32 AWGN samples. Uses Box-Muller with\n"
     "xoshiro256++ to fill `out` with independent complex Gaussians: Re and\n"

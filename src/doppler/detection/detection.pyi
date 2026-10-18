@@ -74,7 +74,7 @@ class LockDet:
         n_up: int = 1,
         n_down: int = 1,
     ) -> None: ...
-    def step(self, x: float) -> int:
+    def step(self, x: float, /) -> int:
         """Feed one look of the lock metric; return the current decision.
 
         Unlocked: a hit (`x > up_thresh`) advances the verify run and the
@@ -233,7 +233,7 @@ class LockDet:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -310,6 +310,7 @@ class LockDet:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the LockDet.
 
@@ -510,6 +511,7 @@ class SyncFinder:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the SyncFinder.
 

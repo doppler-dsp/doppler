@@ -154,6 +154,39 @@ jm_inflight_free (jm_inflight_t *g)
 }
 #endif /* JM_INFLIGHT_DEFINED */
 
+#ifndef JM_CAPSULE_LEND_DEFINED
+#define JM_CAPSULE_LEND_DEFINED
+/* gh-2328: a lent capsule's context is the object that owns its pointer.
+ * The destructor releases that reference and nothing else -- the pointer is
+ * the owner's to free -- so whoever keeps the capsule keeps the owner. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static void
+jm_capsule_lend_release (PyObject *cap)
+{
+  Py_XDECREF ((PyObject *)PyCapsule_GetContext (cap));
+}
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static PyObject *
+jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
+{
+  PyObject *cap = PyCapsule_New (ptr, name, jm_capsule_lend_release);
+  if (!cap)
+    return NULL;
+  Py_INCREF (owner);
+  if (PyCapsule_SetContext (cap, owner) < 0)
+    {
+      Py_DECREF (owner);
+      Py_DECREF (cap);
+      return NULL;
+    }
+  return cap;
+}
+#endif /* JM_CAPSULE_LEND_DEFINED */
+
 #include "buffer_ext_f32_buffer.c"
 #include "buffer_ext_f64_buffer.c"
 #include "buffer_ext_i16_buffer.c"

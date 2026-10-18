@@ -501,7 +501,7 @@ static PyMethodDef AccTraceObj_methods[] = {
     "0\n" },
   { "value", (PyCFunction)(void *)AccTraceObj_value,
     METH_VARARGS | METH_KEYWORDS,
-    "value(count=1) -> ndarray | None\n"
+    "value(count=1, out=None) -> ndarray | None\n"
     "\n"
     "Copy the current averaged trace (None before any accumulate).\n"
     "\n"

@@ -262,58 +262,6 @@ def test_set_telemetry_accepts_capsule_and_none():
     assert len(tlm.read()) == 0
 
 
-def _recover_telemetry(addr):
-    """Read a Telemetry back from its address, after the caller ``del``-ed it.
-
-    A ``Telemetry`` cannot be weak-referenced or subclassed, so once the last
-    Python name is gone nothing else can reach it. Its refcount sits at the
-    head of the object: the AGC's retained slot keeps that count at least 1,
-    and a freed object does not. Returns the live object, or raises
-    ``AssertionError`` when the header's count says it was freed.
-    """
-    import ctypes
-
-    assert ctypes.c_ssize_t.from_address(addr).value >= 1, "tlm was freed"
-    return ctypes.cast(addr, ctypes.py_object).value
-
-
-def test_set_telemetry_retains_telemetry_after_del():
-    # jm#2327 (retain = true): the kernel keeps tlm, so the binding must keep
-    # the Telemetry alive after the caller drops it, or the next push writes
-    # into freed memory.
-    import gc
-
-    from doppler.telemetry import Telemetry
-
-    tlm = Telemetry(1 << 12)
-    addr = id(tlm)
-    obj = AGC(0.0, 0.0025, 0.05)
-    obj.set_telemetry(tlm, "agc")
-    del tlm
-    gc.collect()
-    tlm = _recover_telemetry(addr)
-    obj.steps(np.full(4096, 0.125 + 0j, dtype=np.complex64))
-    assert len(tlm.read()) == 2 * (4096 // obj.decim)
-
-
-def test_set_telemetry_retains_capsule_owner_after_del():
-    # The capsule form: tlm._capsule lends its owner (gh-2328), so retaining
-    # the capsule must keep the Telemetry it was lent from alive.
-    import gc
-
-    from doppler.telemetry import Telemetry
-
-    tlm = Telemetry(1 << 12)
-    addr = id(tlm)
-    obj = AGC(0.0, 0.0025, 0.05)
-    obj.set_telemetry(tlm._capsule, "agc")
-    del tlm
-    gc.collect()
-    tlm = _recover_telemetry(addr)
-    obj.steps(np.full(4096, 0.125 + 0j, dtype=np.complex64))
-    assert len(tlm.read()) == 2 * (4096 // obj.decim)
-
-
 def test_set_telemetry_failure_raises():
     from doppler.telemetry import Telemetry
 

@@ -7,7 +7,7 @@
  * to the injected (Doppler bin, code phase), and a real AWGN calibration
  * check that acq_result_t::cn0_dbhz_est tracks a known injected C/N0.
  *
- * The peak list (docs/design/async-dsss-receiver.md §7.1, §8 (a)):
+ * The peak list (docs/design/async-dsss-receiver.md §7.1):
  * det_peak_list() itself on a synthetic surface -- the gate ends the list,
  * a zone is circular on both axes, a masked cell is never a candidate,
  * strongest first, never more than asked -- and the engine's face of it:

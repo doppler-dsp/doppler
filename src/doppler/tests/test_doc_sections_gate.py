@@ -157,6 +157,18 @@ BAD = (
         "wrapped-before-the-number",
         "/* The derivation (docs/design/widget.md section\n * 4.9). */\n",
     ),
+    (
+        "wrapped-hash",
+        "# The derivation (docs/design/widget.md\n# §4.9) holds.\n",
+    ),
+    (
+        "wrapped-slashes",
+        "// The derivation (docs/design/widget.md\n// §4.9) holds.\n",
+    ),
+    (
+        "capitalised-section",
+        "See docs/design/widget.md Section 4.9 for the derivation.\n",
+    ),
 )
 
 
@@ -287,8 +299,9 @@ def test_any_tracked_text_file_is_scanned(tmp_path: Path) -> None:
         "As the design §3.2 has it.\n",
         "As design section 3.2 has it.\n",
         "/* As the design\n * section 3.2 has it. */\n",
+        "Design section 3.2 has it.\n",
     ],
-    ids=["mark", "word", "wrapped"],
+    ids=["mark", "word", "wrapped", "capitalised"],
 )
 def test_a_citation_naming_no_page_is_refused(
     tmp_path: Path, text: str

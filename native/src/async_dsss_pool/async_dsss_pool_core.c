@@ -19,7 +19,8 @@
    its column (docs/design/async-dsss-receiver-measurements.md §12.7), at 45
    dB-Hz still over the gate, and its argmax lands hundreds of Hz from the
    emitter block to block; with the zone one row wide each one seeded a fresh
-   receiver onto the same emitter until the pool was full (section 12.14). The
+   receiver onto the same emitter until the pool was full
+   (docs/design/async-dsss-receiver-measurements.md §12.14). The
    searcher's list carries no per-peak concentration to tell that copy from a
    whole emitter, and a strong emitter's coherent tile sidelobes at its own
    phase would read concentrated anyway; the code axis is the one key

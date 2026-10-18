@@ -159,7 +159,7 @@ int async_dsss_pool_row_t::had_code;
 
 
 
-The code flag has been up: the row's phase is the loop's. Until then it is the seed's, advanced on the dilated clock whatever the receiver's state  a cell receiver reports tracking through its pull-in, and a row frozen there leaves the zone within a block at 20 ppm (section 12.27). 
+The code flag has been up: the row's phase is the loop's. Until then it is the seed's, advanced on the dilated clock whatever the receiver's state  a cell receiver reports tracking through its pull-in, and a row frozen there leaves the zone within a block at 20 ppm (docs/design/async-dsss-receiver-measurements.md §12.27). 
  
 
 

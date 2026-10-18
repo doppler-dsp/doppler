@@ -5,7 +5,7 @@
 # `docs/design/<page>.md §N`, and the gate checks the section exists.
 #
 # <count> <path>
-32 CHANGELOG.md
+35 CHANGELOG.md
 14 docs/c-api/acq__core_8h.md
 2 docs/c-api/acq__core_8h_source.md
 2 docs/c-api/annotated.md
@@ -31,5 +31,7 @@
 2 objects/dp_event_log.toml
 1 objects/dsss_burst_receiver.toml
 9 src/doppler/acquire/acquire.pyi
+3 src/doppler/acquire/tests/test_acq_continuous.py
+1 src/doppler/examples/acq_surface_demo.py
 1 src/doppler/track/tests/validation/ratesync/validate.py
 1 src/doppler/track/track.pyi

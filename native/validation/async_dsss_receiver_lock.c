@@ -81,11 +81,20 @@
  * sends the harness's bits (BITS mode, every one of them) and each run's
  * bits covered it; every row is mid-data (its flips within
  * FLIPS_MIN..FLIPS_MAX); the restore is exact (above); at 10 dB a signal
- * is tracked within CHECK_TRACK_MS of arriving; and in every settled
- * dropout trial a loss for good drops symbol lock within DROP_WATCH_S. The
- * rest -- lock times, seed errors, holds, re-locks, the 5 dB rows -- is
- * measured and printed, not asserted: a fraction that moves with the draw
- * is a finding for the record, not a gate. A hold of LOCK_N_DOWN symbols
+ * is tracked within CHECK_TRACK_MS of arriving; in every settled dropout
+ * trial a loss for good drops symbol lock within DROP_WATCH_S; enough
+ * dropout draws settle to measure; and each lifecycle story reaches symbol
+ * lock exactly when its name says, the 5 dB story that never locks
+ * included. The rest -- lock times, seed errors, holds, re-locks, the 5 dB
+ * arrival and dropout rows -- is measured and printed, not asserted: a
+ * fraction that moves with the draw is a finding for the record, not a
+ * gate.
+ *
+ * The asserted bounds must hold on every toolchain (CI's image is one of
+ * them), so none sits on an edge one draw can cross; a toolchain that
+ * crosses one is a finding for the record, not a bound to widen here.
+ *
+ * A hold of LOCK_N_DOWN symbols
  * is NOT a property of the detector, though it reads like one: the first
  * sweep asserted it and four 5 dB trials failed it, the average sunk in
  * the dropout and its recovery after supplying the run of low symbols.

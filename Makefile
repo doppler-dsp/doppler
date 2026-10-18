@@ -1754,8 +1754,8 @@ endef
 # Named here so they land in `.PHONY` and in generated `help`, and so the same
 # gates cover them: criterion 2 is "help lists EVERY target", not "every
 # standard target" — a local target help omits is exactly as invisible.
-LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
-                docs-invariants \
+LOCAL_TARGETS = specan record-demo parallel-record-write gallery blazing \
+                gen-c-api just-build docs-invariants \
                 jm-apply jm-apply-downstream jm-adopt jm-revendor \
                 jm-upgrade changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
@@ -2244,6 +2244,10 @@ record-demo: ## Re-record the specan demo frames (docs/specan/frames.json)
 	$(UV) run python -m doppler.specan.record_demo \
 	    --frames 120 --rbw 4000 \
 	    -o docs/specan/frames.json
+
+parallel-record-write: ## Re-render the parallel record's blocks from its data
+	$(UV) run python docs/design/async-dsss-parallel-measurements/record.py \
+	    --write
 
 # Run all plot-generating examples and copy output PNGs to docs/assets/.
 # Run before releasing whenever src/doppler/examples/ has changed.

@@ -2379,7 +2379,10 @@ class AsyncDsssReceiver:
         searching or refining (an empty return is normal, not an error): a hit
         seeds the frozen-carrier refine chain, `CarrierAcquisition` sharpens
         the coarse Doppler estimate, and only once it is ready (or gives up) is
-        the live tracking chain built and demodulation begins. In cell mode the
+        the live tracking chain built and demodulation begins. A hit inside a
+        call hands the rest of the call straight to the refine chain, so no
+        sample is dropped there; at the refine's end, what the refine did not
+        consume of the last call goes on to the live chain. In cell mode the
         live chain runs from the seed, so refining (the pull-in) emits. Accepts
         any block size; state carries across calls, so a capture can be fed in
         frames of any length with no seam. Idle (cell mode, before a seed) and
@@ -2548,7 +2551,9 @@ class AsyncDsssReceiver:
 
         Cheap and allocation-free: every field is a read of live state. The
         one-at-a-time getters report the same fields, `doppler_hz` apart (see
-        the record); this is the face a pool holder uses.
+        the record); this is the face a pool holder uses. No timestamp: the
+        clocks are in input samples, and the holder, which owns the sample
+        clock, stamps the record.
 
         Returns
         -------
@@ -2925,10 +2930,11 @@ class AsyncDsssReceiver:
 
     @property
     def refine_min_blocks(self) -> int:
-        """floor on the refine's dwell, blocks: the detection sizing above
-        needs fewer blocks the higher the C/N0, but the estimate the carrier
-        chain must pull in from does not sharpen with it (#1265). Config; the
-        measurement is at set_refine_min_blocks().
+        """Floor on the refine's dwell, in blocks (default 7). The refine's
+        detection sizing needs fewer blocks the higher the C/N0, but the
+        estimate the carrier chain must pull in from does not sharpen with it
+        (#1265). Set with set_refine_min_blocks(), which carries the
+        measurement.
         """
 
     @property
@@ -2953,9 +2959,10 @@ class AsyncDsssReceiver:
     def lost(self) -> int:
         """1 once the release rule has fired: both lock flags were down,
         continuously, for longer than `lost_confirm_s` while tracking -- an
-        emitter that left, or a seed that never locked. The loops have stopped;
-        the holder releases the assignment and calls reset(). 0 in every other
-        state, and always 0 with `lost_confirm_s = 0`.
+        emitter that left, or a seed that never locked. The loops have stopped
+        and samples are consumed and discarded; the holder releases the
+        assignment and calls reset(). 0 in every other state, and always 0 with
+        `lost_confirm_s = 0`.
         """
 
     @property
@@ -3023,11 +3030,12 @@ class AsyncDsssReceiver:
 
     @property
     def locked(self) -> int:
-        """The receiver's symbol-lock flag: the hysteretic lockdet over
-        get_lock_metric(), declared after ASYNC_DSSS_RX_LOCK_N_UP symbols
-        strictly above get_lock_threshold() and dropped after
-        ASYNC_DSSS_RX_LOCK_N_DOWN below ASYNC_DSSS_RX_LOCK_DOWN. The flag the
-        release rule and a pool's holder act on.
+        """The receiver's symbol-lock flag: a hysteretic detector over
+        get_lock_metric(), declared after 30 consecutive symbols strictly above
+        get_lock_threshold() (0.5) and dropped after 15 consecutive symbols
+        strictly below 0.3 (ASYNC_DSSS_RX_LOCK_N_UP, _UP, _N_DOWN and _DOWN,
+        fixed at create). The flag the release rule and a pool's holder act
+        on.
         """
 
     @property
@@ -3039,8 +3047,8 @@ class AsyncDsssReceiver:
 
     @property
     def lock_threshold(self) -> float:
-        """The lock-metric declare threshold `locked` latches above (the
-        lockdet up_thresh); exposed alongside lock_metric for engineering
+        """The lock-metric threshold `locked` is declared strictly above (0.5,
+        ASYNC_DSSS_RX_LOCK_UP); exposed alongside lock_metric for engineering
         debug.
         """
 
@@ -3225,7 +3233,10 @@ class CellAsyncDsssReceiver:
         searching or refining (an empty return is normal, not an error): a hit
         seeds the frozen-carrier refine chain, `CarrierAcquisition` sharpens
         the coarse Doppler estimate, and only once it is ready (or gives up) is
-        the live tracking chain built and demodulation begins. In cell mode the
+        the live tracking chain built and demodulation begins. A hit inside a
+        call hands the rest of the call straight to the refine chain, so no
+        sample is dropped there; at the refine's end, what the refine did not
+        consume of the last call goes on to the live chain. In cell mode the
         live chain runs from the seed, so refining (the pull-in) emits. Accepts
         any block size; state carries across calls, so a capture can be fed in
         frames of any length with no seam. Idle (cell mode, before a seed) and
@@ -3394,7 +3405,9 @@ class CellAsyncDsssReceiver:
 
         Cheap and allocation-free: every field is a read of live state. The
         one-at-a-time getters report the same fields, `doppler_hz` apart (see
-        the record); this is the face a pool holder uses.
+        the record); this is the face a pool holder uses. No timestamp: the
+        clocks are in input samples, and the holder, which owns the sample
+        clock, stamps the record.
 
         Returns
         -------
@@ -3711,9 +3724,10 @@ class CellAsyncDsssReceiver:
     def lost(self) -> int:
         """1 once the release rule has fired: both lock flags were down,
         continuously, for longer than `lost_confirm_s` while tracking -- an
-        emitter that left, or a seed that never locked. The loops have stopped;
-        the holder releases the assignment and calls reset(). 0 in every other
-        state, and always 0 with `lost_confirm_s = 0`.
+        emitter that left, or a seed that never locked. The loops have stopped
+        and samples are consumed and discarded; the holder releases the
+        assignment and calls reset(). 0 in every other state, and always 0 with
+        `lost_confirm_s = 0`.
         """
 
     @property
@@ -3781,11 +3795,12 @@ class CellAsyncDsssReceiver:
 
     @property
     def locked(self) -> int:
-        """The receiver's symbol-lock flag: the hysteretic lockdet over
-        get_lock_metric(), declared after ASYNC_DSSS_RX_LOCK_N_UP symbols
-        strictly above get_lock_threshold() and dropped after
-        ASYNC_DSSS_RX_LOCK_N_DOWN below ASYNC_DSSS_RX_LOCK_DOWN. The flag the
-        release rule and a pool's holder act on.
+        """The receiver's symbol-lock flag: a hysteretic detector over
+        get_lock_metric(), declared after 30 consecutive symbols strictly above
+        get_lock_threshold() (0.5) and dropped after 15 consecutive symbols
+        strictly below 0.3 (ASYNC_DSSS_RX_LOCK_N_UP, _UP, _N_DOWN and _DOWN,
+        fixed at create). The flag the release rule and a pool's holder act
+        on.
         """
 
     @property
@@ -3797,8 +3812,8 @@ class CellAsyncDsssReceiver:
 
     @property
     def lock_threshold(self) -> float:
-        """The lock-metric declare threshold `locked` latches above (the
-        lockdet up_thresh); exposed alongside lock_metric for engineering
+        """The lock-metric threshold `locked` is declared strictly above (0.5,
+        ASYNC_DSSS_RX_LOCK_UP); exposed alongside lock_metric for engineering
         debug.
         """
 
@@ -4035,12 +4050,13 @@ class AsyncDsssPool:
         receiver fed, across the pool's threads (an idle or lost one consumes
         and discards); then every receiver that reports lost, or has held its
         slot past `max_emitter_on_time_secs`, released -- the row cleared, the
-        receiver reset to idle. Every transition goes to the attached log: a
-        seed, a drop and a refusal at the hit's sample, a receiver's
-        transitions at the end of this push. Accepts any block size: a hit
-        decided inside the block is referred to the block's start before it
-        seeds (the receiver is fed the whole block), on the dilated clock when
-        the carrier is known; a dwell is decided when its samples arrive.
+        receiver reset to idle. Every transition goes to the attached log (the
+        seven labels are set_event_log()'s): a seed, a drop and a refusal at
+        the hit's sample, a receiver's transitions at the end of this push.
+        Accepts any block size: a hit decided inside the block is referred to
+        the block's start before it seeds (the receiver is fed the whole
+        block), on the dilated clock when the carrier is known; a dwell is
+        decided when its samples arrive.
 
         Parameters
         ----------
@@ -4106,7 +4122,7 @@ class AsyncDsssPool:
         slot: int,
         out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
-        """The symbols slot slot's receiver decided on the last push().
+        """The symbols the receiver in slot decided on the last push().
 
         Copied from the pool's own buffer, which the next push() overwrites.
         Empty while the slot is idle or lost, and for a slot outside `[0,
@@ -4153,13 +4169,14 @@ class AsyncDsssPool:
         §8.1); NULL (None) detaches.
 
         Borrowed, never owned: the holder opens, finalizes and closes it. From
-        now on every transition is appended -- a seed, a drop and a refusal at
-        the hit's sample, a receiver's transitions at the end of the push that
-        saw them -- with `slot`, `state`, `doppler_hz`, `chip_phase` and
-        `cn0_dbhz` staged as `doppler:<name>` fields beside the label
-        (`core:label`) and, on `released`, `reason` (`lost` or `on_time`). A
-        log that has already failed keeps failing (its error is sticky); the
-        pool counts the transition either way.
+        now on every transition is appended, labelled `seeded`, `tracking`,
+        `degrade`, `lost`, `released`, `dropped` or `refused` -- a seed, a drop
+        and a refusal at the hit's sample, a receiver's transitions at the end
+        of the push that saw them -- with `slot`, `state`, `doppler_hz`,
+        `chip_phase` and `cn0_dbhz` staged as `doppler:<name>` fields beside
+        the label (`core:label`) and, on `released`, `reason` (`lost` or
+        `on_time`). A log that has already failed keeps failing (its error is
+        sticky); the pool counts the transition either way.
 
         Parameters
         ----------

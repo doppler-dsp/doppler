@@ -888,7 +888,7 @@ size_t dp_async_dsss_receiver_state_t::refine_min_blocks;
 
 
 
-floor on the refine's dwell, blocks: the detection sizing above needs fewer blocks the higher the C/N0, but the estimate the carrier chain must pull in from does not sharpen with it (#1265). Config; the measurement is at set\_refine\_min\_blocks(). 
+Floor on the refine's dwell, in blocks (default 7). The refine's detection sizing needs fewer blocks the higher the C/N0, but the estimate the carrier chain must pull in from does not sharpen with it (#1265). Set with set\_refine\_min\_blocks(), which carries the measurement. 
 
 
         
@@ -957,7 +957,7 @@ uint64_t dp_async_dsss_receiver_state_t::refine_samples_fed;
 
 
 
-Raw samples fed into the refine pipeline since it was last (re)built: the clock dilation at the hand-over is taken over these. 
+Raw samples fed into the refine pipeline since it was last (re)built. At the hand-over, fed minus consumed is the tail of the last call that goes straight on to the live chain. The clock dilation is taken over the consumed count, from the refine's blocks, not over this. 
 
 
         

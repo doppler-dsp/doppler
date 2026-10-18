@@ -1393,11 +1393,12 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
          estimated on its own despread stream and folded once
          (adr_cell_refine), gain 1 on the correction through
          pullin_intervals (the gain schedule, whatever the state).
-         Tracking once the estimate is folded (or given up) and a lock
-         flag is up -- what the retired flavour's hand-over meant -- or
-         at the end of the pull-in intervals regardless, so a seed that
-         never locks reaches the release clock. No release clock before
-         that: lost is reached from tracking, as the retired flavour's was. */
+         Tracking once the estimate is folded (or given up) and then a
+         lock flag is up -- what the retired flavour's hand-over meant --
+         or the pull-in intervals have ended, so a seed that never locks
+         still reaches the release clock once the estimate gives up. No
+         release clock before that: lost is reached from tracking, as the
+         retired flavour's was. */
       size_t n = adr_track_chain (state, x, x_len, out, max_out);
       if (state->cell_refined
           && (dp_dll_get_locked (state->dll) || state->sym_lockdet.locked

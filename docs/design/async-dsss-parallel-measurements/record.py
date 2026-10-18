@@ -142,6 +142,55 @@ def _load() -> list[float]:
     return [round(v, 2) for v in os.getloadavg()]
 
 
+#: The stamp schema a record writes. Schema 2 stamps carry the toolchain; a
+#: schema 2 stamp without one is refused (load), so a stamp cannot silently
+#: lose the field the validator's numbers depend on. Schema 1 stamps (the
+#: committed data before this field) render the toolchain as "—".
+STAMP_SCHEMA = 2
+
+
+def _toolchain() -> dict[str, str]:
+    """The toolchain the build used, read from its CMake cache.
+
+    The validator's numbers are toolchain-bound (the same commit gives
+    different rows under another compiler or C library), so a stamp records
+    the compiler CMake built with, its version, the C library and the build
+    type and flags. A re-run on another box then reads as "a different
+    toolchain", not as drift.
+    """
+    cache: dict[str, str] = {}
+    for line in (
+        (ROOT / "build" / "CMakeCache.txt")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ):
+        if line and not line.startswith(("#", "//")) and "=" in line:
+            key, _, value = line.partition("=")
+            cache[key.split(":")[0]] = value
+    cc = cache.get("CMAKE_C_COMPILER", "cc")
+    version = subprocess.run(
+        [cc, "--version"], capture_output=True, text=True, check=True
+    ).stdout.splitlines()[0]
+    return {
+        "compiler": version,
+        "compiler_path": cc,
+        "libc": os.confstr("CS_GNU_LIBC_VERSION") or "unknown",
+        "build_type": cache.get("CMAKE_BUILD_TYPE") or "default",
+        "c_flags": cache.get("CMAKE_C_FLAGS", "").strip() or "default",
+    }
+
+
+def _tc(stamp: dict[str, Any]) -> str:
+    """A stamp's toolchain as one cell; "—" for a stamp that predates it."""
+    tc = stamp.get("toolchain")
+    if tc is None:
+        return "—"
+    return (
+        f"{tc['compiler']}; {tc['libc']}; build {tc['build_type']}, "
+        f"flags {tc['c_flags']}"
+    )
+
+
 def _validator_stamp() -> dict[str, Any]:
     """The built validator, refused when absent or older than its source,
     and the stamp of a run about to start."""
@@ -156,6 +205,7 @@ def _validator_stamp() -> dict[str, Any]:
     # outputs are themselves tracked, so read after the write it would call
     # its own run dirty.
     return {
+        "stamp_schema": STAMP_SCHEMA,
         "date_utc": datetime.datetime.now(datetime.timezone.utc).strftime(
             "%Y-%m-%d %H:%M"
         ),
@@ -165,6 +215,7 @@ def _validator_stamp() -> dict[str, Any]:
         "commit": _git("rev-parse", "--short=9", "HEAD"),
         "dirty": bool(_git("status", "--porcelain", "--untracked-files=no")),
         "load_before": _load(),
+        "toolchain": _toolchain(),
     }
 
 
@@ -276,11 +327,13 @@ def take_bench(snapshot: Path, before: list[float], after: list[float]) -> int:
             {"name": r["name"], "stats": {k: r["stats"][k] for k in keep}}
         )
     out = {
+        "stamp_schema": STAMP_SCHEMA,
         "datetime": snap["datetime"],
         "machine_info": snap["machine_info"],
         "commit_info": snap["commit_info"],
         "load_before": before,
         "load_after": after,
+        "toolchain": _toolchain(),
         "benchmarks": rows,
     }
     (DATA / "bench.json").write_text(
@@ -312,6 +365,7 @@ def _stories(lock: dict[str, Any]) -> tuple[list[dict[str, str]], Any]:
     that changed in between fails here, and the record is re-run whole.
     """
     smeta = json.loads((DATA / "stories-meta.json").read_text("utf-8"))
+    _require_toolchain("stories-meta.json", smeta)
     rows = _csv_blocks((DATA / "stories.csv").read_text("utf-8"))["story"]
     if smeta["dirty"]:
         raise SystemExit("record data from a dirty tree is refused")
@@ -329,6 +383,20 @@ def _stories(lock: dict[str, Any]) -> tuple[list[dict[str, str]], Any]:
     return rows, smeta
 
 
+def _require_toolchain(name: str, stamp: dict[str, Any]) -> None:
+    """Refuse a schema-2 stamp that lacks the toolchain it must carry.
+
+    A stamp of schema 1 predates the field and renders "—" (_tc); a stamp
+    that claims schema 2 without its toolchain is a writer that dropped it,
+    and --check fails on it rather than printing a row no reader can date.
+    """
+    if stamp.get("stamp_schema", 1) >= 2 and "toolchain" not in stamp:
+        raise SystemExit(
+            f"{name}: a schema-{stamp['stamp_schema']} stamp without its "
+            "toolchain: the writer dropped the field; re-run the tool"
+        )
+
+
 def load() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """The lock rows, their stamp and the bench rows, held to one clean
     commit. The lifecycle stories ride along, held to the sweep instead
@@ -336,6 +404,8 @@ def load() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     `meta["stories"]`."""
     meta = json.loads((DATA / "lock-meta.json").read_text(encoding="utf-8"))
     bench_ = json.loads((DATA / "bench.json").read_text(encoding="utf-8"))
+    _require_toolchain("lock-meta.json", meta)
+    _require_toolchain("bench.json", bench_)
     lock = _csv_blocks((DATA / "lock.csv").read_text(encoding="utf-8"))
     if meta["dirty"] or bench_["commit_info"]["dirty"]:
         raise SystemExit("record data from a dirty tree is refused")
@@ -415,6 +485,7 @@ def stamp(lock: Any, meta: dict[str, Any], bench_: dict[str, Any]) -> str:
             f"({meta['cpu_threads']} threads)",
             f"{meta['load_before'][0]:.1f} / {meta['load_after'][0]:.1f}",
             f"`{meta['commit']}`, clean",
+            _tc(meta),
             "`make build`, then `record.py measure`",
         ],
         [
@@ -424,6 +495,7 @@ def stamp(lock: Any, meta: dict[str, Any], bench_: dict[str, Any]) -> str:
             f"({mi['cpu']['count']} threads)",
             f"{bench_['load_before'][0]:.1f} / {bench_['load_after'][0]:.1f}",
             f"`{bench_['commit_info']['id'][:9]}`, clean",
+            _tc(bench_),
             f'`make bench BENCH_ARGS="{BENCH_ARGS}"` once the load fell '
             f"under {QUIET_LOAD:g}, rows kept by `record.py`",
         ],
@@ -434,12 +506,21 @@ def stamp(lock: Any, meta: dict[str, Any], bench_: dict[str, Any]) -> str:
             f"({sm['cpu_threads']} threads)",
             f"{sm['load_before'][0]:.1f} / {sm['load_after'][0]:.1f}",
             f"`{sm['commit']}`, clean",
+            _tc(sm),
             "`make build`, then `record.py stories`; each story is the "
             "sweep's arrival trial of its draws, checked",
         ],
     ]
     return table(
-        ["run", "when", "machine", "load before / after", "commit", "command"],
+        [
+            "run",
+            "when",
+            "machine",
+            "load before / after",
+            "commit",
+            "toolchain",
+            "command",
+        ],
         rows,
     )
 
@@ -491,6 +572,44 @@ def seed(lock: Any, meta: Any, bench_: Any) -> str:
         rows.append([name, *cells])
     return table(
         ["refine seed error", *(f"locked, {_db(e)}" for e in es)], rows
+    )
+
+
+def seed_edge(lock: Any, meta: Any, bench_: Any) -> str:
+    """The refine seed errors at the edge of the carrier loop's bound.
+
+    From the sweep's arrival trials at each C/N0: the largest seed error that
+    locked, how many draws at 250 Hz or more locked, and the largest seed
+    error whether it locked or not. The prose names this block for its
+    numbers; they are rendered here, so a re-run moves them with the data.
+    """
+
+    def one(rows: list[dict[str, str]]) -> str:
+        r = max(rows, key=lambda r: abs(_f(r["seed_err_hz"])))
+        return f"{abs(_f(r['seed_err_hz'])):.1f} Hz (seed {r['seed']})"
+
+    es = _esn0s(lock["arrival"])
+    locked_row = ["largest seed error that locked"]
+    big_row = ["draws at ≥ 250 Hz that locked"]
+    worst_row = ["largest seed error, locked or not"]
+    for e in es:
+        a = [
+            r
+            for r in lock["arrival"]
+            if r["esn0_db"] == e and r["seed_err_hz"] != "nan"
+        ]
+        lk = [r for r in a if _num(r["t_lock_ms"])]
+        big = [r for r in a if abs(_f(r["seed_err_hz"])) >= 250.0]
+        big_lk = [r for r in big if _num(r["t_lock_ms"])]
+        locked_row.append(one(lk) if lk else "—")
+        big_row.append(f"{len(big_lk)} of {len(big)}")
+        worst_row.append(one(a) if a else "—")
+    return table(
+        [
+            "refine seed error, the sweep's arrival trials",
+            *(_db(e) for e in es),
+        ],
+        [locked_row, big_row, worst_row],
     )
 
 
@@ -750,6 +869,7 @@ BLOCKS = {
     "stories": stories_block,
     "arrival": arrival,
     "seed": seed,
+    "seed-edge": seed_edge,
     "dropout": dropout,
     "hold": hold,
     "cost": cost,

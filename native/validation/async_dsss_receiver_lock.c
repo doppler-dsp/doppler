@@ -85,7 +85,13 @@
  * dropout trial a loss for good drops symbol lock within DROP_WATCH_S. The
  * rest -- lock times, seed errors, holds, re-locks, the 5 dB rows -- is
  * measured and printed, not asserted: a fraction that moves with the draw
- * is a finding for the record, not a gate. A hold of LOCK_N_DOWN symbols
+ * is a finding for the record, not a gate.
+ *
+ * The asserted bounds must hold on every toolchain (CI's image is one of
+ * them), so none sits on an edge one draw can cross; a toolchain that
+ * crosses one is a finding for the record, not a bound to widen here.
+ *
+ * A hold of LOCK_N_DOWN symbols
  * is NOT a property of the detector, though it reads like one: the first
  * sweep asserted it and four 5 dB trials failed it, the average sunk in
  * the dropout and its recovery after supplying the run of low symbols.

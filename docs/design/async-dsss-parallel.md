@@ -4,8 +4,9 @@
 independent `AsyncDsssReceiver`s, each pinned to its own CPU, under a
 controller that only watches, tunes and reports. This page is that design.
 It replaces the pool [`async-dsss-receiver.md`](async-dsss-receiver.md)
-describes in its §5–§11, the central searcher, the assigned table and the
-cell receivers behind it. Its measured numbers are [the measurement
+describes in its §5–§9 and §11.1, the central searcher, the assigned table and
+the cell receivers behind it. It keeps §11.2–§11.3 and changes §10's release to
+symbol lock alone; what else survives is doppler#2409's. Its measured numbers are [the measurement
 record](async-dsss-parallel-measurements.md)'s, rendered from the runs of
 shipped tools behind it under the same section numbers; the rest are derived
 from §2's parameters. The points still to decide are doppler#2409.*
@@ -117,15 +118,18 @@ What today's receiver must gain for this:
     already reach `lost`: `lost_confirm_s`, a create parameter, releases
     tracking once BOTH lock flags have been down that long, and `reset()`
     returns it to searching
-    (`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`).
+    (`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`: the
+    create parameter at line 599, `reset()` at line 724).
     By default it is 0, so it never does. What it lacks is the step from
     `lost` back to searching on its own, and this design's trigger: symbol
     lock alone, where today's release needs code lock down too.
 1. **A tuned offset**: a search centred where the controller says, not at 0.
 1. **The slow-time search on command,** at a depth the data-free block and
     the Doppler rate allow.
-1. **Exclusions**: code phases (and carriers) the search must not take,
-    because another receiver already tracks them. A receiver's own search
+1. **Exclusions**: code phases the search must not take, because another
+    receiver already tracks them. The pool's zone is keyed on code phase alone
+    (within a chip, at any Doppler); keying on carrier seeded duplicate receivers
+    (`async-dsss-receiver-measurements.md` §12.14). A receiver's own search
     takes its strongest hit, and on a shared input the strongest hits are
     the signals already owned. Refusing the hit afterwards is not enough: a
     reset receiver finds the same peak again.
@@ -142,8 +146,9 @@ What today's receiver must gain for this:
 The bookkeeper of §2. It searches nothing, seeds nothing and holds no
 surface. It:
 
-- **reads every receiver's status** (state, code phase, carrier estimate,
-    lock flags) and keeps the table of who tracks what;
+- **reads each receiver's `status()`** (state, chip phase, carrier, code and
+    symbol lock) and keeps the table of who tracks what, never the demodulator's
+    timing flag, which outlives the signal (record §3.2);
 - **tunes each searching receiver to an offset,** and commands the slow-time
     search in the data-free block;
 - **hands every searching receiver the exclusions** (the signals the others
@@ -192,10 +197,11 @@ acquires every draw inside it, reliably to twice it and not at all by four
 times (`costas_pullin.c`, `async_dsss_receiver_core.h`). The whole receiver
 is more forgiving than the loop alone: slower to lock as the seed error
 grows, it still locked draws in the 200–300 Hz row, past four times the
-bound, and the table's only evidence of an edge is its last row, on few
-draws. Why it reaches past the loop's edge is open (doppler#2409): the
+bound; the record's seed-edge block gives the largest locked error and the 5 dB
+draws at 250 Hz or more. Why it reaches past the loop's edge is open (doppler#2409): the
 error here is read when tracking starts, which need not be the residual
-the loop finally pulls in. That residual is doppler#982's. Since this design
+the loop finally pulls in. That residual is doppler#982's. `rx.car.nco` (#2412) now shows what the loop
+pulls in; read as a residual, it is not yet measured (doppler#2409). Since this design
 defines tracking as symbol lock, a receiver at the floor that misses it
 would let go of the signal it holds and search again, so the refine's
 residual is a design input (doppler#2409).
@@ -249,7 +255,7 @@ receiver's own.
 ## Related
 
 - [`async-dsss-receiver.md`](async-dsss-receiver.md): the receiver, and the
-    pool this replaces (§5–§11)
+    pool this replaces (§5–§9 and §11.1)
 - [the measurement record](async-dsss-parallel-measurements.md)
 - [Tracking a Population of DSSS Emitters](../guide/async-dsss-pool.md): the
     pool as built, from the user's side

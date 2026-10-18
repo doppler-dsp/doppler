@@ -7,7 +7,7 @@ entry here. The tables come from two runs of shipped tools, at one commit:
 the lock validator, `native/validation/async_dsss_receiver_lock.c`, and the
 C benches of the three objects. A third run, of the same validator, draws
 §3.2's figures, and is held to the first instead: each of its stories must
-replay its sweep trial exactly. Every table below, and every number the
+match its sweep trial's carrier, arrival and symbol-lock time. Every table below, and every number the
 design page quotes from them, is rendered from their data, committed beside
 this page in `async-dsss-parallel-measurements/` by its `record.py`, whose
 `--check` (in `make docs-invariants`) fails when either page differs from
@@ -15,11 +15,11 @@ the data.*
 
 <!-- async-dsss-parallel:stamp:start -->
 
-| run                        | when                       | machine                                                          | load before / after | commit             | command                                                                                                                         |
-| -------------------------- | -------------------------- | ---------------------------------------------------------------- | ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| lock validator, full sweep | 2026-10-17 18:37 UTC, 35 s | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 2.0 / 2.1           | `bc874bf75`, clean | `make build`, then `record.py measure`                                                                                          |
-| C benches                  | 2026-10-17 18:36 UTC       | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 1.9 / 1.8           | `bc874bf75`, clean | `make bench BENCH_ARGS="--c-only acq async_dsss_receiver async_dsss_pool"` once the load fell under 2, rows kept by `record.py` |
-| lifecycle stories (§3.2)   | 2026-10-17 21:31 UTC, 1 s  | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 2.5 / 2.5           | `233007864`, clean | `make build`, then `record.py stories`; each story is the sweep's arrival trial of its draws, checked                           |
+| run                        | when                       | machine                                                          | load before / after | commit             | toolchain | command                                                                                                                         |
+| -------------------------- | -------------------------- | ---------------------------------------------------------------- | ------------------- | ------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| lock validator, full sweep | 2026-10-17 18:37 UTC, 35 s | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 2.0 / 2.1           | `bc874bf75`, clean | —         | `make build`, then `record.py measure`                                                                                          |
+| C benches                  | 2026-10-17 18:36 UTC       | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 1.9 / 1.8           | `bc874bf75`, clean | —         | `make bench BENCH_ARGS="--c-only acq async_dsss_receiver async_dsss_pool"` once the load fell under 2, rows kept by `record.py` |
+| lifecycle stories (§3.2)   | 2026-10-17 21:31 UTC, 1 s  | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 2.5 / 2.5           | `233007864`, clean | —         | `make build`, then `record.py stories`; each story is the sweep's arrival trial of its draws, checked                           |
 
 <!-- async-dsss-parallel:stamp:end -->
 
@@ -40,9 +40,7 @@ ______________________________________________________________________
 
 ### 3.1 Symbol lock through a dropout
 
-The validator's `dropout` trials. Each draws its carrier over ±1/T_E (the
-first run fixed it at 1,500 Hz, the edge between two of the search's tiles,
-and lost more draws to it), and is fed until the receiver tracks with symbol
+The validator's `dropout` trials. Each draws its carrier over ±1/T_E, and is fed until the receiver tracks with symbol
 lock up for 200 epochs in a row, then up to 10 ms more, then cut at a random
 sample of the next epoch. A draw that has not held lock that long within
 4 s, or whose lock is down at the cut, is excluded and counted (§5.1 says
@@ -82,10 +80,7 @@ after a shorter one fell (the last column): the lock average, an exponential
 average over 30 symbols, sinks under the detector's drop level in the
 dropout and climbs back too late after it, and where it lands depends on the
 noise of those few milliseconds. So the hold is reported as a fraction per
-length, never as an edge. The first sweep also asserted that a dropout of
-`LOCK_N_DOWN` symbols cannot drop the lock, which reads like a property of
-the detector; some 5 dB trials held less, the low run supplied by the
-recovery after the dropout, and the assertion went.
+length, never as an edge.
 
 ### 3.2 A receiver through a signal's life
 
@@ -97,9 +92,9 @@ and 1.6 s, every cut mid-data, and leaves for good at 2.0 s; the run ends
 at 2.4 s. Each figure is the receiver's own telemetry from that run, drawn
 by `scripts/plot_capture.py`. **Grey is where the signal was off**, read
 from the stimulus the validator records beside the receiver's probes
-(`stim.on`), not drawn from the schedule above. The receiver reports
-nothing until it tracks, so the panels start where its search ends, not at
-the arrival.
+(`stim.on`), not drawn from the schedule above. None of the drawn probes reports
+before the live chain runs (the search's `rx.acq.*` are captured, not drawn),
+so the panels start where the live chain starts, not at the arrival.
 
 <!-- async-dsss-parallel:stories:start -->
 
@@ -122,8 +117,8 @@ falls for good at the departure, as do the carrier and code flags. The
 demodulator's timing flag (`demod.sync.locked`) does not: it stays up
 through every fade and long after the signal has gone (#2409). The 5 dB
 story that never locks is the trial §5.1 counts as never locking: its
-refine seed is further off than the carrier loop pulls in (§5.1's seed
-table), so the carrier loop never declares and symbol lock never comes,
+refine seed is further off than the carrier loop pulls in (the seed-edge
+block below gives its size), so the carrier loop never declares and symbol lock never comes,
 while the code loop tracks and the timing flag comes up and stays up.
 
 ### 5.1 Arrival to tracking, and to symbol lock
@@ -151,11 +146,12 @@ residual the carrier loop must pull in. That loop's acquisition bound is
 every draw inside the bound, still reliably to twice it, and dead by four
 times (`async_dsss_receiver_core.h`); doppler#982 found the refine handing
 over outside it. The whole receiver is more forgiving than the loop alone:
-lock time grows with the seed error, the 200–300 Hz row still locks, past
-four times the bound and slowly, and the only evidence of an edge is the
-last row, on few draws. The error is read when tracking starts, which need
-not be the residual the loop finally pulls in; why the receiver reaches
-past the loop's edge is open (doppler#2409).
+lock time grows with the seed error, and the 200–300 Hz row still locks, past
+four times the bound and slowly. The seed-edge block below gives the largest
+locked error and the 5 dB draws at 250 Hz or more. The error is read when
+tracking starts, which need not be the residual the loop finally pulls in;
+`rx.car.nco` (#2412) now shows what the loop pulls in, and read as a residual
+it is not yet measured (doppler#2409).
 
 <!-- async-dsss-parallel:seed:start -->
 
@@ -167,6 +163,16 @@ past the loop's edge is open (doppler#2409).
 | ≥ 300 Hz          | —                                  | 0 of 2 (0.00–0.66)                 |
 
 <!-- async-dsss-parallel:seed:end -->
+
+<!-- async-dsss-parallel:seed-edge:start -->
+
+| refine seed error, the sweep's arrival trials | 10 dB             | 5 dB              |
+| --------------------------------------------- | ----------------- | ----------------- |
+| largest seed error that locked                | 248.5 Hz (seed 2) | 245.2 Hz (seed 3) |
+| draws at ≥ 250 Hz that locked                 | 0 of 0            | 0 of 5            |
+| largest seed error, locked or not             | 248.5 Hz (seed 2) | 444.3 Hz (seed 5) |
+
+<!-- async-dsss-parallel:seed-edge:end -->
 
 ### 6. What a receiver costs
 

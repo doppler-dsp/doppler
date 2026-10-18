@@ -1,0 +1,1 @@
+- **The parallel-receivers record stamps its toolchain.** Each run's stamp now carries the compiler and version, the C library, and the build type and flags, so a re-run on another box reads as a different toolchain, not as drift. The record's seed-edge block renders the numbers its prose cites from the data.

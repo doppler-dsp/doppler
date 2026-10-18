@@ -74,7 +74,15 @@ down and keeps its heading, every citation of it still resolves, while the
 number it was cited FOR (a cost, a table row) may be gone from under it.
 Only a reader who follows the citation sees that; a title, where one is
 given, narrows it, and a cut that removes a cited number should search for
-its citers (`git grep "§12.14"`) before it lands.
+its citers (`git grep "§12.14"`) before it lands. Nor are these read:
+
+- a range's upper end: ``§12.22-12.24`` checks §12.22 only;
+- a continuation without its own mark: ``§12.15, 12.16`` checks §12.15;
+- the step form: ``§12 step 7`` is read as §12, the step ignored;
+- a lettered section: ``§12.3a`` is read as §12.3;
+- a bare ``§N`` or ``section N`` with no page and no ``design`` before it,
+  which in a file that names its page once is shorthand, and in any other
+  is unanchored: name the page.
 
 ## A citation that names no page
 
@@ -103,13 +111,13 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: a `§` that starts the next).
 _CITE = re.compile(
     r"(?P<doc>docs/[\w./-]+\.md)`?(?:\s|\*|#|//)*"
-    r"(?:§|\bsections?\b)(?:\s|\*|#|//)*(?P<sec>\d+(?:\.\d+)*)"
+    r"(?:§|\b(?i:sections?)\b)(?:\s|\*|#|//)*(?P<sec>\d+(?:\.\d+)*)"
     r"(?P<title>\s*,\s*[\"“]([^\"”]{3,90})[\"”])?"
 )
 
 #: `design §12.22`, `design section 12.22`: a design page, unnamed.
 _BARE = re.compile(
-    r"\bdesign(?:\s|\*|#|//)+(?:§|sections?\b)(?:\s|\*|#|//)*"
+    r"\b(?i:design)(?:\s|\*|#|//)+(?:§|(?i:sections?)\b)(?:\s|\*|#|//)*"
     r"(?P<sec>\d+(?:\.\d+)*)"
 )
 

@@ -4064,17 +4064,18 @@ class AsyncDsssPool:
         one chip of a live row's code phase, at any Doppler, dropped as that
         emitter's own (the zone is the code axis alone: a tracked emitter's
         data blocks put smeared copies of it at its own phase rows away,
-        section 12.14); each survivor seeded into a free slot, or counted
-        dropped when there is none (a hit outside the seed domain is logged
-        refused, not dropped); every receiver fed (an idle or lost one consumes
-        and discards, so the feed has no per-state branch), across the threads
-        the pool was given; then every receiver that reports lost, or has held
-        its slot past max_emitter_on_time_secs, released -- the row cleared,
-        the receiver reset to idle. Every transition -- seeded, tracking,
-        degrade, lost, released, dropped, refused -- goes to the attached event
-        log at the sample it happened. Accepts any block size; a searcher dwell
-        is decided when its samples arrive. Returns the receivers assigned
-        after this push.
+        docs/design/async-dsss-receiver-measurements.md §12.14); each survivor
+        seeded into a free slot, or counted dropped when there is none (a hit
+        outside the seed domain is logged refused, not dropped); every receiver
+        fed (an idle or lost one consumes and discards, so the feed has no
+        per-state branch), across the threads the pool was given; then every
+        receiver that reports lost, or has held its slot past
+        max_emitter_on_time_secs, released -- the row cleared, the receiver
+        reset to idle. Every transition -- seeded, tracking, degrade, lost,
+        released, dropped, refused -- goes to the attached event log at the
+        sample it happened. Accepts any block size; a searcher dwell is decided
+        when its samples arrive. Returns the receivers assigned after this
+        push.
 
         In order: the searcher; the table refreshed; every peak within one chip
         of a live row's code phase, at any Doppler, dropped as that emitter's

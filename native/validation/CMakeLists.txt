@@ -655,7 +655,7 @@ if(NOT WIN32)
   # The same subset behind the shipped front end, with the CSV blocks the
   # report's validator parses: `--budget` puts the 13 MSa/s up-conversion and
   # the DDC in front of the pool and times both (docs/design/async-dsss-receiver.md §6.4;
-  # docs/design/async-dsss-receiver-measurements.md §12.1), and
+  # docs/design/async-dsss-receiver-measurements.md §12.17), and
   # `--emit` is the validator's own run. Without this twin, both paths ran on
   # no push -- the sweep is `make validate-c`'s -- and the patch gate read the
   # harness at 70%. The budget's real-time ratio is printed, not asserted, so

@@ -456,7 +456,8 @@ doc = "Binary code-lock flag from the live tracking Dll's own verify-counted (pf
 
 # ── The cell mode: the receiver a searcher's cell drives ────────────────────
 #
-# Design section 12.22-12.24 as a mode of this receiver (#1283): no refine,
+# docs/design/async-dsss-receiver-measurements.md §12.22-12.24 as a mode of
+# this receiver (#1283): no refine,
 # the Dll held from the first sample and put back once an interval at a held
 # phase corrected by a gain (chips) times its interval-mean discriminator;
 # the carrier loop the searching flavor's own. A difference in CONSTRUCTOR is a view:

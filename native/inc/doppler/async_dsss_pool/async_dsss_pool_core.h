@@ -11,9 +11,9 @@
  * Python face as glue:
  *
  *   - **one searcher**, `Acquisition` in continuous mode with the block
- *     coherence its code-only window buys (docs/design/async-dsss-receiver.md §2.3) and
- *     a peak list (§7.1), its tiles fanned across the threads the pool is
- *     given;
+ *     coherence its code-only window buys
+ *     (docs/design/async-dsss-receiver.md §2.3) and a peak list (§7.1), its
+ *     tiles fanned across the threads the pool is given;
  *   - **`n_slots` cell receivers**, created idle. An idle or lost
  *     receiver consumes and discards what it is fed, so every receiver is
  *     fed every block and the feed has no per-state branch; they run
@@ -132,13 +132,13 @@ extern "C"
   /**
    * @brief One slot's picture, by value -- what `status()` returns.
    *
-   * The seed fields are the searcher's hand-off record at the sample the
-   * row was assigned: its Doppler and C/N0 as reported, its chip phase
-   * referred to that block's start (`seed_sample`). The live fields are the receiver's own
+   * The seed fields are the searcher's hand-off record at the sample the row
+   * was assigned: its Doppler and C/N0 as reported, its chip phase referred to
+   * that block's start (`seed_sample`). The live fields are the receiver's own
    * status record (async_dsss_receiver_status_t) at the last push. For an
    * unassigned slot the live fields are the idle receiver's (state
-   * ASYNC_DSSS_RX_IDLE); for a slot outside `[0, n_slots)` the record is
-   * zero with `state` -1.
+   * ASYNC_DSSS_RX_IDLE); for a slot outside `[0, n_slots)` the record is zero
+   * with `state` -1.
    */
   typedef struct
   {
@@ -375,22 +375,21 @@ void dp_async_dsss_pool_reset(dp_async_dsss_pool_state_t *state);
  * @brief One block of raw cf32 samples through the population.
  *
  * In order: the table refreshed from every live receiver's status(); the
- * searcher, whose every peak within one chip of a live row's code phase,
- * at any Doppler, is discarded silently as that emitter's own (the zone is
- * the code axis alone: a tracked emitter's data blocks put smeared copies
- * of it at its own phase rows away,
- * docs/design/async-dsss-receiver-measurements.md §12.14), and each
- * survivor seeded into a free slot or counted dropped when there is none
- * (a hit outside the seed domain is logged refused, not dropped); every
- * receiver fed, across the pool's threads (an idle or lost one consumes
- * and discards); then every receiver that reports lost, or has held its
- * slot past `max_emitter_on_time_secs`, released -- the row cleared, the
- * receiver reset to idle. Every transition goes to the attached log: a
- * seed, a drop and a refusal at the hit's sample, a receiver's transitions
- * at the end of this push. Accepts any block size: a hit decided inside
- * the block is referred to the block's start before it seeds (the
- * receiver is fed the whole block), on the dilated clock when the carrier
- * is known; a dwell is decided when its samples arrive.
+ * searcher, whose every peak within one chip of a live row's code phase, at
+ * any Doppler, is discarded silently as that emitter's own (the zone is the
+ * code axis alone: a tracked emitter's data blocks put smeared copies of it at
+ * its own phase rows away, docs/design/async-dsss-receiver-measurements.md
+ * §12.14), and each survivor seeded into a free slot or counted dropped when
+ * there is none (a hit outside the seed domain is logged refused, not
+ * dropped); every receiver fed, across the pool's threads (an idle or lost one
+ * consumes and discards); then every receiver that reports lost, or has held
+ * its slot past `max_emitter_on_time_secs`, released -- the row cleared, the
+ * receiver reset to idle. Every transition goes to the attached log (the seven
+ * labels are set_event_log()'s): a seed, a drop and a refusal at the hit's
+ * sample, a receiver's transitions at the end of this push. Accepts any block
+ * size: a hit decided inside the block is referred to the block's start before
+ * it seeds (the receiver is fed the whole block), on the dilated clock when
+ * the carrier is known; a dwell is decided when its samples arrive.
  *
  * @param state  Must be non-NULL.
  * @param x  Input samples.
@@ -446,7 +445,7 @@ async_dsss_pool_slot_t dp_async_dsss_pool_status(dp_async_dsss_pool_state_t *sta
 size_t dp_async_dsss_pool_symbols_max_out(dp_async_dsss_pool_state_t *state);
 
 /**
- * @brief The symbols slot @p slot's receiver decided on the last push().
+ * @brief The symbols the receiver in @p slot decided on the last push().
  *
  * Copied from the pool's own buffer, which the next push() overwrites.
  * Empty while the slot is idle or lost, and for a slot outside
@@ -476,13 +475,15 @@ size_t dp_async_dsss_pool_symbols(dp_async_dsss_pool_state_t *state, size_t slot
  * @brief Attach the run's event log (docs/design/async-dsss-receiver.md
  *        §8.1); NULL (None) detaches.
  *
- * Borrowed, never owned: the holder opens, finalizes and closes it. From
- * now on every transition is appended -- a seed, a drop and a refusal at
- * the hit's sample, a receiver's transitions at the end of the push that
- * saw them -- with `slot`, `state`, `doppler_hz`, `chip_phase` and
- * `cn0_dbhz` staged as `doppler:<name>` fields beside the label
- * (`core:label`) and, on `released`, `reason` (`lost` or `on_time`). A log that has already failed keeps failing (its error is
- * sticky); the pool counts the transition either way.
+ * Borrowed, never owned: the holder opens, finalizes and closes it. From now
+ * on every transition is appended, labelled `seeded`, `tracking`, `degrade`,
+ * `lost`, `released`, `dropped` or `refused` -- a seed, a drop and a refusal
+ * at the hit's sample, a receiver's transitions at the end of the push that
+ * saw them -- with `slot`, `state`, `doppler_hz`, `chip_phase` and `cn0_dbhz`
+ * staged as `doppler:<name>` fields beside the label (`core:label`) and, on
+ * `released`, `reason` (`lost` or `on_time`). A log that has already failed
+ * keeps failing (its error is sticky); the pool counts the transition either
+ * way.
  *
  * @param state  Must be non-NULL.
  * @param log  The log, or NULL.

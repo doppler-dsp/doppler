@@ -1027,9 +1027,10 @@ static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
   { "lost", (getter)CellAsyncDsssReceiver_getprop_lost, NULL,
     "1 once the release rule has fired: both lock flags were down, "
     "continuously, for longer than `lost_confirm_s` while tracking -- an "
-    "emitter that left, or a seed that never locked. The loops have stopped; "
-    "the holder releases the assignment and calls reset(). 0 in every other "
-    "state, and always 0 with `lost_confirm_s = 0`.\n",
+    "emitter that left, or a seed that never locked. The loops have stopped "
+    "and samples are consumed and discarded; the holder releases the "
+    "assignment and calls reset(). 0 in every other state, and always 0 with "
+    "`lost_confirm_s = 0`.\n",
     NULL },
   { "doppler_hz", (getter)CellAsyncDsssReceiver_getprop_doppler_hz, NULL,
     "The Doppler estimate the chain was built from, Hz: the seed's while "
@@ -1076,11 +1077,12 @@ static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
     "carrier loop's stress.\n",
     NULL },
   { "locked", (getter)CellAsyncDsssReceiver_getprop_locked, NULL,
-    "The receiver's symbol-lock flag: the hysteretic lockdet over "
-    "get_lock_metric(), declared after ASYNC_DSSS_RX_LOCK_N_UP symbols "
-    "strictly above get_lock_threshold() and dropped after "
-    "ASYNC_DSSS_RX_LOCK_N_DOWN below ASYNC_DSSS_RX_LOCK_DOWN. The flag the "
-    "release rule and a pool's holder act on.\n",
+    "The receiver's symbol-lock flag: a hysteretic detector over "
+    "get_lock_metric(), declared after 30 consecutive symbols strictly above "
+    "get_lock_threshold() (0.5) and dropped after 15 consecutive symbols "
+    "strictly below 0.3 (ASYNC_DSSS_RX_LOCK_N_UP, _UP, _N_DOWN and _DOWN, "
+    "fixed at create). The flag the release rule and a pool's holder act "
+    "on.\n",
     NULL },
   { "lock_metric", (getter)CellAsyncDsssReceiver_getprop_lock_metric, NULL,
     "Symbol-lock metric = SNR-weighted EMA of (I^2-Q^2)/(I^2+Q^2) = "
@@ -1088,8 +1090,9 @@ static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
     NULL },
   { "lock_threshold", (getter)CellAsyncDsssReceiver_getprop_lock_threshold,
     NULL,
-    "The lock-metric declare threshold `locked` latches above (the lockdet "
-    "up_thresh); exposed alongside lock_metric for engineering debug.\n",
+    "The lock-metric threshold `locked` is declared strictly above (0.5, "
+    "ASYNC_DSSS_RX_LOCK_UP); exposed alongside lock_metric for engineering "
+    "debug.\n",
     NULL },
   { "car_last_error", (getter)CellAsyncDsssReceiver_getprop_car_last_error,
     NULL,
@@ -1174,7 +1177,10 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "searching or refining (an empty return is normal, not an error): a hit\n"
     "seeds the frozen-carrier refine chain, `CarrierAcquisition` sharpens\n"
     "the coarse Doppler estimate, and only once it is ready (or gives up) is\n"
-    "the live tracking chain built and demodulation begins. In cell mode the\n"
+    "the live tracking chain built and demodulation begins. A hit inside a\n"
+    "call hands the rest of the call straight to the refine chain, so no\n"
+    "sample is dropped there; at the refine's end, what the refine did not\n"
+    "consume of the last call goes on to the live chain. In cell mode the\n"
     "live chain runs from the seed, so refining (the pull-in) emits. Accepts\n"
     "any block size; state carries across calls, so a capture can be fed in\n"
     "frames of any length with no seam. Idle (cell mode, before a seed) and\n"
@@ -1342,7 +1348,9 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "\n"
     "Cheap and allocation-free: every field is a read of live state. The\n"
     "one-at-a-time getters report the same fields, `doppler_hz` apart (see\n"
-    "the record); this is the face a pool holder uses.\n"
+    "the record); this is the face a pool holder uses. No timestamp: the\n"
+    "clocks are in input samples, and the holder, which owns the sample\n"
+    "clock, stamps the record.\n"
     "\n"
     "Returns\n"
     "-------\n"

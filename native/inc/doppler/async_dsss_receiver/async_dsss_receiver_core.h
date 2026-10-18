@@ -44,19 +44,18 @@
  *   - **idle** (cell mode only): waiting for a seed. Samples are consumed
  *     and discarded, so a feeding loop needs no special case.
  *   - **lost**: the emitter is gone. Entered from tracking when BOTH lock
- *     flags have been down, without a break, for longer than
- *     `lost_confirm_s` (docs/design/async-dsss-receiver.md §11.2); the loops stop and
- *     samples are discarded until `reset()`. `lost_confirm_s = 0` (the
- *     searching flavor's default) never enters it. While the confirm
- *     interval runs the loops HOLD what they settled on with both flags up
- *     rather than run on noise (dp_dll_set_coast();
- *     docs/design/async-dsss-receiver.md §10;
- *     docs/design/async-dsss-receiver-measurements.md §12.19,
- *     doppler#1271), so a departed emitter's receiver stands where the
- *     emitter left it, and neither sweeps onto a neighbour's code nor
- *     restarts its release clock on one it followed. One flag down is a
- *     degrade: reported, and the loops run, which is what rides out two
- *     live emitters crossing each other's code phase.
+ *     flags have been down, without a break, for longer than `lost_confirm_s`
+ *     (docs/design/async-dsss-receiver.md §11.2); the loops stop and samples
+ *     are discarded until `reset()`. `lost_confirm_s = 0` (the searching
+ *     flavor's default) never enters it. While the confirm interval runs the
+ *     loops HOLD what they settled on with both flags up rather than run on
+ *     noise (dp_dll_set_coast(); docs/design/async-dsss-receiver.md §10;
+ *     docs/design/async-dsss-receiver-measurements.md §12.19, doppler#1271),
+ *     so a departed emitter's receiver stands where the emitter left it, and
+ *     neither sweeps onto a neighbour's code nor restarts its release clock on
+ *     one it followed. One flag down is a degrade: reported, and the loops
+ *     run, which is what rides out two live emitters crossing each other's
+ *     code phase.
  *
  * **Cell mode** (`dp_async_dsss_receiver_create_cell()`) is the same object
  * with NO embedded `Acquisition` and no refine chain: the search is
@@ -249,9 +248,13 @@ extern "C"
                                   refine_dll's layout, needed again by
                                   set_state's check. */
     uint64_t refine_samples_fed; /**< Raw samples fed into the refine
-                                       pipeline since it was last (re)built:
-                                       the clock dilation at the hand-over
-                                       is taken over these. */
+                                       pipeline since it was last (re)built.
+                                       At the hand-over, fed minus consumed
+                                       is the tail of the last call that
+                                       goes straight on to the live chain.
+                                       The clock dilation is taken over the
+                                       consumed count, from the refine's
+                                       blocks, not over this. */
     /* Scratch, not state -- sized once per refine-chain (re)build (no
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled
@@ -321,13 +324,14 @@ extern "C"
     size_t refine_zero_pad;
     bool   refine_sequential;
     size_t refine_max_n_blocks;
-    size_t refine_min_blocks; /**< floor on the refine's dwell, blocks: the
-                                   detection sizing above needs fewer blocks
-                                   the higher the C/N0, but the estimate the
-                                   carrier chain must pull in from does not
-                                   sharpen with it (#1265). Config; the
-                                   measurement is at
-                                   set_refine_min_blocks(). */
+    size_t refine_min_blocks; /**< Floor on the refine's dwell, in blocks
+                                   (default 7). The refine's detection
+                                   sizing needs fewer blocks the higher the
+                                   C/N0, but the estimate the carrier chain
+                                   must pull in from does not sharpen with
+                                   it (#1265). Set with
+                                   set_refine_min_blocks(), which carries
+                                   the measurement. */
     double carrier_freq_hz; /**< nominal RF carrier, Hz; > 0 enables the
                                  carrier->code rate aiding, 0 = off (config,
                                  not running state -- restored by create). */
@@ -578,8 +582,9 @@ extern "C"
    * bound (ASYNC_DSSS_RX_CARRIER_PULLIN_HZ), and without the estimate a
    * cell receiver holds code lock on it and never symbol lock
    * (docs/design/async-dsss-receiver-measurements.md §12.27). Tracking
-   * follows once the estimate is folded and a lock flag is up, or at the
-   * end of the pull-in intervals regardless.
+   * follows the fold, once a lock flag is up or the pull-in intervals have
+   * ended; the interval end waits for the fold too, which comes at the
+   * latest when the estimate gives up.
    *
    * The carrier is the searching flavor's own pre-despread loop -- what
    * follows SPEC's 500 Hz/s (MpskReceiver's 27 Hz loop alone cannot), held
@@ -756,19 +761,21 @@ extern "C"
    *
    * Drives the state machine. The searching flavor emits nothing while
    * searching or refining (an empty return is normal, not an error): a hit
-   * seeds the frozen-carrier refine chain, `CarrierAcquisition` sharpens
-   * the coarse Doppler estimate, and only once it is ready (or gives up) is
-   * the live tracking chain built and demodulation begins. In cell mode the
-   * live chain runs from the seed, so refining (the pull-in) emits.
-   * Accepts any block size; state carries across calls, so a capture can be
-   * fed in frames of any length with no seam. Idle (cell mode, before a
-   * seed) and lost (after the release rule fires) consume the samples and
-   * emit nothing, so the feeding loop is the same in every state; while
-   * tracking, the release clock runs on the two lock flags after every
-   * call (see `lost_confirm_s`). Under SPEC's coupled offset +
-   * 500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier
-   * dynamics before the code loop, so the recovered constellation lands
-   * cleanly on the BPSK real axis.
+   * seeds the frozen-carrier refine chain, `CarrierAcquisition` sharpens the
+   * coarse Doppler estimate, and only once it is ready (or gives up) is the
+   * live tracking chain built and demodulation begins. A hit inside a call
+   * hands the rest of the call straight to the refine chain, so no sample is
+   * dropped there; at the refine's end, what the refine did not consume of the
+   * last call goes on to the live chain. In cell mode the live chain runs from
+   * the seed, so refining (the pull-in) emits. Accepts any block size; state
+   * carries across calls, so a capture can be fed in frames of any length with
+   * no seam. Idle (cell mode, before a seed) and lost (after the release rule
+   * fires) consume the samples and emit nothing, so the feeding loop is the
+   * same in every state; while tracking, the release clock runs on the two
+   * lock flags after every call (see `lost_confirm_s`). Under SPEC's coupled
+   * offset + 500 Hz/s Doppler ramp the pre-despread Costas removes the full
+   * carrier dynamics before the code loop, so the recovered constellation
+   * lands cleanly on the BPSK real axis.
    *
    * @param state    Must be non-NULL.
    * @param x        Input cf32 samples.
@@ -971,7 +978,9 @@ extern "C"
    *
    * Cheap and allocation-free: every field is a read of live state. The
    * one-at-a-time getters report the same fields, `doppler_hz` apart (see
-   * the record); this is the face a pool holder uses.
+   * the record); this is the face a pool holder uses. No timestamp: the
+   * clocks are in input samples, and the holder, which owns the sample
+   * clock, stamps the record.
    *
    * @param state Must be non-NULL.
    * @return The record, by value.
@@ -1004,9 +1013,10 @@ extern "C"
 
   /** @brief 1 once the release rule has fired: both lock flags were down,
    * continuously, for longer than `lost_confirm_s` while tracking -- an
-   * emitter that left, or a seed that never locked. The loops have stopped;
-   * the holder releases the assignment and calls reset(). 0 in every other
-   * state, and always 0 with `lost_confirm_s = 0`. */
+   * emitter that left, or a seed that never locked. The loops have stopped
+   * and samples are consumed and discarded; the holder releases the
+   * assignment and calls reset(). 0 in every other state, and always 0
+   * with `lost_confirm_s = 0`. */
   int dp_async_dsss_receiver_get_lost (const dp_async_dsss_receiver_state_t *state);
 
   /**
@@ -1215,11 +1225,12 @@ extern "C"
    *  variance is the carrier loop's stress. */
   double dp_async_dsss_receiver_get_nco_freq (
       const dp_async_dsss_receiver_state_t *state);
-  /** @brief The receiver's symbol-lock flag: the hysteretic lockdet over
-   *  get_lock_metric(), declared after ASYNC_DSSS_RX_LOCK_N_UP symbols
-   *  strictly above get_lock_threshold() and dropped after
-   *  ASYNC_DSSS_RX_LOCK_N_DOWN below ASYNC_DSSS_RX_LOCK_DOWN. The flag the
-   *  release rule and a pool's holder act on. */
+  /** @brief The receiver's symbol-lock flag: a hysteretic detector over
+   *  get_lock_metric(), declared after 30 consecutive symbols strictly
+   *  above get_lock_threshold() (0.5) and dropped after 15 consecutive
+   *  symbols strictly below 0.3 (ASYNC_DSSS_RX_LOCK_N_UP, _UP, _N_DOWN and
+   *  _DOWN, fixed at create). The flag the release rule and a pool's holder
+   *  act on. */
   int dp_async_dsss_receiver_get_locked (
       const dp_async_dsss_receiver_state_t *state);
   /** @brief Binary code-lock flag from the live tracking Dll's own
@@ -1243,8 +1254,9 @@ extern "C"
    * = cos(2*phi) over the emitted symbols (locked -> ~+1). Drives `locked`. */
   double dp_async_dsss_receiver_get_lock_metric (
       const dp_async_dsss_receiver_state_t *state);
-  /** @brief The lock-metric declare threshold `locked` latches above (the
-   * lockdet up_thresh); exposed alongside lock_metric for engineering debug. */
+  /** @brief The lock-metric threshold `locked` is declared strictly above
+   * (0.5, ASYNC_DSSS_RX_LOCK_UP); exposed alongside lock_metric for
+   * engineering debug. */
   double dp_async_dsss_receiver_get_lock_threshold (
       const dp_async_dsss_receiver_state_t *state);
 

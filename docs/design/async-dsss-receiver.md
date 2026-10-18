@@ -9,8 +9,8 @@ searcher and the asynchronous despreader under them do. Bursts are
 [`burst-bank.md`](burst-bank.md)'s; a reader who wants to run the pool starts at
 [the user's guide](../guide/async-dsss-pool.md); every number here is measured,
 and the runs behind them are
-[the measurement record](async-dsss-receiver-measurements.md). The parallel
-pool as shipped is described in [async-dsss-parallel.md](async-dsss-parallel.md).*
+[the measurement record](async-dsss-receiver-measurements.md). The design
+that replaces this pool is [async-dsss-parallel.md](async-dsss-parallel.md).*
 
 ______________________________________________________________________
 
@@ -464,8 +464,8 @@ continuous receiver, one C object, read back through the `get_*()` family and
     required rather than tidy: the asynchronous data's residual carrier rides a
     spectrum about `symbol_rate` wide, which one dump per epoch aliases. When the
     estimator reports ready or gives up, the live chain is built **fresh** from
-    the *original* hand-off chip phase — not wherever the refine `Dll` drifted
-    to — and the refined, or on a give-up unrefined, Doppler.
+    the hand-off chip phase, advanced by the clock dilation over the refine
+    (doppler#1249) — not wherever the refine `Dll` drifted to — and the refined, or on a give-up unrefined, Doppler.
 - **tracking** — the refined carrier is unfrozen into a live pre-despread
     Costas → `Dll` (§3) → `RateConverter` → `MpskReceiver`. `costas_update()`
     runs once per code period on a **non-data-aided (squaring)** discriminator
@@ -485,7 +485,7 @@ continuous receiver, one C object, read back through the `get_*()` family and
 Two lock detectors run while tracking: the `Dll`'s CFAR-based **code lock**
 (§3.5) and a hysteretic **symbol lock** on the emitted symbols — the BPSK
 `cos(2φ)` statistic as an SNR-weighted EMA over a 30-symbol dwell, declared after
-30 consecutive symbols at or above 0.5 and dropped after 15 below 0.3. `reset()`
+30 consecutive symbols above 0.5 and dropped after 15 below 0.3. `reset()`
 returns the searching flavour to searching and the cell flavour to idle: a
 receiver that has locked cannot be reset back onto the same signal.
 `DsssReceiver` is the same composition without the refining stage — a hit's
@@ -521,19 +521,20 @@ flavour, and a blob does not travel between flavours.
     replacement before adopting it, so a refused grid leaves the receiver usable
     on its prior grid; an invalid `n` or an allocation failure still aborts,
     [#2112](https://github.com/doppler-dsp/doppler/issues/2112)), and
-    `set_refine_min_blocks` floors the refine's dwell.
+    `set_refine_min_blocks` floors the refine's dwell. That floor is not cosmetic:
+    `CarrierAcquisition`'s dwell is sized for *detection* at the derated C/N0, so it
+    shortens as C/N0 rises — two blocks at 45 dB-Hz — while the noise of the
+    estimate it hands the tracking chain does not. Two blocks give 210 Hz against a
+    chain that pulls in from a few hundred, and one hand-over in sixty landed
+    outside; the default seven blocks (42 ms) hold it to 77 Hz.
 - **Telemetry** is attached on demand. The receiver's and the pool's
     `set_telemetry` are documented in `async_dsss_receiver_core.h` and
     `async_dsss_pool_core.h`.
-- **Nothing allocates per push or per seed.** A cell receiver builds nothing per
-    seed, the status record is by value, and the refine and track stages share one
-    carrier-wipe buffer set, because they never run concurrently. That
-    floor is not cosmetic: `CarrierAcquisition`'s dwell is sized for *detection*
-    at the derated C/N0, so it shortens as C/N0 rises — two blocks at 45 dB-Hz —
-    while the noise of the estimate it hands the tracking chain does not. Two
-    blocks give 210 Hz against a chain that pulls in from a few hundred, and one
-    hand-over in sixty landed outside; the default seven blocks (42 ms) hold it to
-    77 Hz.
+- **No allocation per push or per state change.** Scratch is sized at a chain
+    rebuild, never in `steps()`: the track chain's per-period buffers, and the
+    carrier-wipe buffer the refine and track stages share, since they never run
+    concurrently. A cell receiver builds nothing per seed, and the status record
+    is returned by value.
 
 Every part is pinned in `native/tests/test_async_dsss_receiver_core.c`,
 `src/doppler/dsss/tests/test_async_dsss_receiver.py`,
@@ -659,10 +660,10 @@ uncertainty. Pre-compensation to ±5 kHz cuts the searcher eightfold and nobody
 else at all.
 
 The per-stage budget is measured in
-[the measurement record](async-dsss-receiver-measurements.md), and the pool's
-rendered numbers are in [async-dsss-parallel.md](async-dsss-parallel.md) §6–§7;
-a number read from prose here would go stale on the next run. Three shapes
-follow. **One front-end DDC is shared, on its slowest path, on purpose**:
+[the measurement record](async-dsss-receiver-measurements.md). The replacement
+design budgets its own pool in [async-dsss-parallel.md](async-dsss-parallel.md)
+§6; that is a design target, not a measurement. A number read from prose here
+would go stale on the next run. Three shapes follow. **One front-end DDC is shared, on its slowest path, on purpose**:
 there is one frequency channel, so the only stage at the input rate is one
 conversion, and the 13-to-10 ratio was chosen for the budget rather than the
 radio — `RateConverter` builds the cheapest cascade a ratio allows (CIC, halfband,
@@ -888,7 +889,10 @@ ______________________________________________________________________
 The branch is chosen by the operating spread against the knee: **10 dB**, inside
 the 18–21 dB knee measured at `D = 1` and further inside it in the coherent
 blocks, where the floor is −21 dB. The list branch ships; the cancellation branch
-is designed in §11.4 for a waveform whose spread is not this one.
+is not built. Its design rationale, the peak-versus-receiver replica choice, is
+in the page as of
+[a3bfa13a7](https://github.com/doppler-dsp/doppler/blob/a3bfa13a7/docs/design/async-dsss-receiver.md),
+and §11.4 names its receiver-side output.
 
 ______________________________________________________________________
 
@@ -1043,7 +1047,7 @@ minimum, because the exclusion zone is keyed on those and never on the seed.
 holder owns the sample clock (§8.1). And it is **not `get_state()`**: the bytes
 triplet resumes the receiver elsewhere, this record describes it here.
 
-### 11.4 The replica output is designed and not built
+### 11.4 The replica output is not built
 
 On §9's strong branch the receiver would publish a **replica output**: the
 reconstructed chip stream of the samples it consumed, lock-gated on code lock and
@@ -1052,7 +1056,9 @@ picks the list branch.
 
 ### 11.5 Nothing allocates per push or per seed
 
-The rule is the header's, and §4.1 lists what it means for each part.
+No allocation per `push()` or per state change. A cell receiver builds nothing per
+seed, the status record is returned by value, and scratch is sized at a chain
+rebuild, never in `steps()`. §4.1 lists what this means for each part.
 
 ______________________________________________________________________
 

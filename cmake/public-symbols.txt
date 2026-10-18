@@ -1295,6 +1295,7 @@ dp_ratesync_loop_set_state function
 dp_ratesync_loop_set_telemetry function
 dp_ratesync_loop_state_bytes function
 dp_ratesync_loop_tlm_flush function
+dp_ratesync_m_ok function
 dp_ratesync_reset function
 dp_ratesync_set_bn function
 dp_ratesync_set_state function

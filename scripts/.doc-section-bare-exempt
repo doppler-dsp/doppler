@@ -1,0 +1,37 @@
+# The citations that say `design §N` (or `design section N`) without naming
+# the page, as they stood when scripts/check_doc_sections.py began refusing
+# them. A RATCHET: a file's count may only fall, a new one is refused, and a
+# count that has fallen must be lowered here. Name the page instead:
+# `docs/design/<page>.md §N`, and the gate checks the section exists.
+#
+# <count> <path>
+35 CHANGELOG.md
+14 docs/c-api/acq__core_8h.md
+2 docs/c-api/acq__core_8h_source.md
+2 docs/c-api/annotated.md
+3 docs/c-api/dll__core_8h.md
+2 docs/c-api/hierarchy.md
+1 docs/c-api/structacq__part__t.md
+1 docs/c-api/structacq__tlm__t.md
+13 native/inc/doppler/acq/acq_core.h
+3 native/inc/doppler/dll/dll_core.h
+4 native/src/acq/acq_core.c
+7 native/src/acquire/acquire_ext_acq.c
+1 native/src/track/track_ext_dll.c
+1 native/tests/.assertion-ratchet-ignore
+4 native/tests/test_acq_core.c
+2 native/tests/test_dll_core.c
+4 native/tests/test_mpsk_core.c
+1 native/validation/CMakeLists.txt
+1 native/validation/acq_block_coherent.c
+3 native/validation/ratesync_scurve.c
+1 native/validation/receiver_pullin.c
+9 objects/acq.toml
+1 objects/dll.toml
+2 objects/dp_event_log.toml
+1 objects/dsss_burst_receiver.toml
+9 src/doppler/acquire/acquire.pyi
+3 src/doppler/acquire/tests/test_acq_continuous.py
+1 src/doppler/examples/acq_surface_demo.py
+1 src/doppler/track/tests/validation/ratesync/validate.py
+1 src/doppler/track/track.pyi

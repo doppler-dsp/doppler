@@ -146,6 +146,14 @@ test_invalid_params (void)
                                 RATESYNC_MAX_M + 2u, 1024, 0.01, 0.707,
                                 RATESYNC_TED_GARDNER)
             == NULL); /* m beyond the in-struct ring */
+  /* The m domain is one public predicate, which create refuses through and
+     a composition checks before building a chain (doppler#2421). Both
+     edges, and each side of each. */
+  DP_CHECK (!dp_ratesync_m_ok (0) && !dp_ratesync_m_ok (1));
+  DP_CHECK (dp_ratesync_m_ok (2) && !dp_ratesync_m_ok (3));
+  DP_CHECK (dp_ratesync_m_ok (RATESYNC_MAX_M));
+  DP_CHECK (!dp_ratesync_m_ok (RATESYNC_MAX_M + 1u));
+  DP_CHECK (!dp_ratesync_m_ok (RATESYNC_MAX_M + 2u));
   DP_CHECK (dp_ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 2, 1000,
                                 0.01, 0.707, RATESYNC_TED_GARDNER)
             == NULL); /* num_phases not a power of two */

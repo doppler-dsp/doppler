@@ -315,14 +315,19 @@ dp_ratesync_loop_set_state (ratesync_loop_t *l, const void *blob)
  * RateSync — the cascade, plus the loop above
  * ------------------------------------------------------------------ */
 
+int
+dp_ratesync_m_ok (size_t m)
+{
+  return m >= 2u && m <= (size_t)RATESYNC_MAX_M && (m & 1u) == 0u;
+}
+
 dp_ratesync_state_t *
 dp_ratesync_create (double sps, int pulse, double beta, size_t span, size_t m,
                     size_t num_phases, double bn, double zeta, int ted)
 {
   /* Written as !(x >= y) so a NaN parameter is rejected, not accepted. */
-  if (!(beta >= 0.0) || !(beta <= 1.0) || span < 1 || m < 2u
-      || m > (size_t)RATESYNC_MAX_M || (m & 1u) != 0u || num_phases < 2u
-      || (num_phases & (num_phases - 1u)) != 0u
+  if (!(beta >= 0.0) || !(beta <= 1.0) || span < 1 || !dp_ratesync_m_ok (m)
+      || num_phases < 2u || (num_phases & (num_phases - 1u)) != 0u
       || !dp_loop_filter_params_ok (bn, zeta, 1.0)
       || (pulse != RATESYNC_PULSE_IANDD && pulse != RATESYNC_PULSE_RRC)
       || (ted != RATESYNC_TED_GARDNER && ted != RATESYNC_TED_DTTL))

@@ -321,6 +321,9 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
      is too wide for that on a despread stream, and the value is chosen on
      steady-state EVM rather than BER (BPSK's BER saturates first, and the
      BER-optimal 0.001 is ~8 dB worse in EVM). */
+  /* `n` is inside dp_ratesync_m_ok(): create() derives it
+     (adr_derive_m_out) and configure_chain_raw() refuses outside it, so this
+     create is never refused on `n` (doppler#2421). */
   dp_mpsk_receiver_state_t *rx = dp_xnn (dp_mpsk_receiver_create (
       s->m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
       0.005, 0.3, 0.0, s->differential, MPSK_RX_NUM_PHASES, 1,
@@ -485,11 +488,11 @@ adr_rebuild_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
  * own live chain (adr_cell_refine). Sized once for both: the resolution
  * is the refine's (refine_samples_per_symbol * symbol_rate / refine_n_fft,
  * so the same Hz per bin at either rate), the design SNR the derated
- * C/N0's, the dwell floored at refine_min_blocks (#1265, design section
- * 12.16: det_n_noncoh sized it for detection at the derated C/N0, two
- * blocks at 45 dB-Hz with the shipped margin, while the estimate's noise
- * the chain must pull in from is 210 Hz there and 77 at seven), bounded
- * by the give-up cap. */
+ * C/N0's, the dwell floored at refine_min_blocks (#1265,
+ * docs/design/async-dsss-receiver-measurements.md §12.16: det_n_noncoh sized
+ * it for detection at the derated C/N0, two blocks at 45 dB-Hz with the
+ * shipped margin, while the estimate's noise the chain must pull in from is
+ * 210 Hz there and 77 at seven), bounded by the give-up cap. */
 static dp_carrier_acq_state_t *
 adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
                      double                                target_rate)
@@ -513,7 +516,8 @@ adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
   return ca;
 }
 
-/* The cell mode's carrier pull-in (design section 12.27): the seed's
+/* The cell mode's carrier pull-in
+ * (docs/design/async-dsss-receiver-measurements.md §12.27): the seed's
  * residual estimated on the live chain's own despread stream -- the
  * retired hand-off flavour's estimator, fed what the RateConverter handed
  * MpskReceiver, no second chain -- and applied once, when the estimator
@@ -634,15 +638,15 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
  * receiver, so this squaring lives here in the consumer, not in dll_core.c.
  * Writes emitted partials into dll_out (capacity max_out); returns count. */
 /* The cell mode's correction, once per `correct_periods` code periods
- * (design section 12.22-12.24 as a mode of this receiver, #1283): the held
- * phase is dead-reckoned across the interval on the carrier loop's Doppler
- * (the chips dilate with the carrier), moved by a gain -- in chips, through
- * the discriminator's design slope -- times what the coasting Dll's
- * discriminator read over the interval (dp_dll_take_error: every steer, the
- * block mean), and the Dll put back at it. A coasting loop drifts on its
- * NCO's quantisation of the aid (1.9 chips/s at 18 ppm, 12.22), so the
- * phase is kept in double here and the loop re-put each interval. Gain 1
- * through the pull-in intervals (the seed's residual, up to the
+ * (docs/design/async-dsss-receiver-measurements.md §12.22-12.24 as a mode of
+ * this receiver, #1283): the held phase is dead-reckoned across the interval
+ * on the carrier loop's Doppler (the chips dilate with the carrier), moved by
+ * a gain -- in chips, through the discriminator's design slope -- times what
+ * the coasting Dll's discriminator read over the interval (dp_dll_take_error:
+ * every steer, the block mean), and the Dll put back at it. A coasting loop
+ * drifts on its NCO's quantisation of the aid (1.9 chips/s at 18 ppm, 12.22),
+ * so the phase is kept in double here and the loop re-put each interval. Gain
+ * 1 through the pull-in intervals (the seed's residual, up to the
  * discriminator's clamp), the design gain after. The correction is applied
  * before the first lock, or while the code flag is up; with the flag down
  * the phase only dead-reckons, so a departed emitter's receiver cannot walk
@@ -1084,10 +1088,10 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
          refine's resolution a block then holds the same symbols in twice
          the samples, and the estimate needs the dwell scaled by that
          ratio to reach the refine's noise. Measured (validate_receiver
-         _pullin, design section 12.28): at 40 dB-Hz the refine's dwell
-         pulled in 7-9 draws of 10 from 100 Hz on, twice it 10 of 10 to
-         1000 Hz -- the retired flavour's own curve -- for 40 ms more per seed
-         at 45 dB-Hz. */
+         _pullin, docs/design/async-dsss-receiver-measurements.md §12.28): at
+         40 dB-Hz the refine's dwell pulled in 7-9 draws of 10 from 100 Hz on,
+         twice it 10 of 10 to 1000 Hz -- the retired flavour's own curve -- for
+         40 ms more per seed at 45 dB-Hz. */
       const size_t ratio = sps > refine_samples_per_symbol
                                ? sps / refine_samples_per_symbol
                                : 1;
@@ -1389,11 +1393,12 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
          estimated on its own despread stream and folded once
          (adr_cell_refine), gain 1 on the correction through
          pullin_intervals (the gain schedule, whatever the state).
-         Tracking once the estimate is folded (or given up) and a lock
-         flag is up -- what the retired flavour's hand-over meant -- or
-         at the end of the pull-in intervals regardless, so a seed that
-         never locks reaches the release clock. No release clock before
-         that: lost is reached from tracking, as the retired flavour's was. */
+         Tracking once the estimate is folded (or given up) and then a
+         lock flag is up -- what the retired flavour's hand-over meant --
+         or the pull-in intervals have ended, so a seed that never locks
+         still reaches the release clock once the estimate gives up. No
+         release clock before that: lost is reached from tracking, as the
+         retired flavour's was. */
       size_t n = adr_track_chain (state, x, x_len, out, max_out);
       if (state->cell_refined
           && (dp_dll_get_locked (state->dll) || state->sym_lockdet.locked
@@ -1548,9 +1553,10 @@ dp_async_dsss_receiver_configure_chain_raw (
     dp_async_dsss_receiver_state_t *state, size_t segments, size_t sps, int n)
 {
   /* The new grid's chain is checked as create() checked the first, before
-     anything is rebuilt: a period past what the Dll's aid takes would abort
-     the rebuild (doppler#2103). */
-  if (n < 1
+     anything is rebuilt: a period past what the Dll's aid takes, or an `n`
+     MpskReceiver refuses, would abort the rebuild under dp_xnn (doppler#2103,
+     #2421). A negative `n` is refused before the cast. */
+  if (n < 0 || !dp_ratesync_m_ok ((size_t)n)
       || !adr_track_chain_ok (state->code_len, state->chip_rate,
                               state->symbol_rate, segments, sps)
       || (int)(sps % (size_t)n) != 0)

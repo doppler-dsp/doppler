@@ -112,7 +112,8 @@ def _noise(n, cn0_dbhz, seed):
     ).astype(np.complex64)
 
 
-# ── Seeded from outside: the cell receiver (design section 11.1) ──────────
+# ── Seeded from outside: the cell receiver ───────────────────────────────────
+# (docs/design/async-dsss-receiver.md §11.1)
 
 
 @pytest.mark.parametrize("chip_phase", [-0.5, float(SF), float("nan")])
@@ -137,7 +138,8 @@ def test_seed_on_the_searching_flavor_beats_its_own_search():
     assert rx.idle == 0  # this flavor goes back to searching
 
 
-# ── The release rule (design section 11.2) ────────────────────────────────
+# ── The release rule ─────────────────────────────────────────────────────────
+# (docs/design/async-dsss-receiver.md §11.2)
 
 
 def _feed_until_lost(rx, x, chunk):
@@ -199,7 +201,8 @@ def test_lost_confirm_zero_never_releases():
     assert (rx.tracking, rx.lost) == (1, 0)
 
 
-# ── The cell mode (design section 12.22-12.24 as a mode, #1283) ──────────
+# ── The cell mode, as a mode of this receiver (#1283) ────────────────────────
+# (docs/design/async-dsss-receiver-measurements.md §12.22-12.24)
 
 
 def _new_cell(cn0_dbhz, **kwargs):
@@ -294,7 +297,8 @@ def test_cell_state_roundtrip_is_mode_keyed():
     assert rx2.tracking == 1
 
 
-# ── The status record (design section 11.3) ──────────────────────────────
+# ── The status record ────────────────────────────────────────────────────────
+# (docs/design/async-dsss-receiver.md §11.3)
 
 
 def test_status_record_is_the_getters_other_face():

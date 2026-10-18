@@ -64,19 +64,21 @@ on one bad day it stalled five runs of a single PR, one job trickling for
 21 minutes against a 25-minute ceiling.
 
 **The image has no package list of its own.** It copies `bootstrap.toml` and
-installs its `CI_IMAGE_GROUPS` (`dev docs`) with a pinned just-bashit
+installs its `CI_IMAGE_GROUPS` (`dev docs clang-rt`) with a pinned just-bashit
 release's `install-deps.sh` — the same file `make install-deps` reads. A
 second list is exactly what `bootstrap.toml` exists to prevent, and it would
 rot in the way hardest to notice: the image would keep working while no
 longer being what a developer gets.
 
-Two things are installed *outside* that list, by `docker/ci-extra.sh`, each
-for a reason one cross-distro package list cannot express:
+One thing is installed *outside* that list, by `docker/ci-extra.sh`, for a
+reason one cross-distro package list cannot express. (clang's compiler
+runtime used to be the second: it is now `bootstrap.toml`'s `clang-rt` group,
+whose apt `cmd` derives the release's package name and tolerates its absence,
+and `docker/ci-extra.sh` keeps only the link probe that asserts it.)
 
-| what                  | why it cannot come from `bootstrap.toml`                                                                                                                                                                                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `libclang-rt-<n>-dev` | Whether clang bundles its profile runtime is a property of the distro *release*. 22.04 bundles it and has no such package at all — naming one fails apt outright — while 24.04 splits it out and clang does not depend on it. The script asks apt, tolerates a miss, and then *compiles the probe* as the real assertion. |
-| `nats-server`         | `make nats-up` shells out to `docker run`, and there is no docker daemon inside a container job. Pinned by version **and** by the release's SHA-256.                                                                                                                                                                      |
+| what          | why it cannot come from `bootstrap.toml`                                                                                                             |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nats-server` | `make nats-up` shells out to `docker run`, and there is no docker daemon inside a container job. Pinned by version **and** by the release's SHA-256. |
 
 That last one matters more than it looks. The `nats://` stream tests
 **self-skip** when 127.0.0.1:4222 is unreachable, so without a broker the

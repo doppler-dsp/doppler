@@ -233,8 +233,9 @@ packages = [
 #
 # Every manager with a [dev.*] section gets a [docs.*] one too. Before this,
 # only apt was listed, so `make install-docs-deps` on Arch, Fedora, openSUSE
-# or macOS installed NOTHING and then failed at the first doxygen call with
-# no hint that the list was the cause. The names match on all four.
+# or macOS stopped at install-deps' "no packages or cmd found for group(s)
+# 'docs'", and the docs could not be provisioned there at all. The names
+# match on all four.
 #
 # No [docs.msys2]: this repo's Windows toolchain is MSVC, which this file
 # does not provision (see [dev.msys2] above).
@@ -272,17 +273,24 @@ packages = [
 # libclang_rt.asan (`make test-asan`). Why it is a group of its own, and why
 # apt derives the name, is the compiler-rt paragraph near the top.
 #
-# The apt string has no `]` and no double quote: just-bashit's TOML reader
-# ends a string at the first `]` (measured on v0.7.1 and the current release),
-# so `[ ... ]` or a `[0-9]` class would cut the command short. A cut command
-# is a shell syntax error, so the install fails loudly rather than silently.
-# Runs `apt-get update` itself: a `cmd` is run verbatim, without the update
-# install-deps does for a `packages` list. Escalates only when not root, so
-# the same line serves a dev box and the root CI image build.
+# The apt `cmd` tolerates exactly one thing: the package not existing on this
+# release (22.04, whose clang bundles the runtime), asked of `apt-cache show`
+# before installing. Everything else fails the install -- no clang or an
+# empty version, a failed `apt-get update`, no sudo, a failed install (a
+# lock, the network) -- rather than being reported as a bundled runtime.
+# It runs `apt-get update` itself and carries the retry and timeout options,
+# because a `cmd` is run verbatim, without the update and options
+# install-deps applies to a `packages` list. It escalates only when not
+# root, so the same line serves a dev box and the root CI image build.
+#
+# No `]` and no double quote in it: just-bashit's TOML reader ends a string at
+# the first `]` (measured on v0.7.1, the image's pin, and the current
+# release). `make bootstrap-cmd-check` (on lint) refuses either character in
+# any `cmd`, and runs this one against stubbed apt for each case above.
 [clang-rt.apt]
 cmd = [
     "sh", "-c",
-    "v=$(clang -dumpversion); v=${v%%.*}; s=; test $(id -u) -eq 0 || s=sudo; $s apt-get update -qq && $s apt-get install -y --no-install-recommends libclang-rt-$v-dev || echo no libclang-rt-$v-dev on this release - clang bundles its runtime here",
+    "o='-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30'; v=$(clang -dumpversion) || exit 1; v=${v%%.*}; case $v in '') echo clang-rt: clang reported no version >&2; exit 1;; esac; p=libclang-rt-$v-dev; s=; test $(id -u) -eq 0 || s=sudo; $s apt-get $o update -qq || exit 1; if apt-cache show $p >/dev/null 2>&1; then $s apt-get $o install -y --no-install-recommends $p; else echo clang-rt: no $p on this release - clang bundles its runtime here; fi",
 ]
 
 # Arch and Fedora package the runtime once, unversioned, as `compiler-rt`

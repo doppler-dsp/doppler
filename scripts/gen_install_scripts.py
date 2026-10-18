@@ -31,6 +31,9 @@ count nothing reads back, so it is now a word rather than a number:
 * ``valgrind`` -- a leak detector for chasing a specific bug by hand (it
   confirmed the wfmgen early-exit leaks in gh-723). No make target runs it
   and the build-from-source walkthrough has nothing to memcheck.
+* ``coreutils`` (brew) -- GNU ``gdate``/``gtimeout`` on macOS, for
+  ``make check-isotime-parity`` and the provisioning deadline. The
+  walkthrough builds and tests the library and runs neither.
 
 Usage
 -----
@@ -65,6 +68,7 @@ DOCS_EXCLUDE = frozenset(
         "libclang-rt-dev",
         "compiler-rt",
         "valgrind",
+        "coreutils",
     }
 )
 

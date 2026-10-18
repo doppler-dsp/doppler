@@ -58,7 +58,7 @@ HAS_PR_WATCH = 1
 HAS_CI_IMAGE          = 1
 CI_IMAGE_REPO         = ghcr.io/doppler-dsp/doppler-ci
 CI_IMAGE_BASES        = ubuntu:22.04 ubuntu:24.04
-CI_IMAGE_GROUPS       = dev docs
+CI_IMAGE_GROUPS       = dev docs clang-rt
 CI_IMAGE_LANDING      = branch
 CI_IMAGE_SMOKE_TARGET = build
 
@@ -1388,8 +1388,8 @@ define COVERAGE_CMD
        echo "  Fedora               :  dnf install compiler-rt"; \
        echo "  openSUSE             :  zypper install llvm-compiler-rt"; \
        echo ""; \
-       echo "  Not in bootstrap.toml's dev group on purpose: 22.04 has no such"; \
-       echo "  package at all and naming one fails apt outright. See bootstrap.toml."; \
+       echo "  make install-deps installs it: bootstrap.toml's clang-rt group"; \
+       echo "  derives the name from the clang it finds."; \
        echo ""; \
        rm -f $(COV_DIR)-probe.c $(COV_DIR)-probe; exit 1; }
 @rm -f $(COV_DIR)-probe.c $(COV_DIR)-probe
@@ -2045,8 +2045,9 @@ export-check: build ## Verify the shared libraries export exactly the public hea
 validation-report-check: ## Verify every generated validation report is structurally sound
 	@$(UV) run python scripts/check_validation_reports.py
 
-# The docs system deps (doxygen, graphviz, LaTeX) — the `docs` group in
-# bootstrap.toml. standard.mk's `install-deps` installs only the default groups
+# The docs system deps (doxygen, graphviz) — the `docs` group in
+# bootstrap.toml. The Python half (zensical, mkdocs, mkdoxy) comes from uv's
+# `docs` group, not from here. standard.mk's `install-deps` installs only the default groups
 # (runtime, dev) and is vendored, so it cannot take a group; this local target
 # is the one place CI's doxygen job and the Pages docs workflow both reach for
 # the docs group, keeping bootstrap.toml the single dependency list. Bootstraps jbx
@@ -2055,6 +2056,12 @@ install-docs-deps: ## Install the docs system deps (bootstrap.toml `docs` group)
 	@command -v jbx >/dev/null 2>&1 \
 	    || curl -sSL https://just-buildit.github.io/get-jb.sh | bash
 	PATH="$$HOME/.local/bin:$$PATH" jbx install-deps -g docs
+	@rc=0; for t in doxygen dot; do \
+	    command -v $$t >/dev/null 2>&1 \
+	        || { echo "install-docs-deps: '$$t' is not on PATH after install-deps"; rc=1; }; \
+	 done; \
+	 [ $$rc -eq 0 ] && echo "install-docs-deps: doxygen and dot are on PATH" \
+	    || { echo "install-docs-deps: the docs group did not provide every tool"; exit 1; }
 
 # ── Provisioning with a deadline (doppler#879) ───────────────────────────────
 # Both targets above reach the network three times — the jbx bootstrap curl,
@@ -2548,7 +2555,9 @@ test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 	      sed 's/^/    /' $(ASAN_DIR)/asan_probe.log; \
 	      echo "  clang's ASan runtime ships apart from clang on Ubuntu/Debian"; \
 	      echo "  24.04+ as libclang-rt-<major>-dev; the profile-runtime package"; \
-	      echo "  make coverage names for each distro holds it too."; exit 1; }
+	      echo "  make coverage names for each distro holds it too, and"; \
+	      echo "  make install-deps installs it (bootstrap.toml's clang-rt group)."; \
+	      exit 1; }
 	$(CMAKE) -B $(ASAN_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_C_COMPILER=$(ASAN_CC) \

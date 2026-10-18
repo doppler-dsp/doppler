@@ -23,6 +23,7 @@ its own directory, and these are its pure helpers.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -150,4 +151,33 @@ def test_the_flags_include_the_build_types_and_native(
     assert tc["c_flags"] == "-pipe -O3 -DNDEBUG"
     assert tc["native"] == "ON"
     # What it writes, it accepts.
+    record._require_toolchain("x", {"stamp_schema": 2, "toolchain": tc})
+
+
+def _refuse(name: str) -> str:
+    raise ValueError(f"unrecognized configuration name: {name}")
+
+
+@pytest.mark.parametrize(
+    "platform_shape",
+    [
+        pytest.param("no-confstr", id="windows"),
+        pytest.param("confstr-refuses", id="macos"),
+    ],
+)
+def test_the_libc_is_unknown_where_none_is_named(
+    record: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    platform_shape: str,
+) -> None:
+    """Windows has no os.confstr; macOS refuses the GNU name. Either way
+    the stamp still forms, says "unknown", and is accepted."""
+    if platform_shape == "no-confstr":
+        monkeypatch.delattr(os, "confstr", raising=False)
+    else:
+        monkeypatch.setattr(os, "confstr", _refuse, raising=False)
+    build = _build_tree(tmp_path, compiler_path="/usr/bin/cc")
+    tc = record._toolchain(build)
+    assert tc["libc"] == "unknown"
     record._require_toolchain("x", {"stamp_schema": 2, "toolchain": tc})

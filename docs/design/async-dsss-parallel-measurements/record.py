@@ -165,6 +165,21 @@ def _cmake_cache(build: Path) -> dict[str, str]:
     return cache
 
 
+def _libc() -> str:
+    """The running C library, e.g. "glibc 2.41"; "unknown" where none is
+    named.
+
+    `os.confstr` is POSIX-only: Windows has no `os.confstr`, and macOS has it
+    but refuses the GNU name (ValueError). It reports the C library running
+    now, unlike `platform.libc_ver()`, which reads the version the
+    interpreter was linked against.
+    """
+    try:
+        return os.confstr("CS_GNU_LIBC_VERSION") or "unknown"
+    except (AttributeError, ValueError, OSError):
+        return "unknown"
+
+
 def _toolchain(build: Path = ROOT / "build") -> dict[str, str]:
     r"""The toolchain the build used, read from what CMake recorded.
 
@@ -233,7 +248,7 @@ def _toolchain(build: Path = ROOT / "build") -> dict[str, str]:
         "compiler": f"{detected['CMAKE_C_COMPILER_ID']} "
         f"{detected['CMAKE_C_COMPILER_VERSION']}",
         "compiler_path": cache.get("CMAKE_C_COMPILER", "cc"),
-        "libc": os.confstr("CS_GNU_LIBC_VERSION") or "unknown",
+        "libc": _libc(),
         "build_type": build_type,
         "c_flags": flags or "default",
         "native": cache.get("DOPPLER_NATIVE") or "OFF",

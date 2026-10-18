@@ -49,6 +49,7 @@ import io
 import json
 import os
 import platform
+import re
 import statistics
 import subprocess
 import sys
@@ -149,34 +150,93 @@ def _load() -> list[float]:
 STAMP_SCHEMA = 2
 
 
-def _toolchain() -> dict[str, str]:
-    """The toolchain the build used, read from its CMake cache.
+#: The fields a schema-2 toolchain stamp carries, each non-empty.
+TOOLCHAIN_FIELDS = ("compiler", "libc", "build_type", "c_flags", "native")
 
-    The validator's numbers are toolchain-bound (the same commit gives
-    different rows under another compiler or C library), so a stamp records
-    the compiler CMake built with, its version, the C library and the build
-    type and flags. A re-run on another box then reads as "a different
-    toolchain", not as drift.
-    """
+
+def _cmake_cache(build: Path) -> dict[str, str]:
+    """`build/CMakeCache.txt` as name -> value, the `:TYPE` suffix dropped."""
     cache: dict[str, str] = {}
-    for line in (
-        (ROOT / "build" / "CMakeCache.txt")
-        .read_text(encoding="utf-8")
-        .splitlines()
-    ):
+    text = (build / "CMakeCache.txt").read_text(encoding="utf-8")
+    for line in text.splitlines():
         if line and not line.startswith(("#", "//")) and "=" in line:
             key, _, value = line.partition("=")
             cache[key.split(":")[0]] = value
-    cc = cache.get("CMAKE_C_COMPILER", "cc")
-    version = subprocess.run(
-        [cc, "--version"], capture_output=True, text=True, check=True
-    ).stdout.splitlines()[0]
+    return cache
+
+
+def _toolchain(build: Path = ROOT / "build") -> dict[str, str]:
+    r"""The toolchain the build used, read from what CMake recorded.
+
+    The validator's numbers are toolchain-bound (the same commit gives
+    different rows under another compiler or C library), so a stamp records
+    the compiler the build was configured with, the C library, the build
+    type and the flags that type compiles with, and whether `DOPPLER_NATIVE`
+    added `-march=native` (CMakeLists.txt; it moves the numbers). A re-run
+    on another box then reads as "a different toolchain", not as drift.
+
+    The compiler and its version come from the compiler CMake detected
+    (`CMakeFiles/<cmake version>/CMakeCCompiler.cmake`), not from running
+    `cc --version` at stamp time, which can name a compiler the build never
+    used. The flags are `CMAKE_C_FLAGS` plus `CMAKE_C_FLAGS_<BUILD_TYPE>`:
+    the release flags alone carry `-O3`.
+
+    Examples
+    --------
+    >>> import tempfile
+    >>> b = Path(tempfile.mkdtemp())
+    >>> _ = (b / "CMakeCache.txt").write_text(
+    ...     "CMAKE_CACHE_MAJOR_VERSION:INTERNAL=3\n"
+    ...     "CMAKE_CACHE_MINOR_VERSION:INTERNAL=31\n"
+    ...     "CMAKE_CACHE_PATCH_VERSION:INTERNAL=6\n"
+    ...     "CMAKE_C_COMPILER:FILEPATH=/usr/bin/cc\n"
+    ...     "CMAKE_BUILD_TYPE:STRING=Release\n"
+    ...     "CMAKE_C_FLAGS:STRING=\n"
+    ...     "CMAKE_C_FLAGS_RELEASE:STRING=-O3 -DNDEBUG\n"
+    ...     "DOPPLER_NATIVE:BOOL=OFF\n",
+    ...     encoding="utf-8",
+    ... )
+    >>> d = b / "CMakeFiles" / "3.31.6"
+    >>> d.mkdir(parents=True)
+    >>> ids = 'set(CMAKE_C_COMPILER_ID "GNU")\n'
+    >>> ver = 'set(CMAKE_C_COMPILER_VERSION "14.2.0")\n'
+    >>> f = d / "CMakeCCompiler.cmake"
+    >>> _ = f.write_text(ids + ver, encoding="utf-8")
+    >>> tc = _toolchain(b)
+    >>> tc["compiler"], tc["build_type"], tc["c_flags"], tc["native"]
+    ('GNU 14.2.0', 'Release', '-O3 -DNDEBUG', 'OFF')
+    """
+    cache = _cmake_cache(build)
+    cmake = ".".join(
+        cache[f"CMAKE_CACHE_{part}_VERSION"]
+        for part in ("MAJOR", "MINOR", "PATCH")
+    )
+    detected = dict(
+        re.findall(
+            r'^set\((CMAKE_C_COMPILER_(?:ID|VERSION)) "([^"]*)"\)',
+            (build / "CMakeFiles" / cmake / "CMakeCCompiler.cmake").read_text(
+                encoding="utf-8"
+            ),
+            re.MULTILINE,
+        )
+    )
+    build_type = cache.get("CMAKE_BUILD_TYPE") or "default"
+    flags = " ".join(
+        f
+        for f in (
+            cache.get("CMAKE_C_FLAGS", "").strip(),
+            cache.get(f"CMAKE_C_FLAGS_{build_type.upper()}", "").strip(),
+        )
+        if f
+    )
     return {
-        "compiler": version,
-        "compiler_path": cc,
+        "compiler": f"{detected['CMAKE_C_COMPILER_ID']} "
+        f"{detected['CMAKE_C_COMPILER_VERSION']}",
+        "compiler_path": cache.get("CMAKE_C_COMPILER", "cc"),
         "libc": os.confstr("CS_GNU_LIBC_VERSION") or "unknown",
-        "build_type": cache.get("CMAKE_BUILD_TYPE") or "default",
-        "c_flags": cache.get("CMAKE_C_FLAGS", "").strip() or "default",
+        "build_type": build_type,
+        "c_flags": flags or "default",
+        "native": cache.get("DOPPLER_NATIVE") or "OFF",
     }
 
 
@@ -187,7 +247,7 @@ def _tc(stamp: dict[str, Any]) -> str:
         return "—"
     return (
         f"{tc['compiler']}; {tc['libc']}; build {tc['build_type']}, "
-        f"flags {tc['c_flags']}"
+        f"flags {tc['c_flags']}, native {tc['native']}"
     )
 
 
@@ -390,10 +450,18 @@ def _require_toolchain(name: str, stamp: dict[str, Any]) -> None:
     that claims schema 2 without its toolchain is a writer that dropped it,
     and --check fails on it rather than printing a row no reader can date.
     """
-    if stamp.get("stamp_schema", 1) >= 2 and "toolchain" not in stamp:
+    if stamp.get("stamp_schema", 1) < 2:
+        return
+    tc = stamp.get("toolchain")
+    # Falsy, not absent: `"toolchain": null` or an empty field is the same
+    # dropped field, and would render "—" or a blank cell silently.
+    if not isinstance(tc, dict) or not all(
+        tc.get(k) for k in TOOLCHAIN_FIELDS
+    ):
         raise SystemExit(
             f"{name}: a schema-{stamp['stamp_schema']} stamp without its "
-            "toolchain: the writer dropped the field; re-run the tool"
+            f"full toolchain ({', '.join(TOOLCHAIN_FIELDS)}): the writer "
+            "dropped a field; re-run the tool"
         )
 
 

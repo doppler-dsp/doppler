@@ -92,9 +92,11 @@ and 1.6 s, every cut mid-data, and leaves for good at 2.0 s; the run ends
 at 2.4 s. Each figure is the receiver's own telemetry from that run, drawn
 by `scripts/plot_capture.py`. **Grey is where the signal was off**, read
 from the stimulus the validator records beside the receiver's probes
-(`stim.on`), not drawn from the schedule above. None of the drawn probes reports
-before the live chain runs (the search's `rx.acq.*` are captured, not drawn),
-so the panels start where the live chain starts, not at the arrival.
+(`stim.on`), not drawn from the schedule above. `stim.on` is emitted every
+block from the first, so the shared time axis starts at the first block; the
+receiver's own traces start where its live chain starts, not at the arrival
+(none of them reports before then; the search's `rx.acq.*` are captured, not
+drawn).
 
 <!-- async-dsss-parallel:stories:start -->
 
@@ -117,9 +119,11 @@ falls for good at the departure, as do the carrier and code flags. The
 demodulator's timing flag (`demod.sync.locked`) does not: it stays up
 through every fade and long after the signal has gone (#2409). The 5 dB
 story that never locks is the trial §5.1 counts as never locking: its
-refine seed is further off than the carrier loop pulls in (the seed-edge
-block below gives its size), so the carrier loop never declares and symbol lock never comes,
-while the code loop tracks and the timing flag comes up and stays up.
+refine seed is further off than the carrier loop pulls in, so the carrier
+loop never declares and symbol lock never comes, while the code loop tracks
+and the timing flag comes up and stays up. It is seed 5 at 5 dB (the table
+below), the draw the seed-edge block below names as that SNR's largest seed
+error, which gives its size.
 
 ### 5.1 Arrival to tracking, and to symbol lock
 

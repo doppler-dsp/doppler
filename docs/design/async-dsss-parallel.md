@@ -5,8 +5,10 @@ independent `AsyncDsssReceiver`s, each pinned to its own CPU, under a
 controller that only watches, tunes and reports. This page is that design.
 It replaces the pool [`async-dsss-receiver.md`](async-dsss-receiver.md)
 describes in its §5–§9 and §11.1, the central searcher, the assigned table and
-the cell receivers behind it. It keeps §11.2–§11.3 and changes §10's release to
-symbol lock alone; what else survives is doppler#2409's. Its measured numbers are [the measurement
+the cell receivers behind it. It keeps §11.2's `lost` state but not the
+holder's release (here the receiver releases itself, under a controller that
+only watches), keeps §11.3, and changes §10's release to symbol lock alone;
+what else survives is doppler#2409's. Its measured numbers are [the measurement
 record](async-dsss-parallel-measurements.md)'s, rendered from the runs of
 shipped tools behind it under the same section numbers; the rest are derived
 from §2's parameters. The points still to decide are doppler#2409.*
@@ -118,8 +120,9 @@ What today's receiver must gain for this:
     already reach `lost`: `lost_confirm_s`, a create parameter, releases
     tracking once BOTH lock flags have been down that long, and `reset()`
     returns it to searching
-    (`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`: the
-    create parameter at line 599, `reset()` at line 724).
+    (`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`:
+    `dp_async_dsss_receiver_create()`'s `lost_confirm_s`, and
+    `dp_async_dsss_receiver_reset()`).
     By default it is 0, so it never does. What it lacks is the step from
     `lost` back to searching on its own, and this design's trigger: symbol
     lock alone, where today's release needs code lock down too.

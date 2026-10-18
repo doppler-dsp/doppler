@@ -9,7 +9,8 @@ searcher and the asynchronous despreader under them do. Bursts are
 [`burst-bank.md`](burst-bank.md)'s; a reader who wants to run the pool starts at
 [the user's guide](../guide/async-dsss-pool.md); every number here is measured,
 and the runs behind them are
-[the measurement record](async-dsss-receiver-measurements.md).*
+[the measurement record](async-dsss-receiver-measurements.md). The design
+that replaces this pool is [async-dsss-parallel.md](async-dsss-parallel.md).*
 
 ______________________________________________________________________
 
@@ -36,9 +37,11 @@ current floor.
 **Every tracking loop is sized to a loop SNR of 20 dB at that floor.** The code
 DLL and the Costas carrier loop — there is no FLL anywhere — take
 `rho(dB) = Es/N0(dB) − 10·log10(2·bn)` with `bn` normalised to the loop's own
-update rate, so the rate cancels: at 5 dB that is `bn ≤ 0.0158`, and the shipped
-rule is `bn ≤ 0.01` for every loop. The code loop's per-epoch SNR is Es/N0 scaled
-by `1/epochs_per_symbol`, 1.11 here, so the same bound covers it. `bn` is not
+update rate, so the rate cancels: at 5 dB that is `bn ≤ 0.0158`. The Dll ships
+at `bn` 0.002 and MpskReceiver's carrier loop at 0.01; the pre-despread Costas is
+at 0.04, where pull-in and the 500 Hz/s ramp set its width, not jitter (§4). The
+code loop's per-epoch SNR is Es/N0 scaled by `1/epochs_per_symbol`, 1.11 here,
+so the same bound covers it. `bn` is not
 what sets the pull-in cliff: sizing a loop for steady-state jitter and pulling
 one in from a coarse estimate are different problems, and §4's refining stage
 answers the second.
@@ -73,8 +76,9 @@ looks; it sizes on the burst and reports `underpowered`), bounded only by a safe
 
 **Two inputs size the coherent depth `D`: `code_only_epochs` and
 `doppler_rate`.** It is the smaller of `⌊(code_only_epochs + 1)/2⌋`, so a whole
-block always fits inside the pure-code window, and `f_epoch/√1000`, so the drift
-over one block stays inside half a slow-time bin. `code_only_epochs` counts the
+block always fits inside the pure-code window, and `f_epoch/√(2·doppler_rate)`,
+which is `f_epoch/√1000` at 500 Hz/s, so the drift over one block stays inside
+half a slow-time bin. `code_only_epochs` counts the
 **whole** epochs a window holds at any chip phase — the window is `W` symbols on
 the data clock, with no fixed relation to the code clock, so a partial epoch is
 lost at each edge and `code_only_epochs = ⌊W · cps / L⌋ − 1`. It defaults to 1,
@@ -82,9 +86,9 @@ which is `D = 1` and exactly the engine as it ran before.
 
 ### 2.2 A detection is a physical record, never a grid index
 
-`DetectionEvent` is the data; the *hand-off* is the action that turns a raw
-`push()` hit into it and gives it to the next stage. They are named separately
-because they are not the same thing. The record crosses a thread or process
+`acq_handoff_t` (`native/inc/doppler/acq/acq_core.h`) is the data; the *hand-off*
+is the action that turns a raw `push()` hit into it and gives it to the next
+stage. They are named separately because they are not the same thing. The record crosses a thread or process
 boundary — to the pool, to a C++ application — so it cannot be the grid-relative
 `(doppler_bin, code_phase)`, which mean nothing without also shipping the
 emitting object's `spc` and `doppler_res_hz`. Every field is in a physical unit
@@ -92,17 +96,19 @@ and the record is a flat, pointer-free POD. In C it is what
 `dp_acq_build_handoff()` produces and what seeds the receiver of §4; one record is
 emitted per hit, on both classes.
 
-| Field              | Type       | Description                                                                                                     |
-| ------------------ | ---------- | --------------------------------------------------------------------------------------------------------------- |
-| `timestamp_ns`     | `uint64_t` | `epoch_real_ns + samples_consumed/fs` per `native/inc/doppler/timing/timing_core.h`, not a syscall at emit time |
-| `samples_consumed` | `uint64_t` | Sample offset since this engine's stream start that the detection's epoch ended at — replay-safe                |
-| `chip_phase`       | `float`    | Code phase in CHIPS, the code-tracking seed for the next stage                                                  |
-| `doppler_hz_est`   | `float`    | Coarse Doppler in Hz, already folded, signed and scaled from the raw bin index                                  |
-| `doppler_res_hz`   | `float`    | Width of that estimate — the ±`doppler_res_hz`/2 a refine or tracking stage still has to close                  |
-| `cn0_dbhz_est`     | `float`    | C/N0 estimate, dB-Hz — sizes downstream loop bandwidth and dwell                                                |
-| `peak_mag`         | `float`    | Raw CFAR peak magnitude — observability passthrough                                                             |
-| `noise_est`        | `float`    | Raw CFAR noise-floor estimate — observability passthrough                                                       |
-| `test_stat`        | `float`    | Raw CFAR gating statistic — observability passthrough                                                           |
+| Field              | Type       | Description                                                                                      |
+| ------------------ | ---------- | ------------------------------------------------------------------------------------------------ |
+| `samples_consumed` | `uint64_t` | Sample offset since this engine's stream start that the detection's epoch ended at — replay-safe |
+| `chip_phase`       | `double`   | Code phase in CHIPS, the code-tracking seed for the next stage                                   |
+| `doppler_hz_est`   | `double`   | Coarse Doppler in Hz, already folded, signed and scaled from the raw bin index                   |
+| `doppler_res_hz`   | `double`   | Width of that estimate — the ±`doppler_res_hz`/2 a refine or tracking stage still has to close   |
+| `cn0_dbhz_est`     | `double`   | C/N0 estimate, dB-Hz — sizes downstream loop bandwidth and dwell                                 |
+| `peak_mag`         | `float`    | Raw CFAR peak magnitude — observability passthrough                                              |
+| `noise_est`        | `float`    | Raw CFAR noise-floor estimate — observability passthrough                                        |
+| `test_stat`        | `float`    | Raw CFAR gating statistic — observability passthrough                                            |
+
+The record carries no timestamp: the holder stamps it (§8.1), and the field list
+is the header's own (`acq_handoff_t`).
 
 **`chip_phase` is where the code will be, not where it was.** A hit is decided
 at its dwell's end and the seed is wanted at the next sample, so
@@ -146,8 +152,8 @@ pure-code window (§5) there is nothing to alias. The searcher does not know any
 emitter's window phase, so it sums **non-overlapping blocks of `D` epochs**, one
 coherent surface per block, detected per block: a whole block always lands inside
 a window once `W ≥ 2D − 1`, and `⌊W/D⌋` land in a row for `n_noncoh` to
-accumulate. The Doppler-rate bound gives `D ≤ f_epoch/√1000` — 154 at 5 Mcps, 61
-at 2 — a 32 Hz bin and 18–22 dB of gain, at the same 3.2 k hypotheses at both
+accumulate. The Doppler-rate bound gives `D ≤ f_epoch/√(2·doppler_rate)`, which
+is `f_epoch/√1000` at 500 Hz/s — 154 at 5 Mcps, 61 at 2 — a 32 Hz bin and 18–22 dB of gain, at the same 3.2 k hypotheses at both
 rates. A block that straddles data, or `n_noncoh` reaching across a window edge,
 spreads that emitter over its `D` rows about `10·log10 D` down **at its own code
 phase**: a weaker copy, not a mislock, and what §7.1's twin rule and §8.2's zone
@@ -181,8 +187,9 @@ an exclusion zone in two.
 `native/benchmarks/bench_acq_core.c` times a real `dp_acq_push()` per dwell: about
 10 ns per tile per output sample at `D = 1`, which is what makes the searcher's
 cost nearly equal at 2 and 5 Mcps. At `D = 154` it is 523 ns per output sample
-serially, 164 on four threads and 125 on eight, holding 53 MB of block per
-channel and 160 MB of surface.
+serially, 164 on four threads and 125 on eight, and the pool's heap at this depth
+(501.6 MiB after warm-up, 254 MiB resident) is measured in
+[the user's guide](../guide/async-dsss-pool.md).
 
 ### 2.4 The searcher is watched, not trusted
 
@@ -202,7 +209,7 @@ predicted-not-taken branches, and nothing rides in a state blob.
     `surface(out)` gives every cell divided by the reference the gate used, so a
     cell reads as its own test statistic and the gate is a flat plane on a plot,
     with `surface_doppler_hz()`/`surface_chip_phase()` as its axes from the same
-    mapping a `DetectionEvent` carries; `dp_acq_set_surface_sink(fn, ctx, decim)`
+    mapping an `acq_handoff_t` carries; `dp_acq_set_surface_sink(fn, ctx, decim)`
     hands every `decim`-th dwell's surface to a callback on the pushing thread.
     Underneath, `surface_complex(out)` is the coherent dump the last dwell was
     decided on, `block_prompt(tile, col, out)` one cell's `D` per-epoch
@@ -292,7 +299,7 @@ clock is merely *why* it despreads in `K` partials; carrier recovery and symbol
 extraction are downstream, in separate objects fed from its output. This is
 `track.Dll(..., segments=K)` and no new object: `segments=1` is the classic
 coherent full-epoch DLL, `segments=K>1` is the streaming async despreader, and
-what follows it is `Costas` (carrier) then `SymbolSync` (timing) then bits.
+what follows it is `Costas` (carrier), then symbol timing, then bits.
 
 **The carrier belongs downstream** because the `|E|−|L|` discriminator is
 non-coherent, so code tracking is carrier-blind, and because each output is a
@@ -402,7 +409,7 @@ operating point a partial carries −2.9 dB per look at Es/N0 5.7 dB, and a defa
 20 looks sits below threshold.
 
 §3.6's search already finds a transition-free window; what it does not know is
-the symbol *period*, and the receiver does — `segments · chip_rate / (sf · symbol_rate)` partials, 7.24 here. With the period the same search lifts to
+the symbol *period*, and the receiver does — `segments · chip_rate / (sf · symbol_rate)` partials, 7.24 at §6.1's 5 Mcps. With the period the same search lifts to
 the symbol scale: `ceil(P)` boundary-phase hypotheses, each placing a boundary
 every `P` partials and owning a window of `L = min(floor(P) − 1, 4 · segments)`
 partials after it — short enough to sit inside one symbol under the hypothesis's
@@ -411,7 +418,7 @@ carrier than the wipe-off holds. Each hypothesis sums its window coherently and
 keeps an EMA of its power over about 32 symbols; the one with the most power
 **is** the symbol timing, and its windows are the detector's looks. A look then
 integrates `L` partials coherently and never straddles a transition: six instead
-of one here, 7.8 dB more per look, so `det_n_noncoh` sizes the detector at 10
+of one at 5 Mcps, 7.8 dB more per look, so `det_n_noncoh` sizes the detector at 10
 looks for Pd 0.99 at the floor instead of 161. The search needs no decision and
 no external timing, so it costs nothing at cold start and follows a drifting
 symbol clock by itself. A look that overlaps the previous one is not a look and
@@ -429,8 +436,8 @@ cost more than its coherence buys — hundredths of a chip either way
 the look-back still supplies its normalisation.
 
 The receiver applies it at chain build: `dp_dll_set_symbol_period` from its
-configuration, `n_looks` from `det_n_noncoh` over the window at its `cn0_dbhz`,
-and the drop count from `det_verify_count(1 − pd, 1e-6)` — three consecutive
+configuration, `n_looks` from `det_n_noncoh` for Pd 0.99 at Pfa 1e-3 over the window at its
+`cn0_dbhz`, and the drop count from `det_verify_count(0.01, 1e-6)` — three consecutive
 misses against the DLL's fixed two — so the verify hysteresis is a budget rather
 than a constant. Pinned by `native/tests/test_dll_core.c` §6b (per-partial looks
 up 35% of the time, aided 100%, the chosen phase within one partial of the truth)
@@ -457,8 +464,8 @@ continuous receiver, one C object, read back through the `get_*()` family and
     required rather than tidy: the asynchronous data's residual carrier rides a
     spectrum about `symbol_rate` wide, which one dump per epoch aliases. When the
     estimator reports ready or gives up, the live chain is built **fresh** from
-    the *original* hand-off chip phase — not wherever the refine `Dll` drifted
-    to — and the refined, or on a give-up unrefined, Doppler.
+    the hand-off chip phase, advanced by the clock dilation over the refine
+    (doppler#1249) — not wherever the refine `Dll` drifted to — and the refined, or on a give-up unrefined, Doppler.
 - **tracking** — the refined carrier is unfrozen into a live pre-despread
     Costas → `Dll` (§3) → `RateConverter` → `MpskReceiver`. `costas_update()`
     runs once per code period on a **non-data-aided (squaring)** discriminator
@@ -478,7 +485,7 @@ continuous receiver, one C object, read back through the `get_*()` family and
 Two lock detectors run while tracking: the `Dll`'s CFAR-based **code lock**
 (§3.5) and a hysteretic **symbol lock** on the emitted symbols — the BPSK
 `cos(2φ)` statistic as an SNR-weighted EMA over a 30-symbol dwell, declared after
-30 consecutive symbols at or above 0.5 and dropped after 15 below 0.3. `reset()`
+30 consecutive symbols above 0.5 and dropped after 15 below 0.3. `reset()`
 returns the searching flavour to searching and the cell flavour to idle: a
 receiver that has locked cannot be reset back onto the same signal.
 `DsssReceiver` is the same composition without the refining stage — a hit's
@@ -493,18 +500,16 @@ flavour, and a blob does not travel between flavours.
 - **The despreader** is `Dll(..., segments=K)`, validated carrier-present: code
     lock holds with a residual carrier on the samples, and the partial output is
     losslessly recoverable by a downstream carrier wipe and symbol despread. Its
-    `bn` is 0.002 — the validated stable bandwidth for this one-update-per-partial
-    geometry, not `dp_dll_create()`'s 0.01 default — and its early-late spacing is
+    `bn` is 0.002 per epoch, whatever the steer rate (§3.7), not
+    `dp_dll_create()`'s 0.01 default, and its early-late spacing is
     0.5 chips, so the normalised power discriminator reads `2 − spacing = 1.5`
     units per chip of offset.
-- **Downstream** are `Costas`, `SymbolSync` and `MpskReceiver`, with a
-    `RateConverter` bridging the partial rate to the demodulator's `sps` and never
-    a coupling of the two (§3.4). `K = 4` is tuned for the code discriminator's
-    variance, while a downstream demodulator wants a much larger `K` for coherent
-    gain. The hand-off carries two unit conversions — `Dll`'s `init_chip` is
-    phase-inverted relative to `Acquisition`'s `code_phase`, and `MpskReceiver`'s
-    `init_norm_freq` is cycles per its own partial-rate input — spelled out in
-    [DsssReceiver](../gallery/dsss-receiver.md)'s example.
+- **Downstream** is a pre-despread `Costas` carrier loop, which in the live chain
+    wipes ahead of the Dll, then `RateConverter` → `MpskReceiver`, whose timing
+    loop is RateSync's. The `RateConverter` bridges the partial rate to the
+    demodulator's `sps` and never a coupling of the two (§3.4). `K = 4` is tuned
+    for the code discriminator's variance, while a downstream demodulator wants a
+    much larger `K` for coherent gain.
 - **`carrier_freq_hz` couples the code rate to the carrier.** The coupled
     code-rate Doppler `carrier_offset/carrier_freq` is fed to the tracking `Dll`
     through `dp_dll_set_rate_aid()` and refreshed every code period from the live
@@ -513,14 +518,24 @@ flavour, and a blob does not travel between flavours.
 - **The escape hatches are separate knobs**: `configure_search_raw` pins the
     embedded search grid, `configure_lock_raw` re-tunes the live `Dll`'s code
     detector, `configure_chain_raw` re-pins `segments`/`sps`/`n` (allocating every
-    replacement before adopting it, so a failed pin leaves the receiver usable on
-    its prior grid), and `set_refine_min_blocks` floors the refine's dwell. That
-    floor is not cosmetic: `CarrierAcquisition`'s dwell is sized for *detection*
-    at the derated C/N0, so it shortens as C/N0 rises — two blocks at 45 dB-Hz —
-    while the noise of the estimate it hands the tracking chain does not. Two
-    blocks give 210 Hz against a chain that pulls in from a few hundred, and one
-    hand-over in sixty landed outside; the default seven blocks (42 ms) hold it to
-    77 Hz.
+    replacement before adopting it, so a refused grid leaves the receiver usable
+    on its prior grid; an `n` outside `dp_ratesync_m_ok()` is refused
+    ([doppler#2421](https://github.com/doppler-dsp/doppler/issues/2421)), and only
+    an allocation failure still aborts ([#2112](https://github.com/doppler-dsp/doppler/issues/2112))), and
+    `set_refine_min_blocks` floors the refine's dwell. That floor is not cosmetic:
+    `CarrierAcquisition`'s dwell is sized for *detection* at the derated C/N0, so it
+    shortens as C/N0 rises — two blocks at 45 dB-Hz — while the noise of the
+    estimate it hands the tracking chain does not. Two blocks give 210 Hz against a
+    chain that pulls in from a few hundred, and one hand-over in sixty landed
+    outside; the default seven blocks (42 ms) hold it to 77 Hz.
+- **Telemetry** is attached on demand. The receiver's and the pool's
+    `set_telemetry` are documented in `async_dsss_receiver_core.h` and
+    `async_dsss_pool_core.h`.
+- **No allocation per push or per state change.** Scratch is sized at a chain
+    rebuild, never in `steps()`: the track chain's per-period buffers, and the
+    carrier-wipe buffer the refine and track stages share, since they never run
+    concurrently. A cell receiver builds nothing per seed, and the status record
+    is returned by value.
 
 Every part is pinned in `native/tests/test_async_dsss_receiver_core.c`,
 `src/doppler/dsss/tests/test_async_dsss_receiver.py`,
@@ -627,7 +642,7 @@ Two things follow. The **CFAR reference is right to rise** — with a strong
 emitter present the surface's floor *is* its sidelobes, and the weak emitter is
 genuinely below it. And **only removing the strong emitter lowers that floor**,
 which a peak list cannot do; that needs a replica, a different object with a
-different information source (§7.2). So the mechanism forks on the emitters'
+different information source (§11.4). So the mechanism forks on the emitters'
 power spread: inside the floor a peak list suffices, beyond it the weak ones need
 the strong ones cancelled first (§9).
 
@@ -645,12 +660,11 @@ against 212 M over ±50 kHz) and its worst case is the low rate at the full
 uncertainty. Pre-compensation to ±5 kHz cuts the searcher eightfold and nobody
 else at all.
 
-Measured per stage on one core: the arbitrary-ratio front end is **0.18 of a
-core** (13.6 ns per input sample), the searcher over ±50 kHz is **2.1× real
-time** at either chip rate, and one tracking receiver is **0.44 of a core** — so
-the chain is over budget on one core before the population is on it, and the
-population is about 7.6 cores at the operating point and 17.5 at the floor. Three
-shapes follow. **One front-end DDC is shared, on its slowest path, on purpose**:
+The per-stage budget is measured in
+[the measurement record](async-dsss-receiver-measurements.md). The replacement
+design budgets its own pool in [async-dsss-parallel.md](async-dsss-parallel.md)
+§6; that is a design target, not a measurement. A number read from prose here
+would go stale on the next run. Three shapes follow. **One front-end DDC is shared, on its slowest path, on purpose**:
 there is one frequency channel, so the only stage at the input rate is one
 conversion, and the 13-to-10 ratio was chosen for the budget rather than the
 radio — `RateConverter` builds the cheapest cascade a ratio allows (CIC, halfband,
@@ -658,16 +672,11 @@ then a polyphase resampler) and 1.3 has no integer factor, so the whole
 conversion runs through the polyphase arbitrary resampler, the most expensive
 sample the front end can produce. A bench at a convenient ratio would have
 measured the wrong front end. **The searcher is one window-tiled engine, not a
-DDC bank**: a bank of 21 to 53 `DDC → search` channels is 14 to 33× real time on
-one core and fits on no node, while one window-tiled engine covers the
+DDC bank**: a bank of 21 to 53 `DDC → search` channels fits on no node, while one
+window-tiled engine covers the
 uncertainty at the same sensitivity and, with the peak list inside it, lacks
-nothing the bank had here. **The receivers are the population's cost and they
-parallelize**; cancellation would not, being serial on the searcher's path.
-
-As one run behind the shipped DDC, counting what it tracked beside the rate:
-**4.1× real time at the operating point and 9.5× at the floor on twenty threads,
-all ten emitters tracked** — the requirement missed by its own words, with the
-block searcher's depth (§2.3) the stage to attack.
+nothing the bank had here. **The searcher is the population's cost; the receivers parallelize**, and
+cancellation would not, being serial on the searcher's path.
 
 ______________________________________________________________________
 
@@ -738,23 +747,15 @@ capacity, 1 to 64. Pinned by `native/tests/test_acq_core.c` and
 integration, because they are there on the next epoch too
 ([#1191](https://github.com/doppler-dsp/doppler/issues/1191)).
 
-### 7.2 Cancellation, and where a replica could come from
-
-Cancellation subtracts a replica of a strong emitter so the surface underneath
-can be searched. The replica needs that emitter's code phase, Doppler, amplitude
-and **carrier phase** — and, for any epoch that is not its own data-free window,
-its **data**. That last item decides the shape, because emitters' frames are not
-aligned: while emitter A is in its window, B is carrying data, and B's
-contribution to A's dwell is a data-modulated, straddle-lossed correlation whose
-sign flips where the searcher does not know. **From the peak** the data is
-unknown, so a replica is exact only in the strong emitter's own data-free epoch,
-which is not in general the epoch being searched; **from the assigned receiver**
-it is exact to the tracker's own error, data included, and it makes the searcher
-see exactly what is *not* assigned. The subtraction could land on the **surface**
-(the code's autocorrelation across lag times a `sinc` across Doppler, scaled by
-the complex peak — the radio astronomer's CLEAN) or on the **samples**
-(regenerate the chip stream, subtract, correlate again). None of it is built
-(§9, §11.4).
+**The peak list belongs under both detectors, not inside one engine.** It is one
+primitive beside `det_noise_estimate` in `det_private.h` —
+`(mag, ny, nx, gate, excl_rows, excl_cols, mask, out[], max_peaks) → count` —
+with the burst detector calling it at `max_peaks = 1`: one argmax instead of two
+private copies, `acq_result_t` and `det_result2d_t` unchanged, the
+interpolated/native split still in the caller. Inside `acq_compute_stat` alone it
+would be a third private copy of the pick and the two detectors would behave
+differently on the same surface; outside the engine it would need the surface
+exported, and the surface is scratch, not a product.
 
 ______________________________________________________________________
 
@@ -768,7 +769,7 @@ flowchart LR
     E["up to ten emitters on ONE Gold-1023 code<br/>5 Mcps, 2700 sym/s, 450 code-only symbols of every 4950<br/>each at its own Doppler within ±50 kHz (§6.1)"]
     E --> DDC["DDC: 13 MSa/s → 2 samples per chip (§6.4)"]
     DDC --> X["one block per push,<br/>stamped by the feeder's clock (§8.1)"]
-    subgraph POOL["AsyncDsssPool (§8.2) — one push(), in this order"]
+    subgraph POOL["AsyncDsssPool (§8.2) — one push()"]
         direction LR
         X --> S["the searcher: Acquisition, continuous<br/>D = 154 epochs coherent per window tile (§2.3)<br/>21 tiles, a roll per thread; a list of 16 peaks (§7.1)"]
         S -->|every peak| Z{"within a chip of a<br/>live row's code phase?"}
@@ -786,17 +787,8 @@ flowchart LR
     RX --> OUT["per slot: status() by value,<br/>symbols() borrowed"]
     POOL --> LOG["event log (§8.1): every transition<br/>a sample-stamped SigMF annotation"]
     S -.->|"acq.* (§2.4)"| TLM["telemetry"]
+    RX -.->|"prefix.s_i (each slot)"| TLM
 ```
-
-**The peak list belongs under both detectors, not inside one engine.** It is one
-primitive beside `det_noise_estimate` in `det_private.h` —
-`(mag, ny, nx, gate, excl_rows, excl_cols, mask, out[], max_peaks) → count` —
-with the burst detector calling it at `max_peaks = 1`: one argmax instead of two
-private copies, `acq_result_t` and `det_result2d_t` unchanged, the
-interpolated/native split still in the caller. Inside `acq_compute_stat` alone it
-would be a third private copy of the pick and the two detectors would behave
-differently on the same surface; outside the engine it would need the surface
-exported, and the surface is scratch, not a product.
 
 ### 8.1 The holder owns the clock; nothing below it sees a time
 
@@ -814,37 +806,20 @@ orchestrator, in whatever language — is the one component that owns a clock.
     `sequence` gap is an *event*, not a re-anchor, because the sample count is
     what the DSP consumed. One replay and one live run then produce identical
     records.
-- **Events are SigMF annotations, appended live and finalized at close.** A
-    transition is sample-indexed (`core:sample_start`, `core:sample_count`) with
-    the receiver's fields under a `doppler:` namespace. A `.sigmf-meta` is one
-    JSON document a streaming writer cannot keep rewriting, so a run appends
-    annotation objects to a flat, tail-able, crash-safe file and a finalize step
-    writes the sidecar. `core:freq_lower_edge`/`upper_edge` need the channel's
-    `fc`, which a BLUE header carries and a NATS frame does not: **omitted when
-    unknown**, never guessed.
-- **Telemetry stays a flat record file and the sidecar points at it.** `dp_tlm`
-    records are a time series at thousands per second — the wrong shape for
-    annotations, the right one for `np.fromfile` — so a `doppler:telemetry` global
-    field carries the path and the record dtype, and one sidecar indexes the
-    dataset, the events and the telemetry, each in the format that suits its rate.
-
-`dp_event_log` (`native/inc/doppler/dp_event_log/dp_event_log_core.h`,
-`telemetry.EventLog`) is that object, in C so the holder can call it from Python
-and C++ alike. `append()` renders one annotation as a line of JSON and flushes
-it, so the file is tail-able live and a kill costs at most the event being
-written; `finalize()` collects the lines through the writer's existing SigMF
-emitter, so there is still exactly one place that spells `global` and `captures`.
-The `doppler:` fields are staged from a fixed table, which keeps the object
-ignorant of any receiver's record and allocation-free per event.
+- **Events are SigMF annotations, appended live and finalized at close**, and
+    telemetry stays a flat record file that the sidecar points at. The event log
+    is `dp_event_log` (`native/inc/doppler/dp_event_log/dp_event_log_core.h`),
+    and its header holds the annotation fields and the finalize step.
 
 ### 8.2 The pool holds the population in one object
 
 `async_dsss_pool` (`AsyncDsssPool`,
 `native/inc/doppler/async_dsss_pool/async_dsss_pool_core.h`) is a C object with the
 Python face as glue, and **nothing about this waveform or this population is
-baked into it**: every number is a create parameter whose default is §6.1's
-operating point, the searcher's and the receivers' own parameters pass through
-untouched, and another code, frame or population is another `create()`.
+baked into it**: the population's numbers default to §6.1 (12 slots, 16 peaks,
+813 code-only epochs, 2 s, 15 min), the waveform's are the caller's, the
+searcher's and the receivers' own parameters pass through untouched, and another
+code, frame or population is another `create()`.
 Everything it holds is sized once, at create: **one searcher** (`Acquisition` in
 continuous mode with §2.3's block coherence and a peak list of order 16, its
 tiles fanned a roll per thread); **`n_slots` cell receivers** (§11.1 — twelve
@@ -861,15 +836,13 @@ emitter look new. A row that has never had code lock keeps the seed's
 coordinates with the phase advanced to this block on the dilated clock, which
 holds the zone through a cell receiver's pull-in.
 
-One `push()` per block does, in order: feed the searcher; refresh the table; drop
-every peak within one chip of a live row's code phase, **at any Doppler**, as
-that emitter's own; for each survivor, `dp_acq_build_handoff()` and `seed()` into a
-free slot, or count it dropped when there is none; feed every receiver across the
-threads; then, for each slot whose receiver reports lost or has held its slot
-past the maximum on-air time, clear the row, `reset()` the receiver to idle and
-log `released`. `seed()`'s own refusal on a receiver that is not idle is the
-second guard behind the table, so a bookkeeping error cannot become a double
-assignment. A hit is decided at its dwell's end, inside the block, and is
+One `push()` per block runs its steps in the order `async_dsss_pool_core.h`
+documents, and the table is refreshed **before** the searcher's hits are read. A
+peak within one chip of a live row's code phase is that emitter's own, **at any
+Doppler**; each survivor is seeded into a free slot or counted dropped, and
+`seed()` refuses a receiver that is not idle, so a bookkeeping error cannot become
+a double assignment. Slots whose receivers are lost, or past the on-air limit, are
+released after the receivers are fed. A hit is decided at its dwell's end, inside the block, and is
 referred back to the block's start before it seeds — on the dilated clock when
 the carrier is known — because the receiver is fed the whole block. **The zone is
 the code axis alone**, not §7.1's one row by one chip: a tracked emitter's data
@@ -902,20 +875,11 @@ stateDiagram-v2
 The receiver decides `lost` (§10) and the pool acts on it; the pool alone decides
 the on-time release, and nothing else takes a slot from a live receiver. A
 `degrade` is logged on the edge from both flags up, not on every block it lasts.
-What comes out, per slot and by index, is the status record by value and the
-symbols that receiver decided on this push, borrowed from a buffer that follows
-the largest block seen. Nothing allocates per push once a block size has been
-seen, the pool never exceeds `n_slots`, and a released emitter still on the air
-is a new detection at its next window into whichever slot is free — the one
-re-assignment the lifecycle permits.
-
-**Two things the searcher must give a cell receiver** are checked at create and
-refused with NULL: a block depth above 1, since at `D = 1` there is no searcher
-timing to drive; and a Doppler row narrow enough that a seed half a row off lands
-inside the carrier loop's reliable pull-in — `doppler_res_hz` at most four times
-`ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, 391 Hz at 5 Mcps over Gold-1023, so `D ≥ 13`;
-the operating point's `D = 154` gives 31.7 Hz. Pinned by
-`native/tests/test_async_dsss_pool_core.c` and
+The status record and the symbols a receiver decided on come out per slot, by
+value and by borrowed buffer, and the create-time refusals are the headers'
+(`async_dsss_pool_core.h`, `async_dsss_receiver_core.h`). A released emitter still
+on the air is a new detection at its next window, into whichever slot is free.
+Pinned by `native/tests/test_async_dsss_pool_core.c` and
 `src/doppler/dsss/tests/test_async_dsss_pool.py`, and driven by
 `native/examples/async_dsss_pool_demo.c`.
 
@@ -923,17 +887,13 @@ ______________________________________________________________________
 
 ## 9. The branch is chosen by the spread, and it is the list
 
-Both branches share the peak list and the assigned table; they differ in what the
-searcher is allowed to see. **Inside the floor** the searcher sees every emitter
-and reports every peak above `eta`, and the pool drops any peak inside an
-assigned emitter's zone. **Beyond the floor** the searcher's input would have
-every lock-gated assigned replica subtracted first, with the table left as a
-guard against an imperfectly cancelled residual. The branch is chosen by one
-number, the operating spread against the knee, and it is chosen: **10 dB**,
-inside the 18–21 dB knee measured at `D = 1` and further inside it in the
-coherent blocks, where the floor is −21 dB. The list branch ships; the
-cancellation branch strictly contains it and stays designed (§7.2, §11.4) for a
-waveform whose spread is not this one.
+The branch is chosen by the operating spread against the knee: **10 dB**, inside
+the 18–21 dB knee measured at `D = 1` and further inside it in the coherent
+blocks, where the floor is −21 dB. The list branch ships; the cancellation branch
+is not built. Its design rationale, the peak-versus-receiver replica choice, is
+in the page as of
+[a3bfa13a7](https://github.com/doppler-dsp/doppler/blob/a3bfa13a7/docs/design/async-dsss-receiver.md),
+and §11.4 names its receiver-side output.
 
 ______________________________________________________________________
 
@@ -974,11 +934,8 @@ dropped on re-entry, because the hold point is marked with both flags up. Holdin
 on **one** flag down was measured and rejected: two live emitters crossing each
 other's code phase degrade both symbol flags, and a code loop held through that
 cannot re-centre on its own emitter afterwards, while a running one rides the
-crossing out. Before the first lock the loops must run — that is the pull-in. A
-held loop still reads its discriminator on both paths and still takes a phase
-correction (`set_code_phase`, the NCO moved and nothing else) from whoever
-holds it on another clock, which is what §11.1's cell
-mode is. What a lone receiver cannot tell from a return is a neighbour within
+crossing out. Before the first lock the loops must run — that is the pull-in.
+What a lone receiver cannot tell from a return is a neighbour within
 about a kilohertz crossing at a chip or two a second; the pool, which knows that
 emitter has a slot, is where that can be told apart
 ([#1275](https://github.com/doppler-dsp/doppler/issues/1275)).
@@ -1015,7 +972,8 @@ its own `dp_acq_build_handoff()` would have produced — and builds no `Acquisit
 of its own: a 21-to-53-tile engine per receiver, twelve times over, is memory and
 work nothing uses. That is a difference in **constructor**, not in method, so it
 is the `ddc`/`MatchedDDC` shape: `CellAsyncDsssReceiver` is a second `create`
-over the same state, declared as a `[[async_dsss_receiver.views]]` entry in the
+(`dp_async_dsss_receiver_create_cell()`, documented in the receiver header) over
+the same state, declared as a `[[async_dsss_receiver.views]]` entry in the
 manifest, with the chain past the seed shared verbatim. Two consequences:
 `seed()` is a method of **both** flavours, because the searching flavour's own
 hit already takes this path internally — a hit is a seed the object made for
@@ -1029,8 +987,8 @@ from the first sample** — it coasts, its own loop never closes. Once every
 phase, kept in double and dead-reckoned across the interval on the carrier loop's
 Doppler, is moved by `gain` chips per chip of what the coasting `Dll`'s
 discriminator read over the interval (`Dll.take_error_mean`, its per-steer
-mean, through the discriminator's design slope) and the `Dll` steered onto it **by rate over the
-next interval, never by a phase kick**: at a period boundary, where a receiver
+mean, through the discriminator's design slope) and the `Dll` steered onto it **by a rate bias re-formed
+every code period, never by a phase kick**: at a period boundary, where a receiver
 fed whole periods always is, a kick lands on the code's wrap and costs a period's
 partials ([#1287](https://github.com/doppler-dsp/doppler/issues/1287)). Gain is 1
 through `pullin_intervals`, covering the seed's residual up to half a chip, and
@@ -1050,8 +1008,9 @@ residual. Its dwell is the refine's scaled by the ratio of the two feeds' sample
 rates, which is what it takes to reach the refine's noise. It is not optional: a
 searcher's data-block copy seeds hundreds of Hz off, past loop 1's own bound, and
 without the estimate a cell receiver holds code lock and never symbol lock.
-Tracking follows the fold and the first lock flag, or the end of the pull-in
-intervals regardless, so a seed that never locks reaches the release clock.
+Tracking follows once the estimate is folded (or given up), and either a lock flag
+is up or the pull-in intervals have ended, so a seed that never locks still
+reaches the release clock.
 
 The pre-despread carrier loop runs as the searching flavour's, and it is what
 follows the 500 Hz/s ramp: frozen at the seed's Doppler, `MpskReceiver`'s 27 Hz
@@ -1079,13 +1038,10 @@ receiver thin. The **receiver** owns only what it alone knows, and its getters
 are one call each, so a reader on another thread cannot assemble a consistent
 picture across a `push()`.
 
-`status()` returns that picture as one record by value — the `measure` objects'
-`single` shape (`ToneMetrics` is the model), a jm-generated structseq — carrying the state;
-where the emitter is **now** (the whole carrier estimate, the `Dll`'s chip phase
-and code rate, the C/N0 estimate); both lock flags with the symbol-lock metric
-and its threshold; both residual carrier errors; and the two clocks in input
-samples. It is allocation-free, every field a read of live state, and the getters
-stay as the same fields' other face. The holder refreshes its *now* columns from
+`status()` returns that picture as one record by value, a jm-generated structseq
+whose fields are the header's (`async_dsss_receiver_status_t` in
+`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`). It is
+allocation-free: every field is a read of live state. The holder refreshes its *now* columns from
 it at whatever cadence it reads — one read per receiver per window is the
 minimum, because the exclusion zone is keyed on those and never on the seed.
 
@@ -1093,32 +1049,18 @@ minimum, because the exclusion zone is keyed on those and never on the seed.
 holder owns the sample clock (§8.1). And it is **not `get_state()`**: the bytes
 triplet resumes the receiver elsewhere, this record describes it here.
 
-### 11.4 The replica output is designed and not built
+### 11.4 The replica output is not built
 
-On §9's strong branch the receiver would gain a **replica output**: after a
-`push()`, the reconstructed chip stream of the samples just consumed — code at
-the tracked phase and rate, carrier at the tracked phase and frequency, amplitude
-from the prompt, data from the decisions — into a caller buffer. Three things
-about it are design rather than detail. It is **lock-gated on code lock**, so a
-receiver whose code lock is down publishes nothing — safe only because §3.7 made
-that flag honest. It **lags by the decision latency**, since a block's data is
-known only once the matched filter and the symbol timing have decided the symbols
-under it, so the searcher's input is a delayed copy of the raw stream through a
-ring the holder owns, while the receivers always see the stream live. And it is
-**per output sample on the searcher's thread**, the coupling §6.4 prices. The
-10 dB spread picks the other branch, so none of it exists.
+On §9's strong branch the receiver would publish a **replica output**: the
+reconstructed chip stream of the samples it consumed, lock-gated on code lock and
+lagging by the decision latency. None of it is built, since §9's 10 dB spread
+picks the list branch.
 
 ### 11.5 Nothing allocates per push or per seed
 
-Twelve receivers at twice the chip rate on the application's threads, beside one
-searcher and one front-end DDC, against 100 ns per output sample per core at the
-operating point and 43 at the 30 MSa/s floor, half of that as the working margin
-(§6.4). What that asks of the receiver: nothing allocates per `push()` or per
-state change — a cell receiver builds nothing per seed, where a refine chain per
-seed would — the status record is by value, and the refine and track stages share
-one carrier-wipe scratch/carry buffer set because they never run concurrently.
-The track chain's per-period scratch is sized at every chain rebuild and never in
-the `steps()` hot path.
+No allocation per `push()` or per state change. A cell receiver builds nothing per
+seed, the status record is returned by value, and scratch is sized at a chain
+rebuild, never in `steps()`. §4.1 lists what this means for each part.
 
 ______________________________________________________________________
 
@@ -1126,24 +1068,16 @@ ______________________________________________________________________
 
 - **Not a burst receiver.** No preamble, no `reps`, no capture ring, no frame
     demodulator. The pure-code window is a coherence opportunity, not a preamble,
-    and the channel's product is a `DetectionEvent`. Bursts are
+    and the channel's product is an `acq_handoff_t`. Bursts are
     [`burst-bank.md`](burst-bank.md)'s and
     [`dsss-burst-receiver.md`](dsss-burst-receiver.md)'s.
-- **Not a bank of channels.** One window-tiled engine covers ±50 kHz; a DDC per
-    tile is 14 to 33× real time and buys nothing this use case needs (§6.4).
 - **Not a fleet.** The parallelism is threads and processes on one server, and
     `get_state`/`set_state` are a checkpoint and a hand-off between processes on
     the same box, not state hopping between nodes.
-- **No cancellation object and no replica output.** Both are designed (§7.2,
-    §11.4) and neither is built, because the operating spread is 10 dB against an
-    18–21 dB knee (§9).
 - **No clock below the holder.** No engine, receiver or record here reads a time;
     every one carries a stream position (§2.2, §8.1).
 - **No carrier recovery or symbol extraction inside the despreader**, and no
     coupling of `segments` to a demodulator's `sps` (§3.4).
-- **`reset()` is not "resume".** It returns a receiver to searching, or in cell
-    mode to idle; a receiver that has locked cannot be reset back onto the same
-    signal.
 - **The frame epoch is not recovered.** A detecting block locates the pure-code
     window to within `D` epochs; which code period the frame started on is the
     tracking chain's to find, and nothing tells the receiver.
@@ -1158,13 +1092,13 @@ ______________________________________________________________________
     the cell mode and the lifecycle soaks.
 - [`burst-bank.md`](burst-bank.md) — the burst bank this page's continuous case
     was split from, and the fold and parallelism measurements §6 leans on.
-- [`coarse-channel.md`](coarse-channel.md) — the channel as an object, which is
-    what carries the searcher.
+- [`coarse-channel.md`](coarse-channel.md) — the open question of a channel as an
+    object (§5's case).
 - [`dsss-acquisition.md`](dsss-acquisition.md) — the acquisition engine under §2
     and §6: the tiling, the CFAR vocabulary (`dsss-acquisition.md` §9.1, which §7
     uses), the roadmap.
 - [`dsss-burst-receiver.md`](dsss-burst-receiver.md) — the burst chain, which
-    shares §2.2's `DetectionEvent`.
+    shares §2.2's `acq_handoff_t`.
 - [AsyncDsssReceiver: the SPEC waveform](../gallery/async-dsss-receiver-spec.md)
     and [Streaming Async Despreader](../gallery/async-despread.md) — the gallery
     demonstrations of §4 and §3.

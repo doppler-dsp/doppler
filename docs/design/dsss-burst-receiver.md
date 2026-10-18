@@ -333,9 +333,9 @@ one-result API silently under-reports a list-returning one.
 
 ______________________________________________________________________
 
-## 4. What this means for `DetectionEvent`
+## 4. What this means for `acq_handoff_t`
 
-[`async-dsss-receiver.md`](async-dsss-receiver.md) specifies `DetectionEvent` with
+[`async-dsss-receiver.md`](async-dsss-receiver.md) specifies `acq_handoff_t` with
 `chip_phase` (chips), `samples_consumed`, `doppler_hz_est`, `doppler_res_hz`,
 `cn0_dbhz_est` and three diagnostics. Measured against §3, that record is
 **sufficient for a tracking consumer and insufficient for a burst one**, and
@@ -872,7 +872,7 @@ ______________________________________________________________________
 
 - [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md) — the
     phase order this document is phase 1 of
-- [`async-dsss-receiver.md`](async-dsss-receiver.md) — `DetectionEvent` and the
+- [`async-dsss-receiver.md`](async-dsss-receiver.md) — `acq_handoff_t` and the
     service-boundary goals this extends to bursts
 - [DSSS use cases](../dev/contributing/dsss-use-cases.md) — the burst regime's
     geometry and why the 2-D roll fits it

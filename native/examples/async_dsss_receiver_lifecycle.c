@@ -1,12 +1,12 @@
 /**
- * async_dsss_receiver_lifecycle.c -- one AsyncDsssReceiver through the life
- * of a signal, in C: noise alone, arrival, acquisition, tracking, a short
- * dropout, a long dropout, and a departure.
+ * async_dsss_receiver_lifecycle.c -- one AsyncDsssReceiver through a signal's
+ * life, in C: searching, acquisition and tracking, a short fade, a departure
+ * that releases the emitter, a reset, and a returning emitter acquired afresh.
  *
  * This is the C twin of
- * `src/doppler/examples/async_dsss_receiver_lifecycle.py`, which shows the
- * same timeline with a figure. This file shows what the binding does FOR you
- * and therefore hides:
+ * `src/doppler/examples/async_dsss_receiver_lifecycle.py`, which runs the same
+ * timeline and asserts the same physics, with a figure. This file shows what
+ * the binding does for you and therefore hides:
  *
  *   - create() takes the whole configuration in one call, and the object
  *     copies what it needs; the code array is the caller's to keep only
@@ -16,44 +16,33 @@
  *     will make, one code epoch.
  *   - the telemetry is the caller's too: one row per push, read from
  *     status() after the push. Nothing in the receiver keeps a history.
+ *   - the receiver decides that an emitter has gone (LOST); the caller
+ *     decides what to do about it, here reset(), which returns it to
+ *     searching.
  *   - destroy() frees the receiver's internals; the buffers are freed here.
  *
- * **The waveform is not built here.** The emitter is the shipped
- * `wfm_synth` continuous DSSS -- the code from wfm's own Gold generator,
- * asynchronous BPSK from its own PRBS -- and the noise is the shipped awgn
- * sized from the C/N0. Nothing in this file spreads a chip, draws a bit or
- * computes a sigma.
+ * The waveform is not built here. The emitter is the shipped `wfm_synth`
+ * continuous DSSS -- the Gold code from wfm's own generator, asynchronous
+ * BPSK from its own PRBS -- and the noise is the shipped awgn sized from the
+ * C/N0. Nothing in this file spreads a chip, draws a bit or computes a sigma.
+ * The payload is the synth's PRBS, sent on the code throughout. The Python
+ * twin asserts the stimulus precondition that the data flips at every cut;
+ * this file does not repeat that check, because its payload is the synth's
+ * PRBS and not a bit array this file owns.
  *
- * The payload is the synth's own PRBS, sent on the code and never gated off:
- * the emitter runs with its data on throughout. The Python twin asserts the
- * stimulus precondition that the data flips at every cut. This file does not
- * repeat that check, because its payload is the synth's PRBS and not a bit
- * array this file owns.
- *
- * It does not use WFM_DSSS_DATA_BITS, though the synth supports it. On the
- * noise draw this file uses, an explicit bit payload fails to lock: the
- * carrier loop settles at 875 Hz against the true 1500 Hz, and the PRBS
- * payload locks on the same draw. That is the refine residual tracked in
- * doppler#982, not a fault in the bits mode, which locks with the noise off.
- *
- * Four sections are checked against the receiver's own status, after every
- * push:
+ * The checks are against the receiver's own status, read after every push:
  *
  *   §1  Noise alone: the receiver searches and emits nothing.
- *   §2  The signal arrives: it acquires, refines and tracks, and symbols
- *       begin only once it is tracking.
- *   §3  A 10 ms dropout: the symbol lock is up when the signal cuts, and it
- *       holds through the dropout.
- *   §4  A 50 ms dropout: the lock falls inside it while the receiver stays
- *       tracking, then returns after the signal does.
- *   §5  The emitter leaves for good: tracking is kept and the lock falls
- *       once. Nothing enters LOST, because lost_confirm_s is 0.
+ *   §2  The signal arrives: it acquires and tracks, and symbols begin only
+ *       once it is tracking.
+ *   §3  A 10 ms fade: tracking and the symbol lock hold through it.
+ *   §4  A 0.3 s departure: the receiver goes LOST, no earlier than its confirm
+ *       interval; the caller resets it, and the reset receiver is searching.
+ *   §5  A returning emitter: it is acquired afresh, emits no symbols until it
+ *       tracks, and emits them once it does.
  *
- * The bounds are generous windows around one measured run, chosen to hold
- * the order and the held-or-fell behavior, not to pin a number. They are not
- * a measured spread across noise draws. The lock-up time after tracking
- * depends on the noise draw, so the example does not assert one; it asserts
- * the lock is up before the first dropout.
+ * The bounds are physical where a bound exists (the confirm interval, and no
+ * symbols before tracking). The rest are generous windows around one run.
  *
  * This file uses its own seeds (emitter 1, noise 7), so it is a different
  * draw of the same timeline than the Python twin, which uses 7 and 8. Each
@@ -74,10 +63,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* ── the operating point: Gold-1023 at 3.069 Mcps, 2700 bps BPSK ─────────
- * Two samples per chip, so one code epoch is 2,046 samples: one push. The
- * emitter sits 1500 Hz off the nominal carrier, the search covers one epoch's
- * resolution (1/T_E, about 3 kHz), and Es/N0 is 10 dB. */
+/* ── Setup: this scenario's numbers ─────────────────────────────────────────
+ * Gold-1023 at 3.069 Mcps, 2700 bps BPSK, two samples per chip, so one code
+ * epoch is 2,046 samples: one push. The emitter sits 1500 Hz off nominal, the
+ * caller's carrier uncertainty is 5 kHz either side, and Es/N0 is 10 dB. */
 #define SF 1023u
 #define SPC 2u
 #define TE (SF * SPC)
@@ -85,10 +74,11 @@
 #define FS (CHIP_RATE * (double)SPC)
 #define SYM_RATE 2700.0
 #define CARRIER 1500.0
+#define CARRIER_UNCERTAINTY 5000.0
 #define ESN0_DB 10.0
 #define CN0_DBHZ (ESN0_DB + 10.0 * log10 (SYM_RATE))
 #define PFA 1e-3
-#define DU (FS / (double)TE)
+#define LOST_CONFIRM_S 0.1
 #define SEED_EMITTER 1u
 #define SEED_NOISE 7u
 
@@ -101,12 +91,11 @@ struct segment
 };
 static const struct segment TIMELINE[] = {
   { 0, 180 },  /* 60 ms of noise: nothing to find yet */
-  { 1, 4500 }, /* 1.5 s: acquire, refine, track, and let the lock come up */
-  { 0, 30 },   /* 10 ms dropout: short enough that the lock held in this run */
+  { 1, 4500 }, /* 1.5 s: acquire, track, and let the lock come up */
+  { 0, 30 },   /* 10 ms fade: shorter than the lock detectors' memory */
   { 1, 300 },  /* 100 ms back on the air */
-  { 0, 150 },  /* 50 ms dropout: long enough for the lock to fall */
-  { 1, 180 },  /* 60 ms back on the air: long enough to re-lock */
-  { 0, 240 },  /* the emitter leaves for good */
+  { 0, 900 },  /* 0.3 s: the emitter leaves, longer than the confirm time */
+  { 1, 4500 }, /* a returning emitter, on the air for 1.5 s */
 };
 #define N_SEG (sizeof TIMELINE / sizeof TIMELINE[0])
 
@@ -138,6 +127,16 @@ first_locked (const struct row *r, size_t lo, size_t hi, int want)
 {
   for (size_t i = lo; i < hi; i++)
     if (r[i].locked == want)
+      return i;
+  return hi;
+}
+
+/** @brief The first index in [lo, hi) in the @p want state, or @p hi. */
+static size_t
+first_state (const struct row *r, size_t lo, size_t hi, int want)
+{
+  for (size_t i = lo; i < hi; i++)
+    if (r[i].state == want)
       return i;
   return hi;
 }
@@ -182,7 +181,7 @@ main (void)
   dp_gold_destroy (gd);
 
   /* The sources. The synth advances on every push, signal or not, so its
-     code and data keep time with the receiver through a dropout. */
+     code and data keep time with the receiver through every cut. */
   dp_wfm_synth_state_t *syn = emitter (code);
   dp_awgn_state_t      *awg = dp_awgn_create (
       SEED_NOISE,
@@ -191,8 +190,8 @@ main (void)
 
   /* The receiver. create() takes its parameters in signature order, each
      named here, so an arity mismatch shows as one line rather than a count
-     of commas. These are the searching flavor's defaults: no carrier
-     aiding, and lost_confirm_s of 0, which never enters LOST. */
+     of commas. The caller's carrier uncertainty is one-sided, and the release
+     rule is armed by the confirm interval. Everything else is the default. */
   const size_t code_len                = SF;
   const double chip_rate               = CHIP_RATE;
   const double symbol_rate             = SYM_RATE;
@@ -201,7 +200,7 @@ main (void)
   const double cn0_dbhz                = CN0_DBHZ;
   const double pfa                     = PFA;
   const double pd                      = 0.9;
-  const double doppler_uncertainty     = DU;
+  const double doppler_uncertainty     = CARRIER_UNCERTAINTY;
   const size_t segments                = 4;
   const size_t sps                     = 8;
   const int    differential            = 0;
@@ -213,7 +212,7 @@ main (void)
   const bool   refine_sequential       = false;
   const size_t refine_max_n_blocks     = 100000;
   const double carrier_freq_hz         = 0.0; /* no carrier-to-code aiding */
-  const double lost_confirm_s          = 0.0; /* never enters LOST */
+  const double lost_confirm_s          = LOST_CONFIRM_S;
 
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz, pfa, pd,
@@ -257,6 +256,10 @@ main (void)
         rows[k].locked                  = st.locked;
         rows[k].metric                  = st.lock_metric;
         rows[k].symbols                 = n;
+        /* The receiver has decided the emitter is gone. The caller acts on
+           it: reset() returns the receiver to searching. */
+        if (st.state == ASYNC_DSSS_RX_LOST)
+          dp_async_dsss_receiver_reset (rx);
       }
 
   /* ── the checks, on the rows ──────────────────────────────────────────── */
@@ -265,24 +268,16 @@ main (void)
   for (size_t s = 0; s < N_SEG; s++)
     seg_at[s + 1] = seg_at[s] + TIMELINE[s].epochs;
 
-  const size_t on_at = seg_at[1];                  /* signal arrives */
-  const size_t d1 = seg_at[2], d1_end = seg_at[3]; /* 10 ms dropout */
-  const size_t d2 = seg_at[4], d2_end = seg_at[5]; /* 50 ms dropout */
-  const size_t back_end = seg_at[6];               /* signal back on */
-  const size_t gone     = seg_at[6];               /* departure */
+  const size_t on_at = seg_at[1];                      /* the first arrival */
+  const size_t fade = seg_at[2], fade_end = seg_at[3]; /* the short fade */
+  const size_t depart = seg_at[4];                     /* the departure */
+  const size_t back   = seg_at[5];                     /* the return */
 
   const double ms = 1e3 * TE / FS; /* one push, ms */
 
-  size_t first = n_pushes;
-  for (size_t i = 0; i < n_pushes; i++)
-    if (rows[i].state == ASYNC_DSSS_RX_TRACKING)
-      {
-        first = i;
-        break;
-      }
-  CHECK (first < n_pushes, "the receiver never reached tracking");
-
   /* §1 and §2: searching first, symbols only once tracking. */
+  size_t first = first_state (rows, 0, n_pushes, ASYNC_DSSS_RX_TRACKING);
+  CHECK (first < n_pushes, "the receiver never reached tracking");
   for (size_t i = 0; i < on_at; i++)
     CHECK (rows[i].state != ASYNC_DSSS_RX_TRACKING,
            "tracking before the signal arrived (push %zu)", i);
@@ -295,49 +290,51 @@ main (void)
   for (size_t i = 0; i < first; i++)
     CHECK (rows[i].symbols == 0, "symbols emitted before tracking (push %zu)",
            i);
-  CHECK (all_tracking (rows, first, n_pushes),
-         "left tracking without a release rule");
-  for (size_t i = 0; i < n_pushes; i++)
-    CHECK (rows[i].state != ASYNC_DSSS_RX_LOST,
-           "entered LOST with lost_confirm_s = 0");
 
-  /* §3: the lock is up before the first dropout, and in this fixed-seed run
-     it stays up through the gap and for HOLD_WATCH_S (60 ms) after the
-     return: the definition of a held dropout in doppler#2408's validator
-     (async_dsss_receiver_lock.c). Across draws that is a probability, not
-     asserted here. */
-  const size_t hold_end = d1_end + (size_t)(0.060 / ((double)TE / FS) + 0.5);
-  CHECK (rows[d1 - 1].locked == 1, "the lock was not up before the dropout");
-  CHECK (first_locked (rows, d1, hold_end, 0) == hold_end,
-         "the lock fell during the held window");
-  printf ("§3  a 10 ms dropout: the lock held through its 60 ms watch\n");
+  /* §3: the lock is up before the fade, and tracking and the lock hold
+     through it. */
+  CHECK (rows[fade - 1].locked == 1, "the lock was not up before the fade");
+  CHECK (all_tracking (rows, fade, fade_end),
+         "the fade moved the receiver out of tracking");
+  CHECK (first_locked (rows, fade, fade_end, 0) == fade_end,
+         "the fade cleared the symbol lock");
+  printf ("§3  a 10 ms fade: tracking and the symbol lock held\n");
 
-  /* §4: the lock falls inside the 50 ms dropout and returns after the
-     signal does, while tracking holds throughout. */
-  size_t fell = first_locked (rows, d2, d2_end, 0);
-  CHECK (fell < d2_end, "the lock never fell in a 50 ms dropout");
-  double fall_ms = (double)(fell - d2) * ms;
-  CHECK (fall_ms > 5.0 && fall_ms < 45.0,
-         "the lock fell %.0f ms into the dropout", fall_ms);
-  size_t back = first_locked (rows, d2_end, back_end, 1);
-  CHECK (back < back_end, "the lock never returned");
-  double return_ms = (double)(back - d2_end) * ms;
-  CHECK (return_ms > 0.0, "the lock re-latched on noise during the gap");
-  printf ("§4  a 50 ms dropout: the lock fell %.0f ms in and returned %.0f ms "
-          "after the signal\n",
-          fall_ms, return_ms);
+  /* §4: the departure releases the emitter. LOST comes only after the confirm
+     interval, since both flags must be down for longer than that first. */
+  size_t released = first_state (rows, depart, back, ASYNC_DSSS_RX_LOST);
+  CHECK (released < back, "the departure never released the emitter");
+  double release_ms = (double)(released - depart) * ms;
+  CHECK ((double)(released - depart) * TE / FS >= LOST_CONFIRM_S,
+         "released %.0f ms after departure, before the confirm interval",
+         release_ms);
+  CHECK (first_locked (rows, depart, released, 0) < released,
+         "the lock never fell before the release");
+  CHECK (rows[released + 1].state == ASYNC_DSSS_RX_SEARCHING,
+         "reset did not return the receiver to searching");
+  printf ("§4  departure: released %.0f ms later, after the %.0f ms confirm "
+          "interval\n",
+          release_ms, 1e3 * LOST_CONFIRM_S);
 
-  /* §5: the emitter leaves for good. Tracking is kept; the lock falls once.
-   */
-  size_t gone_fall = first_locked (rows, gone, n_pushes, 0);
-  CHECK (gone_fall < n_pushes, "the lock never fell after departure");
-  double gone_ms = (double)(gone_fall - gone) * ms;
-  CHECK (gone_ms > 5.0 && gone_ms < 60.0,
-         "the lock fell %.0f ms after departure", gone_ms);
-  CHECK (all_tracking (rows, gone, n_pushes),
-         "departure moved the receiver out of tracking");
-  printf ("§5  departure: the lock fell %.0f ms later; still tracking: %d\n",
-          gone_ms, all_tracking (rows, gone, n_pushes));
+  /* §5: the returning emitter is acquired afresh. It emits no symbols until
+     it tracks, and it tracks again within the bound. */
+  size_t reacq = first_state (rows, back, n_pushes, ASYNC_DSSS_RX_TRACKING);
+  CHECK (reacq < n_pushes, "the returning emitter was never acquired");
+  for (size_t i = released + 1; i < reacq; i++)
+    CHECK (rows[i].symbols == 0,
+           "symbols emitted before the returning emitter was tracked (push "
+           "%zu)",
+           i);
+  double return_ms = (double)(reacq - back) * ms;
+  CHECK (return_ms > 5.0 && return_ms < 250.0,
+         "re-acquired %.0f ms after the return", return_ms);
+  size_t syms_after = 0;
+  for (size_t i = reacq; i < n_pushes; i++)
+    syms_after += rows[i].symbols;
+  CHECK (syms_after > 0, "no symbols after re-acquiring");
+  printf ("§5  the return: re-acquired %.0f ms after it began; %zu symbols "
+          "since\n",
+          return_ms, syms_after);
 
   /* The receiver owns its internals; destroy() frees them. The buffers are
      the caller's, and the caller frees them. */

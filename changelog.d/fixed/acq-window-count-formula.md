@@ -1,0 +1,1 @@
+- **`acq_core.h` states the window count the continuous engine builds.** It tiles `2*ceil((doppler_uncertainty - span)/(2*span)) + 1` windows, not `ceil(doppler_uncertainty/span)`; at a one-sided 3 kHz the old formula gave 2 windows where the engine builds 3.

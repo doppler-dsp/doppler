@@ -1,0 +1,1 @@
+- **The AsyncDsssReceiver lifecycle example is rebuilt.** It arms the release rule, resets the receiver when it reports `LOST`, and acquires a returning emitter; its Python and C twins run the same timeline ([the gallery page](../../docs/gallery/async-dsss-receiver-lifecycle.md)).

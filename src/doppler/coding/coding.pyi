@@ -97,7 +97,7 @@ class ConvEncoder:
 
         """
 
-    def encode_max_out(self, n_in: int) -> int:
+    def encode_max_out(self, n_in: int, /) -> int:
         """Symbols dp_conv_enc_encode writes for n_in input bits.
 
         Exactly `n_in * n` — a convolutional code has no fill and no latency on
@@ -154,7 +154,7 @@ class ConvEncoder:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -203,6 +203,7 @@ class ConvEncoder:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the ConvEncoder.
 
@@ -329,7 +330,7 @@ class Viterbi:
 
         """
 
-    def decode_max_out(self, n_in: int) -> int:
+    def decode_max_out(self, n_in: int, /) -> int:
         """Bits dp_viterbi_decode will emit for n_in soft symbols.
 
         Accounts for the fill still owed at the start of a stream, so a caller
@@ -385,7 +386,7 @@ class Viterbi:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -434,6 +435,7 @@ class Viterbi:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Viterbi.
 
@@ -556,7 +558,7 @@ class ReedSolomon:
 
         """
 
-    def encode_max_out(self, n_in: int) -> int:
+    def encode_max_out(self, n_in: int, /) -> int:
         """Symbols dp_rs_codec_encode writes for n_in information symbols: a
         whole codeword, `n`.
 
@@ -656,7 +658,7 @@ class ReedSolomon:
 
         """
 
-    def syndromes_max_out(self, n_in: int) -> int:
+    def syndromes_max_out(self, n_in: int, /) -> int:
         """Syndromes dp_rs_codec_syndromes writes: `nroots`.
 
         Parameters
@@ -788,6 +790,7 @@ class ReedSolomon:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the ReedSolomon.
 
@@ -909,7 +912,7 @@ class Interleaver:
 
         """
 
-    def interleave_max_out(self, n_in: int) -> int:
+    def interleave_max_out(self, n_in: int, /) -> int:
         """Output bits for n_in input bits — the same number.
 
         A permutation moves bits and does not add or remove any, so this is the
@@ -981,7 +984,7 @@ class Interleaver:
 
         """
 
-    def deinterleave_max_out(self, n_in: int) -> int:
+    def deinterleave_max_out(self, n_in: int, /) -> int:
         """Output bits for n_in input bits — the same number.
 
         Identical to dp_interleaver_interleave_max_out, and for the same
@@ -1057,7 +1060,7 @@ class Interleaver:
 
         """
 
-    def deinterleave_soft_max_out(self, n_in: int) -> int:
+    def deinterleave_soft_max_out(self, n_in: int, /) -> int:
         """Output values for n_in soft input values — the same number.
 
         Parameters
@@ -1140,6 +1143,7 @@ class Interleaver:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Interleaver.
 
@@ -1259,7 +1263,7 @@ class Deinterleaver:
 
         """
 
-    def deinterleave_max_out(self, n_in: int) -> int:
+    def deinterleave_max_out(self, n_in: int, /) -> int:
         """Output bits for n_in input bits — the same number.
 
         Identical to dp_interleaver_interleave_max_out, and for the same
@@ -1335,7 +1339,7 @@ class Deinterleaver:
 
         """
 
-    def deinterleave_soft_max_out(self, n_in: int) -> int:
+    def deinterleave_soft_max_out(self, n_in: int, /) -> int:
         """Output values for n_in soft input values — the same number.
 
         Parameters
@@ -1418,6 +1422,7 @@ class Deinterleaver:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Deinterleaver.
 

@@ -128,8 +128,8 @@ class SampleClock:
         """Borrowed `doppler.wfm.dp_sample_clock` capsule for this handle.
 
         Pass it (or this object) wherever a `doppler.wfm.dp_sample_clock`
-        capsule is accepted. Non-owning: it does not free the
-        handle, and is only valid while this object is alive
-        and open."""
+        capsule is accepted. It never frees the handle, and it
+        keeps this object alive; it is valid until the handle
+        is closed."""
     def close(self) -> None:
         """Release the handle and free resources."""

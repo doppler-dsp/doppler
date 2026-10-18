@@ -222,7 +222,7 @@ class PN:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -271,6 +271,7 @@ class PN:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the PN.
 
@@ -543,7 +544,7 @@ class _SynthEngine:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -563,7 +564,7 @@ class _SynthEngine:
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
 
-    def set_rrc(self, taps: npt.ArrayLike) -> None:
+    def set_rrc(self, taps: npt.ArrayLike, /) -> None:
         """Enable root-raised-cosine pulse shaping with real FIR taps.
 
         Replaces the rectangular sample-and-hold of a symbol synth (pn, bpsk,
@@ -585,7 +586,12 @@ class _SynthEngine:
             allocated.
         """
 
-    def set_bits(self, pattern: npt.ArrayLike, modulation: int = ...) -> None:
+    def set_bits(
+        self,
+        pattern: npt.ArrayLike,
+        modulation: int = ...,
+        /,
+    ) -> None:
         """Attach a user bit pattern to a type='bits' synth.
 
         The pattern is oversampled by the create-time ``sps`` and sent ONCE:
@@ -610,7 +616,7 @@ class _SynthEngine:
             type='bits' synth.
         """
 
-    def set_dsss_chips(self, chips: npt.ArrayLike) -> None:
+    def set_dsss_chips(self, chips: npt.ArrayLike, /) -> None:
         """Attach an already-assembled DSSS burst to a type='dsss' synth.
 
         One chip per element, BPSK-mapped by the synth and held for the
@@ -698,7 +704,7 @@ class _SynthEngine:
             ``frame_symbols``.
         """
 
-    def set_symbols(self, symbols: npt.ArrayLike) -> None:
+    def set_symbols(self, symbols: npt.ArrayLike, /) -> None:
         """Attach a complex-symbol stream to a type='symbols' synth.
 
         Each element is the constellation point itself, with no bit-to-symbol
@@ -740,7 +746,7 @@ class _SynthEngine:
             Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
         """
 
-    def set_wtype(self, value: int) -> None:
+    def set_wtype(self, value: int, /) -> None:
         """Override the waveform type discriminant in-place. Changing wtype
         does not reinitialise sub-objects; use with care.
 
@@ -761,7 +767,7 @@ class _SynthEngine:
             Samples per symbol (nsps >= 1).
         """
 
-    def set_nsps(self, value: int) -> None:
+    def set_nsps(self, value: int, /) -> None:
         """Override the samples-per-symbol count in-place. Does not flush the
         symbol-position counter (sym_pos); set sym_pos=0 as well when changing
         sps mid-stream.
@@ -784,7 +790,7 @@ class _SynthEngine:
             Symbol position counter (0 <= sym_pos < nsps).
         """
 
-    def set_sym_pos(self, value: int) -> None:
+    def set_sym_pos(self, value: int, /) -> None:
         """Override the symbol-position counter in-place. Injecting 0 forces
         the next dp_wfm_synth_step() to latch a new PN chip; any other value
         fast-forwards into the middle of the current symbol hold.
@@ -808,7 +814,7 @@ class _SynthEngine:
             Current symbol real (I) component.
         """
 
-    def set_cur_re(self, value: float) -> None:
+    def set_cur_re(self, value: float, /) -> None:
         """Override the held-symbol real (I) component in-place. Takes effect
         on the next dp_wfm_synth_step() within the current symbol hold.
 
@@ -829,7 +835,7 @@ class _SynthEngine:
             Current symbol imaginary (Q) component.
         """
 
-    def set_cur_im(self, value: float) -> None:
+    def set_cur_im(self, value: float, /) -> None:
         """Override the held-symbol imaginary (Q) component in-place. Takes
         effect on the next dp_wfm_synth_step() within the current symbol hold.
 
@@ -868,6 +874,7 @@ class _SynthEngine:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the _SynthEngine.
 
@@ -1056,7 +1063,7 @@ class Gold:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -1105,6 +1112,7 @@ class Gold:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Gold.
 
@@ -1212,7 +1220,7 @@ class Frame:
 
         """
 
-    def bits_max_out(self, n: int) -> int:
+    def bits_max_out(self, n: int, /) -> int:
         """Bits dp_frame_bits will write for n frames — `n * nbits`.
 
         Parameters
@@ -1786,7 +1794,7 @@ class Frame:
 
         """
 
-    def deframe_max_out(self, rx_bits_len: int) -> int:
+    def deframe_max_out(self, rx_bits_len: int, /) -> int:
         """Max bits dp_frame_deframe() writes: the frame's own length.
 
         Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,
@@ -2105,6 +2113,7 @@ class Frame:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Frame.
 
@@ -2219,7 +2228,7 @@ class FrameDesc:
 
         """
 
-    def bits_max_out(self, n: int) -> int:
+    def bits_max_out(self, n: int, /) -> int:
         """Bits dp_frame_bits will write for n frames — `n * nbits`.
 
         Parameters
@@ -2793,7 +2802,7 @@ class FrameDesc:
 
         """
 
-    def deframe_max_out(self, rx_bits_len: int) -> int:
+    def deframe_max_out(self, rx_bits_len: int, /) -> int:
         """Max bits dp_frame_deframe() writes: the frame's own length.
 
         Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,
@@ -3112,6 +3121,7 @@ class FrameDesc:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the FrameDesc.
 

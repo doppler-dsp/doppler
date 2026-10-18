@@ -836,7 +836,7 @@ dev = [
     { name = "diff-cover", marker = "python_full_version >= '3.10'", specifier = "==10.6.0" },
     { name = "doppler-dsp", extras = ["specan-web"] },
     { name = "jsonschema", specifier = ">=4.18" },
-    { name = "just-makeit", specifier = "==0.106.0" },
+    { name = "just-makeit", git = "https://github.com/just-buildit/just-makeit?rev=2d1da4598fc606d313a27fe26057922e76ac9d5e" },
     { name = "matplotlib", marker = "python_full_version == '3.9.*'", specifier = "<3.10" },
     { name = "matplotlib", marker = "python_full_version >= '3.10'", specifier = ">=3.10.9" },
     { name = "mdformat", marker = "python_full_version >= '3.10'", specifier = "==1.0.0" },
@@ -1308,14 +1308,11 @@ wheels = [
 
 [[package]]
 name = "just-makeit"
-version = "0.106.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.107.0"
+source = { git = "https://github.com/just-buildit/just-makeit?rev=2d1da4598fc606d313a27fe26057922e76ac9d5e#2d1da4598fc606d313a27fe26057922e76ac9d5e" }
 dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "tomlkit" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6d/d9/e5c47087a199a9b4582a3f5286a061043d8964228961d59d5d882c9b3fc5/just_makeit-0.106.0-py3-none-any.whl", hash = "sha256:b00acc0b4886db19ea97d6db624f94456e394936c2e4693623f9dddfb483465d", size = 1950203, upload-time = "2026-10-15T09:59:08.356Z" },
 ]
 
 [[package]]

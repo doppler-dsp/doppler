@@ -1119,10 +1119,10 @@ Frame_getprop__capsule (FrameObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* Borrowed: NULL destructor, so the capsule never
-     frees a pointer Frame still owns. */
-  return PyCapsule_New ((void *)(&self->handle->d), "doppler.wfm.frame_desc",
-                        NULL);
+  /* Lent, not owned: the capsule never frees the pointer, and
+     holds Frame, so the pointer lives as long as it. */
+  return jm_capsule_lend ((void *)(&self->handle->d), "doppler.wfm.frame_desc",
+                          (PyObject *)self);
 }
 
 static PyGetSetDef Frame_getset[] = {
@@ -1201,7 +1201,7 @@ FrameObj_exit (FrameObject *self, PyObject *args)
 static PyMethodDef FrameObj_methods[] = {
 
   { "bits", (PyCFunction)(void *)FrameObj_bits, METH_VARARGS | METH_KEYWORDS,
-    "bits(count=1) -> ndarray\n"
+    "bits(count=1, out=None) -> ndarray\n"
     "\n"
     "Materialise n consecutive frames, one bit per byte.\n"
     "\n"

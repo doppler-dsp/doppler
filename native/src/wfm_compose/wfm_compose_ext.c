@@ -163,6 +163,39 @@ jm_inflight_free (jm_inflight_t *g)
 }
 #endif /* JM_INFLIGHT_DEFINED */
 
+#ifndef JM_CAPSULE_LEND_DEFINED
+#define JM_CAPSULE_LEND_DEFINED
+/* gh-2328: a lent capsule's context is the object that owns its pointer.
+ * The destructor releases that reference and nothing else -- the pointer is
+ * the owner's to free -- so whoever keeps the capsule keeps the owner. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static void
+jm_capsule_lend_release (PyObject *cap)
+{
+  Py_XDECREF ((PyObject *)PyCapsule_GetContext (cap));
+}
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__ ((unused))
+#endif
+static PyObject *
+jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
+{
+  PyObject *cap = PyCapsule_New (ptr, name, jm_capsule_lend_release);
+  if (!cap)
+    return NULL;
+  Py_INCREF (owner);
+  if (PyCapsule_SetContext (cap, owner) < 0)
+    {
+      Py_DECREF (owner);
+      Py_DECREF (cap);
+      return NULL;
+    }
+  return cap;
+}
+#endif /* JM_CAPSULE_LEND_DEFINED */
+
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
 _enum_index (const char *const *tab, const char *s)
@@ -6317,12 +6350,28 @@ static PyMethodDef Composer_methods[] = {
   { "execute", (PyCFunction)Composer_execute, METH_VARARGS,
     "execute(n) -> ndarray[complex64]\n"
     "\n"
-    "Execute for *n* samples.\n" },
+    "Execute for the next *n* samples.\n"
+    "\n"
+    "Reads the Composer's one cursor, shared with ``compose()`` and\n"
+    "``stream()``: it continues where the last read stopped, and a drained\n"
+    "Composer yields nothing. Build a new Composer to start over. A short or\n"
+    "empty array means the sequence ended.\n" },
   { "compose", (PyCFunction)(void (*) (void))Composer_compose,
     METH_VARARGS | METH_KEYWORDS,
     "compose(block=4096) -> ndarray[complex64]\n"
     "\n"
-    "Compose the full sequence into one array.\n" },
+    "Compose what remains of the sequence into one array.\n"
+    "\n"
+    "On a fresh Composer that is the full sequence; after ``execute(n)`` it\n"
+    "is the rest. Reads the Composer's one cursor, shared with ``execute()``\n"
+    "and ``stream()``: it continues where the last read stopped, and a\n"
+    "drained Composer yields nothing. Build a new Composer to start over.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On a continuous spec, which never ends; use\n"
+    "    ``execute()`` or ``stream()``.\n" },
   { "close", (PyCFunction)Composer_close, METH_NOARGS,
     "close() -> None\n"
     "\n"
@@ -6334,6 +6383,11 @@ static PyMethodDef Composer_methods[] = {
     "stream(block=4096, realtime=0.0) -> iterator\n"
     "\n"
     "Iterate the sequence in blocks.\n"
+    "\n"
+    "Reads the Composer's one cursor, shared with ``execute()`` and\n"
+    "``compose()``: it continues where the last read stopped, and a drained\n"
+    "Composer yields nothing. Build a new Composer to start over. Two live\n"
+    "iterators interleave over one sequence.\n"
     "\n"
     "Parameters\n"
     "----------\n"

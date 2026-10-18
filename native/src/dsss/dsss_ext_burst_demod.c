@@ -940,7 +940,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> d.set_preamble(acode, reps=5)  # 5 reps drive the (f0, rate) fit\n" },
   { "llrs", (PyCFunction)(void *)BurstDemodObj_llrs,
     METH_VARARGS | METH_KEYWORDS,
-    "llrs(count=1) -> ndarray\n"
+    "llrs(count=1, out=None) -> ndarray\n"
     "\n"
     "The soft bits of the last demod() — one LLR per FRAME bit, in "
     "`mpsk_soft_demap`'s convention: positive means bit 0, so `L < 0` "
@@ -1016,7 +1016,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "    Output.\n" },
   { "symbols", (PyCFunction)(void *)BurstDemodObj_symbols,
     METH_VARARGS | METH_KEYWORDS,
-    "symbols(count=1) -> ndarray\n"
+    "symbols(count=1, out=None) -> ndarray\n"
     "\n"
     "The DEROTATED complex symbols of the last demod() — the constellation "
     "`llrs()` is the real part of. Same span and normalisation: the whole "

@@ -996,7 +996,7 @@ static PyMethodDef NCOObj_methods[] = {
 
   { "steps_u32", (PyCFunction)(void *)NCOObj_steps_u32,
     METH_VARARGS | METH_KEYWORDS,
-    "steps_u32(count=1) -> ndarray\n"
+    "steps_u32(count=1, out=None) -> ndarray\n"
     "\n"
     "Advance n samples; write raw uint32 accumulator values. Each element\n"
     "is the phase value BEFORE the increment fires, so `out[0]` is the phase\n"
@@ -1048,7 +1048,7 @@ static PyMethodDef NCOObj_methods[] = {
     "    Output.\n" },
   { "steps_u32_scaled", (PyCFunction)(void *)NCOObj_steps_u32_scaled,
     METH_VARARGS | METH_KEYWORDS,
-    "steps_u32_scaled(count=1) -> ndarray\n"
+    "steps_u32_scaled(count=1, out=None) -> ndarray\n"
     "\n"
     "Advance n samples; values scaled to `[0, nmax)`. Uses the branchless\n"
     "fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the\n"
@@ -1110,9 +1110,7 @@ static PyMethodDef NCOObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "count : int\n"
-    "    How many output samples to ask for. The call may return fewer; size\n"
-    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
-    "    worst case.\n"
+    "    How many output samples to ask for. The call may return fewer.\n"
     "\n"
     "Returns\n"
     "-------\n"

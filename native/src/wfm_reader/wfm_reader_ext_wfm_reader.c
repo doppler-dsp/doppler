@@ -1344,7 +1344,7 @@ static PyMethodDef ReaderObj_methods[] = {
     "came from the header and do not change.\n" },
 
   { "read", (PyCFunction)(void *)ReaderObj_read, METH_VARARGS | METH_KEYWORDS,
-    "read(count=1) -> ndarray\n"
+    "read(count=1, out=None) -> ndarray\n"
     "\n"
     "Read up to count samples, returning them as `complex64`.\n"
     "\n"
@@ -1412,7 +1412,7 @@ static PyMethodDef ReaderObj_methods[] = {
     "    Output.\n" },
   { "read_follow", (PyCFunction)(void *)ReaderObj_read_follow,
     METH_VARARGS | METH_KEYWORDS,
-    "read_follow(count=1) -> ndarray\n"
+    "read_follow(count=1, out=None) -> ndarray\n"
     "\n"
     "Read whatever whole samples have arrived in a capture that is still "
     "being written, blocking until at least one does. Unlike `read()`, a "

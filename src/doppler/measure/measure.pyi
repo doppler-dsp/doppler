@@ -389,7 +389,7 @@ class ToneMeasure:
 
         """
 
-    def analyze(self, x: float) -> ToneMetrics:
+    def analyze(self, x: float, /) -> ToneMetrics:
         """Analyze a real time-domain capture; returns a ToneMetrics result.
 
         Parameters
@@ -418,7 +418,7 @@ class ToneMeasure:
 
         """
 
-    def analyze_complex(self, x: complex) -> ToneMetrics:
+    def analyze_complex(self, x: complex, /) -> ToneMetrics:
         """Analyze a complex baseband capture (two-sided spectrum).
 
         Parameters
@@ -443,7 +443,7 @@ class ToneMeasure:
 
         """
 
-    def time_stats(self, x: float) -> TimeStats:
+    def time_stats(self, x: float, /) -> TimeStats:
         """Time-domain stats: RMS, peak, crest/PAPR, DC offset, FS utilisation.
 
         Parameters
@@ -585,6 +585,7 @@ class ToneMeasure:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the ToneMeasure.
 
@@ -807,6 +808,7 @@ class NPRMeasure:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the NPRMeasure.
 
@@ -885,7 +887,7 @@ class IMDMeasure:
 
         """
 
-    def analyze(self, x: float) -> IMDMetrics:
+    def analyze(self, x: float, /) -> IMDMetrics:
         """Two-tone IMD/TOI of a real capture (finds the two strongest tones).
 
         Parameters
@@ -1004,6 +1006,7 @@ class IMDMeasure:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the IMDMeasure.
 

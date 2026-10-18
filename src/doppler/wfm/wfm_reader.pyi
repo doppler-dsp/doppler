@@ -154,7 +154,7 @@ class Reader:
 
         """
 
-    def read_max_out(self, n: int) -> int:
+    def read_max_out(self, n: int, /) -> int:
         """Maximum samples one read(n) yields: n (fewer at EOF).
 
         A reader streams, so a read of n produces at most n samples; the
@@ -236,7 +236,7 @@ class Reader:
 
         """
 
-    def read_follow_max_out(self, n: int) -> int:
+    def read_follow_max_out(self, n: int, /) -> int:
         """Largest number of samples read_follow() can return for n inputs.
 
         Size an `out=` buffer with this before calling read_follow(), or use it
@@ -632,6 +632,7 @@ class Reader:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Reader.
 

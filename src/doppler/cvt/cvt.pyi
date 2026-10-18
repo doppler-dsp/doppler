@@ -45,7 +45,7 @@ class F32ToI8:
 
         """
 
-    def step(self, x: float) -> int:
+    def step(self, x: float, /) -> int:
         """Scale one float sample by scale, round, and saturate to int8.
 
         Computes round(x * scale), clamps to the int8 range `[-128, 127]`, and
@@ -145,7 +145,7 @@ class F32ToI8:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -198,6 +198,7 @@ class F32ToI8:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the F32ToI8.
 
@@ -256,7 +257,7 @@ class F32ToI16:
 
         """
 
-    def step(self, x: float) -> int:
+    def step(self, x: float, /) -> int:
         """Scale one float sample by scale, round, and saturate to int16.
 
         Computes round(x * scale), clamps to the int16 range `[-32768, 32767]`,
@@ -356,7 +357,7 @@ class F32ToI16:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -409,6 +410,7 @@ class F32ToI16:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the F32ToI16.
 
@@ -467,7 +469,7 @@ class F32ToI32:
 
         """
 
-    def step(self, x: float) -> int:
+    def step(self, x: float, /) -> int:
         """Scale one float sample by scale, round, and saturate to int32.
 
         Computes round(x * scale), clamps to the int32 range `[-2147483648,
@@ -575,7 +577,7 @@ class F32ToI32:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -628,6 +630,7 @@ class F32ToI32:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the F32ToI32.
 
@@ -682,7 +685,7 @@ class I8ToF32:
 
         """
 
-    def step(self, x: int) -> float:
+    def step(self, x: int, /) -> float:
         """Convert one signed int8 sample to a normalised float via 1/scale.
 
         Returns (float)x * iscale, a single multiply on the hot path. At the
@@ -769,6 +772,7 @@ class I8ToF32:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the I8ToF32.
 
@@ -826,7 +830,7 @@ class U8ToF32:
 
         """
 
-    def step(self, x: int) -> float:
+    def step(self, x: int, /) -> float:
         """Convert one offset-binary code to a normalised float.
 
         Dispatches on the mode chosen at construction. For a block, steps()
@@ -915,6 +919,7 @@ class U8ToF32:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the U8ToF32.
 
@@ -970,7 +975,7 @@ class I16ToF32:
 
         """
 
-    def step(self, x: int) -> float:
+    def step(self, x: int, /) -> float:
         """Convert one signed int16 sample to a normalised float via 1/scale.
 
         Returns (float)x * iscale, a single multiply on the hot path. No
@@ -1058,6 +1063,7 @@ class I16ToF32:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the I16ToF32.
 
@@ -1113,7 +1119,7 @@ class I32ToF32:
 
         """
 
-    def step(self, x: int) -> float:
+    def step(self, x: int, /) -> float:
         """Convert one signed int32 sample to a normalised float via 1/scale.
 
         Returns (float)x * iscale, a single multiply on the hot path. At the
@@ -1201,6 +1207,7 @@ class I32ToF32:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the I32ToF32.
 
@@ -1259,7 +1266,7 @@ class F32ToI16U32:
 
         """
 
-    def step(self, x: float) -> int:
+    def step(self, x: float, /) -> int:
         """Scale one float sample to a saturated Q15 code packed in a uint32.
 
         Computes round(x * scale), saturates to `[-32768, 32767]`, then
@@ -1356,7 +1363,7 @@ class F32ToI16U32:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -1409,6 +1416,7 @@ class F32ToI16U32:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the F32ToI16U32.
 
@@ -1467,7 +1475,7 @@ class F32ToI16U64:
 
         """
 
-    def step(self, x: float) -> int:
+    def step(self, x: float, /) -> int:
         """Scale one float sample to a saturated Q15 code packed in a uint64.
 
         Computes round(x * scale), saturates to `[-32768, 32767]`, then
@@ -1564,7 +1572,7 @@ class F32ToI16U64:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -1617,6 +1625,7 @@ class F32ToI16U64:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the F32ToI16U64.
 
@@ -1671,7 +1680,7 @@ class I16U32ToF32:
 
         """
 
-    def step(self, x: int) -> float:
+    def step(self, x: int, /) -> float:
         """Unpack a Q15 code from a uint32's low 16 bits to a normalised float.
 
         Masks off the lower 16 bits, reinterprets them as a signed int16 (two's
@@ -1758,6 +1767,7 @@ class I16U32ToF32:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the I16U32ToF32.
 
@@ -1812,7 +1822,7 @@ class I16U64ToF32:
 
         """
 
-    def step(self, x: int) -> float:
+    def step(self, x: int, /) -> float:
         """Unpack a Q15 code from a uint64's low 16 bits to a normalised float.
 
         Masks off the lower 16 bits, reinterprets them as a signed int16 (two's
@@ -1899,6 +1909,7 @@ class I16U64ToF32:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the I16U64ToF32.
 
@@ -1957,7 +1968,7 @@ class F32ToUQ15:
 
         """
 
-    def step(self, x: float) -> int:
+    def step(self, x: float, /) -> int:
         """Scale one float sample to an offset-binary UQ15 uint16 code.
 
         Computes round(x * scale), clamps to `[-32768, 32767]`, then adds the
@@ -2056,7 +2067,7 @@ class F32ToUQ15:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -2109,6 +2120,7 @@ class F32ToUQ15:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the F32ToUQ15.
 
@@ -2164,7 +2176,7 @@ class UQ15ToF32:
 
         """
 
-    def step(self, x: int) -> float:
+    def step(self, x: int, /) -> float:
         """Decode one offset-binary UQ15 uint16 code to a normalised float.
 
         Computes ((int32_t)x - 32768) * iscale — removes the 32768
@@ -2253,6 +2265,7 @@ class UQ15ToF32:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the UQ15ToF32.
 
@@ -2321,7 +2334,7 @@ class ADC:
 
         """
 
-    def step(self, x: float) -> int:
+    def step(self, x: float, /) -> int:
         """Quantise one float sample to a signed N-bit ADC code.
 
         Multiplies x by the pre-computed double-precision scale, optionally
@@ -2424,7 +2437,7 @@ class ADC:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -2485,6 +2498,7 @@ class ADC:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the ADC.
 

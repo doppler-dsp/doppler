@@ -595,7 +595,7 @@ class Despreader:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -714,6 +714,7 @@ class Despreader:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Despreader.
 
@@ -1002,7 +1003,7 @@ class BurstDespreader:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -1122,6 +1123,7 @@ class BurstDespreader:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the BurstDespreader.
 
@@ -1178,7 +1180,7 @@ class PolynomialPhaseEstimator:
 
         """
 
-    def estimate(self, x: complex) -> PolynomialPhaseEstimate:
+    def estimate(self, x: complex, /) -> PolynomialPhaseEstimate:
         """Estimate (freq, chirp-rate) of a complex sequence via the 2-lag HAF.
 
         Runs the full 2-D matched-filter search in one shot: for each
@@ -1269,6 +1271,7 @@ class PolynomialPhaseEstimator:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the PolynomialPhaseEstimator.
 
@@ -1485,7 +1488,7 @@ class BurstDemod:
 
         """
 
-    def llrs_max_out(self, n: int) -> int:
+    def llrs_max_out(self, n: int, /) -> int:
         """Max LLRs dp_burst_demod_llrs() writes: the frame's length in bits.
 
         Parameters
@@ -1563,7 +1566,7 @@ class BurstDemod:
 
         """
 
-    def symbols_max_out(self, n: int) -> int:
+    def symbols_max_out(self, n: int, /) -> int:
         """Max symbols dp_burst_demod_symbols() writes: the frame's length.
 
         Parameters
@@ -1724,6 +1727,7 @@ class BurstDemod:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the BurstDemod.
 
@@ -2129,7 +2133,7 @@ class DsssReceiver:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -2218,6 +2222,7 @@ class DsssReceiver:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the DsssReceiver.
 
@@ -2944,7 +2949,7 @@ class AsyncDsssReceiver:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -3133,6 +3138,7 @@ class AsyncDsssReceiver:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the AsyncDsssReceiver.
 
@@ -3712,7 +3718,7 @@ class CellAsyncDsssReceiver:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -3896,6 +3902,7 @@ class CellAsyncDsssReceiver:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the CellAsyncDsssReceiver.
 
@@ -4354,7 +4361,7 @@ class AsyncDsssPool:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -4437,6 +4444,7 @@ class AsyncDsssPool:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the AsyncDsssPool.
 
@@ -4607,7 +4615,7 @@ class DsssBurstReceiver:
 
         """
 
-    def push_max_out(self, x_len: int) -> int:
+    def push_max_out(self, x_len: int, /) -> int:
         """Max bits push() can write for an input of x_len samples.
 
         push() returns EVERY burst it completed, so the bound scales with the
@@ -4696,7 +4704,7 @@ class DsssBurstReceiver:
 
         """
 
-    def llrs_max_out(self, n: int) -> int:
+    def llrs_max_out(self, n: int, /) -> int:
         """Max LLRs llrs() writes: frame bits x the bursts the last push
         returned.
 
@@ -4876,7 +4884,7 @@ class DsssBurstReceiver:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -5051,6 +5059,7 @@ class DsssBurstReceiver:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the DsssBurstReceiver.
 

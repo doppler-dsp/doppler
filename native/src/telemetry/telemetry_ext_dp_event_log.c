@@ -359,10 +359,10 @@ EventLog_getprop__capsule (EventLogObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* Borrowed: NULL destructor, so the capsule never
-     frees a pointer EventLog still owns. */
-  return PyCapsule_New ((void *)(self->handle),
-                        "doppler.telemetry.dp_event_log", NULL);
+  /* Lent, not owned: the capsule never frees the pointer, and
+     holds EventLog, so the pointer lives as long as it. */
+  return jm_capsule_lend ((void *)(self->handle),
+                          "doppler.telemetry.dp_event_log", (PyObject *)self);
 }
 
 static PyGetSetDef EventLog_getset[] = {

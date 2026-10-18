@@ -519,8 +519,9 @@ flavour, and a blob does not travel between flavours.
     embedded search grid, `configure_lock_raw` re-tunes the live `Dll`'s code
     detector, `configure_chain_raw` re-pins `segments`/`sps`/`n` (allocating every
     replacement before adopting it, so a refused grid leaves the receiver usable
-    on its prior grid; an invalid `n` or an allocation failure still aborts,
-    [#2112](https://github.com/doppler-dsp/doppler/issues/2112)), and
+    on its prior grid; an `n` outside `dp_ratesync_m_ok()` is refused
+    ([doppler#2421](https://github.com/doppler-dsp/doppler/issues/2421)), and only
+    an allocation failure still aborts ([#2112](https://github.com/doppler-dsp/doppler/issues/2112))), and
     `set_refine_min_blocks` floors the refine's dwell. That floor is not cosmetic:
     `CarrierAcquisition`'s dwell is sized for *detection* at the derated C/N0, so it
     shortens as C/N0 rises — two blocks at 45 dB-Hz — while the noise of the
@@ -1007,8 +1008,9 @@ residual. Its dwell is the refine's scaled by the ratio of the two feeds' sample
 rates, which is what it takes to reach the refine's noise. It is not optional: a
 searcher's data-block copy seeds hundreds of Hz off, past loop 1's own bound, and
 without the estimate a cell receiver holds code lock and never symbol lock.
-Tracking follows the fold and the first lock flag, or the end of the pull-in
-intervals regardless, so a seed that never locks reaches the release clock.
+Tracking follows once the estimate is folded (or given up), and either a lock flag
+is up or the pull-in intervals have ended, so a seed that never locks still
+reaches the release clock.
 
 The pre-despread carrier loop runs as the searching flavour's, and it is what
 follows the 500 Hz/s ramp: frozen at the seed's Doppler, `MpskReceiver`'s 27 Hz

@@ -91,7 +91,7 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of cell re
 |  int | [**dp\_async\_dsss\_pool\_set\_telemetry**](#function-dp_async_dsss_pool_set_telemetry) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the pool: the searcher, every slot's receiver, and the pool's own counters._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_state\_bytes**](#function-dp_async_dsss_pool_state_bytes) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br> |
 |  [**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md) | [**dp\_async\_dsss\_pool\_status**](#function-dp_async_dsss_pool_status) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot) <br>_One slot's picture, by value: whether it is assigned, the seed it was assigned from (sample, chip phase, Doppler, C/N0), the receiver's own status record, and the samples since the assignment._  |
-|  size\_t | [**dp\_async\_dsss\_pool\_symbols**](#function-dp_async_dsss_pool_symbols) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot, float \_Complex \* out, size\_t max\_out) <br>_The symbols slot_ `slot's` _receiver decided on the last push()._ |
+|  size\_t | [**dp\_async\_dsss\_pool\_symbols**](#function-dp_async_dsss_pool_symbols) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t slot, float \_Complex \* out, size\_t max\_out) <br>_The symbols the receiver in_ `slot` _decided on the last push()._ |
 |  size\_t | [**dp\_async\_dsss\_pool\_symbols\_max\_out**](#function-dp_async_dsss_pool_symbols_max_out) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_The per-slot symbol capacity_ `symbols()` _can return_ _grown with the largest block pushed so far (0 before the first push)._ |
 
 
@@ -340,7 +340,7 @@ size_t dp_async_dsss_pool_push (
 
 
 
-In order: the table refreshed from every live receiver's status(); the searcher, whose every peak within one chip of a live row's code phase, at any Doppler, is discarded silently as that emitter's own (the zone is the code axis alone: a tracked emitter's data blocks put smeared copies of it at its own phase rows away, docs/design/async-dsss-receiver-measurements.md §12.14), and each survivor seeded into a free slot or counted dropped when there is none (a hit outside the seed domain is logged refused, not dropped); every receiver fed, across the pool's threads (an idle or lost one consumes and discards); then every receiver that reports lost, or has held its slot past `max_emitter_on_time_secs`, released  the row cleared, the receiver reset to idle. Every transition goes to the attached log: a seed, a drop and a refusal at the hit's sample, a receiver's transitions at the end of this push. Accepts any block size: a hit decided inside the block is referred to the block's start before it seeds (the receiver is fed the whole block), on the dilated clock when the carrier is known; a dwell is decided when its samples arrive.
+In order: the table refreshed from every live receiver's status(); the searcher, whose every peak within one chip of a live row's code phase, at any Doppler, is discarded silently as that emitter's own (the zone is the code axis alone: a tracked emitter's data blocks put smeared copies of it at its own phase rows away, docs/design/async-dsss-receiver-measurements.md §12.14), and each survivor seeded into a free slot or counted dropped when there is none (a hit outside the seed domain is logged refused, not dropped); every receiver fed, across the pool's threads (an idle or lost one consumes and discards); then every receiver that reports lost, or has held its slot past `max_emitter_on_time_secs`, released  the row cleared, the receiver reset to idle. Every transition goes to the attached log (the seven labels are set\_event\_log()'s): a seed, a drop and a refusal at the hit's sample, a receiver's transitions at the end of this push. Accepts any block size: a hit decided inside the block is referred to the block's start before it seeds (the receiver is fed the whole block), on the dilated clock when the carrier is known; a dwell is decided when its samples arrive.
 
 
 
@@ -438,7 +438,7 @@ int dp_async_dsss_pool_set_event_log (
 
 
 
-Borrowed, never owned: the holder opens, finalizes and closes it. From now on every transition is appended  a seed, a drop and a refusal at the hit's sample, a receiver's transitions at the end of the push that saw them  with `slot`, `state`, `doppler_hz`, `chip_phase` and `cn0_dbhz` staged as `doppler:<name>` fields beside the label (`core:label`) and, on `released`, `reason` (`lost` or `on_time`). A log that has already failed keeps failing (its error is sticky); the pool counts the transition either way.
+Borrowed, never owned: the holder opens, finalizes and closes it. From now on every transition is appended, labelled `seeded`, `tracking`, `degrade`, `lost`, `released`, `dropped` or `refused`  a seed, a drop and a refusal at the hit's sample, a receiver's transitions at the end of the push that saw them  with `slot`, `state`, `doppler_hz`, `chip_phase` and `cn0_dbhz` staged as `doppler:<name>` fields beside the label (`core:label`) and, on `released`, `reason` (`lost` or `on_time`). A log that has already failed keeps failing (its error is sticky); the pool counts the transition either way.
 
 
 
@@ -642,7 +642,7 @@ The record.
 
 ### function dp\_async\_dsss\_pool\_symbols 
 
-_The symbols slot_ `slot's` _receiver decided on the last push()._
+_The symbols the receiver in_ `slot` _decided on the last push()._
 ```C++
 size_t dp_async_dsss_pool_symbols (
     dp_async_dsss_pool_state_t * state,

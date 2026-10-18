@@ -62,7 +62,7 @@ def test_always_window_tiles():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         beyond = _acq(doppler_uncertainty=span * 3.0)
-    assert beyond.doppler_bins == 3  # ceil(3*span/span) window tiles
+    assert beyond.doppler_bins == 3  # 2*ceil((3*span - span)/(2*span)) + 1 = 3
 
 
 def test_configure_search_raw_bounds():

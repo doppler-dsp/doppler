@@ -102,10 +102,11 @@ static const struct segment TIMELINE[] = {
 /** @brief One push's telemetry, read from the receiver after the push. */
 struct row
 {
-  int    state;   /* where the receiver is */
-  int    locked;  /* the symbol-lock flag */
-  double metric;  /* the lock metric */
-  size_t symbols; /* symbols that push emitted */
+  int    state;       /* where the receiver is */
+  int    locked;      /* the symbol-lock flag */
+  int    code_locked; /* the code-lock flag */
+  double metric;      /* the lock metric */
+  size_t symbols;     /* symbols that push emitted */
 };
 
 #define CHECK(cond, ...)                                                      \
@@ -254,6 +255,7 @@ main (void)
         async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
         rows[k].state                   = st.state;
         rows[k].locked                  = st.locked;
+        rows[k].code_locked             = st.code_locked;
         rows[k].metric                  = st.lock_metric;
         rows[k].symbols                 = n;
         /* The receiver has decided the emitter is gone. The caller acts on
@@ -279,8 +281,8 @@ main (void)
   size_t first = first_state (rows, 0, n_pushes, ASYNC_DSSS_RX_TRACKING);
   CHECK (first < n_pushes, "the receiver never reached tracking");
   for (size_t i = 0; i < on_at; i++)
-    CHECK (rows[i].state != ASYNC_DSSS_RX_TRACKING,
-           "tracking before the signal arrived (push %zu)", i);
+    CHECK (rows[i].state == ASYNC_DSSS_RX_SEARCHING,
+           "left searching before the signal arrived (push %zu)", i);
   double acquire_ms = (double)(first - on_at) * ms;
   printf ("§1  noise alone for %.0f ms: searching, no symbols\n",
           (double)on_at * ms);
@@ -291,13 +293,16 @@ main (void)
     CHECK (rows[i].symbols == 0, "symbols emitted before tracking (push %zu)",
            i);
 
-  /* §3: the lock is up before the fade, and tracking and the lock hold
-     through it. */
+  /* §3: the lock is up before the fade, and from the first tracking push to
+     the departure the receiver tracks, the lock stays up, and nothing enters
+     LOST. The fade is inside that stretch, so one check covers it. */
   CHECK (rows[fade - 1].locked == 1, "the lock was not up before the fade");
-  CHECK (all_tracking (rows, fade, fade_end),
-         "the fade moved the receiver out of tracking");
-  CHECK (first_locked (rows, fade, fade_end, 0) == fade_end,
-         "the fade cleared the symbol lock");
+  CHECK (all_tracking (rows, first, depart),
+         "left tracking before the departure");
+  CHECK (first_locked (rows, fade, depart, 0) == depart,
+         "the symbol lock fell before the departure");
+  CHECK (first_state (rows, first, depart, ASYNC_DSSS_RX_LOST) == depart,
+         "entered LOST before the departure");
   printf ("§3  a 10 ms fade: tracking and the symbol lock held\n");
 
   /* §4: the departure releases the emitter. LOST comes only after the confirm
@@ -308,8 +313,17 @@ main (void)
   CHECK ((double)(released - depart) * TE / FS >= LOST_CONFIRM_S,
          "released %.0f ms after departure, before the confirm interval",
          release_ms);
-  CHECK (first_locked (rows, depart, released, 0) < released,
-         "the lock never fell before the release");
+  size_t lock_fell = first_locked (rows, depart, released, 0);
+  size_t code_fell = released;
+  for (size_t i = depart; i < released; i++)
+    if (!rows[i].code_locked)
+      {
+        code_fell = i;
+        break;
+      }
+  CHECK (lock_fell < released,
+         "the symbol lock never fell before the release");
+  CHECK (code_fell < released, "the code lock never fell before the release");
   CHECK (rows[released + 1].state == ASYNC_DSSS_RX_SEARCHING,
          "reset did not return the receiver to searching");
   printf ("§4  departure: released %.0f ms later, after the %.0f ms confirm "

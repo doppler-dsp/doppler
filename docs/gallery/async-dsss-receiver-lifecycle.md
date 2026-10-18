@@ -1,101 +1,103 @@
 # AsyncDsssReceiver: a signal's lifecycle
 
-![State, symbol lock, and the lock metric the flag reads, through noise, arrival, two dropouts and a departure](../assets/async_dsss_receiver_lifecycle.png)
+![State and symbol lock, and the lock metric, through noise, arrival, a fade, a departure and a return](../assets/async_dsss_receiver_lifecycle.png)
 
-One [`dsss.AsyncDsssReceiver`](../api/python-dsss.md) follows one emitter
-through the life of its signal. The emitter is CCSDS Gold-1023 at 3.069 Mcps,
-asynchronous BPSK at 2700 bps, carried 1500 Hz off nominal, at 10 dB Es/N0.
-The receiver is fed one code epoch (2,046 samples, 333 µs) per push, and after
-every push the page reads its
-[`status()`](../api/python-dsss.md): the state, the symbol-lock flag and the
-lock metric. Every statement below is a reading of the receiver, not of the
-test signal.
+One [`dsss.AsyncDsssReceiver`](../api/python-dsss.md) follows one continuous DSSS
+emitter from the first code epoch it searches to the moment the emitter leaves,
+and it acquires the emitter again when the emitter returns. The receiver is fed
+one code epoch per push. After every push the page reads the receiver's state
+from its properties (`tracking`, `refining`, `lost`) and its symbol-lock flag, and
+it takes the symbols from `steps()`.
 
-The timeline has five parts:
+The setup is one emitter, CCSDS Gold-1023 at 3.069 Mcps, asynchronous BPSK at
+2700 bps, 1500 Hz off nominal, at 10 dB Es/N0. The caller bounds the carrier at
+±5 kHz, which is the receiver's one-sided `doppler_uncertainty`: the search covers
+that half-range in either direction, and the caller sets it from the uncertainty
+it actually has.
 
-1. **Noise alone.** The receiver searches. It emits no symbols.
-1. **Arrival.** The signal comes on. The receiver acquires, refines the carrier
-    estimate and begins tracking. Symbols begin only then.
-1. **A 10 ms dropout.** The signal is cut and the noise runs on. The symbol
-    lock was already up, and in this run it holds.
-1. **A 50 ms dropout.** The lock falls partway through the gap. The receiver
-    stays in the tracking state. The lock returns after the signal does.
-1. **Departure.** The emitter leaves for good. The lock falls. Tracking holds.
+The timeline has six parts:
+
+1. **Noise alone.** The receiver searches and emits no symbols.
+1. **Arrival.** The emitter comes on. The receiver acquires it, refines the
+    carrier estimate and starts tracking. Symbols begin only then.
+1. **A short fade.** The emitter drops for 10 ms, and the page checks that the
+    lock is up before it.
+1. **Back on the air.** The emitter returns for 100 ms.
+1. **Departure.** The emitter leaves for 0.3 s. Both lock detectors fall, and
+    after the confirm interval the receiver goes to `lost`. The caller resets it.
+1. **Return.** A returning emitter comes on. The reset receiver searches,
+    acquires it and tracks it.
 
 ## What the receiver does at each stage
 
-Four things a caller needs to know, each visible in the figure:
+- **Searching and refining emit nothing.** The first symbols come once the
+    receiver is tracking.
+- **Lock-up time and fade survival vary by draw.** This run keeps tracking and
+    the symbol lock through a 10 ms fade. Lock-up time varies between noise draws.
+    How often a fade is ridden out is measured in
+    [the measurement record](../design/async-dsss-parallel-measurements.md#31-symbol-lock-through-a-dropout),
+    under that record's own conditions. This setup is not that measurement, and
+    this page does not restate its rate.
+- **The release rule is armed.** `lost_confirm_s` is the interval both lock
+    detectors must stay down before the receiver gives up on the emitter. The
+    setup sets it to 100 ms. Once it passes, the state is `lost`, the loops stop,
+    and samples are discarded until `reset()`.
+- **Reset returns the receiver to searching.** A receiver that has locked cannot
+    be reset onto the same signal. It searches again, and a returning emitter is
+    acquired afresh.
 
-- **Searching emits nothing.** The receiver emits no symbols while it searches
-    or refines. The first symbols come once it is tracking.
-- **Tracking is entered and held.** Once the carrier loop is live, the state
-    stays `TRACKING` while the receiver is fed, through dropouts and through a
-    departure.
-- **Symbol lock is a health flag, separate from presence.** `locked` is a
-    hysteretic detector on `lock_metric`. A brief loss of signal does not
-    clear it. A longer loss does, and the lock returns only after the signal
-    does.
-- **The release rule is off by default.** `lost_confirm_s` defaults to `0`,
-    which never enters the `LOST` state. A caller who wants the receiver to
-    give up on a departed emitter sets it to a positive interval. This page
-    leaves the default, so the departure shows as a lock change alone.
-
-The lock-up time, the interval between tracking and the lock first going up,
-depends on the noise draw. This page does not claim a number for it. It waits
-for the lock to be up before the first dropout and measures only what happens
-after.
+The script prints the intervals it measured: the arrival to tracking, the release
+after departure, and the re-acquisition after the return. Those are this run's
+numbers. The script asserts each claim on this page, so a change that breaks one
+fails the example rather than the prose.
 
 ## How it works
 
-The emitter is synthesised by [`wfm.Synth`](../api/python-wfmgen.md) in
-continuous DSSS mode. A dropout cuts the signal after synthesis and leaves the
-noise alone, so the noise floor is the same throughout. The noise is the
-library's own unit-noise `Synth`, scaled by
-[`wfm_awgn_amplitude`](../api/python-wfmgen.md).
-
-Every event is cut while the data is transitioning (the test condition): the
-payload rides on the code throughout, so no dropout falls in a code-only run.
-A check on the clean emitter asserts the stimulus precondition that makes this
-so. Its data flips at about half the symbol boundaries, and flips within twenty
-symbols of every cut. That is a property of the stimulus, not a claim about the
-symbol lock, which holds on code-only symbols as well.
+The emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode,
+with its own PRBS payload on the Gold code. Each off span is zeroed after
+synthesis, so the noise floor is the same before, during and after every cut.
+The noise is [`source.AWGN`](../api/python-nco.md), with the per-component
+sigma that [`wfm_awgn_amplitude`](../api/python-wfmgen.md) gives for the Es/N0.
 
 ```python
 --8<-- "src/doppler/examples/async_dsss_receiver_lifecycle.py:signal"
 ```
 
-The receiver is built with its defaults, apart from the code, the rates, the
-Es/N0 and the one-epoch Doppler uncertainty. It is then fed one epoch per push.
-The status is read after each push, and the symbols that push emitted are
-counted.
+The receiver is built with the caller's rates, carrier uncertainty and release
+interval. It is fed one epoch per push. The state is read after each push, and
+the caller resets the receiver when it reports `lost`.
 
 ```python
 --8<-- "src/doppler/examples/async_dsss_receiver_lifecycle.py:receiver"
 ```
 
-The checks run on those rows. The bounds are generous windows around one
-measured run. They hold the order of the events and whether the lock held or
-fell. They are not a spread measured across noise draws.
+The checks run on those rows. Where a bound is physical, the check asserts it: the
+receiver cannot release an emitter before its confirm interval has passed, and it
+cannot emit a symbol before it tracks. The other bounds are windows around this
+run, and they hold the order of the events.
 
 ```python
 --8<-- "src/doppler/examples/async_dsss_receiver_lifecycle.py:validate"
 ```
 
+## Reading it when it does not behave
+
+Read the state first (searching, refining, tracking, lost), then `code_locked`,
+then `locked`, then `lock_metric`, the value the lock flag thresholds. Searching
+that never ends means no detection at this uncertainty. Refining that never ends
+means the carrier estimate has not converged. Tracking with `locked` low means the
+symbol lock has not come up yet, which is the lock-up estimate varying by draw.
+
 ## What you're seeing
 
-1. **State and symbol lock** (top). The black line is the tracking state, and
-    the green fill is the symbol lock. The grey spans mark the signal-off
-    intervals. In this run the lock holds through the short dropout and for its
-    60 ms watch after the signal returns, which is the definition of a held
-    dropout in the async DSSS validator (doppler#2408). It falls partway
-    through the long dropout, and it returns after the signal does. How often a
-    short dropout holds across noise draws is a probability. This page does not
-    claim it until #2408 measures it.
-1. **The lock metric** (bottom). The metric is the SNR-weighted running mean
-    of cos(2φ) over the symbols, the value the lock flag reads. The flag is the
-    shipped detector's own output and this page does not redraw its thresholds.
-    The panel shows how far the metric dipped in each gap and after the return,
-    which the binary flag does not.
+1. **State and symbol lock** (top). The black line is the state: searching,
+    refining, tracking, or lost. The green fill is the symbol lock. The grey spans
+    mark the signal-off intervals. The lock stays up through the fade and falls once
+    the emitter has gone. The state moves to `lost` only after the confirm interval,
+    and the reset takes it back to searching before it tracks the returning emitter.
+1. **The lock metric** (bottom). The metric is the SNR-weighted running mean of
+    cos(2φ) over the symbols, the value the lock flag reads. The panel shows how far
+    the metric dipped in each gap, which the binary flag does not.
 
 ## Reproduce
 
@@ -103,8 +105,11 @@ fell. They are not a spread measured across noise draws.
 python -m doppler.examples.async_dsss_receiver_lifecycle out.png
 ```
 
-The C twin, which shows the buffers and the lifecycle the binding hides, is
+The C twin is
 [`async_dsss_receiver_lifecycle.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/async_dsss_receiver_lifecycle.c).
+It runs the same timeline and checks the same physics. It uses its own noise draw,
+so its numbers differ from this page's, and it shows the buffers and the reset that
+the binding hides.
 
 The design, including the state machine and the release rule, is in
 [the async DSSS receiver design](../design/async-dsss-receiver.md).

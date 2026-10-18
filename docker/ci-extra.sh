@@ -31,28 +31,11 @@ if [ "${1:-}" = --fingerprint ]; then
     exit 0
 fi
 
-# Every apt request bounded, so a stalled mirror becomes an error the retries
-# cover rather than a job that hangs to its ceiling (just-makeit#1792).
-apt_get() {
-    apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
-        -o Acquire::https::Timeout=30 "$@"
-}
-
-# clang's profile runtime, which bootstrap.toml deliberately cannot name.
-# Whether `clang` already carries libclang_rt.profile.a is a property of the
-# distro RELEASE: 22.04 bundles it and has no such package at all; 24.04+
-# splits it into libclang-rt-<major>-dev, which clang does not depend on. An
-# image IS pinned to a release, so here it is simply installable -- and the
-# major comes from the clang that just landed, not from a number typed here.
-# Its own `apt-get update`: the Dockerfile cleared the lists before this ran.
-clang_major="$(clang --version | grep -oE 'version [0-9]+' | head -1 \
-               | grep -oE '[0-9]+')"
-apt_get update
-apt_get install -y --no-install-recommends "libclang-rt-$clang_major-dev" \
-    || echo "no libclang-rt-$clang_major-dev on this release --" \
-            "clang bundles the runtime here; the probe below decides"
-rm -rf /var/lib/apt/lists/*
-# The link is the assertion, and why the install above may fail harmlessly.
+# clang's profile runtime is installed by bootstrap.toml's `clang-rt` group,
+# which is in CI_IMAGE_GROUPS: one declaration serves the image and a dev
+# box's `make install-deps`. That group tolerates a missing package on a
+# release whose clang bundles the runtime (22.04), so the link below is the
+# assertion.
 # It is the same probe `make coverage`'s preflight runs, so an image that
 # cannot link it is never published, instead of failing the coverage job
 # later with a message about a missing package.

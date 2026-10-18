@@ -1,11 +1,12 @@
 /* bench_async_dsss_receiver_core.c — the held cell receiver, per sample.
  *
- * The receiver a pool's searcher drives (the cell mode, design section
- * 12.22-12.24, #1283): seeded at the code's chip 0, no refine, the Dll
- * coasting and steered once an interval. What it costs per input sample
- * while it holds the code is what each assigned slot adds to a pool push
- * (bench_async_dsss_pool_core.c), against the 100 ns-per-sample budget of
- * design section 6.4.
+ * The receiver a pool's searcher drives (the cell mode,
+ * docs/design/async-dsss-receiver-measurements.md §12.22-12.24, #1283): seeded
+ * at the code's chip 0, no refine, the Dll coasting and steered once an
+ * interval. What it costs per input sample while it holds the code is what
+ * each assigned slot adds to a pool push (bench_async_dsss_pool_core.c),
+ * against the 100 ns-per-sample budget of docs/design/async-dsss-receiver.md
+ * §6.4.
  *
  * The stimulus is an async DSSS signal: the code runs continuously on the
  * sample clock and the BPSK data changes at its own symbol rate, so a

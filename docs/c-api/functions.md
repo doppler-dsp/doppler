@@ -1405,6 +1405,7 @@
 * **dp\_ratesync\_loop\_set\_telemetry** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **dp\_ratesync\_loop\_state\_bytes** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **dp\_ratesync\_loop\_tlm\_flush** ([**ratesync\_core.h**](ratesync__core_8h.md))
+* **dp\_ratesync\_m\_ok** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **dp\_ratesync\_reset** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **dp\_ratesync\_set\_bn** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **dp\_ratesync\_set\_state** ([**ratesync\_core.h**](ratesync__core_8h.md))

@@ -39,7 +39,10 @@ measurements page; the citations that broke were found by grep, not here.
 So all three are recognised now, and a citation is a `(document, §number)`
 pair however it is spelled:
 
-1. **Path first** — ``docs/design/mpsk.md §3.2``.
+1. **Path first** — ``docs/design/mpsk.md §3.2``, or ``… section 3.2``, and
+   the number may be on the next line of a comment (``mpsk.md`` then
+   `` * §3.2``): the async receiver's headers and validators spell it both
+   ways, and the first version saw neither.
 2. **A continuation** — ``…mpsk.md §3.4 and §3.5``, ``§7.1, §8``,
    ``§8.2/§8.3``. The second number inherits the first's document, and
    only across a joiner (`,` `;` `/` `and`), never across plain prose, so a
@@ -53,13 +56,43 @@ pages actually use.
 
 ## Which files are scanned
 
-Every file git tracks, of a kind that can carry a citation. The list this
-replaced named seven directories; `native/benchmarks` and `native/examples`
-were not among them, so a benchmark citing a section that had since moved was
-checked by nobody — found by sabotaging a real citation and watching the gate
-stay green, which is the only way an inclusion list's gaps ever are found.
-What counts as ours is already recorded, once, by git, and a released claim in
-`CHANGELOG.md` cites a section like any other.
+Every text file git tracks. The list this replaced named seven directories;
+`native/benchmarks` and `native/examples` were not among them, so a benchmark
+citing a section that had since moved was checked by nobody — found by
+sabotaging a real citation and watching the gate stay green, which is the
+only way an inclusion list's gaps ever are found. The suffix list that
+followed (`.h .c .md .py`) was the same mistake one level down:
+`native/validation/CMakeLists.txt` cited seven sections of a page that no
+longer had them, and nothing read it. What counts as ours is already
+recorded, once, by git, and a released claim in `CHANGELOG.md` cites a
+section like any other.
+
+## What it cannot check
+
+A number that resolves is not a fact that survives. When an entry is cut
+down and keeps its heading, every citation of it still resolves, while the
+number it was cited FOR (a cost, a table row) may be gone from under it.
+Only a reader who follows the citation sees that; a title, where one is
+given, narrows it, and a cut that removes a cited number should search for
+its citers (`git grep "§12.14"`) before it lands. Nor are these read:
+
+- a range's upper end: ``§12.22-12.24`` checks §12.22 only;
+- a continuation without its own mark: ``§12.15, 12.16`` checks §12.15;
+- the step form: ``§12 step 7`` is read as §12, the step ignored;
+- a lettered section: ``§12.3a`` is read as §12.3;
+- a bare ``§N`` or ``section N`` with no page and no ``design`` before it,
+  which in a file that names its page once is shorthand, and in any other
+  is unanchored: name the page.
+
+## A citation that names no page
+
+``design §12.22`` and ``design section 12.22`` claim a design page without
+saying which, so no gate can check them, and the async receiver's split
+moved its §12 to another page while ~50 of them still said "design". They
+are refused unless the file is in `scripts/.doc-section-bare-exempt`, a
+ratchet of the ones that already existed: a file's count may only fall, and
+a count that has fallen must be lowered in the list. Name the page —
+``docs/design/<page>.md §N`` — and the citation is checked like the rest.
 """
 
 from __future__ import annotations
@@ -72,12 +105,24 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-#: `docs/design/mpsk.md` §3.2, "Optional title"  — backticks optional, and the
-#: section may be a bare number or dotted.
+#: `docs/design/mpsk.md` §3.2, "Optional title"  — backticks optional, the
+#: section a bare number or dotted, `§` or the word `section`, and a comment
+#: leader allowed between them (a path that ends one line of a C comment and
+#: a `§` that starts the next).
 _CITE = re.compile(
-    r"(?P<doc>docs/[\w./-]+\.md)`?\s*§\s*(?P<sec>\d+(?:\.\d+)*)"
+    r"(?P<doc>docs/[\w./-]+\.md)`?(?:\s|\*|#|//)*"
+    r"(?:§|\b(?i:sections?)\b)(?:\s|\*|#|//)*(?P<sec>\d+(?:\.\d+)*)"
     r"(?P<title>\s*,\s*[\"“]([^\"”]{3,90})[\"”])?"
 )
+
+#: `design §12.22`, `design section 12.22`: a design page, unnamed.
+_BARE = re.compile(
+    r"\b(?i:design)(?:\s|\*|#|//)+(?:§|(?i:sections?)\b)(?:\s|\*|#|//)*"
+    r"(?P<sec>\d+(?:\.\d+)*)"
+)
+
+#: The ratchet of unnamed citations that predate the rule: `<count> <path>`.
+BARE_EXEMPT = pathlib.Path("scripts/.doc-section-bare-exempt")
 
 #: The continuation: a second number sharing the first citation's document.
 #: A JOINER is required — `,` `;` `/` or the word "and" — so that a page's
@@ -108,8 +153,6 @@ _SEC = re.compile(r"§\s*(?P<sec>\d+(?:\.\d+)*)")
 _HEAD = re.compile(
     r"^#{1,6}\s+(?P<sec>\d+(?:\.\d+)*)\.?\s+(?P<name>.+?)\s*$", re.M
 )
-
-SUFFIX = {".h", ".c", ".md", ".py"}
 
 #: A Python file that names this script holds citations as SPECIMENS rather
 #: than as claims: this script's own docstring, whose worked examples cite
@@ -230,7 +273,43 @@ def source_files(root: pathlib.Path) -> list[pathlib.Path]:
     except (OSError, subprocess.CalledProcessError, UnicodeError):
         names = []
     paths = [root / n for n in names] if names else list(root.rglob("*"))
-    return [p for p in paths if p.suffix in SUFFIX and p.is_file()]
+    return [p for p in paths if p.is_file()]
+
+
+def _claimed(text: str) -> set[int]:
+    """Offsets of every `§N` number a link label already ties to a page."""
+    return {
+        m.start("label") + s.start("sec")
+        for m in _LINK.finditer(text)
+        for s in _SEC.finditer(m.group("label"))
+    }
+
+
+def bare(text: str, claimed: set[int]) -> list[int]:
+    """Offsets of the `design §N` citations that name no page.
+
+    A number some other shape already claimed is not bare: the label of
+    `[design §3.2](widget.md)` names its page in the link.
+    """
+    return [
+        m.start()
+        for m in _BARE.finditer(text)
+        if m.start("sec") not in claimed
+    ]
+
+
+def exempt(root: pathlib.Path) -> dict[str, int]:
+    """The ratchet: each listed file's allowed count of unnamed citations."""
+    path = root / BARE_EXEMPT
+    if not path.is_file():
+        return {}
+    out: dict[str, int] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            n, name = line.split(None, 1)
+            out[name] = int(n)
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -256,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    allowed = exempt(root)
+    n_bare: dict[str, list[str]] = {}
     for f in sorted(set(files)):
         try:
             text = f.read_text(encoding="utf-8")
@@ -263,7 +344,16 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if f.suffix == ".py" and SPECIMEN_MARK in text:
             continue
-        for name, sec, title, at in citations(text, f):
+        if f.relative_to(root) == BARE_EXEMPT:
+            continue
+        cites = citations(text, f)
+        rel = f.relative_to(root).as_posix()
+        hits = bare(text, _claimed(text))
+        if hits:
+            n_bare[rel] = [
+                f"{rel}:{text.count(chr(10), 0, at) + 1}" for at in hits
+            ]
+        for name, sec, title, at in cites:
             doc = resolve(name, f, root)
             line = text.count("\n", 0, at) + 1
             where = f"{f.relative_to(root).as_posix()}:{line}"
@@ -295,6 +385,23 @@ def main(argv: list[str] | None = None) -> int:
                         f"wrong, and a reader who follows it lands on the "
                         f"wrong argument"
                     )
+
+    for rel, where in sorted(n_bare.items()):
+        ok = allowed.get(rel, 0)
+        if len(where) > ok:
+            bad.append(
+                f"  {rel}: {len(where)} citation(s) say `design §N` without "
+                f"naming the page ({ok} allowed by {BARE_EXEMPT}); name it, "
+                f"docs/design/<page>.md §N:\n      " + "\n      ".join(where)
+            )
+    for rel, ok in sorted(allowed.items()):
+        have = len(n_bare.get(rel, []))
+        if have < ok:
+            bad.append(
+                f"  {BARE_EXEMPT}: {rel} is allowed {ok} unnamed "
+                f"citation(s) and has {have}; lower its entry (the list "
+                f"only shrinks)"
+            )
 
     if bad:
         print("check_doc_sections: a citation points somewhere it should not.")

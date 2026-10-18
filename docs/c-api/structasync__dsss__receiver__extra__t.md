@@ -271,7 +271,7 @@ uint8_t async_dsss_receiver_extra_t::had_lock;
 
 
 
-v4: a flag has been up; the loops coast. 
+v4: both flags have been up; the loops coast. 
 
 
         

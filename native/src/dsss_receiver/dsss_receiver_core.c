@@ -125,6 +125,9 @@ dsss_rx_build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
      bn_timing stays at 0.01), so it keeps its value. EVM and the
      rotation-blind M2M4 agree within ~1-3 dB, so the residual is not a
      phase fault. */
+  /* `n` is inside dp_ratesync_m_ok(): create() derives it and
+     configure_chain_raw() refuses outside it, so this create is never
+     refused on `n` (doppler#2426). */
   dp_mpsk_receiver_state_t *rx = dp_xnn (dp_mpsk_receiver_create (
       m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
       0.005, 0.3, 0.0, differential, MPSK_RX_NUM_PHASES, 1,
@@ -413,9 +416,9 @@ void
 dp_dsss_receiver_reset (dp_dsss_receiver_state_t *state)
 {
   dp_acq_reset (state->acq);
-  /* Best-effort: on OOM, leave the current chain in place rather than
-   * signal a failure this void-returning lifecycle function can't report
-   * (matches dp_dll_reset()/dp_mpsk_receiver_reset()'s own void contract). */
+  /* Rebuilt at the current grid (a configure_chain_raw() pin survives a
+   * reset). The rebuild runs under dp_xnn, so an allocation failure aborts;
+   * nothing else can fail, the grid having been checked when it was set. */
   dsss_rx_rebuild_chain (state, 0.0, 0.0, state->segments, state->sps,
                          state->n);
   state->tracking       = 0;
@@ -508,7 +511,11 @@ int
 dp_dsss_receiver_configure_chain_raw (dp_dsss_receiver_state_t *state,
                                       size_t segments, size_t sps, int n)
 {
-  if (segments < 1 || sps < 2 || n < 1 || (int)(sps % (size_t)n) != 0
+  /* Everything the rebuild would refuse under dp_xnn is refused here,
+     before anything is rebuilt: the chain's ratio, and an `n` MpskReceiver
+     refuses (doppler#2426, the second copy of #2421). */
+  if (segments < 1 || sps < 2 || n < 1 || !dp_ratesync_m_ok ((size_t)n)
+      || (int)(sps % (size_t)n) != 0
       || !dsss_rx_chain_ok (state->chip_rate, state->symbol_rate,
                             state->code_len, segments, sps))
     return -1;

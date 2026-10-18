@@ -11,6 +11,11 @@ earlier one in its own words (§12.18 corrects §12.17's attribution of the
 `native/validation/`, `native/benchmarks/` or a test under `native/tests/`;
 the entry names it.*
 
+**Step numbers.** Code and issues cite the step list this record was measured
+against, which the design page's §12 held until 6c732291f removed it. The map:
+step 1 is §12.2; steps 2–4 are §12.6; step 6 is §12.3; step 7 is §12.14 and §12.17;
+step 8 is §12.1 and §12.17; step 11 is §12.7; step 12 is §12.9; step 13 is §12.8.
+
 ______________________________________________________________________
 
 ### 12.1 What was measured (2026-09-02) — step 8, the budget
@@ -79,6 +84,13 @@ Seven things this settles, and one it corrects:
     ±50 kHz, not the 23 this page derived from `burst-bank.md`'s channel
     formula; the table in §6.1 now carries the engine's number. Nothing
     else moved.
+
+\*Note, 2026-10-17 (bf0926ee1, #2398): the bench's receiver rows (warm 44 ns, cold
+89 ns) and the `op5M` rows were cut, so the `*,op5M` rows above no longer exist. The
+current population budget is in the parallel record, §6–§7.
+
+\*Note, 2026-10-17: §1.1 is not a section of the design page; the "processes as
+needed" shape named here is the engine's parallel-for (§2.3).
 
 Not measured here: the searcher with the peak list (it does not exist;
 the pick is one pass over the surface and will not move the ~10 ns per
@@ -228,6 +240,10 @@ tens of milliseconds; whether a run ever reaches seconds is what fifteen
 minutes would say), and any of this on the hand-off-mode receiver, which
 does not exist.
 
+\*Note, 2026-10-17: the fix is 0b49f4b9b (feat(dll): symbol-period-aided lock looks,
+and the receiver sizes its detector). The two tables above are the sweep before and
+after it; the rule of §10 was measured on the post-fix table.
+
 ### 12.4 What was measured (2026-09-02) — the DLL's telemetry, and the aid
 
 The receiver's DLL alone (`bn 0.002, segments 4`), fed the shipped synth's
@@ -269,6 +285,9 @@ What it settles:
     because a fade still takes any CFAR flag down for its duration; what
     changes is that the "both down" clock now starts within milliseconds
     of a real loss and never on a healthy signal.
+
+\*Note, 2026-10-17: the characterization's README re-runs this table; its symbol-aided
+look at 40 dB-Hz misses 1.0% of decisions, against the 0.4% above.
 
 ### 12.5 What was measured (2026-09-02) — the discriminator on the aided window
 
@@ -397,6 +416,9 @@ in 2 000 of 2 000 dwells with no twin listed.
     ([#1190](https://github.com/doppler-dsp/doppler/issues/1191)). At the
     operating point's 15 looks no twin was listed in 2 000 dwells.
 
+\*Correction, 2026-10-17: the link above names #1191, the power rule. #1190 is the
+blob-guard fix, which the link text carried in error. The issue is still open.
+
 ______________________________________________________________________
 
 ### 12.7 What was measured (2026-09-05) — step 11, the block-coherent searcher
@@ -423,7 +445,7 @@ the worst cell at another code phase.
 Five things this settles:
 
 - **The aligned block gives the transition-free floor, −21 dB at another
-    code phase** — the number §12 step 11 expected, and 8 dB below the −13
+    code phase** — the number §12.7 expected, and 8 dB below the −13
     the single-look surface has under data (§12.2). Inside the emitter's own
     column the slow-time transform's rectangular window puts its first
     sidelobe at −14 dB one row out; a taper would trade that for a wider
@@ -452,6 +474,8 @@ Five things this settles:
     emits it as `acq.conc` (§2.4), for the strongest pick only; the pool
     does not read it — the list carries no per-peak concentration, and the
     pool keys its zone on the code axis alone (§8.2, §12.14).
+
+\*Note, 2026-10-17: §5.4 is §5 of the design page, which gives the edge's phase.
 
 **Pfa per block** (pure noise, D = 16, 21 tiles, 300 blocks): configured
 0.10, realized **37 of 300 = 0.12** (expected 30 ± 5); configured 0.20 over
@@ -482,7 +506,7 @@ epoch-by-epoch searcher of §12.1 is therefore not one number but the
 whole gap between "never" and 30 dB-Hz at one look; and sized at the
 45 dB-Hz of §12.6, the engine's own sizer buys **15 non-coherent looks
 at D = 1 and one at D = 154** (measured on the same code and span). Its cost per epoch, and how the fan
-across threads takes it, is §12 step 13.
+across threads takes it, is §12.8.
 
 ### 12.8 What was measured (2026-09-05) — step 13, the searcher's cost with D, and the fan
 
@@ -529,6 +553,8 @@ the margin): at the operating point the block searcher on four threads
 was 288 ns of wall per sample, about 1150 core-ns — a quarter of a
 48-core server's budget, beside twelve receivers at 44 each (§12.1). It
 fit; it was not comfortable, and #1243 was the next thing to attack.
+
+\*Note, 2026-10-17: #1243 is closed (17230fd25); its fix is the next subsection.
 
 **#1243, measured the same day, same box, same rows.** The per-cell
 passes now run per tile on the pool and merge serially in tile order;
@@ -579,6 +605,10 @@ conditions: no Doppler, and SPEC's two worst cases through the shipped
 `doppler_channel`, apart, since they do not coincide on a pass — the
 offset (20 ppm of a 2.5 GHz carrier, 50 kHz, the chip clock dilated with
 it) and the rate (500 Hz/s from zero).
+
+\*Note, 2026-10-17: the harness's receiver is the searching flavour
+(`tracker_through_window.c:27`); the hand-off flavour was retired in 9ddb8a3af.
+`dp_acq_build_handoff()` still builds the seed (`acq_core.c:2721`).
 
 | condition, C/N0 (Es/N0) | settled            | window blocks | code lock off | symbol lock off    | both off | release | pull-in after the window |
 | ----------------------- | ------------------ | ------------- | ------------- | ------------------ | -------- | ------- | ------------------------ |
@@ -800,6 +830,10 @@ restated `dp_acq_build_handoff()`'s fold and did not carry the advance; it is
 retired, and every hit carries `chip_phase` from the one C helper
 ([#1257](https://github.com/doppler-dsp/doppler/issues/1257)).
 
+\*Note, 2026-10-17: `dp_acq_build_handoff()` takes no carrier now (`acq_core.c:2721`):
+the carrier is on the engine (`dp_acq_set_carrier_freq_hz`, §12.12), and the advance is
+`acq_handoff_chip_phase` (`acq_core.c:73`). Both issues are closed (#1256, #1257).
+
 ______________________________________________________________________
 
 ### 12.12 What was measured (2026-09-06) — the block-coherent searcher under the dilated clock
@@ -874,6 +908,9 @@ C/N0, noise from the shipped awgn after the channel.
     `carrier_freq_hz`; the hand-off flavor's holder sets it on the searcher
     it seeds from, as the window harness does.
 
+\*Note, 2026-10-17: the hand-off flavour is retired (9ddb8a3af); a holder that seeds from
+a searcher sets the carrier on that searcher.
+
 ______________________________________________________________________
 
 ### 12.13 What was built (2026-09-06) — the pool, §8.2
@@ -936,7 +973,11 @@ Two things the build found:
     stays the seed's; at pfa 1e-3 the same emitter locks and the row
     follows within 100 Hz.
 
-**Next:** the lifecycle soak (§12 step 7) — the shipped synth with the
+\*Note, 2026-10-17: the pool's receivers are cell receivers (9ddb8a3af). The row-coordinate
+pin is `test_async_dsss_pool_core.c:289–292`. `_test_table_holds_the_locked_doppler`, the
+test that reproduced #1261, was deleted in 9ddb8a3af.
+
+**Next:** the lifecycle soak (§12.14) — the shipped synth with the
 window, the block-coherent searcher at D = 154, several emitters at
 random Dopplers through the channel, arrivals and departures — is the
 measurement that certifies the pool. **Done, §12.14.**
@@ -1299,6 +1340,11 @@ population and the same count tracked, unattributed here; and the number
 is one box's — the fraction scales with the threads the searcher's roll
 is given (§12.8's fan), so what the server does with 48 is a measurement
 on the server. Step 8's next thing to attack is the searcher's depth.
+
+\*Note, 2026-10-17: which stage owns the excess in this run is not measured; the budget run
+did not split the chain's time by stage. §12.8 measured the block searcher alone after
+17230fd25 at 1.3–1.6× real time on four to eight threads, against the 2.6–2.9× this
+entry first wrote.
 
 ______________________________________________________________________
 
@@ -1937,6 +1983,9 @@ row is 28.70 ns per input sample in tracking at the operating point
 against the hand-off flavour's warm row at 28.71 — the same, since
 loop 1 runs in both and the refine is in neither's steady state.
 
+\*Note, 2026-10-17: both rows named above were cut from the bench in bf0926ee1 (#2398);
+§6 of the parallel record has the current rate.
+
 **What was measured.** The shipped object on §12.20's harness: the
 held mode's private DLL, LO and bookkeeping replaced by one
 `CellAsyncDsssReceiver` fed the epochs the engine is pushed, seeded from
@@ -2034,6 +2083,9 @@ lands inside it (`D ≥ 13` here; the operating point's 154 gives 31.7 Hz
 rows). Three C tests (refusals; the lifecycle on two thread counts; the
 flavour-keyed round trip) on a windowed fixture at `D = 16`, and four
 Python tests.
+
+\*Note, 2026-10-17: `CellAsyncDsssPool` was the view of 61469f44c; 9ddb8a3af retired it,
+and the one constructor is the cell one. The hand-off path's retirement is §12.28.
 
 **Two things the searcher hands a cell receiver that the row does not
 bound**, found by the soak's check on its first run and fixed at their
@@ -2134,6 +2186,9 @@ What it settles:
     (#1273); the 600 s soak on the cell flavour; two emitters within a
     chip. The hand-off path's retirement is PR 4 (§12.28).
 
+\*Note, 2026-10-17: `--cell` is not a flag any more. `--check` remains, with `--events`,
+`--duration` and `--budget` (`async_dsss_pool_soak.c:1350–1356`).
+
 ______________________________________________________________________
 
 ### 12.28 What was measured (2026-09-10) — the pull-in as a curve, the 600 s soak, the retirement
@@ -2224,5 +2279,12 @@ What it settles:
 - **Not measured here:** the fold's outcome on the one 40 dB-Hz seed of
     §12.27 (it no longer reproduces at the scaled dwell); the 600 s soak at
     45 dB-Hz; the compose `Synth` window (#1294).
+
+\*Correction, 2026-10-17: the 35 files, +958/−5535 above match neither scope of
+9ddb8a3af. The commit is 55 files, +1182/−6103 (`git show --stat`); its code scope
+(`native`, `src`, `objects`) is 37 files, +962/−5539. The pool's `set_refine_min_blocks`
+and its read-back were removed, and the pool test asserts its absence
+(`test_async_dsss_pool.py:261`). `AsyncDsssReceiver` keeps `set_refine_min_blocks`
+(`objects/async_dsss_receiver.toml:298`).
 
 ______________________________________________________________________

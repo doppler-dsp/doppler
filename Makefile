@@ -2309,6 +2309,7 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/dsss_burst_receiver_demo.py \
     src/doppler/examples/dsss_burst_ber_demo.py \
     src/doppler/examples/async_dsss_receiver_spec_demo.py \
+    src/doppler/examples/async_dsss_receiver_lifecycle.py \
     src/doppler/examples/dsss_receiver_demo.py \
     src/doppler/examples/carrier_acq_rrc_demo.py \
     src/doppler/examples/mpsk_receiver_demo.py \

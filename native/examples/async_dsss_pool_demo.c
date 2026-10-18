@@ -47,7 +47,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ── geometry: the operating point of design §6.1, at a demo's depth ─────
+/* ── geometry: the operating point of docs/design/async-dsss-receiver.md §6.1,
+ * at a demo's depth
  * 1023 chips at 5 Mcps, two samples per chip, 2700 sym/s asynchronous BPSK
  * with a code-only window of 20 symbols every 270 (the operating point's
  * is 450 of 4950). The searcher aligns blocks of D = 16 epochs inside it

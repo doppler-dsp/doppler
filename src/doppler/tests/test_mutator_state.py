@@ -290,6 +290,28 @@ def _params(args: Iterable[ast.arg]) -> tuple[Param, ...]:
     return tuple(Param(p.arg, ast.unparse(p.annotation or "")) for p in args)
 
 
+def _signature(
+    a: ast.arguments,
+) -> tuple[tuple[Param, ...], tuple[Param, ...]]:
+    """A stub method's (required, defaulted) parameters, `self` dropped.
+
+    Positional-only parameters are positional parameters. jm 0.108.0 ends a
+    positional-only method's stub with `/` (just-makeit gh-2212), and the AST
+    then holds every parameter, `self` included, in `posonlyargs` with
+    `args` empty. Reading `args` alone saw no parameters, so the method got
+    no probe value and read UNPROBED: a silent skip (doppler#2428).
+    `defaults` covers the two positional lists together, so the cut is
+    taken over both.
+    """
+    pos = [*a.posonlyargs, *a.args]
+    cut = len(pos) - len(a.defaults)  # self never defaults
+    kw = list(zip(a.kwonlyargs, a.kw_defaults))
+    return (
+        _params([*pos[1:cut], *(k for k, d in kw if d is None)]),
+        _params([*pos[cut:], *(k for k, d in kw if d is not None)]),
+    )
+
+
 @functools.cache
 def _stubs() -> dict[str, Stub]:
     out: dict[str, Stub] = {}
@@ -309,20 +331,7 @@ def _stubs() -> dict[str, Stub]:
                 elif _decorated(f, f"{f.name}.setter"):
                     setters.add(f.name)
                 elif f.name not in methods:
-                    a = f.args
-                    cut = len(a.args) - len(a.defaults)  # self never defaults
-                    kw = list(zip(a.kwonlyargs, a.kw_defaults))
-                    methods[f.name] = (
-                        _params(
-                            [*a.args[1:cut], *(k for k, d in kw if d is None)]
-                        ),
-                        _params(
-                            [
-                                *a.args[cut:],
-                                *(k for k, d in kw if d is not None),
-                            ]
-                        ),
-                    )
+                    methods[f.name] = _signature(f.args)
             assert node.name not in out, f"{node.name} is in two stubs"
             out[node.name] = Stub(
                 _module_of(path), methods, getters, frozenset(setters)
@@ -1351,3 +1360,42 @@ def test_an_out_parameter_is_out_only_when_the_manifest_declares_it():
     # Same parameter name, not declared out: not an out buffer.
     assert _outs(d, "row_only") == ()
     assert _outs(d, "absent") == ()
+
+
+@pytest.mark.parametrize(
+    ("stub", "required", "defaulted"),
+    [
+        pytest.param(
+            "def step(self, x: float, /) -> None: ...",
+            ["x"],
+            [],
+            id="positional-only",
+        ),
+        pytest.param(
+            "def f(self, a: int, /, b: int, c: int = 1, *, d: int)"
+            " -> None: ...",
+            ["a", "b", "d"],
+            ["c"],
+            id="mixed",
+        ),
+        pytest.param(
+            "def g(self, a: int, b: int = 2, /) -> None: ...",
+            ["a"],
+            ["b"],
+            id="positional-only-defaulted",
+        ),
+        pytest.param(
+            "def h(self, x: float) -> None: ...", ["x"], [], id="plain"
+        ),
+    ],
+)
+def test_a_stub_signature_reads_positional_only_parameters(
+    stub: str, required: list[str], defaulted: list[str]
+) -> None:
+    """jm 0.108.0 stubs end positional-only parameters with `/`; they are
+    still the method's parameters, or the method is skipped unprobed."""
+    f = ast.parse(stub).body[0]
+    assert isinstance(f, ast.FunctionDef)
+    req, opt = _signature(f.args)
+    assert [p.name for p in req] == required
+    assert [p.name for p in opt] == defaulted

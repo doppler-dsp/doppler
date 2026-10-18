@@ -16,14 +16,21 @@ What counts as a failure
   ``<dir>/index.html`` for pretty URLs) does not exist under ``site/``
 * a same-page or cross-page ``#fragment`` that matches no ``id="..."``
   or ``name="..."`` in the target document
+* a site with no page to check at all. A build that rendered nothing
+  (2026-10-18: zensical copied its theme assets and an unrendered
+  ``sitemap.xml`` template and wrote no page, locally, in 0.2 s) used to
+  read "OK -- 0 pages" and pass. Zero pages checked is not a pass.
 
 Run locally
 -----------
     make docs && python scripts/check_site_links.py
+
+``--site DIR`` checks another built tree (the tests point it at one).
 """
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -53,27 +60,40 @@ def _ids_of(path: Path, cache: dict[Path, set[str]]) -> set[str]:
     return cache[path]
 
 
-def main() -> int:
-    if not SITE.is_dir():
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
+    ap.add_argument(
+        "--site", type=Path, default=SITE, help="built site (default site/)"
+    )
+    site = ap.parse_args(argv).site
+    if not site.is_dir():
         raise SystemExit(
-            "check_site_links: site/ not found -- run `make docs` first."
+            f"check_site_links: {site} not found -- run `make docs` first."
         )
 
     pages = [
         p
-        for p in SITE.rglob("*.html")
-        if not _SKIP_PARTS.intersection(p.relative_to(SITE).parts)
+        for p in site.rglob("*.html")
+        if not _SKIP_PARTS.intersection(p.relative_to(site).parts)
         # 404.html is rendered for an unknown URL depth, so the theme
         # emits deploy-prefix-absolute URLs (/doppler/...) that only
         # resolve on the live host -- not auditable from the file tree.
-        and p.relative_to(SITE).as_posix() != "404.html"
+        and p.relative_to(site).as_posix() != "404.html"
     ]
+    if not pages:
+        print(
+            f"check_site_links: {site} holds no page to check -- the docs "
+            "build rendered nothing, and a check over zero pages proves "
+            "nothing.",
+            file=sys.stderr,
+        )
+        return 1
     id_cache: dict[Path, set[str]] = {}
     bad: list[str] = []
 
     for page in pages:
         text = page.read_text(encoding="utf-8", errors="replace")
-        rel = page.relative_to(SITE)
+        rel = page.relative_to(site)
         for m in _HREF.finditer(text):
             url = m.group("url")
             parts = urlsplit(url)
@@ -85,7 +105,7 @@ def main() -> int:
                 target = page  # pure-fragment link, same page
             else:
                 if path_part.startswith("/"):
-                    resolved = (SITE / path_part.lstrip("/")).resolve()
+                    resolved = (site / path_part.lstrip("/")).resolve()
                 else:
                     resolved = (page.parent / path_part).resolve()
                 if resolved.is_dir():
@@ -100,8 +120,8 @@ def main() -> int:
                 frag
                 and target.suffix == ".html"
                 and not _SKIP_PARTS.intersection(
-                    target.resolve().relative_to(SITE.resolve()).parts
-                    if target.resolve().is_relative_to(SITE.resolve())
+                    target.resolve().relative_to(site.resolve()).parts
+                    if target.resolve().is_relative_to(site.resolve())
                     else ()
                 )
                 and frag not in _ids_of(target, id_cache)

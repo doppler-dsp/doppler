@@ -532,10 +532,11 @@ Telemetry_getprop__capsule (TelemetryObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* Borrowed: NULL destructor, so the capsule never
-     frees a pointer Telemetry still owns. */
-  return PyCapsule_New ((void *)(self->handle), "doppler.telemetry.dp_tlm",
-                        NULL);
+  /* Lent, not borrowed: the capsule holds a strong reference to self, so
+     a consumer that retains the capsule (retain = true, jm#2327) keeps this
+     Telemetry, and therefore its handle, alive. */
+  return jm_capsule_lend ((void *)(self->handle), "doppler.telemetry.dp_tlm",
+                          (PyObject *)self);
 }
 
 static PyGetSetDef Telemetry_getset[]

@@ -25,17 +25,16 @@
  * continuous DSSS -- the Gold code from wfm's own generator, asynchronous
  * BPSK from its own PRBS -- and the noise is the shipped awgn sized from the
  * C/N0. Nothing in this file spreads a chip, draws a bit or computes a sigma.
- * The payload is the synth's PRBS, sent on the code throughout. The Python
- * twin asserts the stimulus precondition that the data flips at every cut;
- * this file does not repeat that check, because its payload is the synth's
- * PRBS and not a bit array this file owns.
+ * The payload is the synth's own PRBS, sent on the code throughout, the same
+ * stimulus the Python twin uses.
  *
  * The checks are against the receiver's own status, read after every push:
  *
  *   §1  Noise alone: the receiver searches and emits nothing.
  *   §2  The signal arrives: it acquires and tracks, and symbols begin only
  *       once it is tracking.
- *   §3  A 10 ms fade: tracking and the symbol lock hold through it.
+ *   §3  A 10 ms fade: in this run, tracking and the symbol lock hold through
+ *       it. On average the configuration does, and lock-up varies by draw.
  *   §4  A 0.3 s departure: the receiver goes LOST, no earlier than its confirm
  *       interval; the caller resets it, and the reset receiver is searching.
  *   §5  A returning emitter: it is acquired afresh, emits no symbols until it
@@ -45,8 +44,8 @@
  * symbols before tracking). The rest are generous windows around one run.
  *
  * This file uses its own seeds (emitter 1, noise 7), so it is a different
- * draw of the same timeline than the Python twin, which uses 7 and 8. Each
- * twin is checked against its own run.
+ * draw of the same timeline than the Python twin, which uses noise seed 2.
+ * Each twin is checked against its own run.
  *
  * Build:
  *   cmake --build build
@@ -270,10 +269,10 @@ main (void)
   for (size_t s = 0; s < N_SEG; s++)
     seg_at[s + 1] = seg_at[s] + TIMELINE[s].epochs;
 
-  const size_t on_at = seg_at[1];                      /* the first arrival */
-  const size_t fade = seg_at[2], fade_end = seg_at[3]; /* the short fade */
-  const size_t depart = seg_at[4];                     /* the departure */
-  const size_t back   = seg_at[5];                     /* the return */
+  const size_t on_at  = seg_at[1]; /* the first arrival */
+  const size_t fade   = seg_at[2]; /* the short fade */
+  const size_t depart = seg_at[4]; /* the departure */
+  const size_t back   = seg_at[5]; /* the return */
 
   const double ms = 1e3 * TE / FS; /* one push, ms */
 
@@ -313,19 +312,14 @@ main (void)
   CHECK ((double)(released - depart) * TE / FS >= LOST_CONFIRM_S,
          "released %.0f ms after departure, before the confirm interval",
          release_ms);
-  size_t lock_fell = first_locked (rows, depart, released, 0);
-  size_t code_fell = released;
-  for (size_t i = depart; i < released; i++)
-    if (!rows[i].code_locked)
-      {
-        code_fell = i;
-        break;
-      }
-  CHECK (lock_fell < released,
-         "the symbol lock never fell before the release");
-  CHECK (code_fell < released, "the code lock never fell before the release");
-  CHECK (rows[released + 1].state == ASYNC_DSSS_RX_SEARCHING,
-         "reset did not return the receiver to searching");
+  /* Both flags are down for the whole confirm interval before the release. */
+  const size_t confirm = (size_t)ceil (LOST_CONFIRM_S / ((double)TE / FS));
+  for (size_t i = released - confirm; i < released; i++)
+    CHECK (!rows[i].locked && !rows[i].code_locked,
+           "a lock flag was up during the confirm interval (push %zu)", i);
+  for (size_t i = released + 1; i < back; i++)
+    CHECK (rows[i].state == ASYNC_DSSS_RX_SEARCHING,
+           "left searching during the gap after the reset (push %zu)", i);
   printf ("§4  departure: released %.0f ms later, after the %.0f ms confirm "
           "interval\n",
           release_ms, 1e3 * LOST_CONFIRM_S);

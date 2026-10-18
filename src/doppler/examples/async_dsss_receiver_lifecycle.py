@@ -14,12 +14,24 @@ the states show in the run:
 
 - **Searching and refining emit nothing.** The first symbols come once the
   receiver is tracking.
-- **Tracking holds through a short fade.** The symbol lock stays up through it.
+- **A 10 ms fade is ridden out on average.** At 10 dB Es/N0 this
+  configuration keeps tracking and the symbol lock through a 10 ms fade on
+  average. Lock-up time varies between noise draws, and the example's run is
+  one draw of that average.
 - **The release rule is armed.** ``lost_confirm_s`` is the interval both lock
   detectors must stay down before the receiver gives up on the emitter.
 - **Reset returns the receiver to searching.** A receiver that has locked
   cannot be reset onto the same signal; it searches again, and a returning
   emitter is acquired afresh.
+
+When the receiver does not behave as this run does, read the rows in this
+order: the state (searching, refining, tracking, lost), then ``code_locked``
+(the code loop's detector), then ``locked`` (the symbol lock), then
+``lock_metric``, the value the lock flag thresholds. Searching that never ends
+means no detection at this uncertainty. Refining that never ends means the
+carrier estimate has not converged. Tracking with ``locked`` low means the
+symbol lock has not come up yet. That is the estimate varying by draw, not
+a fault.
 
 The design, and the reasons for the release rule, are in
 ``docs/design/async-dsss-receiver.md``.
@@ -216,13 +228,15 @@ def check(rows: np.ndarray) -> dict[str, float]:
     assert 5.0 < acquire_ms < 250.0, f"arrival to tracking {acquire_ms:.0f} ms"
     assert not rows["symbols"][:first].any(), "symbols before tracking"
 
-    # The fade and the stretch to the departure: tracking holds, the symbol
-    # lock stays up, and nothing is released before the emitter leaves.
-    assert rows["locked"][fade - 1], "the lock was not up before the fade"
+    # This run's fade and the stretch to the departure: tracking holds, the
+    # symbol lock stays up, and nothing is released before the emitter leaves.
+    assert rows["locked"][fade - 1], (
+        "this run: the lock was not up before the fade"
+    )
     assert tracking[first:depart].all(), "left tracking before the departure"
     assert not rows["lost"][first:depart].any(), "LOST before the departure"
     assert rows["locked"][fade:depart].all(), (
-        "the lock fell before the departure"
+        "this run: the lock fell before the departure"
     )
 
     # The departure: both lock detectors fall, and LOST comes only after the
@@ -233,12 +247,20 @@ def check(rows: np.ndarray) -> dict[str, float]:
     assert (released - depart) * EPOCH_S >= LOST_CONFIRM_S, (
         "released before the confirm interval"
     )
-    assert not rows["code_locked"][depart:released].all(), "code lock held"
-    assert not rows["locked"][depart:released].all(), "symbol lock held"
+    # Both flags are down for the whole confirm interval before the release.
+    confirm = int(np.ceil(LOST_CONFIRM_S / EPOCH_S))
+    assert not rows["code_locked"][released - confirm : released].any(), (
+        "code lock was up during the confirm interval"
+    )
+    assert not rows["locked"][released - confirm : released].any(), (
+        "symbol lock was up during the confirm interval"
+    )
     release_ms = (released - depart) * ms
 
     # The reset: the caller's reset returns the receiver to searching.
-    assert rows["searching"][released + 1], "reset did not return to searching"
+    assert rows["searching"][released + 1 : back].all(), (
+        "left searching during the gap after the reset"
+    )
 
     # The return: the reset receiver acquires the new arrival afresh. It emits
     # no symbols until it tracks, and it tracks again within the bound.
@@ -255,7 +277,9 @@ def check(rows: np.ndarray) -> dict[str, float]:
         "no symbols after re-acquiring"
     )
 
+    lock_up_ms = (int(np.argmax(rows["locked"][on_at:])) + 0) * ms
     return {
+        "lock_up_ms": lock_up_ms,
         "acquire_ms": acquire_ms,
         "release_ms": release_ms,
         "reacquire_ms": return_ms,
@@ -274,9 +298,11 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
     rows = receive(make_timeline())
     times = check(rows)
     print(
-        f"arrival to tracking {times['acquire_ms']:.0f} ms; the fade held the "
-        f"lock; released {times['release_ms']:.0f} ms after departure, with a "
-        f"{1e3 * LOST_CONFIRM_S:.0f} ms confirm interval; re-acquired "
+        f"this run: arrival to tracking {times['acquire_ms']:.0f} ms, symbol "
+        f"lock up {times['lock_up_ms']:.0f} ms after arrival; the 10 ms fade "
+        f"held the lock; released {times['release_ms']:.0f} ms after "
+        f"departure, with a {1e3 * LOST_CONFIRM_S:.0f} ms confirm interval; "
+        f"re-acquired "
         f"{times['reacquire_ms']:.0f} ms after the return"
     )
 

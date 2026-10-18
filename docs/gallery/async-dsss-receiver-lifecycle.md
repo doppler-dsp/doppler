@@ -32,10 +32,10 @@ The timeline has six parts:
 
 - **Searching and refining emit nothing.** The first symbols come once the
     receiver is tracking.
-- **A fade shorter than the lock detectors' memory is ridden out.** In this run
-    the state stays tracking and the symbol lock stays up through the 10 ms fade.
-    That is one draw. How often a 10 ms fade is ridden out is a rate, measured
-    over many draws at 10 dB in
+- **A 10 ms fade is ridden out on average.** At 10 dB Es/N0 this configuration
+    keeps tracking and the symbol lock through a 10 ms fade on average. Lock-up
+    time varies between noise draws, so the example's run is one draw of that
+    average. How often a fade is ridden out is measured over many draws in
     [the measurement record](../design/async-dsss-parallel-measurements.md#31-symbol-lock-through-a-dropout),
     and this page does not restate it.
 - **The release rule is armed.** `lost_confirm_s` is the interval both lock
@@ -56,7 +56,7 @@ fails the example rather than the prose.
 The emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode,
 with its own PRBS payload on the Gold code. Each off span is zeroed after
 synthesis, so the noise floor is the same before, during and after every cut.
-The noise is [`source.AWGN`](../api/python-wfmgen.md), with the per-component
+The noise is [`source.AWGN`](../api/python-nco.md), with the per-component
 sigma that [`wfm_awgn_amplitude`](../api/python-wfmgen.md) gives for the Es/N0.
 
 ```python
@@ -79,6 +79,14 @@ run, and they hold the order of the events.
 ```python
 --8<-- "src/doppler/examples/async_dsss_receiver_lifecycle.py:validate"
 ```
+
+## Reading it when it does not behave
+
+Read the state first (searching, refining, tracking, lost), then `code_locked`,
+then `locked`, then `lock_metric`, the value the lock flag thresholds. Searching
+that never ends means no detection at this uncertainty. Refining that never ends
+means the carrier estimate has not converged. Tracking with `locked` low means the
+symbol lock has not come up yet, which is the lock-up estimate varying by draw.
 
 ## What you're seeing
 

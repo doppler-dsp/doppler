@@ -148,7 +148,7 @@ typedef struct
  *        peak above a gate, strongest first, at most `max_peaks` of them.
  *
  * The one argmax under both detectors (docs/design/async-dsss-receiver.md
- * §7.1, §8 (a)). Each pick is the largest unmasked cell; if it is not above
+ * §7.1). Each pick is the largest unmasked cell; if it is not above
  * `gate` the list ends there (the gate is `eta` in the surface's own units,
  * so a second peak is another draw from the same cells against the same
  * union bound -- the threshold does not change with the list). A pick's

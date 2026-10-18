@@ -33,9 +33,12 @@ make help    # every target, generated from the Makefile, never stale
 ```
 
 **Drive everything through `make`.** That includes jm: the pin lives in
-`just-makeit.toml` (`jm_version`), and the `jm-*` targets sync the pinned
-version before they run it. Never `uvx just-makeit` — it reuses whatever jm
-happens to be installed as a uv tool, which drifts per machine.
+`just-makeit.toml` (`jm_version`), the `jm-*` targets sync the pinned
+version before they run it, and `make jm-pin JM=<x.y.z>` moves the pin
+everywhere and re-locks. Never `uvx just-makeit` — it reuses whatever jm
+happens to be installed as a uv tool, which drifts per machine. The one
+exception today is jm's authoring verbs (step 1 below), which have no make
+target yet.
 
 ______________________________________________________________________
 
@@ -125,11 +128,23 @@ type = "double"
 writable = true
 ```
 
-You can write the fragment by hand, or let jm's CLI write it
-(`jm object`, `jm method`, `jm property`, `jm function`, and the
-`--preset` forms). The CLI recipes for each shape are in
-[Adding a Module](docs/dev/contributing/adding-a-module.md), Step 1;
-the full key reference is the
+Write the fragment by hand, or let jm's authoring verbs write it
+(`object`, `method`, `property`, `function`, and the `--preset` forms).
+No make target wraps those verbs yet
+([#2449](https://github.com/doppler-dsp/doppler/issues/2449)), so the
+make-SSOT hook stops a bare call. Until it lands, run the pinned binary
+(which `make jm-apply` syncs into `.venv`) with the hook's
+deliberate-exception prefix, then apply:
+
+```sh
+MAKE_SSOT_OK=1 .venv/bin/just-makeit object myobj --module mymodule \
+  --state gain:double:1.0 --mutable
+make jm-apply
+```
+
+The recipe for each shape is in
+[Adding a Module](docs/dev/contributing/adding-a-module.md), Step 1; the
+full key reference is the
 [jm docs](https://just-buildit.github.io/just-makeit/).
 
 ### 2. Register it in `just-makeit.toml`
@@ -182,8 +197,10 @@ overwrites it.
 [Docstring Authoring](docs/dev/contributing/docstring-authoring.md).
 
 **If the object has running state** (a phase, a delay line, an
-accumulator), it must serialize: the C triplet
-`<obj>_state_bytes`/`<obj>_get_state`/`<obj>_set_state` in the core, and
+accumulator), it must serialize: the C triplet `dp_<obj>_state_bytes`,
+`dp_<obj>_get_state` and `dp_<obj>_set_state` in the core (every derived
+symbol carries the `dp_` `c_prefix`; see `dp_boxcar_get_state` in
+`native/inc/doppler/boxcar/boxcar_core.h`), and
 `serializable = "true"` in the manifest so jm generates the Python face.
 [Adding a Module](docs/dev/contributing/adding-a-module.md), Step 4b,
 and [State Serialization](docs/design/state-serialization.md).
@@ -198,8 +215,10 @@ make test-stubs                                # the header @code doctests
 ```
 
 C tests go in `native/tests/test_<obj>_core.c`; Python integration tests
-in `src/doppler/<module>/tests/`. A serializable object is also added to
-the matrix in `src/doppler/tests/test_state_serialization.py`.
+in `src/doppler/<module>/tests/`. A serializable object is tested in both
+harnesses: a C round-trip with `DP_STATE_ROUNDTRIP_TEST` from
+`native/tests/dp_state_test.h`, and an entry in the Python matrix
+`src/doppler/tests/test_state_serialization.py`.
 
 ### 6. Reconcile and commit the declaration
 
@@ -210,6 +229,12 @@ gate CI runs:
 make jm-apply
 make drift-check
 ```
+
+A header change also changes the generated C API pages: regenerate them
+with `make gen-c-api`, which uses CI's doxygen if yours matches and
+otherwise the CI image (so it needs docker). The `gen-c-api-drift`
+pre-commit hook runs `make gen-c-api-check` on any staged `native/` C
+file.
 
 Commit the fragment, the C core and the tests together with whatever jm
 regenerated. **Never hand-edit a jm-owned file** to fix a binding: change
@@ -229,6 +254,9 @@ the lifecycle has one home each:
     [Object Validation](docs/dev/contributing/validation.md).
 - **Benchmarks**, C and Python:
     [Benchmarking](docs/dev/contributing/benchmarking.md).
+- **An API page**: a `docs/api/*.md` page whose `::: doppler.x.Y`
+    directive renders the docstring, plus its `mkdocs.yml` nav entry:
+    [Docs Conventions](docs/dev/contributing/docs-conventions.md).
 - **Doc pages and examples** (every fence is run):
     [Doc Examples](docs/dev/contributing/doc-examples.md).
 - **What is generated vs. hand-owned in the docs**:

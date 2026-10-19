@@ -104,18 +104,18 @@ ______________________________________________________________________
 
 ## The lifecycle at a glance
 
-| #   | phase          | produces                                                   | the how lives in                                                                 | proven by                                               |
-| --- | -------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| 1   | **Why**        | `docs/design/<algo>.md`                                    | this page                                                                        | review only                                             |
-| 2   | **Declare**    | `objects/<obj>.toml`, a `just-makeit.toml` entry           | [Adding a Module](adding-a-module.md)                                            | `make drift-check`                                      |
-| 3   | **Implement**  | `native/inc/<obj>/<obj>_core.h` + `_core.c`                | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)   | `ctest`                                                 |
-| 4   | **Pin**        | `native/tests/test_<obj>_core.c`                           | [Object Validation](validation.md) step 2                                        | `ctest`, `make tests-ssot`                              |
-| 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment                 | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md) | `make drift-check`, `make test-stubs`                   |
-| 6   | **Instrument** | the state triplet, telemetry probes                        | [state serialization](../../design/state-serialization.md)                       | `check_serializable.py`, the state matrix               |
-| 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/`   | [Object Validation](validation.md)                                               | `make validate-c`, `make characterize`                  |
-| 8   | **Certify**    | `tests/validation/<obj>/results.md`                        | [Object Validation](validation.md)                                               | `make validate-check`, `test_validation_limits.py`      |
-| 9   | **Document**   | header `@code`, a guide if needed, benchmarks, examples    | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)   | `make test-stubs`, `make test-examples-c`, `make bench` |
-| 10  | **Land**       | `changelog.d/<section>/<slug>.md`, issues for what is left | [Release](../release.md)                                                         | `make changelog-check`, `make issue-link-check`         |
+| #   | phase          | produces                                                   | the how lives in                                                                                                           | proven by                                                               |
+| --- | -------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 1   | **Why**        | `docs/design/<algo>.md`                                    | this page                                                                                                                  | review only                                                             |
+| 2   | **Declare**    | `objects/<obj>.toml`, a `just-makeit.toml` entry           | [Adding a Module](adding-a-module.md)                                                                                      | `make drift-check`                                                      |
+| 3   | **Implement**  | `native/inc/<obj>/<obj>_core.h` + `_core.c`                | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)                                             | `ctest`                                                                 |
+| 4   | **Pin**        | `native/tests/test_<obj>_core.c`                           | [Object Validation](validation.md) step 2                                                                                  | `ctest`, `make tests-ssot`                                              |
+| 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment                 | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md)                                           | `make drift-check`, `make test-stubs`                                   |
+| 6   | **Instrument** | the state triplet, telemetry probes                        | [state serialization](../../design/state-serialization.md), [telemetry](../../design/telemetry.md#instrumenting-an-object) | `check_serializable.py`, the state matrix, the object's probe-list test |
+| 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/`   | [Object Validation](validation.md)                                                                                         | `make validate-c`, `make characterize`                                  |
+| 8   | **Certify**    | `tests/validation/<obj>/results.md`                        | [Object Validation](validation.md)                                                                                         | `make validate-check`, `test_validation_limits.py`                      |
+| 9   | **Document**   | header `@code`, a guide if needed, benchmarks, examples    | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)                                             | `make test-stubs`, `make test-examples-c`, `make bench`                 |
+| 10  | **Land**       | `changelog.d/<section>/<slug>.md`, issues for what is left | [Release](../release.md)                                                                                                   | `make changelog-check`, `make issue-link-check`                         |
 
 CI runs the merge-guarding set; the per-phase targets above are how you
 find out sooner. (`make gates` reproduces that set locally, and is only for
@@ -211,6 +211,41 @@ Do this *before* the Python face exists. A test written through the binding
 measures whatever the binding happens to expose, and the surfaces that matter
 most are routinely the ones with no binding at all.
 
+### 5 — Bind, by declaring it
+
+The Python face is declared, not written. `objects/<obj>.toml` says what the
+binding exposes, and `make jm-apply` renders it: the `_ext` fragment, the
+`.pyi` and the `__init__.py` re-exports. Three things follow.
+
+- **A behaviour is a manifest key, not a hand patch.** Releasing the GIL, an
+    output buffer that grows on demand, a second constructor over the same
+    core, the state triplet and an enum decoded to its name are each a key:
+    `nogil`, `variable_output`, `[[<obj>.views]]`, `serializable`, `enum`.
+    An adopted fragment carries `fragment = "generated"`, and from then on a
+    hand edit turns `make drift-check` red. A behaviour `jm` cannot render yet
+    is a `jm` issue, not an edit.
+- **The binding has no prose of its own.** Its docstrings are the header's
+    Doxygen on both faces (phase 3), so a wrong docstring is fixed in the
+    header and re-rendered, and `make test-stubs` runs every `>>>` example in
+    the stubs.
+- **A borrowed handle is the binding's to keep alive.** A C object that
+    borrows a caller's context, a telemetry context say, writes through it for
+    as long as it is attached. Declaring that argument as a capsule with
+    `retain = true` makes the Python object hold a reference to it for exactly
+    that long, so a caller cannot free it underneath the C side.
+
+`objects/async_dsss_receiver.toml` shows all of it in one manifest:
+`set_telemetry` takes a retained `doppler.telemetry.dp_tlm` capsule and turns
+a refusal into a `ValueError` (`status_return`); the `lifecycle` property
+decodes the C state through `enum = "async_dsss_rx_state"`; `serializable`
+generates the state triplet; a `[[async_dsss_receiver.views]]` entry gives
+`CellAsyncDsssReceiver` its own constructor over the same core; and
+`fragment = "generated"` hands the fragment to `jm`.
+
+The how is [Adding a Module](adding-a-module.md) (declare, apply, the public
+surface, the Python tests), [Module Layout](module-layout.md) (what each
+generated file may contain) and [Docstring Authoring](docstring-authoring.md).
+
 ### 6 — Instrument
 
 Two things every stateful object owes its callers, and both are easy to
@@ -225,6 +260,37 @@ The rule worth knowing here is that a *published* diagnostic and a *useful*
 one are not the same thing: an object can publish two views of its own state
 that are secretly the same view. Check what a composing receiver would
 actually need to debug you.
+
+**Telemetry is a `set_telemetry (state, tlm, prefix, decim)` you write
+once.** A leaf registers its probes under the caller's prefix, joining every
+name through `dp_tlm_name_join()` before the first registration, and emits at
+event rate (a gain update, a symbol, a code period), never more than once an
+input sample, which is the bound a lossless capture is sized from.
+A composition forwards the attach to each child under a dotted sub-prefix,
+keeps the request so a rebuilt child is attached again, refuses the whole
+attach when one name does not fit, and adds the probes only it knows. The
+pattern, with the AGC as the leaf and `AsyncDsssReceiver` as the composition,
+is [Telemetry: instrumenting an object](../../design/telemetry.md#instrumenting-an-object).
+What to decide here:
+
+- **Pair a decision with the statistic it thresholds.** `.locked` next to
+    `.lock` lets a reader see where the rule fired without re-deriving the
+    threshold; a lifecycle state next to the loops says which stage a symptom
+    belongs to.
+- **Say the units and the cadence in the header, probe by probe.** A probe
+    in cycles a sample is read as Hz unless the header says otherwise, and a
+    probe reported once a call reads as one a symbol unless the header says
+    which.
+- **Pin the list.** Every name the attach registers belongs in the header's
+    `set_telemetry()` doc, and a C test that walks the registry against that
+    list keeps the two together (`_test_tlm_names_documented` in
+    `test_async_dsss_receiver_core.c`). No repository-wide gate does this yet
+    ([#2478](https://github.com/doppler-dsp/doppler/issues/2478)).
+
+The consumer's side, a capture read back into rows and drawn with
+`scripts/plot_capture.py`, is the
+[lifecycle gallery page](../../gallery/async-dsss-receiver-lifecycle.md) and
+[the Python telemetry API](../../api/python-telemetry.md).
 
 **A create-time count that changes what a surface means is a reject key, and
 a constructor argument.** `rate_hypotheses` (the burst engine's Doppler-rate

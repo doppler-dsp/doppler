@@ -257,6 +257,43 @@ holding a `dp_symsync_state_t`) inherit this automatically through the children'
 triplets, and forward their attach with a prefixed name
 (`"rx.sync.timing_err"`).
 
+### A composition: forward, keep the request, refuse whole
+
+A receiver built from instrumented loops attaches each one under its own prefix,
+one dotted level a child, and adds the probes only the composition can publish.
+`AsyncDsssReceiver` is the worked example: `adr_tlm_attach()` and
+`dp_async_dsss_receiver_set_telemetry()` in
+`native/src/async_dsss_receiver/async_dsss_receiver_core.c`.
+
+- **Forward under a sub-prefix.** `<prefix>.car` goes to its Costas loop,
+    `<prefix>.code` to its `Dll`, `<prefix>.demod` to its `MpskReceiver` and
+    `<prefix>.acq` to its search, each through the child's own
+    `set_telemetry()`. The composition never registers a child's probes itself.
+- **Keep the request, not just the ids.** The receiver rebuilds its tracking
+    chain on every seed, and the new children come up detached. So it stores
+    the attach (context, prefix, decimation) and re-runs it on every rebuild.
+    A registered name returns its own id, so each probe stays one series across
+    seeds and resets.
+- **Refuse whole.** Every name is joined before the first registration, and
+    the whole attach runs first against a scratch context. A prefix too long
+    for the deepest child's name, or a table without room for every probe, is
+    found there and refused before anything registers on the caller's context.
+- **Publish what only the composition knows.** Beyond its children, the
+    receiver reports its lifecycle (`.state`, `.handover_hz`, `.refused`) once
+    per `steps()` call and its symbol-lock decision once per symbol. Its
+    `steps()` hands a state change on to itself, so the lifecycle is emitted
+    from a wrapper around that recursive body, and a call reports once.
+- **Name every probe in the header, and pin the list.** The header's
+    `set_telemetry()` doc lists each probe with its cadence and its units, and
+    `_test_tlm_names_documented` in `native/tests/test_async_dsss_receiver_core.c`
+    fails when a registered name falls outside that list. A caller reads the
+    header, not the source.
+
+The consuming side is the
+[lifecycle gallery page](../gallery/async-dsss-receiver-lifecycle.md): a
+memory capture, rows read back from the records, and a file capture for
+`scripts/plot_capture.py`.
+
 ______________________________________________________________________
 
 ## Consuming

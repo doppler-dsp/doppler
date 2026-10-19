@@ -225,6 +225,10 @@ everything the attach armed.
 | `dsss.CellAsyncDsssReceiver` | as `AsyncDsssReceiver`, without `.acq.*`                                                                                                                    | as `AsyncDsssReceiver`                                                                      |
 | `dsss.AsyncDsssPool`         | `.assigned`, `.dropped`, `.events`; `.acq.*` (its searcher); `.s<i>.*` (slot `i`'s `CellAsyncDsssReceiver`)                                                 | the counters per `push()`, the searcher per decided dwell                                   |
 
+`resample.RateConverter` has no row because it has no `set_telemetry()` in
+Python: the only probes it carries are its AGC's, and the receiver that builds
+it reports them, as `MpskReceiver`'s `.agc.*`.
+
 `AsyncDsssReceiver`'s `.state` is its lifecycle as the C integer: 0
 searching, 1 refining, 2 tracking, 3 idle, 4 lost. `.handover_hz` is the
 Doppler its chain was built from, not the live carrier, which

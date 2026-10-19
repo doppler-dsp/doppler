@@ -191,13 +191,8 @@ jobs:
         # macOS ships BSD date, and BOTH sides of this comparison want GNU:
         # just-bashit's own helper picks `gdate` when it is there, and this
         # gate needs it to split an instant into the (seconds, nanoseconds)
-        # pair the C API takes. Installing it keeps the check REQUIRED on
-        # every platform doppler ships a wheel for, rather than quietly
-        # Linux-only -- the C side formats through the platform libc's
-        # gmtime_r, so parity on Linux does not prove parity on macOS.
-        if [ "$RUNNER_OS" = "macOS" ]; then
-            brew install coreutils
-        fi
+        # pair the C API takes. Linux's `date` is GNU date already; the macOS
+        # job gets `gdate` from bootstrap.toml's [dev.brew] coreutils.
         git clone --depth 1 https://github.com/just-buildit/just-bashit.git \
             "$RUNNER_TEMP/just-bashit"
         make check-isotime-parity ISOTIME_REQUIRE=1 \
@@ -488,13 +483,11 @@ jobs:
         # macOS ships BSD date, and BOTH sides of this comparison want GNU:
         # just-bashit's own helper picks `gdate` when it is there, and this
         # gate needs it to split an instant into the (seconds, nanoseconds)
-        # pair the C API takes. Installing it keeps the check REQUIRED on
-        # every platform doppler ships a wheel for, rather than quietly
-        # Linux-only -- the C side formats through the platform libc's
-        # gmtime_r, so parity on Linux does not prove parity on macOS.
-        if [ "$RUNNER_OS" = "macOS" ]; then
-            brew install coreutils
-        fi
+        # pair the C API takes. bootstrap.toml's [dev.brew] lists coreutils,
+        # so `make install-deps-ci` provides `gdate`, which keeps the check
+        # REQUIRED on every platform doppler ships a wheel for, rather than
+        # quietly Linux-only -- the C side formats through the platform
+        # libc's gmtime_r, so parity on Linux does not prove parity on macOS.
         git clone --depth 1 https://github.com/just-buildit/just-bashit.git \
             "$RUNNER_TEMP/just-bashit"
         make check-isotime-parity ISOTIME_REQUIRE=1 \
@@ -1070,9 +1063,8 @@ jobs:
           - { target: test-asan, label: "ASan + LSan (C suite)" }
           - { target: test-ubsan, label: "UBSan (C suite)" }
           - { target: test-tsan, label: "TSan (C suite)" }
-    # The toolchain is the image, the sanitizer runtime included -- the same
-    # reason the coverage job takes libclang-rt from here rather than naming
-    # it in bootstrap.toml.
+    # The toolchain is the image, the sanitizer runtime included: it comes
+    # from bootstrap.toml's clang-rt group, which is in CI_IMAGE_GROUPS.
     container:
       image: ${{ needs.pin.outputs.image_2404 }}
       credentials:
@@ -1178,8 +1170,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     # clang, llvm-profdata/llvm-cov, cargo and the profile runtime all come
-    # from the image -- including libclang-rt, which bootstrap.toml cannot
-    # name because the package is per-release and that file is not.
+    # from the image -- libclang-rt from bootstrap.toml's clang-rt group,
+    # whose apt cmd derives the per-release package name.
     container:
       image: ${{ needs.pin.outputs.image_2404 }}
       credentials:

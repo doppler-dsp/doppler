@@ -340,7 +340,7 @@ static PyMethodDef CaptureObj_methods[] = {
     "Reset state to post-create defaults.\n" },
 
   { "read", (PyCFunction)(void *)CaptureObj_read, METH_VARARGS | METH_KEYWORDS,
-    "read(count=1) -> ndarray\n"
+    "read(count=1, out=None) -> ndarray\n"
     "\n"
     "Read up to `count` samples as unit-scale complex64; an empty array at "
     "end of file.\n"

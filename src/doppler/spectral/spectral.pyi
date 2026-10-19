@@ -307,6 +307,7 @@ class FFT:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the FFT.
 
@@ -622,6 +623,7 @@ class FFT2D:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the FFT2D.
 
@@ -801,7 +803,7 @@ class Corr:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -866,6 +868,7 @@ class Corr:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Corr.
 
@@ -1061,7 +1064,7 @@ class Corr2D:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -1142,6 +1145,7 @@ class Corr2D:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Corr2D.
 
@@ -1228,7 +1232,7 @@ class CorrDetector:
 
         """
 
-    def push(self, x: complex) -> list[tuple[int, float, float, float]]:
+    def push(self, x: complex, /) -> list[tuple[int, float, float, float]]:
         """Stream an arbitrary-length CF32 chunk through the detector pipeline.
         Takes the input in order, runs each complete n-sample frame through the
         correlator, and on every int-dump computes the test statistic peak_mag
@@ -1310,7 +1314,7 @@ class CorrDetector:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -1401,6 +1405,7 @@ class CorrDetector:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the CorrDetector.
 
@@ -1487,7 +1492,11 @@ class CorrDetector2D:
 
         """
 
-    def push(self, x: complex) -> list[tuple[int, int, float, float, float]]:
+    def push(
+        self,
+        x: complex,
+        /,
+    ) -> list[tuple[int, int, float, float, float]]:
         """Stream an arbitrary-length CF32 chunk through the 2-D detector. The
         same pipeline as dp_detector_push(), except that frames are ny*nx
         complex samples and each detection event carries (row, col) for the
@@ -1571,7 +1580,7 @@ class CorrDetector2D:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -1670,6 +1679,7 @@ class CorrDetector2D:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the CorrDetector2D.
 
@@ -2108,7 +2118,7 @@ class PSD:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -2197,6 +2207,7 @@ class PSD:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the PSD.
 
@@ -2338,7 +2349,7 @@ class Spectrogram:
             the C call writes no output.
         """
 
-    def push_max_out(self, n_in: int) -> int:
+    def push_max_out(self, n_in: int, /) -> int:
         """Floats one push of n_in samples writes when out has room: the
         rows_for(n_in) count times nfft.
 
@@ -2509,7 +2520,7 @@ class Spectrogram:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -2603,6 +2614,7 @@ class Spectrogram:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Spectrogram.
 

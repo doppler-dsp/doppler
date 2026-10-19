@@ -542,7 +542,7 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     ">>> d.ptr().tolist()\n"
     "[(3+4j), (1+2j), 0j]\n" },
   { "ptr", (PyCFunction)(void *)DelayCf64Obj_ptr, METH_VARARGS | METH_KEYWORDS,
-    "ptr(count=...) -> ndarray\n"
+    "ptr(count=..., out=None) -> ndarray\n"
     "\n"
     "Snapshot the n most recent samples. Copies at most min(n, num_taps)\n"
     "samples starting from `buf[head]` into out. Because the dual-buffer\n"

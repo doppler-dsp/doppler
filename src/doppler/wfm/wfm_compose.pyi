@@ -301,7 +301,7 @@ class Synth:
     data_len: int
     fill: bytes | None
     fs: float
-    def steps(self, n: int) -> NDArray[np.complex64]:
+    def steps(self, n: int, /) -> NDArray[np.complex64]:
         """Generate the next *n* samples of this source on its own.
 
         The first call builds the generator from this configuration, through
@@ -781,16 +781,39 @@ class Composer:
         continuous: bool = ...,
         **segment_kwargs,
     ) -> None: ...
-    def execute(self, n: int) -> NDArray[np.complex64]:
-        """Execute for *n* samples."""
+    def execute(self, n: int, /) -> NDArray[np.complex64]:
+        """Execute for the next *n* samples.
+
+        Reads the Composer's one cursor, shared with ``compose()`` and
+        ``stream()``: it continues where the last read stopped, and a drained
+        Composer yields nothing. Build a new Composer to start over. A short or
+        empty array means the sequence ended.
+        """
     def compose(self, block: int = ...) -> NDArray[np.complex64]:
-        """Compose the full sequence into one array."""
+        """Compose what remains of the sequence into one array.
+
+        On a fresh Composer that is the full sequence; after ``execute(n)`` it
+        is the rest. Reads the Composer's one cursor, shared with ``execute()``
+        and ``stream()``: it continues where the last read stopped, and a
+        drained Composer yields nothing. Build a new Composer to start over.
+
+        Raises
+        ------
+        ValueError
+            On a continuous spec, which never ends; use
+            ``execute()`` or ``stream()``.
+        """
     def stream(
         self,
         block: int = ...,
         realtime: float = ...,
     ) -> Iterator[NDArray[np.complex64]]:
         """Iterate the sequence in blocks.
+
+        Reads the Composer's one cursor, shared with ``execute()`` and
+        ``compose()``: it continues where the last read stopped, and a drained
+        Composer yields nothing. Build a new Composer to start over. Two live
+        iterators interleave over one sequence.
 
         Parameters
         ----------
@@ -822,10 +845,10 @@ class Composer:
     def __enter__(self) -> Composer: ...
     def __exit__(self, *exc) -> None: ...
     @classmethod
-    def from_json(cls, json: str) -> Composer:
+    def from_json(cls, json: str, /) -> Composer:
         """Build a Composer from a JSON spec."""
     @classmethod
-    def from_file(cls, path: str) -> Composer:
+    def from_file(cls, path: str, /) -> Composer:
         """Build a Composer from a JSON spec file."""
     def to_json(self) -> str:
         """Serialise the spec as JSON."""

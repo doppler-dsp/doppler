@@ -4,7 +4,7 @@ version = "0.72.0"
 
 [tools.install-deps]
 source = "just-bashit:install-deps"
-groups = ["runtime", "dev"]
+groups = ["runtime", "dev", "clang-rt"]
 
 [tools.just-makeit]
 source = "just-bashit:just-makeit"
@@ -41,22 +41,25 @@ config = "just-makeit.toml"
 #     stays out of bootstrap.toml's dev group". That distinction does not survive
 #     `gates` running `coverage`: it made this file no longer the one place a
 #     consumer reads from, which is the exact invariant stated above.
-# NOT listed: compiler-rt. `coverage` needs clang's profile runtime
-# (libclang_rt.profile.a), and whether `clang` already provides it is a
-# property of the DISTRO RELEASE, which one package list cannot express:
+# compiler-rt is its OWN group, `clang-rt`, below. `coverage` needs clang's
+# profile runtime (libclang_rt.profile.a) and `test-asan` its ASan runtime,
+# and whether `clang` already provides them is a property of the DISTRO
+# RELEASE, which one package list cannot express:
 #
-#   Ubuntu 22.04 (clang 14)   ships it inside clang's own packages, and has
+#   Ubuntu 22.04 (clang 14)   ships them inside clang's own packages, and has
 #                             no libclang-rt package at all -- naming one
 #                             fails apt outright with "Unable to locate".
-#   Ubuntu 26.04 (clang 21)   splits it into libclang-rt-21-dev, which
-#                             `clang` does NOT depend on.
+#   Ubuntu 26.04 (clang 21)   splits them into libclang-rt-21-dev, which
+#                             `clang` does NOT depend on. Debian 13 does the
+#                             same with clang 19.
 #
 # Both measured, the first in a jammy container. Listing the newer name
-# broke the 22.04 CI job at install-deps; listing a versioned one pins the
-# clang major. So `make coverage` DERIVES it instead: it probes whether the
-# toolchain can link -fprofile-instr-generate and, if not, names the
-# package for the distro at hand. A check beats an enumeration here because
-# the enumeration is per-release and this file is not.
+# broke the 22.04 CI job at install-deps, and listing a versioned one pins
+# the clang major. So [clang-rt.apt] is a `cmd` that DERIVES the name from
+# the clang the dev group just installed, and tolerates its absence where
+# clang bundles the runtime; the link probes in `make coverage`, `make
+# test-asan` and docker/ci-extra.sh remain the assertion. It is a separate
+# group because a `cmd` replaces a section's `packages` outright.
 #
 # All of it is excluded from the build-from-source docs projection
 # (gen_install_scripts.py's DOCS_EXCLUDE), alongside the `rust` entry that was
@@ -144,6 +147,7 @@ packages = [
 # chasing a leak uses `-fsanitize=address`, which Xcode's clang has built in.
 [dev.brew]
 packages = [
+    "coreutils",
     "cmake",
     "ccache",
     "pkg-config",
@@ -218,8 +222,91 @@ packages = [
 # the zero-warning `doxygen-check` gate turns red — so this cannot rot
 # silently. Re-add the LaTeX set THEN, with that failure in hand, rather than
 # speculatively.
+#
+# The docs toolchain is two layers, and only the first lives here:
+#
+#   * System binaries, listed below: `doxygen` (mkdoxy shells out to it to
+#     read the C headers for docs/c-api/) and `graphviz`.
+#   * Python, from uv's `docs` group in pyproject.toml: zensical (the site),
+#     mkdocs + mkdocstrings (mkdocs-capi.yml) and mkdoxy. Never put these
+#     in a system package list -- uv pins them in uv.lock.
+#
+# Every manager with a [dev.*] section gets a [docs.*] one too. Before this,
+# only apt was listed, so `make install-docs-deps` on Arch, Fedora, openSUSE
+# or macOS stopped at install-deps' "no packages or cmd found for group(s)
+# 'docs'", and the docs could not be provisioned there at all. The names
+# match on all four.
+#
+# No [docs.msys2]: this repo's Windows toolchain is MSVC, which this file
+# does not provision (see [dev.msys2] above).
 [docs.apt]
 packages = [
     "doxygen",
     "graphviz",
+]
+
+[docs.pacman]
+packages = [
+    "doxygen",
+    "graphviz",
+]
+
+[docs.brew]
+packages = [
+    "doxygen",
+    "graphviz",
+]
+
+[docs.dnf]
+packages = [
+    "doxygen",
+    "graphviz",
+]
+
+[docs.zypper]
+packages = [
+    "doxygen",
+    "graphviz",
+]
+
+# clang's compiler runtime: libclang_rt.profile (`make coverage`) and
+# libclang_rt.asan (`make test-asan`). Why it is a group of its own, and why
+# apt derives the name, is the compiler-rt paragraph near the top.
+#
+# The apt `cmd` tolerates exactly one thing: the package not existing on this
+# release (22.04, whose clang bundles the runtime), asked of `apt-cache show`
+# before installing. Everything else fails the install -- no clang or an
+# empty version, no sudo, a failed install (a lock, the network) -- rather
+# than being reported as a bundled runtime. A failed `apt-get update` only
+# warns, as install-deps' own update does (one broken third-party source must
+# not stop an install the cached lists can serve), but then absence is not
+# claimed: with stale lists a missing package fails instead of reading as
+# bundled.
+# It runs `apt-get update` itself and carries the retry and timeout options,
+# because a `cmd` is run verbatim, without the update and options
+# install-deps applies to a `packages` list. It escalates only when not
+# root, so the same line serves a dev box and the root CI image build.
+#
+# No `]` and no double quote in it: just-bashit's TOML reader ends a string at
+# the first `]` (measured on v0.7.1, the image's pin, and the current
+# release). `make bootstrap-cmd-check` (on lint) refuses either character in
+# any `cmd`, and runs this one against stubbed apt for each case above.
+[clang-rt.apt]
+cmd = [
+    "sh", "-c",
+    "o='-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30'; v=$(clang -dumpversion) || exit 1; v=${v%%.*}; case $v in '') echo clang-rt: clang reported no version >&2; exit 1;; esac; p=libclang-rt-$v-dev; s=; test $(id -u) -eq 0 || s=sudo; u=0; $s apt-get $o update -qq || { echo clang-rt: apt-get update failed - using the cached lists >&2; u=1; }; if apt-cache show $p >/dev/null 2>&1; then $s apt-get $o install -y --no-install-recommends $p; elif test $u -eq 0; then echo clang-rt: no $p on this release - clang bundles its runtime here; else echo clang-rt: $p is not in the cached lists and apt-get update failed >&2; exit 1; fi",
+]
+
+# Arch and Fedora package the runtime once, unversioned, as `compiler-rt`
+# (Arch: "Compiler runtime libraries for clang"; Fedora: the sanitizer
+# runtimes and the profiling library). Not listed for zypper: openSUSE's name
+# is unverified here. Not for brew: Xcode's clang has the runtime built in.
+[clang-rt.pacman]
+packages = [
+    "compiler-rt",
+]
+
+[clang-rt.dnf]
+packages = [
+    "compiler-rt",
 ]

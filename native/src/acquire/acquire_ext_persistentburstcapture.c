@@ -1626,7 +1626,7 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     "    Output.\n" },
   { "detections", (PyCFunction)(void *)PersistentBurstCaptureObj_detections,
     METH_VARARGS | METH_KEYWORDS,
-    "detections(count=1) -> ndarray\n"
+    "detections(count=1, out=None) -> ndarray\n"
     "\n"
     "Every hit the search made in the last push(), unfiltered — before the "
     "claim rule coalesced the several detections of one preamble, and before "
@@ -1701,7 +1701,7 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     "    Output.\n" },
   { "events", (PyCFunction)(void *)PersistentBurstCaptureObj_events,
     METH_VARARGS | METH_KEYWORDS,
-    "events(count=1) -> ndarray\n"
+    "events(count=1, out=None) -> ndarray\n"
     "\n"
     "The event record for each burst the last push() returned. Row i "
     "describes the window at samples[i*burst_len ...] of that push. Valid "

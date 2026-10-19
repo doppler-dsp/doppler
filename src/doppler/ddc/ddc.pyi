@@ -75,7 +75,7 @@ class DDC:
 
         """
 
-    def execute_max_out(self, x_len: int) -> int:
+    def execute_max_out(self, x_len: int, /) -> int:
         """Maximum output samples one execute() of x_len inputs can produce.
 
         A DDC decimates (or passes at unity), so the output never exceeds the
@@ -153,7 +153,7 @@ class DDC:
 
         """
 
-    def execute_ctrl_max_out(self, x_len: int) -> int:
+    def execute_ctrl_max_out(self, x_len: int, /) -> int:
         """Largest number of samples execute_ctrl() can return for x_len
         inputs.
 
@@ -292,7 +292,7 @@ class DDC:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -361,6 +361,7 @@ class DDC:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the DDC.
 
@@ -467,7 +468,7 @@ class MatchedDDC:
 
         """
 
-    def execute_max_out(self, x_len: int) -> int:
+    def execute_max_out(self, x_len: int, /) -> int:
         """Maximum output samples one execute() of x_len inputs can produce.
 
         A DDC decimates (or passes at unity), so the output never exceeds the
@@ -545,7 +546,7 @@ class MatchedDDC:
 
         """
 
-    def execute_ctrl_max_out(self, x_len: int) -> int:
+    def execute_ctrl_max_out(self, x_len: int, /) -> int:
         """Largest number of samples execute_ctrl() can return for x_len
         inputs.
 
@@ -684,7 +685,7 @@ class MatchedDDC:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -753,6 +754,7 @@ class MatchedDDC:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the MatchedDDC.
 
@@ -1023,7 +1025,7 @@ class Ddcr:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -1106,6 +1108,7 @@ class Ddcr:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the Ddcr.
 
@@ -1385,7 +1388,7 @@ class MatchedDdcr:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -1468,6 +1471,7 @@ class MatchedDdcr:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the MatchedDdcr.
 

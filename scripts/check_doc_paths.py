@@ -47,6 +47,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+#: Root pages outside the docs site, so check_site_links (which reads only
+#: the built site) never sees their LINKS either: those are checked here as
+#: well as their code-span paths. CONTRIBUTING.md walks through a real object
+#: by path ("every path below exists"), a claim nothing ran until it was
+#: listed here (PR #2448's review); CLAUDE.md names the layout a
+#: contributor (or an agent) is told to follow, so a stale path there
+#: misleads the same way.
+ROOT_PAGES = ("CONTRIBUTING.md", "CLAUDE.md")
+
 #: Where prose lives. Headers are included deliberately -- see above.
 SOURCES = (
     "docs/**/*.md",
@@ -59,6 +68,7 @@ SOURCES = (
     # looked. A path in an example is now checked like a path in a page.
     "src/doppler/examples/*.py",
     "native/examples/*.c",
+    *ROOT_PAGES,
 )
 
 #: Directories that are unmistakably this repo's, so a code span starting with
@@ -108,6 +118,9 @@ _BARE_PATH = re.compile(
 #: Where a bare path is checked as strictly as a backticked one.
 EXAMPLE_SOURCES = ("src/doppler/examples/", "examples/", "native/examples/")
 
+#: A relative markdown link target, minus any #anchor: `[text](path#a)`.
+_LINK = re.compile(r"\]\(([^)#\s:]+)(?:#[^)\s]*)?\)")
+
 #: A placeholder rather than a real path -- `<obj>_core.c`, `bench_*.c`.
 _PLACEHOLDER = re.compile(r"[*<>{}]")
 
@@ -149,6 +162,15 @@ def main() -> int:
                 f"{src.relative_to(ROOT)}: cites `{path}`, which does not "
                 "exist. Fix the path, or if it belongs to a sibling project "
                 "name that project in the same paragraph."
+            )
+        if rel not in ROOT_PAGES:
+            continue
+        for m in _LINK.finditer(text):
+            checked += 1
+            if (src.parent / m.group(1)).exists():
+                continue
+            failures.append(
+                f"{rel}: links to `{m.group(1)}`, which does not exist."
             )
 
     if failures:

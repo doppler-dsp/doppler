@@ -117,7 +117,7 @@ class DelayCf64:
 
         """
 
-    def ptr_max_out(self, n: int) -> int:
+    def ptr_max_out(self, n: int, /) -> int:
         """Maximum samples dp_delay_ptr() writes for a request of n. Returns
         min(n, num_taps) — the tight per-call bound (gh-607).
 
@@ -177,7 +177,7 @@ class DelayCf64:
             num_taps (number of samples dp_delay_push_ptr() will write).
         """
 
-    def write(self, x: complex) -> None:
+    def write(self, x: complex, /) -> None:
         """Alias for dp_delay_push(); insert a sample without reading back.
         Provided for API symmetry with write-then-read patterns where the
         caller wants to decouple sample ingestion from window inspection.
@@ -235,7 +235,7 @@ class DelayCf64:
             Opaque snapshot, `state_bytes()` bytes long.
         """
 
-    def set_state(self, blob: bytes) -> None:
+    def set_state(self, blob: bytes, /) -> None:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place, including any value a setter
@@ -292,6 +292,7 @@ class DelayCf64:
         exc_type: object | None = ...,
         exc: object | None = ...,
         tb: object | None = ...,
+        /,
     ) -> None:
         """Exit a context manager, releasing the DelayCf64.
 

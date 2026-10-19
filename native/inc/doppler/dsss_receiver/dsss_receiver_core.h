@@ -208,11 +208,11 @@ extern "C"
    *                             default 0.9.
    * @param doppler_uncertainty  One-sided Doppler search half-range, Hz;
    *                             default 100.0.
-   * @param segments             Dll's own non-coherent partial-correlation
-   *                             count per code epoch — its tracking-
-   *                             robustness parameter, independent of
+   * @param segments             Dll's partial correlations per code epoch:
+   *                             its despread output rate and the grain of
+   *                             its look-back window, independent of
    *                             `sps` (see the module docstring); default
-   *                             4, this story's own validated sweet spot.
+   *                             4.
    * @param sps                  MpskReceiver's samples/symbol, reached by
    *                             an internal RateConverter bridging the
    *                             despreader's own partial rate to this

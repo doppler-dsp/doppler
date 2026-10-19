@@ -1777,9 +1777,9 @@ class DsssReceiver:
     doppler_uncertainty : float, default 100.0
         One-sided Doppler search half-range, Hz; default 100.0.
     segments : int, default 4
-        Dll's own non-coherent partial-correlation count per code epoch — its
-        tracking- robustness parameter, independent of `sps` (see the module
-        docstring); default 4, this story's own validated sweet spot.
+        Dll's partial correlations per code epoch: its despread output rate and
+        the grain of its look-back window, independent of `sps` (see the module
+        docstring); default 4.
     sps : int, default 8
         MpskReceiver's samples/symbol, reached by an internal RateConverter
         bridging the despreader's own partial rate to this rate; default 8,

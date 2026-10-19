@@ -15,6 +15,8 @@
  *   6c. Symbol-period aid: the code loop steers on the aided window, once
  *       per symbol, with bn kept per epoch (the rate is continuous across
  *       the switch)
+ *   6d. segments > 1: the discriminator's sums are coherent over its
+ *       window -- a residual carrier of one cycle per period nulls it
  *   7. Always-on lock detector: locks on signal, not on noise
  *   8. Long-run false-lock regression (segments=1, ~4188 periods, several
  *      noise seeds, zero Doppler/carrier)
@@ -1454,6 +1456,57 @@ main (void)
     dp_dll_destroy (d);
     free (rx);
     free (out);
+    free (code);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 6d. segments > 1: the discriminator's sums are coherent over its *
+   *     one-period window, so a residual carrier of one whole cycle  *
+   *     per period nulls it, and half a cycle does not               *
+   * ---------------------------------------------------------------- */
+  {
+    /* dp_dll_steps() promises: blind to the carrier's phase, not to its
+       frequency; a residual df costs a window of T seconds sinc^2(df*T) of
+       its power, and a whole 1/T cycle nulls it. Each partial spans a
+       quarter of that cycle, so a loop that combined its partials
+       non-coherently (sum|E_k|) would hold the code at one cycle too. A
+       held code (no Doppler, constant data, seeded on the code) isolates
+       the window: at 0 and half a cycle per period the loop stays on the
+       code; at one whole cycle it walks off it. */
+    const size_t sf = 63, sps = 4, K = 4, nper = 500;
+    const size_t te   = sf * sps;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 11u);
+    float _Complex *clean = malloc (te * nper * sizeof *clean);
+    float _Complex *rx    = malloc (te * nper * sizeof *rx);
+    float _Complex *out   = malloc (te * nper * sizeof *out);
+    size_t          n = make_signal (clean, code, sf, sps, 0.0, nper, 3u, 1);
+    const double    cycles[3] = { 0.0, 0.5, 1.0 }; /* per code period */
+    double          off[3];
+    for (int c = 0; c < 3; c++)
+      {
+        for (size_t i = 0; i < n; i++)
+          rx[i] = clean[i]
+                  * (float _Complex)cexp (I * 2.0 * M_PI * cycles[c]
+                                          * (double)i / (double)te);
+        dp_dll_state_t *d
+            = dp_dll_create (code, sf, sps, 0.0, 0.005, 0.707, 0.5, K);
+        dp_dll_steps (d, rx, n, out, n);
+        /* The incoming code is at phase 0 at every period boundary; fold
+           the loop's phase to the nearest, signed. */
+        double ph = dp_dll_get_code_phase (d);
+        off[c]    = ph > 0.5 * (double)sf ? ph - (double)sf : ph;
+        dp_dll_destroy (d);
+      }
+    printf ("  6d: code phase off after %zu periods, residual 0 / 0.5 / 1 "
+            "cycle per period: %+.3f / %+.3f / %+.3f chips\n",
+            nper, off[0], off[1], off[2]);
+    DP_CHECK (fabs (off[0]) < 0.05); /* no residual: on the code */
+    DP_CHECK (fabs (off[1]) < 0.05); /* half a cycle: -3.9 dB, still on */
+    DP_CHECK (fabs (off[2]) > 0.5);  /* a whole cycle nulls the window */
+    free (out);
+    free (rx);
+    free (clean);
     free (code);
   }
 

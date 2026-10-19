@@ -365,7 +365,7 @@ Only `code`/`chip_rate`/`symbol_rate` describe the signal itself — everything 
 * `pfa` Acquisition false-alarm target; default 1e-3. 
 * `pd` Acquisition detection-probability target; default 0.9. 
 * `doppler_uncertainty` One-sided Doppler search half-range, Hz; default 100.0. 
-* `segments` Dll's own non-coherent partial-correlation count per code epoch — its tracking- robustness parameter, independent of `sps` (see the module docstring); default 4, this story's own validated sweet spot. 
+* `segments` Dll's partial correlations per code epoch: its despread output rate and the grain of its look-back window, independent of `sps` (see the module docstring); default 4. 
 * `sps` MpskReceiver's samples/symbol, reached by an internal RateConverter bridging the despreader's own partial rate to this rate; default 8, MpskReceiver's own constructor default. 
 * `differential` MpskReceiver's differential (rotation- invariant) demap; default 0 (coherent). 
 ```C++

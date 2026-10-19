@@ -158,8 +158,10 @@ def test_segments_recover_async_data():
     assert min(np.mean(dec != data[2:1998]), np.mean(dec == data[2:1998])) == 0
 
 
-# --- carrier-present: the despreader removes only the code; the non-coherent
-# code loop is carrier-blind and carrier recovery is a downstream stage. ---
+# --- carrier-present: the despreader removes only the code. A residual
+# carrier small against a code period's 1/T bin costs the loop's coherent
+# window sinc^2(f0*T) of its power, so the loop still tracks, and the residual
+# rides out on the partials. ---
 
 
 def _carrier_async_signal(
@@ -170,8 +172,8 @@ def _carrier_async_signal(
     Models the despreader's realistic input: acquisition has removed the bulk
     Doppler, leaving a small residual carrier (``f0`` ≲ ½ an epoch FFT bin),
     plus a code-rate offset ``dcode`` and a data clock ``Tsym=TE*(1+dsym)`` at
-    phase ``phi``.  Carrier recovery is a *downstream* problem, so the carrier
-    is left on the samples here.
+    phase ``phi``.  The residual is left on the samples here: the loop
+    tolerates one that is small against a code period's bin.
     """
     rng = np.random.default_rng(seed)
     csign = np.where(code & 1, -1.0, 1.0)
@@ -208,23 +210,30 @@ def test_segments_streaming_block_invariant():
 
 
 def test_segments_carrier_present_holds_code_lock():
-    # the non-coherent (|E|-|L|) discriminator is carrier-blind, so the loop
-    # tracks a code-rate offset with a residual carrier still on the samples
-    # (const data isolates code tracking from the async-symbol straddle).
-    # 6000 epochs (not the previous 1500): the loop filter's full-output/
-    # tsamps scaling (the validated fix for segments>1's long-run
-    # divergence) has a much smaller integrator-to-phase_inc gain than the
-    # old "integrator alone as the rate" scheme, so it settles correctly
-    # but slower -- confirmed by hand that 1500 epochs only reaches ~9% of
-    # the way to dcode, while 6000+ converges cleanly to 1.0+dcode.
+    # the power discriminator is blind to the carrier's phase, and this
+    # residual is a quarter of a code period's bin (f0 * TE ~ 0.25), which
+    # costs its coherent window under 1 dB, so the loop tracks a code-rate
+    # offset with the residual still on the samples (const data isolates
+    # code tracking from the async-symbol straddle). 6000 epochs: at bn
+    # 0.005 the partial-correlation loop settles slowly.
+    #
+    # The check is the code phase, not only the rate: at a code Doppler past
+    # what this bandwidth pulls in (3e-4), the loop slips off the code and
+    # still reads a rate near the Doppler, unlocked. The stimulus puts each
+    # chip edge on a whole sample, so once the edges drift between samples
+    # the incoming code sits half a sample (1/(2*SPS) chip) late on average.
     code = _code(11)
-    dcode = 3e-4
+    dcode = 1e-4
     rx, _, _ = _carrier_async_signal(
         code, 6000, 0.0, 0.0, f0=1e-3, dcode=dcode, const_data=True, seed=7
     )
     d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5, segments=4)
     d.steps(rx)
-    assert d.code_rate == pytest.approx(1.0 + dcode, abs=1e-4)
+    incoming = (len(rx) * (1.0 + dcode) / SPS) % SF
+    off = (d.code_phase - incoming + SF / 2) % SF - SF / 2
+    assert abs(off) < 0.25, f"the loop is {off:+.3f} chips off the code"
+    assert d.locked
+    assert d.code_rate == pytest.approx(1.0 + dcode, abs=dcode / 4)
 
 
 def test_segments_carrier_present_output_recoverable():

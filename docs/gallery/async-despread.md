@@ -1,136 +1,154 @@
 # Streaming Async Despreader
 
-![Async despreader: oversampled BPSK out](../assets/async_despread_demo.png)
+![Code lock statistic and loop filter output, unaided and aided, at this link's Doppler and at an inflated one, and the despread output](../assets/async_despread_demo.png)
 
-A [`track.Dll`](../api/python-track.md) in **segments** mode — the streaming
-DSSS despreader. Its one job is to **remove the PN code and output samples**.
-Two things make this the *asynchronous* case, and both are why segments mode
-exists:
+A [`track.Dll`](../api/python-track.md) with `segments > 1` is the despreader of
+a DSSS link whose data clock is asynchronous to its code. It takes a
+carrier-wiped stream, removes the spreading code, and emits `segments` despread
+samples per code period. Those samples carry the symbol clock to the next stage,
+a symbol-timing loop.
 
-- the data symbols ride a clock **asynchronous** to the code epoch, so the DLL
-    despreads in `K` **coherent** sub-epoch integrate-and-dump segments — a
-    segment that straddles a mid-symbol data flip loses amplitude, not phase,
-    where a single full-epoch I&D would be corrupted;
-- the code Doppler dilates the chip clock, and the power discriminator can't
-    pull that rate in on its own at low SNR, so the code rate is supplied by
-    **carrier→code aiding** ([`Dll.set_rate_aid`](../api/python-track.md)).
+Two things make the asynchronous case different:
 
-The DLL runs on a **carrier-wiped** stream: the carrier loop is *upstream* (here
-a genie de-rotate stands in for the [`Costas`](costas.md) loop that
-[`AsyncDsssReceiver`](async-dsss-receiver-spec.md) runs before its DLL). This is
-the SPEC geometry: **CCSDS Gold-1023**, 8 samples/chip, code Doppler 2e‑4, data
-clock offset 4e‑3 from the code epoch. `K = 11` is
-`dp_dll_lookback_segments(1023, 0.5 dB)` — the number of transition-free coherent
-segments the 1023 code splits into at the SPEC's tolerable correlation loss, the
-same value the receiver's refine/track stages use.
+- **A data transition lands in most code periods.** Summed coherently across a
+    transition, a period's correlation cancels. So the loop splits each period
+    into partials and steers on the one-period window its look-back finds free
+    of a transition.
+- **The code clock is dilated by the same motion that shifts the carrier.** A
+    carrier offset `f` on a carrier `fc` is a code-rate ratio `f/fc`. The
+    carrier estimate that wipes the carrier, divided by `fc`, is also the
+    code-rate aid, [`Dll.set_rate_aid`](../api/python-track.md). Aided, the loop
+    carries only what the estimate missed, so it can stay narrow.
 
-## What you're seeing
+The setup is CCSDS Gold-1023 at 3.069 Mcps, asynchronous BPSK at 2700 bps, two
+samples per chip, at 10 dB Es/N0. The page runs the link twice, unaided and
+aided, at two Dopplers:
 
-**Left — Oversampled asynchronous BPSK out.** The despread segment stream at
-`K = 11` samples/symbol, with the `|despread|` envelope (gray) drawn so the
-amplitude is explicit. The symbol edges (red, dashed) **slide** through the
-segment grid because the symbol clock is independent of the code clock — that is
-the "async" in the name. The envelope sits at ≈ 1 except for the **per-symbol
-dips**: each async symbol transition lands inside *exactly one* segment per
-symbol, which then integrates two opposite-sign data halves and is scaled by
-`|2f−1|`. The other `K−1` segments are full. This is the two-clock collapse,
-**confined to 1-of-`K`** instead of wiping a whole epoch — exactly what
-segmented coherent correlation buys you.
+- **0.6 ppm, this link's Doppler**: a 1500 Hz carrier offset on a 2.5 GHz
+    carrier, which dilates the code by 1.8 chips/s.
+- **5 ppm, inflated** to about eight times this link's, 15 chips/s, to show what
+    the aid is for.
 
-**Middle — Clean despread BPSK.** The same segments in the complex plane: two
-tight BPSK clusters at ±1, *not* a smeared ring. The carrier was removed
-upstream and the code rate is aided, so nothing rotates within the correlation —
-the despread is coherent. (An uncorrected residual carrier is what would smear
-these onto a ring; that is the carrier loop's job, done before the DLL, not
-after it.)
+## What the runs show
 
-**Right — Code rate comes from aiding, not the DLL's own loop.** `code_rate`
-(the loop's *own* observable, `1 + integrator`) sits at ≈ 1.0 while the aid
-supplies the true `1 + 2e-4` code-rate dilation. The DLL isn't rate-tracking the
-Doppler — it is being *handed* the rate by the upstream carrier estimate, and
-its loop only mops up the residual. (This is the same mechanism
-`AsyncDsssReceiver` uses: the pre-despread Costas tracks the full carrier and
-refreshes `set_rate_aid` every period.)
+- **At this link's Doppler, both loops hold lock.** Unaided, the loop filter
+    output settles at the dilation, read up to one NCO step high (below): the
+    loop carries it. Aided, it settles at zero, read the same way, because the
+    aid carries it.
+- **At the inflated Doppler, only the aided loop holds.** Unaided, the narrow
+    loop must pull in the whole dilation, and the transient takes it off the code
+    within tens of milliseconds. Its lock statistic falls to the noise and stays
+    there. Aided, nothing changes from the 0.6 ppm run.
+- **The filter output reads high by up to one NCO step.** The code NCO commands
+    its rate in whole phase-increment steps of `SF·spc/2³²` chips per chip, 0.48
+    ppm here, and truncates. A settled filter output therefore sits between the
+    rate the loop carries and one step above it. At this link's Doppler one step
+    is nearly the whole Doppler, so the code loop's rate is not how to measure the
+    Doppler. The carrier estimate is.
+- **The output is the data.** A locked loop emits the data symbols along one
+    axis, four samples per code period and 4.44 per symbol, so each symbol's
+    sign spans four or five samples. Its power along that axis stands above its
+    power across it by up to the link budget's `1 + 2·SNR` per output sample.
+    It reads below the budget for two reasons: a sample straddling a data flip
+    loses amplitude, and each period's samples are normalized by that period's
+    noisy look-back peak. The loop that lost the code puts out noise, with the
+    two about equal.
 
-*(All three panels above are **noiseless** so the envelope and constellation
-stay legible — they are one and the same signal.)*
-
-## Always-on lock detector
-
-![Async despreader: lock detector](../assets/async_despread_demo_lock.png)
-
-A tracking channel must always know whether it is locked, so the DLL carries a
-lock detector that reuses *acquisition's* non-coherent statistic. This is a
-**separate, noisy experiment** (the despread figure above is noiseless; a lock
-statistic is only meaningful against noise), so it gets its own figure on its own
-signal — the same carrier-wiped, rate-aided DLL.
-
-It forms `R = √(2·Σ|P|²/E|O|²)` over `N` looks — prompt power over a CFAR noise
-reference taken from a **random off-peak correlation** (re-drawn each epoch,
-EMA-averaged) — and latches `Dll.locked` when `R` crosses
-`det_threshold_noncoherent(pfa, N)`. **Left:** `R` per epoch at several SNRs; with
-Gold-1023's ~30 dB despread gain the signal traces sit far above the threshold
-even when very weak, while the noise-only trace hugs `√(2N) ≈ 6.3` below it.
-**Right:** the noisy despread output behind the "weak" trace — the BPSK is still
-recoverable and the detector reports lock on it. Because the noise reference rides
-an EMA much longer than the `N`-look test (and is cumulative-mean-bootstrapped so
-it is unbiased from the first look), the false-alarm rate holds at the target
-`pfa` (default `1e-3`) from the start. The statistic and threshold are the *same*
-ones the FFT acquisition uses, so acquire and track agree on "detected".
+The script prints this run's numbers: the settled filter outputs, when the
+unaided loop lost the inflated Doppler, and the output's power along its axis
+against across it. That ratio is the eigenvalues of the output's I/Q second
+moments, so it does not depend on the carrier phase. Three bounds come from the
+object and the link, not the draw: the output rate; the settled filter output
+sitting between the carried rate and one NCO step above it; and the output's
+power along one axis. The script widens the second by a quarter step either
+side for the noise left in its mean, and takes half the budget as the line for
+the third. Which loops held lock is this run's
+outcome, and the script asserts it for this run.
 
 ## How it works
 
-`Dll(segments=K)` splits each code epoch into `K` **coherent** segment
-integrate-and-dumps. Each segment despreads `TE/K` samples against the local
-code; the `K` segments per epoch are an oversampled view of the symbol (≈ `K`
-samples/symbol when the symbol rate is near the code rate). Code tracking folds
-each segment's early/late envelopes into a **non-coherent** epoch sum `Σ|E_k|`,
-`Σ|L_k|` — a data flip changes a segment's *sign*, not its *magnitude*, so only
-the one straddling segment degrades. The code-rate dilation, which the
-discriminator alone can't pull in, arrives as a per-epoch `rate_aid` bias from
-the upstream carrier loop.
+The emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode,
+on nominal frequency, with its own PRBS payload.
+[`impairment.DopplerChannel`](../api/python-impairment.md) applies the motion
+from one parameter: it dilates every clock in the stream and shifts the carrier
+to match. The noise is [`source.AWGN`](../api/python-nco.md) at the Es/N0.
 
 ```python
 --8<-- "src/doppler/examples/async_despread_demo.py:signal"
 ```
 
+The despreader is configured for the link. `bn` is narrow, for a quiet code
+phase. The lock detector is sized the way `AsyncDsssReceiver` sizes its own:
+given the symbol period, its looks are coherent over the transition-free part of
+a symbol, `det_n_noncoh` gives the looks a decision needs for 0.99 detection at
+the C/N0, and `det_verify_count` gives the drop count. At its defaults, one
+look per despread sample, the flag drops on a loop that holds the code:
+measured on the receiver, a few times a second at Es/N0 10.7 dB and 96% of the
+time at 5.7 dB
+([§12.3](../design/async-dsss-receiver-measurements.md#123-what-was-measured-2026-09-02-step-6-the-release)).
+
+One carrier estimate wipes the carrier and, divided by the carrier frequency, is
+the rate aid. The loop starts at the code phase acquisition reports, to one
+sample. The channel delays the stream by 10.5 samples, which is 5.25 chips at two
+samples per chip. The code phase runs opposite to the delay, so the loop starts
+at `SF − 5` and pulls in the last quarter chip. That pull-in is the first couple
+of hundred milliseconds in the filter-output panels.
+
 ```python
-# CCSDS Gold-1023; sps samples/chip; segments = K coherent windows per epoch
-code = np.asarray(Gold().generate(SF)).astype(np.uint8)
-rxw = carrier_wipe(make_signal(code)[0])   # carrier removed upstream
-
-d = Dll(code, sps=SPS, init_chip=0.0, bn=0.002, zeta=0.707, spacing=0.5,
-        segments=K)
-d.set_rate_aid(DCODE)     # carrier->code aiding supplies the code-rate dilation
-part = d.steps(rxw)       # oversampled async BPSK out (PN removed), clean BPSK
-rate = d.code_rate        # the loop's own observable (~1.0; the aid does the rate)
-
-# always-on lock detector (acquisition's non-coherent test):
-d.configure_lock(pfa=1e-3, n_looks=20)   # size n_looks via detection.det_n_noncoh
-if d.locked:              # latched each n_looks-look decision
-    print(d.lock_stat, d.noise_est)      # statistic R and the CFAR noise ref
-
-# downstream — symbol-timing recovery on the already-carrier-clean segments:
-from doppler.track import SymbolSync
-
-ss = SymbolSync(sps=K, bn=0.02, zeta=0.707)
-syms = ss.steps(part)            # -> one decision per recovered symbol
-bits = np.where(syms.real >= 0, 1, -1)
-assert bits.shape == syms.shape
+--8<-- "src/doppler/examples/async_despread_demo.py:track"
 ```
 
-The short coherent segment window is also what keeps the despread robust to the
-residual the upstream carrier loop hasn't yet nulled: for a ½-Doppler-bin
-residual the integrate-and-dump loss is small at `K = 11` (versus a full-epoch
-`segments = 1` prompt, which a mid-epoch data flip corrupts outright).
-`steps()` is block-size invariant and returns an independent array per call, so a
-receiver can stream blocks and keep every one.
+The checks run on one row per code period, and on the despread output:
 
-Source: `src/doppler/examples/async_despread_demo.py`.
-See also the design note *Async Symbol Despreader*, the
-[AsyncDsssReceiver — the SPEC Waveform](async-dsss-receiver-spec.md) gallery page
-for the full carrier + code + aiding chain end to end, the
-[Full-Chain Lock-Up](receiver-lock.md) page for the
-`Dll -> Costas -> SymbolSync` chain converged and lock-observed via telemetry,
-and the [lock-detection guide](../guide/lock-detection.md) for how `Dll`'s lock
-detector here fits alongside every other loop's.
+```python
+--8<-- "src/doppler/examples/async_despread_demo.py:validate"
+```
+
+## Reading it when it does not behave
+
+Read `locked` first: the code loop's lock flag. Then read `lock_stat`, the
+statistic the flag thresholds, and then `code_rate − 1`, the loop filter output.
+A filter output that walks away while `lock_stat` falls is a loop asked to carry
+more rate than its bandwidth allows: aid it, or widen `bn`. A `lock_stat` that
+grazes the threshold on a loop whose filter output is steady is a detector sized
+for a higher C/N0 than the link has.
+
+## What you're seeing
+
+1. **Code lock statistic** (left). Unaided in orange, aided in blue, against the
+    lock threshold. At 0.6 ppm the two traces lie on top of each other. At 5 ppm
+    the unaided statistic falls to the noise early in the run, and the aided one
+    stays where it was at 0.6 ppm.
+1. **Loop filter output** (right), `code_rate − 1` in ppm, per code period and as
+    a 30 ms mean. The dashed line is the dilation. Each shaded band is where a
+    loop reads when it carries its rate: from that rate to one NCO step above it,
+    orange from the dilation and blue from zero. At 5 ppm the unaided output climbs
+    toward the dilation, loses the code before it gets there, and wanders.
+1. **The despread output** (bottom): about fourteen symbols of the aided loop's
+    output at 0.6 ppm, from the settled half. I carries the data, in runs of
+    four or five samples per symbol and longer where neighbors share a sign,
+    and Q is noise about zero. The data lands on I only because this demo
+    wipes the carrier with the channel's exact offset and the channel adds no
+    carrier phase. With an estimated carrier, the data sits at whatever
+    residual phase the estimate leaves, which the receiver's Costas loop
+    ahead of the Dll is there to remove. This stream is what a symbol-timing
+    loop takes next.
+
+## Reproduce
+
+```sh
+python -m doppler.examples.async_despread_demo out.png
+```
+
+The C twin is
+[`async_despread_demo.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/async_despread_demo.c).
+It runs the same link at the same two Dopplers, with the same emitter, noise
+seed and loop, and checks the same physics, so it prints the same numbers as
+this page's run. It also shows what the binding hides: the emitter's and the
+loop's full settings, and the buffers the caller owns.
+
+The design is in [the async DSSS receiver design](../design/async-dsss-receiver.md),
+section 3. The [lock-detection guide](../guide/lock-detection.md) covers how the
+`Dll`'s lock detector fits alongside every other loop's.
+
+Source: [`async_despread_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/async_despread_demo.py).

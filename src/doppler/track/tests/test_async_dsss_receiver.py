@@ -20,8 +20,8 @@ continuously slides through the epoch grid.
 Composition (no new object -- four existing `doppler.track`/
 `doppler.resample` primitives): `Dll(..., segments=K)` splits each
 epoch into `K` sub-epoch partial correlations (code tracking survives
-a mid-epoch data flip because the non-coherent discriminator only
-degrades the one straddling partial); `Costas(tsamps=1)` de-rotates
+a mid-epoch data flip because the loop steers on the one-period window
+its look-back finds free of a transition); `Costas(tsamps=1)` de-rotates
 the residual carrier per partial (no premature block integration --
 the true symbol boundary isn't a fixed multiple of partials); a
 sliding length-`K` boxcar re-forms a symbol matched filter without

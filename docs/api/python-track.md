@@ -388,11 +388,12 @@ the phase of a continuous, repeating spreading code (PN / Gold sequence) on a
 **carrier-wiped** sample stream. Per sample it correlates the input against
 three taps of the local code — early (`+spacing` chips), prompt, late
 (`-spacing` chips) — accumulating an integrate-and-dump over one code period;
-per period it runs the non-coherent envelope discriminator
-`(|E| - |L|) / (|E| + |L|)`, filters it through an embedded `LoopFilter`, and
-steers the code rate and phase. The half-chip discriminator is steep, so the
-loop bandwidth is small (a few thousandths); `Dll` is data-insensitive (it works
-on envelopes, so BPSK data flips don't matter).
+per period it runs the power discriminator `0.5·(|E|² − |L|²) / |P|²`, filters
+it through an embedded `LoopFilter`, and steers the code rate and phase. The
+half-chip discriminator is steep, so the loop bandwidth is small (a few
+thousandths). Taking powers makes the loop blind to the carrier's phase and to
+the data sign of a whole period; a data flip *inside* a period is what
+`segments`, below, is for.
 
 In a full receiver the carrier loop (`Costas`) wipes the carrier and the `Dll`
 wipes the code; [`dsss.Despreader`](python-dsss.md) composes the two.
@@ -414,28 +415,31 @@ rate    = d.code_rate        # tracked chip rate (~1.0 + code Doppler)
 
 **Sub-epoch partials for an asynchronous symbol clock (`segments`).** When the
 data-symbol rate is on the order of the code-epoch rate but *asynchronous* to it,
-a coherent full-epoch despread straddles data transitions and collapses. Set
-`segments > 1` to split each epoch into that many sub-epoch **partial
-correlations**: `steps()` then emits `segments` partial prompts per period — a
-stream at ~`segments` samples/symbol (since symbol ≈ epoch) for a downstream
-symbol matched filter + `SymbolSync` — and the code is tracked **non-coherently**
-across the partials (`(Σ|E| − Σ|L|)/(Σ|E| + Σ|L|)`), which a data flip cannot
-collapse. `segments=1` (default) is the plain coherent DLL above; choose `≥ 2`
-for symbol-timing recovery. This `segments` mode is the **streaming despreader**:
-its job is to remove the PN code and output samples. Because the code loop is
-non-coherent it is **carrier-blind** — it locks with a residual carrier still on
-the samples, and (a short partial window being carrier-tolerant) the residual
-just rides out on the partials. **Carrier recovery (`Costas`) and symbol
-extraction (`SymbolSync`) are downstream**, fed from this output. See the
+a data transition lands inside most code periods, and a coherent full-epoch
+despread that straddles one collapses. Set `segments > 1` to split each epoch
+into that many sub-epoch **partial correlations**: `steps()` then emits
+`segments` partial prompts per period — a stream at ~`segments` samples/symbol
+(since symbol ≈ epoch) for a downstream `SymbolSync` — and the loop steers on
+coherent sums over the one-period window its look-back finds free of a
+transition. `segments=1` (default) is the plain coherent DLL above; choose `≥ 2`
+for symbol-timing recovery. This `segments` mode is the **streaming
+despreader**: its job is to remove the PN code and output samples.
+
+**Wipe the carrier first.** The loop's sums are coherent over its window, so it
+is blind to the carrier's phase but not to a residual frequency, which costs a
+window of `T` seconds `sinc²(Δf·T)` of its power. The carrier estimate that
+wipes the carrier, divided by the carrier frequency, is also the code-rate aid
+(`set_rate_aid`): the same motion dilates the code. Symbol extraction
+(`SymbolSync`) is downstream, fed from this output. See the
 [streaming async despreader gallery](../gallery/async-despread.md) and the
 [async despreader design](../design/async-dsss-receiver.md) §3.
 
 ```python
-# 4 partial correlations per epoch -> non-coherent (carrier-blind) code tracking
-# + an oversampled async-BPSK stream; carrier + symbol recovery are downstream.
+# 4 partial correlations per epoch from a carrier-wiped input: an oversampled
+# async-BPSK stream with the PN removed. Symbol recovery is downstream.
 d = Dll(code, sps=8, bn=0.002, zeta=0.707, spacing=0.5, segments=4)
 partials = d.steps(rx)       # 4 partial prompts per code epoch (PN removed)
-# downstream: Costas(...).steps(partials) -> SymbolSync(...).steps(...) -> bits
+# downstream: SymbolSync(...).steps(partials) -> bits
 ```
 
 ______________________________________________________________________

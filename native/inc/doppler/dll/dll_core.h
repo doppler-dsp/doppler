@@ -119,7 +119,15 @@ typedef struct {
     double chip_pos;         /**< current prompt code phase, chips; DERIVED
                                   from code_nco.phase on every dll_accumulate,
                                   never independently accumulated.          */
-    double code_rate;        /**< chips advanced per nominal chip (~1.0).  */
+    double code_rate;        /**< the loop's own rate, chips per nominal
+                                  chip (~1.0): 1 + the loop filter output
+                                  (its integrator alone at segments == 1),
+                                  without the rate aid, so the code runs at
+                                  code_rate + rate_aid. It is read before
+                                  the NCO truncates its command to a whole
+                                  phase step of sf*sps/2^32 chips per chip,
+                                  so a settled reading sits up to one step
+                                  above the rate the loop carries.        */
     double rate_aid;         /**< carrier-aiding code-rate deviation (ratio,
                                   0 = off): a fixed fractional bias summed
                                   into the sample-and-hold phase_inc every
@@ -555,15 +563,16 @@ dll_update(dp_dll_state_t *s)
 /**
  * @brief Create a code/timing delay-locked loop over a spreading code.
  *
- * A non-coherent early/prompt/late DLL that tracks the code phase of a
- * repeating spreading sequence (PN / Gold) on a carrier-wiped sample stream.
+ * An early/prompt/late DLL that tracks the code phase of a repeating
+ * spreading sequence (PN / Gold) on a carrier-wiped sample stream.
  * Each code period it correlates the input against three replica taps —
  * early (`+spacing` chips), prompt, late (`-spacing` chips) — runs the
  * power-domain early-minus-late discriminator, filters it through a 2nd-order
  * loop, and steers a fixed-point code-phase NCO. With `segments == 1` it emits
  * one prompt symbol per period (a coherent full-epoch integrate-and-dump);
- * with `segments > 1` it splits each epoch into that many partial correlations
- * and tracks non-coherently across them, robust to an asynchronous data-symbol
+ * with `segments > 1` it splits each epoch into that many partial correlations,
+ * emits them, and steers on the one-period window its look-back finds free of
+ * a data transition, summed coherently: robust to an asynchronous data-symbol
  * clock. An always-on CFAR lock detector (see @ref dp_dll_configure_lock) reports
  * whether the loop is tracking; carrier-aiding (@ref dp_dll_set_rate_aid) lets the
  * code NCO ride a physically-coupled Doppler the discriminator alone cannot
@@ -579,9 +588,10 @@ dll_update(dp_dll_state_t *s)
  * @param segments   Partial correlations per code epoch (default 1). 1 = a
  *                   coherent full-epoch integrate-and-dump (one prompt/period).
  *                   >1 splits each epoch into that many sub-epoch partials: it
- *                   emits that many partial prompts/period and tracks the code
- *                   non-coherently across them (robust to an asynchronous
- *                   data-symbol clock). segments/epoch ~ samples/symbol at a
+ *                   emits that many partial prompts/period and steers on the
+ *                   transition-free one-period window its look-back finds
+ *                   among them (robust to an asynchronous data-symbol
+ *                   clock). segments/epoch ~ samples/symbol at a
  *                   downstream SymbolSync when the symbol rate is near the code
  *                   rate, so choose >= 2 for symbol-timing recovery.
  * @return Heap-allocated state, or NULL on allocation failure or an
@@ -730,14 +740,20 @@ size_t dp_dll_steps_max_out(dp_dll_state_t *state);
  * code NCO once per code period.
  *
  * The Python face of the loop. Each code period the early/prompt/late
- * correlators dump, the power-domain non-coherent early-minus-late
- * discriminator runs, and the fixed-point code-phase NCO is re-steered; the
- * prompt correlator value is emitted as one output symbol per period (or
- * `segments` partial prompts per period when `segments > 1`). The loop is
- * carrier-blind — it tracks with a residual carrier still on the input, so
- * carrier recovery (Costas) and symbol-timing recovery are downstream stages
- * fed from this output. Returned blocks are block-size invariant and safe to
- * keep across calls (a block still referenced is never overwritten, jm gh-437).
+ * correlators dump, the power-domain early-minus-late discriminator runs, and
+ * the fixed-point code-phase NCO is re-steered; the prompt correlator value is
+ * emitted as one output symbol per period (or `segments` partial prompts per
+ * period when `segments > 1`). The discriminator's early, late and prompt are
+ * coherent sums over its window -- one code period, or with
+ * dp_dll_set_symbol_period() the transition-free window of a symbol -- and it
+ * takes their powers. So the loop is blind to the carrier's phase but not to
+ * its frequency: a residual `df` costs a window of `T` seconds
+ * `sinc^2(df * T)` of its power, and a whole `1/T` cycle nulls it. Wipe the
+ * carrier before this call: AsyncDsssReceiver runs its carrier loop upstream
+ * of its Dll and hands the same estimate to dp_dll_set_rate_aid().
+ * Symbol-timing recovery runs downstream, on this output. Returned blocks are
+ * block-size invariant and safe to keep across calls (a block still
+ * referenced is never overwritten, jm gh-437).
  *
  * @param state    DLL state.  Must be non-NULL.
  * @param x        Carrier-wiped input samples (one contiguous block).

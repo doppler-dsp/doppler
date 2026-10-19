@@ -201,6 +201,32 @@ def test_lost_confirm_zero_never_releases():
     assert (rx.tracking, rx.lost) == (1, 0)
 
 
+def test_reacquire_needs_a_release_interval():
+    # Its release is the only way back to searching: one that never fires
+    # is refused, not accepted as a silent no-op.
+    with pytest.raises(ValueError):
+        _new_receiver(70.0, lost_confirm_s=0.0, reacquire=True)
+    _new_receiver(70.0, lost_confirm_s=0.02, reacquire=True)
+
+
+def test_reacquire_returns_to_searching_never_lost():
+    # The parallel design's release (async-dsss-parallel.md section 3): the
+    # emitter gone past the interval, the receiver searches again by
+    # itself, with no reset(). The behavior's own test is the C one; this
+    # is the keyword reaching it.
+    x, _data = _make_ramp_signal(70.0, seed=21)
+    off = _noise(int(0.25 * FS), 70.0, seed=99)
+    rx = _new_receiver(70.0, lost_confirm_s=0.02, reacquire=True)
+    _feed(rx, x)
+    assert rx.tracking == 1
+    states = set()
+    for pos in range(0, len(off), 4096):
+        rx.steps(off[pos : pos + 4096])
+        states.add(rx.lifecycle)
+    assert "lost" not in states
+    assert "searching" in states
+
+
 # ── The cell mode, as a mode of this receiver (#1283) ────────────────────────
 # (docs/design/async-dsss-receiver-measurements.md §12.22-12.24)
 

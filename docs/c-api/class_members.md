@@ -802,6 +802,7 @@
 * **ref\_db** ([**dp\_agc\_state\_t**](structdp__agc__state__t.md))
 * **rows** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md))
 * **rx** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md))
+* **reacquire** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **refine\_design\_margin\_db** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **refine\_dll** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **refine\_dll\_out\_buf** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))

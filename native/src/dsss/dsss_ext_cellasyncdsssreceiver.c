@@ -226,6 +226,23 @@ CellAsyncDsssReceiverObj_init (CellAsyncDsssReceiverObject *self,
   return 0;
 }
 
+/* String-enum tables — order is the C int (the [[enum]] SSOT). */
+static const char *const _enum_CellAsyncDsssReceiver_async_dsss_rx_state[] = {
+  "searching", "refining", "tracking", "idle", "lost", NULL,
+};
+static const int _enum_CellAsyncDsssReceiver_async_dsss_rx_state_c[] = {
+  ASYNC_DSSS_RX_SEARCHING, ASYNC_DSSS_RX_REFINING, ASYNC_DSSS_RX_TRACKING,
+  ASYNC_DSSS_RX_IDLE,      ASYNC_DSSS_RX_LOST,
+};
+static inline const char *
+_enum_CellAsyncDsssReceiver_async_dsss_rx_state_name (long v)
+{
+  for (int j = 0; j < 5; j++)
+    if (_enum_CellAsyncDsssReceiver_async_dsss_rx_state_c[j] == v)
+      return _enum_CellAsyncDsssReceiver_async_dsss_rx_state[j];
+  return NULL;
+}
+
 static PyObject *
 CellAsyncDsssReceiverObj_steps_max_out (CellAsyncDsssReceiverObject *self,
                                         PyObject *Py_UNUSED (ignored))
@@ -448,7 +465,8 @@ static PyStructSequence_Field CellAsyncDsssReceiverObj_status_fields[] = {
   { "state_samples", "Input samples since `state` was entered." },
   { "both_down_samples",
     "Input samples both flags have been down without a break (the release "
-    "clock); in lost it keeps counting -- samples since the flags dropped." },
+    "clock); in lost it keeps counting -- samples since the flags dropped. "
+    "With reacquire, the symbol lock flag's clock alone." },
   { "refused_hits",
     "Searching hits refused as seeds by the seed domain (a Doppler at or past "
     "fs/2), since create or reset. The search went on over each one's tail." },
@@ -769,6 +787,28 @@ CellAsyncDsssReceiverObj_set_state (CellAsyncDsssReceiverObject *self,
   Py_RETURN_NONE;
 }
 static PyObject *
+CellAsyncDsssReceiver_getprop_lifecycle (CellAsyncDsssReceiverObject *self,
+                                         void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  long        _v = (long)(self->handle->state);
+  const char *_s = _enum_CellAsyncDsssReceiver_async_dsss_rx_state_name (_v);
+  if (!_s)
+    {
+      PyErr_Format (
+          PyExc_ValueError,
+          "lifecycle holds async_dsss_rx_state value %ld, which is none of"
+          " its choices",
+          _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_s);
+}
+static PyObject *
 CellAsyncDsssReceiver_getprop_tracking (CellAsyncDsssReceiverObject *self,
                                         void *Py_UNUSED (closure))
 {
@@ -1020,6 +1060,13 @@ CellAsyncDsssReceiver_getprop_code_locked (CellAsyncDsssReceiverObject *self,
 }
 
 static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
+  { "lifecycle", (getter)CellAsyncDsssReceiver_getprop_lifecycle, NULL,
+    "Where the receiver is in its lifecycle, by name: `\"searching\"`, "
+    "`\"refining\"`, `\"tracking\"`, `\"idle\"` (cell mode, waiting for a "
+    "seed) or `\"lost\"` (released, waiting for `reset()`). The same state as "
+    "`status().state`, which carries it as the C integer. With `reacquire` a "
+    "release goes back to `\"searching\"` and never reads `\"lost\"`.\n",
+    NULL },
   { "tracking", (getter)CellAsyncDsssReceiver_getprop_tracking, NULL,
     "1 once the live tracking chain is built and demodulating; 0 in every "
     "other state.\n",

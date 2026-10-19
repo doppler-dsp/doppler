@@ -130,6 +130,7 @@
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
+#include "dp_sym_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
@@ -161,6 +162,16 @@
 #define HOLD_WATCH_S 0.06  /* a held dropout: lock up this long after */
 #define RELOCK_WATCH_S 0.3 /* a re-lock is waited for this long      */
 #define MAX_HOLD 400u      /* the hold scan's longest dropout, epochs */
+
+#define QUALITY_SETTLE_S 0.2   /* after symbol lock first comes up     */
+#define QUALITY_S 1.0          /* the measured window: 2,700 symbols   */
+#define QUALITY_TRIALS 5u      /* a sweep's draws per Es/N0            */
+#define CHECK_EVM_SLACK_DB 1.5 /* --check: EVM within this of -Es/N0 */
+#define FALSE_S 2.0            /* noise fed to a receiver seeded on it */
+#define FALSE_TRIALS 5u
+
+static const double quality_esn0s[] = { 20.0, 15.0, 10.0, 7.0, 5.0 };
+#define N_QUALITY_ESN0 (sizeof quality_esn0s / sizeof quality_esn0s[0])
 
 static const double relock_ms[] = { 50.0, 200.0 };
 #define N_RELOCK (sizeof relock_ms / sizeof relock_ms[0])
@@ -553,6 +564,157 @@ done:
   return 0;
 }
 
+/* QUALITY. A trial draws the carrier over +/-1/T_E and its own data and
+   noise, as ARRIVAL does, with the signal on from sample 0. It is fed
+   until symbol lock first comes up, QUALITY_SETTLE_S more, and then every
+   symbol steps() returns over QUALITY_S is kept -- all of them, never
+   gated on the flag, because the receiver never gates its output. Scored
+   by the shipped estimators (dp_sym_test.h): EVM against the stream's own
+   hard BPSK decisions, which a locked receiver reads near -Es/N0, and the
+   fraction of the window's blocks with symbol lock up. A draw that has no
+   lock within MAX_LOCK_S is a row marked unsettled. */
+typedef struct
+{
+  int    settled;
+  double carrier_hz;
+  double t_lock_ms; /* signal start -> symbol lock first up          */
+  size_t n_sym;     /* symbols scored                                 */
+  double evm_db;    /* EVM against the stream's own hard decisions    */
+  double lock_frac; /* the window's blocks with symbol lock up        */
+} quality_t;
+
+static int
+run_quality (const uint8_t *code, double esn0_db, uint32_t seed,
+             quality_t *out)
+{
+  uint32_t     st     = trial_rng (seed);
+  const double cn0    = cn0_of (esn0_db);
+  out->carrier_hz     = (2.0 * dp_uni (&st) - 1.0) * SPAN;
+  const size_t max_b  = blocks_for ((size_t)(MAX_LOCK_S * FS));
+  const size_t win_b  = blocks_for ((size_t)(QUALITY_S * FS));
+  const size_t set_b  = blocks_for ((size_t)(QUALITY_SETTLE_S * FS));
+  const size_t n_bits = symbol_at ((max_b + set_b + win_b) * TE) + 2;
+  uint8_t     *bits   = draw_bits (&st, n_bits);
+
+  dp_wfm_synth_state_t *syn
+      = dp_dsss_cont_emitter (code, SF, SPC, FS, out->carrier_hz, CPS, seed,
+                              WFM_DSSS_DATA_BITS, bits, n_bits);
+  dp_awgn_state_t                *g  = make_noise (seed, cn0);
+  dp_async_dsss_receiver_state_t *rx = make_rx (code, cn0);
+  if (!syn || !g || !rx)
+    return 1;
+  DP_REQUIRE_MSG (sends_bits (syn, n_bits),
+                  "the quality trial's emitter sends the harness's bits");
+  float complex *sig  = dp_xmalloc (TE * sizeof *sig);
+  float complex *blk  = dp_xmalloc (TE * sizeof *blk);
+  const size_t   cap  = TE; /* < 1 symbol a code period here (#2469) */
+  const size_t   wcap = (size_t)(QUALITY_S * SYM_RATE) + 64 + cap;
+  float complex *syms = dp_xmalloc (wcap * sizeof *syms);
+  float complex *junk = dp_xmalloc (cap * sizeof *junk);
+
+  out->settled   = 0;
+  out->t_lock_ms = out->evm_db = out->lock_frac = NAN;
+  out->n_sym                                    = 0;
+  size_t start = 0, locked_blocks = 0;
+  for (size_t b = 0; b < max_b + set_b + win_b; b++)
+    {
+      dp_wfm_synth_steps (syn, sig, TE);
+      dp_awgn_generate (g, TE, blk, TE);
+      for (size_t i = 0; i < TE; i++)
+        blk[i] += sig[i];
+      int    in_win = start && b >= start;
+      size_t room   = wcap - out->n_sym;
+      /* Before the window the symbols are not scored: a scratch buffer
+         takes them (never the input, which steps() is still reading). */
+      size_t k = dp_async_dsss_receiver_steps (
+          rx, blk, TE, in_win ? syms + out->n_sym : junk,
+          in_win ? (room < cap ? room : cap) : cap);
+      if (in_win)
+        {
+          out->n_sym += k;
+          locked_blocks += (size_t)dp_async_dsss_receiver_get_locked (rx);
+          if (b + 1 == start + win_b)
+            break;
+        }
+      if (isnan (out->t_lock_ms) && dp_async_dsss_receiver_get_locked (rx))
+        {
+          out->t_lock_ms = (double)((b + 1) * TE) / FS * 1e3;
+          start          = b + 1 + set_b;
+        }
+      if (!start && b + 1 >= max_b)
+        break;
+    }
+  DP_CHECK_MSG (!dp_wfm_synth_data_ended (syn),
+                "the quality trial's data covered its run");
+  if (start && out->n_sym > 0)
+    {
+      out->settled   = 1;
+      out->evm_db    = dp_test_evm_db_hard_m (syms, out->n_sym, 2);
+      out->lock_frac = (double)locked_blocks / (double)win_b;
+    }
+  free (junk);
+  free (syms);
+  free (blk);
+  free (sig);
+  free (bits);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_awgn_destroy (g);
+  dp_wfm_synth_destroy (syn);
+  return 0;
+}
+
+/* FALSE LOCK. The lock flag's false-alarm side: a receiver seeded onto
+   NOISE ALONE (seed() takes what a hit would hand over, here a false
+   alarm's), sized for the Es/N0 it would have expected, is fed FALSE_S
+   and never released (lost_confirm_s 0), so its loops run on noise the
+   whole time. Recorded: the fraction of blocks with symbol lock up, and
+   how many times it was declared. */
+typedef struct
+{
+  double frac;      /* blocks with symbol lock up                    */
+  size_t declares;  /* rising edges of the flag                       */
+  double code_frac; /* blocks with code lock up, for comparison       */
+} falselock_t;
+
+static int
+run_falselock (const uint8_t *code, double esn0_db, uint32_t seed,
+               falselock_t *out)
+{
+  const double                    cn0 = cn0_of (esn0_db);
+  dp_awgn_state_t                *g   = make_noise (seed + 1000u, cn0);
+  dp_async_dsss_receiver_state_t *rx  = make_rx (code, cn0);
+  if (!g || !rx)
+    return 1;
+  DP_REQUIRE (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  float complex *blk  = dp_xmalloc (TE * sizeof *blk);
+  float complex *syms = dp_xmalloc (TE * sizeof *syms);
+  const size_t   nb   = blocks_for ((size_t)(FALSE_S * FS));
+  size_t         up = 0, cup = 0, tracked = 0;
+  int            was = 0;
+  out->declares      = 0;
+  for (size_t b = 0; b < nb; b++)
+    {
+      dp_awgn_generate (g, TE, blk, TE);
+      (void)dp_async_dsss_receiver_steps (rx, blk, TE, syms, TE);
+      int l = dp_async_dsss_receiver_get_locked (rx);
+      up += (size_t)l;
+      cup += (size_t)dp_async_dsss_receiver_get_code_locked (rx);
+      tracked += (size_t)dp_async_dsss_receiver_get_tracking (rx);
+      out->declares += (size_t)(l && !was);
+      was = l;
+    }
+  /* Precondition: it held a track on the noise, or the flag never had a
+     chance to come up. */
+  DP_CHECK_MSG (tracked > nb / 2, "the false-lock receiver tracked noise");
+  out->frac      = (double)up / (double)nb;
+  out->code_frac = (double)cup / (double)nb;
+  free (syms);
+  free (blk);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_awgn_destroy (g);
+  return 0;
+}
+
 /* The assertions the sweep and --check share. */
 static void
 check_arrival (double esn0_db, const arrival_t *a)
@@ -858,6 +1020,64 @@ main (int argc, char **argv)
         }
       DP_CHECK_MSG (got == want, "enough dropout draws settled to measure");
     }
+
+  /* QUALITY: --check is one draw at every Es/N0, the sweep five; both
+     assert the same at 10 dB and above and measure the rest. */
+  const size_t n_q  = N_QUALITY_ESN0;
+  const size_t q_tr = check ? 1 : QUALITY_TRIALS;
+  if (emit)
+    printf ("# quality\nesn0_db,seed,carrier_hz,settled,t_lock_ms,n_sym,"
+            "evm_db,lock_frac\n");
+  else
+    printf ("quality: symbol lock, then %.1f s of every symbol\n", QUALITY_S);
+  for (size_t e = 0; e < n_q; e++)
+    {
+      const double es = quality_esn0s[e];
+      for (uint32_t s = 1; s <= q_tr; s++)
+        {
+          quality_t q;
+          DP_REQUIRE (run_quality (code, es, s, &q) == 0);
+          if (emit)
+            printf ("%.1f,%u,%.1f,%d,%.2f,%zu,%.3f,%.4f\n", es, s,
+                    q.carrier_hz, q.settled, q.t_lock_ms, q.n_sym, q.evm_db,
+                    q.lock_frac);
+          else
+            printf ("  %4.1f dB seed %u: carrier %+7.1f Hz, lock %7.1f ms, "
+                    "%zu symbols, EVM %6.2f dB, locked %.3f\n",
+                    es, s, q.carrier_hz, q.t_lock_ms, q.n_sym, q.evm_db,
+                    q.lock_frac);
+          if (es >= 10.0)
+            {
+              DP_CHECK_MSG (q.settled, "at 10 dB and above a draw locks");
+              DP_CHECK_MSG (q.settled
+                                && fabs (q.evm_db + es) <= CHECK_EVM_SLACK_DB,
+                            "a locked receiver's EVM is within "
+                            "CHECK_EVM_SLACK_DB of -Es/N0");
+              DP_CHECK_MSG (q.settled && q.lock_frac == 1.0,
+                            "symbol lock holds through the window");
+            }
+        }
+    }
+
+  /* FALSE LOCK on noise at each design Es/N0: --check one draw, the
+     sweep five. */
+  if (emit)
+    printf ("# falselock\nesn0_db,seed,frac,declares,code_frac\n");
+  else
+    printf ("false lock: a receiver seeded on noise, %.1f s\n", FALSE_S);
+  for (size_t e = 0; e < N_ESN0; e++)
+    for (uint32_t s = 1; s <= (check ? 1u : FALSE_TRIALS); s++)
+      {
+        falselock_t f;
+        DP_REQUIRE (run_falselock (code, esn0s[e], s, &f) == 0);
+        if (emit)
+          printf ("%.1f,%u,%.4f,%zu,%.4f\n", esn0s[e], s, f.frac, f.declares,
+                  f.code_frac);
+        else
+          printf ("  %4.1f dB seed %u: symbol lock up %.4f of blocks, "
+                  "declared %zu times; code lock %.4f\n",
+                  esn0s[e], s, f.frac, f.declares, f.code_frac);
+      }
 
   if (emit)
     DP_TEST_EMIT_END ("validate_async_dsss_receiver_lock");

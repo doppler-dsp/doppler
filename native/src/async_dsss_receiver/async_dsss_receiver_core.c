@@ -942,9 +942,12 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
       || !(lost_confirm_s >= 0.0))
     return NULL;
   /* Reacquire's release is its only way back to searching, so a release
-     that never fires (lost_confirm_s 0) would leave it tracking a signal
-     long gone: refused rather than accepted as a silent no-op. */
-  if (reacquire && !(lost_confirm_s > 0.0))
+     that never fires would leave it tracking a signal long gone: refused
+     rather than accepted as a silent no-op. Checked in the clock's own
+     unit, input samples, because a confirm time that rounds to zero of
+     them (1e-9 s) IS the disabled clock (adr_release_clock returns at
+     lost_confirm_samples == 0). */
+  if (reacquire && llround (lost_confirm_s * chip_rate * (double)spc) < 1)
     return NULL;
   /* The carrier estimator both flavours build mid-stream under dp_xnn
      (adr_new_carrier_acq) refuses a pfa or pd outside (0, 1), and the cell
@@ -1849,6 +1852,11 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.car_carry_len >= (uint64_t)s->tsamps
       || extra.cell != (uint8_t)(s->cell != 0)
       || extra.state > ASYNC_DSSS_RX_LOST)
+    return DP_ERR_INVALID;
+  /* A reacquire receiver never enters lost (its release resets it to
+     searching), so lost is no state it can be in, and nothing would take
+     it out: refused, as a state the object cannot reach. */
+  if (s->reacquire && extra.state == ASYNC_DSSS_RX_LOST)
     return DP_ERR_INVALID;
   /* A searching receiver has an acquisition engine to search with; a cell
      receiver has none (acq is NULL), so the state is no state it can be in.

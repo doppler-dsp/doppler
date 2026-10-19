@@ -204,9 +204,27 @@ def test_lost_confirm_zero_never_releases():
 def test_reacquire_needs_a_release_interval():
     # Its release is the only way back to searching: one that never fires
     # is refused, not accepted as a silent no-op.
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="> 0 with reacquire"):
         _new_receiver(70.0, lost_confirm_s=0.0, reacquire=True)
     _new_receiver(70.0, lost_confirm_s=0.02, reacquire=True)
+
+
+def test_lifecycle_walks_every_state():
+    # `lifecycle` names each state the receiver passes through, in order:
+    # a cell receiver waits idle; a searching one searches, refines,
+    # tracks, and -- with the release rule armed and the emitter gone --
+    # is lost.
+    assert _new_cell(70.0).lifecycle == "idle"
+    x, _data = _make_ramp_signal(70.0, seed=21)
+    off = _noise(int(0.25 * FS), 70.0, seed=99)
+    rx = _new_receiver(70.0, lost_confirm_s=0.02)
+    seen = [rx.lifecycle]
+    for block in (x, off):
+        for pos in range(0, len(block) - TE, TE):
+            rx.steps(block[pos : pos + TE])
+            if rx.lifecycle != seen[-1]:
+                seen.append(rx.lifecycle)
+    assert seen == ["searching", "refining", "tracking", "lost"]
 
 
 def test_reacquire_returns_to_searching_never_lost():

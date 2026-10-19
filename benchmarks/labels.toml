@@ -828,5 +828,5 @@ samples = 1
 ["c:async_dsss_receiver::steps[search,sf=1023,3.069Mcps]"]
 name = "Async DSSS receiver, searching, at the SPEC point"
 unit = "sample"
-definition = "The searching receiver at the binding's defaults running its own search over plus or minus one code-period frequency (3 kHz) for a 1,023-chip code at 3.069 Mcps and 2 samples per chip, fed noise and still searching before and after: 65,536 samples per round; throughput counts input samples."
+definition = "The searching receiver in the SPEC configuration the certification measures: a 1,023-chip code at 3.069 Mcps and 2 samples per chip, its own search over plus or minus one code-period frequency (3 kHz), fed noise and searching for every sample fed: 65,536 samples per round; throughput counts input samples."
 samples = 1

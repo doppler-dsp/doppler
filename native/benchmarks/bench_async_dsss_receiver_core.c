@@ -25,13 +25,13 @@
  * is certified at (a 1,023-chip code at 3.069 Mcps, 2 samples a chip,
  * 2,700 sym/s).
  *
- * The SEARCHING flavor is timed too, while it searches: the receiver at the
- * binding's defaults with its own search over +/-1/T_E, fed noise alone
- * from the shipped awgn, so it never hands off. That is the per-sample cost
- * the parallel design multiplies (docs/design/async-dsss-parallel.md: every
- * receiver searches the whole range), and the row is recorded only if the
- * receiver is still searching before and after the timed rounds -- a
- * hand-off would time the refine or the track and read as the search.
+ * The SEARCHING flavor is timed too, while it searches: the SPEC
+ * configuration the certification measures, with its own search over
+ * +/-1/T_E, fed noise alone from the shipped awgn. That is the per-sample
+ * cost the parallel design multiplies (docs/design/async-dsss-parallel.md:
+ * every receiver searches the whole range), and the row is recorded only if
+ * the receiver searched for every sample fed -- a false alarm's refine, even
+ * one refused back to search, would be timed as the search.
  *
  * Not timed here: refinement, a one-time transient rather than a rate.
  */
@@ -204,25 +204,45 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
   return 0;
 }
 
-/* Still searching, or a message naming where it went. */
+/* Searching for EVERY sample fed so far, or a message naming what broke.
+   The state alone is not enough: a false alarm that refines and is then
+   refused at the hand-over comes back to SEARCHING within the run, and its
+   refine would be timed as search. Entering a state zeroes state_samples,
+   so `state_samples == fed` says it never left; a refused hit (one that
+   never refines) still counts in refused_hits, which must not move. */
 static int
-searching (const dp_async_dsss_receiver_state_t *rx, const char *when)
+searching (const dp_async_dsss_receiver_state_t *rx, uint64_t fed,
+           uint64_t refused0, const char *when)
 {
-  int st = dp_async_dsss_receiver_status (rx).state;
-  if (st == ASYNC_DSSS_RX_SEARCHING)
+  async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
+  if (st.state == ASYNC_DSSS_RX_SEARCHING && st.state_samples == fed
+      && st.refused_hits == refused0)
     return 1;
   (void)fprintf (stderr,
-                 "bench_async_dsss_receiver[search]: %s, state=%d -- a "
-                 "timing would measure a receiver that is not searching\n",
-                 when, st);
+                 "bench_async_dsss_receiver[search]: %s, state=%d, "
+                 "state_samples=%llu of %llu fed, refused_hits=%llu (was "
+                 "%llu) -- a timing would measure a receiver that did not "
+                 "search all along\n",
+                 when, st.state, (unsigned long long)st.state_samples,
+                 (unsigned long long)fed, (unsigned long long)st.refused_hits,
+                 (unsigned long long)refused0);
   return 0;
 }
 
-/* The searching flavor at the SPEC point, while it searches. The receiver
-   is the binding's defaults with its own search over +/-1/T_E (the one
-   native/validation/async_dsss_receiver_lock.c's make_rx() certifies),
-   designed for Es/N0 10 dB; the input is the shipped awgn at that C/N0's
-   noise level for a unit-power emitter, and no emitter. */
+/* The searching flavor at the SPEC point, while it searches: the SPEC
+   configuration, a 1,023-chip code at 3.069 Mcps and 2 samples a chip,
+   2,700 sym/s, its own search over +/-1/T_E and designed for Es/N0 10 dB,
+   the rest at the binding's defaults. The input is the shipped awgn at that
+   C/N0's noise level for a unit-power emitter, and no emitter.
+
+   The configuration MIRRORS make_rx() in
+   native/validation/async_dsss_receiver_lock.c, the receiver the
+   certification measures; change one, change the other. It is not shared
+   because a bench takes no dependency on the test tree's headers (see
+   build_capture()), and a new dp_*_test.h member carries its own
+   meta-test (native/tests/README.md). A false alarm at pfa 1e-3 over the
+   run's ~770 epochs of search is possible; searching() refuses the row
+   if one ever hands off, rather than timing it. */
 static int
 run_searching (jm_bench_t *bench, const uint8_t *code)
 {
@@ -250,11 +270,12 @@ run_searching (jm_bench_t *bench, const uint8_t *code)
     }
   (void)dp_awgn_generate (g, n, x, n);
 
-  volatile size_t sink = 0;
-  size_t          pos  = 0;
+  const uint64_t  refused0 = dp_async_dsss_receiver_status (rx).refused_hits;
+  volatile size_t sink     = 0;
+  size_t          pos      = 0;
   for (size_t b = 0; b < lead; b++, pos += BLOCK)
     sink += dp_async_dsss_receiver_steps (rx, x + pos, BLOCK, out, BLOCK);
-  if (!searching (rx, "after the lead-in"))
+  if (!searching (rx, pos, refused0, "after the lead-in"))
     return 1;
 
   double times[ITERATIONS];
@@ -265,7 +286,7 @@ run_searching (jm_bench_t *bench, const uint8_t *code)
       uint64_t t1 = jm_bench_now_ns ();
       times[r]    = jm_bench_elapsed_sec (t0, t1);
     }
-  if (!searching (rx, "after the timed rounds"))
+  if (!searching (rx, pos, refused0, "after the timed rounds"))
     return 1;
 
   const char *name = "steps[search,sf=1023,3.069Mcps]";

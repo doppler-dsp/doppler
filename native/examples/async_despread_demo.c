@@ -35,12 +35,17 @@
  *       high by up to one NCO step: the code NCO truncates its command to
  *       steps of SF * SPC / 2^32 chips per chip. Unaided, the loop carries
  *       the dilation; aided, nothing.
+ *   §4  A locked loop's output is the data on the real axis, the carrier
+ *       wiped and the code removed: its real power stands above its
+ *       imaginary by the link budget's 1 + 2 * SNR per output sample. The
+ *       loop that lost the code puts out noise.
  *
- * The despread rate in §1 and the step bound in §3 come from the object, not
- * the draw; §3 widens the bound by a quarter step either side for the noise
- * left in the settled mean. The 50 ms first lock and §2 describe this run,
- * which is the Python twin's: the same emitter, channel, noise seed and loop,
- * so the two print the same numbers.
+ * The despread rate in §1, the step bound in §3 and the budget in §4 come
+ * from the object and the link, not the draw; §3 widens the bound by a
+ * quarter step either side for the noise left in the settled mean, and §4
+ * takes half the budget as its line. The 50 ms first lock and §2 describe this
+ * run, which is the Python twin's: the same emitter, channel, noise seed and
+ * loop, so the two print the same numbers.
  *
  * Build:
  *   cmake --build build
@@ -189,12 +194,16 @@ receive (const uint8_t *code, double doppler_ppm, float complex *x, size_t cap,
  *  detector is sized for the link, as AsyncDsssReceiver sizes its own: looks
  *  coherent over the transition-free part of a symbol, as many as the C/N0
  *  needs for PD, and a drop count that holds false drops under 1e-6 per
- *  decision. Writes the lock threshold to @p eta. Returns 0, or 1 if the loop
- *  cannot be built or configured. */
+ *  decision. Writes the lock threshold to @p eta, and the despread output --
+ *  SEGMENTS samples per code period, the data with the code removed -- to
+ *  @p stream, which holds @p stream_cap samples, its length to
+ *  @p stream_len. Returns 0, or 1 if the loop cannot be built or
+ *  configured. */
 static int
 track (const uint8_t *code, const float complex *x, size_t n_push,
        double carrier_estimate_hz, double delay, int aided, struct row *rows,
-       double *eta)
+       double *eta, float complex *stream, size_t stream_cap,
+       size_t *stream_len)
 {
   /* Named in dp_dll_create()'s order, so an arity mismatch shows as a line. */
   const size_t    code_len  = SF;
@@ -230,12 +239,15 @@ track (const uint8_t *code, const float complex *x, size_t n_push,
     dp_dll_set_rate_aid (dll, carrier_estimate_hz / CARRIER_HZ);
   *eta = dp_det_threshold_noncoherent (PFA, n_looks);
 
+  *stream_len = 0;
   for (size_t k = 0; k < n_push; k++)
     {
       dp_lo_steps (lo, TE, wiped, TE);
       for (size_t i = 0; i < TE; i++)
         wiped[i] *= x[k * TE + i];
-      size_t m           = dp_dll_steps (dll, wiped, TE, despread, TE);
+      size_t m = dp_dll_steps (dll, wiped, TE, despread, TE);
+      for (size_t i = 0; i < m && *stream_len < stream_cap; i++)
+        stream[(*stream_len)++] = despread[i];
       rows[k].locked     = dp_dll_get_locked (dll);
       rows[k].lock_stat  = dp_dll_get_lock_stat (dll);
       rows[k].filter_out = dp_dll_get_code_rate (dll) - 1.0;
@@ -295,6 +307,8 @@ main (void)
   const size_t   cap = n + 64;
   float complex *x   = malloc (cap * sizeof *x);
   struct row    *rows[2][2]; /* [link, inflated][unaided, aided] */
+  float complex *stream[2][2];
+  size_t         stream_len[2][2];
   size_t         n_push[2];
   const double   ppm[2] = { LINK_PPM, INFLATED_PPM };
   double         eta    = 0.0;
@@ -308,10 +322,14 @@ main (void)
       n_push[d] = len / TE;
       for (int aided = 0; aided < 2; aided++)
         {
-          rows[d][aided] = malloc (n_push[d] * sizeof (struct row));
-          CHECK (rows[d][aided] != NULL, "the rows allocate");
+          /* SEGMENTS a period, and one period's more for the slack. */
+          const size_t stream_cap = (n_push[d] + 1) * SEGMENTS;
+          rows[d][aided]          = malloc (n_push[d] * sizeof (struct row));
+          stream[d][aided] = malloc (stream_cap * sizeof (float complex));
+          CHECK (rows[d][aided] && stream[d][aided], "the rows allocate");
           CHECK (track (code, x, n_push[d], offset_hz, delay, aided,
-                        rows[d][aided], &eta)
+                        rows[d][aided], &eta, stream[d][aided], stream_cap,
+                        &stream_len[d][aided])
                      == 0,
                  "the %.1f ppm run completes", ppm[d]);
         }
@@ -385,9 +403,40 @@ main (void)
               1e6 * carried);
     }
 
+  /* §4: the output is the data on the real axis while the loop holds the
+     code, noise once it has lost it. Per output sample the SNR is Es/N0
+     over the samples a symbol spans, so the real power stands above the
+     imaginary by 1 + 2 * SNR; half that is the line. */
+  const double per_symbol = SEGMENTS * CHIP_RATE / ((double)SF * SYM_RATE);
+  const double budget = 1.0 + 2.0 * pow (10.0, ESN0_DB / 10.0) / per_symbol;
   for (int d = 0; d < 2; d++)
     for (int aided = 0; aided < 2; aided++)
-      free (rows[d][aided]);
+      {
+        const float complex *s  = stream[d][aided];
+        const size_t         ns = stream_len[d][aided];
+        double               re = 0.0, im = 0.0;
+        for (size_t i = ns / 2; i < ns; i++)
+          {
+            re += (double)crealf (s[i]) * crealf (s[i]);
+            im += (double)cimagf (s[i]) * cimagf (s[i]);
+          }
+        const double ratio = re / im;
+        const int    holds = !(d == 1 && aided == 0);
+        CHECK ((ratio > budget / 2.0) == holds,
+               "%.1f ppm aided=%d: output real/imaginary power %.2f against "
+               "the budget's %.2f",
+               ppm[d], aided, ratio, budget);
+        printf ("§4  %.1f ppm %s: output real/imaginary power %.1f (budget "
+                "%.1f)\n",
+                ppm[d], aided ? "aided  " : "unaided", ratio, budget);
+      }
+
+  for (int d = 0; d < 2; d++)
+    for (int aided = 0; aided < 2; aided++)
+      {
+        free (rows[d][aided]);
+        free (stream[d][aided]);
+      }
   free (x);
   printf ("OK\n");
   return 0;

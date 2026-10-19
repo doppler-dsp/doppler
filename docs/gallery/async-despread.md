@@ -1,6 +1,6 @@
 # Streaming Async Despreader
 
-![Code lock statistic and loop filter output, unaided and aided, at this link's Doppler and at an inflated one](../assets/async_despread_demo.png)
+![Code lock statistic and loop filter output, unaided and aided, at this link's Doppler and at an inflated one, and the despread output](../assets/async_despread_demo.png)
 
 A [`track.Dll`](../api/python-track.md) with `segments > 1` is the despreader of
 a DSSS link whose data clock is asynchronous to its code. It takes a
@@ -45,12 +45,19 @@ aided, at two Dopplers:
     rate the loop carries and one step above it. At this link's Doppler one step
     is nearly the whole Doppler, so the code loop's rate is not how to measure the
     Doppler. The carrier estimate is.
+- **The output is the data.** A locked loop emits the data symbols on the real
+    axis, four samples per code period and 4.44 per symbol, so each symbol's
+    sign spans four or five samples. Its real power stands above its imaginary
+    by about the link budget's `1 + 2·SNR` per output sample. The loop that lost
+    the code puts out noise, with the two about equal.
 
-The script prints this run's numbers: the settled filter outputs, and when the
-unaided loop lost the inflated Doppler. Two bounds come from the object, not the
-draw: the output rate, and the settled filter output sitting between the carried
-rate and one NCO step above it. The script widens the second by a quarter step
-either side for the noise left in its mean. Which loops held lock is this run's
+The script prints this run's numbers: the settled filter outputs, when the
+unaided loop lost the inflated Doppler, and the output's real-to-imaginary
+power. Three bounds come from the object and the link, not the draw: the output
+rate; the settled filter output sitting between the carried rate and one NCO
+step above it; and the output's power on the real axis. The script widens the
+second by a quarter step either side for the noise left in its mean, and takes
+half the budget as the line for the third. Which loops held lock is this run's
 outcome, and the script asserts it for this run.
 
 ## How it works
@@ -86,7 +93,7 @@ of hundred milliseconds in the filter-output panels.
 --8<-- "src/doppler/examples/async_despread_demo.py:track"
 ```
 
-The checks run on one row per code period:
+The checks run on one row per code period, and on the despread output:
 
 ```python
 --8<-- "src/doppler/examples/async_despread_demo.py:validate"
@@ -112,6 +119,11 @@ for a higher C/N0 than the link has.
     loop reads when it carries its rate: from that rate to one NCO step above it,
     orange from the dilation and blue from zero. At 5 ppm the unaided output climbs
     toward the dilation, loses the code before it gets there, and wanders.
+1. **The despread output** (bottom): about fourteen symbols of the aided loop's
+    output at 0.6 ppm, from the settled half. I carries the data, in runs of
+    four or five samples per symbol and longer where neighbors share a sign. Q
+    is noise about zero, because the carrier is wiped. This stream is what a
+    symbol-timing loop takes next.
 
 ## Reproduce
 

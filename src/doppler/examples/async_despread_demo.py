@@ -26,6 +26,10 @@ This demo runs one link twice, unaided and aided, at two Dopplers:
   is for. The narrow loop cannot carry it unaided and loses lock within tens
   of milliseconds. Aided, it holds.
 
+A locked loop's output is the data on the real axis, four samples per code
+period and about four and a half per symbol; the figure's bottom panel shows
+the aided loop's at 0.6 ppm. A loop off the code puts out noise.
+
 The loop filter output is ``code_rate - 1``, in chips per chip, without the
 aid. The code NCO commands its rate in whole phase-increment steps of
 ``SF * spc / 2**32`` chips per chip (0.48 ppm here) and truncates, so the
@@ -184,7 +188,9 @@ def track(x, channel, aided):
     the delay, so a code that arrives ``L`` chips late starts the loop at
     ``SF - L``.
 
-    Returns one :data:`ROW` per push, and the lock threshold.
+    Returns one :data:`ROW` per push, the lock threshold, and the despread
+    output: ``SEGMENTS`` samples per code period, the data with the code
+    removed.
     """
     carrier_estimate_hz = channel.offset_hz
     wiped = x * LO(-carrier_estimate_hz / FS).steps(len(x))
@@ -195,32 +201,39 @@ def track(x, channel, aided):
         dll.set_rate_aid(carrier_estimate_hz / CARRIER_HZ)
 
     rows = np.zeros(len(wiped) // TE, ROW)
+    output = []
     for k in range(len(rows)):
         despread = dll.steps(wiped[k * TE : (k + 1) * TE])
+        output.append(despread)
         rows[k] = (
             dll.locked,
             dll.lock_stat,
             dll.code_rate - 1.0,  # the loop filter output, chips per chip
             len(despread),
         )
-    return rows, threshold
+    return rows, threshold, np.concatenate(output)
 
 
 # --8<-- [end:track]
 
 
 # --8<-- [start:validate]
-def check(runs):
+def check(runs, outputs):
     """Assert what the runs show, and return what this run measured.
 
-    ``runs`` maps ``(doppler_ppm, aided)`` to a run's rows.
+    ``runs`` maps ``(doppler_ppm, aided)`` to a run's rows, and ``outputs``
+    to its despread output.
 
-    Two bounds come from the object, not the draw. The despread output is
-    ``SEGMENTS`` samples per code period. And the NCO truncates its command,
-    so a locked loop's settled filter output reads between the rate the loop
-    carries and one NCO step above it. The check widens that by a quarter
-    step either side, an allowance for the noise left in a mean over the
-    settled half that is not part of the bound. The rest describes this
+    Three bounds come from the object and the link, not the draw. The
+    despread output is ``SEGMENTS`` samples per code period. A locked loop's
+    output is the data on the real axis, the carrier wiped and the code
+    removed, so its real power stands above its imaginary by the link
+    budget's ``1 + 2 * SNR`` per output sample; the check takes half that as
+    the line, below which the output is noise. And the NCO truncates its
+    command, so a locked loop's settled filter output reads between the rate
+    the loop carries and one NCO step above it. The check widens that by a
+    quarter step either side, an allowance for the noise left in a mean over
+    the settled half that is not part of the bound. The rest describes this
     run: first lock within a generous 50 ms, which loops held lock, and when
     the unaided loop lost it.
     """
@@ -252,6 +265,22 @@ def check(runs):
         len(unaided) - int(np.argmax(unaided[::-1]))
     ) * ms
 
+    # The output: on the real axis while the loop holds the code, noise once
+    # it has lost it. Per output sample the SNR is Es/N0 over the samples a
+    # symbol spans.
+    per_symbol = SEGMENTS * CHIP_RATE / (SF * SYM_RATE)
+    budget = 1.0 + 2.0 * 10.0 ** (ESN0_DB / 10.0) / per_symbol
+    for (ppm, aided), out in outputs.items():
+        settled = out[len(out) // 2 :]
+        ratio = float(np.mean(settled.real**2) / np.mean(settled.imag**2))
+        holds = (ppm, aided) != (INFLATED_PPM, False)
+        assert (ratio > budget / 2) == holds, (
+            f"{ppm} ppm aided={aided}: output real/imaginary power "
+            f"{ratio:.2f} against the budget's {budget:.2f}"
+        )
+        got[f"{ppm}_{aided}_axis"] = ratio
+    got["axis_budget"] = budget
+
     # Physical: a locked loop's settled filter output is the rate it carries,
     # read high by up to one NCO step. Unaided, the loop carries the
     # dilation. Aided, the aid carries it and the loop carries nothing.
@@ -282,12 +311,14 @@ def main(out_path="async_despread_demo.png"):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    runs = {}
+    runs, outputs = {}, {}
     for ppm in (LINK_PPM, INFLATED_PPM):
         x, channel = receive(ppm)
         for aided in (False, True):
-            runs[ppm, aided], eta = track(x, channel, aided)
-    got = check(runs)
+            runs[ppm, aided], eta, outputs[ppm, aided] = track(
+                x, channel, aided
+            )
+    got = check(runs, outputs)
     print(
         f"this run, NCO step {1e6 * NCO_STEP:.2f} ppm. At {LINK_PPM:.1f} ppm "
         f"both loops held lock; the settled filter output read "
@@ -295,7 +326,11 @@ def main(out_path="async_despread_demo.png"):
         f"{got[f'{LINK_PPM}_True_filter_ppm']:+.2f} ppm aided. At the "
         f"inflated {INFLATED_PPM:.0f} ppm the unaided loop lost lock "
         f"{got['inflated_unaided_lost_ms']:.0f} ms in; aided it held, the "
-        f"filter output at {got[f'{INFLATED_PPM}_True_filter_ppm']:+.2f} ppm"
+        f"filter output at {got[f'{INFLATED_PPM}_True_filter_ppm']:+.2f} ppm."
+        f" The output's real/imaginary power, budget "
+        f"{got['axis_budget']:.1f}: {got[f'{LINK_PPM}_True_axis']:.1f} aided "
+        f"at {LINK_PPM:.1f} ppm, {got[f'{INFLATED_PPM}_False_axis']:.1f} "
+        f"unaided at {INFLATED_PPM:.0f} ppm"
     )
 
     colours = {False: "#d95f02", True: "#1b6ec2"}
@@ -303,7 +338,14 @@ def main(out_path="async_despread_demo.png"):
     # A 30 ms running mean: the timescale the narrow loop moves on.
     win = max(1, round(0.03 / EPOCH_S))
 
-    fig, axes = plt.subplots(2, 2, figsize=(11, 6.4), sharex=True)
+    fig = plt.figure(figsize=(11, 9.0))
+    grid = fig.add_gridspec(3, 2, height_ratios=(1.0, 1.0, 0.9))
+    axes = [
+        [fig.add_subplot(grid[0, 0]), fig.add_subplot(grid[0, 1])],
+        [fig.add_subplot(grid[1, 0]), fig.add_subplot(grid[1, 1])],
+    ]
+    for top, bottom in zip(axes[0], axes[1]):
+        top.sharex(bottom)
     for (lock_ax, filt_ax), ppm, label in zip(
         axes,
         (LINK_PPM, INFLATED_PPM),
@@ -356,6 +398,37 @@ def main(out_path="async_despread_demo.png"):
         filt_ax.grid(alpha=0.25)
     for ax in axes[1]:
         ax.set_xlabel("time (ms)")
+
+    # What the despreader emits: the aided loop's output at this link's
+    # Doppler, a stretch from the settled half. The data rides the real
+    # axis, SEGMENTS samples per code period and a non-whole number per
+    # symbol, so each symbol's sign spans four or five samples.
+    out_ax = fig.add_subplot(grid[2, :])
+    out = outputs[LINK_PPM, True]
+    per_symbol = SEGMENTS * CHIP_RATE / (SF * SYM_RATE)
+    first = len(out) // 2
+    shown = np.arange(first, first + round(14 * per_symbol))
+    out_ax.plot(shown, out[shown].imag, ".", ms=3, color="0.6", label="Q")
+    out_ax.plot(
+        shown,
+        out[shown].real,
+        "-o",
+        ms=3.5,
+        lw=0.8,
+        color=colours[True],
+        label="I",
+    )
+    out_ax.axhline(0.0, color="0.3", lw=0.6)
+    out_ax.set_xlim(shown[0] - 1, shown[-1] + 1)
+    out_ax.set_xlabel(f"despread sample ({SEGMENTS} per code period)")
+    out_ax.set_ylabel("output")
+    out_ax.set_title(
+        f"{LINK_PPM:.1f} ppm, aided: the despread output, "
+        f"{per_symbol:.2f} samples a symbol",
+        fontsize=9,
+    )
+    out_ax.legend(fontsize=7, loc="upper right")
+    out_ax.grid(alpha=0.25)
 
     fig.suptitle(
         f"track.Dll, unaided and aided: Gold-{SF}, "

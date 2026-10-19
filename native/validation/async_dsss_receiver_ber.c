@@ -91,7 +91,10 @@
 
    So the count is a RATCHET: unsettled_max below, per Es/N0, is the
    committed sweep's count at its fixed seeds plus one for another
-   toolchain's draws, and it may only shrink.
+   toolchain's draws, and it may only shrink. The cap is a count, not a
+   rate, and a point runs until its errors: a receiver whose loss improves
+   runs more bursts and can trip it at an unchanged settle rate. That is a
+   re-record moment (the sweep, then this table), not a regression.
 
    And one floor. The pre-despread loop is "reliable to twice" its bound,
    ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (60 Hz here), measured on the seed it is

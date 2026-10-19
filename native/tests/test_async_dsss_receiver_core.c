@@ -1816,9 +1816,14 @@ _test_configure_chain_raw_keeps_the_carrier (void)
   DP_CHECK (fabs (dp_async_dsss_receiver_status (rx).doppler_hz - carrier_hz)
             < 100.0);
 
+  const double before = dp_async_dsss_receiver_status (rx).doppler_hz;
   DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (
                 rx, 4, 8, (int)dp_async_dsss_receiver_get_n (rx))
             == 0);
+  /* The rebuilt chain starts where the old one was: the whole carrier
+     carried across, not just loop 2's residual. */
+  DP_CHECK (fabs (dp_async_dsss_receiver_status (rx).doppler_hz - before)
+            < 1.0);
   size_t n_syms = _stream (rx, x + half, n - half, te, &syms);
   DP_CHECK (n_syms > 100);
   DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
@@ -1880,8 +1885,10 @@ _test_refine_stops_at_its_decision (void)
       DP_CHECK ((pc > pw ? pc - pw : pw - pc) <= 1);
       /* Before the fix the single call folded the whole capture's worth. */
       DP_CHECK (pw < (uint64_t)(n / te) / 2);
+      /* Same symbols, bit for bit: the fix moves cost, not output. */
+      DP_CHECK (n1 == n2 && n1 > 20);
+      DP_CHECK (n1 == n2 && memcmp (s1, s2, n1 * sizeof *s1) == 0);
       DP_CHECK (_best_ber (s1, n1, data, n_sym + 4) < 0.05);
-      DP_CHECK (_best_ber (s2, n2, data, n_sym + 4) < 0.05);
       free (s1);
       free (s2);
     }

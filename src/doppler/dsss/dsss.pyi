@@ -2415,7 +2415,8 @@ class AsyncDsssReceiver:
         tracking, the release clock runs on the two lock flags after every
         call, or on the symbol lock flag alone with `reacquire` (see
         `lost_confirm_s`). Tracking emits symbols whether or not they are data:
-        a noise false alarm can reach tracking and emit until it is released,
+        a noise false alarm can reach tracking and emit until the release rule
+        lets it go -- or, at the default lost_confirm_s of 0, until reset() --
         and symbol lock (`locked`) is what says the symbols are a signal's, so
         read it rather than the count (#2439). Under SPEC's coupled offset +
         500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier
@@ -3284,7 +3285,8 @@ class CellAsyncDsssReceiver:
         tracking, the release clock runs on the two lock flags after every
         call, or on the symbol lock flag alone with `reacquire` (see
         `lost_confirm_s`). Tracking emits symbols whether or not they are data:
-        a noise false alarm can reach tracking and emit until it is released,
+        a noise false alarm can reach tracking and emit until the release rule
+        lets it go -- or, at the default lost_confirm_s of 0, until reset() --
         and symbol lock (`locked`) is what says the symbols are a signal's, so
         read it rather than the count (#2439). Under SPEC's coupled offset +
         500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier

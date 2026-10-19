@@ -26,8 +26,10 @@
  * The waveform is not built here. The emitter is the shipped `wfm_synth`
  * continuous DSSS -- the Gold code from wfm's own generator, asynchronous
  * BPSK from its own PRBS -- and the noise is the shipped awgn at the sigma
- * dp_wfm_awgn_amplitude() gives for the Es/N0, the function the Python twin
- * calls. Nothing in this file spreads a chip, draws a bit or computes a sigma.
+ * dp_wfm_awgn_amplitude() gives for the Es/N0. That is wfm's face of the awgn
+ * primitive, dp_awgn_amplitude_for_snr(), and the function the Python twin
+ * calls as wfm_awgn_amplitude. Nothing in this file spreads a chip, draws a
+ * bit or computes a sigma.
  * The payload is the synth's own PRBS, sent on the code throughout.
  *
  * The checks are against the receiver's own telemetry, one row a push:

@@ -55,7 +55,12 @@ from doppler.cvt import (
 from doppler.ddc import DDC, Ddcr, MatchedDDC
 from doppler.delay import DelayCf64
 from doppler.detection import LockDet
-from doppler.dsss import BurstDespreader, Despreader
+from doppler.dsss import (
+    AsyncDsssReceiver,
+    BurstDespreader,
+    CellAsyncDsssReceiver,
+    Despreader,
+)
 from doppler.filter import FIR, MovingAverage
 from doppler.impairment import DopplerChannel
 from doppler.resample import (
@@ -429,6 +434,19 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     "Despreader": (
         lambda: Despreader(code=_CODE, sps=2, periods_per_bit=1),
+        _track_feed,
+    ),
+    # On the shared noise stream the searching flavor stays searching, so
+    # this row round-trips the embedded search's state (the tracking state's
+    # round trip is the C suite's, test_async_dsss_receiver_core.c); the cell
+    # flavor waits idle. Both rows put the receivers' setters under #2022's
+    # mutator gate (#2078).
+    "AsyncDsssReceiver": (
+        lambda: AsyncDsssReceiver(_CODE, cn0_dbhz=50.0),
+        _track_feed,
+    ),
+    "CellAsyncDsssReceiver": (
+        lambda: CellAsyncDsssReceiver(_CODE, cn0_dbhz=50.0),
         _track_feed,
     ),
     "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, m_out=4), _track_feed),

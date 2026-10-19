@@ -1,5 +1,5 @@
 # dsss/dsss.pyi — type stubs for the dsss C extension.
-from typing import Any, final
+from typing import Any, final, Literal
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray
@@ -64,7 +64,7 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
     state_samples : int
         Input samples since `state` was entered.
     both_down_samples : int
-        Input samples both flags have been down without a break (the release clock); in lost it keeps counting -- samples since the flags dropped.
+        Input samples both flags have been down without a break (the release clock); in lost it keeps counting -- samples since the flags dropped. With reacquire, the symbol lock flag's clock alone.
     refused_hits : int
         Searching hits refused as seeds by the seed domain (a Doppler at or past fs/2), since create or reset. The search went on over each one's tail.
     """
@@ -126,8 +126,8 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
     @property
     def both_down_samples(self) -> int:
         """Input samples both flags have been down without a break (the release
-        clock); in lost it keeps counting -- samples since the flags
-        dropped.
+        clock); in lost it keeps counting -- samples since the flags dropped.
+        With reacquire, the symbol lock flag's clock alone.
         """
 
     @property
@@ -2326,6 +2326,19 @@ class AsyncDsssReceiver:
         that never locks within the interval is released the same way as an
         emitter that leaves. Default 0.0 = never -- the searching flavor's exit
         is then reset().
+    reacquire : bool, default False
+        Release on symbol lock alone, and search again by itself. With it set,
+        the release clock counts samples of tracking with the SYMBOL lock flag
+        down (code lock is not consulted), and when it passes lost_confirm_s
+        the receiver resets itself to searching instead of entering lost: it
+        never waits for reset(). A pool of receivers that are always online
+        uses it. The clock runs from the first tracking sample, as above, so a
+        track that never locks (a noise false alarm) is released too; size
+        lost_confirm_s past the pull-in time to symbol lock, or a slow lock is
+        released before it comes. Requires a lost_confirm_s of at least one
+        input sample, since a release that never fires would never search
+        again; a blob in the lost state is refused by set_state(). Default
+        false: the release rule above.
 
     Raises
     ------
@@ -2334,11 +2347,12 @@ class AsyncDsssReceiver:
         invalid parameter (need a code of at least 2 chips, a finite chip_rate
         > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
         segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above
-        chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol >=
-        1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20
-        Dll partials, segments * chip_rate / (code_len * symbol_rate) <=
-        1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd <
-        1, a finite doppler_uncertainty >= 0)``.
+        chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input sample
+        with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1,
+        refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a
+        finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty
+        >= 0)``.
 
     Examples
     --------
@@ -2376,6 +2390,7 @@ class AsyncDsssReceiver:
         refine_max_n_blocks: int = 100000,
         carrier_freq_hz: float = 0.0,
         lost_confirm_s: float = 0.0,
+        reacquire: bool = False,
     ) -> None: ...
     def steps(
         self,
@@ -2397,11 +2412,16 @@ class AsyncDsssReceiver:
         frames of any length with no seam. Idle (cell mode, before a seed) and
         lost (after the release rule fires) consume the samples and emit
         nothing, so the feeding loop is the same in every state; while
-        tracking, the release clock runs on the two lock flags after every call
-        (see `lost_confirm_s`). Under SPEC's coupled offset + 500 Hz/s Doppler
-        ramp the pre-despread Costas removes the full carrier dynamics before
-        the code loop, so the recovered constellation lands cleanly on the BPSK
-        real axis.
+        tracking, the release clock runs on the two lock flags after every
+        call, or on the symbol lock flag alone with `reacquire` (see
+        `lost_confirm_s`). Tracking emits symbols whether or not they are data:
+        a noise false alarm can reach tracking and emit until the release rule
+        lets it go -- or, at the default lost_confirm_s of 0, until reset() --
+        and symbol lock (`locked`) is what says the symbols are a signal's, so
+        read it rather than the count (#2439). Under SPEC's coupled offset +
+        500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier
+        dynamics before the code loop, so the recovered constellation lands
+        cleanly on the BPSK real axis.
 
         Parameters
         ----------
@@ -2947,6 +2967,15 @@ class AsyncDsssReceiver:
         """
 
     @property
+    def lifecycle(self) -> Literal["searching", "refining", "tracking", "idle", "lost"]:
+        """Where the receiver is in its lifecycle, by name: `"searching"`,
+        `"refining"`, `"tracking"`, `"idle"` (cell mode, waiting for a seed) or
+        `"lost"` (released, waiting for `reset()`). The same state as
+        `status().state`, which carries it as the C integer. With `reacquire` a
+        release goes back to `"searching"` and never reads `"lost"`.
+        """
+
+    @property
     def tracking(self) -> int:
         """1 once the live tracking chain is built and demodulating; 0 in every
         other state.
@@ -3186,11 +3215,12 @@ class CellAsyncDsssReceiver:
         invalid parameter (need a code of at least 2 chips, a finite chip_rate
         > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
         segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above
-        chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol >=
-        1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20
-        Dll partials, segments * chip_rate / (code_len * symbol_rate) <=
-        1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd <
-        1, a finite doppler_uncertainty >= 0)``.
+        chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input sample
+        with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1,
+        refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a
+        finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty
+        >= 0)``.
 
     Examples
     --------
@@ -3252,11 +3282,16 @@ class CellAsyncDsssReceiver:
         frames of any length with no seam. Idle (cell mode, before a seed) and
         lost (after the release rule fires) consume the samples and emit
         nothing, so the feeding loop is the same in every state; while
-        tracking, the release clock runs on the two lock flags after every call
-        (see `lost_confirm_s`). Under SPEC's coupled offset + 500 Hz/s Doppler
-        ramp the pre-despread Costas removes the full carrier dynamics before
-        the code loop, so the recovered constellation lands cleanly on the BPSK
-        real axis.
+        tracking, the release clock runs on the two lock flags after every
+        call, or on the symbol lock flag alone with `reacquire` (see
+        `lost_confirm_s`). Tracking emits symbols whether or not they are data:
+        a noise false alarm can reach tracking and emit until the release rule
+        lets it go -- or, at the default lost_confirm_s of 0, until reset() --
+        and symbol lock (`locked`) is what says the symbols are a signal's, so
+        read it rather than the count (#2439). Under SPEC's coupled offset +
+        500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier
+        dynamics before the code loop, so the recovered constellation lands
+        cleanly on the BPSK real axis.
 
         Parameters
         ----------
@@ -3710,6 +3745,15 @@ class CellAsyncDsssReceiver:
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def lifecycle(self) -> Literal["searching", "refining", "tracking", "idle", "lost"]:
+        """Where the receiver is in its lifecycle, by name: `"searching"`,
+        `"refining"`, `"tracking"`, `"idle"` (cell mode, waiting for a seed) or
+        `"lost"` (released, waiting for `reset()`). The same state as
+        `status().state`, which carries it as the C integer. With `reacquire` a
+        release goes back to `"searching"` and never reads `"lost"`.
         """
 
     @property

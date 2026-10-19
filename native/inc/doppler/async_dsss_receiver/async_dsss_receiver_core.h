@@ -85,7 +85,8 @@
  *     4, 8, 0,                         // segments, sps, differential
  *     0.5, 4, 14.0, 64, 8, false, 100000,  // refine_* tuning
  *     0.0,                             // carrier_freq_hz (0 = aiding off)
- *     0.0);                            // lost_confirm_s (0 = never lost)
+ *     0.0,                             // lost_confirm_s (0 = never lost)
+ *     false);                          // reacquire (off: lost waits)
  * float _Complex syms[4096];
  * size_t n = dp_async_dsss_receiver_steps(rx, x, x_len, syms, 4096);
  * dp_async_dsss_receiver_destroy(rx);
@@ -214,12 +215,17 @@ extern "C"
  * serialized blob's extra record). Searching -> refining -> tracking is the
  * searching flavor's path; cell mode starts at idle and seed() puts it
  * at refining; lost is reached from tracking by the release rule and left
- * only by reset(). */
-#define ASYNC_DSSS_RX_SEARCHING 0
-#define ASYNC_DSSS_RX_REFINING 1
-#define ASYNC_DSSS_RX_TRACKING 2
-#define ASYNC_DSSS_RX_IDLE 3
-#define ASYNC_DSSS_RX_LOST 4
+ * only by reset(). With reacquire the release skips lost and goes straight
+ * back to searching. */
+/* SSOT: enum=async_dsss_rx_state */
+typedef enum
+{
+  ASYNC_DSSS_RX_SEARCHING = 0, /**< the embedded search is running.        */
+  ASYNC_DSSS_RX_REFINING  = 1, /**< the refine (or cell pull-in) stage.    */
+  ASYNC_DSSS_RX_TRACKING  = 2, /**< the live chain holds the signal.       */
+  ASYNC_DSSS_RX_IDLE      = 3, /**< cell mode, waiting for a seed.         */
+  ASYNC_DSSS_RX_LOST      = 4, /**< released, waiting for reset().         */
+} async_dsss_rx_state_t;
 
   /**
    * @brief Composed receiver state.
@@ -255,6 +261,14 @@ extern "C"
                                        The clock dilation is taken over the
                                        consumed count, from the refine's
                                        blocks, not over this. */
+    uint64_t refine_periods;     /**< Diagnostic: code periods the refine
+                                      stage processed since its chain was
+                                      built. It stops at the period the
+                                      carrier estimate decides in, so it is
+                                      the same whatever the block size
+                                      (#2395). Not in the state blob: it
+                                      changes nothing, and a restore
+                                      restarts it. */
     /* Scratch, not state -- sized once per refine-chain (re)build (no
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled
@@ -340,6 +354,9 @@ extern "C"
     double   lost_confirm_s;       /**< Config: both flags down for longer
                                         than this is "gone"; 0 = never.  */
     uint64_t lost_confirm_samples; /**< lost_confirm_s at the input rate. */
+    bool     reacquire;            /**< Config: release on symbol lock alone
+                                        and reset to searching, never lost
+                                        (see dp_async_dsss_receiver_create()). */
     uint64_t state_samples;        /**< Running: samples fed since the
                                         current state was entered.       */
     uint64_t refused_hits;         /**< Searching hits the seed domain refused
@@ -350,7 +367,9 @@ extern "C"
     uint64_t both_down_samples;    /**< Running: consecutive samples fed
                                         while tracking with BOTH lock
                                         flags down -- the release clock;
-                                        lost keeps it counting.          */
+                                        lost keeps it counting. With
+                                        reacquire it counts the symbol
+                                        lock flag alone.                 */
     int      had_lock;             /**< Running: both lock flags have been
                                         up since the hand-over. After that
                                         both down holds both loops
@@ -524,7 +543,31 @@ extern "C"
    *                                   as an emitter that leaves. Default
    *                                   0.0 = never -- the searching
    *                                   flavor's exit is then reset().
-   * @return A new receiver, searching; NULL on an invalid argument.
+   * @param reacquire                  Release on symbol lock alone, and
+   *                                   search again by itself. With it set,
+   *                                   the release clock counts samples of
+   *                                   tracking with the SYMBOL lock flag
+   *                                   down (code lock is not consulted),
+   *                                   and when it passes lost_confirm_s the
+   *                                   receiver resets itself to searching
+   *                                   instead of entering lost: it never
+   *                                   waits for reset(). A pool of
+   *                                   receivers that are always online
+   *                                   uses it. The clock runs from the
+   *                                   first tracking sample, as above, so
+   *                                   a track that never locks (a noise
+   *                                   false alarm) is released too; size
+   *                                   lost_confirm_s past the pull-in time
+   *                                   to symbol lock, or a slow lock is
+   *                                   released before it comes. Requires a
+   *                                   lost_confirm_s of at least one input
+   *                                   sample, since a release that never
+   *                                   fires would never search again; a
+   *                                   blob in the lost state is refused by
+   *                                   set_state(). Default false: the
+   *                                   release rule above.
+   * @return A new receiver, searching; NULL on an invalid argument,
+   *         including reacquire with a lost_confirm_s under one sample.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import AsyncDsssReceiver
@@ -545,7 +588,7 @@ extern "C"
       size_t refine_samples_per_symbol, double refine_design_margin_db,
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
-      double lost_confirm_s);
+      double lost_confirm_s, bool reacquire);
 
   /**
    * @brief Create the receiver a searcher's cell drives: the cell mode,
@@ -772,10 +815,15 @@ extern "C"
    * no seam. Idle (cell mode, before a seed) and lost (after the release rule
    * fires) consume the samples and emit nothing, so the feeding loop is the
    * same in every state; while tracking, the release clock runs on the two
-   * lock flags after every call (see `lost_confirm_s`). Under SPEC's coupled
-   * offset + 500 Hz/s Doppler ramp the pre-despread Costas removes the full
-   * carrier dynamics before the code loop, so the recovered constellation
-   * lands cleanly on the BPSK real axis.
+   * lock flags after every call, or on the symbol lock flag alone with
+   * `reacquire` (see `lost_confirm_s`). Tracking emits symbols whether or
+   * not they are data: a noise false alarm can reach tracking and emit
+   * until the release rule lets it go -- or, at the default lost_confirm_s
+   * of 0, until reset() -- and symbol lock (`locked`) is what says the
+   * symbols are a signal's, so read it rather than the count (#2439).
+   * Under SPEC's coupled offset + 500 Hz/s Doppler ramp the pre-despread
+   * Costas removes the full carrier dynamics before the code loop, so the
+   * recovered constellation lands cleanly on the BPSK real axis.
    *
    * @param state    Must be non-NULL.
    * @param x        Input cf32 samples.
@@ -962,7 +1010,9 @@ extern "C"
     uint64_t both_down_samples; /**< Input samples both flags have been down
                                      without a break (the release clock);
                                      in lost it keeps counting -- samples
-                                     since the flags dropped.             */
+                                     since the flags dropped. With
+                                     reacquire, the symbol lock flag's
+                                     clock alone.                         */
     uint64_t refused_hits;      /**< Searching hits refused as seeds by the
                                      seed domain (a Doppler at or past fs/2),
                                      since create or reset. The search went on
@@ -1308,10 +1358,12 @@ extern "C"
     uint64_t period_count;
     uint64_t intervals;
     uint64_t refused_hits; /**< v8: the searching hits refused as seeds. */
+    uint64_t refine_min_blocks; /**< v9: set_refine_min_blocks()'s value, a
+                                     mutator's, so it travels (#2022). */
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 8u /* v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 9u /* v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

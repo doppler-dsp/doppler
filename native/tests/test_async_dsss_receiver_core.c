@@ -1901,6 +1901,61 @@ _test_refine_stops_at_its_decision (void)
   return 0;
 }
 
+/* set_refine_min_blocks() is a mutator, so its value travels in the blob
+ * (#2022, v9): a searching receiver given a non-default refine floor, then
+ * serialized, restores into a default-built one with that floor. A cell
+ * receiver refuses the setter, so a cell blob carrying any other floor
+ * than its create()'s is refused. Sabotage: leave it out of the blob -> red.
+ */
+static int
+_test_refine_min_blocks_travels (void)
+{
+  const double                    sym_rate = 35714.29, cn0 = 70.0;
+  dp_async_dsss_receiver_state_t *a
+      = _searching_rx (cn0, sym_rate, 0.0, false);
+  dp_async_dsss_receiver_state_t *b
+      = _searching_rx (cn0, sym_rate, 0.0, false);
+  DP_CHECK (a != NULL && b != NULL);
+  if (a && b)
+    {
+      const size_t floor0 = a->refine_min_blocks;
+      DP_CHECK (dp_async_dsss_receiver_set_refine_min_blocks (a, floor0 + 5)
+                == DP_OK);
+      size_t cb   = dp_async_dsss_receiver_state_bytes (a);
+      void  *blob = malloc (cb);
+      dp_async_dsss_receiver_get_state (a, blob);
+      DP_CHECK (b->refine_min_blocks == floor0);
+      DP_CHECK (dp_async_dsss_receiver_set_state (b, blob) == DP_OK);
+      DP_CHECK (b->refine_min_blocks == floor0 + 5);
+      free (blob);
+    }
+  if (a)
+    dp_async_dsss_receiver_destroy (a);
+  if (b)
+    dp_async_dsss_receiver_destroy (b);
+
+  /* A cell blob forged with another floor: refused. */
+  dp_async_dsss_receiver_state_t *c = _seeded_rx (cn0, 0.0);
+  dp_async_dsss_receiver_state_t *d = _seeded_rx (cn0, 0.0);
+  DP_CHECK (c != NULL && d != NULL);
+  if (c && d)
+    {
+      size_t cb   = dp_async_dsss_receiver_state_bytes (c);
+      void  *blob = malloc (cb);
+      DP_CHECK (dp_async_dsss_receiver_set_refine_min_blocks (c, 99)
+                == DP_ERR_INVALID);
+      c->refine_min_blocks += 3; /* what the refused setter never allows */
+      dp_async_dsss_receiver_get_state (c, blob);
+      DP_CHECK (dp_async_dsss_receiver_set_state (d, blob) == DP_ERR_INVALID);
+      free (blob);
+    }
+  if (c)
+    dp_async_dsss_receiver_destroy (c);
+  if (d)
+    dp_async_dsss_receiver_destroy (d);
+  return 0;
+}
+
 /* One flag down is a degrade, not a release (section 11.2): with the code
  * detector pinned to a threshold no statistic reaches, code lock drops on a
  * healthy signal while symbol lock holds -- and the release clock, which
@@ -3485,6 +3540,7 @@ main (void)
   (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_configure_chain_raw_keeps_the_carrier ();
   (void)_test_refine_stops_at_its_decision ();
+  (void)_test_refine_min_blocks_travels ();
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
   (void)_test_seeded_blob_keyed_by_flavor ();

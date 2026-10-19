@@ -1,27 +1,31 @@
 """Certify `async_dsss_receiver` -- one continuous asynchronous DSSS receiver.
 
 Run:  make validate-py VALIDATORS=<this file>   (this report)
-      make validate-async-receiver-sweep        (re-run the full sweep into
-                                                 data/sweep.txt, then this)
+      make validate-async-receiver-sweep        (re-run the full sweeps into
+                                                 data/, then this)
       make validate          (regenerates every report)
       make validate-check    (fails if the committed report is stale)
 
-**C measures; Python renders and asserts.** Every number here is
-`native/validation/async_dsss_receiver_lock.c`'s: the shipped
-continuous-DSSS synth (`wfm_synth`) with the harness's own data bits, the
-shipped `awgn` sized from C/N0, the receiver in the SPEC configuration.
-This file parses its CSV blocks, characterises, reviews and asserts the
-limits through the same `Report` every other certified object uses -- the
-`conv` / `async_dsss_pool` shape.
+**C measures; Python renders and asserts.** Every number here is one of two
+C harnesses' on one stimulus (`native/validation/
+async_dsss_receiver_common.h`): `async_dsss_receiver_lock.c` (arrival,
+EVM, dropout, false lock) and `async_dsss_receiver_ber.c` (the error rate
+against the BPSK bound). Both drive the shipped continuous-DSSS synth
+(`wfm_synth`) with the harness's own data bits, the shipped `awgn` sized
+from C/N0, the receiver in the SPEC configuration. This file parses their
+CSV blocks, characterises, reviews and asserts the limits through the same
+`Report` every other certified object uses -- the `conv` /
+`async_dsss_pool` shape.
 
-**Two runs, two roles.** The limits are asserted on the harness's
-regression subset, `--check --emit`, re-run on every push (about 3 s), so
-the evidence and the gate are one run and cannot disagree. The full sweep
--- twenty arrival and dropout draws at 10 and 5 dB, five quality draws at
-each Es/N0, five false-lock draws -- is committed as `data/sweep.txt` and
-rendered in section 2.5; the findings and the executive summary quote it,
-computed from that file, never typed. `make validate-async-receiver-sweep`
-refreshes it on purpose.
+**Two runs, two roles.** The limits are asserted on each harness's
+regression subset, `--check --emit`, re-run on every push (about 3 s and
+8 s), so the evidence and the gate are one run and cannot disagree. The
+full sweeps are committed and rendered: `data/sweep.txt` -- twenty arrival
+and dropout draws at 10 and 5 dB, five quality draws at each Es/N0, five
+false-lock draws -- in section 2.5, and `data/ber_sweep.txt` -- the error
+rate at 5 to 8 dB, 200 errors a point -- in section 2.6. The findings and
+the executive summary quote them, computed from those files, never typed.
+`make validate-async-receiver-sweep` refreshes both on purpose.
 
 **Scope: BPSK.** The receiver accepts m = 2, 4 or 8; the owner scoped this
 certification to BPSK (2026-10-19), and the test library spreads BPSK only,
@@ -44,9 +48,13 @@ from doppler.tests._validation_common import Report, cli
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 SWEEP = DATA / "sweep.txt"
+BER_SWEEP = DATA / "ber_sweep.txt"
 ROOT = repo_root(__file__)
 HARNESS = exe(
     build_dir(__file__) / "native/validation/validate_async_dsss_receiver_lock"
+)
+BER_HARNESS = exe(
+    build_dir(__file__) / "native/validation/validate_async_dsss_receiver_ber"
 )
 
 #: This report's asserted bounds. CHECK_TRACK_MS and DROP_WATCH_MS are the
@@ -69,39 +77,47 @@ Blocks = dict[str, Rows]
 _TEXT = {"held"}
 
 
-def _run(args: list[str]) -> str:
-    """Run the harness; its stdout, or a hard failure that says why.
+def _run(args: list[str], harness: Path = HARNESS) -> str:
+    """Run a harness; its stdout, or a hard failure that says why.
 
     A missing binary, or a run whose own assertions failed, is a failure
     rather than a skip: this report has no measurement of its own, and a
     skipped or half-run one is indistinguishable from a passing one in a
-    log. `make build` builds it.
+    log. `make build` builds both.
     """
-    if not HARNESS.exists():
+    if not harness.exists():
         raise SystemExit(
-            f"async_dsss_receiver: {HARNESS.relative_to(ROOT)} is not built "
+            f"async_dsss_receiver: {harness.relative_to(ROOT)} is not built "
             f"-- run `make build` first. Every number in this report is the "
-            f"C harness's."
+            f"C harnesses'."
         )
     run = subprocess.run(
-        [str(HARNESS), *args], capture_output=True, text=True, check=False
+        [str(harness), *args], capture_output=True, text=True, check=False
     )
     if run.returncode != 0:
         raise SystemExit(
-            f"async_dsss_receiver: `{HARNESS.name} {' '.join(args)}` failed "
+            f"async_dsss_receiver: `{harness.name} {' '.join(args)}` failed "
             f"(exit {run.returncode}):\n{run.stderr[-2000:]}"
         )
     return run.stdout
 
 
-def _blocks(out: str, source: str) -> Blocks:
+def _blocks(
+    out: str,
+    source: str,
+    names: tuple[str, ...] = ("arrival", "dropout", "quality", "falselock"),
+) -> Blocks:
     blocks = _parse(out)
-    for name in ("arrival", "dropout", "quality", "falselock"):
+    for name in names:
         if not blocks.get(name):
             raise SystemExit(
                 f"async_dsss_receiver: {source} has no `# {name}` block"
             )
     return blocks
+
+
+#: The error-rate harness's blocks: one row an Es/N0, one row a burst.
+BER_BLOCKS = ("ber", "burst")
 
 
 def _num(k: str, v: str) -> float | str:
@@ -144,6 +160,19 @@ def _sweep() -> Blocks:
     return _blocks(SWEEP.read_text(encoding="utf-8"), "data/sweep.txt")
 
 
+def _ber_sweep() -> Blocks:
+    if not BER_SWEEP.exists():
+        raise SystemExit(
+            "async_dsss_receiver: data/ber_sweep.txt is missing -- run this "
+            "validator with --sweep"
+        )
+    return _blocks(
+        BER_SWEEP.read_text(encoding="utf-8"),
+        "data/ber_sweep.txt",
+        BER_BLOCKS,
+    )
+
+
 def _write_csv(d: Blocks) -> None:
     DATA.mkdir(exist_ok=True)
     for name, rows in d.items():
@@ -183,6 +212,48 @@ def _plot(q: Rows) -> None:
     ax.legend()
     fig.tight_layout()
     fig.savefig(HERE / "evm.png", dpi=110)
+    plt.close(fig)
+
+
+def _plot_ber(rows: Rows) -> None:
+    """The committed sweep's error rate, with its 99% interval, against the
+    BPSK bound -- the bound drawn by the library's own `ber_theory_ber`."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from doppler.ber import ber_theory_ber
+
+    es = np.array([float(r["esn0_db"]) for r in rows])
+    p = np.array([float(r["ber"]) for r in rows])
+    lo = np.array([float(r["ber_lo"]) for r in rows])
+    hi = np.array([float(r["ber_hi"]) for r in rows])
+    grid = np.linspace(es.min() - 0.5, es.max() + 0.5, 81)
+    fig, ax = plt.subplots(figsize=(6.0, 4.0))
+    ax.semilogy(
+        grid,
+        [ber_theory_ber(2, 10.0 ** (g / 10.0)) for g in grid],
+        "k--",
+        lw=1,
+        label="BPSK bound, Q(sqrt(2 Es/N0))",
+    )
+    ax.errorbar(
+        es,
+        p,
+        yerr=[p - lo, hi - p],
+        fmt="o-",
+        capsize=3,
+        label="AsyncDsssReceiver, 99% interval",
+    )
+    ax.set_xlabel("Es/N0 (dB)")
+    ax.set_ylabel("bit error rate")
+    ax.set_title("BPSK error rate against the bound, SPEC operating point")
+    ax.grid(alpha=0.3, which="both")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(HERE / "ber.png", dpi=110)
     plt.close(fig)
 
 
@@ -299,12 +370,12 @@ def section_object() -> None:
     R.md()
 
 
-def characterise(d: Blocks, sw: Blocks) -> None:
+def characterise(d: Blocks, sw: Blocks, bsw: Blocks) -> None:
     R.md("## 2. Characterisation")
     R.md()
     R.md(
-        "Sections 2.1 to 2.4 are the `--check` run the limits read; 2.5 is "
-        "the committed full sweep."
+        "Sections 2.1 to 2.4 are the `--check` run the limits read; 2.5 and "
+        "2.6 are the committed full sweeps."
     )
     R.md()
 
@@ -513,8 +584,118 @@ def characterise(d: Blocks, sw: Blocks) -> None:
     )
     R.md()
 
+    ber = bsw["ber"]
+    bursts = bsw["burst"]
+    conf = 100.0 * float(ber[0]["conf"])
+    R.md("### 2.6 Error rate against the BPSK bound (`data/ber_sweep.txt`)")
+    R.md()
+    R.md(
+        "`native/validation/async_dsss_receiver_ber.c`, on the stimulus "
+        "above: bursts of 6 s from the signal's first sample, the carrier "
+        "uniform over +/-1/T_E, the harness's own i.i.d. bits. Every symbol "
+        "the receiver emits is kept. The measurement is "
+        "`native/tests/dp_ber_test.h`'s. The window starts at the later of "
+        "the analytic budget for the demodulator's two loops, read from the "
+        "receiver, and its symbol lock sustained. The lag and the BPSK phase "
+        "are detected against a marker of truth past that, and a second "
+        "detection at the burst's end must agree (a burst that slipped is "
+        "counted, never folded in). Bursts run until 200 errors (inverse "
+        f"binomial sampling), so the {conf:.0f}% interval is exact. The "
+        "**loss** is the Es/N0 the bound needs for the measured rate, "
+        "subtracted from the Es/N0 applied, **over the bursts that settled**: "
+        "a burst with no settled window is not scored, and is held to a rule "
+        "of its own (below)."
+    )
+    R.md()
+    R.table(
+        [
+            "Es/N0",
+            "BER",
+            f"{conf:.0f}% interval",
+            "bound",
+            f"loss ({conf:.0f}% interval)",
+            "bursts settled",
+            "symbols",
+            "EVM loss",
+            "M2M4",
+        ],
+        [
+            [
+                f"{float(r['esn0_db']):.0f} dB",
+                f"{float(r['ber']):.2e}",
+                f"{float(r['ber_lo']):.2e} to {float(r['ber_hi']):.2e}",
+                f"{float(r['theory']):.2e}",
+                f"{float(r['loss_db']):.2f} dB "
+                f"({float(r['loss_lo_db']):.2f} to "
+                f"{float(r['loss_hi_db']):.2f})",
+                f"{int(r['bursts']) - int(r['unsettled'])} of "
+                f"{int(r['bursts'])}",
+                f"{int(r['symbols']):,}",
+                f"{float(r['evm_db']) - float(r['evm_ideal_db']):+.2f} dB",
+                f"{float(r['m2m4_db']):.2f} dB",
+            ]
+            for r in ber
+        ],
+    )
+    R.md()
+    R.md("![BER against the bound](ber.png)")
+    R.md()
+    n_unset = sum(1 for r in bursts if not r["settled"])
+    # A burst that never tracked has no hand-over (NaN): the harness's floor
+    # fails it, so none reaches this list.
+    unset = [
+        abs(float(r["handover_err_hz"]))
+        for r in bursts
+        if not r["settled"] and r["handover_err_hz"] == r["handover_err_hz"]
+    ]
+    kept = [abs(float(r["handover_err_hz"])) for r in bursts if r["settled"]]
+    slips = sum(int(r["slipped"]) for r in ber)
+    pullin = float(ber[0]["pullin_hz"])
+    past = [e for e in kept if e > pullin]
+    far = [e for e in kept if unset and e >= min(unset)]
+    ratchet = ", ".join(
+        f"{int(r['unsettled'])} of at most {int(r['unsettled_max'])} at "
+        f"{float(r['esn0_db']):.0f} dB"
+        for r in ber
+    )
+    R.md(
+        f"The loss is over {len(kept)} of the {len(bursts)} bursts: the ones "
+        f"that settled. "
+        + (
+            "None slipped."
+            if slips == 0
+            else f"{slips} slipped, and the harness fails them."
+        )
+        + f" {n_unset} had no settled window and are not scored: symbol lock "
+        f"was not sustained, or came too late in the burst to leave one. "
+        f"That is F3, a known defect, so their count is a ratchet: the "
+        f"committed count at the sweep's seeds plus one for another "
+        f"toolchain's draws, which may only shrink ({ratchet})."
+        + (
+            f" Each was handed over {min(unset):.0f} to {max(unset):.0f} Hz "
+            f"off its carrier (the refine's carrier against the truth), but "
+            f"no line in Hz separates them from the bursts that settled: "
+            f"{len(past)} of the {len(kept)} that settled were handed over "
+            f"past {pullin:.0f} Hz and {len(far)} past {min(unset):.0f} Hz, "
+            f"up to {max(kept):.0f} Hz. Where the searching path's pull-in "
+            f"ends is #2409's question. The harness keeps one floor: inside "
+            f"{pullin:.0f} Hz, the pre-despread loop's reliable pull-in "
+            f"(twice `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`), the hand-over cannot "
+            f"be why "
+            f"a burst did not settle, and none did "
+            f"({sum(int(r['unsettled_inside']) for r in ber)})."
+            if unset
+            else ""
+        )
+        + " The EVM is `dp_ber_report()`'s cross-check over the same windows, "
+        "and its loss is over that meter's ideal (`dp_ber_evm_ideal_db()`), "
+        "as in 2.2. The blind M2M4 reads above the applied Es/N0 at every "
+        "point (F5)."
+    )
+    R.md()
 
-def review(sw: Blocks) -> None:
+
+def review(sw: Blocks, bsw: Blocks) -> None:
     R.md("## 3. Review — findings, with verdicts")
     R.md()
     R.find(
@@ -561,6 +742,33 @@ def review(sw: Blocks) -> None:
         "hand-over domain are certified symbol by symbol and sample by "
         "sample in the C tests of section 1; the binding exposes only the "
         "flags, which section 2 reads.",
+    )
+    ber = bsw["ber"]
+    loss = [float(r["loss_db"]) for r in ber]
+    gap = [float(r["m2m4_db"]) - float(r["esn0_db"]) for r in ber]
+    evm = [float(r["evm_db"]) - float(r["evm_ideal_db"]) for r in ber]
+    agree = float(ber[0]["m2m4_agree_db"])
+    worst = max(ber, key=lambda r: float(r["m2m4_db"]) - float(r["esn0_db"]))
+    bursts = bsw["burst"]
+    n_set = sum(1 for r in bursts if r["settled"])
+    R.find(
+        "F5",
+        "GAP",
+        f"Over the {n_set} of {len(bursts)} bursts that settled, the error "
+        f"rate sits {min(loss):.2f} to {max(loss):.2f} dB from the BPSK "
+        f"bound (section 2.6), and nothing yet says where that goes. The "
+        f"EVM over the same windows is only {min(evm):+.2f} to "
+        f"{max(evm):+.2f} dB over its ideal, so most of the loss is not in "
+        f"the error's power. The error is not circular: the blind M2M4, "
+        f"which assumes it is, reads {min(gap):.2f} to {max(gap):.2f} dB "
+        f"above the applied Es/N0. `dp_ber_report()` allows "
+        f"{agree:.1f} dB (`DP_BER_M2M4_AGREE_DB`), so at "
+        f"{float(worst['esn0_db']):.0f} dB the record passes that "
+        f"cross-check by only "
+        f"{agree - (float(worst['m2m4_db']) - float(worst['esn0_db'])):.2f}"
+        f" dB, and what it is short of is the receiver's error shape, not "
+        f"the stimulus. The diagnostic that found the shape, and accounting "
+        f"for the loss by stage, are #2495.",
     )
 
 
@@ -642,9 +850,45 @@ def limits(d: Blocks, sw: Blocks) -> None:
             f"[{r['esn0_db']:.0f} dB design] a receiver on noise never "
             f"declares symbol lock in 2 s",
         )
+    # The error rate: the bound is the harness's (loss_max_db), read from
+    # the row it asserted, and the loss the one its 99% interval's LOWER
+    # limit implies, so counting noise cannot flake the claim.
+    for r in d["ber"]:
+        tag = f"[{float(r['esn0_db']):.0f} dB]"
+        R.limit(
+            bool(r["ok"]),
+            f"{tag} the error rate is a result: settled, aligned, "
+            f"{int(r['errors'])} errors, and its EVM, M2M4 and theory "
+            f"cross-checks agree",
+        )
+        R.limit(
+            int(r["slipped"]) == 0,
+            f"{tag} no burst's alignment moved between its start and its end",
+        )
+        n_b, n_u = int(r["bursts"]), int(r["unsettled"])
+        R.limit(
+            float(r["loss_lo_db"]) <= float(r["loss_max_db"]),
+            f"{tag} over the bursts that settle ({n_b - n_u} of {n_b} here), "
+            f"the error rate is within {float(r['loss_max_db']):.1f} dB of "
+            f"the BPSK bound (the loss at the 99% interval's lower limit)",
+        )
+        R.limit(
+            n_u <= int(r["unsettled_max"]),
+            f"{tag} at most {int(r['unsettled_max'])} of the bursts fail to "
+            f"settle ({n_u} here; F3, a ratchet that may only shrink)",
+        )
+        R.limit(
+            int(r["unsettled_inside"]) == 0,
+            f"{tag} no burst handed over inside the carrier loop's reliable "
+            f"pull-in, {float(r['pullin_hz']):.0f} Hz, fails to settle",
+        )
 
 
-def _takeaways(sw: Blocks) -> list[str]:
+def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
+    loss = [float(r["loss_db"]) for r in bsw["ber"]]
+    es = [float(r["esn0_db"]) for r in bsw["ber"]]
+    bursts = bsw["burst"]
+    n_set = sum(1 for r in bursts if r["settled"])
     mid = _losses(sw, 5.0, 15.0)
     top = _losses(sw, 20.0, 20.0)
     a10 = _at(sw["arrival"], 10.0)
@@ -660,6 +904,12 @@ def _takeaways(sw: Blocks) -> list[str]:
     d10, d5 = _at(sw["dropout"], 10.0), _at(sw["dropout"], 5.0)
     fl = sw["falselock"]
     return [
+        f"**Budget about 1 dB for the error rate, once settled.** From "
+        f"{min(es):.0f} to {max(es):.0f} dB the BER of the bursts that "
+        f"settled ({n_set} of {len(bursts)}) sits {min(loss):.2f} to "
+        f"{max(loss):.2f} dB from the BPSK bound, more than the EVM shows; "
+        f"why is open (2.6, F5, #2495). The other "
+        f"{len(bursts) - n_set} never settled (F3).",
         f"**Design to the meter's ideal EVM from 5 to 15 dB.** Over the "
         f"full sweep a locked receiver's BPSK EVM is {_span(mid)} over "
         f"`dp_ber_evm_ideal_db()` there; at 20 dB {_span(top)}, an "
@@ -689,18 +939,28 @@ def build(write: bool = True) -> Report:
     R.md()
     section_object()
     d = _blocks(_run(["--check", "--emit"]), "the --check run")
+    d.update(
+        _blocks(
+            _run(["--check", "--emit"], BER_HARNESS),
+            "the error-rate --check run",
+            BER_BLOCKS,
+        )
+    )
     sw = _sweep()
+    bsw = _ber_sweep()
     if write:
         _write_csv(d)
         _plot(d["quality"])
-    characterise(d, sw)
-    review(sw)
+        _plot_ber(bsw["ber"])
+    characterise(d, sw, bsw)
+    review(sw, bsw)
     limits(d, sw)
-    R.executive("AsyncDsssReceiver", _takeaways(sw))
+    R.executive("AsyncDsssReceiver", _takeaways(sw, bsw))
     R.summary(
         "\n- Raw run: `data/arrival.csv`, `data/quality.csv`, "
-        "`data/dropout.csv`, `data/falselock.csv` -- the harness's "
-        "`--check --emit` blocks; `data/sweep.txt` -- its full sweep"
+        "`data/dropout.csv`, `data/falselock.csv`, `data/ber.csv`, "
+        "`data/burst.csv` -- the two harnesses' `--check --emit` blocks; "
+        "`data/sweep.txt` and `data/ber_sweep.txt` -- their full sweeps"
     )
     R.emit(HERE / "results.md")
     return R
@@ -711,4 +971,5 @@ if __name__ == "__main__":
         sys.argv.remove("--sweep")
         DATA.mkdir(exist_ok=True)
         SWEEP.write_text(_run(["--emit"]), encoding="utf-8")
+        BER_SWEEP.write_text(_run(["--emit"], BER_HARNESS), encoding="utf-8")
     sys.exit(cli(build, HERE))

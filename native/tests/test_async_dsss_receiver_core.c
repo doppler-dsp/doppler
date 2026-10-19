@@ -1770,6 +1770,74 @@ _test_reacquire_clock_restarts_on_lock (void)
   return 0;
 }
 
+/* doppler#2414: configure_chain_raw() on a tracking receiver re-seeds the
+ * rebuilt chain from the WHOLE carrier -- loop 1 plus loop 2's integrator,
+ * the sum status() reports -- not loop 2's residual alone. Loop 1 holds
+ * nearly all of it (measured: 16002 Hz on loop 1, -0.3 Hz on loop 2), so
+ * the residual-only re-seed rebuilt the chain near 0 Hz. This fixture's
+ * fast carrier loop pulls a chain rebuilt at 0 back in up to 12 kHz
+ * (measured at 3, 8 and 12 kHz), so the carrier is 16 kHz, where the
+ * residual-only re-seed lost lock and read -7.8 kHz. Locked, retuned onto
+ * the same grid, streamed on: still symbol locked, still decoding, still
+ * reading ~16 kHz. Sabotage: re-seed from the residual alone -> red. */
+static int
+_test_configure_chain_raw_keeps_the_carrier (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs         = 1.0e6 * (double)spc;
+  const double sym_rate   = 35714.29;
+  const double tsym       = fs / sym_rate;
+  const size_t te         = sf * spc;
+  const size_t n_sym      = 2000;
+  const size_t pre        = te * 5 + 3;
+  const double cn0        = 70.0;
+  const double carrier_hz = 16000.0;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, carrier_hz, cn0, n_sym, pre, 7,
+                   &x, &n, &data);
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 20000.0, 4, 8, 0,
+      0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+  DP_CHECK (rx != NULL);
+  if (!rx)
+    {
+      free (x);
+      free (data);
+      return 1;
+    }
+  const size_t    half = n / 2;
+  float _Complex *syms;
+  (void)_stream (rx, x, half, te, &syms);
+  free (syms);
+  DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
+  DP_CHECK (fabs (dp_async_dsss_receiver_status (rx).doppler_hz - carrier_hz)
+            < 100.0);
+
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (
+                rx, 4, 8, (int)dp_async_dsss_receiver_get_n (rx))
+            == 0);
+  size_t n_syms = _stream (rx, x + half, n - half, te, &syms);
+  DP_CHECK (n_syms > 100);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
+  DP_CHECK (fabs (dp_async_dsss_receiver_status (rx).doppler_hz - carrier_hz)
+            < 100.0);
+  /* The rebuilt chain decodes, not just reads locked: EVM over the last
+     half, measured -8.0 dB re-seeded from the sum, -1.3 dB from the
+     residual (a BER needs the data's alignment, which a mid-capture
+     stream does not start at). */
+  DP_CHECK (dp_test_evm_db_hard (syms + n_syms / 2, n_syms - n_syms / 2)
+            < -5.0);
+  free (syms);
+  dp_async_dsss_receiver_destroy (rx);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* One flag down is a degrade, not a release (section 11.2): with the code
  * detector pinned to a threshold no statistic reaches, code lock drops on a
  * healthy signal while symbol lock holds -- and the release clock, which
@@ -3352,6 +3420,7 @@ main (void)
   (void)_test_reacquire_after_switch_off ();
   (void)_test_reacquire_is_symbol_lock_alone ();
   (void)_test_reacquire_clock_restarts_on_lock ();
+  (void)_test_configure_chain_raw_keeps_the_carrier ();
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
   (void)_test_seeded_blob_keyed_by_flavor ();

@@ -28,7 +28,8 @@ three ways:
   errors. The pooled rate is quoted as an implementation loss: how many dB
   more Es/N0 coherent BPSK would need to make the same errors.
 - **EVM**, :func:`~doppler.ber.ber_evm_db`: each symbol against its own hard
-  decision. A locked stream reads about -Es/N0.
+  decision. It normalizes by the measured total power, so a perfect
+  receiver reads 10*log10(N/(S+N)), a little below -Es/N0.
 - **M2M4**, :func:`~doppler.snr.snr_m2m4_db`: a blind SNR estimate from the
   symbol moments. It assumes circular noise, and the demodulated stream's
   noise is not circular, so it reads above the input Es/N0. It is a lock
@@ -125,6 +126,11 @@ def make_capture(start_hz: float, rate_hz_s: float, seed: int) -> np.ndarray:
         symbol_rate=SYM_RATE,
         data=PAYLOAD.tobytes(),
     ).steps(int(N_SYM * FS / SYM_RATE))
+    # The synth sends the payload once, then silence: had it run dry, the end
+    # of the capture would be no signal at all.
+    assert np.mean(np.abs(clean[-TE:]) ** 2) > 0.5, (
+        "the payload ran out before the capture ended"
+    )
     channel = DopplerChannel(
         fs=FS,
         carrier_hz=CARRIER_HZ,
@@ -221,9 +227,20 @@ def receive(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 # --8<-- [start:validate]
 #: The checks' bounds. Each is a physical statement, not a fit to this run.
-MIN_LOCK_FRACTION = 7 / 8  # draws per regime that must reach symbol lock
-MAX_LOSS_DB = 2.0  # pooled BER within this many dB of coherent BPSK
-EVM_TOL_DB = 1.0  # a locked stream's EVM sits this close to -Es/N0
+#: Symbol lock is a per-draw outcome on random noise, so one draw in eight may
+#: miss without the receiver having changed; a missed hand-off that stays
+#: missed (no ``reacquire``) fails it by several draws.
+MIN_LOCK_FRACTION = 7 / 8
+#: The pooled BER, quoted as dB of Es/N0 coherent BPSK would need for the same
+#: errors. The receiver holds about 1 dB. A pool of a few dozen errors
+#: measures the rate to about 20%, which near 8 dB is about 0.25 dB of Es/N0
+#: (the curve falls about fourfold per dB there), so 1.5 dB clears the
+#: counting noise twice over and fails a BER twice the receiver's.
+MAX_LOSS_DB = 1.5
+#: EVM normalizes by the measured total power, so a perfect receiver reads
+#: 10*log10(N/(S+N)), not -Es/N0. A locked stream sits within EVM_TOL_DB.
+EVM_IDEAL_DB = -10.0 * np.log10(1.0 + 10.0 ** (ESN0_DB / 10.0))
+EVM_TOL_DB = 1.0
 LAG_SPAN = 1000  # symbols the stream may start into the payload
 
 
@@ -242,6 +259,7 @@ def score(meter: BerMeter, symbols: np.ndarray, rows: np.ndarray) -> dict:
     the first symbol lock; the time from the signal's arrival to the sustained
     lock; and the window's EVM and M2M4, in dB.
     """
+    assert len(symbols) <= len(PAYLOAD), "more symbols than the payload holds"
     flags = np.repeat(rows["locked"], rows["symbols"]).astype(np.uint8)
     lo = ber_lock_symbol(flags)
     if lo < 0:
@@ -267,29 +285,49 @@ def score(meter: BerMeter, symbols: np.ndarray, rows: np.ndarray) -> dict:
     }
 
 
-def check(draws: list[dict], meter: BerMeter) -> dict:
+def check(
+    draws: list[dict], meter: BerMeter, start_hz: float, rate_hz_s: float
+) -> dict:
     """Assert one regime's outcome over its draws, and return its summary.
 
     - At least :data:`MIN_LOCK_FRACTION` of the draws reach symbol lock.
-    - The pooled BER is no better than coherent BPSK, which no receiver can
-      beat, and within :data:`MAX_LOSS_DB` of it.
-    - Every locked draw's EVM is within :data:`EVM_TOL_DB` of -Es/N0, and its
-      M2M4 clears the input Es/N0 less the same loss budget.
+    - Every hand-off that locked pulled in within :data:`LOST_CONFIRM_S`, so
+      the release rule cut none short.
+    - On a ramp that crosses zero inside the capture, every draw locked before
+      the crossing, so the receiver holds lock through it.
+    - The pooled BER is within :data:`MAX_LOSS_DB` of coherent BPSK, and no
+      better than it, which no receiver can be.
+    - Every locked draw's EVM is within :data:`EVM_TOL_DB` of
+      :data:`EVM_IDEAL_DB`, and its M2M4 clears the input Es/N0 less the loss
+      budget.
     """
     locked = [d for d in draws if d["locked"]]
     fraction = len(locked) / len(draws)
     assert fraction >= MIN_LOCK_FRACTION, (
         f"symbol lock on {len(locked)} of {len(draws)} draws"
     )
+    max_pull_in_s = max(d["pull_in_s"] for d in locked)
+    assert max_pull_in_s < LOST_CONFIRM_S, (
+        f"a pull-in of {max_pull_in_s:.2f} s reaches the confirm time"
+    )
+    zero_s = -start_hz / rate_hz_s if rate_hz_s else -1.0
+    if 0.0 < zero_s < DURATION_S:
+        late = max(d["lock_s"] for d in locked)
+        assert late < zero_s, (
+            f"locked {late:.2f} s after arrival, after the zero crossing at "
+            f"{zero_s:.2f} s"
+        )
     ber = meter.ber()
     loss_db = ESN0_DB - ber_esn0_db_for_ser(2, ber.p_hat)
-    assert ber_esn0_db_for_ser(2, ber.hi) <= ESN0_DB, (
-        f"BER {ber.p_hat:.2e} beats coherent BPSK: the measurement is broken"
-    )
+    # Written so a NaN (a rate off the theory curve: no decode) fails.
     assert loss_db <= MAX_LOSS_DB, f"implementation loss {loss_db:.2f} dB"
+    assert not ber_esn0_db_for_ser(2, ber.hi) > ESN0_DB, (
+        f"BER {ber.p_hat:.2e} is below coherent BPSK's: the measurement is "
+        f"broken"
+    )
     for d in locked:
-        assert abs(d["evm_db"] + ESN0_DB) <= EVM_TOL_DB, (
-            f"EVM {d['evm_db']:.1f} dB at Es/N0 {ESN0_DB:.0f} dB"
+        assert abs(d["evm_db"] - EVM_IDEAL_DB) <= EVM_TOL_DB, (
+            f"EVM {d['evm_db']:.1f} dB against {EVM_IDEAL_DB:.1f} dB ideal"
         )
         assert d["m2m4_db"] >= ESN0_DB - MAX_LOSS_DB, (
             f"M2M4 {d['m2m4_db']:.1f} dB: not a locked stream"
@@ -298,7 +336,7 @@ def check(draws: list[dict], meter: BerMeter) -> dict:
         "locked": len(locked),
         "draws": len(draws),
         "first_try": sum(d["released"] == 0 for d in locked),
-        "max_pull_in_s": max(d["pull_in_s"] for d in locked),
+        "max_pull_in_s": max_pull_in_s,
         "max_lock_s": max(d["lock_s"] for d in locked),
         "ber": ber,
         "loss_db": loss_db,
@@ -321,7 +359,7 @@ def run_regime(start_hz: float, rate_hz_s: float):
         draws.append(score(meter, symbols, rows))
         if first is None and draws[-1]["locked"]:
             first = (symbols, rows, draws[-1])
-    return check(draws, meter), draws, first
+    return check(draws, meter, start_hz, rate_hz_s), draws, first
 
 
 def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:

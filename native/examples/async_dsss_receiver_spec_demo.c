@@ -38,20 +38,27 @@
  * The checks, per regime:
  *
  *   - at least MIN_LOCK_FRACTION of the draws reach a sustained symbol lock;
- *   - the pooled BER is no better than coherent BPSK, which no receiver can
- *     beat, and within MAX_LOSS_DB of it;
- *   - every locked draw's EVM is within EVM_TOL_DB of -Es/N0, and its M2M4
- *     clears the input Es/N0 less the same loss budget.
+ *   - every hand-off that locked pulled in within LOST_CONFIRM_S, so the
+ *     release rule cut none short;
+ *   - on a ramp that crosses zero inside the capture, every draw locked
+ *     before the crossing;
+ *   - the pooled BER is within MAX_LOSS_DB of coherent BPSK, and no better
+ *     than it, which no receiver can be;
+ *   - every locked draw's EVM is within EVM_TOL_DB of EVM_IDEAL_DB, and its
+ *     M2M4 clears the input Es/N0 less the loss budget.
+ *
+ * It prints the same lines as the Python twin; a pair test in
+ * src/doppler/tests/test_c_example_pairs.py compares them.
  *
  * Build:
  *   cmake --build build
  *   ./build/native/examples/async_dsss_receiver_spec_demo
  */
-#include "doppler/dp_complex.h"
 #include <doppler/async_dsss_receiver/async_dsss_receiver_core.h>
 #include <doppler/awgn/awgn_core.h>
 #include <doppler/ber_meter/ber_meter_core.h>
 #include <doppler/doppler_channel/doppler_channel_core.h>
+#include <doppler/dp_complex.h>
 #include <doppler/gold/gold_core.h>
 #include <doppler/pn/pn_core.h>
 #include <doppler/snr/snr_core.h>
@@ -89,9 +96,17 @@
 #define PAYLOAD_SEED 1u
 #define PAYLOAD_PN_LENGTH 15u
 
-/* The checks' bounds. Each is a physical statement, not a fit to this run. */
+/* The checks' bounds. Each is a physical statement, not a fit to this run;
+   the Python twin's validate block says why each sits where it does. Symbol
+   lock is a per-draw outcome on random noise, so one draw in eight may miss;
+   a missed hand-off that stays missed (no reacquire) fails it by several. */
 #define MIN_LOCK_FRACTION (7.0 / 8.0)
-#define MAX_LOSS_DB 2.0
+/* The pooled BER as dB of Es/N0 lost against coherent BPSK: about 1 dB held,
+   counting noise about 0.25 dB, a BER twice the receiver's fails. */
+#define MAX_LOSS_DB 1.5
+/* EVM normalizes by the measured total power: a perfect receiver reads
+   10*log10(N/(S+N)), not -Es/N0. */
+#define EVM_IDEAL_DB (-10.0 * log10 (1.0 + pow (10.0, ESN0_DB / 10.0)))
 #define EVM_TOL_DB 1.0
 #define LAG_SPAN 1000 /* symbols the stream may start into the payload */
 /* What "sustained" means for the symbol lock: ber_lock_symbol()'s defaults
@@ -151,14 +166,15 @@ capture_open (struct capture *c, const uint8_t *code, const uint8_t *payload,
 {
   memset (c, 0, sizeof *c);
   /* The emitter: continuous DSSS, the payload one bit per symbol, clean. */
-  const double   freq      = 0.0; /* the Doppler is the channel's */
-  const int      snr_mode  = 0;   /* moot: the synth adds no noise */
-  const uint32_t seed_syn  = 0;   /* moot: no noise, and the data is ours */
-  const int      pn_length = 15, lfsr = PN_GALOIS;
-  const uint64_t pn_poly = 0; /* moot: the data is the payload */
+  const double   freq     = 0.0; /* the Doppler is the channel's */
+  const int      snr_mode = 0;   /* moot: the synth adds no noise */
+  const uint32_t seed_syn = 0;   /* moot: no noise, and the data is ours */
+  /* moot: the synth's own PN is unused, the data is the payload */
+  const int      synth_pn_length = 15, lfsr = PN_GALOIS;
+  const uint64_t pn_poly = 0;
   const double   f_end   = 0.0;
   c->syn = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, freq, WFM_SYNTH_SNR_CLEAN,
-                                snr_mode, seed_syn, (int)SPC, pn_length,
+                                snr_mode, seed_syn, (int)SPC, synth_pn_length,
                                 pn_poly, lfsr, f_end);
   CHECK (c->syn, "the emitter opens");
   CHECK (dp_wfm_synth_set_dsss_cont (c->syn, code, SF, CHIP_RATE / SYM_RATE,
@@ -439,23 +455,35 @@ main (void)
 
       /* The checks. The loss is the Es/N0 coherent BPSK would need for the
          measured rate, subtracted from the Es/N0 the link has; written so a
-         NaN fails. */
+         NaN (a rate off the theory curve: no decode) fails. */
       CHECK ((double)n_locked / N_DRAWS >= MIN_LOCK_FRACTION,
              "[%s] symbol lock on %zu of %u draws", REGIMES[r].name, n_locked,
              N_DRAWS);
+      CHECK (max_pull_in < LOST_CONFIRM_S,
+             "[%s] a pull-in of %.2f s reaches the confirm time",
+             REGIMES[r].name, max_pull_in);
+      const double zero_s = REGIMES[r].rate_hz_s != 0.0
+                                ? -REGIMES[r].start_hz / REGIMES[r].rate_hz_s
+                                : -1.0;
+      if (zero_s > 0.0 && zero_s < DURATION_S)
+        CHECK (max_lock < zero_s,
+               "[%s] locked %.2f s after arrival, after the zero crossing at "
+               "%.2f s",
+               REGIMES[r].name, max_lock, zero_s);
       ber_interval_t ber     = dp_ber_meter_ber (meter);
       double         loss_db = ESN0_DB - dp_ber_esn0_db_for_ser (2, ber.p_hat);
-      CHECK (dp_ber_esn0_db_for_ser (2, ber.hi) <= ESN0_DB,
-             "[%s] BER %.2e beats coherent BPSK: the measurement is broken",
-             REGIMES[r].name, ber.p_hat);
       CHECK (loss_db <= MAX_LOSS_DB, "[%s] implementation loss %.2f dB",
              REGIMES[r].name, loss_db);
+      CHECK (!(dp_ber_esn0_db_for_ser (2, ber.hi) > ESN0_DB),
+             "[%s] BER %.2e is below coherent BPSK's: the measurement is "
+             "broken",
+             REGIMES[r].name, ber.p_hat);
       for (size_t k = 0; k < N_DRAWS; k++)
         if (draws[k].locked)
           {
-            CHECK (fabs (draws[k].evm_db + ESN0_DB) <= EVM_TOL_DB,
-                   "[%s] EVM %.1f dB at Es/N0 %.0f dB", REGIMES[r].name,
-                   draws[k].evm_db, ESN0_DB);
+            CHECK (fabs (draws[k].evm_db - EVM_IDEAL_DB) <= EVM_TOL_DB,
+                   "[%s] EVM %.1f dB against %.1f dB ideal", REGIMES[r].name,
+                   draws[k].evm_db, EVM_IDEAL_DB);
             CHECK (draws[k].m2m4_db >= ESN0_DB - MAX_LOSS_DB,
                    "[%s] M2M4 %.1f dB: not a locked stream", REGIMES[r].name,
                    draws[k].m2m4_db);

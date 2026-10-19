@@ -1,6 +1,6 @@
 # AsyncDsssReceiver: the SPEC link
 
-![The constellation after symbol lock, the live carrier through the TCA crossing, the time to symbol lock for every draw, and the symbol lock with the release and the second search](../assets/async_dsss_receiver_spec_demo.png)
+![The constellation after symbol lock, the live carrier through the TCA crossing, the time to symbol lock for every draw, and the symbol lock with the spans spent searching](../assets/async_dsss_receiver_spec_demo.png)
 
 One [`dsss.AsyncDsssReceiver`](../api/python-dsss.md) demodulates continuous DSSS
 whose data symbols are asynchronous to the code epoch, on a link whose Doppler
@@ -58,13 +58,19 @@ the end of the capture:
     inside the loss budget, `MAX_LOSS_DB`, and no better than coherent BPSK,
     which no receiver can beat.
 - **EVM**, [`ber.ber_evm_db`](../api/python-ber.md): each symbol against its own
-    hard decision. A locked stream reads about −Es/N0, and the check holds every
-    locked draw within `EVM_TOL_DB` of it.
+    hard decision. It normalizes by the measured total power, so a perfect
+    receiver reads 10·log10(N/(S+N)), a little below −Es/N0; the check holds
+    every locked draw within `EVM_TOL_DB` of that.
 - **M2M4**, [`snr.snr_m2m4_db`](../api/python-snr.md): a blind SNR estimate from
     the symbol moments. It assumes circular noise, and the demodulated stream's
     noise is not circular, so it reads above the input Es/N0. Here it is a lock
-    check: a locked stream clears the input Es/N0 less the loss budget, and noise
-    does not.
+    check: every locked draw clears the input Es/N0 less the loss budget.
+
+Two more checks hold the timing. The slowest pull-in, from a hand-off to its
+first symbol lock, must stay under `lost_confirm_s`, so the release rule cuts no
+good hand-off short. On the TCA crossing every draw must be locked before the
+Doppler's zero crossing, computed from the regime's start and rate, so the
+receiver holds the lock through it.
 
 The script prints, per regime, the lock count, how many locked on the first
 hand-off, the slowest pull-in and the slowest lock, the pooled BER with its error
@@ -137,7 +143,8 @@ python -m doppler.examples.async_dsss_receiver_spec_demo out.png
 The C twin is
 [`async_dsss_receiver_spec_demo.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/async_dsss_receiver_spec_demo.c).
 It runs the same captures with the same seeds through the same receiver and
-asserts the same checks, through the C API. It shows what the binding hides: the
+asserts the same checks, through the C API, and it prints the same lines: a pair
+test runs both twins from one build and compares them. It shows what the binding hides: the
 capture streamed through the Doppler channel one push at a time, the buffers the
 caller owns, and the per-push record kept from `status()`.
 

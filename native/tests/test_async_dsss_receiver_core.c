@@ -1379,6 +1379,9 @@ _test_lost_after_switch_off (void)
           DP_CHECK (rx->lost_confirm_samples
                     == (uint64_t)llround (confirm_s * fs));
           DP_CHECK (run > rx->lost_confirm_samples);
+          /* Nor late (#2461 #15): the clock is read after every call, so
+           * the release lands within one call past the interval. */
+          DP_CHECK (run <= rx->lost_confirm_samples + (uint64_t)chunk);
           DP_CHECK (fed < (uint64_t)tail_n); /* well inside the tail */
           DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 0);
 
@@ -1953,6 +1956,149 @@ _test_refine_min_blocks_travels (void)
     dp_async_dsss_receiver_destroy (c);
   if (d)
     dp_async_dsss_receiver_destroy (d);
+  return 0;
+}
+
+/* A hand-off that never locks is released (#2461 #76, #78): the release
+ * clock runs from the first tracking sample, before either flag has come
+ * up, so a track on noise -- the false alarm the receiver cannot tell from
+ * a signal until a lock flag fails to come -- is let go. Each flavor is
+ * seeded onto noise alone (seed() takes exactly what a hit would hand
+ * over). Without reacquire it reaches lost; with reacquire it goes back to
+ * searching and never reads lost. The precondition is asserted too: each
+ * reached tracking, on noise, with no flag up, before it let go. Sabotage:
+ * start the clock only once a flag has been up -> red. */
+static int
+_test_a_handoff_that_never_locks_is_released (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs        = 1.0e6 * (double)spc;
+  const double sym_rate  = 35714.29;
+  const double cn0       = 70.0;
+  const double confirm_s = 0.02;
+  const size_t n         = (size_t)(0.5 * fs);
+  const size_t chunk     = 1024;
+  (void)sf;
+  float _Complex *noise = _noise_tail (n, fs, cn0, 7);
+  float _Complex *junk  = malloc (chunk * 8 * sizeof *junk);
+
+  /* rows: cell plain, searching plain, searching reacquire */
+  for (int row = 0; row < 3; row++)
+    {
+      dp_async_dsss_receiver_state_t *rx
+          = row == 0 ? _seeded_rx (cn0, confirm_s)
+                     : _searching_rx (cn0, sym_rate, confirm_s, row == 2);
+      DP_CHECK (rx != NULL);
+      if (!rx)
+        continue;
+      DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+      int tracked = 0, any_flag = 0, lost = 0, searched_after = 0;
+      for (size_t pos = 0; pos < n; pos += chunk)
+        {
+          size_t k = n - pos < chunk ? n - pos : chunk;
+          (void)dp_async_dsss_receiver_steps (rx, noise + pos, k, junk,
+                                              chunk * 8);
+          int st = dp_async_dsss_receiver_status (rx).state;
+          if (st == ASYNC_DSSS_RX_TRACKING)
+            {
+              tracked = 1;
+              any_flag |= dp_async_dsss_receiver_get_code_locked (rx)
+                          | dp_async_dsss_receiver_get_locked (rx);
+            }
+          lost |= st == ASYNC_DSSS_RX_LOST;
+          if (tracked && st == ASYNC_DSSS_RX_SEARCHING)
+            searched_after = 1;
+          if (lost || searched_after)
+            break;
+        }
+      DP_CHECK (tracked == 1);  /* the precondition: it held a track */
+      DP_CHECK (any_flag == 0); /* on noise, with no flag ever up */
+      if (row == 2)
+        {
+          DP_CHECK (searched_after == 1);
+          DP_CHECK (lost == 0);
+        }
+      else
+        DP_CHECK (lost == 1);
+      dp_async_dsss_receiver_destroy (rx);
+    }
+  free (junk);
+  free (noise);
+  return 0;
+}
+
+/* The plain rule's clock restarts when a flag comes back (#2461 #16): its
+ * release needs BOTH flags down without a break. The emitter cut four
+ * times for 0.02 s against a 0.03 s interval, 0.04 s of signal between for
+ * the loops to re-lock; the cuts add to 0.08 s, so a clock that
+ * accumulated would release, and one that restarts on a returning flag
+ * never does. Requires that both flags really dropped together in at least
+ * two cuts, or the clock never counted. Sabotage: drop the restart -> red. */
+static int
+_test_plain_clock_restarts_on_a_flag (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs        = 1.0e6 * (double)spc;
+  const double sym_rate  = 35714.29;
+  const double tsym      = fs / sym_rate;
+  const size_t te        = sf * spc;
+  const size_t n_sym     = 11000;
+  const size_t pre       = te * 5 + 3;
+  const double cn0       = 70.0;
+  const double confirm_s = 0.03;
+  const size_t head      = (size_t)(0.05 * fs);
+  const size_t off_n     = (size_t)(0.02 * fs);
+  const size_t on_n      = (size_t)(0.04 * fs);
+  const int    cuts      = 4;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre, 7, &x, &n,
+                   &data);
+  const size_t span = head + (size_t)cuts * (off_n + on_n);
+  DP_CHECK (n >= span);
+  float _Complex *noise = _noise_tail (off_n, fs, cn0, 31);
+  for (int c = 0; c < cuts; c++)
+    memcpy (x + head + (size_t)c * (off_n + on_n), noise, off_n * sizeof *x);
+
+  dp_async_dsss_receiver_state_t *rx
+      = _searching_rx (cn0, sym_rate, confirm_s, false);
+  DP_CHECK (rx != NULL);
+  if (rx)
+    {
+      float _Complex *junk    = malloc (te * 8 * sizeof *junk);
+      int             both[4] = { 0, 0, 0, 0 }, lost = 0;
+      int             locked_head = 0;
+      for (size_t pos = 0; pos < span; pos += te)
+        {
+          size_t k = span - pos < te ? span - pos : te;
+          (void)dp_async_dsss_receiver_steps (rx, x + pos, k, junk, te * 8);
+          if (pos + k <= head)
+            locked_head = dp_async_dsss_receiver_get_locked (rx);
+          else
+            {
+              lost |= dp_async_dsss_receiver_get_lost (rx);
+              if (dp_async_dsss_receiver_get_tracking (rx)
+                  && !dp_async_dsss_receiver_get_code_locked (rx)
+                  && !dp_async_dsss_receiver_get_locked (rx))
+                {
+                  size_t c = (pos - head) / (off_n + on_n);
+                  if (c < 4)
+                    both[c] = 1;
+                }
+            }
+        }
+      free (junk);
+      DP_CHECK (locked_head == 1);
+      DP_CHECK (both[0] + both[1] + both[2] + both[3] >= 2);
+      DP_CHECK (lost == 0);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+      dp_async_dsss_receiver_destroy (rx);
+    }
+  free (noise);
+  free (x);
+  free (data);
   return 0;
 }
 
@@ -3563,6 +3709,8 @@ main (void)
   (void)_test_configure_chain_raw_keeps_the_carrier ();
   (void)_test_refine_stops_at_its_decision ();
   (void)_test_refine_min_blocks_travels ();
+  (void)_test_a_handoff_that_never_locks_is_released ();
+  (void)_test_plain_clock_restarts_on_a_flag ();
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
   (void)_test_seeded_blob_keyed_by_flavor ();

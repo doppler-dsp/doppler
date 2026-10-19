@@ -419,7 +419,9 @@ typedef enum
                                         the CarrierAcquisition-refined value
                                         once tracking (searching flavor).
                                         The cell mode's pull-in moves loop 1
-                                        and leaves this at the seed's.   */
+                                        and leaves this at the seed's. A
+                                        refused hand-over zeroes both, as
+                                        reset() does.                    */
     double   cn0_dbhz_est;        /**< The seed's C/N0 estimate (its own
                                         hit's, or an outside seed's);
                                         nothing refreshes it.             */
@@ -797,6 +799,20 @@ typedef enum
       dp_async_dsss_receiver_state_t *state, dp_tlm_t *tlm, const char *prefix,
       uint32_t decim);
 
+  /**
+   * @brief The output capacity steps() needs beyond the input's.
+   *
+   * Returns 0, which is NOT a bound. A call that completes a code
+   * period carried over from earlier calls emits all of that
+   * period's symbols (code_len times symbol_rate over chip_rate of
+   * them), even if it brings one sample. At more than one symbol per
+   * period a call can therefore emit more symbols than its `x_len`,
+   * and those past `max_out` are dropped (see
+   * dp_async_dsss_receiver_steps()). A true bound is #2469.
+   *
+   * @param state  Must be non-NULL.
+   * @return 0.
+   */
   size_t dp_async_dsss_receiver_steps_max_out (dp_async_dsss_receiver_state_t *state);
 
   /**
@@ -829,7 +845,11 @@ typedef enum
    * @param x        Input cf32 samples.
    * @param x_len    Number of input samples.
    * @param out      Output symbols; caller provides @p max_out capacity.
-   * @param max_out  Output capacity.
+   * @param max_out  Output capacity. steps() never writes past it, and the
+   *                 symbols past it are dropped, not held for the next
+   *                 call. @p x_len is not always enough: a call that
+   *                 completes a carried code period emits the whole
+   *                 period's symbols (#2469).
    * @return Number of symbols written: 0 while searching, idle or lost,
    *         while the searching flavor refines, or before a full symbol's
    *         worth of input.
@@ -956,10 +976,13 @@ typedef enum
    *
    * seed() refuses by this predicate, set_state() restores the seed fields
    * only inside it, the searching receiver's hit path does not seed from a
-   * hit it fails, and the pool counts such a hit as refused rather than as
-   * dropped for want of a slot. It reads only the receiver's fixed config
-   * (code length, chip rate, spc), so any receiver built from the same
-   * config gives the same answer.
+   * hit it fails, and the hand-over holds the REFINED Doppler to it too: a
+   * seed in range whose residual carries it to or past fs/2 is refused at
+   * the hand-over, counted in refused_hits, and the receiver searches
+   * again rather than track a Doppler it cannot report. The pool counts
+   * such a hit as refused rather than as dropped for want of a slot. It
+   * reads only the receiver's fixed config (code length, chip rate, spc),
+   * so any receiver built from the same config gives the same answer.
    *
    * @param state          Must be non-NULL.
    * @param chip_phase     Code phase, chips.
@@ -1119,13 +1142,14 @@ typedef enum
    * floor dwell of docs/design/async-dsss-receiver-measurements.md §12.10)
    * hold the estimate to 77 Hz. Applied to
    * the next refine chain built -- a receiver already refining keeps its
-   * dwell. Config, not running state: not in the blob. `n_blocks` of 0
-   * removes the floor; the value is clamped by `refine_max_n_blocks`
-   * where that cap is lower.
+   * dwell. A mutator's value, so it travels in the state blob (#2022).
+   * `n_blocks` of 0 removes the floor; the value is clamped by
+   * `refine_max_n_blocks` where that cap is lower.
    *
    * @param state     Must be non-NULL.
    * @param n_blocks  The floor, blocks.
-   * @return `DP_OK`.
+   * @return `DP_OK`; `DP_ERR_INVALID` on a cell receiver, which has no
+   *         refine to floor.
    * @code
    * >>> from doppler.dsss import AsyncDsssReceiver
    * >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
@@ -1190,9 +1214,10 @@ typedef enum
    * still bridged by a freshly-sized `RateConverter` and never coupled to
    * each other. While searching/refining it re-pins the grid used to build
    * the next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
-   * place, allocating every replacement before adopting it -- and re-seeds
-   * the rebuilt carrier loop from the demodulator's residual alone, which
-   * drops loop 1's Doppler (doppler#2414).
+   * place, allocating every replacement before adopting it, and re-seeds
+   * the rebuilt chain from the whole carrier -- loop 1 plus loop 2's
+   * integrator, the sum status() reports -- so a retune keeps the signal
+   * it was tracking.
    *
    * The new grid is checked as create() checked the first, before anything
    * is rebuilt, and refused with the receiver left on its prior grid: the

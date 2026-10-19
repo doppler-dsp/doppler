@@ -164,11 +164,13 @@ shows the attach, the stamping and the read-back.
     cos(2φ) over the symbols, the value the lock flag reads. The panel shows how far
     the metric dipped in each gap, which the binary flag does not.
 1. **The carrier** (bottom). The orange step is `rx.handover_hz`. While the
-    receiver refines it reads the search's coarse seed, off the top of this
-    panel; from the hand-over on it reads the refined Doppler the tracker was built
-    from. The purple trace is the carrier loop's command in Hz, which pulls the
-    hand-over in to the emitter's carrier, the dotted line. Between the departure
-    and the return the loop is not running and the trace breaks.
+    receiver refines it reads the search's coarse seed, which can sit outside
+    this panel's range; from the hand-over on it reads the refined Doppler the
+    tracker was built from. The purple trace is the carrier loop's command in
+    Hz, which pulls the hand-over in to the emitter's carrier, the dotted line.
+    The loop reports once per carrier update, and it makes none while it holds
+    after the departure or while the receiver searches, so the trace breaks
+    there.
 
 ## Reproduce
 

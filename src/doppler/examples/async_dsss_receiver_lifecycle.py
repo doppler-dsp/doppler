@@ -108,7 +108,7 @@ def make_timeline(seed: int = 2) -> np.ndarray:
     Parameters
     ----------
     seed : int, default 2
-        The noise draw. Each draw is one realisation of the same timeline; the
+        The noise draw. Each draw is one realization of the same timeline; the
         lock-up time and whether a dropout holds depend on it.
 
     Returns
@@ -145,7 +145,9 @@ from doppler.telemetry import MemoryCapture, Telemetry  # noqa: E402
 from doppler.wfm import SampleClock  # noqa: E402
 
 #: ``rx.state``'s values, in order: the receiver's ``ASYNC_DSSS_RX_*``
-#: lifecycle states, as its header lists them.
+#: lifecycle states. The receiver names its current state as ``lifecycle``;
+#: this tuple decodes the integers its telemetry carries, and
+#: :func:`receive` checks it against ``lifecycle`` after every push.
 STATES = ("searching", "refining", "tracking", "idle", "lost")
 SEARCHING, REFINING, TRACKING, LOST = (
     STATES.index(s) for s in ("searching", "refining", "tracking", "lost")
@@ -186,13 +188,18 @@ def receive(x: np.ndarray) -> dict:
     )
     tlm = Telemetry()
     rx.set_telemetry(tlm, "rx")
+    emitted = 0
     with MemoryCapture(tlm, TE, SampleClock(FS)) as cap:
         for k in range(len(x) // TE):
             tlm.set_now(k * TE)
-            rx.steps(x[k * TE : (k + 1) * TE])
+            emitted += len(rx.steps(x[k * TE : (k + 1) * TE]))
+            assert STATES[rx.status().state] == rx.lifecycle
             if rx.lost:
                 rx.reset()
-    return cap.read_dict(index=True)
+    series = cap.read_dict(index=True)
+    # The lock metric reports once an emitted symbol: its records count them.
+    assert len(series["rx.sym.lock"][1]) == emitted
+    return series
 
 
 def per_push(series: dict, name: str, n: int) -> np.ndarray:
@@ -322,6 +329,7 @@ def check(rows: dict[str, np.ndarray]) -> dict[str, float]:
         "release_ms": release_ms,
         "reacquire_ms": return_ms,
         "handover_hz": handover_hz,
+        "fade_ms": (seg[2][2] - fade) * ms,
     }
 
 
@@ -341,15 +349,18 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
         f"this run: arrival to tracking {times['acquire_ms']:.0f} ms, handed "
         f"over at {times['handover_hz']:.0f} Hz (the emitter at "
         f"{CARRIER:.0f} Hz), symbol lock up {times['lock_up_ms']:.0f} ms "
-        f"after arrival; the 10 ms fade held the lock; released "
+        f"after arrival; the {times['fade_ms']:.0f} ms fade held the lock; "
+        f"released "
         f"{times['release_ms']:.0f} ms after departure, with a "
         f"{1e3 * LOST_CONFIRM_S:.0f} ms confirm interval; re-acquired "
         f"{times['reacquire_ms']:.0f} ms after the return"
     )
 
     t_ms = np.arange(len(rows["state"])) * EPOCH_S * 1e3
-    # The carrier loop reports cycles a sample at the input rate, so its
-    # command times FS is the live carrier in Hz.
+    # The carrier loop's own view of the carrier: its command, in cycles a
+    # sample at the input rate, so times FS in Hz. The whole tracked carrier,
+    # status().doppler_hz, also adds what the demodulator's carrier loop has
+    # taken up beyond it.
     car_at, car = series["rx.car.nco"]
     # The loop reports only while it runs: break the line where it stopped.
     gap = np.flatnonzero(np.diff(car_at) > 2 * TE) + 1

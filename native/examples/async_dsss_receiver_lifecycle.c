@@ -307,7 +307,7 @@ main (void)
   CHECK (x && sig && syms && rows, "the buffers allocate");
 
   /* ── stream the timeline, one code epoch per push ─────────────────────── */
-  size_t k = 0;
+  size_t k = 0, emitted = 0;
   for (size_t s = 0; s < N_SEG; s++)
     for (size_t e = 0; e < TIMELINE[s].epochs; e++, k++)
       {
@@ -318,7 +318,7 @@ main (void)
             x[i] += sig[i];
 
         dp_tlm_set_now (tlm, (uint64_t)k * TE);
-        (void)dp_async_dsss_receiver_steps (rx, x, TE, syms, syms_cap);
+        emitted += dp_async_dsss_receiver_steps (rx, x, TE, syms, syms_cap);
         /* The receiver has decided the emitter is gone. The caller acts on
            it: reset() returns the receiver to searching. */
         if (dp_async_dsss_receiver_get_lost (rx))
@@ -330,6 +330,14 @@ main (void)
                                    dp_tlm_capture_count (cap), rows, n_pushes);
   CHECK (states == n_pushes, "%zu of %zu pushes reported a state", states,
          n_pushes);
+  /* The lock metric reports once an emitted symbol: its records count them. */
+  size_t counted = 0;
+  for (size_t i = 0; i < n_pushes; i++)
+    counted += rows[i].symbols;
+  CHECK (counted == emitted,
+         "%zu symbols counted from the records, %zu "
+         "emitted",
+         counted, emitted);
 
   /* ── the checks, on the rows ──────────────────────────────────────────── */
   size_t seg_at[N_SEG + 1];
@@ -379,7 +387,8 @@ main (void)
          "the symbol lock fell before the departure");
   CHECK (first_state (rows, first, depart, ASYNC_DSSS_RX_LOST) == depart,
          "entered LOST before the departure");
-  printf ("§3  a 10 ms fade: tracking and the symbol lock held\n");
+  printf ("§3  a %.0f ms fade: tracking and the symbol lock held\n",
+          (double)(seg_at[3] - fade) * ms);
 
   /* §4: the departure releases the emitter. LOST comes only after the confirm
      interval, since both flags must be down for longer than that first. */

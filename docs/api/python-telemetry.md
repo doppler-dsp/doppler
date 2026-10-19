@@ -210,14 +210,15 @@ everything the attach armed.
 
 | Object                       | Probes under `<prefix>`                                                                                                                                     | Event rate                                                                                  |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `agc.AGC`                    | `.gain_db`                                                                                                                                                  | per gain update (amortized)                                                                 |
+| `agc.AGC`                    | `.gain_db`, `.level_db`                                                                                                                                     | per gain update (amortized)                                                                 |
 | `track.Costas`               | `.lock`, `.e`, `.freq`, `.locked`, `.nco`                                                                                                                   | per dumped symbol                                                                           |
 | `track.Dll`                  | `.e`, `.rate`, `.lock`, `.locked`, `.nco`                                                                                                                   | per code epoch                                                                              |
-| `track.CarrierNda`           | `.lock`, `.e`, `.freq` + `.agc.gain_db`                                                                                                                     | per sample — use `decim`                                                                    |
+| `track.CarrierNda`           | `.lock`, `.e`, `.freq`, `.locked`                                                                                                                           | per sample — use `decim`                                                                    |
 | `track.SymbolSync`           | `.e`, `.freq`, `.rate`, `.lock`, `.locked`                                                                                                                  | per recovered symbol                                                                        |
 | `track.RateSync`             | `.e`, `.ctrl`, `.rate`, `.lock`, `.locked`, `.mu`                                                                                                           | per recovered symbol                                                                        |
-| `track.MpskReceiver`         | `.lock`, `.tracking` + `.car.*` + `.sync.*` (11 probes)                                                                                                     | per recovered symbol                                                                        |
-| `track.MpskReceiverR`        | `.lock`, `.tracking` + `.car.*` + `.sync.*` (11 probes)                                                                                                     | per recovered symbol                                                                        |
+| `track.MpskReceiver`         | `.lock`; `.car.e`, `.car.freq`, `.car.locked`, `.car.nco`; `.sync.*` (`RateSync`'s six); `.sym.i`, `.sym.q`; `.agc.gain_db`, `.agc.level_db`                | per recovered symbol; `.agc.*` per gain update                                              |
+| `track.MpskReceiverR`        | as `MpskReceiver`                                                                                                                                           | as `MpskReceiver`                                                                           |
+| `track.BpskReceiver`         | as `MpskReceiver`                                                                                                                                           | as `MpskReceiver`                                                                           |
 | `dsss.Despreader`            | `.car.*` (Costas) + `.code.*` (DLL)                                                                                                                         | per code period                                                                             |
 | `acquire.Acquisition`        | `.stat`, `.gate`, `.noise`, `.peak`, `.row`, `.col`, `.n_peaks`, `.n_held`, `.conc`, `.hit`                                                                 | per decided dwell                                                                           |
 | `dsss.AsyncDsssReceiver`     | `.state`, `.handover_hz`, `.refused`; `.sym.lock`, `.sym.locked`; `.car.*` (Costas), `.code.*` (DLL), `.demod.*` (`MpskReceiver`), `.acq.*` (`Acquisition`) | the first three per `steps()` call, `.sym.*` per emitted symbol, each child at its own rate |
@@ -236,7 +237,7 @@ The decision probes pair with their statistic probes by design:
 `Dll`'s `.locked` is the verify-counted
 [lock-detector](python-detection.md#lock-verification) output next to
 the `.lock` CFAR statistic it is judging, and `MpskReceiver`'s
-`.tracking` is the two-way handover state next to the `.lock` carrier
+`.car.locked` is the carrier loop's lock decision next to the `.lock` carrier
 metric — plot the pair and you see exactly where the declare/drop rule
 fired, without re-deriving thresholds consumer-side.
 

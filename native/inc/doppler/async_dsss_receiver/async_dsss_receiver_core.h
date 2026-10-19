@@ -743,10 +743,11 @@ typedef enum
    *   (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the seed's
    *   while refining, the refined value from the hand-over on (a cell
    *   receiver keeps the seed's), and 0 again after a refused hand-over or a
-   *   reset(), which return the receiver to searching. Not the live
-   *   carrier: status().doppler_hz
-   *   reads that, and ".car.freq" and ".car.nco" are the carrier loop's
-   *   own view of it;
+   *   reset(), which return the receiver to searching. A record is a
+   *   float, so it resolves about 0.5 Hz near 5 MHz. Not the live carrier:
+   *   status().doppler_hz reads that, and ".car.freq" and ".car.nco" are
+   *   the carrier loop's own view of it, in cycles a sample at the input
+   *   rate, so times chip_rate * spc for Hz;
    * - "<prefix>.refused" -- the hits refused as seeds so far
    *   (status().refused_hits).
    *

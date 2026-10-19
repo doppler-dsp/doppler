@@ -4003,8 +4003,9 @@ _tlm_read_trio (dp_tlm_t *t, int id_state, int id_handover, int id_refused)
  * refine, the hand-over, tracking, and lost after the emitter leaves. Each
  * call that carries samples writes one record per probe, after the call,
  * so each record reads what the accessors read once the call returns, and
- * the states arrive in the life's order. The emitter sits 300 Hz off, so
- * the refined hand-over differs from the coarse seed. Sabotage: emit before
+ * the states arrive in the life's order. The emitter sits 20 kHz off: the
+ * coarse seed is 0 Hz and the refine hands over within one of its own
+ * zero-padded FFT bins of the emitter. Sabotage: emit before
  * the call -> red (the hand-over call reads refining); emit the seed's
  * Doppler -> red at the hand-over; emit from inside the recursion -> red
  * (a hit's call writes twice). */
@@ -4095,13 +4096,16 @@ _test_tlm_lifecycle_probes (void)
               && order[1] == ASYNC_DSSS_RX_REFINING
               && order[2] == ASYNC_DSSS_RX_TRACKING
               && order[3] == ASYNC_DSSS_RX_LOST);
-  /* The hand-over reported the refined Doppler, not the seed's, and near
-     the emitter's. */
+  /* The hand-over reported the refined Doppler, not the seed's: within one
+     bin of the refine that produced it -- _searching_rx's 4 samples a
+     symbol, a 32-point FFT, zero-padded 8x -- of the emitter's. */
+  const double refine_bin_hz = 4.0 * sym_rate / (32.0 * 8.0);
   DP_CHECK (isfinite (seed_hz) && isfinite (handed_hz));
   printf ("  lifecycle probes: seed %g Hz, handed over %g Hz, emitter %g Hz, "
           "%zu calls\n",
           seed_hz, handed_hz, doppler_hz, calls);
   DP_CHECK (handed_hz != seed_hz);
+  DP_CHECK (fabs (handed_hz - doppler_hz) < refine_bin_hz);
 
   free (out);
   free (off);

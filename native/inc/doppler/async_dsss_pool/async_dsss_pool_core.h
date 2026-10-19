@@ -524,9 +524,10 @@ int dp_async_dsss_pool_set_event_log(dp_async_dsss_pool_state_t *state, dp_event
  *   once per push(), after its releases.
  *
  * The probes come to 13 plus each slot's (a cell receiver's: its loops, its
- * symbol-lock pair and its lifecycle probes), so a large pool needs a
- * context with room: an attach that cannot register every probe fails
- * whole.
+ * symbol-lock pair and its lifecycle probes, 30 in all), so a large pool
+ * needs a context with room: an attach that cannot register every probe
+ * fails whole. One context's DP_TLM_MAX_PROBES (512) holds up to 16 slots,
+ * 13 + 16 * 30 = 493.
  *
  * A context is single-producer (dp_tlm/dp_tlm_core.h), and a pool created
  * with `threads != 1` (more than one, or `<= 0` for the core count) may

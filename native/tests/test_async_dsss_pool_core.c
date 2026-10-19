@@ -785,6 +785,11 @@ _test_telemetry (void)
   DP_CHECK (per_slot[0] > 0 && per_slot[0] == per_slot[1]
             && per_slot[1] == per_slot[2]);
   DP_CHECK (dp_tlm_probe_count (t) == acq + own + n_slots * per_slot[0]);
+  /* The header's sizing: 30 a slot, so one context holds up to 16 slots
+     and not 17. */
+  DP_CHECK (per_slot[0] == 30);
+  DP_CHECK (acq + own + 16 * per_slot[0] <= DP_TLM_MAX_PROBES);
+  DP_CHECK (acq + own + 17 * per_slot[0] > DP_TLM_MAX_PROBES);
 
   /* One emitter: the counters report once a push, the searcher once a
      decided dwell, and the slot that holds it from its loops. */

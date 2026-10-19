@@ -1203,7 +1203,7 @@ int dp_async_dsss_receiver_set_telemetry (
 
 The receiver reports under the prefix, once per steps() call that carries samples, after the call, so on the time axis at the stamp the caller set for that block (dp\_tlm\_set\_now()):
 * "&lt;prefix&gt;.state"  where the call left the receiver, the ASYNC\_DSSS\_RX\_\* value: 0 searching, 1 refining, 2 tracking, 3 idle (cell mode, no seed yet), 4 lost (status().state);
-* "&lt;prefix&gt;.handover\_hz"  the Doppler the chain was built from, Hz ([**dp\_async\_dsss\_receiver\_get\_doppler\_hz()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_doppler_hz)): 0 before a seed, the seed's while refining, the refined value from the hand-over on (a cell receiver keeps the seed's), and 0 again after a refused hand-over or a reset(), which return the receiver to searching. Not the live carrier: status().doppler\_hz reads that, and ".car.freq" and ".car.nco" are the carrier loop's own view of it;
+* "&lt;prefix&gt;.handover\_hz"  the Doppler the chain was built from, Hz ([**dp\_async\_dsss\_receiver\_get\_doppler\_hz()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_doppler_hz)): 0 before a seed, the seed's while refining, the refined value from the hand-over on (a cell receiver keeps the seed's), and 0 again after a refused hand-over or a reset(), which return the receiver to searching. A record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the live carrier: status().doppler\_hz reads that, and ".car.freq" and ".car.nco" are the carrier loop's own view of it, in cycles a sample at the input rate, so times chip\_rate \* spc for Hz;
 * "&lt;prefix&gt;.refused"  the hits refused as seeds so far (status().refused\_hits).
 
 

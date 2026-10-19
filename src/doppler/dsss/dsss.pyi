@@ -2848,9 +2848,11 @@ class AsyncDsssReceiver:
           (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the
           seed's while refining, the refined value from the hand-over on (a
           cell receiver keeps the seed's), and 0 again after a refused
-          hand-over or a reset(), which return the receiver to searching. Not
-          the live carrier: status().doppler_hz reads that, and ".car.freq" and
-          ".car.nco" are the carrier loop's own view of it;
+          hand-over or a reset(), which return the receiver to searching. A
+          record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the
+          live carrier: status().doppler_hz reads that, and ".car.freq" and
+          ".car.nco" are the carrier loop's own view of it, in cycles a sample
+          at the input rate, so times chip_rate * spc for Hz;
         - "<prefix>.refused" -- the hits refused as seeds so far
           (status().refused_hits).
 
@@ -3673,9 +3675,11 @@ class CellAsyncDsssReceiver:
           (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the
           seed's while refining, the refined value from the hand-over on (a
           cell receiver keeps the seed's), and 0 again after a refused
-          hand-over or a reset(), which return the receiver to searching. Not
-          the live carrier: status().doppler_hz reads that, and ".car.freq" and
-          ".car.nco" are the carrier loop's own view of it;
+          hand-over or a reset(), which return the receiver to searching. A
+          record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the
+          live carrier: status().doppler_hz reads that, and ".car.freq" and
+          ".car.nco" are the carrier loop's own view of it, in cycles a sample
+          at the input rate, so times chip_rate * spc for Hz;
         - "<prefix>.refused" -- the hits refused as seeds so far
           (status().refused_hits).
 
@@ -4357,9 +4361,10 @@ class AsyncDsssPool:
           once per push(), after its releases.
 
         The probes come to 13 plus each slot's (a cell receiver's: its loops,
-        its symbol-lock pair and its lifecycle probes), so a large pool needs a
-        context with room: an attach that cannot register every probe fails
-        whole.
+        its symbol-lock pair and its lifecycle probes, 30 in all), so a large
+        pool needs a context with room: an attach that cannot register every
+        probe fails whole. One context's DP_TLM_MAX_PROBES (512) holds up to 16
+        slots, 13 + 16 * 30 = 493.
 
         A context is single-producer (dp_tlm/dp_tlm_core.h), and a pool created
         with `threads != 1` (more than one, or `<= 0` for the core count) may

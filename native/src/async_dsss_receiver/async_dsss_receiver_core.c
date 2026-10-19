@@ -1528,12 +1528,13 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
        * model from the refined Doppler is within a tenth of a chip. Off
        * when carrier_freq_hz == 0: no carrier, no dilation to model. */
       /* The live chain's Dll is built under dp_xnn, which aborts on a
-         non-finite init phase or one outside [0, code_len). Those are the only
-         preconditions it needs, so they are the only things checked here: an
-         honest refined value anywhere else, including right at fs/2, tracks at
-         seed + residual as it did before. A value failing them takes the
-         failed-refine path, the seed's own Doppler and phase, so no unchecked
-         number reaches dp_xnn (doppler#2103). */
+         non-finite init phase or one outside [0, code_len): a refined value
+         failing that takes the failed-refine path, the seed's own Doppler
+         and phase (doppler#2103). What survives is then held to the seed
+         domain, the same test a hit is (#2461 #122): a refined Doppler at or
+         past fs/2 is no Doppler this receiver can report, so the hand-over
+         is refused like a hit -- counted in refused_hits, the search reset,
+         and the rest of this call searched. */
       double handover_chip_phase = adr_handover_phase (
           state, refined_doppler_hz_est, samples_consumed_refine);
       if (!isfinite (refined_doppler_hz_est) || !isfinite (handover_chip_phase)
@@ -1543,6 +1544,19 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
           refined_doppler_hz_est = state->seed_doppler_hz_est;
           handover_chip_phase    = adr_handover_phase (
               state, refined_doppler_hz_est, samples_consumed_refine);
+        }
+      if (!dp_async_dsss_receiver_seed_ok (state, handover_chip_phase,
+                                           refined_doppler_hz_est))
+        {
+          /* Refused, as a hit outside the domain is. Not reset(): that
+             would zero the refusal count this increments. The tail is the
+             search's; entering searching restarts state_samples, so the
+             recursion counts it once. */
+          state->refused_hits++;
+          dp_acq_reset (state->acq);
+          adr_enter (state, ASYNC_DSSS_RX_SEARCHING);
+          return dp_async_dsss_receiver_steps (state, tail, tail_len, out,
+                                               max_out);
         }
       adr_rebuild_track_chain (state, handover_chip_phase,
                                refined_doppler_hz_est, state->segments,

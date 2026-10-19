@@ -229,6 +229,7 @@ adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   s->refine_rc_out_buf  = rc_out_buf;
   s->refine_rc_out_cap  = rc_out_cap;
   s->refine_samples_fed = 0;
+  s->refine_periods     = 0;
   s->car_carry_len      = 0;
 }
 
@@ -577,9 +578,27 @@ adr_refine_period (dp_async_dsss_receiver_state_t *s,
   dp_carrier_acq_steps (s->ca, s->refine_rc_out_buf, n_rc);
 }
 
+/* The refine has decided: the carrier estimate is ready, or it has given
+ * up at its block cap. The one test both the period loop below and
+ * steps() ask, so the loop stops exactly where steps() hands over. */
+static int
+adr_refine_decided (const dp_async_dsss_receiver_state_t *s)
+{
+  /* The estimator is built by the refine's first period, mid-stream
+     (adr_new_carrier_acq): before it exists nothing has been decided. */
+  if (!s->ca)
+    return 0;
+  const dp_carrier_acq_state_t *ca = s->ca;
+  size_t cap = ca->sequential ? ca->max_n_blocks : ca->dwell_target;
+  return ca->ready || ca->n_blocks >= cap;
+}
+
 /* Refine-stage entry point: buffer raw samples into whole `tsamps`-sample
  * periods (the shared car_carry_buf -- refine and track never run
- * concurrently) and run adr_refine_period() on each complete one. */
+ * concurrently) and run adr_refine_period() on each complete one, up to
+ * the period the refine decides in. The rest of the call is the tracking
+ * chain's: steps() feeds it the tail, so folding it here too would pay for
+ * those samples twice (#2395). */
 static void
 adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
                     size_t x_len)
@@ -596,15 +615,26 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
       if (s->car_carry_len < s->tsamps)
         return;
       adr_refine_period (s, s->car_carry_buf);
+      s->refine_periods++;
       s->car_carry_len = 0;
     }
 
-  while (pos + s->tsamps <= x_len)
+  while (pos + s->tsamps <= x_len && !adr_refine_decided (s))
     {
       adr_refine_period (s, x + pos);
+      s->refine_periods++;
       pos += s->tsamps;
     }
 
+  /* Decided: the rest of x is the tracking chain's tail, which steps()
+     feeds it, and the track rebuild clears this buffer. Buffering it here
+     would also overrun car_carry_buf, which holds at most one period: only
+     a loop that consumed every whole period leaves less than one. */
+  if (adr_refine_decided (s))
+    {
+      s->car_carry_len = 0;
+      return;
+    }
   size_t leftover = x_len - pos;
   if (leftover > 0)
     memcpy (s->car_carry_buf, x + pos, leftover * sizeof (*x));
@@ -1431,8 +1461,7 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
       adr_process_refine (state, x, x_len);
 
       dp_carrier_acq_state_t *ca = state->ca;
-      size_t cap = ca->sequential ? ca->max_n_blocks : ca->dwell_target;
-      if (!ca->ready && ca->n_blocks < cap)
+      if (!adr_refine_decided (state))
         return 0; /* still refining, no output yet */
 
       double refined_doppler_hz_est

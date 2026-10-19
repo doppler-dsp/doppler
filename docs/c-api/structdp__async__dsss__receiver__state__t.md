@@ -85,6 +85,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**refine\_max\_n\_blocks**](#variable-refine_max_n_blocks)  <br> |
 |  size\_t | [**refine\_min\_blocks**](#variable-refine_min_blocks)  <br> |
 |  size\_t | [**refine\_n\_fft**](#variable-refine_n_fft)  <br> |
+|  uint64\_t | [**refine\_periods**](#variable-refine_periods)  <br> |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**refine\_rc**](#variable-refine_rc)  <br> |
 |  float \_Complex \* | [**refine\_rc\_out\_buf**](#variable-refine_rc_out_buf)  <br> |
 |  size\_t | [**refine\_rc\_out\_cap**](#variable-refine_rc_out_cap)  <br> |
@@ -923,6 +924,23 @@ size_t dp_async_dsss_receiver_state_t::refine_n_fft;
 
 
 
+
+<hr>
+
+
+
+### variable refine\_periods 
+
+```C++
+uint64_t dp_async_dsss_receiver_state_t::refine_periods;
+```
+
+
+
+Diagnostic: code periods the refine stage processed since its chain was built. It stops at the period the carrier estimate decides in, so it is the same whatever the block size (#2395). Not in the state blob: it changes nothing, and a restore restarts it. 
+
+
+        
 
 <hr>
 

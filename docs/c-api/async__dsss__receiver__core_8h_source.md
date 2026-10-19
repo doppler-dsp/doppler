@@ -144,6 +144,7 @@ typedef enum
     dp_carrier_acq_state_t   *ca;
     size_t refine_segments; 
     uint64_t refine_samples_fed; 
+    uint64_t refine_periods;     
     /* Scratch, not state -- sized once per refine-chain (re)build (no
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled

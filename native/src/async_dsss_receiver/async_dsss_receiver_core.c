@@ -584,10 +584,6 @@ adr_refine_period (dp_async_dsss_receiver_state_t *s,
 static int
 adr_refine_decided (const dp_async_dsss_receiver_state_t *s)
 {
-  /* The estimator is built by the refine's first period, mid-stream
-     (adr_new_carrier_acq): before it exists nothing has been decided. */
-  if (!s->ca)
-    return 0;
   const dp_carrier_acq_state_t *ca = s->ca;
   size_t cap = ca->sequential ? ca->max_n_blocks : ca->dwell_target;
   return ca->ready || ca->n_blocks >= cap;
@@ -1934,6 +1930,7 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   s->doppler_hz_est      = extra.doppler_hz_est;
   s->cn0_dbhz_est        = extra.cn0_dbhz_est;
   s->refine_samples_fed  = extra.refine_samples_fed;
+  s->refine_periods      = 0; /* a diagnostic, not in the blob: restarts */
   s->car_carry_len       = (size_t)extra.car_carry_len;
   s->state_samples       = extra.state_samples;
   s->both_down_samples   = extra.both_down_samples;

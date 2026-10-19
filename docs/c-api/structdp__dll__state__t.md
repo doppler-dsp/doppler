@@ -603,7 +603,7 @@ double dp_dll_state_t::code_rate;
 
 
 
-chips advanced per nominal chip (~1.0). 
+the loop's own rate, chips per nominal chip (~1.0): 1 + the loop filter output (its integrator alone at segments == 1), without the rate aid, so the code runs at code\_rate + rate\_aid. It is read before the NCO truncates its command to a whole phase step of sf\*sps/2^32 chips per chip, so a settled reading sits up to one step above the rate the loop carries. 
  
 
 

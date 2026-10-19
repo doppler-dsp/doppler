@@ -26,7 +26,7 @@ SPC = 2  # samples/chip
 FS = CHIP_RATE * SPC
 TE = SF * SPC  # samples per code epoch
 TSYM = FS / SYM_RATE  # samples per symbol
-DOPPLER_HZ = 50.0  # residual carrier -- never removed; Dll is carrier-blind
+DOPPLER_HZ = 50.0  # residual carrier, never removed: 1.7% of a period's bin
 PRE_SILENCE = TE * 5 + 311  # not a whole number of epochs
 
 CODE = np.asarray(Gold().generate(SF)).astype(np.uint8)

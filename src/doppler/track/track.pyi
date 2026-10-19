@@ -762,10 +762,11 @@ class Dll:
         Partial correlations per code epoch (default 1). 1 = a coherent
         full-epoch integrate-and-dump (one prompt/period). >1 splits each epoch
         into that many sub-epoch partials: it emits that many partial
-        prompts/period and tracks the code non-coherently across them (robust
-        to an asynchronous data-symbol clock). segments/epoch ~ samples/symbol
-        at a downstream SymbolSync when the symbol rate is near the code rate,
-        so choose >= 2 for symbol-timing recovery.
+        prompts/period and steers on the transition-free one-period window its
+        look-back finds among them (robust to an asynchronous data-symbol
+        clock). segments/epoch ~ samples/symbol at a downstream SymbolSync when
+        the symbol rate is near the code rate, so choose >= 2 for symbol-timing
+        recovery.
 
     Raises
     ------
@@ -809,33 +810,40 @@ class Dll:
         x: npt.NDArray[np.complex64],
         out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
-        """Correlate a cf32 block against the local code with early/prompt/late
-        taps and steer the code NCO each code period on the non-coherent
-        (sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With segments=1
-        (default) this is a coherent full-epoch integrate-and-dump: one prompt
-        symbol per period. With segments>1 each epoch is split into that many
-        sub-epoch partial correlations: it emits that many partial prompts per
-        period (a stream at ~segments samples/symbol when the symbol rate is
-        near the code rate) and tracks the code non-coherently across the
-        partials, which a data flip cannot collapse (robust to an asynchronous
-        data-symbol clock). segments>1 is the streaming despreader: it removes
-        the PN code and outputs samples. The non-coherent loop is
-        carrier-blind, so it tracks with a residual carrier still on the input;
-        carrier recovery (Costas) and symbol-timing recovery (SymbolSync) are
-        downstream stages fed from the partial output. Returned blocks are safe
-        to keep across calls (block-size invariant): a block whose array is
-        still referenced is never overwritten by a later call (jm gh-437).
+        """Correlate a carrier-wiped cf32 block against the local code with
+        early/prompt/late taps and steer the code NCO on the power
+        discriminator 0.5*(|E|^2-|L|^2)/|P|^2. With segments=1 (default) this
+        is a coherent full-epoch integrate-and-dump: one prompt symbol per
+        period. With segments>1 each epoch is split into that many sub-epoch
+        partial correlations: it emits that many partial prompts per period (a
+        stream at ~segments samples/symbol when the symbol rate is near the
+        code rate) and steers on coherent sums over the one-period window its
+        look-back finds free of a data transition, so a data flip cannot
+        collapse it (robust to an asynchronous data-symbol clock). segments>1
+        is the streaming despreader: it removes the PN code and outputs
+        samples. The sums are coherent and the discriminator takes their
+        powers, so the loop is blind to the carrier's phase but not to its
+        frequency: wipe the carrier first, and recover symbol timing
+        (SymbolSync) downstream, from the partial output. Returned blocks are
+        safe to keep across calls (block-size invariant): a block whose array
+        is still referenced is never overwritten by a later call (jm gh-437).
 
         The Python face of the loop. Each code period the early/prompt/late
-        correlators dump, the power-domain non-coherent early-minus-late
-        discriminator runs, and the fixed-point code-phase NCO is re-steered;
-        the prompt correlator value is emitted as one output symbol per period
-        (or `segments` partial prompts per period when `segments > 1`). The
-        loop is carrier-blind — it tracks with a residual carrier still on the
-        input, so carrier recovery (Costas) and symbol-timing recovery are
-        downstream stages fed from this output. Returned blocks are block-size
-        invariant and safe to keep across calls (a block still referenced is
-        never overwritten, jm gh-437).
+        correlators dump, the power-domain early-minus-late discriminator runs,
+        and the fixed-point code-phase NCO is re-steered; the prompt correlator
+        value is emitted as one output symbol per period (or `segments` partial
+        prompts per period when `segments > 1`). The discriminator's early,
+        late and prompt are coherent sums over its window -- one code period,
+        or with dp_dll_set_symbol_period() the transition-free window of a
+        symbol -- and it takes their powers. So the loop is blind to the
+        carrier's phase but not to its frequency: a residual `df` costs a
+        window of `T` seconds `sinc^2(df * T)` of its power, and a whole `1/T`
+        cycle nulls it. Wipe the carrier before this call: AsyncDsssReceiver
+        runs its carrier loop upstream of its Dll and hands the same estimate
+        to dp_dll_set_rate_aid(). Symbol-timing recovery runs downstream, on
+        this output. Returned blocks are block-size invariant and safe to keep
+        across calls (a block still referenced is never overwritten, jm
+        gh-437).
 
         Parameters
         ----------
@@ -1118,14 +1126,14 @@ class Dll:
         is the symbol timing, and its windows become the detector's looks --
         7.8 dB more per look at 1.8 epochs per symbol and four partials per
         epoch, and never across a transition. Size n_looks with
-        detection.det_n_noncoh over L * (sf * sps / segments) samples. Only the
-        detector's looks change: the discriminator keeps its per-epoch window
-        and the emitted partial stream is untouched. Raises ValueError when
-        segments <= 1, or the period is not finite, is negative, is in (0, 2)
-        or is past 2^20 partials, or when the bandwidth's loop gains would
-        overflow at the period's interval or at t = 1 (the bandwidth domain).
-        Exactly 0 turns the aid off; a negative period is refused, not taken as
-        0.
+        detection.det_n_noncoh over L * (sf * sps / segments) samples. The
+        discriminator steers once per symbol on the same winning window, its
+        filter re-timed so bn keeps its per-epoch meaning; the emitted partial
+        stream is untouched. Raises ValueError when segments <= 1, or the
+        period is not finite, is negative, is in (0, 2) or is past 2^20
+        partials, or when the bandwidth's loop gains would overflow at the
+        period's interval or at t = 1 (the bandwidth domain). Exactly 0 turns
+        the aid off; a negative period is refused, not taken as 0.
 
         In `segments > 1` mode every partial is a look for the code-lock
         detector (dp_dll_configure_lock()) and the discriminator sees one epoch
@@ -1515,7 +1523,13 @@ class Dll:
 
     @property
     def code_rate(self) -> float:
-        """chips advanced per nominal chip (~1.0)."""
+        """the loop's own rate, chips per nominal chip (~1.0): 1 + the loop
+        filter output (its integrator alone at segments == 1), without the rate
+        aid, so the code runs at code_rate + rate_aid. It is read before the
+        NCO truncates its command to a whole phase step of sf*sps/2^32 chips
+        per chip, so a settled reading sits up to one step above the rate the
+        loop carries.
+        """
 
     @property
     def last_error(self) -> float:

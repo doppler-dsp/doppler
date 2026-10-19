@@ -61,7 +61,7 @@ Those live on the [Examples](../examples/index.md) page instead.
 - [Lock Detection: Verify Counts](lockdet.md) — level + time hysteresis vs. a naive comparator on a marginal signal.
 - [2-D Acquisition](detection2d.md) — GPS/CDMA Doppler × code-phase search with Bonferroni-corrected CFAR.
 - [DSSS Acquisition: Pd/Pfa](dsss-acq-characterization.md) — detection characterisation curves.
-- [Streaming Async Despreader](async-despread.md) — `Dll(segments)` PN-epoch despreader.
+- [Streaming Async Despreader](async-despread.md) — `Dll(segments)` despreading a Doppler-dilated code on an asynchronous data clock, unaided and with the carrier's rate aid.
 - [Full-Chain Lock-Up](receiver-lock.md) — `Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context.
 - [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md) — `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator.
 - [DsssBurstReceiver — the Composed Burst Chain](dsss-burst-receiver.md) — the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, byte-identical, then `BurstAcquisition -> refine -> BurstDemod` behind one `push()` and the frames checked against the description; the same answer at every block size, a burst split across two calls held rather than lost, and `refine_span` as the minimum burst spacing.

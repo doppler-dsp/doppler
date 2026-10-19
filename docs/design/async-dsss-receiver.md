@@ -282,35 +282,40 @@ The BER follows the BPSK matched-filter bound within 1–2 dB, and a genie
 reference with known timing hits it exactly: the loss is window misalignment,
 never SNR.
 
-**The code path combines the partials non-coherently**, `|E| = Σ_k |E_k|`,
-`|L| = Σ_k |L_k|`. A data flip changes a partial's *sign*, not its *magnitude*,
-so only the one straddling segment degrades — about `1/K` of the look. That
-roughly halves the discriminator variance against the coherent-epoch form and
-needs no symbol timing, so it works from cold start: the bootstrap order is DLL
-(non-coherent) → SymbolSync → data. **`K = 4` is the sweet spot** at
-`T_sym ≈ TE`; `K` trades observability and straddle-robustness against the
-non-coherent squaring bias, `K = 8` loses more gain than variance, and `K` must
-divide `TE`.
+**The code path sums the partials coherently** over a one-period window and
+takes the powers of the sums. A data flip changes the sign of every partial after
+it, so a window across a flip cancels in part (§3.2); the look-back (§3.6) picks,
+each period, the one-period window with the most prompt power, the one with the
+least of a flip in it, and the discriminator runs on that window's sums. It needs
+no symbol timing, so it works from cold start: the bootstrap order is DLL →
+SymbolSync → data. Given the symbol period, §3.7 lifts the same search to the
+symbol scale.
+`K` sets two things: the output rate, `K` despread samples per period, and the
+look-back's grain, since a candidate window starts only on a partial boundary.
 
 ### 3.4 The despreader removes the code and outputs samples
 
 Its one job is to remove the PN code and emit samples. The asynchronous symbol
-clock is merely *why* it despreads in `K` partials; carrier recovery and symbol
-extraction are downstream, in separate objects fed from its output. This is
+clock is merely *why* it despreads in `K` partials; symbol extraction is
+downstream, in separate objects fed from its output. This is
 `track.Dll(..., segments=K)` and no new object: `segments=1` is the classic
 coherent full-epoch DLL, `segments=K>1` is the streaming async despreader, and
-what follows it is `Costas` (carrier), then symbol timing, then bits.
+what follows it is symbol timing, then bits.
 
-**The carrier belongs downstream** because the `|E|−|L|` discriminator is
-non-coherent, so code tracking is carrier-blind, and because each output is a
-`TE/K`-sample partial rather than a full epoch, so a residual carrier barely
-dents it. For a half-Doppler-bin residual the I&D loss is `sinc(Δφ/2)` with
-`Δφ = π/segments`: **−3.9 dB** at `segments = 1`, **−0.2 dB** at 4. The residual
-rides out as a ring in the constellation and a downstream `Costas` removes it at
-full symbol SNR. A carrier loop *inside* the despreader would only matter for
-long coherent integration, which partials deliberately avoid.
+**The carrier is wiped before it.** The code loop's sums are coherent over a
+code period (§3.3), so it is blind to the carrier's phase but not to a residual
+frequency: a residual `Δf` costs a window of `T` seconds `sinc²(Δf·T)` of its
+power, **−3.9 dB** at half a `1/T` bin, and a whole cycle per period nulls it
+(`native/tests/test_dll_core.c` §6d). So the receiver runs its carrier loop
+upstream. Its Costas loop wipes the carrier from the input, is steered from the
+Dll's partials, and hands the same estimate to the code loop as its rate aid,
+`carrier_offset / carrier_freq`, because the motion that shifts the carrier
+dilates the code. Each emitted partial is a `TE/K`-sample integrate-and-dump, so
+whatever residual the carrier loop has not yet nulled barely dents the output:
+`sinc(Δφ/2)` with `Δφ = π/K` at half a bin, **−0.2 dB** at `K = 4`. That
+residual rides out to the demodulator's own carrier loop.
 
-**The same rule forbids coupling `segments` to a demodulator's `sps`.** The
+**Its one job also forbids coupling `segments` to a demodulator's `sps`.** The
 partial rate is `K·chip_rate/SF`, chosen for the code loop's own variance and
 nothing else; a demodulator's `sps` is chosen for its own reasons, and
 `doppler.resample.RateConverter` bridges them. Picking `K` so that

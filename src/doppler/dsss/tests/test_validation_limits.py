@@ -27,6 +27,9 @@ import pytest
 from doppler.dsss.tests.validation.async_dsss_pool import (
     validate as async_dsss_pool_validate,
 )
+from doppler.dsss.tests.validation.async_dsss_receiver import (
+    validate as async_dsss_receiver_validate,
+)
 from doppler.dsss.tests.validation.burst_demod import (
     validate as burst_demod_validate,
 )
@@ -44,6 +47,7 @@ from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
     "async_dsss_pool": async_dsss_pool_validate,
+    "async_dsss_receiver": async_dsss_receiver_validate,
     "burst_demod": burst_demod_validate,
     "burst_despreader": burst_despreader_validate,
     "dsss_burst_receiver": dsss_burst_receiver_validate,

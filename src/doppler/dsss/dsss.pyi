@@ -2283,7 +2283,9 @@ class AsyncDsssReceiver:
     sps : int, default 8
         MpskReceiver's samples/symbol; default 8.
     differential : int, default 0
-        MpskReceiver's differential demap; default 0 (coherent).
+        MpskReceiver's differential demap; default 0 (coherent). It acts in
+        MpskReceiver's bits(), which this object does not offer, so steps()'
+        symbols are the same either way (#2471).
     refine_max_error_db : float, default 0.5
         Max tolerable async-lookback correlation-power loss driving the
         refine-stage collection Dll's coherent-I&D window count via
@@ -2835,7 +2837,30 @@ class AsyncDsssReceiver:
         decim: int = 1,
     ) -> None:
         """Attach (or detach) a telemetry context across the receiver's loops,
-        and register the receiver's own symbol-lock decision.
+        and register the receiver's own lifecycle and symbol-lock decision.
+
+        The receiver reports under the prefix, once per steps() call that
+        carries samples, after the call, so on the time axis at the stamp the
+        caller set for that block (dp_tlm_set_now()):
+
+        - "<prefix>.state" -- where the call left the receiver, the
+          ASYNC_DSSS_RX_* value: 0 searching, 1 refining, 2 tracking, 3 idle
+          (cell mode, no seed yet), 4 lost (status().state);
+        - "<prefix>.handover_hz" -- the Doppler the chain was built from, Hz
+          (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the
+          seed's while refining, the refined value from the hand-over on (a
+          cell receiver keeps the seed's), and 0 again after a refused
+          hand-over or a reset(), which return the receiver to searching. A
+          record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the
+          live carrier: status().doppler_hz reads that, and ".car.freq" and
+          ".car.nco" are the carrier loop's own view of it, in cycles a sample
+          at the input rate, so times chip_rate * spc for Hz;
+        - "<prefix>.refused" -- the hits refused as seeds so far
+          (status().refused_hits).
+
+        Feed blocks of about a code period, as the examples do, and these read
+        as a time series of the lifecycle: when the search hit, how long the
+        refine took, what it handed over, when the release came.
 
         Each loop reports under the prefix, at its own update rate:
 
@@ -2852,6 +2877,10 @@ class AsyncDsssReceiver:
         - "<prefix>.acq" -- the searching flavor's acquisition engine
           (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has
           no search, so no such probes;
+        - "<prefix>.rc" -- the rate converter between the code loop and the
+          demodulator (dp_RateConverter_set_telemetry()). It reports only an
+          AGC, and this receiver builds it without one, so it registers no
+          probes;
         - "<prefix>.sym.lock" and "<prefix>.sym.locked" -- the receiver's own
           symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and its
           decision (dp_async_dsss_receiver_get_locked()), the one its users act
@@ -2902,8 +2931,9 @@ class AsyncDsssReceiver:
         >>> rx.set_telemetry(tlm, "rx")
         >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
         ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
-        >>> sorted(p for p in tlm.probe_names if p.startswith("rx.sym"))
-        ['rx.sym.lock', 'rx.sym.locked']
+        >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
+        ...                                                    "rx.r")))
+        ['rx.handover_hz', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
         >>> rx.set_telemetry(None, "rx")      # detach
 
         """
@@ -3202,7 +3232,8 @@ class CellAsyncDsssReceiver:
     sps : int, default 8
         MpskReceiver's samples per symbol.
     differential : int, default 0
-        1 for differentially-encoded data.
+        1 for differentially-encoded data. Inert on steps(), which returns the
+        symbols before any demap (#2471).
     carrier_freq_hz : float, default 0.0
         RF carrier, Hz; > 0 couples the code rate to the carrier loop's Doppler
         (the dead reckoning and the Dll's aid), 0 = no dilation. Coupled, it is
@@ -3634,7 +3665,30 @@ class CellAsyncDsssReceiver:
         decim: int = 1,
     ) -> None:
         """Attach (or detach) a telemetry context across the receiver's loops,
-        and register the receiver's own symbol-lock decision.
+        and register the receiver's own lifecycle and symbol-lock decision.
+
+        The receiver reports under the prefix, once per steps() call that
+        carries samples, after the call, so on the time axis at the stamp the
+        caller set for that block (dp_tlm_set_now()):
+
+        - "<prefix>.state" -- where the call left the receiver, the
+          ASYNC_DSSS_RX_* value: 0 searching, 1 refining, 2 tracking, 3 idle
+          (cell mode, no seed yet), 4 lost (status().state);
+        - "<prefix>.handover_hz" -- the Doppler the chain was built from, Hz
+          (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the
+          seed's while refining, the refined value from the hand-over on (a
+          cell receiver keeps the seed's), and 0 again after a refused
+          hand-over or a reset(), which return the receiver to searching. A
+          record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the
+          live carrier: status().doppler_hz reads that, and ".car.freq" and
+          ".car.nco" are the carrier loop's own view of it, in cycles a sample
+          at the input rate, so times chip_rate * spc for Hz;
+        - "<prefix>.refused" -- the hits refused as seeds so far
+          (status().refused_hits).
+
+        Feed blocks of about a code period, as the examples do, and these read
+        as a time series of the lifecycle: when the search hit, how long the
+        refine took, what it handed over, when the release came.
 
         Each loop reports under the prefix, at its own update rate:
 
@@ -3651,6 +3705,10 @@ class CellAsyncDsssReceiver:
         - "<prefix>.acq" -- the searching flavor's acquisition engine
           (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has
           no search, so no such probes;
+        - "<prefix>.rc" -- the rate converter between the code loop and the
+          demodulator (dp_RateConverter_set_telemetry()). It reports only an
+          AGC, and this receiver builds it without one, so it registers no
+          probes;
         - "<prefix>.sym.lock" and "<prefix>.sym.locked" -- the receiver's own
           symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and its
           decision (dp_async_dsss_receiver_get_locked()), the one its users act
@@ -3701,8 +3759,9 @@ class CellAsyncDsssReceiver:
         >>> rx.set_telemetry(tlm, "rx")
         >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
         ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
-        >>> sorted(p for p in tlm.probe_names if p.startswith("rx.sym"))
-        ['rx.sym.lock', 'rx.sym.locked']
+        >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
+        ...                                                    "rx.r")))
+        ['rx.handover_hz', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
         >>> rx.set_telemetry(None, "rx")      # detach
 
         """
@@ -4304,9 +4363,11 @@ class AsyncDsssPool:
           pool's `n_assigned` and its running `dropped` and `events` counts,
           once per push(), after its releases.
 
-        The probes come to 13 plus each slot's (a cell receiver's: its loops
-        and its symbol-lock pair), so a large pool needs a context with room:
-        an attach that cannot register every probe fails whole.
+        The probes come to 13 plus each slot's (a cell receiver's: its loops,
+        its symbol-lock pair and its lifecycle probes, 30 in all), so a large
+        pool needs a context with room: an attach that cannot register every
+        probe fails whole. One context's DP_TLM_MAX_PROBES (512) holds up to 16
+        slots, 13 + 16 * 30 = 493.
 
         A context is single-producer (dp_tlm/dp_tlm_core.h), and a pool created
         with `threads != 1` (more than one, or `<= 0` for the core count) may

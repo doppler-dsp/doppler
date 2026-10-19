@@ -79,6 +79,16 @@ main (void)
    * this project measures at -- and the flattery below it is pinned as its own
    * property, because the useful statement is not "EVM equals the bound" but
    * "EVM cannot beat the bound by more than the decisions cost".
+   *
+   * Most of that "flattery" is not the decisions, though: the meter scales the
+   * window to unit TOTAL power, so even an ideal stream reads
+   * dp_ber_evm_ideal_db() = 10 log10(2 - 2 sqrt(r/(1+r))), not -Es/N0. That is
+   * -12.19 dB at 12 dB, where the table reads -12.20 with an SER of 7e-5 --
+   * the whole 0.20 dB is the scaling. The decisions add to it only below
+   * about 9 dB. So each point is also pinned to the ideal, within 0.05 dB:
+   * the meter's own noise floor, the reference a receiver's loss is measured
+   * against (#2473). Sabotage: return -Es/N0 from dp_ber_evm_ideal_db ->
+   * red at 12 dB.
    */
   for (int k = 0; k < 4; k++)
     {
@@ -102,6 +112,10 @@ main (void)
       DP_REQUIRE_MSG (fabs (evm + esn0_db) < 0.3, msg);
       DP_REQUIRE_MSG (evm > -esn0_db - 0.3,
                       "EVM must not beat the bound where decisions are sound");
+      snprintf (msg, sizeof msg,
+                "Es/N0 %.0f dB: the meter's ideal is %.3f, it reads %.3f",
+                esn0_db, dp_ber_evm_ideal_db (esn0_db), evm);
+      DP_REQUIRE_MSG (fabs (evm - dp_ber_evm_ideal_db (esn0_db)) < 0.05, msg);
     }
 
   /* The flattery itself, pinned: monotone in Es/N0, and bounded by the value

@@ -806,3 +806,27 @@ name = "Burst capture, four bursts, from Python"
 unit = "sample"
 definition = "One push of 65,536 noisy samples carrying four 8,316-sample bursts (a 255-chip preamble at 2 samples per chip, repeated 5 times, 12 dB Es/N0) into a fresh BurstCapture through the Python binding; throughput counts input samples."
 samples = 1
+
+["c:async_dsss_receiver::steps[cell,sf=7]"]
+name = "Async DSSS receiver, held, 7-chip code"
+unit = "sample"
+definition = "The cell receiver tracking a 7-chip code at 1 Mcps and 4 samples per chip with asynchronous BPSK data, code-locked before and after: 65,536 samples per round; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_receiver::steps[cell,sf=1023,5Mcps]"]
+name = "Async DSSS receiver, held, 1,023 chips at 5 Mcps"
+unit = "sample"
+definition = "The cell receiver tracking a 1,023-chip code at 5 Mcps and 2 samples per chip with 2,700 sym/s asynchronous BPSK data, code-locked before and after: 65,536 samples per round; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_receiver::steps[cell,sf=1023,3.069Mcps]"]
+name = "Async DSSS receiver, held, at the SPEC point"
+unit = "sample"
+definition = "The cell receiver tracking a 1,023-chip code at 3.069 Mcps and 2 samples per chip with 2,700 sym/s asynchronous BPSK data, code-locked before and after: 65,536 samples per round; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_receiver::steps[search,sf=1023,3.069Mcps]"]
+name = "Async DSSS receiver, searching, at the SPEC point"
+unit = "sample"
+definition = "The searching receiver in the SPEC configuration the certification measures: a 1,023-chip code at 3.069 Mcps and 2 samples per chip, its own search over plus or minus one code-period frequency (3 kHz), fed noise and searching for every sample fed: 65,536 samples per round; throughput counts input samples."
+samples = 1

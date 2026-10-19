@@ -181,8 +181,9 @@ extern "C"
    *         the rate: `ser <= 0` (a zero SER is a perfect link, which no
    *         finite Es/N0 yields), `ser` above the bound at -10 dB (a rate
    *         the link cannot reach even at -10 dB), and `ser` below the bound
-   *         at 40 dB, and an M outside {2, 4, 8}. Those are NOT clamped to -10 or 40: a bracket value
-   *         reads like a measurement, so an out-of-range rate would
+   *         at 40 dB, and an M outside {2, 4, 8}. Those are NOT clamped to
+   *         -10 or 40: a bracket value reads like a measurement, so an
+   *         out-of-range rate would
    *         fabricate an answer. Test for it with isnan(), and write gates
    *         as `!(loss <= limit)`: a `loss > limit` comparison is false for
    *         NaN and passes silently.
@@ -225,8 +226,9 @@ extern "C"
    * -20.03 dB, at 10 dB -10.31 dB, at 5 dB -5.91 dB. A receiver's
    * implementation loss is its EVM minus this, never its EVM plus Es/N0:
    * against -Es/N0 an ideal receiver already reads 0.9 dB better at 5 dB,
-   * so that reference hides that much loss. Decision errors (below about 5 dB at BPSK) pull a real
-   * reading under this; it is the noise-only ideal, the same for every M.
+   * so that reference hides that much loss. Decision errors (below about
+   * 5 dB at BPSK) pull a real reading under this; it is the noise-only
+   * ideal, the same for every M.
    *
    * @param esn0_db  Es/N0, dB.
    * @return The ideal reading in dB.

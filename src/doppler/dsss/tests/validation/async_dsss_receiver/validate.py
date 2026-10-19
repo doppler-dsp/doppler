@@ -1,8 +1,8 @@
 """Certify `async_dsss_receiver` -- one continuous asynchronous DSSS receiver.
 
-Run:  python -m doppler.dsss.tests.validation.async_dsss_receiver.validate
-      python -m doppler.dsss.tests.validation.async_dsss_receiver.validate \\
-          --sweep        (re-run the full sweep into data/sweep.txt first)
+Run:  make validate-py VALIDATORS=<this file>   (this report)
+      make validate-async-receiver-sweep        (re-run the full sweep into
+                                                 data/sweep.txt, then this)
       make validate          (regenerates every report)
       make validate-check    (fails if the committed report is stale)
 
@@ -20,7 +20,8 @@ the evidence and the gate are one run and cannot disagree. The full sweep
 -- twenty arrival and dropout draws at 10 and 5 dB, five quality draws at
 each Es/N0, five false-lock draws -- is committed as `data/sweep.txt` and
 rendered in section 2.5; the findings and the executive summary quote it,
-computed from that file, never typed. `--sweep` refreshes it on purpose.
+computed from that file, never typed. `make validate-async-receiver-sweep`
+refreshes it on purpose.
 
 **Scope: BPSK.** The receiver accepts m = 2, 4 or 8; the owner scoped this
 certification to BPSK (2026-10-19), and the test library spreads BPSK only,
@@ -30,6 +31,7 @@ so m = 4 and 8 are not certified here.
 from __future__ import annotations
 
 import csv
+import math
 import statistics
 import subprocess
 import sys
@@ -48,12 +50,12 @@ HARNESS = exe(
 )
 
 #: This report's asserted bounds. CHECK_TRACK_MS and DROP_WATCH_MS are the
-#: harness's own (it asserts them in --check and the sweep alike);
-#: EVM_LOSS_DB is the harness's CHECK_EVM_LOSS_DB, set from the sweep's
-#: worst loss at 20 dB with room for another toolchain (section 4).
+#: harness's own (it asserts them in --check and the sweep alike). The EVM
+#: allowance is not restated here: the harness computes it per Es/N0 and
+#: emits it with each quality row (`loss_min_db`, `loss_max_db`), so the
+#: report reads the bound the harness asserted (section 4).
 CHECK_TRACK_MS = 100.0
 DROP_WATCH_MS = 80.0
-EVM_LOSS_DB = 2.0
 
 R = Report()
 
@@ -538,17 +540,19 @@ def review(sw: Blocks) -> None:
     R.find(
         "F3",
         "CONFIRMED",
-        f"Below 10 dB a first hand-off can land off the carrier and never "
-        f"pull in. With `reacquire` off (the binding's default, and this "
-        f"harness's), the full sweep has {miss} of its {n_q} quality draws "
-        f"under 10 dB with no symbol lock within 4 s, "
-        f"{sum(1 for r in a5 if not r['locked_end'])} of {len(a5)} arrivals "
-        f"at 5 dB unlocked at 2 s, and dropout draws that never settled in "
-        f"{sum(1 for r in d5 if not r['settled'])} of {len(d5)} at 5 dB and "
-        f"{sum(1 for r in d10 if not r['settled'])} of {len(d10)} at 10 dB "
-        f"(section 2.5). `reacquire` recovers a missed hand-off by "
-        f"searching again; the SPEC example locks every draw that way. The "
-        f"hand-off accuracy is #2409.",
+        f"A first hand-off can land off the carrier and never pull in, at "
+        f"the 10 dB design point as well as below it. With `reacquire` off "
+        f"(the binding's default, and this harness's), the full sweep has "
+        f"{miss} of its {n_q} quality draws under 10 dB with no symbol lock "
+        f"within 4 s, {sum(1 for r in a5 if not r['locked_end'])} of "
+        f"{len(a5)} arrivals at 5 dB unlocked at 2 s, and dropout draws that "
+        f"never settled in {sum(1 for r in d5 if not r['settled'])} of "
+        f"{len(d5)} at 5 dB and {sum(1 for r in d10 if not r['settled'])} "
+        f"of {len(d10)} at 10 dB (section 2.5). The 10 dB draw is on #2409: "
+        f"the refine handed over outside the carrier loops' pull-in, code "
+        f"lock came up and symbol lock never did. `reacquire` recovers a "
+        f"missed hand-off by searching again; the SPEC example locks every "
+        f"draw that way. The hand-off accuracy is #2409.",
     )
     R.find(
         "F4",
@@ -563,13 +567,37 @@ def review(sw: Blocks) -> None:
 def limits(d: Blocks, sw: Blocks) -> None:
     R.md("## 4. Limits — claims a caller may rely on")
     R.md()
-    worst = max(_losses(sw, 10.0, 99.0))
+    q = {float(r["esn0_db"]): r for r in d["quality"]}
+    margin = -float(q[20.0]["loss_min_db"])
+    # The floor the harness's model uses, recovered from its 20 dB bound:
+    # loss_max = 10*log10(1 + floor/ideal) + margin.
+    floor_db = float(q[20.0]["ideal_db"]) + 10.0 * math.log10(
+        10.0 ** ((float(q[20.0]["loss_max_db"]) - margin) / 10.0) - 1.0
+    )
+    bounds = ", ".join(
+        f"{float(q[es]['loss_max_db']):+.2f} dB at {es:.0f} dB"
+        for es in sorted(q, reverse=True)
+        if float(q[es]["loss_max_db"]) == float(q[es]["loss_max_db"])
+    )
+    w15 = max(_losses(sw, 15.0, 15.0))
+    n_sym = int(float(q[20.0]["n_sym"]))
+    # One sigma of an EVM over n symbols, in dB: 10/ln(10)/sqrt(n).
+    sigma_db = 10.0 / math.log(10.0) / math.sqrt(n_sym)
     R.md(
-        f"The EVM bound is one-sided, a loss over the meter's ideal: an EVM "
-        f"better than ideal is not credited. {EVM_LOSS_DB} dB sits over the "
-        f"full sweep's worst loss at 10 dB and above, {worst:+.2f} dB (at "
-        f"20 dB, the implementation floor), with room for another "
-        f"toolchain."
+        f"The EVM bound is two-sided and set per Es/N0, as a loss over the "
+        f"meter's ideal. A locked receiver's error is the ideal's plus an "
+        f"implementation floor, EVM² = ideal + floor in linear power, so the "
+        f"most loss it may show is 10·log10(1 + floor/ideal) plus "
+        f"{margin:.2f} dB, the EVM estimator's own counting noise over "
+        f"{n_sym} symbols ({margin / sigma_db:.1f} sigma of "
+        f"{sigma_db:.2f} dB): "
+        f"{bounds}. The floor, {floor_db:.1f} dB, is what the full sweep's "
+        f"worst 20 dB draw leaves. An EVM more than {margin:.2f} dB under "
+        f"the ideal fails too: that is a meter or harness defect, not a "
+        f"better receiver. At 15 dB the model reads high (the sweep's worst "
+        f"loss there is {w15:+.2f} dB), so that bound is the looser one. "
+        f"Below 10 dB the loss comes from the loops' dynamics rather than a "
+        f"floor, and no EVM limit is claimed."
     )
     R.md()
     for r in d["arrival"]:
@@ -591,10 +619,11 @@ def limits(d: Blocks, sw: Blocks) -> None:
             continue
         tag = f"[{es:.0f} dB]"
         R.limit(bool(r["settled"]), f"{tag} the receiver reaches symbol lock")
+        lo, hi = float(r["loss_min_db"]), float(r["loss_max_db"])
         R.limit(
-            float(r["loss_db"]) <= EVM_LOSS_DB,
-            f"{tag} a locked receiver's BPSK EVM is at most {EVM_LOSS_DB} dB "
-            f"over the meter's ideal",
+            lo <= float(r["loss_db"]) <= hi,
+            f"{tag} a locked receiver's BPSK EVM is within {lo:+.2f} to "
+            f"{hi:+.2f} dB of the meter's ideal",
         )
         R.limit(
             float(r["lock_frac"]) == 1.0,
@@ -628,6 +657,7 @@ def _takeaways(sw: Blocks) -> list[str]:
         float(r["t_lock_ms"]) for r in a10 if r["t_lock_ms"] == r["t_lock_ms"]
     ]
     drops = [float(r["drop_ms"]) for r in sw["dropout"] if r["settled"]]
+    d10, d5 = _at(sw["dropout"], 10.0), _at(sw["dropout"], 5.0)
     fl = sw["falselock"]
     return [
         f"**Design to the meter's ideal EVM from 5 to 15 dB.** Over the "
@@ -638,8 +668,11 @@ def _takeaways(sw: Blocks) -> list[str]:
         f"after a signal arrives (worst {max(trk):.0f} ms over "
         f"{len(trk)} draws), symbol lock {statistics.median(lk):.0f} ms "
         f"(worst {max(lk):.0f} ms) (2.5).",
-        "**Below 10 dB, turn `reacquire` on.** A first hand-off can miss "
-        "the carrier and, without it, never recover (F3, #2409).",
+        f"**Turn `reacquire` on.** A first hand-off can miss the carrier "
+        f"and, without it, never recover, at 10 dB as well as below: "
+        f"{sum(1 for r in d10 if not r['settled'])} of {len(d10)} dropout "
+        f"draws at 10 dB and {sum(1 for r in d5 if not r['settled'])} of "
+        f"{len(d5)} at 5 dB never settled (F3, #2409).",
         f"**The lock flag means something:** {len(fl)} receivers on noise "
         f"declared it {sum(int(r['declares']) for r in fl)} times, and a "
         f"signal that leaves drops it within {max(drops):.0f} ms (2.5).",

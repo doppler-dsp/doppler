@@ -17,6 +17,17 @@ only interrupts a busy receiver passes against the defect.
 
 Requires the binaries (`make build`) and a NATS broker; skips cleanly
 without either, the same way the C round-trip tests do.
+
+The second kind of pair is a Python example and its C twin that run the
+same captures with the same seeds: :data:`TWINS`. Each twin asserts its own
+bounds, so the two could drift apart with every gate green; this runs both
+from one build and requires the same printed lines. One build matters: a
+different compiler or sanitizer build moves a floating-point result by an
+error count, which is not a defect. The binaries come from the job's own
+build tree, :func:`~doppler.tests._repo.build_dir` -- the coverage job builds
+only ``build-cov`` and says so through ``DOPPLER_BUILD_DIR``. Without the
+binary it skips, except under CI, where that tree is built and a missing
+binary is a failure.
 """
 
 from __future__ import annotations
@@ -26,17 +37,18 @@ import re
 import signal
 import socket
 import subprocess
+import sys
 import threading
 import time
 
 import pytest
 
-from doppler.tests._repo import repo_root
+from doppler.tests._repo import build_dir, repo_root
 
 pytestmark = pytest.mark.examples
 
 REPO = repo_root(__file__)
-BIN = REPO / "build" / "native" / "examples"
+BIN = build_dir() / "native" / "examples"
 
 # How long the interrupted process may take to exit. The example asks the
 # broker for a 250 ms receive timeout, so one timeout plus teardown is the
@@ -168,3 +180,54 @@ def test_receiver_stops_on_sigint_after_the_sender_has_stopped() -> None:
             if p.poll() is None:
                 os.killpg(os.getpgid(p.pid), signal.SIGKILL)
                 p.wait(timeout=5)
+
+
+#: Python examples whose C twin prints the same result lines. The Python
+#: twin's "wrote <figure>" line and the C twin's closing "OK" are each one
+#: face's own, and are not compared.
+TWINS = ("async_dsss_receiver_spec_demo",)
+
+
+def _result_lines(text: str) -> list[str]:
+    return [
+        ln
+        for ln in text.splitlines()
+        if ln.strip() and not ln.startswith("wrote ") and ln != "OK"
+    ]
+
+
+@pytest.mark.parametrize("name", TWINS)
+def test_twins_print_the_same_lines(name: str, tmp_path) -> None:
+    binary = BIN / name
+    if not binary.exists():
+        if os.environ.get("CI"):
+            pytest.fail(f"{name} not built: no {binary} in the job's tree")
+        pytest.skip(f"{name} not built (run `make build`)")
+    script = REPO / "src" / "doppler" / "examples" / f"{name}.py"
+    py = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=tmp_path,
+        env=dict(os.environ, MPLBACKEND="Agg"),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    c = subprocess.run(
+        [str(binary)],
+        cwd=tmp_path,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert py.returncode == 0, py.stderr[-2000:]
+    assert c.returncode == 0, c.stderr[-2000:]
+    py_lines, c_lines = _result_lines(py.stdout), _result_lines(c.stdout)
+    assert py_lines, f"{name}.py printed no result lines"
+    assert py_lines == c_lines, (
+        f"{name}: the twins disagree\n--- Python ---\n"
+        + "\n".join(py_lines)
+        + "\n--- C ---\n"
+        + "\n".join(c_lines)
+    )

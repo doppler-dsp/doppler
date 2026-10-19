@@ -68,7 +68,7 @@ ______________________________________________________________________
 
 <!-- related-pages:start -->
 
-**Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
+**Gallery** — [AsyncDsssReceiver: the SPEC link](../gallery/async-dsss-receiver-spec.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
 **Design** — [Receiver Test Harness](../design/rx-test.md)
 
 <!-- related-pages:end -->

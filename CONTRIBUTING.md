@@ -131,16 +131,18 @@ writable = true
 Write the fragment by hand, or let jm's authoring verbs write it
 (`object`, `method`, `property`, `function`, and the `--preset` forms).
 No make target wraps those verbs yet
-([#2449](https://github.com/doppler-dsp/doppler/issues/2449)), so the
-make-SSOT hook stops a bare call. Until it lands, run the pinned binary
-(which `make jm-apply` syncs into `.venv`) with the hook's
-deliberate-exception prefix, then apply:
+([#2449](https://github.com/doppler-dsp/doppler/issues/2449)). Until one
+does, run the pinned binary, which `make setup` installs into `.venv`,
+then apply:
 
 ```sh
-MAKE_SSOT_OK=1 .venv/bin/just-makeit object myobj --module mymodule \
+.venv/bin/just-makeit object myobj --module mymodule \
   --state gain:double:1.0 --mutable
 make jm-apply
 ```
+
+(A maintainer's make-SSOT hook, which lives outside this repo, asks to
+confirm that call; prefixing it with `MAKE_SSOT_OK=1` answers yes.)
 
 The recipe for each shape is in
 [Adding a Module](docs/dev/contributing/adding-a-module.md), Step 1; the
@@ -233,8 +235,8 @@ make drift-check
 A header change also changes the generated C API pages: regenerate them
 with `make gen-c-api`, which uses CI's doxygen if yours matches and
 otherwise the CI image (so it needs docker). The `gen-c-api-drift`
-pre-commit hook runs `make gen-c-api-check` on any staged `native/` C
-file.
+pre-commit hook runs `make gen-c-api-check` on any staged `.c` or `.h`
+file under `native/inc/` or `native/src/`.
 
 Commit the fragment, the C core and the tests together with whatever jm
 regenerated. **Never hand-edit a jm-owned file** to fix a binding: change
@@ -255,8 +257,8 @@ the lifecycle has one home each:
 - **Benchmarks**, C and Python:
     [Benchmarking](docs/dev/contributing/benchmarking.md).
 - **An API page**: a `docs/api/*.md` page whose `::: doppler.x.Y`
-    directive renders the docstring, plus its `mkdocs.yml` nav entry:
-    [Docs Conventions](docs/dev/contributing/docs-conventions.md).
+    directive renders the docstring, plus its `mkdocs.yml` nav entry;
+    copy the shape of [the FIR page](docs/api/python-filter.md).
 - **Doc pages and examples** (every fence is run):
     [Doc Examples](docs/dev/contributing/doc-examples.md).
 - **What is generated vs. hand-owned in the docs**:

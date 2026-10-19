@@ -51,8 +51,10 @@ ROOT = Path(__file__).resolve().parent.parent
 #: the built site) never sees their LINKS either: those are checked here as
 #: well as their code-span paths. CONTRIBUTING.md walks through a real object
 #: by path ("every path below exists"), a claim nothing ran until it was
-#: listed here (PR #2448's review).
-ROOT_PAGES = ("CONTRIBUTING.md",)
+#: listed here (PR #2448's review); CLAUDE.md names the layout a
+#: contributor (or an agent) is told to follow, so a stale path there
+#: misleads the same way.
+ROOT_PAGES = ("CONTRIBUTING.md", "CLAUDE.md")
 
 #: Where prose lives. Headers are included deliberately -- see above.
 SOURCES = (

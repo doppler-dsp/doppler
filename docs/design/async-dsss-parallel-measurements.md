@@ -232,4 +232,9 @@ was timed at; a threaded row is wall time.
 The pool's mean push carries its searcher's dwells: its fastest push is the
 receivers' work alone, and its slowest is a dwell (the min and max in the
 row). The bench's rounds are not a whole number of dwells, so the mean is
-approximate to within one dwell's share.
+approximate to within one dwell's share. So a mean near 1x real time does not
+say the pool keeps up: between runs the mean moves by that share while
+the fastest push, the receivers' own work, holds still (a same-host,
+interleaved comparison across this record's two runs moved it under 1%,
+#2484). Read the fastest push for the receivers' cost and the slowest for
+a dwell's.

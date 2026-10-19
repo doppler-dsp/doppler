@@ -2102,6 +2102,117 @@ _test_plain_clock_restarts_on_a_flag (void)
   return 0;
 }
 
+/* The symbol-lock detector, symbol by symbol (#2461 #36, #129, #130): the
+ * metric is EMA(I^2 - Q^2) / EMA(I^2 + Q^2) over the emitted symbols, with
+ * alpha = 1/LOCK_DWELL from a fresh chain; `locked` declares after
+ * LOCK_N_UP consecutive looks strictly above LOCK_UP and drops after
+ * LOCK_N_DOWN strictly below LOCK_DOWN. The test recomputes the metric
+ * from the symbols steps() returned with its own arithmetic and replays
+ * the hysteresis with its own counters -- not the library's EMA or lockdet
+ * -- and holds the receiver's per-symbol telemetry (rx.sym.lock,
+ * rx.sym.locked) to both, over a signal that locks and a noise tail that
+ * drops it (lost_confirm_s 0, so the track rides on). It requires the
+ * lock to rise AND fall. A locked metric reads near +1 there, and the
+ * threshold the status reports is LOCK_UP. Sabotage: declare at
+ * LOCK_N_UP - 1 -> red. */
+static int
+_test_symbol_lock_detector_symbol_by_symbol (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs       = 1.0e6 * (double)spc;
+  const double sym_rate = 35714.29;
+  const double tsym     = fs / sym_rate;
+  const size_t te       = sf * spc;
+  const size_t n_sym    = 800;
+  const size_t pre      = te * 5 + 3;
+  const double cn0      = 70.0;
+  const size_t tail_n   = (size_t)(0.02 * fs);
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre, 7, &x, &n,
+                   &data);
+  float _Complex                 *off = _noise_tail (tail_n, fs, cn0, 5);
+  dp_async_dsss_receiver_state_t *rx
+      = _searching_rx (cn0, sym_rate, 0.0, false);
+  dp_tlm_t *t = dp_tlm_create (1 << 18);
+  DP_REQUIRE (rx != NULL && t != NULL);
+  DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, t, NULL, 1) == 0);
+  float _Complex *s1, *s2;
+  size_t          n1 = _stream (rx, x, n, te, &s1);
+  size_t          n2 = _stream (rx, off, tail_n, te, &s2);
+  const size_t    ns = n1 + n2;
+  float _Complex *sy = malloc (ns * sizeof *sy);
+  memcpy (sy, s1, n1 * sizeof *sy);
+  memcpy (sy + n1, s2, n2 * sizeof *sy);
+
+  const int     id_lock   = dp_tlm_probe_id (t, "rx.sym.lock");
+  const int     id_locked = dp_tlm_probe_id (t, "rx.sym.locked");
+  dp_tlm_rec_t *recs      = malloc ((1u << 18) * sizeof *recs);
+  const size_t  n_rec     = dp_tlm_read (t, 1u << 18, recs, 1u << 18);
+  float        *metric    = malloc (ns * sizeof *metric);
+  float        *flag      = malloc (ns * sizeof *flag);
+  size_t        nm = 0, nf = 0;
+  for (size_t j = 0; j < n_rec; j++)
+    {
+      if (recs[j].probe == id_lock && nm < ns)
+        metric[nm++] = recs[j].value;
+      else if (recs[j].probe == id_locked && nf < ns)
+        flag[nf++] = recs[j].value;
+    }
+  DP_CHECK (nm == ns && nf == ns);
+
+  /* The rule, independently: EMAs from zero, the ratio, the hysteresis. */
+  const double a   = 1.0 / (double)ASYNC_DSSS_RX_LOCK_DWELL;
+  double       num = 0.0, den = 0.0;
+  int          locked = 0, rose = 0, fell = 0, mismatch = 0;
+  unsigned     cnt  = 0;
+  double       peak = -1.0;
+  for (size_t i = 0; i < ns && i < nm && i < nf; i++)
+    {
+      double re = crealf (sy[i]), im = cimagf (sy[i]);
+      num += a * ((re * re - im * im) - num);
+      den += a * ((re * re + im * im) - den);
+      double m = den > 0.0 ? num / den : 0.0;
+      if (fabs (m - (double)metric[i]) > 1e-5)
+        mismatch++;
+      if (!locked)
+        {
+          cnt = m > ASYNC_DSSS_RX_LOCK_UP ? cnt + 1 : 0;
+          if (cnt >= ASYNC_DSSS_RX_LOCK_N_UP)
+            locked = 1, cnt = 0, rose = 1;
+        }
+      else
+        {
+          cnt = m < ASYNC_DSSS_RX_LOCK_DOWN ? cnt + 1 : 0;
+          if (cnt >= ASYNC_DSSS_RX_LOCK_N_DOWN)
+            locked = 0, cnt = 0, fell = 1;
+        }
+      if ((float)locked != flag[i])
+        mismatch++;
+      if (locked && m > peak)
+        peak = m;
+    }
+  DP_CHECK (mismatch == 0);
+  DP_CHECK (rose == 1 && fell == 1); /* the replay was exercised both ways */
+  DP_CHECK (peak > 0.9);             /* a locked metric reads near +1 */
+  DP_CHECK (dp_async_dsss_receiver_status (rx).lock_threshold
+            == ASYNC_DSSS_RX_LOCK_UP);
+  free (recs);
+  free (metric);
+  free (flag);
+  free (sy);
+  free (s1);
+  free (s2);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_tlm_destroy (t);
+  free (off);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* One flag down is a degrade, not a release (section 11.2): with the code
  * detector pinned to a threshold no statistic reaches, code lock drops on a
  * healthy signal while symbol lock holds -- and the release clock, which
@@ -3711,6 +3822,7 @@ main (void)
   (void)_test_refine_min_blocks_travels ();
   (void)_test_a_handoff_that_never_locks_is_released ();
   (void)_test_plain_clock_restarts_on_a_flag ();
+  (void)_test_symbol_lock_detector_symbol_by_symbol ();
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
   (void)_test_seeded_blob_keyed_by_flavor ();

@@ -641,17 +641,23 @@ def characterise(d: Blocks, sw: Blocks, bsw: Blocks) -> None:
     R.md("![BER against the bound](ber.png)")
     R.md()
     n_unset = sum(1 for r in bursts if not r["settled"])
-    # A burst that never tracked has no hand-over (NaN): it is unexplained,
-    # and the harness fails it, so none reaches this list.
+    # A burst that never tracked has no hand-over (NaN): the harness's floor
+    # fails it, so none reaches this list.
     unset = [
         abs(float(r["handover_err_hz"]))
         for r in bursts
         if not r["settled"] and r["handover_err_hz"] == r["handover_err_hz"]
     ]
     kept = [abs(float(r["handover_err_hz"])) for r in bursts if r["settled"]]
-    far = [e for e in kept if unset and e >= min(unset)]
     slips = sum(int(r["slipped"]) for r in ber)
     pullin = float(ber[0]["pullin_hz"])
+    past = [e for e in kept if e > pullin]
+    far = [e for e in kept if unset and e >= min(unset)]
+    ratchet = ", ".join(
+        f"{int(r['unsettled'])} of at most {int(r['unsettled_max'])} at "
+        f"{float(r['esn0_db']):.0f} dB"
+        for r in ber
+    )
     R.md(
         f"The loss is over {len(kept)} of the {len(bursts)} bursts: the ones "
         f"that settled. "
@@ -662,17 +668,22 @@ def characterise(d: Blocks, sw: Blocks, bsw: Blocks) -> None:
         )
         + f" {n_unset} had no settled window and are not scored: symbol lock "
         f"was not sustained, or came too late in the burst to leave one. "
-        f"Their rule is F3's mechanism: a burst that does not settle must "
-        f"have been handed over past the carrier loop's reliable pull-in, "
-        f"{pullin:.0f} Hz (twice `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, the "
-        f"header's 'reliable to twice it'), or it is unexplained and fails "
-        f"the harness ({sum(int(r['unexplained']) for r in ber)} here)."
+        f"That is F3, a known defect, so their count is a ratchet: the "
+        f"committed count at the sweep's seeds plus one for another "
+        f"toolchain's draws, which may only shrink ({ratchet})."
         + (
             f" Each was handed over {min(unset):.0f} to {max(unset):.0f} Hz "
-            f"off its carrier (the refine's carrier against the truth); of "
-            f"the {len(kept)} that settled, {len(far)} were handed over that "
-            f"far off and still settled, so the rule bounds the unexplained "
-            f"count, not the hand-off. The hand-off's accuracy is #2409."
+            f"off its carrier (the refine's carrier against the truth), but "
+            f"no line in Hz separates them from the bursts that settled: "
+            f"{len(past)} of the {len(kept)} that settled were handed over "
+            f"past {pullin:.0f} Hz and {len(far)} past {min(unset):.0f} Hz, "
+            f"up to {max(kept):.0f} Hz. Where the searching path's pull-in "
+            f"ends is #2409's question. The harness keeps one floor: inside "
+            f"{pullin:.0f} Hz, the pre-despread loop's reliable pull-in "
+            f"(twice `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`), the hand-over cannot "
+            f"be why "
+            f"a burst did not settle, and none did "
+            f"({sum(int(r['unsettled_inside']) for r in ber)})."
             if unset
             else ""
         )
@@ -862,10 +873,14 @@ def limits(d: Blocks, sw: Blocks) -> None:
             f"the BPSK bound (the loss at the 99% interval's lower limit)",
         )
         R.limit(
-            int(r["unexplained"]) == 0,
-            f"{tag} every burst that does not settle ({n_u} here) was handed "
-            f"over past the carrier loop's reliable pull-in, "
-            f"{float(r['pullin_hz']):.0f} Hz (F3's mechanism)",
+            n_u <= int(r["unsettled_max"]),
+            f"{tag} at most {int(r['unsettled_max'])} of the bursts fail to "
+            f"settle ({n_u} here; F3, a ratchet that may only shrink)",
+        )
+        R.limit(
+            int(r["unsettled_inside"]) == 0,
+            f"{tag} no burst handed over inside the carrier loop's reliable "
+            f"pull-in, {float(r['pullin_hz']):.0f} Hz, fails to settle",
         )
 
 
@@ -893,7 +908,8 @@ def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
         f"{min(es):.0f} to {max(es):.0f} dB the BER of the bursts that "
         f"settled ({n_set} of {len(bursts)}) sits {min(loss):.2f} to "
         f"{max(loss):.2f} dB from the BPSK bound, more than the EVM shows; "
-        f"why is open (2.6, F5, #2495). The rest missed the hand-off (F3).",
+        f"why is open (2.6, F5, #2495). The other "
+        f"{len(bursts) - n_set} never settled (F3).",
         f"**Design to the meter's ideal EVM from 5 to 15 dB.** Over the "
         f"full sweep a locked receiver's BPSK EVM is {_span(mid)} over "
         f"`dp_ber_evm_ideal_db()` there; at 20 dB {_span(top)}, an "

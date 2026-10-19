@@ -26,10 +26,10 @@
  *     the demodulator's two loops, read from the receiver's own
  *     demodulator, and the receiver's symbol lock sustained; a burst with
  *     no settled window is counted as unsettled, not scored. So the loss
- *     is the loss OVER THE BURSTS THAT SETTLED, and an unsettled burst is
- *     held to its own rule: it must have been handed over past the carrier
- *     loop's reliable pull-in (F3's mechanism, PULLIN_RELIABLE_HZ), or it
- *     is unexplained and fails.
+ *     is the loss OVER THE BURSTS THAT SETTLED, and the bursts that do not
+ *     are gated on their own: their count is a ratchet per point (F3, a
+ *     known defect), and none may be one handed over inside the carrier
+ *     loop's reliable pull-in, where the hand-over cannot be the reason.
  *   - ALIGNED. The lag and the BPSK phase are DETECTED against a marker of
  *     the burst's own truth, under a false-alarm gate, past the settling
  *     point; the marker's symbols are not scored. A second detection near
@@ -83,28 +83,39 @@
 
 /* A burst that never settles is not scored, so the loss above is
    conditional on settling and cannot see a receiver that stops settling.
-   The mechanism that may leave one unsettled is F3's: the refine hands
-   the carrier loops a Doppler past their pull-in, and with `reacquire`
-   off nothing searches again. The pre-despread loop is "reliable to twice"
-   its bound, ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (60 Hz here), so a burst
-   handed over inside that and still unsettled is unexplained, and fails.
-   A burst handed over past it can still settle (2 of the sweep's 38 did),
-   so this bounds the unexplained count, not the hand-off (#2409). */
+   F3 is why some do not: a first hand-off that lands off the carrier and,
+   with `reacquire` off, never pulls in. It is a known defect (#2409), and
+   where the searching path's pull-in edge lies is that issue's question:
+   the sweep's unsettled bursts were handed over 343 to 492 Hz off, but
+   settled ones reach 481 Hz, so no line in Hz separates the two yet.
+
+   So the count is a RATCHET: unsettled_max below, per Es/N0, is the
+   committed sweep's count at its fixed seeds plus one for another
+   toolchain's draws, and it may only shrink.
+
+   And one floor. The pre-despread loop is "reliable to twice" its bound,
+   ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (60 Hz here), measured on the seed it is
+   handed, which the refine's hand-over is. Inside that the hand-over
+   cannot be why a burst did not settle, so an unsettled burst there is
+   some other failure, and fails. Past it a burst may settle or not: 21 of
+   the sweep's 38 settled bursts were handed over past 120 Hz. */
 #define PULLIN_RELIABLE_HZ                                                    \
   (2.0 * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (CHIP_RATE, SF))
 
 /* The sweep: from the design's Es/N0 floor (5 dB) to where a point still
    costs seconds (8 dB, BER ~7e-4). Above it the certification's EVM rows
    characterise the receiver; below the floor the C test
-   `_test_awgn_esn0_floor` pins that it stops decoding. */
-static const double esn0s[] = { 5.0, 6.0, 7.0, 8.0 };
+   `_test_awgn_esn0_floor` pins that it stops decoding. unsettled_max is
+   the ratchet above: the sweep's 1, 0, 3 and 3 unsettled, plus one. */
+static const double esn0s[]         = { 5.0, 6.0, 7.0, 8.0 };
+static const size_t unsettled_max[] = { 2, 1, 4, 4 };
 #define N_ESN0 (sizeof esn0s / sizeof esn0s[0])
 
-/* --check: one point, where every cross-check of dp_ber_report() holds with
-   margin (the blind M2M4 reads high, a symptom of #2495, and its room under
-   DP_BER_M2M4_AGREE_DB grows with Es/N0), at the library's error target:
-   about 11 bursts. */
-static const double check_esn0s[] = { 7.0 };
+/* --check: one point of the sweep, by index, where every cross-check of
+   dp_ber_report() holds with margin (the blind M2M4 reads high, a symptom
+   of #2495, and its room under DP_BER_M2M4_AGREE_DB grows with Es/N0), at
+   the library's error target: about 11 bursts, the sweep's own seeds. */
+static const size_t check_points[] = { 2 }; /* 7 dB */
 
 /* One burst's account. */
 typedef struct
@@ -278,8 +289,12 @@ main (int argc, char **argv)
     }
   uint8_t code[SF];
   dp_dsss_gold_1023 (code);
-  const double *pts   = check ? check_esn0s : esn0s;
-  const size_t  n_pts = check ? 1 : N_ESN0;
+  /* The points by index into esn0s, so --check reads the sweep's own
+     ratchet entry for its point. */
+  static const size_t all_points[] = { 0, 1, 2, 3 };
+  const size_t       *ix           = check ? check_points : all_points;
+  const size_t        n_pts
+      = check ? sizeof check_points / sizeof check_points[0] : N_ESN0;
 
   if (emit)
     printf ("# burst\nesn0_db,seed,carrier_hz,t_track_ms,handover_err_hz,"
@@ -292,16 +307,16 @@ main (int argc, char **argv)
 
   dp_ber_report_t reps[N_ESN0];
   size_t          n_bursts[N_ESN0], n_unsettled[N_ESN0], n_slipped[N_ESN0];
-  size_t          n_unexplained[N_ESN0];
+  size_t          n_inside[N_ESN0];
   for (size_t e = 0; e < n_pts; e++)
     {
-      const double  es = pts[e];
+      const double  es = esn0s[ix[e]];
       dp_ber_t      acc;
       dp_ber_sync_t last;
       int           any = 0;
       size_t        lo = 0, hi = 0;
       dp_ber_init (&acc, 2, DP_BER_TARGET_ERRORS);
-      n_bursts[e] = n_unsettled[e] = n_slipped[e] = n_unexplained[e] = 0;
+      n_bursts[e] = n_unsettled[e] = n_slipped[e] = n_inside[e] = 0;
       for (uint32_t s = 1; !dp_ber_enough (&acc) && s <= MAX_BURSTS; s++)
         {
           burst_t bu;
@@ -309,11 +324,10 @@ main (int argc, char **argv)
           n_bursts[e]++;
           n_unsettled[e] += !bu.settled;
           n_slipped[e] += (size_t)bu.slipped;
-          /* Unsettled with no hand-over past the reliable pull-in -- or
-             no hand-over at all (NaN fails the `>`) -- is unexplained. */
-          n_unexplained[e]
-              += !bu.settled
-                 && !(fabs (bu.handover_err_hz) > PULLIN_RELIABLE_HZ);
+          /* Unsettled though handed over inside the reliable pull-in -- or
+             with no hand-over at all (NaN fails the `>`): not F3. */
+          n_inside[e] += !bu.settled
+                         && !(fabs (bu.handover_err_hz) > PULLIN_RELIABLE_HZ);
           if (bu.settled)
             {
               any = 1;
@@ -360,32 +374,37 @@ main (int argc, char **argv)
                     "the error rate over the settled bursts is within "
                     "LOSS_MAX_DB of the BPSK bound (the 99% interval's "
                     "lower limit)");
-      DP_CHECK_MSG (n_unexplained[e] == 0,
-                    "every burst that did not settle was handed over past "
-                    "the carrier loop's reliable pull-in (F3)");
+      DP_CHECK_MSG (n_unsettled[e] <= unsettled_max[ix[e]],
+                    "no more bursts fail to settle than the ratchet allows "
+                    "(F3, #2409)");
+      DP_CHECK_MSG (n_inside[e] == 0,
+                    "no burst handed over inside the carrier loop's reliable "
+                    "pull-in fails to settle");
     }
 
   if (emit)
     {
       /* evm_ideal_db: what the EVM meter (dp_ber_evm_db) reads on an ideal
          stream at this Es/N0, so the EVM's own loss is evm_db minus it.
-         pullin_hz: the reliable pull-in the unsettled bursts are held to. */
-      printf ("# ber\nesn0_db,bursts,unsettled,unexplained,pullin_hz,slipped,"
-              "symbols,errors,ber,ber_lo,ber_hi,conf,theory,loss_db,"
-              "loss_lo_db,loss_hi_db,loss_max_db,evm_db,evm_ideal_db,"
-              "m2m4_db,m2m4_agree_db,ok\n");
+         unsettled_max: the ratchet; unsettled_inside: unsettled bursts
+         handed over inside pullin_hz, the reliable pull-in (must be 0). */
+      printf ("# ber\nesn0_db,bursts,unsettled,unsettled_max,"
+              "unsettled_inside,pullin_hz,slipped,symbols,errors,ber,ber_lo,"
+              "ber_hi,conf,theory,loss_db,loss_lo_db,loss_hi_db,loss_max_db,"
+              "evm_db,evm_ideal_db,m2m4_db,m2m4_agree_db,ok\n");
       for (size_t e = 0; e < n_pts; e++)
         {
-          const dp_ber_report_t *r = &reps[e];
-          printf ("%.1f,%zu,%zu,%zu,%.1f,%zu,%lu,%lu,%.4e,%.4e,%.4e,%.2f,"
-                  "%.4e,%.3f,%.3f,%.3f,%.2f,%.3f,%.3f,%.3f,%.1f,%d\n",
-                  pts[e], n_bursts[e], n_unsettled[e], n_unexplained[e],
-                  PULLIN_RELIABLE_HZ, n_slipped[e], r->ber.symbols,
-                  r->ber.errors, r->ber.p_hat, r->ber.lo, r->ber.hi,
-                  r->ber.conf, r->theory_ber, r->loss_db,
-                  pts[e] - dp_ber_esn0_db_for_ser (2, r->ser.lo),
-                  pts[e] - dp_ber_esn0_db_for_ser (2, r->ser.hi), LOSS_MAX_DB,
-                  r->evm_db, dp_ber_evm_ideal_db (pts[e]), r->m2m4_db,
+          const dp_ber_report_t *r  = &reps[e];
+          const double           es = esn0s[ix[e]];
+          printf ("%.1f,%zu,%zu,%zu,%zu,%.1f,%zu,%lu,%lu,%.4e,%.4e,%.4e,"
+                  "%.2f,%.4e,%.3f,%.3f,%.3f,%.2f,%.3f,%.3f,%.3f,%.1f,%d\n",
+                  es, n_bursts[e], n_unsettled[e], unsettled_max[ix[e]],
+                  n_inside[e], PULLIN_RELIABLE_HZ, n_slipped[e],
+                  r->ber.symbols, r->ber.errors, r->ber.p_hat, r->ber.lo,
+                  r->ber.hi, r->ber.conf, r->theory_ber, r->loss_db,
+                  es - dp_ber_esn0_db_for_ser (2, r->ser.lo),
+                  es - dp_ber_esn0_db_for_ser (2, r->ser.hi), LOSS_MAX_DB,
+                  r->evm_db, dp_ber_evm_ideal_db (es), r->m2m4_db,
                   DP_BER_M2M4_AGREE_DB, r->ok);
         }
     }

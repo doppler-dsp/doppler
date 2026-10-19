@@ -1,2 +1,2 @@
-esn0_db,bursts,unsettled,unexplained,pullin_hz,slipped,symbols,errors,ber,ber_lo,ber_hi,conf,theory,loss_db,loss_lo_db,loss_hi_db,loss_max_db,evm_db,evm_ideal_db,m2m4_db,m2m4_agree_db,ok
-7.0,11.0,3.0,0.0,120.0,0.0,96429.0,208.0,0.0021467,0.0017913,0.0025617,0.99,0.00077267,0.896,0.724,1.07,1.2,-7.285,-7.597,9.516,3.0,1.0
+esn0_db,bursts,unsettled,unsettled_max,unsettled_inside,pullin_hz,slipped,symbols,errors,ber,ber_lo,ber_hi,conf,theory,loss_db,loss_lo_db,loss_hi_db,loss_max_db,evm_db,evm_ideal_db,m2m4_db,m2m4_agree_db,ok
+7.0,11.0,3.0,4.0,0.0,120.0,0.0,96429.0,208.0,0.0021467,0.0017913,0.0025617,0.99,0.00077267,0.896,0.724,1.07,1.2,-7.285,-7.597,9.516,3.0,1.0

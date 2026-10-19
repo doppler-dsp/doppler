@@ -34,6 +34,7 @@ import statistics
 import subprocess
 import sys
 from pathlib import Path
+from typing import Union
 
 from doppler.tests._repo import build_dir, exe, repo_root
 from doppler.tests._validation_common import Report, cli
@@ -56,7 +57,9 @@ EVM_LOSS_DB = 2.0
 
 R = Report()
 
-Rows = list[dict[str, float | str]]
+#: Spelled with Union, not `|`: a module-level alias is evaluated at import,
+#: and the floor Python (3.9) has no `|` between types.
+Rows = list[dict[str, Union[float, str]]]
 Blocks = dict[str, Rows]
 
 #: Columns kept as text: the dropout's per-length hold profile is a bit

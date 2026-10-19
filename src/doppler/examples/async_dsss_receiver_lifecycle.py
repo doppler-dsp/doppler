@@ -8,9 +8,11 @@ detectors fall. Once they have been down for longer than a confirm
 interval, the receiver moves to ``lost``. The caller resets it, and it
 acquires the same emitter again when the emitter returns.
 
-The receiver is fed one code epoch per push. Its state is read after every push
-from its properties, and its symbols come from ``steps()``. Four things about
-the states show in the run:
+The receiver is fed one code epoch per push, with its telemetry attached. It
+reports its own state, its code and symbol lock decisions, its lock metric,
+the symbols it emits and the Doppler it handed over, and a lossless capture
+keeps every record; the checks and the figure read only those records. Four
+things about the states show in the run:
 
 - **Searching and refining emit nothing.** The first symbols come once the
   receiver is tracking.
@@ -24,13 +26,15 @@ the states show in the run:
   cannot be reset onto the same signal; it searches again, and a returning
   emitter is acquired afresh.
 
-When the receiver does not behave as this run does, read the rows in this
-order: the state (searching, refining, tracking, lost), then ``code_locked``
-(the code loop's detector), then ``locked`` (the symbol lock), then
-``lock_metric``, the value the lock flag thresholds. Searching that never ends
-means no detection at this uncertainty. Refining that never ends means the
-carrier estimate has not converged. Tracking with ``locked`` low means the
-symbol lock has not come up yet, and lock-up time varies by draw.
+When the receiver does not behave as this run does, read its probes in this
+order: ``rx.state`` (searching, refining, tracking, lost), then
+``rx.code.locked`` (the code loop's detector), then ``rx.sym.locked`` (the
+symbol lock), then ``rx.sym.lock``, the metric the lock flag thresholds.
+Searching that never ends means no detection at this uncertainty. Refining
+that never ends means the carrier estimate has not converged, and
+``rx.handover_hz`` says what it settled on. Tracking with ``rx.sym.locked``
+low means the symbol lock has not come up yet, and lock-up time varies by
+draw.
 
 The design, and the reasons for the release rule, are in
 ``docs/design/async-dsss-receiver.md``.
@@ -137,35 +141,38 @@ def make_timeline(seed: int = 2) -> np.ndarray:
 # --8<-- [end:signal]
 
 from doppler.dsss import AsyncDsssReceiver  # noqa: E402
+from doppler.telemetry import MemoryCapture, Telemetry  # noqa: E402
+from doppler.wfm import SampleClock  # noqa: E402
 
-# One row per push. The state is read from the receiver's own properties.
-ROW = np.dtype(
-    [
-        ("searching", bool),
-        ("refining", bool),
-        ("tracking", bool),
-        ("lost", bool),
-        ("locked", bool),
-        ("code_locked", bool),
-        ("metric", float),
-        ("symbols", int),
-    ]
+#: ``rx.state``'s values, in order: the receiver's ``ASYNC_DSSS_RX_*``
+#: lifecycle states, as its header lists them.
+STATES = ("searching", "refining", "tracking", "idle", "lost")
+SEARCHING, REFINING, TRACKING, LOST = (
+    STATES.index(s) for s in ("searching", "refining", "tracking", "lost")
 )
 
 
 # --8<-- [start:receiver]
-def receive(x: np.ndarray) -> np.ndarray:
-    """Feed the capture one code epoch per push, and read the receiver after
-    each one.
+def receive(x: np.ndarray) -> dict:
+    """Feed the capture one code epoch per push, with the receiver's
+    telemetry attached, and return everything it reported.
 
     ``doppler_uncertainty`` is one-sided: the search covers the carrier within
     ``CARRIER_UNCERTAINTY`` of nominal, in either direction. ``lost_confirm_s``
     arms the release rule. Everything else is the receiver's default.
 
+    ``set_telemetry(tlm, "rx")`` registers every probe the receiver and its
+    loops publish, under ``rx.``. The memory capture keeps every record, and
+    ``set_now()`` stamps each push with its first sample, so every record
+    carries the sample index of the push that wrote it.
+
     When the receiver reports ``lost``, the caller resets it. The receiver
     decides that an emitter has gone; the caller decides what to do about it.
 
-    Returns one :data:`ROW` per push.
+    Returns
+    -------
+    series : dict
+        Each probe's records by name, as ``(sample_index, value)`` arrays.
     """
     rx = AsyncDsssReceiver(
         code=GOLD,
@@ -177,32 +184,55 @@ def receive(x: np.ndarray) -> np.ndarray:
         doppler_uncertainty=CARRIER_UNCERTAINTY,
         lost_confirm_s=LOST_CONFIRM_S,
     )
-    rows = np.zeros(len(x) // TE, ROW)
-    for k in range(len(rows)):
-        block = rx.steps(x[k * TE : (k + 1) * TE])
-        tracking, refining, lost = rx.tracking, rx.refining, rx.lost
-        rows[k] = (
-            not (tracking or refining or lost),
-            refining,
-            tracking,
-            lost,
-            rx.locked,
-            rx.code_locked,
-            rx.lock_metric,
-            len(block),
-        )
-        if lost:
-            rx.reset()
-    return rows
+    tlm = Telemetry()
+    rx.set_telemetry(tlm, "rx")
+    with MemoryCapture(tlm, TE, SampleClock(FS)) as cap:
+        for k in range(len(x) // TE):
+            tlm.set_now(k * TE)
+            rx.steps(x[k * TE : (k + 1) * TE])
+            if rx.lost:
+                rx.reset()
+    return cap.read_dict(index=True)
+
+
+def per_push(series: dict, name: str, n: int) -> np.ndarray:
+    """``name``'s value as each of ``n`` pushes left it.
+
+    Each probe reports at its own rate: the state once a push, the symbol
+    lock once a symbol, the code lock once a discriminator update. So the
+    value a push left is the probe's last record at or before that push's
+    stamp, carried over pushes that wrote none, and 0 before its first.
+    """
+    at, value = series[name]
+    last = np.searchsorted(at, np.arange(n) * TE, side="right") - 1
+    return np.where(last >= 0, value[np.maximum(last, 0)], 0.0)
+
+
+def rows_of(series: dict) -> dict[str, np.ndarray]:
+    """The receiver's records as one row per push: its state, its two lock
+    decisions, its lock metric, the symbols it emitted and the Doppler it
+    handed over."""
+    n = len(series["rx.state"][1])  # one state record a push
+    return {
+        "state": per_push(series, "rx.state", n).astype(int),
+        "code_locked": per_push(series, "rx.code.locked", n) > 0.5,
+        "locked": per_push(series, "rx.sym.locked", n) > 0.5,
+        "metric": per_push(series, "rx.sym.lock", n),
+        # The metric reports once an emitted symbol, so its records count them.
+        "symbols": np.bincount(
+            (series["rx.sym.lock"][0] // TE).astype(np.int64), minlength=n
+        ),
+        "handover_hz": per_push(series, "rx.handover_hz", n),
+    }
 
 
 # --8<-- [end:receiver]
 
 
 # --8<-- [start:validate]
-def check(rows: np.ndarray) -> dict[str, float]:
-    """Assert the lifecycle the receiver went through, and return the
-    intervals it measured, in milliseconds.
+def check(rows: dict[str, np.ndarray]) -> dict[str, float]:
+    """Assert the lifecycle the receiver reported, and return the intervals
+    and the hand-over it measured.
 
     The bounds are physical where a bound exists: the receiver cannot release
     an emitter before its confirm interval has passed, and it cannot emit a
@@ -215,12 +245,14 @@ def check(rows: np.ndarray) -> dict[str, float]:
     fade = seg[2][1]  # the short fade
     depart = seg[4][1]  # the departure
     back = seg[5][1]  # the returning emitter
+    state = rows["state"]
+    assert len(state) == seg[-1][2], "the receiver did not report every push"
 
     # Noise alone: the receiver searches and emits nothing.
-    assert rows["searching"][:on_at].all(), "left searching before the arrival"
+    assert (state[:on_at] == SEARCHING).all(), "left searching before arrival"
 
     # Arrival: tracking, and symbols only once tracking.
-    tracking = rows["tracking"]
+    tracking = state == TRACKING
     assert tracking.any(), "the receiver never reached tracking"
     first = int(np.argmax(tracking))
     acquire_ms = (first - on_at) * ms
@@ -233,14 +265,14 @@ def check(rows: np.ndarray) -> dict[str, float]:
         "this run: the lock was not up before the fade"
     )
     assert tracking[first:depart].all(), "left tracking before the departure"
-    assert not rows["lost"][first:depart].any(), "LOST before the departure"
+    lost = state == LOST
+    assert not lost[first:depart].any(), "LOST before the departure"
     assert rows["locked"][fade:depart].all(), (
         "this run: the lock fell before the departure"
     )
 
     # The departure: both lock detectors fall, and LOST comes only after the
     # confirm interval, since both must be down for that long first.
-    lost = rows["lost"]
     assert lost[depart:back].any(), "the departure never released the emitter"
     released = depart + int(np.argmax(lost[depart:back]))
     assert (released - depart) * EPOCH_S >= LOST_CONFIRM_S, (
@@ -257,7 +289,7 @@ def check(rows: np.ndarray) -> dict[str, float]:
     release_ms = (released - depart) * ms
 
     # The reset: the caller's reset returns the receiver to searching.
-    assert rows["searching"][released + 1 : back].all(), (
+    assert (state[released + 1 : back] == SEARCHING).all(), (
         "left searching during the gap after the reset"
     )
 
@@ -276,12 +308,20 @@ def check(rows: np.ndarray) -> dict[str, float]:
         "no symbols after re-acquiring"
     )
 
+    # The hand-over: the refine hands the tracker a Doppler inside the
+    # caller's uncertainty, and the receiver reports it from then on.
+    handover_hz = float(rows["handover_hz"][first])
+    assert abs(handover_hz) <= CARRIER_UNCERTAINTY, (
+        f"handed over at {handover_hz:.0f} Hz, outside the search"
+    )
+
     lock_up_ms = int(np.argmax(rows["locked"][on_at:])) * ms
     return {
         "lock_up_ms": lock_up_ms,
         "acquire_ms": acquire_ms,
         "release_ms": release_ms,
         "reacquire_ms": return_ms,
+        "handover_hz": handover_hz,
     }
 
 
@@ -294,25 +334,32 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    rows = receive(make_timeline())
+    series = receive(make_timeline())
+    rows = rows_of(series)
     times = check(rows)
     print(
-        f"this run: arrival to tracking {times['acquire_ms']:.0f} ms, symbol "
-        f"lock up {times['lock_up_ms']:.0f} ms after arrival; the 10 ms fade "
-        f"held the lock; released {times['release_ms']:.0f} ms after "
-        f"departure, with a {1e3 * LOST_CONFIRM_S:.0f} ms confirm interval; "
-        f"re-acquired "
+        f"this run: arrival to tracking {times['acquire_ms']:.0f} ms, handed "
+        f"over at {times['handover_hz']:.0f} Hz (the emitter at "
+        f"{CARRIER:.0f} Hz), symbol lock up {times['lock_up_ms']:.0f} ms "
+        f"after arrival; the 10 ms fade held the lock; released "
+        f"{times['release_ms']:.0f} ms after departure, with a "
+        f"{1e3 * LOST_CONFIRM_S:.0f} ms confirm interval; re-acquired "
         f"{times['reacquire_ms']:.0f} ms after the return"
     )
 
-    t_ms = np.arange(len(rows)) * EPOCH_S * 1e3
-    # Plot level for each state, from the row's flags.
-    level = np.select(
-        [rows["lost"], rows["tracking"], rows["refining"]], [3, 2, 1], 0
-    )
+    t_ms = np.arange(len(rows["state"])) * EPOCH_S * 1e3
+    # The carrier loop reports cycles a sample at the input rate, so its
+    # command times FS is the live carrier in Hz.
+    car_at, car = series["rx.car.nco"]
+    # The loop reports only while it runs: break the line where it stopped.
+    gap = np.flatnonzero(np.diff(car_at) > 2 * TE) + 1
+    car_at = np.insert(car_at.astype(float), gap, np.nan)
+    car = np.insert(car, gap, np.nan)
+    ho_at, ho = series["rx.handover_hz"]
+    ho = np.where(ho != 0.0, ho, np.nan)  # 0: no seed yet, nothing to draw
 
-    fig, (top, bot) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-    for ax in (top, bot):
+    fig, (top, mid, bot) = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+    for ax in (top, mid, bot):
         for kind, a, b in spans():
             if kind == "off":
                 ax.axvspan(
@@ -323,7 +370,9 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
                     label="signal off" if a == spans()[2][1] else None,
                 )
 
-    top.step(t_ms, level, where="post", color="k", lw=1.2, label="state")
+    top.step(
+        t_ms, rows["state"], where="post", color="k", lw=1.2, label="rx.state"
+    )
     top.fill_between(
         t_ms,
         0,
@@ -331,22 +380,46 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
         step="post",
         color="#2ca02c",
         alpha=0.35,
-        label="symbol lock",
+        label="rx.sym.locked",
     )
-    top.set_yticks([0, 1, 2, 3])
-    top.set_yticklabels(["searching", "refining", "tracking", "lost"])
+    top.set_yticks(range(len(STATES)))
+    top.set_yticklabels(STATES)
     top.set_ylim(-0.3, 4.6)
     top.set_title("State and symbol lock (grey: signal off)", fontsize=9)
     top.legend(fontsize=7, loc="upper left", ncol=3)
     top.grid(alpha=0.25)
 
-    bot.plot(
-        t_ms, rows["metric"], lw=1.0, color="#1f77b4", label="lock_metric"
+    mid.plot(
+        t_ms, rows["metric"], lw=1.0, color="#1f77b4", label="rx.sym.lock"
     )
-    bot.set_title("Lock metric, the value the lock flag reads", fontsize=9)
+    mid.set_title("Lock metric, the value the lock flag reads", fontsize=9)
+    mid.set_ylabel("lock metric")
+    mid.legend(fontsize=7, loc="lower right")
+    mid.grid(alpha=0.25)
+
+    bot.plot(
+        car_at / FS * 1e3,
+        car * FS,
+        lw=0.8,
+        color="#9467bd",
+        label="rx.car.nco x fs",
+    )
+    bot.step(
+        ho_at / FS * 1e3,
+        ho,
+        where="post",
+        color="#ff7f0e",
+        lw=1.2,
+        label="rx.handover_hz",
+    )
+    bot.axhline(CARRIER, color="0.4", lw=0.8, ls=":", label="the emitter")
+    bot.set_ylim(CARRIER - 400.0, CARRIER + 400.0)
+    bot.set_title(
+        "Carrier: the hand-over and the loop that pulls it in", fontsize=9
+    )
     bot.set_xlabel("time (ms)")
-    bot.set_ylabel("lock metric")
-    bot.legend(fontsize=7, loc="lower right")
+    bot.set_ylabel("Hz")
+    bot.legend(fontsize=7, loc="lower right", ncol=3)
     bot.grid(alpha=0.25)
 
     fig.suptitle(

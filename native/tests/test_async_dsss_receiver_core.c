@@ -4141,9 +4141,11 @@ _test_tlm_lifecycle_probes (void)
               && order[2] == ASYNC_DSSS_RX_TRACKING
               && order[3] == ASYNC_DSSS_RX_LOST);
   /* The hand-over reported the refined Doppler, not the seed's: within one
-     bin of the refine that produced it -- _searching_rx's 4 samples a
-     symbol, a 32-point FFT, zero-padded 8x -- of the emitter's. */
-  const double refine_bin_hz = 4.0 * sym_rate / (32.0 * 8.0);
+     bin of the refine that produced it -- its own rate over its zero-padded
+     FFT -- of the emitter's. */
+  const double refine_bin_hz
+      = (double)rx->refine_samples_per_symbol * rx->symbol_rate
+        / (double)(rx->refine_n_fft * rx->refine_zero_pad);
   DP_CHECK (isfinite (seed_hz) && isfinite (handed_hz));
   printf ("  lifecycle probes: seed %g Hz, handed over %g Hz, emitter %g Hz, "
           "%zu calls\n",

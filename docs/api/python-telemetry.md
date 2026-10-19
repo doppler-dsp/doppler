@@ -203,22 +203,34 @@ an hour and keep appending.
 
 ## Instrumented objects
 
-Every tracking loop (and the AGC) exposes
-`set_telemetry(tlm, prefix, decim=1)`; compositions forward the attach to
-their embedded loops under a dotted sub-prefix. `None` detaches
+Every tracking loop, the AGC, and the searchers and receivers built from
+them expose `set_telemetry(tlm, prefix, decim=1)`; compositions forward the
+attach to their embedded loops under a dotted sub-prefix. `None` detaches
 everything the attach armed.
 
-| Object                | Probes under `<prefix>`                                 | Event rate                  |
-| --------------------- | ------------------------------------------------------- | --------------------------- |
-| `agc.AGC`             | `.gain_db`                                              | per gain update (amortized) |
-| `track.Costas`        | `.lock`, `.e`, `.freq`, `.locked`, `.nco`               | per dumped symbol           |
-| `track.Dll`           | `.e`, `.rate`, `.lock`, `.locked`, `.nco`               | per code epoch              |
-| `track.CarrierNda`    | `.lock`, `.e`, `.freq` + `.agc.gain_db`                 | per sample — use `decim`    |
-| `track.SymbolSync`    | `.e`, `.freq`, `.rate`, `.lock`, `.locked`              | per recovered symbol        |
-| `track.RateSync`      | `.e`, `.ctrl`, `.rate`, `.lock`, `.locked`, `.mu`       | per recovered symbol        |
-| `track.MpskReceiver`  | `.lock`, `.tracking` + `.car.*` + `.sync.*` (11 probes) | per recovered symbol        |
-| `track.MpskReceiverR` | `.lock`, `.tracking` + `.car.*` + `.sync.*` (11 probes) | per recovered symbol        |
-| `dsss.Despreader`     | `.car.*` (Costas) + `.code.*` (DLL)                     | per code period             |
+| Object                       | Probes under `<prefix>`                                                                                                                                     | Event rate                                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `agc.AGC`                    | `.gain_db`                                                                                                                                                  | per gain update (amortized)                                                                 |
+| `track.Costas`               | `.lock`, `.e`, `.freq`, `.locked`, `.nco`                                                                                                                   | per dumped symbol                                                                           |
+| `track.Dll`                  | `.e`, `.rate`, `.lock`, `.locked`, `.nco`                                                                                                                   | per code epoch                                                                              |
+| `track.CarrierNda`           | `.lock`, `.e`, `.freq` + `.agc.gain_db`                                                                                                                     | per sample — use `decim`                                                                    |
+| `track.SymbolSync`           | `.e`, `.freq`, `.rate`, `.lock`, `.locked`                                                                                                                  | per recovered symbol                                                                        |
+| `track.RateSync`             | `.e`, `.ctrl`, `.rate`, `.lock`, `.locked`, `.mu`                                                                                                           | per recovered symbol                                                                        |
+| `track.MpskReceiver`         | `.lock`, `.tracking` + `.car.*` + `.sync.*` (11 probes)                                                                                                     | per recovered symbol                                                                        |
+| `track.MpskReceiverR`        | `.lock`, `.tracking` + `.car.*` + `.sync.*` (11 probes)                                                                                                     | per recovered symbol                                                                        |
+| `dsss.Despreader`            | `.car.*` (Costas) + `.code.*` (DLL)                                                                                                                         | per code period                                                                             |
+| `acquire.Acquisition`        | `.stat`, `.gate`, `.noise`, `.peak`, `.row`, `.col`, `.n_peaks`, `.n_held`, `.conc`, `.hit`                                                                 | per decided dwell                                                                           |
+| `dsss.AsyncDsssReceiver`     | `.state`, `.handover_hz`, `.refused`; `.sym.lock`, `.sym.locked`; `.car.*` (Costas), `.code.*` (DLL), `.demod.*` (`MpskReceiver`), `.acq.*` (`Acquisition`) | the first three per `steps()` call, `.sym.*` per emitted symbol, each child at its own rate |
+| `dsss.CellAsyncDsssReceiver` | as `AsyncDsssReceiver`, without `.acq.*`                                                                                                                    | as `AsyncDsssReceiver`                                                                      |
+| `dsss.AsyncDsssPool`         | `.assigned`, `.dropped`, `.events`; `.acq.*` (its searcher); `.s<i>.*` (slot `i`'s `CellAsyncDsssReceiver`)                                                 | the counters per `push()`, the searcher per decided dwell                                   |
+
+`AsyncDsssReceiver`'s `.state` is its lifecycle as the C integer: 0
+searching, 1 refining, 2 tracking, 3 idle, 4 lost. `.handover_hz` is the
+Doppler its chain was built from, not the live carrier, which
+`status().doppler_hz` reads; `.car.freq` and `.car.nco` are the carrier
+loop's own view of it in cycles a sample at the input rate. The
+[lifecycle gallery page](../gallery/async-dsss-receiver-lifecycle.md)
+captures them and reads the rows back.
 
 The decision probes pair with their statistic probes by design:
 `Dll`'s `.locked` is the verify-counted

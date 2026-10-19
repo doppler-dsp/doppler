@@ -14,8 +14,10 @@
  *   - steps() writes into a buffer the CALLER owns. The receiver reports no
  *     capacity to size it by, so the caller sizes it to the largest push it
  *     will make, one code epoch.
- *   - the telemetry is the caller's too: one row per push, read from
- *     status() after the push. Nothing in the receiver keeps a history.
+ *   - the telemetry is the receiver's: set_telemetry() registers its probes
+ *     on a dp_tlm context the CALLER owns, and a memory capture keeps every
+ *     record. The receiver keeps no history; the capture is the history,
+ *     and the rows below are read from it.
  *   - the receiver decides that an emitter has gone (LOST); the caller
  *     decides what to do about it, here reset(), which returns it to
  *     searching.
@@ -28,7 +30,7 @@
  * The payload is the synth's own PRBS, sent on the code throughout, the same
  * stimulus the Python twin uses.
  *
- * The checks are against the receiver's own status, read after every push:
+ * The checks are against the receiver's own telemetry, one row a push:
  *
  *   §1  Noise alone: the receiver searches and emits nothing.
  *   §2  The signal arrives: it acquires and tracks, and symbols begin only
@@ -54,7 +56,10 @@
 #include "doppler/dp_complex.h"
 #include <doppler/async_dsss_receiver/async_dsss_receiver_core.h>
 #include <doppler/awgn/awgn_core.h>
+#include <doppler/dp_tlm/dp_tlm_core.h>
+#include <doppler/dp_tlm_capture/dp_tlm_capture_core.h>
 #include <doppler/gold/gold_core.h>
+#include <doppler/timing/timing_core.h>
 #include <doppler/wfm_synth/wfm_synth_core.h>
 #include <math.h>
 #include <stdbool.h>
@@ -98,15 +103,63 @@ static const struct segment TIMELINE[] = {
 };
 #define N_SEG (sizeof TIMELINE / sizeof TIMELINE[0])
 
-/** @brief One push's telemetry, read from the receiver after the push. */
+/** @brief One push, as the receiver's records left it. */
 struct row
 {
-  int    state;       /* where the receiver is */
-  int    locked;      /* the symbol-lock flag */
-  int    code_locked; /* the code-lock flag */
-  double metric;      /* the lock metric */
-  size_t symbols;     /* symbols that push emitted */
+  int    state;       /* where the receiver is: "rx.state" */
+  int    locked;      /* the symbol-lock flag: "rx.sym.locked" */
+  int    code_locked; /* the code-lock flag: "rx.code.locked" */
+  double metric;      /* the lock metric: "rx.sym.lock" */
+  size_t symbols; /* symbols that push emitted: its "rx.sym.lock" records */
+  double handover_hz; /* the Doppler the chain was built from */
 };
+
+/** @brief The rows, from the capture's records.
+ *
+ *  Each probe reports at its own rate: the state once a push, the symbol
+ *  lock once a symbol, the code lock once a discriminator update. Records
+ *  arrive in emission order, each stamped with its push's first sample, so a
+ *  push's row is the values the records left as the next push began, carried
+ *  over pushes a probe wrote nothing in. Returns the pushes that reported a
+ *  state. */
+static size_t
+rows_from (const dp_tlm_t *tlm, const dp_tlm_rec_t *rec, size_t n_rec,
+           struct row *rows, size_t n_pushes)
+{
+  const int  id_state  = dp_tlm_probe_id (tlm, "rx.state");
+  const int  id_locked = dp_tlm_probe_id (tlm, "rx.sym.locked");
+  const int  id_code   = dp_tlm_probe_id (tlm, "rx.code.locked");
+  const int  id_metric = dp_tlm_probe_id (tlm, "rx.sym.lock");
+  const int  id_ho     = dp_tlm_probe_id (tlm, "rx.handover_hz");
+  struct row cur       = { 0, 0, 0, 0.0, 0, 0.0 };
+  size_t     k = 0, states = 0;
+  for (size_t i = 0; i < n_rec; i++)
+    {
+      for (; k < rec[i].n / TE && k < n_pushes; k++, cur.symbols = 0)
+        rows[k] = cur;
+      const int   id = rec[i].probe;
+      const float v  = rec[i].value;
+      if (id == id_state)
+        {
+          cur.state = (int)v;
+          states++;
+        }
+      else if (id == id_locked)
+        cur.locked = v > 0.5f;
+      else if (id == id_code)
+        cur.code_locked = v > 0.5f;
+      else if (id == id_metric)
+        {
+          cur.metric = v;
+          cur.symbols++; /* the metric reports once an emitted symbol */
+        }
+      else if (id == id_ho)
+        cur.handover_hz = v;
+    }
+  for (; k < n_pushes; k++, cur.symbols = 0)
+    rows[k] = cur;
+  return states;
+}
 
 #define CHECK(cond, ...)                                                      \
   do                                                                          \
@@ -222,11 +275,25 @@ main (void)
       lost_confirm_s, false);
   CHECK (rx != NULL, "the receiver opens");
 
+  /* The telemetry. set_telemetry() registers every probe the receiver and
+     its loops publish, under "rx."; the memory capture opens after it, since
+     the probes set its bound, and keeps every record. dp_tlm_set_now() at
+     each push stamps the records with the push's first sample, and drains
+     the push before. */
+  dp_tlm_t *tlm = dp_tlm_create (1u << 12);
+  CHECK (tlm != NULL, "the telemetry context opens");
+  CHECK (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1) == DP_OK,
+         "the receiver's telemetry attaches");
+  dp_sample_clock_t clk;
+  dp_sample_clock_init (&clk, FS, 0);
+  dp_tlm_capture_t *cap = dp_tlm_capture_open_memory (tlm, TE, &clk);
+  CHECK (cap != NULL, "the capture opens");
+
   /* The caller's buffers. steps_max_out() returns 0 for this receiver, which
      means "allocate x_len": a push of TE samples emits at most TE symbols. So
      the output is sized to the larger of the reported capacity and one push,
-     which is sufficient in both readings. The telemetry has one row per push
-     of the whole timeline. */
+     which is sufficient in both readings. The rows are one per push of the
+     whole timeline. */
   size_t n_pushes = 0;
   for (size_t s = 0; s < N_SEG; s++)
     n_pushes += TIMELINE[s].epochs;
@@ -250,18 +317,19 @@ main (void)
           for (size_t i = 0; i < TE; i++)
             x[i] += sig[i];
 
-        size_t n = dp_async_dsss_receiver_steps (rx, x, TE, syms, syms_cap);
-        async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
-        rows[k].state                   = st.state;
-        rows[k].locked                  = st.locked;
-        rows[k].code_locked             = st.code_locked;
-        rows[k].metric                  = st.lock_metric;
-        rows[k].symbols                 = n;
+        dp_tlm_set_now (tlm, (uint64_t)k * TE);
+        (void)dp_async_dsss_receiver_steps (rx, x, TE, syms, syms_cap);
         /* The receiver has decided the emitter is gone. The caller acts on
            it: reset() returns the receiver to searching. */
-        if (st.state == ASYNC_DSSS_RX_LOST)
+        if (dp_async_dsss_receiver_get_lost (rx))
           dp_async_dsss_receiver_reset (rx);
       }
+  /* The last push's boundary. DP_OK means no record was dropped. */
+  CHECK (dp_tlm_capture_close (cap) == DP_OK, "the capture lost records");
+  const size_t states = rows_from (tlm, dp_tlm_capture_records (cap),
+                                   dp_tlm_capture_count (cap), rows, n_pushes);
+  CHECK (states == n_pushes, "%zu of %zu pushes reported a state", states,
+         n_pushes);
 
   /* ── the checks, on the rows ──────────────────────────────────────────── */
   size_t seg_at[N_SEG + 1];
@@ -286,11 +354,17 @@ main (void)
   printf ("§1  noise alone for %.0f ms: searching, no symbols\n",
           (double)on_at * ms);
   size_t lock_up = first_locked (rows, on_at, n_pushes, 1);
-  printf ("§2  arrival to tracking: %.0f ms; symbol lock up %.0f ms after "
-          "arrival\n",
-          acquire_ms, (double)(lock_up - on_at) * ms);
+  printf ("§2  arrival to tracking: %.0f ms, handed over at %.0f Hz (the "
+          "emitter at %.0f Hz); symbol lock up %.0f ms after arrival\n",
+          acquire_ms, rows[first].handover_hz, CARRIER,
+          (double)(lock_up - on_at) * ms);
   CHECK (acquire_ms > 5.0 && acquire_ms < 250.0, "arrival to tracking %.0f ms",
          acquire_ms);
+  /* The refine hands the tracker a Doppler inside the caller's
+     uncertainty. */
+  CHECK (fabs (rows[first].handover_hz) <= CARRIER_UNCERTAINTY,
+         "handed over at %.0f Hz, outside the search",
+         rows[first].handover_hz);
   for (size_t i = 0; i < first; i++)
     CHECK (rows[i].symbols == 0, "symbols emitted before tracking (push %zu)",
            i);
@@ -347,9 +421,12 @@ main (void)
           "since\n",
           return_ms, syms_after);
 
-  /* The receiver owns its internals; destroy() frees them. The buffers are
-     the caller's, and the caller frees them. */
+  /* The receiver owns its internals; destroy() frees them. The buffers, the
+     capture and the context are the caller's, and the caller frees them,
+     the receiver first: it borrows the context until then. */
   dp_async_dsss_receiver_destroy (rx);
+  dp_tlm_capture_destroy (cap);
+  dp_tlm_destroy (tlm);
   free (rows);
   free (syms);
   free (sig);

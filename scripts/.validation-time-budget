@@ -63,7 +63,7 @@ validate_acq_surface_jitter            221.9
 validate_async_dsss_pool_soak_budget   138.3
 validate_async_dsss_pool_soak          128.1
 validate_async_dsss_receiver_release    19.7
-validate_async_dsss_receiver_lock        2.2  # CI's sweep job: 2.24 s and 1.17 s on two runners, the whole sweep 0.58x between them; the slower kept
+validate_async_dsss_receiver_lock        4.6  # CI's sweep job on #2481: 4.6 s. #2473 added the certification's per-push evidence -- # quality at five Es/N0 and # falselock, 2 s of noise at each design point -- which the report's limits are asserted on; was 2.2 s
 validate_async_dsss_receiver_lock_telemetry 1.7  # CI's sweep job on #2412: 1.65 s on the slower runner (790 s sweep); 0.89 s on the dev box
 validate_receiver_pullin                19.3
 validate_acq_peak_list                  23.2

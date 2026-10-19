@@ -602,7 +602,9 @@ def characterise(d: Blocks, sw: Blocks, bsw: Blocks) -> None:
         "counted, never folded in). Bursts run until 200 errors (inverse "
         f"binomial sampling), so the {conf:.0f}% interval is exact. The "
         "**loss** is the Es/N0 the bound needs for the measured rate, "
-        "subtracted from the Es/N0 applied."
+        "subtracted from the Es/N0 applied, **over the bursts that settled**: "
+        "a burst with no settled window is not scored, and is held to a rule "
+        "of its own (below)."
     )
     R.md()
     R.table(
@@ -638,7 +640,9 @@ def characterise(d: Blocks, sw: Blocks, bsw: Blocks) -> None:
     R.md()
     R.md("![BER against the bound](ber.png)")
     R.md()
-    # A burst that never tracked has no hand-over (NaN) and no row here.
+    n_unset = sum(1 for r in bursts if not r["settled"])
+    # A burst that never tracked has no hand-over (NaN): it is unexplained,
+    # and the harness fails it, so none reaches this list.
     unset = [
         abs(float(r["handover_err_hz"]))
         for r in bursts
@@ -647,22 +651,28 @@ def characterise(d: Blocks, sw: Blocks, bsw: Blocks) -> None:
     kept = [abs(float(r["handover_err_hz"])) for r in bursts if r["settled"]]
     far = [e for e in kept if unset and e >= min(unset)]
     slips = sum(int(r["slipped"]) for r in ber)
+    pullin = float(ber[0]["pullin_hz"])
     R.md(
-        (
-            f"None of the {len(bursts)} bursts slipped."
-            if slips == 0
-            else f"{slips} of the {len(bursts)} bursts slipped."
-        )
-        + f" {len(unset)} had no settled window and are not scored: "
-        f"symbol lock was not sustained, or came too late in the burst to "
-        f"leave one."
+        f"The loss is over {len(kept)} of the {len(bursts)} bursts: the ones "
+        f"that settled. "
         + (
-            f" Each of those was handed over {min(unset):.0f} to "
-            f"{max(unset):.0f} Hz off its carrier (the refine's carrier "
-            f"against the truth); of the {len(kept)} that settled, "
-            f"{len(far)} were handed over that far off. That is F3's missed "
-            f"hand-off, at the edge of the carrier loops' pull-in that #2409 "
-            f"measures."
+            "None slipped."
+            if slips == 0
+            else f"{slips} slipped, and the harness fails them."
+        )
+        + f" {n_unset} had no settled window and are not scored: symbol lock "
+        f"was not sustained, or came too late in the burst to leave one. "
+        f"Their rule is F3's mechanism: a burst that does not settle must "
+        f"have been handed over past the carrier loop's reliable pull-in, "
+        f"{pullin:.0f} Hz (twice `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, the "
+        f"header's 'reliable to twice it'), or it is unexplained and fails "
+        f"the harness ({sum(int(r['unexplained']) for r in ber)} here)."
+        + (
+            f" Each was handed over {min(unset):.0f} to {max(unset):.0f} Hz "
+            f"off its carrier (the refine's carrier against the truth); of "
+            f"the {len(kept)} that settled, {len(far)} were handed over that "
+            f"far off and still settled, so the rule bounds the unexplained "
+            f"count, not the hand-off. The hand-off's accuracy is #2409."
             if unset
             else ""
         )
@@ -726,21 +736,28 @@ def review(sw: Blocks, bsw: Blocks) -> None:
     loss = [float(r["loss_db"]) for r in ber]
     gap = [float(r["m2m4_db"]) - float(r["esn0_db"]) for r in ber]
     evm = [float(r["evm_db"]) - float(r["evm_ideal_db"]) for r in ber]
+    agree = float(ber[0]["m2m4_agree_db"])
+    worst = max(ber, key=lambda r: float(r["m2m4_db"]) - float(r["esn0_db"]))
+    bursts = bsw["burst"]
+    n_set = sum(1 for r in bursts if r["settled"])
     R.find(
         "F5",
         "GAP",
-        f"The error rate sits {min(loss):.2f} to {max(loss):.2f} dB from the "
-        f"BPSK bound over the sweep (section 2.6), and nothing yet says "
-        f"where that goes. The EVM over the same windows is only "
-        f"{min(evm):+.2f} to {max(evm):+.2f} dB over its ideal, so most of "
-        f"the loss is not in the error's power. The error is not circular: "
-        f"the blind "
-        f"M2M4, which assumes it is, reads {min(gap):.2f} to "
-        f"{max(gap):.2f} dB above the applied Es/N0, against "
-        f"`dp_ber_report()`'s 3 dB cross-check. A diagnostic on #2495 finds "
-        f"the in-phase error 3 dB under the quadrature one and "
-        f"heavy-tailed, and adjacent symbols' in-phase errors "
-        f"anti-correlated. Accounting for the loss by stage is #2495.",
+        f"Over the {n_set} of {len(bursts)} bursts that settled, the error "
+        f"rate sits {min(loss):.2f} to {max(loss):.2f} dB from the BPSK "
+        f"bound (section 2.6), and nothing yet says where that goes. The "
+        f"EVM over the same windows is only {min(evm):+.2f} to "
+        f"{max(evm):+.2f} dB over its ideal, so most of the loss is not in "
+        f"the error's power. The error is not circular: the blind M2M4, "
+        f"which assumes it is, reads {min(gap):.2f} to {max(gap):.2f} dB "
+        f"above the applied Es/N0. `dp_ber_report()` allows "
+        f"{agree:.1f} dB (`DP_BER_M2M4_AGREE_DB`), so at "
+        f"{float(worst['esn0_db']):.0f} dB the record passes that "
+        f"cross-check by only "
+        f"{agree - (float(worst['m2m4_db']) - float(worst['esn0_db'])):.2f}"
+        f" dB, and what it is short of is the receiver's error shape, not "
+        f"the stimulus. The diagnostic that found the shape, and accounting "
+        f"for the loss by stage, are #2495.",
     )
 
 
@@ -837,16 +854,26 @@ def limits(d: Blocks, sw: Blocks) -> None:
             int(r["slipped"]) == 0,
             f"{tag} no burst's alignment moved between its start and its end",
         )
+        n_b, n_u = int(r["bursts"]), int(r["unsettled"])
         R.limit(
             float(r["loss_lo_db"]) <= float(r["loss_max_db"]),
-            f"{tag} the error rate is within {float(r['loss_max_db']):.1f} dB "
-            f"of the BPSK bound (the loss at the 99% interval's lower limit)",
+            f"{tag} over the bursts that settle ({n_b - n_u} of {n_b} here), "
+            f"the error rate is within {float(r['loss_max_db']):.1f} dB of "
+            f"the BPSK bound (the loss at the 99% interval's lower limit)",
+        )
+        R.limit(
+            int(r["unexplained"]) == 0,
+            f"{tag} every burst that does not settle ({n_u} here) was handed "
+            f"over past the carrier loop's reliable pull-in, "
+            f"{float(r['pullin_hz']):.0f} Hz (F3's mechanism)",
         )
 
 
 def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
     loss = [float(r["loss_db"]) for r in bsw["ber"]]
     es = [float(r["esn0_db"]) for r in bsw["ber"]]
+    bursts = bsw["burst"]
+    n_set = sum(1 for r in bursts if r["settled"])
     mid = _losses(sw, 5.0, 15.0)
     top = _losses(sw, 20.0, 20.0)
     a10 = _at(sw["arrival"], 10.0)
@@ -862,10 +889,11 @@ def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
     d10, d5 = _at(sw["dropout"], 10.0), _at(sw["dropout"], 5.0)
     fl = sw["falselock"]
     return [
-        f"**Budget about 1 dB for the error rate.** From {min(es):.0f} to "
-        f"{max(es):.0f} dB the BER sits {min(loss):.2f} to {max(loss):.2f} "
-        f"dB from the BPSK bound, more than the EVM shows; why is open "
-        f"(2.6, F5, #2495).",
+        f"**Budget about 1 dB for the error rate, once settled.** From "
+        f"{min(es):.0f} to {max(es):.0f} dB the BER of the bursts that "
+        f"settled ({n_set} of {len(bursts)}) sits {min(loss):.2f} to "
+        f"{max(loss):.2f} dB from the BPSK bound, more than the EVM shows; "
+        f"why is open (2.6, F5, #2495). The rest missed the hand-off (F3).",
         f"**Design to the meter's ideal EVM from 5 to 15 dB.** Over the "
         f"full sweep a locked receiver's BPSK EVM is {_span(mid)} over "
         f"`dp_ber_evm_ideal_db()` there; at 20 dB {_span(top)}, an "

@@ -47,9 +47,9 @@ The timeline has six parts:
     be reset onto the same signal. It searches again, and a returning emitter is
     acquired afresh.
 
-The script prints the intervals it measured: the arrival to tracking, the release
-after departure, and the re-acquisition after the return. Those are this run's
-numbers. The script asserts each claim on this page, so a change that breaks one
+The script prints one line a stage, with the intervals it measured: the arrival
+to tracking, the release after departure, and the re-acquisition after the
+return. Those are this run's numbers. The script asserts each claim on this page, so a change that breaks one
 fails the example rather than the prose.
 
 ## How it works
@@ -180,9 +180,10 @@ python -m doppler.examples.async_dsss_receiver_lifecycle out.png
 
 The C twin is
 [`async_dsss_receiver_lifecycle.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/async_dsss_receiver_lifecycle.c).
-It runs the same timeline and checks the same physics. It uses its own noise draw,
-so its numbers differ from this page's, and it shows the buffers and the reset that
-the binding hides.
+It runs the same draw, the same seeds into the same sources, and checks the same
+physics, so it prints the same five lines as the script; a test runs both and
+requires that. It also shows what the binding does for you: the caller-owned
+buffers, the telemetry context, and the teardown.
 
 The design, including the state machine and the release rule, is in
 [the async DSSS receiver design](../design/async-dsss-receiver.md).

@@ -69,6 +69,8 @@ ESN0_DB = 10.0  # Es/N0 of the emitter at the receiver input
 CN0_DBHZ = ESN0_DB + 10.0 * np.log10(SYM_RATE)  # C/N0, dB-Hz
 PFA = 1e-3  # the detectors' false-alarm rate
 LOST_CONFIRM_S = 0.1  # both lock detectors down this long before LOST
+SEED_EMITTER = 0  # the synth's PN and payload draw
+SEED_NOISE = 2  # the noise draw
 
 GOLD = np.asarray(Gold().generate(SF), np.uint8)
 
@@ -94,7 +96,7 @@ def spans():
     return out
 
 
-def make_timeline(seed: int = 2) -> np.ndarray:
+def make_timeline(seed: int = SEED_NOISE) -> np.ndarray:
     """The capture: an emitter switching on and off over :data:`TIMELINE`, with
     noise running throughout.
 
@@ -107,9 +109,10 @@ def make_timeline(seed: int = 2) -> np.ndarray:
 
     Parameters
     ----------
-    seed : int, default 2
+    seed : int, default SEED_NOISE
         The noise draw. Each draw is one realization of the same timeline; the
-        lock-up time and whether a dropout holds depend on it.
+        lock-up time and whether a dropout holds depend on it. The C twin
+        uses the same two seeds, so the default draw is the one it runs.
 
     Returns
     -------
@@ -121,6 +124,7 @@ def make_timeline(seed: int = 2) -> np.ndarray:
         Synth(
             type="dsss",
             fs=FS,
+            seed=SEED_EMITTER,
             sps=SPC,
             data_code=GOLD.tobytes(),
             symbol_rate=SYM_RATE,
@@ -311,9 +315,8 @@ def check(rows: dict[str, np.ndarray]) -> dict[str, float]:
     assert 5.0 < return_ms < 250.0, (
         f"re-acquired {return_ms:.0f} ms after return"
     )
-    assert rows["symbols"][reacquired:].sum() > 0, (
-        "no symbols after re-acquiring"
-    )
+    symbols_since = int(rows["symbols"][reacquired:].sum())
+    assert symbols_since > 0, "no symbols after re-acquiring"
 
     # The hand-over: the refine hands the tracker a Doppler inside the
     # caller's uncertainty, and the receiver reports it from then on.
@@ -324,10 +327,12 @@ def check(rows: dict[str, np.ndarray]) -> dict[str, float]:
 
     lock_up_ms = int(np.argmax(rows["locked"][on_at:])) * ms
     return {
+        "noise_ms": on_at * ms,
         "lock_up_ms": lock_up_ms,
         "acquire_ms": acquire_ms,
         "release_ms": release_ms,
         "reacquire_ms": return_ms,
+        "symbols_since": symbols_since,
         "handover_hz": handover_hz,
         "fade_ms": (seg[2][2] - fade) * ms,
     }
@@ -344,16 +349,25 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
 
     series = receive(make_timeline())
     rows = rows_of(series)
-    times = check(rows)
+    t = check(rows)
+    # The C twin prints these five lines from the same draw, and
+    # test_c_example_pairs.py requires that the two faces print them alike.
+    print(f"§1  noise alone for {t['noise_ms']:.0f} ms: searching, no symbols")
     print(
-        f"this run: arrival to tracking {times['acquire_ms']:.0f} ms, handed "
-        f"over at {times['handover_hz']:.0f} Hz (the emitter at "
-        f"{CARRIER:.0f} Hz), symbol lock up {times['lock_up_ms']:.0f} ms "
-        f"after arrival; the {times['fade_ms']:.0f} ms fade held the lock; "
-        f"released "
-        f"{times['release_ms']:.0f} ms after departure, with a "
-        f"{1e3 * LOST_CONFIRM_S:.0f} ms confirm interval; re-acquired "
-        f"{times['reacquire_ms']:.0f} ms after the return"
+        f"§2  arrival to tracking: {t['acquire_ms']:.0f} ms, handed over at "
+        f"{t['handover_hz']:.0f} Hz (the emitter at {CARRIER:.0f} Hz); "
+        f"symbol lock up {t['lock_up_ms']:.0f} ms after arrival"
+    )
+    print(
+        f"§3  a {t['fade_ms']:.0f} ms fade: tracking and the symbol lock held"
+    )
+    print(
+        f"§4  departure: released {t['release_ms']:.0f} ms later, after the "
+        f"{1e3 * LOST_CONFIRM_S:.0f} ms confirm interval"
+    )
+    print(
+        f"§5  the return: re-acquired {t['reacquire_ms']:.0f} ms after it "
+        f"began; {t['symbols_since']} symbols since"
     )
 
     t_ms = np.arange(len(rows["state"])) * EPOCH_S * 1e3

@@ -25,10 +25,12 @@
  *
  * The waveform is not built here. The emitter is the shipped `wfm_synth`
  * continuous DSSS -- the Gold code from wfm's own generator, asynchronous
- * BPSK from its own PRBS -- and the noise is the shipped awgn sized from the
- * C/N0. Nothing in this file spreads a chip, draws a bit or computes a sigma.
- * The payload is the synth's own PRBS, sent on the code throughout, the same
- * stimulus the Python twin uses.
+ * BPSK from its own PRBS -- and the noise is the shipped awgn at the sigma
+ * dp_wfm_awgn_amplitude() gives for the Es/N0. That is wfm's face of the awgn
+ * primitive, dp_awgn_amplitude_for_snr(), and the function the Python twin
+ * calls as wfm_awgn_amplitude. Nothing in this file spreads a chip, draws a
+ * bit or computes a sigma.
+ * The payload is the synth's own PRBS, sent on the code throughout.
  *
  * The checks are against the receiver's own telemetry, one row a push:
  *
@@ -36,7 +38,7 @@
  *   §2  The signal arrives: it acquires and tracks, and symbols begin only
  *       once it is tracking.
  *   §3  A 10 ms fade: in this run, tracking and the symbol lock hold through
- *       it in this run. Lock-up time varies by draw.
+ *       it. Lock-up time varies by draw.
  *   §4  A 0.3 s departure: the receiver goes LOST, no earlier than its confirm
  *       interval; the caller resets it, and the reset receiver is searching.
  *   §5  A returning emitter: it is acquired afresh, emits no symbols until it
@@ -45,9 +47,9 @@
  * The bounds are physical where a bound exists (the confirm interval, and no
  * symbols before tracking). The rest are generous windows around one run.
  *
- * This file uses its own seeds (emitter 1, noise 7), so it is a different
- * draw of the same timeline than the Python twin, which uses noise seed 2.
- * Each twin is checked against its own run.
+ * Both twins run one draw: the same seeds (SEED_EMITTER, SEED_NOISE), the
+ * same sources and the same sigma, so they print the same five lines.
+ * src/doppler/tests/test_c_example_pairs.py runs both and requires that.
  *
  * Build:
  *   cmake --build build
@@ -60,6 +62,7 @@
 #include <doppler/dp_tlm_capture/dp_tlm_capture_core.h>
 #include <doppler/gold/gold_core.h>
 #include <doppler/timing/timing_core.h>
+#include <doppler/wfm/wfm_core.h>
 #include <doppler/wfm_synth/wfm_synth_core.h>
 #include <math.h>
 #include <stdbool.h>
@@ -83,8 +86,9 @@
 #define CN0_DBHZ (ESN0_DB + 10.0 * log10 (SYM_RATE))
 #define PFA 1e-3
 #define LOST_CONFIRM_S 0.1
-#define SEED_EMITTER 1u
-#define SEED_NOISE 7u
+/* The Python twin's draw: the synth's default seed, and noise seed 2. */
+#define SEED_EMITTER 0u
+#define SEED_NOISE 2u
 
 /* The timeline, in code epochs: `on` carries the signal, `off` is noise
    alone. One table, read by the signal, the checks and the report. */
@@ -237,8 +241,8 @@ main (void)
      code and data keep time with the receiver through every cut. */
   dp_wfm_synth_state_t *syn = emitter (code);
   dp_awgn_state_t      *awg = dp_awgn_create (
-      SEED_NOISE,
-      dp_awgn_amplitude_for_snr ((float)(CN0_DBHZ - 10.0 * log10 (FS)), 1.0f));
+      SEED_NOISE, dp_wfm_awgn_amplitude (
+                      (float)(ESN0_DB - 10.0 * log10 (FS / SYM_RATE)), 1.0f));
   CHECK (syn && awg, "the emitter and the noise open");
 
   /* The receiver. create() takes its parameters in signature order, each

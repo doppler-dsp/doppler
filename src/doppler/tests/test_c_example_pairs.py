@@ -185,7 +185,7 @@ def test_receiver_stops_on_sigint_after_the_sender_has_stopped() -> None:
 #: Python examples whose C twin prints the same result lines. The Python
 #: twin's "wrote <figure>" line and the C twin's closing "OK" are each one
 #: face's own, and are not compared.
-TWINS = ("async_dsss_receiver_spec_demo",)
+TWINS = ("async_dsss_receiver_lifecycle", "async_dsss_receiver_spec_demo")
 
 
 def _result_lines(text: str) -> list[str]:

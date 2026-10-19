@@ -10,7 +10,7 @@ re-derive them:
 1. **Have enough ERRORS been counted?** — `BerMeter` stops on
     an error target, not a symbol count.
 1. **Does the answer make sense?** — `ber_evm_db`,
-    `ber_evm_scatter_floor_db` and
+    `ber_evm_scatter_floor_db`, `ber_evm_ideal_db` and
     `ber_theory_ser` cross-check it against measurements
     that cannot fail the same way.
 
@@ -80,6 +80,20 @@ zero.** Not to be confused with the *noise* floor `-(Es/N0)`.
 >>> from doppler.ber import ber_evm_scatter_floor_db
 >>> [round(ber_evm_scatter_floor_db(m), 2) for m in (2, 4, 8)]
 [-1.39, -7.0, -12.92]
+
+```
+
+Its counterpart at the other end is the *noise* floor, and that is not quite
+`-(Es/N0)` either. `ber_evm_db` scales its window to unit total power, signal
+plus noise, so an ideal stream reads `2 - 2 sqrt(r/(1+r))` with `r = Es/N0`:
+`ber_evm_ideal_db`. Measure a receiver's EVM **loss** against it. Measured
+against `-(Es/N0)`, a perfect receiver at 5 dB already reads 0.9 dB better than
+the reference, and that much real loss would hide.
+
+```pycon
+>>> from doppler.ber import ber_evm_ideal_db
+>>> [round(ber_evm_ideal_db(e), 2) for e in (20.0, 10.0, 5.0)]
+[-20.03, -10.31, -5.91]
 
 ```
 

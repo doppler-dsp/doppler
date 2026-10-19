@@ -454,7 +454,7 @@ Only `code`/`chip_rate`/`symbol_rate` describe the signal itself. The `refine_*`
 * `doppler_uncertainty` One-sided Doppler search half-range, Hz; default 100.0. 
 * `segments` Live-tracking Dll's own segments; default 4. 
 * `sps` MpskReceiver's samples/symbol; default 8. 
-* `differential` MpskReceiver's differential demap; default 0 (coherent). 
+* `differential` MpskReceiver's differential demap; default 0 (coherent). It acts in MpskReceiver's bits(), which this object does not offer, so steps()' symbols are the same either way (#2471). 
 * `refine_max_error_db` Max tolerable async-lookback correlation-power loss driving the refine-stage collection Dll's coherent-I&D window count via [**dp\_dll\_lookback\_segments()**](dll__core_8h.md#function-dp_dll_lookback_segments). Oversampling the epoch is required for the asynchronous data: the residual carrier rides a ~symbol\_rate-wide data-modulated spectrum, so segments&gt;1 (default yields 11 at tsamps=2046) samples it above Nyquist; segments=1 undersamples and aliases it. Default 0.5. 
 * `refine_samples_per_symbol` CarrierAcquisition's own operating rate = this \* symbol\_rate; default 4. 
 * `refine_design_margin_db` Empirical derating of cn0\_dbhz before CarrierAcquisition's design\_snr; default 14.0. 
@@ -545,7 +545,7 @@ The carrier is the searching flavor's own pre-despread loop  what follows SPEC's
 * `pd` Its detection probability, in (0, 1). 
 * `segments` Partial correlations per code period. 
 * `sps` MpskReceiver's samples per symbol. 
-* `differential` 1 for differentially-encoded data. 
+* `differential` 1 for differentially-encoded data. Inert on steps(), which returns the symbols before any demap (#2471). 
 * `carrier_freq_hz` RF carrier, Hz; &gt; 0 couples the code rate to the carrier loop's Doppler (the dead reckoning and the Dll's aid), 0 = no dilation. Coupled, it is above half the sample rate ([**dp\_acq\_carrier\_freq\_ok()**](acq__core_8h.md#function-dp_acq_carrier_freq_ok)). 
 * `lost_confirm_s` The release rule's confirm time, seconds. 
 * `correct_periods` Code periods per correction (&gt;= 1): in a pool, the searcher's block depth. 

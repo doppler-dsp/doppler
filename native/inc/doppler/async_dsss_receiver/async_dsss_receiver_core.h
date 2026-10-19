@@ -485,7 +485,11 @@ typedef enum
    * @param sps                        MpskReceiver's samples/symbol;
    *                                   default 8.
    * @param differential                MpskReceiver's differential demap;
-   *                                   default 0 (coherent).
+   *                                   default 0 (coherent). It acts in
+   *                                   MpskReceiver's bits(), which this
+   *                                   object does not offer, so steps()'
+   *                                   symbols are the same either way
+   *                                   (#2471).
    * @param refine_max_error_db        Max tolerable async-lookback
    *                                   correlation-power loss driving the
    *                                   refine-stage collection Dll's
@@ -655,7 +659,9 @@ typedef enum
    * @param pd              Its detection probability, in (0, 1).
    * @param segments        Partial correlations per code period.
    * @param sps             MpskReceiver's samples per symbol.
-   * @param differential    1 for differentially-encoded data.
+   * @param differential    1 for differentially-encoded data. Inert on
+   *                        steps(), which returns the symbols before any
+   *                        demap (#2471).
    * @param carrier_freq_hz RF carrier, Hz; > 0 couples the code rate to the
    *                        carrier loop's Doppler (the dead reckoning and
    *                        the Dll's aid), 0 = no dilation. Coupled, it is

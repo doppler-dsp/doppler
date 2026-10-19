@@ -1,23 +1,26 @@
 """Certify `async_dsss_receiver` -- one continuous asynchronous DSSS receiver.
 
 Run:  python -m doppler.dsss.tests.validation.async_dsss_receiver.validate
+      python -m doppler.dsss.tests.validation.async_dsss_receiver.validate \\
+          --sweep        (re-run the full sweep into data/sweep.txt first)
       make validate          (regenerates every report)
       make validate-check    (fails if the committed report is stale)
 
 **C measures; Python renders and asserts.** Every number here is
 `native/validation/async_dsss_receiver_lock.c`'s: the shipped
 continuous-DSSS synth (`wfm_synth`) with the harness's own data bits, the
-shipped `awgn` sized from C/N0, the receiver at the binding's defaults at
-the SPEC operating point. This file parses its CSV blocks, characterises,
-reviews and asserts the limits through the same `Report` every other
-certified object uses -- the `conv` / `async_dsss_pool` shape.
+shipped `awgn` sized from C/N0, the receiver in the SPEC configuration.
+This file parses its CSV blocks, characterises, reviews and asserts the
+limits through the same `Report` every other certified object uses -- the
+`conv` / `async_dsss_pool` shape.
 
-**The run is the harness's regression subset, `--check --emit`** -- the
-same downselect `ctest` runs, about 3 s -- so the evidence and the gate are
-one run and cannot disagree. Its full sweep (`make validate-c`: twenty
-arrival and dropout draws at 10 and 5 dB, five quality draws at each
-Es/N0, five false-lock draws) is the parallel-measurements record's,
-refreshed on purpose.
+**Two runs, two roles.** The limits are asserted on the harness's
+regression subset, `--check --emit`, re-run on every push (about 3 s), so
+the evidence and the gate are one run and cannot disagree. The full sweep
+-- twenty arrival and dropout draws at 10 and 5 dB, five quality draws at
+each Es/N0, five false-lock draws -- is committed as `data/sweep.txt` and
+rendered in section 2.5; the findings and the executive summary quote it,
+computed from that file, never typed. `--sweep` refreshes it on purpose.
 
 **Scope: BPSK.** The receiver accepts m = 2, 4 or 8; the owner scoped this
 certification to BPSK (2026-10-19), and the test library spreads BPSK only,
@@ -27,6 +30,7 @@ so m = 4 and 8 are not certified here.
 from __future__ import annotations
 
 import csv
+import statistics
 import subprocess
 import sys
 from pathlib import Path
@@ -36,30 +40,37 @@ from doppler.tests._validation_common import Report, cli
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
+SWEEP = DATA / "sweep.txt"
 ROOT = repo_root(__file__)
 HARNESS = exe(
     build_dir(__file__) / "native/validation/validate_async_dsss_receiver_lock"
 )
 
-#: The harness's own constants, restated only to label the report; the
-#: asserted bounds below are this report's, chosen off every toolchain's
-#: edge (the harness asserts its own, the same in --check and the sweep).
+#: This report's asserted bounds. CHECK_TRACK_MS and DROP_WATCH_MS are the
+#: harness's own (it asserts them in --check and the sweep alike);
+#: EVM_LOSS_DB is the harness's CHECK_EVM_LOSS_DB, set from the sweep's
+#: worst loss at 20 dB with room for another toolchain (section 4).
 CHECK_TRACK_MS = 100.0
 DROP_WATCH_MS = 80.0
-EVM_SLACK_DB = 1.5
-SYM_RATE = 2700.0
+EVM_LOSS_DB = 2.0
 
 R = Report()
 
 Rows = list[dict[str, float | str]]
+Blocks = dict[str, Rows]
+
+#: Columns kept as text: the dropout's per-length hold profile is a bit
+#: string, which float() would read as a 60-digit number.
+_TEXT = {"held"}
 
 
-def _harness() -> dict[str, Rows]:
-    """Run the harness's regression subset with `--emit`; parse its blocks.
+def _run(args: list[str]) -> str:
+    """Run the harness; its stdout, or a hard failure that says why.
 
-    A missing binary is a hard failure rather than a skip: this report has
-    no measurement of its own, and a skipped one is indistinguishable from
-    a passing one in a log. `make build` builds it.
+    A missing binary, or a run whose own assertions failed, is a failure
+    rather than a skip: this report has no measurement of its own, and a
+    skipped or half-run one is indistinguishable from a passing one in a
+    log. `make build` builds it.
     """
     if not HARNESS.exists():
         raise SystemExit(
@@ -68,49 +79,67 @@ def _harness() -> dict[str, Rows]:
             f"C harness's."
         )
     run = subprocess.run(
-        [str(HARNESS), "--check", "--emit"],
-        capture_output=True,
-        text=True,
-        check=False,
+        [str(HARNESS), *args], capture_output=True, text=True, check=False
     )
-    blocks = _parse(run.stdout)
+    if run.returncode != 0:
+        raise SystemExit(
+            f"async_dsss_receiver: `{HARNESS.name} {' '.join(args)}` failed "
+            f"(exit {run.returncode}):\n{run.stderr[-2000:]}"
+        )
+    return run.stdout
+
+
+def _blocks(out: str, source: str) -> Blocks:
+    blocks = _parse(out)
     for name in ("arrival", "dropout", "quality", "falselock"):
         if not blocks.get(name):
             raise SystemExit(
-                f"async_dsss_receiver: the harness emitted no `# {name}` "
-                f"block (exit {run.returncode})"
+                f"async_dsss_receiver: {source} has no `# {name}` block"
             )
     return blocks
 
 
-def _num(v: str) -> float | str:
+def _num(k: str, v: str) -> float | str:
+    if k in _TEXT:
+        return v
     try:
         return float(v)
     except ValueError:
         return v
 
 
-def _parse(out: str) -> dict[str, Rows]:
+def _parse(out: str) -> Blocks:
     """One run's stdout into its `# <name>` CSV blocks."""
-    blocks: dict[str, Rows] = {}
+    blocks: Blocks = {}
     name, header = "", []
     for line in out.splitlines():
         line = line.strip()
         if line.startswith("# "):
             name, header = line[2:].split()[0], []
             blocks[name] = []
-        elif not line or not name:
-            name = "" if not line else name
+        elif not line:
+            name = ""
+        elif not name:
+            continue
         elif not header:
             header = line.split(",")
         else:
             blocks[name].append(
-                {k: _num(v) for k, v in zip(header, line.split(","))}
+                {k: _num(k, v) for k, v in zip(header, line.split(","))}
             )
     return blocks
 
 
-def _write_csv(d: dict[str, Rows]) -> None:
+def _sweep() -> Blocks:
+    if not SWEEP.exists():
+        raise SystemExit(
+            "async_dsss_receiver: data/sweep.txt is missing -- run this "
+            "validator with --sweep"
+        )
+    return _blocks(SWEEP.read_text(encoding="utf-8"), "data/sweep.txt")
+
+
+def _write_csv(d: Blocks) -> None:
     DATA.mkdir(exist_ok=True)
     for name, rows in d.items():
         if not rows:
@@ -128,11 +157,20 @@ def _plot(q: Rows) -> None:
     import matplotlib.pyplot as plt
 
     es = [float(r["esn0_db"]) for r in q]
-    evm = [float(r["evm_db"]) for r in q]
     fig, ax = plt.subplots(figsize=(6.0, 4.0))
-    lo, hi = min(es) - 1.0, max(es) + 1.0
-    ax.plot([lo, hi], [-lo, -hi], "k--", lw=1, label="-Es/N0 (ideal)")
-    ax.plot(es, evm, "o-", label="AsyncDsssReceiver, locked")
+    ax.plot(
+        es,
+        [float(r["ideal_db"]) for r in q],
+        "k--",
+        lw=1,
+        label="the meter's ideal (dp_ber_evm_ideal_db)",
+    )
+    ax.plot(
+        es,
+        [float(r["evm_db"]) for r in q],
+        "o-",
+        label="AsyncDsssReceiver, locked",
+    )
     ax.set_xlabel("Es/N0 (dB)")
     ax.set_ylabel("EVM (dB, own hard decisions)")
     ax.set_title("BPSK EVM against Es/N0, SPEC operating point")
@@ -141,6 +179,34 @@ def _plot(q: Rows) -> None:
     fig.tight_layout()
     fig.savefig(HERE / "evm.png", dpi=110)
     plt.close(fig)
+
+
+# -- summaries of the committed sweep, the numbers the prose quotes ------
+
+
+def _es(rows: Rows) -> list[float]:
+    return sorted({float(r["esn0_db"]) for r in rows}, reverse=True)
+
+
+def _at(rows: Rows, es: float) -> Rows:
+    return [r for r in rows if float(r["esn0_db"]) == es]
+
+
+def _losses(sw: Blocks, lo: float, hi: float) -> list[float]:
+    return [
+        float(r["loss_db"])
+        for r in sw["quality"]
+        if r["settled"] and lo <= float(r["esn0_db"]) <= hi
+    ]
+
+
+def _quality_misses(sw: Blocks, below: float) -> tuple[int, int]:
+    rows = [r for r in sw["quality"] if float(r["esn0_db"]) < below]
+    return sum(1 for r in rows if not r["settled"]), len(rows)
+
+
+def _span(xs: list[float], unit: str = "dB") -> str:
+    return f"{min(xs):+.2f} to {max(xs):+.2f} {unit}"
 
 
 def section_object() -> None:
@@ -158,10 +224,11 @@ def section_object() -> None:
     R.md(
         "**Operating point (SPEC).** A 1,023-chip Gold code (CCSDS #365) at "
         "3.069 Mcps, two samples a chip (6.138 MSa/s), asynchronous BPSK "
-        "data at 2,700 sym/s; the searching flavor at the binding's "
-        "defaults, its own search over +/-1/T_E (+/-3 kHz), its design "
-        "C/N0 the true one. **BPSK only**: m = 4 and 8 are accepted by the "
-        "object and not certified here (the owner's scope, 2026-10-19)."
+        "data at 2,700 sym/s. The searching flavor, at the binding's "
+        "defaults except two: its design C/N0 is the true one, and its "
+        "search covers +/-1/T_E (+/-3 kHz). **BPSK only**: m = 4 and 8 are "
+        "accepted by the object and not certified here (the owner's scope, "
+        "2026-10-19)."
     )
     R.md()
     R.md(
@@ -217,7 +284,9 @@ def section_object() -> None:
                 "`_test_spec_combined_scenario_at_spec_floor`",
             ],
             [
-                "`differential` does not change the symbols",
+                "`differential` acts in a demap this object does not offer: "
+                "steps()' symbols are the same either way (`@param "
+                "differential`, #2471)",
                 "`_test_differential_does_not_change_the_symbols`",
             ],
         ],
@@ -225,8 +294,13 @@ def section_object() -> None:
     R.md()
 
 
-def characterise(d: dict[str, Rows]) -> None:
+def characterise(d: Blocks, sw: Blocks) -> None:
     R.md("## 2. Characterisation")
+    R.md()
+    R.md(
+        "Sections 2.1 to 2.4 are the `--check` run the limits read; 2.5 is "
+        "the committed full sweep."
+    )
     R.md()
 
     R.md("### 2.1 Arrival: from a signal's first sample to symbol lock")
@@ -265,10 +339,12 @@ def characterise(d: dict[str, Rows]) -> None:
     R.md(
         "Each draw: the signal from sample 0, fed until symbol lock first "
         "comes up, 0.2 s more, then **every** symbol steps() returns over "
-        "1 s (2,700 symbols), never gated on the flag. EVM is against the "
-        "stream's own hard decisions (`dp_test_evm_db_hard_m`, m = 2); a "
-        "locked receiver at the matched-filter output reads it near "
-        "-Es/N0."
+        "1 s (2,700 symbols), never gated on the flag. EVM is over that "
+        "whole window, against the stream's own hard decisions "
+        "(`dp_test_evm_db_hard_range`, m = 2). The meter scales the window "
+        "to unit total power, so its reading on an ideal stream is not "
+        "-Es/N0 but `dp_ber_evm_ideal_db()`; the **loss** is the EVM over "
+        "that."
     )
     R.md()
     R.table(
@@ -277,7 +353,8 @@ def characterise(d: dict[str, Rows]) -> None:
             "symbol lock after",
             "symbols",
             "EVM",
-            "EVM + Es/N0",
+            "meter's ideal",
+            "loss",
             "window in lock",
         ],
         [
@@ -286,8 +363,9 @@ def characterise(d: dict[str, Rows]) -> None:
                 f"{r['t_lock_ms']:.0f} ms",
                 f"{r['n_sym']:.0f}",
                 f"{r['evm_db']:.2f} dB",
-                f"{r['evm_db'] + r['esn0_db']:+.2f} dB",
-                f"{100.0 * r['lock_frac']:.1f}%",
+                f"{r['ideal_db']:.2f} dB",
+                f"{r['loss_db']:+.2f} dB",
+                f"{100.0 * float(r['lock_frac']):.1f}%",
             ]
             for r in d["quality"]
         ],
@@ -340,17 +418,98 @@ def characterise(d: dict[str, Rows]) -> None:
         [
             [
                 f"{r['esn0_db']:.0f} dB",
-                f"{100.0 * r['frac']:.2f}% of blocks",
+                f"{r['up']:.0f} of {r['blocks']:.0f} blocks",
                 f"{r['declares']:.0f} times",
-                f"{100.0 * r['code_frac']:.2f}% of blocks",
+                f"{100.0 * float(r['code_frac']):.2f}% of blocks",
             ]
             for r in d["falselock"]
         ],
     )
     R.md()
 
+    R.md("### 2.5 The full sweep (`data/sweep.txt`)")
+    R.md()
+    R.md(
+        "The same measurements over more draws, committed and rendered, "
+        "never re-run on a push: five quality draws at each Es/N0, twenty "
+        "arrival draws and up to forty dropout draws at 10 and 5 dB, five "
+        "false-lock draws at each."
+    )
+    R.md()
+    rows = []
+    for es in _es(sw["quality"]):
+        q = _at(sw["quality"], es)
+        ok = [r for r in q if r["settled"]]
+        rows.append(
+            [
+                f"{es:.0f} dB",
+                f"{len(ok)} of {len(q)}",
+                _span([float(r["loss_db"]) for r in ok]) if ok else "--",
+                (
+                    f"{100.0 * min(float(r['lock_frac']) for r in ok):.1f}%"
+                    if ok
+                    else "--"
+                ),
+            ]
+        )
+    R.table(
+        ["Es/N0", "locked within 4 s", "loss", "least window in lock"],
+        rows,
+    )
+    R.md()
+    rows = []
+    for es in _es(sw["arrival"]):
+        a = _at(sw["arrival"], es)
+        trk = [
+            float(r["t_track_ms"])
+            for r in a
+            if r["t_track_ms"] == r["t_track_ms"]
+        ]
+        lk = [
+            float(r["t_lock_ms"])
+            for r in a
+            if r["t_lock_ms"] == r["t_lock_ms"]
+        ]
+        dr = _at(sw["dropout"], es)
+        rows.append(
+            [
+                f"{es:.0f} dB",
+                f"{sum(1 for r in a if r['locked_end'])} of {len(a)}",
+                (
+                    f"{statistics.median(trk):.0f} / {max(trk):.0f} ms"
+                    if trk
+                    else "--"
+                ),
+                (
+                    f"{statistics.median(lk):.0f} / {max(lk):.0f} ms"
+                    if lk
+                    else "--"
+                ),
+                f"{sum(1 for r in dr if not r['settled'])} of {len(dr)}",
+            ]
+        )
+    R.table(
+        [
+            "Es/N0",
+            "arrivals locked at 2 s",
+            "tracking, median / worst",
+            "symbol lock, median / worst",
+            "dropout draws not settled in 4 s",
+        ],
+        rows,
+    )
+    R.md()
+    fl = sw["falselock"]
+    R.md(
+        f"False lock over the sweep: {sum(int(r['up']) for r in fl)} of "
+        f"{sum(int(r['blocks']) for r in fl)} blocks with symbol lock up, "
+        f"{sum(int(r['declares']) for r in fl)} declarations, in "
+        f"{len(fl)} receivers on noise."
+    )
+    R.md()
 
-def review() -> None:
+
+def review(sw: Blocks) -> None:
     R.md("## 3. Review — findings, with verdicts")
     R.md()
     R.find(
@@ -370,16 +529,23 @@ def review() -> None:
         "(`_test_differential_does_not_change_the_symbols`). Remove it or "
         "add `bits()`: #2471.",
     )
+    miss, n_q = _quality_misses(sw, 10.0)
+    a5 = _at(sw["arrival"], 5.0)
+    d5, d10 = _at(sw["dropout"], 5.0), _at(sw["dropout"], 10.0)
     R.find(
         "F3",
         "CONFIRMED",
-        "At 5 and 7 dB a first hand-off can land off the carrier and never "
-        "pull in: with `reacquire` off (the binding's default, and this "
-        "harness's), 3 of the sweep's 10 quality draws at those Es/N0 had "
-        "no symbol lock within 4 s. `reacquire` recovers it -- the SPEC "
-        "example locks 24 of 24 that way -- so a caller below 10 dB turns "
-        "it on. The hand-off "
-        "accuracy is #2409.",
+        f"Below 10 dB a first hand-off can land off the carrier and never "
+        f"pull in. With `reacquire` off (the binding's default, and this "
+        f"harness's), the full sweep has {miss} of its {n_q} quality draws "
+        f"under 10 dB with no symbol lock within 4 s, "
+        f"{sum(1 for r in a5 if not r['locked_end'])} of {len(a5)} arrivals "
+        f"at 5 dB unlocked at 2 s, and dropout draws that never settled in "
+        f"{sum(1 for r in d5 if not r['settled'])} of {len(d5)} at 5 dB and "
+        f"{sum(1 for r in d10 if not r['settled'])} of {len(d10)} at 10 dB "
+        f"(section 2.5). `reacquire` recovers a missed hand-off by "
+        f"searching again; the SPEC example locks every draw that way. The "
+        f"hand-off accuracy is #2409.",
     )
     R.find(
         "F4",
@@ -391,11 +557,20 @@ def review() -> None:
     )
 
 
-def limits(d: dict[str, Rows]) -> None:
+def limits(d: Blocks, sw: Blocks) -> None:
     R.md("## 4. Limits — claims a caller may rely on")
     R.md()
+    worst = max(_losses(sw, 10.0, 99.0))
+    R.md(
+        f"The EVM bound is one-sided, a loss over the meter's ideal: an EVM "
+        f"better than ideal is not credited. {EVM_LOSS_DB} dB sits over the "
+        f"full sweep's worst loss at 10 dB and above, {worst:+.2f} dB (at "
+        f"20 dB, the implementation floor), with room for another "
+        f"toolchain."
+    )
+    R.md()
     for r in d["arrival"]:
-        if r["esn0_db"] >= 10.0:
+        if float(r["esn0_db"]) >= 10.0:
             R.limit(
                 0.0 < float(r["t_track_ms"]) <= CHECK_TRACK_MS,
                 f"[{r['esn0_db']:.0f} dB, carrier {r['carrier_hz']:+.0f} Hz] "
@@ -414,9 +589,9 @@ def limits(d: dict[str, Rows]) -> None:
         tag = f"[{es:.0f} dB]"
         R.limit(bool(r["settled"]), f"{tag} the receiver reaches symbol lock")
         R.limit(
-            abs(float(r["evm_db"]) + es) <= EVM_SLACK_DB,
-            f"{tag} a locked receiver's BPSK EVM is within "
-            f"{EVM_SLACK_DB} dB of -Es/N0",
+            float(r["loss_db"]) <= EVM_LOSS_DB,
+            f"{tag} a locked receiver's BPSK EVM is at most {EVM_LOSS_DB} dB "
+            f"over the meter's ideal",
         )
         R.limit(
             float(r["lock_frac"]) == 1.0,
@@ -437,47 +612,67 @@ def limits(d: dict[str, Rows]) -> None:
         )
 
 
+def _takeaways(sw: Blocks) -> list[str]:
+    mid = _losses(sw, 5.0, 15.0)
+    top = _losses(sw, 20.0, 20.0)
+    a10 = _at(sw["arrival"], 10.0)
+    trk = [
+        float(r["t_track_ms"])
+        for r in a10
+        if r["t_track_ms"] == r["t_track_ms"]
+    ]
+    lk = [
+        float(r["t_lock_ms"]) for r in a10 if r["t_lock_ms"] == r["t_lock_ms"]
+    ]
+    drops = [float(r["drop_ms"]) for r in sw["dropout"] if r["settled"]]
+    fl = sw["falselock"]
+    return [
+        f"**Design to the meter's ideal EVM from 5 to 15 dB.** Over the "
+        f"full sweep a locked receiver's BPSK EVM is {_span(mid)} over "
+        f"`dp_ber_evm_ideal_db()` there; at 20 dB {_span(top)}, an "
+        f"implementation floor (section 2.5).",
+        f"**Lock is quick at 10 dB:** tracked {statistics.median(trk):.0f} ms "
+        f"after a signal arrives (worst {max(trk):.0f} ms over "
+        f"{len(trk)} draws), symbol lock {statistics.median(lk):.0f} ms "
+        f"(worst {max(lk):.0f} ms) (2.5).",
+        "**Below 10 dB, turn `reacquire` on.** A first hand-off can miss "
+        "the carrier and, without it, never recover (F3, #2409).",
+        f"**The lock flag means something:** {len(fl)} receivers on noise "
+        f"declared it {sum(int(r['declares']) for r in fl)} times, and a "
+        f"signal that leaves drops it within {max(drops):.0f} ms (2.5).",
+        "**Size `out` with care above one symbol a code period:** "
+        "`steps_max_out()` is not yet a bound (F1, #2469). At SPEC it "
+        "never binds.",
+    ]
+
+
 def build(write: bool = True) -> Report:
     global R
     R = Report(write=write)
     R.md("# AsyncDsssReceiver — validation report")
     R.md()
     section_object()
-    d = _harness()
+    d = _blocks(_run(["--check", "--emit"]), "the --check run")
+    sw = _sweep()
     if write:
         _write_csv(d)
         _plot(d["quality"])
-    characterise(d)
-    review()
-    limits(d)
-    R.executive(
-        "AsyncDsssReceiver",
-        [
-            "**Design to EVM = -Es/N0 from 5 to 15 dB.** A locked receiver's "
-            "BPSK EVM reads within about 0.5 dB of -Es/N0 there (section "
-            "2.2); at 20 dB it sits about 1.2 dB above, an implementation "
-            "floor near -25 dB.",
-            "**Lock is fast at 10 dB and above:** tracked in about 45 ms of "
-            "a signal's arrival and symbol-locked within a second, then "
-            "held (2.1, 2.2).",
-            "**Below 10 dB, turn `reacquire` on.** A first hand-off can "
-            "miss the carrier and, without it, never recover (F3, #2409).",
-            "**The lock flag means something:** a receiver on noise never "
-            "declares it (2.4), and a signal that leaves drops it within "
-            "tens of ms (2.3).",
-            "**Size `out` with care above one symbol a code period:** "
-            "`steps_max_out()` is not yet a bound (F1, #2469). At SPEC it "
-            "never binds.",
-        ],
-    )
+    characterise(d, sw)
+    review(sw)
+    limits(d, sw)
+    R.executive("AsyncDsssReceiver", _takeaways(sw))
     R.summary(
         "\n- Raw run: `data/arrival.csv`, `data/quality.csv`, "
         "`data/dropout.csv`, `data/falselock.csv` -- the harness's "
-        "`--check --emit` blocks"
+        "`--check --emit` blocks; `data/sweep.txt` -- its full sweep"
     )
     R.emit(HERE / "results.md")
     return R
 
 
 if __name__ == "__main__":
+    if "--sweep" in sys.argv:
+        sys.argv.remove("--sweep")
+        DATA.mkdir(exist_ok=True)
+        SWEEP.write_text(_run(["--emit"]), encoding="utf-8")
     sys.exit(cli(build, HERE))

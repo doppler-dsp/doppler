@@ -163,11 +163,11 @@
 #define RELOCK_WATCH_S 0.3 /* a re-lock is waited for this long      */
 #define MAX_HOLD 400u      /* the hold scan's longest dropout, epochs */
 
-#define QUALITY_SETTLE_S 0.2   /* after symbol lock first comes up     */
-#define QUALITY_S 1.0          /* the measured window: 2,700 symbols   */
-#define QUALITY_TRIALS 5u      /* a sweep's draws per Es/N0            */
-#define CHECK_EVM_SLACK_DB 1.5 /* --check: EVM within this of -Es/N0 */
-#define FALSE_S 2.0            /* noise fed to a receiver seeded on it */
+#define QUALITY_SETTLE_S 0.2  /* after symbol lock first comes up     */
+#define QUALITY_S 1.0         /* the measured window: 2,700 symbols   */
+#define QUALITY_TRIALS 5u     /* a sweep's draws per Es/N0            */
+#define CHECK_EVM_LOSS_DB 2.0 /* EVM over the meter's ideal, at most */
+#define FALSE_S 2.0           /* noise fed to a receiver seeded on it */
 #define FALSE_TRIALS 5u
 
 static const double quality_esn0s[] = { 20.0, 15.0, 10.0, 7.0, 5.0 };
@@ -569,9 +569,11 @@ done:
    until symbol lock first comes up, QUALITY_SETTLE_S more, and then every
    symbol steps() returns over QUALITY_S is kept -- all of them, never
    gated on the flag, because the receiver never gates its output. Scored
-   by the shipped estimators (dp_sym_test.h): EVM against the stream's own
-   hard BPSK decisions, which a locked receiver reads near -Es/N0, and the
-   fraction of the window's blocks with symbol lock up. A draw that has no
+   by the shipped estimators: EVM over the WHOLE window against the
+   stream's own hard BPSK decisions (dp_test_evm_db_hard_range), its loss
+   over what that meter reads on an ideal stream (dp_ber_evm_ideal_db --
+   the meter scales to unit total power, so the ideal is not -Es/N0), and
+   the fraction of the window's blocks with symbol lock up. A draw that has no
    lock within MAX_LOCK_S is a row marked unsettled. */
 typedef struct
 {
@@ -580,6 +582,7 @@ typedef struct
   double t_lock_ms; /* signal start -> symbol lock first up          */
   size_t n_sym;     /* symbols scored                                 */
   double evm_db;    /* EVM against the stream's own hard decisions    */
+  double loss_db;   /* evm_db minus dp_ber_evm_ideal_db(Es/N0)        */
   double lock_frac; /* the window's blocks with symbol lock up        */
 } quality_t;
 
@@ -613,8 +616,8 @@ run_quality (const uint8_t *code, double esn0_db, uint32_t seed,
   float complex *junk = dp_xmalloc (cap * sizeof *junk);
 
   out->settled   = 0;
-  out->t_lock_ms = out->evm_db = out->lock_frac = NAN;
-  out->n_sym                                    = 0;
+  out->t_lock_ms = out->evm_db = out->loss_db = out->lock_frac = NAN;
+  out->n_sym                                                   = 0;
   size_t start = 0, locked_blocks = 0;
   for (size_t b = 0; b < max_b + set_b + win_b; b++)
     {
@@ -649,7 +652,8 @@ run_quality (const uint8_t *code, double esn0_db, uint32_t seed,
   if (start && out->n_sym > 0)
     {
       out->settled   = 1;
-      out->evm_db    = dp_test_evm_db_hard_m (syms, out->n_sym, 2);
+      out->evm_db    = dp_test_evm_db_hard_range (syms, 0, out->n_sym, 2);
+      out->loss_db   = out->evm_db - dp_ber_evm_ideal_db (esn0_db);
       out->lock_frac = (double)locked_blocks / (double)win_b;
     }
   free (junk);
@@ -671,7 +675,9 @@ run_quality (const uint8_t *code, double esn0_db, uint32_t seed,
    how many times it was declared. */
 typedef struct
 {
-  double frac;      /* blocks with symbol lock up                    */
+  size_t blocks;    /* blocks fed                                    */
+  size_t up;        /* of them, symbol lock up                       */
+  double frac;      /* up / blocks                                   */
   size_t declares;  /* rising edges of the flag                       */
   double code_frac; /* blocks with code lock up, for comparison       */
 } falselock_t;
@@ -706,6 +712,8 @@ run_falselock (const uint8_t *code, double esn0_db, uint32_t seed,
   /* Precondition: it held a track on the noise, or the flag never had a
      chance to come up. */
   DP_CHECK_MSG (tracked > nb / 2, "the false-lock receiver tracked noise");
+  out->blocks    = nb;
+  out->up        = up;
   out->frac      = (double)up / (double)nb;
   out->code_frac = (double)cup / (double)nb;
   free (syms);
@@ -1027,7 +1035,7 @@ main (int argc, char **argv)
   const size_t q_tr = check ? 1 : QUALITY_TRIALS;
   if (emit)
     printf ("# quality\nesn0_db,seed,carrier_hz,settled,t_lock_ms,n_sym,"
-            "evm_db,lock_frac\n");
+            "evm_db,ideal_db,loss_db,lock_frac\n");
   else
     printf ("quality: symbol lock, then %.1f s of every symbol\n", QUALITY_S);
   for (size_t e = 0; e < n_q; e++)
@@ -1038,21 +1046,21 @@ main (int argc, char **argv)
           quality_t q;
           DP_REQUIRE (run_quality (code, es, s, &q) == 0);
           if (emit)
-            printf ("%.1f,%u,%.1f,%d,%.2f,%zu,%.3f,%.4f\n", es, s,
+            printf ("%.1f,%u,%.1f,%d,%.2f,%zu,%.3f,%.3f,%.3f,%.4f\n", es, s,
                     q.carrier_hz, q.settled, q.t_lock_ms, q.n_sym, q.evm_db,
-                    q.lock_frac);
+                    dp_ber_evm_ideal_db (es), q.loss_db, q.lock_frac);
           else
             printf ("  %4.1f dB seed %u: carrier %+7.1f Hz, lock %7.1f ms, "
-                    "%zu symbols, EVM %6.2f dB, locked %.3f\n",
+                    "%zu symbols, EVM %6.2f dB, loss %+.2f dB, locked "
+                    "%.3f\n",
                     es, s, q.carrier_hz, q.t_lock_ms, q.n_sym, q.evm_db,
-                    q.lock_frac);
+                    q.loss_db, q.lock_frac);
           if (es >= 10.0)
             {
               DP_CHECK_MSG (q.settled, "at 10 dB and above a draw locks");
-              DP_CHECK_MSG (q.settled
-                                && fabs (q.evm_db + es) <= CHECK_EVM_SLACK_DB,
-                            "a locked receiver's EVM is within "
-                            "CHECK_EVM_SLACK_DB of -Es/N0");
+              DP_CHECK_MSG (q.settled && q.loss_db <= CHECK_EVM_LOSS_DB,
+                            "a locked receiver's EVM is at most "
+                            "CHECK_EVM_LOSS_DB over the meter's ideal");
               DP_CHECK_MSG (q.settled && q.lock_frac == 1.0,
                             "symbol lock holds through the window");
             }
@@ -1062,7 +1070,7 @@ main (int argc, char **argv)
   /* FALSE LOCK on noise at each design Es/N0: --check one draw, the
      sweep five. */
   if (emit)
-    printf ("# falselock\nesn0_db,seed,frac,declares,code_frac\n");
+    printf ("# falselock\nesn0_db,seed,blocks,up,frac,declares,code_frac\n");
   else
     printf ("false lock: a receiver seeded on noise, %.1f s\n", FALSE_S);
   for (size_t e = 0; e < N_ESN0; e++)
@@ -1071,8 +1079,8 @@ main (int argc, char **argv)
         falselock_t f;
         DP_REQUIRE (run_falselock (code, esn0s[e], s, &f) == 0);
         if (emit)
-          printf ("%.1f,%u,%.4f,%zu,%.4f\n", esn0s[e], s, f.frac, f.declares,
-                  f.code_frac);
+          printf ("%.1f,%u,%zu,%zu,%.4f,%zu,%.4f\n", esn0s[e], s, f.blocks,
+                  f.up, f.frac, f.declares, f.code_frac);
         else
           printf ("  %4.1f dB seed %u: symbol lock up %.4f of blocks, "
                   "declared %zu times; code lock %.4f\n",

@@ -75,6 +75,8 @@ extern "C"
 
   double dp_ber_evm_scatter_floor_db (int m);
 
+  double dp_ber_evm_ideal_db (double esn0_db);
+
   size_t dp_ber_settle_syms (double bn_timing, double bn_carrier);
 
   int dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,

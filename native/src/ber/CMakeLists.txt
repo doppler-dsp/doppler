@@ -12,7 +12,7 @@ if(NOT JM_MATH_LIBRARY)
   set(JM_MATH_LIBRARY "")
 endif()
 
-add_library(ber_core OBJECT ber_core.c ber_theory_ser.c ber_theory_ber.c ber_esn0_db_for_ser.c ber_evm_scatter_floor_db.c ber_settle_syms.c ber_lock_symbol.c ber_evm_db.c ber_settle_from.c)
+add_library(ber_core OBJECT ber_core.c ber_theory_ser.c ber_theory_ber.c ber_esn0_db_for_ser.c ber_evm_scatter_floor_db.c ber_evm_ideal_db.c ber_settle_syms.c ber_lock_symbol.c ber_evm_db.c ber_settle_from.c)
 target_include_directories(ber_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)

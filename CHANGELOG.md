@@ -17,8 +17,9 @@ ______________________________________________________________________
 
 ### Added
 
-- **`AsyncDsssPool` as parallel receivers, designed and measured.**
-    `docs/design/async-dsss-parallel.md` lays out N independent
+- **A parallel-receivers design for `AsyncDsssPool`, measured.** The
+    shipped pool is unchanged; `docs/design/async-dsss-parallel.md` lays
+    out its replacement, N independent
     `AsyncDsssReceiver`s under a simple controller. Its numbers, and its
     record's, are rendered from runs of shipped tools: a new validator,
     `validate_async_dsss_receiver_lock`, measures arrival and symbol lock
@@ -46,7 +47,19 @@ ______________________________________________________________________
     probes. The header's probe list also says `<prefix>.rc` registers
     nothing here.
 
-- **A gallery page for `AsyncDsssReceiver`'s lifecycle.** One receiver follows a signal through noise, arrival, tracking, a 10 ms dropout, a 50 ms dropout that the symbol lock falls in and recovers from, and a departure, read from `status()` after every push. The Python example and its C twin both self-validate. See [the gallery page](docs/gallery/async-dsss-receiver-lifecycle.md).
+- **An `AsyncDsssReceiver` lifecycle example, read from its own
+    telemetry.** One receiver follows a signal through noise, arrival,
+    tracking, a 10 ms fade, a departure it reports as `LOST`, a `reset()`
+    and a returning emitter it acquires again. Both twins attach
+    `set_telemetry()`, keep every record in a memory capture and build
+    their rows from `rx.state`, `rx.sym.locked`, `rx.code.locked`,
+    `rx.sym.lock` and `rx.handover_hz`; the figure adds a carrier panel
+    (the hand-over against the loop's command in Hz). The Python and C
+    faces run one draw and print the same five lines, and
+    `test_c_example_pairs.py` requires them to match.
+    [The gallery page](docs/gallery/async-dsss-receiver-lifecycle.md)
+    shows the file capture and `scripts/plot_capture.py`, and the telemetry
+    page's table lists the receivers, the pool and `Acquisition`.
 
 - **`make bench-rx` times the `AsyncDsssReceiver` alone, in seconds.** It
     runs the receiver's C bench: the held receiver at three operating
@@ -74,7 +87,7 @@ ______________________________________________________________________
 - **`AsyncDsssReceiver` and `AsyncDsssPool` take a telemetry context.**
     `set_telemetry(tlm, prefix)` reports every loop's discriminator and
     filter output and, on the pool, the searcher's dwells, every slot and the
-    table: 121 probes for four slots, kept across the re-seeds that rebuild
+    table: 133 probes for four slots, kept across the re-seeds that rebuild
     a receiver's loops. A context holds 512 probes, not 64, so the public
     `dp_tlm_t` grows to about 25 KiB and the fields after its probe table
     move: C code built against an earlier doppler must be rebuilt. A refused
@@ -92,7 +105,7 @@ ______________________________________________________________________
     `AsyncDsssReceiver` its own symbol lock.** `Costas` and `Dll` add `.nco`
     (the whole filter output) beside the integrator's `.freq`/`.rate`; the
     receiver adds `.sym.lock`/`.sym.locked`, so a 4-slot `AsyncDsssPool`
-    registers 121 probes and the 512-probe table holds 18 slots. The lock
+    registers 133 probes and the 512-probe table holds 16 slots. The lock
     validator's `--telemetry DIR` captures one receiver through arrival,
     three fades and departure.
 
@@ -111,23 +124,6 @@ ______________________________________________________________________
     link, and shows the despread output it hands the next stage; its Python and
     C twins run one draw and check the same physics
     ([the gallery page](../../docs/gallery/async-despread.md)).
-
-- **The AsyncDsssReceiver lifecycle example is rebuilt.** It arms the release rule, resets the receiver when it reports `LOST`, and acquires a returning emitter; its Python and C twins run the same timeline ([the gallery page](../../docs/gallery/async-dsss-receiver-lifecycle.md)).
-
-- **The `AsyncDsssReceiver` lifecycle example reads the receiver's own
-    telemetry.** Both twins attach `set_telemetry()`, keep every record in a
-    memory capture, and build their rows from `rx.state`, `rx.sym.locked`,
-    `rx.code.locked`, `rx.sym.lock` and `rx.handover_hz`. The figure adds a
-    carrier panel (the hand-over against the loop's command in Hz), and
-    [the gallery page](../../docs/gallery/async-dsss-receiver-lifecycle.md)
-    shows the file capture and `scripts/plot_capture.py`. The telemetry
-    page's table lists the receivers, the pool and `Acquisition`.
-
-- **The `AsyncDsssReceiver` lifecycle example's Python and C faces run one
-    draw.** The C twin takes the Python twin's seeds and its sigma function,
-    `dp_wfm_awgn_amplitude()`. Both print the same five lines, one a stage,
-    and `test_c_example_pairs.py` runs both and requires them to match
-    ([the gallery page](../../docs/gallery/async-dsss-receiver-lifecycle.md)).
 
 - **`AsyncDsssReceiver` refuses a hand-over past half the sample rate.** A
     seed in range whose refined residual carried it to or past fs/2 used to
@@ -165,8 +161,9 @@ ______________________________________________________________________
     async DSSS receiver.** Each tap's code phase was a chip count in
     double folded by `fmod`; it is now the code NCO's own 32-bit word, so a
     held receiver at 5 Mcps costs 11.2 ns a sample, not 33.1, and the
-    published Dll row (the v0.73.0 set, pinned on the bench box) runs at 205
-    MSa/s native against v0.72.0's 44.8, 4.6x. The despreader
+    published Dll row (the v0.73.0 set, pinned on the bench box) runs at 238
+    MSa/s native against v0.72.0's 50.0 (4.8x), and 205 against 44.8
+    portable (4.6x). The despreader
     and `DsssReceiver` share the Dll and the gain
     ([#2397](https://github.com/doppler-dsp/doppler/issues/2397)).
 

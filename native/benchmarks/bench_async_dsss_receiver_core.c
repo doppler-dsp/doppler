@@ -390,7 +390,16 @@ run_tracking (jm_bench_t *bench, const uint8_t *code)
           break;
         }
     }
-  for (size_t k = 0; k <= TRACK_SETTLE; k++, pos += BLOCK)
+  if (b == maxb)
+    {
+      (void)fprintf (stderr,
+                     "bench_async_dsss_receiver[track]: no lock within "
+                     "MAX_LOCK_S (%.0f s) -- both code and symbol lock are "
+                     "needed before timing\n",
+                     MAX_LOCK_S);
+      return 1;
+    }
+  for (size_t k = 0; k < TRACK_SETTLE; k++, pos += BLOCK)
     sink += dp_async_dsss_receiver_steps (rx, x + pos, BLOCK, out, BLOCK);
   if (!tracking (rx, "after the lead-in"))
     return 1;

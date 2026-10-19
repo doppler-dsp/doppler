@@ -545,12 +545,21 @@ typedef enum
    *                                   instead of entering lost: it never
    *                                   waits for reset(). A pool of
    *                                   receivers that are always online
-   *                                   uses it. Requires lost_confirm_s >
-   *                                   0, since a release that never fires
-   *                                   would never search again. Default
-   *                                   false: the release rule above.
+   *                                   uses it. The clock runs from the
+   *                                   first tracking sample, as above, so
+   *                                   a track that never locks (a noise
+   *                                   false alarm) is released too; size
+   *                                   lost_confirm_s past the pull-in time
+   *                                   to symbol lock, or a slow lock is
+   *                                   released before it comes. Requires a
+   *                                   lost_confirm_s of at least one input
+   *                                   sample, since a release that never
+   *                                   fires would never search again; a
+   *                                   blob in the lost state is refused by
+   *                                   set_state(). Default false: the
+   *                                   release rule above.
    * @return A new receiver, searching; NULL on an invalid argument,
-   *         including reacquire with lost_confirm_s == 0.
+   *         including reacquire with a lost_confirm_s under one sample.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import AsyncDsssReceiver

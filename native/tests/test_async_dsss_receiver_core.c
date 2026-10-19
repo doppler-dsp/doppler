@@ -1463,8 +1463,18 @@ _test_reacquire_after_switch_off (void)
   const size_t tail_n      = (size_t)(0.25 * fs); /* 0.25 s of "off"  */
   const size_t chunk       = 1024;
 
-  /* Refused: a release that never fires would never search again. */
+  /* Refused: a release that never fires would never search again -- at
+     zero, and at a confirm time under one input sample (1e-9 s), which is
+     the disabled clock. One sample is the smallest accepted. */
   DP_CHECK (_searching_rx (cn0, sym_rate, 0.0, true) == NULL);
+  DP_CHECK (_searching_rx (cn0, sym_rate, 1e-9, true) == NULL);
+  {
+    dp_async_dsss_receiver_state_t *one_sample
+        = _searching_rx (cn0, sym_rate, 1.0 / fs, true);
+    DP_CHECK (one_sample != NULL);
+    if (one_sample)
+      dp_async_dsss_receiver_destroy (one_sample);
+  }
 
   float _Complex *x;
   size_t          n;
@@ -1492,7 +1502,8 @@ _test_reacquire_after_switch_off (void)
       /* Phase 2: the emitter off. Watch every chunk: with reacquire the
        * state must reach searching and never read lost; without it, lost. */
       int             searched = 0, lost = 0;
-      float _Complex *junk = malloc (chunk * 8 * sizeof *junk);
+      size_t          fed_at_release = 0;
+      float _Complex *junk           = malloc (chunk * 8 * sizeof *junk);
       for (size_t pos = 0; pos < tail_n; pos += chunk)
         {
           size_t k = tail_n - pos < chunk ? tail_n - pos : chunk;
@@ -1500,6 +1511,8 @@ _test_reacquire_after_switch_off (void)
                                               chunk * 8);
           int st = dp_async_dsss_receiver_status (rx).state;
           lost |= st == ASYNC_DSSS_RX_LOST;
+          if (!searched && st == ASYNC_DSSS_RX_SEARCHING)
+            fed_at_release = pos + k;
           searched |= st == ASYNC_DSSS_RX_SEARCHING;
         }
       free (junk);
@@ -1510,6 +1523,13 @@ _test_reacquire_after_switch_off (void)
            * may take a noise hit, refine, track and release again. */
           DP_CHECK (lost == 0);
           DP_CHECK (searched == 1);
+          /* Not before the interval: more than lost_confirm_s of the tail
+           * was fed when it let go (the flag drops after the signal does,
+           * so the release lands later still, well inside the tail). */
+          DP_CHECK (rx->lost_confirm_samples
+                    == (uint64_t)llround (confirm_s * fs));
+          DP_CHECK (fed_at_release > rx->lost_confirm_samples);
+          DP_CHECK (fed_at_release < tail_n);
 
           /* Phase 3: the signal back -- found again, with no reset(). */
           n_syms = _stream (rx, x, n, te, &syms);
@@ -1523,6 +1543,32 @@ _test_reacquire_after_switch_off (void)
       else
         {
           DP_CHECK (lost == 1); /* the release rule as it always was */
+
+          /* Its lost blob: a reacquire receiver cannot be lost, so it
+           * refuses the blob; a plain one, the control, takes it. */
+          size_t cb   = dp_async_dsss_receiver_state_bytes (rx);
+          void  *blob = malloc (cb);
+          dp_async_dsss_receiver_get_state (rx, blob);
+          dp_async_dsss_receiver_state_t *re
+              = _searching_rx (cn0, sym_rate, confirm_s, true);
+          dp_async_dsss_receiver_state_t *plain
+              = _searching_rx (cn0, sym_rate, confirm_s, false);
+          DP_CHECK (re != NULL && plain != NULL);
+          if (re && plain)
+            {
+              DP_CHECK (dp_async_dsss_receiver_set_state (re, blob)
+                        == DP_ERR_INVALID);
+              DP_CHECK (dp_async_dsss_receiver_status (re).state
+                        == ASYNC_DSSS_RX_SEARCHING);
+              DP_CHECK (dp_async_dsss_receiver_set_state (plain, blob)
+                        == DP_OK);
+              DP_CHECK (dp_async_dsss_receiver_get_lost (plain) == 1);
+            }
+          if (re)
+            dp_async_dsss_receiver_destroy (re);
+          if (plain)
+            dp_async_dsss_receiver_destroy (plain);
+          free (blob);
         }
       dp_async_dsss_receiver_destroy (rx);
     }
@@ -1582,6 +1628,7 @@ _test_reacquire_is_symbol_lock_alone (void)
       DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
 
       int             searched = 0, lost = 0, code_held = 1;
+      size_t          run = 0, longest = 0; /* symbol lock down, samples */
       float _Complex *junk = malloc (te * 8 * sizeof *junk);
       for (size_t pos = 0; pos < tail; pos += te)
         {
@@ -1590,6 +1637,14 @@ _test_reacquire_is_symbol_lock_alone (void)
           if (was_tracking && !dp_async_dsss_receiver_get_code_locked (rx))
             code_held = 0;
           (void)dp_async_dsss_receiver_steps (rx, y + pos, k, junk, te * 8);
+          if (dp_async_dsss_receiver_get_tracking (rx)
+              && !dp_async_dsss_receiver_get_locked (rx))
+            {
+              run += k;
+              longest = run > longest ? run : longest;
+            }
+          else
+            run = 0;
           int st = dp_async_dsss_receiver_status (rx).state;
           lost |= st == ASYNC_DSSS_RX_LOST;
           searched |= st == ASYNC_DSSS_RX_SEARCHING;
@@ -1607,10 +1662,98 @@ _test_reacquire_is_symbol_lock_alone (void)
         {
           DP_CHECK (searched == 0);
           DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+          /* The case itself, measured on the run that never released:
+           * symbol lock down unbroken for longer than the interval (about
+           * 0.138 s against 0.02 s), with code lock up throughout. */
+          DP_CHECK (longest > (size_t)llround (confirm_s * fs));
+          printf ("reacquire symbol-lock-alone: symbol lock down %.4f s "
+                  "unbroken, interval %.3f s\n",
+                  (double)longest / fs, confirm_s);
         }
       dp_async_dsss_receiver_destroy (rx);
     }
   free (y);
+  free (x);
+  free (data);
+  return 0;
+}
+
+/* reacquire's clock restarts on symbol lock: the emitter cut four times
+ * for 0.02 s each, against a 0.03 s interval, with 0.04 s of signal between
+ * cuts for the loops to re-lock. The cuts add to 0.08 s, so a clock that
+ * accumulated instead of restarting would release; a clock that restarts
+ * on every re-lock never reaches the interval and never does. The test
+ * also requires that symbol lock really dropped in at least two of the
+ * cuts, or the clock would never have counted and the claim would be
+ * vacuous. Sabotage: drop the restart -> red. */
+static int
+_test_reacquire_clock_restarts_on_lock (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs        = 1.0e6 * (double)spc;
+  const double sym_rate  = 35714.29;
+  const double tsym      = fs / sym_rate;
+  const size_t te        = sf * spc;
+  const size_t n_sym     = 11000;
+  const size_t pre       = te * 5 + 3;
+  const double cn0       = 70.0;
+  const double confirm_s = 0.03;
+  const size_t head      = (size_t)(0.05 * fs); /* lock first */
+  const size_t off_n     = (size_t)(0.02 * fs);
+  const size_t on_n      = (size_t)(0.04 * fs);
+  const int    cuts      = 4;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre, 7, &x, &n,
+                   &data);
+  const size_t span = head + (size_t)cuts * (off_n + on_n);
+  DP_CHECK (n >= span);
+  float _Complex *noise = _noise_tail (off_n, fs, cn0, 31);
+  /* The emitter off in each cut: noise alone over the capture's time, so
+     the signal resumes where it would have been. */
+  for (int c = 0; c < cuts; c++)
+    {
+      size_t at = head + (size_t)c * (off_n + on_n);
+      memcpy (x + at, noise, off_n * sizeof *x);
+    }
+
+  dp_async_dsss_receiver_state_t *rx
+      = _searching_rx (cn0, sym_rate, confirm_s, true);
+  DP_CHECK (rx != NULL);
+  if (!rx)
+    {
+      free (noise);
+      free (x);
+      free (data);
+      return 1;
+    }
+  float _Complex *junk       = malloc (te * 8 * sizeof *junk);
+  int             dropped[4] = { 0, 0, 0, 0 }, searched = 0, locked_head = 0;
+  for (size_t pos = 0; pos < span; pos += te)
+    {
+      size_t k = span - pos < te ? span - pos : te;
+      (void)dp_async_dsss_receiver_steps (rx, x + pos, k, junk, te * 8);
+      if (pos + k <= head)
+        locked_head = dp_async_dsss_receiver_get_locked (rx);
+      else if (dp_async_dsss_receiver_status (rx).state
+               == ASYNC_DSSS_RX_SEARCHING)
+        searched = 1;
+      else if (!dp_async_dsss_receiver_get_locked (rx))
+        {
+          size_t c = (pos - head) / (off_n + on_n);
+          if (c < 4)
+            dropped[c] = 1;
+        }
+    }
+  free (junk);
+  DP_CHECK (locked_head == 1);
+  DP_CHECK (dropped[0] + dropped[1] + dropped[2] + dropped[3] >= 2);
+  DP_CHECK (searched == 0); /* never released: the clock restarted */
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+  dp_async_dsss_receiver_destroy (rx);
+  free (noise);
   free (x);
   free (data);
   return 0;
@@ -3197,6 +3340,7 @@ main (void)
   (void)_test_lost_after_switch_off ();
   (void)_test_reacquire_after_switch_off ();
   (void)_test_reacquire_is_symbol_lock_alone ();
+  (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
   (void)_test_seeded_blob_keyed_by_flavor ();

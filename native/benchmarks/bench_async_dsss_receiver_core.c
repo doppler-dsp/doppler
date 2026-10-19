@@ -33,6 +33,17 @@
  * the receiver searched for every sample fed -- a false alarm's refine, even
  * one refused back to search, would be timed as the search.
  *
+ * And the searching flavor's TRACKING, the mode a receiver spends most of
+ * its time in while signals are present: the same SPEC configuration,
+ * seeded at chip 0 on the SPEC capture at its design Es/N0 (10 dB, the
+ * shipped awgn), run through its refine and
+ * pull-in until it tracks with code AND symbol lock, then timed. This is
+ * the full closed-loop chain the cell rows do not have: the Dll's own code
+ * loop closed every period, beside the carrier loop, the resampler and the
+ * MpskReceiver's carrier and timing loops and matched filter. It records
+ * only if the receiver stayed in tracking for every timed sample with both
+ * locks up at either end.
+ *
  * Not timed here: refinement, a one-time transient rather than a rate.
  */
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
@@ -305,6 +316,131 @@ run_searching (jm_bench_t *bench, const uint8_t *code)
   return 0;
 }
 
+/* Tracking with both locks, or a message naming what was lost. */
+static int
+tracking (const dp_async_dsss_receiver_state_t *rx, const char *when)
+{
+  async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
+  int cl = dp_async_dsss_receiver_get_code_locked (rx);
+  int sl = dp_async_dsss_receiver_get_locked (rx);
+  if (st.state == ASYNC_DSSS_RX_TRACKING && cl == 1 && sl == 1)
+    return 1;
+  (void)fprintf (stderr,
+                 "bench_async_dsss_receiver[track]: %s, state=%d "
+                 "code_locked=%d locked=%d -- a timing would measure a "
+                 "receiver that is not tracking with both locks\n",
+                 when, st.state, cl, sl);
+  return 0;
+}
+
+/* The searching flavor's closed-loop tracking at the SPEC point: the SPEC
+   configuration run_searching() times (and make_rx() in
+   native/validation/async_dsss_receiver_lock.c measures), seeded at chip 0
+   on the SPEC capture, fed until it tracks with both locks -- through the
+   refine and the pull-in, bounded at MAX_LOCK_S -- then TRACK_SETTLE blocks
+   more, then timed. Recorded only if it was tracking for every timed sample
+   (state_samples grew by exactly the samples timed: no release, no
+   re-entry) with both locks up after. */
+#define MAX_LOCK_S 4.0
+#define TRACK_SETTLE 2u
+static int
+run_tracking (jm_bench_t *bench, const uint8_t *code)
+{
+  const wf_t w = { "sf=1023,3.069Mcps", code, 1023, 2, 3.069e6, 2700.0, 154 };
+  const double     fs   = w.chip_rate * (double)w.spc;
+  const double     span = fs / (double)(w.sf * w.spc); /* 1/T_E */
+  const double     cn0  = 10.0 + 10.0 * log10 (w.sym_rate);
+  const size_t     maxb = (size_t)(MAX_LOCK_S * fs) / BLOCK + 1;
+  const size_t     n    = (maxb + TRACK_SETTLE + ITERATIONS) * (size_t)BLOCK;
+  float _Complex  *x    = build_capture (&w, n);
+  float _Complex  *nz   = malloc (n * sizeof *nz);
+  dp_awgn_state_t *g    = dp_awgn_create (
+      7919u,
+      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (fs)), 1.0f));
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      code, w.sf, w.chip_rate, w.sym_rate, w.spc, 2, cn0, 1e-3, 0.9, span, 4,
+      8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false);
+  float _Complex *out = malloc ((size_t)BLOCK * sizeof *out);
+  if (!x || !nz || !g || !rx || !out
+      || dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) != DP_OK)
+    {
+      (void)fprintf (stderr, "bench_async_dsss_receiver[track]: the "
+                             "receiver did not open or seed\n");
+      return 1;
+    }
+  /* At the design Es/N0 (10 dB), the shipped awgn, as the certification
+     measures it: the searching flavor's code-lock detector is sized for its
+     design C/N0 and does not declare on a noiseless capture. */
+  (void)dp_awgn_generate (g, n, nz, n);
+  for (size_t k = 0; k < n; k++)
+    x[k] += nz[k];
+  free (nz);
+  dp_awgn_destroy (g);
+
+  volatile size_t sink = 0;
+  size_t          pos = 0, b = 0;
+  for (; b < maxb; b++, pos += BLOCK)
+    {
+      sink += dp_async_dsss_receiver_steps (rx, x + pos, BLOCK, out, BLOCK);
+      if (dp_async_dsss_receiver_get_tracking (rx)
+          && dp_async_dsss_receiver_get_code_locked (rx)
+          && dp_async_dsss_receiver_get_locked (rx))
+        {
+          pos += BLOCK; /* the block just fed: break skips the increment */
+          break;
+        }
+    }
+  if (b == maxb)
+    {
+      (void)fprintf (stderr,
+                     "bench_async_dsss_receiver[track]: no lock within "
+                     "MAX_LOCK_S (%.0f s) -- both code and symbol lock are "
+                     "needed before timing\n",
+                     MAX_LOCK_S);
+      return 1;
+    }
+  for (size_t k = 0; k < TRACK_SETTLE; k++, pos += BLOCK)
+    sink += dp_async_dsss_receiver_steps (rx, x + pos, BLOCK, out, BLOCK);
+  if (!tracking (rx, "after the lead-in"))
+    return 1;
+  const uint64_t s0 = dp_async_dsss_receiver_status (rx).state_samples;
+
+  double times[ITERATIONS];
+  for (int r = 0; r < ITERATIONS; r++, pos += BLOCK)
+    {
+      uint64_t t0 = jm_bench_now_ns ();
+      sink += dp_async_dsss_receiver_steps (rx, x + pos, BLOCK, out, BLOCK);
+      uint64_t t1 = jm_bench_now_ns ();
+      times[r]    = jm_bench_elapsed_sec (t0, t1);
+    }
+  if (!tracking (rx, "after the timed rounds"))
+    return 1;
+  const uint64_t s1 = dp_async_dsss_receiver_status (rx).state_samples;
+  if (s1 - s0 != (uint64_t)ITERATIONS * BLOCK)
+    {
+      (void)fprintf (stderr,
+                     "bench_async_dsss_receiver[track]: tracking for %llu of "
+                     "the %llu samples timed -- it left tracking in between\n",
+                     (unsigned long long)(s1 - s0),
+                     (unsigned long long)ITERATIONS * BLOCK);
+      return 1;
+    }
+
+  const char *name = "steps[track,sf=1023,3.069Mcps]";
+  jm_bench_add_unit (bench, name, times, ITERATIONS, BLOCK, JM_BENCH_SAMPLE);
+  double sec = min_sec (times, ITERATIONS);
+  printf ("  %-32s %8.3f ms/block  %7.2f ns/sample  %6.2fx real time on "
+          "one core\n",
+          name, sec * 1e3, sec / (double)BLOCK * 1e9,
+          (double)BLOCK / sec / fs);
+
+  (void)sink;
+  dp_async_dsss_receiver_destroy (rx);
+  free (x);
+  free (out);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -324,14 +460,16 @@ main (void)
     { "sf=1023,5Mcps", code1023, 1023, 2, 5.0e6, 2700.0, 154 },
     { "sf=1023,3.069Mcps", code1023, 1023, 2, 3.069e6, 2700.0, 154 },
   };
-  printf ("=== async_dsss_receiver benchmark: the held cell, and the "
-          "search ===\n");
+  printf ("=== async_dsss_receiver benchmark: the held cell, the tracking "
+          "receiver and the search ===\n");
   printf ("block = %d samples, %d rounds after a lead-in past the "
           "pull-in\n\n",
           BLOCK, ITERATIONS);
   for (size_t i = 0; i < sizeof waveforms / sizeof waveforms[0]; i++)
     if (run_waveform (&_bench, &waveforms[i]) != 0)
       return 1;
+  if (run_tracking (&_bench, code1023) != 0)
+    return 1;
   if (run_searching (&_bench, code1023) != 0)
     return 1;
 

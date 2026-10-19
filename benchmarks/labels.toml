@@ -825,6 +825,12 @@ unit = "sample"
 definition = "The cell receiver tracking a 1,023-chip code at 3.069 Mcps and 2 samples per chip with 2,700 sym/s asynchronous BPSK data, code-locked before and after: 65,536 samples per round; throughput counts input samples."
 samples = 1
 
+["c:async_dsss_receiver::steps[track,sf=1023,3.069Mcps]"]
+name = "Async DSSS receiver, tracking, at the SPEC point"
+unit = "sample"
+definition = "The searching receiver in the SPEC configuration the certification measures, seeded on a 1,023-chip code at 3.069 Mcps and 2 samples per chip with 2,700 sym/s asynchronous BPSK data at its design Es/N0 of 10 dB, run through its refine and pull-in: the full closed-loop chain (code loop closed every period, carrier loop, resampler, MpskReceiver carrier and timing loops), tracking with code and symbol lock before and after and for every timed sample: 65,536 samples per round; throughput counts input samples."
+samples = 1
+
 ["c:async_dsss_receiver::steps[search,sf=1023,3.069Mcps]"]
 name = "Async DSSS receiver, searching, at the SPEC point"
 unit = "sample"

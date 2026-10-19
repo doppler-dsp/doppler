@@ -120,12 +120,17 @@ extern "C"
  * serialized blob's extra record). Searching -> refining -> tracking is the
  * searching flavor's path; cell mode starts at idle and seed() puts it
  * at refining; lost is reached from tracking by the release rule and left
- * only by reset(). */
-#define ASYNC_DSSS_RX_SEARCHING 0
-#define ASYNC_DSSS_RX_REFINING 1
-#define ASYNC_DSSS_RX_TRACKING 2
-#define ASYNC_DSSS_RX_IDLE 3
-#define ASYNC_DSSS_RX_LOST 4
+ * only by reset(). With reacquire the release skips lost and goes straight
+ * back to searching. */
+/* SSOT: enum=async_dsss_rx_state */
+typedef enum
+{
+  ASYNC_DSSS_RX_SEARCHING = 0, 
+  ASYNC_DSSS_RX_REFINING  = 1, 
+  ASYNC_DSSS_RX_TRACKING  = 2, 
+  ASYNC_DSSS_RX_IDLE      = 3, 
+  ASYNC_DSSS_RX_LOST      = 4, 
+} async_dsss_rx_state_t;
 
   typedef struct
   {
@@ -139,6 +144,7 @@ extern "C"
     dp_carrier_acq_state_t   *ca;
     size_t refine_segments; 
     uint64_t refine_samples_fed; 
+    uint64_t refine_periods;     
     /* Scratch, not state -- sized once per refine-chain (re)build (no
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled
@@ -207,6 +213,7 @@ extern "C"
     int state; 
     double   lost_confirm_s;       
     uint64_t lost_confirm_samples; 
+    bool     reacquire;            
     uint64_t state_samples;        
     uint64_t refused_hits;         
     uint64_t both_down_samples;    
@@ -263,7 +270,7 @@ extern "C"
       size_t refine_samples_per_symbol, double refine_design_margin_db,
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
-      double lost_confirm_s);
+      double lost_confirm_s, bool reacquire);
 
   dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create_cell (
       const uint8_t *code, size_t code_len, double chip_rate,
@@ -409,10 +416,11 @@ extern "C"
     uint64_t period_count;
     uint64_t intervals;
     uint64_t refused_hits; 
+    uint64_t refine_min_blocks; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 8u /* v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 9u /* v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

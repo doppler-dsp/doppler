@@ -183,7 +183,7 @@ make_rx (const uint8_t *code, double cn0_dbhz)
 {
   return dp_async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-3, 0.9, SPAN, 4, 8,
-      0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0);
+      0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false);
 }
 
 /* The noise: the shipped awgn, its amplitude the library's answer for a

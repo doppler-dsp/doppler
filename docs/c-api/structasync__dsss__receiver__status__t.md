@@ -114,7 +114,7 @@ uint64_t async_dsss_receiver_status_t::both_down_samples;
 
 
 
-Input samples both flags have been down without a break (the release clock); in lost it keeps counting  samples since the flags dropped. 
+Input samples both flags have been down without a break (the release clock); in lost it keeps counting  samples since the flags dropped. With reacquire, the symbol lock flag's clock alone. 
  
 
 

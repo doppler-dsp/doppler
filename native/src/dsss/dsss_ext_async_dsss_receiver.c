@@ -68,6 +68,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                                              "refine_max_n_blocks",
                                              "carrier_freq_hz",
                                              "lost_confirm_s",
+                                             "reacquire",
                                              NULL };
   PyObject          *code_obj            = NULL;
   double             chip_rate           = 1000000.0;
@@ -97,15 +98,16 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   unsigned long long refine_max_n_blocks_raw       = 100000;
   double             carrier_freq_hz               = 0.0;
   double             lost_confirm_s                = 0.0;
+  int                reacquire_raw                 = false;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|ddOiddddOOidOdOOpOdd", kwlist, &code_obj, &chip_rate,
+          args, kwds, "O|ddOiddddOOidOdOOpOddp", kwlist, &code_obj, &chip_rate,
           &symbol_rate, &spc_obj, &m, &cn0_dbhz, &pfa, &pd,
           &doppler_uncertainty, &segments_obj, &sps_obj, &differential,
           &refine_max_error_db, &refine_samples_per_symbol_obj,
           &refine_design_margin_db, &refine_n_fft_obj, &refine_zero_pad_obj,
           &refine_sequential_raw, &refine_max_n_blocks_obj, &carrier_freq_hz,
-          &lost_confirm_s))
+          &lost_confirm_s, &reacquire_raw))
     return -1;
   if (spc_obj != NULL)
     {
@@ -254,6 +256,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
       Py_DECREF (_ix);
     }
   size_t         refine_max_n_blocks = (size_t)refine_max_n_blocks_raw;
+  bool           reacquire           = (int)reacquire_raw;
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
@@ -266,7 +269,8 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
       symbol_rate, spc, m, cn0_dbhz, pfa, pd, doppler_uncertainty, segments,
       sps, differential, refine_max_error_db, refine_samples_per_symbol,
       refine_design_margin_db, refine_n_fft, refine_zero_pad,
-      refine_sequential, refine_max_n_blocks, carrier_freq_hz, lost_confirm_s);
+      refine_sequential, refine_max_n_blocks, carrier_freq_hz, lost_confirm_s,
+      reacquire);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -276,7 +280,8 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                        "symbol_rate > 0 and <= chip_rate, spc >= 1, m in "
                        "{2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 "
                        "or finite and above chip_rate * spc / 2, "
-                       "lost_confirm_s >= 0, refine_samples_per_symbol >= 1, "
+                       "lost_confirm_s >= 0 (and at least one input sample "
+                       "with reacquire), refine_samples_per_symbol >= 1, "
                        "refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of "
                        "at most 2^20 Dll partials, segments * chip_rate / "
                        "(code_len * symbol_rate) <= 1048576; and for the "
@@ -285,6 +290,23 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
       return -1;
     }
   return 0;
+}
+
+/* String-enum tables — order is the C int (the [[enum]] SSOT). */
+static const char *const _enum_AsyncDsssReceiver_async_dsss_rx_state[] = {
+  "searching", "refining", "tracking", "idle", "lost", NULL,
+};
+static const int _enum_AsyncDsssReceiver_async_dsss_rx_state_c[] = {
+  ASYNC_DSSS_RX_SEARCHING, ASYNC_DSSS_RX_REFINING, ASYNC_DSSS_RX_TRACKING,
+  ASYNC_DSSS_RX_IDLE,      ASYNC_DSSS_RX_LOST,
+};
+static inline const char *
+_enum_AsyncDsssReceiver_async_dsss_rx_state_name (long v)
+{
+  for (int j = 0; j < 5; j++)
+    if (_enum_AsyncDsssReceiver_async_dsss_rx_state_c[j] == v)
+      return _enum_AsyncDsssReceiver_async_dsss_rx_state[j];
+  return NULL;
 }
 
 static PyObject *
@@ -509,7 +531,8 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
   { "state_samples", "Input samples since `state` was entered." },
   { "both_down_samples",
     "Input samples both flags have been down without a break (the release "
-    "clock); in lost it keeps counting -- samples since the flags dropped." },
+    "clock); in lost it keeps counting -- samples since the flags dropped. "
+    "With reacquire, the symbol lock flag's clock alone." },
   { "refused_hits",
     "Searching hits refused as seeds by the seed domain (a Doppler at or past "
     "fs/2), since create or reset. The search went on over each one's tail." },
@@ -955,6 +978,28 @@ AsyncDsssReceiver_getprop_refine_min_blocks (AsyncDsssReceiverObject *self,
       (unsigned long long)self->handle->refine_min_blocks);
 }
 static PyObject *
+AsyncDsssReceiver_getprop_lifecycle (AsyncDsssReceiverObject *self,
+                                     void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  long        _v = (long)(self->handle->state);
+  const char *_s = _enum_AsyncDsssReceiver_async_dsss_rx_state_name (_v);
+  if (!_s)
+    {
+      PyErr_Format (
+          PyExc_ValueError,
+          "lifecycle holds async_dsss_rx_state value %ld, which is none of"
+          " its choices",
+          _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_s);
+}
+static PyObject *
 AsyncDsssReceiver_getprop_tracking (AsyncDsssReceiverObject *self,
                                     void *Py_UNUSED (closure))
 {
@@ -1214,6 +1259,13 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "(#1265). Set with set_refine_min_blocks(), which carries the "
     "measurement.\n",
     NULL },
+  { "lifecycle", (getter)AsyncDsssReceiver_getprop_lifecycle, NULL,
+    "Where the receiver is in its lifecycle, by name: `\"searching\"`, "
+    "`\"refining\"`, `\"tracking\"`, `\"idle\"` (cell mode, waiting for a "
+    "seed) or `\"lost\"` (released, waiting for `reset()`). The same state as "
+    "`status().state`, which carries it as the C integer. With `reacquire` a "
+    "release goes back to `\"searching\"` and never reads `\"lost\"`.\n",
+    NULL },
   { "tracking", (getter)AsyncDsssReceiver_getprop_tracking, NULL,
     "1 once the live tracking chain is built and demodulating; 0 in every "
     "other state.\n",
@@ -1384,11 +1436,16 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "frames of any length with no seam. Idle (cell mode, before a seed) and\n"
     "lost (after the release rule fires) consume the samples and emit\n"
     "nothing, so the feeding loop is the same in every state; while\n"
-    "tracking, the release clock runs on the two lock flags after every call\n"
-    "(see `lost_confirm_s`). Under SPEC's coupled offset + 500 Hz/s Doppler\n"
-    "ramp the pre-despread Costas removes the full carrier dynamics before\n"
-    "the code loop, so the recovered constellation lands cleanly on the BPSK\n"
-    "real axis.\n"
+    "tracking, the release clock runs on the two lock flags after every\n"
+    "call, or on the symbol lock flag alone with `reacquire` (see\n"
+    "`lost_confirm_s`). Tracking emits symbols whether or not they are data:\n"
+    "a noise false alarm can reach tracking and emit until the release rule\n"
+    "lets it go -- or, at the default lost_confirm_s of 0, until reset() --\n"
+    "and symbol lock (`locked`) is what says the symbols are a signal's, so\n"
+    "read it rather than the count (#2439). Under SPEC's coupled offset +\n"
+    "500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier\n"
+    "dynamics before the code loop, so the recovered constellation lands\n"
+    "cleanly on the BPSK real axis.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -2052,6 +2109,25 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    emitter that leaves. Default 0.0 = never -- the searching flavor's "
     "exit\n"
     "    is then reset().\n"
+    "reacquire : bool, default False\n"
+    "    Release on symbol lock alone, and search again by itself. With it "
+    "set,\n"
+    "    the release clock counts samples of tracking with the SYMBOL lock "
+    "flag\n"
+    "    down (code lock is not consulted), and when it passes "
+    "lost_confirm_s\n"
+    "    the receiver resets itself to searching instead of entering lost: "
+    "it\n"
+    "    never waits for reset(). A pool of receivers that are always online\n"
+    "    uses it. The clock runs from the first tracking sample, as above, so "
+    "a\n"
+    "    track that never locks (a noise false alarm) is released too; size\n"
+    "    lost_confirm_s past the pull-in time to symbol lock, or a slow lock "
+    "is\n"
+    "    released before it comes. Requires a lost_confirm_s of at least one\n"
+    "    input sample, since a release that never fires would never search\n"
+    "    again; a blob in the lost state is refused by set_state(). Default\n"
+    "    false: the release rule above.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -2063,14 +2139,16 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in "
     "{2,4,8},\n"
     "    segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above\n"
-    "    chip_rate * spc / 2, lost_confirm_s >= 0, refine_samples_per_symbol "
-    ">=\n"
-    "    1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most "
-    "2^20\n"
-    "    Dll partials, segments * chip_rate / (code_len * symbol_rate) <=\n"
-    "    1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd "
-    "<\n"
-    "    1, a finite doppler_uncertainty >= 0)``.\n"
+    "    chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input "
+    "sample\n"
+    "    with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1,\n"
+    "    refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, "
+    "segments *\n"
+    "    chip_rate / (code_len * symbol_rate) <= 1048576; and for the "
+    "searcher a\n"
+    "    finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite "
+    "doppler_uncertainty\n"
+    "    >= 0)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

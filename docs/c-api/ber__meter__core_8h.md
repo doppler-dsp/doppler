@@ -199,6 +199,9 @@ The free-function form, needing only the truth sequence — BerMeter.align() is 
 The peak's phase is the ABSOLUTE constellation rotation, so there is no residual M-fold ambiguity left to search: the marker resolves it. That is what removes the `min over rotation` bias from an error count. The processing gain is `sqrt(2*K*L)`, so a marker too short to identify an alignment simply cannot clear the threshold and reports `ok = 0` — the intended behaviour, and the opposite of returning a plausible wrong lag.
 
 
+The threshold is set on the statistic's null, which depends on `m`. For m &gt;= 3 a marker against unrelated symbols is circular, and the null is `marcum_q(K, 0, R)`. At m = 2 both are +/-1 on one axis, the null is rank-one  chi-square with K degrees of freedom on R^2/2, heavier-tailed at the same mean  and the threshold is set on that, exactly for one occurrence or an even count and conservatively for an odd count above one. Set as circular, a BPSK search false-alarmed about a thousand times its stated Pfa (doppler#2496).
+
+
 
 
 **Parameters:**

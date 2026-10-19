@@ -30,7 +30,12 @@
  *      reference), so nothing needs to know the Es/N0 — detection holds
  *      across a range of them;
  *   7. marker symbols are excluded from scoring and land in `skipped`, so
- *      the symbols that fixed the alignment cannot also flatter the rate.
+ *      the symbols that fixed the alignment cannot also flatter the rate;
+ *   8. the false-alarm rate on unrelated truth holds the stated Pfa at
+ *      m = 2 as at m = 4 -- measured as a RATE, since one refusal at 1e-6
+ *      (claim 5) cannot see a threshold that is a thousand times too low.
+ *      At m = 2 the null is rank-one (doppler#2496), and BPSK still finds a
+ *      planted alignment at low Es/N0 under the higher threshold.
  */
 #include "doppler/ber_meter/ber_meter_core.h"
 
@@ -73,6 +78,46 @@ build (int lag, double phase, double sigma)
           = (sigma > 0.0) ? (float _Complex) (sigma * dp_cgauss (&st)) : 0.0f;
       rx[i] = (float _Complex) (cos (ph) + sin (ph) * I) + n;
     }
+}
+
+/* Claim 8's stream: m-PSK carrying `sent`, rotated by `phase`, at the given
+   per-component noise sigma, into `out` (n symbols, no lag). */
+#define FA_NSYM 1600
+static void
+build_m (int m, const uint8_t *sent, double phase, double sigma,
+         float _Complex *out)
+{
+  for (size_t i = 0; i < FA_NSYM; i++)
+    {
+      double ph = 2.0 * M_PI * sent[i] / m + phase;
+      out[i]    = (float _Complex) (cos (ph) + sin (ph) * I)
+                  + (float _Complex) (sigma * dp_cgauss (&st));
+    }
+}
+
+/* Claim 8: of `trials` alignments against truth unrelated to the stream,
+   how many does the gate accept, at whole-search Pfa `pfa`? */
+static int
+false_alarms (int m, int trials, double pfa)
+{
+  static uint8_t sent[FA_NSYM], other[FA_NSYM];
+  static float _Complex y[FA_NSYM];
+  int n = 0;
+  for (int t = 0; t < trials; t++)
+    {
+      for (size_t i = 0; i < FA_NSYM; i++)
+        {
+          sent[i]  = (uint8_t)(dp_uni (&st) * m);
+          other[i] = (uint8_t)(dp_uni (&st) * m);
+        }
+      /* Little noise: the data term dominates, which at m = 2 is the
+         rank-one null in its purest form, the case #2496 measured. */
+      build_m (m, sent, 0.9, 0.05, y);
+      n += dp_ber_align_detect (y, FA_NSYM, other, FA_NSYM, m, 1000, 256, 0,
+                                100, pfa)
+               .ok;
+    }
+  return n;
 }
 
 int
@@ -200,6 +245,44 @@ main (void)
     snprintf (msg, sizeof msg, "clean stream scored %zu errors",
               dp_ber_meter_get_errors (obj));
     DP_REQUIRE_MSG (dp_ber_meter_get_errors (obj) == 0, msg);
+  }
+
+  /* ── 8. the false-alarm RATE holds at m = 2 as at m = 4 ─────────────────
+     At a whole-search Pfa of 1e-3, at most `expect` false alarms are due
+     (fewer, in practice: a false peak must also clear the 3 dB runner-up
+     gate), and the bound sits 4.5 sd of a Poisson count above that. The
+     circular threshold at m = 2 accepted about 0.9% at any Pfa from 1e-2
+     to 1e-4 (#2496) -- about 28 of these 3000. A low count is allowed:
+     the rank-one threshold is conservative where noise is not small. */
+  {
+    const double pfa       = 1e-3;
+    const int    ms[2]     = { 2, 4 };
+    const int    trials[2] = { 3000, 1000 };
+    for (int k = 0; k < 2; k++)
+      {
+        const double expect = pfa * trials[k];
+        const double bound  = expect + 4.5 * sqrt (expect);
+        int          n      = false_alarms (ms[k], trials[k], pfa);
+        char         msg[160];
+        snprintf (msg, sizeof msg,
+                  "m=%d: %d false alignments in %d unrelated-truth trials "
+                  "(at most %.0f due at Pfa %g, bound %.1f)",
+                  ms[k], n, trials[k], expect, pfa, bound);
+        DP_REQUIRE_MSG (n <= bound, msg);
+      }
+    /* And the higher m = 2 threshold still finds a planted alignment at a
+       per-symbol Es/N0 of 1.4 dB, with margin. */
+    static uint8_t sent[FA_NSYM];
+    static float _Complex y[FA_NSYM];
+    for (size_t i = 0; i < FA_NSYM; i++)
+      sent[i] = (uint8_t)(dp_uni (&st) * 2);
+    build_m (2, sent, 0.9, 0.6, y);
+    ber_align_t a = dp_ber_align_detect (y, FA_NSYM, sent, FA_NSYM, 2, 1000,
+                                         256, 0, 200, 0.0);
+    char        msg[128];
+    snprintf (msg, sizeof msg, "BPSK at 1.4 dB: ok=%d lag=%d margin %.1f dB",
+              a.ok, a.lag, a.margin_db);
+    DP_REQUIRE_MSG (a.ok && a.lag == 0 && a.margin_db > 3.0, msg);
   }
 
   dp_ber_meter_reset (obj);

@@ -111,6 +111,41 @@ dp_ber_meter_set_truth (dp_ber_meter_state_t *s, const uint8_t *truth,
   return DP_OK;
 }
 
+/* The threshold on the normalised statistic R = sqrt(2 * sum_k |C_k|^2 /
+ * floor) that the null exceeds with probability `pfa_cell`, for K
+ * occurrences of an m-PSK marker.
+ *
+ * At a lag that is not the alignment, C_k is the marker against unrelated
+ * symbols, plus noise. For m >= 3 that product is itself a uniform m-PSK
+ * symbol -- circular -- so each |C_k|^2 is exponential and R^2 is
+ * chi-square with 2K degrees of freedom: marcum_q(K, 0, R), which
+ * dp_det_threshold_noncoherent() inverts.
+ *
+ * For m = 2 it is not. Marker and symbols are both +/-1 on one axis, so the
+ * product is real, turned only by the stream's carrier phase: the null is
+ * RANK-ONE, |C_k|^2 = floor * Z^2 with Z standard normal, and R^2 / 2 is
+ * chi-square with K degrees of freedom. Same mean, heavier tail: thresholded
+ * as circular, a 1e-6 search over 401 lags false-alarms about 3e-3 of the
+ * time (doppler#2496). Noise in quadrature makes the null partly circular,
+ * whose tail is lighter, so the rank-one threshold holds the stated Pfa at
+ * every Es/N0 and is exact where the data term dominates.
+ *
+ *   K = 1      P(Z^2 > x) = 2 Q(sqrt x)  ->  R = sqrt(2) * Q^-1(pfa / 2)
+ *   K even     chi2_K is marcum_q's order K/2  ->  sqrt(2) * that threshold
+ *   K odd > 1  chi2_(K+1) in its place: stochastically larger, so the false
+ *              alarm rate is at most the stated one -- conservative, since
+ *              an exact half-integer inverse is not a library primitive. */
+static double
+align_threshold (double pfa_cell, int m, size_t k)
+{
+  int ki = (k > (size_t)INT_MAX - 1) ? INT_MAX - 1 : (int)k;
+  if (m != 2)
+    return dp_det_threshold_noncoherent (pfa_cell, ki);
+  if (ki == 1)
+    return sqrt (2.0) * dp_det_q_inv (0.5 * pfa_cell);
+  return sqrt (2.0) * dp_det_threshold_noncoherent (pfa_cell, (ki + 1) / 2);
+}
+
 /* 1 when truth index t is covered by a marker occurrence. Marker symbols are
  * KNOWN, so scoring them would flatter the rate with symbols that had no
  * chance of being wrong — and, in the blind case, with the very symbols that
@@ -238,15 +273,14 @@ dp_ber_align_detect (const float _Complex *rx, size_t rx_len,
     {
       double floor_pk = sum / (double)cnt;
       size_t K        = occ[best] ? occ[best] : 1;
-      int    ki       = (K > (size_t)INT_MAX) ? INT_MAX : (int)K;
       if (floor_pk <= 0.0)
         return a;
       /* Normalize to the unit-variance-per-quadrature convention the detection
-         module's thresholds use: R^2 = sum_k |C_k|^2 / (sigma^2/2), whose null
-         distribution is exactly marcum_q(K, 0, R). */
+         module's thresholds use: R^2 = sum_k |C_k|^2 / (sigma^2/2). Its null
+         is marcum_q(K, 0, R) for a circular product and chi-square with K
+         degrees of freedom on R^2/2 at m = 2: align_threshold(). */
       a.stat      = sqrt (2.0 * stat[best] / floor_pk);
-      a.threshold = dp_det_threshold_noncoherent (
-          dp_det_pfa_cell (pfa, (double)nl), ki);
+      a.threshold = align_threshold (dp_det_pfa_cell (pfa, (double)nl), m, K);
       a.runner_db
           = (runner > 0.0) ? 10.0 * log10 (stat[best] / runner) : INFINITY;
       a.occurrences = K;

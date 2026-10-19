@@ -562,6 +562,18 @@ ______________________________________________________________________
     misses none of 120 — a decisive answer, and exactly the pair
     `RX_FRAME_BURST` vs `RX_FRAME_CONT` exists to produce.
 
+    *Note, 2026-10-19 (doppler#2496).* That miss rate was measured at a
+    per-frame false-alarm rate the confirmation did not state. It asked for
+    `DP_BER_SYNC_PFA` (1e-6), and at BPSK the alignment gate thresholded as
+    if the null were circular. BPSK's null is rank-one, so the gate actually
+    ran a frame at about 9e-4. Thresholded on the true null at 1e-6, the
+    Barker-13 word confirms no frame here. The confirmation now asks for
+    `DP_RX_SYNC_PFA` (1e-3, `native/tests/dp_rx_test.h`), the rate it had
+    been running at, stated. There the Barker-13 word misses **0.836**
+    (0.746 - 0.932) of the same 640 frames, PN-127 still none. The finding
+    stands: a short sync word is an acquisition aid, not a per-frame
+    confirmation.
+
     **But the same Barker-13 acquires the RECORD without difficulty**, because
     there it is a *periodic* marker: `dp_ber_sync()` combines ~130 occurrences
     non-coherently, and the record alignment detects at 5 of 7 bursts. The
@@ -1210,6 +1222,14 @@ stopping on error counts at both levels:
 | `RX_FRAME_CONT`  | 1.19e-03 | -7.31 dB | 6.68 dB | 0.706       | 0         | 0.15  |
 | `RX_FRAME_GOLD`  | 1.15e-03 | -7.33 dB | 6.69 dB | 0.773       | 0         | 0.12  |
 | `RX_FRAME_ACQ`   | —        | —        | —       | **refused** | —         | —     |
+
+*Note, 2026-10-19 (doppler#2496).* The `RX_FRAME_BURST` sync miss above was
+measured at an unstated per-frame false-alarm rate, about 9e-4 at BPSK (§6's
+note). The per-frame confirmation now asks for `DP_RX_SYNC_PFA`, 1e-3. At the
+#2496 fix, on the same frames, `RX_FRAME_BURST` reads FER 0.864 with sync miss
+0.836, against 0.870 and 0.845 from the same harness just before it. Nothing
+else in that harness's output moved: the other frames and every record
+alignment printed byte-identically before and after.
 
 Five things worth reading off it.
 

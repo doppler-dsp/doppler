@@ -1838,6 +1838,62 @@ _test_configure_chain_raw_keeps_the_carrier (void)
   return 0;
 }
 
+/* doppler#2395: the call in which the refine decides stops folding code
+ * periods into the refine at the decision. The rest of that call is the
+ * tracking chain's (steps() hands it the tail), so folding it into the
+ * refine as well paid for those samples twice. One capture, two receivers:
+ * one fed a code period a call, one fed the whole capture in a single
+ * call. Each refine processes the same number of periods (within one, the
+ * carry's alignment); before the fix the single call folded every period
+ * it held. Both decode. Sabotage: drop the loop's decided test -> red. */
+static int
+_test_refine_stops_at_its_decision (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs       = 1.0e6 * (double)spc;
+  const double sym_rate = 35714.29;
+  const double tsym     = fs / sym_rate;
+  const size_t te       = sf * spc;
+  const size_t n_sym    = 400;
+  const size_t pre      = te * 5 + 3;
+  const double cn0      = 70.0;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre, 7, &x, &n,
+                   &data);
+  dp_async_dsss_receiver_state_t *chunked
+      = _searching_rx (cn0, sym_rate, 0.0, false);
+  dp_async_dsss_receiver_state_t *whole
+      = _searching_rx (cn0, sym_rate, 0.0, false);
+  DP_CHECK (chunked != NULL && whole != NULL);
+  if (chunked && whole)
+    {
+      float _Complex *s1, *s2;
+      size_t          n1 = _stream (chunked, x, n, te, &s1);
+      size_t          n2 = _stream (whole, x, n, n, &s2);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (chunked) == 1);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (whole) == 1);
+      uint64_t pc = chunked->refine_periods, pw = whole->refine_periods;
+      DP_CHECK (pc > 0);
+      DP_CHECK ((pc > pw ? pc - pw : pw - pc) <= 1);
+      /* Before the fix the single call folded the whole capture's worth. */
+      DP_CHECK (pw < (uint64_t)(n / te) / 2);
+      DP_CHECK (_best_ber (s1, n1, data, n_sym + 4) < 0.05);
+      DP_CHECK (_best_ber (s2, n2, data, n_sym + 4) < 0.05);
+      free (s1);
+      free (s2);
+    }
+  if (chunked)
+    dp_async_dsss_receiver_destroy (chunked);
+  if (whole)
+    dp_async_dsss_receiver_destroy (whole);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* One flag down is a degrade, not a release (section 11.2): with the code
  * detector pinned to a threshold no statistic reaches, code lock drops on a
  * healthy signal while symbol lock holds -- and the release clock, which
@@ -3421,6 +3477,7 @@ main (void)
   (void)_test_reacquire_is_symbol_lock_alone ();
   (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_configure_chain_raw_keeps_the_carrier ();
+  (void)_test_refine_stops_at_its_decision ();
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
   (void)_test_seeded_blob_keyed_by_flavor ();

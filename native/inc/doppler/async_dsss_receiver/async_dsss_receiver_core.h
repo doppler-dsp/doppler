@@ -261,6 +261,14 @@ typedef enum
                                        The clock dilation is taken over the
                                        consumed count, from the refine's
                                        blocks, not over this. */
+    uint64_t refine_periods;     /**< Diagnostic: code periods the refine
+                                      stage processed since its chain was
+                                      built. It stops at the period the
+                                      carrier estimate decides in, so it is
+                                      the same whatever the block size
+                                      (#2395). Not in the state blob: it
+                                      changes nothing, and a restore
+                                      restarts it. */
     /* Scratch, not state -- sized once per refine-chain (re)build (no
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled

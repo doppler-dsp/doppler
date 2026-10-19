@@ -3269,60 +3269,82 @@ _test_forged_seed_is_refused (void)
   return fails;
 }
 
-/* An honest refined Doppler near half the sample rate tracks at seed plus
- * residual (doppler#2103). The seed is 4.998 MHz (in range at fs = 10 MHz)
- * and the estimator's residual is 5 kHz (in range at its own 10.8 kHz rate),
- * so the sum is 5.003 MHz, past fs/2. The hand-off's guard is the abort's
- * precondition only (a finite value and an in-code phase), and the sum meets
- * it, so the hand-off tracks at the sum. The estimator is forced ready by the
- * blob, so the next steps() is the hand-off. Returns the number of failed
- * checks. */
+/* The hand-over holds the refined Doppler to the seed domain (#2461 #122).
+ * The estimator is forced ready by the blob, with a 5 kHz residual, so the
+ * next steps() is the hand-over. Two seeds, both in range at fs = 10 MHz:
+ * 4.990 MHz, whose refined 4.995 MHz is inside fs/2 and tracks at seed plus
+ * residual exactly; and 4.998 MHz, whose refined 5.003 MHz is past fs/2 --
+ * no Doppler this receiver can report -- so the hand-over is refused like a
+ * hit: not tracking, searching again, one refused hit counted. Sabotage:
+ * drop the hand-over's domain test -> the second row tracks at 5.003 MHz,
+ * red. Returns the number of failed checks. */
 static int
-_test_honest_edge_seed_tracks_seed_plus_residual (void)
+_test_handover_holds_the_refined_doppler_to_the_domain (void)
 {
   uint8_t  code[1023];
   uint32_t cst = 13;
   for (size_t i = 0; i < 1023; i++)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
-  dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
-      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
-  dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
-      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
-  DP_REQUIRE (src != NULL && dst != NULL);
-  const double seed_hz = 4.998e6, residual_hz = 5.0e3;
-  int          fails = 0;
-  DP_REQUIRE (dp_async_dsss_receiver_seed (src, 0.0, seed_hz, 45.0) == DP_OK);
-  const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
-  unsigned char *blob = malloc (cb);
-  dp_async_dsss_receiver_get_state (src, blob);
-  uint32_t magic = CARRIER_ACQ_STATE_MAGIC;
-  size_t   at    = cb;
-  for (size_t i = 0; i + sizeof magic <= cb && at == cb; i++)
-    if (memcmp (blob + i, &magic, sizeof magic) == 0)
-      at = i;
-  DP_CHECK (at < cb);
-  if (at < cb)
+  const double residual_hz = 5.0e3;
+  const double seeds[2]    = { 4.990e6, 4.998e6 }; /* inside, then past */
+  int          fails       = 0;
+  for (int k = 0; k < 2; k++)
     {
-      const size_t rec = at + sizeof (dp_state_hdr_t);
-      blob[rec + 32]   = 1; /* ready: the carrier_acq extra's ready byte */
-      memcpy (blob + rec + 40, &residual_hz, sizeof residual_hz);
-      DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_OK);
-      float _Complex x[1024] = { 0 }, out[1024];
-      (void)dp_async_dsss_receiver_steps (dst, x, 1024, out, 1024);
-      /* Seed plus residual: the honest refined value, tracked as it was. */
-      if (dp_async_dsss_receiver_get_doppler_hz (dst) != seed_hz + residual_hz)
+      dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
+          code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+      dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
+          code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+      DP_REQUIRE (src != NULL && dst != NULL);
+      DP_REQUIRE (dp_async_dsss_receiver_seed (src, 0.0, seeds[k], 45.0)
+                  == DP_OK);
+      const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
+      unsigned char *blob = malloc (cb);
+      dp_async_dsss_receiver_get_state (src, blob);
+      uint32_t magic = CARRIER_ACQ_STATE_MAGIC;
+      size_t   at    = cb;
+      for (size_t i = 0; i + sizeof magic <= cb && at == cb; i++)
+        if (memcmp (blob + i, &magic, sizeof magic) == 0)
+          at = i;
+      DP_CHECK (at < cb);
+      if (at < cb)
         {
-          DP_TEST_ERR ("  hand-off Doppler %g, not seed + residual %g\n",
-                       dp_async_dsss_receiver_get_doppler_hz (dst),
-                       seed_hz + residual_hz);
-          fails++;
+          const size_t rec = at + sizeof (dp_state_hdr_t);
+          blob[rec + 32]   = 1; /* ready: the carrier_acq extra's ready byte */
+          memcpy (blob + rec + 40, &residual_hz, sizeof residual_hz);
+          DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_OK);
+          const uint64_t refused0 = dst->refused_hits;
+          float _Complex x[1024]  = { 0 }, out[1024];
+          (void)dp_async_dsss_receiver_steps (dst, x, 1024, out, 1024);
+          if (k == 0)
+            {
+              /* Inside: tracks at seed plus residual, exactly. */
+              DP_CHECK (dp_async_dsss_receiver_get_tracking (dst) == 1);
+              if (dp_async_dsss_receiver_get_doppler_hz (dst)
+                  != seeds[k] + residual_hz)
+                {
+                  DP_TEST_ERR ("  hand-off Doppler %g, not seed + residual "
+                               "%g\n",
+                               dp_async_dsss_receiver_get_doppler_hz (dst),
+                               seeds[k] + residual_hz);
+                  fails++;
+                }
+              DP_CHECK (dst->refused_hits == refused0);
+            }
+          else
+            {
+              /* Past fs/2: refused, searching again, counted. */
+              DP_CHECK (dp_async_dsss_receiver_get_tracking (dst) == 0);
+              DP_CHECK (dp_async_dsss_receiver_status (dst).state
+                        == ASYNC_DSSS_RX_SEARCHING);
+              DP_CHECK (dst->refused_hits == refused0 + 1);
+            }
         }
+      free (blob);
+      dp_async_dsss_receiver_destroy (src);
+      dp_async_dsss_receiver_destroy (dst);
     }
-  free (blob);
-  dp_async_dsss_receiver_destroy (src);
-  dp_async_dsss_receiver_destroy (dst);
   return fails;
 }
 
@@ -3518,7 +3540,7 @@ main (void)
   DP_CHECK (_test_forged_cell_searching_refused () == 0);
   DP_CHECK (_test_seed_domain () == 0);
   DP_CHECK (_test_forged_residual_refused () == 0);
-  DP_CHECK (_test_honest_edge_seed_tracks_seed_plus_residual () == 0);
+  DP_CHECK (_test_handover_holds_the_refined_doppler_to_the_domain () == 0);
   DP_CHECK (_test_refused_hits_round_trips () == 0);
   DP_CHECK (_test_forged_seed_is_refused () == 0);
   (void)_test_acquire_and_decode ();

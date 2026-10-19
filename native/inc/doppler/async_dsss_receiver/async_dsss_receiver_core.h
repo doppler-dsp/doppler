@@ -956,8 +956,11 @@ typedef enum
    *
    * seed() refuses by this predicate, set_state() restores the seed fields
    * only inside it, the searching receiver's hit path does not seed from a
-   * hit it fails, and the pool counts such a hit as refused rather than as
-   * dropped for want of a slot. It reads only the receiver's fixed config
+   * hit it fails, and the hand-over holds the REFINED Doppler to it too: a
+   * seed in range whose residual carries it to or past fs/2 is refused at
+   * the hand-over, counted in refused_hits, and the receiver searches
+   * again rather than track a Doppler it cannot report. The pool counts
+   * such a hit as refused rather than as dropped for want of a slot. It reads only the receiver's fixed config
    * (code length, chip rate, spc), so any receiver built from the same
    * config gives the same answer.
    *
@@ -1119,13 +1122,14 @@ typedef enum
    * floor dwell of docs/design/async-dsss-receiver-measurements.md §12.10)
    * hold the estimate to 77 Hz. Applied to
    * the next refine chain built -- a receiver already refining keeps its
-   * dwell. Config, not running state: not in the blob. `n_blocks` of 0
-   * removes the floor; the value is clamped by `refine_max_n_blocks`
-   * where that cap is lower.
+   * dwell. A mutator's value, so it travels in the state blob (#2022).
+   * `n_blocks` of 0 removes the floor; the value is clamped by
+   * `refine_max_n_blocks` where that cap is lower.
    *
    * @param state     Must be non-NULL.
    * @param n_blocks  The floor, blocks.
-   * @return `DP_OK`.
+   * @return `DP_OK`; `DP_ERR_INVALID` on a cell receiver, which has no
+   *         refine to floor.
    * @code
    * >>> from doppler.dsss import AsyncDsssReceiver
    * >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
@@ -1190,9 +1194,10 @@ typedef enum
    * still bridged by a freshly-sized `RateConverter` and never coupled to
    * each other. While searching/refining it re-pins the grid used to build
    * the next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
-   * place, allocating every replacement before adopting it -- and re-seeds
-   * the rebuilt carrier loop from the demodulator's residual alone, which
-   * drops loop 1's Doppler (doppler#2414).
+   * place, allocating every replacement before adopting it, and re-seeds
+   * the rebuilt chain from the whole carrier -- loop 1 plus loop 2's
+   * integrator, the sum status() reports -- so a retune keeps the signal
+   * it was tracking.
    *
    * The new grid is checked as create() checked the first, before anything
    * is rebuilt, and refused with the receiver left on its prior grid: the

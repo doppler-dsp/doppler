@@ -2662,9 +2662,9 @@ class AsyncDsssReceiver:
         with the carrier never locked. Seven blocks (42 ms, the default and the
         floor dwell of docs/design/async-dsss-receiver-measurements.md §12.10)
         hold the estimate to 77 Hz. Applied to the next refine chain built -- a
-        receiver already refining keeps its dwell. Config, not running state:
-        not in the blob. `n_blocks` of 0 removes the floor; the value is
-        clamped by `refine_max_n_blocks` where that cap is lower.
+        receiver already refining keeps its dwell. A mutator's value, so it
+        travels in the state blob (#2022). `n_blocks` of 0 removes the floor;
+        the value is clamped by `refine_max_n_blocks` where that cap is lower.
 
         Parameters
         ----------
@@ -2752,9 +2752,10 @@ class AsyncDsssReceiver:
         bridged by a freshly-sized `RateConverter` and never coupled to each
         other. While searching/refining it re-pins the grid used to build the
         next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
-        place, allocating every replacement before adopting it -- and re-seeds
-        the rebuilt carrier loop from the demodulator's residual alone, which
-        drops loop 1's Doppler (doppler#2414).
+        place, allocating every replacement before adopting it, and re-seeds
+        the rebuilt chain from the whole carrier -- loop 1 plus loop 2's
+        integrator, the sum status() reports -- so a retune keeps the signal it
+        was tracking.
 
         The new grid is checked as create() checked the first, before anything
         is rebuilt, and refused with the receiver left on its prior grid: the
@@ -3541,9 +3542,10 @@ class CellAsyncDsssReceiver:
         bridged by a freshly-sized `RateConverter` and never coupled to each
         other. While searching/refining it re-pins the grid used to build the
         next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
-        place, allocating every replacement before adopting it -- and re-seeds
-        the rebuilt carrier loop from the demodulator's residual alone, which
-        drops loop 1's Doppler (doppler#2414).
+        place, allocating every replacement before adopting it, and re-seeds
+        the rebuilt chain from the whole carrier -- loop 1 plus loop 2's
+        integrator, the sum status() reports -- so a retune keeps the signal it
+        was tracking.
 
         The new grid is checked as create() checked the first, before anything
         is rebuilt, and refused with the receiver left on its prior grid: the

@@ -815,10 +815,14 @@ typedef enum
    * no seam. Idle (cell mode, before a seed) and lost (after the release rule
    * fires) consume the samples and emit nothing, so the feeding loop is the
    * same in every state; while tracking, the release clock runs on the two
-   * lock flags after every call (see `lost_confirm_s`). Under SPEC's coupled
-   * offset + 500 Hz/s Doppler ramp the pre-despread Costas removes the full
-   * carrier dynamics before the code loop, so the recovered constellation
-   * lands cleanly on the BPSK real axis.
+   * lock flags after every call, or on the symbol lock flag alone with
+   * `reacquire` (see `lost_confirm_s`). Tracking emits symbols whether or
+   * not they are data: a noise false alarm can reach tracking and emit
+   * until it is released, and symbol lock (`locked`) is what says the
+   * symbols are a signal's, so read it rather than the count (#2439).
+   * Under SPEC's coupled offset + 500 Hz/s Doppler ramp the pre-despread
+   * Costas removes the full carrier dynamics before the code loop, so the
+   * recovered constellation lands cleanly on the BPSK real axis.
    *
    * @param state    Must be non-NULL.
    * @param x        Input cf32 samples.

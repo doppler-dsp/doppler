@@ -2483,17 +2483,26 @@ class AsyncDsssReceiver:
         """
 
     def steps_max_out(self) -> int:
-        """Largest number of samples steps() can return in the current state.
+        """The output capacity steps() needs beyond the input's.
 
-        Size an `out=` buffer with this before calling steps(), or use it to
-        allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on steps_max_out()
-        replaces this text.
+        Returns 0, which is NOT a bound. A call that completes a code
+
+        period carried over from earlier calls emits all of that
+
+        period's symbols (code_len times symbol_rate over chip_rate of
+
+        them), even if it brings one sample. At more than one symbol per
+
+        period a call can therefore emit more symbols than its `x_len`,
+
+        and those past `max_out` are dropped (see
+
+        dp_async_dsss_receiver_steps()). A true bound is #2469.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            0.
         """
 
     def seed(
@@ -2662,9 +2671,9 @@ class AsyncDsssReceiver:
         with the carrier never locked. Seven blocks (42 ms, the default and the
         floor dwell of docs/design/async-dsss-receiver-measurements.md §12.10)
         hold the estimate to 77 Hz. Applied to the next refine chain built -- a
-        receiver already refining keeps its dwell. Config, not running state:
-        not in the blob. `n_blocks` of 0 removes the floor; the value is
-        clamped by `refine_max_n_blocks` where that cap is lower.
+        receiver already refining keeps its dwell. A mutator's value, so it
+        travels in the state blob (#2022). `n_blocks` of 0 removes the floor;
+        the value is clamped by `refine_max_n_blocks` where that cap is lower.
 
         Parameters
         ----------
@@ -2752,9 +2761,10 @@ class AsyncDsssReceiver:
         bridged by a freshly-sized `RateConverter` and never coupled to each
         other. While searching/refining it re-pins the grid used to build the
         next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
-        place, allocating every replacement before adopting it -- and re-seeds
-        the rebuilt carrier loop from the demodulator's residual alone, which
-        drops loop 1's Doppler (doppler#2414).
+        place, allocating every replacement before adopting it, and re-seeds
+        the rebuilt chain from the whole carrier -- loop 1 plus loop 2's
+        integrator, the sum status() reports -- so a retune keeps the signal it
+        was tracking.
 
         The new grid is checked as create() checked the first, before anything
         is rebuilt, and refused with the receiver left on its prior grid: the
@@ -3353,17 +3363,26 @@ class CellAsyncDsssReceiver:
         """
 
     def steps_max_out(self) -> int:
-        """Largest number of samples steps() can return in the current state.
+        """The output capacity steps() needs beyond the input's.
 
-        Size an `out=` buffer with this before calling steps(), or use it to
-        allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on steps_max_out()
-        replaces this text.
+        Returns 0, which is NOT a bound. A call that completes a code
+
+        period carried over from earlier calls emits all of that
+
+        period's symbols (code_len times symbol_rate over chip_rate of
+
+        them), even if it brings one sample. At more than one symbol per
+
+        period a call can therefore emit more symbols than its `x_len`,
+
+        and those past `max_out` are dropped (see
+
+        dp_async_dsss_receiver_steps()). A true bound is #2469.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            0.
         """
 
     def seed(
@@ -3541,9 +3560,10 @@ class CellAsyncDsssReceiver:
         bridged by a freshly-sized `RateConverter` and never coupled to each
         other. While searching/refining it re-pins the grid used to build the
         next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
-        place, allocating every replacement before adopting it -- and re-seeds
-        the rebuilt carrier loop from the demodulator's residual alone, which
-        drops loop 1's Doppler (doppler#2414).
+        place, allocating every replacement before adopting it, and re-seeds
+        the rebuilt chain from the whole carrier -- loop 1 plus loop 2's
+        integrator, the sum status() reports -- so a retune keeps the signal it
+        was tracking.
 
         The new grid is checked as create() checked the first, before anything
         is rebuilt, and refused with the receiver left on its prior grid: the

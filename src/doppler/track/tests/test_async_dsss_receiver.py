@@ -1,40 +1,28 @@
-"""End-to-end integration: the real closed-loop async DSSS receiver.
+"""End-to-end integration: a closed-loop async DSSS chain of real objects.
 
-`docs/design/async-dsss-receiver.md` validates the segmented-DLL
-code path (`Dll(segments=K)`) and the always-on lock detector against
-real objects, but its own BER table comes from a **numpy stand-in**
-for the despread step with **no carrier at all**
-(`src/doppler/examples/async_despreader_study.py`), and the gallery
-page's downstream composition is an unexecuted comment. Nobody had
-chained the real `Dll(segments=K)` -> `Costas` -> `SymbolSync` -> bit
-decisions and shown it converges blind (no genie carrier/timing
-knowledge).
+These tests chain the real `Dll(segments=K)` -> `Costas` -> a boxcar
+matched filter -> `SymbolSync` -> bit decisions and show it converges
+blind (no genie carrier/timing knowledge), at a real link budget:
+2.046 Mcps chip rate, a 1023-chip m-sequence (one epoch = 0.5 ms),
+1800 bps data (1.1111 epochs/symbol, 1136.7 chips/symbol -> ~30.6 dB
+processing gain) -- symbol period slightly *longer* than one code
+epoch, so more than one code period elapses per data bit and the
+symbol boundary continuously slides through the epoch grid.
 
-These tests close that gap at a real link budget: 2.046 Mcps chip
-rate, a 1023-chip Gold-length code (one epoch = 0.5 ms), 1800 bps data
-(1.1111 epochs/symbol, 1136.7 chips/symbol -> ~30.6 dB processing
-gain) -- symbol period slightly *longer* than one code epoch, so more
-than one code period elapses per data bit and the symbol boundary
-continuously slides through the epoch grid.
-
-Composition (no new object -- four existing `doppler.track`/
-`doppler.resample` primitives): `Dll(..., segments=K)` splits each
-epoch into `K` sub-epoch partial correlations (code tracking survives
-a mid-epoch data flip because the loop steers on the one-period window
-its look-back finds free of a transition); `Costas(tsamps=1)` de-rotates
-the residual carrier per partial (no premature block integration --
-the true symbol boundary isn't a fixed multiple of partials); a
-sliding length-`K` boxcar re-forms a symbol matched filter without
-decimating; `Resampler` bridges the despreader's own (generally
-fractional) partial rate to a clean integer samples/symbol -- `K`
-is chosen for the despreader's own tracking quality, never coupled to
-the demodulator's rate requirement
-(`feedback_despread_resample_demod_separation`: feeding `SymbolSync`
-the raw fractional partial rate directly tracks correctly *most* of
-the time but fails at some code-phase offsets); `SymbolSync` recovers
-the (possibly drifting, independent) symbol clock via Gardner TED +
-Farrow interpolation at that clean rate and emits one decision per
-symbol.
+The chain is composed here from three `doppler.track` objects and a
+numpy boxcar; it is not the chain `AsyncDsssReceiver` ships, which
+wipes the carrier before the `Dll` and feeds `MpskReceiver` through a
+`RateConverter` (`docs/design/async-dsss-receiver.md` §3.3-§3.4).
+`Dll(..., segments=K)` splits each epoch into `K` sub-epoch partial
+correlations (code tracking survives a mid-epoch data flip because the
+loop steers on the one-period window its look-back finds free of a
+transition); `Costas(tsamps=1)` de-rotates the residual carrier per
+partial, after the `Dll`; a sliding length-`K` boxcar re-forms a
+symbol matched filter without decimating; and `SymbolSync` recovers
+the independent symbol clock via Gardner TED + Farrow interpolation,
+started at `round(NOMINAL_RATE)` partials a symbol with no resampler
+between, its loop pulling the rate to `NOMINAL_RATE`, and emits one
+decision per symbol.
 
 `Costas.norm_freq` is in cycles/*partial*, not cycles/original-sample
 -- the partial stream is a `TE/K`-times decimated view of the input,
@@ -62,8 +50,6 @@ DATA_RATE = 1800.0
 EPOCHS_PER_SYMBOL = (1.0 / DATA_RATE) / (SF / CHIP_RATE)  # 1.11111
 K = 6  # partials/epoch; must divide TE=2046 (2046 / 6 = 341)
 NOMINAL_RATE = K * EPOCHS_PER_SYMBOL  # despreader's own partial/symbol rate
-TARGET_SPS = 8  # SymbolSync's clean, integer samples/symbol
-CONV_RATE = TARGET_SPS / NOMINAL_RATE  # Resampler bridges the two
 F0 = 1e-4  # residual carrier after acquisition, cycles/sample
 
 

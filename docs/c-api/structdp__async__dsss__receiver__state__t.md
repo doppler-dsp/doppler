@@ -76,6 +76,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**pfa**](#variable-pfa)  <br> |
 |  size\_t | [**pullin\_intervals**](#variable-pullin_intervals)  <br> |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
+|  bool | [**reacquire**](#variable-reacquire)  <br> |
 |  double | [**refine\_design\_margin\_db**](#variable-refine_design_margin_db)  <br> |
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**refine\_dll**](#variable-refine_dll)  <br> |
 |  float \_Complex \* | [**refine\_dll\_out\_buf**](#variable-refine_dll_out_buf)  <br> |
@@ -194,7 +195,7 @@ uint64_t dp_async_dsss_receiver_state_t::both_down_samples;
 
 
 
-Running: consecutive samples fed while tracking with BOTH lock flags down  the release clock; lost keeps it counting. 
+Running: consecutive samples fed while tracking with BOTH lock flags down  the release clock; lost keeps it counting. With reacquire it counts the symbol lock flag alone. 
  
 
 
@@ -797,6 +798,23 @@ dp_RateConverter_state_t* dp_async_dsss_receiver_state_t::rc;
 
 
 
+
+<hr>
+
+
+
+### variable reacquire 
+
+```C++
+bool dp_async_dsss_receiver_state_t::reacquire;
+```
+
+
+
+Config: release on symbol lock alone and reset to searching, never lost (see [**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create)). 
+
+
+        
 
 <hr>
 

@@ -923,8 +923,8 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
          size_t refine_samples_per_symbol, double refine_design_margin_db,
          size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
          size_t refine_max_n_blocks, double carrier_freq_hz,
-         double lost_confirm_s, bool cell, size_t correct_periods, double gain,
-         size_t pullin_intervals)
+         double lost_confirm_s, bool reacquire, bool cell,
+         size_t correct_periods, double gain, size_t pullin_intervals)
 {
   /* symbol_rate becomes the carrier estimator's sample rate, which PSD
      refuses unless finite: refused here, at create, because that estimator
@@ -940,6 +940,11 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
       || refine_n_fft < 1 || refine_zero_pad < 1
       || !dp_acq_carrier_freq_ok (carrier_freq_hz, chip_rate * (double)spc)
       || !(lost_confirm_s >= 0.0))
+    return NULL;
+  /* Reacquire's release is its only way back to searching, so a release
+     that never fires (lost_confirm_s 0) would leave it tracking a signal
+     long gone: refused rather than accepted as a silent no-op. */
+  if (reacquire && !(lost_confirm_s > 0.0))
     return NULL;
   /* The carrier estimator both flavours build mid-stream under dp_xnn
      (adr_new_carrier_acq) refuses a pfa or pd outside (0, 1), and the cell
@@ -1008,6 +1013,7 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   /* The release clock in input samples: the rule is a time, and the input
    * rate is the one clock every state of this object is fed at. */
   obj->lost_confirm_s = lost_confirm_s;
+  obj->reacquire      = reacquire;
   obj->lost_confirm_samples
       = (uint64_t)llround (lost_confirm_s * chip_rate * (double)spc);
 
@@ -1104,14 +1110,14 @@ dp_async_dsss_receiver_create (
     double refine_max_error_db, size_t refine_samples_per_symbol,
     double refine_design_margin_db, size_t refine_n_fft,
     size_t refine_zero_pad, bool refine_sequential, size_t refine_max_n_blocks,
-    double carrier_freq_hz, double lost_confirm_s)
+    double carrier_freq_hz, double lost_confirm_s, bool reacquire)
 {
   return adr_new (code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz,
                   pfa, pd, doppler_uncertainty, segments, sps, differential,
                   refine_max_error_db, refine_samples_per_symbol,
                   refine_design_margin_db, refine_n_fft, refine_zero_pad,
                   refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-                  lost_confirm_s, false, 1, 1.0, 0);
+                  lost_confirm_s, reacquire, false, 1, 1.0, 0);
 }
 
 dp_async_dsss_receiver_state_t *
@@ -1126,8 +1132,8 @@ dp_async_dsss_receiver_create_cell (
      mode builds no refine chain, so they size nothing. */
   return adr_new (code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz,
                   pfa, pd, 0.0, segments, sps, differential, 0.5, 4, 14.0, 64,
-                  8, false, 100000, carrier_freq_hz, lost_confirm_s, true,
-                  correct_periods, gain, pullin_intervals);
+                  8, false, 100000, carrier_freq_hz, lost_confirm_s, false,
+                  true, correct_periods, gain, pullin_intervals);
 }
 
 void
@@ -1304,19 +1310,31 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
 /* The release rule of the design page's section 11.2, run once per
  * tracking call: both lock flags down, without a break, for longer than
  * the confirm interval means the emitter is gone. One flag down is a
- * degrade and leaves the clock alone; either flag up restarts it. */
+ * degrade and leaves the clock alone; either flag up restarts it.
+ *
+ * With reacquire the rule is the parallel design's (async-dsss-parallel.md
+ * section 3): symbol lock alone, and the release resets the receiver to
+ * searching instead of parking it in lost, so a receiver that is always
+ * online finds the next signal without anyone calling reset(). */
 static void
 adr_release_clock (dp_async_dsss_receiver_state_t *s, size_t x_len)
 {
   if (s->lost_confirm_samples == 0)
     return;
-  if (dp_dll_get_locked (s->dll) || s->sym_lockdet.locked)
+  const bool up = s->reacquire
+                      ? s->sym_lockdet.locked
+                      : (dp_dll_get_locked (s->dll) || s->sym_lockdet.locked);
+  if (up)
     {
       s->both_down_samples = 0;
       return;
     }
   s->both_down_samples += x_len;
-  if (s->both_down_samples > s->lost_confirm_samples)
+  if (s->both_down_samples <= s->lost_confirm_samples)
+    return;
+  if (s->reacquire)
+    dp_async_dsss_receiver_reset (s);
+  else
     adr_enter (s, ASYNC_DSSS_RX_LOST);
 }
 

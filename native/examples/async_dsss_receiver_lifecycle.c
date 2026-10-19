@@ -219,7 +219,7 @@ main (void)
       doppler_uncertainty, segments, sps, differential, refine_max_error_db,
       refine_samples_per_sym, refine_design_margin_db, refine_n_fft,
       refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-      lost_confirm_s);
+      lost_confirm_s, false);
   CHECK (rx != NULL, "the receiver opens");
 
   /* The caller's buffers. steps_max_out() returns 0 for this receiver, which

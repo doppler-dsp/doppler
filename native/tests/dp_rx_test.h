@@ -769,7 +769,12 @@ dp_rx_score_frames (int m, const wfm_frame_desc_t *d,
             rxbits[s * bps + t] = (uint8_t)((lab >> (bps - 1u - t)) & 1u);
         }
       crc = dp_wfm_frame_desc_crc_ok (d, rxbits);
-      dp_frame_meter_add (fm, s1.ok, crc);
+      /* Confirmed means detected WHERE THE FRAME IS DUE: the window is
+         centred on the record's alignment, so the sync word sits at lag 0.
+         A peak elsewhere in the window is a false alarm (or a slipped
+         frame), not a confirmation, and counting it as one would turn the
+         gate's false-alarm rate into confirmed syncs. */
+      dp_frame_meter_add (fm, s1.ok && s1.lag == 0, crc);
     }
 }
 

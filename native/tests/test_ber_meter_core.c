@@ -96,13 +96,18 @@ build_m (int m, const uint8_t *sent, double phase, double sigma,
 }
 
 /* Claim 8: of `trials` alignments against truth unrelated to the stream,
-   how many does the gate accept, at whole-search Pfa `pfa`? */
+   how many does the gate accept, at whole-search Pfa `pfa`? The marker is
+   `n_marker` symbols at `t0`, repeating every `period` (0: once); the
+   occurrences the gate combined, K, come back in `*k`, so a caller can
+   assert which threshold branch it exercised. */
 static int
-false_alarms (int m, int trials, double pfa)
+false_alarms (int m, int trials, double pfa, size_t t0, size_t n_marker,
+              size_t period, size_t *k)
 {
   static uint8_t sent[FA_NSYM], other[FA_NSYM];
   static float _Complex y[FA_NSYM];
   int n = 0;
+  *k    = 0;
   for (int t = 0; t < trials; t++)
     {
       for (size_t i = 0; i < FA_NSYM; i++)
@@ -113,9 +118,10 @@ false_alarms (int m, int trials, double pfa)
       /* Little noise: the data term dominates, which at m = 2 is the
          rank-one null in its purest form, the case #2496 measured. */
       build_m (m, sent, 0.9, 0.05, y);
-      n += dp_ber_align_detect (y, FA_NSYM, other, FA_NSYM, m, 1000, 256, 0,
-                                100, pfa)
-               .ok;
+      ber_align_t a = dp_ber_align_detect (y, FA_NSYM, other, FA_NSYM, m, t0,
+                                           n_marker, period, 100, pfa);
+      n += a.ok;
+      *k = a.occurrences;
     }
   return n;
 }
@@ -253,21 +259,39 @@ main (void)
      gate), and the bound sits 4.5 sd of a Poisson count above that. The
      circular threshold at m = 2 accepted about 0.9% at any Pfa from 1e-2
      to 1e-4 (#2496) -- about 28 of these 3000. A low count is allowed:
-     the rank-one threshold is conservative where noise is not small. */
+     the rank-one threshold is conservative where noise is not small.
+
+     Every branch of the m = 2 threshold is run, and each case asserts the
+     K it ran: a blind marker (K = 1, the Q^-1 form), a periodic one with
+     an even K (2, the noncoherent form at K/2) and an odd K above one (3,
+     the conservative K + 1). The geometry fixes K: 1500 symbols of room
+     past the +-100 lag search, a 64-symbol marker from 200, every 1000 or
+     600 symbols. */
   {
-    const double pfa       = 1e-3;
-    const int    ms[2]     = { 2, 4 };
-    const int    trials[2] = { 3000, 1000 };
-    for (int k = 0; k < 2; k++)
+    const double pfa = 1e-3;
+    const struct
+    {
+      int    m, trials;
+      size_t t0, n_marker, period, k;
+    } cases[] = {
+      { 2, 3000, 1000, 256, 0, 1 },  /* BPSK, blind            */
+      { 4, 1000, 1000, 256, 0, 1 },  /* QPSK, blind: circular  */
+      { 2, 3000, 200, 64, 1000, 2 }, /* BPSK, periodic, even K */
+      { 2, 3000, 200, 64, 600, 3 },  /* BPSK, periodic, odd K  */
+    };
+    for (size_t c = 0; c < sizeof cases / sizeof cases[0]; c++)
       {
-        const double expect = pfa * trials[k];
+        const double expect = pfa * cases[c].trials;
         const double bound  = expect + 4.5 * sqrt (expect);
-        int          n      = false_alarms (ms[k], trials[k], pfa);
-        char         msg[160];
+        size_t       k      = 0;
+        int  n = false_alarms (cases[c].m, cases[c].trials, pfa, cases[c].t0,
+                               cases[c].n_marker, cases[c].period, &k);
+        char msg[192];
         snprintf (msg, sizeof msg,
-                  "m=%d: %d false alignments in %d unrelated-truth trials "
-                  "(at most %.0f due at Pfa %g, bound %.1f)",
-                  ms[k], n, trials[k], expect, pfa, bound);
+                  "m=%d K=%zu: %d false alignments in %d unrelated-truth "
+                  "trials (at most %.0f due at Pfa %g, bound %.1f)",
+                  cases[c].m, k, n, cases[c].trials, expect, pfa, bound);
+        DP_REQUIRE_MSG (k == cases[c].k, msg);
         DP_REQUIRE_MSG (n <= bound, msg);
       }
     /* And the higher m = 2 threshold still finds a planted alignment at a

@@ -569,10 +569,11 @@ ______________________________________________________________________
     ran a frame at about 9e-4. Thresholded on the true null at 1e-6, the
     Barker-13 word confirms no frame here. The confirmation now asks for
     `DP_RX_SYNC_PFA` (1e-3, `native/tests/dp_rx_test.h`), the rate it had
-    been running at, stated. There the Barker-13 word misses **0.836**
-    (0.746 - 0.932) of the same 640 frames, PN-127 still none. The finding
-    stands: a short sync word is an acquisition aid, not a per-frame
-    confirmation.
+    been running at, stated. It also counts a frame as confirmed only at
+    lag 0, where the frame is due, so a peak elsewhere in the window no
+    longer counts. There the Barker-13 word misses **0.836** (0.746 - 0.932)
+    of the same 640 frames, PN-127 still none. The finding stands: a short
+    sync word is an acquisition aid, not a per-frame confirmation.
 
     **But the same Barker-13 acquires the RECORD without difficulty**, because
     there it is a *periodic* marker: `dp_ber_sync()` combines ~130 occurrences

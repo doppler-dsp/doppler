@@ -204,8 +204,11 @@ def test_lost_confirm_zero_never_releases():
 def test_reacquire_needs_a_release_interval():
     # Its release is the only way back to searching: one that never fires
     # is refused, not accepted as a silent no-op.
-    with pytest.raises(ValueError, match="> 0 with reacquire"):
+    msg = "at least one input sample with reacquire"
+    with pytest.raises(ValueError, match=msg):
         _new_receiver(70.0, lost_confirm_s=0.0, reacquire=True)
+    with pytest.raises(ValueError, match=msg):  # rounds to zero samples
+        _new_receiver(70.0, lost_confirm_s=1e-9, reacquire=True)
     _new_receiver(70.0, lost_confirm_s=0.02, reacquire=True)
 
 

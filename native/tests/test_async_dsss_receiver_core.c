@@ -1501,9 +1501,9 @@ _test_reacquire_after_switch_off (void)
 
       /* Phase 2: the emitter off. Watch every chunk: with reacquire the
        * state must reach searching and never read lost; without it, lost. */
-      int             searched = 0, lost = 0;
-      size_t          fed_at_release = 0;
-      float _Complex *junk           = malloc (chunk * 8 * sizeof *junk);
+      int             searched = 0, lost = 0, dropped = 0;
+      size_t          fed_at_release = 0, first_drop = 0;
+      float _Complex *junk = malloc (chunk * 8 * sizeof *junk);
       for (size_t pos = 0; pos < tail_n; pos += chunk)
         {
           size_t k = tail_n - pos < chunk ? tail_n - pos : chunk;
@@ -1511,6 +1511,14 @@ _test_reacquire_after_switch_off (void)
                                               chunk * 8);
           int st = dp_async_dsss_receiver_status (rx).state;
           lost |= st == ASYNC_DSSS_RX_LOST;
+          /* The chunk symbol lock first reads down after: the release
+             clock counts whole calls, from that one on. */
+          if (!dropped && st == ASYNC_DSSS_RX_TRACKING
+              && !dp_async_dsss_receiver_get_locked (rx))
+            {
+              dropped    = 1;
+              first_drop = pos;
+            }
           if (!searched && st == ASYNC_DSSS_RX_SEARCHING)
             fed_at_release = pos + k;
           searched |= st == ASYNC_DSSS_RX_SEARCHING;
@@ -1523,13 +1531,16 @@ _test_reacquire_after_switch_off (void)
            * may take a noise hit, refine, track and release again. */
           DP_CHECK (lost == 0);
           DP_CHECK (searched == 1);
-          /* Not before the interval: more than lost_confirm_s of the tail
-           * was fed when it let go (the flag drops after the signal does,
-           * so the release lands later still, well inside the tail). */
+          /* On time, to the call: from the start of the chunk symbol
+           * lock first read down after, the release lands past
+           * lost_confirm_s and within one more call of it -- the clock
+           * counts whole calls. Neither early nor late. */
           DP_CHECK (rx->lost_confirm_samples
                     == (uint64_t)llround (confirm_s * fs));
-          DP_CHECK (fed_at_release > rx->lost_confirm_samples);
-          DP_CHECK (fed_at_release < tail_n);
+          DP_CHECK (dropped == 1);
+          DP_CHECK (fed_at_release - first_drop > rx->lost_confirm_samples);
+          DP_CHECK (fed_at_release - first_drop
+                    <= rx->lost_confirm_samples + chunk);
 
           /* Phase 3: the signal back -- found again, with no reset(). */
           n_syms = _stream (rx, x, n, te, &syms);

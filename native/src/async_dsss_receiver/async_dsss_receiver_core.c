@@ -947,7 +947,12 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
      unit, input samples, because a confirm time that rounds to zero of
      them (1e-9 s) IS the disabled clock (adr_release_clock returns at
      lost_confirm_samples == 0). */
-  if (reacquire && llround (lost_confirm_s * chip_rate * (double)spc) < 1)
+  /* The release clock in input samples: the rule is a time, and the input
+   * rate is the one clock every state of this object is fed at. Computed
+   * once, here, refused on, and stored below. */
+  const uint64_t lost_confirm_samples
+      = (uint64_t)llround (lost_confirm_s * chip_rate * (double)spc);
+  if (reacquire && lost_confirm_samples == 0)
     return NULL;
   /* The carrier estimator both flavours build mid-stream under dp_xnn
      (adr_new_carrier_acq) refuses a pfa or pd outside (0, 1), and the cell
@@ -1013,12 +1018,9 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   obj->pd           = pd;
   adr_enter (obj, cell ? ASYNC_DSSS_RX_IDLE : ASYNC_DSSS_RX_SEARCHING);
 
-  /* The release clock in input samples: the rule is a time, and the input
-   * rate is the one clock every state of this object is fed at. */
-  obj->lost_confirm_s = lost_confirm_s;
-  obj->reacquire      = reacquire;
-  obj->lost_confirm_samples
-      = (uint64_t)llround (lost_confirm_s * chip_rate * (double)spc);
+  obj->lost_confirm_s       = lost_confirm_s;
+  obj->reacquire            = reacquire;
+  obj->lost_confirm_samples = lost_confirm_samples;
 
   obj->refine_max_error_db       = refine_max_error_db;
   obj->refine_samples_per_symbol = refine_samples_per_symbol;

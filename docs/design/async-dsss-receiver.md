@@ -249,15 +249,16 @@ through the epoch at the beat rate `delta / TE`.
 The coherent prompt over an epoch whose data flips at fraction `f ∈ [0,1]` is
 `P(f) = A·[f·d1 + (1−f)·d2] = A·d1·(2f−1)`: full despread at an epoch edge, and
 **zero** for a flip mid-epoch. Because `f` sweeps through every value, about half
-of all epochs straddle a transition and their prompts collapse. Per-epoch data
-decisions floor, because no Es/N0 recovers an epoch whose flip sits near its
-middle, and `(|E|−|L|)/(|E|+|L|)` collapses to `0/0` on those epochs, starving
-the DLL. At one prompt per epoch the symbol clock is **unobservable**, and the
-integration window is forced to straddle transitions. The failure has a
-fingerprint: the straddle modulation is periodic at the symbol-to-epoch beat,
-so the spectrum of the prompt-magnitude stream `|P[n]|` carries a **tone at
-`|delta|` cycles per epoch** — what to look for when a DSSS link shows
-unexplained despread fades.
+of all epochs straddle a transition and their prompts collapse. Both
+consequences follow from `P(f)` alone. Per-epoch data decisions floor, because
+`P(f)` near `f = 1/2` is near zero at any Es/N0, and `(|E|−|L|)/(|E|+|L|)`
+collapses to `0/0` on those epochs, starving the DLL. At one prompt per epoch
+the symbol clock is **unobservable**, and the integration window is forced to
+straddle transitions. And the failure has a fingerprint: the flip's fraction
+`f` advances by `delta` each epoch, so the envelope `A·|2f−1|` of the
+prompt-magnitude stream `|P[n]|` repeats every `1/|delta|` epochs and its
+spectrum carries a **tone at `|delta|` cycles per epoch** — what to look for
+when a DSSS link shows unexplained despread fades.
 
 ### 3.3 Partials give the symbol clock its own observability
 
@@ -276,7 +277,7 @@ energy.
 At the specification's geometry (Gold-1023, 3.069 Mcps, 2,700 sym/s
 asynchronous BPSK, two samples a chip, no Doppler) the receiver holds a BER
 under 5% at Es/N0 10, 8 and 5 dB, the specification's floor, and exceeds 10% at
-4 dB, with the self-referenced EVM and the blind M2M4 SNR agreeing:
+4 dB, with the self-referenced EVM and the blind M2M4 SNR corroborating:
 `_test_awgn_esn0_floor` in `native/tests/test_async_dsss_receiver_core.c`.
 
 **The code path sums the partials coherently** over a one-period window and

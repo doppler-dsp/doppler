@@ -1,10 +1,10 @@
 # Parallel Asynchronous-Data DSSS Receivers
 
 *`AsyncDsssPool` keeps its name and its Python face; inside, it becomes N
-independent `AsyncDsssReceiver`s, each pinned to its own CPU, under a
-controller that only watches, excludes and reports. Every receiver searches
-the whole carrier range itself; none is tuned to a part of it. This page is
-that design.
+independent `AsyncDsssReceiver`s, each stepped on its own worker, under a
+controller that only watches, excludes and reports. By default every
+receiver searches the whole carrier range itself; the controller may also
+place a receiver on an assigned carrier offset. This page is that design.
 It replaces the pool [`async-dsss-receiver.md`](async-dsss-receiver.md)
 describes in its §5–§9 and §11.1, the central searcher, the assigned table and
 the cell receivers behind it. It keeps §11.2's `lost` state but not the
@@ -53,12 +53,15 @@ Doppler rate allows at 3.069 Mcps.
     - $N_E = R_c \times T_E = 1023$ chips per epoch
     - $E_s/N_0 \geq 5$ dB
 - A slot is defined by a carrier offset $f_m$ and code phase with SNR the
-    natural tie-breaker should signals be otherwise indistinguishable.
+    natural tie-breaker should signals be otherwise indistinguishable. The
+    controller tells receivers' signals apart by code phase alone, within a
+    chip (§4): keying on the carrier as well seeded duplicate receivers.
 - The "bookkeeper" tracks status of all receivers which are all always online
-    either searching or tracking. Search resumes on signal loss. Every
-    receiver searches the whole carrier range of §1 by itself: code phase
-    across $\pm 1/T_E$, and its own slow-time Doppler search in the data-free
-    block. The bookkeeper tunes nothing and commands no search.
+    either searching or tracking. Search resumes on signal loss. By default
+    every receiver searches the whole carrier range of §1 by itself: code
+    phase across $\pm 1/T_E$, and its own slow-time Doppler search (§3). The
+    bookkeeper commands no search; it may place a receiver on an assigned
+    carrier offset instead of the whole range.
 - The number of receivers, N, is a create parameter. One receiver holds one
     signal, so N bounds how many are held at once: 3 for the proof of
     concept, up to the $\leq 10$ signals of §1.
@@ -70,14 +73,14 @@ Doppler rate allows at 3.069 Mcps.
 ```mermaid
 flowchart LR
     DDC["common DDC<br/>removes the common carrier offset<br/>2 samples a chip"] --> B["one block a push<br/>the same samples to every receiver"]
-    subgraph POOL["AsyncDsssPool: N receivers, one pinned CPU each"]
+    subgraph POOL["AsyncDsssPool: N receivers, one worker each"]
         B --> R1["receiver 1<br/>searching or tracking"]
         B --> R2["receiver 2"]
         B --> RN["receiver N"]
         R1 -->|"status: state, code phase, carrier"| C["controller<br/>(the bookkeeper)"]
         R2 --> C
         RN --> C
-        C -->|"exclusions, rank"| R1
+        C -->|"exclusions, rank, assigned offset"| R1
         C --> R2
         C --> RN
     end
@@ -86,18 +89,21 @@ flowchart LR
 
 ## 3. The receiver
 
-One `AsyncDsssReceiver` per CPU, run by its own state machine. **Without
+One `AsyncDsssReceiver` per worker, run by its own state machine. **Without
 symbol lock it searches; with it, it tracks.** Every receiver is always
 online, so one that is not tracking is already searching: there is no
 separate bench of spares.
 
-- **Searching** covers the whole carrier range of §1, $\pm 1/T_E$ about the
-    common DDC's zero: three tiles of $\pm 1/(2 T_E)$ each, code phase in
-    every one.
-- **Inside the data-free block,** the receiver's own search adds the
-    slow-time axis: a coherent block of D epochs resolves the carrier to
-    $1/(D T_E)$ across that whole range. Nothing commands it; it is the
-    receiver's, and the only frequency search there is.
+- **Searching** covers the whole carrier range of §1, $|f_m| \leq 1/T_E$
+    about the common DDC's zero: three tiles of width $1/T_E$, code phase in
+    every one, which span $\pm 1.5/T_E$. That is today's receiver at
+    `doppler_uncertainty` $= 1/T_E$.
+- **The search runs continuously,** in dwells of D epochs back to back,
+    with D at most half the data-free block. At least one dwell then lands
+    wholly inside every data-free block with no frame timing at all, and a
+    dwell that overlaps data finds no clean peak. A coherent dwell of D
+    epochs resolves the carrier to $1/(D T_E)$ across the whole range: the
+    receiver's only fine frequency search, and nothing commands it.
 - **Refining, then tracking,** as the receiver does today: the carrier
     estimate refined, then the Costas, `Dll`, `RateConverter`, `MpskReceiver`
     chain live.
@@ -133,8 +139,20 @@ What today's receiver must gain for this:
     By default it is 0, so it never does. What it lacks is the step from
     `lost` back to searching on its own, and this design's trigger: symbol
     lock alone, where today's release needs code lock down too.
-1. **The slow-time search of its own,** over the whole range, at a depth
-    the data-free block and the Doppler rate allow.
+1. **An assigned offset, optionally**: a search centered where the
+    controller says instead of the whole range. Today's search is always
+    centered on 0 Hz (`dp_acq_create_continuous()`), and the receiver's
+    `carrier_freq_hz` is the RF carrier for code aiding, not a search
+    center, so this is a new parameter, not a reuse of that one.
+1. **The slow-time search of its own.** Today's receiver dwells one epoch
+    (it creates its engine with `code_only_epochs` = 1). It gains back-to-back
+    D-epoch dwells over the whole range, D at most half the data-free block
+    and within the depth the Doppler rate allows.
+1. **One thread for its search.** A continuous engine with more than one
+    tile starts a pool of every online core (`acq_core.h`,
+    `dp_acq_set_threads()`), so N receivers would each claim the whole
+    machine. Under the pool each receiver's engine runs on its own worker's
+    thread (`threads` = 1).
 1. **Exclusions**: code phases the search must not take, because another
     receiver already tracks them. The pool's zone is keyed on code phase alone
     (within a chip, at any Doppler); keying on carrier seeded duplicate receivers
@@ -145,10 +163,15 @@ What today's receiver must gain for this:
 1. **A rank** among the receivers searching: rank r takes the r-th
     strongest peak that is not excluded, so k new signals
     arriving together lock on k receivers in one dwell. Ranks line up only
-    if those receivers' dwells start on the same epoch of the shared sample
-    clock. The engine already reports a peak list (`set_max_peaks`; the
-    pool asks for 16), but the receiver's own search asks it for one hit and
-    exposes no way to ask for more.
+    if those receivers' dwells start on the same epoch, so each receiver
+    places its dwell boundaries at multiples of D epochs of the pool's
+    shared sample count, not from its own reset: every searcher's dwells
+    line up whenever it was re-armed, and nothing has to command it. Before
+    ranking, the peak list is de-duplicated by code phase within a chip, so
+    one signal's neighboring cells do not take two ranks. The engine
+    already reports a peak list (`set_max_peaks`; the pool asks for 16), but
+    the receiver's own search asks it for one hit and exposes no way to ask
+    for more.
 
 ## 4. The controller
 
@@ -158,6 +181,8 @@ surface. It:
 - **reads each receiver's `status()`** (state, chip phase, carrier, code and
     symbol lock) and keeps the table of who tracks what, never the demodulator's
     timing flag, which outlives the signal (record §3.2);
+- **may place a receiver on an assigned carrier offset,** in place of the
+    whole range;
 - **hands every searching receiver the exclusions** (the code phases the
     others track) and its rank among the receivers searching;
 - **resolves duplicates**: two receivers holding the same code phase (within
@@ -170,8 +195,11 @@ surface. It:
     the thread count;
 - **reports**.
 
-Telemetry is single-producer, so each receiver attaches its own context;
-one context shared across the workers is refused.
+Telemetry is single-producer, so each receiver attaches its own context,
+and one context must not be shared across the workers. Nothing refuses a
+shared one yet: the pool as built refuses all telemetry once it has more
+than one thread, and that refusal is to be replaced by a check for a
+shared context.
 
 ## 5. Arrival to tracking
 
@@ -239,8 +267,8 @@ Every state fits one CPU (§6: the shipped C benches, the mean per sample at
 
 The slow-time row is deeper than the 94 epochs this design's Doppler rate
 allows, so it bounds that search. Even it leaves the CPU spare, so every
-receiver searches the whole range itself and no receiver is tuned to a part
-of it.
+receiver can search the whole range itself; an assigned offset is a
+choice, never a need of the CPU budget.
 
 ## 7. Why the pool as built is replaced
 

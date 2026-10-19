@@ -45,19 +45,24 @@ aided, at two Dopplers:
     rate the loop carries and one step above it. At this link's Doppler one step
     is nearly the whole Doppler, so the code loop's rate is not how to measure the
     Doppler. The carrier estimate is.
-- **The output is the data.** A locked loop emits the data symbols on the real
+- **The output is the data.** A locked loop emits the data symbols along one
     axis, four samples per code period and 4.44 per symbol, so each symbol's
-    sign spans four or five samples. Its real power stands above its imaginary
-    by about the link budget's `1 + 2·SNR` per output sample. The loop that lost
-    the code puts out noise, with the two about equal.
+    sign spans four or five samples. Its power along that axis stands above its
+    power across it by up to the link budget's `1 + 2·SNR` per output sample.
+    It reads below the budget for two reasons: a sample straddling a data flip
+    loses amplitude, and each period's samples are normalized by that period's
+    noisy look-back peak. The loop that lost the code puts out noise, with the
+    two about equal.
 
 The script prints this run's numbers: the settled filter outputs, when the
-unaided loop lost the inflated Doppler, and the output's real-to-imaginary
-power. Three bounds come from the object and the link, not the draw: the output
-rate; the settled filter output sitting between the carried rate and one NCO
-step above it; and the output's power on the real axis. The script widens the
-second by a quarter step either side for the noise left in its mean, and takes
-half the budget as the line for the third. Which loops held lock is this run's
+unaided loop lost the inflated Doppler, and the output's power along its axis
+against across it. That ratio is the eigenvalues of the output's I/Q second
+moments, so it does not depend on the carrier phase. Three bounds come from the
+object and the link, not the draw: the output rate; the settled filter output
+sitting between the carried rate and one NCO step above it; and the output's
+power along one axis. The script widens the second by a quarter step either
+side for the noise left in its mean, and takes half the budget as the line for
+the third. Which loops held lock is this run's
 outcome, and the script asserts it for this run.
 
 ## How it works
@@ -121,9 +126,13 @@ for a higher C/N0 than the link has.
     toward the dilation, loses the code before it gets there, and wanders.
 1. **The despread output** (bottom): about fourteen symbols of the aided loop's
     output at 0.6 ppm, from the settled half. I carries the data, in runs of
-    four or five samples per symbol and longer where neighbors share a sign. Q
-    is noise about zero, because the carrier is wiped. This stream is what a
-    symbol-timing loop takes next.
+    four or five samples per symbol and longer where neighbors share a sign,
+    and Q is noise about zero. The data lands on I only because this demo
+    wipes the carrier with the channel's exact offset and the channel adds no
+    carrier phase. With an estimated carrier, the data sits at whatever
+    residual phase the estimate leaves, which the receiver's Costas loop
+    ahead of the Dll is there to remove. This stream is what a symbol-timing
+    loop takes next.
 
 ## Reproduce
 

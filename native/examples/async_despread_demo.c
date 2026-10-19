@@ -35,10 +35,13 @@
  *       high by up to one NCO step: the code NCO truncates its command to
  *       steps of SF * SPC / 2^32 chips per chip. Unaided, the loop carries
  *       the dilation; aided, nothing.
- *   §4  A locked loop's output is the data on the real axis, the carrier
- *       wiped and the code removed: its real power stands above its
- *       imaginary by the link budget's 1 + 2 * SNR per output sample. The
- *       loop that lost the code puts out noise.
+ *   §4  A locked loop's output is the data along one axis, at whatever
+ *       carrier phase the data sits: its power along that axis stands above
+ *       its power across it by up to the link budget's 1 + 2 * SNR per output
+ *       sample. It reads below the budget because a sample straddling a data
+ *       flip loses amplitude and each period's samples are normalized by that
+ *       period's noisy look-back peak. The loop that lost the code puts out
+ *       noise.
  *
  * The despread rate in §1, the step bound in §3 and the budget in §4 come
  * from the object and the link, not the draw; §3 widens the bound by a
@@ -403,10 +406,12 @@ main (void)
               1e6 * carried);
     }
 
-  /* §4: the output is the data on the real axis while the loop holds the
-     code, noise once it has lost it. Per output sample the SNR is Es/N0
-     over the samples a symbol spans, so the real power stands above the
-     imaginary by 1 + 2 * SNR; half that is the line. */
+  /* §4: the output is the data along one axis while the loop holds the
+     code, noise once it has lost it. The two eigenvalues of the output's
+     I/Q second moments are its power along its strongest axis and across
+     it, whatever carrier phase the data sits at. Per output sample the SNR
+     is Es/N0 over the samples a symbol spans, so along stands above across
+     by up to 1 + 2 * SNR; half that is the line. */
   const double per_symbol = SEGMENTS * CHIP_RATE / ((double)SF * SYM_RATE);
   const double budget = 1.0 + 2.0 * pow (10.0, ESN0_DB / 10.0) / per_symbol;
   for (int d = 0; d < 2; d++)
@@ -414,20 +419,25 @@ main (void)
       {
         const float complex *s  = stream[d][aided];
         const size_t         ns = stream_len[d][aided];
-        double               re = 0.0, im = 0.0;
-        for (size_t i = ns / 2; i < ns; i++)
+        double               ii = 0.0, qq = 0.0, iq = 0.0;
+        for (size_t k = ns / 2; k < ns; k++)
           {
-            re += (double)crealf (s[i]) * crealf (s[i]);
-            im += (double)cimagf (s[i]) * cimagf (s[i]);
+            const double i = crealf (s[k]), q = cimagf (s[k]);
+            ii += i * i;
+            qq += q * q;
+            iq += i * q;
           }
-        const double ratio = re / im;
-        const int    holds = !(d == 1 && aided == 0);
+        /* The eigenvalues of [[ii, iq], [iq, qq]]: mean +/- spread. */
+        const double mean   = 0.5 * (ii + qq);
+        const double spread = sqrt (0.25 * (ii - qq) * (ii - qq) + iq * iq);
+        const double ratio  = (mean + spread) / (mean - spread);
+        const int    holds  = !(d == 1 && aided == 0);
         CHECK ((ratio > budget / 2.0) == holds,
-               "%.1f ppm aided=%d: output real/imaginary power %.2f against "
-               "the budget's %.2f",
+               "%.1f ppm aided=%d: output power along its axis against across "
+               "it %.2f, against the budget's %.2f",
                ppm[d], aided, ratio, budget);
-        printf ("§4  %.1f ppm %s: output real/imaginary power %.1f (budget "
-                "%.1f)\n",
+        printf ("§4  %.1f ppm %s: output power along its axis against across "
+                "it %.1f (budget %.1f)\n",
                 ppm[d], aided ? "aided  " : "unaided", ratio, budget);
       }
 

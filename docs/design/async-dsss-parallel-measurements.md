@@ -15,11 +15,11 @@ the data.*
 
 <!-- async-dsss-parallel:stamp:start -->
 
-| run                        | when                       | machine                                                               | load before / after | commit             | toolchain                                                             | command                                                                                                                         |
-| -------------------------- | -------------------------- | --------------------------------------------------------------------- | ------------------- | ------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| lock validator, full sweep | 2026-10-18 12:36 UTC, 30 s | `cachyos-x8664-ai465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 1.6 / 1.5           | `225ac3bd1`, clean | GNU 16.2.1; glibc 2.44; build Release, flags -O3 -DNDEBUG, native OFF | `make build`, then `record.py measure`                                                                                          |
-| C benches                  | 2026-10-18 12:36 UTC       | `cachyos-x8664-ai465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 1.7 / 1.6           | `225ac3bd1`, clean | GNU 16.2.1; glibc 2.44; build Release, flags -O3 -DNDEBUG, native OFF | `make bench BENCH_ARGS="--c-only acq async_dsss_receiver async_dsss_pool"` once the load fell under 2, rows kept by `record.py` |
-| lifecycle stories (§3.2)   | 2026-10-18 12:37 UTC, 1 s  | `cachyos-x8664-ai465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 1.5 / 1.5           | `225ac3bd1`, clean | GNU 16.2.1; glibc 2.44; build Release, flags -O3 -DNDEBUG, native OFF | `make build`, then `record.py stories`; each story is the sweep's arrival trial of its draws, checked                           |
+| run                        | when                       | machine                                                          | load before / after | commit             | toolchain                                                             | command                                                                                                                         |
+| -------------------------- | -------------------------- | ---------------------------------------------------------------- | ------------------- | ------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| lock validator, full sweep | 2026-10-19 14:47 UTC, 43 s | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 13.1 / 7.2          | `9c386aad5`, clean | GNU 14.2.0; glibc 2.41; build Release, flags -O3 -DNDEBUG, native OFF | `make build`, then `record.py measure`                                                                                          |
+| C benches                  | 2026-10-19 14:58 UTC       | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 1.9 / 1.9           | `9c386aad5`, clean | GNU 14.2.0; glibc 2.41; build Release, flags -O3 -DNDEBUG, native OFF | `make bench BENCH_ARGS="--c-only acq async_dsss_receiver async_dsss_pool"` once the load fell under 2, rows kept by `record.py` |
+| lifecycle stories (§3.2)   | 2026-10-19 14:53 UTC, 1 s  | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | 8.8 / 8.8           | `9c386aad5`, clean | GNU 14.2.0; glibc 2.41; build Release, flags -O3 -DNDEBUG, native OFF | `make build`, then `record.py stories`; each story is the sweep's arrival trial of its draws, checked                           |
 
 <!-- async-dsss-parallel:stamp:end -->
 
@@ -57,8 +57,8 @@ itself.
 
 | Es/N0 | carriers drawn | draws settled: lock held 200 epochs within 4 s, up at the cut | lock falls after a loss, min / median / max | a 50 ms dropout: fell; back within 300 ms; min / median / max                | a 200 ms dropout: the same                                                   | data flips at the cut |
 | ----- | -------------- | ------------------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------- |
-| 10 dB | -2892–+2821 Hz | 20 of 21 (0.77–0.99)                                          | 13.4 / 22.8 / 33.9 ms                       | fell 20 of 20 (0.84–1.00); back 20 of 20 (0.84–1.00); 18.8 / 28.2 / 48.2 ms  | fell 20 of 20 (0.84–1.00); back 20 of 20 (0.84–1.00); 19.6 / 39.6 / 53.2 ms  | 0.46–0.53             |
-| 5 dB  | -2892–+2821 Hz | 20 of 28 (0.53–0.85)                                          | 13.9 / 17.8 / 27.9 ms                       | fell 20 of 20 (0.84–1.00); back 20 of 20 (0.84–1.00); 21.3 / 65.3 / 107.7 ms | fell 20 of 20 (0.84–1.00); back 18 of 20 (0.70–0.97); 47.0 / 76.6 / 141.3 ms | 0.45–0.53             |
+| 10 dB | -2892–+2821 Hz | 20 of 21 (0.77–0.99)                                          | 13.4 / 22.8 / 33.9 ms                       | fell 20 of 20 (0.84–1.00); back 20 of 20 (0.84–1.00); 19.4 / 26.2 / 48.2 ms  | fell 20 of 20 (0.84–1.00); back 20 of 20 (0.84–1.00); 19.6 / 38.7 / 53.2 ms  | 0.46–0.53             |
+| 5 dB  | -2892–+2821 Hz | 20 of 28 (0.53–0.85)                                          | 14.6 / 18.0 / 30.8 ms                       | fell 20 of 20 (0.84–1.00); back 20 of 20 (0.84–1.00); 21.3 / 65.3 / 108.1 ms | fell 20 of 20 (0.84–1.00); back 18 of 20 (0.70–0.97); 29.4 / 68.1 / 141.3 ms | 0.45–0.53             |
 
 <!-- async-dsss-parallel:dropout:end -->
 
@@ -70,8 +70,8 @@ held means symbol lock stayed up through the dropout and 60 ms after it.
 
 | Es/N0 | draws excluded: not settled | held 2 ms            | held 5 ms            | held 10 ms           | held 15 ms           | held 20 ms          | held 25 ms          | held 30 ms          | trials where a longer one held after a shorter fell |
 | ----- | --------------------------- | -------------------- | -------------------- | -------------------- | -------------------- | ------------------- | ------------------- | ------------------- | --------------------------------------------------- |
-| 10 dB | 1 of 21 (0.01–0.23)         | 20 of 20 (0.84–1.00) | 20 of 20 (0.84–1.00) | 16 of 20 (0.58–0.92) | 14 of 20 (0.48–0.85) | 7 of 20 (0.18–0.57) | 2 of 20 (0.03–0.30) | 0 of 20 (0.00–0.16) | 8                                                   |
-| 5 dB  | 8 of 28 (0.15–0.47)         | 20 of 20 (0.84–1.00) | 20 of 20 (0.84–1.00) | 14 of 20 (0.48–0.85) | 2 of 20 (0.03–0.30)  | 1 of 20 (0.01–0.24) | 0 of 20 (0.00–0.16) | 0 of 20 (0.00–0.16) | 7                                                   |
+| 10 dB | 1 of 21 (0.01–0.23)         | 20 of 20 (0.84–1.00) | 20 of 20 (0.84–1.00) | 17 of 20 (0.64–0.95) | 13 of 20 (0.43–0.82) | 7 of 20 (0.18–0.57) | 2 of 20 (0.03–0.30) | 0 of 20 (0.00–0.16) | 7                                                   |
+| 5 dB  | 8 of 28 (0.15–0.47)         | 20 of 20 (0.84–1.00) | 20 of 20 (0.84–1.00) | 12 of 20 (0.39–0.78) | 3 of 20 (0.05–0.36)  | 1 of 20 (0.01–0.24) | 0 of 20 (0.00–0.16) | 0 of 20 (0.00–0.16) | 5                                                   |
 
 <!-- async-dsss-parallel:hold:end -->
 
@@ -138,7 +138,7 @@ reads tracking and to the first after which symbol lock is up.
 | Es/N0 | tracking: draws; min / median / max after arrival | symbol lock: draws; min / median / max          | locked 2 s after arrival | data flips |
 | ----- | ------------------------------------------------- | ----------------------------------------------- | ------------------------ | ---------- |
 | 10 dB | 20 of 20 (0.84–1.00); 43.5 / 44.6 / 47.3 ms       | 20 of 20 (0.84–1.00); 57.9 / 86.2 / 698.0 ms    | 20 of 20 (0.84–1.00)     | 0.47–0.56  |
-| 5 dB  | 20 of 20 (0.84–1.00); 79.4 / 86.3 / 100.8 ms      | 15 of 20 (0.53–0.89); 124.9 / 375.5 / 1734.3 ms | 15 of 20 (0.53–0.89)     | 0.47–0.56  |
+| 5 dB  | 20 of 20 (0.84–1.00); 79.4 / 86.3 / 100.8 ms      | 15 of 20 (0.53–0.89); 124.9 / 379.8 / 1768.0 ms | 15 of 20 (0.53–0.89)     | 0.47–0.56  |
 
 <!-- async-dsss-parallel:arrival:end -->
 
@@ -163,7 +163,7 @@ it is not yet measured (doppler#2409).
 | ----------------- | ---------------------------------- | ---------------------------------- |
 | 0–100 Hz          | 15 of 15 (0.80–1.00), median 67 ms | 6 of 6 (0.61–1.00), median 151 ms  |
 | 100–200 Hz        | 3 of 3 (0.44–1.00), median 143 ms  | 5 of 5 (0.57–1.00), median 419 ms  |
-| 200–300 Hz        | 2 of 2 (0.34–1.00), median 599 ms  | 4 of 7 (0.25–0.84), median 1479 ms |
+| 200–300 Hz        | 2 of 2 (0.34–1.00), median 599 ms  | 4 of 7 (0.25–0.84), median 1444 ms |
 | ≥ 300 Hz          | —                                  | 0 of 2 (0.00–0.66)                 |
 
 <!-- async-dsss-parallel:seed:end -->
@@ -199,11 +199,11 @@ load either side of the bench is in the stamp.
 
 | receiver state                              | bench row                                        | ns a sample, mean (min–max) | × real time at 6.138 MSa/s |
 | ------------------------------------------- | ------------------------------------------------ | --------------------------- | -------------------------- |
-| tracking                                    | `async_dsss_receiver::steps[cell,sf=1023,5Mcps]` | 9.6 (9.5–10.0)              | 0.06                       |
-| searching one tile, one-epoch looks         | `acq::native_nc90`                               | 18.5 (18.4–19.4)            | 0.11                       |
-| searching ±1/T_E (3 tiles), one-epoch looks | `acq::op5M_U5k_nc225`                            | 30.2 (30.1–31.8)            | 0.19                       |
-| searching ±1/T_E, slow time over D = 154    | `acq::op5M_U5k_D154_t1_nc1`                      | 86.0 (85.8–86.9)            | 0.53                       |
-| the same, four threads                      | `acq::op5M_U5k_D154_t4_nc1`                      | 42.8 (41.6–51.3)            | 0.26 on four threads       |
+| tracking                                    | `async_dsss_receiver::steps[cell,sf=1023,5Mcps]` | 11.6 (11.4–12.0)            | 0.07                       |
+| searching one tile, one-epoch looks         | `acq::native_nc90`                               | 22.6 (22.3–23.6)            | 0.14                       |
+| searching ±1/T_E (3 tiles), one-epoch looks | `acq::op5M_U5k_nc225`                            | 36.7 (36.5–36.9)            | 0.23                       |
+| searching ±1/T_E, slow time over D = 154    | `acq::op5M_U5k_D154_t1_nc1`                      | 87.9 (87.6–88.2)            | 0.54                       |
+| the same, four threads                      | `acq::op5M_U5k_D154_t4_nc1`                      | 48.6 (43.6–56.7)            | 0.30 on four threads       |
 
 <!-- async-dsss-parallel:cost:end -->
 
@@ -219,13 +219,13 @@ was timed at; a threaded row is wall time.
 
 | per push                                   | bench row                                        | timed at | ns a sample, mean (min–max) | × real time at that rate |
 | ------------------------------------------ | ------------------------------------------------ | -------- | --------------------------- | ------------------------ |
-| one receiver, tracking                     | `async_dsss_receiver::steps[cell,sf=1023,5Mcps]` | 10 MSa/s | 9.6 (9.5–10.0)              | 0.10                     |
-| the pool, 12 slots, one emitter tracked    | `async_dsss_pool::push[12 slots, serial]`        | 10 MSa/s | 142.6 (37.7–1625.3)         | 1.43                     |
-| the same, across the machine's cores       | `async_dsss_pool::push[12 slots, all cores]`     | 10 MSa/s | 124.0 (44.0–1351.2)         | 1.24                     |
-| its searcher at ±50 kHz, 21 tiles, D = 154 | `acq::op5M_U50k_D154_t1_nc1`                     | 10 MSa/s | 528.2 (521.6–531.8)         | 5.28                     |
-| the same, eight threads                    | `acq::op5M_U50k_D154_t8_nc1`                     | 10 MSa/s | 145.7 (129.7–171.4)         | 1.46                     |
-| its searcher at ±50 kHz, 53 tiles, D = 61  | `acq::op2M_U50k_D61_t1_nc1`                      | 4 MSa/s  | 2012.8 (2011.5–2015.6)      | 8.05                     |
-| the same, four threads                     | `acq::op2M_U50k_D61_t4_nc1`                      | 4 MSa/s  | 590.8 (574.7–631.9)         | 2.36                     |
+| one receiver, tracking                     | `async_dsss_receiver::steps[cell,sf=1023,5Mcps]` | 10 MSa/s | 11.6 (11.4–12.0)            | 0.12                     |
+| the pool, 12 slots, one emitter tracked    | `async_dsss_pool::push[12 slots, serial]`        | 10 MSa/s | 104.8 (45.7–937.5)          | 1.05                     |
+| the same, across the machine's cores       | `async_dsss_pool::push[12 slots, all cores]`     | 10 MSa/s | 98.7 (45.4–828.1)           | 0.99                     |
+| its searcher at ±50 kHz, 21 tiles, D = 154 | `acq::op5M_U50k_D154_t1_nc1`                     | 10 MSa/s | 536.2 (527.1–566.1)         | 5.36                     |
+| the same, eight threads                    | `acq::op5M_U50k_D154_t8_nc1`                     | 10 MSa/s | 129.6 (125.0–138.4)         | 1.30                     |
+| its searcher at ±50 kHz, 53 tiles, D = 61  | `acq::op2M_U50k_D61_t1_nc1`                      | 4 MSa/s  | 2160.3 (2143.7–2271.1)      | 8.64                     |
+| the same, four threads                     | `acq::op2M_U50k_D61_t4_nc1`                      | 4 MSa/s  | 605.7 (593.7–626.7)         | 2.42                     |
 
 <!-- async-dsss-parallel:pool:end -->
 

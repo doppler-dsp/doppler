@@ -120,6 +120,7 @@
  *                                                row a story, in the
  *                                                arrival row's formats
  */
+#include "async_dsss_receiver_common.h" /* SF..EPOCH_MS, make_rx, ... */
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/clib_common.h"
@@ -136,16 +137,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define SF 1023u
-#define SPC 2u
-#define TE (SF * SPC) /* one epoch, the feed block: 2046 samples */
-#define CHIP_RATE 3.069e6
-#define FS (CHIP_RATE * (double)SPC)
-#define SYM_RATE 2700.0
-#define CPS (CHIP_RATE / SYM_RATE) /* chips a symbol, 1136.7 */
-#define SPAN (FS / (double)TE)     /* 1/T_E: 3,000 Hz                */
-#define EPOCH_MS (1e3 * (double)TE / FS)
 
 #define ARRIVAL_S 2.0        /* each arrival trial's run              */
 #define ARRIVAL_DELAY_S 0.02 /* noise alone for up to this, first     */
@@ -209,68 +200,6 @@ static const double esn0s[] = { 10.0, 5.0 };
 #define N_ESN0 (sizeof esn0s / sizeof esn0s[0])
 #define SWEEP_TRIALS 20u   /* arrival trials, and settled dropout trials */
 #define SWEEP_ATTEMPTS 40u /* dropout draws tried for them, at most    */
-
-static double
-cn0_of (double esn0_db)
-{
-  return esn0_db + 10.0 * log10 (SYM_RATE);
-}
-
-/* The receiver: the searching flavor at the binding's defaults
-   (objects/async_dsss_receiver.toml), its own search over +/-1/T_E. */
-static dp_async_dsss_receiver_state_t *
-make_rx (const uint8_t *code, double cn0_dbhz)
-{
-  return dp_async_dsss_receiver_create (
-      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-3, 0.9, SPAN, 4, 8,
-      0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false);
-}
-
-/* The noise: the shipped awgn, its amplitude the library's answer for a
-   unit-power emitter at this C/N0 over fs. */
-static dp_awgn_state_t *
-make_noise (uint32_t seed, double cn0_dbhz)
-{
-  return dp_awgn_create (
-      seed * 7919u + 1u,
-      dp_awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
-}
-
-/* A trial's own stream: adjacent seeds share their first xorshift draws,
-   so the golden-ratio mix spreads them (dp_rng_test.h's note). */
-static uint32_t
-trial_rng (uint32_t seed)
-{
-  uint32_t st = seed * 0x9e3779b9u;
-  for (int w = 0; w < 4; w++)
-    (void)dp_xs32 (&st);
-  return st;
-}
-
-/* The data, one 0/1 bit a symbol, from the trial's stream. */
-static uint8_t *
-draw_bits (uint32_t *st, size_t n)
-{
-  uint8_t *bits = dp_xmalloc (n);
-  for (size_t i = 0; i < n; i++)
-    bits[i] = dp_bit (st) < 0 ? 1u : 0u;
-  return bits;
-}
-
-/* The symbol carrying sample `n` of the emitter's stream: its chip over
-   the chips a symbol, the synth's own clock to within one symbol. */
-static size_t
-symbol_at (size_t n)
-{
-  return (size_t)((double)n / (double)SPC / CPS);
-}
-
-/* Whole blocks covering `samples`. */
-static size_t
-blocks_for (size_t samples)
-{
-  return (samples + TE - 1) / TE;
-}
 
 /* Require that the emitter really sends the harness's bits: a synth left
    on its own PRBS would make the flip count, read off `bits`, describe a

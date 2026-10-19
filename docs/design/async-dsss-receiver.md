@@ -279,6 +279,11 @@ asynchronous BPSK, two samples a chip, no Doppler) the receiver holds a BER
 under 5% at Es/N0 10, 8 and 5 dB, the specification's floor, and exceeds 10% at
 4 dB, with the self-referenced EVM and the blind M2M4 SNR corroborating:
 `_test_awgn_esn0_floor` in `native/tests/test_async_dsss_receiver_core.c`.
+Against the bound, `Q(sqrt(2 Es/N0))`, the BER sits about 0.9 dB from it from
+5 to 8 dB, measured with its interval in the
+[certification record](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
+(§2.6). Where that loss goes is
+[#2495](https://github.com/doppler-dsp/doppler/issues/2495).
 
 **The code path sums the partials coherently** over a one-period window and
 takes the powers of the sums. A data flip changes the sign of every partial after

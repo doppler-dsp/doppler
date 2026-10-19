@@ -492,6 +492,22 @@ add_test(NAME validate_async_dsss_receiver_lock_telemetry
          COMMAND validate_async_dsss_receiver_lock --telemetry
                  ${CMAKE_CURRENT_BINARY_DIR} --check)
 
+# The same receiver's bit error rate against the BPSK bound, as an
+# implementation loss in dB, on the same stimulus
+# (async_dsss_receiver_common.h). `--emit` is the record's data
+# (src/doppler/dsss/tests/validation/async_dsss_receiver/).
+add_executable(validate_async_dsss_receiver_ber
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_receiver_ber.c)
+target_include_directories(validate_async_dsss_receiver_ber
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_async_dsss_receiver_ber
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_async_dsss_receiver_ber
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_receiver_ber
+         COMMAND validate_async_dsss_receiver_ber --check)
+
 # The tracking receiver through the frame's pure-code window: what each lock
 # flag does while the symbol clock coasts, the pull-in when the data resumes,
 # and whether the release rule ever fires

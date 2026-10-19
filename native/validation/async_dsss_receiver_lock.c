@@ -163,11 +163,40 @@
 #define RELOCK_WATCH_S 0.3 /* a re-lock is waited for this long      */
 #define MAX_HOLD 400u      /* the hold scan's longest dropout, epochs */
 
-#define QUALITY_SETTLE_S 0.2  /* after symbol lock first comes up     */
-#define QUALITY_S 1.0         /* the measured window: 2,700 symbols   */
-#define QUALITY_TRIALS 5u     /* a sweep's draws per Es/N0            */
-#define CHECK_EVM_LOSS_DB 2.0 /* EVM over the meter's ideal, at most */
-#define FALSE_S 2.0           /* noise fed to a receiver seeded on it */
+#define QUALITY_SETTLE_S 0.2 /* after symbol lock first comes up     */
+#define QUALITY_S 1.0        /* the measured window: 2,700 symbols   */
+#define QUALITY_TRIALS 5u    /* a sweep's draws per Es/N0            */
+#define FALSE_S 2.0          /* noise fed to a receiver seeded on it */
+
+/* The EVM allowance, at each Es/N0, as a loss over the meter's ideal
+   (dp_ber_evm_ideal_db()). A locked receiver's error is the ideal's plus an
+   implementation floor, EVM^2 = ideal + floor in linear power, so the loss
+   it may show is 10*log10(1 + floor/ideal): a fraction of a dB at 10 dB,
+   over 1 dB at 20, where the floor dominates. EVM_FLOOR_DB is the floor
+   the full sweep's worst 20 dB draw leaves (a loss of +1.36 dB there).
+   EVM_MARGIN_DB is the estimator's own counting noise, both ways: over
+   QUALITY_S of symbols (2,700) one sigma of an EVM is 4.34/sqrt(2700) =
+   0.08 dB, and 0.3 dB is past 3.5 sigma. So a new 0.2 dB of loss at
+   10 dB fails, and an EVM well under the ideal -- a meter or harness
+   defect, never a better receiver -- fails too. */
+#define EVM_FLOOR_DB -24.4
+#define EVM_MARGIN_DB 0.3
+
+/* The most loss a locked receiver may show at this Es/N0. */
+static double
+evm_loss_max_db (double esn0_db)
+{
+  const double floor_over_ideal
+      = pow (10.0, (EVM_FLOOR_DB - dp_ber_evm_ideal_db (esn0_db)) / 10.0);
+  return 10.0 * log10 (1.0 + floor_over_ideal) + EVM_MARGIN_DB;
+}
+
+/* The least: under the ideal by no more than the counting noise. */
+static double
+evm_loss_min_db (void)
+{
+  return -EVM_MARGIN_DB;
+}
 #define FALSE_TRIALS 5u
 
 static const double quality_esn0s[] = { 20.0, 15.0, 10.0, 7.0, 5.0 };
@@ -1035,7 +1064,7 @@ main (int argc, char **argv)
   const size_t q_tr = check ? 1 : QUALITY_TRIALS;
   if (emit)
     printf ("# quality\nesn0_db,seed,carrier_hz,settled,t_lock_ms,n_sym,"
-            "evm_db,ideal_db,loss_db,lock_frac\n");
+            "evm_db,ideal_db,loss_db,loss_min_db,loss_max_db,lock_frac\n");
   else
     printf ("quality: symbol lock, then %.1f s of every symbol\n", QUALITY_S);
   for (size_t e = 0; e < n_q; e++)
@@ -1045,22 +1074,37 @@ main (int argc, char **argv)
         {
           quality_t q;
           DP_REQUIRE (run_quality (code, es, s, &q) == 0);
+          /* Asserted at 10 dB and above. Below, the loss comes from the
+             loops' dynamics rather than a floor, the model does not hold,
+             and the row carries no allowance (NaN). */
+          const int    asserted = es >= 10.0;
+          const double lo       = asserted ? evm_loss_min_db () : NAN;
+          const double hi       = asserted ? evm_loss_max_db (es) : NAN;
           if (emit)
-            printf ("%.1f,%u,%.1f,%d,%.2f,%zu,%.3f,%.3f,%.3f,%.4f\n", es, s,
-                    q.carrier_hz, q.settled, q.t_lock_ms, q.n_sym, q.evm_db,
-                    dp_ber_evm_ideal_db (es), q.loss_db, q.lock_frac);
+            printf ("%.1f,%u,%.1f,%d,%.2f,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.4f\n",
+                    es, s, q.carrier_hz, q.settled, q.t_lock_ms, q.n_sym,
+                    q.evm_db, dp_ber_evm_ideal_db (es), q.loss_db, lo, hi,
+                    q.lock_frac);
+          else if (asserted)
+            printf ("  %4.1f dB seed %u: carrier %+7.1f Hz, lock %7.1f ms, "
+                    "%zu symbols, EVM %6.2f dB, loss %+.2f dB (allowed %+.2f "
+                    "to %+.2f), locked %.3f\n",
+                    es, s, q.carrier_hz, q.t_lock_ms, q.n_sym, q.evm_db,
+                    q.loss_db, lo, hi, q.lock_frac);
           else
             printf ("  %4.1f dB seed %u: carrier %+7.1f Hz, lock %7.1f ms, "
-                    "%zu symbols, EVM %6.2f dB, loss %+.2f dB, locked "
-                    "%.3f\n",
+                    "%zu symbols, EVM %6.2f dB, loss %+.2f dB, locked %.3f\n",
                     es, s, q.carrier_hz, q.t_lock_ms, q.n_sym, q.evm_db,
                     q.loss_db, q.lock_frac);
-          if (es >= 10.0)
+          if (asserted)
             {
               DP_CHECK_MSG (q.settled, "at 10 dB and above a draw locks");
-              DP_CHECK_MSG (q.settled && q.loss_db <= CHECK_EVM_LOSS_DB,
-                            "a locked receiver's EVM is at most "
-                            "CHECK_EVM_LOSS_DB over the meter's ideal");
+              DP_CHECK_MSG (q.settled && q.loss_db <= hi,
+                            "a locked receiver's EVM is within its "
+                            "allowance over the meter's ideal");
+              DP_CHECK_MSG (q.settled && q.loss_db >= lo,
+                            "a locked receiver's EVM is not under the "
+                            "meter's ideal by more than its counting noise");
               DP_CHECK_MSG (q.settled && q.lock_frac == 1.0,
                             "symbol lock holds through the window");
             }

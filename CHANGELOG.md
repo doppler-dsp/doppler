@@ -13,6 +13,364 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-10-19
+
+### Added
+
+- **`AsyncDsssPool` as parallel receivers, designed and measured.**
+    `docs/design/async-dsss-parallel.md` lays out N independent
+    `AsyncDsssReceiver`s under a simple controller. Its numbers, and its
+    record's, are rendered from runs of shipped tools: a new validator,
+    `validate_async_dsss_receiver_lock`, measures arrival and symbol lock
+    through dropouts at 3.069 Mcps on transitioning data, and the C
+    benches give what each receiver state costs.
+
+- **`AsyncDsssReceiver` is certified for BPSK** at the SPEC operating point
+    (Gold-1023, 3.069 Mcps, 2,700 sym/s):
+    `src/doppler/dsss/tests/validation/async_dsss_receiver/results.md`
+    gives its EVM loss against Es/N0, its lock times, how fast a lock
+    drops, and its false-lock rate on noise, measured, with the limits
+    every push asserts. `validate_async_dsss_receiver_lock` gains the
+    `# quality` and `# falselock` blocks that measure them.
+
+- **`ber_evm_ideal_db(esn0_db)`**: what the self-referenced EVM meter
+    (`ber_evm_db`) reads on an ideal stream. The meter scales to unit total
+    power, so a receiver's EVM loss is measured against this, not -Es/N0.
+
+- **`AsyncDsssReceiver` reports its own lifecycle as telemetry.**
+    `set_telemetry()` now registers `<prefix>.state` (searching, refining,
+    tracking, idle, lost as 0–4), `<prefix>.handover_hz` (the Doppler the
+    chain was built from) and `<prefix>.refused` (hits refused as seeds),
+    once per `steps()` call. When the search hit, how long the refine took
+    and what it handed over now show as a time series beside the loops'
+    probes. The header's probe list also says `<prefix>.rc` registers
+    nothing here.
+
+- **A gallery page for `AsyncDsssReceiver`'s lifecycle.** One receiver follows a signal through noise, arrival, tracking, a 10 ms dropout, a 50 ms dropout that the symbol lock falls in and recovers from, and a departure, read from `status()` after every push. The Python example and its C twin both self-validate. See [the gallery page](docs/gallery/async-dsss-receiver-lifecycle.md).
+
+- **`make bench-rx` times the `AsyncDsssReceiver` alone, in seconds.** It
+    runs the receiver's C bench: the held receiver at three operating
+    points, now including the SPEC point (a 1,023-chip code at 3.069 Mcps,
+    2 samples a chip), and, new, the SEARCHING receiver's own search over
+    plus or minus one code-period frequency on noise. That is the per-sample
+    cost the parallel design multiplies. Each row is recorded only if the
+    receiver is still holding the code, or still searching, after the timed
+    rounds.
+
+- **`AsyncDsssReceiver(reacquire=True)` searches again by itself.** It
+    releases on symbol lock alone, after `lost_confirm_s`, and resets to
+    searching instead of entering `lost`, so an always-online receiver finds
+    the next emitter with no `reset()` -- what the parallel pool's receivers
+    will need. A new `lifecycle` property names the state (`"searching"` ...
+    `"lost"`) through a jm enum.
+
+- **`make bench-rx` times the receiver's full tracking mode**:
+    `steps[track,sf=1023,3.069Mcps]` is the searching flavor seeded at the
+    SPEC point at its design Es/N0, run through refine and pull-in, and
+    timed in closed-loop tracking with code and symbol lock held throughout.
+    It is the mode a receiver spends most of its time in while signals are
+    present.
+
+- **`AsyncDsssReceiver` and `AsyncDsssPool` take a telemetry context.**
+    `set_telemetry(tlm, prefix)` reports every loop's discriminator and
+    filter output and, on the pool, the searcher's dwells, every slot and the
+    table: 121 probes for four slots, kept across the re-seeds that rebuild
+    a receiver's loops. A context holds 512 probes, not 64, so the public
+    `dp_tlm_t` grows to about 25 KiB and the fields after its probe table
+    move: C code built against an earlier doppler must be rebuilt. A refused
+    attach changes nothing, a full table included.
+    `make pool-telemetry` times both on one wfm Gold capture and files the
+    captures; `scripts/plot_capture.py --time` plots any capture in seconds.
+
+- **The parallel-receivers record shows three receivers' whole lives, with
+    the signal's absence shaded.** Its new §3.2 draws the lock validator's
+    lifecycle stories (an arrival, three fades, a departure) from the
+    receiver's own telemetry; `scripts/plot_capture.py --shade stim.on`
+    greys where the stimulus the validator records reads 0.
+
+- **Each carrier and code loop reports its NCO's command, and
+    `AsyncDsssReceiver` its own symbol lock.** `Costas` and `Dll` add `.nco`
+    (the whole filter output) beside the integrator's `.freq`/`.rate`; the
+    receiver adds `.sym.lock`/`.sym.locked`, so a 4-slot `AsyncDsssPool`
+    registers 121 probes and the 512-probe table holds 18 slots. The lock
+    validator's `--telemetry DIR` captures one receiver through arrival,
+    three fades and departure.
+
+### Changed
+
+- **The algorithm lifecycle page gains its Bind phase and a telemetry
+    pattern.** [Adding an algorithm](../../docs/dev/contributing/adding-algorithms.md)
+    had no phase 5 and gave telemetry one line. Phase 5 now says what binding
+    by declaration decides; phase 6 says what to decide about probes (pairs,
+    units and cadence, a pinned list). Both use `AsyncDsssReceiver` as the
+    worked example, and the telemetry design gains the composition pattern.
+
+- **The async despreader example is rebuilt.** It runs `track.Dll(segments=4)`
+    on a `DopplerChannel`-dilated link, unaided and with the carrier's rate aid,
+    at the link's 0.6 ppm and an inflated 5 ppm, sizes the lock detector for the
+    link, and shows the despread output it hands the next stage; its Python and
+    C twins run one draw and check the same physics
+    ([the gallery page](../../docs/gallery/async-despread.md)).
+
+- **The AsyncDsssReceiver lifecycle example is rebuilt.** It arms the release rule, resets the receiver when it reports `LOST`, and acquires a returning emitter; its Python and C twins run the same timeline ([the gallery page](../../docs/gallery/async-dsss-receiver-lifecycle.md)).
+
+- **The `AsyncDsssReceiver` lifecycle example reads the receiver's own
+    telemetry.** Both twins attach `set_telemetry()`, keep every record in a
+    memory capture, and build their rows from `rx.state`, `rx.sym.locked`,
+    `rx.code.locked`, `rx.sym.lock` and `rx.handover_hz`. The figure adds a
+    carrier panel (the hand-over against the loop's command in Hz), and
+    [the gallery page](../../docs/gallery/async-dsss-receiver-lifecycle.md)
+    shows the file capture and `scripts/plot_capture.py`. The telemetry
+    page's table lists the receivers, the pool and `Acquisition`.
+
+- **The `AsyncDsssReceiver` lifecycle example's Python and C faces run one
+    draw.** The C twin takes the Python twin's seeds and its sigma function,
+    `dp_wfm_awgn_amplitude()`. Both print the same five lines, one a stage,
+    and `test_c_example_pairs.py` runs both and requires them to match
+    ([the gallery page](../../docs/gallery/async-dsss-receiver-lifecycle.md)).
+
+- **`AsyncDsssReceiver` refuses a hand-over past half the sample rate.** A
+    seed in range whose refined residual carried it to or past fs/2 used to
+    track a Doppler the receiver cannot report; the hand-over now holds the
+    refined value to the seed domain, counts it in `refused_hits`, and
+    searches again.
+
+- **The AsyncDsssReceiver SPEC example is rebuilt, with a C twin.** It runs the
+    TCA crossing and both ±50 kHz extremes through coupled Doppler over eight
+    noise draws, arms `reacquire` so a missed hand-off is searched again, and
+    scores the decode with `BerMeter`, EVM and M2M4
+    ([the gallery page](../../docs/gallery/async-dsss-receiver-spec.md)).
+
+- **The `AsyncDsssReceiver` certification's EVM limit is two-sided and set
+    per Es/N0.** The flat "at most 2.0 dB over the ideal" let about 0.8 dB
+    of new loss through at 10 and 15 dB. The bound is now the ideal plus a
+    measured implementation floor plus the estimator's counting noise:
+    +0.47 dB at 10 dB, +0.78 at 15 and +1.65 at 20, and no more than
+    0.30 dB under the ideal. The C harness computes it, emits it and asserts
+    it. The report also stops calling a missed hand-off a below-10-dB
+    effect (1 of 21 dropout draws at 10 dB), and
+    `make validate-async-receiver-sweep` re-runs the full sweep.
+
+- **The benchmarks page reads in MSa/s, with your headroom.** Every
+    stream kernel reads in input samples per second against a sample rate
+    you enter; bit, chip and symbol rows read in their own rate, setup in
+    time per call. Rows sit in family tabs with search, five sorts and a
+    trend chart per row, named from `benchmarks/labels.toml`; a row
+    published for the first time needs a label, checked at release (per
+    PR: #2390). It draws however the page is reached, by a link or a
+    reload ([#2391](https://github.com/doppler-dsp/doppler/issues/2391))
+    ([#2372](https://github.com/doppler-dsp/doppler/issues/2372)).
+
+- **The Dll's taps run on integer phase words, about 3x faster in a held
+    async DSSS receiver.** Each tap's code phase was a chip count in
+    double folded by `fmod`; it is now the code NCO's own 32-bit word, so a
+    held receiver at 5 Mcps costs 11.2 ns a sample, not 33.1, and the
+    published Dll row (the v0.73.0 set, pinned on the bench box) runs at 205
+    MSa/s native against v0.72.0's 44.8, 4.6x. The despreader
+    and `DsssReceiver` share the Dll and the gain
+    ([#2397](https://github.com/doppler-dsp/doppler/issues/2397)).
+
+- **`make install-deps` provisions the dev tools the gates use.** A new
+    `clang-rt` group installs clang's compiler runtime (the ASan and
+    coverage-profile libraries) on apt, pacman and dnf, deriving apt's
+    versioned name from the clang it finds, so `make test-asan` works on a
+    fresh Debian 13 box. `[dev.brew]` gains `coreutils` (GNU `gdate`), and the
+    `docs` group now lists doxygen and graphviz for pacman, brew, dnf and
+    zypper, not just apt. The CI image reads the same declarations.
+
+- **just-makeit pin 0.106.0 → 0.108.0: the stubs mark positional-only
+    parameters with `/`.** A type checker now refuses the keyword calls
+    those bindings always refused at runtime (`acc.step(x=1.0)`); nothing
+    at runtime changes. The rest is generated binding glue. The C tests
+    spell `complex` as `_Complex` (same type), and the mutator-state gate
+    reads `/` parameters (#2428), so those 40 methods are still probed.
+
+- **The parallel-receivers record stamps its toolchain.** Each run's
+    stamp carries the compiler CMake detected and its version, the C
+    library, the build type with the flags it compiles with, and whether
+    `DOPPLER_NATIVE` added `-march=native`. A re-run on another box then
+    reads as a different toolchain, not as drift, and a schema-2 stamp
+    missing any of these is refused. The record's seed-edge block renders
+    the numbers its prose cites from the data.
+
+### Removed
+
+- **`async_despreader_study.py` is retired, and its BER table and figure
+    with it.** It modelled a despreader the library does not ship (numpy
+    partials, a boxcar and `SymbolSync`, a non-coherent combine).
+    [The design](../../docs/design/async-dsss-receiver.md)'s §3.3 now
+    describes the shipped chain, the carrier wipe → `Dll` → `RateConverter`
+    → `MpskReceiver`, and cites the receiver's gated 5 dB Es/N0 floor test.
+
+### Fixed
+
+- **`acq_core.h` states the window count the continuous engine builds.** It tiles `2*ceil((doppler_uncertainty - span)/(2*span)) + 1` windows, not `ceil(doppler_uncertainty/span)`. At the SPEC geometry, span 1500 Hz, a one-sided 3 kHz gives 3 windows where the old formula gave 2.
+
+- **`AsyncDsssReceiver` and `AsyncDsssPool`'s docs say what the code
+    does.** About forty statements the headers and their toml docs made
+    were wrong or described the retired hand-off flavour: among them
+    `code_rate` in chips per sample (chips per nominal chip), `locked` as a
+    carrier flag (the symbol lock), `.rc` probes that never register, and
+    `status()`/`symbols()` raising for a bad slot (they return -1 and
+    empty). The header is now the one source of both Python faces.
+
+- **An `AsyncDsssReceiver`'s refine floor survives a restore.**
+    `set_refine_min_blocks()`'s value was not in the state blob, so a resumed
+    receiver ran the default floor; it travels now (blob v9). The receiver
+    and its cell flavor join the shared state round-trip matrix, which puts
+    their setters under the mutator-state gate and retires 14 exemptions.
+
+- **A C benchmark row names its unit.** Each C row now records what it
+    counts (call, sample, frame, bit, ...), and its time is per that unit,
+    not per round: `acc_f32::step`, 65,536 calls a round, takes 0.6 ns per
+    sample, where the page used to print 39 µs "per call". The `bench-timer`
+    gate refuses a row recorded without its unit
+    ([#2314](https://github.com/doppler-dsp/doppler/issues/2314)).
+
+- **A C benchmark can no longer lose a row without a word.** The vendored
+    `jm_bench.h` dropped every row past 32 after printing it; jm 0.106.0's
+    copy grows the table and fails the run instead (just-makeit#2188). The
+    rows the cap kept out are back: the Spectrogram bench goes from 32 rows
+    to 53 and PSD's from 32 to 34, both of which sat at the cap.
+    `make bench-interleaved` replays a failed run's stderr instead of
+    discarding it, and `make bench` exits non-zero when its Python half
+    fails to collect or a benchmark raises (#1977) (#2062).
+
+- **`make lint-clang-format` no longer passes while checking fewer files.**
+    Its list of hand-written `_ext.c` files came from a bare `uv run`
+    whose failure was lost in a pipe. On a machine whose uv is not the
+    pinned version, run with `UV=` naming the pinned uv, those files
+    silently dropped out and the target still exited 0 (with the default
+    `UV`, clang-format was refused too, and the target failed). The list
+    now goes through `$(UV)`, and a failure to produce it fails the target
+    ([#2361](https://github.com/doppler-dsp/doppler/issues/2361)).
+
+- **`AsyncDsssReceiver.configure_chain_raw()` raises `ValueError` for an
+    `n` MpskReceiver would refuse, instead of aborting the process.** An
+    `n` that divided `sps` but was odd, under 2 or over 8 passed the old
+    check and crashed the rebuild with SIGABRT; now it is refused and the
+    receiver keeps its grid. RateSync's `m` domain is one public C
+    predicate, `dp_ratesync_m_ok()`, which both creates use (#2421).
+
+- **The patch-coverage gate runs a pinned diff-cover.** The
+    `coverage-gate` target ran `uvx diff-cover`, which resolves the tool
+    outside `uv.lock`, so its verdict could change on the day diff-cover
+    released, with no commit here. diff-cover 10.6.0 is now an exact pin
+    in the dev group and runs through the lock, and `make lint-uv-pin`
+    refuses `uvx`, `uv tool run` or `uv run --with` in any makefile
+    ([#2371](https://github.com/doppler-dsp/doppler/issues/2371)).
+
+- **A coasting `Dll` reports the rate it runs at.** `code_rate` kept the
+    last steer's value through a coast while the NCO ran the held filter, so
+    `Dll.code_rate`, the `.rate` probe and the receivers' and pool's status
+    read a rate the loop was not running.
+
+- **`Dll`'s docs say its code loop sums coherently.** They said the
+    `segments > 1` loop combined its partials non-coherently and was
+    carrier-blind, with Costas downstream; it sums them over a one-period
+    window, so a residual carrier of one cycle per period nulls it
+    (`test_dll_core.c` §6d). `code_rate` now says it excludes the aid and
+    reads up to one NCO step above the rate carried, and a carrier-present
+    Python test that passed on a loop 4.8 chips off the code now checks the
+    code phase.
+
+- **Section citations are checked in every file and every spelling.**
+    `scripts/check_doc_sections.py` read `.h .c .md .py` only and knew
+    `§N` directly after a path, so 14 citations of a moved section sat
+    unchecked; it now reads every tracked text file, accepts `section N`
+    and a comment line break, and refuses `design §N` that names no page
+    beyond a shrink-only list (#2416).
+
+- **`make doxygen-check` and `make gen-c-api` say what is missing.** With
+    no matching local doxygen, both run CI's doxygen through docker, and any
+    failure of that step was reported as "the CI image ships doxygen , not
+    1.9.8 ... CI has moved", telling the reader to bump a correct pin. A
+    missing docker, an image that will not run, and an image that reports no
+    version are now each named; "CI has moved" is said only when the image
+    ran and reported another version
+    ([#2362](https://github.com/doppler-dsp/doppler/issues/2362)).
+
+- **The DSSS benchmarks time what their names say, and fewer of
+    them.** The carrier search's 16.7 GSa/s row timed a give-up; it is
+    now `detect[pad=4|16]`, a decision credited with the samples it read.
+    57 of the family's 94 rows are cut, each covered by a kept one
+    ([#1967](https://github.com/doppler-dsp/doppler/issues/1967),
+    [#2388](https://github.com/doppler-dsp/doppler/issues/2388),
+    [#2386](https://github.com/doppler-dsp/doppler/issues/2386)).
+
+- **`DsssReceiver.configure_chain_raw()` raises `ValueError` for an `n`
+    MpskReceiver would refuse, instead of aborting the process.** The same
+    defect `AsyncDsssReceiver` had (#2421): an `n` that divided `sps` but
+    was odd, under 2 or over 8 crashed the rebuild with SIGABRT; it is now
+    refused through `dp_ratesync_m_ok()` and the receiver keeps its grid
+    (#2426).
+
+- **The DSSS receiver's benchmarks refuse a lock in the wrong place.**
+    The `track` row shared its timing array with the `search` row and
+    stopped early when the signal ran out, so a receiver that locked late
+    recorded search timings as tracking, and one that never locked (the
+    signal used up) ran no tracking rounds and published a copy of the
+    search row, both without a word. It now checks for a lock with every
+    round's signal still available, and `search` refuses a lock on silence
+    ([#2363](https://github.com/doppler-dsp/doppler/issues/2363)).
+
+- **`UV=` now reaches every uv call in the Makefile.** Passing the pinned
+    uv as `UV=` is the way out on a machine whose uv is not the pinned
+    version, but 94 Makefile lines ran a bare `uv`, so it did not reach them:
+    `make pyext` with `UV=` set still failed at its final `uv sync`. They
+    all go through `$(UV)` now, and `make lint-uv-pin` refuses a new bare
+    uv call in any makefile. `scripts/.bare-uv-allow`, the list of lines
+    that may stay bare, is empty and only shrinks
+    ([#2369](https://github.com/doppler-dsp/doppler/issues/2369)).
+
+- **The mutator-state gate probes positional-only methods.** Stubs that
+    mark parameters positional-only with `/` (just-makeit 0.108.0) read
+    as taking no parameters, so 40 methods went unprobed. The gate now
+    reads them as the positional parameters they are (#2428).
+
+- **`make pyext` no longer builds for the system Python when uv refuses.**
+    A uv that refused (most often: not the pinned version) used to fall
+    back to `python3` silently; `pyext`, `coverage`, `warnings-check` and
+    the downstream Python build now fail with uv's reason, as does an
+    empty `PYTHON_EXECUTABLE=`. Only the interpreter probe honors `UV=`
+    here; `pyext`'s `uv sync` is #2370's
+    ([#2364](https://github.com/doppler-dsp/doppler/issues/2364)).
+
+- **The AsyncDsssReceiver design page states what the code does.** Its loop gains, depth rule, hand-off record and pool push order are corrected against the code, and the four citers that named the old §8 peak list and `DetectionEvent` now name §7.1 and `acq_handoff_t` ([`async-dsss-receiver.md`](../../docs/design/async-dsss-receiver.md)).
+
+- **Nine writable properties raise `ValueError` on a value their C setter
+    refuses, instead of ignoring it.** `AccTrace.alpha`, `AWGN.amplitude`,
+    `Despreader.bn_carrier`/`bn_code` and `bn` on `CarrierMpsk`,
+    `CarrierNda`, `Costas`, `Dll` and `SymbolSync` each already refused a
+    value outside its domain in C and kept the old one. The Python setter
+    dropped that status, so the assignment looked as if it had worked. The
+    value still stays put, and the assignment now raises, so code that may
+    assign an out-of-range value catches `ValueError` (#1987).
+
+- **`check_site_links` refuses a built site with no page to check.** A
+    docs build that rendered nothing (theme assets and an unrendered
+    sitemap template, no page) used to read "OK — 0 pages" and pass
+    `make docs-check`. Zero pages checked now fails.
+
+- **A stock-image pull that ECR Public refuses for its data quota is served
+    by a mirror.** `toomanyrequests: Data limit exceeded` outlasted
+    `scripts/stock-pull.sh`'s 75 s of retries on all seven legs it hit (two
+    on 2026-10-12, five on 2026-10-16), so it now goes at once to
+    `STOCK_MIRROR` (`mirror.gcr.io/library`, whose index digests matched on
+    2026-10-16), as does a rate limit that outlasts them. Each pull logs
+    docker's size for the image; a per-run figure in metered bytes is
+    #2381 (#2256).
+
+- **A `Telemetry` a kernel keeps is no longer freed under it.** Attaching `set_telemetry` or `set_event_log` and then dropping the Python reference let the next push write into freed memory. The binding now holds the owner for as long as the kernel does (jm#2327), and `tlm._capsule` lends its owner, so a retained capsule keeps the Telemetry alive too.
+
+- **A vendored `jm_*.h` can no longer fall behind the pinned just-makeit
+    unnoticed.** `make drift-check` fails when a committed jm harness
+    header differs from the pinned jm's render (an untracked one, like the
+    root's declined `jm_test.h`, is not checked), and `make jm-revendor`
+    replaces each stale copy. It re-vendored three, among them the
+    downstream example's `jm_bench.h` with its silent 32-row cap
+    ([#2377](https://github.com/doppler-dsp/doppler/issues/2377)).
+
 ## [0.72.0] - 2026-10-15
 
 ### Breaking
@@ -17157,6 +17515,7 @@ ______________________________________________________________________
 [0.70.0]: https://github.com/doppler-dsp/doppler/compare/v0.69.0...v0.70.0
 [0.71.0]: https://github.com/doppler-dsp/doppler/compare/v0.70.0...v0.71.0
 [0.72.0]: https://github.com/doppler-dsp/doppler/compare/v0.71.0...v0.72.0
+[0.73.0]: https://github.com/doppler-dsp/doppler/compare/v0.72.0...v0.73.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.72.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.73.0...HEAD

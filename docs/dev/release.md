@@ -139,8 +139,8 @@ label in `benchmarks/labels.toml` or a line in `benchmarks/.labels-exempt`
 (the label gate, #2372), and each refusal says what to do. Two kinds are
 routine at a release, and `make bench-labels-fix` clears both: a
 `benchmarks/legacy-units.toml` entry whose row records its own unit now
-(the first set measured after #2314, v0.73.0, records every C row's unit,
-so the fix deletes the whole file), and an exempt line whose row the new
+(the first set measured after #2314 recorded every C row's unit, and the fix
+deleted the whole file then), and an exempt line whose row the new
 set no longer measures -- read the lines it prints, because a row missing
 from this one set only (a Python bench whose broker was down) loses its
 exempt line too, and needs a label when it comes back. A row the set

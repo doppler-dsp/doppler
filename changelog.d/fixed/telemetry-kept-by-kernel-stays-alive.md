@@ -1,1 +1,0 @@
-- **A `Telemetry` a kernel keeps is no longer freed under it.** Attaching `set_telemetry` or `set_event_log` and then dropping the Python reference let the next push write into freed memory. The binding now holds the owner for as long as the kernel does (jm#2327), and `tlm._capsule` lends its owner, so a retained capsule keeps the Telemetry alive too.

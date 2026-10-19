@@ -90,12 +90,6 @@ definition = "A code-phase search for a 1,023-chip code at 3.069 Mcps and 2 samp
 samples = 1
 headline = true
 
-["c:acq::native_nc256"]
-name = "DSSS acquisition, 1,023-chip code, 256 epochs"
-unit = "sample"
-definition = "A code-phase search for a 1,023-chip code at 2 samples per chip, integrating 256 epochs non-coherently, with no Doppler search (one frequency window); throughput counts searched input samples."
-samples = 1
-
 ["c:rs::decode[e=8]"]
 name = "Reed-Solomon decode, 8 errors"
 unit = "codeword"
@@ -302,12 +296,6 @@ unit = "call"
 definition = "Noise power ratio of 65,536 samples: window, FFT and the metric sums, one capture per call. A whole-capture measurement, read in input samples per second so it compares with its Python face and the stream it is taken from."
 samples = 65536
 
-["c:burst_demod::demod[clean]"]
-name = "Burst demodulator, clean"
-unit = "call"
-definition = "One whole 28,600-sample burst demodulated with no carrier offset and an exact prior: estimate frequency from the preamble, dechirp, despread, find the sync word and slice 93 bits, checking no CRC; read in input samples per second."
-samples = 28600
-
 ["c:burst_demod::demod[offset]"]
 name = "Burst demodulator, offset"
 unit = "call"
@@ -397,18 +385,6 @@ samples = 1
 name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 1 thread"
 unit = "sample"
 definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 1 thread; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U50k_D154_t2_nc1"]
-name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 2 threads"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 2 threads; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U50k_D154_t4_nc1"]
-name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 4 threads"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 4 threads; throughput counts searched input samples."
 samples = 1
 
 ["c:acq::op5M_U50k_D154_t8_nc1"]
@@ -677,6 +653,18 @@ samples = 1
 name = "Burst acquisition, 1,023-chip code, 10 periods, from Python"
 unit = "sample"
 definition = "One BurstAcquisition push of noise through the Python binding: a 1,023-chip maximal-length code at 2 samples per chip, searched over 10 code periods, so one push is one 20,460-sample tile (Doppler FFT, code correlation, CFAR); throughput counts input samples."
+samples = 1
+
+["c:carrier_acq::detect[pad=4]"]
+name = "Carrier acquisition decision, zero-pad 4"
+unit = "sample"
+definition = "One sequential-mode decision on rect-pulse BPSK at 4 samples per symbol (1 Msym/s at 4 MSa/s, 44 kHz off centre, 20 dB Es/N0), 4,096-sample blocks zero-padded to a 16,384-point transform, reset before every call; each call must decide within two bins of 44 kHz and stop early; throughput counts the samples folded before the decision, not the samples offered."
+samples = 1
+
+["c:carrier_acq::detect[pad=16]"]
+name = "Carrier acquisition decision, zero-pad 16"
+unit = "sample"
+definition = "One sequential-mode decision on rect-pulse BPSK at 4 samples per symbol (1 Msym/s at 4 MSa/s, 44 kHz off centre, 20 dB Es/N0), 4,096-sample blocks zero-padded to a 65,536-point transform, reset before every call; each call must decide within two bins of 44 kHz and stop early; throughput counts the samples folded before the decision, not the samples offered."
 samples = 1
 
 ["py:carrier_acq::test_bench_steps_search[4]"]

@@ -21,11 +21,22 @@
  * the continuous async-DSSS operating point (section 6.1), a 1,023-chip
  * code at 5 Mcps and 2 samples per chip, the top of the 2-5 Mcps range.
  *
- * Not timed here (doppler#2386): acquisition and refinement, a one-time
- * transient rather than a rate, and the searching flavor's steady state,
- * which reads the same per sample as this one.
+ * A third row puts the held cell at the SPEC operating point the receiver
+ * is certified at (a 1,023-chip code at 3.069 Mcps, 2 samples a chip,
+ * 2,700 sym/s).
+ *
+ * The SEARCHING flavor is timed too, while it searches: the receiver at the
+ * binding's defaults with its own search over +/-1/T_E, fed noise alone
+ * from the shipped awgn, so it never hands off. That is the per-sample cost
+ * the parallel design multiplies (docs/design/async-dsss-parallel.md: every
+ * receiver searches the whole range), and the row is recorded only if the
+ * receiver is still searching before and after the timed rounds -- a
+ * hand-off would time the refine or the track and read as the search.
+ *
+ * Not timed here: refinement, a one-time transient rather than a rate.
  */
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/awgn/awgn_core.h"
 #include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
@@ -181,13 +192,93 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
   (void)snprintf (name, sizeof name, "steps[cell,%s]", w->tag);
   jm_bench_add_unit (bench, name, times, ITERATIONS, BLOCK, JM_BENCH_SAMPLE);
   double sec = min_sec (times, ITERATIONS);
-  printf ("  %-28s %8.3f ms/block  %7.2f ns/sample  %6.2fx real time on "
+  printf ("  %-32s %8.3f ms/block  %7.2f ns/sample  %6.2fx real time on "
           "one core\n",
           name, sec * 1e3, sec / (double)BLOCK * 1e9,
           (double)BLOCK / sec / (w->chip_rate * (double)w->spc));
 
   (void)sink;
   dp_async_dsss_receiver_destroy (rx);
+  free (x);
+  free (out);
+  return 0;
+}
+
+/* Still searching, or a message naming where it went. */
+static int
+searching (const dp_async_dsss_receiver_state_t *rx, const char *when)
+{
+  int st = dp_async_dsss_receiver_status (rx).state;
+  if (st == ASYNC_DSSS_RX_SEARCHING)
+    return 1;
+  (void)fprintf (stderr,
+                 "bench_async_dsss_receiver[search]: %s, state=%d -- a "
+                 "timing would measure a receiver that is not searching\n",
+                 when, st);
+  return 0;
+}
+
+/* The searching flavor at the SPEC point, while it searches. The receiver
+   is the binding's defaults with its own search over +/-1/T_E (the one
+   native/validation/async_dsss_receiver_lock.c's make_rx() certifies),
+   designed for Es/N0 10 dB; the input is the shipped awgn at that C/N0's
+   noise level for a unit-power emitter, and no emitter. */
+static int
+run_searching (jm_bench_t *bench, const uint8_t *code)
+{
+  const double chip = 3.069e6, sym = 2700.0;
+  const size_t sf = 1023, spc = 2;
+  const double fs   = chip * (double)spc;
+  const double span = fs / (double)(sf * spc); /* 1/T_E */
+  const double cn0  = 10.0 + 10.0 * log10 (sym);
+  const size_t lead = MIN_LEAD_BLOCKS;
+  const size_t n    = (lead + ITERATIONS) * (size_t)BLOCK;
+
+  dp_awgn_state_t *g = dp_awgn_create (
+      7919u,
+      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (fs)), 1.0f));
+  float _Complex                 *x  = malloc (n * sizeof *x);
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      code, sf, chip, sym, spc, 2, cn0, 1e-3, 0.9, span, 4, 8, 0, 0.5, 4, 14.0,
+      64, 8, false, 100000, 0.0, 0.0, false);
+  float _Complex *out = malloc ((size_t)BLOCK * sizeof *out);
+  if (!g || !x || !rx || !out)
+    {
+      (void)fprintf (stderr, "bench_async_dsss_receiver[search]: the "
+                             "receiver or its noise did not open\n");
+      return 1;
+    }
+  (void)dp_awgn_generate (g, n, x, n);
+
+  volatile size_t sink = 0;
+  size_t          pos  = 0;
+  for (size_t b = 0; b < lead; b++, pos += BLOCK)
+    sink += dp_async_dsss_receiver_steps (rx, x + pos, BLOCK, out, BLOCK);
+  if (!searching (rx, "after the lead-in"))
+    return 1;
+
+  double times[ITERATIONS];
+  for (int r = 0; r < ITERATIONS; r++, pos += BLOCK)
+    {
+      uint64_t t0 = jm_bench_now_ns ();
+      sink += dp_async_dsss_receiver_steps (rx, x + pos, BLOCK, out, BLOCK);
+      uint64_t t1 = jm_bench_now_ns ();
+      times[r]    = jm_bench_elapsed_sec (t0, t1);
+    }
+  if (!searching (rx, "after the timed rounds"))
+    return 1;
+
+  const char *name = "steps[search,sf=1023,3.069Mcps]";
+  jm_bench_add_unit (bench, name, times, ITERATIONS, BLOCK, JM_BENCH_SAMPLE);
+  double sec = min_sec (times, ITERATIONS);
+  printf ("  %-32s %8.3f ms/block  %7.2f ns/sample  %6.2fx real time on "
+          "one core\n",
+          name, sec * 1e3, sec / (double)BLOCK * 1e9,
+          (double)BLOCK / sec / fs);
+
+  (void)sink;
+  dp_async_dsss_receiver_destroy (rx);
+  dp_awgn_destroy (g);
   free (x);
   free (out);
   return 0;
@@ -210,14 +301,18 @@ main (void)
   const wf_t waveforms[] = {
     { "sf=7", CODE7, 7, 4, 1.0e6, 35714.29, 100 },
     { "sf=1023,5Mcps", code1023, 1023, 2, 5.0e6, 2700.0, 154 },
+    { "sf=1023,3.069Mcps", code1023, 1023, 2, 3.069e6, 2700.0, 154 },
   };
-  printf ("=== async_dsss_receiver benchmark: the held cell ===\n");
+  printf ("=== async_dsss_receiver benchmark: the held cell, and the "
+          "search ===\n");
   printf ("block = %d samples, %d rounds after a lead-in past the "
           "pull-in\n\n",
           BLOCK, ITERATIONS);
   for (size_t i = 0; i < sizeof waveforms / sizeof waveforms[0]; i++)
     if (run_waveform (&_bench, &waveforms[i]) != 0)
       return 1;
+  if (run_searching (&_bench, code1023) != 0)
+    return 1;
 
   jm_bench_write_json (&_bench, "async_dsss_receiver");
   return 0;

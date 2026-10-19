@@ -20,7 +20,8 @@ This demo runs one link twice, unaided and aided, at two Dopplers:
 
 - **0.6 ppm, this link's Doppler**: a 1500 Hz carrier offset on a 2.5 GHz
   carrier. Both loops hold lock. Unaided, the loop filter output settles at
-  the dilation: the loop carries it. Aided, it settles at zero.
+  the dilation: the loop carries it. Aided, it settles at zero. Both read up
+  to one NCO step high (below).
 - **5 ppm, inflated** to about eight times this link's, to show what the aid
   is for. The narrow loop cannot carry it unaided and loses lock within tens
   of milliseconds. Aided, it holds.
@@ -156,8 +157,10 @@ def despreader(init_chip):
     ``det_n_noncoh`` gives the looks a decision needs for ``PD`` at the C/N0,
     and ``det_verify_count`` the consecutive misses that hold false drops
     under 1e-6 per decision. ``AsyncDsssReceiver`` sizes its own the same
-    way. At its defaults the detector reads unlocked, now and then, on a loop
-    that holds the code.
+    way, because at its defaults, one look per despread sample, the flag
+    drops on a loop that holds the code: measured on the receiver, a few
+    times a second at Es/N0 10.7 dB and 96% of the time at 5.7 dB
+    (``docs/design/async-dsss-receiver-measurements.md`` section 12.3).
 
     Returns the Dll and its lock threshold.
     """
@@ -212,13 +215,14 @@ def check(runs):
 
     ``runs`` maps ``(doppler_ppm, aided)`` to a run's rows.
 
-    Two bounds are physical and hold on every draw. The despread output is
+    Two bounds come from the object, not the draw. The despread output is
     ``SEGMENTS`` samples per code period. And the NCO truncates its command,
-    so a locked loop's settled filter output reads high against the rate the
-    loop carries by no more than one NCO step; the tolerance is a quarter step
-    either side, for the noise left in a mean over the settled half. The rest
-    describes this run: first lock within a generous 50 ms, which loops held
-    lock, and when the unaided loop lost it.
+    so a locked loop's settled filter output reads between the rate the loop
+    carries and one NCO step above it. The check widens that by a quarter
+    step either side, an allowance for the noise left in a mean over the
+    settled half that is not part of the bound. The rest describes this
+    run: first lock within a generous 50 ms, which loops held lock, and when
+    the unaided loop lost it.
     """
     ms = 1e3 * EPOCH_S
     got = {}

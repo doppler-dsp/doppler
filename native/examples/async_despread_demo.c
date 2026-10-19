@@ -36,9 +36,11 @@
  *       steps of SF * SPC / 2^32 chips per chip. Unaided, the loop carries
  *       the dilation; aided, nothing.
  *
- * §1 and §3 are physical and hold on every draw. §2 describes this run. It
- * is a different draw of the same link than the Python twin's, and each twin
- * is checked against its own run.
+ * The despread rate in §1 and the step bound in §3 come from the object, not
+ * the draw; §3 widens the bound by a quarter step either side for the noise
+ * left in the settled mean. The 50 ms first lock and §2 describe this run,
+ * which is the Python twin's: the same emitter, channel, noise seed and loop,
+ * so the two print the same numbers.
  *
  * Build:
  *   cmake --build build
@@ -125,10 +127,22 @@ static size_t
 receive (const uint8_t *code, double doppler_ppm, float complex *x, size_t cap,
          double *offset_hz, double *delay)
 {
-  const size_t          n = (size_t)(DURATION_S / EPOCH_S) * TE;
+  const size_t n = (size_t)(DURATION_S / EPOCH_S) * TE;
+  /* The emitter, named in dp_wfm_synth_create()'s order: wfm.Synth's own
+     defaults, so the payload is the one the Python twin sends. */
+  const int             type = WFM_SYNTH_DSSS;
+  const double          freq = 0.0;                 /* the channel adds it */
+  const double          snr  = WFM_SYNTH_SNR_CLEAN; /* noise is added below */
+  const int             snr_mode  = 0;              /* auto */
+  const uint32_t        seed      = SEED_EMITTER;
+  const int             sps       = (int)SPC; /* samples per chip */
+  const int             pn_length = 15;       /* the PRBS register */
+  const uint64_t        pn_poly   = 0;        /* its maximal-length default */
+  const int             lfsr      = 0;        /* Galois */
+  const double          f_end     = 0.0;
   dp_wfm_synth_state_t *syn
-      = dp_wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                             SEED_EMITTER, (int)SPC, 7, 0, 0, 0.0);
+      = dp_wfm_synth_create (type, FS, freq, snr, snr_mode, seed, sps,
+                             pn_length, pn_poly, lfsr, f_end);
   dp_doppler_channel_state_t *ch
       = dp_doppler_channel_create (FS, CARRIER_HZ, doppler_ppm, 0.0);
   dp_awgn_state_t *awg = dp_awgn_create (

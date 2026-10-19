@@ -32,8 +32,9 @@ aided, at two Dopplers:
 ## What the runs show
 
 - **At this link's Doppler, both loops hold lock.** Unaided, the loop filter
-    output settles at the dilation: the loop carries it. Aided, it settles at
-    zero, because the aid carries it.
+    output settles at the dilation, read up to one NCO step high (below): the
+    loop carries it. Aided, it settles at zero, read the same way, because the
+    aid carries it.
 - **At the inflated Doppler, only the aided loop holds.** Unaided, the narrow
     loop must pull in the whole dilation, and the transient takes it off the code
     within tens of milliseconds. Its lock statistic falls to the noise and stays
@@ -46,9 +47,11 @@ aided, at two Dopplers:
     Doppler. The carrier estimate is.
 
 The script prints this run's numbers: the settled filter outputs, and when the
-unaided loop lost the inflated Doppler. The NCO-step bound and the output rate
-hold on every draw. Which loops held lock is this run's outcome, and the script
-asserts it for this run.
+unaided loop lost the inflated Doppler. Two bounds come from the object, not the
+draw: the output rate, and the settled filter output sitting between the carried
+rate and one NCO step above it. The script widens the second by a quarter step
+either side for the noise left in its mean. Which loops held lock is this run's
+outcome, and the script asserts it for this run.
 
 ## How it works
 
@@ -66,8 +69,11 @@ The despreader is configured for the link. `bn` is narrow, for a quiet code
 phase. The lock detector is sized the way `AsyncDsssReceiver` sizes its own:
 given the symbol period, its looks are coherent over the transition-free part of
 a symbol, `det_n_noncoh` gives the looks a decision needs for 0.99 detection at
-the C/N0, and `det_verify_count` gives the drop count. At its defaults the
-detector reads unlocked, now and then, on a loop that holds the code.
+the C/N0, and `det_verify_count` gives the drop count. At its defaults, one
+look per despread sample, the flag drops on a loop that holds the code:
+measured on the receiver, a few times a second at Es/N0 10.7 dB and 96% of the
+time at 5.7 dB
+([§12.3](../design/async-dsss-receiver-measurements.md#123-what-was-measured-2026-09-02-step-6-the-release)).
 
 One carrier estimate wipes the carrier and, divided by the carrier frequency, is
 the rate aid. The loop starts at the code phase acquisition reports, to one
@@ -115,10 +121,10 @@ python -m doppler.examples.async_despread_demo out.png
 
 The C twin is
 [`async_despread_demo.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/async_despread_demo.c).
-It runs the same link at the same two Dopplers and checks the same physics. It is
-a different noise draw, so its numbers differ from this page's. It also shows
-what the binding hides: the loop's damping and tap spacing, and the buffers the
-caller owns.
+It runs the same link at the same two Dopplers, with the same emitter, noise
+seed and loop, and checks the same physics, so it prints the same numbers as
+this page's run. It also shows what the binding hides: the emitter's and the
+loop's full settings, and the buffers the caller owns.
 
 The design is in [the async DSSS receiver design](../design/async-dsss-receiver.md),
 section 3. The [lock-detection guide](../guide/lock-detection.md) covers how the

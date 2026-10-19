@@ -563,8 +563,8 @@ dll_update(dp_dll_state_t *s)
 /**
  * @brief Create a code/timing delay-locked loop over a spreading code.
  *
- * A non-coherent early/prompt/late DLL that tracks the code phase of a
- * repeating spreading sequence (PN / Gold) on a carrier-wiped sample stream.
+ * An early/prompt/late DLL that tracks the code phase of a repeating
+ * spreading sequence (PN / Gold) on a carrier-wiped sample stream.
  * Each code period it correlates the input against three replica taps —
  * early (`+spacing` chips), prompt, late (`-spacing` chips) — runs the
  * power-domain early-minus-late discriminator, filters it through a 2nd-order

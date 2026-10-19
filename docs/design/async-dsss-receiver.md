@@ -509,12 +509,12 @@ flavour, and a blob does not travel between flavours.
     `dp_dll_create()`'s 0.01 default, and its early-late spacing is
     0.5 chips, so the normalised power discriminator reads `2 − spacing = 1.5`
     units per chip of offset.
-- **Downstream** is a pre-despread `Costas` carrier loop, which in the live chain
-    wipes ahead of the Dll, then `RateConverter` → `MpskReceiver`, whose timing
-    loop is RateSync's. The `RateConverter` bridges the partial rate to the
-    demodulator's `sps` and never a coupling of the two (§3.4). `K = 4` is tuned
-    for the code discriminator's variance, while a downstream demodulator wants a
-    much larger `K` for coherent gain.
+- **Around it**: a pre-despread `Costas` carrier loop wipes the carrier ahead of
+    the Dll, and `RateConverter` → `MpskReceiver` follow it, whose timing loop is
+    RateSync's. The `RateConverter` bridges the partial rate to the demodulator's
+    `sps` and never a coupling of the two (§3.4): `K = 4` is the code loop's
+    choice, while a downstream demodulator wants a much larger `K` for coherent
+    gain.
 - **`carrier_freq_hz` couples the code rate to the carrier.** The coupled
     code-rate Doppler `carrier_offset/carrier_freq` is fed to the tracking `Dll`
     through `dp_dll_set_rate_aid()` and refreshed every code period from the live

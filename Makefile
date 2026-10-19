@@ -1775,7 +1775,7 @@ LOCAL_TARGETS = specan record-demo parallel-record-write gallery blazing \
                 jm-pin \
                 issue-link-check bootstrap-cmd-check \
                 validate validate-py validate-c validate-check \
-                validate-spellings-check \
+                validate-async-receiver-sweep validate-spellings-check \
                 test-sweep validation-time-baseline \
                 characterize characterization-check pool-telemetry \
                 doxygen-warn-gate \
@@ -3428,6 +3428,14 @@ validate-py: ## Regenerate the Python validation reports only (VALIDATORS=<valid
 	    echo "=== $$v ==="; \
 	    $(UV) run python $$v || exit 1; \
 	 done
+
+# The AsyncDsssReceiver certification commits its full sweep as
+# data/sweep.txt and renders it, never re-running it on a push (it takes
+# about 45 s against the --check run's 3). This re-runs the sweep on purpose,
+# after the receiver, the harness or the toolchain changes, then the report.
+# It needs `make build` first: the sweep is the C harness's.
+validate-async-receiver-sweep: ## Re-run the AsyncDsssReceiver certification's full sweep into its data/sweep.txt, then its report
+	$(UV) run python src/doppler/dsss/tests/validation/async_dsss_receiver/validate.py --sweep
 
 # Runs the real `validate-py` and `validate` with stub validators, so it runs
 # no real validator and no harness; see the script for how each case is

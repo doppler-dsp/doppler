@@ -2347,12 +2347,12 @@ class AsyncDsssReceiver:
         invalid parameter (need a code of at least 2 chips, a finite chip_rate
         > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
         segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above
-        chip_rate * spc / 2, lost_confirm_s >= 0 (and > 0 with reacquire),
-        refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad >=
-        1, a symbol of at most 2^20 Dll partials, segments * chip_rate /
-        (code_len * symbol_rate) <= 1048576; and for the searcher a finite
-        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=
-        0)``.
+        chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input sample
+        with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1,
+        refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a
+        finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty
+        >= 0)``.
 
     Examples
     --------
@@ -3210,12 +3210,12 @@ class CellAsyncDsssReceiver:
         invalid parameter (need a code of at least 2 chips, a finite chip_rate
         > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
         segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above
-        chip_rate * spc / 2, lost_confirm_s >= 0 (and > 0 with reacquire),
-        refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad >=
-        1, a symbol of at most 2^20 Dll partials, segments * chip_rate /
-        (code_len * symbol_rate) <= 1048576; and for the searcher a finite
-        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=
-        0)``.
+        chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input sample
+        with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1,
+        refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments *
+        chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a
+        finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty
+        >= 0)``.
 
     Examples
     --------

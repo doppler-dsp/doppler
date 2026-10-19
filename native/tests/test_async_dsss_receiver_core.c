@@ -1966,8 +1966,13 @@ _test_refine_min_blocks_travels (void)
  * seeded onto noise alone (seed() takes exactly what a hit would hand
  * over). Without reacquire it reaches lost; with reacquire it goes back to
  * searching and never reads lost. The precondition is asserted too: each
- * reached tracking, on noise, with no flag up, before it let go. Sabotage:
- * start the clock only once a flag has been up -> red. */
+ * reached tracking, on noise, with no flag up, before it let go. And it is
+ * let go on time, as the header says ("released the same way as an emitter
+ * that leaves"): the samples fed since tracking began, counted here from
+ * the status record's state_samples at the first tracking read, land in
+ * (L, L + chunk] at the release, L = lost_confirm_samples -- #15's bound.
+ * Sabotages: start the clock only once a flag has been up -> red; release
+ * a never-locked track 8x late -> red. */
 static int
 _test_a_handoff_that_never_locks_is_released (void)
 {
@@ -1992,15 +1997,20 @@ _test_a_handoff_that_never_locks_is_released (void)
       if (!rx)
         continue;
       DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
-      int tracked = 0, any_flag = 0, lost = 0, searched_after = 0;
+      int      tracked = 0, any_flag = 0, lost = 0, searched_after = 0;
+      uint64_t since_track = 0; /* samples fed since tracking began */
       for (size_t pos = 0; pos < n; pos += chunk)
         {
           size_t k = n - pos < chunk ? n - pos : chunk;
           (void)dp_async_dsss_receiver_steps (rx, noise + pos, k, junk,
                                               chunk * 8);
           int st = dp_async_dsss_receiver_status (rx).state;
+          if (tracked)
+            since_track += k;
           if (st == ASYNC_DSSS_RX_TRACKING)
             {
+              if (!tracked)
+                since_track = dp_async_dsss_receiver_status (rx).state_samples;
               tracked = 1;
               any_flag |= dp_async_dsss_receiver_get_code_locked (rx)
                           | dp_async_dsss_receiver_get_locked (rx);
@@ -2020,6 +2030,8 @@ _test_a_handoff_that_never_locks_is_released (void)
         }
       else
         DP_CHECK (lost == 1);
+      DP_CHECK (since_track > rx->lost_confirm_samples);
+      DP_CHECK (since_track <= rx->lost_confirm_samples + (uint64_t)chunk);
       dp_async_dsss_receiver_destroy (rx);
     }
   free (junk);
@@ -2296,12 +2308,16 @@ _test_emission_by_state (void)
 }
 
 /* Output capacity (#2461 #108, #115): steps() never writes past max_out,
- * and the symbols past it are dropped, not held for the next call; an
- * out sized to the call's input (x_len) always holds them, which is what
- * steps_max_out() returning 0 means. Measured on this fixture: capacity 1
- * keeps 10 of 343 symbols, capacity x_len keeps all 343. A guard region
- * past max_out must come back untouched. Sabotage: write one past
- * max_out -> red. */
+ * and the symbols past it are DROPPED, not held for the next call. Two
+ * receivers run in lockstep on one capture: B always has room for the
+ * call's x_len (enough on this fixture, at about 0.25 symbols a code
+ * period -- not in general, #2469); A has the same, except on the first
+ * call where B emits several symbols, where A gets capacity 1. A must keep
+ * exactly B's first symbol there, leave a guard region past max_out
+ * untouched, and then match B bit for bit on every later call -- a
+ * deferral would show up as extra symbols in A's next call. Sabotages:
+ * write one past max_out -> red; hold the overflow for the next call ->
+ * red. */
 static int
 _test_output_capacity (void)
 {
@@ -2312,46 +2328,61 @@ _test_output_capacity (void)
   const size_t    te       = sf * spc;
   const size_t    n_sym    = 400;
   const size_t    pre      = te * 5 + 3;
-  const size_t    chunk    = 4096;
+  const size_t    chunk    = 512;
   const size_t    guard    = 16;
   float _Complex *x;
   size_t          n;
   double         *data;
+  int             fails = 0;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, 70.0, n_sym, pre, 7, &x, &n,
                    &data);
-  const size_t caps[2]  = { 1, chunk }; /* starved, then x_len */
-  size_t       total[2] = { 0, 0 };
-  for (int c = 0; c < 2; c++)
+  dp_async_dsss_receiver_state_t *a
+      = _searching_rx (70.0, sym_rate, 0.0, false);
+  dp_async_dsss_receiver_state_t *b
+      = _searching_rx (70.0, sym_rate, 0.0, false);
+  DP_REQUIRE (a != NULL && b != NULL);
+  DP_CHECK (dp_async_dsss_receiver_steps_max_out (a) == 0);
+  float _Complex *oa      = malloc ((chunk + guard) * sizeof *oa);
+  float _Complex *ob      = malloc (chunk * sizeof *ob);
+  int             starved = 0, after = 0, wrote_past = 0;
+  size_t          total_b = 0;
+  for (size_t pos = 0; pos < n; pos += chunk)
     {
-      dp_async_dsss_receiver_state_t *rx
-          = _searching_rx (70.0, sym_rate, 0.0, false);
-      DP_REQUIRE (rx != NULL);
-      DP_CHECK (dp_async_dsss_receiver_steps_max_out (rx) == 0);
-      float _Complex *out        = malloc ((caps[c] + guard) * sizeof *out);
-      int             wrote_past = 0;
-      for (size_t pos = 0; pos < n; pos += chunk)
+      size_t kk = n - pos < chunk ? n - pos : chunk;
+      size_t kb = dp_async_dsss_receiver_steps (b, x + pos, kk, ob, chunk);
+      total_b += kb;
+      size_t cap = (!starved && kb >= 2) ? 1 : chunk;
+      for (size_t g = 0; g < guard; g++)
+        oa[cap + g] = 12345.0f;
+      size_t ka = dp_async_dsss_receiver_steps (a, x + pos, kk, oa, cap);
+      for (size_t g = 0; g < guard; g++)
+        wrote_past |= oa[cap + g] != 12345.0f;
+      if (cap == 1)
         {
-          for (size_t g = 0; g < guard; g++)
-            out[caps[c] + g] = 12345.0f;
-          size_t kk = n - pos < chunk ? n - pos : chunk;
-          size_t k
-              = dp_async_dsss_receiver_steps (rx, x + pos, kk, out, caps[c]);
-          DP_CHECK (k <= caps[c]);
-          total[c] += k;
-          for (size_t g = 0; g < guard; g++)
-            wrote_past |= out[caps[c] + g] != 12345.0f;
+          starved = 1;
+          DP_CHECK (ka == 1);
+          DP_CHECK (memcmp (oa, ob, sizeof *oa) == 0);
+          continue;
         }
-      DP_CHECK (wrote_past == 0);
-      free (out);
-      dp_async_dsss_receiver_destroy (rx);
+      if (ka != kb || memcmp (oa, ob, ka * sizeof *oa) != 0)
+        {
+          DP_TEST_ERR ("  call at %zu: A gave %zu, B %zu%s\n", pos, ka, kb,
+                       starved ? " (after the starved call)" : "");
+          fails++;
+        }
+      after += starved;
     }
-  /* x_len holds every symbol (a full decode's worth); a starved buffer
-     keeps fewer -- the rest are dropped, not deferred. */
-  DP_CHECK (total[1] > n_sym * 3 / 4);
-  DP_CHECK (total[0] < total[1]);
+  DP_CHECK (wrote_past == 0);
+  DP_CHECK (starved == 1);
+  DP_CHECK (after > 0);
+  DP_CHECK (total_b > n_sym * 3 / 4);
+  dp_async_dsss_receiver_destroy (a);
+  dp_async_dsss_receiver_destroy (b);
+  free (oa);
+  free (ob);
   free (x);
   free (data);
-  return 0;
+  return fails;
 }
 
 /* One flag down is a degrade, not a release (section 11.2): with the code
@@ -3668,14 +3699,19 @@ _test_forged_seed_is_refused (void)
 }
 
 /* The hand-over holds the refined Doppler to the seed domain (#2461 #122).
- * The estimator is forced ready by the blob, with a 5 kHz residual, so the
- * next steps() is the hand-over. Two seeds, both in range at fs = 10 MHz:
- * 4.990 MHz, whose refined 4.995 MHz is inside fs/2 and tracks at seed plus
- * residual exactly; and 4.998 MHz, whose refined 5.003 MHz is past fs/2 --
- * no Doppler this receiver can report -- so the hand-over is refused like a
- * hit: not tracking, searching again, one refused hit counted. Sabotage:
- * drop the hand-over's domain test -> the second row tracks at 5.003 MHz,
- * red. Returns the number of failed checks. */
+ * The estimator is forced ready by the blob, with a +-5 kHz residual, so the
+ * next steps() is the hand-over. Every seed is in range at fs = 10 MHz; the
+ * refined Doppler (seed plus residual) is not always:
+ *   4.990 MHz + 5 kHz =  4.995 MHz  inside: tracks at exactly that;
+ *  -4.990 MHz - 5 kHz = -4.995 MHz  inside, the negative side;
+ *   4.995 MHz + 5 kHz =  5.000 MHz  AT fs/2: refused ("at or past");
+ *  -4.998 MHz - 5 kHz = -5.003 MHz  past -fs/2: refused.
+ * A refused hand-over is refused like a hit: not tracking, searching again,
+ * one refused hit counted -- and the Doppler it refused is not left
+ * readable: both estimates read 0, as after reset(). Sabotages: drop the
+ * hand-over's domain test -> the refused rows track, red; keep the refused
+ * seed's Doppler -> get_doppler_hz() reads it, red. Returns the number of
+ * failed checks. */
 static int
 _test_handover_holds_the_refined_doppler_to_the_domain (void)
 {
@@ -3683,11 +3719,13 @@ _test_handover_holds_the_refined_doppler_to_the_domain (void)
   uint32_t cst = 13;
   for (size_t i = 0; i < 1023; i++)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
-  const double residual_hz = 5.0e3;
-  const double seeds[2]    = { 4.990e6, 4.998e6 }; /* inside, then past */
+  const double seeds[4]    = { 4.990e6, -4.990e6, 4.995e6, -4.998e6 };
+  const double residual[4] = { 5.0e3, -5.0e3, 5.0e3, -5.0e3 };
+  const int    inside[4]   = { 1, 1, 0, 0 };
   int          fails       = 0;
-  for (int k = 0; k < 2; k++)
+  for (int k = 0; k < 4; k++)
     {
+      const double                    residual_hz = residual[k];
       dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
           code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
           0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
@@ -3715,7 +3753,7 @@ _test_handover_holds_the_refined_doppler_to_the_domain (void)
           const uint64_t refused0 = dst->refused_hits;
           float _Complex x[1024]  = { 0 }, out[1024];
           (void)dp_async_dsss_receiver_steps (dst, x, 1024, out, 1024);
-          if (k == 0)
+          if (inside[k])
             {
               /* Inside: tracks at seed plus residual, exactly. */
               DP_CHECK (dp_async_dsss_receiver_get_tracking (dst) == 1);
@@ -3737,6 +3775,8 @@ _test_handover_holds_the_refined_doppler_to_the_domain (void)
               DP_CHECK (dp_async_dsss_receiver_status (dst).state
                         == ASYNC_DSSS_RX_SEARCHING);
               DP_CHECK (dst->refused_hits == refused0 + 1);
+              DP_CHECK (dp_async_dsss_receiver_get_doppler_hz (dst) == 0.0);
+              DP_CHECK (dst->seed_doppler_hz_est == 0.0);
             }
         }
       free (blob);
@@ -3965,7 +4005,7 @@ main (void)
   (void)_test_plain_clock_restarts_on_a_flag ();
   (void)_test_symbol_lock_detector_symbol_by_symbol ();
   (void)_test_emission_by_state ();
-  (void)_test_output_capacity ();
+  DP_CHECK (_test_output_capacity () == 0);
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
   (void)_test_seeded_blob_keyed_by_flavor ();

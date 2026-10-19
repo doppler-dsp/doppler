@@ -2483,15 +2483,21 @@ class AsyncDsssReceiver:
         """
 
     def steps_max_out(self) -> int:
-        """The output capacity steps() needs beyond the input's: none.
+        """The output capacity steps() needs beyond the input's.
 
-        Returns 0, which means an `out` sized to the call's `x_len` always
+        Returns 0, which is NOT a bound. A call that completes a code
 
-        holds every symbol the call emits -- a call cannot emit more symbols
+        period carried over from earlier calls emits all of that
 
-        than samples. Symbols past a smaller `max_out` are dropped (see
+        period's symbols (code_len times symbol_rate over chip_rate of
 
-        dp_async_dsss_receiver_steps()).
+        them), even if it brings one sample. At more than one symbol per
+
+        period a call can therefore emit more symbols than its `x_len`,
+
+        and those past `max_out` are dropped (see
+
+        dp_async_dsss_receiver_steps()). A true bound is #2469.
 
         Returns
         -------
@@ -3357,15 +3363,21 @@ class CellAsyncDsssReceiver:
         """
 
     def steps_max_out(self) -> int:
-        """The output capacity steps() needs beyond the input's: none.
+        """The output capacity steps() needs beyond the input's.
 
-        Returns 0, which means an `out` sized to the call's `x_len` always
+        Returns 0, which is NOT a bound. A call that completes a code
 
-        holds every symbol the call emits -- a call cannot emit more symbols
+        period carried over from earlier calls emits all of that
 
-        than samples. Symbols past a smaller `max_out` are dropped (see
+        period's symbols (code_len times symbol_rate over chip_rate of
 
-        dp_async_dsss_receiver_steps()).
+        them), even if it brings one sample. At more than one symbol per
+
+        period a call can therefore emit more symbols than its `x_len`,
+
+        and those past `max_out` are dropped (see
+
+        dp_async_dsss_receiver_steps()). A true bound is #2469.
 
         Returns
         -------

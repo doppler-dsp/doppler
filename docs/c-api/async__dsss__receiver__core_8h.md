@@ -126,7 +126,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_state\_bytes**](#function-dp_async_dsss_receiver_state_bytes) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br> |
 |  [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) | [**dp\_async\_dsss\_receiver\_status**](#function-dp_async_dsss_receiver_status) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Read the status record, by value: the state; where the emitter is now (the live carrier), its chip phase, code rate and C/N0; both lock flags with the symbol-lock metric and threshold; both carrier residuals; and the two clocks in input samples (since the state was entered; both flags down without a break)._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_steps**](#function-dp_async_dsss_receiver_steps) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once tracking._  |
-|  size\_t | [**dp\_async\_dsss\_receiver\_steps\_max\_out**](#function-dp_async_dsss_receiver_steps_max_out) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The output capacity steps() needs beyond the input's: none._  |
+|  size\_t | [**dp\_async\_dsss\_receiver\_steps\_max\_out**](#function-dp_async_dsss_receiver_steps_max_out) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The output capacity steps() needs beyond the input's._  |
 
 
 
@@ -1361,7 +1361,7 @@ Drives the state machine. The searching flavor emits nothing while searching or 
 * `x` Input cf32 samples. 
 * `x_len` Number of input samples. 
 * `out` Output symbols; caller provides `max_out` capacity. 
-* `max_out` Output capacity. steps() never writes past it, and the symbols past it are dropped, not held for the next call; `x_len` always suffices (a call cannot emit more symbols than samples), which is what [**dp\_async\_dsss\_receiver\_steps\_max\_out()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps_max_out) returning 0 says. 
+* `max_out` Output capacity. steps() never writes past it, and the symbols past it are dropped, not held for the next call. `x_len` is not always enough: a call that completes a carried code period emits the whole period's symbols (#2469). 
 
 
 
@@ -1424,7 +1424,7 @@ True
 
 ### function dp\_async\_dsss\_receiver\_steps\_max\_out 
 
-_The output capacity steps() needs beyond the input's: none._ 
+_The output capacity steps() needs beyond the input's._ 
 ```C++
 size_t dp_async_dsss_receiver_steps_max_out (
     dp_async_dsss_receiver_state_t * state
@@ -1433,7 +1433,7 @@ size_t dp_async_dsss_receiver_steps_max_out (
 
 
 
-Returns 0, which means an `out` sized to the call's `x_len` always holds every symbol the call emits  a call cannot emit more symbols than samples. Symbols past a smaller `max_out` are dropped (see [**dp\_async\_dsss\_receiver\_steps()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps)).
+Returns 0, which is NOT a bound. A call that completes a code period carried over from earlier calls emits all of that period's symbols (code\_len times symbol\_rate over chip\_rate of them), even if it brings one sample. At more than one symbol per period a call can therefore emit more symbols than its `x_len`, and those past `max_out` are dropped (see [**dp\_async\_dsss\_receiver\_steps()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_steps)). A true bound is #2469.
 
 
 

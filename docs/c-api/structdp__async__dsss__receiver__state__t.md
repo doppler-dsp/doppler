@@ -532,7 +532,7 @@ double dp_async_dsss_receiver_state_t::doppler_hz_est;
 
 
 
-The seed's Doppler while refining; the CarrierAcquisition-refined value once tracking (searching flavor). The cell mode's pull-in moves loop 1 and leaves this at the seed's. 
+The seed's Doppler while refining; the CarrierAcquisition-refined value once tracking (searching flavor). The cell mode's pull-in moves loop 1 and leaves this at the seed's. A refused hand-over zeroes both, as reset() does. 
  
 
 

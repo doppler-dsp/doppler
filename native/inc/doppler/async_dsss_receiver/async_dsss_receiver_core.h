@@ -419,7 +419,9 @@ typedef enum
                                         the CarrierAcquisition-refined value
                                         once tracking (searching flavor).
                                         The cell mode's pull-in moves loop 1
-                                        and leaves this at the seed's.   */
+                                        and leaves this at the seed's. A
+                                        refused hand-over zeroes both, as
+                                        reset() does.                    */
     double   cn0_dbhz_est;        /**< The seed's C/N0 estimate (its own
                                         hit's, or an outside seed's);
                                         nothing refreshes it.             */
@@ -798,12 +800,15 @@ typedef enum
       uint32_t decim);
 
   /**
-   * @brief The output capacity steps() needs beyond the input's: none.
+   * @brief The output capacity steps() needs beyond the input's.
    *
-   * Returns 0, which means an `out` sized to the call's `x_len` always
-   * holds every symbol the call emits -- a call cannot emit more symbols
-   * than samples. Symbols past a smaller `max_out` are dropped (see
-   * dp_async_dsss_receiver_steps()).
+   * Returns 0, which is NOT a bound. A call that completes a code
+   * period carried over from earlier calls emits all of that
+   * period's symbols (code_len times symbol_rate over chip_rate of
+   * them), even if it brings one sample. At more than one symbol per
+   * period a call can therefore emit more symbols than its `x_len`,
+   * and those past `max_out` are dropped (see
+   * dp_async_dsss_receiver_steps()). A true bound is #2469.
    *
    * @param state  Must be non-NULL.
    * @return 0.
@@ -842,9 +847,9 @@ typedef enum
    * @param out      Output symbols; caller provides @p max_out capacity.
    * @param max_out  Output capacity. steps() never writes past it, and the
    *                 symbols past it are dropped, not held for the next
-   *                 call; @p x_len always suffices (a call cannot emit more
-   *                 symbols than samples), which is what
-   *                 dp_async_dsss_receiver_steps_max_out() returning 0 says.
+   *                 call. @p x_len is not always enough: a call that
+   *                 completes a carried code period emits the whole
+   *                 period's symbols (#2469).
    * @return Number of symbols written: 0 while searching, idle or lost,
    *         while the searching flavor refines, or before a full symbol's
    *         worth of input.
@@ -975,9 +980,9 @@ typedef enum
    * seed in range whose residual carries it to or past fs/2 is refused at
    * the hand-over, counted in refused_hits, and the receiver searches
    * again rather than track a Doppler it cannot report. The pool counts
-   * such a hit as refused rather than as dropped for want of a slot. It reads only the receiver's fixed config
-   * (code length, chip rate, spc), so any receiver built from the same
-   * config gives the same answer.
+   * such a hit as refused rather than as dropped for want of a slot. It
+   * reads only the receiver's fixed config (code length, chip rate, spc),
+   * so any receiver built from the same config gives the same answer.
    *
    * @param state          Must be non-NULL.
    * @param chip_phase     Code phase, chips.

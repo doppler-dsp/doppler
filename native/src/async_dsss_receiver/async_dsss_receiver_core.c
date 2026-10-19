@@ -1553,6 +1553,10 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
              search's; entering searching restarts state_samples, so the
              recursion counts it once. */
           state->refused_hits++;
+          /* The refused Doppler is not left readable: searching reads the
+             estimates as reset() leaves them. */
+          state->seed_doppler_hz_est = 0.0;
+          state->doppler_hz_est      = 0.0;
           dp_acq_reset (state->acq);
           adr_enter (state, ASYNC_DSSS_RX_SEARCHING);
           return dp_async_dsss_receiver_steps (state, tail, tail_len, out,

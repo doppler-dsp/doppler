@@ -879,10 +879,11 @@ extern "C"
    *
    * Builds the single-row oversampled BPSK reference from @p code, infers
    * sf = @p code_len, converts @p cn0_dbhz to a per-sample amplitude SNR,
-   * and ALWAYS tiles `window_bins = max(1, ceil(doppler_uncertainty /
-   * (chip_rate/(2*sf))))` parallel frequency-window hypotheses (see the file
-   * doc comment's "Wideband window-tiling mode") -- unconditionally, even
-   * when @p doppler_uncertainty is narrower than one native span.
+   * and ALWAYS tiles `window_bins = 2*ceil((doppler_uncertainty - span) /
+   * (2*span)) + 1` parallel frequency-window hypotheses, with `span =
+   * chip_rate/(2*sf)` one native span (see the file doc comment's "Wideband
+   * window-tiling mode") -- unconditionally, so `window_bins = 1` when
+   * @p doppler_uncertainty is no wider than one native span.
    * A continuous, data-modulated signal's own bit transitions make coherent
    * multi-epoch combining across DATA a structural aliasing mislock (see
    * docs/design/dsss-acquisition.md), so the depth is bounded by what a

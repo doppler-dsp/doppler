@@ -129,16 +129,15 @@ draws that had not are excluded and counted (§3.1):
 
 What today's receiver must gain for this:
 
-1. **Re-acquiring on loss of symbol lock.** The searching flavor can
-    already reach `lost`: `lost_confirm_s`, a create parameter, releases
-    tracking once BOTH lock flags have been down that long, and `reset()`
-    returns it to searching
-    (`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`:
-    `dp_async_dsss_receiver_create()`'s `lost_confirm_s`, and
-    `dp_async_dsss_receiver_reset()`).
-    By default it is 0, so it never does. What it lacks is the step from
-    `lost` back to searching on its own, and this design's trigger: symbol
-    lock alone, where today's release needs code lock down too.
+1. **Re-acquiring on loss of symbol lock — shipped (#2463).** The
+    `reacquire` create parameter
+    (`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`,
+    `dp_async_dsss_receiver_create()`) makes this design's rule the
+    receiver's own: once symbol lock alone has been down for
+    `lost_confirm_s`, it goes back to searching by itself, and the clock
+    runs from the first tracking sample, so a hand-off that never locks is
+    released too. Without it the earlier rule stands: both lock flags down,
+    then `lost` until `reset()`.
 1. **An assigned offset, optionally**: a search centered where the
     controller says instead of the whole range. Today's search is always
     centered on 0 Hz (`dp_acq_create_continuous()`), and the receiver's

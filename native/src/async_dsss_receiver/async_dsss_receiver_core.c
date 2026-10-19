@@ -1854,6 +1854,7 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .intervals           = s->intervals,
     .refused_hits        = s->refused_hits,
     .cell_refined        = (uint8_t)(s->cell_refined != 0),
+    .refine_min_blocks   = (uint64_t)s->refine_min_blocks,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
   if (s->acq)
@@ -1902,6 +1903,10 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
      steps() would dereference that NULL. Refused before any write. */
   if (extra.state == ASYNC_DSSS_RX_SEARCHING && !s->acq)
     return DP_ERR_INVALID;
+  /* set_refine_min_blocks()'s own predicate: a cell receiver refuses it,
+     so a cell blob can only carry the floor its create() set (#2022). */
+  if (s->cell && extra.refine_min_blocks != (uint64_t)s->refine_min_blocks)
+    return DP_ERR_INVALID;
   /* The seed fields are only ever what seed() accepted (or the zeros reset
      leaves), so a blob outside the seed domain is forged. Refused here,
      before any child is decoded: a NaN phase reached dp_xnn in the refine
@@ -1946,5 +1951,6 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   s->period_count        = (size_t)extra.period_count;
   s->intervals           = extra.intervals;
   s->refused_hits        = extra.refused_hits;
+  s->refine_min_blocks   = (size_t)extra.refine_min_blocks;
   return DP_OK;
 }

@@ -1358,10 +1358,12 @@ typedef enum
     uint64_t period_count;
     uint64_t intervals;
     uint64_t refused_hits; /**< v8: the searching hits refused as seeds. */
+    uint64_t refine_min_blocks; /**< v9: set_refine_min_blocks()'s value, a
+                                     mutator's, so it travels (#2022). */
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 8u /* v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 9u /* v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

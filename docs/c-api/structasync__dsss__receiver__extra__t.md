@@ -54,6 +54,7 @@
 |  double | [**lock\_num**](#variable-lock_num)  <br> |
 |  uint64\_t | [**n**](#variable-n)  <br> |
 |  uint64\_t | [**period\_count**](#variable-period_count)  <br> |
+|  uint64\_t | [**refine\_min\_blocks**](#variable-refine_min_blocks)  <br> |
 |  uint64\_t | [**refine\_samples\_fed**](#variable-refine_samples_fed)  <br> |
 |  uint64\_t | [**refine\_segments**](#variable-refine_segments)  <br> |
 |  uint64\_t | [**refused\_hits**](#variable-refused_hits)  <br> |
@@ -383,6 +384,23 @@ uint64_t async_dsss_receiver_extra_t::period_count;
 
 
 
+
+<hr>
+
+
+
+### variable refine\_min\_blocks 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::refine_min_blocks;
+```
+
+
+
+v9: set\_refine\_min\_blocks()'s value, a mutator's, so it travels (#2022). 
+
+
+        
 
 <hr>
 

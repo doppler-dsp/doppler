@@ -2324,7 +2324,6 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/mpsk_receiver_demo.py \
     src/doppler/examples/mpsk_receiver_performance_demo.py \
     src/doppler/examples/async_despread_demo.py \
-    src/doppler/examples/async_despreader_study.py \
     src/doppler/examples/async_dsss_pool_demo.py \
     src/doppler/examples/coding_demo.py \
     src/doppler/examples/costas_demo.py \

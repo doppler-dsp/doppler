@@ -230,8 +230,8 @@ ______________________________________________________________________
 ## 3. The asynchronous despreader
 
 The receive-side despreader when the **data-symbol rate is on the order of the
-code-epoch rate but asynchronous** to it. The reproducible study is
-`src/doppler/examples/async_despreader_study.py`.
+code-epoch rate but asynchronous** to it. Its shipped form is
+`track.Dll(..., segments=K)` (§3.4).
 
 ### 3.1 An independent symbol clock slides through the epoch
 
@@ -249,47 +249,45 @@ through the epoch at the beat rate `delta / TE`.
 The coherent prompt over an epoch whose data flips at fraction `f ∈ [0,1]` is
 `P(f) = A·[f·d1 + (1−f)·d2] = A·d1·(2f−1)`: full despread at an epoch edge, and
 **zero** for a flip mid-epoch. Because `f` sweeps through every value, about half
-of all epochs straddle a transition and their prompts collapse. Per-epoch data
-decisions floor — a measured BER around 1e-1 where the bound is under 1e-5 — and
-`(|E|−|L|)/(|E|+|L|)` collapses to `0/0` on those epochs, starving the DLL. At
-one prompt per epoch the symbol clock is **unobservable**, and the integration
-window is forced to straddle transitions. The failure has a fingerprint: the
-straddle modulation is periodic at the symbol-to-epoch beat, so the spectrum of
-the prompt-magnitude stream `|P[n]|` carries a **tone at `|delta|` cycles per
-epoch** — what to look for when a DSSS link shows unexplained despread fades.
+of all epochs straddle a transition and their prompts collapse. Both
+consequences follow from `P(f)` alone. Per-epoch data decisions floor, because
+`P(f)` near `f = 1/2` is near zero at any Es/N0, and `(|E|−|L|)/(|E|+|L|)`
+collapses to `0/0` on those epochs, starving the DLL. At one prompt per epoch
+the symbol clock is **unobservable**, and the integration window is forced to
+straddle transitions. And the failure has a fingerprint: the flip's fraction
+`f` advances by `delta` each epoch, so the envelope `A·|2f−1|` of the
+prompt-magnitude stream `|P[n]|` repeats every `1/|delta|` epochs and its
+spectrum carries a **tone at `|delta|` cycles per epoch** — what to look for
+when a DSSS link shows unexplained despread fades.
 
 ### 3.3 Partials give the symbol clock its own observability
 
-![Async despreader study](../assets/async_despreader_study.png)
-
 Each code epoch is split into `K` sub-epoch **partial** prompt correlations of
 `TE/K` samples at known code phase — `K` despread samples per epoch, so the
-symbol clock is observable. A length-`K` **boxcar** over the partial stream is
-the symbol matched filter: a sliding, symbol-aligned coherent re-integration, the
-full-symbol despread the epoch-locked window could not form. Without it a
-rectangular symbol pulse is sampled at one point, about `1/K` of its energy is
-captured, and the BER floors near 2e-2. `track.SymbolSync` (Gardner TED plus
-Farrow interpolator) then recovers the symbol clock from the matched-filtered
-stream and decimates at the symbol-aligned peak.
+symbol clock is observable. The full-symbol despread the epoch-locked window
+could not form is then a matched filter over the partial stream, run on the
+symbol clock instead of the code clock. In `AsyncDsssReceiver` that is
+`MpskReceiver`'s integrate-and-dump matched filter (`MPSK_RX_PULSE_IANDD`, the
+rectangular symbol's own), reached through a `RateConverter` that takes the
+partial rate to `sps` samples a symbol (§3.4), with `MpskReceiver`'s timing
+loop placing the dump on the symbol boundaries. Without a matched filter a
+rectangular symbol is sampled at one partial, which carries about `1/K` of its
+energy.
 
-| Es/N0  | bound  | genie (known timing) | partial+MF+SymbolSync | broken epoch |
-| ------ | ------ | -------------------- | --------------------- | ------------ |
-| 6 dB   | 2.4e-3 | 2.5e-3               | 4.5e-3                | ~7e-2        |
-| 8 dB   | 1.9e-4 | 1.5e-4               | 5.8e-4                | ~6e-2        |
-| 9.6 dB | 9.7e-6 | 0                    | 0                     | ~5e-2        |
-
-The BER follows the BPSK matched-filter bound within 1–2 dB, and a genie
-reference with known timing hits it exactly: the loss is window misalignment,
-never SNR.
+At the specification's geometry (Gold-1023, 3.069 Mcps, 2,700 sym/s
+asynchronous BPSK, two samples a chip, no Doppler) the receiver holds a BER
+under 5% at Es/N0 10, 8 and 5 dB, the specification's floor, and exceeds 10% at
+4 dB, with the self-referenced EVM and the blind M2M4 SNR corroborating:
+`_test_awgn_esn0_floor` in `native/tests/test_async_dsss_receiver_core.c`.
 
 **The code path sums the partials coherently** over a one-period window and
 takes the powers of the sums. A data flip changes the sign of every partial after
 it, so a window across a flip cancels in part (§3.2); the look-back (§3.6) picks,
 each period, the one-period window with the most prompt power, the one with the
 least of a flip in it, and the discriminator runs on that window's sums. It needs
-no symbol timing, so it works from cold start: the bootstrap order is DLL →
-SymbolSync → data. Given the symbol period, §3.7 lifts the same search to the
-symbol scale.
+no symbol timing, so it works from cold start: the bootstrap order is code
+(the DLL) → symbol timing → data. Given the symbol period, §3.7 lifts the same
+search to the symbol scale.
 `K` sets two things: the output rate, `K` despread samples per period, and the
 look-back's grain, since a candidate window starts only on a partial boundary.
 

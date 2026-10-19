@@ -1020,6 +1020,38 @@ def ber_evm_scatter_floor_db(m: int) -> float:
         The floor in dB, or NAN for M < 2, which is no constellation.
     """
 
+def ber_evm_ideal_db(esn0_db: float) -> float:
+    """What dp_ber_evm_db() reads on an ideal stream at esn0_db.
+
+    The meter's NOISE floor, the counterpart of the scatter floor above: a
+    perfectly synchronised stream at Es/N0 with no decision errors. The
+    meter scales its window to unit TOTAL power, signal plus noise, so with
+    `r = Es/N0` the error against the unit decision is `E|e|^2 = 2 - 2
+    sqrt(r/(1+r))`, which is NOT `1/r`: at 20 dB it reads -20.03 dB, at 10
+    dB -10.31 dB, at 5 dB -5.91 dB. A receiver's implementation loss is its
+    EVM minus this, never its EVM plus Es/N0: against -Es/N0 an ideal
+    receiver already reads 0.9 dB better at 5 dB, so that reference hides
+    that much loss. Decision errors (below about 5 dB at BPSK) pull a real
+    reading under this; it is the noise-only ideal, the same for every M.
+
+    Parameters
+    ----------
+    esn0_db : float
+        Es/N0, dB.
+
+    Returns
+    -------
+    float
+        The ideal reading in dB.
+
+    Examples
+    --------
+    >>> from doppler.ber import ber_evm_ideal_db
+    >>> [round(ber_evm_ideal_db(e), 2) for e in (20.0, 10.0, 5.0)]
+    [-20.03, -10.31, -5.91]
+
+    """
+
 def ber_settle_syms(bn_timing: float, bn_carrier: float) -> int:
     """Symbols to discard before a steady-state measurement means anything:
     2*(5/bn_timing + 5/bn_carrier). Three factors, and skipping any produces a
@@ -1105,7 +1137,8 @@ def ber_evm_db(
     against the stream's OWN hard decision, with the constellation rotation
     estimated from the data. References neither the transmitted symbols nor a
     lag, so it cannot be fooled by an alignment search. A locked matched-filter
-    output reads EVM_dB ~ -(Es/N0)_dB (an I/Q-plane quantity -- no factor of
+    output reads near -(Es/N0) -- exactly ber_evm_ideal_db(esn0_db), the window
+    being scaled to unit total power (an I/Q-plane quantity -- no factor of
     two; quoting one flatters the result by 3 dB). Read it against
     ber_evm_scatter_floor_db(m), NEVER against 0 dB. The window is explicit
     because BER and EVM must be measured on the SAME one: a convenience
@@ -1118,9 +1151,10 @@ def ber_evm_db(
     constellation rotation estimated from the data — so it references
     neither the transmitted symbols nor a lag, and cannot be fooled by an
     alignment search. At a matched-filter output the error vector IS the
-    complex noise, so a locked stream reads `EVM[dB] ~ -(Es/N0)[dB]`. EVM
-    is an I/Q-plane quantity: there is no factor of two — that belongs to
-    an I-only measurement, and quoting it flatters the result by 3 dB.
+    complex noise, so a locked stream reads near -(Es/N0) -- exactly, the
+    window being scaled to unit total power, dp_ber_evm_ideal_db(). EVM is
+    an I/Q-plane quantity: there is no factor of two — that belongs to an
+    I-only measurement, and quoting it flatters the result by 3 dB.
 
     **Pass the real `m`**, and read the result against
     ber_evm_scatter_floor_db(m), never against 0 dB.

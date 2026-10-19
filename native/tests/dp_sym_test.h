@@ -17,7 +17,9 @@
  *   - dp_test_evm_db_hard_m() — EVM against the stream's OWN hard decisions,
  *     with the constellation rotation estimated from the data. No lag, no
  *     truth. At the matched-filter output the error vector IS the complex
- *     noise, so a locked stream reads EVM[dB] ~ -(Es/N0)[dB]. (EVM is an
+ *     noise, so a locked stream reads near -(Es/N0) -- exactly
+ *     dp_ber_evm_ideal_db(), the window being scaled to unit total power;
+ *     measure a receiver's loss against that, not -(Es/N0). (EVM is an
  *     I/Q-plane quantity: there is no factor of two — that belongs to an
  *     I-only measurement, and quoting it flatters the result by 3 dB.)
  *     **Pass the real `m`**; dp_test_evm_db_hard() is the BPSK spelling.

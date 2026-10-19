@@ -2385,6 +2385,50 @@ _test_output_capacity (void)
   return fails;
 }
 
+/* `differential` does not change what steps() returns (#2461 #70). It is
+ * handed to the internal MpskReceiver, whose differential demap acts in its
+ * bits() -- a hard decision this receiver does not offer: steps() returns
+ * the soft symbols, before any demap. Pinned so the header can say so and
+ * a caller knows the flag is inert here (#2471): two cell receivers that
+ * differ only in `differential` give bit-identical symbols. Sabotage:
+ * negate the output when differential is set -> red. */
+static int
+_test_differential_does_not_change_the_symbols (void)
+{
+  const size_t    sf = 7, spc = 4;
+  const double    fs          = 1.0e6 * (double)spc;
+  const double    sym_rate    = 35714.29;
+  const double    tsym        = fs / sym_rate;
+  const size_t    te          = sf * spc;
+  const size_t    n_sym       = 300;
+  const size_t    pre_silence = te * 5 + 3;
+  const double    cn0         = 60.0;
+  float _Complex *x, *syms[2];
+  size_t          n, n_syms[2];
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 11,
+                   &x, &n, &data);
+  for (int d = 0; d < 2; d++)
+    {
+      dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create_cell (
+          CODE7, 7, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 4, 8, d, 0.0, 0.0,
+          100, ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
+      DP_REQUIRE (rx != NULL);
+      DP_REQUIRE (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+      n_syms[d] = _stream (rx, x + pre_silence, n - pre_silence, te, &syms[d]);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+      dp_async_dsss_receiver_destroy (rx);
+    }
+  DP_CHECK (n_syms[0] > 100);
+  DP_CHECK (n_syms[0] == n_syms[1]);
+  DP_CHECK (memcmp (syms[0], syms[1], n_syms[0] * sizeof *syms[0]) == 0);
+  free (syms[0]);
+  free (syms[1]);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* One flag down is a degrade, not a release (section 11.2): with the code
  * detector pinned to a threshold no statistic reaches, code lock drops on a
  * healthy signal while symbol lock holds -- and the release clock, which
@@ -4265,6 +4309,7 @@ main (void)
   (void)_test_symbol_lock_detector_symbol_by_symbol ();
   (void)_test_emission_by_state ();
   DP_CHECK (_test_output_capacity () == 0);
+  DP_CHECK (_test_differential_does_not_change_the_symbols () == 0);
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
   (void)_test_seeded_blob_keyed_by_flavor ();

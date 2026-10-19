@@ -2283,7 +2283,9 @@ class AsyncDsssReceiver:
     sps : int, default 8
         MpskReceiver's samples/symbol; default 8.
     differential : int, default 0
-        MpskReceiver's differential demap; default 0 (coherent).
+        MpskReceiver's differential demap; default 0 (coherent). It acts in
+        MpskReceiver's bits(), which this object does not offer, so steps()'
+        symbols are the same either way (#2471).
     refine_max_error_db : float, default 0.5
         Max tolerable async-lookback correlation-power loss driving the
         refine-stage collection Dll's coherent-I&D window count via
@@ -3230,7 +3232,8 @@ class CellAsyncDsssReceiver:
     sps : int, default 8
         MpskReceiver's samples per symbol.
     differential : int, default 0
-        1 for differentially-encoded data.
+        1 for differentially-encoded data. Inert on steps(), which returns the
+        symbols before any demap (#2471).
     carrier_freq_hz : float, default 0.0
         RF carrier, Hz; > 0 couples the code rate to the carrier loop's Doppler
         (the dead reckoning and the Dll's aid), 0 = no dilation. Coupled, it is

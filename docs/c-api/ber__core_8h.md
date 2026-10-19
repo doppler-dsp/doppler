@@ -64,6 +64,7 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 |  [**ber\_interval\_t**](structber__interval__t.md) | [**dp\_ber\_confidence**](#function-dp_ber_confidence) (size\_t errors, size\_t symbols, double conf) <br>_Exact confidence interval for a run stopped on an ERROR count._  |
 |  double | [**dp\_ber\_esn0\_db\_for\_ser**](#function-dp_ber_esn0_db_for_ser) (int m, double ser) <br>_Es/N0 (dB) at which the coherent bound equals_ `ser` _._ |
 |  double | [**dp\_ber\_evm\_db**](#function-dp_ber_evm_db) (const float \_Complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi, int m) <br>_Self-referenced EVM (dB) over an EXPLICIT window_ `[lo, hi)` _._ |
+|  double | [**dp\_ber\_evm\_ideal\_db**](#function-dp_ber_evm_ideal_db) (double esn0\_db) <br>_What_ [_**dp\_ber\_evm\_db()**_](ber__core_8h.md#function-dp_ber_evm_db) _reads on an ideal stream at_`esn0_db` _._ |
 |  double | [**dp\_ber\_evm\_scatter\_floor\_db**](#function-dp_ber_evm_scatter_floor_db) (int m) <br>_EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation._  |
 |  int | [**dp\_ber\_lock\_symbol**](#function-dp_ber_lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br>_First symbol from which a verify-counted flag is SUSTAINED._  |
 |  double | [**dp\_ber\_qfunc**](#function-dp_ber_qfunc) (double x) <br>_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._ |
@@ -223,7 +224,7 @@ double dp_ber_evm_db (
 
 
 
-Scores each symbol against the stream's OWN hard decision, with the constellation rotation estimated from the data — so it references neither the transmitted symbols nor a lag, and cannot be fooled by an alignment search. At a matched-filter output the error vector IS the complex noise, so a locked stream reads `EVM[dB] ~ -(Es/N0)[dB]`. EVM is an I/Q-plane quantity: there is no factor of two — that belongs to an I-only measurement, and quoting it flatters the result by 3 dB.
+Scores each symbol against the stream's OWN hard decision, with the constellation rotation estimated from the data — so it references neither the transmitted symbols nor a lag, and cannot be fooled by an alignment search. At a matched-filter output the error vector IS the complex noise, so a locked stream reads near -(Es/N0)  exactly, the window being scaled to unit total power, [**dp\_ber\_evm\_ideal\_db()**](ber__core_8h.md#function-dp_ber_evm_ideal_db). EVM is an I/Q-plane quantity: there is no factor of two — that belongs to an I-only measurement, and quoting it flatters the result by 3 dB.
 
 
 **Pass the real `m`**, and read the result against ber\_evm\_scatter\_floor\_db(m), never against 0 dB.
@@ -240,6 +241,49 @@ EVM in dB, 0.0 ("no lock") for a window under 20 symbols, or NAN for M &lt; 2, w
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ber\_evm\_ideal\_db 
+
+_What_ [_**dp\_ber\_evm\_db()**_](ber__core_8h.md#function-dp_ber_evm_db) _reads on an ideal stream at_`esn0_db` _._
+```C++
+double dp_ber_evm_ideal_db (
+    double esn0_db
+) 
+```
+
+
+
+The meter's NOISE floor, the counterpart of the scatter floor above: a perfectly synchronised stream at Es/N0 with no decision errors. The meter scales its window to unit TOTAL power, signal plus noise, so with `r = Es/N0` the error against the unit decision is `E|e|^2 = 2 - 2 sqrt(r/(1+r))`, which is NOT `1/r`: at 20 dB it reads -20.03 dB, at 10 dB -10.31 dB, at 5 dB -5.91 dB. A receiver's implementation loss is its EVM minus this, never its EVM plus Es/N0: against -Es/N0 an ideal receiver already reads 0.9 dB better at 5 dB, so that reference hides that much loss. Decision errors (below about 5 dB at BPSK) pull a real reading under this; it is the noise-only ideal, the same for every M.
+
+
+
+
+**Parameters:**
+
+
+* `esn0_db` Es/N0, dB. 
+
+
+
+**Returns:**
+
+The ideal reading in dB.
+
+
+
+```C++
+>>> from doppler.ber import ber_evm_ideal_db
+>>> [round(ber_evm_ideal_db(e), 2) for e in (20.0, 10.0, 5.0)]
+[-20.03, -10.31, -5.91]
+```
+ 
 
 
         

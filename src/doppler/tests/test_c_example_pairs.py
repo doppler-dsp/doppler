@@ -23,8 +23,11 @@ same captures with the same seeds: :data:`TWINS`. Each twin asserts its own
 bounds, so the two could drift apart with every gate green; this runs both
 from one build and requires the same printed lines. One build matters: a
 different compiler or sanitizer build moves a floating-point result by an
-error count, which is not a defect. Without the binary it skips, except
-under CI, where `make build` has run and a missing binary is a failure.
+error count, which is not a defect. The binaries come from the job's own
+build tree, :func:`~doppler.tests._repo.build_dir` -- the coverage job builds
+only ``build-cov`` and says so through ``DOPPLER_BUILD_DIR``. Without the
+binary it skips, except under CI, where that tree is built and a missing
+binary is a failure.
 """
 
 from __future__ import annotations
@@ -40,12 +43,12 @@ import time
 
 import pytest
 
-from doppler.tests._repo import repo_root
+from doppler.tests._repo import build_dir, repo_root
 
 pytestmark = pytest.mark.examples
 
 REPO = repo_root(__file__)
-BIN = REPO / "build" / "native" / "examples"
+BIN = build_dir() / "native" / "examples"
 
 # How long the interrupted process may take to exit. The example asks the
 # broker for a 250 ms receive timeout, so one timeout plus teardown is the
@@ -198,7 +201,7 @@ def test_twins_print_the_same_lines(name: str, tmp_path) -> None:
     binary = BIN / name
     if not binary.exists():
         if os.environ.get("CI"):
-            pytest.fail(f"{name} not built: CI runs `make build` first")
+            pytest.fail(f"{name} not built: no {binary} in the job's tree")
         pytest.skip(f"{name} not built (run `make build`)")
     script = REPO / "src" / "doppler" / "examples" / f"{name}.py"
     py = subprocess.run(

@@ -104,7 +104,7 @@ int main(void)
     objects carry no decimation state of their own.
 - The table is fixed-capacity (`DP_TLM_MAX_PROBES` = 512 per context,
     `DP_TLM_NAME_MAX` = 32 chars) — room for a whole `AsyncDsssPool` on one
-    context (its searcher, its counters and about twenty probes a slot), and
+    context (its searcher, its counters and about thirty probes a slot), and
     it keeps the context a flat POD with zero hot-path indirection. The
     lossless capture's ring is sized from the probes registered, not from
     the capacity.

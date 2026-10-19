@@ -446,6 +446,9 @@ typedef enum
     uint32_t  tlm_decim;                   /**< The attach's decimation.  */
     int32_t   tlm_sym_lock;   /**< "<prefix>.sym.lock" id, -1 detached.   */
     int32_t   tlm_sym_locked; /**< "<prefix>.sym.locked" id, -1 detached. */
+    int32_t   tlm_state;      /**< "<prefix>.state" id, -1 detached.      */
+    int32_t   tlm_handover;   /**< "<prefix>.handover_hz" id, -1 detached.*/
+    int32_t   tlm_refused;    /**< "<prefix>.refused" id, -1 detached.    */
   } dp_async_dsss_receiver_state_t;
 
   /**
@@ -727,7 +730,29 @@ typedef enum
 
   /**
    * @brief Attach (or detach) a telemetry context across the receiver's
-   *        loops, and register the receiver's own symbol-lock decision.
+   *        loops, and register the receiver's own lifecycle and
+   *        symbol-lock decision.
+   *
+   * The receiver reports under the prefix, once per steps() call that
+   * carries samples, after the call, so on the time axis at the stamp the
+   * caller set for that block (dp_tlm_set_now()):
+   * - "<prefix>.state" -- where the call left the receiver, the
+   *   ASYNC_DSSS_RX_* value: 0 searching, 1 refining, 2 tracking, 3 idle
+   *   (cell mode, no seed yet), 4 lost (status().state);
+   * - "<prefix>.handover_hz" -- the Doppler the chain was built from, Hz
+   *   (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the seed's
+   *   while refining, the refined value from the hand-over on (a cell
+   *   receiver keeps the seed's), and 0 again after a refused hand-over or a
+   *   reset(), which return the receiver to searching. Not the live
+   *   carrier: status().doppler_hz
+   *   reads that, and ".car.freq" and ".car.nco" are the carrier loop's
+   *   own view of it;
+   * - "<prefix>.refused" -- the hits refused as seeds so far
+   *   (status().refused_hits).
+   *
+   * Feed blocks of about a code period, as the examples do, and these read
+   * as a time series of the lifecycle: when the search hit, how long the
+   * refine took, what it handed over, when the release came.
    *
    * Each loop reports under the prefix, at its own update rate:
    * - "<prefix>.car" -- the chip-domain carrier loop
@@ -743,6 +768,10 @@ typedef enum
    * - "<prefix>.acq" -- the searching flavor's acquisition engine
    *   (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has
    *   no search, so no such probes;
+   * - "<prefix>.rc" -- the rate converter between the code loop and the
+   *   demodulator (dp_RateConverter_set_telemetry()). It reports only an
+   *   AGC, and this receiver builds it without one, so it registers no
+   *   probes;
    * - "<prefix>.sym.lock" and "<prefix>.sym.locked" -- the receiver's own
    *   symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and
    *   its decision (dp_async_dsss_receiver_get_locked()), the one its
@@ -789,8 +818,9 @@ typedef enum
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
    * ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
-   * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.sym"))
-   * ['rx.sym.lock', 'rx.sym.locked']
+   * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
+   * ...                                                    "rx.r")))
+   * ['rx.handover_hz', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
    * >>> rx.set_telemetry(None, "rx")      # detach
    *
    * @endcode

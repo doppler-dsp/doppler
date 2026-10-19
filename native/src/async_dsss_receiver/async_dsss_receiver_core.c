@@ -375,14 +375,18 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
   uint32_t    d = s->tlm_decim;
   char        car[DP_TLM_NAME_MAX], code[DP_TLM_NAME_MAX], rc[DP_TLM_NAME_MAX],
       demod[DP_TLM_NAME_MAX], acq[DP_TLM_NAME_MAX], sym_lock[DP_TLM_NAME_MAX],
-      sym_locked[DP_TLM_NAME_MAX];
+      sym_locked[DP_TLM_NAME_MAX], st[DP_TLM_NAME_MAX],
+      handover[DP_TLM_NAME_MAX], refused[DP_TLM_NAME_MAX];
   if (dp_tlm_name_join (car, p, "car") != DP_OK
       || dp_tlm_name_join (code, p, "code") != DP_OK
       || dp_tlm_name_join (rc, p, "rc") != DP_OK
       || dp_tlm_name_join (demod, p, "demod") != DP_OK
       || dp_tlm_name_join (acq, p, "acq") != DP_OK
       || dp_tlm_name_join (sym_lock, p, "sym.lock") != DP_OK
-      || dp_tlm_name_join (sym_locked, p, "sym.locked") != DP_OK)
+      || dp_tlm_name_join (sym_locked, p, "sym.locked") != DP_OK
+      || dp_tlm_name_join (st, p, "state") != DP_OK
+      || dp_tlm_name_join (handover, p, "handover_hz") != DP_OK
+      || dp_tlm_name_join (refused, p, "refused") != DP_OK)
     return DP_ERR_INVALID;
   int r = dp_costas_set_telemetry (&s->car, t, car, d);
   if (r == DP_OK)
@@ -404,6 +408,18 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       if (s->tlm_sym_lock < 0 || s->tlm_sym_locked < 0)
         r = DP_ERR_INVALID;
     }
+  /* Where the receiver is in its lifecycle, the Doppler its chain was built
+     from, and its refused hits: once per steps() call, after it
+     (dp_async_dsss_receiver_steps()). The rebuilds re-run this attach, and a
+     registered name returns its own id, so these stay one series each. */
+  if (r == DP_OK)
+    {
+      s->tlm_state    = dp_tlm_probe (t, st, d);
+      s->tlm_handover = dp_tlm_probe (t, handover, d);
+      s->tlm_refused  = dp_tlm_probe (t, refused, d);
+      if (s->tlm_state < 0 || s->tlm_handover < 0 || s->tlm_refused < 0)
+        r = DP_ERR_INVALID;
+    }
   return r;
 }
 
@@ -420,6 +436,7 @@ adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
   if (s->acq)
     (void)dp_acq_set_telemetry (s->acq, NULL, p, 1);
   s->tlm_sym_lock = s->tlm_sym_locked = -1;
+  s->tlm_state = s->tlm_handover = s->tlm_refused = -1;
 }
 
 /* Size the track chain's per-period scratch for the chain just built. One
@@ -1008,6 +1025,7 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
 
   dp_async_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
   obj->tlm_sym_lock = obj->tlm_sym_locked = -1; /* detached */
+  obj->tlm_state = obj->tlm_handover = obj->tlm_refused = -1;
 
   obj->code = dp_xmalloc (code_len);
   memcpy (obj->code, code, code_len);
@@ -1369,10 +1387,12 @@ adr_release_clock (dp_async_dsss_receiver_state_t *s, size_t x_len)
     adr_enter (s, ASYNC_DSSS_RX_LOST);
 }
 
-size_t
-dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
-                              const float _Complex *x, size_t x_len,
-                              float _Complex *out, size_t max_out)
+/* steps()'s body. A hit, a refused hand-over or a decided refine hands the
+ * rest of the call to itself here, so a call may pass through several
+ * states; the public steps() below reports once, after all of them. */
+static size_t
+adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
+           size_t x_len, float _Complex *out, size_t max_out)
 {
   if (x_len == 0)
     return 0;
@@ -1419,15 +1439,13 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
              on entry to the refining state.) */
           state->refused_hits++;
           state->state_samples -= tail_len;
-          return dp_async_dsss_receiver_steps (state, tail, tail_len, out,
-                                               max_out);
+          return adr_steps (state, tail, tail_len, out, max_out);
         }
       /* Accepted: the domain was just checked, and the receiver is searching,
          so the seed cannot refuse for either reason. */
       (void)dp_async_dsss_receiver_seed (state, ho.chip_phase,
                                          ho.doppler_hz_est, ho.cn0_dbhz_est);
-      return dp_async_dsss_receiver_steps (state, tail, tail_len, out,
-                                           max_out);
+      return adr_steps (state, tail, tail_len, out, max_out);
     }
 
   if (state->state == ASYNC_DSSS_RX_REFINING && state->cell)
@@ -1559,8 +1577,7 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
           state->doppler_hz_est      = 0.0;
           dp_acq_reset (state->acq);
           adr_enter (state, ASYNC_DSSS_RX_SEARCHING);
-          return dp_async_dsss_receiver_steps (state, tail, tail_len, out,
-                                               max_out);
+          return adr_steps (state, tail, tail_len, out, max_out);
         }
       adr_rebuild_track_chain (state, handover_chip_phase,
                                refined_doppler_hz_est, state->segments,
@@ -1569,12 +1586,31 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
       adr_enter (state, ASYNC_DSSS_RX_TRACKING);
       state->doppler_hz_est = refined_doppler_hz_est;
 
-      return dp_async_dsss_receiver_steps (state, tail, tail_len, out,
-                                           max_out);
+      return adr_steps (state, tail, tail_len, out, max_out);
     }
 
   size_t n_out = adr_track_chain (state, x, x_len, out, max_out);
   adr_release_clock (state, x_len);
+  return n_out;
+}
+
+size_t
+dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
+                              const float _Complex *x, size_t x_len,
+                              float _Complex *out, size_t max_out)
+{
+  size_t n_out = adr_steps (state, x, x_len, out, max_out);
+  /* The lifecycle, once a call and after it, on the block's stamp: where
+     the receiver ended up, the Doppler its chain was built from, and the
+     hits refused so far. An empty call changed nothing and reports nothing,
+     which also keeps every probe within one record per input sample. */
+  if (state->tlm && x_len)
+    {
+      dp_tlm_emit (state->tlm, state->tlm_state, (double)state->state);
+      dp_tlm_emit (state->tlm, state->tlm_handover, state->doppler_hz_est);
+      dp_tlm_emit (state->tlm, state->tlm_refused,
+                   (double)state->refused_hits);
+    }
   return n_out;
 }
 

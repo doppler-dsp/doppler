@@ -3971,6 +3971,261 @@ _test_refused_hits_round_trips (void)
   return fails;
 }
 
+/* Drain every record a call wrote and pick out the receiver's lifecycle
+ * trio: how many records each probe wrote, and the last value of each. */
+typedef struct
+{
+  size_t n_state, n_handover, n_refused;
+  float  state, handover, refused;
+} _tlm_trio_t;
+
+static _tlm_trio_t
+_tlm_read_trio (dp_tlm_t *t, int id_state, int id_handover, int id_refused)
+{
+  _tlm_trio_t  r = { 0, 0, 0, NAN, NAN, NAN };
+  dp_tlm_rec_t recs[1024];
+  size_t       m;
+  while ((m = dp_tlm_read (t, 1024, recs, 1024)) > 0)
+    for (size_t j = 0; j < m; j++)
+      {
+        if (recs[j].probe == id_state)
+          r.n_state++, r.state = recs[j].value;
+        else if (recs[j].probe == id_handover)
+          r.n_handover++, r.handover = recs[j].value;
+        else if (recs[j].probe == id_refused)
+          r.n_refused++, r.refused = recs[j].value;
+      }
+  return r;
+}
+
+/* The receiver's own lifecycle probes (set_telemetry(): ".state",
+ * ".handover_hz", ".refused") through a whole life: searching, a hit, the
+ * refine, the hand-over, tracking, and lost after the emitter leaves. Each
+ * call that carries samples writes one record per probe, after the call,
+ * so each record reads what the accessors read once the call returns, and
+ * the states arrive in the life's order. The emitter sits 300 Hz off, so
+ * the refined hand-over differs from the coarse seed. Sabotage: emit before
+ * the call -> red (the hand-over call reads refining); emit the seed's
+ * Doppler -> red at the hand-over; emit from inside the recursion -> red
+ * (a hit's call writes twice). */
+static int
+_test_tlm_lifecycle_probes (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs          = 1.0e6 * (double)spc;
+  const double sym_rate    = 35714.29;
+  const double tsym        = fs / sym_rate;
+  const size_t te          = sf * spc;
+  const size_t n_sym       = 400;
+  const size_t pre_silence = te * 5 + 3;
+  const double cn0         = 70.0;
+  const double doppler_hz  = 20.0e3;
+  const double confirm_s   = 0.02;
+  const size_t tail_n      = (size_t)(0.25 * fs);
+  const size_t chunk       = 1024;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, doppler_hz, cn0, n_sym,
+                   pre_silence, 7, &x, &n, &data);
+  float _Complex                 *off = _noise_tail (tail_n, fs, cn0, 99);
+  dp_async_dsss_receiver_state_t *rx
+      = _searching_rx (cn0, sym_rate, confirm_s, false);
+  dp_tlm_t *t = dp_tlm_create (1 << 16);
+  DP_REQUIRE (rx != NULL && t != NULL);
+  DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1) == DP_OK);
+  const int id_state    = dp_tlm_probe_id (t, "rx.state");
+  const int id_handover = dp_tlm_probe_id (t, "rx.handover_hz");
+  const int id_refused  = dp_tlm_probe_id (t, "rx.refused");
+  DP_REQUIRE (id_state >= 0 && id_handover >= 0 && id_refused >= 0);
+
+  float _Complex *out = malloc (chunk * 8 * sizeof *out);
+  DP_REQUIRE (out != NULL);
+  /* An empty call changed nothing, so it reports nothing. */
+  (void)dp_async_dsss_receiver_steps (rx, x, 0, out, chunk * 8);
+  DP_CHECK (_tlm_emitted (t, "rx.state") == 0);
+
+  size_t calls = 0, bad = 0;
+  int    seen[5] = { 0 }, order[5], n_order = 0;
+  double seed_hz = NAN, handed_hz = NAN;
+  for (int part = 0; part < 2; part++)
+    {
+      const float _Complex *src  = part ? off : x;
+      const size_t          len  = part ? tail_n : n;
+      const size_t          step = part ? chunk : te;
+      for (size_t pos = 0; pos < len; pos += step)
+        {
+          size_t k = len - pos < step ? len - pos : step;
+          (void)dp_async_dsss_receiver_steps (rx, src + pos, k, out,
+                                              chunk * 8);
+          calls++;
+          _tlm_trio_t r
+              = _tlm_read_trio (t, id_state, id_handover, id_refused);
+          const int    st = dp_async_dsss_receiver_status (rx).state;
+          const double ho = dp_async_dsss_receiver_get_doppler_hz (rx);
+          const float  rf = (float)rx->refused_hits;
+          if (r.n_state != 1 || r.n_handover != 1 || r.n_refused != 1
+              || r.state != (float)st || r.handover != (float)ho
+              || r.refused != rf)
+            {
+              if (bad++ < 3)
+                DP_TEST_ERR ("  call %zu: records %zu/%zu/%zu, state %g "
+                             "(%d), handover %g (%g), refused %g (%g)\n",
+                             calls, r.n_state, r.n_handover, r.n_refused,
+                             (double)r.state, st, (double)r.handover, ho,
+                             (double)r.refused, (double)rf);
+            }
+          if (st >= 0 && st < 5 && !seen[st])
+            {
+              seen[st]         = 1;
+              order[n_order++] = st;
+            }
+          if (st == ASYNC_DSSS_RX_REFINING)
+            seed_hz = ho;
+          if (st == ASYNC_DSSS_RX_TRACKING && isnan (handed_hz))
+            handed_hz = ho;
+        }
+    }
+  DP_CHECK (bad == 0);
+  /* The life, in order: searching, refining, tracking, lost. */
+  DP_CHECK (n_order == 4);
+  if (n_order == 4)
+    DP_CHECK (order[0] == ASYNC_DSSS_RX_SEARCHING
+              && order[1] == ASYNC_DSSS_RX_REFINING
+              && order[2] == ASYNC_DSSS_RX_TRACKING
+              && order[3] == ASYNC_DSSS_RX_LOST);
+  /* The hand-over reported the refined Doppler, not the seed's, and near
+     the emitter's. */
+  DP_CHECK (isfinite (seed_hz) && isfinite (handed_hz));
+  printf ("  lifecycle probes: seed %g Hz, handed over %g Hz, emitter %g Hz, "
+          "%zu calls\n",
+          seed_hz, handed_hz, doppler_hz, calls);
+  DP_CHECK (handed_hz != seed_hz);
+
+  free (out);
+  free (off);
+  free (data);
+  free (x);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_tlm_destroy (t);
+  return 0;
+}
+
+/* The cell flavor's two states the life above never visits: idle before a
+ * seed, and its refused count, which no stimulus here can raise -- so it is
+ * set in place, as _test_refused_hits_round_trips does, and the probe must
+ * read it. A seed reports at once, and reset() returns the probes to idle
+ * on the same ids. Sabotage: emit 0 for ".refused" -> red; report nothing
+ * while idle or lost (emit only from the tracking path) -> red. */
+static int
+_test_tlm_idle_and_refused (void)
+{
+  const double                    cn0 = 70.0;
+  dp_async_dsss_receiver_state_t *rx  = _seeded_rx (cn0, 0.0);
+  dp_tlm_t                       *t   = dp_tlm_create (1 << 14);
+  DP_REQUIRE (rx != NULL && t != NULL);
+  DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1) == DP_OK);
+  const int id_state    = dp_tlm_probe_id (t, "rx.state");
+  const int id_handover = dp_tlm_probe_id (t, "rx.handover_hz");
+  const int id_refused  = dp_tlm_probe_id (t, "rx.refused");
+  DP_REQUIRE (id_state >= 0 && id_handover >= 0 && id_refused >= 0);
+
+  float _Complex *noise = _noise_tail (256, 4.0e6, cn0, 5);
+  float _Complex out[2048];
+
+  /* Idle: the call is consumed and discarded, and still reported. */
+  (void)dp_async_dsss_receiver_steps (rx, noise, 256, out, 2048);
+  _tlm_trio_t r = _tlm_read_trio (t, id_state, id_handover, id_refused);
+  DP_CHECK (r.n_state == 1 && r.state == (float)ASYNC_DSSS_RX_IDLE);
+  DP_CHECK (r.n_handover == 1 && r.handover == 0.0f);
+  DP_CHECK (r.n_refused == 1 && r.refused == 0.0f);
+
+  rx->refused_hits = 5;
+  (void)dp_async_dsss_receiver_steps (rx, noise, 256, out, 2048);
+  r = _tlm_read_trio (t, id_state, id_handover, id_refused);
+  DP_CHECK (r.n_refused == 1 && r.refused == 5.0f);
+
+  /* A seed: the pull-in reports refining, at the seed's Doppler. */
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 1234.5, cn0) == DP_OK);
+  (void)dp_async_dsss_receiver_steps (rx, noise, 256, out, 2048);
+  r = _tlm_read_trio (t, id_state, id_handover, id_refused);
+  DP_CHECK (r.n_state == 1 && r.state == (float)ASYNC_DSSS_RX_REFINING);
+  DP_CHECK (r.n_handover == 1 && r.handover == 1234.5f);
+
+  /* reset(): idle again, on the same ids, and nothing new registers. */
+  const size_t n_probes = dp_tlm_probe_count (t);
+  dp_async_dsss_receiver_reset (rx);
+  (void)dp_async_dsss_receiver_steps (rx, noise, 256, out, 2048);
+  r = _tlm_read_trio (t, id_state, id_handover, id_refused);
+  DP_CHECK (r.n_state == 1 && r.state == (float)ASYNC_DSSS_RX_IDLE);
+  DP_CHECK (r.n_handover == 1 && r.handover == 0.0f);
+  DP_CHECK (dp_tlm_probe_count (t) == n_probes);
+
+  /* Detached: nothing more is written. */
+  DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1) == DP_OK);
+  (void)dp_async_dsss_receiver_steps (rx, noise, 256, out, 2048);
+  r = _tlm_read_trio (t, id_state, id_handover, id_refused);
+  DP_CHECK (r.n_state == 0 && r.n_handover == 0 && r.n_refused == 0);
+
+  free (noise);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_tlm_destroy (t);
+  return 0;
+}
+
+/* set_telemetry()'s probe list is the header's claim about what a caller
+ * will find, so every name either flavor registers sits under a prefix the
+ * header documents -- ".car", ".code", ".demod", ".acq" (searching only)
+ * -- or is one of the receiver's own five; and ".rc" registers nothing, as
+ * the header says, because the rate converter is built without an AGC.
+ * Sabotage: rename a probe -> red; register an undocumented one -> red;
+ * register one under ".rc" -> red. */
+static int
+_test_tlm_names_documented (void)
+{
+  static const char *const children[]
+      = { "rx.car.", "rx.code.", "rx.demod.", "rx.acq." };
+  static const char *const own[]
+      = { "rx.state", "rx.handover_hz", "rx.refused", "rx.sym.lock",
+          "rx.sym.locked" };
+  enum
+  {
+    N_CHILD = sizeof children / sizeof children[0],
+    N_OWN   = sizeof own / sizeof own[0]
+  };
+  for (int cell = 0; cell < 2; cell++)
+    {
+      dp_async_dsss_receiver_state_t *rx
+          = cell ? _seeded_rx (70.0, 0.0)
+                 : _searching_rx (70.0, 35714.29, 0.0, false);
+      dp_tlm_t *t = dp_tlm_create (1 << 12);
+      DP_REQUIRE (rx != NULL && t != NULL);
+      DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1)
+                  == DP_OK);
+      for (size_t i = 0; i < N_OWN; i++)
+        DP_CHECK_MSG (dp_tlm_probe_id (t, own[i]) >= 0, own[i]);
+      size_t acq = 0;
+      for (uint32_t i = 0; i < t->n_probes; i++)
+        {
+          const char *name   = t->probes[i].name;
+          int         listed = 0;
+          for (size_t j = 0; j < N_OWN && !listed; j++)
+            listed = strcmp (name, own[j]) == 0;
+          for (size_t j = 0; j < N_CHILD && !listed; j++)
+            listed = strncmp (name, children[j], strlen (children[j])) == 0;
+          acq += strncmp (name, "rx.acq.", 7) == 0;
+          DP_CHECK_MSG (listed, name);
+          DP_CHECK_MSG (strncmp (name, "rx.rc.", 6) != 0, name);
+        }
+      /* The search is the searching flavor's alone. */
+      DP_CHECK (cell ? acq == 0 : acq > 0);
+      dp_async_dsss_receiver_destroy (rx);
+      dp_tlm_destroy (t);
+    }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -4018,6 +4273,9 @@ main (void)
   (void)_test_cell_ramp ();
   (void)_test_cell_ramp_at_spec ();
   (void)_test_cell_state_roundtrip ();
+  DP_CHECK (_test_tlm_lifecycle_probes () == 0);
+  DP_CHECK (_test_tlm_idle_and_refused () == 0);
+  DP_CHECK (_test_tlm_names_documented () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

@@ -824,6 +824,14 @@ _test_telemetry (void)
     DP_CHECK (p->tlm == t && p->acq->tlm.ctx == t);
     for (size_t i = 0; i < n_slots; i++)
       DP_CHECK (p->rx[i]->tlm == t);
+    /* Drain the first feed's records. A probe's count is the records the
+       ring took (dp_tlm_emitted()), so an undrained ring overruns on the
+       second feed and its drops would read as the counters stopping. */
+    {
+      dp_tlm_rec_t sink[4096];
+      while (dp_tlm_read (t, 4096, sink, 4096) > 0)
+        ;
+    }
     const uint64_t a0 = tlm_emitted (t, "pool.assigned");
     const uint64_t d0 = tlm_emitted (t, "pool.acq.stat");
     (void)feed (p, c.x, c.n);

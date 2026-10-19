@@ -107,7 +107,10 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm**](#variable-tlm)  <br> |
 |  uint32\_t | [**tlm\_decim**](#variable-tlm_decim)  <br> |
+|  int32\_t | [**tlm\_handover**](#variable-tlm_handover)  <br> |
 |  char | [**tlm\_prefix**](#variable-tlm_prefix)  <br> |
+|  int32\_t | [**tlm\_refused**](#variable-tlm_refused)  <br> |
+|  int32\_t | [**tlm\_state**](#variable-tlm_state)  <br> |
 |  int32\_t | [**tlm\_sym\_lock**](#variable-tlm_sym_lock)  <br> |
 |  int32\_t | [**tlm\_sym\_locked**](#variable-tlm_sym_locked)  <br> |
 |  float \_Complex \* | [**track\_dll\_out\_buf**](#variable-track_dll_out_buf)  <br> |
@@ -1271,6 +1274,23 @@ The attach's decimation.
 
 
 
+### variable tlm\_handover 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_handover;
+```
+
+
+
+"&lt;prefix&gt;.handover\_hz" id, -1 detached. 
+
+
+        
+
+<hr>
+
+
+
 ### variable tlm\_prefix 
 
 ```C++
@@ -1280,6 +1300,42 @@ char dp_async_dsss_receiver_state_t::tlm_prefix[DP_TLM_NAME_MAX];
 
 
 The attach's prefix. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_refused 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_refused;
+```
+
+
+
+"&lt;prefix&gt;.refused" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_state 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_state;
+```
+
+
+
+"&lt;prefix&gt;.state" id, -1 detached. 
  
 
 

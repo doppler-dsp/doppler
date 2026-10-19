@@ -2483,17 +2483,20 @@ class AsyncDsssReceiver:
         """
 
     def steps_max_out(self) -> int:
-        """Largest number of samples steps() can return in the current state.
+        """The output capacity steps() needs beyond the input's: none.
 
-        Size an `out=` buffer with this before calling steps(), or use it to
-        allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on steps_max_out()
-        replaces this text.
+        Returns 0, which means an `out` sized to the call's `x_len` always
+
+        holds every symbol the call emits -- a call cannot emit more symbols
+
+        than samples. Symbols past a smaller `max_out` are dropped (see
+
+        dp_async_dsss_receiver_steps()).
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            0.
         """
 
     def seed(
@@ -3354,17 +3357,20 @@ class CellAsyncDsssReceiver:
         """
 
     def steps_max_out(self) -> int:
-        """Largest number of samples steps() can return in the current state.
+        """The output capacity steps() needs beyond the input's: none.
 
-        Size an `out=` buffer with this before calling steps(), or use it to
-        allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on steps_max_out()
-        replaces this text.
+        Returns 0, which means an `out` sized to the call's `x_len` always
+
+        holds every symbol the call emits -- a call cannot emit more symbols
+
+        than samples. Symbols past a smaller `max_out` are dropped (see
+
+        dp_async_dsss_receiver_steps()).
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            0.
         """
 
     def seed(

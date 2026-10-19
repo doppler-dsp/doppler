@@ -1507,18 +1507,17 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps() can return in the current state.\n"
+    "The output capacity steps() needs beyond the input's: none.\n"
     "\n"
-    "Size an `out=` buffer with this before calling steps(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on steps_max_out()\n"
-    "replaces this text.\n"
+    "Returns 0, which means an `out` sized to the call's `x_len` always\n"
+    "holds every symbol the call emits -- a call cannot emit more symbols\n"
+    "than samples. Symbols past a smaller `max_out` are dropped (see\n"
+    "dp_async_dsss_receiver_steps()).\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    0.\n" },
   { "seed", (PyCFunction)(void *)AsyncDsssReceiverObj_seed,
     METH_VARARGS | METH_KEYWORDS,
     "seed(chip_phase, doppler_hz_est, cn0_dbhz_est) -> None\n"

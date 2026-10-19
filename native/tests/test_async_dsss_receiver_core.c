@@ -2213,6 +2213,147 @@ _test_symbol_lock_detector_symbol_by_symbol (void)
   return 0;
 }
 
+/* What each state emits, and destroy(NULL) (#2461 #9, #110, #89, #96).
+ * The searching flavor emits nothing in a call it spends refining; the
+ * cell flavor's refining is the pull-in on the live chain, so it DOES
+ * emit; a cell receiver reaches tracking only once its pull-in has folded
+ * the carrier estimate in; and destroy(NULL) is a no-op. Each asserts its
+ * precondition (calls observed in the state). Sabotage: the searching
+ * flavor emitting from the refine chain, or the cell's pull-in emitting
+ * nothing -> red. */
+static int
+_test_emission_by_state (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs       = 1.0e6 * (double)spc;
+  const double sym_rate = 35714.29;
+  const double tsym     = fs / sym_rate;
+  const size_t te       = sf * spc;
+  const size_t n_sym    = 400;
+  const size_t pre      = te * 5 + 3;
+  const double cn0      = 70.0;
+
+  dp_async_dsss_receiver_destroy (NULL); /* #96: safe, does nothing */
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre, 7, &x, &n,
+                   &data);
+  float _Complex *out = malloc (te * 8 * sizeof *out);
+
+  /* Searching flavor: every call that ends refining emitted 0 (#110). */
+  dp_async_dsss_receiver_state_t *rx
+      = _searching_rx (cn0, sym_rate, 0.0, false);
+  DP_REQUIRE (rx != NULL);
+  int refining_calls = 0, refining_emitted = 0, tracked = 0;
+  for (size_t pos = 0; pos + te <= n; pos += te)
+    {
+      size_t k = dp_async_dsss_receiver_steps (rx, x + pos, te, out, te * 8);
+      if (dp_async_dsss_receiver_status (rx).state == ASYNC_DSSS_RX_REFINING)
+        {
+          refining_calls++;
+          refining_emitted += (int)k;
+        }
+      tracked |= dp_async_dsss_receiver_get_tracking (rx);
+    }
+  DP_CHECK (refining_calls > 0); /* precondition: it was seen refining */
+  DP_CHECK (refining_emitted == 0);
+  DP_CHECK (tracked == 1);
+  dp_async_dsss_receiver_destroy (rx);
+
+  /* Cell flavor, seeded on the signal: refining (the pull-in) emits (#9),
+     and tracking comes only after the fold (#89). */
+  dp_async_dsss_receiver_state_t *cell = _seeded_rx (cn0, 0.0);
+  DP_REQUIRE (cell != NULL);
+  DP_CHECK (dp_async_dsss_receiver_seed (cell, 0.0, 0.0, cn0) == DP_OK);
+  int cell_refining_calls = 0, cell_refining_emitted = 0, early = 0,
+      cell_tracked = 0;
+  for (size_t pos = pre; pos + te <= n; pos += te)
+    {
+      size_t k = dp_async_dsss_receiver_steps (cell, x + pos, te, out, te * 8);
+      int    st = dp_async_dsss_receiver_status (cell).state;
+      if (st == ASYNC_DSSS_RX_REFINING)
+        {
+          cell_refining_calls++;
+          cell_refining_emitted += (int)k;
+        }
+      if (st == ASYNC_DSSS_RX_TRACKING)
+        {
+          cell_tracked = 1;
+          early |= !cell->cell_refined; /* tracking before the fold */
+        }
+    }
+  DP_CHECK (cell_refining_calls > 0);
+  DP_CHECK (cell_refining_emitted > 0);
+  DP_CHECK (cell_tracked == 1);
+  DP_CHECK (early == 0);
+  dp_async_dsss_receiver_destroy (cell);
+  free (out);
+  free (x);
+  free (data);
+  return 0;
+}
+
+/* Output capacity (#2461 #108, #115): steps() never writes past max_out,
+ * and the symbols past it are dropped, not held for the next call; an
+ * out sized to the call's input (x_len) always holds them, which is what
+ * steps_max_out() returning 0 means. Measured on this fixture: capacity 1
+ * keeps 10 of 343 symbols, capacity x_len keeps all 343. A guard region
+ * past max_out must come back untouched. Sabotage: write one past
+ * max_out -> red. */
+static int
+_test_output_capacity (void)
+{
+  const size_t    sf = 7, spc = 4;
+  const double    fs       = 1.0e6 * (double)spc;
+  const double    sym_rate = 35714.29;
+  const double    tsym     = fs / sym_rate;
+  const size_t    te       = sf * spc;
+  const size_t    n_sym    = 400;
+  const size_t    pre      = te * 5 + 3;
+  const size_t    chunk    = 4096;
+  const size_t    guard    = 16;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, 70.0, n_sym, pre, 7, &x, &n,
+                   &data);
+  const size_t caps[2]  = { 1, chunk }; /* starved, then x_len */
+  size_t       total[2] = { 0, 0 };
+  for (int c = 0; c < 2; c++)
+    {
+      dp_async_dsss_receiver_state_t *rx
+          = _searching_rx (70.0, sym_rate, 0.0, false);
+      DP_REQUIRE (rx != NULL);
+      DP_CHECK (dp_async_dsss_receiver_steps_max_out (rx) == 0);
+      float _Complex *out        = malloc ((caps[c] + guard) * sizeof *out);
+      int             wrote_past = 0;
+      for (size_t pos = 0; pos < n; pos += chunk)
+        {
+          for (size_t g = 0; g < guard; g++)
+            out[caps[c] + g] = 12345.0f;
+          size_t kk = n - pos < chunk ? n - pos : chunk;
+          size_t k
+              = dp_async_dsss_receiver_steps (rx, x + pos, kk, out, caps[c]);
+          DP_CHECK (k <= caps[c]);
+          total[c] += k;
+          for (size_t g = 0; g < guard; g++)
+            wrote_past |= out[caps[c] + g] != 12345.0f;
+        }
+      DP_CHECK (wrote_past == 0);
+      free (out);
+      dp_async_dsss_receiver_destroy (rx);
+    }
+  /* x_len holds every symbol (a full decode's worth); a starved buffer
+     keeps fewer -- the rest are dropped, not deferred. */
+  DP_CHECK (total[1] > n_sym * 3 / 4);
+  DP_CHECK (total[0] < total[1]);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* One flag down is a degrade, not a release (section 11.2): with the code
  * detector pinned to a threshold no statistic reaches, code lock drops on a
  * healthy signal while symbol lock holds -- and the release clock, which
@@ -3823,6 +3964,8 @@ main (void)
   (void)_test_a_handoff_that_never_locks_is_released ();
   (void)_test_plain_clock_restarts_on_a_flag ();
   (void)_test_symbol_lock_detector_symbol_by_symbol ();
+  (void)_test_emission_by_state ();
+  (void)_test_output_capacity ();
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
   (void)_test_seeded_blob_keyed_by_flavor ();

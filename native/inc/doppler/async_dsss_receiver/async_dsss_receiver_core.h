@@ -797,6 +797,17 @@ typedef enum
       dp_async_dsss_receiver_state_t *state, dp_tlm_t *tlm, const char *prefix,
       uint32_t decim);
 
+  /**
+   * @brief The output capacity steps() needs beyond the input's: none.
+   *
+   * Returns 0, which means an `out` sized to the call's `x_len` always
+   * holds every symbol the call emits -- a call cannot emit more symbols
+   * than samples. Symbols past a smaller `max_out` are dropped (see
+   * dp_async_dsss_receiver_steps()).
+   *
+   * @param state  Must be non-NULL.
+   * @return 0.
+   */
   size_t dp_async_dsss_receiver_steps_max_out (dp_async_dsss_receiver_state_t *state);
 
   /**
@@ -829,7 +840,11 @@ typedef enum
    * @param x        Input cf32 samples.
    * @param x_len    Number of input samples.
    * @param out      Output symbols; caller provides @p max_out capacity.
-   * @param max_out  Output capacity.
+   * @param max_out  Output capacity. steps() never writes past it, and the
+   *                 symbols past it are dropped, not held for the next
+   *                 call; @p x_len always suffices (a call cannot emit more
+   *                 symbols than samples), which is what
+   *                 dp_async_dsss_receiver_steps_max_out() returning 0 says.
    * @return Number of symbols written: 0 while searching, idle or lost,
    *         while the searching flavor refines, or before a full symbol's
    *         worth of input.

@@ -1810,7 +1810,7 @@ LOCAL_TARGETS = specan record-demo parallel-record-write gallery blazing \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
                 check-wheel-tags release-wheel-tags \
                 release-smoke-packages \
-                bench-python \
+                bench-python bench-rx \
                 bench-preflight bench-interleaved bench-publish bench-docs \
                 bench-labels-fix \
                 bench-stream bench-report bench-restamp \
@@ -4892,6 +4892,15 @@ test-example-downstream-python: ## Build + test the downstream example (Python)
 # nothing -- see TEST_PYTHON_CMD.
 bench-python: ## Time the Python microbenchmarks (serial; pytest-benchmark)
 	$(UV) run pytest $(PYTEST_BENCH_DIRS) -v $(PYTEST_SELECT) $(PYTEST_ARGS)
+
+# The AsyncDsssReceiver's cost in one command, in seconds: the held cell at
+# three operating points and the searching flavor at the SPEC point, as
+# ns/sample and x real time on one core (bench_async_dsss_receiver_core.c).
+# A delegation to `bench`, so the run is jm's and the JSON lands where every
+# bench's does; the release's numbers still come from bench-interleaved on a
+# quiet machine.
+bench-rx: ## Time the AsyncDsssReceiver alone: tracking and searching cost
+	@$(MAKE) -s bench BENCH_ARGS="--c-only async_dsss_receiver"
 
 # The bench box keeps ONE clone, not one per release (docs/dev/release.md
 # §2b): fetch, then bench-preflight, then `git checkout --detach`, then

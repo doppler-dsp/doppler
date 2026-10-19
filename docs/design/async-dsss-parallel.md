@@ -101,7 +101,7 @@ separate bench of spares.
 - **The search runs continuously,** in dwells of D epochs back to back,
     with D at most half the data-free block. At least one dwell then lands
     wholly inside every data-free block with no frame timing at all, and a
-    dwell that overlaps data finds no clean peak. A coherent dwell of D
+    dwell partly in data gives only a weaker, smeared peak. A coherent dwell of D
     epochs resolves the carrier to $1/(D T_E)$ across the whole range: the
     receiver's only fine frequency search, and nothing commands it.
 - **Refining, then tracking,** as the receiver does today: the carrier

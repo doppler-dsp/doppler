@@ -1565,6 +1565,20 @@ dp_async_dsss_receiver_configure_lock_raw (
                              alpha, n_up, n_down);
 }
 
+/* The whole carrier the live chain holds, Hz: loop 1's (the pre-despread
+ * Costas, in cycles per front-end sample) plus what loop 2 -- the
+ * post-despread MpskReceiver, at sps * symbol_rate -- has taken up beyond
+ * it, its loop-filter integrator. status() reports it and
+ * configure_chain_raw() re-seeds a rebuilt chain from it (doppler#1261,
+ * #2414): one sum, so the two cannot disagree. */
+static double
+adr_tracked_doppler_hz (const dp_async_dsss_receiver_state_t *s)
+{
+  return dp_costas_get_norm_freq (&s->car) * s->chip_rate * (double)s->spc
+         + dp_mpsk_receiver_get_norm_freq (s->rx)
+               * ((double)s->sps * s->symbol_rate);
+}
+
 int
 dp_async_dsss_receiver_configure_chain_raw (
     dp_async_dsss_receiver_state_t *state, size_t segments, size_t sps, int n)
@@ -1579,10 +1593,12 @@ dp_async_dsss_receiver_configure_chain_raw (
       || (int)(sps % (size_t)n) != 0)
     return -1;
 
-  double chip_phase      = dp_dll_get_code_phase (state->dll);
-  double old_target_rate = (double)state->sps * state->symbol_rate;
-  double doppler_hz_now
-      = dp_mpsk_receiver_get_norm_freq (state->rx) * old_target_rate;
+  /* Read before the rebuild, while sps is still the old grid's: the sum
+     is loop 1 PLUS loop 2. Loop 2's residual alone (what this read before
+     #2414) dropped loop 1's carrier, so a receiver tracking +2.4 kHz was
+     rebuilt near 0 Hz and lost the signal. */
+  double chip_phase     = dp_dll_get_code_phase (state->dll);
+  double doppler_hz_now = adr_tracked_doppler_hz (state);
 
   adr_rebuild_track_chain (state, chip_phase, doppler_hz_now, segments, sps,
                            n);
@@ -1617,14 +1633,10 @@ dp_async_dsss_receiver_status (const dp_async_dsss_receiver_state_t *s)
     {
     case ASYNC_DSSS_RX_TRACKING:
     case ASYNC_DSSS_RX_LOST:
-      doppler_hz = dp_costas_get_norm_freq (&s->car) * fs
-                   + dp_mpsk_receiver_get_norm_freq (s->rx)
-                         * ((double)s->sps * s->symbol_rate);
+      doppler_hz = adr_tracked_doppler_hz (s);
       break;
     case ASYNC_DSSS_RX_REFINING:
-      doppler_hz = s->cell ? dp_costas_get_norm_freq (&s->car) * fs
-                                 + dp_mpsk_receiver_get_norm_freq (s->rx)
-                                       * ((double)s->sps * s->symbol_rate)
+      doppler_hz = s->cell ? adr_tracked_doppler_hz (s)
                            : dp_costas_get_norm_freq (&s->car_frozen) * fs;
       break;
     default:

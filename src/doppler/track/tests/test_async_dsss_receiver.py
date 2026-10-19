@@ -1,16 +1,8 @@
 """End-to-end integration: the real closed-loop async DSSS receiver.
 
-`docs/design/async-dsss-receiver.md` validates the segmented-DLL
-code path (`Dll(segments=K)`) and the always-on lock detector against
-real objects, but its own BER table comes from a **numpy stand-in**
-for the despread step with **no carrier at all**
-(`src/doppler/examples/async_despreader_study.py`), and the gallery
-page's downstream composition is an unexecuted comment. Nobody had
-chained the real `Dll(segments=K)` -> `Costas` -> `SymbolSync` -> bit
-decisions and shown it converges blind (no genie carrier/timing
-knowledge).
-
-These tests close that gap at a real link budget: 2.046 Mcps chip
+These tests chain the real `Dll(segments=K)` -> `Costas` ->
+`SymbolSync` -> bit decisions and show it converges blind (no genie
+carrier/timing knowledge), at a real link budget: 2.046 Mcps chip
 rate, a 1023-chip Gold-length code (one epoch = 0.5 ms), 1800 bps data
 (1.1111 epochs/symbol, 1136.7 chips/symbol -> ~30.6 dB processing
 gain) -- symbol period slightly *longer* than one code epoch, so more

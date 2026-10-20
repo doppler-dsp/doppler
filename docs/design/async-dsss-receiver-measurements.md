@@ -915,7 +915,7 @@ ______________________________________________________________________
 
 ### 12.13 What was built (2026-09-06) — the pool, §8.2
 
-`native/src/async_dsss_pool/` (`AsyncDsssPool`, Python glue only): one
+[`native/src/async_dsss_pool/`](https://github.com/doppler-dsp/doppler/tree/35d8049a2/native/src/async_dsss_pool) (`AsyncDsssPool`, Python glue only): one
 searcher, `n_slots` hand-off receivers created idle, the assigned table,
 the event log by attachment, exactly the object of §8.2 — and nothing
 about the waveform or the population baked in: 28 create parameters, every
@@ -974,7 +974,7 @@ Two things the build found:
     follows within 100 Hz.
 
 \*Note, 2026-10-17: the pool's receivers are cell receivers (9ddb8a3af). The row-coordinate
-pin is `test_async_dsss_pool_core.c:289–292`. `_test_table_holds_the_locked_doppler`, the
+pin is [`test_async_dsss_pool_core.c:289–292`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/tests/test_async_dsss_pool_core.c#L289-L292). `_test_table_holds_the_locked_doppler`, the
 test that reproduced #1261, was deleted in 9ddb8a3af.
 
 **Next:** the lifecycle soak (§12.14) — the shipped synth with the
@@ -1587,7 +1587,7 @@ samples, the prompt's column as the largest over every column of the
 tile, and 0 on a partial block and out-of-range indices; the column and
 raw sabotages were watched go red.
 
-**What was measured.** §12.20's harness, `acq_surface_jitter.c`, with
+**What was measured.** §12.20's harness, [`acq_surface_jitter.c`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/validation/acq_surface_jitter.c), with
 three reads added at the same cell, the truth's: the coherent
 discriminator `Re(conj(P) (L − E)) / |P|²` on the complex surface's
 truth row, calibrated and inverted through its own S-curve like the
@@ -1733,7 +1733,7 @@ ______________________________________________________________________
 ### 12.23 What was measured (2026-09-08) — the correction closed on the searcher's own cell
 
 **What was built.** §12.22's read, with the truth taken out of the loop.
-`acq_surface_jitter.c` gains a held mode: the tracker acquires at the
+[`acq_surface_jitter.c`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/validation/acq_surface_jitter.c) gains a held mode: the tracker acquires at the
 first window dwell from the surface alone — the argmax cell, the
 calibrated E/L on its row for the phase within the cell, the parabola
 over the rows for the Doppler, which is also the code rate since the
@@ -2187,7 +2187,7 @@ What it settles:
     chip. The hand-off path's retirement is PR 4 (§12.28).
 
 \*Note, 2026-10-17: `--cell` is not a flag any more. `--check` remains, with `--events`,
-`--duration` and `--budget` (`async_dsss_pool_soak.c:1350–1356`).
+`--duration` and `--budget` ([`async_dsss_pool_soak.c:1350–1356`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/validation/async_dsss_pool_soak.c#L1350-L1356)).
 
 ______________________________________________________________________
 
@@ -2284,7 +2284,7 @@ What it settles:
 9ddb8a3af. The commit is 55 files, +1182/−6103 (`git show --stat`); its code scope
 (`native`, `src`, `objects`) is 37 files, +962/−5539. The pool's `set_refine_min_blocks`
 and its read-back were removed, and the pool test asserts its absence
-(`test_async_dsss_pool.py:261`). `AsyncDsssReceiver` keeps `set_refine_min_blocks`
+([`test_async_dsss_pool.py:261`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/src/doppler/dsss/tests/test_async_dsss_pool.py#L261)). `AsyncDsssReceiver` keeps `set_refine_min_blocks`
 (`objects/async_dsss_receiver.toml:298`).
 
 ______________________________________________________________________

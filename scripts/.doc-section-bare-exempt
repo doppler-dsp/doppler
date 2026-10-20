@@ -26,7 +26,7 @@
 3 native/validation/ratesync_scurve.c
 9 objects/acq.toml
 1 objects/dll.toml
-2 objects/dp_event_log.toml
+1 objects/dp_event_log.toml
 1 objects/dsss_burst_receiver.toml
 9 src/doppler/acquire/acquire.pyi
 3 src/doppler/acquire/tests/test_acq_continuous.py

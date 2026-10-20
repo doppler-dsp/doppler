@@ -866,9 +866,7 @@ typedef enum
    * hit it fails, and the hand-over holds the REFINED Doppler to it too: a
    * seed in range whose residual carries it to or past fs/2 is refused at
    * the hand-over, counted in refused_hits, and the receiver searches
-   * again rather than track a Doppler it cannot report. The pool counts
-   * such a hit as refused rather than as dropped for want of a slot. It
-   * reads only the receiver's fixed config (code length, chip rate, spc),
+   * again rather than track a Doppler it cannot report. It reads only the receiver's fixed config (code length, chip rate, spc),
    * so any receiver built from the same config gives the same answer.
    *
    * @param state          Must be non-NULL.

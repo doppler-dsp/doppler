@@ -196,10 +196,9 @@ surface. It:
 - **reports**.
 
 Telemetry is single-producer, so each receiver attaches its own context,
-and one context must not be shared across the workers. Nothing refuses a
-shared one yet: the pool as built refuses all telemetry once it has more
-than one thread, and that refusal is to be replaced by a check for a
-shared context.
+and one context must not be shared across the workers. The controller
+refuses a context shared across its receivers; nothing refuses one yet,
+because the controller is not built.
 
 ## 5. Arrival to tracking
 

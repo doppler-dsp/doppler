@@ -983,7 +983,7 @@ int dp_async_dsss_receiver_seed_ok (
 `chip_phase` must be finite and inside `[0, code_len)`, and `doppler_hz_est` must be strictly inside `(-fs/2, fs/2)`, where `fs` is `chip_rate * spc`. A Doppler at or past half the sample rate is not reportable ([**dp\_acq\_carrier\_freq\_ok()**](acq__core_8h.md#function-dp_acq_carrier_freq_ok) relies on this bound), and a seed there sent the hand-off's phase to NaN (doppler#2103).
 
 
-seed() refuses by this predicate, set\_state() restores the seed fields only inside it, the searching receiver's hit path does not seed from a hit it fails, and the hand-over holds the REFINED Doppler to it too: a seed in range whose residual carries it to or past fs/2 is refused at the hand-over, counted in refused\_hits, and the receiver searches again rather than track a Doppler it cannot report. The pool counts such a hit as refused rather than as dropped for want of a slot. It reads only the receiver's fixed config (code length, chip rate, spc), so any receiver built from the same config gives the same answer.
+seed() refuses by this predicate, set\_state() restores the seed fields only inside it, the searching receiver's hit path does not seed from a hit it fails, and the hand-over holds the REFINED Doppler to it too: a seed in range whose residual carries it to or past fs/2 is refused at the hand-over, counted in refused\_hits, and the receiver searches again rather than track a Doppler it cannot report. It reads only the receiver's fixed config (code length, chip rate, spc), so any receiver built from the same config gives the same answer.
 
 
 

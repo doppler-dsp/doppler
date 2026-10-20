@@ -673,9 +673,9 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
      it rides the crossing out (code lock held in 5 of 6 trials). A
      neighbour within about a kilohertz crossing at a chip or two a second
      can lock the carrier, and to a receiver on its own that IS a return --
-     the pool, which knows that emitter has a slot, is where it is told
-     apart (#1275). Before the first lock the loops must run: that is the
-     pull-in. */
+     the parallel controller, which knows that emitter is held, is where it
+     is told apart (#1275). Before the first lock the loops must run: that is
+     the pull-in. */
   const int code_up = dp_dll_get_locked (s->dll),
             sym_up  = s->sym_lockdet.locked;
   if (code_up && sym_up)
@@ -1182,7 +1182,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
        * [0, code_len), but not the Doppler: a hit at or past fs/2 is outside
        * the seed domain. Such a hit is refused as a seed and counted in
        * refused_hits; the search goes on over its tail, as it would after no
-       * hit. The pool logs its own refusals as "refused" events. */
+       * hit. */
       acq_handoff_t ho;
       dp_acq_build_handoff (state->acq, &hit, state->code_len, state->spc,
                             &ho);
@@ -1439,7 +1439,7 @@ dp_async_dsss_receiver_status (const dp_async_dsss_receiver_state_t *s)
    * loop, at sps * symbol_rate -- has taken up beyond it, its loop-filter
    * integrator, the same sum configure_chain_raw() re-seeds a rebuilt
    * chain from (doppler#1261). While refining the frozen carrier IS the
-   * seed; idle has no emitter. */
+   * seed; searching has no emitter. */
   double fs = s->chip_rate * (double)s->spc;
   double doppler_hz;
   switch (s->state)

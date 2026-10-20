@@ -5,4 +5,6 @@
     ([async-dsss-parallel](../../docs/design/async-dsss-parallel.md)): N
     `AsyncDsssReceiver`s, each searching for itself. `AsyncDsssReceiver`'s
     `idle` state and property go with the cell mode (its value, 3, stays
-    reserved, so `lost` is still 4), and its state blob is version 10.
+    reserved, so `lost` is still 4), and its state blob is version 11: a
+    blob of version 10 or older is refused (`ValueError`; C returns
+    `DP_ERR_INVALID`).

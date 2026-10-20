@@ -96,7 +96,7 @@ test_wfm_dsp.c -> test_wfm_frame.c  #853 item 11: the hand-computed DSSS
   deleted; the vector moved to test_wfm_frame.c unchanged, over the
   description pair (`dp_wfm_frame_fixed` + `dp_wfm_dsss_desc_*`), and its
   nchips edge cases joined that file's chip-count table.
-test_async_dsss_receiver_core.c  the cell mode (`CellAsyncDsssReceiver`,
+test_async_dsss_receiver_core.c  -124: the cell mode (`CellAsyncDsssReceiver`,
   `dp_async_dsss_receiver_create_cell`) was deleted with the old
   `AsyncDsssPool` it served; the parallel design
   (docs/design/async-dsss-parallel.md) seeds no receiver from a central

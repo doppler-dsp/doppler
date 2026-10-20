@@ -1144,9 +1144,16 @@ _test_seed_on_searching_flavor (void)
 
   DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
   DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 1);
+  /* Assigned once: a receiver that holds a seed refuses another, refining
+     or tracking, until reset() releases it. Sabotage: accept a seed in any
+     state but lost -> red. */
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 3.0, 0.0, cn0) == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 1);
 
   float _Complex *syms;
   size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, 3.0, 0.0, cn0) == DP_ERR_INVALID);
   DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (n_syms > 20);
   DP_CHECK (_best_ber (syms, n_syms, data, n_sym + 4) < 0.05);
@@ -2506,12 +2513,31 @@ _test_seeded_blob_round_trip (void)
       size_t cbs   = dp_async_dsss_receiver_state_bytes (rs);
       void  *blobs = malloc (cbs);
       dp_async_dsss_receiver_get_state (rs, blobs);
+      DP_CHECK (cbs != cb); /* sps sizes the blob: refused on size first */
       DP_CHECK (dp_async_dsss_receiver_set_state (rb, blobs)
                 == DP_ERR_INVALID);
       DP_CHECK (dp_async_dsss_receiver_get_tracking (rb) == 1); /* untouched */
       free (blobs);
       dp_async_dsss_receiver_destroy (rs);
     }
+  /* A state no receiver can be in: 3 is reserved (the deleted cell mode's
+     idle, kept because the values are persisted) and 5 is past the last.
+     Forged into a valid blob, each is refused and rb is left as it was.
+     Sabotage: drop either refusal in set_state() -> red. */
+  {
+    async_dsss_receiver_extra_t *ex
+        = (async_dsss_receiver_extra_t *)((char *)blob
+                                          + sizeof (dp_state_hdr_t));
+    const uint8_t was = ex->state;
+    for (int k = 0; k < 2; k++)
+      {
+        ex->state = k == 0 ? (uint8_t)ASYNC_DSSS_RX_RESERVED : 5u;
+        DP_CHECK (dp_async_dsss_receiver_set_state (rb, blob)
+                  == DP_ERR_INVALID);
+        DP_CHECK (dp_async_dsss_receiver_get_tracking (rb) == 1);
+      }
+    ex->state = was;
+  }
   ((char *)blob)[0] ^= (char)0xFF;
   DP_CHECK (dp_async_dsss_receiver_set_state (rb, blob) == DP_ERR_INVALID);
   free (blob);
@@ -2721,28 +2747,6 @@ _test_accessor_coverage (void)
 
   dp_async_dsss_receiver_destroy (rx);
   return 0;
-}
-
-/* The dilated capture's code phase at output sample k, chips, folded on
- * the code: the channel's mapping (output k carries input k(1+d) - delay,
- * chip 0 on the clean render's first sample). */
-static double
-_dilated_truth (double k, double ppm, double delay, size_t spc, size_t sf)
-{
-  double n_in = k * (1.0 + ppm * 1e-6) - delay;
-  double c    = fmod (n_in / (double)spc, (double)sf);
-  return c < 0.0 ? c + (double)sf : c;
-}
-
-static double
-_wrap_chips (double e, size_t sf)
-{
-  e = fmod (e, (double)sf);
-  if (e > 0.5 * (double)sf)
-    e -= (double)sf;
-  else if (e <= -0.5 * (double)sf)
-    e += (double)sf;
-  return e;
 }
 
 /* The hand-off resumes where the HIT's frame ended (#2042). At a design

@@ -69,20 +69,21 @@ static const acq_bench_cfg_t CFGS[] = {
   { 5.0e6, 5000.0, "op5M_U5k", 3, 1, 1, 1 },
   { 2.0e6, 5000.0, "op2M_U5k", 7, 1, 1, 1 },
   /* docs/design/async-dsss-receiver-measurements.md §12.8: the per-tile cost
-     with the block-coherent depth in it (D = 154 at 5 Mcps, 61 at 2: the
-     window's 813 and 324 whole epochs under a 500 Hz/s rate bound), and the
+     with the block-coherent depth in it (D = 150 at 5 Mcps, 60 at 2: the
+     window's 813 and 324 whole epochs under a 500 Hz/s rate bound give 154
+     and 61, which the engine rounds down to a 7-smooth length), and the
      same push fanned across threads by the roll per thread (section 2.3) --
      the fraction of the tiles' cost that scales. Each fan is measured at its
      two ends; a D = 1 row at the same counts beside them is the fan on the
      epoch-by-epoch searcher alone. The published run is pinned to 4 cores
      and their SMT siblings, so 8 threads run two to a core (#2394). */
   { 5.0e6, 50000.0, "op5M_U50k_t8", 21, INJECT_WINDOW, 1, 8 },
-  { 5.0e6, 50000.0, "op5M_U50k_D154_t1", 21, INJECT_WINDOW, 813, 1 },
-  { 5.0e6, 50000.0, "op5M_U50k_D154_t8", 21, INJECT_WINDOW, 813, 8 },
-  { 2.0e6, 50000.0, "op2M_U50k_D61_t1", 53, INJECT_WINDOW, 324, 1 },
-  { 2.0e6, 50000.0, "op2M_U50k_D61_t4", 53, INJECT_WINDOW, 324, 4 },
-  { 5.0e6, 5000.0, "op5M_U5k_D154_t1", 3, 1, 813, 1 },
-  { 5.0e6, 5000.0, "op5M_U5k_D154_t4", 3, 1, 813, 4 },
+  { 5.0e6, 50000.0, "op5M_U50k_D150_t1", 21, INJECT_WINDOW, 813, 1 },
+  { 5.0e6, 50000.0, "op5M_U50k_D150_t8", 21, INJECT_WINDOW, 813, 8 },
+  { 2.0e6, 50000.0, "op2M_U50k_D60_t1", 53, INJECT_WINDOW, 324, 1 },
+  { 2.0e6, 50000.0, "op2M_U50k_D60_t4", 53, INJECT_WINDOW, 324, 4 },
+  { 5.0e6, 5000.0, "op5M_U5k_D150_t1", 3, 1, 813, 1 },
+  { 5.0e6, 5000.0, "op5M_U5k_D150_t4", 3, 1, 813, 4 },
 };
 
 static uint32_t

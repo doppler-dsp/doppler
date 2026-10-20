@@ -97,7 +97,9 @@
  * most `(code_only_epochs+1)/2` (a whole block always lands inside the
  * window) and, when `doppler_rate` is given, at most
  * `f_epoch/sqrt(2*doppler_rate)` (the drift over a block stays inside half a
- * row). The Doppler axis is then ONE uniform grid of
+ * row), rounded down to a 7-smooth length (dp_fft_smooth_floor()): `D` is a
+ * slow-time FFT length, and a prime factor of 13 or more costs pocketfft its
+ * slow path (doppler#2457). The Doppler axis is then ONE uniform grid of
  * `window_bins*coherent_bins` bins of `doppler_res_hz = chip_rate/(sf*D)`
  * over the tiled span, in native FFT-bin order (0 = DC, ascending, then
  * wrapping negative): `doppler_bin` indexes it, and dp_acq_build_handoff()
@@ -889,7 +891,8 @@ extern "C"
    * docs/design/dsss-acquisition.md), so the depth is bounded by what a
    * waveform's code-only window holds: `coherent_bins = D =
    * min((code_only_epochs+1)/2, f_epoch/sqrt(2*doppler_rate))`, at least 1,
-   * run in non-overlapping D-epoch blocks inside every tile (file doc,
+   * rounded down to a 7-smooth length (dp_fft_smooth_floor(): 94 runs as
+   * 90), run in non-overlapping D-epoch blocks inside every tile (file doc,
    * design §2.3). With @p code_only_epochs = 1 it is 1 and the engine is
    * exactly the epoch-by-epoch search. Sensitivity margin beyond the depth
    * comes from auto-selected non-coherent looks over blocks (up to the

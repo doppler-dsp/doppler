@@ -1539,3 +1539,8 @@ status = "open"
 tier = 0
 title = "wfm_json.c converts JSON numbers to integer fields with bare casts: num_samples=1.5, -1, 2**32 and seed=-1, 2**32 are accepted (jm's hardened reader never reaches Composer.from_json)"
 status = "open"
+
+[issue.2509]
+tier = 3
+title = "acq: the burst engine's depth search picks D without regard to the FFT length's smoothness"
+status = "open"

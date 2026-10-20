@@ -1381,9 +1381,9 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "...                      code_only_epochs=813, doppler_rate=500.0,\n"
     "...                      n_slots=4)\n"
     ">>> (pool.n_slots, pool.n_assigned, pool.coherent_bins)\n"
-    "(4, 0, 154)\n"
+    "(4, 0, 150)\n"
     ">>> round(pool.doppler_res_hz, 1)       # the row a seed comes from\n"
-    "31.7\n",
+    "32.6\n",
   .tp_methods = AsyncDsssPoolObj_methods,
   .tp_getset  = AsyncDsssPool_getset,
   .tp_new     = AsyncDsssPoolObj_new,

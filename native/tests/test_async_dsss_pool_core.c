@@ -591,17 +591,25 @@ _test_refusals (void)
                 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0,
                 ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN)
             == NULL);
-  /* D = 12 -> 407 Hz rows: past the bound by 4%. D = 13 is inside. */
+  /* D = 12 -> 407 Hz rows: past the bound by 4%. D = 13 would be inside,
+     but the engine runs its depth at a 7-smooth length (doppler#2457), so a
+     25-epoch window's 13 rounds to 12 and is refused too; the first depth
+     inside is 14, from 27 epochs. */
   DP_CHECK (dp_async_dsss_pool_create (
                 g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU,
                 23, 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0,
                 ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN)
             == NULL);
+  DP_CHECK (dp_async_dsss_pool_create (
+                g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU,
+                25, 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0,
+                ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN)
+            == NULL);
   dp_async_dsss_pool_state_t *edge = dp_async_dsss_pool_create (
-      g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, 25, 0.0, 4,
+      g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, 27, 0.0, 4,
       2, 1, 0.0, LOST_S, 0.0, 4, 8, 0, ASYNC_DSSS_RX_CELL_GAIN,
       ASYNC_DSSS_RX_CELL_PULLIN);
-  DP_CHECK (edge != NULL && edge->acq->coherent_bins == 13
+  DP_CHECK (edge != NULL && edge->acq->coherent_bins == 14
             && edge->acq->doppler_res_hz
                    <= 4.0 * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (CHIP_RATE, SF));
   dp_async_dsss_pool_destroy (edge);

@@ -32,13 +32,13 @@
  *                blocks whose gate fires against the configured pfa -- the
  *                CFAR counts every row of every tile, or it does not.
  *   sensitivity  realized Pd against C/N0 for D of 1, 16 and the operating
- *                point's 154, one look each: the C/N0 at which the depth
+ *                point's 150, one look each: the C/N0 at which the depth
  *                detects what a single epoch cannot.
  *   dilated      the aligned block at SPEC's Doppler, 20 ppm of a 2.5 GHz
  *                carrier (50 kHz), two ways: the synth's own carrier offset
  *                with the code standing still, and through the shipped
  *                doppler_channel with the chips dilated by the same 20 ppm
- *                -- 100 chips/s, 3.1 chips across a D = 154 block (#1256).
+ *                -- 100 chips/s, 3.1 chips across a D = 150 block (#1256).
  *                Per depth: the peak against the gate, `conc`, the peak's
  *                width along the code axis, the hand-off's Doppler, and
  *                its chip phase raw and with the half-dwell advance
@@ -59,7 +59,7 @@
  *                                          aligned floor and the straddles'
  *                                          concentration, pfa within its
  *                                          binomial band of the configured
- *                                          rate (#2218), D = 154
+ *                                          rate (#2218), D = 150
  *                                          detecting at a C/N0 where D = 1
  *                                          does not, and the dilated
  *                                          block's cost against the still
@@ -573,7 +573,7 @@ main (int argc, char **argv)
 
   /* ── sensitivity: realized Pd against C/N0, per depth ──────────────── */
   {
-    const size_t epochs[3] = { 1, 31, 0 }; /* D = 1, 16, the window's 154 */
+    const size_t epochs[3] = { 1, 31, 0 }; /* D = 1, 16, the window's 150 */
     const double cn0s[4]   = { 30.0, 34.0, 38.0, 42.0 };
     const int    trials    = check ? 3 : 20;
     printf ("\nsensitivity at 5 Mcps, one look, realized Pd over %d trials"
@@ -582,9 +582,10 @@ main (int argc, char **argv)
     for (int c = 0; c < 4; c++)
       printf ("   %5.0f dB-Hz", cn0s[c]);
     printf ("\n");
-    double       pd_d1_chk = -1.0, pd_d154_chk = -1.0;
-    const double chk_cn0 = 38.0; /* measured: D = 154 at 2.7x the gate,
-                                    D = 1 at 0.8x -- robust both ways */
+    double       pd_d1_chk = -1.0, pd_dwin_chk = -1.0;
+    const double chk_cn0 = 38.0; /* measured at D = 154: 2.7x the gate,
+                                    D = 1 at 0.8x -- robust both ways; the
+                                    7-smooth 150 costs 0.1 dB of it */
     for (int e = 0; e < 3; e++)
       {
         dp_acq_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
@@ -611,21 +612,21 @@ main (int argc, char **argv)
             if (a->coherent_bins == 1 && cn0 == chk_cn0)
               pd_d1_chk = pd;
             if (epochs[e] == 0 && cn0 == chk_cn0)
-              pd_d154_chk = pd;
+              pd_dwin_chk = pd;
           }
         printf ("\n");
         dp_acq_destroy (a);
       }
     if (check)
       {
-        DP_CHECK_MSG (pd_d154_chk == 1.0,
+        DP_CHECK_MSG (pd_dwin_chk == 1.0,
                       "at 38 dB-Hz the window's depth detects every block");
         DP_CHECK_MSG (pd_d1_chk == 0.0, "and a single epoch detects none");
       }
   }
   /* ── the dilated block: SPEC's 20 ppm through the channel (#1256) ── */
   {
-    const size_t epochs[3] = { 1, 31, 0 }; /* D = 1, 16, the window's 154 */
+    const size_t epochs[3] = { 1, 31, 0 }; /* D = 1, 16, the window's 150 */
     printf ("\nSPEC's Doppler at 5 Mcps: %.0f ppm of %.1f GHz = %.0f Hz, "
             "%.0f chips/s; one aligned block, clean, the code standing "
             "still (the synth's offset) or dilated through the channel:\n",
@@ -665,7 +666,44 @@ main (int argc, char **argv)
             "truth, the dilated block's truth is that plus the channel's "
             "delay plus a whole block's drift)\n");
 
-    /* The depth's sensitivity both ways: realized Pd at D = 154. */
+    /* The told carrier's recovery is position-independent only across a
+       row: the still block's peak moves 1.5 dB with where the carrier sits
+       on the Doppler grid (half-row period, interp 2), the compensated
+       block's 0.5 dB, so their ratio at one carrier is a statement about
+       that carrier's grid position. Measured across one row, eight
+       carriers: the worst ratio and the ratio of the row's means. */
+    double rec_worst = 0.0, rec_mean = 0.0;
+    {
+      dp_acq_state_t *ar = engine_open (code, 5.0e6, 0, 1e-3);
+      ONE_LOOK (ar);
+      const double row   = ar->doppler_res_hz;
+      double       sum_s = 0.0, sum_c = 0.0;
+      printf ("\nThe told carrier across one row at D = %zu (%.1f Hz), from "
+              "50 kHz:\n  %-9s %-7s %-7s %s\n",
+              ar->coherent_bins, row, "offset", "still", "comp", "dB");
+      for (int k = 0; k < 8; k++)
+        {
+          const double ppm
+              = SPEC_PPM + (double)k * (row / 8.0) / (CARRIER_HZ * 1e-6);
+          dil_t s0, c0;
+          DP_REQUIRE (measure_dilated (code, ar, ppm, 0, 0, 0.0, 11u, &s0)
+                      == 0);
+          DP_REQUIRE (measure_dilated (code, ar, ppm, 1, 1, 0.0, 11u, &c0)
+                      == 0);
+          const double r = db (c0.peak_stat / s0.peak_stat);
+          printf ("  %-9.2f %-7.0f %-7.0f %.2f\n", (double)k * row / 8.0,
+                  s0.peak_stat, c0.peak_stat, r);
+          rec_worst = k == 0 || r < rec_worst ? r : rec_worst;
+          sum_s += s0.peak_stat;
+          sum_c += c0.peak_stat;
+        }
+      rec_mean = db (sum_c / sum_s);
+      printf ("  worst %.2f dB, the row's means %.2f dB\n", rec_worst,
+              rec_mean);
+      dp_acq_destroy (ar);
+    }
+
+    /* The depth's sensitivity both ways: realized Pd at D = 150. */
     const double    cn0s[3] = { 34.0, 38.0, 42.0 };
     const int       trials  = check ? 5 : 20;
     dp_acq_state_t *a       = engine_open (code, 5.0e6, 0, 1e-3);
@@ -710,11 +748,16 @@ main (int argc, char **argv)
                       "the aligned block at 50 kHz is seen still and "
                       "dilated with the carrier told");
         DP_CHECK_MSG (db (dil[2].peak_stat / still[2].peak_stat) < -10.0,
-                      "told nothing, the D = 154 block smears 3 chips and "
+                      "told nothing, the D = 150 block smears 3 chips and "
                       "loses over 10 dB");
-        DP_CHECK_MSG (db (cmp[2].peak_stat / still[2].peak_stat) > -4.0,
-                      "told the carrier, it is within 4 dB of the still "
-                      "block (1.4 of them the channel's own resampler)");
+        /* Measured across a row at D = 150: worst -4.43 dB, means -3.26
+           (1.4 of it the channel's own resampler); a lost compensation is
+           the 10 dB above. At D = 154 the one carrier read 3.0 because it
+           fell between rows, which is why this is not pinned at one. */
+        DP_CHECK_MSG (rec_worst > -5.0,
+                      "told the carrier, it is within 5 dB of the still "
+                      "block wherever the carrier sits on a row");
+        DP_CHECK_MSG (rec_mean > -3.5, "and within 3.5 dB on the row's means");
         DP_CHECK_MSG (cmp[2].width_chips <= 1.0 && dil[2].width_chips >= 2.0,
                       "and its peak is a chip wide, not three");
         /* The hand-off: the block's end is the D = 1 block's phase (its

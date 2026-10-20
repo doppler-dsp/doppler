@@ -3670,6 +3670,37 @@ main (void)
     DP_CHECK (w1->coherent_bins == 1 && w1->blk == NULL);
     DP_CHECK_MSG (w7->coherent_bins == D, "D = (code_only_epochs + 1) / 2");
     DP_CHECK_MSG (wr->coherent_bins == 2, "the Doppler rate bounds D");
+    /* Both bounds are ceilings, and D runs at the largest 7-smooth length
+       under them (dp_fft_smooth_floor(), #1247): a window of 25 epochs
+       gives (25+1)/2 = 13, which runs as 12. */
+    {
+      dp_acq_state_t *w25 = dp_acq_create_continuous (
+          CODE7, sf, spc, crate, 0.0, 60.0, 200.0e3, 1e-2, 0.9, 0, 25, 0.0);
+      DP_REQUIRE (w25 != NULL);
+      DP_CHECK_MSG (w25->coherent_bins == 12, "13 runs as 7-smooth 12");
+      dp_acq_destroy (w25);
+    }
+    /* The operating points on a 1023-chip code, 2 samples a chip, under
+       500 Hz/s: 5 Mcps's window of 813 epochs and rate bound give 154,
+       which runs as 150; the async-DSSS design point (3.069 Mcps, rate
+       bound 94.9) gives 94 = 2 x 47, which runs as 90. Sabotage: drop the
+       round-down in acq_block_depth() -> both red. */
+    {
+      static uint8_t code1023[1023];
+      uint32_t       st = 7u;
+      for (size_t k = 0; k < 1023; k++)
+        code1023[k] = (uint8_t)(dp_xs32 (&st) & 1u);
+      dp_acq_state_t *op5 = dp_acq_create_continuous (
+          code1023, 1023, 2, 5.0e6, 0.0, 45.0, 0.0, 1e-2, 0.9, 0, 813, 500.0);
+      dp_acq_state_t *spec
+          = dp_acq_create_continuous (code1023, 1023, 2, 3.069e6, 0.0, 45.0,
+                                      0.0, 1e-2, 0.9, 0, 999, 500.0);
+      DP_REQUIRE (op5 != NULL && spec != NULL);
+      DP_CHECK_MSG (op5->coherent_bins == 150, "154 runs as 7-smooth 150");
+      DP_CHECK_MSG (spec->coherent_bins == 90, "94 runs as 7-smooth 90");
+      dp_acq_destroy (op5);
+      dp_acq_destroy (spec);
+    }
     DP_CHECK (dp_acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0,
                                         200.0e3, 1e-2, 0.9, 0, 0, 0.0)
               == NULL); /* code_only_epochs < 1 */

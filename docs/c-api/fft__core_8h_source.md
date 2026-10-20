@@ -31,6 +31,8 @@ extern "C"
 
   dp_fft_state_t *dp_fft_create (size_t n, int sign, int nthreads);
 
+  size_t dp_fft_smooth_floor (size_t n);
+
   void dp_fft_destroy (dp_fft_state_t *state);
 
   void dp_fft_reset (dp_fft_state_t *state);

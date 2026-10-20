@@ -65,6 +65,41 @@ extern "C"
    */
   dp_fft_state_t *dp_fft_create (size_t n, int sign, int nthreads);
 
+  /**
+   * @brief The largest 7-smooth length at most @p n: the longest transform
+   *        no longer than @p n whose only prime factors are 2, 3, 5 and 7.
+   *
+   * pocketfft's cost tracks the factorization of the length, not its size.
+   * It has its own passes for 2, 3, 4, 5, 7 and 11; a prime factor of 13 or
+   * more goes the generic way. Measured at the async-DSSS design point (a
+   * slow-time axis of 2D points, one thread, doppler#2457): D = 13 cost
+   * 1.22x D = 12, D = 23 1.35x D = 21, and D = 94 (2 x 47) 1.46x D = 90,
+   * while a factor of 7 cost 3-5% over its 5-smooth neighbours. A caller
+   * free to choose a length at or below a bound -- a coherent depth, a block
+   * size -- rounds the bound down with this. The round-down gives up at most
+   * about 9% of the length (11 -> 10) and less as @p n grows. A caller whose
+   * length is fixed by the signal (a code period) cannot use it.
+   *
+   * @param n  Upper bound on the length.
+   * @return The largest m <= @p n with m = 2^a 3^b 5^c 7^d; 0 when @p n
+   *         is 0.
+   * @code
+   * #include <assert.h>
+   * #include "doppler/fft/fft_core.h"
+   * int main (void)
+   * {
+   *   assert (dp_fft_smooth_floor (94) == 90);   // 2 x 47 -> 2 x 3^2 x 5
+   *   assert (dp_fft_smooth_floor (96) == 96);   // already smooth
+   *   assert (dp_fft_smooth_floor (14) == 14);   // 2 x 7 is kept
+   *   assert (dp_fft_smooth_floor (13) == 12);   // a prime of 13 is not
+   *   assert (dp_fft_smooth_floor (407) == 405); // 11 x 37 -> 3^4 x 5
+   *   assert (dp_fft_smooth_floor (1) == 1);
+   *   return 0;
+   * }
+   * @endcode
+   */
+  size_t dp_fft_smooth_floor (size_t n);
+
   /** @brief Destroy and free an fft instance. @param state May be NULL. */
   void dp_fft_destroy (dp_fft_state_t *state);
 

@@ -331,9 +331,9 @@ extern "C"
  * ...                      code_only_epochs=813, doppler_rate=500.0,
  * ...                      n_slots=4)
  * >>> (pool.n_slots, pool.n_assigned, pool.coherent_bins)
- * (4, 0, 154)
+ * (4, 0, 150)
  * >>> round(pool.doppler_res_hz, 1)       # the row a seed comes from
- * 31.7
+ * 32.6
  *
  * @endcode
  */

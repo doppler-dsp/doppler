@@ -249,5 +249,31 @@ main (void)
     dp_fft_destroy (obj);
   }
 
+  /* dp_fft_smooth_floor(): against the 7-smooth numbers built from their
+     definition, 2^a 3^b 5^c 7^d, not by the function's own divide-out
+     walk. */
+  {
+    enum
+    {
+      LIM = 4096
+    };
+    static unsigned char is_smooth[LIM + 1];
+    for (size_t p2 = 1; p2 <= LIM; p2 *= 2)
+      for (size_t p3 = p2; p3 <= LIM; p3 *= 3)
+        for (size_t p5 = p3; p5 <= LIM; p5 *= 5)
+          for (size_t p7 = p5; p7 <= LIM; p7 *= 7)
+            is_smooth[p7] = 1;
+    size_t expect = 0, bad = 0;
+    for (size_t n = 0; n <= LIM; n++)
+      {
+        if (is_smooth[n])
+          expect = n;
+        bad += dp_fft_smooth_floor (n) != expect;
+      }
+    DP_CHECK (bad == 0);
+    /* The design point that motivated it (doppler#2457). */
+    DP_CHECK (dp_fft_smooth_floor (94) == 90);
+  }
+
   DP_TEST_END ("test_fft_core");
 }

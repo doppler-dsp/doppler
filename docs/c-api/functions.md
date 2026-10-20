@@ -1054,6 +1054,7 @@
 * **dp\_fft\_execute\_inplace\_cf64** ([**fft\_core.h**](fft__core_8h.md))
 * **dp\_fft\_execute\_inplace\_cf64\_max\_out** ([**fft\_core.h**](fft__core_8h.md))
 * **dp\_fft\_reset** ([**fft\_core.h**](fft__core_8h.md))
+* **dp\_fft\_smooth\_floor** ([**fft\_core.h**](fft__core_8h.md))
 * **dp\_fft2d\_create** ([**fft2d\_core.h**](fft2d__core_8h.md))
 * **dp\_fft2d\_destroy** ([**fft2d\_core.h**](fft2d__core_8h.md))
 * **dp\_fft2d\_execute\_cf32** ([**fft2d\_core.h**](fft2d__core_8h.md))

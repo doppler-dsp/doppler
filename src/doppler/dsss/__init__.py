@@ -21,6 +21,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .dsss import BurstDespreader, PolynomialPhaseEstimator, BurstDemod, Despreader, DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver, PolynomialPhaseEstimate, ReceiverStatus, AsyncDsssPool, PoolSlot, CellAsyncDsssReceiver  # noqa: E402
+from .dsss import BurstDespreader, PolynomialPhaseEstimator, BurstDemod, Despreader, DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver, PolynomialPhaseEstimate, ReceiverStatus  # noqa: E402
 
-__all__ = ["BurstDespreader", "PolynomialPhaseEstimator", "BurstDemod", "Despreader", "DsssReceiver", "AsyncDsssReceiver", "DsssBurstReceiver", "PolynomialPhaseEstimate", "ReceiverStatus", "AsyncDsssPool", "PoolSlot", "CellAsyncDsssReceiver"]
+__all__ = ["BurstDespreader", "PolynomialPhaseEstimator", "BurstDemod", "Despreader", "DsssReceiver", "AsyncDsssReceiver", "DsssBurstReceiver", "PolynomialPhaseEstimate", "ReceiverStatus"]

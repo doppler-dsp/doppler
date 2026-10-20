@@ -177,7 +177,6 @@ nav:
           - "A Message Over DSSS, Received and Deframed": gallery/data-source-link.md
           - "AsyncDsssReceiver: the SPEC link": gallery/async-dsss-receiver-spec.md
           - "AsyncDsssReceiver: a signal's lifecycle": gallery/async-dsss-receiver-lifecycle.md
-          - "AsyncDsssPool: the population's lifecycle": gallery/async-dsss-pool.md
           - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md
       - Synchronization Loops:
           - Carrier Loop Stress: gallery/costas.md
@@ -263,7 +262,6 @@ nav:
       - Guides: guide/index.md
       - Acquiring a Repeated Preamble: guide/acquisition.md
       - DSSS Burst Acquisition: guide/dsss-acquisition.md
-      - Tracking a Population of DSSS Emitters: guide/async-dsss-pool.md
       - Lock Detection Across doppler.track: guide/lock-detection.md
       - Power Spectra & Measurements: guide/spectral-psd.md
       - Streaming Spectrograms: guide/spectrogram.md

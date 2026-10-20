@@ -222,7 +222,7 @@ double async_dsss_receiver_status_t::doppler_hz;
 
 
 
-Where the emitter is NOW: the whole carrier estimate, Hz  loop 1's plus what loop 2 has taken up beyond it (the seed while refining, 0 when idle, frozen where it was when lost). Only as good as `locked`: with the carrier unlocked, loop 1 free-runs and this wanders. 
+Where the emitter is NOW: the whole carrier estimate, Hz  loop 1's plus what loop 2 has taken up beyond it (the seed while refining, 0 while searching, frozen where it was when lost). Only as good as `locked`: with the carrier unlocked, loop 1 free-runs and this wanders. 
 
 
         

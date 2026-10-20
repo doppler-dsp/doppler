@@ -21,8 +21,7 @@ against, the same split as the C twin
 
 The waveform is the continuous Gold-code operating point in
 `_async_stimulus.py`, not either of the C twin's two, so the faces agree on
-the split rather than on absolute figures. The cell flavor
-(`CellAsyncDsssReceiver`) is its own object and its own benchmark.
+the split rather than on absolute figures.
 
 **Each row asserts it decoded what it was timed on.** Every stage exits
 early on a signal that is not there, so a receiver that never acquires reads

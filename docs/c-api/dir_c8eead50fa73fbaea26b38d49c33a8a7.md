@@ -62,7 +62,6 @@
 | dir | [**agc**](dir_da2fce83534b434d126c978bac57abe5.md) <br> |
 | dir | [**analyzer**](dir_bc9ffe1c503aeccbb822ea34694fc346.md) <br> |
 | dir | [**arith**](dir_d0f844c85d44525a1700464c9da275c4.md) <br> |
-| dir | [**async\_dsss\_pool**](dir_8a6668f3097fb7847a23b1f65b3df26f.md) <br> |
 | dir | [**async\_dsss\_receiver**](dir_565c73e0c8995e904663dd9fb6485ceb.md) <br> |
 | dir | [**awgn**](dir_6240b6c8e1c7fd073a984e370d89f937.md) <br> |
 | dir | [**ber**](dir_742028dd4040117c60c3f886fa044d64.md) <br> |

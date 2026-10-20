@@ -507,7 +507,7 @@ status = "open"
 
 [issue.1275]
 tier = 2
-title = "async_dsss_pool: a neighbour within a kilohertz crossing a departed receiver's code phase at a chip or two a second is, to that receiver, a return \u2014 the pool's zone is where it can be told apart"
+title = "Parallel AsyncDsssPool: a neighbour within a kilohertz crossing a held receiver's code phase is, to that receiver, a return \u2014 the controller is where it is told apart"
 status = "open"
 
 [issue.1284]
@@ -1543,4 +1543,29 @@ status = "open"
 [issue.2509]
 tier = 3
 title = "acq: the burst engine's depth search picks D without regard to the FFT length's smoothness"
+status = "open"
+
+[issue.2507]
+tier = 5
+title = "AsyncDsssPool (parallel): an assigned carrier offset per receiver, deferred"
+status = "open"
+
+[issue.2508]
+tier = 5
+title = "Remove the deleted AsyncDsssPool/CellAsyncDsssReceiver rows from benchmarks/labels.toml after the next release"
+status = "open"
+
+[issue.2512]
+tier = 5
+title = "Old-pool deletion PR: the doc fixes it owes once #2502 lands"
+status = "open"
+
+[issue.2517]
+tier = 5
+title = "async-dsss-parallel record: record.py cannot refresh its bench rows after the old pool's deletion"
+status = "open"
+
+[issue.2518]
+tier = 1
+title = "make warnings-check overwrites the in-tree Python extensions with its clang build"
 status = "open"

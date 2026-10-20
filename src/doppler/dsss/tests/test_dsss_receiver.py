@@ -228,18 +228,10 @@ def test_odd_sps_still_builds():
 _RX_BASE = {
     "DsssReceiver": {"chip_rate": 1.023e6, "symbol_rate": 1e3},
     "AsyncDsssReceiver": {"chip_rate": 1.023e6, "symbol_rate": 1e3},
-    "CellAsyncDsssReceiver": {"chip_rate": 1.023e6, "symbol_rate": 1e3},
-    "AsyncDsssPool": {
-        "chip_rate": 5e6,
-        "symbol_rate": 2700.0,
-        "cn0_dbhz": 47.0,
-        "doppler_uncertainty": 6000.0,
-        "n_slots": 2,
-    },
 }
 _ALL = tuple(_RX_BASE)
-_ASYNC = ("AsyncDsssReceiver", "CellAsyncDsssReceiver", "AsyncDsssPool")
-_SEARCHING = ("DsssReceiver", "AsyncDsssReceiver", "AsyncDsssPool")
+_ASYNC = ("AsyncDsssReceiver",)
+_SEARCHING = ("DsssReceiver", "AsyncDsssReceiver")
 _NAN = float("nan")
 
 # (classes, the one argument changed, what the message must name). Before
@@ -250,8 +242,6 @@ _REFUSALS = [
     (_ALL, {"chip_rate": _NAN}, "a finite chip_rate > 0"),
     (_ALL, {"symbol_rate": _NAN}, "a finite symbol_rate > 0"),
     (_ALL, {"sps": 1}, "sps >= 2"),
-    # The cell flavour has no searcher, but its carrier estimator refuses
-    # these under dp_xnn, so it must refuse them itself.
     (_ALL, {"pfa": 2.0}, "0 < pfa < 1"),
     (_ALL, {"pfa": 0.0}, "0 < pfa < 1"),
     (_ALL, {"pd": 1.5}, "0 < pd < 1"),
@@ -287,16 +277,6 @@ _REFUSALS = [
         {"refine_samples_per_symbol": 0},
         "refine_samples_per_symbol >= 1",
     ),
-    (
-        ("CellAsyncDsssReceiver",),
-        {"correct_periods": 0},
-        "correct_periods >= 1",
-    ),
-    (
-        ("CellAsyncDsssReceiver", "AsyncDsssPool"),
-        {"gain": 0.0},
-        "0 < gain <= 1",
-    ),
 ]
 
 
@@ -330,7 +310,7 @@ def test_create_refuses_and_names_the_condition(cls, change, names):
         make(**dict(kw, **change))
 
 
-@pytest.mark.parametrize("cls", ["AsyncDsssReceiver", "CellAsyncDsssReceiver"])
+@pytest.mark.parametrize("cls", ["AsyncDsssReceiver"])
 def test_seed_refuses_a_doppler_past_half_the_sample_rate(cls):
     """A Doppler is reportable only below half the sample rate, which the
     carrier rule relies on to keep doppler / carrier finite. A seed near
@@ -347,7 +327,7 @@ def test_seed_refuses_a_doppler_past_half_the_sample_rate(cls):
     rx.seed(0.0, 0.25 * fs, 45.0)
 
 
-@pytest.mark.parametrize("cls", ["AsyncDsssReceiver", "CellAsyncDsssReceiver"])
+@pytest.mark.parametrize("cls", ["AsyncDsssReceiver"])
 def test_configure_chain_raw_refuses_a_grid_create_would(cls):
     """configure_chain_raw() rebuilds the tracker on a new grid. It now checks
     that grid as create() checks the first, before anything is rebuilt, so a

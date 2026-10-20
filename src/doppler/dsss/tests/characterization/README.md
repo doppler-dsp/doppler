@@ -7,29 +7,27 @@ run deliberately and never per push. What the category is, why it is not an
 example, and what its fast twins do and do not cover is the package
 docstring's: [`__init__.py`](__init__.py).
 
-| subject                                                                      | what it answers                                                                                                 | run                   | fast twin                            |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------ |
-| [`async_dsss_receiver/characterize.py`](async_dsss_receiver/characterize.py) | does `AsyncDsssReceiver` stay finite, locked and decoding far above its design Es/N0?                           | `make characterize`   | `test_async_dsss_receiver.py`        |
-| [`async_dsss_receiver/telemetry.py`](async_dsss_receiver/telemetry.py)       | what one receiver and one `AsyncDsssPool` cost per push, and what their loops and searcher do, on one capture   | `make pool-telemetry` | `test_async_dsss_pool.py`            |
-| [`dll_lock/characterize.py`](dll_lock/characterize.py)                       | what the `Dll`'s code-lock flag needs at the continuous async-DSSS operating point                              | `make characterize`   | `test_dll_lock_twin.py`              |
-| [`dsss_burst_receiver/characterize.py`](dsss_burst_receiver/characterize.py) | what loses a burst: where it lands against acquisition's framing, and where refine stops naming the right start | `make characterize`   | `test_dsss_burst_receiver_stress.py` |
-| [`dsss_receiver/characterize.py`](dsss_receiver/characterize.py)             | `DsssReceiver` across C/N0, Doppler, sample rate, amplitude and data                                            | `make characterize`   | `test_dsss_receiver_stress.py`       |
+| subject                                                                      | what it answers                                                                                                 | run                 | fast twin                            |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------- | ------------------------------------ |
+| [`async_dsss_receiver/characterize.py`](async_dsss_receiver/characterize.py) | does `AsyncDsssReceiver` stay finite, locked and decoding far above its design Es/N0?                           | `make characterize` | `test_async_dsss_receiver.py`        |
+| [`dll_lock/characterize.py`](dll_lock/characterize.py)                       | what the `Dll`'s code-lock flag needs at the continuous async-DSSS operating point                              | `make characterize` | `test_dll_lock_twin.py`              |
+| [`dsss_burst_receiver/characterize.py`](dsss_burst_receiver/characterize.py) | what loses a burst: where it lands against acquisition's framing, and where refine stops naming the right start | `make characterize` | `test_dsss_burst_receiver_stress.py` |
+| [`dsss_receiver/characterize.py`](dsss_receiver/characterize.py)             | `DsssReceiver` across C/N0, Doppler, sample rate, amplitude and data                                            | `make characterize` | `test_dsss_receiver_stress.py`       |
 
 Each script writes its artifacts beside itself through `doppler.util.fromto`,
 whatever directory the run starts in, or wherever it is pointed (a path
-argument, or `telemetry.py --out`). They are working files and gitignored.
-`make pool-telemetry` points `telemetry.py` at `build/pool-telemetry/`.
+argument). They are working files and gitignored.
 
 ## Results
 
 One run of each, on one machine:
 
-|          |                                                                                               |
-| -------- | --------------------------------------------------------------------------------------------- |
-| date     | 2026-10-17, 02:34 to 02:39 UTC                                                                |
-| machine  | `swiftgo-ai9465`: AMD Ryzen AI 9 465 (20 threads), Linux 6.12 (Debian 13), Python 3.14.8      |
-| commit   | `86c3b88b3`, clean tree                                                                       |
-| commands | `make characterize` (every subject in `src/doppler`, 245 s), then `make pool-telemetry` (5 s) |
+|          |                                                                                                                 |
+| -------- | --------------------------------------------------------------------------------------------------------------- |
+| date     | 2026-10-17, 02:34 to 02:39 UTC                                                                                  |
+| machine  | `swiftgo-ai9465`: AMD Ryzen AI 9 465 (20 threads), Linux 6.12 (Debian 13), Python 3.14.8                        |
+| commit   | `86c3b88b3`, clean tree                                                                                         |
+| commands | `make characterize` (every subject in `src/doppler`, 245 s), then the since-deleted pool-telemetry target (5 s) |
 
 Each subject runs in its own process, so
 `make characterize CHARACTERIZATIONS=<its script>` repeats its section alone.
@@ -54,7 +52,10 @@ re-measured here.
 
 ### `async_dsss_receiver/telemetry.py`
 
-2026-10-17 · `swiftgo-ai9465` · `86c3b88b3` · `make pool-telemetry`
+2026-10-17 · `swiftgo-ai9465` · `86c3b88b3` · the pool-telemetry target
+
+*Retired with the old `AsyncDsssPool` it timed; the script and its target
+are gone, and this run stays as the record it is.*
 
 Its defaults: the Gold-1023 code (`gold:1023:10:934:350:567:73`) at 5 Mcps,
 2 samples a chip, 2,700 sym/s, code only, 47 dB-Hz, 1,500 Hz, 1 s, a

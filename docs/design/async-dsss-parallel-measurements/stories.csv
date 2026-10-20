@@ -1,5 +1,4 @@
 # story
 name,esn0_db,seed,carrier_hz,delay_s,t_lock_ms
-lifecycle-10db,10.0,1,2395.3,0.019495,62.17
-lifecycle-5db,5.0,13,2587.8,0.019117,124.88
-lifecycle-5db-no-lock,5.0,5,737.3,0.013775,nan
+lifecycle-10db,10.0,1,2395.3,0.019495,110.50
+lifecycle-5db,5.0,13,2587.8,0.019117,153.22

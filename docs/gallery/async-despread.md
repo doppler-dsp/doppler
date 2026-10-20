@@ -49,10 +49,9 @@ aided, at two Dopplers:
     axis, four samples per code period and 4.44 per symbol, so each symbol's
     sign spans four or five samples. Its power along that axis stands above its
     power across it by up to the link budget's `1 + 2·SNR` per output sample.
-    It reads below the budget for two reasons: a sample straddling a data flip
-    loses amplitude, and each period's samples are normalized by that period's
-    noisy look-back peak. The loop that lost the code puts out noise, with the
-    two about equal.
+    It reads below the budget because a sample straddling a data flip loses
+    amplitude. The loop that lost the code puts out noise, with the two about
+    equal.
 
 The script prints this run's numbers: the settled filter outputs, when the
 unaided loop lost the inflated Doppler, and the output's power along its axis

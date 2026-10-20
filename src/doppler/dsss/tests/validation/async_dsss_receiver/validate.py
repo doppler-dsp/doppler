@@ -6,11 +6,12 @@ Run:  make validate-py VALIDATORS=<this file>   (this report)
       make validate          (regenerates every report)
       make validate-check    (fails if the committed report is stale)
 
-**C measures; Python renders and asserts.** Every number here is one of two
+**C measures; Python renders and asserts.** Every number here is one of three
 C harnesses' on one stimulus (`native/validation/
 async_dsss_receiver_common.h`): `async_dsss_receiver_lock.c` (arrival,
-EVM, dropout, false lock) and `async_dsss_receiver_ber.c` (the error rate
-against the BPSK bound). Both drive the shipped continuous-DSSS synth
+EVM, dropout, false lock), `async_dsss_receiver_ber.c` (the error rate
+against the BPSK bound) and `async_dsss_receiver_loss.c` (where that
+loss goes, stage by stage). All three drive the shipped continuous-DSSS synth
 (`wfm_synth`) with the harness's own data bits, the shipped `awgn` sized
 from C/N0, the receiver in the SPEC configuration. This file parses their
 CSV blocks, characterises, reviews and asserts the limits through the same
@@ -23,9 +24,12 @@ regression subset, `--check --emit`, re-run on every push (about 3 s and
 full sweeps are committed and rendered: `data/sweep.txt` -- twenty arrival
 and dropout draws at 10 and 5 dB, five quality draws at each Es/N0, five
 false-lock draws -- in section 2.5, and `data/ber_sweep.txt` -- the error
-rate at 5 to 8 dB, 200 errors a point -- in section 2.6. The findings and
-the executive summary quote them, computed from those files, never typed.
-`make validate-async-receiver-sweep` refreshes both on purpose.
+rate at 5 to 8 dB, 200 errors a point -- in section 2.6, and
+`data/loss_sweep.txt` -- the loss by stage at 5 and 8 dB -- in section 2.7.
+The loss harness asserts its own gates in ctest (`--check`); this report
+renders its sweep and asserts nothing on it. The findings and the executive
+summary quote them, computed from those files, never typed.
+`make validate-async-receiver-sweep` refreshes all three on purpose.
 
 **Scope: BPSK.** The receiver accepts m = 2, 4 or 8; the owner scoped this
 certification to BPSK (2026-10-19), and the test library spreads BPSK only,
@@ -49,6 +53,7 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 SWEEP = DATA / "sweep.txt"
 BER_SWEEP = DATA / "ber_sweep.txt"
+LOSS_SWEEP = DATA / "loss_sweep.txt"
 ROOT = repo_root(__file__)
 HARNESS = exe(
     build_dir(__file__) / "native/validation/validate_async_dsss_receiver_lock"
@@ -56,12 +61,16 @@ HARNESS = exe(
 BER_HARNESS = exe(
     build_dir(__file__) / "native/validation/validate_async_dsss_receiver_ber"
 )
+LOSS_HARNESS = exe(
+    build_dir(__file__) / "native/validation/validate_async_dsss_receiver_loss"
+)
 
 #: This report's asserted bounds. CHECK_TRACK_MS and DROP_WATCH_MS are the
 #: harness's own (it asserts them in --check and the sweep alike). The EVM
 #: allowance is not restated here: the harness computes it per Es/N0 and
-#: emits it with each quality row (`loss_min_db`, `loss_max_db`), so the
-#: report reads the bound the harness asserted (section 4).
+#: emits it with each quality row (`loss_min_db`, `loss_max_db`), and its
+#: model's two lines in `# evm_model`, so the report reads the bound the
+#: harness asserted (section 4).
 CHECK_TRACK_MS = 100.0
 DROP_WATCH_MS = 80.0
 
@@ -105,7 +114,13 @@ def _run(args: list[str], harness: Path = HARNESS) -> str:
 def _blocks(
     out: str,
     source: str,
-    names: tuple[str, ...] = ("arrival", "dropout", "quality", "falselock"),
+    names: tuple[str, ...] = (
+        "arrival",
+        "dropout",
+        "quality",
+        "falselock",
+        "evm_model",
+    ),
 ) -> Blocks:
     blocks = _parse(out)
     for name in names:
@@ -171,6 +186,108 @@ def _ber_sweep() -> Blocks:
         "data/ber_sweep.txt",
         BER_BLOCKS,
     )
+
+
+def _loss_sweep() -> Blocks:
+    if not LOSS_SWEEP.exists():
+        raise SystemExit(
+            "async_dsss_receiver: data/loss_sweep.txt is missing -- run this "
+            "validator with --sweep"
+        )
+    return _blocks(
+        LOSS_SWEEP.read_text(encoding="utf-8"),
+        "data/loss_sweep.txt",
+        ("loss",),
+    )
+
+
+#: The loss harness's stages, in the order they compose, and what each adds.
+LOSS_STAGES = (
+    ("S0", "the ideal despread: exact carrier, code and symbol edges"),
+    ("S1", "ideal sums over the receiver's K partials a code period"),
+    ("S1d", "the shipped Dll at K, held at truth"),
+    ("S2", "+ the shipped RateConverter, at oracle timing"),
+    ("S3", "+ the shipped MpskReceiver, the receiver's parameters"),
+    ("S4", "the whole receiver: its search, refine and hand-over"),
+)
+
+
+def section_loss(lsw: Blocks) -> None:
+    rows = lsw["loss"]
+    k_rx = int(next(r["k"] for r in rows if r["stage"] == "S1d"))
+    es_pts = sorted({float(r["esn0_db"]) for r in rows})
+
+    def at(es: float, stage: str, k: int | None = None) -> dict:
+        for r in rows:
+            if (
+                float(r["esn0_db"]) == es
+                and r["stage"] == stage
+                and (k is None or int(r["k"]) == k)
+            ):
+                return r
+        raise SystemExit(f"async_dsss_receiver: no {stage} row at {es} dB")
+
+    R.md("### 2.7 Where the loss goes (`data/loss_sweep.txt`)")
+    R.md()
+    R.md(
+        "`native/validation/async_dsss_receiver_loss.c`, on the stimulus "
+        "above at known truth (the synth's carrier, its chips from sample 0, "
+        "its symbol edges): more and more of the shipped chain, each stage "
+        "scored as a BER-equivalent loss, the Es/N0 the bound needs for the "
+        "stage's rate subtracted from the Es/N0 applied. Every stage but S4 "
+        "is scored on the same symbols and noise, so a step between stages "
+        "carries less counting noise than either loss. S4 is the whole "
+        "receiver on the same bursts, scored over its own settled window, "
+        "like section 2.6."
+    )
+    R.md()
+    head = ["stage"]
+    for es in es_pts:
+        head += [f"loss at {es:.0f} dB", "step"]
+    body = []
+    for stage, what in LOSS_STAGES:
+        line = [f"{stage}: {what}"]
+        for es in es_pts:
+            r = at(es, stage, k_rx if stage == "S1" else None)
+            prev = {
+                "S0": None,
+                "S1": "S0",
+                "S1d": "S1",
+                "S2": "S1d",
+                "S3": "S2",
+                "S4": "S3",
+            }[stage]
+            loss = float(r["loss_db"])
+            if prev is None:
+                step = ""
+            else:
+                p = at(es, prev, k_rx if prev == "S1" else None)
+                step = f"{loss - float(p['loss_db']):+.2f} dB"
+            n_bad = int(r["unsettled"])
+            line += [
+                f"{loss:.2f} dB ({int(r['errors']):,} errors)"
+                + (f", {n_bad} burst(s) not settled" if n_bad else ""),
+                step,
+            ]
+        body.append(line)
+    R.table(head, body)
+    R.md()
+    ks = sorted({int(r["k"]) for r in rows if r["stage"] == "S1"})
+    R.md(
+        "The cut alone, against K: ideal sums at known timing, the same "
+        "bursts. A partial that straddles a symbol edge carries both symbols, "
+        f"and the receiver runs at K = {k_rx}."
+    )
+    R.md()
+    R.table(
+        ["K a code period"] + [f"S1 loss at {es:.0f} dB" for es in es_pts],
+        [
+            [f"{k}" + (" (the receiver)" if k == k_rx else "")]
+            + [f"{float(at(es, 'S1', k)['loss_db']):.2f} dB" for es in es_pts]
+            for k in ks
+        ],
+    )
+    R.md()
 
 
 def _write_csv(d: Blocks) -> None:
@@ -689,8 +806,9 @@ def characterise(d: Blocks, sw: Blocks, bsw: Blocks) -> None:
         )
         + " The EVM is `dp_ber_report()`'s cross-check over the same windows, "
         "and its loss is over that meter's ideal (`dp_ber_evm_ideal_db()`), "
-        "as in 2.2. The blind M2M4 reads above the applied Es/N0 at every "
-        "point (F5)."
+        "as in 2.2. The blind M2M4 reads "
+        + _span([float(r["m2m4_db"]) - float(r["esn0_db"]) for r in ber])
+        + " from the applied Es/N0 (F5)."
     )
     R.md()
 
@@ -718,22 +836,31 @@ def review(sw: Blocks, bsw: Blocks) -> None:
     miss, n_q = _quality_misses(sw, 10.0)
     a5 = _at(sw["arrival"], 5.0)
     d5, d10 = _at(sw["dropout"], 5.0), _at(sw["dropout"], 10.0)
+    miss10 = sum(1 for r in d10 if not r["settled"])
     R.find(
         "F3",
         "CONFIRMED",
-        f"A first hand-off can land off the carrier and never pull in, at "
-        f"the 10 dB design point as well as below it. With `reacquire` off "
-        f"(the binding's default, and this harness's), the full sweep has "
-        f"{miss} of its {n_q} quality draws under 10 dB with no symbol lock "
-        f"within 4 s, {sum(1 for r in a5 if not r['locked_end'])} of "
-        f"{len(a5)} arrivals at 5 dB unlocked at 2 s, and dropout draws that "
-        f"never settled in {sum(1 for r in d5 if not r['settled'])} of "
-        f"{len(d5)} at 5 dB and {sum(1 for r in d10 if not r['settled'])} "
-        f"of {len(d10)} at 10 dB (section 2.5). The 10 dB draw is on #2409: "
-        f"the refine handed over outside the carrier loops' pull-in, code "
-        f"lock came up and symbol lock never did. `reacquire` recovers a "
-        f"missed hand-off by searching again; the SPEC example locks every "
-        f"draw that way. The hand-off accuracy is #2409.",
+        f"A first hand-off can land off the carrier and never pull in. With "
+        f"`reacquire` off (the binding's default, and this harness's), the "
+        f"full sweep has {miss} of its {n_q} quality draws under 10 dB with "
+        f"no symbol lock within 4 s, "
+        f"{sum(1 for r in a5 if not r['locked_end'])} of {len(a5)} arrivals "
+        f"at 5 dB unlocked at 2 s, and dropout draws that never settled in "
+        f"{sum(1 for r in d5 if not r['settled'])} of {len(d5)} at 5 dB and "
+        f"{miss10} of {len(d10)} at 10 dB (section 2.5). "
+        + (
+            "A 10 dB draw that misses is #2409's case: the refine handed "
+            "over outside the carrier loops' pull-in, code lock came up and "
+            "symbol lock never did. "
+            if miss10
+            else "None missed at the 10 dB design point in this sweep; "
+            "#2409 holds one that did, replayed from an earlier sweep: the "
+            "refine handed over outside the carrier loops' pull-in, code "
+            "lock came up and symbol lock never did. "
+        )
+        + "`reacquire` recovers a missed hand-off by searching again; the "
+        "SPEC example locks every draw that way. The hand-off accuracy is "
+        "#2409.",
     )
     R.find(
         "F4",
@@ -748,27 +875,26 @@ def review(sw: Blocks, bsw: Blocks) -> None:
     gap = [float(r["m2m4_db"]) - float(r["esn0_db"]) for r in ber]
     evm = [float(r["evm_db"]) - float(r["evm_ideal_db"]) for r in ber]
     agree = float(ber[0]["m2m4_agree_db"])
-    worst = max(ber, key=lambda r: float(r["m2m4_db"]) - float(r["esn0_db"]))
     bursts = bsw["burst"]
     n_set = sum(1 for r in bursts if r["settled"])
     R.find(
         "F5",
-        "GAP",
+        "FIXED",
         f"Over the {n_set} of {len(bursts)} bursts that settled, the error "
         f"rate sits {min(loss):.2f} to {max(loss):.2f} dB from the BPSK "
-        f"bound (section 2.6), and nothing yet says where that goes. The "
-        f"EVM over the same windows is only {min(evm):+.2f} to "
-        f"{max(evm):+.2f} dB over its ideal, so most of the loss is not in "
-        f"the error's power. The error is not circular: the blind M2M4, "
-        f"which assumes it is, reads {min(gap):.2f} to {max(gap):.2f} dB "
-        f"above the applied Es/N0. `dp_ber_report()` allows "
-        f"{agree:.1f} dB (`DP_BER_M2M4_AGREE_DB`), so at "
-        f"{float(worst['esn0_db']):.0f} dB the record passes that "
-        f"cross-check by only "
-        f"{agree - (float(worst['m2m4_db']) - float(worst['esn0_db'])):.2f}"
-        f" dB, and what it is short of is the receiver's error shape, not "
-        f"the stimulus. The diagnostic that found the shape, and accounting "
-        f"for the loss by stage, are #2495.",
+        f"bound (section 2.6), and the EVM over the same windows reads "
+        f"{min(evm):+.2f} to {max(evm):+.2f} dB over its ideal. Until "
+        f"#2495 the two disagreed: the Dll divided each code period's "
+        f"partials by that period's own signal-plus-noise magnitude, which "
+        f"compressed the in-phase error, so the EVM read near its ideal and "
+        f"the blind M2M4 2.4 to 2.8 dB above the applied Es/N0 while the "
+        f"error rate sat 0.9 dB from the bound. The Dll divides by a slowly "
+        f"tracked level now, its error circular, and the blind M2M4 reads "
+        f"{min(gap):+.2f} to {max(gap):+.2f} dB from the applied Es/N0, "
+        f"inside `dp_ber_report()`'s {agree:.1f} dB "
+        f"(`DP_BER_M2M4_AGREE_DB`) at every point. Where the loss goes, "
+        f"stage by stage, is section 2.7: the cut into four partials a code "
+        f"period, the demodulator's loops and the front end's tracking.",
     )
 
 
@@ -776,36 +902,34 @@ def limits(d: Blocks, sw: Blocks) -> None:
     R.md("## 4. Limits — claims a caller may rely on")
     R.md()
     q = {float(r["esn0_db"]): r for r in d["quality"]}
-    margin = -float(q[20.0]["loss_min_db"])
-    # The floor the harness's model uses, recovered from its 20 dB bound:
-    # loss_max = 10*log10(1 + floor/ideal) + margin.
-    floor_db = float(q[20.0]["ideal_db"]) + 10.0 * math.log10(
-        10.0 ** ((float(q[20.0]["loss_max_db"]) - margin) / 10.0) - 1.0
-    )
+    m = d["evm_model"][0]
+    margin = float(m["margin_db"])
     bounds = ", ".join(
+        f"{float(q[es]['loss_min_db']):+.2f} to "
         f"{float(q[es]['loss_max_db']):+.2f} dB at {es:.0f} dB"
         for es in sorted(q, reverse=True)
         if float(q[es]["loss_max_db"]) == float(q[es]["loss_max_db"])
     )
-    w15 = max(_losses(sw, 15.0, 15.0))
     n_sym = int(float(q[20.0]["n_sym"]))
     # One sigma of an EVM over n symbols, in dB: 10/ln(10)/sqrt(n).
     sigma_db = 10.0 / math.log(10.0) / math.sqrt(n_sym)
     R.md(
         f"The EVM bound is two-sided and set per Es/N0, as a loss over the "
-        f"meter's ideal. A locked receiver's error is the ideal's plus an "
-        f"implementation floor, EVM² = ideal + floor in linear power, so the "
-        f"most loss it may show is 10·log10(1 + floor/ideal) plus "
+        f"meter's ideal. A locked receiver's error is the ideal's scaled by "
+        f"its implementation loss, plus a floor: EVM² = k·ideal + floor in "
+        f"linear power, so its loss is 10·log10(k + floor/ideal). The band "
+        f"lies between two such lines fitted to the full sweep's draws at "
+        f"10, 15 and 20 dB: the upper (k {float(m['k_hi_db']):.2f} dB, "
+        f"floor {float(m['floor_hi_db']):.1f} dB) through its worst, the "
+        f"lower (k {float(m['k_lo_db']):.2f} dB, floor "
+        f"{float(m['floor_lo_db']):.1f} dB) under its least, each widened by "
         f"{margin:.2f} dB, the EVM estimator's own counting noise over "
         f"{n_sym} symbols ({margin / sigma_db:.1f} sigma of "
-        f"{sigma_db:.2f} dB): "
-        f"{bounds}. The floor, {floor_db:.1f} dB, is what the full sweep's "
-        f"worst 20 dB draw leaves. An EVM more than {margin:.2f} dB under "
-        f"the ideal fails too: that is a meter or harness defect, not a "
-        f"better receiver. At 15 dB the model reads high (the sweep's worst "
-        f"loss there is {w15:+.2f} dB), so that bound is the looser one. "
-        f"Below 10 dB the loss comes from the loops' dynamics rather than a "
-        f"floor, and no EVM limit is claimed."
+        f"{sigma_db:.2f} dB): {bounds}. An EVM under the band reads better "
+        f"than the receiver's implementation loss allows: a meter that "
+        f"flatters it, as the Dll's per-period output normalization did "
+        f"until #2495, and the lower line is what sees that. Below 10 dB a "
+        f"draw need not lock, and no EVM limit is claimed."
     )
     R.md()
     for r in d["arrival"]:
@@ -907,22 +1031,30 @@ def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
         f"**Budget about 1 dB for the error rate, once settled.** From "
         f"{min(es):.0f} to {max(es):.0f} dB the BER of the bursts that "
         f"settled ({n_set} of {len(bursts)}) sits {min(loss):.2f} to "
-        f"{max(loss):.2f} dB from the BPSK bound, more than the EVM shows; "
-        f"why is open (2.6, F5, #2495). The other "
-        f"{len(bursts) - n_set} never settled (F3).",
-        f"**Design to the meter's ideal EVM from 5 to 15 dB.** Over the "
-        f"full sweep a locked receiver's BPSK EVM is {_span(mid)} over "
-        f"`dp_ber_evm_ideal_db()` there; at 20 dB {_span(top)}, an "
-        f"implementation floor (section 2.5).",
+        f"{max(loss):.2f} dB from the BPSK bound; where it goes is "
+        f"section 2.7 (2.6). "
+        + (
+            f"The other {len(bursts) - n_set} never settled (F3)."
+            if n_set < len(bursts)
+            else "Every burst settled."
+        ),
+        f"**Budget about 1 dB of EVM over the meter's ideal from 5 to 15 "
+        f"dB.** Over the full sweep a locked receiver's BPSK EVM is "
+        f"{_span(mid)} over `dp_ber_evm_ideal_db()` there, the same "
+        f"implementation loss the error rate shows; at 20 dB {_span(top)}, "
+        f"where an implementation floor joins it (section 2.5).",
         f"**Lock is quick at 10 dB:** tracked {statistics.median(trk):.0f} ms "
         f"after a signal arrives (worst {max(trk):.0f} ms over "
         f"{len(trk)} draws), symbol lock {statistics.median(lk):.0f} ms "
         f"(worst {max(lk):.0f} ms) (2.5).",
         f"**Turn `reacquire` on.** A first hand-off can miss the carrier "
-        f"and, without it, never recover, at 10 dB as well as below: "
-        f"{sum(1 for r in d10 if not r['settled'])} of {len(d10)} dropout "
-        f"draws at 10 dB and {sum(1 for r in d5 if not r['settled'])} of "
-        f"{len(d5)} at 5 dB never settled (F3, #2409).",
+        f"and, without it, never recover: "
+        f"{_quality_misses(sw, 10.0)[0]} of the "
+        f"{_quality_misses(sw, 10.0)[1]} quality draws under 10 dB never "
+        f"locked, and {sum(1 for r in d10 if not r['settled'])} of "
+        f"{len(d10)} dropout draws at 10 dB and "
+        f"{sum(1 for r in d5 if not r['settled'])} of {len(d5)} at 5 dB "
+        f"never settled (F3, #2409).",
         f"**The lock flag means something:** {len(fl)} receivers on noise "
         f"declared it {sum(int(r['declares']) for r in fl)} times, and a "
         f"signal that leaves drops it within {max(drops):.0f} ms (2.5).",
@@ -948,19 +1080,23 @@ def build(write: bool = True) -> Report:
     )
     sw = _sweep()
     bsw = _ber_sweep()
+    lsw = _loss_sweep()
     if write:
         _write_csv(d)
         _plot(d["quality"])
         _plot_ber(bsw["ber"])
     characterise(d, sw, bsw)
+    section_loss(lsw)
     review(sw, bsw)
     limits(d, sw)
     R.executive("AsyncDsssReceiver", _takeaways(sw, bsw))
     R.summary(
         "\n- Raw run: `data/arrival.csv`, `data/quality.csv`, "
         "`data/dropout.csv`, `data/falselock.csv`, `data/ber.csv`, "
-        "`data/burst.csv` -- the two harnesses' `--check --emit` blocks; "
-        "`data/sweep.txt` and `data/ber_sweep.txt` -- their full sweeps"
+        "`data/burst.csv`, `data/evm_model.csv` (the EVM band's two "
+        "lines) -- the two harnesses' `--check --emit` blocks; "
+        "`data/sweep.txt`, `data/ber_sweep.txt` and `data/loss_sweep.txt` "
+        "-- the three harnesses' full sweeps"
     )
     R.emit(HERE / "results.md")
     return R
@@ -972,4 +1108,5 @@ if __name__ == "__main__":
         DATA.mkdir(exist_ok=True)
         SWEEP.write_text(_run(["--emit"]), encoding="utf-8")
         BER_SWEEP.write_text(_run(["--emit"], BER_HARNESS), encoding="utf-8")
+        LOSS_SWEEP.write_text(_run(["--emit"], LOSS_HARNESS), encoding="utf-8")
     sys.exit(cli(build, HERE))

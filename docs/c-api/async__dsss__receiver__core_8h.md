@@ -159,11 +159,17 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | Type | Name |
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_MAGIC**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'R', 'X')`<br> |
-| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `9u /\* v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br> |
+| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `10u /\* v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier)  `0.04`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_pullin_hz) (chip\_rate, code\_len) `([**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier) \* (chip\_rate) / (2.0 \* (double)(code\_len)))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CELL\_GAIN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_cell_gain)  `0.125`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CELL\_PULLIN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_cell_pullin)  `4u`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_bn_carrier)  `0.01`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_BN\_TIMING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_bn_timing)  `0.005`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_LOCK\_THRESH**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_lock_thresh)  `0.3`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_RRC\_BETA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_rrc_beta)  `0.35`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_RRC\_SPAN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_rrc_span)  `8`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_ZETA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_zeta)  `0.707`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_BN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_bn)  `0.002`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_DISC\_SLOPE**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_disc_slope)  `(2.0 - [**ASYNC\_DSSS\_RX\_DLL\_SPACING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_spacing))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_SPACING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_spacing)  `0.5`<br> |
@@ -1491,7 +1497,7 @@ Returns 0, which is NOT a bound. A call that completes a code period carried ove
 ### define ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION `9u /* v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION `10u /* v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
 ```
 
 
@@ -1551,6 +1557,84 @@ The pre-despread carrier loop's acquisition bound, Hz: `bn / m` cycles per sampl
 
 ```C++
 #define ASYNC_DSSS_RX_CELL_PULLIN `4u`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_BN\_CARRIER 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_BN_CARRIER `0.01`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_BN\_TIMING 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_BN_TIMING `0.005`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_LOCK\_THRESH 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_LOCK_THRESH `0.3`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_RRC\_BETA 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_RRC_BETA `0.35`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_RRC\_SPAN 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_RRC_SPAN `8`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_ZETA 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_ZETA `0.707`
 ```
 
 

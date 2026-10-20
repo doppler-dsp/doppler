@@ -19,6 +19,29 @@ trunc_buf (dp_fft_state_t *state)
   return state->work_trunc;
 }
 
+/* Walk down from n until the remaining cofactor, after dividing out every
+ * 2, 3, 5 and 7, is 1. The gaps between 7-smooth numbers are small at the
+ * lengths a caller bounds (a few percent of m), so the walk is short. */
+size_t
+dp_fft_smooth_floor (size_t n)
+{
+  for (size_t m = n; m > 0; m--)
+    {
+      size_t r = m;
+      while (r % 2 == 0)
+        r /= 2;
+      while (r % 3 == 0)
+        r /= 3;
+      while (r % 5 == 0)
+        r /= 5;
+      while (r % 7 == 0)
+        r /= 7;
+      if (r == 1)
+        return m;
+    }
+  return 0;
+}
+
 dp_fft_state_t *
 dp_fft_create (size_t n, int sign, int nthreads)
 {

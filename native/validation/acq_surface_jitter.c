@@ -78,11 +78,11 @@
  * chips dilated with the carrier, 45 kHz inside the ±50 kHz span);
  * noise from the shipped awgn after the channel, sized by
  * dp_awgn_amplitude_for_snr() from the C/N0. The engine is the pool's:
- * dp_acq_create_continuous() at ±50 kHz with the window's depth (D = 154
- * under SPEC's Doppler rate) and the carrier told, its surface read
- * through dp_acq_set_surface_sink(). The truth is the synth's own clock
- * through the channel's documented mapping, at the dwell's middle
- * (§12.11: the block's peak is its middle). Nothing here builds a chip,
+ * dp_acq_create_continuous() at ±50 kHz with the window's depth (D = 150:
+ * SPEC's Doppler rate bounds it to 154, run at 7-smooth 150) and the carrier
+ * told, its surface read through dp_acq_set_surface_sink(). The truth is the
+ * synth's own clock through the channel's documented mapping, at the dwell's
+ * middle (§12.11: the block's peak is its middle). Nothing here builds a chip,
  * a bit or a sigma by hand.
  *
  * Usage:
@@ -138,7 +138,7 @@
 #define DU (MAX_PPM * 1e-6 * CARRIER_HZ) /* the searcher's span, ±50 kHz */
 #define PFA 1e-3
 #define PD 0.9
-#define DOPPLER_RATE 500.0 /* SPEC's Hz/s: bounds D to 154 in the window */
+#define DOPPLER_RATE 500.0 /* SPEC's Hz/s: bounds D to 154, run as 150 */
 /* Whole code-only epochs the window holds at any chip phase (§2.1). */
 #define CODE_ONLY_EPOCHS ((size_t)((double)W_SYM * CPS / (double)SF) - 1u)
 #define THREADS 8

@@ -911,11 +911,16 @@ acq_residual_rate (const dp_acq_state_t *st)
  * (docs/design/async-dsss-receiver.md §2.1): the larger of one and the
  * smaller of two bounds -- a whole block always fits in the window
  * (non-overlapping blocks at an unknown window phase need W >= 2D - 1), and
- * the drift bound, acq_drift_depth(). */
+ * the drift bound, acq_drift_depth() -- rounded down to a 7-smooth length.
+ * D is a slow-time FFT length (D * ACQ_DOPPLER_INTERP), and both bounds are
+ * ceilings, not targets: a prime factor of 13 or more costs pocketfft's
+ * slow path (94 = 2 x 47 cost 1.46x 90, doppler#2457), the round-down at
+ * most about 9% of the depth (dp_fft_smooth_floor()). */
 static size_t
 acq_block_depth (double f_epoch, size_t code_only_epochs, double doppler_rate)
 {
-  return acq_drift_depth (f_epoch, doppler_rate, (code_only_epochs + 1) / 2);
+  return dp_fft_smooth_floor (
+      acq_drift_depth (f_epoch, doppler_rate, (code_only_epochs + 1) / 2));
 }
 
 /* The surface row of slow-time row `i` (of `dI = D * interp`, in FFT order)

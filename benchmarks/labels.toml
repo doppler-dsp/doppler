@@ -405,6 +405,42 @@ unit = "sample"
 definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 4 threads; throughput counts searched input samples."
 samples = 1
 
+["c:acq::op2M_U50k_D60_t1_nc1"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 60, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 60 (a 500 Hz/s rate bound's 61, rounded down to a 7-smooth length), the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op2M_U50k_D60_t4_nc1"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 60, 4 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 60 (a 500 Hz/s rate bound's 61, rounded down to a 7-smooth length), the roll fanned across 4 threads; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_D150_t1_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 150, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U50k_D150_t8_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 150, 8 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 8 threads; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U5k_D150_t1_nc1"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 150, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U5k_D150_t4_nc1"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 150, 4 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 4 threads; throughput counts searched input samples."
+samples = 1
+
 ["c:psd::frame_linear[nfft=16384]"]
 name = "PSD frame, linear power, 16,384 points"
 unit = "frame"

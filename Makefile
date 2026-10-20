@@ -2732,16 +2732,28 @@ test-tsan: ## Run the C suite under TSan; any data race fails
 # the hand-owned `<mod>_ext_<obj>.c` fragments carry the glue's remaining
 # warnings and jm never re-renders them, so the list may only SHRINK -- see
 # scripts/check_warnings.py.
+#
+# The throwaway trees build the Python extensions too, since the glue is
+# where most warnings live, so their PYTHON_PACKAGE_DIR points INSIDE each
+# tree. The default is src/doppler/, where the editable install imports
+# from: until #2518 the clang tree's extensions and wfmgen overwrote the
+# checkout's own there, and every later gate measured that build instead
+# -- a STALE certification, disagreeing twins and a wfmgen byte-parity miss,
+# each reading like a real defect. scripts/check_src_untouched.py snapshots
+# every compiled artifact under src/ before the builds and fails on one
+# added, changed or removed after; both verdicts are reported either way.
 WARN_DIR   ?= build-warnings
 WARN_CCS   ?= gcc clang
 WARN_FLAGS ?= -Wall -Wextra
 
 warnings-check: ## Build under -Wall -Wextra with gcc AND clang; a warning off the exempt list fails
-	@set -e; args=""; \
+	@set -e; args=""; snap=$(WARN_DIR)-src-artifacts.json; \
+	 $(UV) run python scripts/check_src_untouched.py snapshot $$snap; \
 	 for cc in $(WARN_CCS); do \
 	   d=$(WARN_DIR)-$$cc; rm -rf $$d; \
 	   $(CMAKE) -B $$d -S . -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	       $(CMAKE_FLAGS) -DBUILD_PYTHON=ON \
+	       -DPYTHON_PACKAGE_DIR=$(CURDIR)/$$d/pkg/doppler \
 	       -DCMAKE_C_COMPILER=$$cc "-DCMAKE_C_FLAGS=$(WARN_FLAGS)" \
 	       > $$d.configure.log 2>&1 || { cat $$d.configure.log; exit 1; }; \
 	   if ! LC_ALL=C MAKEFLAGS=--output-sync=target \
@@ -2752,7 +2764,10 @@ warnings-check: ## Build under -Wall -Wextra with gcc AND clang; a warning off t
 	   fi; \
 	   args="$$args --compiler $$cc $$d.log $$d"; \
 	 done; \
-	 $(UV) run python scripts/check_warnings.py $$args
+	 rc=0; \
+	 $(UV) run python scripts/check_warnings.py $$args || rc=1; \
+	 $(UV) run python scripts/check_src_untouched.py compare $$snap || rc=1; \
+	 exit $$rc
 
 blazing: ## Clean + Release + -march=native (max speed; never packaged)
 	@$(MAKE) --no-print-directory clean

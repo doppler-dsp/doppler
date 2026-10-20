@@ -666,6 +666,43 @@ main (int argc, char **argv)
             "truth, the dilated block's truth is that plus the channel's "
             "delay plus a whole block's drift)\n");
 
+    /* The told carrier's recovery is position-independent only across a
+       row: the still block's peak moves 1.5 dB with where the carrier sits
+       on the Doppler grid (half-row period, interp 2), the compensated
+       block's 0.5 dB, so their ratio at one carrier is a statement about
+       that carrier's grid position. Measured across one row, eight
+       carriers: the worst ratio and the ratio of the row's means. */
+    double rec_worst = 0.0, rec_mean = 0.0;
+    {
+      dp_acq_state_t *ar = engine_open (code, 5.0e6, 0, 1e-3);
+      ONE_LOOK (ar);
+      const double row   = ar->doppler_res_hz;
+      double       sum_s = 0.0, sum_c = 0.0;
+      printf ("\nThe told carrier across one row at D = %zu (%.1f Hz), from "
+              "50 kHz:\n  %-9s %-7s %-7s %s\n",
+              ar->coherent_bins, row, "offset", "still", "comp", "dB");
+      for (int k = 0; k < 8; k++)
+        {
+          const double ppm
+              = SPEC_PPM + (double)k * (row / 8.0) / (CARRIER_HZ * 1e-6);
+          dil_t s0, c0;
+          DP_REQUIRE (measure_dilated (code, ar, ppm, 0, 0, 0.0, 11u, &s0)
+                      == 0);
+          DP_REQUIRE (measure_dilated (code, ar, ppm, 1, 1, 0.0, 11u, &c0)
+                      == 0);
+          const double r = db (c0.peak_stat / s0.peak_stat);
+          printf ("  %-9.2f %-7.0f %-7.0f %.2f\n", (double)k * row / 8.0,
+                  s0.peak_stat, c0.peak_stat, r);
+          rec_worst = k == 0 || r < rec_worst ? r : rec_worst;
+          sum_s += s0.peak_stat;
+          sum_c += c0.peak_stat;
+        }
+      rec_mean = db (sum_c / sum_s);
+      printf ("  worst %.2f dB, the row's means %.2f dB\n", rec_worst,
+              rec_mean);
+      dp_acq_destroy (ar);
+    }
+
     /* The depth's sensitivity both ways: realized Pd at D = 150. */
     const double    cn0s[3] = { 34.0, 38.0, 42.0 };
     const int       trials  = check ? 5 : 20;
@@ -713,9 +750,14 @@ main (int argc, char **argv)
         DP_CHECK_MSG (db (dil[2].peak_stat / still[2].peak_stat) < -10.0,
                       "told nothing, the D = 150 block smears 3 chips and "
                       "loses over 10 dB");
-        DP_CHECK_MSG (db (cmp[2].peak_stat / still[2].peak_stat) > -4.0,
-                      "told the carrier, it is within 4 dB of the still "
-                      "block (1.4 of them the channel's own resampler)");
+        /* Measured across a row at D = 150: worst -4.43 dB, means -3.26
+           (1.4 of it the channel's own resampler); a lost compensation is
+           the 10 dB above. At D = 154 the one carrier read 3.0 because it
+           fell between rows, which is why this is not pinned at one. */
+        DP_CHECK_MSG (rec_worst > -5.0,
+                      "told the carrier, it is within 5 dB of the still "
+                      "block wherever the carrier sits on a row");
+        DP_CHECK_MSG (rec_mean > -3.5, "and within 3.5 dB on the row's means");
         DP_CHECK_MSG (cmp[2].width_chips <= 1.0 && dil[2].width_chips >= 2.0,
                       "and its peak is a chip wide, not three");
         /* The hand-off: the block's end is the D = 1 block's phase (its

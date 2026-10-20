@@ -2288,3 +2288,99 @@ and its read-back were removed, and the pool test asserts its absence
 (`objects/async_dsss_receiver.toml:298`).
 
 ______________________________________________________________________
+
+### 12.29 What was measured (2026-10-20) — the crossing `cross-on` did not watch, #2513
+
+**What was asked.** #2495 made the Dll divide its output by a slowly
+tracked level instead of each period's own magnitude, and the release
+validator's `cross-on` row (§12.19) moved with it. At 45 dB-Hz, code lock
+held through the watch fell from 25 to 19 of 30, and code-flag returns rose
+from 6 to 20. [#2513](https://github.com/doppler-dsp/doppler/issues/2513)
+asked which had changed: the receiver or the measurement.
+
+**The level reaches the code loop by one path: the hold (§10).** The
+evidence comes from scratch copies of the receiver and the Dll at
+3a02d6820. They take the level's period count at run time, separately for
+the refine Dll and the tracking Dll, and can switch the hold off. At the
+shipped settings they reproduce both sweeps byte for byte.
+
+- **The refine Dll's level changes nothing:** every block of every seed is
+    bit-identical.
+- **With the hold off,** the code-lock flag is the same on every block of
+    all 30 seeds at either level.
+- **With the hold on,** every code-loop departure begins at a hold entry
+    that symbol lock decided. On 3 seeds it decided whether the loops held.
+    On 6 it decided which point they restored: the hold point is marked only
+    while both flags are up, and here it was marked 5 ms to 1.9 s earlier
+    at one level than at the other.
+
+**The row's watch was opened by symbol lock.** The event fired at the
+first block after T_OFF_S at which symbol lock had held for 200 blocks.
+Symbol lock is down through the whole overlap at both levels: from 1.8 to
+2.6 s it is off in 99.5–100% of blocks, and the neighbour is within a chip
+from 1.55 to 3.65 s. The event therefore fired 0.23–1.64 s late, after the
+crossing at 2.6 s, on 29 and 30 of 30 seeds. The slow level brings symbol
+lock back sooner: over 3.0–3.2 s it is off in 82% of blocks against 97%.
+Its watch therefore opened 0.18 s earlier on average, nearer the neighbour,
+and counted the flag's chatter as it returned. Over one fixed window
+(2–4 s), code lock dropped 28 times at the slow level against 22 at the
+per-period divisor, and 27 against 27 with the hold off. Detail:
+[#2513](https://github.com/doppler-dsp/doppler/issues/2513#issuecomment-6296734451).
+
+**The fix** is in `async_dsss_receiver_release.c`:
+
+- **Each crossing fires at T_OFF_S exactly,** and a receiver that has not
+    settled by then is not settled.
+- **cross-on's phases meet 2.0 s after the event** (`CROSS_ON_AFTER_S`).
+    The neighbour is 1.9 chips away when the watch opens, and 3.8 chips away
+    when the watch's rate window opens.
+- **`--check` asserts that both crossings lie inside their watches.** It
+    goes red with `CROSS_ON_AFTER_S` at the old 0.6.
+
+**Re-measured.** These are the full sweep's `cross-on` rows. The
+per-period divisor is the same validator relinked against a Dll built with
+`DLL_OUT_LEVEL_PERIODS 1`. Every row without a neighbour is byte-identical
+to the sweep before the fix.
+
+| C/N0     | Dll level      | settled | code held | code returns | symbol held | symbol returns | longest both-off | both back | end on the neighbour |
+| -------- | -------------- | ------- | --------- | ------------ | ----------- | -------------- | ---------------- | --------- | -------------------- |
+| 45 dB-Hz | slow (shipped) | 30/30   | 20/30     | 17           | 0/30        | 45             | 6.5 ms           | 30/30     | 9/30                 |
+|          | per-period     | 30/30   | 21/30     | 15           | 0/30        | 33             | 7.8 ms           | 30/30     | 8/30                 |
+| 40 dB-Hz | slow (shipped) | 27/30   | 10/27     | 29           | 0/27        | 65             | 82.5 ms          | 27/27     | 4/27                 |
+|          | per-period     | 27/30   | 10/27     | 30           | 0/27        | 60             | 100.3 ms         | 27/27     | 3/27                 |
+
+"End on the neighbour" counts the trials whose chip rate over the watch's
+last two seconds lies within half of the neighbour's 0.95 chips per second.
+
+#2495 does not move code lock through a live crossing. Symbol lock drops
+in every trial at both C/N0s, 1.0–1.1 s into the watch, as the neighbour
+comes within a chip: the two emitters' independent data add in the despread
+output. At the slow level its flag returns more often as it comes back.
+
+**What this corrects in §12.19.** Its `cross-on` numbers watched the
+separation, not the crossing. With the crossing inside the watch:
+
+- **Code lock dips** in 10 of 30 trials at 45 dB-Hz and 17 of 27 at 40, not
+    in 5 and none. The dips come about 1 s after the phases meet, as the
+    peaks separate.
+- **The flags are never down together** for more than 6.5 ms at 45 dB-Hz
+    and 82.5 ms at 40.
+- **Every receiver has both flags at the end.** Some end on the neighbour,
+    which is #1275's regime: 9 of 30 at 45 dB-Hz and 4 of 27 at 40.
+
+The `cross` row moved for the same reason. An instrumented copy of the
+validator on `main` reproduces its `cross` rows byte for byte. On it, every
+settled trial switched off at T_OFF_S except three. Those switched off
+after the neighbour had crossed at 2.6 s, so their own emitter was still on
+during the crossing: a live crossing, not a departed receiver's. They are
+the trials the fix counts as not settled.
+
+- **At 45 dB-Hz,** the late trial was seed 110, switching off at 4.206 s.
+    It followed the neighbour at +4.01 chips per second, the row's one
+    follower (code back 1/28, mean rate +0.14). Now 27 settle by T_OFF_S and
+    none follows.
+- **At 40 dB-Hz,** the late trials were seeds 107 and 110, at 3.425 s and
+    3.333 s. Neither followed. Now 28 settle where `main` counted 30 (224 s
+    of watch instead of 240), and none comes back, as before.
+
+______________________________________________________________________

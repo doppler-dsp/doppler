@@ -2835,8 +2835,11 @@ class AsyncDsssReceiver:
         is bit-identical at every count, so this changes the cost of a steps()
         call and nothing about its output. A pool that steps its receivers in
         parallel sets each one to 1. A mutator's value, so it travels in the
-        state blob (#2022). Setup path; not while another thread is inside
-        steps().
+        state blob (#2022). The blob carries the count that RAN, not the
+        request: set_threads(0) on a 20-core writer restores as 20 workers on
+        any reader, by design -- a resumed receiver runs as the one that was
+        checkpointed, and a pool's 1 is 1 everywhere. Setup path; not while
+        another thread is inside steps().
 
         Parameters
         ----------

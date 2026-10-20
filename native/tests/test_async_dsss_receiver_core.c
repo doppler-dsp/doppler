@@ -3021,6 +3021,8 @@ _test_handover_holds_the_refined_doppler_to_the_domain (void)
       DP_REQUIRE (src != NULL && dst != NULL);
       DP_REQUIRE (dp_async_dsss_receiver_seed (src, 0.0, seeds[k], 45.0)
                   == DP_OK);
+      /* Off the block grid: 100 samples in, so a restart owes 1946. */
+      src->samples_in     = 100;
       const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
       unsigned char *blob = malloc (cb);
       dp_async_dsss_receiver_get_state (src, blob);
@@ -3063,6 +3065,8 @@ _test_handover_holds_the_refined_doppler_to_the_domain (void)
               DP_CHECK (dst->refused_hits == refused0 + 1);
               DP_CHECK (dp_async_dsss_receiver_get_doppler_hz (dst) == 0.0);
               DP_CHECK (dst->seed_doppler_hz_est == 0.0);
+              /* The search restarts on the grid: 1124 in, owed to 2046. */
+              DP_CHECK (dst->align_pending && dp_acq_position (dst->acq) == 0);
             }
         }
       free (blob);

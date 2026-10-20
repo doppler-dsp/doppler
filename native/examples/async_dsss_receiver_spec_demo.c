@@ -105,9 +105,12 @@
    counting noise about 0.25 dB, a BER twice the receiver's fails. */
 #define MAX_LOSS_DB 1.5
 /* EVM normalizes by the measured total power: a perfect receiver reads
-   10*log10(N/(S+N)), not -Es/N0. */
+   10*log10(N/(S+N)), not -Es/N0. A locked stream sits above it by about
+   0.9 dB of EVM, the implementation loss the despread no longer hides
+   since its output stopped flattering it (#2495), plus about 0.1 dB of
+   counting noise; twice the loss fails. */
 #define EVM_IDEAL_DB (-10.0 * log10 (1.0 + pow (10.0, ESN0_DB / 10.0)))
-#define EVM_TOL_DB 1.0
+#define EVM_TOL_DB 1.5
 #define LAG_SPAN 1000 /* symbols the stream may start into the payload */
 /* What "sustained" means for the symbol lock: ber_lock_symbol()'s defaults
    on the Python face. */

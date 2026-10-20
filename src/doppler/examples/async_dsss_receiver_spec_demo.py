@@ -238,9 +238,13 @@ MIN_LOCK_FRACTION = 7 / 8
 #: counting noise twice over and fails a BER twice the receiver's.
 MAX_LOSS_DB = 1.5
 #: EVM normalizes by the measured total power, so a perfect receiver reads
-#: 10*log10(N/(S+N)), not -Es/N0. A locked stream sits within EVM_TOL_DB.
+#: 10*log10(N/(S+N)), not -Es/N0. A locked stream sits above it by about
+#: 0.9 dB of EVM, the implementation loss the despread no longer hides since
+#: its output stopped flattering it (#2495), and the EVM of a few thousand
+#: symbols counts to about 0.1 dB: EVM_TOL_DB clears both and fails an EVM
+#: twice the loss.
 EVM_IDEAL_DB = -10.0 * np.log10(1.0 + 10.0 ** (ESN0_DB / 10.0))
-EVM_TOL_DB = 1.0
+EVM_TOL_DB = 1.5
 LAG_SPAN = 1000  # symbols the stream may start into the payload
 
 

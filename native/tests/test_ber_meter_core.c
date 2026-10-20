@@ -30,7 +30,12 @@
  *      reference), so nothing needs to know the Es/N0 — detection holds
  *      across a range of them;
  *   7. marker symbols are excluded from scoring and land in `skipped`, so
- *      the symbols that fixed the alignment cannot also flatter the rate.
+ *      the symbols that fixed the alignment cannot also flatter the rate;
+ *   8. the false-alarm rate on unrelated truth holds the stated Pfa at
+ *      m = 2 as at m = 4 -- measured as a RATE, since one refusal at 1e-6
+ *      (claim 5) cannot see a threshold that is a thousand times too low.
+ *      At m = 2 the null is rank-one (doppler#2496), and BPSK still finds a
+ *      planted alignment at low Es/N0 under the higher threshold.
  */
 #include "doppler/ber_meter/ber_meter_core.h"
 
@@ -73,6 +78,52 @@ build (int lag, double phase, double sigma)
           = (sigma > 0.0) ? (float _Complex) (sigma * dp_cgauss (&st)) : 0.0f;
       rx[i] = (float _Complex) (cos (ph) + sin (ph) * I) + n;
     }
+}
+
+/* Claim 8's stream: m-PSK carrying `sent`, rotated by `phase`, at the given
+   per-component noise sigma, into `out` (n symbols, no lag). */
+#define FA_NSYM 1600
+static void
+build_m (int m, const uint8_t *sent, double phase, double sigma,
+         float _Complex *out)
+{
+  for (size_t i = 0; i < FA_NSYM; i++)
+    {
+      double ph = 2.0 * M_PI * sent[i] / m + phase;
+      out[i]    = (float _Complex) (cos (ph) + sin (ph) * I)
+                  + (float _Complex) (sigma * dp_cgauss (&st));
+    }
+}
+
+/* Claim 8: of `trials` alignments against truth unrelated to the stream,
+   how many does the gate accept, at whole-search Pfa `pfa`? The marker is
+   `n_marker` symbols at `t0`, repeating every `period` (0: once); the
+   occurrences the gate combined, K, come back in `*k`, so a caller can
+   assert which threshold branch it exercised. */
+static int
+false_alarms (int m, int trials, double pfa, size_t t0, size_t n_marker,
+              size_t period, size_t *k)
+{
+  static uint8_t sent[FA_NSYM], other[FA_NSYM];
+  static float _Complex y[FA_NSYM];
+  int n = 0;
+  *k    = 0;
+  for (int t = 0; t < trials; t++)
+    {
+      for (size_t i = 0; i < FA_NSYM; i++)
+        {
+          sent[i]  = (uint8_t)(dp_uni (&st) * m);
+          other[i] = (uint8_t)(dp_uni (&st) * m);
+        }
+      /* Little noise: the data term dominates, which at m = 2 is the
+         rank-one null in its purest form, the case #2496 measured. */
+      build_m (m, sent, 0.9, 0.05, y);
+      ber_align_t a = dp_ber_align_detect (y, FA_NSYM, other, FA_NSYM, m, t0,
+                                           n_marker, period, 100, pfa);
+      n += a.ok;
+      *k = a.occurrences;
+    }
+  return n;
 }
 
 int
@@ -200,6 +251,62 @@ main (void)
     snprintf (msg, sizeof msg, "clean stream scored %zu errors",
               dp_ber_meter_get_errors (obj));
     DP_REQUIRE_MSG (dp_ber_meter_get_errors (obj) == 0, msg);
+  }
+
+  /* ── 8. the false-alarm RATE holds at m = 2 as at m = 4 ─────────────────
+     At a whole-search Pfa of 1e-3, at most `expect` false alarms are due
+     (fewer, in practice: a false peak must also clear the 3 dB runner-up
+     gate), and the bound sits 4.5 sd of a Poisson count above that. The
+     circular threshold at m = 2 accepted about 0.9% at any Pfa from 1e-2
+     to 1e-4 (#2496) -- about 28 of these 3000. A low count is allowed:
+     the rank-one threshold is conservative where noise is not small.
+
+     Every branch of the m = 2 threshold is run, and each case asserts the
+     K it ran: a blind marker (K = 1, the Q^-1 form), a periodic one with
+     an even K (2, the noncoherent form at K/2) and an odd K above one (3,
+     the conservative K + 1). The geometry fixes K: 1500 symbols of room
+     past the +-100 lag search, a 64-symbol marker from 200, every 1000 or
+     600 symbols. */
+  {
+    const double pfa = 1e-3;
+    const struct
+    {
+      int    m, trials;
+      size_t t0, n_marker, period, k;
+    } cases[] = {
+      { 2, 3000, 1000, 256, 0, 1 },  /* BPSK, blind            */
+      { 4, 1000, 1000, 256, 0, 1 },  /* QPSK, blind: circular  */
+      { 2, 3000, 200, 64, 1000, 2 }, /* BPSK, periodic, even K */
+      { 2, 3000, 200, 64, 600, 3 },  /* BPSK, periodic, odd K  */
+    };
+    for (size_t c = 0; c < sizeof cases / sizeof cases[0]; c++)
+      {
+        const double expect = pfa * cases[c].trials;
+        const double bound  = expect + 4.5 * sqrt (expect);
+        size_t       k      = 0;
+        int  n = false_alarms (cases[c].m, cases[c].trials, pfa, cases[c].t0,
+                               cases[c].n_marker, cases[c].period, &k);
+        char msg[192];
+        snprintf (msg, sizeof msg,
+                  "m=%d K=%zu: %d false alignments in %d unrelated-truth "
+                  "trials (at most %.0f due at Pfa %g, bound %.1f)",
+                  cases[c].m, k, n, cases[c].trials, expect, pfa, bound);
+        DP_REQUIRE_MSG (k == cases[c].k, msg);
+        DP_REQUIRE_MSG (n <= bound, msg);
+      }
+    /* And the higher m = 2 threshold still finds a planted alignment at a
+       per-symbol Es/N0 of 1.4 dB, with margin. */
+    static uint8_t sent[FA_NSYM];
+    static float _Complex y[FA_NSYM];
+    for (size_t i = 0; i < FA_NSYM; i++)
+      sent[i] = (uint8_t)(dp_uni (&st) * 2);
+    build_m (2, sent, 0.9, 0.6, y);
+    ber_align_t a = dp_ber_align_detect (y, FA_NSYM, sent, FA_NSYM, 2, 1000,
+                                         256, 0, 200, 0.0);
+    char        msg[128];
+    snprintf (msg, sizeof msg, "BPSK at 1.4 dB: ok=%d lag=%d margin %.1f dB",
+              a.ok, a.lag, a.margin_db);
+    DP_REQUIRE_MSG (a.ok && a.lag == 0 && a.margin_db > 3.0, msg);
   }
 
   dp_ber_meter_reset (obj);

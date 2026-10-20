@@ -127,8 +127,9 @@
 /** @brief Default marker length when aligning on a prefix of the truth.
  *
  * 256 symbols gives `sqrt(2*256) = 22.6` of detection statistic against a
- * threshold near 6.5 for a 1e-6 Pfa over 401 lags — roughly 11 dB of margin,
- * so the alignment is decided, not guessed. */
+ * threshold of 6.3 for a 1e-6 Pfa over 401 lags at m >= 3 -- 11 dB of
+ * margin -- and 8.4 at m = 2, whose null is rank-one (doppler#2496): 8.6
+ * dB. Either way the alignment is decided, not guessed. */
 #define DP_BER_SYNC_SYMS 256u
 
 /** @brief Whole-experiment false-alarm probability for the alignment gate. */

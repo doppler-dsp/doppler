@@ -355,6 +355,19 @@ dp_rx_amp (const dp_rx_point_t *pt)
  * 3-lag guard band. */
 #define DP_RX_SYNC_SPAN 12L
 
+/** @brief Per-frame sync confirmation false-alarm probability, over the
+ * DP_RX_SYNC_SPAN window.
+ *
+ * Not the record alignment's DP_BER_SYNC_PFA (1e-6): that is sized for a
+ * 256-symbol marker deciding a whole record once, and a frame's sync word is
+ * a dozen symbols decided every frame. Asked for 1e-6 at BPSK, a 13-symbol
+ * sync word clears no frame at the operating points here once the gate
+ * thresholds on BPSK's true null (doppler#2496). The circular threshold it
+ * used to get ran a BPSK frame at about 9e-4: per lag P(chi2_1 > 17.05) =
+ * 3.6e-5, over 25 lags. So this states the rate the confirmation actually
+ * ran at, a conventional per-frame one, at every m. */
+#define DP_RX_SYNC_PFA 1e-3
+
 /** @brief How far the measured FER's LOWER limit may sit above the predicted
  * FER before the measurement is disbelieved.
  *
@@ -738,7 +751,7 @@ dp_rx_score_frames (int m, const wfm_frame_desc_t *d,
       m1.period = 0;
       m1.reps   = 0;
       s1        = dp_ber_sync (rxa, n_rxa, tra, n_tra, &m1, m, DP_RX_SYNC_SPAN,
-                               DP_BER_SYNC_PFA);
+                               DP_RX_SYNC_PFA);
 
       /* CRC: hard decisions over the frame, checked against nothing but the
          frame's own trailer. No payload truth is consulted here, which is the
@@ -756,7 +769,12 @@ dp_rx_score_frames (int m, const wfm_frame_desc_t *d,
             rxbits[s * bps + t] = (uint8_t)((lab >> (bps - 1u - t)) & 1u);
         }
       crc = dp_wfm_frame_desc_crc_ok (d, rxbits);
-      dp_frame_meter_add (fm, s1.ok, crc);
+      /* Confirmed means detected WHERE THE FRAME IS DUE: the window is
+         centred on the record's alignment, so the sync word sits at lag 0.
+         A peak elsewhere in the window is a false alarm (or a slipped
+         frame), not a confirmation, and counting it as one would turn the
+         gate's false-alarm rate into confirmed syncs. */
+      dp_frame_meter_add (fm, s1.ok && s1.lag == 0, crc);
     }
 }
 

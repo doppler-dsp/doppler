@@ -1222,7 +1222,7 @@ main (void)
   {
     const size_t sf = 63, sps = 4, K = 4, nsym = 1500;
     const size_t te   = sf * sps;
-    const double P    = 7.24; /* partials per symbol: SPEC's 1.81 epochs */
+    const double P    = 7.24; /* partials per symbol: 1.81 epochs (5 Mcps) */
     const double tsym = P * (double)te / (double)K;
     const double phi  = 0.37 * (double)te; /* symbol clock phase, samples */
     /* Per-sample amplitude SNR chosen so ONE partial (te/K samples

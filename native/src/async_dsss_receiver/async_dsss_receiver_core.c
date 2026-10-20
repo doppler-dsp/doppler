@@ -104,9 +104,9 @@ adr_enter (dp_async_dsss_receiver_state_t *s, int state)
 {
   s->state         = state;
   s->state_samples = 0;
-  /* Lost KEEPS the release clock and goes on counting it (section 11.3:
-   * "in lost, since the code flag dropped"); every other entry restarts
-   * it. */
+  /* Lost KEEPS the release clock and goes on counting it (the status
+   * record's both_down_samples: "in lost it keeps counting -- samples since
+   * the flags dropped"); every other entry restarts it. */
   if (state != ASYNC_DSSS_RX_LOST)
     s->both_down_samples = 0;
 }
@@ -1356,7 +1356,7 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
   return DP_OK;
 }
 
-/* The release rule of the design page's section 11.2, run once per
+/* The release rule of async-dsss-receiver.md section 10, run once per
  * tracking call: both lock flags down, without a break, for longer than
  * the confirm interval means the emitter is gone. One flag down is a
  * degrade and leaves the clock alone; either flag up restarts it.

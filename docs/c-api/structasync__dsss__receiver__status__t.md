@@ -97,7 +97,7 @@ _One consistent picture of what the receiver is doing, by value._ [More...](#det
 ## Detailed Description
 
 
-The status record of docs/design/async-dsss-receiver.md §11.3: the holder of a pool reads it on demand  at least once per data-free window, because the searcher's exclusion zone is keyed on the receiver's CURRENT code phase, not on its seed  and gets every field from one call between `steps()` calls, rather than assembling a picture from the one-at-a-time getters. It is a read of live state, not `get_state()`: the bytes triplet resumes the receiver elsewhere, this describes it here. Its `doppler_hz` is the live carrier (loop 1 plus loop 2), where get\_doppler\_hz() reports the estimate the chain was built from. No timestamp: the counters are in input samples, and the holder, which owns the sample clock, stamps them (docs/design/async-dsss-receiver.md §8.1). 
+The status record of docs/design/async-dsss-receiver.md §11.3: a holder  the controller of docs/design/async-dsss-parallel.md §4  reads it on demand, because the exclusions it hands the other receivers are keyed on this receiver's CURRENT code phase, not on its seed, and gets every field from one call between `steps()` calls, rather than assembling a picture from the one-at-a-time getters. It is a read of live state, not `get_state()`: the bytes triplet resumes the receiver elsewhere, this describes it here. Its `doppler_hz` is the live carrier (loop 1 plus loop 2), where get\_doppler\_hz() reports the estimate the chain was built from. No timestamp: the counters are in input samples, and the holder, which owns the sample clock, stamps them (docs/design/async-dsss-receiver.md §11.3). 
 
 
     

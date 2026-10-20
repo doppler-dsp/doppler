@@ -912,8 +912,9 @@ void dp_dll_hold_here(dp_dll_state_t *state);
  * summed windows (an EMA over the last ~32 symbols); the one with the most
  * power IS the symbol timing, and its windows become the detector's looks
  * and the discriminator's windows. A look then integrates `L` partials
- * coherently -- at SPEC's 1.8 epochs per symbol and four partials per
- * epoch, six partials instead of one, 7.8 dB more per look -- and never
+ * coherently -- at 1.81 epochs per symbol (1,023 chips at 5 Mcps, 2,700
+ * sym/s) and four partials per epoch, six partials instead of one, 7.8 dB
+ * more per look; at SPEC's 1.11 epochs, three and 4.8 dB -- and never
  * straddles a transition. Size `n_looks` for it with
  * detection.det_n_noncoh() over `L * (sf * sps / segments)` samples.
  *

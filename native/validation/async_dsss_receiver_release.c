@@ -4,8 +4,9 @@
  *        often does it say so falsely?
  *
  * The continuous async-DSSS design (docs/design/async-dsss-receiver.md §10,
- * §11.2) releases an assigned receiver on one rule: code lock drops and
- * stays dropped for a confirm interval; symbol lock alone is a degrade.
+ * §11.2) releases a tracking receiver on a lock-flag rule: without
+ * `reacquire`, both flags down for a confirm interval, one flag down being
+ * a degrade; with it, symbol lock alone. This validator runs the first.
  * The rule rests on two claims about the receiver as built, neither of
  * which anything measured: that code lock is the flag that follows PRESENCE
  * (an emitter that leaves takes its code with it, promptly), and that it

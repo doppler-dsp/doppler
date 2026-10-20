@@ -24,12 +24,10 @@ from __future__ import annotations
 import gc
 import sys
 
-import numpy as np
 import pytest
 
-from doppler.dsss import AsyncDsssPool
-from doppler.telemetry import EventLog, Telemetry
-from doppler.tests.test_tlm_prefix_refusal import _CODE, FACES, _feed
+from doppler.telemetry import Telemetry
+from doppler.tests.test_tlm_prefix_refusal import FACES, _feed
 
 
 @pytest.mark.parametrize("form", ["object", "capsule"])
@@ -53,16 +51,3 @@ def test_attached_telemetry_is_retained_until_the_binding_dies(
     del obj
     gc.collect()
     assert sys.getrefcount(tlm) == base, "the binding leaked its reference"
-
-
-def test_event_log_is_retained_until_the_pool_dies(tmp_path) -> None:
-    log = EventLog(tmp_path / "run.events")
-    base = sys.getrefcount(log)
-    pool = AsyncDsssPool(_CODE, n_slots=2)
-    pool.set_event_log(log)
-    assert sys.getrefcount(log) == base + 1, "the pool does not hold its log"
-
-    pool.push(np.ones(8192, np.complex64))
-    del pool
-    gc.collect()
-    assert sys.getrefcount(log) == base, "the pool leaked its log reference"

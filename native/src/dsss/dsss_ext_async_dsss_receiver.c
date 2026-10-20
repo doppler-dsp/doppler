@@ -294,11 +294,11 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static const char *const _enum_AsyncDsssReceiver_async_dsss_rx_state[] = {
-  "searching", "refining", "tracking", "idle", "lost", NULL,
+  "searching", "refining", "tracking", "reserved", "lost", NULL,
 };
 static const int _enum_AsyncDsssReceiver_async_dsss_rx_state_c[] = {
   ASYNC_DSSS_RX_SEARCHING, ASYNC_DSSS_RX_REFINING, ASYNC_DSSS_RX_TRACKING,
-  ASYNC_DSSS_RX_IDLE,      ASYNC_DSSS_RX_LOST,
+  ASYNC_DSSS_RX_RESERVED,  ASYNC_DSSS_RX_LOST,
 };
 static inline const char *
 _enum_AsyncDsssReceiver_async_dsss_rx_state_name (long v)
@@ -512,11 +512,11 @@ AsyncDsssReceiverObj_seed (AsyncDsssReceiverObject *self, PyObject *args,
 
 static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
   { "state", "ASYNC_DSSS_RX_SEARCHING .. _LOST -- where it is." },
-  { "doppler_hz",
-    "Where the emitter is NOW: the whole carrier estimate, Hz -- loop 1's "
-    "plus what loop 2 has taken up beyond it (the seed while refining, 0 when "
-    "idle, frozen where it was when lost). Only as good as `locked`: with the "
-    "carrier unlocked, loop 1 free-runs and this wanders." },
+  { "doppler_hz", "Where the emitter is NOW: the whole carrier estimate, Hz "
+                  "-- loop 1's plus what loop 2 has taken up beyond it (the "
+                  "seed while refining, 0 while searching, frozen where it "
+                  "was when lost). Only as good as `locked`: with the carrier "
+                  "unlocked, loop 1 free-runs and this wanders." },
   { "chip_phase", "Live Dll code phase, chips." },
   { "code_rate",
     "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
@@ -541,8 +541,8 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
 static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
     = { "doppler.dsss.ReceiverStatus",
         "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 "
-        "tracking, 3 idle, 4 lost), the live estimates, both lock flags, and "
-        "the two clocks in input samples.",
+        "tracking, 4 lost), the live estimates, both lock flags, and the two "
+        "clocks in input samples.",
         AsyncDsssReceiverObj_status_fields, 14 };
 static PyTypeObject *AsyncDsssReceiverObj_status_type = NULL;
 
@@ -1024,18 +1024,6 @@ AsyncDsssReceiver_getprop_refining (AsyncDsssReceiverObject *self,
       (long)dp_async_dsss_receiver_get_refining (self->handle));
 }
 static PyObject *
-AsyncDsssReceiver_getprop_idle (AsyncDsssReceiverObject *self,
-                                void                    *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromLong (
-      (long)dp_async_dsss_receiver_get_idle (self->handle));
-}
-static PyObject *
 AsyncDsssReceiver_getprop_lost (AsyncDsssReceiverObject *self,
                                 void                    *Py_UNUSED (closure))
 {
@@ -1261,22 +1249,18 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     NULL },
   { "lifecycle", (getter)AsyncDsssReceiver_getprop_lifecycle, NULL,
     "Where the receiver is in its lifecycle, by name: `\"searching\"`, "
-    "`\"refining\"`, `\"tracking\"`, `\"idle\"` (cell mode, waiting for a "
-    "seed) or `\"lost\"` (released, waiting for `reset()`). The same state as "
-    "`status().state`, which carries it as the C integer. With `reacquire` a "
-    "release goes back to `\"searching\"` and never reads `\"lost\"`.\n",
+    "`\"refining\"`, `\"tracking\"` or `\"lost\"` (released, waiting for "
+    "`reset()`). The same state as `status().state`, which carries it as the "
+    "C integer. With `reacquire` a release goes back to `\"searching\"` and "
+    "never reads `\"lost\"`.\n",
     NULL },
   { "tracking", (getter)AsyncDsssReceiver_getprop_tracking, NULL,
     "1 once the live tracking chain is built and demodulating; 0 in every "
     "other state.\n",
     NULL },
   { "refining", (getter)AsyncDsssReceiver_getprop_refining, NULL,
-    "1 while refining: the searching flavor's CarrierAcquisition dwell, or "
-    "the cell mode's pull-in; 0 in every other state.\n",
-    NULL },
-  { "idle", (getter)AsyncDsssReceiver_getprop_idle, NULL,
-    "1 while waiting for a seed (cell mode, before seed() or after reset()); "
-    "0 in every other state.\n",
+    "1 while refining: the CarrierAcquisition dwell; 0 in every other "
+    "state.\n",
     NULL },
   { "lost", (getter)AsyncDsssReceiver_getprop_lost, NULL,
     "1 once the release rule has fired: both lock flags were down, "
@@ -1288,9 +1272,8 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     NULL },
   { "doppler_hz", (getter)AsyncDsssReceiver_getprop_doppler_hz, NULL,
     "The Doppler estimate the chain was built from, Hz: the seed's while "
-    "refining, the CarrierAcquisition-refined value once tracking (searching "
-    "flavor). In cell mode it stays the seed's: the pull-in moves loop 1, not "
-    "this. The live carrier is status().doppler_hz.\n",
+    "refining, the CarrierAcquisition-refined value once tracking. The live "
+    "carrier is status().doppler_hz.\n",
     NULL },
   { "cn0_dbhz_est", (getter)AsyncDsssReceiver_getprop_cn0_dbhz_est, NULL,
     "The seed's C/N0 estimate, dB-Hz, unchanged until reset().\n", NULL },
@@ -1310,9 +1293,7 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     NULL },
   { "code_rate", (getter)AsyncDsssReceiver_getprop_code_rate, NULL,
     "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
-    "carrier aid; a coasting Dll reports its held rate. The cell mode's Dll "
-    "always coasts, so this stays at its seed's 1.0 and the steer shows in "
-    "the \".code.nco\" probe (set_telemetry()).\n",
+    "carrier aid; a coasting Dll reports its held rate.\n",
     NULL },
   { "lock", (getter)AsyncDsssReceiver_getprop_lock, NULL,
     "The carrier lock statistic of the MpskReceiver this receiver tracks "
@@ -1423,19 +1404,17 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "\n"
     "Stream raw cf32 samples; emit demodulated symbols once tracking.\n"
     "\n"
-    "Drives the state machine. The searching flavor emits nothing while\n"
-    "searching or refining (an empty return is normal, not an error): a hit\n"
-    "seeds the frozen-carrier refine chain, `CarrierAcquisition` sharpens\n"
-    "the coarse Doppler estimate, and only once it is ready (or gives up) is\n"
-    "the live tracking chain built and demodulation begins. A hit inside a\n"
-    "call hands the rest of the call straight to the refine chain, so no\n"
-    "sample is dropped there; at the refine's end, what the refine did not\n"
-    "consume of the last call goes on to the live chain. In cell mode the\n"
-    "live chain runs from the seed, so refining (the pull-in) emits. Accepts\n"
-    "any block size; state carries across calls, so a capture can be fed in\n"
-    "frames of any length with no seam. Idle (cell mode, before a seed) and\n"
-    "lost (after the release rule fires) consume the samples and emit\n"
-    "nothing, so the feeding loop is the same in every state; while\n"
+    "Drives the state machine. It emits nothing while searching or refining\n"
+    "(an empty return is normal, not an error): a hit seeds the\n"
+    "frozen-carrier refine chain, `CarrierAcquisition` sharpens the coarse\n"
+    "Doppler estimate, and only once it is ready (or gives up) is the live\n"
+    "tracking chain built and demodulation begins. A hit inside a call hands\n"
+    "the rest of the call straight to the refine chain, so no sample is\n"
+    "dropped there; at the refine's end, what the refine did not consume of\n"
+    "the last call goes on to the live chain. Accepts any block size; state\n"
+    "carries across calls, so a capture can be fed in frames of any length\n"
+    "with no seam. Lost (after the release rule fires) consumes the samples\n"
+    "and emit nothing, so the feeding loop is the same in every state; while\n"
     "tracking, the release clock runs on the two lock flags after every\n"
     "call, or on the symbol lock flag alone with `reacquire` (see\n"
     "`lost_confirm_s`). Tracking emits symbols whether or not they are data:\n"
@@ -1457,9 +1436,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    Number of symbols written: 0 while searching, idle or lost, while\n"
-    "    the searching flavor refines, or before a full symbol's worth of\n"
-    "    input.\n"
+    "    Number of symbols written: 0 while searching, refining or lost, or\n"
+    "    before a full symbol's worth of input.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1529,20 +1507,19 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "The hand-off of docs/design/async-dsss-receiver.md §2.2: the three\n"
     "numbers a searcher's hit carries that this receiver uses --\n"
     "`acq_handoff_t`'s `chip_phase`, `doppler_hz_est` and `cn0_dbhz_est` --\n"
-    "exactly as its own hit would have produced them (the searching flavor's\n"
-    "`steps()` calls this on its own hit). `chip_phase` is the code's\n"
-    "instantaneous phase in chips, Dll's convention, at the FIRST sample of\n"
-    "the next `steps()` call; dp_acq_build_handoff() makes it from a hit's\n"
-    "lag. The searching flavor rebuilds its refine chain from the seed; cell\n"
-    "mode rebuilds the live chain with the Dll held. The state becomes\n"
-    "refining; the unconsumed tail is the caller's to feed.\n"
+    "exactly as its own hit would have produced them (`steps()` calls this\n"
+    "on its own hit). `chip_phase` is the code's instantaneous phase in\n"
+    "chips, Dll's convention, at the FIRST sample of the next `steps()`\n"
+    "call; dp_acq_build_handoff() makes it from a hit's lag. The refine\n"
+    "chain is rebuilt from the seed and the state becomes refining; the\n"
+    "unconsumed tail is the caller's to feed.\n"
     "\n"
     "Refused (`DP_ERR_INVALID`, nothing changes) on a receiver that is not\n"
     "waiting for one -- refining, tracking or lost -- because \"assigned\n"
     "once\" is a property of the object, not of the caller's bookkeeping;\n"
-    "`reset()` releases it. Accepted while idle (cell mode) or searching\n"
-    "(the searching flavor: an outside hit simply beats its own). Also\n"
-    "refused outside the seed domain, dp_async_dsss_receiver_seed_ok().\n"
+    "`reset()` releases it. Accepted while searching: an outside hit simply\n"
+    "beats the receiver's own. Also refused outside the seed domain,\n"
+    "dp_async_dsss_receiver_seed_ok().\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1566,15 +1543,15 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
-    ">>> from doppler.dsss import CellAsyncDsssReceiver\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
-    ">>> rx = CellAsyncDsssReceiver(code, chip_rate=3.069e6,\n"
-    "...                            symbol_rate=2700.0, spc=2)\n"
+    ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6,\n"
+    "...                        symbol_rate=2700.0, spc=2)\n"
     ">>> rx.seed(chip_phase=512.25, doppler_hz_est=-1500.0,\n"
     "...         cn0_dbhz_est=48.0)\n"
-    ">>> (rx.idle, rx.refining, rx.doppler_hz, rx.cn0_dbhz_est)\n"
-    "(0, 1, -1500.0, 48.0)\n"
+    ">>> (rx.refining, rx.doppler_hz, rx.cn0_dbhz_est)\n"
+    "(1, -1500.0, 48.0)\n"
     "\n"
     "Already assigned -- refused until reset():\n"
     "\n"
@@ -1604,7 +1581,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "\n"
     "Cheap and allocation-free: every field is a read of live state. The\n"
     "one-at-a-time getters report the same fields, `doppler_hz` apart (see\n"
-    "the record); this is the face a pool holder uses. No timestamp: the\n"
+    "the record); this is the face a controller reads. No timestamp: the\n"
     "clocks are in input samples, and the holder, which owns the sample\n"
     "clock, stamps the record.\n"
     "\n"
@@ -1616,14 +1593,14 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
-    ">>> from doppler.dsss import CellAsyncDsssReceiver\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
-    ">>> rx = CellAsyncDsssReceiver(code, chip_rate=3.069e6,\n"
-    "...                            symbol_rate=2700.0, spc=2)\n"
+    ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6,\n"
+    "...                        symbol_rate=2700.0, spc=2)\n"
     ">>> st = rx.status()\n"
-    ">>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # idle\n"
-    "(3, 0.0, 0, 0)\n"
+    ">>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # searching\n"
+    "(0, 0.0, 0, 0)\n"
     ">>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)\n"
     ">>> st = rx.status()\n"
     ">>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining\n"
@@ -1818,14 +1795,12 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
   { "reset", (PyCFunction)AsyncDsssReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Return to the searching state -- or, in cell mode, to idle. Resets\n"
-    "the embedded Acquisition and rebuilds the refine-stage chain (the\n"
-    "searching flavor's) and the live tracking chain back to their\n"
-    "placeholder seed (phase 0, no Doppler). A receiver that has locked\n"
-    "cannot be \"reset back to tracking the same signal,\" only back to\n"
-    "searching -- every object's reset() semantics in this codebase. In cell\n"
-    "mode there is no search to return to, so this is how the holder of a\n"
-    "pool releases a lost receiver for its next seed, with no reallocation.\n"
+    "Return to the searching state. Resets the embedded Acquisition and\n"
+    "rebuilds the refine-stage chain and the live tracking chain back to\n"
+    "their placeholder seed (phase 0, no Doppler). A receiver that has\n"
+    "locked cannot be \"reset back to tracking the same signal,\" only back "
+    "to\n"
+    "searching -- every object's reset() semantics in this codebase.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1850,18 +1825,18 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "caller set for that block (dp_tlm_set_now()):\n"
     "\n"
     "- \"<prefix>.state\" -- where the call left the receiver, the\n"
-    "  ASYNC_DSSS_RX_* value: 0 searching, 1 refining, 2 tracking, 3 idle\n"
-    "  (cell mode, no seed yet), 4 lost (status().state);\n"
+    "  ASYNC_DSSS_RX_* value: 0 searching, 1 refining, 2 tracking, 4 lost\n"
+    "  (status().state);\n"
     "- \"<prefix>.handover_hz\" -- the Doppler the chain was built from, Hz\n"
     "  (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the\n"
-    "  seed's while refining, the refined value from the hand-over on (a\n"
-    "  cell receiver keeps the seed's), and 0 again after a refused\n"
-    "  hand-over or a reset(), which return the receiver to searching. A\n"
-    "  record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the\n"
-    "  live carrier: status().doppler_hz reads that, and \".car.freq\" and\n"
-    "  \".car.nco\" are the carrier loop's own view of it, in cycles a "
-    "sample\n"
-    "  at the input rate, so times chip_rate * spc for Hz;\n"
+    "  seed's while refining, the refined value from the hand-over on, and 0\n"
+    "  again after a refused hand-over or a reset(), which return the\n"
+    "  receiver to searching. A record is a float, so it resolves about 0.5\n"
+    "  Hz near 5 MHz. Not the live carrier: status().doppler_hz reads that,\n"
+    "  and \".car.freq\" and \".car.nco\" are the carrier loop's own view of "
+    "it,\n"
+    "  in cycles a sample at the input rate, so times chip_rate * spc for\n"
+    "  Hz;\n"
     "- \"<prefix>.refused\" -- the hits refused as seeds so far\n"
     "  (status().refused_hits).\n"
     "\n"
@@ -1876,7 +1851,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "\".locked\",\n"
     "  \".nco\"), once per carrier update: once a code period, except while "
     "it\n"
-    "  coasts and through the cell mode's pull-in, when loop 1 is held;\n"
+    "  coasts, when loop 1 is held;\n"
     "- \"<prefix>.code\" -- the code loop (dp_dll_set_telemetry(): \".e\",\n"
     "  \".rate\", \".lock\", \".locked\", \".nco\"), once per discriminator "
     "update;\n"
@@ -1884,9 +1859,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "  (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing\n"
     "  loops, the symbols, its AGC), once per recovered symbol (the AGC's\n"
     "  pair once per gain update);\n"
-    "- \"<prefix>.acq\" -- the searching flavor's acquisition engine\n"
-    "  (dp_acq_set_telemetry()), once per decided dwell. A cell receiver has\n"
-    "  no search, so no such probes;\n"
+    "- \"<prefix>.acq\" -- the acquisition engine (dp_acq_set_telemetry()),\n"
+    "  once per decided dwell;\n"
     "- \"<prefix>.rc\" -- the rate converter between the code loop and the\n"
     "  demodulator (dp_RateConverter_set_telemetry()). It reports only an\n"
     "  AGC, and this receiver builds it without one, so it registers no\n"
@@ -2142,9 +2116,8 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    the first tracking sample, when neither flag is up yet, so a "
     "hand-off\n"
     "    that never locks within the interval is released the same way as an\n"
-    "    emitter that leaves. Default 0.0 = never -- the searching flavor's "
-    "exit\n"
-    "    is then reset().\n"
+    "    emitter that leaves. Default 0.0 = never -- the exit is then "
+    "reset().\n"
     "reacquire : bool, default False\n"
     "    Release on symbol lock alone, and search again by itself. With it "
     "set,\n"
@@ -2194,7 +2167,7 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
     "...                        spc=2, doppler_uncertainty=500.0)\n"
-    ">>> (rx.tracking, rx.refining, rx.idle)       # searching\n"
+    ">>> (rx.tracking, rx.refining, rx.lost)       # searching\n"
     "(0, 0, 0)\n",
   .tp_methods = AsyncDsssReceiverObj_methods,
   .tp_getset  = AsyncDsssReceiver_getset,

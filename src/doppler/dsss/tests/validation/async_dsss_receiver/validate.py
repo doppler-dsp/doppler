@@ -15,8 +15,7 @@ loss goes, stage by stage). All three drive the shipped continuous-DSSS synth
 (`wfm_synth`) with the harness's own data bits, the shipped `awgn` sized
 from C/N0, the receiver in the SPEC configuration. This file parses their
 CSV blocks, characterises, reviews and asserts the limits through the same
-`Report` every other certified object uses -- the `conv` /
-`async_dsss_pool` shape.
+`Report` every other certified object uses -- the `conv` shape.
 
 **Two runs, two roles.** The limits are asserted on each harness's
 regression subset, `--check --emit`, re-run on every push (about 3 s and

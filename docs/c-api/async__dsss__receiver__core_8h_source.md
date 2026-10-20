@@ -77,15 +77,8 @@ extern "C"
    * narrower than dp_dll_create()'s default 0.01 for noise immunity at the
    * low-Es/N0 floor. */
 #define ASYNC_DSSS_RX_DLL_BN 0.002
-  /* The Dll's early-late spacing, chips, and so its discriminator's design
-   * slope: for a rectangular chip the normalised power discriminator reads
-   * (2 - spacing) units per chip of offset, 1.5 here -- the cell mode's
-   * correction divides by it so its gain is in chips, gain 1 putting the
-   * phase at the read (docs/design/async-dsss-receiver-measurements.md
-   * §12.24's semantics; measured 1.6 on the channel's resampled pulse,
-   * §12.22). */
+  /* The tracking Dll's early-late spacing, chips. */
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
-#define ASYNC_DSSS_RX_DLL_DISC_SLOPE (2.0 - ASYNC_DSSS_RX_DLL_SPACING)
   /* The damping of both Dlls this receiver builds, the tracker and the
    * refine collector, and the collector's early-late spacing, chips. Named
    * once because create() checks the very arguments each build site passes
@@ -107,13 +100,6 @@ extern "C"
 #define ASYNC_DSSS_RX_DEMOD_LOCK_THRESH 0.3
 
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
-/* The cell mode's defaults (dp_async_dsss_receiver_create_cell(),
- * docs/design/async-dsss-receiver-measurements.md §12.23-12.24 as a mode of
- * this receiver): the correction's gain, in chips, on the coasting Dll's
- * interval-mean discriminator, and the intervals at gain 1 that pull the
- * seed's residual in. */
-#define ASYNC_DSSS_RX_CELL_GAIN 0.125
-#define ASYNC_DSSS_RX_CELL_PULLIN 4u
 /* Symbol-lock detector on the emitted symbols. The lock signal is the
  * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
  * symbol (locked -> +1, 45deg-rotated/noise -> 0). The lock METRIC is that
@@ -130,9 +116,8 @@ extern "C"
 #define ASYNC_DSSS_RX_LOCK_N_DOWN 15u
 
 /* The state machine's values (`state` below, also the first byte of a
- * serialized blob's extra record). Searching -> refining -> tracking is the
- * searching flavor's path; cell mode starts at idle and seed() puts it
- * at refining; lost is reached from tracking by the release rule and left
+ * serialized blob's extra record). Searching -> refining -> tracking, and
+ * seed() puts a searching receiver at refining; lost is reached from tracking by the release rule and left
  * only by reset(). With reacquire the release skips lost and goes straight
  * back to searching. */
 /* SSOT: enum=async_dsss_rx_state */
@@ -141,8 +126,11 @@ typedef enum
   ASYNC_DSSS_RX_SEARCHING = 0, 
   ASYNC_DSSS_RX_REFINING  = 1, 
   ASYNC_DSSS_RX_TRACKING  = 2, 
-  ASYNC_DSSS_RX_IDLE      = 3, 
-  ASYNC_DSSS_RX_LOST      = 4, 
+  /* 3 was the deleted cell mode's idle. The values are persisted (a blob,
+     a telemetry capture), so it stays reserved: no state reaches it, and a
+     blob that names it is refused. */
+  ASYNC_DSSS_RX_RESERVED = 3,
+  ASYNC_DSSS_RX_LOST     = 4, 
 } async_dsss_rx_state_t;
 
   typedef struct
@@ -233,22 +221,6 @@ typedef enum
     int      had_lock;             
     int      car_coasting;         
     dp_costas_state_t car_held;       
-    /* The cell mode (dp_async_dsss_receiver_create_cell()): the receiver a
-     * searcher's cell drives -- no refine, the Dll held from the first
-     * sample and steered by a rate bias, re-formed every code period, onto
-     * a held phase corrected once an interval by a gain times what its
-     * discriminator read
-     * (docs/design/async-dsss-receiver-measurements.md §12.22-12.24);
-     * the carrier loop the searching flavor's own. */
-    int      cell;             
-    size_t   correct_periods;  
-    double   cell_gain;        
-    size_t   pullin_intervals; 
-    double   held_phase;       
-    int      cell_refined;     
-    double   cell_rate_bias;   
-    size_t   period_count;     
-    uint64_t intervals;        
     double   seed_chip_phase;     
     double   seed_doppler_hz_est; 
     double   doppler_hz_est;      
@@ -287,13 +259,6 @@ typedef enum
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s, bool reacquire);
-
-  dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create_cell (
-      const uint8_t *code, size_t code_len, double chip_rate,
-      double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
-      double pd, size_t segments, size_t sps, int differential,
-      double carrier_freq_hz, double lost_confirm_s, size_t correct_periods,
-      double gain, size_t pullin_intervals);
 
   void dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state);
 
@@ -337,8 +302,6 @@ typedef enum
 
   async_dsss_receiver_status_t dp_async_dsss_receiver_status (
       const dp_async_dsss_receiver_state_t *state);
-
-  int dp_async_dsss_receiver_get_idle (const dp_async_dsss_receiver_state_t *state);
 
   int dp_async_dsss_receiver_get_lost (const dp_async_dsss_receiver_state_t *state);
 
@@ -397,20 +360,15 @@ typedef enum
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
-   * car_held + dll + rc + rx, all ten in the searching flavor; cell mode
-   * has seven, without acq, refine_dll and refine_rc (its `ca` is the
-   * pull-in's estimator). A fixed shape per flavor; segments/sps/n/
-   * refine_segments and the flavor are the layout key. */
+   * car_held + dll + rc + rx, a fixed shape; segments/sps/n/
+   * refine_segments are the layout key. */
 
   typedef struct
   {
     uint8_t  state;
-    uint8_t  _pad0;   
     uint8_t  had_lock;     
     uint8_t  car_coasting; 
-    uint8_t  cell;         
-    uint8_t  cell_refined; 
-    uint8_t  _pad[2]; /* the extra with _pad0: eight named bytes */
+    uint8_t  _pad[5]; 
     double   seed_chip_phase;
     double   seed_doppler_hz_est;
     double   doppler_hz_est;
@@ -427,16 +385,12 @@ typedef enum
     double   lock_den;  
     double   lock_metric;         
     dp_lockdet_state_t sym_lockdet;  
-    double   held_phase;          
-    double   cell_rate_bias;
-    uint64_t period_count;
-    uint64_t intervals;
     uint64_t refused_hits; 
     uint64_t refine_min_blocks; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 10u /* v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 11u /* v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

@@ -47,22 +47,15 @@ _Composed receiver state._ [More...](#detailed-description)
 |  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car\_held**](#variable-car_held)  <br> |
 |  float \_Complex \* | [**car\_wiped\_buf**](#variable-car_wiped_buf)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
-|  int | [**cell**](#variable-cell)  <br> |
-|  double | [**cell\_gain**](#variable-cell_gain)  <br> |
-|  double | [**cell\_rate\_bias**](#variable-cell_rate_bias)  <br> |
-|  int | [**cell\_refined**](#variable-cell_refined)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  uint8\_t \* | [**code**](#variable-code)  <br> |
 |  size\_t | [**code\_len**](#variable-code_len)  <br> |
-|  size\_t | [**correct\_periods**](#variable-correct_periods)  <br> |
 |  int | [**differential**](#variable-differential)  <br> |
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**dll**](#variable-dll)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  int | [**had\_lock**](#variable-had_lock)  <br> |
-|  double | [**held\_phase**](#variable-held_phase)  <br> |
-|  uint64\_t | [**intervals**](#variable-intervals)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
@@ -72,9 +65,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  int | [**m**](#variable-m)  <br> |
 |  int | [**n**](#variable-n)  <br> |
 |  double | [**pd**](#variable-pd)  <br> |
-|  size\_t | [**period\_count**](#variable-period_count)  <br> |
 |  double | [**pfa**](#variable-pfa)  <br> |
-|  size\_t | [**pullin\_intervals**](#variable-pullin_intervals)  <br> |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
 |  bool | [**reacquire**](#variable-reacquire)  <br> |
 |  double | [**refine\_design\_margin\_db**](#variable-refine_design_margin_db)  <br> |
@@ -165,7 +156,7 @@ _Composed receiver state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Every child is allocated at create() with a placeholder seed (phase 0, no Doppler) and REBUILT (not freed to NULL) on every real transition: a fixed shape per flavor, independent of `state` (cell mode has no `acq` and no refine collector). Treat all fields as internal (use the getters). 
+Every child is allocated at create() with a placeholder seed (phase 0, no Doppler) and REBUILT (not freed to NULL) on every real transition: a fixed shape, independent of `state`. Treat all fields as internal (use the getters). 
 
 
     
@@ -182,7 +173,7 @@ dp_acq_state_t* dp_async_dsss_receiver_state_t::acq;
 
 
 
-The embedded search; NULL in cell mode ([**dp\_async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create_cell)), where the seed comes from outside. 
+The embedded search. 
 
 
         
@@ -339,77 +330,6 @@ nominal RF carrier, Hz; &gt; 0 enables the carrier-&gt;code rate aiding, 0 = off
 
 
 
-### variable cell 
-
-```C++
-int dp_async_dsss_receiver_state_t::cell;
-```
-
-
-
-Config: 1 = the cell mode. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable cell\_gain 
-
-```C++
-double dp_async_dsss_receiver_state_t::cell_gain;
-```
-
-
-
-Config: the correction's gain, chips, (0, 1]. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable cell\_rate\_bias 
-
-```C++
-double dp_async_dsss_receiver_state_t::cell_rate_bias;
-```
-
-
-
-Running: the rate bias steering the Dll onto the held phase over the next period (chips per chip), summed into its aid. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable cell\_refined 
-
-```C++
-int dp_async_dsss_receiver_state_t::cell_refined;
-```
-
-
-
-Running: the seed's carrier residual has been estimated on the live chain and folded into loop 1 (adr\_cell\_refine). 
-
-
-        
-
-<hr>
-
-
-
 ### variable chip\_rate 
 
 ```C++
@@ -484,23 +404,6 @@ size_t dp_async_dsss_receiver_state_t::code_len;
 
 
 
-### variable correct\_periods 
-
-```C++
-size_t dp_async_dsss_receiver_state_t::correct_periods;
-```
-
-
-
-Config: code periods per correction  the searcher's block depth in a pool. 
-
-
-        
-
-<hr>
-
-
-
 ### variable differential 
 
 ```C++
@@ -535,7 +438,7 @@ double dp_async_dsss_receiver_state_t::doppler_hz_est;
 
 
 
-The seed's Doppler while refining; the CarrierAcquisition-refined value once tracking (searching flavor). The cell mode's pull-in moves loop 1 and leaves this at the seed's. A refused hand-over zeroes both, as reset() does. 
+The seed's Doppler while refining; the CarrierAcquisition-refined value once tracking. A refused hand-over zeroes both, as reset() does. 
  
 
 
@@ -554,42 +457,6 @@ int dp_async_dsss_receiver_state_t::had_lock;
 
 
 Running: both lock flags have been up since the hand-over. After that both down holds both loops (dp\_dll\_set\_coast, the carrier's own hold) so a departed emitter's receiver cannot free-run onto a neighbour's code (#1271). 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable held\_phase 
-
-```C++
-double dp_async_dsss_receiver_state_t::held_phase;
-```
-
-
-
-Running: the held code phase at the next interval's start, chips in the Dll's convention, unwrapped. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable intervals 
-
-```C++
-uint64_t dp_async_dsss_receiver_state_t::intervals;
-```
-
-
-
-Running: intervals since the seed  the pull-in schedule's clock. 
  
 
 
@@ -740,24 +607,6 @@ Also CarrierAcquisition's own pd.
 
 
 
-### variable period\_count 
-
-```C++
-size_t dp_async_dsss_receiver_state_t::period_count;
-```
-
-
-
-Running: periods into the interval. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable pfa 
 
 ```C++
@@ -767,24 +616,6 @@ double dp_async_dsss_receiver_state_t::pfa;
 
 
 Also CarrierAcquisition's own pfa. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable pullin\_intervals 
-
-```C++
-size_t dp_async_dsss_receiver_state_t::pullin_intervals;
-```
-
-
-
-Config: intervals at gain 1 first. 
  
 
 

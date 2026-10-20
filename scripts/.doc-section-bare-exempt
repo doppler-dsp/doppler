@@ -22,10 +22,8 @@
 4 native/tests/test_acq_core.c
 2 native/tests/test_dll_core.c
 4 native/tests/test_mpsk_core.c
-1 native/validation/CMakeLists.txt
 1 native/validation/acq_block_coherent.c
 3 native/validation/ratesync_scurve.c
-1 native/validation/receiver_pullin.c
 9 objects/acq.toml
 1 objects/dll.toml
 2 objects/dp_event_log.toml

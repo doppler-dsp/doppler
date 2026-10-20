@@ -159,9 +159,11 @@ type = "size_t"
 expr = "dp_event_log_count(self->handle)"
 doc = "Events appended so far, counting only the ones that reached the disk."
 
-# The producing side of the capsule triangle: AsyncDsssPool.set_event_log
-# unwraps this exact name (design §8.2 -- the pool is the one component that
-# stamps transitions into the log), so the string is load-bearing.
+# The producing side of the capsule triangle: a component that stamps
+# transitions into the log unwraps this exact name, so the string is
+# load-bearing. Its consumer, the old AsyncDsssPool's set_event_log, was
+# deleted; kept for the parallel AsyncDsssPool (design §8.2), whose review
+# decides whether it takes an event log.
 [[dp_event_log.properties]]
 name = "_capsule"
 type = "capsule"

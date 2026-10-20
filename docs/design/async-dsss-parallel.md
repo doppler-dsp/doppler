@@ -1,6 +1,7 @@
 # Parallel Asynchronous-Data DSSS Receivers
 
-*`AsyncDsssPool` keeps its name and its Python face; inside, it becomes N
+*The name `AsyncDsssPool` returns on a new object; the pool as built, and its
+cell receivers, were deleted. The new one is N
 independent `AsyncDsssReceiver`s, each stepped on its own worker, under a
 controller that only watches, excludes and reports. By default every
 receiver searches the whole carrier range itself; the controller may also
@@ -299,5 +300,3 @@ receiver's own.
 - [`async-dsss-receiver.md`](async-dsss-receiver.md): the receiver, and the
     pool this replaces (§5–§9 and §11.1)
 - [the measurement record](async-dsss-parallel-measurements.md)
-- [Tracking a Population of DSSS Emitters](../guide/async-dsss-pool.md): the
-    pool as built, from the user's side

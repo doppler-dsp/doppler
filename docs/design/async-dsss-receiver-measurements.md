@@ -984,7 +984,7 @@ measurement that certifies the pool. **Done, §12.14.**
 
 ### 12.14 What was measured (2026-09-06) — step 7, the lifecycle soak
 
-`native/validation/async_dsss_pool_soak.c` (`make validate-c`; its
+[`async_dsss_pool_soak.c`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/validation/async_dsss_pool_soak.c) (`make validate-c`; its
 `--check` is in the C suite): per emitter one shipped continuous-DSSS
 synth with the window (450 of 4950 symbols, Gold-1023 at 5 Mcps, 2700
 sym/s PRBS BPSK) through the shipped `doppler_channel` at its own Doppler
@@ -1473,7 +1473,7 @@ ______________________________________________________________________
 
 ### 12.20 What was measured (2026-09-08) — the searcher's surface as a code tracker
 
-**Harness:** `native/validation/acq_surface_jitter.c` (`make validate-c`;
+**Harness:** [`acq_surface_jitter.c`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/validation/acq_surface_jitter.c) (`make validate-c`;
 its `--check` is in the C suite), beside `dll_aid_jitter.c` and in its
 shape. The question it answers came out of the cancellation discussion:
 the searcher computes every emitter's code phase and Doppler at full

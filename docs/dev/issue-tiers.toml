@@ -1544,3 +1544,18 @@ status = "open"
 tier = 3
 title = "acq: the burst engine's depth search picks D without regard to the FFT length's smoothness"
 status = "open"
+
+[issue.2507]
+tier = 5
+title = "AsyncDsssPool (parallel): an assigned carrier offset per receiver, deferred"
+status = "open"
+
+[issue.2508]
+tier = 5
+title = "Remove the deleted AsyncDsssPool/CellAsyncDsssReceiver rows from benchmarks/labels.toml after the next release"
+status = "open"
+
+[issue.2512]
+tier = 5
+title = "Old-pool deletion PR: the doc fixes it owes once #2502 lands"
+status = "open"

@@ -18,7 +18,6 @@ import pytest
 
 from doppler.dsss import (
     AsyncDsssReceiver,
-    CellAsyncDsssReceiver,
     ReceiverStatus,
 )
 from doppler.telemetry import Telemetry
@@ -112,21 +111,21 @@ def _noise(n, cn0_dbhz, seed):
     ).astype(np.complex64)
 
 
-# ── Seeded from outside: the cell receiver ───────────────────────────────────
+# ── Seeded from outside ──────────────────────────────────────────────────────
 # (docs/design/async-dsss-receiver.md §11.1)
 
 
 @pytest.mark.parametrize("chip_phase", [-0.5, float(SF), float("nan")])
 def test_seed_refuses_a_phase_outside_the_code(chip_phase):
-    rx = _new_cell(70.0)
+    rx = _new_receiver(70.0)
     with pytest.raises(ValueError, match="seed refused"):
         rx.seed(chip_phase, 0.0, 70.0)
-    assert rx.idle == 1
+    assert rx.lifecycle == "searching"
     rx.seed(float(SF) - 0.5, 0.0, 70.0)  # the last chip is inside
     assert rx.refining == 1
 
 
-def test_seed_on_the_searching_flavor_beats_its_own_search():
+def test_seed_beats_its_own_search():
     x, data = _make_ramp_signal(70.0, seed=21)
     rx = _new_receiver(70.0)
     rx.seed(0.0, 0.0, 70.0)
@@ -135,7 +134,7 @@ def test_seed_on_the_searching_flavor_beats_its_own_search():
     assert rx.tracking == 1
     assert _best_ber(syms, data) < 0.05
     rx.reset()
-    assert rx.idle == 0  # this flavor goes back to searching
+    assert rx.lifecycle == "searching"
 
 
 # ── The release rule ─────────────────────────────────────────────────────────
@@ -156,12 +155,12 @@ def _feed_until_lost(rx, x, chunk):
     return False, run
 
 
-def test_lost_after_switch_off_then_reset_to_idle():
+def test_lost_after_switch_off_then_reset_to_searching():
     x, _data = _make_ramp_signal(70.0, seed=21)
     confirm_s = 0.02
     off = _noise(int(0.2 * FS), 70.0, seed=99)
 
-    rx = _new_cell(70.0, lost_confirm_s=confirm_s)
+    rx = _new_receiver(70.0, lost_confirm_s=confirm_s)
     rx.seed(0.0, 0.0, 70.0)
     _feed(rx, x[PRE_SILENCE:])
     assert (rx.tracking, rx.code_locked, rx.locked, rx.lost) == (1, 1, 1, 0)
@@ -172,18 +171,18 @@ def test_lost_after_switch_off_then_reset_to_idle():
     assert rx.tracking == 0
 
     # Lost is inert until reset(): samples discarded, seed refused, state in
-    # the blob, and reset() hands the object back idle.
+    # the blob, and reset() hands the object back searching.
     chip_before = rx.chip_phase
     assert len(rx.steps(x[PRE_SILENCE : PRE_SILENCE + 4 * TE])) == 0
     assert rx.lost == 1
     assert rx.chip_phase == chip_before
     with pytest.raises(ValueError, match="seed refused"):
         rx.seed(0.0, 0.0, 70.0)
-    rx2 = _new_cell(70.0, lost_confirm_s=confirm_s)
+    rx2 = _new_receiver(70.0, lost_confirm_s=confirm_s)
     rx2.set_state(rx.get_state())
     assert rx2.lost == 1
     rx.reset()
-    assert (rx.lost, rx.idle) == (0, 1)
+    assert (rx.lost, rx.lifecycle) == (0, "searching")
     rx.seed(0.0, 0.0, 70.0)
     assert rx.refining == 1
 
@@ -191,7 +190,7 @@ def test_lost_after_switch_off_then_reset_to_idle():
 def test_lost_confirm_zero_never_releases():
     x, _data = _make_ramp_signal(70.0, seed=21)
     off = _noise(int(0.2 * FS), 70.0, seed=99)
-    rx = _new_cell(70.0, lost_confirm_s=0.0)
+    rx = _new_receiver(70.0, lost_confirm_s=0.0)
     rx.seed(0.0, 0.0, 70.0)
     _feed(rx, x[PRE_SILENCE:])
     assert rx.tracking == 1
@@ -214,10 +213,8 @@ def test_reacquire_needs_a_release_interval():
 
 def test_lifecycle_walks_every_state():
     # `lifecycle` names each state the receiver passes through, in order:
-    # a cell receiver waits idle; a searching one searches, refines,
-    # tracks, and -- with the release rule armed and the emitter gone --
-    # is lost.
-    assert _new_cell(70.0).lifecycle == "idle"
+    # it searches, refines, tracks, and -- with the release rule armed and
+    # the emitter gone -- is lost.
     x, _data = _make_ramp_signal(70.0, seed=21)
     off = _noise(int(0.25 * FS), 70.0, seed=99)
     rx = _new_receiver(70.0, lost_confirm_s=0.02)
@@ -248,113 +245,17 @@ def test_reacquire_returns_to_searching_never_lost():
     assert "searching" in states
 
 
-# ── The cell mode, as a mode of this receiver (#1283) ────────────────────────
-# (docs/design/async-dsss-receiver-measurements.md §12.22-12.24)
-
-
-def _new_cell(cn0_dbhz, **kwargs):
-    kwargs.setdefault("cn0_dbhz", cn0_dbhz)
-    kwargs.setdefault("segments", 4)
-    kwargs.setdefault("sps", 8)
-    return CellAsyncDsssReceiver(
-        CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, spc=SPC, **kwargs
-    )
-
-
-def test_cell_starts_idle_with_no_search_and_no_refine():
-    rx = _new_cell(70.0)
-    assert (rx.idle, rx.refining, rx.tracking, rx.lost) == (1, 0, 0, 0)
-    # Neither a search nor a refine: the constructor takes neither's knobs.
-    assert not hasattr(rx, "configure_search_raw")
-    assert not hasattr(rx, "set_refine_min_blocks")
-    assert not hasattr(rx, "refine_min_blocks")
-    with pytest.raises(TypeError):
-        _new_cell(70.0, refine_n_fft=64)
-    # The correction's own: an interval of at least one period, a gain in
-    # (0, 1], a non-negative fold threshold.
-    for bad, names in (
-        ({"correct_periods": 0}, "correct_periods >= 1"),
-        ({"gain": 0.0}, "0 < gain <= 1"),
-        ({"gain": 1.5}, "0 < gain <= 1"),
-    ):
-        with pytest.raises(ValueError, match=names):
-            _new_cell(70.0, **bad)
-
-
-def test_cell_seed_pulls_in_and_decodes():
-    x, data = _make_ramp_signal(70.0, seed=21)
-    rx = _new_cell(70.0, correct_periods=40, pullin_intervals=4)
-    assert len(rx.steps(x[: PRE_SILENCE + 3 * TE])) == 0
-    assert rx.idle == 1
-    # The seed is the truth: chip 0 on the first signal sample, 0 Hz.
-    rx.seed(0.0, 0.0, 70.0)
-    assert (rx.idle, rx.refining, rx.tracking) == (0, 1, 0)  # the pull-in
-    syms = _feed(rx, x[PRE_SILENCE:])
-    assert rx.tracking == 1
-    assert len(syms) > 200
-    assert _best_ber(syms, data) < 0.05
-    st = rx.status()
-    assert (st.code_locked, st.locked) == (1, 1)
-    # The whole carrier, ramped 500 Hz/s for the capture's length, within a
-    # few tens of hertz: the pre-despread loop follows it, as the hand-off's.
-    t_end = (len(x) - PRE_SILENCE) / FS
-    assert abs(st.doppler_hz - RATE_HZ_PER_S * t_end) < 60.0
-    with pytest.raises(ValueError, match="seed refused"):
-        rx.seed(0.0, 0.0, 70.0)
-    rx.reset()
-    assert (rx.idle, rx.tracking, rx.refining) == (1, 0, 0)
-    rx.seed(1.5, 0.0, 70.0)
-    assert rx.refining == 1
-
-
-def test_cell_state_roundtrip_is_mode_keyed():
-    x, _data = _make_ramp_signal(70.0, seed=21)
-    rx = _new_cell(70.0, correct_periods=40)
-    rx2 = _new_cell(70.0, correct_periods=40)
-    rx2.set_state(rx.get_state())
-    assert rx2.idle == 1
-    rx.seed(0.0, 0.0, 70.0)
-    split = PRE_SILENCE + 300 * TE + 7 * TE
-    _feed(rx, x[PRE_SILENCE:split])
-    assert rx.tracking == 1
-    blob = rx.get_state()
-    rx2.set_state(blob)
-    assert (rx2.tracking, rx2.idle) == (1, 0)
-    assert rx2.chip_phase == pytest.approx(rx.chip_phase)
-    a = _feed(rx, x[split:])
-    b = _feed(rx2, x[split:])
-    assert len(a) == len(b) > 20
-    assert np.array_equal(a, b)
-    # Across the modes the blob is refused both ways: the search engine
-    # and the refine children are in one and not the other.
-    searching = AsyncDsssReceiver(
-        CODE,
-        chip_rate=CHIP_RATE,
-        symbol_rate=SYM_RATE,
-        spc=SPC,
-        cn0_dbhz=70.0,
-        doppler_uncertainty=500.0,
-        segments=4,
-        sps=8,
-    )
-    with pytest.raises(ValueError):
-        searching.set_state(blob)
-    with pytest.raises(ValueError):
-        rx2.set_state(searching.get_state())
-    assert rx2.tracking == 1
-
-
 # ── The status record ────────────────────────────────────────────────────────
 # (docs/design/async-dsss-receiver.md §11.3)
 
 
 def test_status_record_is_the_getters_other_face():
     x, _data = _make_ramp_signal(70.0, seed=21)
-    rx = _new_cell(70.0, lost_confirm_s=0.02)
+    rx = _new_receiver(70.0, lost_confirm_s=0.02)
     st = rx.status()
     assert isinstance(st, ReceiverStatus)
     assert (st.state, st.doppler_hz, st.code_locked, st.locked) == (
-        3,
+        0,
         0.0,
         0,
         0,
@@ -394,8 +295,6 @@ def test_status_record_is_the_getters_other_face():
     st = rx.status()
     assert st.state == 4
     assert st.both_down_samples > 0.02 * FS
-    # The base flavor reports the same record, starting from searching.
-    assert _new_receiver(70.0).status().state == 0
 
 
 def test_create_defaults():
@@ -631,15 +530,14 @@ def test_a_non_finite_symbol_rate_is_refused(rate):
     """The symbol rate becomes the carrier estimator's sample rate, which
     PSD refuses unless finite; the estimator is built under dp_xnn, where a
     NULL aborts, so the receiver refuses it at create instead (#1959)."""
-    for cls in (AsyncDsssReceiver, CellAsyncDsssReceiver):
-        with pytest.raises(ValueError, match="a finite symbol_rate > 0"):
-            cls(
-                CODE,
-                chip_rate=CHIP_RATE,
-                symbol_rate=rate,
-                spc=SPC,
-                cn0_dbhz=70.0,
-            )
+    with pytest.raises(ValueError, match="a finite symbol_rate > 0"):
+        AsyncDsssReceiver(
+            CODE,
+            chip_rate=CHIP_RATE,
+            symbol_rate=rate,
+            spc=SPC,
+            cn0_dbhz=70.0,
+        )
 
 
 def test_reset_returns_to_searching():
@@ -709,15 +607,11 @@ def test_state_roundtrip_while_searching():
 def test_telemetry_reports_every_loop_and_survives_a_reseed():
     """set_telemetry, through the capsule: every loop's output reports
     under the prefix while tracking, and keeps reporting after reset() and
-    a new seed rebuild the chain; None detaches. The cell view shares the
-    method verbatim; the searching flavor adds its search's probes."""
-    search = Telemetry(1 << 12)
-    _new_receiver(70.0).set_telemetry(search, "rx")
-    assert "rx.acq.stat" in search.probe_names
-
+    a new seed rebuild the chain; None detaches. The search's probes
+    register too."""
     tlm = Telemetry(1 << 17)
     x, _data = _make_ramp_signal(70.0, seed=21, n_sym=400)
-    rx = _new_cell(70.0, correct_periods=40, pullin_intervals=4)
+    rx = _new_receiver(70.0)
     rx.set_telemetry(tlm, "rx")
     outputs = (
         "rx.car.freq",
@@ -726,7 +620,7 @@ def test_telemetry_reports_every_loop_and_survives_a_reseed():
         "rx.demod.sync.rate",
     )
     assert set(outputs) <= set(tlm.probe_names)
-    assert "rx.acq.stat" not in tlm.probe_names  # a cell has no search
+    assert "rx.acq.stat" in tlm.probe_names
     n_probes = tlm.probe_count
     for _ in range(2):  # the second pass runs on a rebuilt chain
         rx.reset()

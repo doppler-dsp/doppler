@@ -37,19 +37,6 @@ dp_gnu_compile_options(validate_costas_pullin PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_costas_pullin
          COMMAND validate_costas_pullin --check)
 
-# The receiver's pull-in from a seed off in carrier, as a curve: the cell
-# flavour's estimate on its live chain beside the hand-off's refine (design
-# section 12.28). The check gates 45 dB-Hz to 800 Hz; the sweep reports 40.
-add_executable(validate_receiver_pullin
-               ${CMAKE_CURRENT_SOURCE_DIR}/receiver_pullin.c)
-target_include_directories(validate_receiver_pullin
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
-                                   ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_receiver_pullin PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
-dp_gnu_compile_options(validate_receiver_pullin PRIVATE -O3 -funroll-loops)
-add_test(NAME validate_receiver_pullin
-         COMMAND validate_receiver_pullin --check)
-
 add_executable(validate_dll_jitter
                ${CMAKE_CURRENT_SOURCE_DIR}/dll_jitter.c)
 target_include_directories(validate_dll_jitter
@@ -576,25 +563,6 @@ dp_gnu_compile_options(validate_dll_aid_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_dll_aid_jitter
          COMMAND validate_dll_aid_jitter --check)
 
-# The searcher's surface as a code tracker: the early/prompt/late
-# discriminator read off the correlation surface at the truth's cell, its
-# jitter and bias against the generator's clock beside the DLL's (§12.5),
-# in the emitter's code-only window and under data, at 0 and 18 ppm. The
-# emitter is the shipped continuous-DSSS synth through the shipped
-# doppler_channel, the noise the shipped awgn, the engine the pool's own;
-# native/tests is reached for dp_test.h's assertions only. Threads::Threads
-# as for the soak: the engine fans its tiles across dp_parallel.h.
-add_executable(validate_acq_surface_jitter
-               ${CMAKE_CURRENT_SOURCE_DIR}/acq_surface_jitter.c)
-target_include_directories(validate_acq_surface_jitter
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
-                                   ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_acq_surface_jitter
-                      PRIVATE doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
-dp_gnu_compile_options(validate_acq_surface_jitter PRIVATE -O3 -funroll-loops)
-add_test(NAME validate_acq_surface_jitter
-         COMMAND validate_acq_surface_jitter --check)
-
 # The peak list on the searcher's surface: two emitters resolved, the
 # power-spread knee against the weak emitter alone, and the false-alarm rate
 # under the list (docs/design/async-dsss-receiver.md §7.1;
@@ -662,42 +630,6 @@ add_test(NAME validate_acq_rate_pd_pfa
 add_test(NAME validate_acq_rate_pd_pfa_smoke
          COMMAND validate_acq_rate_pd --pfa-smoke)
 
-# The pool's lifecycle soak: emitters from the shipped synth with its
-# window, each through the shipped doppler_channel at its own Doppler,
-# arriving and leaving at the sum; one AsyncDsssPool at the operating point
-# with the event log attached; each emitter scored by its own slot
-# (docs/design/async-dsss-receiver-measurements.md §12.14). Threads::Threads
-# explicitly, as for rx_dynamics: the pool's receivers and the harness's
-# emitters both fan across dp_parallel.h, and doppler_lib_static carries no
-# usage requirement for it.
-# POSIX only. The soak measures its own memory with getrusage() and
-# configures itself with setenv() and clock_gettime(); the UCRT has none of
-# them, and the Windows equivalent (GetProcessMemoryInfo) is a port, not a
-# spelling. Recorded as a carve-out on #1364.
-if(NOT WIN32)
-  add_executable(validate_async_dsss_pool_soak
-                 ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_pool_soak.c)
-  target_include_directories(validate_async_dsss_pool_soak
-                             PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
-                                     ${CMAKE_SOURCE_DIR}/native/tests)
-  target_link_libraries(validate_async_dsss_pool_soak
-                        PRIVATE doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
-  dp_gnu_compile_options(validate_async_dsss_pool_soak
-                         PRIVATE -O3 -funroll-loops)
-  add_test(NAME validate_async_dsss_pool_soak
-           COMMAND validate_async_dsss_pool_soak --check)
-  # The same subset behind the shipped front end, with the CSV blocks the
-  # report's validator parses: `--budget` puts the 13 MSa/s up-conversion and
-  # the DDC in front of the pool and times both (docs/design/async-dsss-receiver.md §6.4;
-  # docs/design/async-dsss-receiver-measurements.md §12.17), and
-  # `--emit` is the validator's own run. Without this twin, both paths ran on
-  # no push -- the sweep is `make validate-c`'s -- and the patch gate read the
-  # harness at 70%. The budget's real-time ratio is printed, not asserted, so
-  # a loaded runner cannot fail it; the twin costs 5 s over the check alone.
-  add_test(NAME validate_async_dsss_pool_soak_budget
-           COMMAND validate_async_dsss_pool_soak --check --budget --emit)
-endif()
-
 # So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
 # check still runs on every PR in the ordinary C suite, which is where it is
 # cheap and where it was always the point.
@@ -721,10 +653,5 @@ endforeach()
 # - acq_rate_pd_pfa_smoke: --pfa-check's rows fan out across dp_parallel.h,
 #   and its 1e5-dwell rows would cost TSan about 60x their 20 s. The smoke
 #   run is the same fan-out on two chunks of dwells (doppler#2324, #2328).
-# acq_surface_jitter and async_dsss_pool_soak start threads too and stay
-# `sweep`. Their library threads run under TSan elsewhere: the acq engine's
-# tile pool at 2, 4 and 8 threads in test_acq_core, the async pool across
-# threads in test_async_dsss_pool_core. What runs nowhere instrumented is
-# the soak harness's own emitter fan-out (doppler#2330).
 set_tests_properties(validate_rx_dynamics validate_acq_rate_pd_pfa_smoke
                      PROPERTIES LABELS threaded)

@@ -239,8 +239,8 @@ acquires every draw inside it, reliably to twice it and not at all by four
 times (`costas_pullin.c`, `async_dsss_receiver_core.h`). The whole receiver
 is more forgiving than the loop alone: slower to lock as the seed error
 grows, it still locked draws in the 200–300 Hz row, past four times the
-bound; the record's seed-edge block gives the largest locked error and the 5 dB
-draws at 250 Hz or more. Why it reaches past the loop's edge is open (doppler#2409): the
+bound; the record's seed-edge block gives the largest locked error and counts
+the draws at 250 Hz or more, of which this run has none. Why it reaches past the loop's edge is open (doppler#2409): the
 error here is read when tracking starts, which need not be the residual
 the loop finally pulls in. That residual is doppler#982's. `rx.car.nco` (#2412) now shows what the loop
 pulls in; read as a residual, it is not yet measured (doppler#2409). Since this design

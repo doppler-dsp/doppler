@@ -310,8 +310,9 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
    * target_rate=sps*symbol_rate, a much smaller rate than the front end)
    * double-counts and can alias past Nyquist at large offsets, far
    * outside MpskReceiver's own carrier_nda pull-in range. */
-  /* bn_timing 0.005, matching dsss_receiver_core.c's own dsss_rx_build_chain
-     -- see the measurement table there. Short version: the rebuild's timing
+  /* ASYNC_DSSS_RX_DEMOD_BN_TIMING 0.005, matching dsss_receiver_core.c's
+     own dsss_rx_build_chain -- see the measurement table there. Short
+     version: the rebuild's timing
      loop steers RateSync's accumulator rather than a Farrow interpolator, 0.01
      is too wide for that on a despread stream, and the value is chosen on
      steady-state EVM rather than BER (BPSK's BER saturates first, and the
@@ -320,9 +321,11 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
      (mpsk_rx_derive_m_out) and configure_chain_raw() refuses outside it, so
      this create is never refused on `n` (doppler#2421). */
   dp_mpsk_receiver_state_t *rx = dp_xnn (dp_mpsk_receiver_create (
-      s->m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
-      0.005, 0.3, 0.0, s->differential, MPSK_RX_NUM_PHASES, 1,
-      MPSK_RX_AGC_BW_RATIO));
+      s->m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD,
+      ASYNC_DSSS_RX_DEMOD_RRC_BETA, ASYNC_DSSS_RX_DEMOD_RRC_SPAN,
+      ASYNC_DSSS_RX_DEMOD_BN_CARRIER, ASYNC_DSSS_RX_DEMOD_ZETA,
+      ASYNC_DSSS_RX_DEMOD_BN_TIMING, ASYNC_DSSS_RX_DEMOD_LOCK_THRESH, 0.0,
+      s->differential, MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO));
 
   /* Per-CODE-PERIOD cadence (tsamps = one whole period), matching
    * dsss_receiver_core.c's own mechanism -- NOT once per dp_dll_steps()

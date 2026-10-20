@@ -247,6 +247,12 @@ refused_blob_changes_nothing (void)
              "a best hypothesis past the aid's");
   DLL_FORGE (c, aid_last_end, uint64_t, c->aid_count + 1u,
              "a last look past the partials counted");
+  /* The output's level divides every partial (doppler#2495). */
+  DLL_FORGE (b, out_level, double, NAN, "a NaN output level");
+  DLL_FORGE (b, out_level, double, -1.0, "a negative output level");
+  DLL_FORGE (b, out_level, double, INFINITY, "an infinite output level");
+  DLL_FORGE (b, out_level_n, uint32_t, DLL_OUT_LEVEL_PERIODS + 1u,
+             "an output level counted past its mean's length");
 
   /* And they track on -- b still telling its telemetry -- then go cleanly. */
   (void)dp_tlm_read (tlm, 512, recs, 512);
@@ -1076,7 +1082,7 @@ output_level_is_input_level_free (void)
   size_t          cap = segs * (nper + 1);
   float _Complex *out = malloc (cap * sizeof *out);
   /* The level over the last half, past the settle the header derives
-     (148 periods at DLL_OUT_LEVEL_PERIODS = 32). */
+     (146 periods at DLL_OUT_LEVEL_PERIODS = 32). */
   double lvl[3];
   for (int g = 0; g < 3; g++)
     {
@@ -1289,6 +1295,32 @@ main (void)
     double r2 = dp_dll_get_code_rate (d), e2 = dp_dll_get_last_error (d);
     DP_CHECK (r1 == r2 && e1 == e2);
     dp_dll_destroy (d);
+
+    /* segments > 1: reset clears the output's level too (doppler#2495),
+       so the same input after a reset gives a fresh Dll's output, bit for
+       bit. A level carried over would scale the first periods by the
+       old input's. */
+    const size_t    segs = 4, cap = segs * (nper + 1);
+    float _Complex *o1 = malloc (cap * sizeof *o1);
+    float _Complex *o2 = malloc (cap * sizeof *o2);
+    dp_dll_state_t *f
+        = dp_dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, segs);
+    dp_dll_state_t *g
+        = dp_dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, segs);
+    for (size_t i = 0; i < n; i++)
+      rx[i] *= 8.0f; /* a level the fresh one never saw */
+    (void)dp_dll_steps (f, rx, n, o1, cap);
+    for (size_t i = 0; i < n; i++)
+      rx[i] /= 8.0f;
+    dp_dll_reset (f);
+    size_t k1 = dp_dll_steps (f, rx, n, o1, cap);
+    size_t k2 = dp_dll_steps (g, rx, n, o2, cap);
+    DP_CHECK_MSG (k1 == k2 && k1 > 0 && memcmp (o1, o2, k1 * sizeof *o1) == 0,
+                  "segments > 1: after reset, a fresh Dll's output");
+    dp_dll_destroy (f);
+    dp_dll_destroy (g);
+    free (o1);
+    free (o2);
     free (rx);
     free (sym);
     free (code);
@@ -2149,15 +2181,15 @@ main (void)
                         "resumed from the blob taken after the put, the same "
                         "epochs");
           /* The level's settle (segments > 1): within 1% of where it ends
-             ceil(ln 100 * DLL_OUT_LEVEL_PERIODS) periods after the put --
-             the header's derivation, here from a level set on the code's
-             sidelobes, the largest step a put makes -- and from there the
-             OUTPUT itself, nothing taken out, repeats period over period
-             to the same 1%. */
+             ln 100 / -ln(1 - 1/N) periods after the put, N =
+             DLL_OUT_LEVEL_PERIODS (146 at 32) -- the header's count, here
+             from a level set on the code's sidelobes, the largest step a
+             put makes -- and from there the OUTPUT itself, nothing taken
+             out, repeats period over period to the same 1%. */
           if (K > 1)
             {
-              const size_t settle
-                  = (size_t)ceil (log (100.0) * (double)DLL_OUT_LEVEL_PERIODS);
+              const size_t settle = (size_t)ceil (
+                  log (100.0) / -log1p (-1.0 / (double)DLL_OUT_LEVEL_PERIODS));
               const size_t pos = m + 10 * te;
               (void)dp_dll_steps (d, rx + pos, (settle - 10) * te, out, cap);
               const double at_settle = d->out_level;

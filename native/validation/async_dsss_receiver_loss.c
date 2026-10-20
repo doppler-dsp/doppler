@@ -32,9 +32,16 @@
  *        parameters, aligned to truth past its settling: the demodulator's
  *        loops.
  *   S4   (the sweep only) the whole AsyncDsssReceiver on the raw stimulus,
- *        through its own search, refine and hand-over:
- *        async_dsss_receiver_ber.c's measurement, here on the same bursts
- *        so the stages sum to it.
+ *        through its own search, refine and hand-over, on the same bursts:
+ *        what S4 adds over S3 is the front end's tracking. MEASURED, NOT
+ *        GATED here: async_dsss_receiver_ber.c gates the whole receiver.
+ *
+ * Gated, in --check and the sweep alike: S0 reads the bound, the Dll, the
+ * converter and the demodulator's loops each add no more than their bound
+ * over the stage before, the Dll's error is circular, the cut is within
+ * its bound, a finer cut never costs more, and S3 aligns on every burst.
+ * The sweep's stage table, with --emit, is the certification's section
+ * 2.7 (src/doppler/dsss/tests/validation/async_dsss_receiver/).
  *
  * The stimulus streams a code period at a time; only symbol-rate results
  * and the rate converter's output are kept.
@@ -42,7 +49,10 @@
  * Usage:
  *   validate_async_dsss_receiver_loss           the sweep: 5 and 8 dB, the
  *                                               K curve, the whole receiver
- *   validate_async_dsss_receiver_loss --check   the regression point, 5 dB
+ *   validate_async_dsss_receiver_loss --check   the regression point, 5 dB,
+ *                                               K = 4 and 8
+ *   ... --emit                                  also a `# loss` CSV block,
+ *                                               one row a stage a point
  */
 #include "async_dsss_receiver_common.h"
 #include "doppler/RateConverter/RateConverter_core.h"
@@ -64,18 +74,33 @@
 #define LO_SYM 200u /* symbols skipped at a burst's start: warm-up      */
 #define HI_SYM 50u  /* and at its end: the rate converter's delay       */
 
-/* The gates, the same in --check and the sweep. Each stage's loss is
-   compared on the SAME symbols and noise as the one before it, so a
-   difference carries far less counting noise than either loss: at 5 dB
-   and six bursts, about 800 errors a stage. */
-#define S0_ABS_DB 0.15    /* the ideal despread reads the bound              */
+/* The gates, the same in --check and the sweep. A stage's loss is compared
+   with the one before it on the SAME symbols and noise, so the difference
+   carries far less counting noise than either loss. --check at 5 dB scores
+   about 60,000 symbols: about 370 errors at S0 and 400 to 500 at the stages
+   after it. */
+/* S0, the ideal despread, reads the bound: its 99% interval (dp_ber_ci, on
+   the interval and never the point estimate) comes within this of 0 dB. */
+#define S0_ABS_DB 0.15
 #define DLL_EXCESS_DB 0.1 /* S1d over S1: the Dll's partials are linear    */
 #define IQ_ABS_DB 0.3     /* S1d's in-phase and quadrature error powers      */
 #define RC_EXCESS_DB 0.1  /* S2 over S1d: the converter at oracle timing    */
-/* S1 at K = 4: 0.43 dB measured at 5 dB (#2495). The design states it
-   (docs/design/async-dsss-receiver.md §3.3); a cut that grows past this
-   is a change to the despread's geometry, not noise. */
+/* The cut into K = 4 partials, S1 over S0 on the same symbols: 0.41 dB in
+   the sweep (16 bursts at 5 dB) and 0.37 in --check, at e3dc58307. A bound
+   by measurement plus a margin for another toolchain's draws, not derived:
+   a cut past it is a change to the despread's geometry. */
 #define CUT_MAX_DB 0.6
+/* The demodulator's loops, S3 over S2: 0.23 dB in the sweep at 5 dB, 0.24
+   in --check, at e3dc58307. Measured plus about three sigma of the
+   difference's counting noise at --check's 400-odd errors a stage (each
+   loss about 0.05 dB, so the difference at most 0.08). It catches a
+   demodulator that costs a quarter dB more, or one that no longer aligns,
+   not a small retune: a carrier loop five times wider reads +0.11 dB and
+   passes. */
+#define LOOPS_MAX_DB 0.5
+/* The cut and the loops are gated where S0 has the errors to resolve them:
+   at 5 dB. At 8 dB S0 counts about 40 and they are printed only. */
+#define GATE_MIN_ERRORS 300
 
 static const int K_CURVE[] = { 1, 2, 4, 8, 16, 32 };
 #define N_K (sizeof K_CURVE / sizeof K_CURVE[0])
@@ -117,6 +142,15 @@ stage_print (const char *name, const stage_t *s, double es)
   printf ("  %-26s BER %.3e (%6.0f errors)  loss %5.2f dB  I/Q error %+5.2f "
           "dB\n",
           name, s->err / s->sym, s->err, stage_loss (s, es), stage_iq_db (s));
+}
+
+/* One stage's row of the `# loss` block (--emit). */
+static void
+emit_row (double es, const char *name, int k, const stage_t *s,
+          size_t unsettled)
+{
+  printf ("%.1f,%s,%d,%.0f,%.0f,%.4f,%.4f,%zu\n", es, name, k, s->sym, s->err,
+          stage_loss (s, es), stage_iq_db (s), unsettled);
 }
 
 /* Score symbols y[lo, hi) against known +/-1 data d: one common phase. */
@@ -268,10 +302,14 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
   const double rate
       = (double)SPS * SYM_RATE / (CHIP_RATE * (double)SEGMENTS / (double)SF);
   dp_RateConverter_state_t *rc = dp_RateConverter_create (rate, 0);
+  /* The receiver's own demodulator, by its named parameters. */
   dp_mpsk_receiver_state_t *mr = dp_mpsk_receiver_create (
       2, (double)SPS, (size_t)mpsk_rx_derive_m_out ((double)SPS, 0),
-      MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.005, 0.3, 0.0, 0,
-      MPSK_RX_NUM_PHASES, 1, MPSK_RX_AGC_BW_RATIO);
+      MPSK_RX_PULSE_IANDD, ASYNC_DSSS_RX_DEMOD_RRC_BETA,
+      ASYNC_DSSS_RX_DEMOD_RRC_SPAN, ASYNC_DSSS_RX_DEMOD_BN_CARRIER,
+      ASYNC_DSSS_RX_DEMOD_ZETA, ASYNC_DSSS_RX_DEMOD_BN_TIMING,
+      ASYNC_DSSS_RX_DEMOD_LOCK_THRESH, 0.0, 0, MPSK_RX_NUM_PHASES, 1,
+      MPSK_RX_AGC_BW_RATIO);
   dp_async_dsss_receiver_state_t *rx = whole ? make_rx (code, cn0) : NULL;
 
   size_t         pcap = dp_dll_steps_max_out (dll) + SEGMENTS;
@@ -443,19 +481,23 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
 int
 main (int argc, char **argv)
 {
-  int check = 0;
+  int check = 0, emit = 0;
   for (int i = 1; i < argc; i++)
-    check |= strcmp (argv[i], "--check") == 0;
+    {
+      check |= strcmp (argv[i], "--check") == 0;
+      emit |= strcmp (argv[i], "--emit") == 0;
+    }
 
   uint8_t code[SF];
   dp_dsss_gold_1023 (code);
-  /* --check: 5 dB, six bursts of 4 s, the cut at the receiver's K only.
-     The sweep: 5 and 8 dB, sixteen bursts of 6 s, the K curve, and the
-     whole receiver on the same bursts. */
+  /* --check: 5 dB, six bursts of 4 s, the cut at the receiver's K and the
+     next finer one, so "a finer cut never costs more" runs per push. The
+     sweep: 5 and 8 dB, sixteen bursts of 6 s, the K curve, and the whole
+     receiver on the same bursts. */
   static const double esn0s[] = { 5.0, 8.0 };
-  static const int    k_rx[]  = { (int)SEGMENTS };
+  static const int    k_rx[]  = { (int)SEGMENTS, 2 * (int)SEGMENTS };
   const int          *ks      = check ? k_rx : K_CURVE;
-  size_t              nk      = check ? 1 : N_K;
+  size_t              nk      = check ? 2 : N_K;
   size_t              n_es    = check ? 1 : 2;
   uint32_t            nb      = check ? 6u : 16u;
   double              secs    = check ? 4.0 : 6.0;
@@ -464,10 +506,11 @@ main (int argc, char **argv)
     if (ks[i] == (int)SEGMENTS)
       kseg = i;
 
+  point_t *pts[2] = { NULL, NULL };
   for (size_t e = 0; e < n_es; e++)
     {
       const double es = esn0s[e];
-      point_t     *pt = calloc (1, sizeof *pt);
+      point_t     *pt = pts[e] = calloc (1, sizeof *pt);
       for (uint32_t seed = 1; seed <= nb; seed++)
         burst (pt, code, es, seed, secs, ks, nk, !check);
 
@@ -500,11 +543,18 @@ main (int argc, char **argv)
               "the demodulator's loops %+.2f dB\n",
               l1 - l0, l1d - l1, l2 - l1d, stage_loss (&pt->s3, es) - l2);
 
-      /* The gates. !(<=) so a NaN fails. S0's reading of the bound is
-         asserted only where it has the errors to resolve 0.15 dB. */
-      if (pt->s0.err >= 300)
-        DP_CHECK_MSG (fabs (l0) <= S0_ABS_DB,
-                      "the ideal despread reads the BPSK bound");
+      /* The gates, each written as x <= bound so a NaN fails. */
+      if (pt->s0.err > 0)
+        {
+          /* The bound's loss at each end of S0's interval: the fewest errors
+             read the least loss. */
+          const dp_ber_ci_t ci = dp_ber_ci ((unsigned long)pt->s0.err,
+                                            (unsigned long)pt->s0.sym, 0.99);
+          const double      l0_lo = es - dp_ber_esn0_db_for_ser (2, ci.lo);
+          const double      l0_hi = es - dp_ber_esn0_db_for_ser (2, ci.hi);
+          DP_CHECK_MSG (l0_lo <= S0_ABS_DB && l0_hi >= -S0_ABS_DB,
+                        "the ideal despread reads the BPSK bound");
+        }
       DP_CHECK_MSG (l1d - l1 <= DLL_EXCESS_DB,
                     "the shipped Dll's partials cost nothing over the ideal "
                     "partials: no period's own magnitude scales it (#2495)");
@@ -512,18 +562,46 @@ main (int argc, char **argv)
                     "the Dll's despread error is circular");
       DP_CHECK_MSG (l2 - l1d <= RC_EXCESS_DB,
                     "the RateConverter costs nothing at oracle timing");
-      DP_CHECK_MSG (l1 <= CUT_MAX_DB,
-                    "the cut into the receiver's K partials costs what the "
-                    "design states");
+      if (pt->s0.err >= GATE_MIN_ERRORS)
+        {
+          DP_CHECK_MSG (l1 - l0 <= CUT_MAX_DB,
+                        "the cut into the receiver's K partials costs no "
+                        "more than it measured");
+          DP_CHECK_MSG (stage_loss (&pt->s3, es) - l2 <= LOOPS_MAX_DB,
+                        "the demodulator's loops cost no more than they "
+                        "measured");
+        }
       DP_CHECK_MSG (pt->s3_unaligned == 0,
                     "the demodulator's output aligns to truth on every "
                     "burst");
-      if (!check)
-        for (size_t i = 0; i + 1 < nk; i++)
-          DP_CHECK_MSG (stage_loss (&pt->s1[i + 1], es)
-                            <= stage_loss (&pt->s1[i], es) + 0.05,
-                        "a finer cut never costs more");
-      free (pt);
+      for (size_t i = 0; i + 1 < nk; i++)
+        DP_CHECK_MSG (stage_loss (&pt->s1[i + 1], es)
+                          <= stage_loss (&pt->s1[i], es) + 0.05,
+                      "a finer cut never costs more");
     }
+
+  /* --emit: every stage at every point, for the certification's table. */
+  if (emit)
+    {
+      printf ("\n# loss\nesn0_db,stage,k,symbols,errors,loss_db,iq_db,"
+              "unsettled\n");
+      for (size_t e = 0; e < n_es; e++)
+        {
+          const point_t *pt = pts[e];
+          const double   es = esn0s[e];
+          const int      K  = (int)SEGMENTS;
+          emit_row (es, "S0", 0, &pt->s0, 0);
+          for (size_t i = 0; i < nk; i++)
+            emit_row (es, "S1", ks[i], &pt->s1[i], 0);
+          emit_row (es, "S1d", K, &pt->s1d, 0);
+          emit_row (es, "S2", K, &pt->s2, 0);
+          emit_row (es, "S3", K, &pt->s3, 0);
+          if (pt->s4.sym > 0)
+            emit_row (es, "S4", K, &pt->s4, pt->s4_unsettled);
+        }
+      printf ("\n");
+    }
+  for (size_t e = 0; e < n_es; e++)
+    free (pts[e]);
   DP_TEST_END ("validate_async_dsss_receiver_loss");
 }

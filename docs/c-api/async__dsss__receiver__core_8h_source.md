@@ -92,6 +92,19 @@ extern "C"
    * (dp_dll_params_ok(), doppler#2103). */
 #define ASYNC_DSSS_RX_DLL_ZETA 0.707
 #define ASYNC_DSSS_RX_REFINE_DLL_SPACING 0.5
+  /* The demodulator, MpskReceiver, as the track chain builds it: its
+   * carrier loop's bn (symbol-rate normalised) and damping, its timing
+   * loop's bn (chosen on steady-state EVM, see the build site in
+   * async_dsss_receiver_core.c), its lock threshold, and MpskReceiver's
+   * default RRC arguments, which the integrate-and-dump pulse does not
+   * read. Named once so a harness that builds the same demodulator alone
+   * (native/validation/async_dsss_receiver_loss.c) cannot drift from it. */
+#define ASYNC_DSSS_RX_DEMOD_RRC_BETA 0.35
+#define ASYNC_DSSS_RX_DEMOD_RRC_SPAN 8
+#define ASYNC_DSSS_RX_DEMOD_BN_CARRIER 0.01
+#define ASYNC_DSSS_RX_DEMOD_ZETA 0.707
+#define ASYNC_DSSS_RX_DEMOD_BN_TIMING 0.005
+#define ASYNC_DSSS_RX_DEMOD_LOCK_THRESH 0.3
 
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
 /* The cell mode's defaults (dp_async_dsss_receiver_create_cell(),

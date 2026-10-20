@@ -154,7 +154,8 @@ times (`async_dsss_receiver_core.h`); doppler#982 found the refine handing
 over outside it. The whole receiver is more forgiving than the loop alone:
 lock time grows with the seed error, and the 200–300 Hz row still locks, past
 four times the bound and slowly. The seed-edge block below gives the largest
-locked error and the 5 dB draws at 250 Hz or more. The error is read when
+locked error and counts the draws at 250 Hz or more, of which this run has
+none. The error is read when
 tracking starts, which need not be the residual the loop finally pulls in;
 `rx.car.nco` (#2412) now shows what the loop pulls in, and read as a residual
 it is not yet measured (doppler#2409).

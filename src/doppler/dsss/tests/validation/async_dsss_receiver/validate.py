@@ -6,11 +6,12 @@ Run:  make validate-py VALIDATORS=<this file>   (this report)
       make validate          (regenerates every report)
       make validate-check    (fails if the committed report is stale)
 
-**C measures; Python renders and asserts.** Every number here is one of two
+**C measures; Python renders and asserts.** Every number here is one of three
 C harnesses' on one stimulus (`native/validation/
 async_dsss_receiver_common.h`): `async_dsss_receiver_lock.c` (arrival,
-EVM, dropout, false lock) and `async_dsss_receiver_ber.c` (the error rate
-against the BPSK bound). Both drive the shipped continuous-DSSS synth
+EVM, dropout, false lock), `async_dsss_receiver_ber.c` (the error rate
+against the BPSK bound) and `async_dsss_receiver_loss.c` (where that
+loss goes, stage by stage). All three drive the shipped continuous-DSSS synth
 (`wfm_synth`) with the harness's own data bits, the shipped `awgn` sized
 from C/N0, the receiver in the SPEC configuration. This file parses their
 CSV blocks, characterises, reviews and asserts the limits through the same
@@ -23,9 +24,12 @@ regression subset, `--check --emit`, re-run on every push (about 3 s and
 full sweeps are committed and rendered: `data/sweep.txt` -- twenty arrival
 and dropout draws at 10 and 5 dB, five quality draws at each Es/N0, five
 false-lock draws -- in section 2.5, and `data/ber_sweep.txt` -- the error
-rate at 5 to 8 dB, 200 errors a point -- in section 2.6. The findings and
-the executive summary quote them, computed from those files, never typed.
-`make validate-async-receiver-sweep` refreshes both on purpose.
+rate at 5 to 8 dB, 200 errors a point -- in section 2.6, and
+`data/loss_sweep.txt` -- the loss by stage at 5 and 8 dB -- in section 2.7.
+The loss harness asserts its own gates in ctest (`--check`); this report
+renders its sweep and asserts nothing on it. The findings and the executive
+summary quote them, computed from those files, never typed.
+`make validate-async-receiver-sweep` refreshes all three on purpose.
 
 **Scope: BPSK.** The receiver accepts m = 2, 4 or 8; the owner scoped this
 certification to BPSK (2026-10-19), and the test library spreads BPSK only,
@@ -49,12 +53,16 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 SWEEP = DATA / "sweep.txt"
 BER_SWEEP = DATA / "ber_sweep.txt"
+LOSS_SWEEP = DATA / "loss_sweep.txt"
 ROOT = repo_root(__file__)
 HARNESS = exe(
     build_dir(__file__) / "native/validation/validate_async_dsss_receiver_lock"
 )
 BER_HARNESS = exe(
     build_dir(__file__) / "native/validation/validate_async_dsss_receiver_ber"
+)
+LOSS_HARNESS = exe(
+    build_dir(__file__) / "native/validation/validate_async_dsss_receiver_loss"
 )
 
 #: This report's asserted bounds. CHECK_TRACK_MS and DROP_WATCH_MS are the
@@ -178,6 +186,108 @@ def _ber_sweep() -> Blocks:
         "data/ber_sweep.txt",
         BER_BLOCKS,
     )
+
+
+def _loss_sweep() -> Blocks:
+    if not LOSS_SWEEP.exists():
+        raise SystemExit(
+            "async_dsss_receiver: data/loss_sweep.txt is missing -- run this "
+            "validator with --sweep"
+        )
+    return _blocks(
+        LOSS_SWEEP.read_text(encoding="utf-8"),
+        "data/loss_sweep.txt",
+        ("loss",),
+    )
+
+
+#: The loss harness's stages, in the order they compose, and what each adds.
+LOSS_STAGES = (
+    ("S0", "the ideal despread: exact carrier, code and symbol edges"),
+    ("S1", "ideal sums over the receiver's K partials a code period"),
+    ("S1d", "the shipped Dll at K, held at truth"),
+    ("S2", "+ the shipped RateConverter, at oracle timing"),
+    ("S3", "+ the shipped MpskReceiver, the receiver's parameters"),
+    ("S4", "the whole receiver: its search, refine and hand-over"),
+)
+
+
+def section_loss(lsw: Blocks) -> None:
+    rows = lsw["loss"]
+    k_rx = int(next(r["k"] for r in rows if r["stage"] == "S1d"))
+    es_pts = sorted({float(r["esn0_db"]) for r in rows})
+
+    def at(es: float, stage: str, k: int | None = None) -> dict:
+        for r in rows:
+            if (
+                float(r["esn0_db"]) == es
+                and r["stage"] == stage
+                and (k is None or int(r["k"]) == k)
+            ):
+                return r
+        raise SystemExit(f"async_dsss_receiver: no {stage} row at {es} dB")
+
+    R.md("### 2.7 Where the loss goes (`data/loss_sweep.txt`)")
+    R.md()
+    R.md(
+        "`native/validation/async_dsss_receiver_loss.c`, on the stimulus "
+        "above at known truth (the synth's carrier, its chips from sample 0, "
+        "its symbol edges): more and more of the shipped chain, each stage "
+        "scored as a BER-equivalent loss, the Es/N0 the bound needs for the "
+        "stage's rate subtracted from the Es/N0 applied. Every stage but S4 "
+        "is scored on the same symbols and noise, so a step between stages "
+        "carries less counting noise than either loss. S4 is the whole "
+        "receiver on the same bursts, scored over its own settled window, "
+        "like section 2.6."
+    )
+    R.md()
+    head = ["stage"]
+    for es in es_pts:
+        head += [f"loss at {es:.0f} dB", "step"]
+    body = []
+    for stage, what in LOSS_STAGES:
+        line = [f"{stage}: {what}"]
+        for es in es_pts:
+            r = at(es, stage, k_rx if stage == "S1" else None)
+            prev = {
+                "S0": None,
+                "S1": "S0",
+                "S1d": "S1",
+                "S2": "S1d",
+                "S3": "S2",
+                "S4": "S3",
+            }[stage]
+            loss = float(r["loss_db"])
+            if prev is None:
+                step = ""
+            else:
+                p = at(es, prev, k_rx if prev == "S1" else None)
+                step = f"{loss - float(p['loss_db']):+.2f} dB"
+            n_bad = int(r["unsettled"])
+            line += [
+                f"{loss:.2f} dB ({int(r['errors']):,} errors)"
+                + (f", {n_bad} burst(s) not settled" if n_bad else ""),
+                step,
+            ]
+        body.append(line)
+    R.table(head, body)
+    R.md()
+    ks = sorted({int(r["k"]) for r in rows if r["stage"] == "S1"})
+    R.md(
+        "The cut alone, against K: ideal sums at known timing, the same "
+        "bursts. A partial that straddles a symbol edge carries both symbols, "
+        f"and the receiver runs at K = {k_rx}."
+    )
+    R.md()
+    R.table(
+        ["K a code period"] + [f"S1 loss at {es:.0f} dB" for es in es_pts],
+        [
+            [f"{k}" + (" (the receiver)" if k == k_rx else "")]
+            + [f"{float(at(es, 'S1', k)['loss_db']):.2f} dB" for es in es_pts]
+            for k in ks
+        ],
+    )
+    R.md()
 
 
 def _write_csv(d: Blocks) -> None:
@@ -783,9 +893,8 @@ def review(sw: Blocks, bsw: Blocks) -> None:
         f"{min(gap):+.2f} to {max(gap):+.2f} dB from the applied Es/N0, "
         f"inside `dp_ber_report()`'s {agree:.1f} dB "
         f"(`DP_BER_M2M4_AGREE_DB`) at every point. Where the loss goes, "
-        f"stage by stage, is `validate_async_dsss_receiver_loss`: the cut "
-        f"into four partials a code period, the demodulator's loops and the "
-        f"front end's tracking.",
+        f"stage by stage, is section 2.7: the cut into four partials a code "
+        f"period, the demodulator's loops and the front end's tracking.",
     )
 
 
@@ -923,7 +1032,7 @@ def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
         f"{min(es):.0f} to {max(es):.0f} dB the BER of the bursts that "
         f"settled ({n_set} of {len(bursts)}) sits {min(loss):.2f} to "
         f"{max(loss):.2f} dB from the BPSK bound; where it goes is "
-        f"`validate_async_dsss_receiver_loss` (2.6, F5). "
+        f"section 2.7 (2.6). "
         + (
             f"The other {len(bursts) - n_set} never settled (F3)."
             if n_set < len(bursts)
@@ -971,11 +1080,13 @@ def build(write: bool = True) -> Report:
     )
     sw = _sweep()
     bsw = _ber_sweep()
+    lsw = _loss_sweep()
     if write:
         _write_csv(d)
         _plot(d["quality"])
         _plot_ber(bsw["ber"])
     characterise(d, sw, bsw)
+    section_loss(lsw)
     review(sw, bsw)
     limits(d, sw)
     R.executive("AsyncDsssReceiver", _takeaways(sw, bsw))
@@ -984,7 +1095,8 @@ def build(write: bool = True) -> Report:
         "`data/dropout.csv`, `data/falselock.csv`, `data/ber.csv`, "
         "`data/burst.csv`, `data/evm_model.csv` (the EVM band's two "
         "lines) -- the two harnesses' `--check --emit` blocks; "
-        "`data/sweep.txt` and `data/ber_sweep.txt` -- their full sweeps"
+        "`data/sweep.txt`, `data/ber_sweep.txt` and `data/loss_sweep.txt` "
+        "-- the three harnesses' full sweeps"
     )
     R.emit(HERE / "results.md")
     return R
@@ -996,4 +1108,5 @@ if __name__ == "__main__":
         DATA.mkdir(exist_ok=True)
         SWEEP.write_text(_run(["--emit"]), encoding="utf-8")
         BER_SWEEP.write_text(_run(["--emit"], BER_HARNESS), encoding="utf-8")
+        LOSS_SWEEP.write_text(_run(["--emit"], LOSS_HARNESS), encoding="utf-8")
     sys.exit(cli(build, HERE))

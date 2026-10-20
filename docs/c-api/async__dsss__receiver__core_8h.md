@@ -164,6 +164,12 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | define  | [**ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_pullin_hz) (chip\_rate, code\_len) `([**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier) \* (chip\_rate) / (2.0 \* (double)(code\_len)))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CELL\_GAIN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_cell_gain)  `0.125`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CELL\_PULLIN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_cell_pullin)  `4u`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_bn_carrier)  `0.01`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_BN\_TIMING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_bn_timing)  `0.005`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_LOCK\_THRESH**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_lock_thresh)  `0.3`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_RRC\_BETA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_rrc_beta)  `0.35`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_RRC\_SPAN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_rrc_span)  `8`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_DEMOD\_ZETA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_zeta)  `0.707`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_BN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_bn)  `0.002`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_DISC\_SLOPE**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_disc_slope)  `(2.0 - [**ASYNC\_DSSS\_RX\_DLL\_SPACING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_spacing))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_SPACING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_spacing)  `0.5`<br> |
@@ -1551,6 +1557,84 @@ The pre-despread carrier loop's acquisition bound, Hz: `bn / m` cycles per sampl
 
 ```C++
 #define ASYNC_DSSS_RX_CELL_PULLIN `4u`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_BN\_CARRIER 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_BN_CARRIER `0.01`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_BN\_TIMING 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_BN_TIMING `0.005`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_LOCK\_THRESH 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_LOCK_THRESH `0.3`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_RRC\_BETA 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_RRC_BETA `0.35`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_RRC\_SPAN 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_RRC_SPAN `8`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_DEMOD\_ZETA 
+
+```C++
+#define ASYNC_DSSS_RX_DEMOD_ZETA `0.707`
 ```
 
 

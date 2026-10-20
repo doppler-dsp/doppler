@@ -1117,7 +1117,7 @@ uint32_t dp_dll_state_t::out_level_n;
 
 
 
-Running: periods in out\_level, saturating at DLL\_OUT\_LEVEL\_PERIODS (its plain-mean start). 
+Running: periods in out\_level, saturating at DLL\_OUT\_LEVEL\_PERIODS (its plain-mean start). Beside the int above, so the double below needs no padding. 
  
 
 

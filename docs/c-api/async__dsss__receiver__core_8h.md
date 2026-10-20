@@ -635,7 +635,7 @@ size_t dp_async_dsss_receiver_get_coherent_bins (
 
 
 
-Derived at create from `code_only_s` and `doppler_rate` ([**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create)); 1 without a code-only window. Every search dwell after a reset() starts on a multiple of `D * code_len * spc` input samples counted from create: the receiver discards input up to that boundary first, at most one block. Receivers fed the same stream from create therefore search on the same block grid.
+Derived at create from `code_only_s` and `doppler_rate` ([**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create)); 1 without a code-only window. Every restarted search  reset(), a release with `reacquire`, a refused hand-over, configure\_search\_raw()  starts its next dwell on a multiple of `D * code_len * spc` input samples counted from create: the receiver discards input up to that boundary first, at most one block. Receivers fed the same stream from create therefore search on the same block grid.
 
 
 
@@ -1254,7 +1254,7 @@ int dp_async_dsss_receiver_set_threads (
 
 
 
-Forwards to [**dp\_acq\_set\_threads()**](acq__core_8h.md#function-dp_acq_set_threads) on the receiver's searcher. The search is bit-identical at every count, so this changes the cost of a steps() call and nothing about its output. A pool that steps its receivers in parallel sets each one to 1. A mutator's value, so it travels in the state blob (#2022). Setup path; not while another thread is inside steps().
+Forwards to [**dp\_acq\_set\_threads()**](acq__core_8h.md#function-dp_acq_set_threads) on the receiver's searcher. The search is bit-identical at every count, so this changes the cost of a steps() call and nothing about its output. A pool that steps its receivers in parallel sets each one to 1. A mutator's value, so it travels in the state blob (#2022). The blob carries the count that RAN, not the request: set\_threads(0) on a 20-core writer restores as 20 workers on any reader, by design  a resumed receiver runs as the one that was checkpointed, and a pool's 1 is 1 everywhere. Setup path; not while another thread is inside steps().
 
 
 

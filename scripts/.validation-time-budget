@@ -64,7 +64,7 @@ validate_async_dsss_pool_soak_budget   138.3
 validate_async_dsss_pool_soak          128.1
 validate_async_dsss_receiver_release    19.7
 validate_async_dsss_receiver_lock        4.6  # CI's sweep job on #2481: 4.6 s. #2473 added the certification's per-push evidence -- # quality at five Es/N0 and # falselock, 2 s of noise at each design point -- which the report's limits are asserted on; was 2.2 s
-validate_async_dsss_receiver_ber         6.9  # NEW (#2465): CI's sweep job on #2497 at 604ca903e, 6.94 s (7.4 s on the dev box); 200 errors at 7 dB, about 11 bursts of 6 s
+validate_async_dsss_receiver_ber        12.2  # CI's sweep job on #2497's merged head adac7522a: 12.19 s (12.16 on #2498, 13.81 on #2502). The 6.9 was 604ca903e's sweep job on a fast runner (whole sweep 494 s vs 911 s; every validator ~1.8x); same-box A/B of the two builds: 7.4 s both.
 validate_async_dsss_receiver_lock_telemetry 1.7  # CI's sweep job on #2412: 1.65 s on the slower runner (790 s sweep); 0.89 s on the dev box
 validate_receiver_pullin                19.3
 validate_acq_peak_list                  23.2

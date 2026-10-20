@@ -1,6 +1,7 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/util/util_core.h"
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -820,6 +821,33 @@ adr_track_chain (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
   return emitted;
 }
 
+/* Restart the search: drain the engine, and owe its next dwell a start on
+ * the block grid (adr_align_skip()). Every path back to a fresh search
+ * comes through here, so no dwell starts off the grid. */
+static void
+adr_restart_search (dp_async_dsss_receiver_state_t *s)
+{
+  dp_acq_reset (s->acq);
+  s->align_pending = true;
+}
+
+/* Of an @p x_len-sample tail ending at samples_in, how many to discard so
+ * the engine's next sample is a multiple of one block, `coherent_bins *
+ * code_len * spc`, counted from create. All of them while the boundary is
+ * past the tail; the debt is paid when it is reached. */
+static size_t
+adr_align_skip (dp_async_dsss_receiver_state_t *s, size_t x_len)
+{
+  const uint64_t block
+      = (uint64_t)s->acq->coherent_bins * s->code_len * s->spc;
+  const uint64_t pos  = s->samples_in - x_len;
+  const uint64_t owed = (block - pos % block) % block;
+  if (owed > (uint64_t)x_len)
+    return x_len;
+  s->align_pending = false;
+  return (size_t)owed;
+}
+
 dp_async_dsss_receiver_state_t *
 dp_async_dsss_receiver_create (
     const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate,
@@ -828,7 +856,8 @@ dp_async_dsss_receiver_create (
     double refine_max_error_db, size_t refine_samples_per_symbol,
     double refine_design_margin_db, size_t refine_n_fft,
     size_t refine_zero_pad, bool refine_sequential, size_t refine_max_n_blocks,
-    double carrier_freq_hz, double lost_confirm_s, bool reacquire)
+    double carrier_freq_hz, double lost_confirm_s, bool reacquire,
+    double code_only_s, double doppler_rate)
 {
   /* symbol_rate becomes the carrier estimator's sample rate, which PSD
      refuses unless finite: refused here, at create, because that estimator
@@ -863,6 +892,19 @@ dp_async_dsss_receiver_create (
      refused here, at create (doppler#2103). */
   if (!(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0))
     return NULL;
+  /* The code-only window in whole epochs, design async-dsss-parallel.md §4:
+     floor(W * chip_rate / sf) - 1 epochs fit at ANY chip phase, and under
+     two (no window, or less than two epochs of one) is the epoch-by-epoch
+     search. The engine refuses a bad doppler_rate itself; a window too
+     long to count in epochs is refused here, before the cast. */
+  if (!(code_only_s >= 0.0 && isfinite (code_only_s)))
+    return NULL;
+  const double window_epochs
+      = floor (code_only_s * chip_rate / (double)code_len) - 1.0;
+  if (!(window_epochs < 0x1p52))
+    return NULL;
+  const size_t code_only_epochs
+      = window_epochs > 1.0 ? (size_t)window_epochs : 1;
   /* Each Dll this receiver builds -- the refine collector and the tracker,
      both created mid-stream under dp_xnn -- meets the Dll's own domain now,
      so a configuration the Dll refuses (a 1-chip code, whose early and late
@@ -892,7 +934,8 @@ dp_async_dsss_receiver_create (
      is this create's, not an abort under dp_xnn (doppler#2103). */
   obj->acq = dp_acq_create_continuous (
       obj->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0);
+      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, code_only_epochs,
+      doppler_rate);
   if (!obj->acq)
     {
       free (obj->code);
@@ -919,6 +962,11 @@ dp_async_dsss_receiver_create (
   obj->lost_confirm_s       = lost_confirm_s;
   obj->reacquire            = reacquire;
   obj->lost_confirm_samples = lost_confirm_samples;
+  obj->code_only_s          = code_only_s;
+  obj->doppler_rate         = doppler_rate;
+  /* Sample 0 is on every block boundary: the first dwell owes nothing. */
+  obj->samples_in    = 0;
+  obj->align_pending = false;
 
   obj->refine_max_error_db       = refine_max_error_db;
   obj->refine_samples_per_symbol = refine_samples_per_symbol;
@@ -993,7 +1041,7 @@ dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state)
 void
 dp_async_dsss_receiver_reset (dp_async_dsss_receiver_state_t *state)
 {
-  dp_acq_reset (state->acq);
+  adr_restart_search (state);
   /* Best-effort: on OOM, leave the current chains in place rather than
    * signal a failure this void-returning lifecycle function can't report
    * (matches dp_dsss_receiver_reset()'s own contract). */
@@ -1163,6 +1211,15 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
 
   if (state->state == ASYNC_DSSS_RX_SEARCHING)
     {
+      /* A restarted search first runs out to the block grid. */
+      if (state->align_pending)
+        {
+          const size_t skip = adr_align_skip (state, x_len);
+          x += skip;
+          x_len -= skip;
+          if (x_len == 0)
+            return 0;
+        }
       /* The engine's own position and the hit's, one timebase, and the
        * same fail-closed bound -- the rule and why are at
        * dsss_receiver_core.c's steps(), which hands off the same way. */
@@ -1313,7 +1370,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
              estimates as reset() leaves them. */
           state->seed_doppler_hz_est = 0.0;
           state->doppler_hz_est      = 0.0;
-          dp_acq_reset (state->acq);
+          adr_restart_search (state);
           adr_enter (state, ASYNC_DSSS_RX_SEARCHING);
           return adr_steps (state, tail, tail_len, out, max_out);
         }
@@ -1337,6 +1394,9 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
                               const float _Complex *x, size_t x_len,
                               float _Complex *out, size_t max_out)
 {
+  /* Counted up front: every tail adr_steps() recurses on ends where this
+     call's input ends, so a tail of t samples starts at samples_in - t. */
+  state->samples_in += x_len;
   size_t n_out = adr_steps (state, x, x_len, out, max_out);
   /* The lifecycle, once a call and after it, on the block's stamp: where
      the receiver ended up, the Doppler its chain was built from, and the
@@ -1357,7 +1417,34 @@ dp_async_dsss_receiver_configure_search_raw (
     dp_async_dsss_receiver_state_t *state, size_t doppler_bins,
     size_t n_noncoh)
 {
-  return dp_acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
+  const int rc
+      = dp_acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
+  /* An accepted search config drains the engine (dp_acq_reset()), so its
+     next dwell starts on the block grid like any restarted search's. */
+  if (rc == 0)
+    state->align_pending = true;
+  return rc;
+}
+
+int
+dp_async_dsss_receiver_set_threads (dp_async_dsss_receiver_state_t *state,
+                                    int                             n)
+{
+  return dp_acq_set_threads (state->acq, n);
+}
+
+int
+dp_async_dsss_receiver_get_threads (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return state->acq->threads;
+}
+
+size_t
+dp_async_dsss_receiver_get_coherent_bins (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return state->acq->coherent_bins;
 }
 
 int
@@ -1628,6 +1715,9 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .sym_lockdet         = s->sym_lockdet,
     .refused_hits        = s->refused_hits,
     .refine_min_blocks   = (uint64_t)s->refine_min_blocks,
+    .samples_in          = s->samples_in,
+    .align_pending       = (uint64_t)(s->align_pending != 0),
+    .threads             = (int64_t)s->acq->threads,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
   DP_W_CHILD (&_w, dp_acq, s->acq);
@@ -1660,7 +1750,8 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.refine_segments != (uint64_t)s->refine_segments
       || extra.car_carry_len >= (uint64_t)s->tsamps
       || extra.state > ASYNC_DSSS_RX_LOST
-      || extra.state == ASYNC_DSSS_RX_RESERVED)
+      || extra.state == ASYNC_DSSS_RX_RESERVED || extra.align_pending > 1
+      || extra.threads < 1 || extra.threads > INT_MAX)
     return DP_ERR_INVALID;
   /* A reacquire receiver never enters lost (its release resets it to
      searching), so lost is no state it can be in, and nothing would take
@@ -1703,5 +1794,11 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   s->sym_lockdet         = extra.sym_lockdet;
   s->refused_hits        = extra.refused_hits;
   s->refine_min_blocks   = (size_t)extra.refine_min_blocks;
+  s->samples_in          = extra.samples_in;
+  s->align_pending       = extra.align_pending != 0;
+  /* set_threads()'s value (#2022): the same request the writer's last
+     call made, which on a machine with as many cores runs as many. */
+  if (extra.threads != (int64_t)s->acq->threads)
+    (void)dp_acq_set_threads (s->acq, (int)extra.threads);
   return DP_OK;
 }

@@ -216,6 +216,10 @@ typedef enum
     uint64_t lost_confirm_samples; 
     bool     reacquire;            
     uint64_t state_samples;        
+    double   code_only_s;  
+    double   doppler_rate; 
+    uint64_t samples_in;   
+    bool     align_pending; 
     uint64_t refused_hits;         
     uint64_t both_down_samples;    
     int      had_lock;             
@@ -258,7 +262,8 @@ typedef enum
       size_t refine_samples_per_symbol, double refine_design_margin_db,
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
-      double lost_confirm_s, bool reacquire);
+      double lost_confirm_s, bool reacquire, double code_only_s,
+      double doppler_rate);
 
   void dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state);
 
@@ -311,6 +316,15 @@ typedef enum
 
   int dp_async_dsss_receiver_set_refine_min_blocks (
       dp_async_dsss_receiver_state_t *state, size_t n_blocks);
+
+  int dp_async_dsss_receiver_set_threads (
+      dp_async_dsss_receiver_state_t *state, int n);
+
+  int dp_async_dsss_receiver_get_threads (
+      const dp_async_dsss_receiver_state_t *state);
+
+  size_t dp_async_dsss_receiver_get_coherent_bins (
+      const dp_async_dsss_receiver_state_t *state);
 
   void dp_async_dsss_receiver_configure_lock_raw (
       dp_async_dsss_receiver_state_t *state, double up_thresh,
@@ -387,10 +401,13 @@ typedef enum
     dp_lockdet_state_t sym_lockdet;  
     uint64_t refused_hits; 
     uint64_t refine_min_blocks; 
+    uint64_t samples_in;    
+    uint64_t align_pending; 
+    int64_t  threads;       
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 11u /* v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 12u /* v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

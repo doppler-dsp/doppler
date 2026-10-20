@@ -190,7 +190,7 @@ make_rx (const uint8_t *code, double cn0_dbhz, int cond)
   return dp_async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 100.0, 4, 8,
       0, 0.5, 4, 14.0, 64, 8, false, 100000,
-      cond != COND_STATIC ? CARRIER_HZ : 0.0, LOST_CONFIRM_S, false);
+      cond != COND_STATIC ? CARRIER_HZ : 0.0, LOST_CONFIRM_S, false, 0.0, 0.0);
 }
 
 /* Is global sample `n` inside the code-only window, by the synth's clock? */

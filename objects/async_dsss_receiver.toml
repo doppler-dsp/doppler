@@ -238,6 +238,20 @@ name = "reacquire"
 type = "bool"
 default = "false"
 
+# The searcher's slow-time depth from physical inputs (docs/design/
+# async-dsss-parallel.md §4): code_only_epochs = floor(code_only_s *
+# chip_rate / sf) - 1, and the engine rounds D to a 7-smooth length. The
+# defaults are D = 1, the epoch-by-epoch search.
+[[async_dsss_receiver.init_params]]
+name = "code_only_s"
+type = "double"
+default = "0.0"
+
+[[async_dsss_receiver.init_params]]
+name = "doppler_rate"
+type = "double"
+default = "0.0"
+
 [[async_dsss_receiver.methods]]
 name = "steps"
 arg_type = "void"
@@ -349,6 +363,21 @@ params = [
 name = "refine_min_blocks"
 type = "size_t"
 field = true
+
+[[async_dsss_receiver.methods]]
+name = "set_threads"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [{ name = "n", type = "int" }]
+
+[[async_dsss_receiver.properties]]
+name = "threads"
+type = "int"
+
+[[async_dsss_receiver.properties]]
+name = "coherent_bins"
+type = "size_t"
 
 [[async_dsss_receiver.properties]]
 name = "lifecycle"

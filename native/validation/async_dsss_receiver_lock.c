@@ -84,8 +84,8 @@
  * is tracked within CHECK_TRACK_MS of arriving; in every settled dropout
  * trial a loss for good drops symbol lock within DROP_WATCH_S; enough
  * dropout draws settle to measure; and each lifecycle story reaches symbol
- * lock exactly when its name says, the 5 dB story that never locks
- * included. The rest -- lock times, seed errors, holds, re-locks, the 5 dB
+ * lock exactly when its `locks` says. The rest -- lock times, seed errors,
+ * holds, re-locks, the 5 dB
  * arrival and dropout rows -- is measured and printed, not asserted: a
  * fraction that moves with the draw is a finding for the record, not a
  * gate.
@@ -800,10 +800,13 @@ typedef struct
   int         locks; /* whether that trial reaches symbol lock */
 } story_t;
 
+/* A third story, seed 5 at 5 dB, once showed a hand-off that never locks
+   (its refine 444 Hz off); since the Dll's output level (#2495) that draw's
+   refine lands 106 Hz off and locks, and no 5 dB arrival trial misses, so
+   it is gone. A story that never locks needs a draw that does not. */
 static const story_t stories[] = {
-  { "lifecycle-10db", 10.0, 1u, 1 },       /* locks within 70 ms         */
-  { "lifecycle-5db", 5.0, 13u, 1 },        /* locks within 130 ms        */
-  { "lifecycle-5db-no-lock", 5.0, 5u, 0 }, /* refine 444 Hz off: no lock */
+  { "lifecycle-10db", 10.0, 1u, 1 }, /* locks within 120 ms */
+  { "lifecycle-5db", 5.0, 13u, 1 },  /* locks within 160 ms */
 };
 #define N_STORIES (sizeof stories / sizeof stories[0])
 static const double story_fades[][2]

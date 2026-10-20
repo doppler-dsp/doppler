@@ -2515,7 +2515,7 @@ class AsyncDsssReceiver:
     ) -> None:
         """Take a detection from outside and start refining from it.
 
-        The hand-off of docs/design/async-dsss-receiver.md §11.1: the three
+        The hand-off of docs/design/async-dsss-receiver.md §2.2: the three
         numbers a searcher's hit carries that this receiver uses --
         `acq_handoff_t`'s `chip_phase`, `doppler_hz_est` and `cn0_dbhz_est` --
         exactly as its own hit would have produced them (the searching flavor's
@@ -3424,7 +3424,7 @@ class CellAsyncDsssReceiver:
     ) -> None:
         """Take a detection from outside and start refining from it.
 
-        The hand-off of docs/design/async-dsss-receiver.md §11.1: the three
+        The hand-off of docs/design/async-dsss-receiver.md §2.2: the three
         numbers a searcher's hit carries that this receiver uses --
         `acq_handoff_t`'s `chip_phase`, `doppler_hz_est` and `cn0_dbhz_est` --
         exactly as its own hit would have produced them (the searching flavor's

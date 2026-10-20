@@ -1,9 +1,9 @@
 /*
  * bench_dp_event_log_core.c — what one event costs, and where the cost is.
  *
- * The design puts one hard constraint on this object (async-dsss-receiver.md
- * §11.5): a pool that runs for hours must allocate nothing per state change,
- * and the holder writes events from the same thread that pushes samples. So
+ * The design puts one hard constraint on this object: a pool that runs for
+ * hours must not grow with time (async-dsss-receiver.md §11.5), and the
+ * holder writes events from the same thread that pushes samples. So
  * the number that matters is per EVENT, not per sample, and it has to be
  * small enough that a transition never lands in a block's budget.
  *

@@ -104,18 +104,36 @@ QUIET_LOAD, QUIET_WAIT_S = 2.0, 900.0
 
 #: The bench rows the record uses, by name up to the auto-sizer's `_nc`
 #: suffix, and each one's own sample rate (the rate its row was timed at).
-ROWS: dict[str, tuple[str, float]] = {
+#: A depth row matches its name at either depth: the engine rounds the rate
+#: bound's 154 and 61 down to 7-smooth 150 and 60 (#1247), and the committed
+#: run was timed under the old names.
+ROWS: dict[str, tuple[str | tuple[str, ...], float]] = {
     "track": ("async_dsss_receiver::steps[cell,sf=1023,5Mcps]", 10e6),
     "tile": ("acq::native_nc", FS),
     "span": ("acq::op5M_U5k_nc", 10e6),
-    "deep": ("acq::op5M_U5k_D154_t1_nc", 10e6),
-    "deep_t4": ("acq::op5M_U5k_D154_t4_nc", 10e6),
+    "deep": (("acq::op5M_U5k_D150_t1_nc", "acq::op5M_U5k_D154_t1_nc"), 10e6),
+    "deep_t4": (
+        ("acq::op5M_U5k_D150_t4_nc", "acq::op5M_U5k_D154_t4_nc"),
+        10e6,
+    ),
     "pool": ("async_dsss_pool::push[12 slots, serial]", 10e6),
     "pool_all": ("async_dsss_pool::push[12 slots, all cores]", 10e6),
-    "u50_5_t1": ("acq::op5M_U50k_D154_t1_nc", 10e6),
-    "u50_5_t8": ("acq::op5M_U50k_D154_t8_nc", 10e6),
-    "u50_2_t1": ("acq::op2M_U50k_D61_t1_nc", 4e6),
-    "u50_2_t4": ("acq::op2M_U50k_D61_t4_nc", 4e6),
+    "u50_5_t1": (
+        ("acq::op5M_U50k_D150_t1_nc", "acq::op5M_U50k_D154_t1_nc"),
+        10e6,
+    ),
+    "u50_5_t8": (
+        ("acq::op5M_U50k_D150_t8_nc", "acq::op5M_U50k_D154_t8_nc"),
+        10e6,
+    ),
+    "u50_2_t1": (
+        ("acq::op2M_U50k_D60_t1_nc", "acq::op2M_U50k_D61_t1_nc"),
+        4e6,
+    ),
+    "u50_2_t4": (
+        ("acq::op2M_U50k_D60_t4_nc", "acq::op2M_U50k_D61_t4_nc"),
+        4e6,
+    ),
 }
 
 

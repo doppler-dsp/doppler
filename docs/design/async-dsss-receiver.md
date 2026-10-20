@@ -258,12 +258,31 @@ under 5% at Es/N0 10, 8 and 5 dB, the specification's floor, and exceeds 10% at
 4 dB, with the self-referenced EVM and the blind M2M4 SNR corroborating:
 `_test_awgn_esn0_floor` in `native/tests/test_async_dsss_receiver_core.c`.
 Against the bound, `Q(sqrt(2 Es/N0))`, the BER of a receiver that has settled
-sits 0.89 to 1.00 dB from it from 5 to 8 dB. Not every hand-over settles
-(F3), and the bursts that did not are counted beside the loss. Both are
-measured, with the loss's interval, in the
+sits 0.65 to 0.89 dB from it from 5 to 8 dB, and every burst of the sweep
+settled. A hand-over can still miss (F3), and a burst that did not settle
+would be counted beside the loss. Both are measured, with the loss's
+interval, in the
 [certification record](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
-(§2.6). Where that loss goes is
-[#2495](https://github.com/doppler-dsp/doppler/issues/2495).
+(§2.6). Where the loss goes is the record's §2.7, measured by
+`validate_async_dsss_receiver_loss`
+(`native/validation/async_dsss_receiver_loss.c`): the specification's
+stimulus at known truth, through more and more of the shipped chain, each
+stage scored as a BER-equivalent loss. At 5 dB, over 16 bursts:
+
+| stage                                                                                          | its cost at 5 dB           |
+| ---------------------------------------------------------------------------------------------- | -------------------------- |
+| the cut into `K` = 4 partials a code period                                                    | 0.41 dB                    |
+| the `Dll`'s output, held at truth                                                              | none measurable (−0.01 dB) |
+| the `RateConverter`                                                                            | none measurable (+0.01 dB) |
+| the demodulator's timing and carrier loops                                                     | 0.23 dB                    |
+| the front end's tracking: the pre-despread carrier loop, the code loop and the refine hand-off | 0.20 dB                    |
+
+**The cut is geometry.** At 4.44 partials a symbol a partial straddles a
+symbol edge, and the matched filter cannot weigh its two halves apart; ideal
+sums at known timing lose the same. Against `K`, on the same bursts: 3.79 dB
+at 1, 1.17 at 2, 0.43 at 4, 0.18 at 8, 0.09 at 16. The receiver does not
+run at `K` = 8 today
+([#2506](https://github.com/doppler-dsp/doppler/issues/2506)).
 
 **The code path sums the partials coherently** over a one-period window and
 takes the powers of the sums. A data flip changes the sign of every partial after
@@ -393,8 +412,24 @@ the signal-plus-noise power the discriminator normalizes by. Early and late are
 summed over the same window, and the error is the **power-domain**,
 prompt-normalized form
 `0.5 · (early_power − late_power) / signal_plus_noise_power` — not a
-magnitude-domain `(|E|−|L|)/(|E|+|L|)` ratio. The partial sums double as the
-integrate-and-dump output, normalized by `window_size · max_abs`.
+magnitude-domain `(|E|−|L|)/(|E|+|L|)` ratio.
+
+The partial sums double as the integrate-and-dump output, each divided by
+the samples it spans and by a **slowly tracked level**: the running mean of
+the winner's magnitude, `max_abs` = `correlations[max_window]`, over
+`DLL_OUT_LEVEL_PERIODS` = 32 periods, its plain mean until 32 have accrued. The output then sits near unit amplitude at any input gain,
+which the timing detectors downstream assume. Never by the period's own
+`max_abs`: that divisor carries the period's own noise, so it compressed the
+in-phase error against the quadrature and coupled the symbols that share a
+period, and the receiver lost 0.2 dB of error rate while its EVM read better
+than the error rate allowed
+([#2495](https://github.com/doppler-dsp/doppler/issues/2495)). The header
+(`dll_core.h`) sets the length inside a band, 16 to 40: at least 16 holds
+the compression, measured, under 0.15 dB, and at most 40 settles a step in
+level to 1% inside a third of the data-free block. At 32 the settle is 146
+periods, 49 ms at the specification, and the output's scale follows a step
+until then. Over the first periods after create or reset the level is their
+plain mean, so it is not yet slow.
 
 The replica the loop steers is the code held at **2 samples per chip and
 linearly interpolated** at any fractional position, sampled at
@@ -467,8 +502,8 @@ little more — hundredths of a chip either way (the record's §12.5). CI holds
 the relation: `validate_dll_aid_jitter --check` keeps the aided jitter
 within 1.25× the per-epoch loop's at 45 dB-Hz and 1.6× at 40, and its
 pull-in no slower than 1.1× (`native/validation/dll_aid_jitter.c`). The
-emitted partial stream is untouched: the look-back still supplies its
-normalization.
+emitted partial stream is untouched by the aid: the look-back still
+supplies, averaged slowly, the output's level (§3.6).
 
 The receiver applies it at chain build: `dp_dll_set_symbol_period` from its
 configuration, `n_looks` from `det_n_noncoh` for Pd 0.99 at Pfa 1e-3 over

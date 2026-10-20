@@ -221,11 +221,13 @@ name = "carrier_freq_hz"
 type = "double"
 default = "0.0"
 
-# The release rule (docs/design/async-dsss-receiver.md §11.2): both lock
-# flags down, continuously, for longer than this many seconds while tracking
-# puts the receiver in the lost state (`lost` == 1, loops stopped, samples
-# discarded until reset()). One flag down is a degrade, not a release. 0.0,
-# the searching flavor's default, never enters lost: its exit is reset(). The
+# The release rule (docs/design/async-dsss-parallel.md §3, and
+# docs/design/async-dsss-receiver.md §10): with `reacquire`, symbol lock
+# down, continuously, for longer than this many seconds while tracking
+# resets the receiver to searching. Without it, both lock flags down that
+# long puts the receiver in the lost state (`lost` == 1, loops stopped,
+# samples discarded until reset()), and one flag down is a degrade, not a
+# release. 0.0, the searching flavor's default, never releases. The
 # cell receiver defaults to 2.0, past the measured fades
 # (docs/design/async-dsss-receiver-measurements.md §12.3).
 [[async_dsss_receiver.init_params]]

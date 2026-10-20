@@ -1331,7 +1331,7 @@ static PyMethodDef CellAsyncDsssReceiverObj_methods[] = {
     "\n"
     "Take a detection from outside and start refining from it.\n"
     "\n"
-    "The hand-off of docs/design/async-dsss-receiver.md §11.1: the three\n"
+    "The hand-off of docs/design/async-dsss-receiver.md §2.2: the three\n"
     "numbers a searcher's hit carries that this receiver uses --\n"
     "`acq_handoff_t`'s `chip_phase`, `doppler_hz_est` and `cn0_dbhz_est` --\n"
     "exactly as its own hit would have produced them (the searching flavor's\n"

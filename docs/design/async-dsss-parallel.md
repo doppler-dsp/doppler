@@ -156,25 +156,23 @@ What today's receiver must gain for this:
     `dp_acq_set_threads()`), so N receivers would each claim the whole
     machine. `set_threads()` forwards it, so under the pool each receiver's
     engine runs on its own worker's thread (`threads` = 1).
-1. **Exclusions**: code phases the search must not take, because another
-    receiver already tracks them. The pool's zone is keyed on code phase alone
-    (within a chip, at any Doppler); keying on carrier seeded duplicate receivers
-    (`async-dsss-receiver-measurements.md` §12.14). A receiver's own search
-    takes its strongest hit, and on a shared input the strongest hits are
-    the signals already owned. Refusing the hit afterwards is not enough: a
-    reset receiver finds the same peak again.
-1. **A rank** among the receivers searching: rank r takes the r-th
-    strongest peak that is not excluded, so k new signals
-    arriving together lock on k receivers in one dwell. Ranks line up only
-    if those receivers' dwells start on the same epoch, so each receiver
-    places its dwell boundaries at multiples of D epochs of the pool's
-    shared sample count, not from its own reset: every searcher's dwells
-    line up whenever it was re-armed, and nothing has to command it. Before
-    ranking, the peak list is de-duplicated by code phase within a chip, so
-    one signal's neighboring cells do not take two ranks. The engine
-    already reports a peak list (`set_max_peaks`; the pool asks for 16), but
-    the receiver's own search asks it for one hit and exposes no way to ask
-    for more.
+1. **Exclusions — shipped.** Code phases the search must not take, because
+    another receiver already tracks them (`set_exclusions()`). The zone is
+    keyed on code phase alone, within a chip circularly, at any Doppler;
+    keying on carrier seeded duplicate receivers
+    (`async-dsss-receiver-measurements.md` §12.14). The filter runs on the
+    dwell's peak list before ranking, not on a hit afterwards: refusing a
+    hit is not enough, because a reset receiver finds the same peak again.
+1. **A rank among the receivers searching — shipped.** Rank r
+    (`set_rank()`) takes the r-th strongest peak that is not excluded, so k
+    new signals arriving together lock on k receivers in one dwell. Ranks
+    line up because every receiver's dwells start on multiples of D epochs
+    of the shared sample count (item 3), whenever it was re-armed, with no
+    command. Before ranking, the list is de-duplicated by code phase within
+    a chip, so one signal's neighbouring cells, or its copy in a
+    neighbouring Doppler tile, do not take two ranks. The receiver asks its
+    engine for 16 peaks a dwell (`set_max_peaks`); a dwell with no peak at
+    the receiver's rank seeds nothing, and its search goes on.
 
 ## 4. The controller
 

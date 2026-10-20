@@ -43,11 +43,14 @@
 |  uint8\_t | [**car\_coasting**](#variable-car_coasting)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
+|  double | [**excl**](#variable-excl)  <br> |
 |  uint8\_t | [**had\_lock**](#variable-had_lock)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  double | [**lock\_num**](#variable-lock_num)  <br> |
 |  uint64\_t | [**n**](#variable-n)  <br> |
+|  uint64\_t | [**n\_excl**](#variable-n_excl)  <br> |
+|  uint64\_t | [**rank**](#variable-rank)  <br> |
 |  uint64\_t | [**refine\_min\_blocks**](#variable-refine_min_blocks)  <br> |
 |  uint64\_t | [**refine\_samples\_fed**](#variable-refine_samples_fed)  <br> |
 |  uint64\_t | [**refine\_segments**](#variable-refine_segments)  <br> |
@@ -215,6 +218,24 @@ double async_dsss_receiver_extra_t::doppler_hz_est;
 
 
 
+### variable excl 
+
+```C++
+double async_dsss_receiver_extra_t::excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS];
+```
+
+
+
+... and phases, the unused tail zeroed. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable had\_lock 
 
 ```C++
@@ -292,6 +313,42 @@ uint64_t async_dsss_receiver_extra_t::n;
 
 
 
+
+<hr>
+
+
+
+### variable n\_excl 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::n_excl;
+```
+
+
+
+v13: set\_exclusions()'s count ... 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rank 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::rank;
+```
+
+
+
+v13: set\_rank()'s value (#2022). 
+ 
+
+
+        
 
 <hr>
 

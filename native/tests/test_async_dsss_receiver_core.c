@@ -3729,6 +3729,235 @@ _test_depth_finds_what_one_epoch_misses (void)
   return 0;
 }
 
+/* Two emitters on one Gold code at the design point, their code phases
+ * ~400 chips apart: A at 50 dB-Hz carries the noise, and B, rendered all
+ * but clean and scaled by 1/sqrt(2), sits 3 dB below it (the capture's
+ * cn0_dbhz sets the NOISE; the signal is unit amplitude). The stream every
+ * rank test feeds. `which`
+ * 1 = A alone, 2 = B alone, 3 = both. Caller frees. */
+static float _Complex *
+_two_emitters (const uint8_t *code, int which, size_t *n_out)
+{
+  const double    fs = SLOW_CR * SLOW_SPC, tsym = fs / SLOW_RS;
+  float _Complex *a, *b;
+  size_t          na, nb;
+  double         *da, *db;
+  dp_dsss_capture (code, 1023, SLOW_SPC, fs, tsym, 200.0, 50.0, 60, 1000, 11,
+                   &a, &na, &da);
+  dp_dsss_capture (code, 1023, SLOW_SPC, fs, tsym, -300.0, 120.0, 60, 200, 12,
+                   &b, &nb, &db);
+  const size_t n = na < nb ? na : nb;
+  for (size_t i = 0; i < n; i++)
+    a[i] = (which & 1 ? a[i] : 0) + (which & 2 ? (float)M_SQRT1_2 * b[i] : 0);
+  free (b);
+  free (da);
+  free (db);
+  *n_out = n;
+  return a;
+}
+
+/* Feed `rx` until it leaves searching (or the stream ends); return the
+ * samples fed. */
+static size_t
+_until_seeded (dp_async_dsss_receiver_state_t *rx, const float _Complex *x,
+               size_t n)
+{
+  float _Complex out[4096];
+  size_t pos = 0;
+  while (pos < n && rx->state == ASYNC_DSSS_RX_SEARCHING)
+    {
+      const size_t take = n - pos < 3001 ? n - pos : 3001;
+      (void)dp_async_dsss_receiver_steps (rx, x + pos, take, out, 4096);
+      pos += take;
+    }
+  return pos;
+}
+
+static double
+_chip_dist (double a, double b, double l)
+{
+  double d = fabs (a - b);
+  return d > l / 2 ? l - d : d;
+}
+
+/* The controller's levers (design async-dsss-parallel.md §3): two
+ * searchers on one stream at ranks 0 and 1 take the two signals, the
+ * stronger at rank 0, in the SAME dwell; an excluded code phase is never
+ * taken, so rank 0 with A excluded takes B; and a dwell with no peak at the
+ * rank seeds nothing. Each signal's own phase comes from a rank-0
+ * receiver fed it alone. Sabotage: ignore the rank -> both take A; ignore
+ * the exclusions -> the excluded receiver takes A; drop the duplicate rule
+ * -> rank 1 takes A's neighbouring cell. */
+static int
+_test_ranks_and_exclusions_split_two_signals (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t          n, na, nb;
+  float _Complex *both = _two_emitters (code, 3, &n);
+  float _Complex *xa   = _two_emitters (code, 1, &na);
+  float _Complex *xb   = _two_emitters (code, 2, &nb);
+
+  dp_async_dsss_receiver_state_t *ra = _slow_rx (code, 47.0, 500.0, 0, 0);
+  dp_async_dsss_receiver_state_t *rb = _slow_rx (code, 47.0, 500.0, 0, 0);
+  dp_async_dsss_receiver_state_t *r0 = _slow_rx (code, 47.0, 500.0, 0, 0);
+  dp_async_dsss_receiver_state_t *r1 = _slow_rx (code, 47.0, 500.0, 0, 0);
+  dp_async_dsss_receiver_state_t *rx = _slow_rx (code, 47.0, 500.0, 0, 0);
+  DP_REQUIRE (ra && rb && r0 && r1 && rx);
+  /* From two epochs in, where both emitters are on: every dwell then sees
+     both whole, so their strengths alone order them. */
+  const size_t on = 2 * 2046;
+  (void)_until_seeded (ra, xa + on, na - on);
+  (void)_until_seeded (rb, xb + on, nb - on);
+  DP_REQUIRE (ra->state != ASYNC_DSSS_RX_SEARCHING
+              && rb->state != ASYNC_DSSS_RX_SEARCHING);
+  const double pa = ra->seed_chip_phase, pb = rb->seed_chip_phase;
+  DP_REQUIRE (_chip_dist (pa, pb, 1023.0) > 100.0);
+
+  DP_CHECK (dp_async_dsss_receiver_set_rank (r1, 1) == DP_OK);
+  const size_t at0 = _until_seeded (r0, both + on, n - on);
+  const size_t at1 = _until_seeded (r1, both + on, n - on);
+  DP_CHECK (r0->state != ASYNC_DSSS_RX_SEARCHING
+            && r1->state != ASYNC_DSSS_RX_SEARCHING);
+  DP_CHECK (at0 == at1); /* one dwell: the same call seeded both */
+  DP_CHECK (_chip_dist (r0->seed_chip_phase, pa, 1023.0) <= 1.0);
+  DP_CHECK (_chip_dist (r1->seed_chip_phase, pb, 1023.0) <= 1.0);
+
+  /* A excluded, rank 0: takes B. The exclusion is given a chip off A's
+     phase and across the wrap (+1023), so the zone, not equality, and the
+     fold both carry it. */
+  const double ex[1] = { pa + 0.9 + 1023.0 };
+  DP_CHECK (dp_async_dsss_receiver_set_exclusions (rx, ex, 1) == DP_OK);
+  (void)_until_seeded (rx, both + on, n - on);
+  DP_CHECK (rx->state != ASYNC_DSSS_RX_SEARCHING);
+  DP_CHECK (_chip_dist (rx->seed_chip_phase, pb, 1023.0) <= 1.0);
+
+  dp_async_dsss_receiver_destroy (ra);
+  dp_async_dsss_receiver_destroy (rb);
+  dp_async_dsss_receiver_destroy (r0);
+  dp_async_dsss_receiver_destroy (r1);
+  dp_async_dsss_receiver_destroy (rx);
+
+  /* A alone: excluded, it is never taken at any Doppler, dwell after
+     dwell; and at rank 1 there is no second signal to take. Either way the
+     search goes on, and the engine is fed every sample exactly once -- its
+     position is what was fed (the rest resumes at dp_acq_consumed(), not
+     at the hit: resuming at the hit re-fed the carry). */
+  for (int k = 0; k < 2; k++)
+    {
+      dp_async_dsss_receiver_state_t *r = _slow_rx (code, 47.0, 500.0, 0, 0);
+      DP_REQUIRE (r != NULL);
+      if (k == 0)
+        DP_CHECK (dp_async_dsss_receiver_set_exclusions (r, &pa, 1) == DP_OK);
+      else
+        DP_CHECK (dp_async_dsss_receiver_set_rank (r, 1) == DP_OK);
+      const size_t fed = _until_seeded (r, xa, na);
+      DP_CHECK_MSG (r->state == ASYNC_DSSS_RX_SEARCHING,
+                    k ? "rank 1 of one signal" : "excluded signal taken");
+      DP_CHECK_EQ_U64 (dp_acq_position (r->acq), (uint64_t)fed);
+      DP_CHECK_EQ_U64 (dp_async_dsss_receiver_status (r).state_samples,
+                       (uint64_t)fed);
+      dp_async_dsss_receiver_destroy (r);
+    }
+  free (both);
+  free (xa);
+  free (xb);
+  return 0;
+}
+
+/* One signal holds ONE place in the ranking. A strong emitter between two
+ * Doppler tiles (1.5 kHz, tiles 3 kHz apart over +/-5 kHz) peaks in both
+ * at its own code phase; the engine's own zone is per Doppler bin, so the
+ * list carries it twice, and only the receiver's duplicate rule makes the
+ * second copy no second signal. Rank 0 takes it; rank 1 finds nothing.
+ * Sabotage: drop the duplicate rule -> rank 1 seeds on the copy. */
+static int
+_test_one_signal_holds_one_rank (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double    fs = SLOW_CR * SLOW_SPC;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (code, 1023, SLOW_SPC, fs, fs / SLOW_RS, 1500.0, 70.0, 60, 0,
+                   5, &x, &n, &data);
+  for (size_t r = 0; r < 2; r++)
+    {
+      dp_async_dsss_receiver_state_t *rx
+          = _slow_rx (code, 60.0, 5000.0, 0.0, 0.0);
+      DP_REQUIRE (rx != NULL && rx->acq->window_bins > 1);
+      DP_CHECK (dp_async_dsss_receiver_set_rank (rx, r) == DP_OK);
+      (void)_until_seeded (rx, x, n);
+      DP_CHECK_MSG ((rx->state != ASYNC_DSSS_RX_SEARCHING) == (r == 0),
+                    r ? "rank 1 seeded on the one signal's copy"
+                      : "rank 0 missed the signal");
+      dp_async_dsss_receiver_destroy (rx);
+    }
+  free (x);
+  free (data);
+  return 0;
+}
+
+/* The two setters' domains and their blob (#2022): rank below the list,
+ * phases finite and at most 64, folded into [0, code_len); a refusal
+ * leaves the value as it was; both travel, and a blob only set_exclusions()
+ * could not leave is refused. Sabotage: drop rank or the list from the
+ * blob -> the restored receiver differs; skip the fold -> 9 reads 9. */
+static int
+_test_rank_and_exclusions_domain_and_blob (void)
+{
+  dp_async_dsss_receiver_state_t *a = _searching_rx (60.0, 35714.29, 0, false);
+  dp_async_dsss_receiver_state_t *b = _searching_rx (60.0, 35714.29, 0, false);
+  DP_REQUIRE (a && b);
+  DP_CHECK (dp_async_dsss_receiver_set_rank (a, ASYNC_DSSS_RX_MAX_PEAKS)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_get_rank (a) == 0);
+  DP_CHECK (dp_async_dsss_receiver_set_rank (a, 3) == DP_OK);
+
+  const double ok[3] = { 9.0, -0.5, 2.25 };
+  DP_CHECK (dp_async_dsss_receiver_set_exclusions (a, ok, 3) == DP_OK);
+  DP_CHECK (a->excl[0] == 2.0 && a->excl[1] == 6.5 && a->excl[2] == 2.25);
+  const double bad[2] = { 1.0, NAN };
+  DP_CHECK (dp_async_dsss_receiver_set_exclusions (a, bad, 2)
+            == DP_ERR_INVALID);
+  double many[ASYNC_DSSS_RX_MAX_EXCLUSIONS + 1] = { 0 };
+  DP_CHECK (dp_async_dsss_receiver_set_exclusions (
+                a, many, ASYNC_DSSS_RX_MAX_EXCLUSIONS + 1)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_set_exclusions (a, NULL, 1)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_get_n_exclusions (a) == 3
+            && a->excl[0] == 2.0); /* refusals left it */
+
+  const size_t   nb   = dp_async_dsss_receiver_state_bytes (a);
+  unsigned char *blob = malloc (nb);
+  dp_async_dsss_receiver_get_state (a, blob);
+  DP_REQUIRE (dp_async_dsss_receiver_set_state (b, blob) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_get_rank (b) == 3);
+  DP_CHECK (dp_async_dsss_receiver_get_n_exclusions (b) == 3);
+  DP_CHECK (memcmp (a->excl, b->excl, sizeof a->excl) == 0);
+
+  async_dsss_receiver_extra_t *e
+      = (async_dsss_receiver_extra_t *)(blob + sizeof (dp_state_hdr_t));
+  const async_dsss_receiver_extra_t keep = *e;
+  e->rank                                = ASYNC_DSSS_RX_MAX_PEAKS;
+  DP_CHECK (dp_async_dsss_receiver_set_state (b, blob) == DP_ERR_INVALID);
+  *e         = keep;
+  e->excl[1] = 7.0; /* not folded */
+  DP_CHECK (dp_async_dsss_receiver_set_state (b, blob) == DP_ERR_INVALID);
+  *e         = keep;
+  e->excl[5] = 1.0; /* past n_excl: not zeroed */
+  DP_CHECK (dp_async_dsss_receiver_set_state (b, blob) == DP_ERR_INVALID);
+  *e        = keep;
+  e->n_excl = ASYNC_DSSS_RX_MAX_EXCLUSIONS + 1;
+  DP_CHECK (dp_async_dsss_receiver_set_state (b, blob) == DP_ERR_INVALID);
+  free (blob);
+  dp_async_dsss_receiver_destroy (a);
+  dp_async_dsss_receiver_destroy (b);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -3775,6 +4004,9 @@ main (void)
   DP_CHECK (_test_threads_change_nothing_but_cost () == 0);
   DP_CHECK (_test_dwells_start_on_the_block_grid () == 0);
   DP_CHECK (_test_depth_finds_what_one_epoch_misses () == 0);
+  DP_CHECK (_test_ranks_and_exclusions_split_two_signals () == 0);
+  DP_CHECK (_test_rank_and_exclusions_domain_and_blob () == 0);
+  DP_CHECK (_test_one_signal_holds_one_rank () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

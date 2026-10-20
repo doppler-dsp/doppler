@@ -848,6 +848,52 @@ adr_align_skip (dp_async_dsss_receiver_state_t *s, size_t x_len)
   return (size_t)owed;
 }
 
+/* One signal's code phase, within a chip, circularly over the code: the
+ * zone a tracked signal holds and a peak's neighbouring cells share
+ * (design async-dsss-parallel.md §3; keyed on code phase alone, never
+ * carrier, async-dsss-receiver-measurements.md §12.14). */
+static int
+adr_same_code_phase (double a, double b, size_t code_len)
+{
+  double       d  = fabs (a - b);
+  const double cl = (double)code_len;
+  if (d > cl / 2.0)
+    d = cl - d;
+  return d <= 1.0;
+}
+
+/* A dwell's peak list, strongest first, to the one this receiver takes:
+ * drop every peak in an excluded zone, then every peak in the zone of a
+ * stronger one (excluded or not -- a neighbouring cell of an owned signal
+ * is that signal), then count survivors to `rank`. 1 and the hand-off in
+ * @p pick, or 0 when the list holds no peak at this rank. */
+static int
+adr_pick (const dp_async_dsss_receiver_state_t *s, const acq_result_t *hits,
+          size_t n_hits, acq_handoff_t *pick)
+{
+  double seen[ASYNC_DSSS_RX_MAX_PEAKS];
+  size_t n_seen = 0, n_kept = 0;
+  for (size_t i = 0; i < n_hits; i++)
+    {
+      acq_handoff_t ho;
+      dp_acq_build_handoff (s->acq, &hits[i], s->code_len, s->spc, &ho);
+      int drop = 0;
+      for (size_t j = 0; j < s->n_excl && !drop; j++)
+        drop = adr_same_code_phase (ho.chip_phase, s->excl[j], s->code_len);
+      for (size_t j = 0; j < n_seen && !drop; j++)
+        drop = adr_same_code_phase (ho.chip_phase, seen[j], s->code_len);
+      seen[n_seen++] = ho.chip_phase;
+      if (drop)
+        continue;
+      if (n_kept++ == s->rank)
+        {
+          *pick = ho;
+          return 1;
+        }
+    }
+  return 0;
+}
+
 dp_async_dsss_receiver_state_t *
 dp_async_dsss_receiver_create (
     const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate,
@@ -948,6 +994,10 @@ dp_async_dsss_receiver_create (
      carrier the tracking Dll's aid uses. */
   if (carrier_freq_hz > 0.0)
     (void)dp_acq_set_carrier_freq_hz (obj->acq, carrier_freq_hz);
+  /* A dwell's whole peak list, for adr_pick() to rank. Its first entry is
+     the one-peak detector's pick, so rank 0 with no exclusions takes what
+     max_peaks 1 took. */
+  (void)dp_acq_set_max_peaks (obj->acq, ASYNC_DSSS_RX_MAX_PEAKS);
 
   obj->spc          = spc;
   obj->m            = m;
@@ -1224,37 +1274,49 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
        * same fail-closed bound -- the rule and why are at
        * dsss_receiver_core.c's steps(), which hands off the same way. */
       const uint64_t before = dp_acq_position (state->acq);
-      acq_result_t   hit;
-      size_t         n_hits = dp_acq_push (state->acq, x, x_len, &hit, 1);
+      acq_result_t   hits[ASYNC_DSSS_RX_MAX_PEAKS];
+      size_t         n_hits
+          = dp_acq_push (state->acq, x, x_len, hits, ASYNC_DSSS_RX_MAX_PEAKS);
       if (n_hits == 0)
         return 0;
-      const uint64_t at = hit.samples_consumed - before;
+      /* With room for a whole dwell's list the push reports ONE dwell, every
+         peak sharing its samples_consumed, and may frame on past it to the
+         next dwell boundary. The hand-off resumes at the dwell's end; a
+         search that goes on resumes where the ENGINE stopped,
+         dp_acq_consumed(), so no sample is pushed twice. */
+      const uint64_t at = hits[0].samples_consumed - before;
       if (at == 0 || at > (uint64_t)x_len)
         return 0;
       const float _Complex *tail     = x + at;
       const size_t          tail_len = x_len - (size_t)at;
+      const size_t          taken    = dp_acq_consumed (state->acq);
+      const float _Complex *rest     = x + taken;
+      const size_t          rest_len = x_len - taken;
 
       /* A hit is a seed the object made for itself -- the same path an
-       * outside detection takes. dp_acq_build_handoff() folds the phase into
-       * [0, code_len), but not the Doppler: a hit at or past fs/2 is outside
-       * the seed domain. Such a hit is refused as a seed and counted in
-       * refused_hits; the search goes on over its tail, as it would after no
-       * hit. */
+       * outside detection takes. The list is filtered first (adr_pick():
+       * exclusions, duplicates, rank); a dwell with no peak at this
+       * receiver's rank seeds nothing and the search goes on.
+       * dp_acq_build_handoff() folds the phase into [0, code_len), but not
+       * the Doppler: a hit at or past fs/2 is outside the seed domain. Such
+       * a hit is refused as a seed and counted in refused_hits, and the
+       * search goes on, as it would after no hit. Either way this call
+       * already counted all of x, and the recursion counts the rest again:
+       * take the rest back out, so each input sample is counted once. (The
+       * accepted branch needs no such step: seed() restarts the count on
+       * entry to the refining state.) */
       acq_handoff_t ho;
-      dp_acq_build_handoff (state->acq, &hit, state->code_len, state->spc,
-                            &ho);
+      if (!adr_pick (state, hits, n_hits, &ho))
+        {
+          state->state_samples -= rest_len;
+          return adr_steps (state, rest, rest_len, out, max_out);
+        }
       if (!dp_async_dsss_receiver_seed_ok (state, ho.chip_phase,
                                            ho.doppler_hz_est))
         {
-          /* Refused: no seed, the receiver stays searching, and the refusal
-             is counted. This call already counted all of x, the tail
-             included, and the recursion below counts the tail again: take
-             the tail back out, so each input sample is counted once. (The
-             accepted branch needs no such step: seed() restarts the count
-             on entry to the refining state.) */
           state->refused_hits++;
-          state->state_samples -= tail_len;
-          return adr_steps (state, tail, tail_len, out, max_out);
+          state->state_samples -= rest_len;
+          return adr_steps (state, rest, rest_len, out, max_out);
         }
       /* Accepted: the domain was just checked, and the receiver is searching,
          so the seed cannot refuse for either reason. */
@@ -1431,6 +1493,48 @@ dp_async_dsss_receiver_set_threads (dp_async_dsss_receiver_state_t *state,
                                     int                             n)
 {
   return dp_acq_set_threads (state->acq, n);
+}
+
+int
+dp_async_dsss_receiver_set_rank (dp_async_dsss_receiver_state_t *state,
+                                 size_t                          rank)
+{
+  if (rank >= ASYNC_DSSS_RX_MAX_PEAKS)
+    return DP_ERR_INVALID;
+  state->rank = rank;
+  return DP_OK;
+}
+
+size_t
+dp_async_dsss_receiver_get_rank (const dp_async_dsss_receiver_state_t *state)
+{
+  return state->rank;
+}
+
+int
+dp_async_dsss_receiver_set_exclusions (dp_async_dsss_receiver_state_t *state,
+                                       const double *phases, size_t phases_len)
+{
+  if (phases_len > ASYNC_DSSS_RX_MAX_EXCLUSIONS || (phases_len && !phases))
+    return DP_ERR_INVALID;
+  for (size_t i = 0; i < phases_len; i++)
+    if (!isfinite (phases[i]))
+      return DP_ERR_INVALID;
+  /* Checked whole, then committed: a refusal leaves the list as it was. */
+  const double cl = (double)state->code_len;
+  for (size_t i = 0; i < phases_len; i++)
+    state->excl[i] = dp_fmod_pos (phases[i], cl);
+  for (size_t i = phases_len; i < ASYNC_DSSS_RX_MAX_EXCLUSIONS; i++)
+    state->excl[i] = 0.0;
+  state->n_excl = phases_len;
+  return DP_OK;
+}
+
+size_t
+dp_async_dsss_receiver_get_n_exclusions (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return state->n_excl;
 }
 
 int
@@ -1718,7 +1822,10 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .samples_in          = s->samples_in,
     .align_pending       = (uint64_t)(s->align_pending != 0),
     .threads             = (int64_t)s->acq->threads,
+    .rank                = (uint64_t)s->rank,
+    .n_excl              = (uint64_t)s->n_excl,
   };
+  memcpy (extra.excl, s->excl, sizeof extra.excl); /* tail kept zeroed */
   dp_w_bytes (&_w, &extra, sizeof extra);
   DP_W_CHILD (&_w, dp_acq, s->acq);
   DP_W_CHILD (&_w, dp_costas, &s->car_frozen);
@@ -1751,8 +1858,16 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.car_carry_len >= (uint64_t)s->tsamps
       || extra.state > ASYNC_DSSS_RX_LOST
       || extra.state == ASYNC_DSSS_RX_RESERVED || extra.align_pending > 1
-      || extra.threads < 1 || extra.threads > INT_MAX)
+      || extra.threads < 1 || extra.threads > INT_MAX
+      || extra.rank >= ASYNC_DSSS_RX_MAX_PEAKS
+      || extra.n_excl > ASYNC_DSSS_RX_MAX_EXCLUSIONS)
     return DP_ERR_INVALID;
+  /* Only what set_exclusions() can leave: folded phases, a zeroed tail. */
+  for (size_t i = 0; i < ASYNC_DSSS_RX_MAX_EXCLUSIONS; i++)
+    if (i < extra.n_excl
+            ? !(extra.excl[i] >= 0.0 && extra.excl[i] < (double)s->code_len)
+            : extra.excl[i] != 0.0)
+      return DP_ERR_INVALID;
   /* A reacquire receiver never enters lost (its release resets it to
      searching), so lost is no state it can be in, and nothing would take
      it out: refused, as a state the object cannot reach. */
@@ -1795,7 +1910,10 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   s->refused_hits        = extra.refused_hits;
   s->refine_min_blocks   = (size_t)extra.refine_min_blocks;
   s->samples_in          = extra.samples_in;
-  s->align_pending       = extra.align_pending != 0;
+  s->rank                = (size_t)extra.rank;
+  s->n_excl              = (size_t)extra.n_excl;
+  memcpy (s->excl, extra.excl, sizeof s->excl);
+  s->align_pending = extra.align_pending != 0;
   /* set_threads()'s value (#2022): the same request the writer's last
      call made, which on a machine with as many cores runs as many. */
   if (extra.threads != (int64_t)s->acq->threads)

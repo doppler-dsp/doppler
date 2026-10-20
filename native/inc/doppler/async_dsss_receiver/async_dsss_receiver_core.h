@@ -189,6 +189,16 @@ extern "C"
  *  estimate noise at 45 dB-Hz); see
  *  dp_async_dsss_receiver_set_refine_min_blocks(). */
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
+
+/** Peaks the searcher reports per dwell (dp_acq_set_max_peaks()): the list
+ *  the receiver filters by exclusion, de-duplicates and ranks
+ *  (dp_async_dsss_receiver_set_rank()). A rank is below this. */
+#define ASYNC_DSSS_RX_MAX_PEAKS 16u
+
+/** Most code phases dp_async_dsss_receiver_set_exclusions() holds: one per
+ *  signal another receiver tracks. */
+#define ASYNC_DSSS_RX_MAX_EXCLUSIONS 64u
+
 /* Symbol-lock detector on the emitted symbols. The lock signal is the
  * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
  * symbol (locked -> +1, 45deg-rotated/noise -> 0). The lock METRIC is that
@@ -363,6 +373,11 @@ typedef enum
                                  discards input to the next multiple of
                                  `coherent_bins * code_len * spc` before
                                  its next dwell starts.                  */
+    size_t   rank;   /**< set_rank(): which surviving peak of a dwell the
+                          search takes, 0 = the strongest.               */
+    size_t   n_excl; /**< set_exclusions(): code phases held.            */
+    double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; /**< those phases, chips,
+                          in [0, code_len), the status() convention.     */
     uint64_t refused_hits;         /**< Searching hits the seed domain refused
                                         as seeds, since create or reset. In
                                         the blob with state_samples, so a
@@ -1106,6 +1121,79 @@ typedef enum
   int dp_async_dsss_receiver_set_threads (
       dp_async_dsss_receiver_state_t *state, int n);
 
+  /**
+   * @brief Take the @p rank-th surviving peak of a dwell, not the strongest.
+   *
+   * The searcher reports up to @ref ASYNC_DSSS_RX_MAX_PEAKS peaks per dwell,
+   * strongest first. The receiver drops every peak within one chip
+   * (circularly) of an excluded code phase (set_exclusions()), then every
+   * peak within one chip of a stronger one, so one signal's neighbouring
+   * cells hold one place; the survivors are ranked from 0. A dwell with no
+   * peak at this rank hands nothing off and the search goes on. Searchers
+   * that share a stream and its block grid (get_coherent_bins()) and hold
+   * ranks 0..k-1 therefore take k different signals in one dwell. Takes
+   * effect at the next dwell. A mutator's value, so it travels in the state
+   * blob (#2022).
+   *
+   * @param state Must be non-NULL.
+   * @param rank  0 (the strongest, the default) to
+   *              @ref ASYNC_DSSS_RX_MAX_PEAKS - 1.
+   * @return `DP_OK`; `DP_ERR_INVALID` (rank unchanged) past the list.
+   * @code
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
+   * ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+   * >>> rx.set_rank(1)
+   * >>> rx.rank
+   * 1
+   *
+   * @endcode
+   */
+  int dp_async_dsss_receiver_set_rank (dp_async_dsss_receiver_state_t *state,
+                                       size_t rank);
+
+  /** @brief Which surviving peak of a dwell the search takes; 0 = the
+   *  strongest. Set with dp_async_dsss_receiver_set_rank(). */
+  size_t dp_async_dsss_receiver_get_rank (
+      const dp_async_dsss_receiver_state_t *state);
+
+  /**
+   * @brief Code phases the search must not take: signals another receiver
+   *        already tracks.
+   *
+   * Replaces the list. A peak within one chip, circularly, of any of them is
+   * dropped from a dwell's list at any Doppler, before ranking
+   * (set_rank()). Phases are chips in status().chip_phase's convention and
+   * are folded into [0, code_len). An empty list (the default) excludes
+   * nothing. A tracking receiver is not affected: the list applies to its
+   * next search. A mutator's value, so it travels in the state blob
+   * (#2022).
+   *
+   * @param state       Must be non-NULL.
+   * @param phases      Code phases, chips; finite. May be NULL when
+   *                    @p phases_len is 0.
+   * @param phases_len  At most @ref ASYNC_DSSS_RX_MAX_EXCLUSIONS.
+   * @return `DP_OK`; `DP_ERR_INVALID` (list unchanged) on a non-finite
+   *         phase or too many.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
+   * ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+   * >>> rx.set_exclusions(np.array([2.5, 9.0]))   # 9 folds to 2
+   * >>> rx.n_exclusions
+   * 2
+   *
+   * @endcode
+   */
+  int dp_async_dsss_receiver_set_exclusions (
+      dp_async_dsss_receiver_state_t *state, const double *phases,
+      size_t phases_len);
+
+  /** @brief Code phases set_exclusions() holds. */
+  size_t dp_async_dsss_receiver_get_n_exclusions (
+      const dp_async_dsss_receiver_state_t *state);
+
   /** @brief Workers the searcher runs, the calling thread included; 1 =
    *  serial. Set with dp_async_dsss_receiver_set_threads(). */
   int dp_async_dsss_receiver_get_threads (
@@ -1350,10 +1438,14 @@ typedef enum
     uint64_t samples_in;    /**< v12: input samples since create.        */
     uint64_t align_pending; /**< v12: 0 or 1, a dwell alignment owed.    */
     int64_t  threads;       /**< v12: set_threads()'s result (#2022).    */
+    uint64_t rank;          /**< v13: set_rank()'s value (#2022).        */
+    uint64_t n_excl;        /**< v13: set_exclusions()'s count ...       */
+    double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; /**< ... and phases, the
+                                 unused tail zeroed.                     */
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 12u /* v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 13u /* v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

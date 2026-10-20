@@ -100,6 +100,11 @@ extern "C"
 #define ASYNC_DSSS_RX_DEMOD_LOCK_THRESH 0.3
 
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
+
+#define ASYNC_DSSS_RX_MAX_PEAKS 16u
+
+#define ASYNC_DSSS_RX_MAX_EXCLUSIONS 64u
+
 /* Symbol-lock detector on the emitted symbols. The lock signal is the
  * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
  * symbol (locked -> +1, 45deg-rotated/noise -> 0). The lock METRIC is that
@@ -220,6 +225,9 @@ typedef enum
     double   doppler_rate; 
     uint64_t samples_in;   
     bool     align_pending; 
+    size_t   rank;   
+    size_t   n_excl; 
+    double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; 
     uint64_t refused_hits;         
     uint64_t both_down_samples;    
     int      had_lock;             
@@ -320,6 +328,19 @@ typedef enum
   int dp_async_dsss_receiver_set_threads (
       dp_async_dsss_receiver_state_t *state, int n);
 
+  int dp_async_dsss_receiver_set_rank (dp_async_dsss_receiver_state_t *state,
+                                       size_t rank);
+
+  size_t dp_async_dsss_receiver_get_rank (
+      const dp_async_dsss_receiver_state_t *state);
+
+  int dp_async_dsss_receiver_set_exclusions (
+      dp_async_dsss_receiver_state_t *state, const double *phases,
+      size_t phases_len);
+
+  size_t dp_async_dsss_receiver_get_n_exclusions (
+      const dp_async_dsss_receiver_state_t *state);
+
   int dp_async_dsss_receiver_get_threads (
       const dp_async_dsss_receiver_state_t *state);
 
@@ -404,10 +425,13 @@ typedef enum
     uint64_t samples_in;    
     uint64_t align_pending; 
     int64_t  threads;       
+    uint64_t rank;          
+    uint64_t n_excl;        
+    double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 12u /* v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 13u /* v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

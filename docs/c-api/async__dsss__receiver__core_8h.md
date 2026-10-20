@@ -109,8 +109,10 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 |  int | [**dp\_async\_dsss\_receiver\_get\_lost**](#function-dp_async_dsss_receiver_get_lost) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_1 once the release rule has fired: both lock flags were down, continuously, for longer than_ `lost_confirm_s` _while tracking_ _an emitter that left, or a seed that never locked. The loops have stopped and samples are consumed and discarded; the holder releases the assignment and calls reset(). 0 in every other state, and always 0 with_`lost_confirm_s = 0` _._ |
 |  double | [**dp\_async\_dsss\_receiver\_get\_mpsk\_last\_error**](#function-dp_async_dsss_receiver_get_mpsk_last_error) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_MpskReceiver carrier phase discriminator (rad): the residual carrier phase LOOP 2 (post-despread) is not nulling._  |
 |  int | [**dp\_async\_dsss\_receiver\_get\_n**](#function-dp_async_dsss_receiver_get_n) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_async\_dsss\_receiver\_get\_n\_exclusions**](#function-dp_async_dsss_receiver_get_n_exclusions) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Code phases set\_exclusions() holds._  |
 |  double | [**dp\_async\_dsss\_receiver\_get\_nco\_freq**](#function-dp_async_dsss_receiver_get_nco_freq) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The MpskReceiver's carrier NCO command, its loop filter's whole output, cycles/sample at its input rate (_ `sps * symbol_rate` _). Its mean tracks a Doppler ramp with no lag (unlike get\_norm\_freq()); its variance is the carrier loop's stress._ |
 |  double | [**dp\_async\_dsss\_receiver\_get\_norm\_freq**](#function-dp_async_dsss_receiver_get_norm_freq) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The post-despread carrier the MpskReceiver tracks: its centre plus its loop's integrator, cycles/sample at its input rate (_ `sps * symbol_rate` _). Lags a Doppler ramp by the Type-II ramp error._ |
+|  size\_t | [**dp\_async\_dsss\_receiver\_get\_rank**](#function-dp_async_dsss_receiver_get_rank) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Which surviving peak of a dwell the search takes; 0 = the strongest. Set with_ [_**dp\_async\_dsss\_receiver\_set\_rank()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_rank) _._ |
 |  int | [**dp\_async\_dsss\_receiver\_get\_refining**](#function-dp_async_dsss_receiver_get_refining) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_1 while refining: the CarrierAcquisition dwell; 0 in every other state._  |
 |  size\_t | [**dp\_async\_dsss\_receiver\_get\_segments**](#function-dp_async_dsss_receiver_get_segments) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br> |
 |  size\_t | [**dp\_async\_dsss\_receiver\_get\_sps**](#function-dp_async_dsss_receiver_get_sps) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br> |
@@ -120,6 +122,8 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 |  void | [**dp\_async\_dsss\_receiver\_reset**](#function-dp_async_dsss_receiver_reset) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Return to the searching state. Resets the embedded Acquisition and rebuilds the refine-stage chain and the live tracking chain back to their placeholder seed (phase 0, no Doppler). A receiver that has locked cannot be "reset back to tracking the same signal," only back to searching_  _every object's reset() semantics in this codebase._ |
 |  int | [**dp\_async\_dsss\_receiver\_seed**](#function-dp_async_dsss_receiver_seed) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, double chip\_phase, double doppler\_hz\_est, double cn0\_dbhz\_est) <br>_Take a detection from outside and start refining from it._  |
 |  int | [**dp\_async\_dsss\_receiver\_seed\_ok**](#function-dp_async_dsss_receiver_seed_ok) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, double chip\_phase, double doppler\_hz\_est) <br>_The seed domain: whether_ `(chip_phase, doppler_hz_est)` _is one_[_**dp\_async\_dsss\_receiver\_seed()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_seed) _accepts, and one a live receiver can hold._ |
+|  int | [**dp\_async\_dsss\_receiver\_set\_exclusions**](#function-dp_async_dsss_receiver_set_exclusions) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, const double \* phases, size\_t phases\_len) <br>_Code phases the search must not take: signals another receiver already tracks._  |
+|  int | [**dp\_async\_dsss\_receiver\_set\_rank**](#function-dp_async_dsss_receiver_set_rank) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t rank) <br>_Take the_ `rank-th` _surviving peak of a dwell, not the strongest._ |
 |  int | [**dp\_async\_dsss\_receiver\_set\_refine\_min\_blocks**](#function-dp_async_dsss_receiver_set_refine_min_blocks) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t n\_blocks) <br>_Floor the refine's dwell at_ `n_blocks` _, whatever the detection sizing asks (docs/design/async-dsss-receiver-measurements.md §12.16, #1265)._ |
 |  int | [**dp\_async\_dsss\_receiver\_set\_state**](#function-dp_async_dsss_receiver_set_state) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**dp\_async\_dsss\_receiver\_set\_telemetry**](#function-dp_async_dsss_receiver_set_telemetry) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the receiver's loops, and register the receiver's own lifecycle and symbol-lock decision._  |
@@ -160,7 +164,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | Type | Name |
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_MAGIC**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'R', 'X')`<br> |
-| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `12u /\* v12: samples\_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br> |
+| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `13u /\* v13: rank, exclusions; v12: samples\_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier)  `0.04`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_pullin_hz) (chip\_rate, code\_len) `([**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier) \* (chip\_rate) / (2.0 \* (double)(code\_len)))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DEMOD\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_bn_carrier)  `0.01`<br> |
@@ -177,6 +181,8 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_N\_DOWN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_n_down)  `15u`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_N\_UP**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_n_up)  `30u`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_UP**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_up)  `0.5`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_MAX\_EXCLUSIONS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_exclusions)  `64u`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_MAX\_PEAKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_peaks)  `16u`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_REFINE\_DLL\_SPACING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_refine_dll_spacing)  `0.5`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_REFINE\_MIN\_BLOCKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_refine_min_blocks)  `7u`<br> |
 
@@ -804,6 +810,22 @@ int dp_async_dsss_receiver_get_n (
 
 
 
+### function dp\_async\_dsss\_receiver\_get\_n\_exclusions 
+
+_Code phases set\_exclusions() holds._ 
+```C++
+size_t dp_async_dsss_receiver_get_n_exclusions (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function dp\_async\_dsss\_receiver\_get\_nco\_freq 
 
 _The MpskReceiver's carrier NCO command, its loop filter's whole output, cycles/sample at its input rate (_ `sps * symbol_rate` _). Its mean tracks a Doppler ramp with no lag (unlike get\_norm\_freq()); its variance is the carrier loop's stress._
@@ -825,6 +847,22 @@ double dp_async_dsss_receiver_get_nco_freq (
 _The post-despread carrier the MpskReceiver tracks: its centre plus its loop's integrator, cycles/sample at its input rate (_ `sps * symbol_rate` _). Lags a Doppler ramp by the Type-II ramp error._
 ```C++
 double dp_async_dsss_receiver_get_norm_freq (
+    const dp_async_dsss_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_get\_rank 
+
+_Which surviving peak of a dwell the search takes; 0 = the strongest. Set with_ [_**dp\_async\_dsss\_receiver\_set\_rank()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_rank) _._
+```C++
+size_t dp_async_dsss_receiver_get_rank (
     const dp_async_dsss_receiver_state_t * state
 ) 
 ```
@@ -1076,6 +1114,105 @@ seed() refuses by this predicate, set\_state() restores the seed fields only ins
 **Returns:**
 
 1 inside the seed domain, 0 outside it (a NaN is outside). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_set\_exclusions 
+
+_Code phases the search must not take: signals another receiver already tracks._ 
+```C++
+int dp_async_dsss_receiver_set_exclusions (
+    dp_async_dsss_receiver_state_t * state,
+    const double * phases,
+    size_t phases_len
+) 
+```
+
+
+
+Replaces the list. A peak within one chip, circularly, of any of them is dropped from a dwell's list at any Doppler, before ranking (set\_rank()). Phases are chips in status().chip\_phase's convention and are folded into [0, code\_len). An empty list (the default) excludes nothing. A tracking receiver is not affected: the list applies to its next search. A mutator's value, so it travels in the state blob (#2022).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `phases` Code phases, chips; finite. May be NULL when `phases_len` is 0. 
+* `phases_len` At most [**ASYNC\_DSSS\_RX\_MAX\_EXCLUSIONS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_exclusions). 
+
+
+
+**Returns:**
+
+`DP_OK`; `DP_ERR_INVALID` (list unchanged) on a non-finite phase or too many. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import AsyncDsssReceiver
+>>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
+...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+>>> rx.set_exclusions(np.array([2.5, 9.0]))   # 9 folds to 2
+>>> rx.n_exclusions
+2
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_set\_rank 
+
+_Take the_ `rank-th` _surviving peak of a dwell, not the strongest._
+```C++
+int dp_async_dsss_receiver_set_rank (
+    dp_async_dsss_receiver_state_t * state,
+    size_t rank
+) 
+```
+
+
+
+The searcher reports up to [**ASYNC\_DSSS\_RX\_MAX\_PEAKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_peaks) peaks per dwell, strongest first. The receiver drops every peak within one chip (circularly) of an excluded code phase (set\_exclusions()), then every peak within one chip of a stronger one, so one signal's neighbouring cells hold one place; the survivors are ranked from 0. A dwell with no peak at this rank hands nothing off and the search goes on. Searchers that share a stream and its block grid (get\_coherent\_bins()) and hold ranks 0..k-1 therefore take k different signals in one dwell. Takes effect at the next dwell. A mutator's value, so it travels in the state blob (#2022).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `rank` 0 (the strongest, the default) to [**ASYNC\_DSSS\_RX\_MAX\_PEAKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_peaks) - 1. 
+
+
+
+**Returns:**
+
+`DP_OK`; `DP_ERR_INVALID` (rank unchanged) past the list. 
+```C++
+>>> from doppler.dsss import AsyncDsssReceiver
+>>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
+...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+>>> rx.set_rank(1)
+>>> rx.rank
+1
+```
+ 
 
 
 
@@ -1505,7 +1642,7 @@ Returns 0, which is NOT a bound. A call that completes a code period carried ove
 ### define ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION `12u /* v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION `13u /* v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
 ```
 
 
@@ -1725,6 +1862,40 @@ The pre-despread carrier loop's acquisition bound, Hz: `bn / m` cycles per sampl
 
 
 
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_MAX\_EXCLUSIONS 
+
+```C++
+#define ASYNC_DSSS_RX_MAX_EXCLUSIONS `64u`
+```
+
+
+
+Most code phases [**dp\_async\_dsss\_receiver\_set\_exclusions()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_exclusions) holds: one per signal another receiver tracks. 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_MAX\_PEAKS 
+
+```C++
+#define ASYNC_DSSS_RX_MAX_PEAKS `16u`
+```
+
+
+
+Peaks the searcher reports per dwell ([**dp\_acq\_set\_max\_peaks()**](acq__core_8h.md#function-dp_acq_set_max_peaks)): the list the receiver filters by exclusion, de-duplicates and ranks ([**dp\_async\_dsss\_receiver\_set\_rank()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_rank)). A rank is below this. 
+
+
+        
 
 <hr>
 

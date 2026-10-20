@@ -160,33 +160,67 @@
 #define FALSE_S 2.0          /* noise fed to a receiver seeded on it */
 
 /* The EVM allowance, at each Es/N0, as a loss over the meter's ideal
-   (dp_ber_evm_ideal_db()). A locked receiver's error is the ideal's plus an
-   implementation floor, EVM^2 = ideal + floor in linear power, so the loss
-   it may show is 10*log10(1 + floor/ideal): a fraction of a dB at 10 dB,
-   over 1 dB at 20, where the floor dominates. EVM_FLOOR_DB is the floor
-   the full sweep's worst 20 dB draw leaves (a loss of +1.36 dB there).
-   EVM_MARGIN_DB is the estimator's own counting noise, both ways: over
+   (dp_ber_evm_ideal_db()). A locked receiver's error is the ideal's scaled
+   by its implementation loss, plus a floor: EVM^2 = k * ideal + floor in
+   linear power, so the loss it shows is 10*log10(k + floor/ideal) -- about
+   1 dB from k alone at 10 dB, over 2 dB at 20, where the floor joins it.
+   The loss is held to a BAND between two such lines, fitted to the full
+   sweep's asserted draws (10, 15, 20 dB, five each):
+     - the upper, k 0.83 dB with a floor of -23.0 dB, through the worst
+       draws at 10 and 20 dB;
+     - the lower, k 0.78 dB with a floor of -27.3 dB, under the least
+       draws at 10 and 15 dB;
+   each widened by EVM_MARGIN_DB, the estimator's own counting noise: over
    QUALITY_S of symbols (2,700) one sigma of an EVM is 4.34/sqrt(2700) =
-   0.08 dB, and 0.3 dB is past 3.5 sigma. So a new 0.2 dB of loss at
-   10 dB fails, and an EVM well under the ideal -- a meter or harness
-   defect, never a better receiver -- fails too. */
-#define EVM_FLOOR_DB -24.4
+   0.08 dB, and 0.3 dB is past 3.5 sigma. The fit is the sweep at the
+   commit that divides the Dll's output by a slowly tracked level
+   (doppler#2495), on
+   swiftgo-ai9465 (AMD Ryzen AI 9 465, gcc 14.2.0): bands of +0.55 to
+   +1.32 dB at 10 dB, +0.69 to +1.68 at 15 and +1.10 to +2.65 at 20.
+
+   Before that, the model was the floor alone, EVM^2 = ideal + floor (k = 1,
+   a floor of -24.4 dB), bounded below only by -EVM_MARGIN_DB. That fitted
+   a metric the Dll's per-period output normalization flattered by about
+   1 dB: it compressed the in-phase error, so the EVM read near the ideal
+   while the error rate sat 0.9 dB from the bound. The lower line is what
+   sees that defect come back: under the normalization as it shipped, the
+   spot check's draw read +0.28 dB at 10 dB and +0.00 at 15, both under the
+   band, and fails (restored as a sabotage, it does). At 20 dB the floor
+   dominates and its +1.27 is inside the band, so 20 dB alone could not
+   tell it. An EVM under the band is
+   never a better receiver by itself: either the meter flatters or the
+   receiver really improved, and the latter is a re-fit from a new sweep,
+   the same as a raise. */
+#define EVM_K_HI_DB 0.830
+#define EVM_FLOOR_HI_DB -22.98
+#define EVM_K_LO_DB 0.779
+#define EVM_FLOOR_LO_DB -27.34
 #define EVM_MARGIN_DB 0.3
+
+/* 10*log10(k + floor/ideal) at this Es/N0, k and floor in dB. */
+static double
+evm_loss_line_db (double esn0_db, double k_db, double floor_db)
+{
+  return 10.0
+         * log10 (
+             pow (10.0, k_db / 10.0)
+             + pow (10.0, (floor_db - dp_ber_evm_ideal_db (esn0_db)) / 10.0));
+}
 
 /* The most loss a locked receiver may show at this Es/N0. */
 static double
 evm_loss_max_db (double esn0_db)
 {
-  const double floor_over_ideal
-      = pow (10.0, (EVM_FLOOR_DB - dp_ber_evm_ideal_db (esn0_db)) / 10.0);
-  return 10.0 * log10 (1.0 + floor_over_ideal) + EVM_MARGIN_DB;
+  return evm_loss_line_db (esn0_db, EVM_K_HI_DB, EVM_FLOOR_HI_DB)
+         + EVM_MARGIN_DB;
 }
 
-/* The least: under the ideal by no more than the counting noise. */
+/* The least: its implementation loss is not hidden. */
 static double
-evm_loss_min_db (void)
+evm_loss_min_db (double esn0_db)
 {
-  return -EVM_MARGIN_DB;
+  return evm_loss_line_db (esn0_db, EVM_K_LO_DB, EVM_FLOOR_LO_DB)
+         - EVM_MARGIN_DB;
 }
 #define FALSE_TRIALS 5u
 
@@ -991,6 +1025,13 @@ main (int argc, char **argv)
      assert the same at 10 dB and above and measure the rest. */
   const size_t n_q  = N_QUALITY_ESN0;
   const size_t q_tr = check ? 1 : QUALITY_TRIALS;
+  /* The EVM band's two lines, for the report to quote rather than invert
+     from the bounds the quality rows carry. */
+  if (emit)
+    printf ("# evm_model\nk_hi_db,floor_hi_db,k_lo_db,floor_lo_db,"
+            "margin_db\n%.3f,%.2f,%.3f,%.2f,%.2f\n",
+            EVM_K_HI_DB, EVM_FLOOR_HI_DB, EVM_K_LO_DB, EVM_FLOOR_LO_DB,
+            EVM_MARGIN_DB);
   if (emit)
     printf ("# quality\nesn0_db,seed,carrier_hz,settled,t_lock_ms,n_sym,"
             "evm_db,ideal_db,loss_db,loss_min_db,loss_max_db,lock_frac\n");
@@ -1003,11 +1044,11 @@ main (int argc, char **argv)
         {
           quality_t q;
           DP_REQUIRE (run_quality (code, es, s, &q) == 0);
-          /* Asserted at 10 dB and above. Below, the loss comes from the
-             loops' dynamics rather than a floor, the model does not hold,
-             and the row carries no allowance (NaN). */
+          /* Asserted at 10 dB and above. Below, a draw need not lock (the
+             sweep's 5 dB seed 3 does not), and the row carries no
+             allowance (NaN). */
           const int    asserted = es >= 10.0;
-          const double lo       = asserted ? evm_loss_min_db () : NAN;
+          const double lo       = asserted ? evm_loss_min_db (es) : NAN;
           const double hi       = asserted ? evm_loss_max_db (es) : NAN;
           if (emit)
             printf ("%.1f,%u,%.1f,%d,%.2f,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.4f\n",
@@ -1032,8 +1073,8 @@ main (int argc, char **argv)
                             "a locked receiver's EVM is within its "
                             "allowance over the meter's ideal");
               DP_CHECK_MSG (q.settled && q.loss_db >= lo,
-                            "a locked receiver's EVM is not under the "
-                            "meter's ideal by more than its counting noise");
+                            "a locked receiver's EVM does not read better "
+                            "than its implementation loss allows");
               DP_CHECK_MSG (q.settled && q.lock_frac == 1.0,
                             "symbol lock holds through the window");
             }

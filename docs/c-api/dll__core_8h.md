@@ -146,6 +146,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 | define  | [**DLL\_AID\_MAX\_PERIOD**](dll__core_8h.md#define-dll_aid_max_period)  `1048576.0`<br>_The longest symbol period, in partials, the symbol aid takes._  |
 | define  | [**DLL\_DISC\_CLAMP**](dll__core_8h.md#define-dll_disc_clamp)  `1.0`<br> |
 | define  | [**DLL\_EPS**](dll__core_8h.md#define-dll_eps)  `1e-12`<br> |
+| define  | [**DLL\_OUT\_LEVEL\_PERIODS**](dll__core_8h.md#define-dll_out_level_periods)  `32u`<br> |
 | define  | [**DLL\_STATE\_MAGIC**](dll__core_8h.md#define-dll_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','L','L',' ')`<br> |
 | define  | [**DLL\_STATE\_VERSION**](dll__core_8h.md#define-dll_state_version)  `/* multi line expression */`<br> |
 
@@ -1388,7 +1389,7 @@ int dp_dll_set_symbol_period (
 In `segments > 1` mode every partial is a look for the code-lock detector ([**dp\_dll\_configure\_lock()**](dll__core_8h.md#function-dp_dll_configure_lock)) and the discriminator sees one epoch through the per-epoch look-back: the smallest integrations the asynchronous data allows when nothing is known about where its transitions fall, and therefore the weakest. This is the same max-power search the per-epoch look-back already runs, lifted to the symbol scale once the symbol PERIOD is known: with `P = partials_per_symbol` the transitions recur every `P` partials, so `ceil(P)` boundary-phase hypotheses each define a transition-free window of `L = min(floor(P) - 1, 4 * segments)` partials per symbol. Each hypothesis accumulates the power of its coherently summed windows (an EMA over the last ~32 symbols); the one with the most power IS the symbol timing, and its windows become the detector's looks and the discriminator's windows. A look then integrates `L` partials coherently  at SPEC's 1.8 epochs per symbol and four partials per epoch, six partials instead of one, 7.8 dB more per look  and never straddles a transition. Size `n_looks` for it with detection.det\_n\_noncoh() over `L * (sf * sps / segments)` samples.
 
 
-The code loop steers once per symbol, on the early/prompt/late sums over the winning window, instead of once per epoch on the look-back's: the same discriminator on a window half again as long and never across a transition. The loop filter is re-timed to the symbol interval, so `bn` keeps its per-epoch meaning and the tracked rate is continuous across the switch either way  a loop that has pulled in a code Doppler keeps it when the aid is turned on or off. Measured against the per-epoch loop at the operating point (docs/design/async-dsss-receiver-measurements.md §12.5, `validate_dll_aid_jitter`): pull-in about 20% faster, and a code jitter 0.8x the per-epoch loop's above 45 dB-Hz  where the look-back's own handling of the data transitions sets it  and 1.2-1.4x at the 40 dB-Hz floor, where the noise sets it and the window's unused partials cost more than its coherence buys; hundredths of a chip either way. The emitted partial stream is untouched: the look-back still supplies its normalisation. The search is blind to WHICH hypothesis is right on any one symbol  it needs no decision and no external timing  so it costs nothing at cold start and follows a slowly drifting symbol clock by itself. `L` is capped at four epochs of partials so a long symbol (a low data rate) does not ask for coherence across more carrier than the wipe-off holds.
+The code loop steers once per symbol, on the early/prompt/late sums over the winning window, instead of once per epoch on the look-back's: the same discriminator on a window half again as long and never across a transition. The loop filter is re-timed to the symbol interval, so `bn` keeps its per-epoch meaning and the tracked rate is continuous across the switch either way  a loop that has pulled in a code Doppler keeps it when the aid is turned on or off. Measured against the per-epoch loop at the operating point (docs/design/async-dsss-receiver-measurements.md §12.5, `validate_dll_aid_jitter`): pull-in about 20% faster, and a code jitter 0.8x the per-epoch loop's above 45 dB-Hz  where the look-back's own handling of the data transitions sets it  and 1.2-1.4x at the 40 dB-Hz floor, where the noise sets it and the window's unused partials cost more than its coherence buys; hundredths of a chip either way. The emitted partial stream is untouched by the aid. The search is blind to WHICH hypothesis is right on any one symbol  it needs no decision and no external timing  so it costs nothing at cold start and follows a slowly drifting symbol clock by itself. `L` is capped at four epochs of partials so a long symbol (a low data rate) does not ask for coherence across more carrier than the wipe-off holds.
 
 
 
@@ -1515,7 +1516,7 @@ size_t dp_dll_steps (
 
 
 
-The Python face of the loop. Each code period the early/prompt/late correlators dump, the power-domain early-minus-late discriminator runs, and the fixed-point code-phase NCO is re-steered; the prompt correlator value is emitted as one output symbol per period (or `segments` partial prompts per period when `segments > 1`). The discriminator's early, late and prompt are coherent sums over its window  one code period, or with [**dp\_dll\_set\_symbol\_period()**](dll__core_8h.md#function-dp_dll_set_symbol_period) the transition-free window of a symbol  and it takes their powers. So the loop is blind to the carrier's phase but not to its frequency: a residual `df` costs a window of `T` seconds `sinc^2(df * T)` of its power, and a whole `1/T` cycle nulls it. Wipe the carrier before this call: AsyncDsssReceiver runs its carrier loop upstream of its Dll and hands the same estimate to [**dp\_dll\_set\_rate\_aid()**](dll__core_8h.md#function-dp_dll_set_rate_aid). Symbol-timing recovery runs downstream, on this output. Returned blocks are block-size invariant and safe to keep across calls (a block still referenced is never overwritten, jm gh-437).
+The Python face of the loop. Each code period the early/prompt/late correlators dump, the power-domain early-minus-late discriminator runs, and the fixed-point code-phase NCO is re-steered; the prompt correlator value is emitted as one output symbol per period (or `segments` partial prompts per period when `segments > 1`). At `segments > 1` each emitted partial is its window's prompt sum over the samples it spans, divided by a slowly tracked level  a running mean of the period's look-back magnitude over DLL\_OUT\_LEVEL\_PERIODS (32) periods  so the output sits near unit amplitude at any input gain, which the timing detectors downstream assume. Never by the period's own magnitude: that divisor carries the period's own noise, and it made the despread error non-circular and cost the error rate (doppler#2495). The level settles to 1% about 147 periods after a step in the input's level or a put of the code phase, and the output's scale follows the step until then. The discriminator's early, late and prompt are coherent sums over its window  one code period, or with [**dp\_dll\_set\_symbol\_period()**](dll__core_8h.md#function-dp_dll_set_symbol_period) the transition-free window of a symbol  and it takes their powers. So the loop is blind to the carrier's phase but not to its frequency: a residual `df` costs a window of `T` seconds `sinc^2(df * T)` of its power, and a whole `1/T` cycle nulls it. Wipe the carrier before this call: AsyncDsssReceiver runs its carrier loop upstream of its Dll and hands the same estimate to [**dp\_dll\_set\_rate\_aid()**](dll__core_8h.md#function-dp_dll_set_rate_aid). Symbol-timing recovery runs downstream, on this output. Returned blocks are block-size invariant and safe to keep across calls (a block still referenced is never overwritten, jm gh-437).
 
 
 
@@ -1789,6 +1790,19 @@ Its rings and hypotheses are allocated per period, so a period past this is refu
 
 ```C++
 #define DLL_EPS `1e-12`
+```
+
+
+
+
+<hr>
+
+
+
+### define DLL\_OUT\_LEVEL\_PERIODS 
+
+```C++
+#define DLL_OUT_LEVEL_PERIODS `32u`
 ```
 
 

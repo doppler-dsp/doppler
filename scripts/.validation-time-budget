@@ -66,6 +66,7 @@ validate_async_dsss_receiver_release    19.7
 validate_async_dsss_receiver_lock        4.6  # CI's sweep job on #2481: 4.6 s. #2473 added the certification's per-push evidence -- # quality at five Es/N0 and # falselock, 2 s of noise at each design point -- which the report's limits are asserted on; was 2.2 s
 validate_async_dsss_receiver_ber         6.9  # NEW (#2465): CI's sweep job on #2497 at 604ca903e, 6.94 s (7.4 s on the dev box); 200 errors at 7 dB, about 11 bursts of 6 s
 validate_async_dsss_receiver_lock_telemetry 1.7  # CI's sweep job on #2412: 1.65 s on the slower runner (790 s sweep); 0.89 s on the dev box
+validate_async_dsss_receiver_loss        8.4  # NEW (#2495): 3.57 s on the dev box, times the 2.35 this file measured between CI and a dev box; re-recorded from this PR's own sweep job once it has run; six bursts of 4 s at 5 dB
 validate_receiver_pullin                19.3
 validate_acq_peak_list                  23.2
 validate_acq_template_pd                2.0  # prices the CFAR reference (doppler#1501): ~2x per construction

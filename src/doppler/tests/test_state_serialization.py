@@ -210,6 +210,20 @@ def _track_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
     return np.frombuffer(o.get_state(), dtype=np.uint8)
 
 
+def _dll_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+    """Run a Dll block; return its output's bytes, then its blob's.
+
+    The blob alone cannot see a running field the output depends on but
+    get_state() leaves out: written the same way on both sides, the blobs
+    agree while the resumed instance emits something else. The output's
+    level is one (#2495), so the output is compared too; its length follows
+    the state, and a resumed instance that matches emits the same count."""
+    out = np.asarray(o.steps(seg), dtype=np.complex64)
+    return np.concatenate(
+        [out.view(np.uint8), np.frombuffer(o.get_state(), dtype=np.uint8)]
+    )
+
+
 def _make_aided_dll() -> Any:
     """A partial-correlation Dll with the symbol aid on: its chunk and
     look-back buffers and the aid's rings ride the blob field-wise, which the
@@ -414,11 +428,11 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
             spacing=0.5,
             segments=1,
         ),
-        _track_feed,
+        _dll_feed,
     ),
     "Dll (4 segments, symbol aid)": (
         lambda: _make_aided_dll(),
-        _track_feed,
+        _dll_feed,
     ),
     "SymbolSync": (
         lambda: SymbolSync(sps=8, bn=0.01, zeta=0.707, order="cubic"),

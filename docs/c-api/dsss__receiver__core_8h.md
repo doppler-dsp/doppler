@@ -795,7 +795,7 @@ size_t dp_dsss_receiver_steps_max_out (
 ### define DSSS\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define DSSS_RECEIVER_STATE_VERSION `2u /* v2: pre-despread dp_costas_state_t car + carry buffer added */`
+#define DSSS_RECEIVER_STATE_VERSION `/* multi line expression */`
 ```
 
 

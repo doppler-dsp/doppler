@@ -190,6 +190,7 @@
 * **DLL\_AID\_MAX\_PERIOD** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_DISC\_CLAMP** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_EPS** ([**dll\_core.h**](dll__core_8h.md))
+* **DLL\_OUT\_LEVEL\_PERIODS** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_STATE\_MAGIC** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_STATE\_VERSION** ([**dll\_core.h**](dll__core_8h.md))
 * **DOPPLER\_CHANNEL\_MAX\_BLOCK** ([**doppler\_channel\_core.h**](doppler__channel__core_8h.md))

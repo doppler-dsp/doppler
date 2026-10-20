@@ -126,7 +126,7 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of cell re
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_POOL\_MAX\_EMITTER\_ON\_TIME\_SECS**](async__dsss__pool__core_8h.md#define-async_dsss_pool_max_emitter_on_time_secs)  `(15.0 \* 60.0)`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_STATE\_MAGIC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'P', 'L')`<br> |
-| define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `3u /\* v3: cell receivers only; v2: the flavour \*/`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `4u /\* v4: the receivers' dll children grew (#2495); v3: cell receivers only; v2: the flavour \*/`<br> |
 
 ## Detailed Description
 
@@ -747,7 +747,7 @@ The one constant of docs/design/async-dsss-receiver.md §6.1: the maximum on-air
 ### define ASYNC\_DSSS\_POOL\_STATE\_VERSION 
 
 ```C++
-#define ASYNC_DSSS_POOL_STATE_VERSION `3u /* v3: cell receivers only; v2: the flavour */`
+#define ASYNC_DSSS_POOL_STATE_VERSION `4u /* v4: the receivers' dll children grew (#2495); v3: cell receivers only; v2: the flavour */`
 ```
 
 

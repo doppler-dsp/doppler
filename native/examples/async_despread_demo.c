@@ -39,9 +39,7 @@
  *       carrier phase the data sits: its power along that axis stands above
  *       its power across it by up to the link budget's 1 + 2 * SNR per output
  *       sample. It reads below the budget because a sample straddling a data
- *       flip loses amplitude and each period's samples are normalized by that
- *       period's noisy look-back peak. The loop that lost the code puts out
- *       noise.
+ *       flip loses amplitude. The loop that lost the code puts out noise.
  *
  * The despread rate in §1, the step bound in §3 and the budget in §4 come
  * from the object and the link, not the draw; §3 widens the bound by a

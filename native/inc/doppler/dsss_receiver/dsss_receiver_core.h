@@ -509,8 +509,10 @@ extern "C"
   } dsss_receiver_extra_t;
 
 #define DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('D', 'S', 'R', 'X')
-#define DSSS_RECEIVER_STATE_VERSION 2u /* v2: pre-despread dp_costas_state_t
-                                           car + carry buffer added */
+#define DSSS_RECEIVER_STATE_VERSION 3u /* v3: the dll child grew (output
+                                           level, #2495); v2: pre-despread
+                                           dp_costas_state_t car + carry
+                                           buffer added */
 
   size_t dp_dsss_receiver_state_bytes (const dp_dsss_receiver_state_t *state);
   void   dp_dsss_receiver_get_state (const dp_dsss_receiver_state_t *state,

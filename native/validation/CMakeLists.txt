@@ -508,6 +508,24 @@ dp_gnu_compile_options(validate_async_dsss_receiver_ber
 add_test(NAME validate_async_dsss_receiver_ber
          COMMAND validate_async_dsss_receiver_ber --check)
 
+# Where the receiver's implementation loss goes, stage by stage, at known
+# truth on the SPEC stimulus: the ideal despread, the cut into the Dll's
+# partials, the shipped Dll held at truth, the RateConverter and the
+# demodulator (docs/design/async-dsss-receiver.md §3.3; doppler#2495). The
+# spot check gates the Dll's partials against the ideal ones; the sweep adds the
+# K curve and the whole receiver on the same bursts.
+add_executable(validate_async_dsss_receiver_loss
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_receiver_loss.c)
+target_include_directories(validate_async_dsss_receiver_loss
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_async_dsss_receiver_loss
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_async_dsss_receiver_loss
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_receiver_loss
+         COMMAND validate_async_dsss_receiver_loss --check)
+
 # The tracking receiver through the frame's pure-code window: what each lock
 # flag does while the symbol clock coasts, the pull-in when the data resumes,
 # and whether the release rule ever fires

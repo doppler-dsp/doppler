@@ -110,6 +110,8 @@ seed (dp_dll_state_t *s)
   s->wrap_pending       = 0;
   s->wrap_await         = 0;
   s->have_prev_epoch    = 0;
+  s->out_level          = 0.0;
+  s->out_level_n        = 0;
   s->rng = 0x2545F491u ^ (uint32_t)s->sf; /* deterministic seed */
   draw_offset (s);
   /* Clear the lock detector's running state; keep its config (threshold/
@@ -691,6 +693,12 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   if (!(t.noise_guard >= 0.0)) /* NaN fails the comparison */
     return DP_ERR_INVALID;
+  /* The output level divides every partial: finite and non-negative (zero
+     is a level not yet seen, which the emit takes as 1), its count at most
+     the mean's length. */
+  if (!(t.out_level >= 0.0 && isfinite (t.out_level))
+      || t.out_level_n > DLL_OUT_LEVEL_PERIODS)
+    return DP_ERR_INVALID;
   /* The period must be one set_symbol_period would take (the predicate, not
      just finiteness): a subnormal period made inv_upd inf, then NaN, and the
      NCO conversion undefined. */
@@ -928,10 +936,10 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
      is the actual despread symbol stream a composing receiver hands to
      its demodulator, NOT internal scratch, so it is never sign-adjusted
      here (see the emit-block comment below). The lookback only supplies
-     a clean power
-     reference (for the discriminator's denominator and the output
-     normalization, Python's `max_abs`) by comparing the natural window
-     against candidates built from the previous epoch's tail -- never an
+     a clean power reference -- for the discriminator's denominator, and,
+     averaged slowly over many periods, the output's level (see the emit
+     block) -- by comparing the natural window against candidates built
+     from the previous epoch's tail, never an
      open-ended buffer, exactly one epoch deep. A plain argmax over every
      candidate, same as the reference -- no margin/hysteresis (a
      DLL_LOOKBACK_MARGIN threshold lived here previously; it was an
@@ -1058,8 +1066,8 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                  best_widx == 0 (the natural window) -- and steer the loop
                  on it. With the symbol-period aid on, the loop steers from
                  aid_look() instead, once per symbol on the best
-                 hypothesis's window; the look-back then only supplies the
-                 output normalisation below. */
+                 hypothesis's window, and the look-back then supplies only
+                 the output's level below. */
               if (state->sym_period <= 0.0)
                 {
                   float _Complex acc_e_tot = 0.0f, acc_l_tot = 0.0f;
@@ -1078,8 +1086,8 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                   /* pp must be on the SAME raw (un-normalised) scale as
                      ep/lp, which come straight from acc_e_tot/acc_l_tot --
                      best_abs was divided by tsamps for the search
-                     comparison and the output denom below, so undo that
-                     here rather than mixing a tsamps-scaled pp against a
+                     comparison, so undo that here rather than mixing a
+                     tsamps-scaled pp against a
                      raw ep/lp (that mismatch, off by roughly tsamps^2,
                      pinned the discriminator at DLL_DISC_CLAMP on
                      essentially every epoch). */
@@ -1088,10 +1096,22 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                              best_mag * best_mag);
                 }
 
-              /* Output: this epoch's own natural chunk sums, normalized by
-                 the clean power reference found above -- never the
-                 lookback-shifted reconstruction, and never sign-adjusted
-                 either. `out[]` is not internal scratch: it is the
+              /* Output: this epoch's own natural chunk sums, each over the
+                 samples a chunk spans (seg_norm) and over the SLOWLY
+                 tracked level of the look-back magnitude found above -- its
+                 plain mean over the first DLL_OUT_LEVEL_PERIODS periods,
+                 then an EMA of that length (the header derives the
+                 number). The level keeps the output near unit amplitude at
+                 any input gain, which every timing detector downstream
+                 assumes. Never the period's OWN magnitude: that divisor is
+                 signal PLUS NOISE, so it rescaled every period by its own
+                 noise, compressed the in-phase error against the
+                 quadrature and coupled the symbols that share a period; at
+                 SPEC's Es/N0 5 dB it read a decision SNR 1.4 dB above the
+                 despread's while costing 0.2 dB of error rate
+                 (doppler#2495). Never the lookback-shifted reconstruction
+                 either, and never sign-adjusted. `out[]` is not internal
+                 scratch: it is the
                  actual despread symbol stream a composing receiver hands
                  straight to its RateConverter/demodulator. Forcing one
                  sign onto a whole epoch would be wrong whenever the
@@ -1103,11 +1123,16 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                  data-wiped reference derives its own (see
                  dsss_receiver_core.c's `dsss_rx_carrier_update_from_partials`)
                  rather than this primitive baking one into its output. */
-              double denom = best_abs > 0.0 ? state->seg_norm * best_abs
-                                            : state->seg_norm;
+              if (state->out_level_n < DLL_OUT_LEVEL_PERIODS)
+                state->out_level_n++;
+              state->out_level += (best_abs - state->out_level)
+                                  / (double)state->out_level_n;
+              const double lvl
+                  = state->out_level > 0.0 ? state->out_level : 1.0;
               for (size_t k = 0; k < w; k++)
                 if (emitted < max_out)
-                  out[emitted++] = state->chunk_p[k] / (float)denom;
+                  out[emitted++]
+                      = state->chunk_p[k] / (float)(state->seg_norm * lvl);
 
               /* Step 6 (Python: `backward_sums = partial_sums[::-1]
                  .cumsum()`, returned for the NEXT call's own

@@ -104,9 +104,9 @@ adr_enter (dp_async_dsss_receiver_state_t *s, int state)
 {
   s->state         = state;
   s->state_samples = 0;
-  /* Lost KEEPS the release clock and goes on counting it (section 11.3:
-   * "in lost, since the code flag dropped"); every other entry restarts
-   * it. */
+  /* Lost KEEPS the release clock and goes on counting it (the status
+   * record's both_down_samples: "in lost it keeps counting -- samples since
+   * the flags dropped"); every other entry restarts it. */
   if (state != ASYNC_DSSS_RX_LOST)
     s->both_down_samples = 0;
 }

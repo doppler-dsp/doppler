@@ -335,9 +335,10 @@ from the first look rather than seed-dominated through a warm-up of `1/α`
 looks. The decision is verify-counted (`lockdet`): declared after
 `det_verify_count(pfa, pfa·1e-3)` consecutive decisions over the gate, two
 at 1e-3, and dropped after two under it. On noise its realized
-per-decision rate runs above the configured `pfa`
-([#1064](https://github.com/doppler-dsp/doppler/issues/1064); the record's
-§12.15 measured it). `Dll.locked`, `Dll.lock_stat` and `Dll.noise_est` read
+per-decision rate runs above the configured `pfa` (the record's §12.15
+measured about twice it;
+[#2503](https://github.com/doppler-dsp/doppler/issues/2503)).
+`Dll.locked`, `Dll.lock_stat` and `Dll.noise_est` read
 it back, inside the normal `steps()`, with no opt-in.
 
 ### 3.6 The look-back window finds the transition-free epoch
@@ -372,7 +373,8 @@ count can also be derived from a tolerable async correlation loss
 the divisor of `sf·spc` nearest the coverage `1 − 10^(−max_error/10)` asks
 for, 11 partials at 2046 samples and 0.5 dB, which is how the receiver
 sizes its refine-stage `Dll` (`refine_max_error_db`). Per epoch, over the
-prompt product `x`:
+prompt product `x`, schematically (the `reshape` is exact only when
+`windows` divides the epoch's samples):
 
 ```text
 partial_sums    = x.reshape(windows, window_size).sum(axis=1)
@@ -620,26 +622,34 @@ The central searcher is gone: each receiver searches for itself
 ### 6.1 The operating point — retired
 
 The pool's operating point (2 to 5 Mcps, ±50 kHz, twelve slots, a per-core
-budget). The parallel design's parameters are its §1 and §2.
+budget). The parallel design's parameters are its §1 and §2. Its text:
+[§6.1 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
 
 ### 6.2 One maximum per dwell — retired
 
 Why one gated maximum masks every emitter but the strongest. The answer
-ships as the peak list (§7.1), and the parallel design's ranks use it.
+ships as the peak list (§7.1), and the parallel design's ranks use it. Its
+text:
+[§6.2 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
 
 ### 6.3 The power spread — retired
 
 The surface floor the searcher's two branches forked on; the record's
-§12.2 holds its runs.
+§12.2 holds its runs. Its text:
+[§6.3 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
 
 ### 6.4 The throughput floor — retired
 
 The pool's cost floor and the shapes it argued for. The parallel design's
-costs are its §6, and why the pool as built is replaced is its §7.
+costs are its §6, and why the pool as built is replaced is its §7. Its
+text:
+[§6.4 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
 
 ## 7. The two mechanisms — retired
 
-The list against cancellation; only the list was built (§7.1, §9).
+The list against cancellation; only the list was built (§7.1, §9). Its
+text:
+[§7 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
 
 ### 7.1 The peak list — current, shipped behavior
 
@@ -660,16 +670,24 @@ Where each piece of the pool lived. The parallel design's shape is its §2,
 and its controller is §4. Its text:
 [§8 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
 
-### 8.1 The holder owns the clock — moved
+### 8.1 The holder owns the clock; events are SigMF annotations — current, shipped behavior
 
-The clock rule the receiver obeys is §11.3: every record is sample-domain,
-and whatever feeds the samples stamps it.
+The clock and the event log are not part of what retired. Whatever feeds
+the samples owns the clock: one `dp_sample_clock_t` per stream
+(`native/inc/doppler/timing/timing_core.h`) stamps a record as
+`dp_sample_clock_stamp_at(n)`. A run's events are SigMF annotations,
+appended live and finalized at close (`dp_event_log`,
+`native/inc/doppler/dp_event_log/dp_event_log_core.h`), while telemetry stays
+a flat record file the sidecar points at, each in the format that suits its
+rate. The clock rule the receiver obeys is §11.3. Its text:
+[§8.1 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
 
 ### 8.2 The pool holds the population in one object — retired
 
 The pool as built: its assigned table, its zone and its lifecycle.
 `async_dsss_pool_core.h` documents the object while it ships; the parallel
-design's controller (its §4) replaces the table.
+design's controller (its §4) replaces the table. Its text:
+[§8.2 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
 
 ## 9. The branch is chosen by the spread — retired
 
@@ -789,10 +807,12 @@ It belonged to the retired pool's cancellation branch (§5–§9).
 
 Steady tracking allocates nothing: `steps()` with no transition runs on
 scratch sized at the last chain build, grow-only, never in the hot path
-(#1192). A chain build allocates: a seed, the hand-over, `reset()` and
-`configure_chain_raw()` each build a fresh `Dll`, `RateConverter` and
-`MpskReceiver` and free the old ones, the cell flavor's seed included. The
-status record is returned by value.
+(#1192). A chain build allocates, and frees the chain it replaces. A seed
+builds the refine chain (`Dll`, `RateConverter`, `CarrierAcquisition`), or
+in the cell flavor the track chain. The hand-over and
+`configure_chain_raw()` build the track chain (`Dll`, `RateConverter`,
+`MpskReceiver`), and `reset()` builds both, the cell flavor's the track
+chain alone. The status record is returned by value.
 
 ______________________________________________________________________
 

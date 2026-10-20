@@ -1046,8 +1046,9 @@ typedef enum
    * reads it on demand, because the exclusions it hands the other
    * receivers are keyed on this receiver's CURRENT code phase, not on its
    * seed, and gets every field from one call between `steps()` calls,
-   * rather than assembling a picture from the one-at-a-time getters. It is a read of live state, not
-   * `get_state()`: the bytes triplet resumes the receiver elsewhere, this
+   * rather than assembling a picture from the one-at-a-time getters. It is
+   * a read of live state, not `get_state()`: the bytes triplet resumes the
+   * receiver elsewhere, this
    * describes it here. Its `doppler_hz` is the live carrier (loop 1 plus
    * loop 2), where get_doppler_hz() reports the estimate the chain was
    * built from. No timestamp: the counters are in input samples, and the

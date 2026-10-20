@@ -1356,7 +1356,7 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
   return DP_OK;
 }
 
-/* The release rule of the design page's section 11.2, run once per
+/* The release rule of async-dsss-receiver.md section 10, run once per
  * tracking call: both lock flags down, without a break, for longer than
  * the confirm interval means the emitter is gone. One flag down is a
  * degrade and leaves the clock alone; either flag up restarts it.

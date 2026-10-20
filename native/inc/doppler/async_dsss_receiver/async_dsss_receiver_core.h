@@ -7,7 +7,11 @@
  * Unlike `DsssReceiver`, which goes straight from an acquisition hit to
  * tracking on the hit's coarse Doppler estimate, this object refines the
  * estimate between the two, closing the low-Es/N0 pull-in gap a coarse-only
- * estimate leaves at large static Doppler offsets. Its states are the
+ * estimate leaves at large static Doppler offsets. Its design of record is
+ * docs/design/async-dsss-parallel.md: N of these receivers, always on,
+ * each searching and tracking by itself under a controller that only
+ * watches. The despreader, the states and the release under it are
+ * docs/design/async-dsss-receiver.md. Its states are the
  * `ASYNC_DSSS_RX_*` values below, also `status().state`:
  *
  *   - **searching** (the searching flavor's start): samples feed the
@@ -43,11 +47,15 @@
  *     no FLL.
  *   - **idle** (cell mode only): waiting for a seed. Samples are consumed
  *     and discarded, so a feeding loop needs no special case.
- *   - **lost**: the emitter is gone. Entered from tracking when BOTH lock
- *     flags have been down, without a break, for longer than `lost_confirm_s`
- *     (docs/design/async-dsss-receiver.md §11.2); the loops stop and samples
- *     are discarded until `reset()`. `lost_confirm_s = 0` (the searching
- *     flavor's default) never enters it. While the confirm interval runs the
+ *   - **lost**: the emitter is gone. Without `reacquire`, entered from
+ *     tracking when BOTH lock flags have been down, without a break, for
+ *     longer than `lost_confirm_s` (docs/design/async-dsss-receiver.md §10,
+ *     §11.2); the loops stop and samples are discarded until `reset()`.
+ *     `lost_confirm_s = 0` (the searching flavor's default) never enters
+ *     it. With `reacquire` the release is symbol lock alone and returns the
+ *     receiver to searching instead, so it never reads lost
+ *     (docs/design/async-dsss-parallel.md §3). While the confirm interval
+ *     runs the
  *     loops HOLD what they settled on with both flags up rather than run on
  *     noise (dp_dll_set_coast(); docs/design/async-dsss-receiver.md §10;
  *     docs/design/async-dsss-receiver-measurements.md §12.19, doppler#1271),
@@ -941,7 +949,7 @@ typedef enum
   /**
    * @brief Take a detection from outside and start refining from it.
    *
-   * The hand-off of docs/design/async-dsss-receiver.md §11.1: the
+   * The hand-off of docs/design/async-dsss-receiver.md §2.2: the
    * three numbers a searcher's hit carries that this receiver uses --
    * `acq_handoff_t`'s `chip_phase`, `doppler_hz_est` and `cn0_dbhz_est` --
    * exactly as its own hit would have produced them (the searching flavor's
@@ -1033,18 +1041,18 @@ typedef enum
   /**
    * @brief One consistent picture of what the receiver is doing, by value.
    *
-   * The status record of docs/design/async-dsss-receiver.md §11.3: the
-   * holder of a pool reads it on demand -- at least once per data-free
-   * window, because the searcher's exclusion zone is keyed on the
-   * receiver's CURRENT code phase, not on its seed -- and gets every field
-   * from one call between `steps()` calls, rather than assembling a picture
-   * from the one-at-a-time getters. It is a read of live state, not
+   * The status record of docs/design/async-dsss-receiver.md §11.3: a
+   * holder -- the controller of docs/design/async-dsss-parallel.md §4 --
+   * reads it on demand, because the exclusions it hands the other
+   * receivers are keyed on this receiver's CURRENT code phase, not on its
+   * seed, and gets every field from one call between `steps()` calls,
+   * rather than assembling a picture from the one-at-a-time getters. It is a read of live state, not
    * `get_state()`: the bytes triplet resumes the receiver elsewhere, this
    * describes it here. Its `doppler_hz` is the live carrier (loop 1 plus
    * loop 2), where get_doppler_hz() reports the estimate the chain was
    * built from. No timestamp: the counters are in input samples, and the
    * holder, which owns the sample clock, stamps them
-   * (docs/design/async-dsss-receiver.md §8.1).
+   * (docs/design/async-dsss-receiver.md §11.3).
    */
   typedef struct
   {

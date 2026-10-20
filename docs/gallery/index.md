@@ -68,7 +68,6 @@ Those live on the [Examples](../examples/index.md) page instead.
 - [A Message Over DSSS, Received and Deframed](data-source-link.md) — a data source sent one chunk per burst, received by `DsssBurstReceiver`, and returned byte for byte by `FrameDesc.deframe`.
 - [AsyncDsssReceiver: the SPEC link](async-dsss-receiver-spec.md) — one packaged receiver on a link whose Doppler stretches the chip clock as well as the carrier, through both regimes of a pass (the TCA crossing and the ±50 kHz extremum) over a set of noise draws: carrier-to-code aiding, a missed hand-off released and searched again, and the decode scored by BER, EVM and M2M4.
 - [AsyncDsssReceiver: a signal's lifecycle](async-dsss-receiver-lifecycle.md) — one packaged receiver through an emitter's life: searched, tracked through a fade, released when it departs, reset, and re-acquired on its return, read from its own state after every push
-- [AsyncDsssPool: the population's lifecycle](async-dsss-pool.md) — the holder of the multi-emitter use case: two emitters on one code arrive, one leaves and is released by the rule, it returns as a new detection into a free slot, with the searcher's false alarms coloured as what they are and the event log carrying every transition in order.
 - [CarrierAcquisition: RRC Pulse Shaping](carrier-acq-rrc.md) — PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters.
 
 ## Synchronization Loops

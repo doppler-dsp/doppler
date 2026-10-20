@@ -148,14 +148,12 @@ from doppler.dsss import AsyncDsssReceiver  # noqa: E402
 from doppler.telemetry import MemoryCapture, Telemetry  # noqa: E402
 from doppler.wfm import SampleClock  # noqa: E402
 
-#: ``rx.state``'s values, in order: the receiver's ``ASYNC_DSSS_RX_*``
-#: lifecycle states. The receiver names its current state as ``lifecycle``;
-#: this tuple decodes the integers its telemetry carries, and
+#: ``rx.state``'s values: the receiver's ``ASYNC_DSSS_RX_*`` lifecycle
+#: states. The receiver names its current state as ``lifecycle``; this table
+#: decodes the integers its telemetry carries, and
 #: :func:`receive` checks it against ``lifecycle`` after every push.
-STATES = ("searching", "refining", "tracking", "idle", "lost")
-SEARCHING, REFINING, TRACKING, LOST = (
-    STATES.index(s) for s in ("searching", "refining", "tracking", "lost")
-)
+STATES = {0: "searching", 1: "refining", 2: "tracking", 4: "lost"}
+SEARCHING, REFINING, TRACKING, LOST = STATES
 
 
 # --8<-- [start:receiver]
@@ -407,8 +405,8 @@ def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
         alpha=0.35,
         label="rx.sym.locked",
     )
-    top.set_yticks(range(len(STATES)))
-    top.set_yticklabels(STATES)
+    top.set_yticks(list(STATES))
+    top.set_yticklabels(list(STATES.values()))
     top.set_ylim(-0.3, 4.6)
     top.set_title("State and symbol lock (grey: signal off)", fontsize=9)
     top.legend(fontsize=7, loc="upper left", ncol=3)

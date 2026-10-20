@@ -123,8 +123,8 @@ dp_dsss_gold_1023 (uint8_t code[1023])
  * and add noise as a separate stream, so an event -- a switch-off, a fade, a
  * dropout -- is an edit to the signal alone. Six carried this as private
  * copies (two byte-identical, four the same two calls inline); this is the
- * one spelling. The user-facing `native/examples/async_dsss_pool_demo.c`
- * keeps its own, since an example cannot reach `native/tests/`.
+ * one spelling. A user-facing example keeps its own, since an example
+ * cannot reach `native/tests/`.
  *
  * The data is the caller's `data_mode`, passed through: the synth's own
  * seeded PRBS (`WFM_DSSS_DATA_PRBS`, `bits` NULL), or `n_bits` 0/1 bits sent

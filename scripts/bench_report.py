@@ -587,6 +587,8 @@ COMPONENT_MODULE = {
     "resamp": "resample",
     "rs": "coding",
     "timing": "sample_clock",
+    # Deleted with the old pool; its rows remain in the published runs.
+    "async_dsss_pool": "dsss",
 }
 
 #: How many INPUT SAMPLES one recorded unit consumes (#2372): the page

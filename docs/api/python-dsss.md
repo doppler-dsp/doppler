@@ -261,95 +261,17 @@ for an end-to-end decode through physically-coupled Doppler.
 
 ::: doppler.dsss.AsyncDsssReceiver
 
-## `CellAsyncDsssReceiver` — the receiver a searcher's cell drives
-
-A cell receiver **never searches**. It is a third constructor over the same
-core as `AsyncDsssReceiver`, built by turning stages off: it starts idle,
-takes its seed from outside through `seed()` — exactly the record a hit of
-its own would have made — and then holds its code loop on the searcher's
-block timing, correcting it once per block. `AsyncDsssPool` is what drives
-it; on its own it is the tracker half of a receiver with the front end
-removed.
-
-Because there is no refine stage, the live chain runs from the seed at once,
-and the `Dll` is held from the first sample and never closes its own loop.
-Once every `correct_periods` code periods — in a pool, the searcher's own
-block depth — the held code phase, kept in double and dead-reckoned across
-the interval on the carrier loop's Doppler, is moved by `gain` chips per chip
-of the coasting `Dll`'s interval-mean discriminator, and the `Dll` is steered
-to it by rate over the next interval, never by a phase kick. Gain 1 through
-`pullin_intervals` pulls the seed's residual in (`refining` is the pull-in),
-the default gain 1/8 holds after; with the code flag down the phase only
-dead-reckons. The pre-despread carrier loop runs as the searching flavor's —
-it is what follows a 500 Hz/s ramp — and so do the symbol path, the symbol
-lock, the release rule (both lock flags down without a break for longer than
-`lost_confirm_s`), `status()`, and `reset()`, which returns the receiver to
-idle for its next seed with no reallocation.
-
-::: doppler.dsss.CellAsyncDsssReceiver
-
-All three flavors report one consistent picture by value through `status()`.
-It carries no timestamp: the holder owns the sample clock and stamps it.
+The receiver reports one consistent picture by value through `status()`.
+It carries no timestamp: the caller owns the sample clock and stamps it.
 
 ::: doppler.dsss.ReceiverStatus
-
-## `AsyncDsssPool` — one object holds the population
-
-`AsyncDsssPool` holds a whole population behind a single `push()`. It owns
-**one searcher** — `Acquisition` in continuous mode, block-coherent inside
-each tile over up to half the code-only epochs the waveform's window holds
-(capped by `doppler_rate`), reporting a peak list of
-`max_peaks`; **`n_slots`
-`CellAsyncDsssReceiver`s**, created idle; **the assigned table**, one row per
-slot carrying the seed's coordinates and that row's *current* Doppler and
-chip phase; and **the run's `EventLog`**, borrowed by attachment through
-`set_event_log()` — the pool is the component that stamps.
-
-One `push()` per block does, in order:
-
-1. feed the searcher;
-1. refresh the assigned table, because an emitter drifts between windows and
-    the seed it was assigned from is the wrong key by the next one;
-1. drop every peak within one chip of a live row's code phase, at any
-    Doppler, as that emitter's own;
-1. seed each surviving peak into a free slot, or count it dropped when there
-    is none;
-1. feed every receiver, across the threads the pool is given;
-1. release every receiver that reports lost, or that has held its slot past
-    `max_emitter_on_time_secs` — clearing the row and resetting the receiver
-    to idle.
-
-Every transition — `seeded`, `tracking`, `degrade`, `lost`, `released`,
-`dropped`, `refused` — is logged at the sample it happened, beside the slot, the
-receiver's state, the Doppler, the chip phase and the C/N0. What comes back,
-per slot and by index: `status(slot)`, a `PoolSlot` record by value, and
-`symbols(slot)`, the symbols that receiver decided on the last push. Nothing
-allocates per push once a block size has been seen, and a released emitter
-still on the air is a new detection at its next window into whichever slot is
-free — the one re-assignment the lifecycle permits.
-
-Nothing about the waveform or the population is baked in: every number is a
-constructor parameter, defaulting to twelve slots, a peak list of sixteen, a
-2 s release interval and a 15 min maximum on-air time. Because the receivers
-correct on the searcher's own block timing, the constructor refuses with a
-`ValueError` a searcher a cell receiver cannot take — a block depth of 1,
-where there is no searcher timing to drive, or a Doppler row wider than four
-times the carrier loop's reliable pull-in, where a seed landing half a row
-off would never lock (`D ≥ 13` at 5 Mcps over Gold-1023; the operating
-point's `D = 154` gives a 31.7 Hz row). The
-[async DSSS receiver design](../design/async-dsss-receiver.md) carries the
-mechanism behind all three flavors.
-
-::: doppler.dsss.AsyncDsssPool
-
-::: doppler.dsss.PoolSlot
 
 ## Related pages
 
 <!-- related-pages:start -->
 
-**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [AsyncDsssPool: the population's lifecycle](../gallery/async-dsss-pool.md), [AsyncDsssReceiver: a signal's lifecycle](../gallery/async-dsss-receiver-lifecycle.md), [AsyncDsssReceiver: the SPEC link](../gallery/async-dsss-receiver-spec.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
-**Guides** — [Tracking a Population of DSSS Emitters with `AsyncDsssPool`](../guide/async-dsss-pool.md), [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md), [Checkpoint & Resume](../guide/state-serialization.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
+**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [AsyncDsssReceiver: a signal's lifecycle](../gallery/async-dsss-receiver-lifecycle.md), [AsyncDsssReceiver: the SPEC link](../gallery/async-dsss-receiver-spec.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
+**Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md), [Checkpoint & Resume](../guide/state-serialization.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
 **Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Parallel Asynchronous-Data DSSS Receivers](../design/async-dsss-parallel.md), [AsyncDsssReceiver — the measurement record](../design/async-dsss-receiver-measurements.md), [AsyncDsssReceiver — the continuous DSSS receiver, from spec to object](../design/async-dsss-receiver.md), [`BurstCapture`: acquisition's output, turned into bursts](../design/burst-capture.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [Detection Sizing — the four laws behind one prefix](../design/detection.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [A Frame as a Description](../design/frame-description.md), [Design](../design/index.md), [MPSK Receiver](../design/mpsk.md), [The Polynomial-Phase Estimator — the reasoning](../design/ppe.md), [A Receiver Built from a Frame Description](../design/rx-frame-description.md), [State Serialization — the standard bytes interface](../design/state-serialization.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
 **Contributing** — [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md), [DSSS Primary Use Cases for Code Acquisition Design](../dev/contributing/dsss-use-cases.md), [Validation log](../dev/contributing/validation-log.md)
 

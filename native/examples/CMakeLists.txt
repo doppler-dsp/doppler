@@ -31,7 +31,7 @@ find_package(Threads REQUIRED)
 # (dp_parallel.h); glibc < 2.34 needs -lpthread on the final link.
 # ring_threaded_demo is a producer thread against a blocking wait()
 # (dp_thread.h); ring_backed_demo names its file in the temp directory.
-foreach(_ex async_dsss_pool_demo async_dsss_receiver_lifecycle async_dsss_receiver_spec_demo
+foreach(_ex async_dsss_receiver_lifecycle async_dsss_receiver_spec_demo
              ring_threaded_demo ring_backed_demo)
     add_executable(${_ex} ${_ex}.c)
     target_include_directories(${_ex} PRIVATE

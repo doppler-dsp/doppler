@@ -24,7 +24,6 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_async_dsss_receiver[] = {
     (jm_any_fn)dp_async_dsss_receiver_create,
-    (jm_any_fn)dp_async_dsss_receiver_create_cell,
     (jm_any_fn)dp_async_dsss_receiver_destroy,
     (jm_any_fn)dp_async_dsss_receiver_reset,
     (jm_any_fn)dp_async_dsss_receiver_set_telemetry,
@@ -32,7 +31,6 @@ const jm_any_fn jm_bound_symbols_async_dsss_receiver[] = {
     (jm_any_fn)dp_async_dsss_receiver_steps,
     (jm_any_fn)dp_async_dsss_receiver_seed,
     (jm_any_fn)dp_async_dsss_receiver_status,
-    (jm_any_fn)dp_async_dsss_receiver_get_idle,
     (jm_any_fn)dp_async_dsss_receiver_get_lost,
     (jm_any_fn)dp_async_dsss_receiver_configure_search_raw,
     (jm_any_fn)dp_async_dsss_receiver_set_refine_min_blocks,

@@ -58,7 +58,6 @@ from doppler.detection import LockDet
 from doppler.dsss import (
     AsyncDsssReceiver,
     BurstDespreader,
-    CellAsyncDsssReceiver,
     Despreader,
 )
 from doppler.filter import FIR, MovingAverage
@@ -452,15 +451,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     # On the shared noise stream the searching flavor stays searching, so
     # this row round-trips the embedded search's state (the tracking state's
-    # round trip is the C suite's, test_async_dsss_receiver_core.c); the cell
-    # flavor waits idle. Both rows put the receivers' setters under #2022's
-    # mutator gate (#2078).
+    # round trip is the C suite's, test_async_dsss_receiver_core.c). The row
+    # puts the receiver's setters under #2022's mutator gate (#2078).
     "AsyncDsssReceiver": (
         lambda: AsyncDsssReceiver(_CODE, cn0_dbhz=50.0),
-        _track_feed,
-    ),
-    "CellAsyncDsssReceiver": (
-        lambda: CellAsyncDsssReceiver(_CODE, cn0_dbhz=50.0),
         _track_feed,
     ),
     "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, m_out=4), _track_feed),

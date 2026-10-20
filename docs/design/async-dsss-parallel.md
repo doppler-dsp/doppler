@@ -1,6 +1,7 @@
 # Parallel Asynchronous-Data DSSS Receivers
 
-*`AsyncDsssPool` keeps its name and its Python face; inside, it becomes N
+*The name `AsyncDsssPool` returns on a new object; the pool as built, and its
+cell receivers, were deleted. The new one is N
 independent `AsyncDsssReceiver`s, each stepped on its own worker, under a
 controller that only watches, excludes and reports. By default every
 receiver searches the whole carrier range itself; the controller may also
@@ -195,10 +196,9 @@ surface. It:
 - **reports**.
 
 Telemetry is single-producer, so each receiver attaches its own context,
-and one context must not be shared across the workers. Nothing refuses a
-shared one yet: the pool as built refuses all telemetry once it has more
-than one thread, and that refusal is to be replaced by a check for a
-shared context.
+and one context must not be shared across the workers. The controller
+refuses a context shared across its receivers; nothing refuses one yet,
+because the controller is not built.
 
 ## 5. Arrival to tracking
 
@@ -299,5 +299,3 @@ receiver's own.
 - [`async-dsss-receiver.md`](async-dsss-receiver.md): the receiver, and the
     pool this replaces (§5–§9 and §11.1)
 - [the measurement record](async-dsss-parallel-measurements.md)
-- [Tracking a Population of DSSS Emitters](../guide/async-dsss-pool.md): the
-    pool as built, from the user's side

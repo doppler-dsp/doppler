@@ -227,9 +227,7 @@ default = "0.0"
 # resets the receiver to searching. Without it, both lock flags down that
 # long puts the receiver in the lost state (`lost` == 1, loops stopped,
 # samples discarded until reset()), and one flag down is a degrade, not a
-# release. 0.0, the searching flavor's default, never releases. The
-# cell receiver defaults to 2.0, past the measured fades
-# (docs/design/async-dsss-receiver-measurements.md §12.3).
+# release. 0.0, the default, never releases.
 [[async_dsss_receiver.init_params]]
 name = "lost_confirm_s"
 type = "double"
@@ -284,7 +282,7 @@ result_fields = [
 ]
 single = true
 record_name = "ReceiverStatus"
-record_doc = "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 tracking, 3 idle, 4 lost), the live estimates, both lock flags, and the two clocks in input samples."
+record_doc = "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 tracking, 4 lost), the live estimates, both lock flags, and the two clocks in input samples."
 record_module = "doppler.dsss"
 
 [[async_dsss_receiver.methods]]
@@ -357,7 +355,7 @@ name = "lifecycle"
 type = "int"
 enum = "async_dsss_rx_state"
 expr = "self->handle->state"
-doc = """Where the receiver is in its lifecycle, by name: `"searching"`, `"refining"`, `"tracking"`, `"idle"` (cell mode, waiting for a seed) or `"lost"` (released, waiting for `reset()`). The same state as `status().state`, which carries it as the C integer. With `reacquire` a release goes back to `"searching"` and never reads `"lost"`."""
+doc = """Where the receiver is in its lifecycle, by name: `"searching"`, `"refining"`, `"tracking"` or `"lost"` (released, waiting for `reset()`). The same state as `status().state`, which carries it as the C integer. With `reacquire` a release goes back to `"searching"` and never reads `"lost"`."""
 
 [[async_dsss_receiver.properties]]
 name = "tracking"
@@ -365,10 +363,6 @@ type = "int"
 
 [[async_dsss_receiver.properties]]
 name = "refining"
-type = "int"
-
-[[async_dsss_receiver.properties]]
-name = "idle"
 type = "int"
 
 [[async_dsss_receiver.properties]]
@@ -442,38 +436,3 @@ type = "double"
 [[async_dsss_receiver.properties]]
 name = "code_locked"
 type = "int"
-
-# ── The cell mode: the receiver a searcher's cell drives ────────────────────
-#
-# docs/design/async-dsss-receiver-measurements.md §12.22-12.24 as a mode of
-# this receiver (#1283): no refine,
-# the Dll held from the first sample and put back once an interval at a held
-# phase corrected by a gain (chips) times its interval-mean discriminator;
-# the carrier loop the searching flavor's own. A difference in CONSTRUCTOR is a view:
-# seed(), the symbol path, the release rule and the status record are the
-# parent's.
-[[async_dsss_receiver.views]]
-class_name = "CellAsyncDsssReceiver"
-create_fn = "dp_async_dsss_receiver_create_cell"
-create_error = "ValueError"
-create_error_message = "CellAsyncDsssReceiver: invalid parameter (need a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2, lost_confirm_s >= 0, 0 < pfa < 1, 0 < pd < 1, correct_periods >= 1, 0 < gain <= 1, and a symbol of at most 2^20 Dll partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576)"
-exclude_methods = ["configure_search_raw", "set_refine_min_blocks"]
-exclude_properties = ["refine_min_blocks"]
-init_params = [
-    { name = "code", type = "uint8_t[]" },
-    { name = "chip_rate", type = "double", default = "1000000.0" },
-    { name = "symbol_rate", type = "double", default = "1000.0" },
-    { name = "spc", type = "size_t", default = "2" },
-    { name = "m", type = "int", default = "2" },
-    { name = "cn0_dbhz", type = "double", default = "55.0" },
-    { name = "pfa", type = "double", default = "1e-3" },
-    { name = "pd", type = "double", default = "0.9" },
-    { name = "segments", type = "size_t", default = "4" },
-    { name = "sps", type = "size_t", default = "8" },
-    { name = "differential", type = "int", default = "0" },
-    { name = "carrier_freq_hz", type = "double", default = "0.0" },
-    { name = "lost_confirm_s", type = "double", default = "2.0" },
-    { name = "correct_periods", type = "size_t", default = "154" },
-    { name = "gain", type = "double", default = "0.125" },
-    { name = "pullin_intervals", type = "size_t", default = "4" },
-]

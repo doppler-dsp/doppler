@@ -150,8 +150,9 @@ inside a window once `W ≥ 2D − 1`, and `⌊W/D⌋` land in a row for
 `n_noncoh` to accumulate. A `D`-point slow-time FFT at the epoch rate
 subdivides one epoch's span into `D` rows; it never widens it. At the
 specification's geometry a 450-symbol code-only window holds 499 whole
-epochs, and the 500 Hz/s bound gives `D = 94`: a 31.9 Hz row and 19.7 dB of
-coherent gain. A block that straddles data spreads its emitter over the `D`
+epochs, and the 500 Hz/s bound gives 94, which the engine runs at the
+7-smooth `D = 90` (a slow-time FFT length, #1247): a 33.3 Hz row and 19.5 dB
+of coherent gain. A block that straddles data spreads its emitter over the `D`
 rows, about `10·log10 D` down **at its own code phase**: a weaker copy, not
 a mislock. Pinned by `native/validation/acq_block_coherent.c`. The receiver
 does not run this depth yet; it is the slow-time search
@@ -522,9 +523,6 @@ this section is the chain under it.
     `MpskReceiver` is left a small residual. It is a **pure PLL**: the FLL
     cross-product discriminator is far too noisy on this input and is not
     exposed at all.
-- **idle** — the cell flavor's resting state (§11.1), waiting for a seed;
-    samples are consumed and discarded, so a feeding loop needs no special
-    case.
 - **lost** — the release verdict without `reacquire` (§10). The loops stop
     updating and samples are discarded until `reset()`. With `reacquire` a
     release returns the receiver to searching, and it never reads lost.
@@ -533,13 +531,12 @@ Two lock detectors run while tracking: the `Dll`'s CFAR-based **code lock**
 (§3.5) and a hysteretic **symbol lock** on the emitted symbols — the BPSK
 `cos(2φ)` statistic as an SNR-weighted EMA over a 30-symbol dwell, declared
 after 30 consecutive symbols above 0.5 and dropped after 15 below 0.3.
-`reset()` returns the searching flavor to searching and the cell flavor to
-idle: a receiver that has locked cannot be reset back onto the same signal.
+`reset()` returns the receiver to searching: a receiver that has locked
+cannot be reset back onto the same signal.
 The receiver carries the standard `state_bytes`/`get_state`/`set_state`
 triplet (`native/inc/doppler/dp_state.h`), every child included. The blob's
-layout key is `segments`/`sps`/`n`/`refine_segments` and the flavor, a blob
-does not travel between flavors, and a `reacquire` receiver refuses a blob
-in the lost state.
+layout key is `segments`/`sps`/`n`/`refine_segments`, and a `reacquire`
+receiver refuses a blob in the lost state.
 
 `DsssReceiver` is the composition without a refine: a hit's coarse Doppler
 goes straight to tracking, its pre-despread carrier loop is the
@@ -685,8 +682,8 @@ rate. The clock rule the receiver obeys is §11.3. Its text:
 ### 8.2 The pool holds the population in one object — retired
 
 The pool as built: its assigned table, its zone and its lifecycle.
-`async_dsss_pool_core.h` documents the object while it ships; the parallel
-design's controller (its §4) replaces the table. Its text:
+The object was deleted, its header and pages with it; the parallel design's
+controller (its §4) replaces the table. Its text:
 [§8.2 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
 
 ## 9. The branch is chosen by the spread — retired
@@ -719,7 +716,7 @@ down is a degrade, reported and not acted on. Either way the clock runs
 from the first tracking sample, when no flag is up yet, so a hand-off that
 never locks is released the same way as a signal that leaves, and a flag
 the rule counts coming back restarts it. `lost_confirm_s = 0`, the
-searching flavor's default, disables the clock; `reacquire` refuses a
+default, disables the clock; `reacquire` refuses a
 confirm time under one input sample. Size it past the longest fade the
 link must ride, and with `reacquire` past the pull-in to symbol lock.
 Pinned by
@@ -759,16 +756,18 @@ ______________________________________________________________________
 
 ## 11. What a holder needs from the receiver
 
-### 11.1 The cell flavor — the pool as built's receiver
+### 11.1 The cell flavor — deleted with the pool as built
 
-`CellAsyncDsssReceiver` (`dp_async_dsss_receiver_create_cell()`) still
-ships: the receiver with no search of its own, seeded from outside through
-`seed()` and run on a searcher's block timing. It is the receiver of the
-pool as built, and `async_dsss_receiver_core.h` documents it. Whether it
-outlives that pool is
-[doppler#2409](https://github.com/doppler-dsp/doppler/issues/2409)'s call;
-its design as it stood is §11.1 at
-[`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+`CellAsyncDsssReceiver` (`dp_async_dsss_receiver_create_cell()`), the
+receiver with no search of its own that the pool as built seeded from its
+searcher, was deleted with that pool: the parallel design seeds no receiver
+from outside ([doppler#2409](https://github.com/doppler-dsp/doppler/issues/2409)).
+`seed()` stays, a searching receiver's own. The state value its idle used,
+3, stays reserved (`ASYNC_DSSS_RX_RESERVED`), because the values are
+persisted. Its design as it stood is §11.1 at
+[`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md),
+its code at
+[`35d8049a2`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h).
 
 ### 11.2 Lost is a state of the receiver
 
@@ -808,11 +807,9 @@ It belonged to the retired pool's cancellation branch (§5–§9).
 Steady tracking allocates nothing: `steps()` with no transition runs on
 scratch sized at the last chain build, grow-only, never in the hot path
 (#1192). A chain build allocates, and frees the chain it replaces. A seed
-builds the refine chain (`Dll`, `RateConverter`, `CarrierAcquisition`), or
-in the cell flavor the track chain. The hand-over and
-`configure_chain_raw()` build the track chain (`Dll`, `RateConverter`,
-`MpskReceiver`), and `reset()` builds both, the cell flavor's the track
-chain alone. The status record is returned by value.
+builds the refine chain (`Dll`, `RateConverter`, `CarrierAcquisition`). The
+hand-over and `configure_chain_raw()` build the track chain (`Dll`,
+`RateConverter`, `MpskReceiver`), and `reset()` builds both. The status record is returned by value.
 
 ______________________________________________________________________
 
@@ -850,5 +847,3 @@ ______________________________________________________________________
 - [AsyncDsssReceiver: the SPEC waveform](../gallery/async-dsss-receiver-spec.md)
     and [Streaming Async Despreader](../gallery/async-despread.md) — the
     gallery demonstrations of §4 and §3.
-- [Tracking a Population of DSSS Emitters](../guide/async-dsss-pool.md) —
-    the pool as built, from the user's side.

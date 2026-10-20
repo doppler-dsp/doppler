@@ -269,18 +269,19 @@ interval, in the
 stimulus at known truth, through more and more of the shipped chain, each
 stage scored as a BER-equivalent loss. At 5 dB, over 16 bursts:
 
-| stage                                                                                          | its cost at 5 dB           |
-| ---------------------------------------------------------------------------------------------- | -------------------------- |
-| the cut into `K` = 4 partials a code period                                                    | 0.41 dB                    |
-| the `Dll`'s output, held at truth                                                              | none measurable (−0.01 dB) |
-| the `RateConverter`                                                                            | none measurable (+0.01 dB) |
-| the demodulator's timing and carrier loops                                                     | 0.23 dB                    |
-| the front end's tracking: the pre-despread carrier loop, the code loop and the refine hand-off | 0.20 dB                    |
+| stage                                                                                          | its cost at 5 dB                           |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| the cut into `K` = 4 partials a code period                                                    | 0.41 dB                                    |
+| the `Dll`'s output, held at truth                                                              | none measurable (−0.01 dB)                 |
+| the `RateConverter`                                                                            | none measurable (+0.01 dB)                 |
+| the demodulator's timing and carrier loops                                                     | 0.23 dB                                    |
+| the front end's tracking: the pre-despread carrier loop, the code loop and the refine hand-off | 0.20 dB (over its 15 settled bursts of 16) |
 
 **The cut is geometry.** At 4.44 partials a symbol a partial straddles a
 symbol edge, and the matched filter cannot weigh its two halves apart; ideal
-sums at known timing lose the same. Against `K`, on the same bursts: 3.79 dB
-at 1, 1.17 at 2, 0.43 at 4, 0.18 at 8, 0.09 at 16. The receiver does not
+sums at known timing lose the same. Against `K`, the ideal sums' loss on the
+same bursts (the cut above is that less S0's 0.02 dB): 3.79 dB at 1, 1.17 at
+2, 0.43 at 4, 0.18 at 8, 0.09 at 16. The receiver does not
 run at `K` = 8 today
 ([#2506](https://github.com/doppler-dsp/doppler/issues/2506)).
 

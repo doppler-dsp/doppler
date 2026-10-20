@@ -885,6 +885,7 @@ dp_fft_execute_inplace_cf32_max_out function
 dp_fft_execute_inplace_cf64 function
 dp_fft_execute_inplace_cf64_max_out function
 dp_fft_reset function
+dp_fft_smooth_floor function
 dp_field_bits function
 dp_find_peaks_f32 function
 dp_fir_create function

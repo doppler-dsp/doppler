@@ -73,6 +73,7 @@ _Per-instance 1-D FFT using pocketfft directly._ [More...](#detailed-description
 |  size\_t | [**dp\_fft\_execute\_inplace\_cf64**](#function-dp_fft_execute_inplace_cf64) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state, const double \_Complex \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache. Semantically identical to_[_**dp\_fft\_execute\_cf64()**_](fft__core_8h.md#function-dp_fft_execute_cf64) _for separate_`in` _/_`out` _pointers; use this variant when the caller already owns_`out` _and wants the result there without a second allocation._ |
 |  size\_t | [**dp\_fft\_execute\_inplace\_cf64\_max\_out**](#function-dp_fft_execute_inplace_cf64_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Maximum output samples for inplace CF64 (always == n)._  |
 |  void | [**dp\_fft\_reset**](#function-dp_fft_reset) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_No-op reset (plans are immutable after creation)._  |
+|  size\_t | [**dp\_fft\_smooth\_floor**](#function-dp_fft_smooth_floor) (size\_t n) <br>_The largest 7-smooth length at most_ `n:` _the longest transform no longer than_`n` _whose only prime factors are 2, 3, 5 and 7._ |
 
 
 
@@ -608,6 +609,58 @@ void dp_fft_reset (
 
 
 
+
+<hr>
+
+
+
+### function dp\_fft\_smooth\_floor 
+
+_The largest 7-smooth length at most_ `n:` _the longest transform no longer than_`n` _whose only prime factors are 2, 3, 5 and 7._
+```C++
+size_t dp_fft_smooth_floor (
+    size_t n
+) 
+```
+
+
+
+pocketfft's cost tracks the factorization of the length, not its size. It has its own passes for 2, 3, 4, 5, 7 and 11; a prime factor of 13 or more goes the generic way. Measured at the async-DSSS design point (a slow-time axis of 2D points, one thread, doppler#2457): D = 13 cost 1.22x D = 12, D = 23 1.35x D = 21, and D = 94 (2 x 47) 1.46x D = 90, while a factor of 7 cost 3-5% over its 5-smooth neighbours. A caller free to choose a length at or below a bound  a coherent depth, a block size  rounds the bound down with this. The round-down gives up at most about 9% of the length (11 -&gt; 10) and less as `n` grows. A caller whose length is fixed by the signal (a code period) cannot use it.
+
+
+
+
+**Parameters:**
+
+
+* `n` Upper bound on the length. 
+
+
+
+**Returns:**
+
+The largest m &lt;= `n` with m = 2^a 3^b 5^c 7^d; 0 when `n` is 0. 
+```C++
+#include <assert.h>
+#include "doppler/fft/fft_core.h"
+int main (void)
+{
+  assert (dp_fft_smooth_floor (94) == 90);   // 2 x 47 -> 2 x 3^2 x 5
+  assert (dp_fft_smooth_floor (96) == 96);   // already smooth
+  assert (dp_fft_smooth_floor (14) == 14);   // 2 x 7 is kept
+  assert (dp_fft_smooth_floor (13) == 12);   // a prime of 13 is not
+  assert (dp_fft_smooth_floor (407) == 405); // 11 x 37 -> 3^4 x 5
+  assert (dp_fft_smooth_floor (1) == 1);
+  return 0;
+}
+```
+ 
+
+
+
+
+
+        
 
 <hr>
 

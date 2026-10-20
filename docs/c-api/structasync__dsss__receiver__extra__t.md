@@ -37,6 +37,7 @@
 | Type | Name |
 | ---: | :--- |
 |  uint8\_t | [**\_pad**](#variable-_pad)  <br> |
+|  uint64\_t | [**align\_pending**](#variable-align_pending)  <br> |
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  uint64\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
 |  uint8\_t | [**car\_coasting**](#variable-car_coasting)  <br> |
@@ -51,6 +52,7 @@
 |  uint64\_t | [**refine\_samples\_fed**](#variable-refine_samples_fed)  <br> |
 |  uint64\_t | [**refine\_segments**](#variable-refine_segments)  <br> |
 |  uint64\_t | [**refused\_hits**](#variable-refused_hits)  <br> |
+|  uint64\_t | [**samples\_in**](#variable-samples_in)  <br> |
 |  double | [**seed\_chip\_phase**](#variable-seed_chip_phase)  <br> |
 |  double | [**seed\_doppler\_hz\_est**](#variable-seed_doppler_hz_est)  <br> |
 |  uint64\_t | [**segments**](#variable-segments)  <br> |
@@ -58,6 +60,7 @@
 |  uint8\_t | [**state**](#variable-state)  <br> |
 |  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
 |  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
+|  int64\_t | [**threads**](#variable-threads)  <br> |
 
 
 
@@ -116,6 +119,24 @@ uint8_t async_dsss_receiver_extra_t::_pad[5];
 
 
 eight NAMED bytes with the three above: unnamed padding is indeterminate in a designated initialiser, and a blob that carried it would not round-trip byte for byte under every compiler. 
+
+
+        
+
+<hr>
+
+
+
+### variable align\_pending 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::align_pending;
+```
+
+
+
+v12: 0 or 1, a dwell alignment owed. 
+ 
 
 
         
@@ -336,6 +357,24 @@ v8: the searching hits refused as seeds.
 
 
 
+### variable samples\_in 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::samples_in;
+```
+
+
+
+v12: input samples since create. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable seed\_chip\_phase 
 
 ```C++
@@ -423,6 +462,24 @@ dp_lockdet_state_t async_dsss_receiver_extra_t::sym_lockdet;
 
 
 restored by create()). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable threads 
+
+```C++
+int64_t async_dsss_receiver_extra_t::threads;
+```
+
+
+
+v12: set\_threads()'s result (#2022). 
  
 
 

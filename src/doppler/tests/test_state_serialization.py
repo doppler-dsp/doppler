@@ -452,9 +452,13 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     # On the shared noise stream the searching flavor stays searching, so
     # this row round-trips the embedded search's state (the tracking state's
     # round trip is the C suite's, test_async_dsss_receiver_core.c). The row
-    # puts the receiver's setters under #2022's mutator gate (#2078).
+    # puts the receiver's setters under #2022's mutator gate (#2078). Wider
+    # than one native span (+/- 16 kHz for 31 chips at 1 Mchip/s), so the
+    # search has three Doppler tiles and set_threads() a pool to size.
     "AsyncDsssReceiver": (
-        lambda: AsyncDsssReceiver(_CODE, cn0_dbhz=50.0),
+        lambda: AsyncDsssReceiver(
+            _CODE, cn0_dbhz=50.0, doppler_uncertainty=40000.0
+        ),
         _track_feed,
     ),
     "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, m_out=4), _track_feed),

@@ -351,6 +351,18 @@ typedef enum
                                         (see dp_async_dsss_receiver_create()). */
     uint64_t state_samples;        /**< Running: samples fed since the
                                         current state was entered.       */
+    double   code_only_s;  /**< Config: the code-only window, seconds
+                                (create()'s; restored by create).        */
+    double   doppler_rate; /**< Config: the searcher's rate bound, Hz/s. */
+    uint64_t samples_in;   /**< Running: input samples fed since create.
+                                Never reset: every receiver in a pool is
+                                fed every sample from create, so this IS
+                                the shared sample count the searchers'
+                                dwells align to.                         */
+    bool     align_pending; /**< Running: the searcher was reset and
+                                 discards input to the next multiple of
+                                 `coherent_bins * code_len * spc` before
+                                 its next dwell starts.                  */
     uint64_t refused_hits;         /**< Searching hits the seed domain refused
                                         as seeds, since create or reset. In
                                         the blob with state_samples, so a
@@ -538,6 +550,21 @@ typedef enum
    *                                   blob in the lost state is refused by
    *                                   set_state(). Default false: the
    *                                   release rule above.
+   * @param code_only_s  Seconds of code-only signal the waveform holds at
+   *                     any chip phase (a symbol-free window; design
+   *                     async-dsss-parallel.md §4), >= 0 and finite. The
+   *                     receiver hands its searcher `code_only_epochs =
+   *                     floor(code_only_s * chip_rate / code_len) - 1`
+   *                     (at least 1), and the searcher's slow-time depth
+   *                     follows: `coherent_bins = D`, at most
+   *                     `(code_only_epochs + 1)/2`, rounded down to a
+   *                     7-smooth length (dp_acq_create_continuous()).
+   *                     Default 0: no window, D = 1.
+   * @param doppler_rate  Doppler rate in Hz/s, >= 0 and finite, that the
+   *                      slow-time depth is bounded against: at most
+   *                      `f_epoch / sqrt(2 * doppler_rate)` epochs
+   *                      (dp_acq_create_continuous()). Default 0: the
+   *                      window is the only bound.
    * @return A new receiver, searching; NULL on an invalid argument,
    *         including reacquire with a lost_confirm_s under one sample.
    * @code
@@ -560,7 +587,8 @@ typedef enum
       size_t refine_samples_per_symbol, double refine_design_margin_db,
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
-      double lost_confirm_s, bool reacquire);
+      double lost_confirm_s, bool reacquire, double code_only_s,
+      double doppler_rate);
 
   /** @brief Destroy a receiver and release every child.
    *  @param state May be NULL. */
@@ -1048,6 +1076,71 @@ typedef enum
       dp_async_dsss_receiver_state_t *state, size_t n_blocks);
 
   /**
+   * @brief Set the workers the searcher fans its Doppler tiles across.
+   *
+   * Forwards to dp_acq_set_threads() on the receiver's searcher. The
+   * search is bit-identical at every count, so this changes the cost of a
+   * steps() call and nothing about its output. A pool that steps its
+   * receivers in parallel sets each one to 1. A mutator's value, so it
+   * travels in the state blob (#2022). Setup path; not while another
+   * thread is inside steps().
+   *
+   * @param state Must be non-NULL.
+   * @param n     Thread count; 0 = online cores, 1 = serial.
+   * @return `DP_OK`. The count actually running is
+   *         dp_async_dsss_receiver_get_threads(); a searcher with one
+   *         Doppler tile always runs 1.
+   * @code
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
+   * ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+   * >>> rx.set_threads(1)
+   * >>> rx.threads
+   * 1
+   *
+   * @endcode
+   */
+  int dp_async_dsss_receiver_set_threads (
+      dp_async_dsss_receiver_state_t *state, int n);
+
+  /** @brief Workers the searcher runs, the calling thread included; 1 =
+   *  serial. Set with dp_async_dsss_receiver_set_threads(). */
+  int dp_async_dsss_receiver_get_threads (
+      const dp_async_dsss_receiver_state_t *state);
+
+  /**
+   * @brief The searcher's slow-time depth D: epochs per coherent block.
+   *
+   * Derived at create from `code_only_s` and `doppler_rate`
+   * (dp_async_dsss_receiver_create()); 1 without a code-only window. Every
+   * search dwell after a reset() starts on a multiple of `D * code_len *
+   * spc` input samples counted from create: the receiver discards input up
+   * to that boundary first, at most one block. Receivers fed the same
+   * stream from create therefore search on the same block grid.
+   *
+   * @param state Must be non-NULL.
+   * @return D, >= 1.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+   * ...                        spc=2, doppler_uncertainty=500.0)
+   * >>> rx.coherent_bins                  # no code-only window
+   * 1
+   * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+   * ...                        spc=2, doppler_uncertainty=500.0,
+   * ...                        code_only_s=0.0627)
+   * >>> rx.coherent_bins                  # 187 epochs: 94, run 7-smooth
+   * 90
+   *
+   * @endcode
+   */
+  size_t dp_async_dsss_receiver_get_coherent_bins (
+      const dp_async_dsss_receiver_state_t *state);
+
+  /**
    * @brief Re-tune the live-tracking Dll's code-lock detector directly.
    * Forwards to `dp_dll_configure_lock_raw()` on the live tracking Dll (the
    * one behind `get_code_locked()`), NOT the refine-stage collection Dll. It
@@ -1249,10 +1342,13 @@ typedef enum
     uint64_t refused_hits; /**< v8: the searching hits refused as seeds. */
     uint64_t refine_min_blocks; /**< v9: set_refine_min_blocks()'s value, a
                                      mutator's, so it travels (#2022). */
+    uint64_t samples_in;    /**< v12: input samples since create.        */
+    uint64_t align_pending; /**< v12: 0 or 1, a dwell alignment owed.    */
+    int64_t  threads;       /**< v12: set_threads()'s result (#2022).    */
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 11u /* v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 12u /* v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

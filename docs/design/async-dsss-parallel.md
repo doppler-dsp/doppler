@@ -112,18 +112,18 @@ separate bench of spares.
     (§1), so a loss there is normally its signal leaving, and symbol lock
     lets go of a signal gone for good well inside one data-free block.
     Inside a frame it is less forgiving: under this rule a fade it does not
-    ride out costs a re-search, and at the 5 dB floor even a short one
-    often does.
+    ride out costs a re-search, and at the 5 dB floor a 20 ms one nearly
+    always does.
 
 Symbol lock through a fade, of the draws that held lock before it; the
 draws that had not are excluded and counted (§3.1):
 
 <!-- async-dsss-parallel:design-fade:start -->
 
-| Es/N0 | draws not settled, excluded | rides out 5 ms       | rides out 10 ms      | rides out 20 ms     | lets go after a loss, the slowest |
-| ----- | --------------------------- | -------------------- | -------------------- | ------------------- | --------------------------------- |
-| 10 dB | 1 of 21                     | 20 of 20 (0.84–1.00) | 17 of 20 (0.64–0.95) | 7 of 20 (0.18–0.57) | 33.9 ms                           |
-| 5 dB  | 8 of 28                     | 20 of 20 (0.84–1.00) | 12 of 20 (0.39–0.78) | 1 of 20 (0.01–0.24) | 30.8 ms                           |
+| Es/N0 | draws not settled, excluded | rides out 5 ms       | rides out 10 ms      | rides out 20 ms      | lets go after a loss, the slowest |
+| ----- | --------------------------- | -------------------- | -------------------- | -------------------- | --------------------------------- |
+| 10 dB | 0 of 20                     | 19 of 20 (0.76–0.99) | 18 of 20 (0.70–0.97) | 15 of 20 (0.53–0.89) | 34.6 ms                           |
+| 5 dB  | 0 of 20                     | 17 of 20 (0.64–0.95) | 16 of 20 (0.58–0.92) | 2 of 20 (0.03–0.30)  | 42.4 ms                           |
 
 <!-- async-dsss-parallel:design-fade:end -->
 
@@ -211,26 +211,26 @@ on, and a signal arriving at any time, code phase and carrier in range
 
 | Es/N0 | tracking (the state), median | symbol lock, median of those that lock | locked 2 s after arrival |
 | ----- | ---------------------------- | -------------------------------------- | ------------------------ |
-| 10 dB | 45 ms (slowest 47)           | 86 ms (slowest 698)                    | 20 of 20 (0.84–1.00)     |
-| 5 dB  | 86 ms (slowest 101)          | 380 ms (slowest 1768)                  | 15 of 20 (0.53–0.89)     |
+| 10 dB | 45 ms (slowest 47)           | 77 ms (slowest 219)                    | 20 of 20 (0.84–1.00)     |
+| 5 dB  | 86 ms (slowest 101)          | 289 ms (slowest 1640)                  | 20 of 20 (0.84–1.00)     |
 
 <!-- async-dsss-parallel:design-arrival:end -->
 
 At 10 dB the median arrival locks inside one default data-free block
 (185 ms), though not every draw does. At the 5 dB floor the search is not
 what is slow: the state reads tracking on every draw, and it is symbol lock
-that lags, on some draws for seconds and on some not within 2 s. What
+that lags, on some draws for more than a second. What
 decides it is the carrier the refine stage hands the carrier loop, by how
 far it lands from the truth (§5.1):
 
 <!-- async-dsss-parallel:design-seed:start -->
 
-| refine seed error | locked, 10 dB                      | locked, 5 dB                       |
-| ----------------- | ---------------------------------- | ---------------------------------- |
-| 0–100 Hz          | 15 of 15 (0.80–1.00), median 67 ms | 6 of 6 (0.61–1.00), median 151 ms  |
-| 100–200 Hz        | 3 of 3 (0.44–1.00), median 143 ms  | 5 of 5 (0.57–1.00), median 419 ms  |
-| 200–300 Hz        | 2 of 2 (0.34–1.00), median 599 ms  | 4 of 7 (0.25–0.84), median 1444 ms |
-| ≥ 300 Hz          | —                                  | 0 of 2 (0.00–0.66)                 |
+| refine seed error | locked, 10 dB                      | locked, 5 dB                        |
+| ----------------- | ---------------------------------- | ----------------------------------- |
+| 0–100 Hz          | 16 of 16 (0.81–1.00), median 74 ms | 10 of 10 (0.72–1.00), median 157 ms |
+| 100–200 Hz        | 4 of 4 (0.51–1.00), median 165 ms  | 8 of 8 (0.68–1.00), median 482 ms   |
+| 200–300 Hz        | —                                  | 2 of 2 (0.34–1.00), median 1424 ms  |
+| ≥ 300 Hz          | —                                  | —                                   |
 
 <!-- async-dsss-parallel:design-seed:end -->
 
@@ -259,7 +259,7 @@ Every state fits one CPU (§6: the shipped C benches, the mean per sample at
 | ------------------------------------------- | ----------------------- |
 | tracking                                    | 0.07                    |
 | searching one tile, one-epoch looks         | 0.14                    |
-| searching ±1/T_E (3 tiles), one-epoch looks | 0.23                    |
+| searching ±1/T_E (3 tiles), one-epoch looks | 0.22                    |
 | searching ±1/T_E, slow time over D = 154    | 0.54                    |
 
 <!-- async-dsss-parallel:design-cost:end -->
@@ -281,12 +281,12 @@ down only in wall time, the CPUs they spend being more (§7):
 
 | per push                                   | timed at | × real time (wall) |
 | ------------------------------------------ | -------- | ------------------ |
-| one receiver, tracking                     | 10 MSa/s | 0.12               |
-| the pool, 12 slots, one emitter tracked    | 10 MSa/s | 1.05               |
-| the same, across the machine's cores       | 10 MSa/s | 0.99               |
-| its searcher at ±50 kHz, 21 tiles, D = 154 | 10 MSa/s | 5.36               |
-| the same, eight threads                    | 10 MSa/s | 1.30               |
-| its searcher at ±50 kHz, 53 tiles, D = 61  | 4 MSa/s  | 8.64               |
+| one receiver, tracking                     | 10 MSa/s | 0.11               |
+| the pool, 12 slots, one emitter tracked    | 10 MSa/s | 1.04               |
+| the same, across the machine's cores       | 10 MSa/s | 1.07               |
+| its searcher at ±50 kHz, 21 tiles, D = 154 | 10 MSa/s | 5.30               |
+| the same, eight threads                    | 10 MSa/s | 1.41               |
+| its searcher at ±50 kHz, 53 tiles, D = 61  | 4 MSa/s  | 8.60               |
 | the same, four threads                     | 4 MSa/s  | 2.42               |
 
 <!-- async-dsss-parallel:design-pool:end -->

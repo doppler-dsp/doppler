@@ -832,16 +832,27 @@ class Dll:
         correlators dump, the power-domain early-minus-late discriminator runs,
         and the fixed-point code-phase NCO is re-steered; the prompt correlator
         value is emitted as one output symbol per period (or `segments` partial
-        prompts per period when `segments > 1`). The discriminator's early,
-        late and prompt are coherent sums over its window -- one code period,
-        or with dp_dll_set_symbol_period() the transition-free window of a
-        symbol -- and it takes their powers. So the loop is blind to the
-        carrier's phase but not to its frequency: a residual `df` costs a
-        window of `T` seconds `sinc^2(df * T)` of its power, and a whole `1/T`
-        cycle nulls it. Wipe the carrier before this call: AsyncDsssReceiver
-        runs its carrier loop upstream of its Dll and hands the same estimate
-        to dp_dll_set_rate_aid(). Symbol-timing recovery runs downstream, on
-        this output. Returned blocks are block-size invariant and safe to keep
+        prompts per period when `segments > 1`). At `segments > 1` each emitted
+        partial is its window's prompt sum over the samples it spans, divided
+        by a slowly tracked level -- a running mean of the period's look-back
+        magnitude over DLL_OUT_LEVEL_PERIODS (32) periods -- so the output sits
+        near unit amplitude at any input gain, which the timing detectors
+        downstream assume. Never by the period's own magnitude: that divisor
+        carries the period's own noise, and it made the despread error
+        non-circular and cost the error rate (doppler#2495). The level settles
+        to 1% 146 periods after a step in the input's level or a put of the
+        code phase, and the output's scale follows the step until then; over
+        the first periods after create or reset the level is their plain mean,
+        so it is not yet slow. The discriminator's early, late and prompt are
+        coherent sums over its window -- one code period, or with
+        dp_dll_set_symbol_period() the transition-free window of a symbol --
+        and it takes their powers. So the loop is blind to the carrier's phase
+        but not to its frequency: a residual `df` costs a window of `T` seconds
+        `sinc^2(df * T)` of its power, and a whole `1/T` cycle nulls it. Wipe
+        the carrier before this call: AsyncDsssReceiver runs its carrier loop
+        upstream of its Dll and hands the same estimate to
+        dp_dll_set_rate_aid(). Symbol-timing recovery runs downstream, on this
+        output. Returned blocks are block-size invariant and safe to keep
         across calls (a block still referenced is never overwritten, jm
         gh-437).
 
@@ -1169,13 +1180,12 @@ class Dll:
         handling of the data transitions sets it -- and 1.2-1.4x at the 40
         dB-Hz floor, where the noise sets it and the window's unused partials
         cost more than its coherence buys; hundredths of a chip either way. The
-        emitted partial stream is untouched: the look-back still supplies its
-        normalisation. The search is blind to WHICH hypothesis is right on any
-        one symbol -- it needs no decision and no external timing -- so it
-        costs nothing at cold start and follows a slowly drifting symbol clock
-        by itself. `L` is capped at four epochs of partials so a long symbol (a
-        low data rate) does not ask for coherence across more carrier than the
-        wipe-off holds.
+        emitted partial stream is untouched by the aid. The search is blind to
+        WHICH hypothesis is right on any one symbol -- it needs no decision and
+        no external timing -- so it costs nothing at cold start and follows a
+        slowly drifting symbol clock by itself. `L` is capped at four epochs of
+        partials so a long symbol (a low data rate) does not ask for coherence
+        across more carrier than the wipe-off holds.
 
         Parameters
         ----------

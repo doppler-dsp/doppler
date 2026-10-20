@@ -658,6 +658,8 @@
 * **out\_buf** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md), [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md), [**dp\_detector\_state\_t**](structdp__detector__state__t.md))
 * **offset** ([**dp\_chunk\_t**](structdp__chunk__t.md), [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md), [**syncword\_hit\_t**](structsyncword__hit__t.md))
 * **off\_chips** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
+* **out\_level** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
+* **out\_level\_n** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **owns\_code** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **order** ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md))
 * **one** ([**dp\_frame\_state\_t**](structdp__frame__state__t.md))

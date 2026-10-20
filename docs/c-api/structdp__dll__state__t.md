@@ -88,6 +88,8 @@ _DLL state._ [More...](#detailed-description)
 |  double | [**noise\_ema**](#variable-noise_ema)  <br> |
 |  double | [**noise\_guard**](#variable-noise_guard)  <br> |
 |  double | [**off\_chips**](#variable-off_chips)  <br> |
+|  double | [**out\_level**](#variable-out_level)  <br> |
+|  uint32\_t | [**out\_level\_n**](#variable-out_level_n)  <br> |
 |  int | [**owns\_code**](#variable-owns_code)  <br> |
 |  double | [**rate\_aid**](#variable-rate_aid)  <br> |
 |  double | [**rate\_i**](#variable-rate_i)  <br> |
@@ -1082,6 +1084,41 @@ double dp_dll_state_t::off_chips;
 
 
 this look's offset code phase, whole chips. 
+
+
+        
+
+<hr>
+
+
+
+### variable out\_level 
+
+```C++
+double dp_dll_state_t::out_level;
+```
+
+
+
+Running: the slowly tracked level the output is divided by, a mean of the look-back magnitude over DLL\_OUT\_LEVEL\_PERIODS periods (#2495). 
+
+
+        
+
+<hr>
+
+
+
+### variable out\_level\_n 
+
+```C++
+uint32_t dp_dll_state_t::out_level_n;
+```
+
+
+
+Running: periods in out\_level, saturating at DLL\_OUT\_LEVEL\_PERIODS (its plain-mean start). Beside the int above, so the double below needs no padding. 
+ 
 
 
         

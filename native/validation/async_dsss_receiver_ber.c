@@ -73,21 +73,23 @@
 /* The most implementation loss the record claims over the bursts that
    settle, dB, asserted on the loss the interval's LOWER limit implies --
    the receiver's best defensible rate -- so counting noise cannot flake
-   it. The sweep's point losses are 0.89 to 1.00 dB from 5 to 8 dB, their
-   lower limits 0.68 to 0.79; at 7 dB and 200 errors the lower limit sits
-   about 0.17 dB under the point. So an unchanged receiver reads about 0.8
-   at most, 0.4 dB of room for another toolchain's draws (the four points
-   spread 0.11 dB), and a change that adds about 0.5 dB fails the spot
-   check. Why the loss is 0.9 dB is #2495. */
-#define LOSS_MAX_DB 1.2
+   it. The sweep's point losses are 0.65 to 0.89 dB from 5 to 8 dB, their
+   lower limits 0.52 to 0.68; at 7 dB and 200 errors the lower limit sits
+   about 0.17 dB under the point. So an unchanged receiver reads about 0.7
+   at most, 0.4 dB of room for another toolchain's draws, and a change that
+   adds about 0.5 dB fails the spot check. Where the loss goes, stage by
+   stage, is validate_async_dsss_receiver_loss (#2495). */
+#define LOSS_MAX_DB 1.1
 
 /* A burst that never settles is not scored, so the loss above is
    conditional on settling and cannot see a receiver that stops settling.
    F3 is why some do not: a first hand-off that lands off the carrier and,
    with `reacquire` off, never pulls in. It is a known defect (#2409), and
-   where the searching path's pull-in edge lies is that issue's question:
-   the sweep's unsettled bursts were handed over 343 to 492 Hz off, but
-   settled ones reach 481 Hz, so no line in Hz separates the two yet.
+   where the searching path's pull-in edge lies is that issue's question.
+   In the committed sweep every burst settles, handed over at most 329 Hz
+   off; before the Dll stopped dividing each period by its own magnitude
+   (#2495), seven of
+   45 did not, handed over 343 to 492 Hz off.
 
    So the count is a RATCHET: unsettled_max below, per Es/N0, is the
    committed sweep's count at its fixed seeds plus one for another
@@ -100,8 +102,8 @@
    ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (60 Hz here), measured on the seed it is
    handed, which the refine's hand-over is. Inside that the hand-over
    cannot be why a burst did not settle, so an unsettled burst there is
-   some other failure, and fails. Past it a burst may settle or not: 21 of
-   the sweep's 38 settled bursts were handed over past 120 Hz. */
+   some other failure, and fails. Past it a burst may settle or not: 13 of
+   the sweep's 48 settled bursts were handed over past 120 Hz. */
 #define PULLIN_RELIABLE_HZ                                                    \
   (2.0 * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (CHIP_RATE, SF))
 
@@ -109,15 +111,15 @@
    costs seconds (8 dB, BER ~7e-4). Above it the certification's EVM rows
    characterise the receiver; below the floor the C test
    `_test_awgn_esn0_floor` pins that it stops decoding. unsettled_max is
-   the ratchet above: the sweep's 1, 0, 3 and 3 unsettled, plus one. */
+   the ratchet above: the sweep's 0, 0, 0 and 0 unsettled, plus one. */
 static const double esn0s[]         = { 5.0, 6.0, 7.0, 8.0 };
-static const size_t unsettled_max[] = { 2, 1, 4, 4 };
+static const size_t unsettled_max[] = { 1, 1, 1, 1 };
 #define N_ESN0 (sizeof esn0s / sizeof esn0s[0])
 
 /* --check: one point of the sweep, by index, where every cross-check of
-   dp_ber_report() holds with margin (the blind M2M4 reads high, a symptom
-   of #2495, and its room under DP_BER_M2M4_AGREE_DB grows with Es/N0), at
-   the library's error target: about 11 bursts, the sweep's own seeds. */
+   dp_ber_report() holds with margin (the blind M2M4 reads the Es/N0 less
+   about the implementation loss, as a circular error makes it), at the
+   library's error target: about 11 bursts, the sweep's own seeds. */
 static const size_t check_points[] = { 2 }; /* 7 dB */
 
 /* One burst's account. */

@@ -54,6 +54,35 @@ extern "C" {
 /* Numerical guard on the early+late envelope sum (not tunable). */
 #define DLL_EPS 1e-12
 
+/* The `segments > 1` output's level: the code periods its running mean of
+ * the look-back magnitude spans (doppler#2495). Each period's partials are
+ * divided by that slowly tracked level, so the output sits near unit
+ * amplitude at any input gain -- the level every timing detector
+ * downstream assumes, which MpskReceiver's AGC, 20x slower than its own
+ * loops, cannot set from scratch -- and never by the period's own
+ * magnitude, whose noise is the period's own. The number is a choice
+ * inside a band, both ends set by a measurement or a count:
+ *   - slow enough: the current period enters the level with weight 1/N,
+ *     and the in-phase error is compressed against the quadrature as that
+ *     weight grows. Measured by test_dll_core.c's section 11 harness (a
+ *     period SNR of 3 dB, 20,000 periods), the compression is -2.29 dB at
+ *     N = 1 (the period's own magnitude, which cost the receiver 0.2 dB of
+ *     error rate), -1.18 at 2, -0.54 at 4, -0.23 at 8, -0.08 at 16 and
+ *     -0.01 at 32: about halving with each doubling. Holding it under
+ *     0.15 dB, about the counting noise of that measurement, needs
+ *     N >= 16.
+ *   - fast enough: after a step in level the error decays as (1 - 1/N)^n,
+ *     to 1% at n = ln 100 / -ln(1 - 1/N), about 4.6 N periods. Settling
+ *     inside a third of the 185 ms data-free block (555 periods at SPEC's
+ *     3.069 Mcps), and far ahead of MpskReceiver's AGC, needs N <= 40.
+ * N = 32 is inside the band 16..40, a power of two; the 1% settle is then
+ * 146 periods, 49 ms at SPEC. Until N periods have accrued the level is
+ * their plain mean, so the first output already carries a level, but not
+ * a slow one: the first period is divided by its own magnitude, and the
+ * current period weighs 1/n, so the compression the band bounds holds
+ * only once about 16 periods have accrued, 5 ms at SPEC. */
+#define DLL_OUT_LEVEL_PERIODS 32u
+
 /* Clamp on the discriminator output |e| before it reaches the loop filter.
  * The old magnitude-domain discriminator (|E|-|L|)/(|E|+|L|) was always
  * inherently bounded in [-1, 1] (|E|-|L| <= |E|+|L| identically); the
@@ -213,6 +242,14 @@ typedef struct {
     float _Complex *last_e;          /**< prev epoch's per-chunk early sums.  */
     float _Complex *last_l;          /**< prev epoch's per-chunk late sums.   */
     int have_prev_epoch;     /**< 0 until one full epoch has completed.    */
+    uint32_t out_level_n;    /**< Running: periods in out_level, saturating
+                                  at DLL_OUT_LEVEL_PERIODS (its plain-mean
+                                  start). Beside the int above, so the
+                                  double below needs no padding.          */
+    double   out_level;      /**< Running: the slowly tracked level the
+                                  output is divided by, a mean of the
+                                  look-back magnitude over
+                                  DLL_OUT_LEVEL_PERIODS periods (#2495). */
     /* ── lock detector (always on): offset-tap CFAR noise ref + N-look test  */
     float _Complex acc_o;     /**< offset (noise) correlator accumulator.     */
     double off_chips;        /**< this look's offset code phase, whole chips. */
@@ -743,7 +780,18 @@ size_t dp_dll_steps_max_out(dp_dll_state_t *state);
  * correlators dump, the power-domain early-minus-late discriminator runs, and
  * the fixed-point code-phase NCO is re-steered; the prompt correlator value is
  * emitted as one output symbol per period (or `segments` partial prompts per
- * period when `segments > 1`). The discriminator's early, late and prompt are
+ * period when `segments > 1`). At `segments > 1` each emitted partial is its
+ * window's prompt sum over the samples it spans, divided by a slowly
+ * tracked level -- a running mean of the period's look-back magnitude over
+ * DLL_OUT_LEVEL_PERIODS (32) periods -- so the output sits near unit
+ * amplitude at any input gain, which the timing detectors downstream
+ * assume. Never by the period's own magnitude: that divisor carries the
+ * period's own noise, and it made the despread error non-circular and cost
+ * the error rate (doppler#2495). The level settles to 1% 146 periods after
+ * a step in the input's level or a put of the code phase, and the output's
+ * scale follows the step until then; over the first periods after create
+ * or reset the level is their plain mean, so it is not yet slow. The
+ * discriminator's early, late and prompt are
  * coherent sums over its window -- one code period, or with
  * dp_dll_set_symbol_period() the transition-free window of a symbol -- and it
  * takes their powers. So the loop is blind to the carrier's phase but not to
@@ -932,8 +980,8 @@ void dp_dll_hold_here(dp_dll_state_t *state);
  * handling of the data transitions sets it -- and 1.2-1.4x at the 40
  * dB-Hz floor, where the noise sets it and the window's unused partials
  * cost more than its coherence buys; hundredths of a chip either way. The
- * emitted partial stream is untouched: the look-back still supplies its
- * normalisation. The search is blind to WHICH
+ * emitted partial stream is untouched by the aid. The search is blind to
+ * WHICH
  * hypothesis is right on any one symbol -- it needs no decision and no
  * external timing -- so it costs nothing at cold start and follows a
  * slowly drifting symbol clock by itself. `L` is capped at four epochs of
@@ -1311,7 +1359,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 14u /* v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 15u /* v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

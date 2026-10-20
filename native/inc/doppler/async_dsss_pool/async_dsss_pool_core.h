@@ -127,7 +127,7 @@ extern "C"
 #define ASYNC_DSSS_POOL_MAX_EMITTER_ON_TIME_SECS (15.0 * 60.0)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 3u /* v3: cell receivers only; v2: the flavour */
+#define ASYNC_DSSS_POOL_STATE_VERSION 4u /* v4: the receivers' dll children grew (#2495); v3: cell receivers only; v2: the flavour */
 
   /**
    * @brief One slot's picture, by value -- what `status()` returns.

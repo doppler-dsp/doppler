@@ -22,6 +22,10 @@
  *      noise seeds, zero Doppler/carrier)
  *   8b. A put across the period wrap dumps nothing and skips nothing, on
  *       both correlation paths (#1287)
+ *   11. segments > 1: the output's error is circular -- no decision-SNR
+ *       gain over the ideal period sum (#2495)
+ *   12. segments > 1: the output's level does not follow the input's,
+ *       from -30 to +30 dB of gain (#2495)
  */
 #include "doppler/detection/detection_core.h"
 #include "doppler/dll/dll_core.h"
@@ -243,6 +247,12 @@ refused_blob_changes_nothing (void)
              "a best hypothesis past the aid's");
   DLL_FORGE (c, aid_last_end, uint64_t, c->aid_count + 1u,
              "a last look past the partials counted");
+  /* The output's level divides every partial (doppler#2495). */
+  DLL_FORGE (b, out_level, double, NAN, "a NaN output level");
+  DLL_FORGE (b, out_level, double, -1.0, "a negative output level");
+  DLL_FORGE (b, out_level, double, INFINITY, "an infinite output level");
+  DLL_FORGE (b, out_level_n, uint32_t, DLL_OUT_LEVEL_PERIODS + 1u,
+             "an output level counted past its mean's length");
 
   /* And they track on -- b still telling its telemetry -- then go cleanly. */
   (void)dp_tlm_read (tlm, 512, recs, 512);
@@ -961,6 +971,149 @@ coast_reports_the_held_rate (size_t segments)
   return fails;
 }
 
+/* ------------------------------------------------------------------ *
+ * 11. segments > 1: the output's error is circular (doppler#2495).   *
+ *     Each partial is its window's prompt sum over the samples it    *
+ *     spans and a SLOWLY tracked level -- never over its period's    *
+ *     own signal-plus-noise magnitude. A divisor drawn from the noise *
+ *     it divides is an AGC on that noise: it compresses the in-phase *
+ *     fluctuations (which inflate the divisor) and not the           *
+ *     quadrature ones, so the error stops being circular, and the    *
+ *     decision SNR reads HIGHER than the despread's own while the    *
+ *     error rate is worse. Measured on the receiver's chain: an I/Q  *
+ *     variance ratio of -2.2 dB and a decision SNR 1.4 dB above the  *
+ *     despread's at Es/N0 5 dB, with 0.2 dB more BER loss.           *
+ *     The property is pinned, not a number: on a held loop at truth, *
+ *     with noise, the output's in-phase and quadrature errors have   *
+ *     equal power, and its decision SNR is the ideal period sum's.   *
+ * ---------------------------------------------------------------- */
+static int
+output_error_is_circular (void)
+{
+  const size_t sf = 63, sps = 2, segs = 4, nper = 20000;
+  const size_t tsamps = sf * sps;
+  /* The noise: sigma times dp_cgauss(), so sigma^2 / 2 a rail. A period's
+     coherent decision SNR is then 3 dB (126 / 63), a partial's -3 dB --
+     where a divisor taken from the period's own magnitude is mostly
+     noise. */
+  const double sigma = sqrt (63.0);
+  uint8_t     *code  = malloc (sf);
+  make_code (code, sf, 0x2495u);
+  float _Complex *rx = malloc (tsamps * nper * sizeof *rx);
+  size_t          n  = make_signal (rx, code, sf, sps, 0.0, nper, 7u, 1);
+  uint32_t        ns = 0x5eed2495u;
+  for (size_t i = 0; i < n; i++)
+    rx[i] += (float)sigma * dp_cgauss (&ns);
+  dp_dll_state_t *d
+      = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, segs);
+  DP_CHECK (d != NULL);
+  dp_dll_hold_here (d); /* held at truth: the code loop is not under test */
+  dp_dll_set_coast (d, 1);
+  size_t          cap = segs * (nper + 1);
+  float _Complex *out = malloc (cap * sizeof *out);
+  size_t          k   = dp_dll_steps (d, rx, n, out, cap);
+  DP_CHECK (k >= segs * (nper - 1));
+
+  /* Scored a period at a time, the sum of its `segs` partials: data is
+     held at +1, so every sum's mean is real and positive, and a divisor
+     shared by a period's partials shows in their sum -- as it does in a
+     receiver's symbol, which sums the partials it spans. */
+  double si = 0, si2 = 0, sq = 0, sq2 = 0, m = 0;
+  for (size_t e = 1; (e + 1) * segs <= k; e++) /* period 0: no look-back */
+    {
+      float _Complex z = 0;
+      for (size_t c = 0; c < segs; c++)
+        z += out[e * segs + c];
+      si += crealf (z);
+      si2 += crealf (z) * crealf (z);
+      sq += cimagf (z);
+      sq2 += cimagf (z) * cimagf (z);
+      m += 1;
+    }
+  double A = si / m, vi = si2 / m - A * A;
+  double vq    = sq2 / m - (sq / m) * (sq / m);
+  double iq_db = 10.0 * log10 (vi / vq);
+  /* The ideal period sum's decision SNR, A^2 / (2 var_I): tsamps^2 over
+     twice tsamps sigma^2 / 2, since dp_cgauss() puts half its unit power
+     on each rail -- whatever constant then scales it. */
+  double ideal_db = 10.0 * log10 ((double)tsamps / (sigma * sigma));
+  double dec_db   = 10.0 * log10 (A * A / (2.0 * vi));
+  printf ("  11: I/Q error power %+.3f dB, decision SNR %.2f dB against the "
+          "ideal period sum's %.2f dB (%.0f periods)\n",
+          iq_db, dec_db, ideal_db, m);
+  /* 20k periods put each estimate's own spread near 0.05 dB; the bands
+     are five times that. The per-period normalization this replaces read
+     -2.29 dB and a 1.75 dB gain here. Circular, and no gain: */
+  DP_CHECK (fabs (iq_db) < 0.25);
+  DP_CHECK (dec_db - ideal_db < 0.25);
+  dp_dll_destroy (d);
+  free (out);
+  free (rx);
+  free (code);
+  return 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * 12. segments > 1: the output's level does not follow the input's   *
+ *     (doppler#2495). Every timing detector downstream assumes a     *
+ *     stream near unit amplitude, and MpskReceiver's AGC, 20x slower *
+ *     than its own loops, cannot set one from scratch: a despread    *
+ *     whose output scaled with its input left the receiver deciding  *
+ *     differently at +/-15 dB and emitting almost nothing at +30.    *
+ *     Pinned at the primitive: the same signal and noise at -30, 0   *
+ *     and +30 dB of gain give the same output level once the level   *
+ *     has settled, to a part in a thousand (float32's rounding of a  *
+ *     non-power-of-two gain, not a level).                           *
+ * ---------------------------------------------------------------- */
+static int
+output_level_is_input_level_free (void)
+{
+  const size_t sf = 63, sps = 2, segs = 4, nper = 400;
+  const size_t tsamps      = sf * sps;
+  const double gains_db[3] = { -30.0, 0.0, 30.0 };
+  uint8_t     *code        = malloc (sf);
+  make_code (code, sf, 0x2495u);
+  float _Complex *rx = malloc (tsamps * nper * sizeof *rx);
+  float _Complex *x  = malloc (tsamps * nper * sizeof *x);
+  size_t          n  = make_signal (rx, code, sf, sps, 0.0, nper, 7u, 1);
+  uint32_t        ns = 0x1e7e1u;
+  for (size_t i = 0; i < n; i++)
+    rx[i] += 4.0f * dp_cgauss (&ns); /* a period's SNR about 9 dB */
+  size_t          cap = segs * (nper + 1);
+  float _Complex *out = malloc (cap * sizeof *out);
+  /* The level over the last half, past the settle the header derives
+     (146 periods at DLL_OUT_LEVEL_PERIODS = 32). */
+  double lvl[3];
+  for (int g = 0; g < 3; g++)
+    {
+      const float a = (float)pow (10.0, gains_db[g] / 20.0);
+      for (size_t i = 0; i < n; i++)
+        x[i] = a * rx[i];
+      dp_dll_state_t *d
+          = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, segs);
+      DP_CHECK (d != NULL);
+      dp_dll_hold_here (d);
+      dp_dll_set_coast (d, 1);
+      size_t k  = dp_dll_steps (d, x, n, out, cap);
+      double s  = 0.0;
+      size_t m0 = k / 2;
+      for (size_t j = m0; j < k; j++)
+        s += cabsf (out[j]);
+      lvl[g] = s / (double)(k - m0);
+      dp_dll_destroy (d);
+    }
+  printf ("  12: output level %.4f at -30 dB, %.4f at 0 dB, %.4f at +30 dB "
+          "of input gain\n",
+          lvl[0], lvl[1], lvl[2]);
+  DP_CHECK (fabs (lvl[0] / lvl[1] - 1.0) < 1e-3);
+  DP_CHECK (fabs (lvl[2] / lvl[1] - 1.0) < 1e-3);
+  free (out);
+  free (x);
+  free (rx);
+  free (code);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1142,6 +1295,32 @@ main (void)
     double r2 = dp_dll_get_code_rate (d), e2 = dp_dll_get_last_error (d);
     DP_CHECK (r1 == r2 && e1 == e2);
     dp_dll_destroy (d);
+
+    /* segments > 1: reset clears the output's level too (doppler#2495),
+       so the same input after a reset gives a fresh Dll's output, bit for
+       bit. A level carried over would scale the first periods by the
+       old input's. */
+    const size_t    segs = 4, cap = segs * (nper + 1);
+    float _Complex *o1 = malloc (cap * sizeof *o1);
+    float _Complex *o2 = malloc (cap * sizeof *o2);
+    dp_dll_state_t *f
+        = dp_dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, segs);
+    dp_dll_state_t *g
+        = dp_dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, segs);
+    for (size_t i = 0; i < n; i++)
+      rx[i] *= 8.0f; /* a level the fresh one never saw */
+    (void)dp_dll_steps (f, rx, n, o1, cap);
+    for (size_t i = 0; i < n; i++)
+      rx[i] /= 8.0f;
+    dp_dll_reset (f);
+    size_t k1 = dp_dll_steps (f, rx, n, o1, cap);
+    size_t k2 = dp_dll_steps (g, rx, n, o2, cap);
+    DP_CHECK_MSG (k1 == k2 && k1 > 0 && memcmp (o1, o2, k1 * sizeof *o1) == 0,
+                  "segments > 1: after reset, a fresh Dll's output");
+    dp_dll_destroy (f);
+    dp_dll_destroy (g);
+    free (o1);
+    free (o2);
     free (rx);
     free (sym);
     free (code);
@@ -1908,7 +2087,9 @@ main (void)
      drop the tail discard at the awaited wrap (the first epoch after a back
      put reads the tail's energy). */
   {
-    const size_t sf = 63, sps = 4, nper = 30;
+    /* 175 periods: ten before the put, ten after it, and the output level's
+       settle after that (the header's DLL_OUT_LEVEL_PERIODS; see below). */
+    const size_t sf = 63, sps = 4, nper = 175;
     const size_t te = sf * sps, cap = te * nper;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 29u);
@@ -1943,7 +2124,23 @@ main (void)
           dp_dll_get_state (d, blob);
           DP_CHECK (dp_dll_set_state (e, blob) == DP_OK);
 
-          size_t nb   = dp_dll_steps (d, rx + m, 10 * te, out, cap);
+          /* After the put, ONE SAMPLE A CALL: each epoch's partials then
+             come out of a call of their own, divided by the output level
+             read right after it (#2495), so |out| * level is the partial's
+             own sum over seg_norm -- what this check read before the output
+             had a level. The loop ran a chip off the code before the put,
+             so its level was set on the code's sidelobes and is still
+             climbing here; taking it out keeps the check exact. */
+          double *lvl = malloc (cap * sizeof *lvl);
+          DP_REQUIRE (lvl);
+          size_t nb = 0;
+          for (size_t i = 0; i < 10 * te; i++)
+            {
+              size_t k = dp_dll_steps (d, rx + m + i, 1, out + nb, cap - nb);
+              for (size_t j = 0; j < k; j++)
+                lvl[nb + j] = K > 1 && d->out_level > 0.0 ? d->out_level : 1.0;
+              nb += k;
+            }
           size_t want = dir < 0 ? 9 * K : 11 * K;
           DP_CHECK_MSG (nb == want, dir < 0
                                         ? "back across the wrap: an epoch "
@@ -1972,7 +2169,8 @@ main (void)
           DP_CHECK_MSG (nb > first + K, "enough reads to compare periods");
           for (size_t i = first; i + K < nb; i++)
             {
-              float a = cabsf (out[i]), b = cabsf (out[i + K]);
+              float a = cabsf (out[i]) * (float)lvl[i];
+              float b = cabsf (out[i + K]) * (float)lvl[i + K];
               DP_CHECK_MSG (a > 0.99f * b && b > 0.99f * a,
                             "after the put every read spans its whole "
                             "partial");
@@ -1982,6 +2180,35 @@ main (void)
                             && memcmp (oute, out, nb * sizeof (*out)) == 0,
                         "resumed from the blob taken after the put, the same "
                         "epochs");
+          /* The level's settle (segments > 1): within 1% of where it ends
+             ln 100 / -ln(1 - 1/N) periods after the put, N =
+             DLL_OUT_LEVEL_PERIODS (146 at 32) -- the header's count, here
+             from a level set on the code's sidelobes, the largest step a
+             put makes -- and from there the OUTPUT itself, nothing taken
+             out, repeats period over period to the same 1%. */
+          if (K > 1)
+            {
+              const size_t settle = (size_t)ceil (
+                  log (100.0) / -log1p (-1.0 / (double)DLL_OUT_LEVEL_PERIODS));
+              const size_t pos = m + 10 * te;
+              (void)dp_dll_steps (d, rx + pos, (settle - 10) * te, out, cap);
+              const double at_settle = d->out_level;
+              size_t       nt = dp_dll_steps (d, rx + pos + (settle - 10) * te,
+                                              12 * te, out, cap);
+              const double at_end = d->out_level;
+              DP_CHECK_MSG (fabs (at_settle - at_end) < 0.01 * at_end,
+                            "the output level is within 1% of where it "
+                            "ends, the header's settle after the put");
+              DP_CHECK_MSG (nt > K, "reads after the settle");
+              for (size_t i = 0; i + K < nt; i++)
+                {
+                  float a = cabsf (out[i]), b = cabsf (out[i + K]);
+                  DP_CHECK_MSG (a > 0.99f * b && b > 0.99f * a,
+                                "after the settle the output itself repeats "
+                                "period over period");
+                }
+            }
+          free (lvl);
           free (blob);
           dp_dll_destroy (e);
           dp_dll_destroy (d);
@@ -2154,6 +2381,10 @@ main (void)
   DP_CHECK (coast_order_resumes_exact (2) == 0);
   DP_CHECK (coast_reports_the_held_rate (1) == 0);
   DP_CHECK (coast_reports_the_held_rate (4) == 0);
+
+  /* segments > 1: circular error, a level free of the input's (#2495). */
+  DP_CHECK (output_error_is_circular () == 0);
+  DP_CHECK (output_level_is_input_level_free () == 0);
 
   /* dp_fmod_pos stays in [0, m) (doppler#2110). A negative remainder within
      half an ulp of zero rounded r + m up to exactly m, and dll_replica, which

@@ -229,9 +229,8 @@ def check(runs, outputs):
     output is the data along one axis, at whatever carrier phase the data
     sits: its power along that axis stands above its power across it by up
     to the link budget's ``1 + 2 * SNR`` per output sample, and reads below
-    it because a sample straddling a data flip loses amplitude and each
-    period's samples are normalized by that period's noisy look-back peak.
-    The check takes half the budget as the line, below which the output is
+    it because a sample straddling a data flip loses amplitude. The check
+    takes half the budget as the line, below which the output is
     noise. And the NCO truncates its
     command, so a locked loop's settled filter output reads between the rate
     the loop carries and one NCO step above it. The check widens that by a

@@ -85,7 +85,8 @@ counts the **whole** epochs a window holds at any chip phase: the window is
 `W` symbols on the data clock, with no fixed relation to the code clock, so
 a partial epoch is lost at each edge and
 `code_only_epochs = ⌊W · cps / L⌋ − 1`. It defaults to 1, which is `D = 1`:
-the epoch-by-epoch search, and the one `AsyncDsssReceiver` runs (§2.3).
+the epoch-by-epoch search. `AsyncDsssReceiver` takes the window as a time,
+`code_only_s`, and derives `code_only_epochs` from it (§2.3).
 
 ### 2.2 A detection is a physical record, never a grid index
 
@@ -128,16 +129,30 @@ tells the engine afterwards (`dp_acq_set_carrier_freq_hz()` /
 block of `D > 1` epochs, aligns the block's epochs on the dilated code
 clock. `AsyncDsssReceiver` passes its own `carrier_freq_hz` on.
 
-### 2.3 The receiver searches one epoch at a time; the slow-time depth waits for a code-only window
+### 2.3 The receiver's search: a slow-time depth from the code-only window, dwells on the shared sample count
 
-**The receiver's search** is the continuous door at `code_only_epochs = 1`
-with no rate bound: `D = 1`, one-epoch looks over its one-sided
-`doppler_uncertainty`, `n_noncoh` sized to `pd` at `pfa` for its
-`cn0_dbhz`, and one hit per dwell (`max_peaks` 1). An uncertainty wider
-than one epoch's span, `±1/(2·T_E)`, is covered by the engine's roll across
-frequency windows; the receiver sets no thread count, so the engine fans
-those windows across every online core. What searching costs is
+**The receiver's search** is the continuous door, sized from two physical
+create parameters: `code_only_s`, the code-only window in seconds, which
+the receiver turns into `code_only_epochs = ⌊code_only_s · chip_rate / L⌋ − 1`, and `doppler_rate` in Hz/s, passed through. Both default to 0, which is
+`D = 1`: one-epoch looks over its one-sided `doppler_uncertainty`. The
+depth it runs is the read-only `coherent_bins`. `n_noncoh` is sized to `pd`
+at `pfa` for its `cn0_dbhz`, and the search takes one hit per dwell
+(`max_peaks` 1). An uncertainty wider than one epoch's span, `±1/(2·T_E)`,
+is covered by the engine's roll across frequency windows, which it fans
+across every online core unless `set_threads()` says otherwise; a pool
+that steps its receivers in parallel sets each to 1. The search is
+bit-identical at any thread count. What searching costs is
 [async-dsss-parallel.md](async-dsss-parallel.md) §6.
+
+**Every dwell starts on the block grid of the receiver's own input count.**
+The receiver counts every sample fed since create, and every receiver of a
+pool is fed every sample from create, so that count is the pool's shared
+one. A search restarted by `reset()`, a release, a refused hand-over or
+`configure_search_raw()` first discards input up to the next multiple of
+`D · L · spc` samples, at most one block (30 ms at `D = 90`), so searchers
+re-armed at different times still decide on the same blocks. The count and
+the alignment owed travel in the state blob. At `D = 1` the grid is one
+code epoch.
 
 **The slow-time depth `D > 1` is safe only inside a pure-code window.**
 Coherent combining across data aliases the data's own spectrum across the
@@ -155,8 +170,10 @@ epochs, and the 500 Hz/s bound gives 94, which the engine runs at the
 of coherent gain. A block that straddles data spreads its emitter over the `D`
 rows, about `10·log10 D` down **at its own code phase**: a weaker copy, not
 a mislock. Pinned by `native/validation/acq_block_coherent.c`. The receiver
-does not run this depth yet; it is the slow-time search
-[async-dsss-parallel.md](async-dsss-parallel.md) §3 gives every receiver.
+runs this depth when given its window: at 32 dB-Hz, `D = 90` finds a signal
+inside one 170-symbol window that `D = 1`, needing 256 looks, cannot decide
+there (`test_async_dsss_receiver_core.c`,
+`_test_depth_finds_what_one_epoch_misses`).
 
 **The engine's windowing ships.** Its roll of one epoch's spectrum across
 frequency windows, the alias check a pick near a window's edge gets

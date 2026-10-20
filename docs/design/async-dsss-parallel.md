@@ -144,15 +144,18 @@ What today's receiver must gain for this:
     centered on 0 Hz (`dp_acq_create_continuous()`), and the receiver's
     `carrier_freq_hz` is the RF carrier for code aiding, not a search
     center, so this is a new parameter, not a reuse of that one.
-1. **The slow-time search of its own.** Today's receiver dwells one epoch
-    (it creates its engine with `code_only_epochs` = 1). It gains back-to-back
+1. **The slow-time search of its own — shipped.** The receiver's
+    `code_only_s` and `doppler_rate` create parameters size back-to-back
     D-epoch dwells over the whole range, D at most half the data-free block
-    and within the depth the Doppler rate allows.
-1. **One thread for its search.** A continuous engine with more than one
-    tile starts a pool of every online core (`acq_core.h`,
+    and within the depth the Doppler rate allows (`coherent_bins`;
+    [async-dsss-receiver.md](async-dsss-receiver.md) §2.3). Its dwells start
+    on multiples of D epochs of its own input count, which under the pool
+    is the shared one, so the ranks below line up.
+1. **One thread for its search — shipped.** A continuous engine with more
+    than one tile starts a pool of every online core (`acq_core.h`,
     `dp_acq_set_threads()`), so N receivers would each claim the whole
-    machine. Under the pool each receiver's engine runs on its own worker's
-    thread (`threads` = 1).
+    machine. `set_threads()` forwards it, so under the pool each receiver's
+    engine runs on its own worker's thread (`threads` = 1).
 1. **Exclusions**: code phases the search must not take, because another
     receiver already tracks them. The pool's zone is keyed on code phase alone
     (within a chip, at any Doppler); keying on carrier seeded duplicate receivers

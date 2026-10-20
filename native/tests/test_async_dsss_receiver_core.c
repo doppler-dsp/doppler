@@ -118,13 +118,13 @@ _test_arg_validation (void)
 {
   DP_CHECK (dp_async_dsss_receiver_create (
                 NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0)
             == NULL);
   /* A 1-chip code: refused, where the Dll built under dp_xnn used to abort
      the process once it refused the code (doppler#2103). */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 1, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0)
             == NULL);
   /* Refused by create itself, where each reached a dp_xnn build and
      aborted the process (doppler#2103): the searcher's own domain (a pfa of
@@ -134,40 +134,42 @@ _test_arg_validation (void)
   {
     dp_async_dsss_receiver_state_t *ok = dp_async_dsss_receiver_create (
         CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
-        14.0, 64, 8, false, 100000, 2.5e9, 0.0, false);
+        14.0, 64, 8, false, 100000, 2.5e9, 0.0, false, 0.0, 0.0);
     DP_CHECK (ok != NULL);
     dp_async_dsss_receiver_destroy (ok);
   }
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 2.0, 0.9, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false, 0.0, 0.0)
             == NULL); /* pfa */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 1, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false, 0.0, 0.0)
             == NULL); /* sps */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 1e-305, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 1e-305, 0.0, false, 0.0, 0.0)
             == NULL); /* carrier */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 1.5, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false, 0.0, 0.0)
             == NULL); /* pd */
   /* A symbol rate at either extreme: 5e-324 underflowed the chain's ratio
      to 0, and one past the chip rate sized the scratch at ~4e12 samples.
      The 2^20-partial cap holds at one segment too (doppler#2103). */
-  DP_CHECK (dp_async_dsss_receiver_create (
-                CODE7, 7, 1e6, 5e-324, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0,
-                0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false)
+  DP_CHECK (dp_async_dsss_receiver_create (CODE7, 7, 1e6, 5e-324, 2, 2, 55.0,
+                                           1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
+                                           14.0, 64, 8, false, 100000, 2.5e9,
+                                           0.0, false, 0.0, 0.0)
             == NULL); /* symbol_rate underflows the ratio */
-  DP_CHECK (dp_async_dsss_receiver_create (
-                CODE7, 7, 1e6, 1e15, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0,
-                0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false)
+  DP_CHECK (dp_async_dsss_receiver_create (CODE7, 7, 1e6, 1e15, 2, 2, 55.0,
+                                           1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
+                                           14.0, 64, 8, false, 100000, 2.5e9,
+                                           0.0, false, 0.0, 0.0)
             == NULL); /* symbol_rate past the chip rate */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 0.1, 2, 2, 55.0, 1e-3, 0.9, 100.0, 1, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 2.5e9, 0.0, false, 0.0, 0.0)
             == NULL); /* 1e6 / (7 * 0.1) partials at ONE segment */
   /* A symbol of more than 2^20 Dll partials -- here 4 * 1e6 / (7 * 0.1),
      about 5.7e6 -- is refused at create by the receiver's own chain-ratio
@@ -177,36 +179,36 @@ _test_arg_validation (void)
      mid-stream, where a refusal used to drop the aid silently (#2103). */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 0.1, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0)
             == NULL);
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0)
             == NULL); /* chip_rate <= 0 */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 1e3, 2, 3, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0)
             == NULL); /* m not in {2,4,8} */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 0, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0)
             == NULL); /* segments < 1 */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, -1.0, 0.0, false)
+                4, 14.0, 64, 8, false, 100000, -1.0, 0.0, false, 0.0, 0.0)
             == NULL); /* carrier_freq_hz < 0 */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 0.0, -1.0, false)
+                4, 14.0, 64, 8, false, 100000, 0.0, -1.0, false, 0.0, 0.0)
             == NULL); /* lost_confirm_s < 0 */
   DP_CHECK (dp_async_dsss_receiver_create (
                 CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5,
-                4, 14.0, 64, 8, false, 100000, 0.0, NAN, false)
+                4, 14.0, 64, 8, false, 100000, 0.0, NAN, false, 0.0, 0.0)
             == NULL); /* lost_confirm_s NaN */
 
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 0.0, 0.0, false);
+      14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (rx)
     {
@@ -247,7 +249,7 @@ _test_acquire_and_decode (void)
 
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -277,7 +279,7 @@ _test_acquire_and_decode (void)
 
   dp_async_dsss_receiver_state_t *rx2 = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx2 != NULL);
   if (rx2)
     {
@@ -298,7 +300,7 @@ _test_acquire_and_decode (void)
   /* ── state-serialization round trip, while searching ─────────────────── */
   dp_async_dsss_receiver_state_t *rx3 = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx3 != NULL);
   if (rx3)
     {
@@ -308,7 +310,7 @@ _test_acquire_and_decode (void)
 
       dp_async_dsss_receiver_state_t *rx4 = dp_async_dsss_receiver_create (
           CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-          0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+          0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
       DP_CHECK (rx4 != NULL);
       if (rx4)
         {
@@ -367,7 +369,7 @@ _test_give_up_cap (void)
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
       4, 14.0, 16, 4, true, 1 /* refine_max_n_blocks: forces give-up */,
-      0.0 /* carrier_freq_hz: aiding off */, 0.0, false);
+      0.0 /* carrier_freq_hz: aiding off */, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -446,7 +448,7 @@ _test_spec_ramp_decode (void)
 
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -556,7 +558,7 @@ _test_handover_under_clock_offset (void)
       dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
           code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9,
           1.2 * ppm * 1e-6 * carrier, 4, 8, 0, 0.5, 4, margin_db, 64, 8, false,
-          100000, carrier, 0.0, false);
+          100000, carrier, 0.0, false, 0.0, 0.0);
       DP_REQUIRE (rx != NULL);
       float _Complex *syms;
       size_t          n_syms = _stream (rx, x, n, te, &syms);
@@ -641,7 +643,7 @@ _test_spec_combined_scenario_at_spec_floor (void)
 
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -737,7 +739,7 @@ _test_awgn_esn0_floor (void)
 
       dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
           code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-3, 0.9, 100.0, 4, 8,
-          0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false);
+          0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
       float _Complex *syms   = NULL;
       size_t          n_syms = rx ? _stream (rx, x, tot, sf * spc, &syms) : 0;
       double          ber    = _best_ber (syms, n_syms, dsym, n_data);
@@ -818,7 +820,7 @@ _searching_rx (double cn0, double sym_rate, double lost_confirm_s,
 {
   return dp_async_dsss_receiver_create (
       CODE7, 7, 1.0e6, sym_rate, 4, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
-      14.0, 32, 8, false, 100000, 0.0, lost_confirm_s, reacquire);
+      14.0, 32, 8, false, 100000, 0.0, lost_confirm_s, reacquire, 0.0, 0.0);
 }
 
 /* Records a probe has written, from the context's own table (the
@@ -1078,7 +1080,7 @@ _test_telemetry_reaches_the_search (void)
 {
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
-      14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   dp_tlm_t *t  = dp_tlm_create (1 << 12);
   dp_tlm_t *t2 = dp_tlm_create (1 << 12);
   DP_CHECK (rx != NULL && rx->acq != NULL && t != NULL && t2 != NULL);
@@ -1122,7 +1124,7 @@ _test_seed_on_searching_flavor (void)
 
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -1680,7 +1682,7 @@ _test_configure_chain_raw_keeps_the_carrier (void)
                    &x, &n, &data);
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 20000.0, 4, 8, 0,
-      0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -2237,7 +2239,7 @@ _test_differential_does_not_change_the_symbols (void)
     {
       dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
           CODE7, 7, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 0.0, 4, 8, d, 0.5,
-          4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false);
+          4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
       DP_REQUIRE (rx != NULL);
       DP_REQUIRE (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
       n_syms[d] = _stream (rx, x + pre_silence, n - pre_silence, te, &syms[d]);
@@ -2343,7 +2345,7 @@ _test_refine_dwell_floor (void)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0);
   DP_REQUIRE (rx != NULL);
   DP_CHECK (rx->refine_min_blocks == ASYNC_DSSS_RX_REFINE_MIN_BLOCKS);
   DP_CHECK (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
@@ -2378,7 +2380,7 @@ _test_carry_tail_is_zeros (void)
 {
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 0.0, 0.0, false);
+      14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     return 1;
@@ -2504,7 +2506,7 @@ _test_seeded_blob_round_trip (void)
      and the envelope reject still holds. */
   dp_async_dsss_receiver_state_t *rs = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 16, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 2.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 2.0, false, 0.0, 0.0);
   DP_CHECK (rs != NULL);
   if (rs)
     {
@@ -2700,7 +2702,7 @@ _test_accessor_coverage (void)
 {
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 0.0, 0.0, false);
+      14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     return 1;
@@ -2772,10 +2774,10 @@ _test_handoff_resumes_at_the_hit (void)
 
   dp_async_dsss_receiver_state_t *one = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   dp_async_dsss_receiver_state_t *chunked = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (one != NULL && chunked != NULL);
   if (!one || !chunked)
     {
@@ -2826,16 +2828,16 @@ _test_handoff_survives_reconfigure_and_restore (void)
 
   dp_async_dsss_receiver_state_t *a = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   dp_async_dsss_receiver_state_t *ref = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   dp_async_dsss_receiver_state_t *b = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   dp_async_dsss_receiver_state_t *whole = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (a && ref && b && whole);
   if (!a || !ref || !b || !whole)
     {
@@ -2850,13 +2852,17 @@ _test_handoff_survives_reconfigure_and_restore (void)
   float _Complex *o1 = malloc (n * sizeof *o1), *o2 = malloc (n * sizeof *o2);
   DP_CHECK (o1 && o2);
 
-  /* (a) Reconfigured mid-search: the engine restarts at 0; a fresh
-     receiver configured the same way and fed the same rest is the truth. */
+  /* (a) Reconfigured mid-search: the engine restarts at 0 on the next
+     block boundary of the receiver's own count (one epoch here, D = 1;
+     get_coherent_bins()); a fresh receiver configured the same way and fed
+     the rest from that boundary is the truth. */
+  const size_t on_grid = (cut + te - 1) / te * te;
   DP_CHECK (dp_async_dsss_receiver_steps (a, x, cut, o1, n) == 0);
   DP_CHECK (dp_async_dsss_receiver_configure_search_raw (a, 1, 4) == 0);
   DP_CHECK (dp_async_dsss_receiver_configure_search_raw (ref, 1, 4) == 0);
   size_t na = dp_async_dsss_receiver_steps (a, x + cut, n - cut, o1, n);
-  size_t nr = dp_async_dsss_receiver_steps (ref, x + cut, n - cut, o2, n);
+  size_t nr
+      = dp_async_dsss_receiver_steps (ref, x + on_grid, n - on_grid, o2, n);
   DP_CHECK (dp_async_dsss_receiver_get_tracking (a) == 1);
   DP_CHECK (na > 20 && na == nr && memcmp (o1, o2, na * sizeof *o1) == 0);
 
@@ -2864,7 +2870,7 @@ _test_handoff_survives_reconfigure_and_restore (void)
      over the whole capture is the truth. */
   dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
       CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false);
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   DP_CHECK (src != NULL);
   if (src)
     {
@@ -2927,10 +2933,10 @@ _test_forged_seed_is_refused (void)
     {
       dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
           code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
-          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0);
       dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
           code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
-          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0);
       DP_REQUIRE (src != NULL && dst != NULL);
       DP_REQUIRE (dp_async_dsss_receiver_seed (src, forge[k].seed_phase,
                                                forge[k].seed_doppler, 45.0)
@@ -3008,10 +3014,10 @@ _test_handover_holds_the_refined_doppler_to_the_domain (void)
       const double                    residual_hz = residual[k];
       dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
           code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
-          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0);
       dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
           code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
-          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0);
       DP_REQUIRE (src != NULL && dst != NULL);
       DP_REQUIRE (dp_async_dsss_receiver_seed (src, 0.0, seeds[k], 45.0)
                   == DP_OK);
@@ -3082,7 +3088,7 @@ _test_seed_domain (void)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0);
   DP_REQUIRE (rx != NULL);
   int          fails   = 0;
   const double fs_half = 0.5 * 5.0e6 * 2.0; /* chip_rate * spc / 2 */
@@ -3134,7 +3140,7 @@ _test_forged_residual_refused (void)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
   dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
       code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0);
   DP_REQUIRE (src != NULL);
   const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
   unsigned char *blob = malloc (cb);
@@ -3155,7 +3161,7 @@ _test_forged_residual_refused (void)
     {
       dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
           code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0,
-          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+          0.5, 4, 14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0);
       DP_REQUIRE (dst != NULL);
       unsigned char *bad = malloc (cb);
       memcpy (bad, blob, cb);
@@ -3186,10 +3192,10 @@ _test_refused_hits_round_trips (void)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
   dp_async_dsss_receiver_state_t *src = dp_async_dsss_receiver_create (
       code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0);
   dp_async_dsss_receiver_state_t *dst = dp_async_dsss_receiver_create (
       code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false);
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0, false, 0.0, 0.0);
   DP_REQUIRE (src != NULL && dst != NULL);
   src->refused_hits   = 7;
   const size_t   cb   = dp_async_dsss_receiver_state_bytes (src);
@@ -3475,6 +3481,250 @@ _test_tlm_names_documented (void)
   return 0;
 }
 
+/* The design point of docs/design/async-dsss-parallel.md: the SPEC Gold-1023
+ * receiver at 3.069 Mchip/s and 2700 symbols/s, two samples a chip. */
+#define SLOW_CR 3.069e6
+#define SLOW_RS 2700.0
+#define SLOW_SPC 2
+
+#define DP_CHECK_EQ_SZ(a, b) DP_CHECK ((size_t)(a) == (size_t)(b))
+#define DP_CHECK_EQ_INT(a, b) DP_CHECK ((int)(a) == (int)(b))
+#define DP_CHECK_EQ_U64(a, b) DP_CHECK ((uint64_t)(a) == (uint64_t)(b))
+
+static dp_async_dsss_receiver_state_t *
+_slow_rx (const uint8_t *code, double cn0, double du, double code_only_s,
+          double doppler_rate)
+{
+  return dp_async_dsss_receiver_create (code, 1023, SLOW_CR, SLOW_RS, SLOW_SPC,
+                                        2, cn0, 1e-3, 0.9, du, 4, 8, 0, 0.5, 4,
+                                        14.0, 64, 8, false, 100000, 0.0, 0.0,
+                                        false, code_only_s, doppler_rate);
+}
+
+/* The slow-time depth comes from the physical inputs (create()'s
+ * @param code_only_s / doppler_rate): code_only_epochs = floor(W *
+ * chip_rate / sf) - 1, D at most (epochs + 1)/2 and f_epoch /
+ * sqrt(2 * rate), run 7-smooth. Sabotage: pass the old `1, 0.0` -> red at
+ * the design point; drop the `- 1` -> the 7.5-epoch row reads 4, not 3;
+ * drop the rate -> the 2000 Hz/s row reads 90, not 45. */
+static int
+_test_slow_time_depth_from_physical_inputs (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double f_epoch = SLOW_CR / 1023.0; /* 3000 Hz */
+  static const struct
+  {
+    double code_only_s, doppler_rate;
+    size_t d;
+  } rows[] = {
+    { 0.0, 0.0, 1 },              /* no window: the epoch-by-epoch search */
+    { 170.0 / SLOW_RS, 0.0, 90 }, /* 187 epochs: 94, run 7-smooth          */
+    { 0.0627, 0.0, 90 },          /* the header's worked example           */
+    { 1.5 / 3000.0, 0.0, 1 },     /* under two epochs: no window           */
+    { 7.5 / 3000.0, 0.0, 3 },     /* floor 7 - 1 = 6 epochs: (6 + 1)/2 = 3 */
+    { 170.0 / SLOW_RS, 2000.0, 45 }, /* the rate bounds it: 47 -> 45      */
+    { 450.0 / SLOW_RS, 500.0, 90 },  /* SPEC: 499 epochs, 500 Hz/s -> 94  */
+  };
+  for (size_t i = 0; i < sizeof rows / sizeof rows[0]; i++)
+    {
+      dp_async_dsss_receiver_state_t *rx = _slow_rx (
+          code, 45.0, 500.0, rows[i].code_only_s, rows[i].doppler_rate);
+      DP_REQUIRE (rx != NULL);
+      DP_CHECK_EQ_SZ (dp_async_dsss_receiver_get_coherent_bins (rx),
+                      rows[i].d);
+      dp_async_dsss_receiver_destroy (rx);
+    }
+  (void)f_epoch;
+  /* Refused at create: a window that is not a time, a rate that is not. */
+  DP_CHECK (_slow_rx (code, 45.0, 500.0, -1e-3, 0.0) == NULL);
+  DP_CHECK (_slow_rx (code, 45.0, 500.0, NAN, 0.0) == NULL);
+  DP_CHECK (_slow_rx (code, 45.0, 500.0, INFINITY, 0.0) == NULL);
+  DP_CHECK (_slow_rx (code, 45.0, 500.0, 1e300, 0.0) == NULL);
+  DP_CHECK (_slow_rx (code, 45.0, 500.0, 0.0, -1.0) == NULL);
+  DP_CHECK (_slow_rx (code, 45.0, 500.0, 0.0, NAN) == NULL);
+  return 0;
+}
+
+/* set_threads() changes the cost and nothing else: five Doppler tiles
+ * searched serially and on a pool give the same symbols and the same
+ * status, sample for sample. Sabotage: let a tile's rows depend on its
+ * worker -> red. */
+static int
+_test_threads_change_nothing_but_cost (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double    fs = SLOW_CR * SLOW_SPC;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (code, 1023, SLOW_SPC, fs, fs / SLOW_RS, 2500.0, 45.0, 300,
+                   5003, 7, &x, &n, &data);
+  dp_async_dsss_receiver_state_t *a = _slow_rx (code, 45.0, 5000.0, 0.0, 0.0);
+  dp_async_dsss_receiver_state_t *b = _slow_rx (code, 45.0, 5000.0, 0.0, 0.0);
+  DP_REQUIRE (a != NULL && b != NULL);
+  DP_REQUIRE (a->acq->window_bins == 5); /* something to fan out */
+  DP_CHECK_EQ_INT (dp_async_dsss_receiver_set_threads (a, 1), DP_OK);
+  DP_CHECK_EQ_INT (dp_async_dsss_receiver_set_threads (b, 4), DP_OK);
+  DP_CHECK_EQ_INT (dp_async_dsss_receiver_get_threads (a), 1);
+  DP_CHECK_EQ_INT (dp_async_dsss_receiver_get_threads (b), 4);
+  float _Complex *sa, *sb;
+  const size_t    na = _stream (a, x, n, 4093, &sa);
+  const size_t    nb = _stream (b, x, n, 4093, &sb);
+  DP_CHECK (a->state == ASYNC_DSSS_RX_TRACKING); /* the search ran and hit */
+  DP_CHECK_EQ_SZ (na, nb);
+  DP_CHECK (na > 0 && memcmp (sa, sb, na * sizeof *sa) == 0);
+  /* Every running field, through the blob: equal but for the thread count
+     each carries. */
+  const size_t   nbytes = dp_async_dsss_receiver_state_bytes (a);
+  unsigned char *ba = malloc (nbytes), *bb = malloc (nbytes);
+  dp_async_dsss_receiver_get_state (a, ba);
+  dp_async_dsss_receiver_get_state (b, bb);
+  ((async_dsss_receiver_extra_t *)(bb + sizeof (dp_state_hdr_t)))->threads = 1;
+  DP_CHECK (memcmp (ba, bb, nbytes) == 0);
+  free (ba);
+  free (bb);
+  free (sa);
+  free (sb);
+  free (x);
+  free (data);
+  dp_async_dsss_receiver_destroy (a);
+  dp_async_dsss_receiver_destroy (b);
+  return 0;
+}
+
+/* A restarted search starts its next dwell on a multiple of one block,
+ * D * sf * spc input samples, counted from create (the header's
+ * get_coherent_bins()): the engine's own position after the restart is what
+ * was fed less what was owed to the boundary. The debt survives a split
+ * through the blob, and chunking does not move it. Sabotage: skip the
+ * alignment -> the position reads every sample fed; drop samples_in from the
+ * blob -> the resumed receiver pays a different debt. */
+static int
+_test_dwells_start_on_the_block_grid (void)
+{
+  /* CODE7 at 1 Mchip/s: a 7 us epoch. 13.5 epochs of window -> 12 whole
+     -> D = 6, a block of 6 * 7 * 4 = 168 samples. */
+  const double    code_only_s = 13.5 * 7.0e-6;
+  const size_t    block       = 6 * 7 * 4;
+  const size_t    fed_before  = 1000; /* 1000 % 168 = 160: 8 owed after */
+  const size_t    owed        = block - fed_before % block;
+  float _Complex *pre         = _noise_tail (fed_before, 4.0e6, 40.0, 3);
+  float _Complex *post        = _noise_tail (500, 4.0e6, 40.0, 4);
+  float _Complex out[600];
+
+  for (size_t chunk = 1; chunk <= 500; chunk = chunk * 3 + 4)
+    {
+      dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+          CODE7, 7, 1.0e6, 35714.29, 4, 2, 40.0, 1e-9, 0.9, 500.0, 4, 8, 0,
+          0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, code_only_s,
+          0.0);
+      DP_REQUIRE (rx != NULL);
+      DP_REQUIRE (dp_async_dsss_receiver_get_coherent_bins (rx) == 6);
+      (void)dp_async_dsss_receiver_steps (rx, pre, fed_before, out, 600);
+      /* From create the grid starts at sample 0: nothing was owed. */
+      DP_CHECK_EQ_U64 (dp_acq_position (rx->acq), (uint64_t)fed_before);
+      dp_async_dsss_receiver_reset (rx);
+      for (size_t pos = 0; pos < 500; pos += chunk)
+        {
+          const size_t take = pos + chunk <= 500 ? chunk : 500 - pos;
+          (void)dp_async_dsss_receiver_steps (rx, post + pos, take, out, 600);
+          const size_t fed = pos + take;
+          DP_CHECK_EQ_U64 (dp_acq_position (rx->acq),
+                           (uint64_t)(fed > owed ? fed - owed : 0));
+        }
+      DP_CHECK (rx->state == ASYNC_DSSS_RX_SEARCHING);
+      dp_async_dsss_receiver_destroy (rx);
+    }
+
+  /* Split mid-debt: 3 of the 8 paid, the blob taken, the rest fed to both. */
+  dp_async_dsss_receiver_state_t *a = dp_async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, 40.0, 1e-9, 0.9, 500.0, 4, 8, 0, 0.5, 4,
+      14.0, 32, 8, false, 100000, 0.0, 0.0, false, code_only_s, 0.0);
+  dp_async_dsss_receiver_state_t *b = dp_async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, 40.0, 1e-9, 0.9, 500.0, 4, 8, 0, 0.5, 4,
+      14.0, 32, 8, false, 100000, 0.0, 0.0, false, code_only_s, 0.0);
+  DP_REQUIRE (a != NULL && b != NULL);
+  (void)dp_async_dsss_receiver_steps (a, pre, fed_before, out, 600);
+  dp_async_dsss_receiver_reset (a);
+  (void)dp_async_dsss_receiver_steps (a, post, 3, out, 600);
+  DP_CHECK (a->align_pending);
+  const size_t   nbytes = dp_async_dsss_receiver_state_bytes (a);
+  unsigned char *blob   = malloc (nbytes);
+  dp_async_dsss_receiver_get_state (a, blob);
+  DP_REQUIRE (dp_async_dsss_receiver_set_state (b, blob) == DP_OK);
+  (void)dp_async_dsss_receiver_steps (a, post + 3, 497, out, 600);
+  (void)dp_async_dsss_receiver_steps (b, post + 3, 497, out, 600);
+  DP_CHECK_EQ_U64 (dp_acq_position (a->acq), (uint64_t)(500 - owed));
+  DP_CHECK_EQ_U64 (dp_acq_position (b->acq), (uint64_t)(500 - owed));
+  /* A flag that is not a flag is a forged blob. */
+  async_dsss_receiver_extra_t *extra
+      = (async_dsss_receiver_extra_t *)(blob + sizeof (dp_state_hdr_t));
+  extra->align_pending = 2;
+  DP_CHECK (dp_async_dsss_receiver_set_state (b, blob) == DP_ERR_INVALID);
+  free (blob);
+  free (pre);
+  free (post);
+  dp_async_dsss_receiver_destroy (a);
+  dp_async_dsss_receiver_destroy (b);
+  return 0;
+}
+
+/* What the depth is for: a signal too weak for the epoch-by-epoch search to
+ * decide inside one code-only window is found inside it at D = 90. 32 dB-Hz
+ * at the design point: D = 90 decides on one 30 ms block, D = 1 sized for
+ * the same C/N0 needs 256 looks (85 ms), past the 63 ms window. The found
+ * Doppler is the emitter's to within one D = 90 bin (33 Hz), so the hit is
+ * the signal and not a false alarm. Sabotage: create the engine at D = 1
+ * regardless -> red. */
+static int
+_test_depth_finds_what_one_epoch_misses (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double fs      = SLOW_CR * SLOW_SPC;
+  const double tsym    = fs / SLOW_RS;
+  const size_t w_sym   = 170;
+  const double doppler = 150.0;
+  for (uint32_t seed = 1; seed <= 3; seed++)
+    {
+      float _Complex *x;
+      size_t          n;
+      double         *data;
+      dp_dsss_windowed_capture (code, 1023, SLOW_SPC, fs, tsym, doppler, 32.0,
+                                w_sym, 0, seed, w_sym, w_sym + 400, &x, &n,
+                                &data);
+      const size_t    win = (size_t)((double)w_sym * tsym);
+      float _Complex *out = malloc (win * sizeof *out);
+      for (int deep = 0; deep < 2; deep++)
+        {
+          dp_async_dsss_receiver_state_t *rx = _slow_rx (
+              code, 32.0, 500.0, deep ? (double)w_sym / SLOW_RS : 0.0, 0.0);
+          DP_REQUIRE (rx != NULL);
+          DP_REQUIRE (dp_async_dsss_receiver_get_coherent_bins (rx)
+                      == (deep ? 90u : 1u));
+          (void)dp_async_dsss_receiver_steps (rx, x, win, out, win);
+          if (deep)
+            {
+              DP_CHECK_MSG (rx->state != ASYNC_DSSS_RX_SEARCHING,
+                            "D = 90 finds it inside the window");
+              DP_CHECK (fabs (rx->seed_doppler_hz_est - doppler)
+                        < SLOW_CR / 1023.0 / 90.0);
+            }
+          else
+            DP_CHECK_MSG (rx->state == ASYNC_DSSS_RX_SEARCHING
+                              && rx->refused_hits == 0,
+                          "D = 1 has not decided inside the window");
+          dp_async_dsss_receiver_destroy (rx);
+        }
+      free (out);
+      free (x);
+      free (data);
+    }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -3517,6 +3767,10 @@ main (void)
   DP_CHECK (_test_tlm_lifecycle_probes () == 0);
   DP_CHECK (_test_tlm_searching_and_refused () == 0);
   DP_CHECK (_test_tlm_names_documented () == 0);
+  DP_CHECK (_test_slow_time_depth_from_physical_inputs () == 0);
+  DP_CHECK (_test_threads_change_nothing_but_cost () == 0);
+  DP_CHECK (_test_dwells_start_on_the_block_grid () == 0);
+  DP_CHECK (_test_depth_finds_what_one_epoch_misses () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

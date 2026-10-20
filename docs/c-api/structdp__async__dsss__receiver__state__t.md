@@ -37,6 +37,7 @@ _Composed receiver state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
+|  bool | [**align\_pending**](#variable-align_pending)  <br> |
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**ca**](#variable-ca)  <br> |
 |  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car**](#variable-car)  <br> |
@@ -52,9 +53,11 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  uint8\_t \* | [**code**](#variable-code)  <br> |
 |  size\_t | [**code\_len**](#variable-code_len)  <br> |
+|  double | [**code\_only\_s**](#variable-code_only_s)  <br> |
 |  int | [**differential**](#variable-differential)  <br> |
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**dll**](#variable-dll)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
+|  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
 |  int | [**had\_lock**](#variable-had_lock)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
@@ -87,6 +90,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**refine\_zero\_pad**](#variable-refine_zero_pad)  <br> |
 |  uint64\_t | [**refused\_hits**](#variable-refused_hits)  <br> |
 |  [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* | [**rx**](#variable-rx)  <br> |
+|  uint64\_t | [**samples\_in**](#variable-samples_in)  <br> |
 |  double | [**seed\_chip\_phase**](#variable-seed_chip_phase)  <br> |
 |  double | [**seed\_doppler\_hz\_est**](#variable-seed_doppler_hz_est)  <br> |
 |  size\_t | [**segments**](#variable-segments)  <br> |
@@ -174,6 +178,24 @@ dp_acq_state_t* dp_async_dsss_receiver_state_t::acq;
 
 
 The embedded search. 
+
+
+        
+
+<hr>
+
+
+
+### variable align\_pending 
+
+```C++
+bool dp_async_dsss_receiver_state_t::align_pending;
+```
+
+
+
+Running: the searcher was reset and discards input to the next multiple of `coherent_bins * code_len * spc` before its next dwell starts. 
+ 
 
 
         
@@ -404,6 +426,24 @@ size_t dp_async_dsss_receiver_state_t::code_len;
 
 
 
+### variable code\_only\_s 
+
+```C++
+double dp_async_dsss_receiver_state_t::code_only_s;
+```
+
+
+
+Config: the code-only window, seconds (create()'s; restored by create). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable differential 
 
 ```C++
@@ -440,6 +480,23 @@ double dp_async_dsss_receiver_state_t::doppler_hz_est;
 
 The seed's Doppler while refining; the CarrierAcquisition-refined value once tracking. A refused hand-over zeroes both, as reset() does. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable doppler\_rate 
+
+```C++
+double dp_async_dsss_receiver_state_t::doppler_rate;
+```
+
+
+
+Config: the searcher's rate bound, Hz/s. 
 
 
         
@@ -918,6 +975,24 @@ dp_mpsk_receiver_state_t* dp_async_dsss_receiver_state_t::rx;
 
 
 
+
+<hr>
+
+
+
+### variable samples\_in 
+
+```C++
+uint64_t dp_async_dsss_receiver_state_t::samples_in;
+```
+
+
+
+Running: input samples fed since create. Never reset: every receiver in a pool is fed every sample from create, so this IS the shared sample count the searchers' dwells align to. 
+ 
+
+
+        
 
 <hr>
 

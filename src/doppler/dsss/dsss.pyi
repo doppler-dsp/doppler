@@ -2225,6 +2225,18 @@ class AsyncDsssReceiver:
         input sample, since a release that never fires would never search
         again; a blob in the lost state is refused by set_state(). Default
         false: the release rule above.
+    code_only_s : float, default 0.0
+        Seconds of code-only signal the waveform holds at any chip phase (a
+        symbol-free window; design async-dsss-parallel.md §4), >= 0 and finite.
+        The receiver hands its searcher `code_only_epochs = floor(code_only_s *
+        chip_rate / code_len) - 1` (at least 1), and the searcher's slow-time
+        depth follows: `coherent_bins = D`, at most `(code_only_epochs + 1)/2`,
+        rounded down to a 7-smooth length (dp_acq_create_continuous()). Default
+        0: no window, D = 1.
+    doppler_rate : float, default 0.0
+        Doppler rate in Hz/s, >= 0 and finite, that the slow-time depth is
+        bounded against: at most `f_epoch / sqrt(2 * doppler_rate)` epochs
+        (dp_acq_create_continuous()). Default 0: the window is the only bound.
 
     Raises
     ------
@@ -2277,6 +2289,8 @@ class AsyncDsssReceiver:
         carrier_freq_hz: float = 0.0,
         lost_confirm_s: float = 0.0,
         reacquire: bool = False,
+        code_only_s: float = 0.0,
+        doppler_rate: float = 0.0,
     ) -> None: ...
     def steps(
         self,
@@ -2814,6 +2828,38 @@ class AsyncDsssReceiver:
 
         """
 
+    def set_threads(self, n: int) -> None:
+        """Set the workers the searcher fans its Doppler tiles across.
+
+        Forwards to dp_acq_set_threads() on the receiver's searcher. The search
+        is bit-identical at every count, so this changes the cost of a steps()
+        call and nothing about its output. A pool that steps its receivers in
+        parallel sets each one to 1. A mutator's value, so it travels in the
+        state blob (#2022). Setup path; not while another thread is inside
+        steps().
+
+        Parameters
+        ----------
+        n : int
+            Thread count; 0 = online cores, 1 = serial.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_threads failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> from doppler.dsss import AsyncDsssReceiver
+        >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
+        ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+        >>> rx.set_threads(1)
+        >>> rx.threads
+        1
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -2881,6 +2927,16 @@ class AsyncDsssReceiver:
         (#1265). Set with set_refine_min_blocks(), which carries the
         measurement.
         """
+
+    @property
+    def threads(self) -> int:
+        """Workers the searcher runs, the calling thread included; 1 = serial.
+        Set with dp_async_dsss_receiver_set_threads().
+        """
+
+    @property
+    def coherent_bins(self) -> int:
+        """The searcher's slow-time depth D: epochs per coherent block."""
 
     @property
     def lifecycle(self) -> Literal["searching", "refining", "tracking", "reserved", "lost"]:

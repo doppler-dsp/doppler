@@ -1576,23 +1576,11 @@ title = "bench: revisit pinning the published run to the 4 performance cores of 
 status = "open"
 why = "an 'all cores' row measured 8 of 20 logical CPUs, and its label does not say so"
 
-[issue.2396]
-tier = 1
-title = "bench(async_dsss_pool): the pool rows never require an emitter to be assigned"
-status = "open"
-why = "a bench row that would publish idle receivers' time; likely moot, its bench went with #2516"
-
 [issue.2399]
 tier = 5
 title = "The block M-th-power phase estimate is written twice: async_dsss_receiver and ber_evm_db"
 status = "open"
 why = "the block M-th-power estimate written twice"
-
-[issue.2401]
-tier = 5
-title = "Re-vendor scripts/release-watch.sh: canonical moved (just-buildit.github.io#142); standard-check is red until then"
-status = "open"
-why = "a vendored script behind canonical; likely done, re-vendored at b0fe6cab1"
 
 [issue.2407]
 tier = 2

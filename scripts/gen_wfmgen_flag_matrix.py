@@ -440,6 +440,43 @@ def cases() -> list[tuple[str, list[str]]]:
                 "64",
             ],
         ),
+        # ---- doppler#1294: the per-frame code-only window ----
+        (
+            "dsss_window",
+            [
+                "--type",
+                "dsss",
+                "--symbol-rate",
+                "100",
+                "--data-code",
+                "1011",
+                "--frame-symbols",
+                "8",
+                "--code-only-symbols",
+                "2",
+                "--fs",
+                "48000",
+                "--count",
+                "64",
+            ],
+        ),
+        (
+            "err_window_no_frame",
+            [
+                "--type",
+                "dsss",
+                "--symbol-rate",
+                "100",
+                "--data-code",
+                "1011",
+                "--code-only-symbols",
+                "2",
+                "--fs",
+                "48000",
+                "--count",
+                "64",
+            ],
+        ),
         (
             "err_data_prbs",
             [

@@ -910,6 +910,39 @@ assert np.array_equal(np.sign(xc[centres].real).astype(int), 1 - 2 * chip)
 long multi-epoch scorer must track the epoch; the safe scoring modes are the
 default `none` and `noise`. Code-only and payload are seed-independent.)
 
+#### A code-only window in every frame
+
+A continuous stream can open every frame with symbols that carry the code
+alone: `frame_symbols=F` sets the frame, and its first `code_only_symbols=W`
+symbols carry no data. The data pauses through each window and runs on across
+frames, so whatever the data source, its bits come out in order. That window
+is what lets a searcher integrate the pure code coherently across many epochs
+(see [the block-coherent search](../../design/async-dsss-receiver.md)). The
+frame runs on the stream's own symbol clock, so its edges land at any chip
+phase:
+
+```python
+framed = Segment(
+    type="dsss", fs=fs, sps=spc, seed=1, symbol_rate=2700.0,
+    data_code=code, snr=100.0, snr_mode="fs", num_samples=40_000,
+    frame_symbols=8, code_only_symbols=2,
+)
+xf = Composer([framed]).compose()
+
+i = np.arange(len(xf) // spc)               # one entry per chip
+in_window = np.floor(i / cps).astype(int) % 8 < 2
+code_chip = code.astype(int)[i % len(code)]
+signs = np.sign(xf[i * spc + spc // 2].real).astype(int)
+assert np.array_equal(signs[in_window], 1 - 2 * code_chip[in_window])
+```
+
+`code_only_symbols` is at most `frame_symbols`, and fewer when a data source
+is set (a window filling the whole frame would never send the data). The two
+are given together, or both left at their default 0, which is the stream
+without a window. A window opens only before more data: once a payload has
+sent its last bit the stream is silent, so it ends where its run does even
+when that last bit closes a frame.
+
 #### Es/N0 references the data symbol, correctly
 
 `snr_mode="esno"`/`auto` targets the outer data symbol, which spans
@@ -931,13 +964,22 @@ wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
 wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
        --symbol-rate 2700 --data-code 111001010110011 --code-only \
        --snr 10 --snr-mode esno --count 40000 -o code-only.cf32
+
+# Frames of 8 symbols, each opening with 2 of the code alone: the data
+# pauses through every window, so a searcher can integrate the pure code.
+wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
+       --symbol-rate 2700 --data-code 111001010110011 \
+       --frame-symbols 8 --code-only-symbols 2 \
+       --snr 10 --snr-mode esno --count 40000 -o framed.cf32
 ```
 
 `--code-only` selects code-only (a scene's `"code_only": true`); a supplied
 `--data`/`--data-from-file` selects a data source. Incompatible combinations
 are rejected (exit 2), not silently ignored: `--symbol-rate` with the
 burst-frame flags (`--acq-code`, `--sync`, `--crc`), `--code-only` together
-with a data source, `--symbol-rate` without `--data-code`, a non-positive
+with a data source, a code-only window off a continuous stream, without
+`--frame-symbols`, longer than its frame, beside `--code-only`, or filling a
+frame that has a data source, a `--frame-symbols` without a window, `--symbol-rate` without `--data-code`, a non-positive
 `--symbol-rate`, and a chip rate `fs / sps` below `--symbol-rate`. A stream
 sends at least one chip per data symbol, so the default `--fs 1.0` (a
 normalised rate) with a `--symbol-rate` in Hz is refused, naming the three
@@ -948,8 +990,9 @@ values; give the real `--fs`. The old spelling `--data none` is refused naming
 
 Both modes carry the `"dsss"` `core:label`, so the sidecar adds a
 `wfmgen:symbol_rate` key for a continuous source (a burst omits it), and
-`wfmgen:data: "none"` for a code-only stream — enough for a scorer to know the
-outer symbol clock and how the code is (un)modulated:
+`wfmgen:data: "none"` for a code-only stream, and `wfmgen:code_only_symbols`
+with `wfmgen:frame_symbols` for a framed one — enough for a scorer to know the
+outer symbol clock and which symbols carry data:
 
 ```python
 import json

@@ -1001,3 +1001,39 @@ def test_a_continuous_dsss_data_source_plans_like_compose() -> None:
     plan = prepare(scene(12.0))
     ref = scene(6.0).compose()
     np.testing.assert_array_equal(plan.at(6.0, plan.anchor_seed), ref)
+
+
+def test_a_code_only_window_plans_like_compose() -> None:
+    """A continuous dsss source framed with a code-only window: the data
+    pauses through each window, so the run a finite source derives is
+    longer than the windowless one, and Plan derives that same run, renders
+    the compose at any SNR byte for byte, and keeps the window across
+    save/restore. (test_wfm_compose.c pins the run's closed form.)"""
+    code = np.array([1, 1, 0, 1, 0], np.uint8)
+    bits = np.array([1, 0, 1, 1, 0, 0, 1, 0] * 3, np.uint8)
+
+    def scene(snr: float, **window) -> Composer:
+        return Composer(
+            [
+                Segment(
+                    type="dsss",
+                    fs=1e6,
+                    sps=2,
+                    snr=snr,
+                    seed=5,
+                    data_code=code,
+                    symbol_rate=1e6 / 2 / 3.7,
+                    data=bits,
+                    **window,
+                )
+            ]
+        )
+
+    window = {"code_only_symbols": 3, "frame_symbols": 8}
+    plan = prepare(scene(12.0, **window))
+    ref = scene(6.0, **window).compose()
+    assert len(plan) == ref.size > scene(6.0).compose().size
+    np.testing.assert_array_equal(plan.at(6.0, plan.anchor_seed), ref)
+    np.testing.assert_array_equal(
+        PlanFromBlob(plan.save()).render(), plan.render()
+    )

@@ -219,6 +219,16 @@ class Synth:
         source always needs them. Without them such a source is refused before
         the first sample. A Field on the command line and in a scene, a bit
         array in Python. Continuous dsss has no frame to pad, and refuses it.
+    code_only_symbols : int, default 0
+        Continuous dsss: pure-code symbols opening each frame of frame_symbols
+        symbols. The data pauses through them and runs on across frames, so a
+        searcher can integrate coherently over the window; once a payload ends,
+        no window is sent. At most frame_symbols, and fewer when a data source
+        is set; 0 with frame_symbols 0 = no window.
+    frame_symbols : int, default 0
+        Continuous dsss: the frame, in symbols, that code_only_symbols opens;
+        give it with code_only_symbols, or both 0 for no window. The frame runs
+        on the stream's own symbol clock, so its edges land at any chip phase.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -261,6 +271,8 @@ class Synth:
         data: bytes | None = ...,
         data_len: int = ...,
         fill: bytes | None = ...,
+        code_only_symbols: int = ...,
+        frame_symbols: int = ...,
         fs: float = ...,
     ) -> None: ...
     type: str
@@ -300,6 +312,8 @@ class Synth:
     data: bytes | None
     data_len: int
     fill: bytes | None
+    code_only_symbols: int
+    frame_symbols: int
     fs: float
     def steps(self, n: int, /) -> NDArray[np.complex64]:
         """Generate the next *n* samples of this source on its own.
@@ -613,6 +627,16 @@ class Segment:
         source always needs them. Without them such a source is refused before
         the first sample. A Field on the command line and in a scene, a bit
         array in Python. Continuous dsss has no frame to pad, and refuses it.
+    code_only_symbols : int, default 0
+        Continuous dsss: pure-code symbols opening each frame of frame_symbols
+        symbols. The data pauses through them and runs on across frames, so a
+        searcher can integrate coherently over the window; once a payload ends,
+        no window is sent. At most frame_symbols, and fewer when a data source
+        is set; 0 with frame_symbols 0 = no window.
+    frame_symbols : int, default 0
+        Continuous dsss: the frame, in symbols, that code_only_symbols opens;
+        give it with code_only_symbols, or both 0 for no window. The frame runs
+        on the stream's own symbol clock, so its edges land at any chip phase.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -686,6 +710,8 @@ class Segment:
     data: bytes | None
     data_len: int
     fill: bytes | None
+    code_only_symbols: int
+    frame_symbols: int
     def __init__(
         self,
         type: str = ...,
@@ -722,6 +748,8 @@ class Segment:
         data: bytes | None = ...,
         data_len: int = ...,
         fill: bytes | None = ...,
+        code_only_symbols: int = ...,
+        frame_symbols: int = ...,
         fs: float = ...,
         num_samples: int | tuple[int, int] = ...,
         off_samples: int | tuple[int, int] = ...,

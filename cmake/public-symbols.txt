@@ -1811,6 +1811,7 @@ symsync_step function
 symsync_step_ted function
 u8_to_f32_midpoint function
 u8_to_f32_shift function
+wfm_synth_bit_ahead function
 wfm_synth_bit_next function
 wfm_synth_bit_symbol function
 wfm_synth_bps function

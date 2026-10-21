@@ -359,6 +359,18 @@
           "type": "string",
           "minLength": 1,
           "description": "The bits that pad a data source's last frame when it does not divide into data_len-bit frames, tiled from their first bit; stdin on a framed source always needs them. Without them such a source is refused before the first sample. A Field on the command line and in a scene, a bit array in Python. Continuous dsss has no frame to pad, and refuses it."
+        },
+        "code_only_symbols": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Continuous dsss: pure-code symbols opening each frame of frame_symbols symbols. The data pauses through them and runs on across frames, so a searcher can integrate coherently over the window. At most frame_symbols, and fewer when a data source is set; 0 = no window. Omitted from a record at its default."
+        },
+        "frame_symbols": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Continuous dsss: the frame, in symbols, that code_only_symbols opens; 0 = no frame, the stream without a window. The frame runs on the stream's own symbol clock, so its edges land at any chip phase. Omitted from a record at its default."
         }
       },
       "allOf": [
@@ -637,6 +649,12 @@
         },
         "fill": {
           "$ref": "#/$defs/source/properties/fill"
+        },
+        "code_only_symbols": {
+          "$ref": "#/$defs/source/properties/code_only_symbols"
+        },
+        "frame_symbols": {
+          "$ref": "#/$defs/source/properties/frame_symbols"
         }
       },
       "allOf": [

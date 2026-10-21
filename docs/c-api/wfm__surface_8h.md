@@ -170,6 +170,8 @@ enum wfm__surface_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
     WFM_SURFACE_source_data,
     WFM_SURFACE_source_data_len,
     WFM_SURFACE_source_fill,
+    WFM_SURFACE_source_code_only_symbols,
+    WFM_SURFACE_source_frame_symbols,
     WFM_SURFACE_segment_fs,
     WFM_SURFACE_segment_num_samples,
     WFM_SURFACE_segment_off_samples,

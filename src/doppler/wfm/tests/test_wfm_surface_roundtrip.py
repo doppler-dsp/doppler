@@ -109,6 +109,29 @@ EXTRA = {
         "--fs",
         "48000",
     ],
+    # The code-only window frames continuous dsss; a window needs its frame.
+    "code_only_symbols": [
+        "--type",
+        "dsss",
+        "--symbol-rate",
+        "100",
+        "--data-code",
+        "1011",
+        "--fs",
+        "48000",
+        "--frame-symbols",
+        "8",
+    ],
+    "frame_symbols": [
+        "--type",
+        "dsss",
+        "--symbol-rate",
+        "100",
+        "--data-code",
+        "1011",
+        "--fs",
+        "48000",
+    ],
 }
 
 #: Rows whose run takes its length from a FINITE data source, so a --count

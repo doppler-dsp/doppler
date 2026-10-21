@@ -335,6 +335,17 @@ typedef struct {
                           by the composer, which clears it at create; zero
                           until an instance has sent a frame. Not an input:
                           no face sets it. */
+    size_t code_only_symbols; /* Continuous dsss: pure-code symbols opening
+                          each frame of frame_symbols symbols. The data
+                          pauses through them and runs on across frames,
+                          so a searcher can integrate coherently over the
+                          window. At most frame_symbols, and fewer when a
+                          data source is set; 0 = no window. */
+    size_t frame_symbols; /* Continuous dsss: the frame, in symbols, that
+                          code_only_symbols opens; 0 = no frame, the
+                          stream without a window. The frame runs on the
+                          stream's own symbol clock, so its edges land at
+                          any chip phase. */
 } wfm_source_t;
 
 typedef struct {

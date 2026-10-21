@@ -3935,6 +3935,10 @@ _test_ranked_search_takes_no_sidelobe (void)
           dp_async_dsss_receiver_state_t *rx
               = _slow_rx (code, 47.0, 5000.0, 0.0, 0.0);
           DP_REQUIRE (r0 && r1 && rx);
+          /* The sidelobe is the searcher's to compute on first read; the
+             receiver reads it at create, so no push() pays for the sweep.
+             Sabotage: drop that read -> red. */
+          DP_CHECK (r0->acq->dsl_ready);
           (void)_until_seeded (r0, x, n);
           DP_REQUIRE (r0->state != ASYNC_DSSS_RX_SEARCHING);
           const double pa = r0->seed_chip_phase;

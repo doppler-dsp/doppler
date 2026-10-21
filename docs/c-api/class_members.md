@@ -214,6 +214,8 @@
 * **doppler\_rate** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **doppler\_span\_hz** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **doppler\_uncertainty** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
+* **dsl\_ready** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
+* **dsl\_window\_bins** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **dwells** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **dbfs** ([**dp\_adc\_state\_t**](structdp__adc__state__t.md))
 * **dithering** ([**dp\_adc\_state\_t**](structdp__adc__state__t.md))

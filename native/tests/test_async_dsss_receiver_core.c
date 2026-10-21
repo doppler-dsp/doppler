@@ -3958,6 +3958,40 @@ _test_ranked_search_takes_no_sidelobe (void)
           free (x);
           free (data);
         }
+  /* The deep block's thinnest margin (review 5606641242): D = 90 on the
+     SPEC frame (450 code-only symbols of 500), a strong emitter on a tile
+     edge, where its own peak has lost the most and its sidelobe has not. */
+  {
+    float _Complex *x;
+    size_t          n;
+    double         *data;
+    dp_dsss_windowed_capture (code, 1023, SLOW_SPC, fs, fs / SLOW_RS, 1500.0,
+                              80.0, 600, 300, 7, 450, 500, &x, &n, &data);
+    dp_async_dsss_receiver_state_t *r0
+        = _slow_rx (code, 47.0, 5000.0, 450.0 / SLOW_RS, 500.0);
+    dp_async_dsss_receiver_state_t *r1
+        = _slow_rx (code, 47.0, 5000.0, 450.0 / SLOW_RS, 500.0);
+    dp_async_dsss_receiver_state_t *rx
+        = _slow_rx (code, 47.0, 5000.0, 450.0 / SLOW_RS, 500.0);
+    DP_REQUIRE (r0 && r1 && rx);
+    DP_REQUIRE (dp_async_dsss_receiver_get_coherent_bins (r0) == 90);
+    (void)_until_seeded (r0, x, n);
+    DP_REQUIRE (r0->state != ASYNC_DSSS_RX_SEARCHING);
+    const double pa = r0->seed_chip_phase;
+    DP_CHECK (dp_async_dsss_receiver_set_rank (r1, 1) == DP_OK);
+    DP_CHECK (dp_async_dsss_receiver_set_exclusions (rx, &pa, 1) == DP_OK);
+    (void)_until_seeded (r1, x, n);
+    (void)_until_seeded (rx, x, n);
+    DP_CHECK_MSG (r1->state == ASYNC_DSSS_RX_SEARCHING,
+                  "D=90: rank 1 took a sidelobe");
+    DP_CHECK_MSG (rx->state == ASYNC_DSSS_RX_SEARCHING,
+                  "D=90: the excluded search took a sidelobe");
+    dp_async_dsss_receiver_destroy (r0);
+    dp_async_dsss_receiver_destroy (r1);
+    dp_async_dsss_receiver_destroy (rx);
+    free (x);
+    free (data);
+  }
   DP_CHECK_MSG (taken == 0, "a ranked or excluded search took a sidelobe");
   return 0;
 }

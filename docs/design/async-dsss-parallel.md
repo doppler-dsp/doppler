@@ -198,10 +198,29 @@ while a stronger one is on the air only if it clears the stronger one's
 sidelobe level by the gate. On a deep block the gate is small beside a
 strong signal and the limit approaches the sidelobe level; on a
 one-epoch search the noise on the sidelobes is larger and so is the
-gate's share. A signal below the limit is found once the stronger one
-leaves, or by a receiver placed on an assigned offset that excludes the
-stronger one's tiles, not by rank. A signal at or above it, and every
-signal the pool holds alone, is unaffected.
+gate's share. Measured on the SPEC search with the stronger signal at
+60–70 dB-Hz (review 5606641242 on doppler#2525), the share of dwells
+that still take the weaker signal:
+
+| weaker signal, below the stronger | $D = 1$ | $D = 90$ |
+| --------------------------------- | ------- | -------- |
+| $-10$ dB                          | 65%     | —        |
+| $-13$ dB                          | 36%     | 80%      |
+| $-16$ dB                          | 1%      | 35%      |
+
+A signal below the limit is found once the stronger one leaves. Removing
+the stronger one's replica before the others search (cancellation) is
+what would move the limit, and is not built (doppler#2531). A signal at
+or above the limit, and every signal the pool holds alone, is
+unaffected.
+
+The rule scales the sidelobes of the signals **in the receiver's own
+list**. A receiver searching only part of the band (the assigned offset,
+doppler#2507) does not list a stronger emitter outside it, so the rule
+has nothing to scale: such a receiver seeds on that emitter's sidelobe,
+or on its main lobe leaking into the band. An assigned offset therefore
+needs the controller to supply the out-of-band emitters, and is not a
+route around the near-far limit.
 
 ## 4. The controller
 

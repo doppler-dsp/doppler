@@ -121,8 +121,10 @@ hypothesis costs one multiply and one inverse transform
 $$z_{k,q} = \mathrm{IFFT}\Big\{X_k\big[(j + q) \bmod N\big]\, C_T[j]\Big\}$$
 
 This is the engine's **wideband window tiling** (the file doc of
-`acq_core.h`), which the continuous engine always runs, with the slow-time
-depth of §4 inside each tile. The hypotheses are $q_r = f_{\text{FFT}}(r, W)$
+`acq_core.h`), which the continuous engine runs whenever $W > 1$, with the
+slow-time depth of §4 inside each tile. At $W = 1$ the only hypothesis is
+$q = 0$, and the engine frames its $D$ epochs untiled (`acq_regrid()`'s
+`frame_n`): the same $q = 0$ surface, with no shift to apply. The hypotheses are $q_r = f_{\text{FFT}}(r, W)$
 for $r = 0 \ldots W-1$: the centers $0, \pm f_E, \pm 2 f_E, \ldots$, stored
 in FFT order. With a
 one-sided Doppler uncertainty $\Delta$ (`doppler_uncertainty`), there are
@@ -302,8 +304,9 @@ Each listed cell is then reported (`acq_report_peaks()`):
     frequency and one epoch rate either side, and the strongest of the three
     names the tile (`acq_resolve_tile_alias()`).
 - **The twin rule**: a pick within the zone of an already-listed pick's lag,
-    at any row, is held for one dwell and listed only if a pick stood at the
-    same row and lag on the previous dwell. A data transition inside an epoch
+    at any row, is held for one dwell and listed only if, on the previous
+    dwell, a pick stood at the same native row and within the zone of its
+    lag. A data transition inside an epoch
     splits one emitter's correlation into partial correlations at its own lag
     on other tiles, and those move with the transition; a second emitter at
     the same lag stays.
@@ -371,61 +374,85 @@ three autocorrelation values give $65/1023$: $-23.9$ dB.
 emitter is not in, are much larger, and nothing on the engine computes them.
 Computed from $\chi$ for the Gold code the receiver validators use
 (`dp_dsss_gold_1023()`, $S = 2$, $f_E = 3$ kHz, five tiles), the largest
-$|\chi(\Delta, f - \hat f_q)|$ with $\Delta$ more than a chip from 0, over every
-tile, relative to the emitter's own peak:
+$|\chi(\Delta, f - \hat f_q)|$ with $\Delta$ more than a chip from 0,
+circularly, over every tile, relative to the emitter's own peak:
 
-| emitter Doppler $f$         | largest off-lag sidelobe | where                    |
-| --------------------------- | ------------------------ | ------------------------ |
-| 200 Hz (near a tile center) | $-22.0$ dB               | tile $-1$, 345 chips off |
-| 1500 Hz (tile edge)         | $-17.7$ dB               | tile $+2$, 746 chips off |
-| $-2600$ Hz                  | $-21.3$ dB               | tile $+2$, 341 chips off |
+<!-- acq-surface:ambiguity:start -->
+
+| emitter Doppler $f$ | from its tile's center  | largest off-lag sidelobe | where                                    |
+| ------------------- | ----------------------- | ------------------------ | ---------------------------------------- |
+| 200 Hz              | 200 Hz                  | $-22.02$ dB              | tile $-1$, 345 chips off                 |
+| 1500 Hz             | $\pm 1500$ Hz, the edge | $-17.73$ dB              | tiles $-1$ and $+2$, tied, 277 chips off |
+| $-2600$ Hz          | 400 Hz                  | $-21.29$ dB              | tile $+2$, 341 chips off                 |
+
+<!-- acq-surface:ambiguity:end -->
 
 They are fixed by the emitter: the engine's own peak lists show the same
 cells dwell after dwell. An emitter at chip 873 and 1500 Hz lists a peak at
-chip 127, 746 chips away, dwell after dwell. The tile edge is
-worst because the emitter's own peak has lost its 3.9 dB there and the
-sidelobe has not.
+chip 127, 277 chips away circularly, dwell after dwell. At a tile edge the
+emitter sits halfway between two tiles, so the next tiles out, $-1$ and
+$+2$, both lie $1.5 f_E$ from it and read the same sidelobe. The
+tile edge is the worst of the three because the emitter's own peak has lost
+its 3.9 dB there and the sidelobe has not. Three emitters do not find the
+band's worst, though: swept over the whole uncertainty, the code comes closer
+still (the near-far limits, below).
 
-**What the engine lists.** Measured on the same code (2026-10-20, a scratch
-probe over the shipped engine: 600-symbol streams framed 450 code-only
-symbols in 500, Doppler 200, 750, 1500 and $-2600$ Hz $\times$ 6 noise draws
-per row, an engine sized at 47 dB-Hz over $\pm 5$ kHz, `max_peaks` 16), the
-largest off-lag peak in a list, relative to the list's first, in power:
+**What the engine lists.** The shipped engine over the same code, sized at
+47 dB-Hz over $\pm 5$ kHz with `max_peaks` 16, at a depth of one epoch and at
+the depth the SPEC window allows: 600-symbol streams framed 450 code-only
+symbols in 500, at 200, 750, 1500 and $-2600$ Hz with 6 noise draws each.
+Each cell is the largest off-lag peak in a list, relative to the list's
+first, in power, and how many lists hold one. The last column is the deep
+engine on a stream that is data throughout:
 
-| C/N0     | $D = 1$                     | $D = 90$   |
-| -------- | --------------------------- | ---------- |
-| 47 dB-Hz | $-2.1$ dB (7 of 4008 lists) | $-13.8$ dB |
-| 50 dB-Hz | $-5.0$ dB (9 of 4008)       | $-14.7$ dB |
-| 56 dB-Hz | $-10.8$ dB                  | $-15.7$ dB |
-| 60 dB-Hz | $-13.0$ dB                  | $-16.0$ dB |
-| 70 dB-Hz | $-15.5$ dB                  | $-16.4$ dB |
+<!-- acq-surface:lists:start -->
 
-At high C/N0 both converge on the ambiguity table. Near the threshold at
-$D = 1$, the emitter's own peak barely clears the gate and noise riding on a
-sidelobe can come within a few dB of it, rarely. At $D = 90$ the block's
-gain keeps every listed peak far above the noise, so the ratio is the
-ambiguity's at every C/N0 here. On a stream that is data throughout
-(measured at 60 and 70 dB-Hz), $D = 90$ lists no off-lag peak: a block
-over data spreads the emitter over its rows first.
+| C/N0     | $D = 1$                           | $D = 90$                        | $D = 90$, data throughout |
+| -------- | --------------------------------- | ------------------------------- | ------------------------- |
+| 47 dB-Hz | $-2.1$ dB, in 7 of 4008 lists     | $-13.8$ dB, in 149 of 168 lists | —                         |
+| 50 dB-Hz | $-5.0$ dB, in 9 of 4008 lists     | $-14.7$ dB, in 148 of 168 lists | —                         |
+| 53 dB-Hz | $-8.0$ dB, in 15 of 4008 lists    | $-15.3$ dB, in 146 of 168 lists | —                         |
+| 56 dB-Hz | $-10.8$ dB, in 72 of 4008 lists   | $-15.7$ dB, in 146 of 168 lists | —                         |
+| 60 dB-Hz | $-13.0$ dB, in 771 of 4008 lists  | $-16.0$ dB, in 146 of 168 lists | none in 168 lists         |
+| 70 dB-Hz | $-15.5$ dB, in 3985 of 4008 lists | $-16.4$ dB, in 147 of 168 lists | none in 168 lists         |
+
+<!-- acq-surface:lists:end -->
+
+At high C/N0 both depths approach the code's ambiguity. Near the threshold
+at $D = 1$, the emitter's own peak barely clears the gate and noise riding on
+a sidelobe can come within a few dB of it, rarely. At $D = 90$ the block's
+gain keeps every listed peak well above the noise, so noise moves the ratio
+by a few dB at most, and it closes on the ambiguity's as C/N0 rises. On data
+throughout, $D = 90$ lists no
+off-lag peak: a block over data spreads the emitter over its rows first.
 
 **Why neither axis is windowed.** Sidelobes invite a taper, but neither
-transform's window reaches these. Computed 2026-10-20 for the same Gold code
-at $N = 2046$, $D = 90$, $I = 2$; SNR losses include each window's noise
-bandwidth.
+transform's window reaches these. They are computed for the same code and
+geometry. Each window is the symmetric one whose zeros fall outside the block, so no
+sample or epoch is weighted zero: Hann and Blackman are two points longer
+with their zeros dropped, and Hamming has none. Every loss includes the
+window's noise bandwidth, the SNR kept at a residual being
+$|\sum_n w_n e^{j \omega_\nu t_n}|^2 / \big(N \sum_n w_n^2\big)$.
 
 *Fast time*, a window on the epoch before the correlation. In the emitter's
 own column $c[n]^2 = 1$, so the Doppler slice of §3 becomes the window's own
 spectrum: the tile edge loses less, but every Doppler pays the noise
 bandwidth, the next tile is no longer a null, and the off-lag sidelobes rise
 relative to the peak, because they come from the code product
-$c[n]\, c[n - \Delta]$, which is noise-like, and not from the window:
+$c[n]\, c[n - \Delta]$, which is noise-like, and not from the window. The
+edge is $\nu = f_E/2$, the average is the mean power over a tile, and the
+next tile is read against the window's own center:
 
-| fast-time window | edge loss | average loss | next tile, $\nu = f_E$ | worst off-lag sidelobe (200 / 1500 / $-2600$ Hz) |
-| ---------------- | --------- | ------------ | ---------------------- | ------------------------------------------------ |
-| none (shipped)   | $-3.9$ dB | $-1.1$ dB    | null                   | $-22.0$ / $-17.7$ / $-21.3$ dB                   |
-| Hann             | $-3.2$    | $-2.2$       | $-6.0$                 | $-18.4$ / $-17.3$ / $-18.3$                      |
-| Hamming          | $-3.1$    | $-1.9$       | $-7.4$                 | $-19.0$ / $-17.5$ / $-18.9$                      |
-| Blackman         | $-3.5$    | $-2.7$       | $-4.5$                 | $-17.3$ / $-16.5$ / $-17.2$                      |
+<!-- acq-surface:fast:start -->
+
+| fast-time window | edge loss  | average loss | next tile, $\nu = f_E$ | worst off-lag sidelobe (200 / 1500 / $-2600$ Hz) |
+| ---------------- | ---------- | ------------ | ---------------------- | ------------------------------------------------ |
+| none (shipped)   | $-3.92$ dB | $-1.11$ dB   | null                   | $-22.02$ / $-17.73$ / $-21.29$ dB                |
+| Hann             | $-3.18$    | $-2.21$      | $-6.03$                | $-18.38$ / $-17.26$ / $-18.32$                   |
+| Hamming          | $-3.10$    | $-1.90$      | $-7.41$                | $-19.02$ / $-17.53$ / $-18.94$                   |
+| Blackman         | $-3.47$    | $-2.72$      | $-4.51$                | $-17.28$ / $-16.45$ / $-17.23$                   |
+
+<!-- acq-surface:fast:end -->
 
 *Slow time*, a window on the block's $D$ epochs before $\mathrm{FFT}_{DI}$. It
 runs down one lag column, so it cannot touch the off-lag sidelobes above: an
@@ -433,16 +460,23 @@ emitter and its sidelobe in another tile turn at the same $\omega T_E$ per
 epoch and the window scales both alike. What it lowers is the emitter's own
 leakage across its column's Doppler rows, which matters only for two
 emitters within a chip of one code phase. The zero padding has already
-taken the scalloping to $0.9$ dB, so the window's noise bandwidth is a loss
+brought the scalloping under a dB, so the window's noise bandwidth is a loss
 at every Doppler, and its wider main lobe needs a wider zone, or its
-shoulder is listed as a second peak:
+shoulder is listed as a second peak. The worst loss is an emitter half a
+fine row from its nearest row, the average is over that half row, and the
+leakage is the largest row past the zone, relative to the picked row, over
+every emitter offset:
+
+<!-- acq-surface:slow:start -->
 
 | slow-time window | worst loss | average loss | own-column leakage past the zone | zone               |
 | ---------------- | ---------- | ------------ | -------------------------------- | ------------------ |
-| none (shipped)   | $-0.91$ dB | $-0.29$ dB   | $-13.2$ dB                       | $\pm 1$ native bin |
-| Hann             | $-0.36$    | $-1.83$      | $-31.3$                          | $\pm 2$            |
-| Hamming          | $-0.43$    | $-1.52$      | $-42.6$                          | $\pm 2$            |
-| Blackman         | $-0.28$    | $-2.42$      | $-58.1$                          | $\pm 3$            |
+| none (shipped)   | $-0.91$ dB | $-0.29$ dB   | $-13.15$ dB                      | $\pm 1$ native bin |
+| Hann             | $-2.07$    | $-1.83$      | $-31.29$                         | $\pm 2$            |
+| Hamming          | $-1.81$    | $-1.52$      | $-42.56$                         | $\pm 2$            |
+| Blackman         | $-2.60$    | $-2.42$      | $-58.11$                         | $\pm 3$            |
+
+<!-- acq-surface:slow:end -->
 
 Both trade detection for a sidelobe the search is not limited by. The
 limit is the code's own ambiguity, below.
@@ -454,14 +488,50 @@ is unaffected. A search that skips peaks (a rank above 0, or exclusions:
 emitter's own sidelobes and take it as a second emitter. The zone and the
 twin rule do not reach it, being one chip wide. So no list rule that keys on
 the lag alone separates a second emitter from the first one's sidelobe when
-the second is more than about $|\chi|_{\max}$ below the first, roughly 16 dB
-here. That is the **near-far limit** of a ranked or excluded search on this
-code, and any rule that admits a weaker second emitter has to know $\chi$.
+the second sits further below the first than that sidelobe can come. That is
+the **near-far limit** of a ranked or excluded search on this code, and it
+has two sides. The code's ambiguity sets it at high C/N0, at either depth.
+Noise near the threshold brings a sidelobe closer: by a few dB in a deep
+block, and to within a few dB of the emitter itself at $D = 1$. The
+ambiguity's own worst is in neither table above; it takes sweeping the
+emitter over the band:
 
-**Open (2026-10-20).** The receiver's ranked search (#2525) decides how it
-handles this: a floor relative to the dwell's strongest peak was chosen, and
-deriving that floor from $\chi$ at construction, in the way `psl` already
-is, is under review. This page records the decision when it lands.
+<!-- acq-surface:limits:start -->
+
+| what sets it                                                           | closest an off-lag peak comes to the emitter's peak | where                                                    |
+| ---------------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------- |
+| the code's ambiguity, the emitter swept every 25 Hz over $\pm 5000$ Hz | $-16.95$ dB                                         | at $-4500$ Hz                                            |
+| the engine's lists at $D = 90$                                         | $-13.8$ dB                                          | at 47 dB-Hz, in 149 of 168 lists; $-16.4$ dB at 70 dB-Hz |
+| the engine's lists at $D = 1$                                          | $-2.1$ dB                                           | at 47 dB-Hz, in 7 of 4008 lists; $-15.5$ dB at 70 dB-Hz  |
+
+<!-- acq-surface:limits:end -->
+
+Any rule that admits a weaker second emitter has to know $\chi$, and at
+$D = 1$ near the threshold a floor at the ambiguity's level alone does not
+hold the sidelobes off: the last row is far above it.
+
+**Decided (2026-10-21).** The owner ruled that the ranked search's floor is
+derived at construction from the code's Doppler-offset sidelobe level, as
+`psl` already is from its zero-offset one: a peak is a second emitter only
+if its statistic stands higher than the stronger emitters' sidelobes can
+reach, their statistic times that level, and it still clears the detector's
+gate. The mechanism and its numbers are #2525's, in its design text.
+
+**Where the numbers come from.** Every table in this section is the output
+of one run of the validator `native/validation/acq_surface.c`
+(`validate_acq_surface --emit`), kept beside this page in
+`acq-surface-measurements/` and rendered there by `record.py`.
+`make docs-check` fails when a table is not what the run's data renders,
+and the validator's own `--check`, a CTest, pins the claims this section
+draws from them. `make acq-surface-record` re-runs it and rewrites the tables:
+
+<!-- acq-surface:stamp:start -->
+
+| run                           | when                       | machine                                                          | commit             | toolchain                                                             | operating point                                           | command                   |
+| ----------------------------- | -------------------------- | ---------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------- |
+| `validate_acq_surface --emit` | 2026-10-21 21:17 UTC, 87 s | `swiftgo-ai9465`: AMD Ryzen AI 9 465 w/ Radeon 880M (20 threads) | `59cd886b2`, clean | GNU 14.2.0; glibc 2.41; build Release, flags -O3 -DNDEBUG, native OFF | $N = 2046$, $W = 5$ at $f_E = 3000$ Hz, $D = 90$, $I = 2$ | `make acq-surface-record` |
+
+<!-- acq-surface:stamp:end -->
 
 ## Related
 

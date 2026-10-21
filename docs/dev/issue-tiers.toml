@@ -1829,3 +1829,9 @@ tier = 1
 title = "ci: a red scheduled workflow reaches no one; issues.yml's failure notices go to github-merge-queue[bot], so the tier map drifted 12 days unseen"
 status = "open"
 why = "the reconcile's red reached no one for 12 days: GitHub sends the scheduled run's notice to github-merge-queue[bot]"
+
+[issue.2535]
+tier = 5
+title = "package-linux discards dnf's output, so the nightly's 2026-10-21 red cannot say why (same checkout green on re-run)"
+status = "open"
+why = "harness: a CI job's red that discards the reason; its own failure said only 'exit code: 1'"

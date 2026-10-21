@@ -353,7 +353,8 @@ and $\theta_k$ a phase that advances by $\omega T_E$ per epoch, $\omega = 2\pi f
 what the slow-time transform of §4 resolves. Over a block every epoch
 carries the same $|\chi|$, so the slow-time sum scales the emitter's peak
 and every one of its sidelobes by the same factor: **ratios read on one
-epoch hold on the block, at any $D$.**
+epoch hold on a code-only block, at any $D$.** A block over data does not
+hold them: a data transition inside an epoch is outside $\chi$.
 
 **The emitter's own peak**, $\Delta = 0$, is the Dirichlet kernel in the
 residual $\nu = f - \hat f_q$:
@@ -418,13 +419,16 @@ engine on a stream that is data throughout:
 
 <!-- acq-surface:lists:end -->
 
-At high C/N0 both depths approach the code's ambiguity. Near the threshold
-at $D = 1$, the emitter's own peak barely clears the gate and noise riding on
-a sidelobe can come within a few dB of it, rarely. At $D = 90$ the block's
-gain keeps every listed peak well above the noise, so noise moves the ratio
-by a few dB at most, and it closes on the ambiguity's as C/N0 rises. On data
-throughout, $D = 90$ lists no
-off-lag peak: a block over data spreads the emitter over its rows first.
+At $D = 90$ the lists approach the code's ambiguity: a block inside the
+code-only window is the code alone, and what is left above $\chi$ comes
+from blocks that straddle the window's edge into data. At $D = 1$ they do
+not, even at high C/N0, where an epoch's SNR leaves noise no room: a
+one-epoch search over data sees partial-period correlations at bit
+transitions, which $\chi$ excludes (this section's premise), so its
+off-lag peaks stand several dB above $\chi$. Near the threshold the
+emitter's own peak barely clears the gate, and an off-lag peak comes within
+a few dB of it, rarely. On data throughout, $D = 90$ lists no off-lag peak:
+a block over data spreads the emitter over its rows first.
 
 **Why neither axis is windowed.** Sidelobes invite a taper, but neither
 transform's window reaches these. They are computed for the same code and
@@ -490,11 +494,11 @@ twin rule do not reach it, being one chip wide. So no list rule that keys on
 the lag alone separates a second emitter from the first one's sidelobe when
 the second sits further below the first than that sidelobe can come. That is
 the **near-far limit** of a ranked or excluded search on this code, and it
-has two sides. The code's ambiguity sets it at high C/N0, at either depth.
-Noise near the threshold brings a sidelobe closer: by a few dB in a deep
-block, and to within a few dB of the emitter itself at $D = 1$. The
-ambiguity's own worst is in neither table above; it takes sweeping the
-emitter over the band:
+has two sides. On a code-only block the code's ambiguity sets it. Over
+data, which is what a one-epoch search always sees, the partial-period
+correlations at bit transitions set it, and that side is set by the data,
+not the noise. The ambiguity's own worst is in neither table above; it
+takes sweeping the emitter over the band:
 
 <!-- acq-surface:limits:start -->
 
@@ -506,9 +510,9 @@ emitter over the band:
 
 <!-- acq-surface:limits:end -->
 
-Any rule that admits a weaker second emitter has to know $\chi$, and at
-$D = 1$ near the threshold a floor at the ambiguity's level alone does not
-hold the sidelobes off: the last row is far above it.
+Any rule that admits a weaker second emitter has to know $\chi$, and over
+data a floor at the ambiguity's level alone does not hold the sidelobes
+off: the last row is far above it.
 
 **Decided (2026-10-21).** The owner ruled that the ranked search's floor is
 derived at construction from the code's Doppler-offset sidelobe level, as

@@ -65,7 +65,7 @@ validate_async_dsss_receiver_ber        12.2  # CI's sweep job on #2497's merged
 validate_async_dsss_receiver_lock_telemetry 1.7  # CI's sweep job on #2412: 1.65 s on the slower runner (790 s sweep); 0.89 s on the dev box
 validate_async_dsss_receiver_loss        5.2  # NEW (#2495): CI's sweep job on #2514 at 8a173d473, 5.19 s (run 39374167462, job 118468498663; 668 s for the whole job). At 6d5b05384, one K fewer, 6.40 s on a slower runner (815 s, job 118459873543). Six bursts of 4 s at 5 dB, K = 4 and 8
 validate_acq_peak_list                  23.2
-validate_acq_surface                     2.6  # NEW (#2526): 1.09 s on the dev box x the 2.35 CI factor, until the sweep job's own number replaces it; chi through the library's FFT, two windows' tables and two 600-symbol streams
+validate_acq_surface                     2.6  # NEW (#2526): CI's sweep job on 3e2715d1c, 1.68 s (job 119503044425) on a fast runner, 331 s for the whole sweep against 668-911 s on others; 2.6 keeps a runner 2.75x slower under the 2x tolerance. chi through the library's FFT, two windows' tables and two 600-symbol streams
 validate_acq_template_pd                2.0  # prices the CFAR reference (doppler#1501): ~2x per construction
 validate_capture_dwell_pd               2.7  # prices the CFAR reference (doppler#1501): ~2x per construction
 validate_acq_rate_pd                   93.1  # MEASURED: 93.07 s in CI's sweep job 116442895466 (#2347 at 1469638d2), with the PN rows (doppler#2219); the base before them, 76.04 s, was measured in job 116385654164 (#2343)

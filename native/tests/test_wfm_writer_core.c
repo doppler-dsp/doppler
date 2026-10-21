@@ -641,7 +641,21 @@ main (void)
                     "sigmf continuous prbs symbol_rate");
     DP_REQUIRE_MSG (jp && !strstr (jp, "\"wfmgen:data\""),
                     "sigmf continuous prbs omits data key");
+    DP_REQUIRE_MSG (jp && !strstr (jp, "wfmgen:frame_symbols"),
+                    "sigmf continuous prbs without a window omits it");
     free (jp);
+
+    wfm_source_t framed      = prbs; /* the per-frame code-only window */
+    framed.code_only_symbols = 450;
+    framed.frame_symbols     = 4950;
+    wfm_segment_t sw         = {
+      .sources = &framed, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096
+    };
+    char *jw = dp_wfm_sigmf_meta_json (0, 0, 6.138e6, 0, 0.0, &sw, 1);
+    DP_REQUIRE_MSG (jw && strstr (jw, "\"wfmgen:code_only_symbols\":450")
+                        && strstr (jw, "\"wfmgen:frame_symbols\":4950"),
+                    "sigmf continuous dsss records its code-only window");
+    free (jw);
 
     wfm_segment_t sn = {
       .sources = &none, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096

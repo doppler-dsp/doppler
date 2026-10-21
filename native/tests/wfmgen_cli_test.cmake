@@ -214,6 +214,36 @@ expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 0)
 expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
     --continuous --file-type sigmf -o wg_bad_cont)
 
+# 16b. doppler#1294, the per-frame code-only window: a framed stream replays
+#     byte-identically from its --record (the scene carries both keys),
+#     differs from the windowless stream, and says so in its SigMF sidecar;
+#     each rule is refused (exit 2).
+run(--type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
+    --frame-symbols 8 --code-only-symbols 2
+    --count 4096 --record wg_win.json -o wg_win_a.cf32)
+run(--from-file wg_win.json -o wg_win_b.cf32)
+file(MD5 wg_win_a.cf32 wa)
+file(MD5 wg_win_b.cf32 wb)
+if(NOT wa STREQUAL wb)
+    message(FATAL_ERROR "framed continuous DSSS --from-file replay differs")
+endif()
+if(wa STREQUAL ca)
+    message(FATAL_ERROR "framed continuous DSSS is the windowless stream")
+endif()
+expect_contains(wg_win.json "\"frame_symbols\"")  # pretty-printed
+run(--type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
+    --frame-symbols 8 --code-only-symbols 2 --count 512 --file-type sigmf
+    -o wg_win_cap)
+expect_contains(wg_win_cap.sigmf-meta "\"wfmgen:code_only_symbols\":2")
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700
+    --code-only-symbols 2)                              # no frame
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700
+    --frame-symbols 8 --code-only-symbols 9)            # longer than it
+expect_exit(2 --type dsss --data-code ${DC} --frame-symbols 8
+    --code-only-symbols 2)                              # a burst
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --code-only
+    --frame-symbols 8 --code-only-symbols 2)            # beside --code-only
+
 # 17. #1619 F6a, a data source: every refusal a face can decide before the
 #     first sample exits 2. `--data` is the Field grammar only, so the old
 #     `--data none|prbs` is refused naming its fix; the pair is one

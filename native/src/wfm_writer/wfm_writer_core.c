@@ -1099,14 +1099,24 @@ dp_wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
          * stream — only symbol_rate does. Emit it for a continuous source so
          * a scorer knows the outer symbol clock; mirror the JSON face's
          * data-source label ("none" for code-only, omitted for the
-         * data-modulated default). Burst dsss and every other type omit
-         * these keys (symbol_rate <= 0). */
+         * data-modulated default), and the code-only window when there is
+         * one. Burst dsss and every other type omit these keys
+         * (symbol_rate <= 0). */
         if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0)
           {
             cJSON_AddNumberToObject (a, "wfmgen:symbol_rate",
                                      src->symbol_rate);
             if (src->dsss_code_only)
               cJSON_AddStringToObject (a, "wfmgen:data", "none");
+            /* The per-frame code-only window, when the stream has one: a
+               scorer needs it to know which symbols carry no data. */
+            if (src->frame_symbols)
+              {
+                cJSON_AddNumberToObject (a, "wfmgen:code_only_symbols",
+                                         (double)src->code_only_symbols);
+                cJSON_AddNumberToObject (a, "wfmgen:frame_symbols",
+                                         (double)src->frame_symbols);
+              }
           }
         /* The truth for scoring (payload-data-source.md 4.8): what the
          * source's data sent, as the record carries it -- frames, the fill

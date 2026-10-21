@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-10-14"
+generated = "2026-10-21"
 
 [issue.502]
 tier = 3
@@ -380,11 +380,6 @@ tier = 5
 title = "Certification reports open with caveats, not orientation \u2014 a caller arriving cold has no entry point"
 status = "open"
 
-[issue.1010]
-tier = 1
-title = "19 Python benchmarks take the `benchmark` fixture and never call it"
-status = "in review ([#1972](https://github.com/doppler-dsp/doppler/pull/1972))"
-
 [issue.1028]
 tier = 1
 title = "Nothing enforces the UBSan alignment ratchet \u2014 it grew 821 \u2192 853 unnoticed"
@@ -495,11 +490,6 @@ tier = 5
 title = "just-makeit.toml carries a stale \"NOT adopting c_style\" block eleven lines below `c_style = \"clang-format\"`"
 status = "open"
 
-[issue.1247]
-tier = 3
-title = "acq: bound the block depth D to a smooth slow-time length -- 308 = 4\u00b77\u00b711 at the operating point, and the transforms are now the searcher's cost"
-status = "open"
-
 [issue.1269]
 tier = 3
 title = "AsyncDsssReceiver builds its refine and track chains on every seed and hand-over \u2014 the pool's \"sized once at create\" holds for the pool, not its receivers"
@@ -523,7 +513,7 @@ status = "open"
 [issue.1294]
 tier = 4
 title = "wfm: the compose Synth and the Plan's DSSS source have no per-frame code-only window; only _SynthEngine.set_dsss_window has it"
-status = "open"
+status = "in review ([#2528](https://github.com/doppler-dsp/doppler/pull/2528))"
 
 [issue.1299]
 tier = 5
@@ -591,12 +581,6 @@ tier = 4
 title = "Windows (clang-cl): what remains after #1360 \u2014 the C library compiles, the link and the benchmarks wait on jm"
 status = "open"
 why = "The Windows C library builds and links; the Python extensions, the interrupt test and the pool soak are still off on Windows"
-
-[issue.1366]
-tier = 1
-title = "bench: acc_f32's madd/madd2d/get/dump benchmarks measure a no-op"
-status = "in review ([#1980](https://github.com/doppler-dsp/doppler/pull/1980))"
-why = "Four acc_f32 benchmarks call the kernel with NULL, 0, so they time call overhead under the kernel's name"
 
 [issue.1370]
 tier = 3
@@ -729,12 +713,6 @@ tier = 5
 title = "carrier_acq's pfa is per-test while acq's is per-search: same name, two meanings"
 status = "open"
 why = "The same parameter name, pfa, means per-test on one acquisition object and per-search on the other; both documented"
-
-[issue.1566]
-tier = 1
-title = "validate_capture_dwell_pd fails make validate: its full sweep asserts nothing"
-status = "open"
-why = "make validate fails: a C validator's full sweep runs no check, and CI's --check subset hides it"
 
 [issue.1570]
 tier = 5
@@ -1085,12 +1063,6 @@ title = "Spectrogram: separate the frame length from the transform length (non-p
 status = "open"
 why = "The Spectrogram cannot take a non-power-of-two frame: frame and transform length are one value"
 
-[issue.1967]
-tier = 2
-title = "bench(carrier_acq): the C benchmark credits 65536 samples to a search that stops after one block"
-status = "open"
-why = "carrier_acq's C benchmark credits 65536 samples to a search that stops after one block"
-
 [issue.1969]
 tier = 2
 title = "bench(interp_table): the C benchmark names its rows nearest/linear/cubic; the methods are floor/nearest/linear"
@@ -1108,12 +1080,6 @@ tier = 2
 title = "bench(pn): the C benchmark's polynomials are not maximal-length in dp_pn's convention"
 status = "open"
 why = "pn's C benchmark uses polynomials that are not maximal-length in dp_pn's convention"
-
-[issue.1977]
-tier = 1
-title = "make bench exits 0 when its Python half fails to collect (upstream: just-makeit#2180)"
-status = "open"
-why = "make bench exits 0 when its Python half fails (jm's bench ignores pytest's return code)"
 
 [issue.1978]
 tier = 3
@@ -1138,12 +1104,6 @@ tier = 5
 title = "scripts: seven gates strip C comments with a /\\*.*?\\*/ regex that does not know about string literals"
 status = "open"
 why = "Seven gates strip C comments with a regex that does not know about string literals"
-
-[issue.1987]
-tier = 4
-title = "AccTrace.alpha: the setter refuses silently in Python until just-makeit#2182 ships"
-status = "open"
-why = "AccTrace.alpha's setter refuses silently in Python until just-makeit#2182 ships"
 
 [issue.1990]
 tier = 5
@@ -1180,11 +1140,6 @@ tier = 1
 title = "release: the pre-publish smoke-wheel installs only cp312, so a per-Python wheel defect is found after PyPI is written"
 status = "open"
 
-[issue.2001]
-tier = 2
-title = "Stubs: none_on_empty readouts lack | None until just-makeit#2183 ships"
-status = "open"
-
 [issue.2004]
 tier = 1
 title = "build: a parent compiler change drops make build's and make pyext's -D options; pyext then exits 0 having built no extensions (likely #1996)"
@@ -1199,11 +1154,6 @@ status = "open"
 tier = 3
 title = "acc_f32/acc_cf64: madd (and so madd2d) is a serial scalar reduction; give it steps' SIMD path"
 status = "open"
-
-[issue.2011]
-tier = 0
-title = "stream: producers ignore send failures (wfmgen exits 0 after dropping blocks; StreamSink.send returns an int) and close() loses the tail"
-status = "in review ([#2300](https://github.com/doppler-dsp/doppler/pull/2300))"
 
 [issue.2012]
 tier = 1
@@ -1270,11 +1220,6 @@ tier = 2
 title = "stream: an end-of-stream names no stream, so any publisher's EOS on a base ends every subscriber there"
 status = "open"
 
-[issue.2040]
-tier = 0
-title = "wfm: StreamSink.send should raise on a refused block, not return an int (blocked on jm)"
-status = "open"
-
 [issue.2045]
 tier = 5
 title = "Makefile:1674 says gen-c-api-check runs via docs-invariants; it runs only as its own pre-commit hook"
@@ -1300,11 +1245,6 @@ tier = 1
 title = "validation reports: _self_check resolves \u00a7N.M but never F<n> -- a renumbered finding silently re-points every citation"
 status = "in review ([#2147](https://github.com/doppler-dsp/doppler/pull/2147))"
 
-[issue.2062]
-tier = 1
-title = "adopt just-makeit#2188 (jm_bench.h drops entries past 32 silently); restore U1's hop nfft/2 bench rows; guard the cap meanwhile"
-status = "open"
-
 [issue.2063]
 tier = 0
 title = "stream: Pull.close() during a GIL-free recv() tears down the context under the fetch (#2016's class, receive path)"
@@ -1314,11 +1254,6 @@ status = "open"
 tier = 5
 title = "package-linux: the builder image's dnf failure is discarded (docker build -q >/dev/null), and dnf has no retry"
 status = "open"
-
-[issue.2071]
-tier = 2
-title = "burst_despreader: create() and set_bn_* pass an unvalidated bn to dp_loop_filter_init, which trusts its embedders to validate"
-status = "in review ([#2306](https://github.com/doppler-dsp/doppler/pull/2306))"
 
 [issue.2074]
 tier = 3
@@ -1395,16 +1330,6 @@ tier = 5
 title = "One dB conversion: every remaining log10 site switches to dp_power_to_db_f32 or says why it keeps double"
 status = "in review ([#2126](https://github.com/doppler-dsp/doppler/pull/2126))"
 
-[issue.2110]
-tier = 0
-title = "clib: dp_fmod_pos can return m (outside [0,m)), so dll_replica reads code[sf], one past the copy"
-status = "in review ([#2305](https://github.com/doppler-dsp/doppler/pull/2305))"
-
-[issue.2111]
-tier = 0
-title = "resamp: set_state trusts a forged delay_head, and the next output reads past delay_buf"
-status = "in review ([#2301](https://github.com/doppler-dsp/doppler/pull/2301))"
-
 [issue.2112]
 tier = 0
 title = "float-domain holes from #2109's review: loop embedders without the bn/zeta predicate, det_verify_count int overflow, Dll lock geometry"
@@ -1423,7 +1348,7 @@ status = "open"
 [issue.2143]
 tier = 2
 title = "bench(psd): power_onesided is timed one call per round, so its 1,024 cell moves in 7% clock steps"
-status = "in review ([#2146](https://github.com/doppler-dsp/doppler/pull/2146))"
+status = "open"
 
 [issue.2159]
 tier = 2
@@ -1470,11 +1395,6 @@ tier = 2
 title = "PSD kernel follow-ups from #2209's review: ENBW off the kernel, meters carry an unused ring, the identity dump's gaps"
 status = "open"
 
-[issue.2218]
-tier = 1
-title = "acq: a burst engine's measured per-dwell Pfa is 2x its target (1.97e-3 against 1e-3, ZC 127 x 16, D = 5)"
-status = "open"
-
 [issue.2219]
 tier = 2
 title = "rate_hypotheses follow-ups: tiled Monte-Carlo, per-event rate, DsssBurstReceiver, a deterministic guard for refine"
@@ -1510,24 +1430,20 @@ tier = 5
 title = "examples/: 33 print calls in 16 scripts hold characters cp1252 cannot encode, so they crash on a redirected stdout on Windows"
 status = "open"
 
-[issue.2256]
-tier = 1
-title = "ci: ECR Public's anonymous DATA quota ('toomanyrequests: Data limit exceeded') outlasts stock-pull.sh's 75 s retry window"
-status = "open"
-
 [issue.2279]
 tier = 5
 title = "hand-owned fragments: six uint64_t / size_t parses use the masking K (dp_tlm x4, wfm_synth pn_poly and span), so a negative or over-wide int wraps"
 status = "open"
 
-[issue.2286]
+[issue.2280]
 tier = 5
-title = "wfm_synth .prod(): ~60 lines of hand-written glue and a hand-edited sacred fragment, and no public Synth.prod, until jm 0.105.0"
-status = "in review ([#2297](https://github.com/doppler-dsp/doppler/pull/2297))"
+title = "dp_tlm.emit parses id with l (C long): on Windows the OverflowError carries CPython's message, not the range-check's"
+status = "open"
+why = "same OverflowError type on every platform; only the message differs on LLP64 Windows"
 
 [issue.2287]
 tier = 3
-title = "acq: per-dwell Pfa at rate_hypotheses n = 3 and n = 4 reads above the target (1.20e-3, 1.07e-3 at 1e6 dwells), with #2218"
+title = "acq: rate hypotheses priced as independent looks deliver 0.22-0.65x the Pfa target (the rate axis's N_eff, under #1064)"
 status = "open"
 
 [issue.2289]
@@ -1540,10 +1456,323 @@ tier = 0
 title = "wfm_json.c converts JSON numbers to integer fields with bare casts: num_samples=1.5, -1, 2**32 and seed=-1, 2**32 are accepted (jm's hardened reader never reaches Composer.from_json)"
 status = "open"
 
-[issue.2509]
-tier = 3
-title = "acq: the burst engine's depth search picks D without regard to the FFT length's smoothness"
+[issue.2311]
+tier = 1
+title = "bench: no CI job runs a C benchmark binary, so a bench that fails at run time first fails on release day"
 status = "open"
+why = "a C bench's own self-check (#2310) runs only at release: no PR job executes a bench binary"
+
+[issue.2318]
+tier = 4
+title = "help(doppler.wfm.Synth) and the seven source factories document no parameters at runtime; the stub has all 35"
+status = "open"
+why = "the 35 parameters exist on the stub and the site, and help() at runtime shows none (jm#2283)"
+
+[issue.2321]
+tier = 3
+title = "nats-down's wait treats a zombie broker as alive, so every CI teardown runs its full 15 s"
+status = "open"
+why = "measured: every CI teardown waits its full 15 s on a zombie broker"
+
+[issue.2326]
+tier = 1
+title = "glibc 2.28 job rebuilds its image from archive.debian.org every run; the CDN's intermittent 404s fail the job and cancel the run"
+status = "open"
+why = "the job's verdict is the archive CDN's, not the tree's, as #2256's quota was"
+
+[issue.2330]
+tier = 1
+title = "The async DSSS pool soak's emitter fan-out runs under no sanitizer"
+status = "open"
+why = "TSan's -LE sweep drops the soak, so its emitter fan-out runs under no sanitizer"
+
+[issue.2334]
+tier = 4
+title = "wfm.Writer: write and flush could release the GIL again now that jm counts in-flight calls (gh-2272)"
+status = "open"
+why = "jm's in-flight count makes a GIL-free Writer.write safe now, and it stays off pending the owner"
+
+[issue.2338]
+tier = 4
+title = "BurstCapture: refine measures the carrier to a fraction of the native bin and the event reports only the coarse Doppler"
+status = "open"
+why = "refine measures the fine Doppler and the event reports only the coarse one"
+
+[issue.2341]
+tier = 3
+title = "BurstCapture places 5-7% fewer bursts than its engine detects at the design point, compensated or not"
+status = "open"
+why = "a measured detection loss with a number (5-7% fewer bursts placed), as #2287's Pfa excess"
+
+[issue.2346]
+tier = 5
+title = "test(burst_capture): two deterministic refine tests still sweep with a private phase ramp, not dp_swept_rotate"
+status = "open"
+why = "two tests keep a private phase ramp beside dp_swept_rotate"
+
+[issue.2348]
+tier = 0
+title = "BurstDemod: declaring max_rate costs a third of the frames at 14 dB a symbol with no sweep at all"
+status = "open"
+why = "a declared max_rate loses a third of DsssBurstReceiver's frames at 14 dB with no sweep at all"
+
+[issue.2378]
+tier = 5
+title = "clib_common.h: both projects' copies are behind the pinned just-makeit, and nothing gates them"
+status = "open"
+why = "doppler's clib_common.h is a fork of jm's render, not a stale copy: decide what goes upstream"
+
+[issue.2381]
+tier = 2
+title = "ci: a PR run's stock pulls report one figure, in the bytes ECR Public meters"
+status = "open"
+why = "the logged per-pull figure over-reads ECR's metered bytes about 4x"
+
+[issue.2382]
+tier = 5
+title = "release: the wheel's build backend and repair tools are unpinned"
+status = "open"
+why = "unpinned build backend and repair tools: the stale-pins class (#630)"
+
+[issue.2383]
+tier = 1
+title = "bench-timer: the downstream example's bench rows record no unit"
+status = "open"
+why = "the bench-timer gate scans native/benchmarks only, so the downstream example's unitless rows pass"
+
+[issue.2385]
+tier = 1
+title = "spectrogram record: _record does not check meta.json's build fields or the build folders"
+status = "open"
+why = "swap portable/ and native/ and every check of the spectrogram record still passes"
+
+[issue.2386]
+tier = 5
+title = "bench: label the 795 rows on benchmarks/.labels-exempt"
+status = "open"
+why = "a shrink-only burn-down of 795 unlabelled rows"
+
+[issue.2387]
+tier = 2
+title = "bench: the benchmarks page's script has no test"
+status = "open"
+why = "the benchmarks page's script owns its formatting and sorts, and no test reads them"
+
+[issue.2389]
+tier = 1
+title = "drift-check: a jm_*.h that jm stops rendering or skips passes the vendored-header gate"
+status = "open"
+why = "drift-check passes a jm_*.h that jm stops rendering or skips"
+
+[issue.2390]
+tier = 1
+title = "bench: the label gate cannot see a PR's own new or changed rows"
+status = "open"
+why = "the label gate sees only the last release's rows, not a PR's own"
+
+[issue.2394]
+tier = 2
+title = "bench: revisit pinning the published run to the 4 performance cores of a 10-core box"
+status = "open"
+why = "an 'all cores' row measured 8 of 20 logical CPUs, and its label does not say so"
+
+[issue.2399]
+tier = 5
+title = "The block M-th-power phase estimate is written twice: async_dsss_receiver and ber_evm_db"
+status = "open"
+why = "the block M-th-power estimate written twice"
+
+[issue.2407]
+tier = 2
+title = "dsss_burst_receiver characterization: the \"CRC ok\" series counts returned frames, not CRC passes"
+status = "open"
+why = "the 'CRC ok' series counts returned frames, so the panel's reading has no support"
+
+[issue.2409]
+tier = 5
+title = "AsyncDsssPool as parallel receivers: the design's open points"
+status = "open"
+why = "the parallel design's open points, a tracker for owner decisions"
+
+[issue.2416]
+tier = 5
+title = "Name the page in the 126 'design \u00a7N' citations the doc-section gate exempts"
+status = "open"
+why = "a shrink-only ratchet of 126 bare 'design \u00a7N' citations"
+
+[issue.2429]
+tier = 2
+title = "The parallel record's 37.31 dB-Hz is hand-typed: the bench should record its C/N0 so the record renders it"
+status = "open"
+why = "a record number typed by hand, not rendered from the run"
+
+[issue.2431]
+tier = 5
+title = "Local zensical build renders no page (0.2 s, raw sitemap template) on a commit that builds 222 pages in CI"
+status = "open"
+why = "#2430 makes the gate refuse a zero-page build; what is left is an undiagnosed local environment"
+
+[issue.2438]
+tier = 1
+title = "Python ASan leg: the Python suite does not run under AddressSanitizer"
+status = "open"
+why = "the retain lifetime tests can pass with a use-after-free only ASan would see"
+
+[issue.2440]
+tier = 0
+title = "An explicit destroy()/close() frees an object a kernel still holds (use-after-free)"
+status = "open"
+why = "an explicit destroy()/close() frees an object a kernel still holds: a segfault, reproduced"
+
+[issue.2442]
+tier = 5
+title = "bootstrap.toml: no [clang-rt.zypper] entry, since openSUSE's compiler-rt package name is unverified"
+status = "open"
+why = "provisioning: an unverified openSUSE package name"
+
+[issue.2443]
+tier = 5
+title = "bootstrap.toml does not provision rpmbuild for `make package-rpm`"
+status = "open"
+why = "provisioning: rpmbuild for package-rpm"
+
+[issue.2444]
+tier = 5
+title = "bootstrap.toml does not provision nats-server for the stream tests on a dev box"
+status = "open"
+why = "provisioning: nats-server on a dev box"
+
+[issue.2445]
+tier = 5
+title = "test-asan's ASAN_DIR keys on the compiler's basename, so a full-path ASAN_CC shares the default's tree"
+status = "open"
+why = "harness: a full-path ASAN_CC shares the default's build tree (the canary catches it, loudly)"
+
+[issue.2446]
+tier = 5
+title = "docker, gh and jq are used by make targets and scripts but bootstrap.toml provisions none of them"
+status = "open"
+why = "provisioning: docker, gh and jq"
+
+[issue.2447]
+tier = 1
+title = "A gate that every tool the Makefile and scripts invoke is provisioned or declared external"
+status = "open"
+why = "no gate checks that a tool the Makefile invokes is provisioned; each gap so far was found by reading"
+
+[issue.2449]
+tier = 5
+title = "Contributor docs still show a wrong header path and raw jm/pytest commands"
+status = "open"
+why = "contributor docs: a wrong header path and raw tool commands"
+
+[issue.2450]
+tier = 1
+title = "check_doc_paths checks root pages' link targets but not their #anchors"
+status = "open"
+why = "a renamed heading leaves a dead CONTRIBUTING TOC anchor that nothing catches"
+
+[issue.2451]
+tier = 0
+title = "wfm Synth(doppler=ppm) does not dilate the spreading code; DopplerChannel does"
+status = "open"
+why = "Synth(doppler=) does not dilate the code, though its docstring says the chip rate moves with the carrier"
+
+[issue.2457]
+tier = 2
+title = "async-dsss-parallel.md: an audit of every number (D = 94's FFT cost, the fade claim, the 4x-bound reach, SPEC's window at 3.069 Mcps, ...)"
+status = "open"
+why = "an audit of every number on async-dsss-parallel.md"
+
+[issue.2459]
+tier = 0
+title = "DsssReceiver configure_chain_raw re-seeds the carrier from the demodulator's residual alone (the #2414 bug in the sibling)"
+status = "open"
+why = "DsssReceiver re-seeds a rebuilt chain from the residual alone and loses a carrier past pull-in (the #2414 bug)"
+
+[issue.2461]
+tier = 2
+title = "AsyncDsssReceiver certification: the claim inventory (167 claims; 55 absent, 21 literals-only, 4 contradictions)"
+status = "open"
+why = "the certification's claim inventory: 55 claims absent, 4 contradictions"
+
+[issue.2469]
+tier = 0
+title = "AsyncDsssReceiver.steps() silently drops symbols when a call completes a carried code period"
+status = "open"
+why = "steps() silently drops symbols when a call completes a carried period"
+
+[issue.2471]
+tier = 4
+title = "AsyncDsssReceiver: the differential argument is inert (steps() returns soft symbols; the demap is in MpskReceiver's bits())"
+status = "open"
+why = "the differential demap exists in MpskReceiver.bits(), and AsyncDsssReceiver gives no way to reach it"
+
+[issue.2476]
+tier = 1
+title = "bench-rx: the searching row refuses on ~1 in 12 noise draws; its SPEC config copies make_rx() with no gate"
+status = "open"
+why = "a natural false alarm turns bench-rx red about 1 in 12 noise draws, and two config copies have no gate"
+
+[issue.2478]
+tier = 1
+title = "No gate checks that every probe set_telemetry() registers is named in its header"
+status = "open"
+why = "only AsyncDsssReceiver pins its probe list against its header; every other instrumented object can drift"
+
+[issue.2483]
+tier = 5
+title = "parallel record: 'stories' and 'bench' stamp themselves dirty when run after 'measure'"
+status = "open"
+why = "harness: a record's own later runs stamp themselves dirty"
+
+[issue.2488]
+tier = 1
+title = "AsyncDsssReceiver: the 20 dB EVM excess grows faster than a constant floor, so the certification's 15 dB band is loose"
+status = "open"
+why = "the certification's 15 dB EVM band is about 0.5 dB loose, so it cannot see a regression that size"
+
+[issue.2494]
+tier = 5
+title = "release.md: two stale counts (\u00a78's 'three C tarballs', \u00a72b's legacy-units sentence)"
+status = "open"
+why = "two stale counts in release.md"
+
+[issue.2499]
+tier = 0
+title = "MpskReceiver at sps 31.7 (rx battery rate_odd) slips 2-7 symbols late in a burst"
+status = "open"
+why = "MpskReceiver slips 2-7 symbols late in a burst at a battery point (sps 31.7)"
+
+[issue.2500]
+tier = 5
+title = "Engine design sits on a retired page: move async-dsss-receiver.md \u00a77.1 (the peak list) and \u00a72.3's windowing to dsss-acquisition.md"
+status = "open"
+why = "engine design on a retired page: move it to dsss-acquisition.md"
+
+[issue.2501]
+tier = 2
+title = "AsyncDsssReceiver: two behaviors its design page states that no test pins (the hold under reacquire, the searching flavor on the 500 Hz/s ramp)"
+status = "open"
+why = "two behaviors the design page states that no test pins"
+
+[issue.2503]
+tier = 1
+title = "Dll code-lock detector: realized Pfa on noise is about twice the configured rate (no issue owned it)"
+status = "open"
+why = "the Dll lock detector realizes about 2x its pfa, and its test pins it only within 4x (as #2218's acq Pfa)"
+
+[issue.2504]
+tier = 2
+title = "AsyncDsssReceiver: the first steps() after a chain build allocates (RateConverter sizes its buffers on first execute)"
+status = "open"
+why = "the design page says steady tracking allocates nothing; the first steps() after a build does"
+
+[issue.2506]
+tier = 0
+title = "AsyncDsssReceiver at segments = 8 (SPEC): BER 0.21 at Es/N0 5 dB, against 0.012 at segments = 4"
+status = "open"
+why = "create() accepts segments = 8, and at it the receiver's BER is 0.21 at 5 dB against 0.012 at 4"
 
 [issue.2507]
 tier = 5
@@ -1555,17 +1784,54 @@ tier = 5
 title = "Remove the deleted AsyncDsssPool/CellAsyncDsssReceiver rows from benchmarks/labels.toml after the next release"
 status = "open"
 
-[issue.2512]
-tier = 5
-title = "Old-pool deletion PR: the doc fixes it owes once #2502 lands"
+[issue.2509]
+tier = 3
+title = "acq: the burst engine's depth search picks D without regard to the FFT length's smoothness"
 status = "open"
+
+[issue.2511]
+tier = 3
+title = "AsyncDsssReceiver: symbol lock's power-weighted statistic lags a loss behind the level loops (+7 ms median, NON-MONOTONIC holds; partly pre-existing)"
+status = "open"
+why = "a measured release lag (+7 ms median, up to 20 ms) in symbol lock after a signal leaves"
 
 [issue.2517]
 tier = 5
 title = "async-dsss-parallel record: record.py cannot refresh its bench rows after the old pool's deletion"
 status = "open"
 
-[issue.2518]
-tier = 1
-title = "make warnings-check overwrites the in-tree Python extensions with its clang build"
+[issue.2527]
+tier = 0
+title = "wfm scene: a boolean key given as a number (\"code_only\": 1) is silently read as false"
 status = "open"
+why = "a scene's \"code_only\": 1 is silently read as false, as #2291's bare casts were accepted"
+
+[issue.2529]
+tier = 0
+title = "AsyncDsssReceiver: a wrong-phase track of a real signal never releases"
+status = "open"
+why = "a receiver seeded on a wrong code phase of a real signal tracks it and never releases"
+
+[issue.2530]
+tier = 4
+title = "acq peak list: the Doppler-offset sidelobe rule lives in one consumer, not the list"
+status = "open"
+why = "the Doppler-offset sidelobe rule exists in C and only AsyncDsssReceiver's pick reaches it"
+
+[issue.2531]
+tier = 3
+title = "AsyncDsssPool: cancel tracked emitters before the search, to lift the near-far limit"
+status = "open"
+why = "a measured near-far limit with numbers (a weaker emitter at -13 dB taken 36% at D = 1), as #2341's detection loss"
+
+[issue.2532]
+tier = 1
+title = "ci: a red scheduled workflow reaches no one; issues.yml's failure notices go to github-merge-queue[bot], so the tier map drifted 12 days unseen"
+status = "open"
+why = "the reconcile's red reached no one for 12 days: GitHub sends the scheduled run's notice to github-merge-queue[bot]"
+
+[issue.2535]
+tier = 5
+title = "package-linux discards dnf's output, so the nightly's 2026-10-21 red cannot say why (same checkout green on re-run)"
+status = "open"
+why = "harness: a CI job's red that discards the reason; its own failure said only 'exit code: 1'"

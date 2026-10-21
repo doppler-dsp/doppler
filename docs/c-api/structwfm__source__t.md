@@ -40,6 +40,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
 |  int | [**background**](#variable-background)  <br> |
 |  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
+|  size\_t | [**code\_only\_symbols**](#variable-code_only_symbols)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data**](#variable-data)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data\_code**](#variable-data_code)  <br> |
 |  const char \* | [**data\_from\_file**](#variable-data_from_file)  <br> |
@@ -55,6 +56,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  double | [**f\_end\_hi**](#variable-f_end_hi)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**fill**](#variable-fill)  <br> |
 |  const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**frame**](#variable-frame)  <br> |
+|  size\_t | [**frame\_symbols**](#variable-frame_symbols)  <br> |
 |  double | [**freq**](#variable-freq)  <br> |
 |  double | [**freq\_hi**](#variable-freq_hi)  <br> |
 |  double | [**level**](#variable-level)  <br> |
@@ -182,6 +184,19 @@ int wfm_source_t::background;
 
 ```C++
 double wfm_source_t::carrier_hz;
+```
+
+
+
+
+<hr>
+
+
+
+### variable code\_only\_symbols 
+
+```C++
+size_t wfm_source_t::code_only_symbols;
 ```
 
 
@@ -377,6 +392,19 @@ wfm_seq_t wfm_source_t::fill;
 
 ```C++
 const wfm_frame_desc_t* wfm_source_t::frame;
+```
+
+
+
+
+<hr>
+
+
+
+### variable frame\_symbols 
+
+```C++
+size_t wfm_source_t::frame_symbols;
 ```
 
 

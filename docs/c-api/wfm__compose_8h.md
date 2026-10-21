@@ -2012,7 +2012,7 @@ int dp_wfm_source_attach_dsss (
 
 
 
-The single dsss-attach path, called by BOTH synth-construction faces (`dp_wfm_compose_build_synth` and the standalone `dp_wfm_source_to_synth`), so the two cannot drift on how a dsss stream is configured. Selects on `symbol_rate`: 0 → the burst form (`dp_wfm_synth_set_dsss_chips`); &gt; 0 → the continuous form (`dp_wfm_synth_set_dsss_cont`) with `chips_per_symbol = (fs/sps)/symbol_rate`, taking the data from the payload when one is supplied (`bits`) and otherwise from the seeded PN. A no-op for a non-dsss source.
+The single dsss-attach path, called by BOTH synth-construction faces (`dp_wfm_compose_build_synth` and the standalone `dp_wfm_source_to_synth`), so the two cannot drift on how a dsss stream is configured. Selects on `symbol_rate`: 0 → the burst form (`dp_wfm_synth_set_dsss_chips`); &gt; 0 → the continuous form (`dp_wfm_synth_set_dsss_cont`) with `chips_per_symbol = (fs/sps)/symbol_rate`, taking the data from the payload when one is supplied (`bits`) and otherwise from the seeded PN, and framing it with the per-frame code-only window (`code_only_symbols` of every `frame_symbols`, dp\_wfm\_synth\_set\_dsss\_window) when one is set. A no-op for a non-dsss source.
 
 
 
@@ -2338,7 +2338,7 @@ The one length a run with a data source is measured in: a finite run is this ove
 
 * **A frame** (bits, bpsk/qpsk/pn): its output bits at the mapping's bits per symbol (rounded up), times `sps`, per frame.
 * **A dsss burst**: its chips times `sps` (samples per chip), per burst.
-* **Continuous dsss** has no frame: a "frame" is one data bit, one per data symbol, and the run is every chip of the first `frames` symbols at `fs / sps / symbol_rate` chips per symbol  not a whole number, so not a product  times `sps`.
+* **Continuous dsss** has no frame: a "frame" is one data bit, one per data symbol, and the run is every chip up to the symbol after the `frames-th` data symbol, at `fs / sps / symbol_rate` chips per symbol  not a whole number, so not a product  times `sps`. Every symbol carries data unless a code-only window is set; then the data pauses through each frame's first `code_only_symbols`, and the run counts every window before the last data symbol (not one after it).
 
 
 

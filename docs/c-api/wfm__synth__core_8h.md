@@ -110,6 +110,7 @@ _Synth component API._ [More...](#detailed-description)
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_wfm\_synth\_step**](#function-dp_wfm_synth_step) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
 |  void | [**dp\_wfm\_synth\_steps**](#function-dp_wfm_synth_steps) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate a block of output samples. Calls_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _in a tight loop, writing each cf32 sample into_`output` _. The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller._ |
 |  void | [**dp\_wfm\_synth\_sweep\_ends**](#function-dp_wfm_synth_sweep_ends) (double fs, double f\_mid, double rate, size\_t n, double center, double \* f0, double \* f\_end) <br>_Start and end frequency of the chirp that sweeps about a center. A chirp with_ `freq = *f0` _,_`f_end = *f_end` _and dp\_wfm\_synth\_set\_chirp\_span(n) has instantaneous frequency_`f_mid + rate*u` _(Hz) at sample_`i` _,_`u = (i - center)/fs` _seconds, and so multiplies a block by_`exp(j*2*pi*(f_mid*u + rate*u^2/2))` _up to one constant phase (the synth's phase is 0 at sample 0, the formula's at_`u = 0` _). The synth's increment lands after its sample, hence the half-sample in_`*f0` _. Pure arithmetic: no state, nothing allocated._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bit\_ahead**](#function-wfm_synth_bit_ahead) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s) <br>_Whether the data has a next bit, without taking it._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bit\_next**](#function-wfm_synth_bit_next) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s, unsigned \* bit) <br>_The next bit of the pattern, or none once the data has ended._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**wfm\_synth\_bit\_symbol**](#function-wfm_synth_bit_symbol) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* s) <br>_Next symbol from the user bit pattern — one mapping, every M._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**wfm\_synth\_bps**](#function-wfm_synth_bps) (int type) <br>_Bits carried by one symbol of_ `type` _— the_`bps` _an Eb/No needs._ |
@@ -1458,6 +1459,43 @@ void dp_wfm_synth_sweep_ends (
 
 
 
+### function wfm\_synth\_bit\_ahead 
+
+_Whether the data has a next bit, without taking it._ 
+```C++
+JM_FORCEINLINE int wfm_synth_bit_ahead (
+    dp_wfm_synth_state_t * s
+) 
+```
+
+
+
+The bounds check and refill [**wfm\_synth\_bit\_next()**](wfm__synth__core_8h.md#function-wfm_synth_bit_next) is built on, so the two cannot disagree about where the data ends. A spent pattern draws its next frame here, so a caller that asks ahead draws that frame early: the continuous DSSS code-only window does, once a window, because a window is sent only before more data ([**wfm\_synth\_cont\_dsss\_chip()**](wfm__synth__core_8h.md#function-wfm_synth_cont_dsss_chip)).
+
+
+
+
+**Parameters:**
+
+
+* `s` the synth; a type=bits synth with a pattern set. 
+
+
+
+**Returns:**
+
+1 if a bit remains (the cursor at it), or 0: the data has ended. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_synth\_bit\_next 
 
 _The next bit of the pattern, or none once the data has ended._ 
@@ -1578,7 +1616,7 @@ JM_FORCEINLINE float wfm_synth_cont_dsss_chip (
 The per-chip kernel shared by `dp_wfm_synth_step` and `dp_wfm_synth_steps` (and the manifest `impl`), so the single-sample and block paths cannot diverge — they call the SAME function rather than each inlining the arithmetic. Advances the code clock (`n % n_code`) and the INDEPENDENT symbol clock (`floor(n / chips_per_symbol)`) off one running chip counter; at each symbol boundary it refreshes the data bit from the configured source (constant 0 for code-only, the next payload bit, or the next PN bit). Non-integer `chips_per_symbol` is what makes symbol edges land mid-epoch — the asynchronicity.
 
 
-With a frame set (`dp_wfm_synth_set_dsss_window`), the frame lives on the SYMBOL clock: of every `frame_symbols` symbols, the first `code_only_symbols` carry data 0 — the pure code — and the rest carry the payload, whose index counts data symbols only, so the bits run on across frames. The symbol clock never restarts: it is the same free-running `floor(n / chips_per_symbol)` with or without a window, so a frame edge falls at whatever chip phase that clock puts it — the chip and data clocks have no fixed relation, and no frame edge is synchronous with a code epoch. `frame_symbols == 0` is the windowless stream, bit for bit.
+With a frame set (`dp_wfm_synth_set_dsss_window`), the frame lives on the SYMBOL clock: of every `frame_symbols` symbols, the first `code_only_symbols` carry data 0 — the pure code — and the rest carry the payload, whose index counts data symbols only, so the bits run on across frames. The symbol clock never restarts: it is the same free-running `floor(n / chips_per_symbol)` with or without a window, so a frame edge falls at whatever chip phase that clock puts it — the chip and data clocks have no fixed relation, and no frame edge is synchronous with a code epoch. `frame_symbols == 0` is the windowless stream, bit for bit. A window opens only before more data: once a payload has sent its last bit the stream is silent from the next symbol on, window or not, so it ends where [**dp\_wfm\_source\_data\_samples()**](wfm__compose_8h.md#function-dp_wfm_source_data_samples) says its run does.
 
 
 Requires `chips_per_symbol >= 1` (chip rate &gt;= symbol rate, always true for a real DSSS waveform), so the symbol index advances by 0 or 1 per chip and the PN is never asked to skip. 

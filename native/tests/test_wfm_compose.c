@@ -1561,6 +1561,161 @@ test_continuous_dsss_draws_a_bit_per_symbol (void)
   return 0;
 }
 
+/* The per-frame code-only window (doppler#1294) on a source, so the public
+   Synth and a scene reach what only the raw synth did. The source carries it
+   to the synth unchanged, each rule is refused by name, and a data source's
+   run ends on its last data symbol with every window before it counted. */
+static int
+test_continuous_dsss_code_only_window (void)
+{
+  static const uint8_t code[5] = { 1, 1, 0, 1, 0 };
+  const double         fs = 1e6, rate = fs / 3.7;
+  wfm_source_t         src = data_line ();
+  src.type                 = WFM_SYNTH_DSSS;
+  src.symbol_rate          = rate;
+  src.data_len             = 0;
+  src.data_code
+      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = code, .len = 5 };
+
+  /* Carried unchanged: a source with the window builds the synth a
+     windowless source builds with the window set on it, sample for sample,
+     and that is not the windowless stream. PN data, so the window shows. */
+  enum
+  {
+    N = 4000
+  };
+  static float _Complex a[N], b[N], c[N];
+  src.code_only_symbols = 3;
+  src.frame_symbols     = 8;
+  DP_REQUIRE_MSG (dp_wfm_source_error (&src) == NULL,
+                  "a window on continuous dsss is a source");
+  dp_wfm_synth_state_t *sa
+      = dp_wfm_compose_build_synth (&src, fs, 0, 0.0, 200.0, 0.0, 0, 0, 0);
+  wfm_source_t plain      = src;
+  plain.code_only_symbols = plain.frame_symbols = 0;
+  dp_wfm_synth_state_t *sb
+      = dp_wfm_compose_build_synth (&plain, fs, 0, 0.0, 200.0, 0.0, 0, 0, 0);
+  dp_wfm_synth_state_t *sc
+      = dp_wfm_compose_build_synth (&plain, fs, 0, 0.0, 200.0, 0.0, 0, 0, 0);
+  DP_REQUIRE (sa && sb && sc);
+  DP_REQUIRE (dp_wfm_synth_set_dsss_window (sb, 3, 8) == 0);
+  dp_wfm_synth_steps (sa, a, N);
+  dp_wfm_synth_steps (sb, b, N);
+  dp_wfm_synth_steps (sc, c, N);
+  dp_wfm_synth_destroy (sa);
+  dp_wfm_synth_destroy (sb);
+  dp_wfm_synth_destroy (sc);
+  DP_CHECK_MSG (memcmp (a, b, sizeof a) == 0,
+                "the source's window is the synth's window, sample for "
+                "sample");
+  DP_CHECK_MSG (memcmp (a, c, sizeof a) != 0,
+                "and it is not the windowless stream");
+
+  /* Each rule, refused by name. */
+  const char  *why;
+  wfm_source_t r = src;
+  r.symbol_rate  = 0.0; /* a burst: no symbol clock to frame */
+  why            = dp_wfm_source_error (&r);
+  DP_CHECK_MSG (why && strstr (why, "give type dsss with a symbol_rate"),
+                "a window off continuous dsss is refused");
+  r      = src;
+  r.type = WFM_SYNTH_TONE; /* no symbol clock at all */
+  why    = dp_wfm_source_error (&r);
+  DP_CHECK_MSG (why && strstr (why, "give type dsss with a symbol_rate"),
+                "a window on a non-dsss source is refused");
+  r               = src;
+  r.frame_symbols = 0;
+  why             = dp_wfm_source_error (&r);
+  DP_CHECK_MSG (why && strstr (why, "give frame_symbols"),
+                "a window with no frame is refused");
+  r                   = src;
+  r.code_only_symbols = 9;
+  why                 = dp_wfm_source_error (&r);
+  DP_CHECK_MSG (why && strstr (why, "exceeds frame_symbols"),
+                "a window longer than its frame is refused");
+  r                = src;
+  r.dsss_code_only = 1;
+  why              = dp_wfm_source_error (&r);
+  DP_CHECK_MSG (why && strstr (why, "changes nothing"),
+                "a window beside code_only is refused");
+  r                   = src;
+  r.code_only_symbols = 0; /* a frame with no window changes no sample */
+  why                 = dp_wfm_source_error (&r);
+  DP_CHECK_MSG (why && strstr (why, "give code_only_symbols"),
+                "a frame without a window is refused");
+  r.code_only_symbols = 8; /* the whole frame, PN data: code only, for ever */
+  DP_CHECK_MSG (dp_wfm_source_error (&r) == NULL,
+                "an all-window frame without a data source is a source");
+
+  /* With a data source, the data pauses through each window, so the run is
+     longer than the windowless one by every window before the last data
+     symbol. The closed form against a walk of the symbol clock, for every
+     length up to three frames and a range of windows. */
+  static uint8_t bits[64];
+  for (size_t i = 0; i < 64; i++)
+    bits[i] = (uint8_t)(i & 1u);
+  const double cps = (fs / 1.0) / rate;
+  for (size_t w = 0; w < 6; w++)
+    for (size_t n = 1; n <= 3 * (8 - w) && n <= 64; n++)
+      {
+        wfm_source_t d      = src;
+        d.code_only_symbols = w;
+        d.frame_symbols     = 8;
+        d.data
+            = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = n };
+        uint64_t sym = 0, seen = 0; /* the symbol after the n-th data one */
+        while (seen < n)
+          {
+            if (sym % 8 >= w)
+              seen++;
+            sym++;
+          }
+        if (dp_wfm_source_data_samples (&d, fs, n)
+            != dp_wfm_dsss_cont_edge (sym, cps))
+          {
+            DP_CHECK_MSG (0, "the run ends on the last data symbol, the "
+                             "windows before it counted");
+            return 1;
+          }
+      }
+  r                   = src;
+  r.code_only_symbols = 8;
+  r.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 4 };
+  why    = dp_wfm_source_error (&r);
+  DP_CHECK_MSG (why && strstr (why, "never be sent"),
+                "an all-window frame beside a data source is refused");
+
+  /* And where the run ends, the waveform does, silent for good after it.
+     Two lengths, with 5 data symbols a frame: 7 ends mid-frame, and 10 ends
+     on a frame's last data symbol, so the next symbol opens a window -- one
+     the synth must not send, since no data follows it. */
+  static const size_t n_bits[2] = { 7, 10 };
+  for (int i = 0; i < 2; i++)
+    {
+      wfm_source_t d      = src;
+      d.code_only_symbols = 3;
+      d.frame_symbols     = 8;
+      d.data              = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                                         .bits = bits,
+                                         .len  = n_bits[i] };
+      dp_wfm_synth_state_t *sd
+          = dp_wfm_compose_build_synth (&d, fs, 0, 0.0, 200.0, 0.0, 0, 0, 0);
+      DP_REQUIRE (sd != NULL);
+      dp_wfm_synth_steps (sd, a, N);
+      dp_wfm_synth_destroy (sd);
+      size_t last = 0; /* one past the last sample that is not silence */
+      for (size_t k = 0; k < N; k++)
+        if (cabsf (a[k]) > 0.5f)
+          last = k + 1;
+      DP_CHECK_MSG (last && last < N
+                        && dp_wfm_source_data_samples (&d, fs, n_bits[i])
+                               == last,
+                    "the stream ends on the sample its run does, no window "
+                    "after the data's last bit");
+    }
+  return 0;
+}
+
 /* stdin: the validation build reads nothing, and the run ends where the
    stream does -- on a frame boundary -- rather than at a count. */
 static int
@@ -5722,6 +5877,8 @@ main (void)
   if (test_a_record_replays_its_data_by_hash ())
     return 1;
   if (test_continuous_dsss_draws_a_bit_per_symbol ())
+    return 1;
+  if (test_continuous_dsss_code_only_window ())
     return 1;
   if (test_a_scene_refuses_what_a_stream_cannot_do ())
     return 1;

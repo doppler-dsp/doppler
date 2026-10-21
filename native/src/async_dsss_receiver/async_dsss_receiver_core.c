@@ -862,27 +862,48 @@ adr_same_code_phase (double a, double b, size_t code_len)
   return d <= 1.0;
 }
 
-/* A dwell's peak list, strongest first, to the one this receiver takes:
- * drop every peak in an excluded zone, then every peak in the zone of a
- * stronger one (excluded or not -- a neighbouring cell of an owned signal
- * is that signal), then count survivors to `rank`. 1 and the hand-off in
- * @p pick, or 0 when the list holds no peak at this rank. */
+/* A dwell's peak list, strongest first, to the one this receiver takes.
+ * Three rules, in order, then the survivors are counted to `rank`:
+ *
+ * 1. In the zone of a stronger peak (a neighbouring cell, or the same
+ *    emitter in a neighbouring tile): that emitter, not a second one.
+ * 2. Within reach of the stronger emitters' sidelobes: one emitter's list
+ *    also holds its code's Doppler-offset sidelobes, up to dsl below it and
+ *    hundreds of chips from its lag, where rule 1 cannot reach (design
+ *    acq-surface.md §8). A peak is a second emitter only if its statistic
+ *    exceeds dsl times the sum of the stronger emitters' by more than the
+ *    detector's own gate. Noise riding on a sidelobe lifts it by no more
+ *    than the noise's own magnitude, so a sidelobe passes only when that
+ *    noise alone would have cleared the gate: the false-alarm rate the
+ *    search already runs at. The sum bounds two emitters' sidelobes landing
+ *    on one cell.
+ * 3. In an excluded zone: another receiver's signal. It is still an
+ *    emitter, so it still counts in rule 2's sum.
+ *
+ * 1 and the hand-off in @p pick, or 0 when the list holds no peak at this
+ * rank. */
 static int
 adr_pick (const dp_async_dsss_receiver_state_t *s, const acq_result_t *hits,
           size_t n_hits, acq_handoff_t *pick)
 {
-  double seen[ASYNC_DSSS_RX_MAX_PEAKS];
-  size_t n_seen = 0, n_kept = 0;
+  const double dsl  = pow (10.0, dp_acq_dsl_db (s->acq) / 20.0);
+  const double gate = dp_acq_gate_stat (s->acq);
+  double       seen[ASYNC_DSSS_RX_MAX_PEAKS];
+  double       stronger = 0.0; /* the emitters' statistics so far */
+  size_t       n_seen = 0, n_kept = 0;
   for (size_t i = 0; i < n_hits; i++)
     {
       acq_handoff_t ho;
       dp_acq_build_handoff (s->acq, &hits[i], s->code_len, s->spc, &ho);
       int drop = 0;
-      for (size_t j = 0; j < s->n_excl && !drop; j++)
-        drop = adr_same_code_phase (ho.chip_phase, s->excl[j], s->code_len);
       for (size_t j = 0; j < n_seen && !drop; j++)
         drop = adr_same_code_phase (ho.chip_phase, seen[j], s->code_len);
       seen[n_seen++] = ho.chip_phase;
+      if (drop || (double)hits[i].test_stat - dsl * stronger <= gate)
+        continue;
+      stronger += (double)hits[i].test_stat;
+      for (size_t j = 0; j < s->n_excl && !drop; j++)
+        drop = adr_same_code_phase (ho.chip_phase, s->excl[j], s->code_len);
       if (drop)
         continue;
       if (n_kept++ == s->rank)
@@ -1701,6 +1722,13 @@ double
 dp_async_dsss_receiver_get_chip_phase (
     const dp_async_dsss_receiver_state_t *state)
 {
+  /* Refining has no live Dll yet: the signal it holds is the seed's, at the
+     seed's phase advanced by the clock dilation since -- the one formula
+     the hand-over starts the live chain from. A controller excludes this
+     phase, so it must name the signal, not read 0 (#2525). */
+  if (state->state == ASYNC_DSSS_RX_REFINING)
+    return adr_handover_phase (state, state->seed_doppler_hz_est,
+                               state->refine_samples_fed);
   return dp_dll_get_code_phase (state->dll);
 }
 double

@@ -79,6 +79,7 @@ extern "C"
     double off_peak; 
     double off_peak_amp; 
     double psl; 
+    double dsl; 
   } acq_shape_t;
 
   typedef struct
@@ -362,6 +363,10 @@ extern "C"
   }
 
   double dp_acq_psl_db (const dp_acq_state_t *state);
+
+  double dp_acq_dsl_db (const dp_acq_state_t *state);
+
+  double dp_acq_gate_stat (const dp_acq_state_t *state);
 
   void dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
                           size_t code_len, size_t spc, acq_handoff_t *out);

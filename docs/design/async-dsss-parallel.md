@@ -174,6 +174,35 @@ What today's receiver must gain for this:
     engine for 16 peaks a dwell (`set_max_peaks`); a dwell with no peak at
     the receiver's rank seeds nothing, and its search goes on.
 
+**A strong signal's own sidelobes are not a second signal.** One emitter's
+peak list also holds its code's Doppler-offset sidelobes: the ambiguity
+of the code at the offset between the emitter and each tile it is not in,
+up to $-16.95$ dB below it for the SPEC Gold-1023 search, hundreds of chips
+from its phase, dwell after dwell (the acquisition-surface design page,
+`acq-surface.md` §8, doppler#2526).
+The rank and the exclusions skip the strongest peak, so without a rule a
+ranked or excluded search seeds on one, then tracks it, its flags flicker
+on the emitter's data, and it never releases. The rule
+(`async_dsss_receiver_core.h`, `set_rank()`): a peak counts as a second
+signal only if its statistic exceeds the stronger signals' summed
+statistic, times that sidelobe level, by more than the detector's own
+gate. The level is computed once, by the searcher's constructor, over
+every residual and tile offset its grid can put between an emitter and a
+tile (`dp_acq_dsl_db()`, the Doppler-offset twin of `dp_acq_psl_db()`).
+Noise riding on a sidelobe lifts it by no more than the noise's own
+magnitude, so a sidelobe gets through only when that noise alone would
+have cleared the gate: the false-alarm rate the search already runs at.
+
+That sets the **near-far limit** of the pool: a second signal is taken
+while a stronger one is on the air only if it clears the stronger one's
+sidelobe level by the gate. On a deep block the gate is small beside a
+strong signal and the limit approaches the sidelobe level; on a
+one-epoch search the noise on the sidelobes is larger and so is the
+gate's share. A signal below the limit is found once the stronger one
+leaves, or by a receiver placed on an assigned offset that excludes the
+stronger one's tiles, not by rank. A signal at or above it, and every
+signal the pool holds alone, is unaffected.
+
 ## 4. The controller
 
 The bookkeeper of §2. It searches nothing, seeds nothing and holds no
@@ -185,7 +214,9 @@ surface. It:
 - **may place a receiver on an assigned carrier offset,** in place of the
     whole range;
 - **hands every searching receiver the exclusions** (the code phases the
-    others track) and its rank among the receivers searching;
+    others hold, refining or tracking: `status().chip_phase` names a
+    refining receiver's signal too) and its rank among the receivers
+    searching;
 - **resolves duplicates**: two receivers holding the same code phase (within
     a chip, the exclusions' key), the first to lock keeps it and the other
     adds it to its exclusions; between signals otherwise indistinguishable,

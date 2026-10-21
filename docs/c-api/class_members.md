@@ -208,6 +208,7 @@
 * **doppler\_rate\_hz\_s** ([**acq\_result\_t**](structacq__result__t.md), [**burst\_capture\_event\_t**](structburst__capture__event__t.md), [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md), [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 * **delay\_loss** ([**acq\_shape\_t**](structacq__shape__t.md))
 * **delay\_loss\_mean** ([**acq\_shape\_t**](structacq__shape__t.md))
+* **dsl** ([**acq\_shape\_t**](structacq__shape__t.md))
 * **doppler\_hz** ([**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md), [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md), [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md))
 * **decim** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md), [**dp\_agc\_state\_t**](structdp__agc__state__t.md), [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md))
 * **doppler\_rate** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_source\_t**](structwfm__source__t.md))

@@ -949,7 +949,11 @@ typedef enum
                             lost).
                             Only as good as `locked`: with the carrier
                             unlocked, loop 1 free-runs and this wanders. */
-    double chip_phase; /**< Live Dll code phase, chips.                     */
+    double chip_phase; /**< Code phase, chips: the live Dll's; while
+                            refining, the seed's advanced by the clock
+                            dilation since (what the hand-over starts
+                            from), so a refining receiver's signal can be
+                            excluded too.                              */
     double code_rate;  /**< The Dll's code rate, chips per nominal chip
                             (~1.0 at lock), without the carrier aid; a
                             coasting Dll's is its held rate.            */
@@ -1126,10 +1130,23 @@ typedef enum
    *
    * The searcher reports up to @ref ASYNC_DSSS_RX_MAX_PEAKS peaks per dwell,
    * strongest first. The receiver drops every peak within one chip
-   * (circularly) of an excluded code phase (set_exclusions()), then every
-   * peak within one chip of a stronger one, so one signal's neighbouring
-   * cells hold one place; the survivors are ranked from 0. A dwell with no
-   * peak at this rank hands nothing off and the search goes on. Searchers
+   * (circularly) of a stronger one, so one signal's neighbouring cells hold
+   * one place; then every peak a stronger signal's own sidelobes could
+   * explain; then every peak within one chip of an excluded code phase
+   * (set_exclusions()). The survivors are ranked from 0. A dwell with no
+   * peak at this rank hands nothing off and the search goes on.
+   *
+   * The sidelobe rule: a strong signal's list also holds its code's
+   * Doppler-offset sidelobes, up to dp_acq_dsl_db() below it and hundreds
+   * of chips from its phase (design acq-surface.md §8). A peak counts as a
+   * second signal only if its test_stat exceeds the stronger signals'
+   * summed test_stat, times that level, by more than the detector's own gate
+   * (dp_acq_gate_stat()). A sidelobe then passes only when the noise on it
+   * alone would have cleared the gate, the rate the search already runs
+   * at. What it costs is near-far: a second signal much more than
+   * dp_acq_dsl_db() below a stronger one (-16.95 dB on the SPEC Gold-1023
+   * search) is not taken while the stronger one is on the air
+   * (async-dsss-parallel.md §3). Searchers
    * that share a stream and its block grid (get_coherent_bins()) and hold
    * ranks 0..k-1 therefore take k different signals in one dwell. Takes
    * effect at the next dwell. A mutator's value, so it travels in the state
@@ -1341,7 +1358,9 @@ typedef enum
   int    dp_async_dsss_receiver_get_n (const dp_async_dsss_receiver_state_t *state);
   /** @brief The live Dll's code phase, chips, in the Dll's instantaneous
    *  convention -- the mirror of acq_result_t::code_phase's correlation-lag
-   *  convention (dp_acq_build_handoff()). */
+   *  convention (dp_acq_build_handoff()). While refining there is no live
+   *  Dll: it is the seed's phase advanced by the clock dilation since, the
+   *  phase the hand-over starts the live chain from. */
   double dp_async_dsss_receiver_get_chip_phase (
       const dp_async_dsss_receiver_state_t *state);
   /** @brief The Dll's code rate, chips per nominal chip (~1.0 at lock),

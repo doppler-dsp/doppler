@@ -521,7 +521,10 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
                   "seed while refining, 0 while searching, frozen where it "
                   "was when lost). Only as good as `locked`: with the carrier "
                   "unlocked, loop 1 free-runs and this wanders." },
-  { "chip_phase", "Live Dll code phase, chips." },
+  { "chip_phase",
+    "Code phase, chips: the live Dll's; while refining, the seed's advanced "
+    "by the clock dilation since (what the hand-over starts from), so a "
+    "refining receiver's signal can be excluded too." },
   { "code_rate",
     "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
     "carrier aid; a coasting Dll's is its held rate." },
@@ -1459,7 +1462,9 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
   { "chip_phase", (getter)AsyncDsssReceiver_getprop_chip_phase, NULL,
     "The live Dll's code phase, chips, in the Dll's instantaneous convention "
     "-- the mirror of acq_result_t::code_phase's correlation-lag convention "
-    "(dp_acq_build_handoff()).\n",
+    "(dp_acq_build_handoff()). While refining there is no live Dll: it is the "
+    "seed's phase advanced by the clock dilation since, the phase the "
+    "hand-over starts the live chain from.\n",
     NULL },
   { "code_rate", (getter)AsyncDsssReceiver_getprop_code_rate, NULL,
     "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
@@ -2140,14 +2145,26 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "\n"
     "The searcher reports up to ASYNC_DSSS_RX_MAX_PEAKS peaks per dwell,\n"
     "strongest first. The receiver drops every peak within one chip\n"
-    "(circularly) of an excluded code phase (set_exclusions()), then every\n"
-    "peak within one chip of a stronger one, so one signal's neighbouring\n"
-    "cells hold one place; the survivors are ranked from 0. A dwell with no\n"
-    "peak at this rank hands nothing off and the search goes on. Searchers\n"
-    "that share a stream and its block grid (get_coherent_bins()) and hold\n"
-    "ranks 0..k-1 therefore take k different signals in one dwell. Takes\n"
-    "effect at the next dwell. A mutator's value, so it travels in the state\n"
-    "blob (#2022).\n"
+    "(circularly) of a stronger one, so one signal's neighbouring cells hold\n"
+    "one place; then every peak a stronger signal's own sidelobes could\n"
+    "explain; then every peak within one chip of an excluded code phase\n"
+    "(set_exclusions()). The survivors are ranked from 0. A dwell with no\n"
+    "peak at this rank hands nothing off and the search goes on.\n"
+    "\n"
+    "The sidelobe rule: a strong signal's list also holds its code's\n"
+    "Doppler-offset sidelobes, up to dp_acq_dsl_db() below it and hundreds\n"
+    "of chips from its phase (design acq-surface.md §8). A peak counts as a\n"
+    "second signal only if its test_stat exceeds the stronger signals'\n"
+    "summed test_stat, times that level, by more than the detector's own\n"
+    "gate (dp_acq_gate_stat()). A sidelobe then passes only when the noise\n"
+    "on it alone would have cleared the gate, the rate the search already\n"
+    "runs at. What it costs is near-far: a second signal much more than\n"
+    "dp_acq_dsl_db() below a stronger one (-16.95 dB on the SPEC Gold-1023\n"
+    "search) is not taken while the stronger one is on the air\n"
+    "(async-dsss-parallel.md §3). Searchers that share a stream and its\n"
+    "block grid (get_coherent_bins()) and hold ranks 0..k-1 therefore take k\n"
+    "different signals in one dwell. Takes effect at the next dwell. A\n"
+    "mutator's value, so it travels in the state blob (#2022).\n"
     "\n"
     "Parameters\n"
     "----------\n"

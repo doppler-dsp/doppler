@@ -3899,6 +3899,98 @@ _test_one_signal_holds_one_rank (void)
   return 0;
 }
 
+/* A ranked or excluded search takes no sidelobe (#2525). One emitter's
+ * dwell list also holds its code's Doppler-offset sidelobes, hundreds of
+ * chips from its phase and up to dp_acq_dsl_db() below it (design
+ * acq-surface.md §8), and noise rides on them. A search that skips the
+ * strongest peak must not take one as a second signal: on a stream holding
+ * A alone, neither a rank-1 receiver nor a rank-0 receiver with A excluded
+ * may leave searching. Draws: data throughout, the SPEC search (+-5 kHz,
+ * five tiles), two C/N0 and three Dopplers, one near a tile centre and one
+ * on a tile edge, three noise seeds and starts each. Without the sidelobe
+ * rule both seed on a sidelobe in every draw. Sabotage: drop the rule
+ * (adr_pick()'s dsl term) -> red; skip the excluded peak's share of the
+ * stronger sum -> the excluded search seeds. */
+static int
+_test_ranked_search_takes_no_sidelobe (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double fs      = SLOW_CR * SLOW_SPC;
+  const double cn0s[2] = { 60.0, 70.0 }, dops[3] = { 200.0, 1500.0, -2600.0 };
+  int          taken = 0;
+  for (size_t c = 0; c < 2; c++)
+    for (size_t f = 0; f < 3; f++)
+      for (uint32_t seed = 1; seed <= 3; seed++)
+        {
+          float _Complex *x;
+          size_t          n;
+          double         *data;
+          dp_dsss_capture (code, 1023, SLOW_SPC, fs, fs / SLOW_RS, dops[f],
+                           cn0s[c], 60, 300 * seed, seed, &x, &n, &data);
+          dp_async_dsss_receiver_state_t *r0
+              = _slow_rx (code, 47.0, 5000.0, 0.0, 0.0);
+          dp_async_dsss_receiver_state_t *r1
+              = _slow_rx (code, 47.0, 5000.0, 0.0, 0.0);
+          dp_async_dsss_receiver_state_t *rx
+              = _slow_rx (code, 47.0, 5000.0, 0.0, 0.0);
+          DP_REQUIRE (r0 && r1 && rx);
+          (void)_until_seeded (r0, x, n);
+          DP_REQUIRE (r0->state != ASYNC_DSSS_RX_SEARCHING);
+          const double pa = r0->seed_chip_phase;
+          DP_CHECK (dp_async_dsss_receiver_set_rank (r1, 1) == DP_OK);
+          DP_CHECK (dp_async_dsss_receiver_set_exclusions (rx, &pa, 1)
+                    == DP_OK);
+          (void)_until_seeded (r1, x, n);
+          (void)_until_seeded (rx, x, n);
+          if (r1->state != ASYNC_DSSS_RX_SEARCHING
+              || rx->state != ASYNC_DSSS_RX_SEARCHING)
+            {
+              DP_TEST_ERR ("  %.0f dB-Hz %+.0f Hz seed %u: A at %.1f, rank 1 "
+                           "at %.1f (%d), excluded at %.1f (%d)\n",
+                           cn0s[c], dops[f], seed, pa, r1->seed_chip_phase,
+                           r1->state, rx->seed_chip_phase, rx->state);
+              taken++;
+            }
+          dp_async_dsss_receiver_destroy (r0);
+          dp_async_dsss_receiver_destroy (r1);
+          dp_async_dsss_receiver_destroy (rx);
+          free (x);
+          free (data);
+        }
+  DP_CHECK_MSG (taken == 0, "a ranked or excluded search took a sidelobe");
+  return 0;
+}
+
+/* While refining, status().chip_phase names the signal held: the seed's
+ * phase advanced by the clock dilation since, the phase the hand-over
+ * starts the live chain from -- not the unbuilt live Dll's 0 (#2525). A
+ * controller excludes this phase; at 0 the next searcher would take the
+ * refining receiver's signal. The carrier is set so the advance is not
+ * zero. Sabotage: read the live Dll while refining -> 0. */
+static int
+_test_refining_reports_the_seed_phase (void)
+{
+  const double carrier = 2.2e6, dop = 2000.0, seed_phase = 3.25;
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, 60.0, 1e-2, 0.9, 5000.0, 4, 8, 0, 0.5,
+      4, 14.0, 32, 8, false, 100000, carrier, 0.0, false, 0.0, 0.0);
+  DP_REQUIRE (rx != NULL);
+  DP_CHECK (dp_async_dsss_receiver_seed (rx, seed_phase, dop, 50.0) == DP_OK);
+  float _Complex *z = calloc (2000, sizeof *z);
+  float _Complex out[4096];
+  (void)dp_async_dsss_receiver_steps (rx, z, 2000, out, 4096);
+  DP_REQUIRE (rx->state == ASYNC_DSSS_RX_REFINING);
+  const double want = fmod (seed_phase + dop / carrier * (2000.0 / 4.0), 7.0);
+  const async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
+  DP_CHECK (fabs (st.chip_phase - want) < 1e-9);
+  DP_CHECK (st.chip_phase > seed_phase); /* the dilation moved it */
+  DP_CHECK (dp_async_dsss_receiver_get_chip_phase (rx) == st.chip_phase);
+  free (z);
+  dp_async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
 /* The two setters' domains and their blob (#2022): rank below the list,
  * phases finite and at most 64, folded into [0, code_len); a refusal
  * leaves the value as it was; both travel, and a blob only set_exclusions()
@@ -4007,6 +4099,8 @@ main (void)
   DP_CHECK (_test_ranks_and_exclusions_split_two_signals () == 0);
   DP_CHECK (_test_rank_and_exclusions_domain_and_blob () == 0);
   DP_CHECK (_test_one_signal_holds_one_rank () == 0);
+  DP_CHECK (_test_ranked_search_takes_no_sidelobe () == 0);
+  DP_CHECK (_test_refining_reports_the_seed_phase () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

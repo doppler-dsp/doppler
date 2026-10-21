@@ -38,6 +38,7 @@ _What the engine knows about the SHAPE of the repeated preamble, beyond its samp
 | ---: | :--- |
 |  double | [**delay\_loss**](#variable-delay_loss)  <br> |
 |  double | [**delay\_loss\_mean**](#variable-delay_loss_mean)  <br> |
+|  double | [**dsl**](#variable-dsl)  <br> |
 |  double | [**off\_peak**](#variable-off_peak)  <br> |
 |  double | [**off\_peak\_amp**](#variable-off_peak_amp)  <br> |
 |  double | [**psl**](#variable-psl)  <br> |
@@ -136,6 +137,23 @@ double acq_shape_t::delay_loss_mean;
 
 Mean amplitude kept over a uniform delay straddle of 0 to 1/2 sample. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable dsl 
+
+```C++
+double acq_shape_t::dsl;
+```
+
+
+
+Doppler-offset sidelobe: the largest \|chi(m, nu)\| over the same lags as psl, relative to the emitter's own peak, over every residual and tile offset the grid can put between an emitter and a tile (design acq-surface.md §8). psl is its zero-offset case, so dsl &gt;= psl. A strong emitter lists peaks this far below it, more than a mainlobe from its own lag. [**dp\_acq\_dsl\_db()**](acq__core_8h.md#function-dp_acq_dsl_db) is the read-back. Fixed at construction; a grid pinned later keeps it. 
 
 
         

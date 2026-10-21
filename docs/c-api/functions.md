@@ -249,6 +249,8 @@
 * **dp\_acq\_create\_burst** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_create\_continuous** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_destroy** ([**acq\_core.h**](acq__core_8h.md))
+* **dp\_acq\_dsl\_db** ([**acq\_core.h**](acq__core_8h.md))
+* **dp\_acq\_gate\_stat** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_get\_state** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_position** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_psl\_db** ([**acq\_core.h**](acq__core_8h.md))

@@ -4070,6 +4070,30 @@ main (void)
     DP_CHECK (isfinite (got[2]) && got[2] < 0.0 && got[2] > -40.0);
   }
 
+  /* ── dp_acq_dsl_db: computed on its first read, on the built grid ───
+   * The sweep is pts x (2W - 1) transforms that only a peak-list consumer
+   * reads, so the constructor does not run it: an engine that never asks
+   * pays nothing. Asked after a grid was pinned (which leaves wideband
+   * mode, window_bins 3 -> 1), it still reads the grid the engine was
+   * built on. Sabotage, each red: run the sweep in the constructor; sweep
+   * the current window_bins on the first read. */
+  {
+    const double    cr = 1.0e6;
+    dp_acq_state_t *a  = dp_xnn (dp_acq_create_continuous (
+        CODE7, 7, 4, cr, cr / 28.0, 60.0, 200e3, 1e-3, 0.9, 0, 1, 0.0));
+    dp_acq_state_t *b  = dp_xnn (dp_acq_create_continuous (
+        CODE7, 7, 4, cr, cr / 28.0, 60.0, 200e3, 1e-3, 0.9, 0, 1, 0.0));
+    DP_REQUIRE (a->window_bins == 3);
+    DP_CHECK (!a->dsl_ready && a->shape.dsl == 0.0);
+    const double built = dp_acq_dsl_db (a);
+    DP_CHECK (a->dsl_ready && isfinite (built));
+    DP_REQUIRE (dp_acq_configure_search_raw (b, 1, 1) == 0);
+    DP_REQUIRE (b->window_bins == 1);
+    DP_CHECK (dp_acq_dsl_db (b) == built);
+    dp_acq_destroy (a);
+    dp_acq_destroy (b);
+  }
+
   /* ── dp_acq_dsl_db: the Doppler-offset sidelobe (#2525) ─────────────
    * Checked against the ambiguity summed directly (_brute_dsl_db(),
    * FFT-free) on the engine's own sweep, for a real code and for a complex

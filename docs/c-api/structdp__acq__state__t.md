@@ -55,6 +55,8 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  double | [**doppler\_span\_hz**](#variable-doppler_span_hz)  <br> |
 |  double | [**doppler\_uncertainty**](#variable-doppler_uncertainty)  <br> |
+|  int | [**dsl\_ready**](#variable-dsl_ready)  <br> |
+|  size\_t | [**dsl\_window\_bins**](#variable-dsl_window_bins)  <br> |
 |  uint64\_t | [**dwells**](#variable-dwells)  <br> |
 |  double | [**epochs\_per\_symbol**](#variable-epochs_per_symbol)  <br> |
 |  float | [**eta**](#variable-eta)  <br> |
@@ -521,6 +523,40 @@ double dp_acq_state_t::doppler_uncertainty;
 
 One-sided Doppler search half-range (Hz); 0 = full native span. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable dsl\_ready 
+
+```C++
+int dp_acq_state_t::dsl_ready;
+```
+
+
+
+1 once [**acq\_shape\_t::dsl**](structacq__shape__t.md#variable-dsl) holds its value: it is computed on its first read, [**dp\_acq\_dsl\_db()**](acq__core_8h.md#function-dp_acq_dsl_db), not by the constructor  a sweep of the ambiguity that only a peak-list consumer reads. 
+
+
+        
+
+<hr>
+
+
+
+### variable dsl\_window\_bins 
+
+```C++
+size_t dp_acq_state_t::dsl_window_bins;
+```
+
+
+
+The tiles of the grid the engine was BUILT with, which [**acq\_shape\_t::dsl**](structacq__shape__t.md#variable-dsl) is defined on; a grid pinned later does not move it. 
 
 
         

@@ -367,8 +367,10 @@ extern "C"
                      acq-surface.md §8). psl is its zero-offset case, so
                      dsl >= psl. A strong emitter lists peaks this far
                      below it, more than a mainlobe from its own lag.
-                     dp_acq_dsl_db() is the read-back. Fixed at
-                     construction; a grid pinned later keeps it. */
+                     dp_acq_dsl_db() is the read-back, and computes
+                     it on the first call: read it through that, never
+                     directly. Defined on the construction grid; a grid
+                     pinned later keeps it. */
   } acq_shape_t;
 
   /**
@@ -468,6 +470,14 @@ extern "C"
                              configure_search_raw's threshold re-derivation).    */
     double doppler_uncertainty; /**< One-sided Doppler search half-range
                                       (Hz); 0 = full native span.         */
+    size_t dsl_window_bins; /**< The tiles of the grid the engine was
+                                 BUILT with, which acq_shape_t::dsl is
+                                 defined on; a grid pinned later does not
+                                 move it. */
+    int dsl_ready; /**< 1 once acq_shape_t::dsl holds its value: it is
+                        computed on its first read, dp_acq_dsl_db(), not
+                        by the constructor -- a sweep of the ambiguity
+                        that only a peak-list consumer reads. */
     double symbol_rate; /**< Continuous data-symbol rate (Hz); 0 = no known
                               data-modulation clock. Diagnostic only on an
                               engine built via dp_acq_create_continuous() (which
@@ -1859,7 +1869,7 @@ extern "C"
    * }
    * @endcode
    */
-  double dp_acq_dsl_db (const dp_acq_state_t *state);
+  double dp_acq_dsl_db (dp_acq_state_t *state);
 
   /**
    * @brief The gate a dwell's statistic must clear to be a hit, in the

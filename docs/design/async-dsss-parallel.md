@@ -198,13 +198,14 @@ while a stronger one is on the air only if it clears the stronger one's
 sidelobe level by the gate. On a deep block the gate is small beside a
 strong signal and the limit approaches the sidelobe level; on a
 one-epoch search the noise on the sidelobes is larger and so is the
-gate's share. Measured on the SPEC search with the stronger signal at
-60–70 dB-Hz (review 5606641242 on doppler#2525), the share of dwells
-that still take the weaker signal:
+gate's share. Measured on the SPEC search, the stronger signal at
+47–70 dB-Hz, pooled: the share of streams whose search takes the weaker
+signal first, among those where it alone is found (the stronger one
+excluded; review 5606641242 on doppler#2525):
 
 | weaker signal, below the stronger | $D = 1$ | $D = 90$ |
 | --------------------------------- | ------- | -------- |
-| $-10$ dB                          | 65%     | —        |
+| $-10$ dB                          | 65%     | 100%     |
 | $-13$ dB                          | 36%     | 80%      |
 | $-16$ dB                          | 1%      | 35%      |
 

@@ -1829,3 +1829,15 @@ tier = 4
 title = "acq peak list: the Doppler-offset sidelobe rule lives in one consumer, not the list"
 status = "open"
 why = "the Doppler-offset sidelobe rule exists in C and only AsyncDsssReceiver's pick reaches it"
+
+[issue.2531]
+tier = 3
+title = "AsyncDsssPool: cancel tracked emitters before the search, to lift the near-far limit"
+status = "open"
+why = "a measured near-far limit with numbers (a weaker emitter at -13 dB taken 36% at D = 1), as #2341's detection loss"
+
+[issue.2532]
+tier = 1
+title = "ci: a red scheduled workflow reaches no one; issues.yml's failure notices go to github-merge-queue[bot], so the tier map drifted 12 days unseen"
+status = "open"
+why = "the reconcile's red reached no one for 12 days: GitHub sends the scheduled run's notice to github-merge-queue[bot]"

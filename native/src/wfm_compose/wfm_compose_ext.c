@@ -2517,14 +2517,15 @@ static PyGetSetDef Synth_getset[] = {
     (setter)Synth_set_code_only_symbols,
     "Continuous dsss: pure-code symbols opening each frame of frame_symbols "
     "symbols. The data pauses through them and runs on across frames, so a "
-    "searcher can integrate coherently over the window. At most "
-    "frame_symbols, and fewer when a data source is set; 0 = no window.\n",
+    "searcher can integrate coherently over the window; once a payload ends, "
+    "no window is sent. At most frame_symbols, and fewer when a data source "
+    "is set; 0 with frame_symbols 0 = no window.\n",
     NULL },
   { "frame_symbols", (getter)Synth_get_frame_symbols,
     (setter)Synth_set_frame_symbols,
-    "Continuous dsss: the frame, in symbols, that code_only_symbols opens; 0 "
-    "= no frame, the stream without a window. The frame runs on the stream's "
-    "own symbol clock, so its edges land at any chip phase.\n",
+    "Continuous dsss: the frame, in symbols, that code_only_symbols opens; "
+    "give it with code_only_symbols, or both 0 for no window. The frame runs "
+    "on the stream's own symbol clock, so its edges land at any chip phase.\n",
     NULL },
   { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL },
   { NULL, NULL, NULL, NULL, NULL }
@@ -3139,15 +3140,18 @@ static PyTypeObject SynthType = {
       "frame_symbols\n"
       "    symbols. The data pauses through them and runs on across frames, "
       "so a\n"
-      "    searcher can integrate coherently over the window. At most\n"
-      "    frame_symbols, and fewer when a data source is set; 0 = no "
-      "window.\n"
+      "    searcher can integrate coherently over the window; once a payload "
+      "ends,\n"
+      "    no window is sent. At most frame_symbols, and fewer when a data "
+      "source\n"
+      "    is set; 0 with frame_symbols 0 = no window.\n"
       "frame_symbols : int, default 0\n"
       "    Continuous dsss: the frame, in symbols, that code_only_symbols "
-      "opens; 0\n"
-      "    = no frame, the stream without a window. The frame runs on the "
-      "stream's\n"
-      "    own symbol clock, so its edges land at any chip phase.\n"
+      "opens;\n"
+      "    give it with code_only_symbols, or both 0 for no window. The frame "
+      "runs\n"
+      "    on the stream's own symbol clock, so its edges land at any chip "
+      "phase.\n"
       "fs : float, default 1.0\n"
       "    Sample rate in Hz, one per segment and shared by all its sources. "
       "At\n"
@@ -5023,13 +5027,14 @@ static PyGetSetDef Segment_getset[] = {
   { "code_only_symbols", (getter)Segment_flat_code_only_symbols, NULL,
     "Continuous dsss: pure-code symbols opening each frame of frame_symbols "
     "symbols. The data pauses through them and runs on across frames, so a "
-    "searcher can integrate coherently over the window. At most "
-    "frame_symbols, and fewer when a data source is set; 0 = no window.\n",
+    "searcher can integrate coherently over the window; once a payload ends, "
+    "no window is sent. At most frame_symbols, and fewer when a data source "
+    "is set; 0 with frame_symbols 0 = no window.\n",
     NULL },
   { "frame_symbols", (getter)Segment_flat_frame_symbols, NULL,
-    "Continuous dsss: the frame, in symbols, that code_only_symbols opens; 0 "
-    "= no frame, the stream without a window. The frame runs on the stream's "
-    "own symbol clock, so its edges land at any chip phase.\n",
+    "Continuous dsss: the frame, in symbols, that code_only_symbols opens; "
+    "give it with code_only_symbols, or both 0 for no window. The frame runs "
+    "on the stream's own symbol clock, so its edges land at any chip phase.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -5374,15 +5379,18 @@ static PyTypeObject SegmentType = {
       "frame_symbols\n"
       "    symbols. The data pauses through them and runs on across frames, "
       "so a\n"
-      "    searcher can integrate coherently over the window. At most\n"
-      "    frame_symbols, and fewer when a data source is set; 0 = no "
-      "window.\n"
+      "    searcher can integrate coherently over the window; once a payload "
+      "ends,\n"
+      "    no window is sent. At most frame_symbols, and fewer when a data "
+      "source\n"
+      "    is set; 0 with frame_symbols 0 = no window.\n"
       "frame_symbols : int, default 0\n"
       "    Continuous dsss: the frame, in symbols, that code_only_symbols "
-      "opens; 0\n"
-      "    = no frame, the stream without a window. The frame runs on the "
-      "stream's\n"
-      "    own symbol clock, so its edges land at any chip phase.\n"
+      "opens;\n"
+      "    give it with code_only_symbols, or both 0 for no window. The frame "
+      "runs\n"
+      "    on the stream's own symbol clock, so its edges land at any chip "
+      "phase.\n"
       "fs : float, default 1.0\n"
       "    Sample rate in Hz, one per segment and shared by all its sources. "
       "At\n"

@@ -1639,8 +1639,10 @@ test_continuous_dsss_code_only_window (void)
   DP_CHECK_MSG (why && strstr (why, "changes nothing"),
                 "a window beside code_only is refused");
   r                   = src;
-  r.code_only_symbols = 0; /* a frame with no window: the plain stream */
-  DP_CHECK_MSG (dp_wfm_source_error (&r) == NULL, "a bare frame is a source");
+  r.code_only_symbols = 0; /* a frame with no window changes no sample */
+  why                 = dp_wfm_source_error (&r);
+  DP_CHECK_MSG (why && strstr (why, "give code_only_symbols"),
+                "a frame without a window is refused");
   r.code_only_symbols = 8; /* the whole frame, PN data: code only, for ever */
   DP_CHECK_MSG (dp_wfm_source_error (&r) == NULL,
                 "an all-window frame without a data source is a source");
@@ -1683,24 +1685,34 @@ test_continuous_dsss_code_only_window (void)
   DP_CHECK_MSG (why && strstr (why, "never be sent"),
                 "an all-window frame beside a data source is refused");
 
-  /* And where the run ends, the waveform's data does: a last data symbol
-     mid-frame is followed by silence, on that very chip. */
-  {
-    wfm_source_t d      = src;
-    d.code_only_symbols = 3;
-    d.frame_symbols     = 8;
-    d.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = bits, .len = 7 };
-    dp_wfm_synth_state_t *sd
-        = dp_wfm_compose_build_synth (&d, fs, 0, 0.0, 200.0, 0.0, 0, 0, 0);
-    DP_REQUIRE (sd != NULL);
-    dp_wfm_synth_steps (sd, a, N);
-    dp_wfm_synth_destroy (sd);
-    size_t k = 0;
-    while (k < N && cabsf (a[k]) > 0.5f)
-      k++;
-    DP_CHECK_MSG (k < N && dp_wfm_source_data_samples (&d, fs, 7) == k,
-                  "the run ends on the chip where the windowed data does");
-  }
+  /* And where the run ends, the waveform does, silent for good after it.
+     Two lengths, with 5 data symbols a frame: 7 ends mid-frame, and 10 ends
+     on a frame's last data symbol, so the next symbol opens a window -- one
+     the synth must not send, since no data follows it. */
+  static const size_t n_bits[2] = { 7, 10 };
+  for (int i = 0; i < 2; i++)
+    {
+      wfm_source_t d      = src;
+      d.code_only_symbols = 3;
+      d.frame_symbols     = 8;
+      d.data              = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                                         .bits = bits,
+                                         .len  = n_bits[i] };
+      dp_wfm_synth_state_t *sd
+          = dp_wfm_compose_build_synth (&d, fs, 0, 0.0, 200.0, 0.0, 0, 0, 0);
+      DP_REQUIRE (sd != NULL);
+      dp_wfm_synth_steps (sd, a, N);
+      dp_wfm_synth_destroy (sd);
+      size_t last = 0; /* one past the last sample that is not silence */
+      for (size_t k = 0; k < N; k++)
+        if (cabsf (a[k]) > 0.5f)
+          last = k + 1;
+      DP_CHECK_MSG (last && last < N
+                        && dp_wfm_source_data_samples (&d, fs, n_bits[i])
+                               == last,
+                    "the stream ends on the sample its run does, no window "
+                    "after the data's last bit");
+    }
   return 0;
 }
 

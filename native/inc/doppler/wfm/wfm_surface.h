@@ -666,8 +666,8 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  frame_symbols symbols. (default 0)\n" \
   "  --frame-symbols N\n" \
   "                  Continuous dsss: the frame, in symbols, that\n" \
-  "                  code_only_symbols opens; 0 = no frame, the stream without a\n" \
-  "                  window. (default 0)\n"
+  "                  code_only_symbols opens; give it with code_only_symbols, or\n" \
+  "                  both 0 for no window. (default 0)\n"
 
 #define WFM_SURFACE_HELP_CODED \
   "  --frame FILE    A frame DESCRIPTION, the whole frame: fields in wire order,\n" \

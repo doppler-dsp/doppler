@@ -1919,6 +1919,7 @@
 * **wfm\_j1950\_to\_unix\_sec** ([**wfm\_time.h**](wfm__time_8h.md))
 * **wfm\_timecode\_is\_set** ([**wfm\_time.h**](wfm__time_8h.md))
 * **wfm\_unix\_to\_j1950\_sec** ([**wfm\_time.h**](wfm__time_8h.md))
+* **wfm\_synth\_bit\_ahead** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_bit\_next** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_bit\_symbol** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_bps** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))

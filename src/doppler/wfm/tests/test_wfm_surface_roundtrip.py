@@ -109,7 +109,8 @@ EXTRA = {
         "--fs",
         "48000",
     ],
-    # The code-only window frames continuous dsss; a window needs its frame.
+    # The code-only window frames continuous dsss, and a window and its frame
+    # are given together (each refuses the other's absence).
     "code_only_symbols": [
         "--type",
         "dsss",
@@ -131,6 +132,8 @@ EXTRA = {
         "1011",
         "--fs",
         "48000",
+        "--code-only-symbols",
+        "1",
     ],
 }
 

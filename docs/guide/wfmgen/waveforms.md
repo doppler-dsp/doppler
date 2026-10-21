@@ -937,8 +937,11 @@ assert np.array_equal(signs[in_window], 1 - 2 * code_chip[in_window])
 ```
 
 `code_only_symbols` is at most `frame_symbols`, and fewer when a data source
-is set (a window filling the whole frame would never send the data). Both are
-0 by default, which is the stream without a window.
+is set (a window filling the whole frame would never send the data). The two
+are given together, or both left at their default 0, which is the stream
+without a window. A window opens only before more data: once a payload has
+sent its last bit the stream is silent, so it ends where its run does even
+when that last bit closes a frame.
 
 #### Es/N0 references the data symbol, correctly
 
@@ -976,7 +979,7 @@ are rejected (exit 2), not silently ignored: `--symbol-rate` with the
 burst-frame flags (`--acq-code`, `--sync`, `--crc`), `--code-only` together
 with a data source, a code-only window off a continuous stream, without
 `--frame-symbols`, longer than its frame, beside `--code-only`, or filling a
-frame that has a data source, `--symbol-rate` without `--data-code`, a non-positive
+frame that has a data source, a `--frame-symbols` without a window, `--symbol-rate` without `--data-code`, a non-positive
 `--symbol-rate`, and a chip rate `fs / sps` below `--symbol-rate`. A stream
 sends at least one chip per data symbol, so the default `--fs 1.0` (a
 normalised rate) with a `--symbol-rate` in Hz is refused, naming the three

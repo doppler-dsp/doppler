@@ -108,12 +108,38 @@ def test_the_window_carries_the_code_alone():
     assert bits[~in_window].any()
 
 
-def test_a_bare_frame_is_the_windowless_stream():
-    """frame_symbols with no window is a frame of data symbols only."""
-    np.testing.assert_array_equal(
-        _synth(20.0, None, frame_symbols=F).steps(N),
-        _synth(20.0, None).steps(N),
+@pytest.mark.parametrize(
+    "n_bits", [2 * (F - W), 2 * (F - W) + 2], ids=["on-a-frame", "mid-frame"]
+)
+def test_the_stream_ends_where_its_run_does(n_bits):
+    """A payload's stream is silent from its run's end, for good. The case
+    that matters is a payload that fills its frames' data symbols exactly:
+    the next symbol opens a window, and no data follows it, so it is not
+    sent. The run is the Composer's, the stream the public Synth's."""
+    bits = PAYLOAD[:n_bits]
+    run = (
+        Composer(
+            [
+                Segment(
+                    type="dsss",
+                    fs=FS,
+                    sps=SPS,
+                    seed=7,
+                    snr=100.0,
+                    symbol_rate=RATE,
+                    data_code=CODE,
+                    data=bits,
+                    code_only_symbols=W,
+                    frame_symbols=F,
+                )
+            ]
+        )
+        .compose()
+        .size
     )
+    x = _synth(100.0, bits, code_only_symbols=W, frame_symbols=F).steps(N)
+    assert run < N
+    assert np.flatnonzero(np.abs(x) > 0.5)[-1] + 1 == run
 
 
 def _cli(args, tmp_path, name="out.cf32"):
@@ -219,6 +245,11 @@ REFUSALS = {
         {**_CONT, "code_only_symbols": W},
         ["--code-only-symbols", str(W)],
         "give frame_symbols",
+    ),
+    "frame-without-window": (
+        {**_CONT, "frame_symbols": F},
+        ["--frame-symbols", str(F)],
+        "give code_only_symbols",
     ),
     "longer-than-its-frame": (
         {**_CONT, "frame_symbols": F, "code_only_symbols": F + 1},

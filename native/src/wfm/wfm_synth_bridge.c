@@ -255,6 +255,12 @@ window_error (const wfm_source_t *src)
   if (!f)
     return "code_only_symbols opens a frame, and no frame_symbols is "
            "given: give frame_symbols, the frame's length in symbols";
+  /* A frame exists only to place its window: without one it changes no
+     sample, so it is refused rather than silently ignored. */
+  if (!w)
+    return "frame_symbols frames a code-only window, and no "
+           "code_only_symbols is given: give code_only_symbols, or drop "
+           "frame_symbols";
   if (w > f)
     return "code_only_symbols exceeds frame_symbols: the window opens the "
            "frame, so it is at most the frame";

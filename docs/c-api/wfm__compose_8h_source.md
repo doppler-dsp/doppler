@@ -339,13 +339,15 @@ typedef struct {
                           each frame of frame_symbols symbols. The data
                           pauses through them and runs on across frames,
                           so a searcher can integrate coherently over the
-                          window. At most frame_symbols, and fewer when a
-                          data source is set; 0 = no window. */
+                          window; once a payload ends, no window is sent.
+                          At most frame_symbols, and fewer when a data
+                          source is set; 0 with frame_symbols 0 = no
+                          window. */
     size_t frame_symbols; /* Continuous dsss: the frame, in symbols, that
-                          code_only_symbols opens; 0 = no frame, the
-                          stream without a window. The frame runs on the
-                          stream's own symbol clock, so its edges land at
-                          any chip phase. */
+                          code_only_symbols opens; give it with
+                          code_only_symbols, or both 0 for no window. The
+                          frame runs on the stream's own symbol clock, so
+                          its edges land at any chip phase. */
 } wfm_source_t;
 
 typedef struct {

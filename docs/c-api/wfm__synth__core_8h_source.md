@@ -149,22 +149,31 @@ typedef struct {
 } dp_wfm_synth_state_t;
 
 JM_FORCEINLINE int
+wfm_synth_bit_ahead(dp_wfm_synth_state_t *s)
+{
+    if (s->bit_idx < s->n_bits)
+        return 1;
+    if (s->data_ended)
+        return 0;
+    /* No source to refill from: the pattern was the whole of the data, sent
+       once -- the same end as a source that reports one. */
+    if (!s->refill || s->refill(s->refill_user, s->bits, s->n_bits) != 0) {
+        s->data_ended = 1;
+        return 0;
+    }
+    s->bit_idx = 0;
+    return 1;
+}
+
+JM_FORCEINLINE int
 wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
 {
-    if (s->bit_idx >= s->n_bits) { /* the pattern is spent */
-        if (s->data_ended)
-            return 0;
-        /* No source to refill from: the pattern was the whole of the data,
-           sent once -- the same end as a source that reports one. */
-        if (!s->refill || s->refill(s->refill_user, s->bits, s->n_bits) != 0) {
-            s->data_ended = 1;
-            return 0;
-        }
-        s->bit_idx = 0;
-    }
+    if (!wfm_synth_bit_ahead(s))
+        return 0;
     *bit = s->bits[s->bit_idx++] ? 1u : 0u;
     return 1;
 }
+
 
 JM_FORCEINLINE float _Complex
 wfm_synth_bit_symbol(dp_wfm_synth_state_t *s)
@@ -206,7 +215,14 @@ wfm_synth_cont_dsss_chip(dp_wfm_synth_state_t *s)
         if (n && s->cur_data == WFM_DSSS_ENDED) {
             /* the data has ended: silent for good, window or not */
         } else if (F && sym % F < W) {
-            s->cur_data = 0u; /* the pure-code window: the code, +polarity */
+            /* The pure-code window, the code at +polarity -- but only
+               before more data. A window after a payload's last bit is not
+               sent (the run ends before it: dp_wfm_source_data_samples), so
+               a payload asks ahead before opening one. */
+            s->cur_data = (s->data_mode == WFM_DSSS_DATA_BITS
+                           && !wfm_synth_bit_ahead(s))
+                              ? WFM_DSSS_ENDED
+                              : 0u;
         } else if (s->data_mode == WFM_DSSS_DATA_PRBS) {
             s->cur_data = s->pn ? pn_step(s->pn) : 0u; /* data symbols only */
         } else if (s->data_mode == WFM_DSSS_DATA_BITS) {

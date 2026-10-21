@@ -222,12 +222,13 @@ class Synth:
     code_only_symbols : int, default 0
         Continuous dsss: pure-code symbols opening each frame of frame_symbols
         symbols. The data pauses through them and runs on across frames, so a
-        searcher can integrate coherently over the window. At most
-        frame_symbols, and fewer when a data source is set; 0 = no window.
+        searcher can integrate coherently over the window; once a payload ends,
+        no window is sent. At most frame_symbols, and fewer when a data source
+        is set; 0 with frame_symbols 0 = no window.
     frame_symbols : int, default 0
-        Continuous dsss: the frame, in symbols, that code_only_symbols opens; 0
-        = no frame, the stream without a window. The frame runs on the stream's
-        own symbol clock, so its edges land at any chip phase.
+        Continuous dsss: the frame, in symbols, that code_only_symbols opens;
+        give it with code_only_symbols, or both 0 for no window. The frame runs
+        on the stream's own symbol clock, so its edges land at any chip phase.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -629,12 +630,13 @@ class Segment:
     code_only_symbols : int, default 0
         Continuous dsss: pure-code symbols opening each frame of frame_symbols
         symbols. The data pauses through them and runs on across frames, so a
-        searcher can integrate coherently over the window. At most
-        frame_symbols, and fewer when a data source is set; 0 = no window.
+        searcher can integrate coherently over the window; once a payload ends,
+        no window is sent. At most frame_symbols, and fewer when a data source
+        is set; 0 with frame_symbols 0 = no window.
     frame_symbols : int, default 0
-        Continuous dsss: the frame, in symbols, that code_only_symbols opens; 0
-        = no frame, the stream without a window. The frame runs on the stream's
-        own symbol clock, so its edges land at any chip phase.
+        Continuous dsss: the frame, in symbols, that code_only_symbols opens;
+        give it with code_only_symbols, or both 0 for no window. The frame runs
+        on the stream's own symbol clock, so its edges land at any chip phase.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);

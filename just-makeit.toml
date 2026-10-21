@@ -1696,7 +1696,7 @@ metavar = "N"
 help_section = "DSSS_CONT"
 type = "size_t"
 default = "0"
-doc = "Continuous dsss: pure-code symbols opening each frame of frame_symbols symbols. The data pauses through them and runs on across frames, so a searcher can integrate coherently over the window. At most frame_symbols, and fewer when a data source is set; 0 = no window."
+doc = "Continuous dsss: pure-code symbols opening each frame of frame_symbols symbols. The data pauses through them and runs on across frames, so a searcher can integrate coherently over the window; once a payload ends, no window is sent. At most frame_symbols, and fewer when a data source is set; 0 with frame_symbols 0 = no window."
 
 [[module.wfm_compose.source.fields]]
 name = "frame_symbols"
@@ -1708,7 +1708,7 @@ metavar = "N"
 help_section = "DSSS_CONT"
 type = "size_t"
 default = "0"
-doc = "Continuous dsss: the frame, in symbols, that code_only_symbols opens; 0 = no frame, the stream without a window. The frame runs on the stream's own symbol clock, so its edges land at any chip phase."
+doc = "Continuous dsss: the frame, in symbols, that code_only_symbols opens; give it with code_only_symbols, or both 0 for no window. The frame runs on the stream's own symbol clock, so its edges land at any chip phase."
 
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"

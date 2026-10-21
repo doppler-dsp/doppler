@@ -1934,8 +1934,10 @@ acq_off_peak (const float _Complex *replica, size_t n, acq_shape_t *sh)
  *
  * One forward transform per residual: shifting nu by a whole tile shifts
  * the spectrum by one bin, f_T being the transform's own bin spacing, so
- * tile k is the residual's spectrum rolled by k. Fixed at construction,
- * like psl: a grid pinned later (dp_acq_configure_search_raw()) keeps it. */
+ * tile k is the residual's spectrum rolled by k. Defined on the
+ * construction grid, like psl: a grid pinned later
+ * (dp_acq_configure_search_raw()) keeps it. Run by dp_acq_dsl_db() on its
+ * first call, not by the constructor. */
 static void
 acq_doppler_sidelobe (const float _Complex *replica, size_t n,
                       size_t window_bins, double du, double fs,
@@ -2124,8 +2126,10 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
 
   if (acq_regrid (st, best_d, best_nc, best_window_bins, replica) != 0)
     goto fail;
-  acq_doppler_sidelobe (replica, sf * spc, st->window_bins,
-                        doppler_uncertainty, st->fs, &st->shape);
+  /* dsl is defined on THIS grid; dp_acq_dsl_db() computes it on first
+     read. A sweep of pts x (2W - 1) transforms (0.15 s on the receivers'
+     Gold-1023 search) that only a peak-list consumer reads. */
+  st->dsl_window_bins = st->window_bins;
   acq_commit_thresholds (st, pfa, pd, snr, doppler_uncertainty);
   if (dp_acq_set_max_peaks (st, 1) != 0)
     goto fail;
@@ -2821,8 +2825,15 @@ dp_acq_gate_stat (const dp_acq_state_t *state)
 }
 
 double
-dp_acq_dsl_db (const dp_acq_state_t *state)
+dp_acq_dsl_db (dp_acq_state_t *state)
 {
+  if (!state->dsl_ready)
+    {
+      acq_doppler_sidelobe (state->ref, state->code_bins,
+                            state->dsl_window_bins, state->doppler_uncertainty,
+                            state->fs, &state->shape);
+      state->dsl_ready = 1;
+    }
   return state->shape.dsl > 0.0 ? 20.0 * log10 (state->shape.dsl) : -INFINITY;
 }
 

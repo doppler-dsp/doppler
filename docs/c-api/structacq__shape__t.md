@@ -153,7 +153,7 @@ double acq_shape_t::dsl;
 
 
 
-Doppler-offset sidelobe: the largest \|chi(m, nu)\| over the same lags as psl, relative to the emitter's own peak, over every residual and tile offset the grid can put between an emitter and a tile (design acq-surface.md §8). psl is its zero-offset case, so dsl &gt;= psl. A strong emitter lists peaks this far below it, more than a mainlobe from its own lag. [**dp\_acq\_dsl\_db()**](acq__core_8h.md#function-dp_acq_dsl_db) is the read-back. Fixed at construction; a grid pinned later keeps it. 
+Doppler-offset sidelobe: the largest \|chi(m, nu)\| over the same lags as psl, relative to the emitter's own peak, over every residual and tile offset the grid can put between an emitter and a tile (design acq-surface.md §8). psl is its zero-offset case, so dsl &gt;= psl. A strong emitter lists peaks this far below it, more than a mainlobe from its own lag. [**dp\_acq\_dsl\_db()**](acq__core_8h.md#function-dp_acq_dsl_db) is the read-back, and computes it on the first call: read it through that, never directly. Defined on the construction grid; a grid pinned later keeps it. 
 
 
         

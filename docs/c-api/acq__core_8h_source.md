@@ -140,6 +140,8 @@ extern "C"
         doppler_res_hz; 
     double pfa;         
     double doppler_uncertainty; 
+    size_t dsl_window_bins; 
+    int dsl_ready; 
     double symbol_rate; 
     double epochs_per_symbol;  
     size_t code_only_epochs; 
@@ -364,7 +366,7 @@ extern "C"
 
   double dp_acq_psl_db (const dp_acq_state_t *state);
 
-  double dp_acq_dsl_db (const dp_acq_state_t *state);
+  double dp_acq_dsl_db (dp_acq_state_t *state);
 
   double dp_acq_gate_stat (const dp_acq_state_t *state);
 

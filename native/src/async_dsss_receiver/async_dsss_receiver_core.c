@@ -1019,6 +1019,10 @@ dp_async_dsss_receiver_create (
      the one-peak detector's pick, so rank 0 with no exclusions takes what
      max_peaks 1 took. */
   (void)dp_acq_set_max_peaks (obj->acq, ASYNC_DSSS_RX_MAX_PEAKS);
+  /* adr_pick() reads the code's Doppler-offset sidelobe on every dwell, and
+     the searcher computes it on the first read. Read it here, so that sweep
+     is this create's cost and never a stall inside push(). */
+  (void)dp_acq_dsl_db (obj->acq);
 
   obj->spc          = spc;
   obj->m            = m;

@@ -150,7 +150,7 @@ double async_dsss_receiver_status_t::chip_phase;
 
 
 
-Live Dll code phase, chips. 
+Code phase, chips: the live Dll's; while refining, the seed's advanced by the clock dilation since (what the hand-over starts from), so a refining receiver's signal can be excluded too. 
  
 
 

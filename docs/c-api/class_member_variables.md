@@ -208,6 +208,7 @@
 * **doppler\_rate\_hz\_s** ([**acq\_result\_t**](structacq__result__t.md), [**burst\_capture\_event\_t**](structburst__capture__event__t.md), [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md), [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 * **delay\_loss** ([**acq\_shape\_t**](structacq__shape__t.md))
 * **delay\_loss\_mean** ([**acq\_shape\_t**](structacq__shape__t.md))
+* **dsl** ([**acq\_shape\_t**](structacq__shape__t.md))
 * **doppler\_hz** ([**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md), [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md), [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md))
 * **decim** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md), [**dp\_agc\_state\_t**](structdp__agc__state__t.md), [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md))
 * **doppler\_rate** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
@@ -271,6 +272,7 @@
 
 ## e
 
+* **excl** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
 * **errors** ([**ber\_interval\_t**](structber__interval__t.md), [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md), [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md), [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md), [**node\_sync\_t**](structnode__sync__t.md), [**syncword\_hit\_t**](structsyncword__hit__t.md))
 * **epoch** ([**burst\_capture\_detection\_t**](structburst__capture__detection__t.md))
 * **epochs\_per\_symbol** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
@@ -300,7 +302,6 @@
 * **epoch\_real\_ns** ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md))
 * **endian** ([**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md))
 * **emitted** ([**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md), [**dp\_tlm\_stats\_t**](structdp__tlm__stats__t.md))
-* **excl** ([**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
 * **even\_buf** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **even\_cap** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **even\_mask** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
@@ -570,6 +571,7 @@
 * **n\_twins** ([**acq\_extra\_t**](structacq__extra__t.md), [**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **nc\_count** ([**acq\_extra\_t**](structacq__extra__t.md), [**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **noise\_est** ([**acq\_handoff\_t**](structacq__handoff__t.md), [**acq\_result\_t**](structacq__result__t.md), [**det\_result2d\_t**](structdet__result2d__t.md), [**det\_result\_t**](structdet__result__t.md), [**dp\_acq\_state\_t**](structdp__acq__state__t.md), [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md), [**dp\_detector\_state\_t**](structdp__detector__state__t.md))
+* **n\_excl** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **n\_phase** ([**burst\_capture\_pending\_t**](structburst__capture__pending__t.md))
 * **narrow\_pulse** ([**ddc\_state**](structddc__state.md), [**ddcr\_state**](structddcr__state.md), [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md))
 * **n\_stages** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md), [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md), [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md), [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md))
@@ -754,6 +756,7 @@
 
 * **rate\_hyps** ([**acq\_extra\_t**](structacq__extra__t.md), [**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **ref** ([**acq\_part\_t**](structacq__part__t.md), [**dp\_acq\_state\_t**](structdp__acq__state__t.md))
+* **rank** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **refine\_min\_blocks** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **refine\_samples\_fed** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **refine\_segments** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))

@@ -156,25 +156,72 @@ What today's receiver must gain for this:
     `dp_acq_set_threads()`), so N receivers would each claim the whole
     machine. `set_threads()` forwards it, so under the pool each receiver's
     engine runs on its own worker's thread (`threads` = 1).
-1. **Exclusions**: code phases the search must not take, because another
-    receiver already tracks them. The pool's zone is keyed on code phase alone
-    (within a chip, at any Doppler); keying on carrier seeded duplicate receivers
-    (`async-dsss-receiver-measurements.md` §12.14). A receiver's own search
-    takes its strongest hit, and on a shared input the strongest hits are
-    the signals already owned. Refusing the hit afterwards is not enough: a
-    reset receiver finds the same peak again.
-1. **A rank** among the receivers searching: rank r takes the r-th
-    strongest peak that is not excluded, so k new signals
-    arriving together lock on k receivers in one dwell. Ranks line up only
-    if those receivers' dwells start on the same epoch, so each receiver
-    places its dwell boundaries at multiples of D epochs of the pool's
-    shared sample count, not from its own reset: every searcher's dwells
-    line up whenever it was re-armed, and nothing has to command it. Before
-    ranking, the peak list is de-duplicated by code phase within a chip, so
-    one signal's neighboring cells do not take two ranks. The engine
-    already reports a peak list (`set_max_peaks`; the pool asks for 16), but
-    the receiver's own search asks it for one hit and exposes no way to ask
-    for more.
+1. **Exclusions — shipped.** Code phases the search must not take, because
+    another receiver already tracks them (`set_exclusions()`). The zone is
+    keyed on code phase alone, within a chip circularly, at any Doppler;
+    keying on carrier seeded duplicate receivers
+    (`async-dsss-receiver-measurements.md` §12.14). The filter runs on the
+    dwell's peak list before ranking, not on a hit afterwards: refusing a
+    hit is not enough, because a reset receiver finds the same peak again.
+1. **A rank among the receivers searching — shipped.** Rank r
+    (`set_rank()`) takes the r-th strongest peak that is not excluded, so k
+    new signals arriving together lock on k receivers in one dwell. Ranks
+    line up because every receiver's dwells start on multiples of D epochs
+    of the shared sample count (item 3), whenever it was re-armed, with no
+    command. Before ranking, the list is de-duplicated by code phase within
+    a chip, so one signal's neighbouring cells, or its copy in a
+    neighbouring Doppler tile, do not take two ranks. The receiver asks its
+    engine for 16 peaks a dwell (`set_max_peaks`); a dwell with no peak at
+    the receiver's rank seeds nothing, and its search goes on.
+
+**A strong signal's own sidelobes are not a second signal.** One emitter's
+peak list also holds its code's Doppler-offset sidelobes: the ambiguity
+of the code at the offset between the emitter and each tile it is not in,
+up to $-16.95$ dB below it for the SPEC Gold-1023 search, hundreds of chips
+from its phase, dwell after dwell (the acquisition-surface design page,
+`acq-surface.md` §8, doppler#2526).
+The rank and the exclusions skip the strongest peak, so without a rule a
+ranked or excluded search seeds on one, then tracks it, its flags flicker
+on the emitter's data, and it never releases. The rule
+(`async_dsss_receiver_core.h`, `set_rank()`): a peak counts as a second
+signal only if its statistic exceeds the stronger signals' summed
+statistic, times that sidelobe level, by more than the detector's own
+gate. The level is computed once, by the searcher's constructor, over
+every residual and tile offset its grid can put between an emitter and a
+tile (`dp_acq_dsl_db()`, the Doppler-offset twin of `dp_acq_psl_db()`).
+Noise riding on a sidelobe lifts it by no more than the noise's own
+magnitude, so a sidelobe gets through only when that noise alone would
+have cleared the gate: the false-alarm rate the search already runs at.
+
+That sets the **near-far limit** of the pool: a second signal is taken
+while a stronger one is on the air only if it clears the stronger one's
+sidelobe level by the gate. On a deep block the gate is small beside a
+strong signal and the limit approaches the sidelobe level; on a
+one-epoch search the noise on the sidelobes is larger and so is the
+gate's share. Measured on the SPEC search, the stronger signal at
+47–70 dB-Hz, pooled: the share of streams whose search takes the weaker
+signal first, among those where it alone is found (the stronger one
+excluded; review 5606641242 on doppler#2525):
+
+| weaker signal, below the stronger | $D = 1$ | $D = 90$ |
+| --------------------------------- | ------- | -------- |
+| $-10$ dB                          | 65%     | 100%     |
+| $-13$ dB                          | 36%     | 80%      |
+| $-16$ dB                          | 1%      | 35%      |
+
+A signal below the limit is found once the stronger one leaves. Removing
+the stronger one's replica before the others search (cancellation) is
+what would move the limit, and is not built (doppler#2531). A signal at
+or above the limit, and every signal the pool holds alone, is
+unaffected.
+
+The rule scales the sidelobes of the signals **in the receiver's own
+list**. A receiver searching only part of the band (the assigned offset,
+doppler#2507) does not list a stronger emitter outside it, so the rule
+has nothing to scale: such a receiver seeds on that emitter's sidelobe,
+or on its main lobe leaking into the band. An assigned offset therefore
+needs the controller to supply the out-of-band emitters, and is not a
+route around the near-far limit.
 
 ## 4. The controller
 
@@ -187,7 +234,9 @@ surface. It:
 - **may place a receiver on an assigned carrier offset,** in place of the
     whole range;
 - **hands every searching receiver the exclusions** (the code phases the
-    others track) and its rank among the receivers searching;
+    others hold, refining or tracking: `status().chip_phase` names a
+    refining receiver's signal too) and its rank among the receivers
+    searching;
 - **resolves duplicates**: two receivers holding the same code phase (within
     a chip, the exclusions' key), the first to lock keeps it and the other
     adds it to its exclusions; between signals otherwise indistinguishable,

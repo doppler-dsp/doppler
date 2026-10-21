@@ -49,6 +49,8 @@
 * **ASYNC\_DSSS\_RX\_LOCK\_N\_DOWN** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_LOCK\_N\_UP** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_LOCK\_UP** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
+* **ASYNC\_DSSS\_RX\_MAX\_EXCLUSIONS** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
+* **ASYNC\_DSSS\_RX\_MAX\_PEAKS** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_REFINE\_DLL\_SPACING** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_REFINE\_MIN\_BLOCKS** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **AWGN\_STATE\_MAGIC** ([**awgn\_core.h**](awgn__core_8h.md))

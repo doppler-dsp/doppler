@@ -136,8 +136,12 @@ create parameters: `code_only_s`, the code-only window in seconds, which
 the receiver turns into `code_only_epochs = ⌊code_only_s · chip_rate / L⌋ − 1`, and `doppler_rate` in Hz/s, passed through. Both default to 0, which is
 `D = 1`: one-epoch looks over its one-sided `doppler_uncertainty`. The
 depth it runs is the read-only `coherent_bins`. `n_noncoh` is sized to `pd`
-at `pfa` for its `cn0_dbhz`, and the search takes one hit per dwell
-(`max_peaks` 1). An uncertainty wider than one epoch's span, `±1/(2·T_E)`,
+at `pfa` for its `cn0_dbhz`. The engine reports up to 16 peaks a dwell
+(`max_peaks`); the receiver drops those within a chip of an excluded code
+phase (`set_exclusions()`) or of a stronger peak, and takes the survivor at
+its rank (`set_rank()`, 0 = the strongest, the default), or nothing that
+dwell. With no exclusions at rank 0 that is the one-peak detector's pick.
+An uncertainty wider than one epoch's span, `±1/(2·T_E)`,
 is covered by the engine's roll across frequency windows, which it fans
 across every online core unless `set_threads()` says otherwise; a pool
 that steps its receivers in parallel sets each to 1. The search is

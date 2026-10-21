@@ -162,6 +162,8 @@ dp_acq_consumed function
 dp_acq_create_burst function
 dp_acq_create_continuous function
 dp_acq_destroy function
+dp_acq_dsl_db function
+dp_acq_gate_stat function
 dp_acq_get_state function
 dp_acq_position function
 dp_acq_psl_db function
@@ -224,8 +226,10 @@ dp_async_dsss_receiver_get_locked function
 dp_async_dsss_receiver_get_lost function
 dp_async_dsss_receiver_get_mpsk_last_error function
 dp_async_dsss_receiver_get_n function
+dp_async_dsss_receiver_get_n_exclusions function
 dp_async_dsss_receiver_get_nco_freq function
 dp_async_dsss_receiver_get_norm_freq function
+dp_async_dsss_receiver_get_rank function
 dp_async_dsss_receiver_get_refining function
 dp_async_dsss_receiver_get_segments function
 dp_async_dsss_receiver_get_sps function
@@ -235,6 +239,8 @@ dp_async_dsss_receiver_get_tracking function
 dp_async_dsss_receiver_reset function
 dp_async_dsss_receiver_seed function
 dp_async_dsss_receiver_seed_ok function
+dp_async_dsss_receiver_set_exclusions function
+dp_async_dsss_receiver_set_rank function
 dp_async_dsss_receiver_set_refine_min_blocks function
 dp_async_dsss_receiver_set_state function
 dp_async_dsss_receiver_set_telemetry function

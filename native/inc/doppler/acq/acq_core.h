@@ -360,6 +360,15 @@ extern "C"
                      list's exclusion does not cover. 0 for a perfect
                      sequence (below 1e-6, rounding). dp_acq_psl_db() is the
                      read-back (doppler#1470). */
+    double dsl; /**< Doppler-offset sidelobe: the largest |chi(m, nu)| over
+                     the same lags as psl, relative to the emitter's own
+                     peak, over every residual and tile offset the grid can
+                     put between an emitter and a tile (design
+                     acq-surface.md §8). psl is its zero-offset case, so
+                     dsl >= psl. A strong emitter lists peaks this far
+                     below it, more than a mainlobe from its own lag.
+                     dp_acq_dsl_db() is the read-back. Fixed at
+                     construction; a grid pinned later keeps it. */
   } acq_shape_t;
 
   /**
@@ -1810,6 +1819,59 @@ extern "C"
    * @endcode
    */
   double dp_acq_psl_db (const dp_acq_state_t *state);
+
+  /**
+   * @brief The search's Doppler-offset sidelobe level, dB: 20*log10 of the
+   *        largest lag of the code's periodic ambiguity outside the
+   *        mainlobe, at any Doppler offset the grid's tiles can put between
+   *        an emitter and a tile, relative to the emitter's own peak
+   *        (acq_shape_t::dsl).
+   *
+   * What it predicts: one emitter's peak list carries peaks up to this far
+   * below its own, more than a mainlobe from its own lag, in the tiles it
+   * is not in -- and they stay there dwell after dwell, being the code's,
+   * not the noise's. A list consumer that skips the strongest peak (a
+   * rank, an exclusion) must not take one for a second emitter. It is at
+   * least dp_acq_psl_db(), which is its zero-offset case, and equals it on
+   * a single-tile grid searched at one Doppler. -16.95 dB for the
+   * receivers' Gold-1023 search at two samples a chip over +-5 kHz (five
+   * 3 kHz tiles), against a -23.9 dB psl. Configuration, not state: fixed
+   * at construction, kept by a grid pinned later, and not serialized.
+   *
+   * @code
+   * #include "doppler/acq/acq_core.h"
+   * #include "doppler/gold/gold_core.h"
+   * #include <stdio.h>
+   *
+   * int main (void)
+   * {
+   *   uint8_t          code[1023];
+   *   dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
+   *   dp_gold_generate (g, 1023, code, 1023); // the SPEC Gold-1023 code
+   *   dp_gold_destroy (g);
+   *   dp_acq_state_t *a = dp_acq_create_continuous (
+   *       code, 1023, 2, 3.069e6, 2700.0, 47.0, 5000.0, 1e-3, 0.9, 0, 1,
+   *       0.0);
+   *   printf ("%.1f %.1f\n", dp_acq_psl_db (a), dp_acq_dsl_db (a));
+   *   // -23.9 -16.9
+   *   dp_acq_destroy (a);
+   *   return 0;
+   * }
+   * @endcode
+   */
+  double dp_acq_dsl_db (const dp_acq_state_t *state);
+
+  /**
+   * @brief The gate a dwell's statistic must clear to be a hit, in the
+   *        units of acq_result_t::test_stat: `threshold` on the coherent
+   *        path (one look), `eta_nc` on the non-coherent one. A dwell hits
+   *        when its strongest cell's statistic exceeds this, and every
+   *        listed peak's statistic does too. Both statistics are linear in
+   *        the cell's amplitude, so a list consumer can compare a peak's
+   *        excess over another's against it in the same units.
+   *        Configuration: fixed by the thresholds the grid was sized with.
+   */
+  double dp_acq_gate_stat (const dp_acq_state_t *state);
 
   /**
    * @brief Convert one dp_acq_push() hit into a wire-ready hand-off record.

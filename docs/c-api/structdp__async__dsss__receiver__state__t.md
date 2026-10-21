@@ -58,6 +58,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**dll**](#variable-dll)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
+|  double | [**excl**](#variable-excl)  <br> |
 |  int | [**had\_lock**](#variable-had_lock)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
@@ -67,8 +68,10 @@ _Composed receiver state._ [More...](#detailed-description)
 |  uint64\_t | [**lost\_confirm\_samples**](#variable-lost_confirm_samples)  <br> |
 |  int | [**m**](#variable-m)  <br> |
 |  int | [**n**](#variable-n)  <br> |
+|  size\_t | [**n\_excl**](#variable-n_excl)  <br> |
 |  double | [**pd**](#variable-pd)  <br> |
 |  double | [**pfa**](#variable-pfa)  <br> |
+|  size\_t | [**rank**](#variable-rank)  <br> |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
 |  bool | [**reacquire**](#variable-reacquire)  <br> |
 |  double | [**refine\_design\_margin\_db**](#variable-refine_design_margin_db)  <br> |
@@ -505,6 +508,24 @@ Config: the searcher's rate bound, Hz/s.
 
 
 
+### variable excl 
+
+```C++
+double dp_async_dsss_receiver_state_t::excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS];
+```
+
+
+
+those phases, chips, in [0, code\_len), the status() convention. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable had\_lock 
 
 ```C++
@@ -646,6 +667,24 @@ MpskReceiver's terminal outputs per symbol (`m_out`: even, 2..8).
 
 
 
+### variable n\_excl 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::n_excl;
+```
+
+
+
+set\_exclusions(): code phases held. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable pd 
 
 ```C++
@@ -673,6 +712,24 @@ double dp_async_dsss_receiver_state_t::pfa;
 
 
 Also CarrierAcquisition's own pfa. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rank 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::rank;
+```
+
+
+
+set\_rank(): which surviving peak of a dwell the search takes, 0 = the strongest. 
  
 
 

@@ -90,6 +90,8 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_burst**](#function-dp_acq_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate, size\_t rate\_hypotheses) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
 |  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_continuous**](#function-dp_acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
 |  void | [**dp\_acq\_destroy**](#function-dp_acq_destroy) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Destroy and free an engine._  |
+|  double | [**dp\_acq\_dsl\_db**](#function-dp_acq_dsl_db) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The search's Doppler-offset sidelobe level, dB: 20\*log10 of the largest lag of the code's periodic ambiguity outside the mainlobe, at any Doppler offset the grid's tiles can put between an emitter and a tile, relative to the emitter's own peak (_ [_**acq\_shape\_t::dsl**_](structacq__shape__t.md#variable-dsl) _)._ |
+|  double | [**dp\_acq\_gate\_stat**](#function-dp_acq_gate_stat) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The gate a dwell's statistic must clear to be a hit, in the units of_ [_**acq\_result\_t::test\_stat**_](structacq__result__t.md#variable-test_stat) _:_`threshold` _on the coherent path (one look),_`eta_nc` _on the non-coherent one. A dwell hits when its strongest cell's statistic exceeds this, and every listed peak's statistic does too. Both statistics are linear in the cell's amplitude, so a list consumer can compare a peak's excess over another's against it in the same units. Configuration: fixed by the thresholds the grid was sized with._ |
 |  void | [**dp\_acq\_get\_state**](#function-dp_acq_get_state) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dp\_acq\_state\_bytes()**_](acq__core_8h.md#function-dp_acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
 |  uint64\_t | [**dp\_acq\_position**](#function-dp_acq_position) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The engine's stream position: every sample its pushes have taken, framed ones and the carry, since create, reset, a regrid or set\_state's restore._  |
 |  double | [**dp\_acq\_psl\_db**](#function-dp_acq_psl_db) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**acq\_shape\_t::psl**_](structacq__shape__t.md#variable-psl) _)._ |
@@ -828,6 +830,66 @@ void dp_acq_destroy (
 
 
         
+
+<hr>
+
+
+
+### function dp\_acq\_dsl\_db 
+
+_The search's Doppler-offset sidelobe level, dB: 20\*log10 of the largest lag of the code's periodic ambiguity outside the mainlobe, at any Doppler offset the grid's tiles can put between an emitter and a tile, relative to the emitter's own peak (_ [_**acq\_shape\_t::dsl**_](structacq__shape__t.md#variable-dsl) _)._
+```C++
+double dp_acq_dsl_db (
+    const dp_acq_state_t * state
+) 
+```
+
+
+
+What it predicts: one emitter's peak list carries peaks up to this far below its own, more than a mainlobe from its own lag, in the tiles it is not in  and they stay there dwell after dwell, being the code's, not the noise's. A list consumer that skips the strongest peak (a rank, an exclusion) must not take one for a second emitter. It is at least [**dp\_acq\_psl\_db()**](acq__core_8h.md#function-dp_acq_psl_db), which is its zero-offset case, and equals it on a single-tile grid searched at one Doppler. -16.95 dB for the receivers' Gold-1023 search at two samples a chip over +-5 kHz (five 3 kHz tiles), against a -23.9 dB psl. Configuration, not state: fixed at construction, kept by a grid pinned later, and not serialized.
+
+
+
+```C++
+#include "doppler/acq/acq_core.h"
+#include "doppler/gold/gold_core.h"
+#include <stdio.h>
+
+int main (void)
+{
+  uint8_t          code[1023];
+  dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
+  dp_gold_generate (g, 1023, code, 1023); // the SPEC Gold-1023 code
+  dp_gold_destroy (g);
+  dp_acq_state_t *a = dp_acq_create_continuous (
+      code, 1023, 2, 3.069e6, 2700.0, 47.0, 5000.0, 1e-3, 0.9, 0, 1,
+      0.0);
+  printf ("%.1f %.1f\n", dp_acq_psl_db (a), dp_acq_dsl_db (a));
+  // -23.9 -16.9
+  dp_acq_destroy (a);
+  return 0;
+}
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_acq\_gate\_stat 
+
+_The gate a dwell's statistic must clear to be a hit, in the units of_ [_**acq\_result\_t::test\_stat**_](structacq__result__t.md#variable-test_stat) _:_`threshold` _on the coherent path (one look),_`eta_nc` _on the non-coherent one. A dwell hits when its strongest cell's statistic exceeds this, and every listed peak's statistic does too. Both statistics are linear in the cell's amplitude, so a list consumer can compare a peak's excess over another's against it in the same units. Configuration: fixed by the thresholds the grid was sized with._
+```C++
+double dp_acq_gate_stat (
+    const dp_acq_state_t * state
+) 
+```
+
+
+
 
 <hr>
 

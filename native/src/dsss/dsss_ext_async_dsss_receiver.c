@@ -521,7 +521,10 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
                   "seed while refining, 0 while searching, frozen where it "
                   "was when lost). Only as good as `locked`: with the carrier "
                   "unlocked, loop 1 free-runs and this wanders." },
-  { "chip_phase", "Live Dll code phase, chips." },
+  { "chip_phase",
+    "Code phase, chips: the live Dll's; while refining, the seed's advanced "
+    "by the clock dilation since (what the hand-over starts from), so a "
+    "refining receiver's signal can be excluded too." },
   { "code_rate",
     "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
     "carrier aid; a coasting Dll's is its held rate." },
@@ -937,6 +940,87 @@ AsyncDsssReceiverObj_set_threads (AsyncDsssReceiverObject *self,
 }
 
 static PyObject *
+AsyncDsssReceiverObj_set_rank (AsyncDsssReceiverObject *self, PyObject *args,
+                               PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "rank", NULL };
+  PyObject          *rank_obj  = NULL;
+  unsigned long long rank_raw  = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &rank_obj))
+    return NULL;
+  if (rank_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (rank_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      rank_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((rank_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || rank_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "rank: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t rank = (size_t)rank_raw;
+  int    _rc  = dp_async_dsss_receiver_set_rank (self->handle, rank);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "rank refused: it must be below ASYNC_DSSS_RX_MAX_PEAKS "
+                    "(16), the peaks a dwell reports",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AsyncDsssReceiverObj_set_exclusions (AsyncDsssReceiverObject *self,
+                                     PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]  = { "phases", NULL };
+  PyObject    *phases_obj = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &phases_obj))
+    return NULL;
+  PyArrayObject *phases_arr = jm_array_arg (phases_obj, NPY_DOUBLE,
+                                            NPY_ARRAY_C_CONTIGUOUS, "phases");
+  if (!phases_arr)
+    {
+      return NULL;
+    }
+  const double *phases     = (const double *)PyArray_DATA (phases_arr);
+  size_t        phases_len = (size_t)PyArray_SIZE (phases_arr);
+  int _rc = dp_async_dsss_receiver_set_exclusions (self->handle, phases,
+                                                   phases_len);
+  Py_DECREF (phases_arr);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "exclusions refused: every phase must be finite, and at "
+                    "most ASYNC_DSSS_RX_MAX_EXCLUSIONS (64) of them",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 AsyncDsssReceiverObj_state_bytes (AsyncDsssReceiverObject *self,
                                   PyObject                *Py_UNUSED (ignored))
 {
@@ -1015,6 +1099,31 @@ AsyncDsssReceiver_getprop_threads (AsyncDsssReceiverObject *self,
     }
   return PyLong_FromLong (
       (long)dp_async_dsss_receiver_get_threads (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_rank (AsyncDsssReceiverObject *self,
+                                void                    *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_rank (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_n_exclusions (AsyncDsssReceiverObject *self,
+                                        void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_n_exclusions (
+          self->handle));
 }
 static PyObject *
 AsyncDsssReceiver_getprop_coherent_bins (AsyncDsssReceiverObject *self,
@@ -1303,6 +1412,12 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "Workers the searcher runs, the calling thread included; 1 = serial. Set "
     "with dp_async_dsss_receiver_set_threads().\n",
     NULL },
+  { "rank", (getter)AsyncDsssReceiver_getprop_rank, NULL,
+    "Which surviving peak of a dwell the search takes; 0 = the strongest. Set "
+    "with dp_async_dsss_receiver_set_rank().\n",
+    NULL },
+  { "n_exclusions", (getter)AsyncDsssReceiver_getprop_n_exclusions, NULL,
+    "Code phases set_exclusions() holds.\n", NULL },
   { "coherent_bins", (getter)AsyncDsssReceiver_getprop_coherent_bins, NULL,
     "The searcher's slow-time depth D: epochs per coherent block.\n", NULL },
   { "lifecycle", (getter)AsyncDsssReceiver_getprop_lifecycle, NULL,
@@ -1347,7 +1462,9 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
   { "chip_phase", (getter)AsyncDsssReceiver_getprop_chip_phase, NULL,
     "The live Dll's code phase, chips, in the Dll's instantaneous convention "
     "-- the mirror of acq_result_t::code_phase's correlation-lag convention "
-    "(dp_acq_build_handoff()).\n",
+    "(dp_acq_build_handoff()). While refining there is no live Dll: it is the "
+    "seed's phase advanced by the clock dilation since, the phase the "
+    "hand-over starts the live chain from.\n",
     NULL },
   { "code_rate", (getter)AsyncDsssReceiver_getprop_code_rate, NULL,
     "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
@@ -2020,6 +2137,94 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> rx.set_threads(1)\n"
     ">>> rx.threads\n"
     "1\n" },
+  { "set_rank", (PyCFunction)(void *)AsyncDsssReceiverObj_set_rank,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_rank(rank) -> None\n"
+    "\n"
+    "Take the rank-th surviving peak of a dwell, not the strongest.\n"
+    "\n"
+    "The searcher reports up to ASYNC_DSSS_RX_MAX_PEAKS peaks per dwell,\n"
+    "strongest first. The receiver drops every peak within one chip\n"
+    "(circularly) of a stronger one, so one signal's neighbouring cells hold\n"
+    "one place; then every peak a stronger signal's own sidelobes could\n"
+    "explain; then every peak within one chip of an excluded code phase\n"
+    "(set_exclusions()). The survivors are ranked from 0. A dwell with no\n"
+    "peak at this rank hands nothing off and the search goes on.\n"
+    "\n"
+    "The sidelobe rule: a strong signal's list also holds its code's\n"
+    "Doppler-offset sidelobes, up to dp_acq_dsl_db() below it and hundreds\n"
+    "of chips from its phase (design acq-surface.md §8). A peak counts as a\n"
+    "second signal only if its test_stat exceeds the stronger signals'\n"
+    "summed test_stat, times that level, by more than the detector's own\n"
+    "gate (dp_acq_gate_stat()). A sidelobe then passes only when the noise\n"
+    "on it alone would have cleared the gate, the rate the search already\n"
+    "runs at. What it costs is near-far: a second signal much more than\n"
+    "dp_acq_dsl_db() below a stronger one (-16.95 dB on the SPEC Gold-1023\n"
+    "search) is not taken while the stronger one is on the air\n"
+    "(async-dsss-parallel.md §3). Searchers that share a stream and its\n"
+    "block grid (get_coherent_bins()) and hold ranks 0..k-1 therefore take k\n"
+    "different signals in one dwell. Takes effect at the next dwell. A\n"
+    "mutator's value, so it travels in the state blob (#2022).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "rank : int\n"
+    "    0 (the strongest, the default) to ASYNC_DSSS_RX_MAX_PEAKS - 1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``rank refused: it must be below ASYNC_DSSS_RX_MAX_PEAKS (16), the\n"
+    "    peaks a dwell reports``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
+    "...                        symbol_rate=1e6 / 28.0, spc=4, "
+    "cn0_dbhz=60.0)\n"
+    ">>> rx.set_rank(1)\n"
+    ">>> rx.rank\n"
+    "1\n" },
+  { "set_exclusions", (PyCFunction)(void *)AsyncDsssReceiverObj_set_exclusions,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_exclusions(phases) -> None\n"
+    "\n"
+    "Code phases the search must not take: signals another receiver\n"
+    "already tracks.\n"
+    "\n"
+    "Replaces the list. A peak within one chip, circularly, of any of them\n"
+    "is dropped from a dwell's list at any Doppler, before ranking\n"
+    "(set_rank()). Phases are chips in status().chip_phase's convention and\n"
+    "are folded into [0, code_len). An empty list (the default) excludes\n"
+    "nothing. A tracking receiver is not affected: the list applies to its\n"
+    "next search. A mutator's value, so it travels in the state blob\n"
+    "(#2022).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "phases : npt.NDArray[np.float64]\n"
+    "    Code phases, chips; finite. May be NULL when phases_len is 0.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``exclusions refused: every phase must be finite, and at most\n"
+    "    ASYNC_DSSS_RX_MAX_EXCLUSIONS (64) of them``, with the return code\n"
+    "    appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
+    "...                        symbol_rate=1e6 / 28.0, spc=4, "
+    "cn0_dbhz=60.0)\n"
+    ">>> rx.set_exclusions(np.array([2.5, 9.0]))   # 9 folds to 2\n"
+    ">>> rx.n_exclusions\n"
+    "2\n" },
   { "state_bytes", (PyCFunction)AsyncDsssReceiverObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

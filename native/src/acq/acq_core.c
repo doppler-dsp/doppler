@@ -1912,6 +1912,94 @@ acq_off_peak (const float _Complex *replica, size_t n, acq_shape_t *sh)
   free (buf);
 }
 
+/* Residual points per tile width in the Doppler-offset sidelobe's sweep.
+ * The worst sidelobe moves with the residual: on the receivers' Gold-1023
+ * search (S = 2, five tiles) a 1/128 grid reads -16.95 dB as a 10 Hz sweep
+ * does, 1/32 under-reads it by 0.16 dB and 1/16 by 0.32 dB. */
+#define ACQ_DSL_POINTS 128
+
+/* The periodic ambiguity's largest lag OUTSIDE the mainlobe, at a Doppler
+ * offset, relative to the emitter's own peak, into sh->dsl (design
+ * acq-surface.md §8). An emitter at residual r from its tile's centre reads
+ * in tile k (k tiles away) at nu = r + k * f_T, f_T = fs/n the tile width:
+ *
+ *   |chi(m, nu)| = |sum_n c[n] conj(c[n - m]) e^{j 2 pi nu n / fs}|
+ *
+ * and its own peak is the best of |chi(0, nu)| over the tiles. dsl is the
+ * worst ratio of the off-mainlobe lags (zone <= m <= n - zone, psl's range)
+ * to that peak, over r and k. A wideband grid sweeps r across one tile and k
+ * over every offset two of its tiles can have, -(W-1) .. W-1 -- a superset
+ * of the tiles any one emitter sees, so the value bounds them all; a
+ * single-tile grid sweeps r over +-du, its whole band. At du = 0 it is psl.
+ *
+ * One forward transform per residual: shifting nu by a whole tile shifts
+ * the spectrum by one bin, f_T being the transform's own bin spacing, so
+ * tile k is the residual's spectrum rolled by k. Fixed at construction,
+ * like psl: a grid pinned later (dp_acq_configure_search_raw()) keeps it. */
+static void
+acq_doppler_sidelobe (const float _Complex *replica, size_t n,
+                      size_t window_bins, double du, double fs,
+                      acq_shape_t *sh)
+{
+  double _Complex *ref  = dp_xmalloc (n * sizeof *ref);
+  double _Complex *sig  = dp_xmalloc (n * sizeof *sig);
+  double _Complex *prod = dp_xmalloc (n * sizeof *prod);
+  double _Complex *corr = dp_xmalloc (n * sizeof *corr);
+  dp_fft_state_t  *fwd  = dp_xnn (dp_fft_create (n, -1, 1));
+  dp_fft_state_t  *inv  = dp_xnn (dp_fft_create (n, +1, 1));
+  for (size_t i = 0; i < n; i++)
+    sig[i] = (double)crealf (replica[i]) + I * (double)cimagf (replica[i]);
+  dp_fft_execute_cf64 (fwd, sig, n, ref, n); /* the replica's spectrum */
+
+  const double f_tile = fs / (double)n;
+  const double half = window_bins > 1 ? 0.5 * f_tile : fmin (du, 0.5 * f_tile);
+  const long   k_max = (long)window_bins - 1;
+  const size_t pts   = half > 0.0 ? ACQ_DSL_POINTS + 1 : 1;
+  const size_t z     = sh->zone;
+  double       dsl   = 0.0;
+  for (size_t p = 0; p < pts; p++)
+    {
+      const double r
+          = pts > 1 ? -half + 2.0 * half * (double)p / (double)(pts - 1) : 0.0;
+      for (size_t i = 0; i < n; i++)
+        {
+          const double ph = 2.0 * M_PI * r * (double)i / fs;
+          sig[i]
+              = ((double)crealf (replica[i]) + I * (double)cimagf (replica[i]))
+                * cexp (I * ph);
+        }
+      dp_fft_execute_cf64 (fwd, sig, n, corr, n); /* residual's spectrum */
+      double own = 0.0, side = 0.0;
+      for (long k = -k_max; k <= k_max; k++)
+        {
+          /* nu = r + k f_T: the spectrum rolled by k bins, times conj(ref). */
+          for (size_t b = 0; b < n; b++)
+            {
+              const size_t src
+                  = (size_t)(((long)b - k) % (long)n + (long)n) % n;
+              prod[b] = corr[src] * conj (ref[b]);
+            }
+          dp_fft_execute_cf64 (inv, prod, n, sig, n); /* n * chi(m, nu) */
+          const double peak = cabs (sig[0]);
+          if (peak > own)
+            own = peak;
+          for (size_t m = z; m <= n - z && m < n; m++)
+            if (cabs (sig[m]) > side)
+              side = cabs (sig[m]);
+        }
+      const double ratio = own > 0.0 ? side / own : 0.0;
+      if (ratio > dsl)
+        dsl = ratio;
+    }
+  sh->dsl = dsl < 1e-6 ? 0.0 : dsl;
+  dp_fft_destroy (fwd);
+  dp_fft_destroy (inv);
+  free (corr);
+  free (prod);
+  free (sig);
+  free (ref);
+}
+
 /* rate_hypotheses = 0 (auto): the fewest hypotheses the span needs, chosen
  * from the sizer itself rather than a rule of thumb. For each n the drift
  * bound is either binding or not: D*(n) is the depth the sizer picks at n
@@ -2036,6 +2124,8 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
 
   if (acq_regrid (st, best_d, best_nc, best_window_bins, replica) != 0)
     goto fail;
+  acq_doppler_sidelobe (replica, sf * spc, st->window_bins,
+                        doppler_uncertainty, st->fs, &st->shape);
   acq_commit_thresholds (st, pfa, pd, snr, doppler_uncertainty);
   if (dp_acq_set_max_peaks (st, 1) != 0)
     goto fail;
@@ -2653,7 +2743,7 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
           /* Coherent path: amplitude mean-CFAR per dump; the list of
              every peak above the gate, one result each. */
           acq_compute_stat (st);
-          const int hit = st->test_stat > st->threshold;
+          const int hit = st->test_stat > dp_acq_gate_stat (st);
           if (hit)
             ndet += acq_report_peaks (st, st->mag_buf, acq_stat_coherent,
                                       acq_mag_identity, result + ndet,
@@ -2671,7 +2761,7 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
         continue; /* still accumulating looks */
 
       acq_compute_stat_nc (st);
-      const int hit = st->test_stat > st->eta_nc;
+      const int hit = st->test_stat > dp_acq_gate_stat (st);
       if (hit)
         ndet += acq_report_peaks (st, st->nc_surface, acq_stat_noncoherent,
                                   acq_mag_sqrt, result + ndet,
@@ -2720,6 +2810,20 @@ dp_acq_psl_db (const dp_acq_state_t *state)
   /* log10(0) is -HUGE_VAL, but say it: a perfect sequence has no sidelobe
      to be below, and -inf is that fact rather than a number to compare. */
   return state->shape.psl > 0.0 ? 20.0 * log10 (state->shape.psl) : -INFINITY;
+}
+
+double
+dp_acq_gate_stat (const dp_acq_state_t *state)
+{
+  /* The two dwell paths' gates, in the one statistic both report. */
+  return state->n_noncoh <= 1 ? (double)state->threshold
+                              : (double)state->eta_nc;
+}
+
+double
+dp_acq_dsl_db (const dp_acq_state_t *state)
+{
+  return state->shape.dsl > 0.0 ? 20.0 * log10 (state->shape.dsl) : -INFINITY;
 }
 
 void

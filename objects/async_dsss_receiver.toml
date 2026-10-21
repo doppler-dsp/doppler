@@ -375,6 +375,35 @@ params = [{ name = "n", type = "int" }]
 name = "threads"
 type = "int"
 
+# The controller's two levers (docs/design/async-dsss-parallel.md §3): which
+# surviving peak of a dwell this receiver takes, and the code phases other
+# receivers already hold.
+[[async_dsss_receiver.methods]]
+name = "set_rank"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "rank refused: it must be below ASYNC_DSSS_RX_MAX_PEAKS (16), the peaks a dwell reports"
+params = [{ name = "rank", type = "size_t" }]
+
+[[async_dsss_receiver.properties]]
+name = "rank"
+type = "size_t"
+
+[[async_dsss_receiver.methods]]
+name = "set_exclusions"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "exclusions refused: every phase must be finite, and at most ASYNC_DSSS_RX_MAX_EXCLUSIONS (64) of them"
+params = [{ name = "phases", type = "double[]" }]
+
+[[async_dsss_receiver.properties]]
+name = "n_exclusions"
+type = "size_t"
+
 [[async_dsss_receiver.properties]]
 name = "coherent_bins"
 type = "size_t"

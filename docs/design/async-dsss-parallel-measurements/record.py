@@ -44,12 +44,9 @@ Usage::
 from __future__ import annotations
 
 import csv
-import datetime
 import io
 import json
 import os
-import platform
-import re
 import statistics
 import subprocess
 import sys
@@ -137,179 +134,9 @@ ROWS: dict[str, tuple[str | tuple[str, ...], float]] = {
 }
 
 
-def _git(*args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(ROOT), *args],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-
-
-def _cpu_model() -> str:
-    try:
-        with open("/proc/cpuinfo", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("model name"):
-                    return line.split(":", 1)[1].strip()
-    except OSError:
-        pass
-    return platform.processor() or "unknown"
-
-
-def _load() -> list[float]:
-    return [round(v, 2) for v in os.getloadavg()]
-
-
-#: The stamp schema a record writes. Schema 2 stamps carry the toolchain; a
-#: schema 2 stamp without one is refused (load), so a stamp cannot silently
-#: lose the field the validator's numbers depend on. Schema 1 stamps (the
-#: committed data before this field) render the toolchain as "—".
-STAMP_SCHEMA = 2
-
-
-#: The fields a schema-2 toolchain stamp carries, each non-empty.
-TOOLCHAIN_FIELDS = ("compiler", "libc", "build_type", "c_flags", "native")
-
-
-def _cmake_cache(build: Path) -> dict[str, str]:
-    """`build/CMakeCache.txt` as name -> value, the `:TYPE` suffix dropped."""
-    cache: dict[str, str] = {}
-    text = (build / "CMakeCache.txt").read_text(encoding="utf-8")
-    for line in text.splitlines():
-        if line and not line.startswith(("#", "//")) and "=" in line:
-            key, _, value = line.partition("=")
-            cache[key.split(":")[0]] = value
-    return cache
-
-
-def _libc() -> str:
-    """The running C library, e.g. "glibc 2.41"; "unknown" where none is
-    named.
-
-    `os.confstr` is POSIX-only: Windows has no `os.confstr`, and macOS has it
-    but refuses the GNU name (ValueError). It reports the C library running
-    now, unlike `platform.libc_ver()`, which reads the version the
-    interpreter was linked against.
-    """
-    try:
-        return os.confstr("CS_GNU_LIBC_VERSION") or "unknown"
-    except (AttributeError, ValueError, OSError):
-        return "unknown"
-
-
-def _toolchain(build: Path = ROOT / "build") -> dict[str, str]:
-    r"""The toolchain the build used, read from what CMake recorded.
-
-    The validator's numbers are toolchain-bound (the same commit gives
-    different rows under another compiler or C library), so a stamp records
-    the compiler the build was configured with, the C library, the build
-    type and the flags that type compiles with, and whether `DOPPLER_NATIVE`
-    added `-march=native` (CMakeLists.txt; it moves the numbers). A re-run
-    on another box then reads as "a different toolchain", not as drift.
-
-    The compiler and its version come from the compiler CMake detected
-    (`CMakeFiles/<cmake version>/CMakeCCompiler.cmake`), not from running
-    `cc --version` at stamp time, which can name a compiler the build never
-    used. The flags are `CMAKE_C_FLAGS` plus `CMAKE_C_FLAGS_<BUILD_TYPE>`:
-    the release flags alone carry `-O3`.
-
-    Examples
-    --------
-    >>> import tempfile
-    >>> b = Path(tempfile.mkdtemp())
-    >>> _ = (b / "CMakeCache.txt").write_text(
-    ...     "CMAKE_CACHE_MAJOR_VERSION:INTERNAL=3\n"
-    ...     "CMAKE_CACHE_MINOR_VERSION:INTERNAL=31\n"
-    ...     "CMAKE_CACHE_PATCH_VERSION:INTERNAL=6\n"
-    ...     "CMAKE_C_COMPILER:FILEPATH=/usr/bin/cc\n"
-    ...     "CMAKE_BUILD_TYPE:STRING=Release\n"
-    ...     "CMAKE_C_FLAGS:STRING=\n"
-    ...     "CMAKE_C_FLAGS_RELEASE:STRING=-O3 -DNDEBUG\n"
-    ...     "DOPPLER_NATIVE:BOOL=OFF\n",
-    ...     encoding="utf-8",
-    ... )
-    >>> d = b / "CMakeFiles" / "3.31.6"
-    >>> d.mkdir(parents=True)
-    >>> ids = 'set(CMAKE_C_COMPILER_ID "GNU")\n'
-    >>> ver = 'set(CMAKE_C_COMPILER_VERSION "14.2.0")\n'
-    >>> f = d / "CMakeCCompiler.cmake"
-    >>> _ = f.write_text(ids + ver, encoding="utf-8")
-    >>> tc = _toolchain(b)
-    >>> tc["compiler"], tc["build_type"], tc["c_flags"], tc["native"]
-    ('GNU 14.2.0', 'Release', '-O3 -DNDEBUG', 'OFF')
-    """
-    cache = _cmake_cache(build)
-    cmake = ".".join(
-        cache[f"CMAKE_CACHE_{part}_VERSION"]
-        for part in ("MAJOR", "MINOR", "PATCH")
-    )
-    detected = dict(
-        re.findall(
-            r'^set\((CMAKE_C_COMPILER_(?:ID|VERSION)) "([^"]*)"\)',
-            (build / "CMakeFiles" / cmake / "CMakeCCompiler.cmake").read_text(
-                encoding="utf-8"
-            ),
-            re.MULTILINE,
-        )
-    )
-    build_type = cache.get("CMAKE_BUILD_TYPE") or "default"
-    flags = " ".join(
-        f
-        for f in (
-            cache.get("CMAKE_C_FLAGS", "").strip(),
-            cache.get(f"CMAKE_C_FLAGS_{build_type.upper()}", "").strip(),
-        )
-        if f
-    )
-    return {
-        "compiler": f"{detected['CMAKE_C_COMPILER_ID']} "
-        f"{detected['CMAKE_C_COMPILER_VERSION']}",
-        "compiler_path": cache.get("CMAKE_C_COMPILER", "cc"),
-        "libc": _libc(),
-        "build_type": build_type,
-        "c_flags": flags or "default",
-        "native": cache.get("DOPPLER_NATIVE") or "OFF",
-    }
-
-
-def _tc(stamp: dict[str, Any]) -> str:
-    """A stamp's toolchain as one cell; "—" for a stamp that predates it."""
-    tc = stamp.get("toolchain")
-    if tc is None:
-        return "—"
-    return (
-        f"{tc['compiler']}; {tc['libc']}; build {tc['build_type']}, "
-        f"flags {tc['c_flags']}, native {tc['native']}"
-    )
-
-
 def _validator_stamp() -> dict[str, Any]:
-    """The built validator, refused when absent or older than its source,
-    and the stamp of a run about to start."""
-    if not VALIDATOR.exists():
-        raise SystemExit(
-            f"{VALIDATOR.name} is not built: make build "
-            f"BUILD_TARGET={VALIDATOR.name}"
-        )
-    if VALIDATOR.stat().st_mtime < SOURCE.stat().st_mtime:
-        raise SystemExit(f"{VALIDATOR.name} is older than its source: rebuild")
-    # The tree as the run found it, before anything is written: the run's
-    # outputs are themselves tracked, so read after the write it would call
-    # its own run dirty.
-    return {
-        "stamp_schema": STAMP_SCHEMA,
-        "date_utc": datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%d %H:%M"
-        ),
-        "machine": platform.node(),
-        "cpu_model": _cpu_model(),
-        "cpu_threads": os.cpu_count(),
-        "commit": _git("rev-parse", "--short=9", "HEAD"),
-        "dirty": bool(_git("status", "--porcelain", "--untracked-files=no")),
-        "load_before": _load(),
-        "toolchain": _toolchain(),
-    }
+    """The stamp of a run of this record's validator (blocks.run_stamp)."""
+    return blocks.run_stamp(ROOT, VALIDATOR, SOURCE)
 
 
 def measure() -> int:
@@ -322,7 +149,7 @@ def measure() -> int:
     if run.returncode != 0:
         sys.stderr.write(run.stderr)
         return run.returncode
-    meta["load_after"] = _load()
+    meta["load_after"] = blocks.load_avg()
     meta["wall_s"] = round(time.perf_counter() - t0, 1)
     (DATA / "lock.csv").write_text(run.stdout, encoding="utf-8")
     (DATA / "lock-meta.json").write_text(
@@ -350,7 +177,7 @@ def stories() -> int:
     if run.returncode != 0:
         sys.stderr.write(run.stderr)
         return run.returncode
-    meta["load_after"] = _load()
+    meta["load_after"] = blocks.load_avg()
     meta["wall_s"] = round(time.perf_counter() - t0, 1)
     (DATA / "stories.csv").write_text(run.stdout, encoding="utf-8")
     (DATA / "stories-meta.json").write_text(
@@ -386,16 +213,17 @@ def bench() -> int:
     t0 = time.monotonic()
     while os.getloadavg()[0] > QUIET_LOAD:
         if time.monotonic() - t0 > QUIET_WAIT_S:
-            print(f"bench: load still {_load()[0]} after {QUIET_WAIT_S} s")
+            load = blocks.load_avg()[0]
+            print(f"bench: load still {load} after {QUIET_WAIT_S} s")
             break
         time.sleep(15)
-    before, start = _load(), time.time()
+    before, start = blocks.load_avg(), time.time()
     rc = subprocess.run(
         ["make", "bench", f"BENCH_ARGS={BENCH_ARGS}"], cwd=ROOT
     ).returncode
     if rc != 0:
         return rc
-    after = _load()
+    after = blocks.load_avg()
     snaps = [
         p
         for p in (ROOT / "benchmarks/history").glob("*-c.json")
@@ -420,13 +248,13 @@ def take_bench(snapshot: Path, before: list[float], after: list[float]) -> int:
             {"name": r["name"], "stats": {k: r["stats"][k] for k in keep}}
         )
     out = {
-        "stamp_schema": STAMP_SCHEMA,
+        "stamp_schema": blocks.STAMP_SCHEMA,
         "datetime": snap["datetime"],
         "machine_info": snap["machine_info"],
         "commit_info": snap["commit_info"],
         "load_before": before,
         "load_after": after,
-        "toolchain": _toolchain(),
+        "toolchain": blocks.toolchain(ROOT / "build"),
         "benchmarks": rows,
     }
     (DATA / "bench.json").write_text(
@@ -458,7 +286,7 @@ def _stories(lock: dict[str, Any]) -> tuple[list[dict[str, str]], Any]:
     that changed in between fails here, and the record is re-run whole.
     """
     smeta = json.loads((DATA / "stories-meta.json").read_text("utf-8"))
-    _require_toolchain("stories-meta.json", smeta)
+    blocks.require_toolchain("stories-meta.json", smeta)
     rows = _csv_blocks((DATA / "stories.csv").read_text("utf-8"))["story"]
     if smeta["dirty"]:
         raise SystemExit("record data from a dirty tree is refused")
@@ -476,28 +304,6 @@ def _stories(lock: dict[str, Any]) -> tuple[list[dict[str, str]], Any]:
     return rows, smeta
 
 
-def _require_toolchain(name: str, stamp: dict[str, Any]) -> None:
-    """Refuse a schema-2 stamp that lacks the toolchain it must carry.
-
-    A stamp of schema 1 predates the field and renders "—" (_tc); a stamp
-    that claims schema 2 without its toolchain is a writer that dropped it,
-    and --check fails on it rather than printing a row no reader can date.
-    """
-    if stamp.get("stamp_schema", 1) < 2:
-        return
-    tc = stamp.get("toolchain")
-    # Falsy, not absent: `"toolchain": null` or an empty field is the same
-    # dropped field, and would render "—" or a blank cell silently.
-    if not isinstance(tc, dict) or not all(
-        tc.get(k) for k in TOOLCHAIN_FIELDS
-    ):
-        raise SystemExit(
-            f"{name}: a schema-{stamp['stamp_schema']} stamp without its "
-            f"full toolchain ({', '.join(TOOLCHAIN_FIELDS)}): the writer "
-            "dropped a field; re-run the tool"
-        )
-
-
 def load() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """The lock rows, their stamp and the bench rows, held to one clean
     commit. The lifecycle stories ride along, held to the sweep instead
@@ -505,8 +311,8 @@ def load() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     `meta["stories"]`."""
     meta = json.loads((DATA / "lock-meta.json").read_text(encoding="utf-8"))
     bench_ = json.loads((DATA / "bench.json").read_text(encoding="utf-8"))
-    _require_toolchain("lock-meta.json", meta)
-    _require_toolchain("bench.json", bench_)
+    blocks.require_toolchain("lock-meta.json", meta)
+    blocks.require_toolchain("bench.json", bench_)
     lock = _csv_blocks((DATA / "lock.csv").read_text(encoding="utf-8"))
     if meta["dirty"] or bench_["commit_info"]["dirty"]:
         raise SystemExit("record data from a dirty tree is refused")
@@ -586,7 +392,7 @@ def stamp(lock: Any, meta: dict[str, Any], bench_: dict[str, Any]) -> str:
             f"({meta['cpu_threads']} threads)",
             f"{meta['load_before'][0]:.1f} / {meta['load_after'][0]:.1f}",
             f"`{meta['commit']}`, clean",
-            _tc(meta),
+            blocks.tc_cell(meta),
             "`make build`, then `record.py measure`",
         ],
         [
@@ -596,7 +402,7 @@ def stamp(lock: Any, meta: dict[str, Any], bench_: dict[str, Any]) -> str:
             f"({mi['cpu']['count']} threads)",
             f"{bench_['load_before'][0]:.1f} / {bench_['load_after'][0]:.1f}",
             f"`{bench_['commit_info']['id'][:9]}`, clean",
-            _tc(bench_),
+            blocks.tc_cell(bench_),
             f'`make bench BENCH_ARGS="{BENCH_ARGS}"` once the load fell '
             f"under {QUIET_LOAD:g}, rows kept by `record.py`",
         ],
@@ -607,7 +413,7 @@ def stamp(lock: Any, meta: dict[str, Any], bench_: dict[str, Any]) -> str:
             f"({sm['cpu_threads']} threads)",
             f"{sm['load_before'][0]:.1f} / {sm['load_after'][0]:.1f}",
             f"`{sm['commit']}`, clean",
-            _tc(sm),
+            blocks.tc_cell(sm),
             "`make build`, then `record.py stories`; each story is the "
             "sweep's arrival trial of its draws, checked",
         ],

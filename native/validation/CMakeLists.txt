@@ -579,6 +579,21 @@ dp_gnu_compile_options(validate_acq_peak_list PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_peak_list
          COMMAND validate_acq_peak_list --check)
 
+# What one emitter puts on the continuous engine's surface by the code's
+# ambiguity, what a window on either transform would buy, and what the
+# engine's peak lists hold: docs/design/acq-surface.md §8, whose tables
+# docs/design/acq-surface-measurements/record.py renders from this
+# harness's --emit. native/tests for dp_test.h and the shared capture.
+add_executable(validate_acq_surface
+               ${CMAKE_CURRENT_SOURCE_DIR}/acq_surface.c)
+target_include_directories(validate_acq_surface
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_acq_surface PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_acq_surface PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_acq_surface
+         COMMAND validate_acq_surface --check)
+
 # The Pd a TEMPLATE burst engine delivers against the Pd it predicts
 # (doppler#1470): four kinds of repeated preamble at three design points
 # each, acq's §2.6 method, with the code as the control row. Noise from the

@@ -13,10 +13,14 @@
  * ~1.3x of one receiver, the controller's serial step being a few status
  * reads a block. Measured 2026-10-22 on swiftgo-ai9465 (`make bench
  * BENCH_ARGS="--c-only async_dsss_pool"`, then `make bench-rx`): one
- * receiver searches at 49.2 ns/sample; the pool of 3 at 110.1 serial and
- * 45.4 on 3 workers. The workers half holds and beats it (0.92x one
- * receiver, 2.42x over serial). The serial half does not: 2.24x one
- * receiver, not 3x, from two separate processes, and why is not measured.
+ * receiver searches at 53.9 ns/sample; the pool of 3 at 112.1 serial and
+ * 56.6 on 3 workers -- 1.05x one receiver, 1.98x over serial. The workers
+ * half holds. The serial half does not: 2.08x one receiver, not 3x, from
+ * two separate processes, and why is not measured. A first cut that fed
+ * each push in one call per receiver measured 47.1 on 3 workers (2.42x);
+ * feeding exactly one code period per call, which makes the pool's result
+ * independent of the blocking (doppler#2548 review), costs a worker join
+ * every 2,046 samples, and that is the difference.
  *
  * Both rows feed a pool of 3 at the SPEC point, the configuration the
  * receiver's own search row times, noise alone from the shipped awgn, so
@@ -57,10 +61,13 @@ min_sec (const double *t, int n)
   return m;
 }
 
-/* Every receiver searching for every sample fed, or a message. */
+/* Every receiver searching for every sample fed, or a message. The
+   receivers have been fed the whole periods pushed: the pool carries the
+   rest to the next push. */
 static int
-all_searching (dp_async_dsss_pool_state_t *p, uint64_t fed, const char *tag)
+all_searching (dp_async_dsss_pool_state_t *p, uint64_t pushed, const char *tag)
 {
+  const uint64_t fed = pushed - p->carry_len;
   for (size_t i = 0; i < N_RX; i++)
     {
       async_dsss_receiver_status_t st = dp_async_dsss_pool_status (p, i);

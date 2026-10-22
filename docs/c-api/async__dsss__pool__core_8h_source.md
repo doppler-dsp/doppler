@@ -61,6 +61,8 @@ extern "C"
     const float _Complex *feed_x; 
     size_t                feed_n;
     size_t   period;             
+    float _Complex *carry;       
+    size_t          carry_len;   
     size_t   n_receivers;        
     uint64_t samples;            
     uint64_t released_lost;      

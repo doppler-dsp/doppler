@@ -3671,9 +3671,10 @@ class AsyncDsssPool:
         ------
         ValueError
             If the C call returns a non-zero status. The exception message is
-            ``telemetry refused: the pool must run on one worker (threads 1),
-            decim must be >= 1, and every receiver's names must fit the prefix
-            and the context's table``, with the return code appended (gh-869).
+            ``set_telemetry failed: the pool must run on one worker (threads
+            1), decim must be >= 1, and every receiver's names must fit the
+            prefix and the context's table``, with the return code appended
+            (gh-869).
 
         Examples
         --------

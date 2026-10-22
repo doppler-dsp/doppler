@@ -79,7 +79,7 @@ def test_telemetry_one_worker():
 
     p = _pool(n_receivers=2, threads=2)
     tlm = Telemetry(1 << 12)
-    with pytest.raises(ValueError, match="telemetry refused"):
+    with pytest.raises(ValueError, match="set_telemetry failed"):
         p.set_telemetry(tlm, "p")
     p.set_threads(1)
     p.set_telemetry(tlm, "p")

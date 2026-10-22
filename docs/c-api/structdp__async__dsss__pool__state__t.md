@@ -36,6 +36,8 @@ _AsyncDsssPool state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  float \_Complex \* | [**carry**](#variable-carry)  <br> |
+|  size\_t | [**carry\_len**](#variable-carry_len)  <br> |
 |  size\_t | [**feed\_n**](#variable-feed_n)  <br> |
 |  const float \_Complex \* | [**feed\_x**](#variable-feed_x)  <br> |
 |  size\_t | [**n\_receivers**](#variable-n_receivers)  <br> |
@@ -106,6 +108,41 @@ Allocate with [**dp\_async\_dsss\_pool\_create()**](async__dsss__pool__core_8h.m
     
 ## Public Attributes Documentation
 
+
+
+
+### variable carry 
+
+```C++
+float _Complex* dp_async_dsss_pool_state_t::carry;
+```
+
+
+
+The pushed samples past the last whole period, not yet fed: period long. 
+
+
+        
+
+<hr>
+
+
+
+### variable carry\_len 
+
+```C++
+size_t dp_async_dsss_pool_state_t::carry_len;
+```
+
+
+
+How many; &lt; period. 
+ 
+
+
+        
+
+<hr>
 
 
 

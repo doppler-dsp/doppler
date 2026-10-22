@@ -84,12 +84,12 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 |  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, size\_t n\_receivers, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate, int threads) <br>_Create a pool of_ `n_receivers` _receivers built alike._ |
 |  void | [**dp\_async\_dsss\_pool\_destroy**](#function-dp_async_dsss_pool_destroy) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Destroy a pool and every receiver._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_get\_coherent\_bins**](#function-dp_async_dsss_pool_get_coherent_bins) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_The receivers' slow-time depth D, epochs per coherent block (_ [_**dp\_async\_dsss\_receiver\_get\_coherent\_bins()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_coherent_bins) _); alike for all._ |
-|  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br>_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022) and each receiver's state, which carries the exclusions and rank the controller gave it. The last push's symbols do not travel._ |
+|  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br>_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022), the samples carried to the next whole period, and each receiver's state, which carries the exclusions and rank the controller gave it. The last push's symbols do not travel._ |
 |  int | [**dp\_async\_dsss\_pool\_get\_threads**](#function-dp_async_dsss_pool_get_threads) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Workers push() steps the receivers on, the calling thread included: what set\_threads() asked for, at most n\_receivers, and the online cores for 0._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_push**](#function-dp_async_dsss_pool_push) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Step every receiver on one block, running the controller at every code period it crosses._  |
 |  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* | [**dp\_async\_dsss\_pool\_receiver**](#function-dp_async_dsss_pool_receiver) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t receiver) <br>_Borrow receiver_ `receiver` _, for C-only configuration: its lock and chain settings (_[_**dp\_async\_dsss\_receiver\_configure\_lock\_raw()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_configure_lock_raw) _,_[_**dp\_async\_dsss\_receiver\_configure\_chain\_raw()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_configure_chain_raw) _)._ |
 |  void | [**dp\_async\_dsss\_pool\_reset**](#function-dp_async_dsss_pool_reset) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Every receiver back to searching, with no exclusions and rank 0; the clock and the release counts back to 0._  |
-|  int | [**dp\_async\_dsss\_pool\_set\_state**](#function-dp_async_dsss_pool_set_state) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const void \* blob) <br>_Restore the state._ `DP_ERR_INVALID` _on a blob of another object or version, another receiver count, or a receiver blob its receiver refuses._ |
+|  int | [**dp\_async\_dsss\_pool\_set\_state**](#function-dp_async_dsss_pool_set_state) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const void \* blob) <br>_Restore the state, whole or not at all._ `DP_ERR_INVALID` _on a blob of another object or version, another receiver count, a carry of a period or more, or a receiver blob its receiver refuses; a refusal leaves the pool and every receiver as they were._ |
 |  int | [**dp\_async\_dsss\_pool\_set\_telemetry**](#function-dp_async_dsss_pool_set_telemetry) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across every receiver._  |
 |  int | [**dp\_async\_dsss\_pool\_set\_threads**](#function-dp_async_dsss_pool_set_threads) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, int n) <br>_Set the workers push() steps the receivers on._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_state\_bytes**](#function-dp_async_dsss_pool_state_bytes) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Bytes in the blob_ [_**dp\_async\_dsss\_pool\_get\_state()**_](async__dsss__pool__core_8h.md#function-dp_async_dsss_pool_get_state) _writes: the envelope, the pool's own fields, and every receiver's own blob._ |
@@ -140,13 +140,13 @@ Every receiver is a whole AsyncDsssReceiver: it searches the full Doppler range 
 
 
 * **One block to every receiver, in parallel.** push() hands the same samples to each receiver and steps them on the `dp_parallel` workers, one receiver per task. Each receiver's own search engine runs on one thread ([**dp\_async\_dsss\_receiver\_set\_threads()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_threads) 1), so N receivers do not each start a pool of every core. A receiver touches only its own state, so the result does not depend on the thread count: one thread and N give the same bytes.
-* **Then the controller, serially, at every code period of the stream.** push() cuts its block where the pool's sample count (from create or reset) crosses a multiple of `code_len * spc`, and the controller runs at each crossing. Where it acts is a position in the stream, not a call boundary, so any blocking of one stream gives the same receivers, the same releases and the same symbols. It reads every receiver's status() and:
+* **Then the controller, serially, at every code period of the stream.** A receiver is fed exactly one code period (`code_len * spc` samples) per call, on the grid of the pool's sample count from create or reset; push() keeps what is left past the last whole period and feeds it with the next push. The controller runs after each period. Every receiver call and every controller step is then a position in the stream, not a call boundary, so any blocking of one stream gives the same receivers, the same releases (a receiver's release clock is read once per call) and the same symbols. The cost is latency: up to one code period of a push waits for the next. It reads every receiver's status() and:
   * **releases the lost.** A receiver in the lost state (its release rule fired: the emitter left, or the seed never locked) is reset to searching. With `reacquire` the receiver does this itself and is never lost.
   * **resolves duplicates.** Two receivers that hold a signal (refining or tracking) within one chip of each other's code phase, circularly, hold the same signal. The one that keeps it is the one tracking over the one refining, then the one in its state longer (status().state\_samples: the first to lock), then the higher C/N0 estimate, then the lower index. The other is reset.
   * **hands out exclusions and ranks.** Every receiver gets the code phases the OTHER holders hold as its exclusions ([**dp\_async\_dsss\_receiver\_set\_exclusions()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_exclusions)), so a search never takes a signal already held, and a reset loser does not take its signal back. The searching receivers get ranks 0, 1, ... in index order ([**dp\_async\_dsss\_receiver\_set\_rank()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_rank)), so searchers that decide in the same dwell take different signals. A holder's rank is set to 0, ready for its next search. Both levers take effect at a receiver's next dwell.
 
 
-* **Reports.** status() is a receiver's status now, symbols() the symbols it emitted during the last push(). A push that ends between code periods leaves the controller's next step owed, so a receiver whose release just fired can read lost until the next crossing.
+* **Reports.** status() is a receiver's status now, symbols() the symbols it emitted during the last push(); both are as of the last whole period fed, since the controller runs right after it, so a released receiver never reads lost.
 
 
 
@@ -342,7 +342,7 @@ size_t dp_async_dsss_pool_get_coherent_bins (
 
 ### function dp\_async\_dsss\_pool\_get\_state 
 
-_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022) and each receiver's state, which carries the exclusions and rank the controller gave it. The last push's symbols do not travel._
+_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022), the samples carried to the next whole period, and each receiver's state, which carries the exclusions and rank the controller gave it. The last push's symbols do not travel._
 ```C++
 void dp_async_dsss_pool_get_state (
     const dp_async_dsss_pool_state_t * state,
@@ -386,7 +386,7 @@ size_t dp_async_dsss_pool_push (
 
 
 
-Hands `x` to every receiver (header step 1), keeps each one's symbols for symbols(), and at each code-period crossing of the shared clock releases the lost, resolves duplicates and hands out exclusions and ranks (step 2). Accepts any block size, and state carries across calls: the result is a function of the stream, not of its blocking.
+Hands every whole code period it completes to every receiver (header step 1), keeps each one's symbols for symbols(), and after each period releases the lost, resolves duplicates and hands out exclusions and ranks (step 2). The samples past the last whole period are kept for the next push. Accepts any block size, and state carries across calls: the result is a function of the stream, not of its blocking.
 
 
 
@@ -509,7 +509,7 @@ void dp_async_dsss_pool_reset (
 
 ### function dp\_async\_dsss\_pool\_set\_state 
 
-_Restore the state._ `DP_ERR_INVALID` _on a blob of another object or version, another receiver count, or a receiver blob its receiver refuses._
+_Restore the state, whole or not at all._ `DP_ERR_INVALID` _on a blob of another object or version, another receiver count, a carry of a period or more, or a receiver blob its receiver refuses; a refusal leaves the pool and every receiver as they were._
 ```C++
 int dp_async_dsss_pool_set_state (
     dp_async_dsss_pool_state_t * state,
@@ -665,7 +665,7 @@ async_dsss_receiver_status_t dp_async_dsss_pool_status (
 
 
 
-[**dp\_async\_dsss\_receiver\_status()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_status) of that receiver, read now: a receiver the controller released reads searching, and one whose release fired after the last code-period crossing reads lost until the next. A `receiver` past the pool returns a zeroed record with `state` [**ASYNC\_DSSS\_POOL\_NO\_RECEIVER**](async__dsss__pool__core_8h.md#define-async_dsss_pool_no_receiver).
+[**dp\_async\_dsss\_receiver\_status()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_status) of that receiver, as of the last whole code period fed, after the controller's step on it: a receiver the controller released reads searching. A `receiver` past the pool returns a zeroed record with `state` [**ASYNC\_DSSS\_POOL\_NO\_RECEIVER**](async__dsss__pool__core_8h.md#define-async_dsss_pool_no_receiver).
 
 
 

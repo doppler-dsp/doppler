@@ -84,6 +84,7 @@ dp_async_dsss_pool_create (
      chip of at least one sample). */
   s->sym_extra = (size_t)ceil ((double)code_len * symbol_rate / chip_rate) + 1;
   s->period    = code_len * spc;
+  s->carry     = dp_xcalloc (s->period, sizeof *s->carry);
   build_workers (s, threads);
   return s;
 }
@@ -100,6 +101,7 @@ dp_async_dsss_pool_destroy (dp_async_dsss_pool_state_t *s)
   free (s->rx);
   free (s->n_sym);
   free (s->sym_buf);
+  free (s->carry);
   free (s);
 }
 
@@ -114,6 +116,7 @@ dp_async_dsss_pool_reset (dp_async_dsss_pool_state_t *s)
       s->n_sym[i] = 0;
     }
   s->samples            = 0;
+  s->carry_len          = 0;
   s->released_lost      = 0;
   s->released_duplicate = 0;
 }
@@ -230,14 +233,25 @@ count_holders (const dp_async_dsss_pool_state_t *s)
   return h;
 }
 
+/* One whole code period to every receiver, then the controller. */
+static void
+feed_period (dp_async_dsss_pool_state_t *s, const float _Complex *x)
+{
+  s->feed_x = x;
+  s->feed_n = s->period;
+  dp_pool_run (s->workers, s->n_receivers, feed_one, s);
+  s->feed_x = NULL;
+  (void)control (s);
+}
+
 size_t
 dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
                          const float _Complex *x, size_t x_len)
 {
-  /* Each segment can emit its own samples' symbols plus one carried code
-     period's (sym_extra), and a push is at most x_len / period + 2
-     segments. */
-  const size_t need = x_len + (x_len / s->period + 2) * s->sym_extra;
+  /* A period's call emits that period's symbols plus at most one carried
+     period's (sym_extra), and a push feeds at most x_len / period + 1
+     periods. */
+  const size_t need = (x_len / s->period + 2) * (s->period + s->sym_extra);
   if (need > s->sym_cap)
     {
       free (s->sym_buf);
@@ -246,24 +260,31 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
     }
   for (size_t i = 0; i < s->n_receivers; i++)
     s->n_sym[i] = 0;
-  /* Cut the block at the code-period boundaries of the shared clock, and
-     run the controller at each one: where it acts is a stream position,
-     not a call boundary, so any blocking of one stream gives the same
-     result. */
+  s->samples += x_len;
+  /* Every receiver call is exactly one period on the shared grid, so where
+     each call starts and ends -- and where a receiver reads its release
+     clock, once per call -- is a position in the stream. The carry first,
+     then whole periods straight from x, then the rest into the carry. */
   size_t pos = 0;
-  while (pos < x_len)
+  if (s->carry_len)
     {
-      const size_t to_edge = s->period - (size_t)(s->samples % s->period);
-      const size_t take    = x_len - pos < to_edge ? x_len - pos : to_edge;
-      s->feed_x            = x + pos;
-      s->feed_n            = take;
-      dp_pool_run (s->workers, s->n_receivers, feed_one, s);
-      pos += take;
-      s->samples += take;
-      if (s->samples % s->period == 0)
-        (void)control (s);
+      const size_t want = s->period - s->carry_len;
+      const size_t take = x_len < want ? x_len : want;
+      memcpy (s->carry + s->carry_len, x, take * sizeof *x);
+      s->carry_len += take;
+      pos = take;
+      if (s->carry_len < s->period)
+        return count_holders (s);
+      feed_period (s, s->carry);
+      s->carry_len = 0;
     }
-  s->feed_x = NULL;
+  for (; x_len - pos >= s->period; pos += s->period)
+    feed_period (s, x + pos);
+  s->carry_len = x_len - pos;
+  /* The tail, and zeros past it: the blob writes the whole buffer. */
+  memcpy (s->carry, x + pos, s->carry_len * sizeof *x);
+  memset (s->carry + s->carry_len, 0,
+          (s->period - s->carry_len) * sizeof *s->carry);
   return count_holders (s);
 }
 
@@ -417,12 +438,14 @@ typedef struct
   uint64_t samples;
   uint64_t released_lost;
   uint64_t released_duplicate;
+  uint64_t carry_len;
 } async_dsss_pool_extra_t;
 
 size_t
 dp_async_dsss_pool_state_bytes (const dp_async_dsss_pool_state_t *s)
 {
-  size_t n = sizeof (dp_state_hdr_t) + sizeof (async_dsss_pool_extra_t);
+  size_t n = sizeof (dp_state_hdr_t) + sizeof (async_dsss_pool_extra_t)
+             + s->period * sizeof *s->carry;
   for (size_t i = 0; i < s->n_receivers; i++)
     n += dp_async_dsss_receiver_state_bytes (s->rx[i]);
   return n;
@@ -439,14 +462,20 @@ dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *s, void *blob)
     .samples            = s->samples,
     .released_lost      = s->released_lost,
     .released_duplicate = s->released_duplicate,
+    .carry_len          = (uint64_t)s->carry_len,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
+  /* The whole buffer, its unused tail zeros (create, reset and every
+     refill keep it so), so the blob is a function of the state alone. */
+  dp_w_bytes (&_w, s->carry, s->period * sizeof *s->carry);
   for (size_t i = 0; i < s->n_receivers; i++)
     DP_W_CHILD (&_w, dp_async_dsss_receiver, s->rx[i]);
 }
 
-int
-dp_async_dsss_pool_set_state (dp_async_dsss_pool_state_t *s, const void *blob)
+/* The decode, child by child into the live receivers: a refusal part way
+   leaves the earlier children restored, which the wrapper below undoes. */
+static int
+decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
 {
   DP_SET_OPEN (ASYNC_DSSS_POOL_STATE_MAGIC, ASYNC_DSSS_POOL_STATE_VERSION,
                dp_async_dsss_pool_state_bytes (s));
@@ -455,18 +484,44 @@ dp_async_dsss_pool_set_state (dp_async_dsss_pool_state_t *s, const void *blob)
   async_dsss_pool_extra_t extra = { 0 };
   dp_r_bytes (&_r, &extra, sizeof extra);
   if (extra.n_receivers != (uint64_t)s->n_receivers || extra.threads < 0
-      || extra.threads > INT_MAX
+      || extra.threads > INT_MAX || extra.carry_len >= (uint64_t)s->period
       || (s->tlm
           && effective_threads ((int)extra.threads, s->n_receivers) != 1))
     return DP_ERR_INVALID;
+  const float _Complex *carry
+      = dp_r_reserve (&_r, s->period * sizeof *s->carry);
+  if (!carry)
+    return DP_ERR_INVALID;
+  /* Only what push() can leave: zeros past the carried samples. */
+  for (size_t k = (size_t)extra.carry_len; k < s->period; k++)
+    if (carry[k] != 0)
+      return DP_ERR_INVALID;
   for (size_t i = 0; i < s->n_receivers; i++)
     DP_R_CHILD (&_r, dp_async_dsss_receiver, s->rx[i]);
   if ((int)extra.threads != s->threads)
     build_workers (s, (int)extra.threads);
+  memcpy (s->carry, carry, s->period * sizeof *s->carry);
+  s->carry_len          = (size_t)extra.carry_len;
   s->samples            = extra.samples;
   s->released_lost      = extra.released_lost;
   s->released_duplicate = extra.released_duplicate;
   for (size_t i = 0; i < s->n_receivers; i++)
     s->n_sym[i] = 0; /* the last push's symbols do not travel */
   return DP_OK;
+}
+
+/* Whole or not at all: a snapshot of the state as it is, put back if the
+   blob is refused anywhere -- the receivers decode in place, so a refusal
+   at receiver k would otherwise leave 0..k-1 restored from the blob. */
+int
+dp_async_dsss_pool_set_state (dp_async_dsss_pool_state_t *s, const void *blob)
+{
+  const size_t bytes = dp_async_dsss_pool_state_bytes (s);
+  void        *snap  = dp_xmalloc (bytes);
+  dp_async_dsss_pool_get_state (s, snap);
+  const int rc = decode_state (s, blob);
+  if (rc != DP_OK)
+    (void)decode_state (s, snap); /* its own state: cannot be refused */
+  free (snap);
+  return rc;
 }

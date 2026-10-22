@@ -22,6 +22,13 @@
 #define POOL_SPC 2
 #define POOL_FS (POOL_CR * POOL_SPC)
 
+/* The release on, short enough to fire inside the two-emitter stream: B
+   leaves at CI_B_OFF, and the receiver holding it is released CI_CONFIRM_S
+   later. A receiver reads its release clock once per call, so this is
+   where a blocking-dependent feed shows (doppler#2548 review). */
+#define CI_CONFIRM_S 0.02
+#define CI_B_OFF (300000u)
+
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 
 /* A pool on the Gold-1023 design point; the receiver tests' _slow_rx()
@@ -38,8 +45,19 @@ _pool (const uint8_t *code, size_t n, double lost_confirm_s, int threads)
 /* Two emitters on one Gold code, ~400 chips apart: A at 200 Hz carries the
    noise (50 dB-Hz), B at -300 Hz sits 3 dB below it. The receiver tests'
    _two_emitters(), which their rank tests feed. Caller frees. */
+static float _Complex *_two_emitters_off (const uint8_t *code, size_t b_off,
+                                          size_t *n_out);
+
 static float _Complex *
 _two_emitters (const uint8_t *code, size_t *n_out)
+{
+  return _two_emitters_off (code, (size_t)-1, n_out);
+}
+
+/* As _two_emitters(), with B switched off from sample `b_off` on: the
+   stream a release runs on. */
+static float _Complex *
+_two_emitters_off (const uint8_t *code, size_t b_off, size_t *n_out)
 {
   const double    tsym = POOL_FS / POOL_RS;
   float _Complex *a, *b;
@@ -51,7 +69,7 @@ _two_emitters (const uint8_t *code, size_t *n_out)
                    200, 12, &b, &nb, &db);
   const size_t n = na < nb ? na : nb;
   for (size_t i = 0; i < n; i++)
-    a[i] += (float)M_SQRT1_2 * b[i];
+    a[i] += i < b_off ? (float)M_SQRT1_2 * b[i] : 0.0f;
   free (b);
   free (da);
   free (db);
@@ -303,25 +321,15 @@ _test_lost_is_released (void)
   DP_REQUIRE (dp_async_dsss_pool_status (p, 0).state
               == ASYNC_DSSS_RX_TRACKING);
   int searched_again = 0;
-  int read_lost      = 0;
   for (size_t pos = 0; pos < tail_n && !searched_again; pos += 1024)
     {
       (void)dp_async_dsss_pool_push (
           p, off + pos, tail_n - pos < 1024 ? tail_n - pos : 1024);
-      /* Between crossings a fired release can read lost; the next crossing
-         releases it, so feed exactly to it and look again. */
-      if (dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_LOST)
-        {
-          read_lost         = 1;
-          const size_t edge = p->period - (size_t)(p->samples % p->period);
-          (void)dp_async_dsss_pool_push (p, off, edge);
-          DP_CHECK_MSG (dp_async_dsss_pool_status (p, 0).state
-                            != ASYNC_DSSS_RX_LOST,
-                        "released at the next crossing");
-        }
+      /* The controller runs right after every whole period, and status()
+         is as of the last one, so lost is never what it reads. */
+      DP_CHECK (dp_async_dsss_pool_status (p, 0).state != ASYNC_DSSS_RX_LOST);
       searched_again = p->released_lost > 0;
     }
-  (void)read_lost; /* either path is the contract */
   DP_CHECK_MSG (searched_again, "the lost receiver was released");
   DP_CHECK (p->released_lost == 1);
   DP_CHECK (dp_async_dsss_pool_status (p, 0).state != ASYNC_DSSS_RX_TRACKING);
@@ -393,19 +401,23 @@ _test_state_round_trip (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  size_t                      n;
-  float _Complex             *x    = _two_emitters (code, &n);
-  const size_t                half = (n / 2 / 2046) * 2046;
-  dp_async_dsss_pool_state_t *a    = _pool (code, 3, 0.0, 2);
-  dp_async_dsss_pool_state_t *b    = _pool (code, 3, 0.0, 1);
-  dp_async_dsss_pool_state_t *c    = _pool (code, 2, 0.0, 1);
+  size_t          n;
+  float _Complex *x = _two_emitters_off (code, CI_B_OFF, &n);
+  /* Mid-period, so the blob carries a part-filled carry, with the release
+     on and B leaving after the split. */
+  const size_t half = 250000 + 777;
+  DP_REQUIRE (half % (1023 * POOL_SPC) != 0 && half < CI_B_OFF);
+  dp_async_dsss_pool_state_t *a = _pool (code, 3, CI_CONFIRM_S, 2);
+  dp_async_dsss_pool_state_t *b = _pool (code, 3, CI_CONFIRM_S, 1);
+  dp_async_dsss_pool_state_t *c = _pool (code, 2, CI_CONFIRM_S, 1);
   DP_REQUIRE (a && b && c);
-  _feed (a, x, half);
+  (void)dp_async_dsss_pool_push (a, x, half);
+  DP_REQUIRE (a->carry_len == half % (1023 * POOL_SPC));
   const size_t   bytes = dp_async_dsss_pool_state_bytes (a);
   unsigned char *blob  = malloc (bytes);
   dp_async_dsss_pool_get_state (a, blob);
   DP_CHECK (dp_async_dsss_pool_set_state (b, blob) == DP_OK);
-  DP_CHECK (b->threads == 2);
+  DP_CHECK (b->threads == 2 && b->carry_len == a->carry_len);
   DP_CHECK (b->samples == a->samples && b->samples == half);
   DP_CHECK (dp_async_dsss_pool_symbols_max_out (b) == 0);
   DP_CHECK (dp_async_dsss_pool_set_state (c, blob) == DP_ERR_INVALID);
@@ -419,20 +431,75 @@ _test_state_round_trip (void)
     DP_CHECK (dp_async_dsss_pool_set_state (b, forged) == DP_ERR_INVALID);
     free (forged);
   }
-  _feed (a, x + half, n - half);
-  _feed (b, x + half, n - half);
+  /* The rest in blocks of 3001, both, every symbol compared. */
+  int same = 1;
+  float _Complex sa[8192], sb[8192];
+  for (size_t pos = half; pos < n; pos += 3001)
+    {
+      const size_t take = n - pos < 3001 ? n - pos : 3001;
+      (void)dp_async_dsss_pool_push (a, x + pos, take);
+      (void)dp_async_dsss_pool_push (b, x + pos, take);
+      for (size_t i = 0; i < 3; i++)
+        {
+          const size_t na = dp_async_dsss_pool_symbols (a, i, sa, 8192);
+          const size_t nb = dp_async_dsss_pool_symbols (b, i, sb, 8192);
+          same &= na == nb && memcmp (sa, sb, na * sizeof *sa) == 0;
+        }
+    }
+  DP_CHECK_MSG (same, "the resumed pool emits what the original does");
+  DP_CHECK_MSG (a->released_lost >= 1, "a release after the split");
   unsigned char *ea = malloc (bytes), *eb = malloc (bytes);
   dp_async_dsss_pool_get_state (a, ea);
   dp_async_dsss_pool_get_state (b, eb);
   DP_CHECK_MSG (memcmp (ea, eb, bytes) == 0, "resumed bit for bit");
-  blob[0] ^= 0xFF;
-  DP_CHECK (dp_async_dsss_pool_set_state (b, blob) == DP_ERR_INVALID);
   free (blob);
   free (ea);
   free (eb);
   dp_async_dsss_pool_destroy (a);
   dp_async_dsss_pool_destroy (b);
   dp_async_dsss_pool_destroy (c);
+  free (x);
+  return 0;
+}
+
+/* A refused restore is whole or nothing: a blob whose THIRD receiver is
+   corrupt leaves the first two (and the pool's own fields) as they were,
+   though they decode before the refusal. Sabotage: drop the snapshot
+   rollback -> receivers 0 and 1 carry the blob's state. */
+static int
+_test_refused_restore_changes_nothing (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t                      n;
+  float _Complex             *x   = _two_emitters (code, &n);
+  dp_async_dsss_pool_state_t *src = _pool (code, 3, 0.0, 1);
+  dp_async_dsss_pool_state_t *dst = _pool (code, 3, 0.0, 1);
+  DP_REQUIRE (src && dst);
+  (void)dp_async_dsss_pool_push (src, x, n / 2); /* src: holders, a clock */
+  (void)dp_async_dsss_pool_push (dst, x, 4096);  /* dst: somewhere else   */
+  const size_t   bytes = dp_async_dsss_pool_state_bytes (src);
+  unsigned char *blob = malloc (bytes), *before = malloc (bytes),
+                *after = malloc (bytes);
+  dp_async_dsss_pool_get_state (src, blob);
+  dp_async_dsss_pool_get_state (dst, before);
+  /* Clobber receiver 2's envelope magic: its sub-blob follows the pool's
+     header, extra, carry, and receivers 0 and 1. */
+  const size_t rx2 = sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 6
+                     + src->period * sizeof (float _Complex)
+                     + 2 * dp_async_dsss_receiver_state_bytes (src->rx[0]);
+  blob[rx2] ^= 0xFF;
+  DP_CHECK (dp_async_dsss_pool_set_state (dst, blob) == DP_ERR_INVALID);
+  dp_async_dsss_pool_get_state (dst, after);
+  DP_CHECK_MSG (memcmp (before, after, bytes) == 0,
+                "a refused restore left the pool as it was");
+  blob[rx2] ^= 0xFF; /* and the blob itself restores */
+  DP_CHECK (dp_async_dsss_pool_set_state (dst, blob) == DP_OK);
+  free (blob);
+  free (before);
+  free (after);
+  dp_async_dsss_pool_destroy (src);
+  dp_async_dsss_pool_destroy (dst);
   free (x);
   return 0;
 }
@@ -541,7 +608,7 @@ static void *
 ci_pool_create (void *arg)
 {
   const ci_pool_arg_t *a = arg;
-  return _pool (a->code, 3, 0.0, 1);
+  return _pool (a->code, 3, CI_CONFIRM_S, 1);
 }
 
 static void
@@ -565,11 +632,7 @@ _test_chunk_invariance (void)
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
   size_t          n;
-  float _Complex *x = _two_emitters (code, &n);
-  /* The two emitters are found, refined and tracked in the first ~60% of
-     the stream; the harness's single-sample partition makes the full one
-     costly, so it stops there. */
-  n = n * 3 / 5;
+  float _Complex *x = _two_emitters_off (code, CI_B_OFF, &n);
   for (size_t r = 0; r < 2; r++)
     {
       ci_pool_arg_t arg = { code, r };
@@ -589,12 +652,15 @@ _test_chunk_invariance (void)
       };
       DP_CHECK (dp_chunk_invariance (&spec, x, n) == 0);
     }
-  /* And the run reached what it is there to cover: both emitters held. */
-  dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
+  /* And the run reached what it is there to cover: both emitters held,
+     then B's holder released after B left. */
+  dp_async_dsss_pool_state_t *p = _pool (code, 3, CI_CONFIRM_S, 1);
   DP_REQUIRE (p != NULL);
-  DP_CHECK (dp_async_dsss_pool_push (p, x, n) == 2);
-  /* The shared round trip, on a pool holding two signals. */
-  dp_async_dsss_pool_state_t *q = _pool (code, 3, 0.0, 1);
+  DP_CHECK (dp_async_dsss_pool_push (p, x, CI_B_OFF) == 2);
+  (void)dp_async_dsss_pool_push (p, x + CI_B_OFF, n - CI_B_OFF);
+  DP_CHECK_MSG (p->released_lost >= 1, "the release fired in the stream");
+  /* The shared round trip, on a pool that has released. */
+  dp_async_dsss_pool_state_t *q = _pool (code, 3, CI_CONFIRM_S, 1);
   DP_REQUIRE (q != NULL);
   DP_STATE_ROUNDTRIP_TEST (dp_async_dsss_pool, p, q);
   dp_async_dsss_pool_destroy (p);
@@ -616,5 +682,6 @@ main (void)
   DP_CHECK (_test_threads_change_nothing () == 0);
   DP_CHECK (_test_state_round_trip () == 0);
   DP_CHECK (_test_chunk_invariance () == 0);
+  DP_CHECK (_test_refused_restore_changes_nothing () == 0);
   DP_TEST_END ("test_async_dsss_pool_core");
 }

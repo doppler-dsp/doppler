@@ -710,7 +710,7 @@ AsyncDsssPoolObj_set_telemetry (AsyncDsssPoolObject *self, PyObject *args,
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "telemetry refused: the pool must run on one worker "
+                    "set_telemetry failed: the pool must run on one worker "
                     "(threads 1), decim must be >= 1, and every receiver's "
                     "names must fit the prefix and the context's table",
                     (long long)_rc);
@@ -1130,9 +1130,10 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``telemetry refused: the pool must run on one worker (threads 1),\n"
-    "    decim must be >= 1, and every receiver's names must fit the prefix\n"
-    "    and the context's table``, with the return code appended (gh-869).\n"
+    "    ``set_telemetry failed: the pool must run on one worker (threads\n"
+    "    1), decim must be >= 1, and every receiver's names must fit the\n"
+    "    prefix and the context's table``, with the return code appended\n"
+    "    (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"

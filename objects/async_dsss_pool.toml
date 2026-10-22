@@ -229,7 +229,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 error = "ValueError"
-error_message = "telemetry refused: the pool must run on one worker (threads 1), decim must be >= 1, and every receiver's names must fit the prefix and the context's table"
+error_message = "set_telemetry failed: the pool must run on one worker (threads 1), decim must be >= 1, and every receiver's names must fit the prefix and the context's table"
 params = [
   { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", retain = true, header = "doppler/dp_tlm/dp_tlm_core.h" },
   { name = "prefix", type = "const char *" },

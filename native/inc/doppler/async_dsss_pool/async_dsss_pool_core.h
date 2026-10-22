@@ -17,12 +17,16 @@
  *    state, so the result does not depend on the thread count: one thread
  *    and N give the same bytes.
  * 2. **Then the controller, serially, at every code period of the
- *    stream.** push() cuts its block where the pool's sample count (from
- *    create or reset) crosses a multiple of `code_len * spc`, and the
- *    controller runs at each crossing. Where it acts is a position in the
- *    stream, not a call boundary, so any blocking of one stream gives the
- *    same receivers, the same releases and the same symbols. It reads
- *    every receiver's status() and:
+ *    stream.** A receiver is fed exactly one code period (`code_len *
+ *    spc` samples) per call, on the grid of the pool's sample count from
+ *    create or reset; push() keeps what is left past the last whole
+ *    period and feeds it with the next push. The controller runs after
+ *    each period. Every receiver call and every controller step is then a
+ *    position in the stream, not a call boundary, so any blocking of one
+ *    stream gives the same receivers, the same releases (a receiver's
+ *    release clock is read once per call) and the same symbols. The cost
+ *    is latency: up to one code period of a push waits for the next. It
+ *    reads every receiver's status() and:
  *    - **releases the lost.** A receiver in the lost state (its release
  *      rule fired: the emitter left, or the seed never locked) is reset to
  *      searching. With `reacquire` the receiver does this itself and is
@@ -43,9 +47,9 @@
  *      ready for its next search.
  *    Both levers take effect at a receiver's next dwell.
  * 3. **Reports.** status() is a receiver's status now, symbols() the
- *    symbols it emitted during the last push(). A push that ends between
- *    code periods leaves the controller's next step owed, so a receiver
- *    whose release just fired can read lost until the next crossing.
+ *    symbols it emitted during the last push(); both are as of the last
+ *    whole period fed, since the controller runs right after it, so a
+ *    released receiver never reads lost.
  *
  * The receivers share the stream from create on, so their dwells share
  * one block grid (a reset receiver's engine restarts on it), and their
@@ -140,6 +144,9 @@ extern "C"
     size_t                feed_n;
     size_t   period;             /**< Samples a code period: the controller
                                       runs every period of `samples`.   */
+    float _Complex *carry;       /**< The pushed samples past the last whole
+                                      period, not yet fed: period long. */
+    size_t          carry_len;   /**< How many; < period.               */
     size_t   n_receivers;        /**< Receivers, fixed at create.         */
     uint64_t samples;            /**< Input samples pushed since create or
                                       reset: the pool's shared clock.   */
@@ -256,15 +263,17 @@ extern "C"
   dp_async_dsss_pool_state_bytes (const dp_async_dsss_pool_state_t *state);
 
   /** @brief Write the state into @p blob: the clock, the release counts,
-   *  the thread count (a mutator's value, #2022) and each receiver's
-   *  state, which carries the exclusions and rank the controller gave it.
-   *  The last push's symbols do not travel. */
+   *  the thread count (a mutator's value, #2022), the samples carried to
+   *  the next whole period, and each receiver's state, which carries the
+   *  exclusions and rank the controller gave it. The last push's symbols
+   *  do not travel. */
   void dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *state,
                                      void                             *blob);
 
-  /** @brief Restore the state. `DP_ERR_INVALID` on a blob of another
-   *  object or version, another receiver count, or a receiver blob its
-   *  receiver refuses. */
+  /** @brief Restore the state, whole or not at all. `DP_ERR_INVALID` on
+   *  a blob of another object or version, another receiver count, a carry
+   *  of a period or more, or a receiver blob its receiver refuses; a
+   *  refusal leaves the pool and every receiver as they were. */
   int dp_async_dsss_pool_set_state (dp_async_dsss_pool_state_t *state,
                                     const void                 *blob);
 
@@ -282,11 +291,12 @@ extern "C"
    * @brief Step every receiver on one block, running the controller at
    *        every code period it crosses.
    *
-   * Hands @p x to every receiver (header step 1), keeps each one's
-   * symbols for symbols(), and at each code-period crossing of the shared
-   * clock releases the lost, resolves duplicates and hands out exclusions
-   * and ranks (step 2). Accepts any block size, and state carries across
-   * calls: the result is a function of the stream, not of its blocking.
+   * Hands every whole code period it completes to every receiver (header
+   * step 1), keeps each one's symbols for symbols(), and after each period
+   * releases the lost, resolves duplicates and hands out exclusions and
+   * ranks (step 2). The samples past the last whole period are kept for
+   * the next push. Accepts any block size, and state carries across calls:
+   * the result is a function of the stream, not of its blocking.
    *
    * @param state  Must be non-NULL.
    * @param x      Input cf32 samples.
@@ -312,9 +322,9 @@ extern "C"
   /**
    * @brief Receiver @p receiver's status, now.
    *
-   * dp_async_dsss_receiver_status() of that receiver, read now: a receiver
-   * the controller released reads searching, and one whose release fired
-   * after the last code-period crossing reads lost until the next. A
+   * dp_async_dsss_receiver_status() of that receiver, as of the last whole
+   * code period fed, after the controller's step on it: a receiver the
+   * controller released reads searching. A
    * @p receiver past the pool returns a zeroed record with
    * `state` @ref ASYNC_DSSS_POOL_NO_RECEIVER.
    *

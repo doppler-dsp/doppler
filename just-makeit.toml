@@ -3427,7 +3427,7 @@ Examples
 True
 
 """
-objects = ["despreader", "burst_despreader", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver", "dsss_burst_receiver"]
+objects = ["despreader", "burst_despreader", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver", "async_dsss_pool", "dsss_burst_receiver"]
 
 [module.acquire]
 doc = """

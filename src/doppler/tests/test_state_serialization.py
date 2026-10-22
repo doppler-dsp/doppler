@@ -56,6 +56,7 @@ from doppler.ddc import DDC, Ddcr, MatchedDDC
 from doppler.delay import DelayCf64
 from doppler.detection import LockDet
 from doppler.dsss import (
+    AsyncDsssPool,
     AsyncDsssReceiver,
     BurstDespreader,
     Despreader,
@@ -460,6 +461,24 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
             _CODE, cn0_dbhz=50.0, doppler_uncertainty=40000.0
         ),
         _track_feed,
+    ),
+    # The pool composes its receivers' blobs; on the shared noise stream they
+    # stay searching, so this row round-trips each embedded search and the
+    # pool's own clock (the controller's rules and a mid-capture resume with
+    # holders are the C suite's, test_async_dsss_pool_core.c). The row puts
+    # set_threads() under #2022's mutator gate.
+    "AsyncDsssPool": (
+        lambda: AsyncDsssPool(
+            _CODE,
+            n_receivers=2,
+            cn0_dbhz=50.0,
+            doppler_uncertainty=40000.0,
+            threads=1,
+        ),
+        lambda o, seg: (
+            o.push(seg),
+            np.frombuffer(o.get_state(), dtype=np.uint8),
+        )[1],
     ),
     "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, m_out=4), _track_feed),
     # sps > 2*m_out for the real twin: the cascade behind its R2C halfband

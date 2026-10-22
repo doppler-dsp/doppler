@@ -326,6 +326,12 @@ unit = "call"
 definition = "An exponential moving average driven one sample at a time from a pure-Python loop over 100,000 samples: what the C objects avoid by looping internally, read in samples per second."
 samples = 100000
 
+["py:async_dsss_pool::test_push_epoch_search3"]
+name = "Async DSSS pool, 3 receivers searching, one epoch from Python"
+unit = "call"
+definition = "One push of a 2,046-sample epoch of noise (a Gold-1023 code at 3.069 Mcps and 2 samples per chip) through a pool of three AsyncDsssReceivers on one thread, each searching plus or minus 3 kHz, through the Python binding; read in input samples per second."
+samples = 2046
+
 ["py:async_dsss_pool::test_push_epoch"]
 name = "Async DSSS pool, one epoch, from Python"
 unit = "call"
@@ -725,6 +731,18 @@ samples = 1
 name = "Async DSSS pool, 12 receivers, all threads"
 unit = "sample"
 definition = "The one-thread row's push, with the searcher's tiles and the twelve receivers fanned across one thread per online logical CPU; the published run confines those threads to 8 logical CPUs (4 cores and their SMT siblings, doppler#2394). Throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[search,n=3,threads=1]"]
+name = "Async DSSS pool, 3 receivers searching, one thread"
+unit = "sample"
+definition = "One push of the next 65,536 samples of noise through a pool of three AsyncDsssReceivers in the SPEC configuration (a 1,023-chip code at 3.069 Mcps, 2 samples per chip, each searching plus or minus one code-period frequency), stepped one after another on one thread, every receiver searching for every sample fed; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[search,n=3,threads=3]"]
+name = "Async DSSS pool, 3 receivers searching, three threads"
+unit = "sample"
+definition = "The one-thread row's push, with the three receivers stepped on three workers, one receiver per worker, the controller's step serial after them; throughput counts input samples."
 samples = 1
 
 ["c:dsss_burst_receiver::push_idle"]

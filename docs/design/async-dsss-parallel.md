@@ -249,8 +249,16 @@ surface. It:
 
 Telemetry is single-producer, so each receiver attaches its own context,
 and one context must not be shared across the workers. The controller
-refuses a context shared across its receivers; nothing refuses one yet,
-because the controller is not built.
+refuses a context shared across its receivers
+(`dp_async_dsss_pool_set_telemetry()`).
+
+The code-phase key does not catch every duplicate. A receiver that takes a
+strong emitter's Doppler-offset sidelobe holds a phase hundreds of chips from
+the emitter's and despreads the emitter's own data, so it tracks a copy no
+exclusion names. Two receivers' data symbols tell it apart: such a copy
+correlates 0.86 to 0.98 with the true track, distinct emitters 0.13 to 0.19.
+The weaker of a correlated pair is released (owner ruling on doppler#2529);
+that rule, and the threshold its measurement sets, are not built yet.
 
 ## 5. Arrival to tracking
 

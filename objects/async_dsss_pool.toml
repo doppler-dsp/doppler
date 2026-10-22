@@ -1,0 +1,265 @@
+# async_dsss_pool -- AsyncDsssPool: N AsyncDsssReceivers on one stream under
+# a controller that only excludes, ranks, resolves duplicates and reports
+# (docs/design/async-dsss-parallel.md §4). Every receiver searches the whole
+# band for itself; the controller searches nothing and seeds nothing.
+
+[async_dsss_pool]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "AsyncDsssPool"
+create_error = "ValueError"
+create_error_message = "AsyncDsssPool: invalid parameter (need 1 <= n_receivers <= 16, threads >= 0, and every parameter AsyncDsssReceiver takes: a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input sample with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0)"
+serializable = "true"
+extra_link_libs = ["Threads::Threads", "wfm_dsp_core", "gold_core"]
+depends_on = [
+    { name = "async_dsss_receiver", link = true },
+    { name = "ber" },
+    { name = "acq", link = true },
+    { name = "carrier_acq", link = true },
+    { name = "dll", link = true },
+    { name = "costas", link = true },
+    { name = "RateConverter", link = true },
+    { name = "mpsk_receiver", link = true },
+    { name = "resamp", link = true },
+    { name = "hbdecim", link = true },
+    { name = "cic", link = true },
+    { name = "resample", link = true },
+    { name = "psd", link = true },
+    { name = "detector", link = true },
+    { name = "detection", link = true },
+    { name = "spectral", link = true },
+    { name = "doppler_channel" },
+    { name = "corr", link = true },
+    { name = "fft", link = true },
+    { name = "acc_trace", link = true },
+]
+fragment = "generated"
+
+[[async_dsss_pool.init_params]]
+name = "code"
+type = "uint8_t[]"
+
+[[async_dsss_pool.init_params]]
+name = "n_receivers"
+type = "size_t"
+default = "3"
+
+[[async_dsss_pool.init_params]]
+name = "chip_rate"
+type = "double"
+default = "1000000.0"
+
+[[async_dsss_pool.init_params]]
+name = "symbol_rate"
+type = "double"
+default = "1000.0"
+
+[[async_dsss_pool.init_params]]
+name = "spc"
+type = "size_t"
+default = "2"
+
+[[async_dsss_pool.init_params]]
+name = "m"
+type = "int"
+default = "2"
+
+[[async_dsss_pool.init_params]]
+name = "cn0_dbhz"
+type = "double"
+default = "55.0"
+
+[[async_dsss_pool.init_params]]
+name = "pfa"
+type = "double"
+default = "1e-3"
+
+[[async_dsss_pool.init_params]]
+name = "pd"
+type = "double"
+default = "0.9"
+
+[[async_dsss_pool.init_params]]
+name = "doppler_uncertainty"
+type = "double"
+default = "100.0"
+
+[[async_dsss_pool.init_params]]
+name = "segments"
+type = "size_t"
+default = "4"
+
+[[async_dsss_pool.init_params]]
+name = "sps"
+type = "size_t"
+default = "8"
+
+[[async_dsss_pool.init_params]]
+name = "differential"
+type = "int"
+default = "0"
+
+[[async_dsss_pool.init_params]]
+name = "refine_max_error_db"
+type = "double"
+default = "0.5"
+
+[[async_dsss_pool.init_params]]
+name = "refine_samples_per_symbol"
+type = "size_t"
+default = "4"
+
+[[async_dsss_pool.init_params]]
+name = "refine_design_margin_db"
+type = "double"
+default = "14.0"
+
+[[async_dsss_pool.init_params]]
+name = "refine_n_fft"
+type = "size_t"
+default = "64"
+
+[[async_dsss_pool.init_params]]
+name = "refine_zero_pad"
+type = "size_t"
+default = "8"
+
+[[async_dsss_pool.init_params]]
+name = "refine_sequential"
+type = "bool"
+default = "false"
+
+[[async_dsss_pool.init_params]]
+name = "refine_max_n_blocks"
+type = "size_t"
+default = "100000"
+
+[[async_dsss_pool.init_params]]
+name = "carrier_freq_hz"
+type = "double"
+default = "0.0"
+
+[[async_dsss_pool.init_params]]
+name = "lost_confirm_s"
+type = "double"
+default = "2.0"
+
+[[async_dsss_pool.init_params]]
+name = "reacquire"
+type = "bool"
+default = "false"
+
+[[async_dsss_pool.init_params]]
+name = "code_only_s"
+type = "double"
+default = "0.0"
+
+[[async_dsss_pool.init_params]]
+name = "doppler_rate"
+type = "double"
+default = "0.0"
+
+[[async_dsss_pool.init_params]]
+name = "threads"
+type = "int"
+default = "0"
+[[async_dsss_pool.methods]]
+name = "push"
+arg_type = "void"
+return_type = "size_t"
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[async_dsss_pool.methods]]
+name = "status"
+arg_type = "void"
+return_type = "async_dsss_receiver_status_t"
+params = [{ name = "receiver", type = "size_t" }]
+result_fields = [
+    { name = "state", type = "int" },
+    { name = "doppler_hz", type = "double" },
+    { name = "chip_phase", type = "double" },
+    { name = "code_rate", type = "double" },
+    { name = "cn0_dbhz_est", type = "double" },
+    { name = "code_locked", type = "int" },
+    { name = "locked", type = "int" },
+    { name = "lock_metric", type = "double" },
+    { name = "lock_threshold", type = "double" },
+    { name = "car_last_error", type = "double" },
+    { name = "mpsk_last_error", type = "double" },
+    { name = "state_samples", type = "uint64_t" },
+    { name = "both_down_samples", type = "uint64_t" },
+    { name = "refused_hits", type = "uint64_t" },
+]
+single = true
+record_name = "PoolReceiverStatus"
+record_doc = "One AsyncDsssPool receiver's status record, read after the controller's step: state (0 searching, 1 refining, 2 tracking, 4 lost), the live estimates, both lock flags, and the two clocks in input samples."
+record_module = "doppler.dsss"
+
+[[async_dsss_pool.methods]]
+name = "symbols"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+params = [{ name = "receiver", type = "size_t" }]
+
+[[async_dsss_pool.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "void"
+
+[[async_dsss_pool.methods]]
+name = "set_threads"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "threads refused: it must be >= 0 (0 = the online cores), and 1 while a telemetry context is attached"
+params = [{ name = "n", type = "int" }]
+
+# Telemetry across every receiver, one context, one worker: the docstring is
+# the header's.
+[[async_dsss_pool.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "telemetry refused: the pool must run on one worker (threads 1), decim must be >= 1, and every receiver's names must fit the prefix and the context's table"
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", retain = true, header = "doppler/dp_tlm/dp_tlm_core.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
+
+[[async_dsss_pool.properties]]
+name = "threads"
+type = "int"
+
+[[async_dsss_pool.properties]]
+name = "n_receivers"
+type = "size_t"
+field = true
+
+[[async_dsss_pool.properties]]
+name = "samples"
+type = "uint64_t"
+field = true
+
+[[async_dsss_pool.properties]]
+name = "released_lost"
+type = "uint64_t"
+field = true
+
+[[async_dsss_pool.properties]]
+name = "released_duplicate"
+type = "uint64_t"
+field = true
+
+[[async_dsss_pool.properties]]
+name = "coherent_bins"
+type = "size_t"

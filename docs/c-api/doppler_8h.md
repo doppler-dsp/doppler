@@ -91,6 +91,7 @@
 * `#include "doppler/burst_demod/burst_demod_core.h"`
 * `#include "doppler/dsss_receiver/dsss_receiver_core.h"`
 * `#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"`
+* `#include "doppler/async_dsss_pool/async_dsss_pool_core.h"`
 * `#include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"`
 * `#include "doppler/carrier_acq/carrier_acq_core.h"`
 * `#include "doppler/acq/acq_core.h"`

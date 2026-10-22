@@ -3049,13 +3049,22 @@ PKG_SMOKE_DISTROS ?= $(STOCK_REGISTRY)/debian:stable $(CI_IMAGE_2404) \
 # leg to the mirror it was moved off (doppler#1524). Offline, an
 # `apt-get update` only warns, so it can never fetch a newer candidate for
 # an install to upgrade to: the 404's other route is closed, not just seen.
+#
+# Each leg's `docker run` has its own deadline (#2541). A stalled leg used to
+# run to the job's 45-minute timeout while the other legs waited; now it fails
+# after PKG_SMOKE_DEADLINE seconds, and the FAILED line names the distro. One
+# attempt through the shared with-deadline.sh -- no retries. Sized from the
+# whole job's normal 8-12 min over four legs: 600s is several times a normal
+# leg, and well under the job's 45-minute ceiling.
+PKG_SMOKE_DEADLINE ?= 600
 PKG_SMOKE_RUN = for d in $(PKG_SMOKE_DISTROS); do \
 	    echo ">> $$d"; \
 	    net=; [ "$$d" = "$(CI_IMAGE_2404)" ] && net=--network=none; \
 	    $(STOCK_PULL) $$d || { echo "$(1): could not pull $$d"; exit 1; }; \
-	    docker run --rm --pull=never $$net -v "$(CURDIR)":/w:ro -w /w $$d \
+	    ./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
+	        docker run --rm --pull=never $$net -v "$(CURDIR)":/w:ro -w /w $$d \
 	        bash tests/install/linux-package-smoke.sh /w/$(2) \
-	        || { echo "$(1): FAILED in $$d"; exit 1; }; \
+	        || { echo "$(1): FAILED in $$d (see the line above: exit 124 = the $(PKG_SMOKE_DEADLINE)s leg deadline)"; exit 1; }; \
 	 done; \
 	 echo "$(1): PASS in $(PKG_SMOKE_DISTROS)"
 

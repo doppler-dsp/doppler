@@ -61,6 +61,12 @@ CI_IMAGE_BASES        = ubuntu:22.04 ubuntu:24.04
 CI_IMAGE_GROUPS       = dev docs clang-rt
 CI_IMAGE_LANDING      = branch
 CI_IMAGE_SMOKE_TARGET = build
+# The packager image: rpm-build baked into a manylinux_2_28 base, so the
+# package build never reaches a distro mirror at CI time (#2544). Its bases
+# are canonical's defaults; its package list is bootstrap.toml's [packager.dnf].
+HAS_PACKAGER_IMAGE    = 1
+PACKAGER_IMAGE_REPO   = ghcr.io/doppler-dsp/doppler-packager
+PACKAGER_GROUPS       = packager
 
 # ── Layout ───────────────────────────────────────────────────────────────────
 BUILD_DIR   ?= build

@@ -96,6 +96,8 @@ enum
   WFM_SURFACE_source_data,
   WFM_SURFACE_source_data_len,
   WFM_SURFACE_source_fill,
+  WFM_SURFACE_source_code_only_symbols,
+  WFM_SURFACE_source_frame_symbols,
   WFM_SURFACE_segment_fs,
   WFM_SURFACE_segment_num_samples,
   WFM_SURFACE_segment_off_samples,
@@ -410,6 +412,30 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, fill),
     .json = "fill",
   },
+  [WFM_SURFACE_source_code_only_symbols] = {
+    .name = "code_only_symbols",
+    .cli = "--code-only-symbols",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_SIZE,
+    .off = offsetof (wfm_source_t, code_only_symbols),
+    .json = "code_only_symbols",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 8,
+  },
+  [WFM_SURFACE_source_frame_symbols] = {
+    .name = "frame_symbols",
+    .cli = "--frame-symbols",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_SIZE,
+    .off = offsetof (wfm_source_t, frame_symbols),
+    .json = "frame_symbols",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 8,
+  },
   [WFM_SURFACE_segment_fs] = {
     .name = "fs",
     .cli = "--fs",
@@ -634,7 +660,14 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  (default 0.0)\n" \
   "  --code-only     Continuous dsss data source: 1 = code-only (the pure\n" \
   "                  spreading code, no data modulation); 0 = data-modulated (the\n" \
-  "                  payload when supplied, else the seeded PN). (default 0)\n"
+  "                  payload when supplied, else the seeded PN). (default 0)\n" \
+  "  --code-only-symbols N\n" \
+  "                  Continuous dsss: pure-code symbols opening each frame of\n" \
+  "                  frame_symbols symbols. (default 0)\n" \
+  "  --frame-symbols N\n" \
+  "                  Continuous dsss: the frame, in symbols, that\n" \
+  "                  code_only_symbols opens; give it with code_only_symbols, or\n" \
+  "                  both 0 for no window. (default 0)\n"
 
 #define WFM_SURFACE_HELP_CODED \
   "  --frame FILE    A frame DESCRIPTION, the whole frame: fields in wire order,\n" \
@@ -671,6 +704,7 @@ static const char *const WFM_JSON_KEYS_INLINE_SEGMENT[] = {
   "background",
   "carrier_hz",
   "code_only",
+  "code_only_symbols",
   "data",
   "data_code",
   "data_from_file",
@@ -683,6 +717,7 @@ static const char *const WFM_JSON_KEYS_INLINE_SEGMENT[] = {
   "f_end",
   "fill",
   "frame",
+  "frame_symbols",
   "freq",
   "fs",
   "gap_noise",
@@ -724,6 +759,7 @@ static const char *const WFM_JSON_KEYS_SOURCE[] = {
   "background",
   "carrier_hz",
   "code_only",
+  "code_only_symbols",
   "data",
   "data_code",
   "data_from_file",
@@ -735,6 +771,7 @@ static const char *const WFM_JSON_KEYS_SOURCE[] = {
   "f_end",
   "fill",
   "frame",
+  "frame_symbols",
   "freq",
   "level",
   "lfsr",

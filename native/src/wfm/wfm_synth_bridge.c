@@ -236,6 +236,47 @@ const char dp_wfm_why_retired_bits[]
     = "bits is retired: a payload is drawn from a data source -- pass data= "
       "(payload= and pattern= with it)";
 
+/* The per-frame code-only window: of every frame_symbols symbols the first
+   code_only_symbols carry the code alone, and the data pauses through them.
+   Asked here, for every face: the CLI, a scene and a Python Synth all reach
+   a source through this one question, so each sentence names the FIELD, as
+   dp_wfm_why_dsss_cont_no_data_code does -- a flag would be the wrong
+   spelling on two faces of three. */
+static const char *
+window_error (const wfm_source_t *src)
+{
+  const size_t w = src->code_only_symbols, f = src->frame_symbols;
+  if (!w && !f)
+    return NULL;
+  if (!is_cont_dsss (src))
+    return "code_only_symbols and frame_symbols frame a continuous dsss "
+           "stream, and this source is not one: give type dsss with a "
+           "symbol_rate, or drop them";
+  if (!f)
+    return "code_only_symbols opens a frame, and no frame_symbols is "
+           "given: give frame_symbols, the frame's length in symbols";
+  /* A frame exists only to place its window: without one it changes no
+     sample, so it is refused rather than silently ignored. */
+  if (!w)
+    return "frame_symbols frames a code-only window, and no "
+           "code_only_symbols is given: give code_only_symbols, or drop "
+           "frame_symbols";
+  if (w > f)
+    return "code_only_symbols exceeds frame_symbols: the window opens the "
+           "frame, so it is at most the frame";
+  /* The one field whose spelling differs by face: Python's dsss_code_only
+     is a scene's code_only, so the sentence names both. */
+  if (src->dsss_code_only)
+    return "a code-only stream (dsss_code_only, a scene's code_only) "
+           "already sends the code alone on every symbol, so a code-only "
+           "window changes nothing: drop one";
+  if (w == f && has_data (src))
+    return "code_only_symbols equal to frame_symbols leaves no data "
+           "symbol, so the data source would never be sent: shorten the "
+           "window";
+  return NULL;
+}
+
 const char *
 dp_wfm_source_error (const wfm_source_t *src)
 {
@@ -262,6 +303,9 @@ dp_wfm_source_error (const wfm_source_t *src)
   if (src->dsss_code_only && has_data (src))
     return "--code-only sends a continuous-dsss code alone, so a data "
            "source (--data or --data-from-file) would be ignored: drop one";
+  const char *window_why = window_error (src);
+  if (window_why)
+    return window_why;
   /* A bits waveform sends its data source's bits -- or a carried frame of
      fixed bits, once -- and nothing else: there is no pattern of its own to
      cycle (doppler#1718). */
@@ -837,6 +881,13 @@ dp_wfm_source_attach_dsss (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
     return 0; /* no-op, mirrors dp_wfm_synth_set_dsss_chips */
   if (src->symbol_rate > 0.0)
     {
+      /* The per-frame code-only window rides on either data path below; its
+         order against dp_wfm_synth_set_dsss_cont does not matter. A window
+         breaking its rule is refused by dp_wfm_source_error first. */
+      if (dp_wfm_synth_set_dsss_window (syn, src->code_only_symbols,
+                                        src->frame_symbols)
+          != 0)
+        return -1;
       /* Continuous async: the data clock is independent of the code. sps is
          samples-per-CHIP for dsss, so chip_rate = fs/sps and chips/symbol =
          chip_rate/symbol_rate (non-integer — the asynchronicity). Data comes
@@ -1057,6 +1108,23 @@ dp_wfm_source_data_is_stream (const wfm_source_t *src)
   return src && src->data_from_file && strcmp (src->data_from_file, "-") == 0;
 }
 
+/* The symbol after the frames-th data symbol of a continuous dsss stream.
+   Without a window every symbol carries data. With one, the data pauses
+   through each frame's code_only_symbols, so data symbol k (0-based) is
+   symbol (k / d) * frame_symbols + code_only_symbols + k % d, with
+   d = frame_symbols - code_only_symbols data symbols a frame. A trailing
+   window after the last data symbol is not data, so the run stops before
+   it, as it stops before the next data symbol without a window. */
+static uint64_t
+data_symbol_end (const wfm_source_t *src, uint64_t frames)
+{
+  const uint64_t f = src->frame_symbols, w = src->code_only_symbols;
+  if (!frames || !f || w >= f) /* w >= f with data is refused upstream */
+    return frames;
+  const uint64_t d = f - w, k = frames - 1u;
+  return (k / d) * f + w + k % d + 1u;
+}
+
 uint64_t
 dp_wfm_source_data_samples (const wfm_source_t *src, double fs,
                             uint64_t frames)
@@ -1073,7 +1141,7 @@ dp_wfm_source_data_samples (const wfm_source_t *src, double fs,
       const double cps = dp_wfm_source_dsss_cps (src, fs);
       if (!(cps >= 1.0))
         return 0;
-      return dp_wfm_dsss_cont_edge (frames, cps) * sps;
+      return dp_wfm_dsss_cont_edge (data_symbol_end (src, frames), cps) * sps;
     }
   wfm_frame_desc_t        d;
   wfm_frame_desc_layout_t l;

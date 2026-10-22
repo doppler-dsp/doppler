@@ -1114,6 +1114,7 @@ $(UV) run python scripts/check_c_api_link_refs.py
 $(UV) run python docs/design/spectrogram-measurements/u1u4.py --check
 $(UV) run python docs/design/spectrogram-measurements/b2094.py --check
 $(UV) run python docs/design/async-dsss-parallel-measurements/record.py --check
+$(UV) run python docs/design/acq-surface-measurements/record.py --check
 $(UV) run python docs/design/spectrogram-measurements/b2062.py --check
 endef
 
@@ -1754,7 +1755,8 @@ endef
 # Named here so they land in `.PHONY` and in generated `help`, and so the same
 # gates cover them: criterion 2 is "help lists EVERY target", not "every
 # standard target" — a local target help omits is exactly as invisible.
-LOCAL_TARGETS = specan record-demo parallel-record-write gallery blazing \
+LOCAL_TARGETS = specan record-demo parallel-record-write acq-surface-record \
+                gallery blazing \
                 gen-c-api just-build docs-invariants \
                 jm-apply jm-apply-downstream jm-adopt jm-revendor \
                 jm-upgrade changelog-assemble changelog-assembled-check \
@@ -2256,6 +2258,13 @@ record-demo: ## Re-record the specan demo frames (docs/specan/frames.json)
 parallel-record-write: ## Re-render the parallel record's blocks from its data
 	$(UV) run python docs/design/async-dsss-parallel-measurements/record.py \
 	    --write
+
+# docs/design/acq-surface.md §8 is one run of validate_acq_surface. The run
+# is stamped with the commit it was taken at and refused from a dirty tree,
+# so commit the validator first, then run this, then commit the data.
+acq-surface-record: build ## Re-run the acq surface's validator; rewrite its §8 tables
+	$(UV) run python docs/design/acq-surface-measurements/record.py measure
+	$(UV) run python docs/design/acq-surface-measurements/record.py --write
 
 # Run all plot-generating examples and copy output PNGs to docs/assets/.
 # Run before releasing whenever src/doppler/examples/ has changed.
@@ -3011,10 +3020,25 @@ package-rpm: ## Build the .rpm packages into $(PKG_OUT_DIR)/ (needs rpmbuild)
 # As the caller, not root, for the reason glibc-gate gives: the build tree
 # lands in the bind-mounted checkout. rpm-build therefore cannot be installed
 # at run time, so it is a one-line derived image.
+#
+# The builder-image build runs under its own deadline, not the CI job's 45
+# minutes (#2535). It used to run `docker build -q ... >/dev/null`, which
+# threw away the RUN step's output -- dnf's own error on a failure, and any
+# progress line that would have named a stall. Now it is --progress=plain and
+# shows every line. The deadline is one attempt through the repo's shared
+# with-deadline.sh (no retries): a hung pull or mirror fails here, with the
+# phase printed above it, instead of silently eating the job's timeout.
+# Generous on purpose: a cold quay.io pull plus dnf is minutes, not twenty.
 PKG_BUILDER_IMAGE ?= doppler-pkg-builder:local
+PKG_BUILDER_DEADLINE ?= 1200
 package-linux: ## Build the .deb and .rpm packages inside the manylinux_2_28 image
-	printf 'FROM %s\nRUN dnf install -y rpm-build && dnf clean all\n' \
-	    "$(PKG_IMAGE)" | docker build -q -t $(PKG_BUILDER_IMAGE) - >/dev/null
+	@mkdir -p $(PKG_BUILD_DIR)/builder
+	@printf 'FROM %s\nRUN dnf install -y rpm-build && dnf clean all\n' \
+	    "$(PKG_IMAGE)" > $(PKG_BUILD_DIR)/builder/Dockerfile
+	@echo "package-linux: phase 1/2 -- building $(PKG_BUILDER_IMAGE) from $(PKG_IMAGE) (dnf install rpm-build), deadline $(PKG_BUILDER_DEADLINE)s"
+	./scripts/with-deadline.sh $(PKG_BUILDER_DEADLINE) 1 \
+	    docker build --progress=plain -t $(PKG_BUILDER_IMAGE) $(PKG_BUILD_DIR)/builder
+	@echo "package-linux: phase 2/2 -- building the packages in $(PKG_BUILDER_IMAGE)"
 	@rm -rf $(PKG_OUT_DIR)
 	docker run --rm -e HOME=/tmp $(call CONTAINER_CHECKOUT,$(PKG_BUILD_DIR)) \
 	    $(PKG_BUILDER_IMAGE) \

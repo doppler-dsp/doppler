@@ -1658,6 +1658,55 @@
       "version": 1
     }
   },
+  "dsss_window": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--symbol-rate",
+      "100",
+      "--data-code",
+      "1011",
+      "--frame-symbols",
+      "8",
+      "--code-only-symbols",
+      "2",
+      "--fs",
+      "48000",
+      "--count",
+      "64"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 512
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "code_only_symbols": 2,
+          "data_code": "0xb",
+          "frame_symbols": 8,
+          "freq": 0,
+          "fs": 48000,
+          "lfsr": "galois",
+          "num_samples": 64,
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "symbol_rate": 100,
+          "type": "dsss"
+        }
+      ],
+      "version": 1
+    }
+  },
   "err_bad_choice": {
     "argv": [
       "--type",
@@ -2529,6 +2578,25 @@
   "err_unknown": {
     "argv": [
       "--nope"
+    ],
+    "exit": 2,
+    "outputs": {},
+    "record": null
+  },
+  "err_window_no_frame": {
+    "argv": [
+      "--type",
+      "dsss",
+      "--symbol-rate",
+      "100",
+      "--data-code",
+      "1011",
+      "--code-only-symbols",
+      "2",
+      "--fs",
+      "48000",
+      "--count",
+      "64"
     ],
     "exit": 2,
     "outputs": {},

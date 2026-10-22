@@ -3065,8 +3065,7 @@ PKG_SMOKE_RUN = for d in $(PKG_SMOKE_DISTROS); do \
 	    echo ">> $$d"; \
 	    net=; [ "$$d" = "$(CI_IMAGE_2404)" ] && net=--network=none; \
 	    ./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
-	        env STOCK_REGISTRY=$(STOCK_REGISTRY) STOCK_MIRROR=$(STOCK_MIRROR) \
-	        bash scripts/stock-pull.sh $$d \
+	        env $(STOCK_PULL) $$d \
 	        || { echo "$(1): could not pull $$d"; exit 1; }; \
 	    ./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
 	        docker run --rm --init --pull=never $$net -v "$(CURDIR)":/w:ro -w /w $$d \

@@ -35,12 +35,14 @@ ARG JB_SHA256
 ARG PACKAGER_GROUPS
 COPY bootstrap.toml /tmp/bootstrap.toml
 WORKDIR /tmp
+# manylinux_2_28's curl is 7.61: it has --retry but not --retry-all-errors
+# (7.71), which the CI image's Ubuntu curl does have. Transient errors only.
 RUN set -eu; \
     [ -n "$JB_VERSION" ] && [ -n "$JB_SHA256" ] \
       || { echo "JB_VERSION and JB_SHA256 are required" >&2; exit 1; }; \
     [ -n "$PACKAGER_GROUPS" ] \
       || { echo "PACKAGER_GROUPS is required" >&2; exit 1; }; \
-    curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+    curl -fsSL --retry 5 --retry-delay 2 \
       -o /tmp/jb.tar.gz \
       "https://github.com/just-buildit/just-bashit/releases/download/${JB_VERSION}/just-bashit.tar.gz"; \
     echo "${JB_SHA256}  /tmp/jb.tar.gz" | sha256sum -c -; \

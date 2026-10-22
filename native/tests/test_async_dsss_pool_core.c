@@ -84,15 +84,6 @@ _chip_dist (double a, double b, double l)
   return d > l / 2 ? l - d : d;
 }
 
-/* Push `x` in blocks of one code period. */
-static void
-_feed (dp_async_dsss_pool_state_t *p, const float _Complex *x, size_t n)
-{
-  const size_t blk = 1023 * POOL_SPC;
-  for (size_t pos = 0; pos < n; pos += blk)
-    (void)dp_async_dsss_pool_push (p, x + pos, n - pos < blk ? n - pos : blk);
-}
-
 /* create's domain: 1 to ASYNC_DSSS_POOL_MAX_RECEIVERS receivers, threads
    >= 0, and whatever a receiver refuses. Each receiver's engine runs on
    one thread. Sabotage: drop the receiver-count check -> 0 builds a pool

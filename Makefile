@@ -3102,7 +3102,7 @@ PKG_SMOKE_RUN = for d in $(PKG_SMOKE_DISTROS); do \
 	    ./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
 	        docker run --rm --init --pull=never $$net -v "$(CURDIR)":/w:ro -w /w $$d \
 	        bash tests/install/linux-package-smoke.sh /w/$(2) \
-	        || { echo "$(1): FAILED in $$d (see the line above: exit 124 = the $(PKG_SMOKE_DEADLINE)s leg deadline)"; exit 1; }; \
+	        || { echo "$(1): FAILED in $$d (the line above says why: a deadline names itself, $(PKG_SMOKE_DEADLINE)s; any other exit is the leg's own)"; exit 1; }; \
 	 done; \
 	 echo "$(1): PASS in $(PKG_SMOKE_DISTROS)"
 

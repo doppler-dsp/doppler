@@ -151,10 +151,10 @@ extern "C"
 #define ASYNC_DSSS_POOL_GHOST_EPS_HZ 10.0
   /** The stillness limit: the carrier delta's standard deviation over the
    *  window must be below this, Hz. */
-#define ASYNC_DSSS_POOL_GHOST_STILL_HZ 5.0
+#define ASYNC_DSSS_POOL_GHOST_STILL_HZ 10.0
   /** The code-lock fraction a ghost holds below: of the window's steps,
    *  the share with status().code_locked set. */
-#define ASYNC_DSSS_POOL_GHOST_LOCK_FRAC 0.5
+#define ASYNC_DSSS_POOL_GHOST_LOCK_FRAC 0.2
 
   /**
    * @brief AsyncDsssPool state.

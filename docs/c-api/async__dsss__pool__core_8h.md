@@ -129,8 +129,8 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 | Type | Name |
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_POOL\_GHOST\_EPS\_HZ**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_eps_hz)  `10.0`<br> |
-| define  | [**ASYNC\_DSSS\_POOL\_GHOST\_LOCK\_FRAC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_lock_frac)  `0.5`<br> |
-| define  | [**ASYNC\_DSSS\_POOL\_GHOST\_STILL\_HZ**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_still_hz)  `5.0`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_GHOST\_LOCK\_FRAC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_lock_frac)  `0.2`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_GHOST\_STILL\_HZ**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_still_hz)  `10.0`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_GHOST\_WINDOW\_S**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_window_s)  `0.2`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_MAX\_RECEIVERS**](async__dsss__pool__core_8h.md#define-async_dsss_pool_max_receivers)  `[**ASYNC\_DSSS\_RX\_MAX\_PEAKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_peaks)`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_NO\_RECEIVER**](async__dsss__pool__core_8h.md#define-async_dsss_pool_no_receiver)  `(-1)`<br> |
@@ -847,7 +847,7 @@ How near the lattice the mean carrier delta must sit, Hz.
 ### define ASYNC\_DSSS\_POOL\_GHOST\_LOCK\_FRAC 
 
 ```C++
-#define ASYNC_DSSS_POOL_GHOST_LOCK_FRAC `0.5`
+#define ASYNC_DSSS_POOL_GHOST_LOCK_FRAC `0.2`
 ```
 
 
@@ -864,7 +864,7 @@ The code-lock fraction a ghost holds below: of the window's steps, the share wit
 ### define ASYNC\_DSSS\_POOL\_GHOST\_STILL\_HZ 
 
 ```C++
-#define ASYNC_DSSS_POOL_GHOST_STILL_HZ `5.0`
+#define ASYNC_DSSS_POOL_GHOST_STILL_HZ `10.0`
 ```
 
 

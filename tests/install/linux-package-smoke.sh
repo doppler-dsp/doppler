@@ -39,9 +39,17 @@ if command -v apt-get >/dev/null 2>&1; then
     tools=("$PKGS"/doppler-dsp-tools_*.deb)
 else
     fmt=rpm
-    # -v names the repository and URL dnf is waiting on, so a stalled mirror
-    # is visible in the log rather than silent (#2544).
-    install() { say "installing: $*"; dnf -v install -y "$@"; }
+    # dnf4 (almalinux:8) takes -v, which names the repository and URL it is
+    # waiting on, so a stalled mirror is visible in the log rather than silent
+    # (#2544). dnf5 (fedora:latest) rejects -v in every position. So -v is
+    # added only where the binary takes it: probed directly, not inferred from
+    # a version string, whose format is not one this script owns.
+    if dnf -v --version >/dev/null 2>&1; then
+        dnf_opts=(-v)
+    else
+        dnf_opts=()
+    fi
+    install() { say "installing: $*"; dnf "${dnf_opts[@]}" install -y "$@"; }
     have() { rpm -q "$1" >/dev/null 2>&1; }
     toolchain=(gcc cmake make pkgconf-pkg-config)
     # The runtime rpm is the one whose name has no -devel and no -tools.

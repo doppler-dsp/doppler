@@ -19,6 +19,11 @@ name: CI image
 #   from the PINNED inputs and commit the new pin onto that branch, so the
 #   PR carries its own pin and `make ci-image-check` passes.
 #
+# With HAS_PACKAGER_IMAGE on, the packager image (docker/packager.Dockerfile,
+# CI_PACKAGER_*) is built here too, in the same matrix, as its own family. It
+# is off unless the Makefile turns it on, and every step that serves it is
+# skipped otherwise: an adopter without it runs this workflow as before.
+#
 # A push or PR made with GITHUB_TOKEN starts no workflow, so a repin
 # dispatches CI_IMAGE_CI_WORKFLOW on its branch.
 
@@ -38,6 +43,7 @@ on:
     branches-ignore: [main, master]
     paths:
       - docker/ci.Dockerfile
+      - docker/packager.Dockerfile
       - docker/ci-extra.sh
       - bootstrap.toml
       - .github/workflows/ci-image.yml
@@ -73,6 +79,12 @@ jobs:
       ci_workflow: ${{ steps.cfg.outputs.ci_workflow }}
       tag: ${{ steps.cfg.outputs.tag }}
       owed: ${{ steps.owed.outputs.owed }}
+      # The packager image (HAS_PACKAGER_IMAGE): set only when the adopter
+      # turns it on, so an adopter without it sees these outputs empty.
+      packager: ${{ steps.cfg.outputs.packager }}
+      packager_matrix: ${{ steps.cfg.outputs.packager_matrix }}
+      packager_repo: ${{ steps.cfg.outputs.packager_repo }}
+      packager_groups: ${{ steps.cfg.outputs.packager_groups }}
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -84,7 +96,11 @@ jobs:
       # weekly run and a dispatch always build: they exist to ask.
       - id: owed
         run: |
-          if [ "${{ github.event_name }}" = push ] && make -s ci-image-check; then
+          # The packager's sources owe a rebuild too, when it is on. grep -q
+          # fails when it is off, so an adopter without it is unchanged.
+          if [ "${{ github.event_name }}" = push ] && make -s ci-image-check \
+             && { ! make -s ci-image-config | grep -qx packager=1 \
+                  || make -s packager-image-check; }; then
             echo "owed=false" >> "$GITHUB_OUTPUT"
           else
             echo "owed=true" >> "$GITHUB_OUTPUT"
@@ -101,18 +117,35 @@ jobs:
           make -s ci-image-config >> "$GITHUB_OUTPUT"
           bases=$(make -s ci-image-config | sed -n 's/^bases=//p')
           export CI_IMAGE_BASES="$bases"
+          # The packager is on only when the Makefile says so: then its per-arch
+          # bases join the inputs, and its two arches join the matrix below.
+          pk=$(make -s ci-image-config | sed -n 's/^packager=//p')
+          if [ "$pk" = 1 ]; then
+            export PACKAGER_IMAGE_ENABLED=1
+            export PACKAGER_BASE_AMD64=$(make -s ci-image-config | sed -n 's/^packager_base_amd64=//p')
+            export PACKAGER_BASE_ARM64=$(make -s ci-image-config | sed -n 's/^packager_base_arm64=//p')
+          fi
           flag=; [ "$REFRESH" = true ] && flag=--refresh
           python3 scripts/ci-image.py inputs $flag > inputs.env
           cat inputs.env
           # base x arch, each on its native runner.
-          matrix=$(for b in $bases; do
+          matrix=$({
+          for b in $bases; do
             for a in amd64:ubuntu-latest arm64:ubuntu-24.04-arm; do
               printf '{"base":"%s","key":"%s","arch":"%s","runs_on":"%s"}\n' \
                 "$b" "$(python3 scripts/ci-image.py key "$b")" \
                 "${a%%:*}" "${a#*:}"
             done
-          done | jq -sc '{include: .}')
+          done
+          } | jq -sc '{include: .}')
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          # The packager has its own job and matrix, set only when it is on.
+          if [ "$pk" = 1 ]; then
+            pmatrix=$(for a in amd64:ubuntu-latest arm64:ubuntu-24.04-arm; do
+              printf '{"arch":"%s","runs_on":"%s"}\n' "${a%%:*}" "${a#*:}"
+            done | jq -sc '{include: .}')
+            echo "packager_matrix=$pmatrix" >> "$GITHUB_OUTPUT"
+          fi
           snap=$(sed -n 's/^CI_APT_SNAPSHOT=//p' inputs.env)
           echo "tag=${snap}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
@@ -188,9 +221,78 @@ jobs:
           path: out/
           if-no-files-found: error
 
+  # The packager, in its own job: a job that runs setup-buildx-action is one
+  # the stock-pull gate reads as a container-driver build, so this one does
+  # not. It builds on the classic builder, on the daemon, for this arch, from
+  # the pin's CI_PACKAGER_BASE_<ARCH> (a manylinux_2_28 base), and pushes to its
+  # own repository. It runs only when the packager is on.
+  packager:
+    name: Build and smoke (packager, ${{ matrix.arch }})
+    needs: resolve
+    if: needs.resolve.outputs.owed == 'true' && needs.resolve.outputs.packager == '1'
+    runs-on: ${{ matrix.runs_on }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJSON(needs.resolve.outputs.packager_matrix) }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: ci-image-inputs
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build, smoke, push (packager)
+        env:
+          REPO: ${{ needs.resolve.outputs.packager_repo }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          PKG_GROUPS: ${{ needs.resolve.outputs.packager_groups }}
+          KEY: packager
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          . ./inputs.env
+          base_ref=$(eval echo "\$CI_PACKAGER_BASE_${ARCH^^}")
+          img="$REPO:$KEY-$TAG-$ARCH"
+          # The build is the Makefile's (packager-image-build, standard.mk):
+          # this file holds no `docker build` of its own.
+          make packager-image-build IMAGE="$img" BASE="$base_ref" \
+            CI_JB_VERSION="$CI_JB_VERSION" CI_JB_SHA256="$CI_JB_SHA256" \
+            PACKAGER_GROUPS="$PKG_GROUPS"
+          # Smoked before anything is pushed, natively, on this arch.
+          make packager-image-smoke IMAGE="$img"
+          docker push "$img"
+          fp=$(docker run --rm "$img" cat /etc/packager-image-fingerprint)
+          mkdir -p out
+          echo "$ARCH=$fp" > "out/fp-$KEY-$ARCH"
+          echo "$KEY $ARCH fingerprint $fp"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ci-image-fp-packager-${{ matrix.arch }}
+          path: out/
+          if-no-files-found: error
+
   publish:
     name: Repin if anything moved
-    needs: [resolve, build]
+    needs: [resolve, build, packager]
+    # Not `success()` alone: a skipped dependency skips this job, and the
+    # packager job is skipped whenever the packager is off. So this names the
+    # results it needs -- the CI build's success, the packager's success or
+    # skip -- and still never runs when nothing was owed or something failed.
+    if: >-
+      always() && !cancelled() && needs.resolve.outputs.owed == 'true' &&
+      needs.build.result == 'success' &&
+      (needs.packager.result == 'success' || needs.packager.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -219,6 +321,10 @@ jobs:
         env:
           REPO: ${{ needs.resolve.outputs.repo }}
           TAG: ${{ needs.resolve.outputs.tag }}
+          # The packager's keys are written and compared only when it is on.
+          PACKAGER_IMAGE_ENABLED: ${{ needs.resolve.outputs.packager }}
+          PREPO: ${{ needs.resolve.outputs.packager_repo }}
+          PACKAGER_GROUPS: ${{ needs.resolve.outputs.packager_groups }}
         run: |
           set -euo pipefail
           CI_IMAGE_BASES=$(make -s ci-image-config | sed -n 's/^bases=//p')
@@ -238,6 +344,19 @@ jobs:
                 join-fingerprint "${fps[@]}")"
             done
             echo "CI_IMAGE_SOURCE_HASH=$(python3 scripts/ci-image.py source-hash)"
+            if [ "$PACKAGER_IMAGE_ENABLED" = 1 ]; then
+              # One multi-arch index over the two arches, as the CI image's.
+              docker buildx imagetools create -t "$PREPO:packager-$TAG" \
+                "$PREPO:packager-$TAG-amd64" "$PREPO:packager-$TAG-arm64"
+              d=$(docker buildx imagetools inspect "$PREPO:packager-$TAG" \
+                    --format '{{json .Manifest}}' | jq -r .digest)
+              echo "CI_PACKAGER_IMAGE=$PREPO@$d"
+              mapfile -t fps < <(cat "art/fp-packager-"*)
+              echo "CI_PACKAGER_FINGERPRINT=$(python3 scripts/ci-image.py \
+                join-fingerprint "${fps[@]}")"
+              echo "CI_PACKAGER_SOURCE_HASH=$(python3 scripts/ci-image.py \
+                packager-source-hash)"
+            fi
           } | python3 scripts/ci-image.py write-pin --out new-pin.env
           python3 scripts/ci-image.py changed --new new-pin.env >> "$GITHUB_OUTPUT"
           cat new-pin.env

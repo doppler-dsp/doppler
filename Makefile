@@ -61,6 +61,12 @@ CI_IMAGE_BASES        = ubuntu:22.04 ubuntu:24.04
 CI_IMAGE_GROUPS       = dev docs clang-rt
 CI_IMAGE_LANDING      = branch
 CI_IMAGE_SMOKE_TARGET = build
+# The packager image: rpm-build baked into a manylinux_2_28 base, so the
+# package build never reaches a distro mirror at CI time (#2544). Its bases
+# are canonical's defaults; its package list is bootstrap.toml's [packager.dnf].
+HAS_PACKAGER_IMAGE    = 1
+PACKAGER_IMAGE_REPO   = ghcr.io/doppler-dsp/doppler-packager
+PACKAGER_GROUPS       = packager
 
 # ── Layout ───────────────────────────────────────────────────────────────────
 BUILD_DIR   ?= build
@@ -2995,7 +3001,6 @@ CPACK           ?= cpack
 PKG_BUILD_DIR   ?= build-pkg
 PKG_OUT_DIR     ?= $(DIST_DIR)/linux-packages
 DEB_MULTIARCH   ?= $(shell uname -m)-linux-gnu
-PKG_IMAGE       ?= quay.io/pypa/manylinux_2_28_$(shell uname -m)
 
 define PKG_BUILD
 	$(CMAKE) -S . -B $(PKG_BUILD_DIR) -DCMAKE_BUILD_TYPE=Release \
@@ -3017,30 +3022,33 @@ package-rpm: ## Build the .rpm packages into $(PKG_OUT_DIR)/ (needs rpmbuild)
 	    exit 1; }
 	$(call PKG_BUILD,lib64,RPM,rpm)
 
-# As the caller, not root, for the reason glibc-gate gives: the build tree
-# lands in the bind-mounted checkout. rpm-build therefore cannot be installed
-# at run time, so it is a one-line derived image.
+# The packages are built in the PINNED packager image (CI_PACKAGER_IMAGE in
+# .github/ci-images.env, #2544): rpm-build is baked in, so no package manager
+# runs here, and the build runs with NO network (--network=none). A dnf step
+# reintroduced anywhere in this path fails at once, because there is no
+# network to reach a mirror. The pin is canonical's: `make ci-image-check`
+# and the weekly refresh own it, and this target never builds an image.
 #
-# The builder-image build runs under its own deadline, not the CI job's 45
-# minutes (#2535). It used to run `docker build -q ... >/dev/null`, which
-# threw away the RUN step's output -- dnf's own error on a failure, and any
-# progress line that would have named a stall. Now it is --progress=plain and
-# shows every line. The deadline is one attempt through the repo's shared
-# with-deadline.sh (no retries): a hung pull or mirror fails here, with the
-# phase printed above it, instead of silently eating the job's timeout.
-# Generous on purpose: a cold quay.io pull plus dnf is minutes, not twenty.
-PKG_BUILDER_IMAGE ?= doppler-pkg-builder:local
+# The pull and the build are each one attempt through the repo's shared
+# with-deadline.sh, no retries: a hung pull or a stuck build fails with the
+# phase named, rather than eating the job's timeout. The build's deadline is
+# longer than the pull's: the packages take minutes, a pull seconds.
+PKG_BUILDER_IMAGE ?= $(CI_PACKAGER_IMAGE)
 PKG_BUILDER_DEADLINE ?= 1200
-package-linux: ## Build the .deb and .rpm packages inside the manylinux_2_28 image
-	@mkdir -p $(PKG_BUILD_DIR)/builder
-	@printf 'FROM %s\nRUN dnf install -y rpm-build && dnf clean all\n' \
-	    "$(PKG_IMAGE)" > $(PKG_BUILD_DIR)/builder/Dockerfile
-	@echo "package-linux: phase 1/2 -- building $(PKG_BUILDER_IMAGE) from $(PKG_IMAGE) (dnf install rpm-build), deadline $(PKG_BUILDER_DEADLINE)s"
+PKG_BUILD_DEADLINE ?= 2400
+package-linux: ## Build the .deb and .rpm packages in the pinned packager image, offline
+	@test -n '$(PKG_BUILDER_IMAGE)' || { \
+	    echo "package-linux: no CI_PACKAGER_IMAGE pin in .github/ci-images.env"; \
+	    echo "  (dispatch the CI image workflow on this branch to build and pin it)"; \
+	    exit 1; }
+	@echo "package-linux: phase 1/2 -- pulling $(PKG_BUILDER_IMAGE) (deadline $(PKG_BUILDER_DEADLINE)s)"
 	./scripts/with-deadline.sh $(PKG_BUILDER_DEADLINE) 1 \
-	    docker build --progress=plain -t $(PKG_BUILDER_IMAGE) $(PKG_BUILD_DIR)/builder
-	@echo "package-linux: phase 2/2 -- building the packages in $(PKG_BUILDER_IMAGE)"
+	    docker pull $(PKG_BUILDER_IMAGE)
+	@echo "package-linux: phase 2/2 -- building the packages offline (deadline $(PKG_BUILD_DEADLINE)s)"
 	@rm -rf $(PKG_OUT_DIR)
-	docker run --rm -e HOME=/tmp $(call CONTAINER_CHECKOUT,$(PKG_BUILD_DIR)) \
+	./scripts/with-deadline.sh $(PKG_BUILD_DEADLINE) 1 \
+	    docker run --rm --init --pull=never --network=none -e HOME=/tmp \
+	    $(call CONTAINER_CHECKOUT,$(PKG_BUILD_DIR)) \
 	    $(PKG_BUILDER_IMAGE) \
 	    make package-deb package-rpm PKG_BUILD_DIR=$(PKG_BUILD_DIR)
 	@ls -1 $(PKG_OUT_DIR)
@@ -3094,7 +3102,7 @@ PKG_SMOKE_RUN = for d in $(PKG_SMOKE_DISTROS); do \
 	    ./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
 	        docker run --rm --init --pull=never $$net -v "$(CURDIR)":/w:ro -w /w $$d \
 	        bash tests/install/linux-package-smoke.sh /w/$(2) \
-	        || { echo "$(1): FAILED in $$d (see the line above: exit 124 = the $(PKG_SMOKE_DEADLINE)s leg deadline)"; exit 1; }; \
+	        || { echo "$(1): FAILED in $$d (the line above says why: a deadline names itself, $(PKG_SMOKE_DEADLINE)s; any other exit is the leg's own)"; exit 1; }; \
 	 done; \
 	 echo "$(1): PASS in $(PKG_SMOKE_DISTROS)"
 

@@ -16,6 +16,10 @@ is tested with changes only when a commit says so:
     the just-bashit release whose ``install-deps.sh`` installs the
     ``bootstrap.toml`` groups. Pinning ``jbx`` would pin nothing: it resolves
     install-deps through ``aliases.toml`` at run time.
+``CI_PACKAGER_BASE_AMD64`` / ``CI_PACKAGER_BASE_ARM64`` (HAS_PACKAGER_IMAGE)
+    each arch's manylinux_2_28 base, by digest. The packager is the one image
+    that must stay manylinux: its glibc 2.28 floor is the claim its packages
+    make. It is pinned beside the CI image and shares its installer pin.
 
 and what was built from them:
 
@@ -41,6 +45,8 @@ Subcommands
 -----------
 ``source-hash``
     Print this tree's ``CI_IMAGE_SOURCE_HASH``.
+``packager-source-hash``
+    Print this tree's ``CI_PACKAGER_SOURCE_HASH`` (HAS_PACKAGER_IMAGE only).
 ``inputs [--refresh]``
     Print the build inputs as ``KEY=VALUE`` lines: the pinned ones, or with
     ``--refresh`` today's (a new snapshot, each base's current digest, the
@@ -86,6 +92,7 @@ from pathlib import Path
 
 PIN = Path(".github/ci-images.env")
 DOCKERFILE = Path("docker/ci.Dockerfile")
+PACKAGER_DOCKERFILE = Path("docker/packager.Dockerfile")
 EXTRA = Path("docker/ci-extra.sh")
 BOOTSTRAP = Path("bootstrap.toml")
 JB_REPO = "just-buildit/just-bashit"
@@ -118,6 +125,32 @@ def key(base: str) -> str:
     if not digits:
         sys.exit(f"ci-image: cannot derive a pin key from {base!r}")
     return digits
+
+
+def packager_on() -> bool:
+    """Whether this adopter builds the packager image (HAS_PACKAGER_IMAGE).
+
+    Off by default, and off means every pin key, source hash and input here
+    is exactly what it was before the packager existed: an adopter that never
+    sets the flag sees no change at all.
+    """
+    return os.environ.get("PACKAGER_IMAGE_ENABLED") == "1"
+
+
+def packager_bases() -> "dict[str, str]":
+    """The packager's base tag per arch, from make (``PACKAGER_BASE_AMD64``).
+
+    The manylinux images are one per arch, not a multi-arch index, so the pin
+    holds one digest per arch, where the CI image holds one per base.
+    """
+    out = {}
+    for arch in ("AMD64", "ARM64"):
+        tag = os.environ.get(f"PACKAGER_BASE_{arch}", "")
+        if not tag:
+            sys.exit(f"ci-image: PACKAGER_BASE_{arch} is empty "
+                     "(set PACKAGER_IMAGE_BASE_* in the Makefile)")
+        out[arch] = tag
+    return out
 
 
 def read_pin(path: Path = PIN) -> "dict[str, str]":
@@ -168,17 +201,43 @@ def _image_bytes(path: Path) -> bytes:
         return b"<absent>"
     if path != BOOTSTRAP:
         return path.read_bytes()
-    keep, depth, out = True, 0, []
+    return _tables_kept(path, lambda name: not _unread_by_the_image(name), True)
+
+
+def _tables_kept(path: Path, keep, start: bool) -> bytes:
+    """The bytes of ``path`` whose table ``keep`` accepts, by its header's name.
+
+    ``start`` says whether lines above the first table are kept. This one
+    reading serves the image's view (every table an image layer reads) and a
+    group's view (one group's tables), so the two cannot disagree about where
+    a table begins.
+    """
+    kept, depth, out = start, 0, []
     for line in path.read_bytes().decode("utf-8").splitlines(keepends=True):
         m = _TABLE.match(line) if depth == 0 else None
         if m:
-            keep = not _unread_by_the_image(m.group(1))
+            kept = keep(m.group(1))
         else:
             bare = _NOT_BRACKETS.sub("", line)
             depth = max(0, depth + bare.count("[") - bare.count("]"))
-        if keep:
+        if kept:
             out.append(line)
     return "".join(out).encode("utf-8")
+
+
+def _group_bytes(path: Path, groups: "list[str]") -> bytes:
+    """``bootstrap.toml`` reduced to the tables of the named groups.
+
+    ``[<group>]`` and ``[<group>.<manager>]`` and nothing else: the packager is
+    fed by its own groups alone, so an edit to the dev group owes it nothing.
+    """
+    if not path.exists():
+        return b"<absent>"
+
+    def ours(name: str) -> bool:
+        return name.split(".", 1)[0].strip().strip("\"'") in groups
+
+    return _tables_kept(path, ours, False)
 
 
 def source_hash() -> str:
@@ -188,6 +247,34 @@ def source_hash() -> str:
         h.update(str(path).encode() + b"\0")
         h.update(_image_bytes(path))
         h.update(b"\0")
+    return h.hexdigest()
+
+
+def packager_source_hash() -> str:
+    """Hash what the packager image is built from: its Dockerfile, and its groups.
+
+    The packager's Dockerfile, and from ``bootstrap.toml`` only the tables of
+    ``PACKAGER_GROUPS`` -- the one declaration of what feeds the image. An edit
+    to the dev group, or a version bump, owes the packager nothing; the group
+    NAMES are hashed too, so changing which groups install moves the hash.
+    docker/ci-extra.sh is not an input: the packager installs no extras.
+
+    What the packages themselves are is NOT in this hash. dnf reads the live
+    distro mirrors at refresh time, with no snapshot to pin (unlike
+    CI_APT_SNAPSHOT); the fingerprint of the installed packages is what catches
+    a package that moved, and that is why a refresh owes a repin on it.
+    """
+    groups = os.environ.get("PACKAGER_GROUPS", "").split()
+    if not groups:
+        sys.exit("ci-image: PACKAGER_GROUPS is empty (set it in the Makefile)")
+    h = hashlib.sha256()
+    h.update(("groups " + " ".join(sorted(groups))).encode() + b"\0")
+    h.update(str(PACKAGER_DOCKERFILE).encode() + b"\0")
+    h.update(_image_bytes(PACKAGER_DOCKERFILE))
+    h.update(b"\0")
+    h.update(str(BOOTSTRAP).encode() + b"\0")
+    h.update(_group_bytes(BOOTSTRAP, groups))
+    h.update(b"\0")
     return h.hexdigest()
 
 
@@ -248,6 +335,13 @@ def inputs(refresh: bool) -> "dict[str, str]":
     if refresh or not (ver and sha):
         ver, sha = _latest_jb()
     out["CI_JB_VERSION"], out["CI_JB_SHA256"] = ver, sha
+    if packager_on():
+        for arch, tag in packager_bases().items():
+            k = f"CI_PACKAGER_BASE_{arch}"
+            ref = pin.get(k, "")
+            if refresh or not ref.startswith(tag + "@"):
+                ref = f"{tag}@{_digest(tag)}"
+            out[k] = ref
     return out
 
 
@@ -256,7 +350,14 @@ def _pin_keys() -> "list[str]":
     for base in bases():
         k = key(base)
         keys += [f"CI_BASE_{k}", f"CI_IMAGE_{k}", f"CI_IMAGE_FINGERPRINT_{k}"]
-    return keys + ["CI_IMAGE_SOURCE_HASH"]
+    keys += ["CI_IMAGE_SOURCE_HASH"]
+    if packager_on():
+        # Appended after the CI block, never interleaved: an adopter without
+        # the packager keeps its pin byte-for-byte.
+        keys += ["CI_PACKAGER_BASE_AMD64", "CI_PACKAGER_BASE_ARM64",
+                 "CI_PACKAGER_IMAGE", "CI_PACKAGER_FINGERPRINT",
+                 "CI_PACKAGER_SOURCE_HASH"]
+    return keys
 
 
 def _shape(name: str, value: str) -> bool:
@@ -265,8 +366,9 @@ def _shape(name: str, value: str) -> bool:
         return re.fullmatch(_SNAPSHOT, value) is not None
     if name == "CI_JB_VERSION":
         return re.fullmatch(r"v?\d+\.\d+\.\d+", value) is not None
-    if name.startswith(("CI_BASE_", "CI_IMAGE_")) and not name.startswith(
-        ("CI_IMAGE_FINGERPRINT_", "CI_IMAGE_SOURCE")
+    if name in ("CI_PACKAGER_IMAGE",) or (
+        name.startswith(("CI_BASE_", "CI_IMAGE_", "CI_PACKAGER_BASE_"))
+        and not name.startswith(("CI_IMAGE_FINGERPRINT_", "CI_IMAGE_SOURCE"))
     ):
         return re.fullmatch(rf"[\w./:-]+@{_DIGEST}", value) is not None
     return re.fullmatch(_HEX64, value) is not None
@@ -291,6 +393,7 @@ def changed(new: Path) -> bool:
     moved = [
         k for k in _pin_keys()
         if k.startswith("CI_IMAGE_FINGERPRINT_") or k == "CI_IMAGE_SOURCE_HASH"
+        or k in ("CI_PACKAGER_FINGERPRINT", "CI_PACKAGER_SOURCE_HASH")
         if old.get(k) != fresh.get(k)
     ]
     for k in moved:
@@ -321,6 +424,14 @@ def check() -> int:
             "or dispatch the CI image workflow on it."
         )
         return 1
+    if packager_on() and pin["CI_PACKAGER_SOURCE_HASH"] != packager_source_hash():
+        print(
+            f"ci-image-check: the packager's sources ({PACKAGER_DOCKERFILE}, "
+            f"{BOOTSTRAP}) moved without a repin.\n"
+            f"  pinned: {pin['CI_PACKAGER_SOURCE_HASH']}\n"
+            f"  tree:   {packager_source_hash()}"
+        )
+        return 1
     print(f"ci-image-check: {PIN} pins images built from this tree")
     return 0
 
@@ -329,6 +440,7 @@ def main(argv: "list[str]") -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("source-hash")
+    sub.add_parser("packager-source-hash")
     p = sub.add_parser("inputs")
     p.add_argument("--refresh", action="store_true")
     p = sub.add_parser("key")
@@ -344,6 +456,8 @@ def main(argv: "list[str]") -> int:
 
     if a.cmd == "source-hash":
         print(source_hash())
+    elif a.cmd == "packager-source-hash":
+        print(packager_source_hash())
     elif a.cmd == "inputs":
         for k, v in inputs(a.refresh).items():
             print(f"{k}={v}")

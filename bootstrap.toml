@@ -310,3 +310,8 @@ packages = [
 packages = [
     "compiler-rt",
 ]
+
+[packager.dnf]
+packages = [
+    "rpm-build",
+]

@@ -261,5 +261,10 @@ type = "uint64_t"
 field = true
 
 [[async_dsss_pool.properties]]
+name = "released_ghost"
+type = "uint64_t"
+field = true
+
+[[async_dsss_pool.properties]]
 name = "coherent_bins"
 type = "size_t"

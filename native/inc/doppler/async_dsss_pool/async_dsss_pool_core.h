@@ -37,6 +37,31 @@
  *      tracking over the one refining, then the one in its state longer
  *      (status().state_samples: the first to lock), then the higher C/N0
  *      estimate, then the lower index. The other is reset.
+ *    - **releases ghosts.** A receiver can take a strong emitter's
+ *      Doppler-offset sidelobe, hundreds of chips from the emitter's own
+ *      phase, where the duplicate key cannot see it: it despreads the
+ *      emitter's own data. Two of its traits give it away together
+ *      (doppler#2529), each over the same trailing window of
+ *      @ref ASYNC_DSSS_POOL_GHOST_WINDOW_S of whole code periods, both
+ *      receivers tracking throughout:
+ *      - its carrier moves in lockstep with a stronger holder's (a higher
+ *        status().cn0_dbhz_est), a whole nonzero number k of lattice
+ *        steps away: the carrier delta's mean is within
+ *        @ref ASYNC_DSSS_POOL_GHOST_EPS_HZ of k times chip_rate /
+ *        (2 code_len), and its standard deviation below
+ *        @ref ASYNC_DSSS_POOL_GHOST_STILL_HZ. A sidelobe sits on its
+ *        parent's carrier a tile away, and the carrier loop, updating
+ *        once a code period from a squaring combine, reads that modulo
+ *        half the epoch rate. Two emitters' carriers move apart.
+ *      - its Dll holds code lock in fewer than
+ *        @ref ASYNC_DSSS_POOL_GHOST_LOCK_FRAC of the window's periods: a
+ *        sidelobe is not the code's triangle.
+ *      Neither alone will do: a distinct emitter can co-move with another
+ *      on the lattice (but holds code lock), and a true track near the
+ *      floor loses code lock (but its carrier is its own).
+ *      dp_async_dsss_pool_ghost_of() is the test. The ghost is reset; the
+ *      search's own sidelobe rule (dp_async_dsss_receiver_set_rank()) then
+ *      keeps it off that cell, but for noise lifting it past the gate.
  *    - **hands out exclusions and ranks.** Every receiver gets the code
  *      phases the OTHER holders hold as its exclusions
  *      (dp_async_dsss_receiver_set_exclusions()), so a search never takes
@@ -54,11 +79,6 @@
  * The receivers share the stream from create on, so their dwells share
  * one block grid (a reset receiver's engine restarts on it), and their
  * ranks line up with no command.
- *
- * The code-phase key does not catch a receiver that took a strong
- * emitter's Doppler-offset sidelobe hundreds of chips from it: that ghost
- * carries the emitter's own data. The rule for it, the correlation of two
- * receivers' data symbols, is doppler#2529's and is not built yet.
  *
  * Lifecycle: create, then push() any number of times, reset() at any point,
  * destroy.
@@ -122,7 +142,19 @@ extern "C"
 #define ASYNC_DSSS_POOL_NO_RECEIVER (-1)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC   DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 1u
+#define ASYNC_DSSS_POOL_STATE_VERSION 2u
+
+  /** The ghost rule's window, s: the trailing span both its tests read
+   *  (doppler#2529). */
+#define ASYNC_DSSS_POOL_GHOST_WINDOW_S 0.2
+  /** How near the lattice the mean carrier delta must sit, Hz. */
+#define ASYNC_DSSS_POOL_GHOST_EPS_HZ 10.0
+  /** The stillness limit: the carrier delta's standard deviation over the
+   *  window must be below this, Hz. */
+#define ASYNC_DSSS_POOL_GHOST_STILL_HZ 5.0
+  /** The code-lock fraction a ghost holds below: of the window's steps,
+   *  the share with status().code_locked set. */
+#define ASYNC_DSSS_POOL_GHOST_LOCK_FRAC 0.5
 
   /**
    * @brief AsyncDsssPool state.
@@ -152,6 +184,20 @@ extern "C"
                                       reset: the pool's shared clock.   */
     uint64_t released_lost;      /**< Lost receivers the controller reset. */
     uint64_t released_duplicate; /**< Duplicate holders it reset.          */
+    uint64_t released_ghost;     /**< Sidelobe ghosts it reset.            */
+    double   lattice_hz;   /**< The ghost lattice spacing: chip_rate /
+                                (2 code_len), half the code-epoch rate. */
+    size_t   ghost_window; /**< Controller steps (code periods) in the
+                                ghost rule's window.                    */
+    double  *car_hist;     /**< n_receivers rings of ghost_window carrier
+                                estimates (status().doppler_hz), Hz.    */
+    uint8_t *cl_hist;      /**< The same rings of status().code_locked. */
+    size_t  *hist_len;     /**< Entries each ring holds: the controller
+                                steps the receiver has been tracking in
+                                a row, at most ghost_window. Every other
+                                entry is 0.                             */
+    size_t   hist_pos;     /**< The ring slot the next step writes; one
+                                clock for every ring.                   */
     dp_tlm_t *tlm;               /**< Attached context; NULL = detached.  */
     char      tlm_prefix[DP_TLM_NAME_MAX]; /**< Its prefix.               */
     uint32_t  tlm_decim;                   /**< Its decimation.           */
@@ -237,7 +283,8 @@ extern "C"
 
   /**
    * @brief Every receiver back to searching, with no exclusions and rank
-   *        0; the clock and the release counts back to 0.
+   *        0; the clock, the release counts and the ghost history back to
+   *        0.
    * @param state  Must be non-NULL.
    * @code
    * >>> import numpy as np
@@ -264,7 +311,9 @@ extern "C"
 
   /** @brief Write the state into @p blob: the clock, the release counts,
    *  the thread count (a mutator's value, #2022), the samples carried to
-   *  the next whole period, and each receiver's state, which carries the
+   *  the next whole period, the ghost rule's history (each receiver's
+   *  carriers and code-lock flags over its window), and each receiver's
+   *  state, which carries the
    *  exclusions and rank the controller gave it. The last push's symbols
    *  do not travel. */
   void dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *state,
@@ -272,7 +321,10 @@ extern "C"
 
   /** @brief Restore the state, whole or not at all. `DP_ERR_INVALID` on
    *  a blob of another object or version, another receiver count, a carry
-   *  of a period or more, or a receiver blob its receiver refuses; a
+   *  of a period or more, a ghost history control() cannot leave (a length
+   *  past the window, a flag other than 0 or 1, a nonzero entry outside a
+   *  ring's span, or a history on a receiver not tracking), or a receiver
+   *  blob its receiver refuses; a
    *  refusal leaves the pool and every receiver as they were. */
   int dp_async_dsss_pool_set_state (dp_async_dsss_pool_state_t *state,
                                     const void                 *blob);
@@ -293,8 +345,8 @@ extern "C"
    *
    * Hands every whole code period it completes to every receiver (header
    * step 1), keeps each one's symbols for symbols(), and after each period
-   * releases the lost, resolves duplicates and hands out exclusions and
-   * ranks (step 2). The samples past the last whole period are kept for
+   * releases the lost, resolves duplicates, releases ghosts and hands out
+   * exclusions and ranks (step 2). The samples past the last whole period are kept for
    * the next push. Accepts any block size, and state carries across calls:
    * the result is a function of the stream, not of its blocking.
    *
@@ -457,6 +509,29 @@ extern "C"
   int dp_async_dsss_pool_set_telemetry (dp_async_dsss_pool_state_t *state,
                                         dp_tlm_t *tlm, const char *prefix,
                                         uint32_t decim);
+
+  /**
+   * @brief Whether receiver @p j tracks a Doppler-offset sidelobe of
+   *        receiver @p i's signal, by the controller's ghost rule (header
+   *        step 2) over the history it holds now.
+   *
+   * Both tests over the last @ref ASYNC_DSSS_POOL_GHOST_WINDOW_S of
+   * controller steps: @p j's carrier minus @p i's has a mean within
+   * @ref ASYNC_DSSS_POOL_GHOST_EPS_HZ of a nonzero multiple of
+   * `lattice_hz` and a standard deviation below
+   * @ref ASYNC_DSSS_POOL_GHOST_STILL_HZ, and @p j held code lock in fewer
+   * than @ref ASYNC_DSSS_POOL_GHOST_LOCK_FRAC of those steps. Both must
+   * have tracked the whole window. Which of the two is stronger is the
+   * controller's question, not this one's.
+   *
+   * @param state  Must be non-NULL.
+   * @param i      The stronger holder.
+   * @param j      The candidate ghost.
+   * @return 1 if @p j is @p i's ghost; 0 otherwise, and for an index past
+   *         the pool or @p i equal to @p j.
+   */
+  int dp_async_dsss_pool_ghost_of (const dp_async_dsss_pool_state_t *state,
+                                   size_t i, size_t j);
 
   /**
    * @brief Borrow receiver @p receiver, for C-only configuration: its lock

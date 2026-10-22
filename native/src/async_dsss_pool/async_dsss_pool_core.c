@@ -85,6 +85,16 @@ dp_async_dsss_pool_create (
   s->sym_extra = (size_t)ceil ((double)code_len * symbol_rate / chip_rate) + 1;
   s->period    = code_len * spc;
   s->carry     = dp_xcalloc (s->period, sizeof *s->carry);
+  /* The ghost rule's clock is the controller's: one step a code period. */
+  s->lattice_hz   = chip_rate / (2.0 * (double)code_len);
+  s->ghost_window = (size_t)llround (ASYNC_DSSS_POOL_GHOST_WINDOW_S * chip_rate
+                                     / (double)code_len);
+  if (s->ghost_window < 2)
+    s->ghost_window = 2;
+  s->car_hist
+      = dp_xcalloc (n_receivers * s->ghost_window, sizeof *s->car_hist);
+  s->cl_hist  = dp_xcalloc (n_receivers * s->ghost_window, sizeof *s->cl_hist);
+  s->hist_len = dp_xcalloc (n_receivers, sizeof *s->hist_len);
   build_workers (s, threads);
   return s;
 }
@@ -102,6 +112,9 @@ dp_async_dsss_pool_destroy (dp_async_dsss_pool_state_t *s)
   free (s->n_sym);
   free (s->sym_buf);
   free (s->carry);
+  free (s->car_hist);
+  free (s->cl_hist);
+  free (s->hist_len);
   free (s);
 }
 
@@ -119,6 +132,13 @@ dp_async_dsss_pool_reset (dp_async_dsss_pool_state_t *s)
   s->carry_len          = 0;
   s->released_lost      = 0;
   s->released_duplicate = 0;
+  s->released_ghost     = 0;
+  s->hist_pos           = 0;
+  memset (s->car_hist, 0,
+          s->n_receivers * s->ghost_window * sizeof *s->car_hist);
+  memset (s->cl_hist, 0,
+          s->n_receivers * s->ghost_window * sizeof *s->cl_hist);
+  memset (s->hist_len, 0, s->n_receivers * sizeof *s->hist_len);
 }
 
 /* ── The controller ──────────────────────────────────────────────────── */
@@ -158,6 +178,96 @@ keeps (const async_dsss_receiver_status_t *st, size_t i, size_t j)
   return i < j;
 }
 
+/* Receiver i's history starts again: every entry back to 0, so a ring
+   holds nothing but its last hist_len steps (the blob is a function of the
+   state). */
+static void
+hist_clear (dp_async_dsss_pool_state_t *s, size_t i)
+{
+  const size_t w = s->ghost_window;
+  memset (s->car_hist + i * w, 0, w * sizeof *s->car_hist);
+  memset (s->cl_hist + i * w, 0, w * sizeof *s->cl_hist);
+  s->hist_len[i] = 0;
+}
+
+/* This step's carrier and code-lock flag into a tracking receiver's ring;
+   any other state clears it, so a ring is always one unbroken track. */
+static void
+hist_record (dp_async_dsss_pool_state_t *s, size_t i,
+             const async_dsss_receiver_status_t *st)
+{
+  const size_t w = s->ghost_window;
+  if (st->state != ASYNC_DSSS_RX_TRACKING)
+    {
+      if (s->hist_len[i])
+        hist_clear (s, i);
+      return;
+    }
+  s->car_hist[i * w + s->hist_pos] = st->doppler_hz;
+  s->cl_hist[i * w + s->hist_pos]  = (uint8_t)(st->code_locked != 0);
+  if (s->hist_len[i] < w)
+    s->hist_len[i]++;
+}
+
+/* Test 2 of the ghost rule: receiver j held code lock in fewer than
+   ASYNC_DSSS_POOL_GHOST_LOCK_FRAC of the window's steps. A sidelobe is
+   not the code's triangle, so the Dll's lock detector rarely sees one. */
+static int
+code_lock_low (const dp_async_dsss_pool_state_t *s, size_t j)
+{
+  const size_t   w  = s->ghost_window;
+  const uint8_t *cl = s->cl_hist + j * w;
+  size_t         n  = 0;
+  for (size_t b = 0; b < w; b++)
+    n += cl[b];
+  return (double)n < ASYNC_DSSS_POOL_GHOST_LOCK_FRAC * (double)w;
+}
+
+/* The stillness limit on the carrier delta's standard deviation, Hz. */
+static int
+still (double sd)
+{
+  return sd < ASYNC_DSSS_POOL_GHOST_STILL_HZ;
+}
+
+/* Test 1 of the ghost rule: j's carrier moves in lockstep with i's, a
+   whole nonzero number of lattice steps away. A sidelobe of i's code sits
+   on its parent's carrier offset by k / (2 T_E), so the delta is still
+   and on the lattice; two emitters' carriers move apart. Both rings are
+   full, and every ring is written at the same slots, so slot b of one is
+   the same step as slot b of the other. */
+static int
+carrier_lockstep (const dp_async_dsss_pool_state_t *s, size_t i, size_t j)
+{
+  const size_t  w  = s->ghost_window;
+  const double *fi = s->car_hist + i * w, *fj = s->car_hist + j * w;
+  double        m = 0.0;
+  for (size_t b = 0; b < w; b++)
+    m += fj[b] - fi[b];
+  m /= (double)w;
+  const double k = (double)llround (m / s->lattice_hz);
+  if (k == 0.0 || fabs (m - k * s->lattice_hz) >= ASYNC_DSSS_POOL_GHOST_EPS_HZ)
+    return 0;
+  double v = 0.0; /* two passes: the delta is ~1500 Hz, its spread ~5 */
+  for (size_t b = 0; b < w; b++)
+    {
+      const double e = fj[b] - fi[b] - m;
+      v += e * e;
+    }
+  return still (sqrt (v / (double)w));
+}
+
+int
+dp_async_dsss_pool_ghost_of (const dp_async_dsss_pool_state_t *s, size_t i,
+                             size_t j)
+{
+  const size_t w = s->ghost_window;
+  if (i >= s->n_receivers || j >= s->n_receivers || i == j
+      || s->hist_len[i] < w || s->hist_len[j] < w)
+    return 0;
+  return code_lock_low (s, j) && carrier_lockstep (s, i, j);
+}
+
 /* Header step 2. Serial, at each code-period crossing, and a function of
    the receivers' statuses alone, so it is the same at any thread count.
    Returns the holders it leaves. */
@@ -176,7 +286,9 @@ control (dp_async_dsss_pool_state_t *s)
           st[i] = dp_async_dsss_receiver_status (s->rx[i]);
           s->released_lost++;
         }
+      hist_record (s, i, &st[i]);
     }
+  s->hist_pos = (s->hist_pos + 1) % s->ghost_window;
   /* Duplicates, pair by pair in index order. A loser is reset at once, so
      it holds nothing in the pairs after it. */
   for (size_t i = 0; i < n; i++)
@@ -188,8 +300,28 @@ control (dp_async_dsss_pool_state_t *s)
         const size_t loser = keeps (st, i, j) ? j : i;
         dp_async_dsss_receiver_reset (s->rx[loser]);
         st[loser] = dp_async_dsss_receiver_status (s->rx[loser]);
+        hist_clear (s, loser);
         s->released_duplicate++;
       }
+  /* Ghosts: j, a whole window tracking, is a Doppler-offset sidelobe of a
+     stronger holder i -- the carrier test against i AND its own code-lock
+     test, both over the same window (doppler#2529). The code-lock test is
+     j's alone, so it goes first and screens nearly every pair out. */
+  for (size_t j = 0; j < n; j++)
+    {
+      if (s->hist_len[j] < s->ghost_window || !code_lock_low (s, j))
+        continue;
+      for (size_t i = 0; i < n; i++)
+        if (st[i].cn0_dbhz_est > st[j].cn0_dbhz_est
+            && dp_async_dsss_pool_ghost_of (s, i, j))
+          {
+            dp_async_dsss_receiver_reset (s->rx[j]);
+            st[j] = dp_async_dsss_receiver_status (s->rx[j]);
+            hist_clear (s, j);
+            s->released_ghost++;
+            break;
+          }
+    }
   /* Exclusions: every other holder's phase. Ranks: searchers in index
      order; a holder's is 0, ready for its next search. */
   size_t holders = 0, rank = 0;
@@ -439,13 +571,33 @@ typedef struct
   uint64_t released_lost;
   uint64_t released_duplicate;
   uint64_t carry_len;
+  uint64_t released_ghost;
+  uint64_t hist_pos;
 } async_dsss_pool_extra_t;
+
+/* The ghost rule's history in the blob: each ring's length, then every
+   carrier ring, then every code-lock ring, whole. */
+static size_t
+hist_bytes (const dp_async_dsss_pool_state_t *s)
+{
+  const size_t cells = s->n_receivers * s->ghost_window;
+  return s->n_receivers * sizeof (uint64_t) + cells * sizeof *s->car_hist
+         + cells * sizeof *s->cl_hist;
+}
+
+/* Whether ring slot b is one of a ring's last `len` steps, the head at
+   `pos` (the slot the next step writes). */
+static int
+in_span (size_t b, size_t pos, size_t len, size_t w)
+{
+  return (pos + w - 1 - b) % w < len;
+}
 
 size_t
 dp_async_dsss_pool_state_bytes (const dp_async_dsss_pool_state_t *s)
 {
   size_t n = sizeof (dp_state_hdr_t) + sizeof (async_dsss_pool_extra_t)
-             + s->period * sizeof *s->carry;
+             + s->period * sizeof *s->carry + hist_bytes (s);
   for (size_t i = 0; i < s->n_receivers; i++)
     n += dp_async_dsss_receiver_state_bytes (s->rx[i]);
   return n;
@@ -463,11 +615,22 @@ dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *s, void *blob)
     .released_lost      = s->released_lost,
     .released_duplicate = s->released_duplicate,
     .carry_len          = (uint64_t)s->carry_len,
+    .released_ghost     = s->released_ghost,
+    .hist_pos           = (uint64_t)s->hist_pos,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
   /* The whole buffer, its unused tail zeros (create, reset and every
      refill keep it so), so the blob is a function of the state alone. */
   dp_w_bytes (&_w, s->carry, s->period * sizeof *s->carry);
+  /* The rings too: every entry outside a ring's span is 0 (hist_clear). */
+  for (size_t i = 0; i < s->n_receivers; i++)
+    {
+      const uint64_t len = (uint64_t)s->hist_len[i];
+      dp_w_bytes (&_w, &len, sizeof len);
+    }
+  const size_t cells = s->n_receivers * s->ghost_window;
+  dp_w_bytes (&_w, s->car_hist, cells * sizeof *s->car_hist);
+  dp_w_bytes (&_w, s->cl_hist, cells * sizeof *s->cl_hist);
   for (size_t i = 0; i < s->n_receivers; i++)
     DP_W_CHILD (&_w, dp_async_dsss_receiver, s->rx[i]);
 }
@@ -496,8 +659,40 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
   for (size_t k = (size_t)extra.carry_len; k < s->period; k++)
     if (carry[k] != 0)
       return DP_ERR_INVALID;
+  /* The rings, likewise only what control() can leave: a length up to the
+     window, flags of 0 or 1, and zeros outside each ring's span. */
+  const size_t n = s->n_receivers, w = s->ghost_window;
+  if (extra.hist_pos >= (uint64_t)w)
+    return DP_ERR_INVALID;
+  const uint64_t *lens = dp_r_reserve (&_r, n * sizeof *lens);
+  const double   *car  = dp_r_reserve (&_r, n * w * sizeof *car);
+  const uint8_t  *cl   = dp_r_reserve (&_r, n * w * sizeof *cl);
+  if (!lens || !car || !cl)
+    return DP_ERR_INVALID;
+  uint64_t len[ASYNC_DSSS_POOL_MAX_RECEIVERS];
+  memcpy (len, lens, n * sizeof *len); /* the blob need not be aligned */
+  for (size_t i = 0; i < n; i++)
+    {
+      if (len[i] > (uint64_t)w)
+        return DP_ERR_INVALID;
+      for (size_t b = 0; b < w; b++)
+        {
+          double f;
+          memcpy (&f, car + i * w + b, sizeof f);
+          const uint8_t c = cl[i * w + b];
+          if (in_span (b, (size_t)extra.hist_pos, (size_t)len[i], w)
+                  ? !isfinite (f) || c > 1
+                  : f != 0.0 || c != 0)
+            return DP_ERR_INVALID;
+        }
+    }
   for (size_t i = 0; i < s->n_receivers; i++)
     DP_R_CHILD (&_r, dp_async_dsss_receiver, s->rx[i]);
+  /* A ring is one unbroken track, so it is held only by a tracking
+     receiver: checked on the receivers just restored. */
+  for (size_t i = 0; i < n; i++)
+    if (len[i] && s->rx[i]->state != ASYNC_DSSS_RX_TRACKING)
+      return DP_ERR_INVALID;
   if ((int)extra.threads != s->threads)
     build_workers (s, (int)extra.threads);
   memcpy (s->carry, carry, s->period * sizeof *s->carry);
@@ -505,8 +700,15 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
   s->samples            = extra.samples;
   s->released_lost      = extra.released_lost;
   s->released_duplicate = extra.released_duplicate;
+  s->released_ghost     = extra.released_ghost;
+  s->hist_pos           = (size_t)extra.hist_pos;
+  memcpy (s->car_hist, car, n * w * sizeof *s->car_hist);
+  memcpy (s->cl_hist, cl, n * w * sizeof *s->cl_hist);
   for (size_t i = 0; i < s->n_receivers; i++)
-    s->n_sym[i] = 0; /* the last push's symbols do not travel */
+    {
+      s->hist_len[i] = (size_t)len[i];
+      s->n_sym[i]    = 0; /* the last push's symbols do not travel */
+    }
   return DP_OK;
 }
 

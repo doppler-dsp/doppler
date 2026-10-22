@@ -476,9 +476,12 @@ _test_refused_restore_changes_nothing (void)
   dp_async_dsss_pool_get_state (dst, before);
   /* Clobber receiver 2's envelope magic: its sub-blob follows the pool's
      header, extra, carry, and receivers 0 and 1. */
-  const size_t rx2 = sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 6
-                     + src->period * sizeof (float _Complex)
-                     + 2 * dp_async_dsss_receiver_state_bytes (src->rx[0]);
+  const size_t cells = src->n_receivers * src->ghost_window;
+  const size_t rx2   = sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 8
+                       + src->period * sizeof (float _Complex)
+                       + src->n_receivers * sizeof (uint64_t)
+                       + cells * (sizeof (double) + 1)
+                       + 2 * dp_async_dsss_receiver_state_bytes (src->rx[0]);
   blob[rx2] ^= 0xFF;
   DP_CHECK (dp_async_dsss_pool_set_state (dst, blob) == DP_ERR_INVALID);
   dp_async_dsss_pool_get_state (dst, after);
@@ -660,10 +663,319 @@ _test_chunk_invariance (void)
   return 0;
 }
 
+/* Write a full window into receiver r's ring: carrier f0 + slope*b plus a
+   +/-jit square wave (a standard deviation of exactly jit over an even
+   window), and code lock on the first `locked` steps. */
+static void
+_ring (dp_async_dsss_pool_state_t *p, size_t r, double f0, double slope,
+       double jit, size_t locked)
+{
+  const size_t w = p->ghost_window;
+  for (size_t b = 0; b < w; b++)
+    {
+      p->car_hist[r * w + b] = f0 + slope * (double)b + (b & 1 ? jit : -jit);
+      p->cl_hist[r * w + b]  = b < locked;
+    }
+  p->hist_len[r] = w;
+}
+
+/* The ghost test, each clause at its edge, on rings written by hand (the
+   test reads nothing else). The window is 0.2 s of code periods (600 at
+   3 kHz), the lattice chip_rate / (2 code_len) (1500 Hz). Receiver 0 is
+   the parent, a ramp of 300 Hz/s (0.1 Hz a period) every row shares, so
+   only the delta matters. Sabotage, one per clause: drop k != 0 -> the
+   co-located row fires; drop the eps test -> the off-lattice row fires;
+   drop the stillness test -> the jittery row fires; drop the code-lock
+   test -> the locked row fires; drop the full-window check -> the short
+   row fires. */
+static int
+_test_ghost_test_edges (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
+  DP_REQUIRE (p != NULL);
+  const size_t w = p->ghost_window;
+  DP_REQUIRE (w == 600 && fabs (p->lattice_hz - 1500.0) < 1e-9);
+  const double eps = ASYNC_DSSS_POOL_GHOST_EPS_HZ;
+  const double sd  = ASYNC_DSSS_POOL_GHOST_STILL_HZ;
+  /* The most locked steps a ghost may hold: strictly below the fraction. */
+  const size_t lk = (size_t)ceil (ASYNC_DSSS_POOL_GHOST_LOCK_FRAC * w) - 1;
+  /* delta = k lattice steps plus eps_frac of eps; jitter jit_frac of
+     the stillness limit; lock_extra more locked steps than a ghost may
+     hold. */
+  static const struct
+  {
+    int         k;
+    double      eps_frac, jit_frac;
+    int         lock_extra, short_ring, ghost;
+    const char *what;
+  } rows[] = {
+    { 1, 0.3, 0.5, 0, 0, 1, "on the lattice, still, unlocked" },
+    { -2, 0.3, 0.5, 0, 0, 1, "k = -2" },
+    { 0, 0.3, 0.5, 0, 0, 0, "k = 0: co-located, the duplicate rule's" },
+    { 1, 0.99, 0.5, 0, 0, 1, "inside eps" },
+    { 1, 1.01, 0.5, 0, 0, 0, "outside eps" },
+    { 1, -1.01, 0.5, 0, 0, 0, "outside eps, below" },
+    { 1, 0.0, 0.99, 0, 0, 1, "inside the stillness limit" },
+    { 1, 0.0, 1.01, 0, 0, 0, "outside the stillness limit" },
+    { 1, 0.0, 0.5, 1, 0, 0, "code lock at the fraction" },
+    { 1, 0.0, 0.5, 0, 1, 0, "a window not yet full" },
+  };
+  for (size_t k = 0; k < sizeof rows / sizeof rows[0]; k++)
+    {
+      const double delta = rows[k].k * p->lattice_hz + rows[k].eps_frac * eps;
+      _ring (p, 0, 200.0, 0.1, 0.0, w);
+      _ring (p, 1, 200.0 + delta, 0.1, rows[k].jit_frac * sd,
+             lk + (size_t)rows[k].lock_extra);
+      if (rows[k].short_ring)
+        p->hist_len[1] = w - 1;
+      DP_CHECK_MSG (dp_async_dsss_pool_ghost_of (p, 0, 1) == rows[k].ghost,
+                    rows[k].what);
+    }
+  /* The parent is not the ghost's ghost (it holds code lock), an index
+     past the pool or equal to the other is no ghost. */
+  _ring (p, 1, 1700.0, 0.1, 0.0, 0);
+  DP_CHECK (dp_async_dsss_pool_ghost_of (p, 0, 1) == 1);
+  DP_CHECK (dp_async_dsss_pool_ghost_of (p, 1, 0) == 0);
+  DP_CHECK (dp_async_dsss_pool_ghost_of (p, 0, 3) == 0);
+  DP_CHECK (dp_async_dsss_pool_ghost_of (p, 1, 1) == 0);
+  dp_async_dsss_pool_destroy (p);
+  return 0;
+}
+
+/* A pool for the ghost scenes: two receivers searching +/-5 kHz (several
+   3 kHz tiles, so a sidelobe a tile off is in range) at design 47 dB-Hz,
+   never lost, so only the controller releases. */
+static dp_async_dsss_pool_state_t *
+_ghost_pool (const uint8_t *code)
+{
+  return dp_async_dsss_pool_create (
+      code, 1023, 2, POOL_CR, POOL_RS, POOL_SPC, 2, 47.0, 1e-3, 0.9, 5000.0, 4,
+      8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 1);
+}
+
+/* A real ghost is released. A alone at 70 dB-Hz, 1500 Hz, with data;
+   receiver 0 takes it from the search. A probe built like the receivers,
+   listing 16 peaks a dwell, names A's sidelobes, and receiver 1 is seeded
+   on the first one more than a chip from A (chip 413, a tile off): the
+   seed the search makes when noise lifts a sidelobe past its gate. It
+   tracks A's carrier a lattice step away without code lock, and is
+   released one window after it starts tracking; A is kept. Sabotage:
+   drop the ghost pass -> receiver 1 holds to the end; compare the C/N0
+   the other way -> the parent never qualifies and nothing is released;
+   skip hist_clear on the release -> the reset receiver's ring outlives
+   its track and the state round trip below refuses it. */
+static int
+_test_ghost_is_released (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const size_t    te = 1023 * POOL_SPC;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, POOL_FS / POOL_RS, 1500.0,
+                   70.0, 1000, 0, 4, &x, &n, &data);
+  dp_async_dsss_pool_state_t     *p  = _ghost_pool (code);
+  dp_async_dsss_receiver_state_t *pr = dp_async_dsss_receiver_create (
+      code, 1023, POOL_CR, POOL_RS, POOL_SPC, 2, 47.0, 1e-3, 0.9, 5000.0, 4, 8,
+      0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+  DP_REQUIRE (p && pr);
+  (void)dp_async_dsss_receiver_set_threads (pr, 1);
+  DP_REQUIRE (dp_acq_set_max_peaks (pr->acq, 16) == DP_OK);
+  int    seeded = 0, tracked = 0;
+  double ghost_ph = 0.0;
+  for (size_t b = 0; b + te <= n && !p->released_ghost; b += te)
+    {
+      (void)dp_async_dsss_pool_push (p, x + b, te);
+      tracked |= p->hist_len[1] > 0;
+      if (seeded)
+        continue;
+      acq_result_t h[16];
+      const size_t k = dp_acq_push (pr->acq, x + b, te, h, 16);
+      if (k < 2 || h[0].samples_consumed != b + te)
+        continue;
+      acq_handoff_t h0, hi;
+      dp_acq_build_handoff (pr->acq, &h[0], 1023, POOL_SPC, &h0);
+      for (size_t i = 1; i < k && !seeded; i++)
+        {
+          dp_acq_build_handoff (pr->acq, &h[i], 1023, POOL_SPC, &hi);
+          if (_chip_dist (hi.chip_phase, h0.chip_phase, 1023.0) > 1.0)
+            {
+              DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[1], hi.chip_phase,
+                                                       hi.doppler_hz_est,
+                                                       hi.cn0_dbhz_est)
+                          == DP_OK);
+              seeded   = 1;
+              ghost_ph = hi.chip_phase;
+            }
+        }
+    }
+  DP_REQUIRE_MSG (seeded, "the probe listed a sidelobe");
+  DP_CHECK (_chip_dist (ghost_ph, dp_async_dsss_pool_status (p, 0).chip_phase,
+                        1023.0)
+            > 100.0);
+  DP_CHECK_MSG (tracked, "the ghost reached tracking");
+  DP_CHECK_MSG (p->released_ghost == 1, "the ghost was released");
+  DP_CHECK (p->released_duplicate == 0);
+  DP_CHECK (dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_TRACKING);
+  DP_CHECK (dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_SEARCHING);
+  DP_CHECK (p->hist_len[1] == 0);
+  /* And a pool that has released one round-trips. */
+  dp_async_dsss_pool_state_t *q = _ghost_pool (code);
+  DP_REQUIRE (q != NULL);
+  DP_STATE_ROUNDTRIP_TEST (dp_async_dsss_pool, p, q);
+  /* Its blob holds only what control() leaves: receiver 0's full ring and
+     receiver 1's empty one. Each forgery below breaks one rule set_state
+     checks, and is refused. Sabotage: drop any one check -> its row
+     restores. Layout: header, the 8 extra fields (hist_pos last), the
+     carry, then the lengths, the carrier rings and the code-lock rings. */
+  {
+    const size_t w     = p->ghost_window,
+                 bytes = dp_async_dsss_pool_state_bytes (p);
+    const size_t o_pos = sizeof (dp_state_hdr_t) + 7 * sizeof (uint64_t);
+    const size_t o_len
+        = o_pos + sizeof (uint64_t) + p->period * sizeof (float _Complex);
+    const size_t   o_car = o_len + 2 * sizeof (uint64_t);
+    const size_t   o_cl  = o_car + 2 * w * sizeof (double);
+    unsigned char *blob = malloc (bytes), *forged = malloc (bytes);
+    DP_REQUIRE (blob && forged);
+    dp_async_dsss_pool_get_state (p, blob);
+    DP_REQUIRE (dp_async_dsss_pool_set_state (q, blob) == DP_OK);
+    const uint64_t     past = w, over = (uint64_t)w + 1, one = 1;
+    const double       tone = 1.0;
+    const uint8_t      two  = 2;
+    static const char *what[]
+        = { "a length past the window", "a ring on a receiver not tracking",
+            "an entry outside a ring's span", "a code-lock flag of 2",
+            "a head past the window" };
+    for (int k = 0; k < 5; k++)
+      {
+        memcpy (forged, blob, bytes);
+        if (k == 0)
+          memcpy (forged + o_len, &over, sizeof over);
+        if (k == 1)
+          memcpy (forged + o_len + sizeof (uint64_t), &one, sizeof one);
+        if (k == 2)
+          memcpy (forged + o_car + w * sizeof (double), &tone, sizeof tone);
+        if (k == 3)
+          memcpy (forged + o_cl, &two, 1);
+        if (k == 4)
+          memcpy (forged + o_pos, &past, sizeof past);
+        DP_CHECK_MSG (dp_async_dsss_pool_set_state (q, forged)
+                          == DP_ERR_INVALID,
+                      what[k]);
+      }
+    free (blob);
+    free (forged);
+  }
+  dp_async_dsss_pool_destroy (q);
+  dp_async_dsss_pool_destroy (p);
+  dp_async_dsss_receiver_destroy (pr);
+  free (x);
+  free (data);
+  return 0;
+}
+
+/* A (70 dB-Hz at 200 Hz) plus a distinct emitter B at `cn0_b`, `df_b` from
+   A, its code `delay` samples behind A's, both with data; receiver 0 takes
+   A from the search and receiver 1 is seeded on B's true cell once it
+   does. Over the run: whether nothing was released, both were held to the
+   end, and whether, at some step with both windows full, the carrier test
+   alone (B's code-lock ring cleared) or the code-lock test alone (B's
+   carrier ring moved onto A's lattice) would have released B. */
+typedef struct
+{
+  int kept, carrier_alone, lock_alone;
+} _pair_t;
+
+static _pair_t
+_distinct_pair (const uint8_t *code, double cn0_b, double df_b, size_t delay)
+{
+  _pair_t         r = { 0, 0, 0 };
+  float _Complex *a, *b;
+  size_t          na, nb;
+  double         *da, *db;
+  const double    tsym = POOL_FS / POOL_RS;
+  dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0, 70.0, 2700, 0,
+                   21, &a, &na, &da);
+  /* B clean (300 dB-Hz), then scaled to cn0_b against A's noise. */
+  dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0 + df_b, 300.0,
+                   2700, delay, 22, &b, &nb, &db);
+  const size_t n = na < nb ? na : nb;
+  const float  g = (float)pow (10.0, (cn0_b - 70.0) / 20.0);
+  for (size_t i = 0; i < n; i++)
+    a[i] += g * b[i];
+  dp_async_dsss_pool_state_t *p = _ghost_pool (code);
+  if (!p || p->ghost_window > 1024) /* the scratch rings below */
+    return r;
+  const size_t te = 1023 * POOL_SPC, w = p->ghost_window;
+  /* B's code phase: its delay in chips, behind A's 0. */
+  const double ph_b   = fmod (1023.0 - (double)delay / POOL_SPC, 1023.0);
+  int          seeded = 0;
+  for (size_t pos = 0; pos + te <= n; pos += te)
+    {
+      (void)dp_async_dsss_pool_push (p, a + pos, te);
+      if (!seeded && p->rx[0]->state == ASYNC_DSSS_RX_TRACKING)
+        seeded
+            = dp_async_dsss_receiver_seed (p->rx[1], ph_b, 200.0 + df_b, cn0_b)
+              == DP_OK;
+      if (p->hist_len[0] < w || p->hist_len[1] < w)
+        continue;
+      uint8_t cl[1024];
+      double  car[1024];
+      memcpy (cl, p->cl_hist + w, w);
+      memset (p->cl_hist + w, 0, w);
+      r.carrier_alone |= dp_async_dsss_pool_ghost_of (p, 0, 1);
+      memcpy (p->cl_hist + w, cl, w);
+      memcpy (car, p->car_hist + w, w * sizeof *car);
+      for (size_t k = 0; k < w; k++)
+        p->car_hist[w + k] = p->car_hist[k] + p->lattice_hz;
+      r.lock_alone |= dp_async_dsss_pool_ghost_of (p, 0, 1);
+      memcpy (p->car_hist + w, car, w * sizeof *car);
+    }
+  r.kept = p->released_ghost == 0 && p->released_duplicate == 0
+           && dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_TRACKING
+           && dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_TRACKING;
+  dp_async_dsss_pool_destroy (p);
+  free (a);
+  free (b);
+  free (da);
+  free (db);
+  return r;
+}
+
+/* Neither test alone releases: each guards a true track the other would
+   take. A co-moving emitter one lattice step from A (55 dB-Hz) passes the
+   carrier test and is kept by its code lock; a weaker one on its own
+   carrier (50 dB-Hz, just handed off, its code lock still low) passes the
+   code-lock test and is kept by its carrier. Sabotage: drop the code-lock
+   test -> the co-moving emitter is released; drop the carrier test -> the
+   weak one is. */
+static int
+_test_ghost_needs_both_tests (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const _pair_t comove = _distinct_pair (code, 55.0, 1500.0, 2 * 259);
+  DP_CHECK_MSG (comove.kept, "a co-moving emitter is kept");
+  DP_CHECK_MSG (comove.carrier_alone, "the carrier test alone would fire");
+  DP_CHECK (!comove.lock_alone);
+  const _pair_t weak = _distinct_pair (code, 50.0, -437.0, 2 * 198);
+  DP_CHECK_MSG (weak.kept, "a weak emitter on its own carrier is kept");
+  DP_CHECK_MSG (weak.lock_alone, "the code-lock test alone would fire");
+  DP_CHECK (!weak.carrier_alone);
+  return 0;
+}
+
 int
 main (void)
 {
   DP_CHECK (_test_create_domain () == 0);
+  DP_CHECK (_test_ghost_test_edges () == 0);
+  DP_CHECK (_test_ghost_is_released () == 0);
+  DP_CHECK (_test_ghost_needs_both_tests () == 0);
   DP_CHECK (_test_duplicates_keep_the_first () == 0);
   DP_CHECK (_test_duplicate_zone_is_one_chip_circular () == 0);
   DP_CHECK (_test_reset_and_threads () == 0);

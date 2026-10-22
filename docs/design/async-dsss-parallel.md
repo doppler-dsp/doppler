@@ -255,10 +255,27 @@ refuses a context shared across its receivers
 The code-phase key does not catch every duplicate. A receiver that takes a
 strong emitter's Doppler-offset sidelobe holds a phase hundreds of chips from
 the emitter's and despreads the emitter's own data, so it tracks a copy no
-exclusion names. Two receivers' data symbols tell it apart: such a copy
-correlates 0.86 to 0.98 with the true track, distinct emitters 0.13 to 0.19.
-The weaker of a correlated pair is released (owner ruling on doppler#2529);
-that rule, and the threshold its measurement sets, are not built yet.
+exclusion names. The controller releases such a **ghost** on two of its
+traits together, each over the same trailing 0.2 s of code periods
+(owner ruling on doppler#2529):
+
+- **its carrier moves in lockstep with a stronger holder's**, a whole nonzero
+    number of steps of $1/(2T_E)$ away (1500 Hz at SPEC): the sidelobe sits on
+    its parent's carrier a tile off, and the carrier loop, updating once a
+    code period from a squaring combine, reads that modulo half the epoch
+    rate;
+- **its Dll rarely holds code lock**, since a sidelobe is not the code's
+    triangle.
+
+Neither alone will do. A distinct emitter can co-move with another a lattice
+step away, but it holds code lock; a true track near the floor loses code
+lock, but its carrier is its own. Measured on the reviewer's populations, the
+pair caught 406 of 416 ghosts with no false flag in 900 distinct pairs
+(co-moving and near-floor included), in a median 0.21 s, code-only windows
+included; the data-symbol correlation first ruled for this missed 60 dB-Hz
+ghosts and needs seconds at low data duty. The constants are
+`ASYNC_DSSS_POOL_GHOST_*` in `async_dsss_pool_core.h`, and the measurements
+behind them are on doppler#2529.
 
 ## 5. Arrival to tracking
 

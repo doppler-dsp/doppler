@@ -3778,6 +3778,10 @@ class AsyncDsssPool:
         """Duplicate holders it reset."""
 
     @property
+    def released_ghost(self) -> int:
+        """Sidelobe ghosts it reset."""
+
+    @property
     def coherent_bins(self) -> int:
         """The receivers' slow-time depth D, epochs per coherent block
         (dp_async_dsss_receiver_get_coherent_bins()); alike for all.

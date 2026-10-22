@@ -311,6 +311,7 @@
 * **dp\_async\_dsss\_pool\_get\_coherent\_bins** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **dp\_async\_dsss\_pool\_get\_state** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **dp\_async\_dsss\_pool\_get\_threads** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
+* **dp\_async\_dsss\_pool\_ghost\_of** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **dp\_async\_dsss\_pool\_push** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **dp\_async\_dsss\_pool\_receiver** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **dp\_async\_dsss\_pool\_reset** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))

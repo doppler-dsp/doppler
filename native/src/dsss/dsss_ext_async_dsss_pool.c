@@ -841,6 +841,18 @@ AsyncDsssPool_getprop_released_duplicate (AsyncDsssPoolObject *self,
       (unsigned long long)self->handle->released_duplicate);
 }
 static PyObject *
+AsyncDsssPool_getprop_released_ghost (AsyncDsssPoolObject *self,
+                                      void                *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->released_ghost);
+}
+static PyObject *
 AsyncDsssPool_getprop_coherent_bins (AsyncDsssPoolObject *self,
                                      void                *Py_UNUSED (closure))
 {
@@ -868,6 +880,8 @@ static PyGetSetDef AsyncDsssPool_getset[] = {
     "Lost receivers the controller reset.\n", NULL },
   { "released_duplicate", (getter)AsyncDsssPool_getprop_released_duplicate,
     NULL, "Duplicate holders it reset.\n", NULL },
+  { "released_ghost", (getter)AsyncDsssPool_getprop_released_ghost, NULL,
+    "Sidelobe ghosts it reset.\n", NULL },
   { "coherent_bins", (getter)AsyncDsssPool_getprop_coherent_bins, NULL,
     "The receivers' slow-time depth D, epochs per coherent block "
     "(dp_async_dsss_receiver_get_coherent_bins()); alike for all.\n",
@@ -934,10 +948,11 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "\n"
     "Hands every whole code period it completes to every receiver (header\n"
     "step 1), keeps each one's symbols for symbols(), and after each period\n"
-    "releases the lost, resolves duplicates and hands out exclusions and\n"
-    "ranks (step 2). The samples past the last whole period are kept for the\n"
-    "next push. Accepts any block size, and state carries across calls: the\n"
-    "result is a function of the stream, not of its blocking.\n"
+    "releases the lost, resolves duplicates, releases ghosts and hands out\n"
+    "exclusions and ranks (step 2). The samples past the last whole period\n"
+    "are kept for the next push. Accepts any block size, and state carries\n"
+    "across calls: the result is a function of the stream, not of its\n"
+    "blocking.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1047,7 +1062,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "reset() -> None\n"
     "\n"
     "Every receiver back to searching, with no exclusions and rank 0; the\n"
-    "clock and the release counts back to 0.\n"
+    "clock, the release counts and the ghost history back to 0.\n"
     "\n"
     "Examples\n"
     "--------\n"

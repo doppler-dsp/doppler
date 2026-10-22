@@ -36,14 +36,21 @@ _AsyncDsssPool state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  double \* | [**car\_hist**](#variable-car_hist)  <br> |
 |  float \_Complex \* | [**carry**](#variable-carry)  <br> |
 |  size\_t | [**carry\_len**](#variable-carry_len)  <br> |
+|  uint8\_t \* | [**cl\_hist**](#variable-cl_hist)  <br> |
 |  size\_t | [**feed\_n**](#variable-feed_n)  <br> |
 |  const float \_Complex \* | [**feed\_x**](#variable-feed_x)  <br> |
+|  size\_t | [**ghost\_window**](#variable-ghost_window)  <br> |
+|  size\_t \* | [**hist\_len**](#variable-hist_len)  <br> |
+|  size\_t | [**hist\_pos**](#variable-hist_pos)  <br> |
+|  double | [**lattice\_hz**](#variable-lattice_hz)  <br> |
 |  size\_t | [**n\_receivers**](#variable-n_receivers)  <br> |
 |  size\_t \* | [**n\_sym**](#variable-n_sym)  <br> |
 |  size\_t | [**period**](#variable-period)  <br> |
 |  uint64\_t | [**released\_duplicate**](#variable-released_duplicate)  <br> |
+|  uint64\_t | [**released\_ghost**](#variable-released_ghost)  <br> |
 |  uint64\_t | [**released\_lost**](#variable-released_lost)  <br> |
 |  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \*\* | [**rx**](#variable-rx)  <br> |
 |  uint64\_t | [**samples**](#variable-samples)  <br> |
@@ -111,6 +118,24 @@ Allocate with [**dp\_async\_dsss\_pool\_create()**](async__dsss__pool__core_8h.m
 
 
 
+### variable car\_hist 
+
+```C++
+double* dp_async_dsss_pool_state_t::car_hist;
+```
+
+
+
+n\_receivers rings of ghost\_window carrier estimates (status().doppler\_hz), Hz. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable carry 
 
 ```C++
@@ -146,6 +171,23 @@ How many; &lt; period.
 
 
 
+### variable cl\_hist 
+
+```C++
+uint8_t* dp_async_dsss_pool_state_t::cl_hist;
+```
+
+
+
+The same rings of status().code\_locked. 
+
+
+        
+
+<hr>
+
+
+
 ### variable feed\_n 
 
 ```C++
@@ -169,6 +211,77 @@ const float _Complex* dp_async_dsss_pool_state_t::feed_x;
 
 The block push() is stepping. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable ghost\_window 
+
+```C++
+size_t dp_async_dsss_pool_state_t::ghost_window;
+```
+
+
+
+Controller steps (code periods) in the ghost rule's window. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable hist\_len 
+
+```C++
+size_t* dp_async_dsss_pool_state_t::hist_len;
+```
+
+
+
+Entries each ring holds: the controller steps the receiver has been tracking in a row, at most ghost\_window. Every other entry is 0. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable hist\_pos 
+
+```C++
+size_t dp_async_dsss_pool_state_t::hist_pos;
+```
+
+
+
+The ring slot the next step writes; one clock for every ring. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable lattice\_hz 
+
+```C++
+double dp_async_dsss_pool_state_t::lattice_hz;
+```
+
+
+
+The ghost lattice spacing: chip\_rate / (2 code\_len), half the code-epoch rate. 
 
 
         
@@ -239,6 +352,24 @@ uint64_t dp_async_dsss_pool_state_t::released_duplicate;
 
 
 Duplicate holders it reset. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable released\_ghost 
+
+```C++
+uint64_t dp_async_dsss_pool_state_t::released_ghost;
+```
+
+
+
+Sidelobe ghosts it reset. 
  
 
 

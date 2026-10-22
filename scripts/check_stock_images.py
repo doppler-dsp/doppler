@@ -78,7 +78,8 @@ and the gate cannot disagree on a FROM.
 Files ``--vendored`` names (standard.mk and its VENDORED_FILES) are held
 verbatim to canonical, so a fix there belongs upstream; their references are
 listed but do not fail. Not parsed: an inline Dockerfile piped to
-``docker build -`` (the one in the tree takes ``$(PKG_IMAGE)``, quay.io).
+``docker build -``. The packager is no longer built from a stock base in the
+tree: its pinned digest is pulled (#2544).
 
 Usage:  python3 scripts/check_stock_images.py [--root DIR]
             [--own-prefix NAME] [--vendored "FILE ..."] [--base REF]

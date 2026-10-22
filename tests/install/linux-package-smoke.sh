@@ -39,7 +39,9 @@ if command -v apt-get >/dev/null 2>&1; then
     tools=("$PKGS"/doppler-dsp-tools_*.deb)
 else
     fmt=rpm
-    install() { say "installing: $*"; dnf install -y "$@"; }
+    # -v names the repository and URL dnf is waiting on, so a stalled mirror
+    # is visible in the log rather than silent (#2544).
+    install() { say "installing: $*"; dnf -v install -y "$@"; }
     have() { rpm -q "$1" >/dev/null 2>&1; }
     toolchain=(gcc cmake make pkgconf-pkg-config)
     # The runtime rpm is the one whose name has no -devel and no -tools.

@@ -3073,13 +3073,28 @@ PKG_SMOKE_DISTROS ?= $(STOCK_REGISTRY)/debian:stable $(CI_IMAGE_2404) \
 # leg to the mirror it was moved off (doppler#1524). Offline, an
 # `apt-get update` only warns, so it can never fetch a newer candidate for
 # an install to upgrade to: the 404's other route is closed, not just seen.
+#
+# Each leg's stock pull and its `docker run` have their own deadline (#2541).
+# A stalled leg used to run to the job's 45-minute timeout while the other
+# legs waited; now it fails after PKG_SMOKE_DEADLINE seconds, and the FAILED
+# line names the distro. One attempt through the shared with-deadline.sh --
+# no retries. The pull is bounded too: stock-pull retries only errors docker
+# reports, so a silent pull hang was unbounded. `--init` is required: the
+# leg's PID 1 is bash, which ignores SIGTERM, so without an init the deadline
+# kills the docker CLI, the container keeps running, and the leg exits 137
+# ten seconds late rather than 124 (measured on cachyos, Docker 29). With
+# --init the container exits 124 and is removed.
+PKG_SMOKE_DEADLINE ?= 600
 PKG_SMOKE_RUN = for d in $(PKG_SMOKE_DISTROS); do \
 	    echo ">> $$d"; \
 	    net=; [ "$$d" = "$(CI_IMAGE_2404)" ] && net=--network=none; \
-	    $(STOCK_PULL) $$d || { echo "$(1): could not pull $$d"; exit 1; }; \
-	    docker run --rm --pull=never $$net -v "$(CURDIR)":/w:ro -w /w $$d \
+	    ./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
+	        env $(STOCK_PULL) $$d \
+	        || { echo "$(1): could not pull $$d"; exit 1; }; \
+	    ./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
+	        docker run --rm --init --pull=never $$net -v "$(CURDIR)":/w:ro -w /w $$d \
 	        bash tests/install/linux-package-smoke.sh /w/$(2) \
-	        || { echo "$(1): FAILED in $$d"; exit 1; }; \
+	        || { echo "$(1): FAILED in $$d (see the line above: exit 124 = the $(PKG_SMOKE_DEADLINE)s leg deadline)"; exit 1; }; \
 	 done; \
 	 echo "$(1): PASS in $(PKG_SMOKE_DISTROS)"
 

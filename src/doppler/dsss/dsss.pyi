@@ -3467,11 +3467,12 @@ class AsyncDsssPool:
         """Step every receiver on one block, running the controller at every
         code period it crosses.
 
-        Hands x to every receiver (header step 1), keeps each one's symbols for
-        symbols(), and at each code-period crossing of the shared clock
+        Hands every whole code period it completes to every receiver (header
+        step 1), keeps each one's symbols for symbols(), and after each period
         releases the lost, resolves duplicates and hands out exclusions and
-        ranks (step 2). Accepts any block size, and state carries across calls:
-        the result is a function of the stream, not of its blocking.
+        ranks (step 2). The samples past the last whole period are kept for the
+        next push. Accepts any block size, and state carries across calls: the
+        result is a function of the stream, not of its blocking.
 
         Parameters
         ----------
@@ -3501,11 +3502,10 @@ class AsyncDsssPool:
     def status(self, receiver: int) -> PoolReceiverStatus:
         """Receiver receiver's status, now.
 
-        dp_async_dsss_receiver_status() of that receiver, read now: a receiver
-        the controller released reads searching, and one whose release fired
-        after the last code-period crossing reads lost until the next. A
-        receiver past the pool returns a zeroed record with `state`
-        ASYNC_DSSS_POOL_NO_RECEIVER.
+        dp_async_dsss_receiver_status() of that receiver, as of the last whole
+        code period fed, after the controller's step on it: a receiver the
+        controller released reads searching. A receiver past the pool returns a
+        zeroed record with `state` ASYNC_DSSS_POOL_NO_RECEIVER.
 
         Parameters
         ----------

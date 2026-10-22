@@ -2,8 +2,8 @@
  * dsss_ext.c — Python extension module dsss
  *
  * Objects: Despreader, BurstDespreader, PolynomialPhaseEstimator, BurstDemod,
- * DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver GENERATED — do not
- * hand-edit. Patches belong in the _ext_<obj>.c fragments.
+ * DsssReceiver, AsyncDsssReceiver, AsyncDsssPool, DsssBurstReceiver GENERATED
+ * — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -188,6 +188,7 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 }
 #endif /* JM_CAPSULE_LEND_DEFINED */
 
+#include "dsss_ext_async_dsss_pool.c"
 #include "dsss_ext_async_dsss_receiver.c"
 #include "dsss_ext_burst_demod.c"
 #include "dsss_ext_burst_despreader.c"
@@ -251,6 +252,15 @@ PyInit_dsss (void)
       AsyncDsssReceiverObj_status_type
           = PyStructSequence_NewType (&AsyncDsssReceiverObj_status_desc);
       if (!AsyncDsssReceiverObj_status_type)
+        return NULL;
+    }
+  if (PyType_Ready (&AsyncDsssPoolObjType) < 0)
+    return NULL;
+  if (!AsyncDsssPoolObj_status_type)
+    {
+      AsyncDsssPoolObj_status_type
+          = PyStructSequence_NewType (&AsyncDsssPoolObj_status_desc);
+      if (!AsyncDsssPoolObj_status_type)
         return NULL;
     }
   if (PyType_Ready (&DsssBurstReceiverObjType) < 0)
@@ -321,6 +331,23 @@ PyInit_dsss (void)
       < 0)
     {
       Py_DECREF (AsyncDsssReceiverObj_status_type);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&AsyncDsssPoolObjType);
+  if (PyModule_AddObject (m, "AsyncDsssPool",
+                          (PyObject *)&AsyncDsssPoolObjType)
+      < 0)
+    {
+      Py_DECREF (&AsyncDsssPoolObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  if (PyModule_AddObject (m, "PoolReceiverStatus",
+                          (PyObject *)AsyncDsssPoolObj_status_type)
+      < 0)
+    {
+      Py_DECREF (AsyncDsssPoolObj_status_type);
       Py_DECREF (m);
       return NULL;
     }

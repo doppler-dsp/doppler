@@ -266,6 +266,23 @@ It carries no timestamp: the caller owns the sample clock and stamps it.
 
 ::: doppler.dsss.ReceiverStatus
 
+## `AsyncDsssPool` — N receivers, each searching for itself
+
+`AsyncDsssPool` runs N `AsyncDsssReceiver`s on one stream under a controller
+that searches nothing itself (design
+[async-dsss-parallel](../design/async-dsss-parallel.md) §4). `push()` steps
+every receiver on the block in parallel. At each code period of the stream
+the controller releases the lost and resets the later of two receivers on one
+code phase. It also hands each searcher the phases the others hold and a rank,
+so N receivers hold N different signals. The result depends neither on how
+the stream is blocked nor on the thread count.
+
+::: doppler.dsss.AsyncDsssPool
+
+`status(i)` is receiver `i`'s record, the same fields as `ReceiverStatus`.
+
+::: doppler.dsss.PoolReceiverStatus
+
 ## Related pages
 
 <!-- related-pages:start -->

@@ -1529,7 +1529,8 @@ LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
     PATH="$(CURDIR)/$(COV_DIR)/pkg/doppler/wfm/_bin:$(dir $(PYTHON_EXECUTABLE)):$$PATH" \
     $(COV_GUARD) $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
     -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' \
-    -m "not examples_serial and not validation_limits" -n auto
+    -m "not examples_serial and not examples_wallclock and not validation_limits" \
+    -n auto
 # The SERIAL pass, and the reason this job needs one at all: `-n auto` is 4
 # workers on CI's runner and 20 on a dev box, and `.examples-serial` exists
 # precisely because some examples cannot share the machine -- ddc_fn_scaling
@@ -1551,10 +1552,10 @@ set +e; \
     PATH="$(CURDIR)/$(COV_DIR)/pkg/doppler/wfm/_bin:$(dir $(PYTHON_EXECUTABLE)):$$PATH" \
     $(COV_GUARD) $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
     -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' \
-    -m "examples_serial"; \
+    -m "(examples_serial or examples_wallclock) and not validation_limits"; \
     rc=$$?; \
     if [ $$rc -eq 5 ]; then \
-        echo "coverage: no examples_serial items — nothing needs a serial pass"; \
+        echo "coverage: no examples_serial/examples_wallclock items — nothing needs a serial pass"; \
     elif [ $$rc -ne 0 ]; then exit $$rc; fi
 -DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
     LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/rs-%p-%m.profraw" \
@@ -4884,7 +4885,8 @@ test-snippets: ## Run the python/C/shell doc-fence gates (PAGE=<path> to narrow)
 # self-skips without either.
 test-examples-python: ## Run the Python example gate (requires pyext)
 	$(MEM_GUARD_CMD) $(LEAK_CHECK) -- $(UV) run pytest \
-	    -m "examples and not examples_serial" -q -n auto \
+	    -m "examples and not examples_serial and not examples_wallclock" \
+	    -q -n auto \
 	    $(PYTEST_ARGS) src/doppler/tests/test_examples.py \
 	    src/doppler/tests/test_c_example_pairs.py
 	@# Exit 5 is pytest's "no tests collected", which is what an EMPTY
@@ -4901,6 +4903,11 @@ test-examples-python: ## Run the Python example gate (requires pyext)
 	 if [ $$rc -eq 5 ]; then \
 	     echo "test-examples-python: .examples-serial is empty — nothing needs a serial pass"; \
 	 elif [ $$rc -ne 0 ]; then exit $$rc; fi
+	@# The wall-clock tests' serial pass (examples_wallclock, pyproject.toml):
+	@# a subprocess under a time limit that sharing the machine can break.
+	@# Never empty while the C-twin pairs exist, so exit 5 here is a failure.
+	@$(LEAK_CHECK) -- $(UV) run pytest -m "examples and examples_wallclock" \
+	     -q $(PYTEST_ARGS) src/doppler/tests/test_c_example_pairs.py
 	@$(MAKE) --no-print-directory test-example-downstream-python
 
 # The Python half of the downstream example: build its extension against the

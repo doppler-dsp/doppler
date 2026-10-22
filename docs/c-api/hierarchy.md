@@ -46,6 +46,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_acq\_state\_t**](structdp__acq__state__t.md) _Streaming acquisition-engine state._ 
 * **struct** [**dp\_adc\_state\_t**](structdp__adc__state__t.md) _ADC state._ 
 * **struct** [**dp\_agc\_state\_t**](structdp__agc__state__t.md) _AGC state._ 
+* **struct** [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) _AsyncDsssPool state._ 
 * **struct** [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) _Composed receiver state._ 
 * **struct** [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) 
 * **struct** [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) _BerMeter state._ 

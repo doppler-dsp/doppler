@@ -196,6 +196,17 @@ def _result_lines(text: str) -> list[str]:
     ]
 
 
+# `examples_wallclock` (pyproject.toml): each case runs a whole example under
+# a 300 s wall-clock limit, and under xdist it competes with every other
+# worker for the cores it needs to finish. Measured 2026-10-22:
+# async_dsss_receiver_spec_demo.py takes 21 s on an optimized build and 102 s
+# on the coverage build (llvm instrumentation, -O0) with a 20-core box to
+# itself; on CI's 4-vCPU coverage leg, sharing the machine with `-n auto`,
+# it passed on #2545 and then timed out twice on #2548, whose only change
+# near it was more tests. Its own assertion is not a timing, so it is not an
+# `.examples-serial` entry; the marker says why it runs serially, and both
+# the example gate and the coverage leg give it their serial pass.
+@pytest.mark.examples_wallclock
 @pytest.mark.parametrize("name", TWINS)
 def test_twins_print_the_same_lines(name: str, tmp_path) -> None:
     binary = BIN / name

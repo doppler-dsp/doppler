@@ -57,6 +57,7 @@
 * [**dp\_acq\_state\_t**](structdp__acq__state__t.md)
 * [**dp\_adc\_state\_t**](structdp__adc__state__t.md)
 * [**dp\_agc\_state\_t**](structdp__agc__state__t.md)
+* [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md)
 * [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md)
 * [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md)
 * [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md)

@@ -255,10 +255,31 @@ refuses a context shared across its receivers
 The code-phase key does not catch every duplicate. A receiver that takes a
 strong emitter's Doppler-offset sidelobe holds a phase hundreds of chips from
 the emitter's and despreads the emitter's own data, so it tracks a copy no
-exclusion names. Two receivers' data symbols tell it apart: such a copy
-correlates 0.86 to 0.98 with the true track, distinct emitters 0.13 to 0.19.
-The weaker of a correlated pair is released (owner ruling on doppler#2529);
-that rule, and the threshold its measurement sets, are not built yet.
+exclusion names. The controller releases such a **ghost** on two of its
+traits together, each over the same trailing 0.2 s of code periods
+(owner ruling on doppler#2529):
+
+- **its carrier moves in lockstep with a stronger holder's**, a whole nonzero
+    number of steps of $1/(2T_E)$ away (1500 Hz at SPEC): the sidelobe sits on
+    its parent's carrier a tile off, and the carrier loop, updating once a
+    code period from a squaring combine, reads that modulo half the epoch
+    rate;
+- **its Dll rarely holds code lock**, since a sidelobe is not the code's
+    triangle.
+
+Neither alone will do. A distinct emitter can co-move with another a lattice
+step away, but it usually holds code lock; a true track near the floor loses
+code lock, but its carrier is its own. Measured on the reviewer's populations
+with both receivers on one stream, the pair caught all 416 Doppler-offset
+ghosts in a median 0.20 s, code-only windows included, and released 23 of
+2050 true emitters. All 23 sit 20 dB below a 60 dB-Hz partner they co-move
+with, a track under its design C/N0 whose code lock is as weak as a
+sidelobe's (doppler#2550). A ghost on its parent's own carrier (k = 0) is
+left alone: allowing k = 0 releases most true emitters that share a
+stronger one's Doppler (doppler#2551). The data-symbol correlation first
+ruled for this missed 60 dB-Hz ghosts and needs seconds at low data duty.
+The constants are `ASYNC_DSSS_POOL_GHOST_*` in `async_dsss_pool_core.h`, and
+the measurements behind them are on doppler#2529.
 
 ## 5. Arrival to tracking
 

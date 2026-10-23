@@ -47,7 +47,12 @@ extern "C"
 #define ASYNC_DSSS_POOL_NO_RECEIVER (-1)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC   DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 1u
+#define ASYNC_DSSS_POOL_STATE_VERSION 2u
+
+#define ASYNC_DSSS_POOL_GHOST_WINDOW_S 0.2
+#define ASYNC_DSSS_POOL_GHOST_EPS_HZ 10.0
+#define ASYNC_DSSS_POOL_GHOST_STILL_HZ 10.0
+#define ASYNC_DSSS_POOL_GHOST_LOCK_FRAC 0.2
 
   typedef struct
   {
@@ -67,6 +72,13 @@ extern "C"
     uint64_t samples;            
     uint64_t released_lost;      
     uint64_t released_duplicate; 
+    uint64_t released_ghost;     
+    double   lattice_hz;   
+    size_t   ghost_window; 
+    double  *car_hist;     
+    uint8_t *cl_hist;      
+    size_t  *hist_len;     
+    size_t   hist_pos;     
     dp_tlm_t *tlm;               
     char      tlm_prefix[DP_TLM_NAME_MAX]; 
     uint32_t  tlm_decim;                   
@@ -122,6 +134,9 @@ extern "C"
   int dp_async_dsss_pool_set_telemetry (dp_async_dsss_pool_state_t *state,
                                         dp_tlm_t *tlm, const char *prefix,
                                         uint32_t decim);
+
+  int dp_async_dsss_pool_ghost_of (const dp_async_dsss_pool_state_t *state,
+                                   size_t i, size_t j);
 
   dp_async_dsss_receiver_state_t *
   dp_async_dsss_pool_receiver (const dp_async_dsss_pool_state_t *state,

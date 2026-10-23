@@ -33,6 +33,7 @@ def test_defaults():
     assert 1 <= p.threads <= 3
     assert p.samples == 0
     assert p.released_lost == 0 and p.released_duplicate == 0
+    assert p.released_ghost == 0
     assert p.coherent_bins == 1
 
 

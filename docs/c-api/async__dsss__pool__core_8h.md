@@ -84,12 +84,13 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 |  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, size\_t n\_receivers, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate, int threads) <br>_Create a pool of_ `n_receivers` _receivers built alike._ |
 |  void | [**dp\_async\_dsss\_pool\_destroy**](#function-dp_async_dsss_pool_destroy) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Destroy a pool and every receiver._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_get\_coherent\_bins**](#function-dp_async_dsss_pool_get_coherent_bins) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_The receivers' slow-time depth D, epochs per coherent block (_ [_**dp\_async\_dsss\_receiver\_get\_coherent\_bins()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_coherent_bins) _); alike for all._ |
-|  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br>_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022), the samples carried to the next whole period, and each receiver's state, which carries the exclusions and rank the controller gave it. The last push's symbols do not travel._ |
+|  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br>_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022), the samples carried to the next whole period, the ghost rule's history (each receiver's carriers and code-lock flags over its window), and each receiver's state, which carries the exclusions and rank the controller gave it. The last push's symbols do not travel._ |
 |  int | [**dp\_async\_dsss\_pool\_get\_threads**](#function-dp_async_dsss_pool_get_threads) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Workers push() steps the receivers on, the calling thread included: what set\_threads() asked for, at most n\_receivers, and the online cores for 0._  |
+|  int | [**dp\_async\_dsss\_pool\_ghost\_of**](#function-dp_async_dsss_pool_ghost_of) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t i, size\_t j) <br>_Whether receiver_ `j` _tracks a Doppler-offset sidelobe of receiver_`i's` _signal, by the controller's ghost rule (header step 2) over the history it holds now._ |
 |  size\_t | [**dp\_async\_dsss\_pool\_push**](#function-dp_async_dsss_pool_push) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Step every receiver on one block, running the controller at every code period it crosses._  |
 |  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* | [**dp\_async\_dsss\_pool\_receiver**](#function-dp_async_dsss_pool_receiver) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t receiver) <br>_Borrow receiver_ `receiver` _, for C-only configuration: its lock and chain settings (_[_**dp\_async\_dsss\_receiver\_configure\_lock\_raw()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_configure_lock_raw) _,_[_**dp\_async\_dsss\_receiver\_configure\_chain\_raw()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_configure_chain_raw) _)._ |
-|  void | [**dp\_async\_dsss\_pool\_reset**](#function-dp_async_dsss_pool_reset) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Every receiver back to searching, with no exclusions and rank 0; the clock and the release counts back to 0._  |
-|  int | [**dp\_async\_dsss\_pool\_set\_state**](#function-dp_async_dsss_pool_set_state) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const void \* blob) <br>_Restore the state, whole or not at all._ `DP_ERR_INVALID` _on a blob of another object or version, another receiver count, a carry of a period or more, or a receiver blob its receiver refuses; a refusal leaves the pool and every receiver as they were._ |
+|  void | [**dp\_async\_dsss\_pool\_reset**](#function-dp_async_dsss_pool_reset) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Every receiver back to searching, with no exclusions and rank 0; the clock, the release counts and the ghost history back to 0._  |
+|  int | [**dp\_async\_dsss\_pool\_set\_state**](#function-dp_async_dsss_pool_set_state) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const void \* blob) <br>_Restore the state, whole or not at all._ `DP_ERR_INVALID` _on a blob of another object or version, another receiver count, a carry of a period or more, a ghost history control() cannot leave (a length past the window, a flag other than 0 or 1, a nonzero entry outside a ring's span, or a history on a receiver not tracking), or a receiver blob its receiver refuses; a refusal leaves the pool and every receiver as they were._ |
 |  int | [**dp\_async\_dsss\_pool\_set\_telemetry**](#function-dp_async_dsss_pool_set_telemetry) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across every receiver._  |
 |  int | [**dp\_async\_dsss\_pool\_set\_threads**](#function-dp_async_dsss_pool_set_threads) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, int n) <br>_Set the workers push() steps the receivers on._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_state\_bytes**](#function-dp_async_dsss_pool_state_bytes) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Bytes in the blob_ [_**dp\_async\_dsss\_pool\_get\_state()**_](async__dsss__pool__core_8h.md#function-dp_async_dsss_pool_get_state) _writes: the envelope, the pool's own fields, and every receiver's own blob._ |
@@ -127,10 +128,14 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**ASYNC\_DSSS\_POOL\_GHOST\_EPS\_HZ**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_eps_hz)  `10.0`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_GHOST\_LOCK\_FRAC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_lock_frac)  `0.2`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_GHOST\_STILL\_HZ**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_still_hz)  `10.0`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_GHOST\_WINDOW\_S**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_window_s)  `0.2`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_MAX\_RECEIVERS**](async__dsss__pool__core_8h.md#define-async_dsss_pool_max_receivers)  `[**ASYNC\_DSSS\_RX\_MAX\_PEAKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_peaks)`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_NO\_RECEIVER**](async__dsss__pool__core_8h.md#define-async_dsss_pool_no_receiver)  `(-1)`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_STATE\_MAGIC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'P', 'L')`<br> |
-| define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `1u`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `2u`<br> |
 
 ## Detailed Description
 
@@ -143,6 +148,11 @@ Every receiver is a whole AsyncDsssReceiver: it searches the full Doppler range 
 * **Then the controller, serially, at every code period of the stream.** A receiver is fed exactly one code period (`code_len * spc` samples) per call, on the grid of the pool's sample count from create or reset; push() keeps what is left past the last whole period and feeds it with the next push. The controller runs after each period. Every receiver call and every controller step is then a position in the stream, not a call boundary, so any blocking of one stream gives the same receivers, the same releases (a receiver's release clock is read once per call) and the same symbols. The cost is latency: up to one code period of a push waits for the next. It reads every receiver's status() and:
   * **releases the lost.** A receiver in the lost state (its release rule fired: the emitter left, or the seed never locked) is reset to searching. With `reacquire` the receiver does this itself and is never lost.
   * **resolves duplicates.** Two receivers that hold a signal (refining or tracking) within one chip of each other's code phase, circularly, hold the same signal. The one that keeps it is the one tracking over the one refining, then the one in its state longer (status().state\_samples: the first to lock), then the higher C/N0 estimate, then the lower index. The other is reset.
+  * **releases ghosts.** A receiver can take a strong emitter's Doppler-offset sidelobe, hundreds of chips from the emitter's own phase, where the duplicate key cannot see it: it despreads the emitter's own data. Two of its traits give it away together (doppler#2529), each over the same trailing window of [**ASYNC\_DSSS\_POOL\_GHOST\_WINDOW\_S**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_window_s) of whole code periods, both receivers tracking throughout:
+    * its carrier moves in lockstep with a stronger holder's (a higher status().cn0\_dbhz\_est), a whole nonzero number k of lattice steps away: the carrier delta's mean is within [**ASYNC\_DSSS\_POOL\_GHOST\_EPS\_HZ**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_eps_hz) of k times chip\_rate / (2 code\_len), and its standard deviation below [**ASYNC\_DSSS\_POOL\_GHOST\_STILL\_HZ**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_still_hz). A sidelobe sits on its parent's carrier a tile away, and the carrier loop, updating once a code period from a squaring combine, reads that modulo half the epoch rate. Two emitters' carriers move apart.
+    * its Dll holds code lock in fewer than [**ASYNC\_DSSS\_POOL\_GHOST\_LOCK\_FRAC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_lock_frac) of the window's periods: a sidelobe is not the code's triangle. Neither alone will do: a distinct emitter can co-move with another on the lattice (but holds code lock), and a true track near the floor loses code lock (but its carrier is its own). [**dp\_async\_dsss\_pool\_ghost\_of()**](async__dsss__pool__core_8h.md#function-dp_async_dsss_pool_ghost_of) is the test. The ghost is reset; the search's own sidelobe rule ([**dp\_async\_dsss\_receiver\_set\_rank()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_rank)) then keeps it off that cell, but for noise lifting it past the gate.
+
+
   * **hands out exclusions and ranks.** Every receiver gets the code phases the OTHER holders hold as its exclusions ([**dp\_async\_dsss\_receiver\_set\_exclusions()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_exclusions)), so a search never takes a signal already held, and a reset loser does not take its signal back. The searching receivers get ranks 0, 1, ... in index order ([**dp\_async\_dsss\_receiver\_set\_rank()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_rank)), so searchers that decide in the same dwell take different signals. A holder's rank is set to 0, ready for its next search. Both levers take effect at a receiver's next dwell.
 
 
@@ -152,9 +162,6 @@ Every receiver is a whole AsyncDsssReceiver: it searches the full Doppler range 
 
 
 The receivers share the stream from create on, so their dwells share one block grid (a reset receiver's engine restarts on it), and their ranks line up with no command.
-
-
-The code-phase key does not catch a receiver that took a strong emitter's Doppler-offset sidelobe hundreds of chips from it: that ghost carries the emitter's own data. The rule for it, the correlation of two receivers' data symbols, is doppler#2529's and is not built yet.
 
 
 Lifecycle: create, then push() any number of times, reset() at any point, destroy.
@@ -342,7 +349,7 @@ size_t dp_async_dsss_pool_get_coherent_bins (
 
 ### function dp\_async\_dsss\_pool\_get\_state 
 
-_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022), the samples carried to the next whole period, and each receiver's state, which carries the exclusions and rank the controller gave it. The last push's symbols do not travel._
+_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022), the samples carried to the next whole period, the ghost rule's history (each receiver's carriers and code-lock flags over its window), and each receiver's state, which carries the exclusions and rank the controller gave it. The last push's symbols do not travel._
 ```C++
 void dp_async_dsss_pool_get_state (
     const dp_async_dsss_pool_state_t * state,
@@ -373,6 +380,47 @@ int dp_async_dsss_pool_get_threads (
 
 
 
+### function dp\_async\_dsss\_pool\_ghost\_of 
+
+_Whether receiver_ `j` _tracks a Doppler-offset sidelobe of receiver_`i's` _signal, by the controller's ghost rule (header step 2) over the history it holds now._
+```C++
+int dp_async_dsss_pool_ghost_of (
+    const dp_async_dsss_pool_state_t * state,
+    size_t i,
+    size_t j
+) 
+```
+
+
+
+Both tests over the last [**ASYNC\_DSSS\_POOL\_GHOST\_WINDOW\_S**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_window_s) of controller steps: `j's` carrier minus `i's` has a mean within [**ASYNC\_DSSS\_POOL\_GHOST\_EPS\_HZ**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_eps_hz) of a nonzero multiple of `lattice_hz` and a standard deviation below [**ASYNC\_DSSS\_POOL\_GHOST\_STILL\_HZ**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_still_hz), and `j` held code lock in fewer than [**ASYNC\_DSSS\_POOL\_GHOST\_LOCK\_FRAC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_lock_frac) of those steps. Both must have tracked the whole window. Which of the two is stronger is the controller's question, not this one's.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `i` The stronger holder. 
+* `j` The candidate ghost. 
+
+
+
+**Returns:**
+
+1 if `j` is `i's` ghost; 0 otherwise, and for an index past the pool or `i` equal to `j`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_async\_dsss\_pool\_push 
 
 _Step every receiver on one block, running the controller at every code period it crosses._ 
@@ -386,7 +434,7 @@ size_t dp_async_dsss_pool_push (
 
 
 
-Hands every whole code period it completes to every receiver (header step 1), keeps each one's symbols for symbols(), and after each period releases the lost, resolves duplicates and hands out exclusions and ranks (step 2). The samples past the last whole period are kept for the next push. Accepts any block size, and state carries across calls: the result is a function of the stream, not of its blocking.
+Hands every whole code period it completes to every receiver (header step 1), keeps each one's symbols for symbols(), and after each period releases the lost, resolves duplicates, releases ghosts and hands out exclusions and ranks (step 2). The samples past the last whole period are kept for the next push. Accepts any block size, and state carries across calls: the result is a function of the stream, not of its blocking.
 
 
 
@@ -467,7 +515,7 @@ The receiver, owned by the pool; NULL past the pool.
 
 ### function dp\_async\_dsss\_pool\_reset 
 
-_Every receiver back to searching, with no exclusions and rank 0; the clock and the release counts back to 0._ 
+_Every receiver back to searching, with no exclusions and rank 0; the clock, the release counts and the ghost history back to 0._ 
 ```C++
 void dp_async_dsss_pool_reset (
     dp_async_dsss_pool_state_t * state
@@ -509,7 +557,7 @@ void dp_async_dsss_pool_reset (
 
 ### function dp\_async\_dsss\_pool\_set\_state 
 
-_Restore the state, whole or not at all._ `DP_ERR_INVALID` _on a blob of another object or version, another receiver count, a carry of a period or more, or a receiver blob its receiver refuses; a refusal leaves the pool and every receiver as they were._
+_Restore the state, whole or not at all._ `DP_ERR_INVALID` _on a blob of another object or version, another receiver count, a carry of a period or more, a ghost history control() cannot leave (a length past the window, a flag other than 0 or 1, a nonzero entry outside a ring's span, or a history on a receiver not tracking), or a receiver blob its receiver refuses; a refusal leaves the pool and every receiver as they were._
 ```C++
 int dp_async_dsss_pool_set_state (
     dp_async_dsss_pool_state_t * state,
@@ -779,6 +827,74 @@ size_t dp_async_dsss_pool_symbols_max_out (
 
 
 
+### define ASYNC\_DSSS\_POOL\_GHOST\_EPS\_HZ 
+
+```C++
+#define ASYNC_DSSS_POOL_GHOST_EPS_HZ `10.0`
+```
+
+
+
+How near the lattice the mean carrier delta must sit, Hz. 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_POOL\_GHOST\_LOCK\_FRAC 
+
+```C++
+#define ASYNC_DSSS_POOL_GHOST_LOCK_FRAC `0.2`
+```
+
+
+
+The code-lock fraction a ghost holds below: of the window's steps, the share with status().code\_locked set. 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_POOL\_GHOST\_STILL\_HZ 
+
+```C++
+#define ASYNC_DSSS_POOL_GHOST_STILL_HZ `10.0`
+```
+
+
+
+The stillness limit: the carrier delta's standard deviation over the window must be below this, Hz. 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_POOL\_GHOST\_WINDOW\_S 
+
+```C++
+#define ASYNC_DSSS_POOL_GHOST_WINDOW_S `0.2`
+```
+
+
+
+The ghost rule's window, s: the trailing span both its tests read (doppler#2529). 
+
+
+        
+
+<hr>
+
+
+
 ### define ASYNC\_DSSS\_POOL\_MAX\_RECEIVERS 
 
 ```C++
@@ -829,7 +945,7 @@ Most receivers a pool runs: one rank per peak a dwell reports ([**ASYNC\_DSSS\_R
 ### define ASYNC\_DSSS\_POOL\_STATE\_VERSION 
 
 ```C++
-#define ASYNC_DSSS_POOL_STATE_VERSION `1u`
+#define ASYNC_DSSS_POOL_STATE_VERSION `2u`
 ```
 
 

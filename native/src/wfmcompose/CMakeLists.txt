@@ -451,3 +451,17 @@ if(DP_WITH_STREAM) # the CLI links the stream layer (#1575)
             --exe $<TARGET_FILE:wfmgen_cli> --check)
     endif()
 endif()
+
+# A scene written as a capture carries its annotations, and reads them back
+# (doppler#2564, doppler#2565). It spans the composer, the writer and the
+# reader, so it links the whole library, as test_wfmgen_stream_refusal does.
+add_executable(test_wfm_sigmf_annotations
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_sigmf_annotations.c)
+# cJSON is private to libdoppler (the comparison parses both documents), so
+# the test links the vendored object itself.
+target_link_libraries(test_wfm_sigmf_annotations PRIVATE
+    doppler_lib_static wfm_cjson_core ${DP_MATH_LIBRARY})
+target_include_directories(test_wfm_sigmf_annotations PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests
+    ${CMAKE_SOURCE_DIR}/vendor/cjson)
+add_test(NAME test_wfm_sigmf_annotations COMMAND test_wfm_sigmf_annotations)

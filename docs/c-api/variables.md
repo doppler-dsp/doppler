@@ -149,6 +149,7 @@
 * **wfm\_doppler\_lifetime\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_feed\_fn** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_render\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_scene\_ops\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_seed\_advance\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_snr\_mode\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_data\_pacing\_t** ([**wfm\_data.h**](wfm__data_8h.md))

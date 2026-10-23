@@ -73,6 +73,7 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 
 | Type | Name |
 | ---: | :--- |
+|  char \* | [**dp\_wfm\_reader\_annotations\_json**](#function-dp_wfm_reader_annotations_json) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_The capture's SigMF annotations, as the JSON text of the sidecar's_ `annotations` _array (doppler#2565)._ |
 |  [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* | [**dp\_wfm\_reader\_create**](#function-dp_wfm_reader_create) (const char \* path, int sample\_type, int endian) <br>_Open a capture exactly as_ [_**dp\_wfm\_reader\_create\_interruptible**_](wfm__reader__core_8h.md#function-dp_wfm_reader_create_interruptible) _does, but install no stop predicate._ |
 |  [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* | [**dp\_wfm\_reader\_create\_interruptible**](#function-dp_wfm_reader_create_interruptible) (const char \* path, int sample\_type, int endian) <br>_Open a capture, auto-detecting its file type from its content._  |
 |  void | [**dp\_wfm\_reader\_destroy**](#function-dp_wfm_reader_destroy) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_Close the file, free the reader and its decoded keywords._  |
@@ -354,6 +355,43 @@ WFM\_T0\_NONE is the common case and has to stay visible: doppler's own BLUE wri
 <hr>
 ## Public Functions Documentation
 
+
+
+
+### function dp\_wfm\_reader\_annotations\_json 
+
+_The capture's SigMF annotations, as the JSON text of the sidecar's_ `annotations` _array (doppler#2565)._
+```C++
+char * dp_wfm_reader_annotations_json (
+    const dp_wfm_reader_state_t * state
+) 
+```
+
+
+
+The array exactly as the file has it, keys and values untouched, so a capture written from a scene reads back the rows `Composer.to_sigmf()` gives for it. `"[]"` when there are none: a BLUE capture, a sidecar without the key, or a raw/CSV capture with no sidecar. A raw or CSV capture reads its annotations from the sidecar this library's writer leaves beside it, like its rate and centre frequency.
+
+
+
+
+**Parameters:**
+
+
+* `state` the reader. 
+
+
+
+**Returns:**
+
+a malloc'd, NUL-terminated JSON array the caller free()s; never NULL (it allocates through the abort-on-OOM helper). 
+
+
+
+
+
+        
+
+<hr>
 
 
 

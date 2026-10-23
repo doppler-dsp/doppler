@@ -576,6 +576,21 @@ const wfm_segment_t *dp_wfm_compose_segments(const dp_wfm_compose_state_t *state
                                           size_t *n_out, int *repeat,
                                           int *continuous);
 
+typedef struct wfm_scene_ops
+{
+  const wfm_segment_t *(*segments)(const dp_wfm_compose_state_t *state,
+                                   size_t *n_out, int *repeat,
+                                   int *continuous);
+} wfm_scene_ops_t;
+
+static inline const wfm_segment_t *
+dp_wfm_scene_segments(const dp_wfm_compose_state_t *scene, size_t *n_out)
+{
+  const wfm_scene_ops_t *ops
+      = *(const wfm_scene_ops_t *const *)(const void *)scene;
+  return ops->segments(scene, n_out, NULL, NULL);
+}
+
 /* ── JSON spec (the shared --from-file / --record format) ─────────────────── */
 /*
  * Canonical schema: docs/schema/wfmgen.schema.json (JSON Schema 2020-12).

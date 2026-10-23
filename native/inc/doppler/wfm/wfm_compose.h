@@ -1499,6 +1499,39 @@ const wfm_segment_t *dp_wfm_compose_segments(const dp_wfm_compose_state_t *state
                                           size_t *n_out, int *repeat,
                                           int *continuous);
 
+/**
+ * @brief The composer's own entry points, as a table its state starts with.
+ *
+ * Every composer state's first member points at one of these, set at
+ * create. A component that holds a composer but does not link the composer
+ * engine (the SigMF writer, doppler#2564) reads the segments through it:
+ * dp_wfm_scene_segments() calls the composer's OWN dp_wfm_compose_segments(),
+ * so the code that runs is the code that built the scene, even when the two
+ * live in different extension modules.
+ */
+typedef struct wfm_scene_ops
+{
+  /** dp_wfm_compose_segments(), as the composer that owns the state has it. */
+  const wfm_segment_t *(*segments)(const dp_wfm_compose_state_t *state,
+                                   size_t *n_out, int *repeat,
+                                   int *continuous);
+} wfm_scene_ops_t;
+
+/**
+ * @brief dp_wfm_compose_segments() for a caller that does not link the
+ *        composer: dispatched through the state's own wfm_scene_ops_t.
+ * @param scene a composer (dp_wfm_compose_create() or a JSON reader).
+ * @param n_out receives the segment count.
+ * @return the composer's internal segments, as dp_wfm_compose_segments().
+ */
+static inline const wfm_segment_t *
+dp_wfm_scene_segments(const dp_wfm_compose_state_t *scene, size_t *n_out)
+{
+  const wfm_scene_ops_t *ops
+      = *(const wfm_scene_ops_t *const *)(const void *)scene;
+  return ops->segments(scene, n_out, NULL, NULL);
+}
+
 /* ── JSON spec (the shared --from-file / --record format) ─────────────────── */
 /*
  * Canonical schema: docs/schema/wfmgen.schema.json (JSON Schema 2020-12).

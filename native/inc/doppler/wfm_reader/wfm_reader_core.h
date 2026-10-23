@@ -358,6 +358,23 @@ size_t dp_wfm_reader_read_max_out(dp_wfm_reader_state_t *state, size_t n);
    */
 size_t dp_wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
 
+/**
+ * @brief The capture's SigMF annotations, as the JSON text of the sidecar's
+ *        `annotations` array (doppler#2565).
+ *
+ * The array exactly as the file has it, keys and values untouched, so a
+ * capture written from a scene reads back the rows `Composer.to_sigmf()`
+ * gives for it. `"[]"` when there are none: a BLUE capture, a sidecar
+ * without the key, or a raw/CSV capture with no sidecar. A raw or CSV
+ * capture reads its annotations from the sidecar this library's writer
+ * leaves beside it, like its rate and centre frequency.
+ *
+ * @param state the reader.
+ * @return a malloc'd, NUL-terminated JSON array the caller free()s; never
+ *         NULL (it allocates through the abort-on-OOM helper).
+ */
+char *dp_wfm_reader_annotations_json(const dp_wfm_reader_state_t *state);
+
   /**
    * @brief The @p i'th keyword in file order, or NULL if @p i is out of range.
    *

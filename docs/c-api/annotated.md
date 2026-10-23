@@ -161,6 +161,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md) _What undoing one stage found._     
 * **struct** [**wfm\_keyword\_t**](structwfm__keyword__t.md)     
 * **struct** [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)     
+* **struct** [**wfm\_scene\_ops**](structwfm__scene__ops.md) _The composer's own entry points, as a table its state starts with._     
 * **struct** [**wfm\_segment\_t**](structwfm__segment__t.md) _One composer segment: one or more sources summed over the same span, then a trailing off-time gap._     
 * **struct** [**wfm\_seq\_t**](structwfm__seq__t.md) _A run of bits, however it is produced._     
 * **struct** [**wfm\_source\_t**](structwfm__source__t.md) _One additive source within a segment: a_ `synth` _config + its level._    

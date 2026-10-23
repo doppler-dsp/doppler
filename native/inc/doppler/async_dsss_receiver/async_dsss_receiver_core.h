@@ -1140,8 +1140,13 @@ typedef enum
    * Doppler-offset sidelobes, up to dp_acq_dsl_db() below it and hundreds
    * of chips from its phase (design acq-surface.md §8). A peak counts as a
    * second signal only if its test_stat exceeds the stronger signals'
-   * summed test_stat, times that level, by more than the detector's own gate
-   * (dp_acq_gate_stat()). A sidelobe then passes only when the noise on it
+   * bound, times that level, by more than the detector's own gate
+   * (dp_acq_gate_stat()). The bound is the strongest signal's test_stat;
+   * on a deep block (get_coherent_bins() > 1) it is the sum of the
+   * stronger signals on the peak's own Doppler row, modulo the epoch rate,
+   * when that is larger, since their fixed sidelobes can stack on one cell.
+   * So the range does not narrow with the number of signals on the air
+   * (doppler#2554). A sidelobe then passes only when the noise on it
    * alone would have cleared the gate, the rate the search already runs
    * at. What it costs is near-far: a second signal much more than
    * dp_acq_dsl_db() below a stronger one (-16.95 dB on the SPEC Gold-1023

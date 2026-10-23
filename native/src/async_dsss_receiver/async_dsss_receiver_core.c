@@ -871,17 +871,59 @@ adr_same_code_phase (double a, double b, size_t code_len)
  *    also holds its code's Doppler-offset sidelobes, up to dsl below it and
  *    hundreds of chips from its lag, where rule 1 cannot reach (design
  *    acq-surface.md §8). A peak is a second emitter only if its statistic
- *    exceeds dsl times the sum of the stronger emitters' by more than the
+ *    exceeds dsl times the stronger emitters' bound by more than the
  *    detector's own gate. Noise riding on a sidelobe lifts it by no more
  *    than the noise's own magnitude, so a sidelobe passes only when that
  *    noise alone would have cleared the gate: the false-alarm rate the
- *    search already runs at. The sum bounds two emitters' sidelobes landing
- *    on one cell.
+ *    search already runs at. The bound (adr_sidelobe_bound()) is the
+ *    strongest emitter's statistic, plus, on a deep block, every stronger
+ *    emitter that can put a sidelobe on this peak's Doppler row.
  * 3. In an excluded zone: another receiver's signal. It is still an
- *    emitter, so it still counts in rule 2's sum.
+ *    emitter, so it still counts in rule 2's bound.
  *
  * 1 and the hand-off in @p pick, or 0 when the list holds no peak at this
  * rank. */
+/* Rule 2's bound for a peak at @p f_hz: what the stronger emitters'
+ * sidelobes can reach there, as a statistic (doppler#2554).
+ *
+ * An emitter's Doppler-offset sidelobes land on its own Doppler row in
+ * every other tile, f + k f_E: the slow-time transform resolves the same
+ * phase advance per epoch in each tile (design acq-surface.md §8). On a
+ * deep block (D > 1) over a code-only window those cells are fixed, so two
+ * emitters on one row (modulo f_E) can stack their sidelobes on one cell
+ * and the bound sums them. "One row" is the candidate's row and both its
+ * neighbours: two emitters a few Hz apart quantize to ADJACENT rows, and
+ * a cell their sidelobes stack on sits on one parent's row and a row from
+ * the other (doppler#2556, review 5630995725), so half a row each side
+ * dropped that parent. Summed over every emitter regardless of row, the
+ * bound narrowed the near-far range with each emitter on the air. Off the row,
+ * an emitter's sidelobe is down by the slow-time leakage as well, so the
+ * strongest one bounds it.
+ *
+ * On a one-epoch search (D = 1) a native row is a whole tile, so rows
+ * cannot be told apart, and the sum would read every emitter as stacked.
+ * Measured there, two equal emitters on one carrier did not stack past the
+ * gate under the strongest alone, while the sum left a true emitter 10 dB
+ * below the strongest of six untaken (both on doppler#2554), so the
+ * strongest alone bounds it. */
+static double
+adr_sidelobe_bound (const dp_async_dsss_receiver_state_t *s, double f_hz,
+                    const double *stat, const double *freq, size_t n)
+{
+  double       strongest = 0.0, on_row = 0.0;
+  const double fe    = s->acq->chip_rate / (double)s->code_len;
+  const double reach = 1.5 * s->acq->doppler_res_hz;
+  for (size_t j = 0; j < n; j++)
+    {
+      strongest = fmax (strongest, stat[j]);
+      double d  = fmod (f_hz - freq[j], fe);
+      d         = d < 0.0 ? d + fe : d;
+      if (fmin (d, fe - d) <= reach)
+        on_row += stat[j];
+    }
+  return s->acq->coherent_bins > 1 ? fmax (strongest, on_row) : strongest;
+}
+
 static int
 adr_pick (const dp_async_dsss_receiver_state_t *s, const acq_result_t *hits,
           size_t n_hits, acq_handoff_t *pick)
@@ -889,8 +931,9 @@ adr_pick (const dp_async_dsss_receiver_state_t *s, const acq_result_t *hits,
   const double dsl  = pow (10.0, dp_acq_dsl_db (s->acq) / 20.0);
   const double gate = dp_acq_gate_stat (s->acq);
   double       seen[ASYNC_DSSS_RX_MAX_PEAKS];
-  double       stronger = 0.0; /* the emitters' statistics so far */
-  size_t       n_seen = 0, n_kept = 0;
+  /* The emitters so far, strongest first: statistic and Doppler. */
+  double em_stat[ASYNC_DSSS_RX_MAX_PEAKS], em_f[ASYNC_DSSS_RX_MAX_PEAKS];
+  size_t n_seen = 0, n_kept = 0, n_em = 0;
   for (size_t i = 0; i < n_hits; i++)
     {
       acq_handoff_t ho;
@@ -899,9 +942,15 @@ adr_pick (const dp_async_dsss_receiver_state_t *s, const acq_result_t *hits,
       for (size_t j = 0; j < n_seen && !drop; j++)
         drop = adr_same_code_phase (ho.chip_phase, seen[j], s->code_len);
       seen[n_seen++] = ho.chip_phase;
-      if (drop || (double)hits[i].test_stat - dsl * stronger <= gate)
+      if (drop
+          || (double)hits[i].test_stat
+                     - dsl
+                           * adr_sidelobe_bound (s, ho.doppler_hz_est, em_stat,
+                                                 em_f, n_em)
+                 <= gate)
         continue;
-      stronger += (double)hits[i].test_stat;
+      em_stat[n_em] = (double)hits[i].test_stat;
+      em_f[n_em++]  = ho.doppler_hz_est;
       for (size_t j = 0; j < s->n_excl && !drop; j++)
         drop = adr_same_code_phase (ho.chip_phase, s->excl[j], s->code_len);
       if (drop)

@@ -3868,13 +3868,17 @@ _test_ranks_and_exclusions_split_two_signals (void)
 /* The sidelobe rule's near-far range does not narrow with the number of
  * signals on the air (doppler#2554). Five strong emitters, each 10 dB
  * above a weak one W and all excluded, on one Gold code at distinct code
- * phases and carriers: a rank-0 search must take W. 10 dB is well inside
- * the -16.95 dB sidelobe level, so W is a signal against any one of them;
- * a bound summed over all five read W as their sidelobes and never took
- * it. Each emitter's phase comes from a rank-0 receiver fed it alone.
- * Sabotage: sum the stronger statistics in adr_pick() -> red. */
+ * phases and carriers, each on a Doppler row of its own (modulo the epoch
+ * rate): a rank-0 search must take W. 10 dB is well inside the -16.95 dB
+ * sidelobe level, so W is a signal against any one of them; a bound summed
+ * over all five read W as their sidelobes and never took it. Run on a
+ * one-epoch search over data and on the SPEC frame's deep block (D = 90,
+ * 450 code-only symbols in 500). Each emitter's phase comes from a rank-0
+ * receiver fed it alone. Sabotage: sum every stronger emitter in
+ * adr_sidelobe_bound() -> red at D = 1; sum them regardless of row at
+ * D > 1 -> red at D = 90. */
 static int
-_test_near_far_range_holds_with_many_signals (void)
+_near_far_many (int deep)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
@@ -3893,9 +3897,10 @@ _test_near_far_range_holds_with_many_signals (void)
   /* W carries the noise at 50 dB-Hz; the strong ones are rendered clean. */
   for (size_t k = 0; k <= NS; k++)
     {
-      dp_dsss_capture (code, 1023, SLOW_SPC, fs, tsym, dop[k],
-                       k ? 120.0 : 50.0, 60, pre[k], 21 + (uint32_t)k, &x[k],
-                       &len[k], &data);
+      dp_dsss_windowed_capture (code, 1023, SLOW_SPC, fs, tsym, dop[k],
+                                k ? 120.0 : 50.0, deep ? 600 : 60, pre[k],
+                                21 + (uint32_t)k, deep ? 450 : 0,
+                                deep ? 500 : 0, &x[k], &len[k], &data);
       free (data);
       if (len[k] < n)
         n = len[k];
@@ -3916,7 +3921,8 @@ _test_near_far_range_holds_with_many_signals (void)
     {
       for (size_t i = 0; i < n; i++)
         alone[i] = (k ? gain : 1.0f) * x[k][i];
-      dp_async_dsss_receiver_state_t *r = _slow_rx (code, 47.0, 5000.0, 0, 0);
+      dp_async_dsss_receiver_state_t *r = _slow_rx (
+          code, 47.0, 5000.0, deep ? 450.0 / SLOW_RS : 0, deep ? 500.0 : 0);
       DP_REQUIRE (r != NULL);
       (void)_until_seeded (r, alone + on, n - on);
       DP_REQUIRE (r->state != ASYNC_DSSS_RX_SEARCHING);
@@ -3926,19 +3932,109 @@ _test_near_far_range_holds_with_many_signals (void)
   for (size_t j = 0; j <= NS; j++)
     for (size_t k = j + 1; k <= NS; k++)
       DP_REQUIRE (_chip_dist (phase[j], phase[k], 1023.0) > 50.0);
-  dp_async_dsss_receiver_state_t *rx = _slow_rx (code, 47.0, 5000.0, 0, 0);
+  dp_async_dsss_receiver_state_t *rx = _slow_rx (
+      code, 47.0, 5000.0, deep ? 450.0 / SLOW_RS : 0, deep ? 500.0 : 0);
   DP_REQUIRE (rx != NULL);
+  DP_REQUIRE ((dp_async_dsss_receiver_get_coherent_bins (rx) > 1) == deep);
   DP_CHECK (dp_async_dsss_receiver_set_exclusions (rx, phase + 1, NS)
             == DP_OK);
   (void)_until_seeded (rx, all + on, n - on);
   DP_CHECK_MSG (rx->state != ASYNC_DSSS_RX_SEARCHING,
-                "W was not taken beside five stronger signals");
+                deep ? "D=90: W was not taken beside five stronger signals"
+                     : "D=1: W was not taken beside five stronger signals");
   DP_CHECK (_chip_dist (rx->seed_chip_phase, phase[0], 1023.0) <= 1.0);
   dp_async_dsss_receiver_destroy (rx);
   for (size_t k = 0; k <= NS; k++)
     free (x[k]);
   free (all);
   free (alone);
+  return 0;
+}
+
+static int
+_test_near_far_range_holds_with_many_signals (void)
+{
+  DP_CHECK (_near_far_many (0) == 0);
+  DP_CHECK (_near_far_many (1) == 0);
+  return 0;
+}
+
+/* Two equal emitters on ONE carrier stack their sidelobes on one cell
+ * (doppler#2556, review 5630513120). On a deep block over a code-only
+ * window an emitter's Doppler-offset sidelobes are fixed cells on its own
+ * Doppler row, so two emitters on the same row can put theirs on one cell
+ * and together pass a bound that only the stronger one sets. Hand-built
+ * geometries from the review: A at 1500 Hz, B clean at A's amplitude and
+ * carrier, lag 674 or 426 chips after A (the latter with B at -4500 Hz,
+ * the same row modulo the epoch rate); two draws each, D = 90 on the SPEC
+ * frame. Neither a rank-2 search nor one with A and B excluded may leave
+ * searching. Sabotage: bound by the strongest alone at D > 1 -> red. */
+static int
+_test_two_emitters_sidelobes_stack (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double fs = SLOW_CR * SLOW_SPC, tsym = fs / SLOW_RS;
+  const double lags[2] = { 674.0, 426.0 }, fbs[2] = { 1500.0, -4500.0 };
+  int          taken = 0;
+  for (size_t g = 0; g < 2; g++)
+    for (uint32_t sd = 1; sd <= 2; sd++)
+      {
+        const size_t    dB = (size_t)llround ((1023.0 - lags[g]) * SLOW_SPC);
+        const size_t    p0 = 300 + 37 * sd;
+        float _Complex *a, *b;
+        size_t          na, nb;
+        double         *da, *db;
+        dp_dsss_windowed_capture (code, 1023, SLOW_SPC, fs, tsym, 1500.0, 80.0,
+                                  600, p0, sd, 450, 500, &a, &na, &da);
+        dp_dsss_windowed_capture (code, 1023, SLOW_SPC, fs, tsym, fbs[g],
+                                  300.0, 600, p0 + dB, 100 + sd, 450, 500, &b,
+                                  &nb, &db);
+        const size_t    n   = na < nb ? na : nb;
+        float _Complex *all = malloc (n * sizeof *all);
+        DP_REQUIRE (all != NULL);
+        for (size_t i = 0; i < n; i++)
+          all[i] = a[i] + b[i];
+        const size_t    on = p0 + dB + 2 * 2046;
+        double          ph[2];
+        float _Complex *one[2] = { a, b };
+        for (size_t k = 0; k < 2; k++)
+          {
+            dp_async_dsss_receiver_state_t *r
+                = _slow_rx (code, 47.0, 5000.0, 450.0 / SLOW_RS, 500.0);
+            DP_REQUIRE (r != NULL);
+            (void)_until_seeded (r, one[k] + on, n - on);
+            DP_REQUIRE (r->state != ASYNC_DSSS_RX_SEARCHING);
+            ph[k] = r->seed_chip_phase;
+            dp_async_dsss_receiver_destroy (r);
+          }
+        dp_async_dsss_receiver_state_t *r2
+            = _slow_rx (code, 47.0, 5000.0, 450.0 / SLOW_RS, 500.0);
+        dp_async_dsss_receiver_state_t *rx
+            = _slow_rx (code, 47.0, 5000.0, 450.0 / SLOW_RS, 500.0);
+        DP_REQUIRE (r2 && rx);
+        DP_REQUIRE (dp_async_dsss_receiver_get_coherent_bins (r2) == 90);
+        DP_CHECK (dp_async_dsss_receiver_set_rank (r2, 2) == DP_OK);
+        DP_CHECK (dp_async_dsss_receiver_set_exclusions (rx, ph, 2) == DP_OK);
+        (void)_until_seeded (r2, all + on, n - on);
+        (void)_until_seeded (rx, all + on, n - on);
+        if (r2->state != ASYNC_DSSS_RX_SEARCHING
+            || rx->state != ASYNC_DSSS_RX_SEARCHING)
+          {
+            DP_TEST_ERR ("  lag %.0f fb %+.0f draw %u: rank 2 %d, "
+                         "excluded %d\n",
+                         lags[g], fbs[g], sd, r2->state, rx->state);
+            taken++;
+          }
+        dp_async_dsss_receiver_destroy (r2);
+        dp_async_dsss_receiver_destroy (rx);
+        free (a);
+        free (b);
+        free (da);
+        free (db);
+        free (all);
+      }
+  DP_CHECK_MSG (taken == 0, "two emitters' stacked sidelobes were taken");
   return 0;
 }
 
@@ -4213,6 +4309,7 @@ main (void)
   DP_CHECK (_test_depth_finds_what_one_epoch_misses () == 0);
   DP_CHECK (_test_ranks_and_exclusions_split_two_signals () == 0);
   DP_CHECK (_test_near_far_range_holds_with_many_signals () == 0);
+  DP_CHECK (_test_two_emitters_sidelobes_stack () == 0);
   DP_CHECK (_test_rank_and_exclusions_domain_and_blob () == 0);
   DP_CHECK (_test_one_signal_holds_one_rank () == 0);
   DP_CHECK (_test_ranked_search_takes_no_sidelobe () == 0);

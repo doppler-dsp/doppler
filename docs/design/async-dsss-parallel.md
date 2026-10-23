@@ -184,12 +184,17 @@ The rank and the exclusions skip the strongest peak, so without a rule a
 ranked or excluded search seeds on one, then tracks it, its flags flicker
 on the emitter's data, and it never releases. The rule
 (`async_dsss_receiver_core.h`, `set_rank()`): a peak counts as a second
-signal only if its statistic exceeds the strongest signal's statistic,
-times that sidelobe level, by more than the detector's own gate. The
-strongest alone: a sum over the stronger signals assumed all their worst
-sidelobes on one cell, so the range narrowed with every signal on the
-air, and with six up a true signal 10 dB below the strongest was never
-taken (doppler#2554). The level is computed once, by the searcher's constructor, over
+signal only if its statistic exceeds the stronger signals' bound, times
+that sidelobe level, by more than the detector's own gate. The bound is
+the strongest signal's statistic. On a deep block it is the sum over the
+stronger signals on the peak's own Doppler row (modulo the epoch rate)
+when that is larger: a signal's Doppler-offset sidelobes are fixed cells
+on its own row in every tile, so two signals on one row can stack theirs
+on one cell. A sum over every stronger signal, on any row, narrowed the
+range with each signal on the air: with six up, a true signal 10 dB below
+the strongest was never taken. On a one-epoch search a row is a whole
+tile, so the strongest alone bounds it; two equal signals on one carrier
+did not stack past the gate there (doppler#2554, doppler#2556). The level is computed once, by the searcher's constructor, over
 every residual and tile offset its grid can put between an emitter and a
 tile (`dp_acq_dsl_db()`, the Doppler-offset twin of `dp_acq_psl_db()`).
 Noise riding on a sidelobe lifts it by no more than the noise's own

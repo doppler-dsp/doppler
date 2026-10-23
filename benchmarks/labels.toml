@@ -332,12 +332,6 @@ unit = "call"
 definition = "One push of a 2,046-sample epoch of noise (a Gold-1023 code at 3.069 Mcps and 2 samples per chip) through a pool of three AsyncDsssReceivers on one thread, each searching plus or minus 3 kHz, through the Python binding; read in input samples per second."
 samples = 2046
 
-["py:async_dsss_pool::test_push_epoch"]
-name = "Async DSSS pool, one epoch, from Python"
-unit = "call"
-definition = "One push of a 2,046-sample epoch (a Gold-1023 code at 2 samples per chip) through twelve idle receivers and the searcher, through the Python binding; read in input samples per second."
-samples = 2046
-
 # Reed-Solomon from Python, one CCSDS (255,223) codeword per call. Coded
 # data, so these read in bits per second like the C headline row: one
 # codeword is 255 bytes, 2,040 bits.
@@ -374,42 +368,6 @@ count = 2040
 # first to record them. A label for an unpublished row is pending until
 # then (`make lint` checks it against the commit the newest release was
 # measured at), so a new row is labelled in the PR that adds it.
-
-["c:acq::op2M_U50k_D61_t1_nc1"]
-name = "DSSS search, 2 Mcps, ±50 kHz, depth 61, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 61 under a 500 Hz/s rate bound, the roll fanned across 1 thread; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op2M_U50k_D61_t4_nc1"]
-name = "DSSS search, 2 Mcps, ±50 kHz, depth 61, 4 threads"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 61 under a 500 Hz/s rate bound, the roll fanned across 4 threads; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U50k_D154_t1_nc1"]
-name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 1 thread; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U50k_D154_t8_nc1"]
-name = "DSSS search, 5 Mcps, ±50 kHz, depth 154, 8 threads"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 8 threads; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U5k_D154_t1_nc1"]
-name = "DSSS search, 5 Mcps, ±5 kHz, depth 154, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 1 thread; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U5k_D154_t4_nc1"]
-name = "DSSS search, 5 Mcps, ±5 kHz, depth 154, 4 threads"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 154 under a 500 Hz/s rate bound, the roll fanned across 4 threads; throughput counts searched input samples."
-samples = 1
 
 ["c:acq::op2M_U50k_D60_t1_nc1"]
 name = "DSSS search, 2 Mcps, ±50 kHz, depth 60, 1 thread"
@@ -721,18 +679,6 @@ unit = "sample"
 definition = "One steps() call through the Python binding on 65,536 samples of noise at 4 MSa/s, the detector in sequential mode with 4,096-sample blocks zero-padded to a 65,536-point transform; nothing fires, so all 16 blocks are folded and tested; throughput counts input samples."
 samples = 1
 
-["c:async_dsss_pool::push[12 slots, serial]"]
-name = "Async DSSS pool, 12 receivers, one thread"
-unit = "sample"
-definition = "One push of the next 2,046 samples (one period of a 1,023-chip code at 5 Mcps, 2 samples per chip) through the searcher and twelve cell receivers on one thread, after a half-second warm-up on a clean one-emitter capture; throughput counts input samples."
-samples = 1
-
-["c:async_dsss_pool::push[12 slots, all cores]"]
-name = "Async DSSS pool, 12 receivers, all threads"
-unit = "sample"
-definition = "The one-thread row's push, with the searcher's tiles and the twelve receivers fanned across one thread per online logical CPU; the published run confines those threads to 8 logical CPUs (4 cores and their SMT siblings, doppler#2394). Throughput counts input samples."
-samples = 1
-
 ["c:async_dsss_pool::push[search,n=3,threads=1]"]
 name = "Async DSSS pool, 3 receivers searching, one thread"
 unit = "sample"
@@ -847,24 +793,6 @@ count = 1
 name = "Burst capture, four bursts, from Python"
 unit = "sample"
 definition = "One push of 65,536 noisy samples carrying four 8,316-sample bursts (a 255-chip preamble at 2 samples per chip, repeated 5 times, 12 dB Es/N0) into a fresh BurstCapture through the Python binding; throughput counts input samples."
-samples = 1
-
-["c:async_dsss_receiver::steps[cell,sf=7]"]
-name = "Async DSSS receiver, held, 7-chip code"
-unit = "sample"
-definition = "The cell receiver tracking a 7-chip code at 1 Mcps and 4 samples per chip with asynchronous BPSK data, code-locked before and after: 65,536 samples per round; throughput counts input samples."
-samples = 1
-
-["c:async_dsss_receiver::steps[cell,sf=1023,5Mcps]"]
-name = "Async DSSS receiver, held, 1,023 chips at 5 Mcps"
-unit = "sample"
-definition = "The cell receiver tracking a 1,023-chip code at 5 Mcps and 2 samples per chip with 2,700 sym/s asynchronous BPSK data, code-locked before and after: 65,536 samples per round; throughput counts input samples."
-samples = 1
-
-["c:async_dsss_receiver::steps[cell,sf=1023,3.069Mcps]"]
-name = "Async DSSS receiver, held, at the SPEC point"
-unit = "sample"
-definition = "The cell receiver tracking a 1,023-chip code at 3.069 Mcps and 2 samples per chip with 2,700 sym/s asynchronous BPSK data, code-locked before and after: 65,536 samples per round; throughput counts input samples."
 samples = 1
 
 ["c:async_dsss_receiver::steps[track,sf=1023,3.069Mcps]"]

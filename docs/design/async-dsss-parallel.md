@@ -268,14 +268,18 @@ traits together, each over the same trailing 0.2 s of code periods
     triangle.
 
 Neither alone will do. A distinct emitter can co-move with another a lattice
-step away, but it holds code lock; a true track near the floor loses code
-lock, but its carrier is its own. Measured on the reviewer's populations, the
-pair caught 406 of 416 ghosts with no false flag in 900 distinct pairs
-(co-moving and near-floor included), in a median 0.21 s, code-only windows
-included; the data-symbol correlation first ruled for this missed 60 dB-Hz
-ghosts and needs seconds at low data duty. The constants are
-`ASYNC_DSSS_POOL_GHOST_*` in `async_dsss_pool_core.h`, and the measurements
-behind them are on doppler#2529.
+step away, but it usually holds code lock; a true track near the floor loses
+code lock, but its carrier is its own. Measured on the reviewer's populations
+with both receivers on one stream, the pair caught all 416 Doppler-offset
+ghosts in a median 0.20 s, code-only windows included, and released 23 of
+2050 true emitters. All 23 sit 20 dB below a 60 dB-Hz partner they co-move
+with, a track under its design C/N0 whose code lock is as weak as a
+sidelobe's (doppler#2550). A ghost on its parent's own carrier (k = 0) is
+left alone: allowing k = 0 releases most true emitters that share a
+stronger one's Doppler (doppler#2551). The data-symbol correlation first
+ruled for this missed 60 dB-Hz ghosts and needs seconds at low data duty.
+The constants are `ASYNC_DSSS_POOL_GHOST_*` in `async_dsss_pool_core.h`, and
+the measurements behind them are on doppler#2529.
 
 ## 5. Arrival to tracking
 

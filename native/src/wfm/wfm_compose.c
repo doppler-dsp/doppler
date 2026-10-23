@@ -116,21 +116,25 @@ enum
 
 struct wfm_compose_state
 {
-  wfm_segment_t *segs;
-  size_t         n_segs;
-  int            repeat;
-  int            continuous;
-  int            seed_advance; /* per-repeat seed policy (wfm_seed_advance_t):
-                                  NONE = byte-identical; NOISE = advance only the
-                                  AWGN seed (signal fixed); ALL = advance the
-                                  whole seed (code+data+noise) */
-  unsigned epoch;              /* repeat counter (0 on the first pass) — drives
-                                  per-repeat seed advance + ranged-field draws */
-  size_t instance;             /* current segment's repeats counter (0-based) —
-                                  folds into ranged draws + the AWGN reseed */
-  size_t          cur;         /* current segment index */
-  int             phase;       /* PHASE_ON / PHASE_OFF / PHASE_DONE */
-  size_t          left;        /* samples remaining in the current phase */
+  /* FIRST, and set at create: dp_wfm_scene_segments() reads it through a
+     pointer to the state, so a consumer that does not link this file can
+     still reach the segments (wfm_scene_ops_t). */
+  const wfm_scene_ops_t *ops;
+  wfm_segment_t         *segs;
+  size_t                 n_segs;
+  int                    repeat;
+  int                    continuous;
+  int seed_advance;          /* per-repeat seed policy (wfm_seed_advance_t):
+                                NONE = byte-identical; NOISE = advance only the
+                                AWGN seed (signal fixed); ALL = advance the
+                                whole seed (code+data+noise) */
+  unsigned epoch;            /* repeat counter (0 on the first pass) — drives
+                                per-repeat seed advance + ranged-field draws */
+  size_t instance;           /* current segment's repeats counter (0-based) —
+                                folds into ranged draws + the AWGN reseed */
+  size_t          cur;       /* current segment index */
+  int             phase;     /* PHASE_ON / PHASE_OFF / PHASE_DONE */
+  size_t          left;      /* samples remaining in the current phase */
   size_t          cur_num;   /* this epoch's resolved on-time (ranged/fixed) */
   size_t          cur_off;   /* this epoch's resolved off-time gap */
   size_t          cur_delay; /* this epoch's resolved leading delay */
@@ -157,6 +161,8 @@ struct wfm_compose_state
 
 /* Defined below struct wfm_render, whose members it reads. */
 static void keep_truth (const dp_wfm_compose_state_t *s);
+/* The table every state starts with (wfm_scene_ops_t). */
+static const wfm_scene_ops_t scene_ops = { dp_wfm_compose_segments };
 
 /* Destroy the active segment's renderers (the rend[] array stays allocated).
  * A PERSIST source's channel is BORROWED, so it survives this by construction
@@ -863,6 +869,7 @@ dp_wfm_compose_create_why (const wfm_segment_t *segs, size_t n_segs,
   dp_wfm_compose_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
+  s->ops  = &scene_ops;
   s->segs = calloc (n_segs, sizeof (*s->segs));
   if (!s->segs)
     {

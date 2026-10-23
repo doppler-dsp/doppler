@@ -213,6 +213,7 @@
 * [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md)
 * [**wfm\_keyword\_t**](structwfm__keyword__t.md)
 * [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)
+* [**wfm\_scene\_ops**](structwfm__scene__ops.md)
 * [**wfm\_segment\_t**](structwfm__segment__t.md)
 * [**wfm\_seq\_t**](structwfm__seq__t.md)
 * [**wfm\_source\_t**](structwfm__source__t.md)

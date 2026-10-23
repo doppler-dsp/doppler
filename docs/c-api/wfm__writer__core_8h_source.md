@@ -41,6 +41,9 @@ size_t dp_wfm_writer_write(dp_wfm_writer_state_t *state, const float _Complex *x
 int dp_wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char type,
                           const void *value, size_t count);
 
+int dp_wfm_writer_annotate(dp_wfm_writer_state_t *w,
+                           const dp_wfm_compose_state_t *scene);
+
 int dp_wfm_writer_close(dp_wfm_writer_state_t *w);
 
 int dp_wfm_writer_destroy(dp_wfm_writer_state_t *state);

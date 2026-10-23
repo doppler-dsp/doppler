@@ -35,6 +35,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | struct | [**wfm\_draw\_t**](structwfm__draw__t.md) <br>_One rendered source instance: its timing AND the values it was actually rendered with._  |
+| struct | [**wfm\_scene\_ops**](structwfm__scene__ops.md) <br>_The composer's own entry points, as a table its state starts with._  |
 | struct | [**wfm\_segment\_t**](structwfm__segment__t.md) <br>_One composer segment: one or more sources summed over the same span, then a trailing off-time gap._  |
 | struct | [**wfm\_source\_t**](structwfm__source__t.md) <br>_One additive source within a segment: a_ `synth` _config + its level._ |
 | struct | [**wfm\_span\_t**](structwfm__span__t.md) <br>_One rendered segment instance's exact timing: where it lands in the composed stream and how its_ `delay | on | off` _spans divide it._ |
@@ -50,6 +51,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | enum  | [**wfm\_doppler\_lifetime\_t**](#enum-wfm_doppler_lifetime_t)  <br>_When a source's Doppler channel restarts._  |
 | typedef void(\* | [**wfm\_feed\_fn**](#typedef-wfm_feed_fn)  <br>_Where a channel renderer's INPUT comes from, when it is not a synth._  |
 | typedef struct wfm\_render | [**wfm\_render\_t**](#typedef-wfm_render_t)  <br>_One source's renderer: its synth, plus its Doppler channel._  |
+| typedef struct [**wfm\_scene\_ops**](structwfm__scene__ops.md) | [**wfm\_scene\_ops\_t**](#typedef-wfm_scene_ops_t)  <br>_The composer's own entry points, as a table its state starts with._  |
 | enum  | [**wfm\_seed\_advance\_t**](#enum-wfm_seed_advance_t)  <br>_Per-repeat seed policy for a looped/continuous stream._  |
 | enum  | [**wfm\_snr\_mode\_t**](#enum-wfm_snr_mode_t)  <br>_What a source's_ `snr` _is measured against._ |
 
@@ -155,6 +157,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  double | [**dp\_wfm\_scene\_fs**](#function-dp_wfm_scene_fs) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_The ONE answer to "what is this stream's sample rate": the_ `fs` _every segment shares, or 0.0 when they differ._ |
+|  const [**wfm\_segment\_t**](structwfm__segment__t.md) \* | [**dp\_wfm\_scene\_segments**](#function-dp_wfm_scene_segments) (const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* scene, size\_t \* n\_out) <br>[_**dp\_wfm\_compose\_segments()**_](wfm__compose_8h.md#function-dp_wfm_compose_segments) _for a caller that does not link the composer: dispatched through the state's own wfm\_scene\_ops\_t._ |
 
 
 
@@ -359,6 +362,24 @@ typedef struct wfm_render wfm_render_t;
 
 
 
+
+<hr>
+
+
+
+### typedef wfm\_scene\_ops\_t 
+
+_The composer's own entry points, as a table its state starts with._ 
+```C++
+typedef struct wfm_scene_ops wfm_scene_ops_t;
+```
+
+
+
+Every composer state's first member points at one of these, set at create. A component that holds a composer but does not link the composer engine (the SigMF writer, doppler#2564) reads the segments through it: dp\_wfm\_scene\_segments() calls the composer's OWN [**dp\_wfm\_compose\_segments()**](wfm__compose_8h.md#function-dp_wfm_compose_segments), so the code that runs is the code that built the scene, even when the two live in different extension modules. 
+
+
+        
 
 <hr>
 
@@ -2943,6 +2964,42 @@ return ok ? 0 : 1;
 **Returns:**
 
 the shared fs, or 0.0 when the segments differ or there are none. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_scene\_segments 
+
+[_**dp\_wfm\_compose\_segments()**_](wfm__compose_8h.md#function-dp_wfm_compose_segments) _for a caller that does not link the composer: dispatched through the state's own wfm\_scene\_ops\_t._
+```C++
+static inline const wfm_segment_t * dp_wfm_scene_segments (
+    const dp_wfm_compose_state_t * scene,
+    size_t * n_out
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `scene` a composer ([**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create) or a JSON reader). 
+* `n_out` receives the segment count. 
+
+
+
+**Returns:**
+
+the composer's internal segments, as [**dp\_wfm\_compose\_segments()**](wfm__compose_8h.md#function-dp_wfm_compose_segments). 
 
 
 

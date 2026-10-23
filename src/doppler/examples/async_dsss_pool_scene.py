@@ -198,7 +198,8 @@ def run(x: np.ndarray) -> dict:
 
 
 # --8<-- [start:validate]
-MASK_DB = 10.0  # the one-epoch search's near-far limit, design §3
+# The one-epoch search's near-far limit: docs/design/async-dsss-parallel.md §3.
+MASK_DB = 10.0
 SETTLE_S = 0.5  # time allowed from arrival (or unmasking) to a hold
 GONE_S = LOST_CONFIRM_S + 0.2  # time allowed from departure to release
 

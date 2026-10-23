@@ -178,6 +178,7 @@ nav:
           - "AsyncDsssReceiver: the SPEC link": gallery/async-dsss-receiver-spec.md
           - "AsyncDsssReceiver: a signal's lifecycle": gallery/async-dsss-receiver-lifecycle.md
           - "AsyncDsssPool: ten emitters through six receivers": gallery/async-dsss-pool-scene.md
+          - "AsyncDsssPool: emitters that come and go": gallery/async-dsss-pool-demo.md
           - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md
       - Synchronization Loops:
           - Carrier Loop Stress: gallery/costas.md

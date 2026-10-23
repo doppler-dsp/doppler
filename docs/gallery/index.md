@@ -69,6 +69,7 @@ Those live on the [Examples](../examples/index.md) page instead.
 - [AsyncDsssReceiver: the SPEC link](async-dsss-receiver-spec.md) — one packaged receiver on a link whose Doppler stretches the chip clock as well as the carrier, through both regimes of a pass (the TCA crossing and the ±50 kHz extremum) over a set of noise draws: carrier-to-code aiding, a missed hand-off released and searched again, and the decode scored by BER, EVM and M2M4.
 - [AsyncDsssReceiver: a signal's lifecycle](async-dsss-receiver-lifecycle.md) — one packaged receiver through an emitter's life: searched, tracked through a fade, released when it departs, reset, and re-acquired on its return, read from its own state after every push
 - [AsyncDsssPool: ten emitters through six receivers](async-dsss-pool-scene.md) — ten emitters on one Gold code, each on its own Doppler ramp and within ±8 dB of the others, come and go through six receivers: each held by one receiver from soon after it arrives, a freed receiver taking the next, and a weak emitter waiting for the strong one that masks it.
+- [AsyncDsssPool: emitters that come and go](async-dsss-pool-demo.md) — three receivers, four emitters on one Gold code: each held by one receiver, a departure freeing its receiver, and the newcomer taking it, read from the pool's own status after every push.
 - [CarrierAcquisition: RRC Pulse Shaping](carrier-acq-rrc.md) — PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters.
 
 ## Synchronization Loops

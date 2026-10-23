@@ -3469,10 +3469,11 @@ class AsyncDsssPool:
 
         Hands every whole code period it completes to every receiver (header
         step 1), keeps each one's symbols for symbols(), and after each period
-        releases the lost, resolves duplicates and hands out exclusions and
-        ranks (step 2). The samples past the last whole period are kept for the
-        next push. Accepts any block size, and state carries across calls: the
-        result is a function of the stream, not of its blocking.
+        releases the lost, resolves duplicates, releases ghosts and hands out
+        exclusions and ranks (step 2). The samples past the last whole period
+        are kept for the next push. Accepts any block size, and state carries
+        across calls: the result is a function of the stream, not of its
+        blocking.
 
         Parameters
         ----------
@@ -3583,7 +3584,7 @@ class AsyncDsssPool:
 
     def reset(self) -> None:
         """Every receiver back to searching, with no exclusions and rank 0; the
-        clock and the release counts back to 0.
+        clock, the release counts and the ghost history back to 0.
 
         Examples
         --------

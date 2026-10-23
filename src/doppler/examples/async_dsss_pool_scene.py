@@ -18,9 +18,10 @@ What the run shows:
   pass through six receivers.
 - **A weak emitter waits for the strong one that masks it.** A search that
   skips the signals already held cannot tell a second signal far below a
-  stronger one from that one's sidelobes. On a one-epoch search that limit
-  is about 10 dB (design ``async-dsss-parallel.md`` §3). F, 13 dB below C,
-  is taken once C leaves.
+  stronger one from that one's sidelobes. On a one-epoch search a signal
+  10 dB below a stronger one is taken first in about two streams in three,
+  and 13 dB below in about one in three (design ``async-dsss-parallel.md``
+  §3). F, 13 dB below C, waits here and is taken once C leaves.
 
 The pool is fed one code epoch per push. The checks and the figure read
 only what the pool reports: each receiver's ``status()`` after every push.
@@ -198,7 +199,9 @@ def run(x: np.ndarray) -> dict:
 
 
 # --8<-- [start:validate]
-# The one-epoch search's near-far limit: docs/design/async-dsss-parallel.md §3.
+# The level gap past which a one-epoch search is not expected to take the
+# weaker signal: docs/design/async-dsss-parallel.md §3 takes it first in
+# 65% of streams at -10 dB, 36% at -13 dB and 1% at -16 dB.
 MASK_DB = 10.0
 SETTLE_S = 0.5  # time allowed from arrival (or unmasking) to a hold
 GONE_S = LOST_CONFIRM_S + 0.2  # time allowed from departure to release
@@ -207,14 +210,14 @@ GONE_S = LOST_CONFIRM_S + 0.2  # time allowed from departure to release
 def holder_of(rec: dict) -> np.ndarray:
     """Which emitter each receiver holds at each epoch's end: the emitter
     whose carrier is within 60 Hz and code phase within 3 chips of the
-    receiver's, or -1. A receiver still holding an emitter that has left --
-    until its release fires -- reads that emitter (it is matched against
-    the emitter's extrapolated truth for GONE_S past its departure)."""
+    receiver's, or -1. A receiver still holding an emitter that has left
+    reads that emitter: it is matched against the emitter's extrapolated
+    truth for the rest of the stream, so one that is never released shows."""
     out = np.full(rec["state"].shape, -1)
     ep = np.arange(N_EPOCHS)
     tracking = rec["state"] == 2
-    for k, (_, _, _, _, _, (a, b)) in enumerate(EMITTERS):
-        span = (ep >= a) & (ep < b + int(GONE_S / EPOCH_S))
+    for k, (_, _, _, _, _, (a, _b)) in enumerate(EMITTERS):
+        span = ep >= a
         f, ph = truth(k, ep)
         for i in range(N_RECEIVERS):
             d = np.abs(rec["phase"][:, i] - ph)
@@ -251,12 +254,14 @@ def check(rec: dict) -> dict:
         n_holders = (held == k).sum(axis=1)
         # Never two receivers on one emitter.
         assert n_holders.max() <= 1, f"{name}: held twice"
-        # Held from SETTLE_S after it can be told from the others ...
+        # Not held while a stronger emitter masks it (F, until C leaves) ...
+        assert not n_holders[a:u].any(), f"{name}: held while masked"
+        # ... then held from SETTLE_S after it can be told from the others
         assert n_holders[u:b].any(), f"{name}: never taken"
         first = u + int(np.flatnonzero(n_holders[u:b])[0])
         assert first - u <= settle, f"{name}: taken late"
         taken_ms[name] = (first - a) * EPOCH_S * 1e3
-        # ... to its departure, but for the odd epoch a loop slips.
+        # to its departure, but for the odd epoch a loop slips.
         assert n_holders[first:b].mean() > 0.98, f"{name}: dropped"
         # Symbol-locked while it is held and on the air, once the lock has
         # had SETTLE_S to come up.
@@ -270,10 +275,11 @@ def check(rec: dict) -> dict:
     # Ten emitters passed through six receivers.
     assert len(EMITTERS) > N_RECEIVERS
     assert rec["released"]["lost"] >= len(EMITTERS) - N_RECEIVERS
-    # F arrived masked by C: taken only once C left.
+    # F is the masked one: C is the emitter whose departure unmasks it,
+    # which the hold-while-masked check above then holds the run to.
     f_k = [e[0] for e in EMITTERS].index("F")
     c_end = EMITTERS[[e[0] for e in EMITTERS].index("C")][5][1]
-    assert unmasked_from(f_k) == c_end
+    assert unmasked_from(f_k) == c_end > EMITTERS[f_k][5][0]
     return {"taken_ms": taken_ms, "held": held}
 
 

@@ -1854,7 +1854,7 @@ dp_wfm_reader_destroy (dp_wfm_reader_state_t *r)
 }
 
 char *
-dp_wfm_reader_annotations_json (const dp_wfm_reader_state_t *r)
+dp_wfm_reader_get_annotations (const dp_wfm_reader_state_t *r)
 {
   const char *src = (r && r->ann) ? r->ann : "[]";
   size_t      n   = strlen (src) + 1u;

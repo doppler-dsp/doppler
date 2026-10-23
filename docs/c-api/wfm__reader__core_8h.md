@@ -73,12 +73,12 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 
 | Type | Name |
 | ---: | :--- |
-|  char \* | [**dp\_wfm\_reader\_annotations\_json**](#function-dp_wfm_reader_annotations_json) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_The capture's SigMF annotations, as the JSON text of the sidecar's_ `annotations` _array (doppler#2565)._ |
 |  [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* | [**dp\_wfm\_reader\_create**](#function-dp_wfm_reader_create) (const char \* path, int sample\_type, int endian) <br>_Open a capture exactly as_ [_**dp\_wfm\_reader\_create\_interruptible**_](wfm__reader__core_8h.md#function-dp_wfm_reader_create_interruptible) _does, but install no stop predicate._ |
 |  [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* | [**dp\_wfm\_reader\_create\_interruptible**](#function-dp_wfm_reader_create_interruptible) (const char \* path, int sample\_type, int endian) <br>_Open a capture, auto-detecting its file type from its content._  |
 |  void | [**dp\_wfm\_reader\_destroy**](#function-dp_wfm_reader_destroy) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_Close the file, free the reader and its decoded keywords._  |
 |  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**dp\_wfm\_reader\_find\_header\_field**](#function-dp_wfm_reader_find_header_field) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, const char \* name) <br>_Look up one HCB field by name, or NULL if absent._  |
 |  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**dp\_wfm\_reader\_find\_keyword**](#function-dp_wfm_reader_find_keyword) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* r, const char \* tag) <br> |
+|  char \* | [**dp\_wfm\_reader\_get\_annotations**](#function-dp_wfm_reader_get_annotations) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_The capture's SigMF annotations, as the JSON text of the sidecar's_ `annotations` _array (doppler#2565)._ |
 |  int | [**dp\_wfm\_reader\_get\_endian**](#function-dp_wfm_reader_get_endian) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br> |
 |  int | [**dp\_wfm\_reader\_get\_ending**](#function-dp_wfm_reader_get_ending) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br> |
 |  double | [**dp\_wfm\_reader\_get\_fc**](#function-dp_wfm_reader_get_fc) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br> |
@@ -358,43 +358,6 @@ WFM\_T0\_NONE is the common case and has to stay visible: doppler's own BLUE wri
 
 
 
-### function dp\_wfm\_reader\_annotations\_json 
-
-_The capture's SigMF annotations, as the JSON text of the sidecar's_ `annotations` _array (doppler#2565)._
-```C++
-char * dp_wfm_reader_annotations_json (
-    const dp_wfm_reader_state_t * state
-) 
-```
-
-
-
-The array exactly as the file has it, keys and values untouched, so a capture written from a scene reads back the rows `Composer.to_sigmf()` gives for it. `"[]"` when there are none: a BLUE capture, a sidecar without the key, or a raw/CSV capture with no sidecar. A raw or CSV capture reads its annotations from the sidecar this library's writer leaves beside it, like its rate and centre frequency.
-
-
-
-
-**Parameters:**
-
-
-* `state` the reader. 
-
-
-
-**Returns:**
-
-a malloc'd, NUL-terminated JSON array the caller free()s; never NULL (it allocates through the abort-on-OOM helper). 
-
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function dp\_wfm\_reader\_create 
 
 _Open a capture exactly as_ [_**dp\_wfm\_reader\_create\_interruptible**_](wfm__reader__core_8h.md#function-dp_wfm_reader_create_interruptible) _does, but install no stop predicate._
@@ -584,6 +547,43 @@ const wfm_keyword_t * dp_wfm_reader_find_keyword (
 
 
 
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_get\_annotations 
+
+_The capture's SigMF annotations, as the JSON text of the sidecar's_ `annotations` _array (doppler#2565)._
+```C++
+char * dp_wfm_reader_get_annotations (
+    const dp_wfm_reader_state_t * state
+) 
+```
+
+
+
+The array exactly as the file has it, keys and values untouched, so a capture written from a scene reads back the rows `Composer.to_sigmf()` gives for it. `"[]"` when there are none: a BLUE capture, a sidecar without the key, or a raw/CSV capture with no sidecar. A raw or CSV capture reads its annotations from the sidecar this library's writer leaves beside it, like its rate and centre frequency.
+
+
+
+
+**Parameters:**
+
+
+* `state` the reader. 
+
+
+
+**Returns:**
+
+a malloc'd, NUL-terminated JSON array the caller free()s; never NULL (it allocates through the abort-on-OOM helper). 
+
+
+
+
+
+        
 
 <hr>
 

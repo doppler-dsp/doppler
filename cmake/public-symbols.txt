@@ -1632,12 +1632,12 @@ dp_wfm_plan_restore function
 dp_wfm_plan_save function
 dp_wfm_plan_save_bytes function
 dp_wfm_polyphase_bank function
-dp_wfm_reader_annotations_json function
 dp_wfm_reader_create function
 dp_wfm_reader_create_interruptible function
 dp_wfm_reader_destroy function
 dp_wfm_reader_find_header_field function
 dp_wfm_reader_find_keyword function
+dp_wfm_reader_get_annotations function
 dp_wfm_reader_get_endian function
 dp_wfm_reader_get_ending function
 dp_wfm_reader_get_fc function

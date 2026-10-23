@@ -890,11 +890,15 @@ adr_same_code_phase (double a, double b, size_t code_len)
  * every other tile, f + k f_E: the slow-time transform resolves the same
  * phase advance per epoch in each tile (design acq-surface.md §8). On a
  * deep block (D > 1) over a code-only window those cells are fixed, so two
- * emitters on one row (modulo f_E, within half a native row) can stack
- * their sidelobes on one cell and the bound sums them; summed over every
- * emitter regardless of row it narrowed the near-far range with each
- * emitter on the air. Off the row, an emitter's sidelobe is down by the
- * slow-time leakage as well, so the strongest one bounds it.
+ * emitters on one row (modulo f_E) can stack their sidelobes on one cell
+ * and the bound sums them. "One row" is the candidate's row and both its
+ * neighbours: two emitters a few Hz apart quantize to ADJACENT rows, and
+ * a cell their sidelobes stack on sits on one parent's row and a row from
+ * the other (doppler#2556, review 5630995725), so half a row each side
+ * dropped that parent. Summed over every emitter regardless of row, the
+ * bound narrowed the near-far range with each emitter on the air. Off the row,
+ * an emitter's sidelobe is down by the slow-time leakage as well, so the
+ * strongest one bounds it.
  *
  * On a one-epoch search (D = 1) a native row is a whole tile, so rows
  * cannot be told apart, and the sum would read every emitter as stacked.
@@ -907,14 +911,14 @@ adr_sidelobe_bound (const dp_async_dsss_receiver_state_t *s, double f_hz,
                     const double *stat, const double *freq, size_t n)
 {
   double       strongest = 0.0, on_row = 0.0;
-  const double fe   = s->acq->chip_rate / (double)s->code_len;
-  const double half = 0.5 * s->acq->doppler_res_hz;
+  const double fe    = s->acq->chip_rate / (double)s->code_len;
+  const double reach = 1.5 * s->acq->doppler_res_hz;
   for (size_t j = 0; j < n; j++)
     {
       strongest = fmax (strongest, stat[j]);
       double d  = fmod (f_hz - freq[j], fe);
       d         = d < 0.0 ? d + fe : d;
-      if (fmin (d, fe - d) <= half)
+      if (fmin (d, fe - d) <= reach)
         on_row += stat[j];
     }
   return s->acq->coherent_bins > 1 ? fmax (strongest, on_row) : strongest;

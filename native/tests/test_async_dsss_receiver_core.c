@@ -3964,30 +3964,42 @@ _test_near_far_range_holds_with_many_signals (void)
  * window an emitter's Doppler-offset sidelobes are fixed cells on its own
  * Doppler row, so two emitters on the same row can put theirs on one cell
  * and together pass a bound that only the stronger one sets. Hand-built
- * geometries from the review: A at 1500 Hz, B clean at A's amplitude and
- * carrier, lag 674 or 426 chips after A (the latter with B at -4500 Hz,
- * the same row modulo the epoch rate); two draws each, D = 90 on the SPEC
- * frame. Neither a rank-2 search nor one with A and B excluded may leave
- * searching. Sabotage: bound by the strongest alone at D > 1 -> red. */
+ * geometries from the reviews, D = 90 on the SPEC frame, B clean at A's
+ * amplitude: A at 1500 Hz with B on its carrier 674 chips after it, or at
+ * -4500 Hz (the same row modulo the epoch rate) 426 chips after it, two
+ * draws each; and A at -994 Hz with B at -977 Hz, 367 chips after it,
+ * draw 9 -- 17 Hz apart, the two quantize to ADJACENT rows (review
+ * 5630995725). Neither a rank-2 search nor one with A and B excluded may
+ * leave searching. Sabotage: bound by the strongest alone at D > 1 -> red;
+ * reach half a row instead of a row and a half -> red on the third. */
 static int
 _test_two_emitters_sidelobes_stack (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
   const double fs = SLOW_CR * SLOW_SPC, tsym = fs / SLOW_RS;
-  const double lags[2] = { 674.0, 426.0 }, fbs[2] = { 1500.0, -4500.0 };
-  int          taken = 0;
-  for (size_t g = 0; g < 2; g++)
-    for (uint32_t sd = 1; sd <= 2; sd++)
+  const struct
+  {
+    double   lag, fa, fb;
+    uint32_t sd;
+  } cases[] = { { 674.0, 1500.0, 1500.0, 1 },
+                { 674.0, 1500.0, 1500.0, 2 },
+                { 426.0, 1500.0, -4500.0, 1 },
+                { 426.0, 1500.0, -4500.0, 2 },
+                { 367.0, -994.0, -977.0, 9 } };
+  int taken = 0;
+  for (size_t g = 0; g < sizeof cases / sizeof cases[0]; g++)
+    {
+      const uint32_t sd = cases[g].sd;
       {
-        const size_t    dB = (size_t)llround ((1023.0 - lags[g]) * SLOW_SPC);
-        const size_t    p0 = 300 + 37 * sd;
+        const size_t dB = (size_t)llround ((1023.0 - cases[g].lag) * SLOW_SPC);
+        const size_t p0 = 300 + 37 * sd;
         float _Complex *a, *b;
         size_t          na, nb;
         double         *da, *db;
-        dp_dsss_windowed_capture (code, 1023, SLOW_SPC, fs, tsym, 1500.0, 80.0,
-                                  600, p0, sd, 450, 500, &a, &na, &da);
-        dp_dsss_windowed_capture (code, 1023, SLOW_SPC, fs, tsym, fbs[g],
+        dp_dsss_windowed_capture (code, 1023, SLOW_SPC, fs, tsym, cases[g].fa,
+                                  80.0, 600, p0, sd, 450, 500, &a, &na, &da);
+        dp_dsss_windowed_capture (code, 1023, SLOW_SPC, fs, tsym, cases[g].fb,
                                   300.0, 600, p0 + dB, 100 + sd, 450, 500, &b,
                                   &nb, &db);
         const size_t    n   = na < nb ? na : nb;
@@ -4021,9 +4033,10 @@ _test_two_emitters_sidelobes_stack (void)
         if (r2->state != ASYNC_DSSS_RX_SEARCHING
             || rx->state != ASYNC_DSSS_RX_SEARCHING)
           {
-            DP_TEST_ERR ("  lag %.0f fb %+.0f draw %u: rank 2 %d, "
+            DP_TEST_ERR ("  lag %.0f fa %+.0f fb %+.0f draw %u: rank 2 %d, "
                          "excluded %d\n",
-                         lags[g], fbs[g], sd, r2->state, rx->state);
+                         cases[g].lag, cases[g].fa, cases[g].fb, sd, r2->state,
+                         rx->state);
             taken++;
           }
         dp_async_dsss_receiver_destroy (r2);
@@ -4034,6 +4047,7 @@ _test_two_emitters_sidelobes_stack (void)
         free (db);
         free (all);
       }
+    }
   DP_CHECK_MSG (taken == 0, "two emitters' stacked sidelobes were taken");
   return 0;
 }

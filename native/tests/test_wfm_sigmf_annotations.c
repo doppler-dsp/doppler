@@ -5,7 +5,7 @@
  * The writer is handed the composer whose samples it holds
  * (dp_wfm_writer_annotate) and its sidecar gets the scene's rows; the reader
  * returns the sidecar's `annotations` array as written
- * (dp_wfm_reader_annotations_json). The reference is the builder
+ * (dp_wfm_reader_get_annotations). The reference is the builder
  * Composer.to_sigmf() and wfmgen use, dp_wfm_sigmf_meta_json(), called with
  * the WRITER's own fc, so the frequency edges prove the writer is the one
  * source for them.
@@ -118,7 +118,7 @@ read_annotations (const char *path)
   dp_wfm_reader_state_t *r = dp_wfm_reader_create (path, -1, 0);
   if (!r)
     return NULL;
-  char *json = dp_wfm_reader_annotations_json (r);
+  char *json = dp_wfm_reader_get_annotations (r);
   dp_wfm_reader_destroy (r);
   return json;
 }

@@ -373,7 +373,7 @@ size_t dp_wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
  * @return a malloc'd, NUL-terminated JSON array the caller free()s; never
  *         NULL (it allocates through the abort-on-OOM helper).
  */
-char *dp_wfm_reader_annotations_json(const dp_wfm_reader_state_t *state);
+char *dp_wfm_reader_get_annotations(const dp_wfm_reader_state_t *state);
 
   /**
    * @brief The @p i'th keyword in file order, or NULL if @p i is out of range.

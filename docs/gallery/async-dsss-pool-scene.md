@@ -24,10 +24,11 @@ also frees a receiver whose emitter has left.
     H.
 - **A weak emitter waits for the strong one that masks it.** A search that skips
     the signals already held can't tell a second signal far below a stronger one
-    from that stronger one's own sidelobes. On a one-epoch search the limit is
-    about 10 dB
+    from that stronger one's own sidelobes. On a one-epoch search a signal 10 dB
+    below a stronger one is taken first in about two streams in three, and 13 dB
+    below in about one in three
     ([the parallel design, §3](../design/async-dsss-parallel.md#3-the-receiver)).
-    F arrives 13 dB below C and is taken once C leaves.
+    F arrives 13 dB below C, waits here, and is taken once C leaves.
 
 ## How it is built
 

@@ -3865,6 +3865,83 @@ _test_ranks_and_exclusions_split_two_signals (void)
   return 0;
 }
 
+/* The sidelobe rule's near-far range does not narrow with the number of
+ * signals on the air (doppler#2554). Five strong emitters, each 10 dB
+ * above a weak one W and all excluded, on one Gold code at distinct code
+ * phases and carriers: a rank-0 search must take W. 10 dB is well inside
+ * the -16.95 dB sidelobe level, so W is a signal against any one of them;
+ * a bound summed over all five read W as their sidelobes and never took
+ * it. Each emitter's phase comes from a rank-0 receiver fed it alone.
+ * Sabotage: sum the stronger statistics in adr_pick() -> red. */
+static int
+_test_near_far_range_holds_with_many_signals (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double fs = SLOW_CR * SLOW_SPC, tsym = fs / SLOW_RS;
+  enum
+  {
+    NS = 5
+  };
+  const double dop[NS + 1]
+      = { 700.0, 200.0, -1200.0, 2300.0, -2900.0, 4100.0 };
+  const size_t    pre[NS + 1] = { 900, 0, 300, 600, 1300, 1700 };
+  const float     gain        = 3.16227766f; /* +10 dB */
+  float _Complex *x[NS + 1];
+  size_t          len[NS + 1], n = (size_t)-1;
+  double         *data;
+  /* W carries the noise at 50 dB-Hz; the strong ones are rendered clean. */
+  for (size_t k = 0; k <= NS; k++)
+    {
+      dp_dsss_capture (code, 1023, SLOW_SPC, fs, tsym, dop[k],
+                       k ? 120.0 : 50.0, 60, pre[k], 21 + (uint32_t)k, &x[k],
+                       &len[k], &data);
+      free (data);
+      if (len[k] < n)
+        n = len[k];
+    }
+  float _Complex *all   = malloc (n * sizeof *all);
+  float _Complex *alone = malloc (n * sizeof *alone);
+  DP_REQUIRE (all && alone);
+  double phase[NS + 1];
+  for (size_t i = 0; i < n; i++)
+    {
+      all[i] = x[0][i];
+      for (size_t k = 1; k <= NS; k++)
+        all[i] += gain * x[k][i];
+    }
+  /* From two epochs in, where every emitter is on. */
+  const size_t on = 2 * 2046 + 1700;
+  for (size_t k = 0; k <= NS; k++)
+    {
+      for (size_t i = 0; i < n; i++)
+        alone[i] = (k ? gain : 1.0f) * x[k][i];
+      dp_async_dsss_receiver_state_t *r = _slow_rx (code, 47.0, 5000.0, 0, 0);
+      DP_REQUIRE (r != NULL);
+      (void)_until_seeded (r, alone + on, n - on);
+      DP_REQUIRE (r->state != ASYNC_DSSS_RX_SEARCHING);
+      phase[k] = r->seed_chip_phase;
+      dp_async_dsss_receiver_destroy (r);
+    }
+  for (size_t j = 0; j <= NS; j++)
+    for (size_t k = j + 1; k <= NS; k++)
+      DP_REQUIRE (_chip_dist (phase[j], phase[k], 1023.0) > 50.0);
+  dp_async_dsss_receiver_state_t *rx = _slow_rx (code, 47.0, 5000.0, 0, 0);
+  DP_REQUIRE (rx != NULL);
+  DP_CHECK (dp_async_dsss_receiver_set_exclusions (rx, phase + 1, NS)
+            == DP_OK);
+  (void)_until_seeded (rx, all + on, n - on);
+  DP_CHECK_MSG (rx->state != ASYNC_DSSS_RX_SEARCHING,
+                "W was not taken beside five stronger signals");
+  DP_CHECK (_chip_dist (rx->seed_chip_phase, phase[0], 1023.0) <= 1.0);
+  dp_async_dsss_receiver_destroy (rx);
+  for (size_t k = 0; k <= NS; k++)
+    free (x[k]);
+  free (all);
+  free (alone);
+  return 0;
+}
+
 /* One signal holds ONE place in the ranking. A strong emitter between two
  * Doppler tiles (1.5 kHz, tiles 3 kHz apart over +/-5 kHz) peaks in both
  * at its own code phase; the engine's own zone is per Doppler bin, so the
@@ -3909,8 +3986,8 @@ _test_one_signal_holds_one_rank (void)
  * five tiles), two C/N0 and three Dopplers, one near a tile centre and one
  * on a tile edge, three noise seeds and starts each. Without the sidelobe
  * rule both seed on a sidelobe in every draw. Sabotage: drop the rule
- * (adr_pick()'s dsl term) -> red; skip the excluded peak's share of the
- * stronger sum -> the excluded search seeds. */
+ * (adr_pick()'s dsl term) -> red; leave the excluded peak out of the
+ * strongest-statistic bound -> the excluded search seeds. */
 static int
 _test_ranked_search_takes_no_sidelobe (void)
 {
@@ -4135,6 +4212,7 @@ main (void)
   DP_CHECK (_test_dwells_start_on_the_block_grid () == 0);
   DP_CHECK (_test_depth_finds_what_one_epoch_misses () == 0);
   DP_CHECK (_test_ranks_and_exclusions_split_two_signals () == 0);
+  DP_CHECK (_test_near_far_range_holds_with_many_signals () == 0);
   DP_CHECK (_test_rank_and_exclusions_domain_and_blob () == 0);
   DP_CHECK (_test_one_signal_holds_one_rank () == 0);
   DP_CHECK (_test_ranked_search_takes_no_sidelobe () == 0);

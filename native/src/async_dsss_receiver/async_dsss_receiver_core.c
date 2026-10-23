@@ -871,12 +871,17 @@ adr_same_code_phase (double a, double b, size_t code_len)
  *    also holds its code's Doppler-offset sidelobes, up to dsl below it and
  *    hundreds of chips from its lag, where rule 1 cannot reach (design
  *    acq-surface.md §8). A peak is a second emitter only if its statistic
- *    exceeds dsl times the sum of the stronger emitters' by more than the
- *    detector's own gate. Noise riding on a sidelobe lifts it by no more
- *    than the noise's own magnitude, so a sidelobe passes only when that
- *    noise alone would have cleared the gate: the false-alarm rate the
- *    search already runs at. The sum bounds two emitters' sidelobes landing
- *    on one cell.
+ *    exceeds dsl times the strongest emitter's by more than the detector's
+ *    own gate. Noise riding on a sidelobe lifts it by no more than the
+ *    noise's own magnitude, so a sidelobe passes only when that noise alone
+ *    would have cleared the gate: the false-alarm rate the search already
+ *    runs at. The bound is the strongest emitter's, not the emitters' sum:
+ *    the sum assumed every stronger emitter's worst sidelobe on one cell,
+ *    so each emitter on the air narrowed the near-far range by its own
+ *    share, and with six up a true emitter 10 dB below the strongest was
+ *    never taken (doppler#2554). Each emitter's worst sidelobe sits on a
+ *    cell of its own, and none was taken with up to eight 70 dB-Hz emitters
+ *    held (the measurements are on doppler#2554).
  * 3. In an excluded zone: another receiver's signal. It is still an
  *    emitter, so it still counts in rule 2's sum.
  *
@@ -889,7 +894,7 @@ adr_pick (const dp_async_dsss_receiver_state_t *s, const acq_result_t *hits,
   const double dsl  = pow (10.0, dp_acq_dsl_db (s->acq) / 20.0);
   const double gate = dp_acq_gate_stat (s->acq);
   double       seen[ASYNC_DSSS_RX_MAX_PEAKS];
-  double       stronger = 0.0; /* the emitters' statistics so far */
+  double       stronger = 0.0; /* the strongest emitter's statistic */
   size_t       n_seen = 0, n_kept = 0;
   for (size_t i = 0; i < n_hits; i++)
     {
@@ -901,7 +906,7 @@ adr_pick (const dp_async_dsss_receiver_state_t *s, const acq_result_t *hits,
       seen[n_seen++] = ho.chip_phase;
       if (drop || (double)hits[i].test_stat - dsl * stronger <= gate)
         continue;
-      stronger += (double)hits[i].test_stat;
+      stronger = fmax (stronger, (double)hits[i].test_stat);
       for (size_t j = 0; j < s->n_excl && !drop; j++)
         drop = adr_same_code_phase (ho.chip_phase, s->excl[j], s->code_len);
       if (drop)

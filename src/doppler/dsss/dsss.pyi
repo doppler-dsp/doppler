@@ -2990,17 +2990,18 @@ class AsyncDsssReceiver:
         The sidelobe rule: a strong signal's list also holds its code's
         Doppler-offset sidelobes, up to dp_acq_dsl_db() below it and hundreds
         of chips from its phase (design acq-surface.md §8). A peak counts as a
-        second signal only if its test_stat exceeds the stronger signals'
-        summed test_stat, times that level, by more than the detector's own
-        gate (dp_acq_gate_stat()). A sidelobe then passes only when the noise
-        on it alone would have cleared the gate, the rate the search already
-        runs at. What it costs is near-far: a second signal much more than
-        dp_acq_dsl_db() below a stronger one (-16.95 dB on the SPEC Gold-1023
-        search) is not taken while the stronger one is on the air
-        (async-dsss-parallel.md §3). Searchers that share a stream and its
-        block grid (get_coherent_bins()) and hold ranks 0..k-1 therefore take k
-        different signals in one dwell. Takes effect at the next dwell. A
-        mutator's value, so it travels in the state blob (#2022).
+        second signal only if its test_stat exceeds the strongest signal's
+        test_stat, times that level, by more than the detector's own gate
+        (dp_acq_gate_stat()); the strongest alone, so the range does not narrow
+        with the number of signals on the air (doppler#2554). A sidelobe then
+        passes only when the noise on it alone would have cleared the gate, the
+        rate the search already runs at. What it costs is near-far: a second
+        signal much more than dp_acq_dsl_db() below a stronger one (-16.95 dB
+        on the SPEC Gold-1023 search) is not taken while the stronger one is on
+        the air (async-dsss-parallel.md §3). Searchers that share a stream and
+        its block grid (get_coherent_bins()) and hold ranks 0..k-1 therefore
+        take k different signals in one dwell. Takes effect at the next dwell.
+        A mutator's value, so it travels in the state blob (#2022).
 
         Parameters
         ----------

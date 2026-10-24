@@ -181,6 +181,7 @@
 * **DP\_BUFFER\_UNUSED** ([**buffer.h**](buffer_8h.md))
 * **DP\_CACHELINE** ([**buffer.h**](buffer_8h.md))
 * **DP\_FRAMER\_STATE\_MAGIC** ([**buffer.h**](buffer_8h.md))
+* **DP\_FRAMER\_STATE\_VERSION** ([**buffer.h**](buffer_8h.md))
 * **DP\_FRAMER\_STATE\_WRITTEN\_OFFSET** ([**buffer.h**](buffer_8h.md))
 * **DP\_SPIN\_HINT** ([**buffer.h**](buffer_8h.md))
 * **DDC\_STATE\_MAGIC** ([**ddc\_core.h**](ddc__core_8h.md))

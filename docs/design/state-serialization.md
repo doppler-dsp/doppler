@@ -117,6 +117,10 @@ rebuild from its own arguments. Four rules decide each field (#2022):
     whole, then commits, so a refused blob changes nothing.
 1. **A blob that gains a field bumps the object's `*_STATE_VERSION`,** so
     a blob of the old layout is refused rather than read as the new one.
+    A version, once released, names that layout for good. An object that
+    takes over another's magic steps past every version the magic has
+    shipped. `make state-versions-check` reads the headers at every
+    release tag and refuses a reused number (#2569).
 
 A mutator whose value **sizes the blob** makes the blob target-sized: it
 restores only into a target the same mutator gave the same size.

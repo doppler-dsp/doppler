@@ -1805,7 +1805,7 @@ LOCAL_TARGETS = specan record-demo parallel-record-write acq-surface-record \
                 apt-stall-config deps-budget-check cargo-floor-check \
                 bench-coverage-check kwarg-parity-check issues issues-check \
                 gates-extra-home-check \
-                doc-sections-check \
+                doc-sections-check state-versions-check \
                 installed-headers-check exported-link-check symbol-prefix-check \
                 export-check public-symbols \
                 vendored-collision-check \
@@ -1921,6 +1921,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       issue-link-check bootstrap-cmd-check deps-budget-check \
       ci-image-refs-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
+      state-versions-check \
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check mem-guard-check \
       design-pages-check gallery-scripts-check bench-commits-check \
@@ -2000,6 +2001,13 @@ kwarg-parity-check: ## Verify each binding accepts the keywords its stub publish
 # none -- the reader concludes the claim is unsupported (#795).
 doc-sections-check: ## Verify every `docs/x.md` section citation resolves
 	@$(UV) run python scripts/check_doc_sections.py
+
+# A state blob's `(magic, version)` names one layout for all time, or
+# `set_state` reinterprets an old blob instead of refusing it. Read from the
+# headers at every release tag, so it needs the tags (CI's lint checkout has
+# fetch-depth 0) and fails closed without them (#2569).
+state-versions-check: ## Verify no state magic's version reuses one it has shipped
+	@$(UV) run python scripts/check_state_versions.py
 
 # `build` as a prerequisite, not a note: this reads `nm` output, so without a
 # built archive it has nothing to check -- and a gate that skips when its

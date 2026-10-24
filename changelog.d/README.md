@@ -51,6 +51,13 @@ produced entries with a median of **24 lines**, and a v0.44.0 section of
 for one release. Rewritten to this standard it is **225 lines / 12,534
 characters**, with nothing dropped: what left the file moved into links.
 
+**Spell a link from the repository root**, `[the page](docs/design/x.md)`,
+not from this directory. `make changelog-assemble` moves your text verbatim
+into the root `CHANGELOG.md`, so `../../docs/x.md` points outside the
+repository there, even though it resolves from here. `check_doc_paths` and
+`check_doc_sections` both read a fragment from the root, so that spelling
+goes red on your own PR (#2571).
+
 Two practical consequences:
 
 - The release body is `make release-notes VERSION=x.y.z`, which embeds this

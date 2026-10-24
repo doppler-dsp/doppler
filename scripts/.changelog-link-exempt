@@ -1,0 +1,20 @@
+# CHANGELOG.md links that pointed nowhere from the repository root when
+# scripts/check_doc_paths.py began checking them (#2571). Released entries
+# are a record, so these are not rewritten; the list only shrinks. One
+# target per occurrence.
+../../docs/design/acq-surface.md
+../../docs/design/async-dsss-parallel.md
+../../docs/design/async-dsss-receiver.md
+../../docs/design/async-dsss-receiver.md
+../../docs/design/async-dsss-receiver.md
+../../docs/design/frame-description.md
+../../docs/dev/contributing/adding-algorithms.md
+../../docs/gallery/async-despread.md
+../../docs/gallery/async-dsss-receiver-spec.md
+../../src/doppler/dsss/tests/validation/async_dsss_receiver/results.md
+../dev/release.md
+../guide/wfmgen/doppler.md
+design/doppler-channel.md
+design/measurement-suite.md
+design/ring-buffer.md
+docs/guide/wfmgen/reading.md

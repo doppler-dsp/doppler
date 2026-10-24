@@ -27,6 +27,7 @@ const jm_any_fn jm_bound_symbols_wfm_reader[] = {
     (jm_any_fn)dp_wfm_reader_read,
     (jm_any_fn)dp_wfm_reader_read_max_out,
     (jm_any_fn)dp_wfm_reader_num_keywords,
+    (jm_any_fn)dp_wfm_reader_get_annotations,
     (jm_any_fn)dp_wfm_reader_keyword,
     (jm_any_fn)dp_wfm_reader_keyword_tag,
     (jm_any_fn)dp_wfm_reader_num_header_fields,

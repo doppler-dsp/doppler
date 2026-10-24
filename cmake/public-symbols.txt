@@ -1637,6 +1637,7 @@ dp_wfm_reader_create_interruptible function
 dp_wfm_reader_destroy function
 dp_wfm_reader_find_header_field function
 dp_wfm_reader_find_keyword function
+dp_wfm_reader_get_annotations function
 dp_wfm_reader_get_endian function
 dp_wfm_reader_get_ending function
 dp_wfm_reader_get_fc function
@@ -1762,6 +1763,7 @@ dp_wfm_why_retired_bits data
 dp_wfm_why_retired_crc data
 dp_wfm_why_retired_sync data
 dp_wfm_writer_add_keyword function
+dp_wfm_writer_annotate function
 dp_wfm_writer_clip_fraction function
 dp_wfm_writer_close function
 dp_wfm_writer_create function

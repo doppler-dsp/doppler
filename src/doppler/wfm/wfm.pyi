@@ -1798,12 +1798,8 @@ class Frame:
         """Max bits dp_frame_deframe() writes: the frame's own length.
 
         Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,
-        not
-
-        the input's: a frame is as long as its fields say, so how many bits
-        were
-
-        received does not change how many come back.
+        not the input's: a frame is as long as its fields say, so how many bits
+        were received does not change how many come back.
 
         Parameters
         ----------
@@ -2085,15 +2081,17 @@ class Frame:
         """
 
     def destroy(self) -> None:
-        """Release the underlying C resources immediately.
+        """Close the object; the memory goes with its last user.
 
         Ordinarily unnecessary: the resources are freed when the object is
-        garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on
-        exit.
+        garbage-collected. Call this, or use the object as a context manager,
+        to end its use at a definite point.
 
-        Idempotent: calling it again on an already-released object does
-        nothing. Every other method raises ``RuntimeError`` once it has run.
+        A consumer this object's ``_capsule`` was handed to may still hold its
+        pointer, and keeps this object alive while it does: the memory is freed
+        when the last of them, and this object, are gone, not here (gh-2346).
+        Idempotent: calling it again does nothing. Every other method raises
+        ``RuntimeError`` once it has run.
         """
 
     def __enter__(self) -> "Frame":
@@ -2806,12 +2804,8 @@ class FrameDesc:
         """Max bits dp_frame_deframe() writes: the frame's own length.
 
         Size a `deframe()` buffer with this. The bound is the DESCRIPTION's,
-        not
-
-        the input's: a frame is as long as its fields say, so how many bits
-        were
-
-        received does not change how many come back.
+        not the input's: a frame is as long as its fields say, so how many bits
+        were received does not change how many come back.
 
         Parameters
         ----------
@@ -3093,15 +3087,17 @@ class FrameDesc:
         """
 
     def destroy(self) -> None:
-        """Release the underlying C resources immediately.
+        """Close the object; the memory goes with its last user.
 
         Ordinarily unnecessary: the resources are freed when the object is
-        garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on
-        exit.
+        garbage-collected. Call this, or use the object as a context manager,
+        to end its use at a definite point.
 
-        Idempotent: calling it again on an already-released object does
-        nothing. Every other method raises ``RuntimeError`` once it has run.
+        A consumer this object's ``_capsule`` was handed to may still hold its
+        pointer, and keeps this object alive while it does: the memory is freed
+        when the last of them, and this object, are gone, not here (gh-2346).
+        Idempotent: calling it again does nothing. Every other method raises
+        ``RuntimeError`` once it has run.
         """
 
     def __enter__(self) -> "FrameDesc":

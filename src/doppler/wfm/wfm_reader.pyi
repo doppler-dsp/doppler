@@ -1,5 +1,5 @@
 # wfm/wfm_reader.pyi — type stubs for the wfm_reader C extension.
-from typing import final, Literal
+from typing import Any, final, Literal
 import os
 import numpy as np
 import numpy.typing as npt
@@ -158,12 +158,8 @@ class Reader:
         """Maximum samples one read(n) yields: n (fewer at EOF).
 
         A reader streams, so a read of n produces at most n samples; the
-        binding
-
-        sizes its buffer to this per-call bound (gh-607) and resizes down to
-        the
-
-        actual count, never pre-allocating the whole capture.
+        binding sizes its buffer to this per-call bound (gh-607) and resizes
+        down to the actual count, never pre-allocating the whole capture.
 
         Parameters
         ----------
@@ -567,6 +563,24 @@ class Reader:
         tell which, and stops at the last complete sample either way. This is
         the only signal available for a raw file: a wrong hint does not fail,
         it returns plausible garbage at the wrong stride.
+        """
+
+    @property
+    def annotations(self) -> list[dict[str, Any]]:
+        """The capture's SigMF annotations: the sidecar's `annotations` array,
+        one dict per row with the SigMF keys as the file has them
+        (`core:sample_start`, `core:sample_count`, `core:freq_lower_edge`,
+        `core:label`, ...). Keys and strings are the file's. Numbers are
+        re-printed by cJSON at 15 significant digits whenever that is within
+        one ulp, so in a sidecar written elsewhere an integer past 2**53 comes
+        back rounded, and a float with more than 15 significant digits can move
+        by one ulp (and read back as an int if that lands on a whole number). A
+        capture this library wrote reads back exactly, since its writer prints
+        through the same cJSON: one written from a scene with Writer.annotate()
+        gives the rows Composer.to_sigmf() gives for it. An empty list when
+        there are none: a BLUE capture, a sidecar without the key, or a raw/CSV
+        capture with no sidecar. A raw or CSV capture reads them from the
+        sidecar this library's writer leaves beside it.
         """
 
     @property

@@ -159,6 +159,30 @@ int dp_wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char ty
                           const void *value, size_t count);
 
 /**
+ * @brief Annotate the capture with a scene's sources: the SigMF sidecar
+ *        close() writes gets one annotation per source per instance.
+ *
+ * The rows come from the same builder `wfmgen` and `Composer.to_sigmf()` use
+ * (dp_wfm_sigmf_meta_json()), with this writer's own sample type, rate,
+ * centre frequency and start, so the sidecar has one source for every field:
+ * a frequency edge is `fc + freq +- bandwidth/2` with THIS writer's `fc`.
+ * The scene is read at close, not here, because a data source's annotation
+ * is final only once it has been rendered. Its sample offsets index the
+ * scene's own samples, so write the scene's samples from the capture's first
+ * sample. A second call replaces the scene (doppler#2564).
+ *
+ * @param state a writer opened by path that writes a sidecar: `sigmf`, or
+ *              `raw`/`csv` with its SigMF-shaped sidecar.
+ * @param scene the composer whose samples this capture holds. It is read at
+ *              close, so it must still be alive then: a C caller keeps it
+ *              alive itself; the Python binding keeps a reference for you.
+ * @return DP_OK, or DP_ERR_INVALID for a NULL argument, a BLUE writer (its
+ *         header has no annotations) or a writer with no sidecar (opened on
+ *         a FILE*, or with the sidecar turned off).
+ */
+int dp_wfm_writer_annotate(dp_wfm_writer_state_t *state, const dp_wfm_compose_state_t * scene);
+
+/**
  * @brief Flush, patch the BLUE data_size from the actual count (if seekable),
  *        write any attached extended-header keywords, and free the writer
  *        (does not close the FILE*).

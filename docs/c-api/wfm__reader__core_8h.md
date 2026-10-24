@@ -78,6 +78,7 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 |  void | [**dp\_wfm\_reader\_destroy**](#function-dp_wfm_reader_destroy) ([**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_Close the file, free the reader and its decoded keywords._  |
 |  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**dp\_wfm\_reader\_find\_header\_field**](#function-dp_wfm_reader_find_header_field) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state, const char \* name) <br>_Look up one HCB field by name, or NULL if absent._  |
 |  const [**wfm\_keyword\_t**](structwfm__keyword__t.md) \* | [**dp\_wfm\_reader\_find\_keyword**](#function-dp_wfm_reader_find_keyword) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* r, const char \* tag) <br> |
+|  char \* | [**dp\_wfm\_reader\_get\_annotations**](#function-dp_wfm_reader_get_annotations) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br>_The capture's SigMF annotations, as the JSON text of the sidecar's_ `annotations` _array (doppler#2565)._ |
 |  int | [**dp\_wfm\_reader\_get\_endian**](#function-dp_wfm_reader_get_endian) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br> |
 |  int | [**dp\_wfm\_reader\_get\_ending**](#function-dp_wfm_reader_get_ending) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br> |
 |  double | [**dp\_wfm\_reader\_get\_fc**](#function-dp_wfm_reader_get_fc) (const [**dp\_wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-dp_wfm_reader_state_t) \* state) <br> |
@@ -546,6 +547,43 @@ const wfm_keyword_t * dp_wfm_reader_find_keyword (
 
 
 
+
+<hr>
+
+
+
+### function dp\_wfm\_reader\_get\_annotations 
+
+_The capture's SigMF annotations, as the JSON text of the sidecar's_ `annotations` _array (doppler#2565)._
+```C++
+char * dp_wfm_reader_get_annotations (
+    const dp_wfm_reader_state_t * state
+) 
+```
+
+
+
+Keys and strings are the file's. Numbers are re-printed by cJSON at 15 significant digits whenever that is within one ulp, so in a sidecar written elsewhere an integer past 2^53 comes back rounded, and a float with more than 15 significant digits can move by one ulp (and read back as an int if that lands on a whole number). A capture this library wrote reads back exactly, since its writer prints through the same cJSON: a capture written from a scene gives the rows `Composer.to_sigmf()` gives for it. `"[]"` when there are none: a BLUE capture, a sidecar without the key, or a raw/CSV capture with no sidecar. A raw or CSV capture reads its annotations from the sidecar this library's writer leaves beside it, like its rate and centre frequency.
+
+
+
+
+**Parameters:**
+
+
+* `state` the reader. 
+
+
+
+**Returns:**
+
+a malloc'd, NUL-terminated JSON array the caller free()s; never NULL (it allocates through the abort-on-OOM helper). 
+
+
+
+
+
+        
 
 <hr>
 

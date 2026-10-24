@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.108.0"
+jm_version = "0.109.0"
 name = "doppler"
 version = "0.73.0"
 build = "cmake"
@@ -48,6 +48,27 @@ perf = "true"
 pytest = "true"
 pytest_benchmark = "true"
 schema = "9"
+# jm gh-1752 (0.109.0): keys doppler's OWN generator reads off the composer's
+# source.fields / segment.fields rows -- scripts/gen_wfm_defaults.py builds
+# wfmgen's CLI table and JSON schema from them. jm reads none of them; naming
+# them here stops jm warning on each, while any other unknown key (a misspelt
+# jm key) still warns. A new key the generator starts reading goes here too.
+composer_field_keys = [
+  "cli",
+  "exclusive",
+  "field_reps",
+  "help_section",
+  "json",
+  "json_omit",
+  "json_range",
+  "json_required",
+  "json_schema",
+  "json_type",
+  "json_when",
+  "metavar",
+  "surface",
+  "unit_interval",
+]
 c_deps = [
     "hbdecim", "resamp", "wfmcompose", "ccsds_tm", "conv", "rs",
 ]
@@ -1122,6 +1143,9 @@ type = "uint8_t[]"
 name = "sf"
 type = "int"
 [module.wfm_compose]
+# The Composer publishes its state as a capsule (jm gh-2346), so a Writer
+# method can take the scene: Writer.annotate(scene) (doppler#2564).
+capsule = "doppler.wfm.composer"
 kind         = "composer"
 backing      = "dp_wfm_compose"
 capsule_name = "doppler.wfm.compose_state"

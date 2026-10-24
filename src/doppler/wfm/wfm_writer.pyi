@@ -198,6 +198,42 @@ class Writer:
 
         """
 
+    def annotate(self, scene: object | None) -> None:
+        """Annotate the capture with a scene's sources: the SigMF sidecar
+        close() writes gets one annotation per source per instance, from the
+        same builder Composer.to_sigmf() and wfmgen use, with this writer's own
+        sample_type, fs, fc and t0, so every field has one source. Pass the
+        Composer whose samples this capture holds, and write its samples from
+        the capture's first sample. The scene is kept alive and read at close,
+        so a data source's annotation is final. A second call replaces the
+        scene. Raises ValueError where the rows would be dropped: a BLUE writer
+        (its header has no annotations) or a raw/CSV writer opened with
+        sidecar=False.
+
+        The rows come from the same builder `wfmgen` and `Composer.to_sigmf()`
+        use (dp_wfm_sigmf_meta_json()), with this writer's own sample type,
+        rate, centre frequency and start, so the sidecar has one source for
+        every field: a frequency edge is `fc + freq +- bandwidth/2` with THIS
+        writer's `fc`. The scene is read at close, not here, because a data
+        source's annotation is final only once it has been rendered. Its sample
+        offsets index the scene's own samples, so write the scene's samples
+        from the capture's first sample. A second call replaces the scene
+        (doppler#2564).
+
+        Parameters
+        ----------
+        scene : object | None
+            the composer whose samples this capture holds. It is read at close,
+            so it must still be alive then: a C caller keeps it alive itself;
+            the Python binding keeps a reference for you.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``annotate failed``, with the return code appended (gh-869).
+        """
+
     def track_clipping(self, on: int = 1) -> None:
         """Enable the per-component clip *counter* (off by default; peak is
         always on).

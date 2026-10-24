@@ -5538,6 +5538,7 @@ typedef struct
 {
   PyObject_HEAD dp_wfm_compose_state_t *state;
   int                                   destroyed;
+  int                                   lent; /* gh-2346: the state was lent */
   jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } ComposerObject;
 
@@ -5757,7 +5758,7 @@ _dp_wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
 static void
 Composer_dealloc (ComposerObject *self)
 {
-  if (!self->destroyed && self->state)
+  if (self->state && (!self->destroyed || self->lent))
     dp_wfm_compose_destroy (self->state);
   jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
@@ -6112,7 +6113,10 @@ Composer_close (ComposerObject *self, PyObject *Py_UNUSED (ignored))
           self->destroyed = 0;
           return NULL;
         }
-      dp_wfm_compose_destroy (self->state);
+      /* gh-2346: lent -> a borrower may still read it; dealloc
+         frees it once the last one lets go. */
+      if (!self->lent)
+        dp_wfm_compose_destroy (self->state);
     }
   Py_RETURN_NONE;
 }
@@ -6217,10 +6221,31 @@ Composer_to_json (ComposerObject *self, PyObject *Py_UNUSED (ignored))
   return s;
 }
 
+static PyObject *
+Composer_get__capsule (ComposerObject *self, void *Py_UNUSED (closure))
+{
+  if (self->destroyed || !self->state)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "composer already closed");
+      return NULL;
+    }
+  /* Lent, not owned: the capsule never frees the pointer, and
+     holds Composer, so the pointer lives as long as it. */
+  /* gh-2346: lent once, so close() leaves the free to dealloc. */
+  self->lent = 1;
+  return jm_capsule_lend ((void *)(self->state), "doppler.wfm.composer",
+                          (PyObject *)self);
+}
+
 static PyGetSetDef Composer_getset[]
     = { { "segments", (getter)Composer_get_segments, NULL, NULL, NULL },
         { "repeat", (getter)Composer_get_repeat, NULL, NULL, NULL },
         { "continuous", (getter)Composer_get_continuous, NULL, NULL, NULL },
+        { "_capsule", (getter)Composer_get__capsule, NULL,
+          "Borrowed doppler.wfm.composer capsule for this composer.\n\n"
+          "It never frees the composer, and keeps this object alive;\n"
+          "it is valid until the composer is closed.",
+          NULL },
         { NULL, NULL, NULL, NULL, NULL } };
 
 /* Iterator returned by Composer.stream(): drains execute() into blocks. */

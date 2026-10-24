@@ -60,7 +60,12 @@ struct wfm_reader_state
   uint8_t       *scratch;     /* read buffer for binary file types */
   size_t         scratch_cap;
   wfm_keyword_t *kw; /* decoded extended-header keywords (BLUE only) */
-  size_t         nkw;
+  /* The sidecar's `annotations` array as JSON text, re-printed by cJSON
+     (numbers at 15 significant digits when within one ulp), or NULL when there
+     is none: a non-SigMF capture, or a sidecar without the key (doppler#2565).
+   */
+  char  *ann;
+  size_t nkw;
   /* Every field of the 512-byte HCB, decoded and carried as keyword entries
      so the existing tag/value codec serves the header dict too -- no second
      marshaller, and `header` and `keywords` can never disagree about how a
@@ -688,16 +693,20 @@ sigmf_datatype (const char *dt, int *stype, int *mode, int *endian)
   return -1;
 }
 
-/* Parse a SigMF .sigmf-meta sidecar for type/endian/fs/fc/t0. Returns 0 on
-   ok.  @p has_fc distinguishes a sidecar that declares `core:frequency` from
-   one that omits it -- both leave *fc at 0.0, and only the first of those is
-   a reading.  @p has_t0 does the same for `core:datetime`, where the stakes
-   are higher: 0.0 there is 1970, and a capture dated 1970 by default is a
-   confident wrong answer. */
+/* Parse a SigMF .sigmf-meta sidecar for type/endian/fs/fc/t0, and, when
+   @p ann is not NULL, its `annotations` array as JSON text (cJSON-allocated;
+   NULL when the key is absent). Returns 0 on ok.  @p has_fc distinguishes a
+   sidecar that declares `core:frequency` from one that omits it -- both leave
+   *fc at 0.0, and only the first of those is a reading.  @p has_t0 does the
+   same for `core:datetime`, where the stakes are higher: 0.0 there is 1970,
+   and a capture dated 1970 by default is a confident wrong answer. */
 static int
 parse_sigmf_meta (const char *meta_path, int *stype, int *mode, int *endian,
-                  double *fs, double *fc, int *has_fc, double *t0, int *has_t0)
+                  double *fs, double *fc, int *has_fc, double *t0, int *has_t0,
+                  char **ann)
 {
+  if (ann)
+    *ann = NULL;
   FILE *mf = fopen (meta_path, "rb");
   if (!mf)
     return -1;
@@ -763,6 +772,9 @@ parse_sigmf_meta (const char *meta_path, int *stype, int *mode, int *endian,
                 }
             }
         }
+      cJSON *anns = cJSON_GetObjectItem (root, "annotations");
+      if (ann && anns && cJSON_IsArray (anns))
+        *ann = cJSON_PrintUnformatted (anns);
       rc = 0;
     }
   cJSON_Delete (root);
@@ -908,11 +920,14 @@ static int
 open_sigmf (dp_wfm_reader_state_t *r, const char *path, const char *meta)
 {
   int    has_fc = 0, has_t0 = 0;
-  double t0 = 0.0;
+  double t0  = 0.0;
+  char  *ann = NULL;
   if (parse_sigmf_meta (meta, &r->sample_type, &r->mode, &r->endian, &r->fs,
-                        &r->fc, &has_fc, &t0, &has_t0)
+                        &r->fc, &has_fc, &t0, &has_t0, &ann)
       != 0)
     return -1;
+  cJSON_free (r->ann);
+  r->ann = ann;
   if (has_fc)
     r->fc_source = WFM_FC_SIGMF;
   /* `core:sample_rate` is optional, so parse_sigmf_meta leaves fs at 0.0 when
@@ -965,10 +980,15 @@ adopt_sidecar (dp_wfm_reader_state_t *r, const char *path, int hint_is_auto)
 
   int    stype = 0, mode = 0, endian = 0, has_fc = 0, has_t0 = 0;
   double fs = 0.0, fc = 0.0, t0 = 0.0;
+  char  *ann = NULL;
   if (parse_sigmf_meta (meta, &stype, &mode, &endian, &fs, &fc, &has_fc, &t0,
-                        &has_t0)
+                        &has_t0, &ann)
       != 0)
     return;
+  /* The annotations are adopted like fs/fc/t0: the hint cannot carry them,
+     and this library's writer puts them in a raw or CSV sidecar too. */
+  cJSON_free (r->ann);
+  r->ann = ann;
 
   if (hint_is_auto)
     {
@@ -1826,9 +1846,20 @@ dp_wfm_reader_destroy (dp_wfm_reader_state_t *r)
   for (size_t i = 0; i < r->nkw; i++)
     free (r->kw[i].value);
   free (r->kw);
+  cJSON_free (r->ann);
   for (size_t i = 0; i < r->nhdr; i++)
     free (r->hdr[i].value);
   free (r->hdr);
   free (r->scratch);
   free (r);
+}
+
+char *
+dp_wfm_reader_get_annotations (const dp_wfm_reader_state_t *r)
+{
+  const char *src = (r && r->ann) ? r->ann : "[]";
+  size_t      n   = strlen (src) + 1u;
+  char       *out = (char *)dp_xmalloc (n);
+  memcpy (out, src, n);
+  return out;
 }

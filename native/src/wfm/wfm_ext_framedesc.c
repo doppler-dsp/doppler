@@ -16,14 +16,20 @@
 typedef struct
 {
   PyObject_HEAD dp_frame_state_t *handle;
-  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
+  dp_frame_state_t *_jm_parked;   /* gh-2187: freed by tp_dealloc */
+  jm_inflight_t     _jm_inflight; /* gh-2272: GIL-free calls running */
 } FrameDescObject;
 
 static void
 FrameDescObj_dealloc (FrameDescObject *self)
 {
+  /* gh-2187: destroy() parks the state here instead of
+     freeing it under the views this object lent; they are
+     gone now, so the free is now. */
   if (self->handle)
     dp_frame_destroy (self->handle);
+  if (self->_jm_parked)
+    dp_frame_destroy (self->_jm_parked);
   jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
@@ -1164,16 +1170,11 @@ FrameDescObj_destroy (FrameDescObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      void *_jm_st = self->handle;
-      self->handle = NULL;
-      /* gh-2272: a GIL-free call may still be running on this
-         object; new ones are refused from here, so wait for those. */
-      if (jm_inflight_wait (&self->_jm_inflight) < 0)
-        {
-          self->handle = _jm_st;
-          return NULL;
-        }
-      dp_frame_destroy (_jm_st);
+      /* gh-2187: the views this object lent point into the
+         state; the free waits for tp_dealloc, and every method
+         refuses from here on. */
+      self->_jm_parked = self->handle;
+      self->handle     = NULL;
     }
   Py_RETURN_NONE;
 }
@@ -1191,16 +1192,11 @@ FrameDescObj_exit (FrameDescObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      void *_jm_st = self->handle;
-      self->handle = NULL;
-      /* gh-2272: a GIL-free call may still be running on this
-         object; new ones are refused from here, so wait for those. */
-      if (jm_inflight_wait (&self->_jm_inflight) < 0)
-        {
-          self->handle = _jm_st;
-          return NULL;
-        }
-      dp_frame_destroy (_jm_st);
+      /* gh-2187: the views this object lent point into the
+         state; the free waits for tp_dealloc, and every method
+         refuses from here on. */
+      self->_jm_parked = self->handle;
+      self->handle     = NULL;
     }
   Py_RETURN_NONE;
 }
@@ -2044,15 +2040,17 @@ static PyMethodDef FrameDescObj_methods[] = {
     ">>> d.stage_bits(0)      # payload+CRC: what crc16 covered\n"
     "32\n" },
   { "destroy", (PyCFunction)FrameDescObj_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
+    "Close the object; the memory goes with its last user.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on\n"
-    "exit.\n"
+    "garbage-collected. Call this, or use the object as a context manager,\n"
+    "to end its use at a definite point.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does\n"
-    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+    "A consumer this object's ``_capsule`` was handed to may still hold its\n"
+    "pointer, and keeps this object alive while it does: the memory is freed\n"
+    "when the last of them, and this object, are gone, not here (gh-2346).\n"
+    "Idempotent: calling it again does nothing. Every other method raises\n"
+    "``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)FrameDescObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

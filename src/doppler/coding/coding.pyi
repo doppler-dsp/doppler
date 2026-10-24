@@ -101,9 +101,7 @@ class ConvEncoder:
         """Symbols dp_conv_enc_encode writes for n_in input bits.
 
         Exactly `n_in * n` — a convolutional code has no fill and no latency on
-
         the encode side, which is the asymmetry with dp_viterbi_decode_max_out,
-
         where the traceback still owes bits at the start of a stream.
 
         Parameters
@@ -334,9 +332,7 @@ class Viterbi:
         """Bits dp_viterbi_decode will emit for n_in soft symbols.
 
         Accounts for the fill still owed at the start of a stream, so a caller
-        can
-
-        size a buffer exactly rather than conservatively.
+        can size a buffer exactly rather than conservatively.
 
         Parameters
         ----------
@@ -916,11 +912,8 @@ class Interleaver:
         """Output bits for n_in input bits — the same number.
 
         A permutation moves bits and does not add or remove any, so this is the
-
         identity. It exists because the binding asks a method how much room its
-
         output needs, and answering "the same" is not something a caller should
-
         have to know.
 
         Parameters
@@ -988,9 +981,7 @@ class Interleaver:
         """Output bits for n_in input bits — the same number.
 
         Identical to dp_interleaver_interleave_max_out, and for the same
-        reason:
-
-        the inverse of a permutation is a permutation.
+        reason: the inverse of a permutation is a permutation.
 
         Parameters
         ----------
@@ -1267,9 +1258,7 @@ class Deinterleaver:
         """Output bits for n_in input bits — the same number.
 
         Identical to dp_interleaver_interleave_max_out, and for the same
-        reason:
-
-        the inverse of a permutation is a permutation.
+        reason: the inverse of a permutation is a permutation.
 
         Parameters
         ----------

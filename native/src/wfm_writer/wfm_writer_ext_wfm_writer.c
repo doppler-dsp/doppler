@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_wfm_writer_state_t *handle;
+  PyObject *_jm_retain_annotate_scene; /* keeps scene's owner alive */
 } WriterObject;
 
 static void
@@ -30,6 +31,7 @@ WriterObj_dealloc (WriterObject *self)
          __exit__ paths do report it. */
       (void)dp_wfm_writer_destroy (self->handle);
     }
+  Py_XDECREF (self->_jm_retain_annotate_scene);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -214,6 +216,52 @@ WriterObj_flush (WriterObject *self, PyObject *Py_UNUSED (ignored))
                     (long long)_rc);
       return NULL;
     }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+WriterObj_annotate (WriterObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "scene", NULL };
+  PyObject    *scene_obj = Py_None;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &scene_obj))
+    return NULL;
+  const dp_wfm_compose_state_t *scene = NULL;
+  if (scene_obj != Py_None)
+    {
+      PyObject *scene_cap = scene_obj;
+      Py_INCREF (scene_cap);
+      if (!PyCapsule_CheckExact (scene_cap))
+        {
+          Py_DECREF (scene_cap);
+          scene_cap = PyObject_GetAttrString (scene_obj, "_capsule");
+          if (!scene_cap)
+            return NULL;
+        }
+      scene = (const dp_wfm_compose_state_t *)PyCapsule_GetPointer (
+          scene_cap, "doppler.wfm.composer");
+      Py_DECREF (scene_cap);
+      if (!scene)
+        return NULL;
+    }
+  int _rc = dp_wfm_writer_annotate (self->handle, scene);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "annotate failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  /* retain: the kernel keeps `scene`, so this object keeps its owner
+     until the next call replaces it or None detaches it. */
+  if (scene_obj != Py_None)
+    Py_INCREF (scene_obj);
+  Py_XSETREF (self->_jm_retain_annotate_scene,
+              scene_obj != Py_None ? scene_obj : NULL);
   Py_RETURN_NONE;
 }
 
@@ -591,6 +639,52 @@ static PyMethodDef WriterObj_methods[] = {
     "16\n"
     ">>> w.close()\n"
     ">>> tmp.cleanup()\n" },
+  { "annotate", (PyCFunction)(void *)WriterObj_annotate,
+    METH_VARARGS | METH_KEYWORDS,
+    "annotate(scene) -> None\n"
+    "\n"
+    "Annotate the capture with a scene's sources: the SigMF sidecar close() "
+    "writes gets one annotation per source per instance, from the same "
+    "builder Composer.to_sigmf() and wfmgen use, with this writer's own "
+    "sample_type, fs, fc and t0, so every field has one source. Pass the "
+    "Composer whose samples this capture holds, and write its samples from "
+    "the capture's first sample. The scene is kept alive and read at close, "
+    "so a data source's annotation is final. A second call replaces the "
+    "scene. Raises ValueError where the rows would be dropped: a BLUE writer "
+    "(its header has no annotations) or a raw/CSV writer opened with "
+    "sidecar=False.\n"
+    "\n"
+    "The rows come from the same builder `wfmgen` and `Composer.to_sigmf()`\n"
+    "use (dp_wfm_sigmf_meta_json()), with this writer's own sample type,\n"
+    "rate, centre frequency and start, so the sidecar has one source for\n"
+    "every field: a frequency edge is `fc + freq +- bandwidth/2` with THIS\n"
+    "writer's `fc`. The scene is read at close, not here, because a data\n"
+    "source's annotation is final only once it has been rendered. Its sample\n"
+    "offsets index the scene's own samples, so write the scene's samples\n"
+    "from the capture's first sample. A second call replaces the scene\n"
+    "(doppler#2564).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "scene : object | None\n"
+    "    the composer whose samples this capture holds. It is read at close,\n"
+    "    so it must still be alive then: a C caller keeps it alive itself;\n"
+    "    the Python binding keeps a reference for you.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``annotate failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler.wfm import Writer\n"
+    "    >>> obj = Writer(path=..., fs=0.0, file_type=\"raw\", "
+    "sample_type=\"cf32\", endian=\"le\", fc=0.0, total=0, headroom=0.0, "
+    "t0=0.0, sidecar=True)\n"
+    "    >>> obj.annotate(0)\n" },
   { "track_clipping", (PyCFunction)(void *)WriterObj_track_clipping,
     METH_VARARGS | METH_KEYWORDS,
     "track_clipping(on) -> None\n"

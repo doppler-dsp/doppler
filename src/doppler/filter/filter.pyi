@@ -101,12 +101,9 @@ class FIR:
         """Always 0 -- FIR is a 1:1 transform, not a bounded-capacity one.
 
         dp_fir_execute() always writes exactly n_in samples; there is no
-
         call-independent upper bound smaller than the input length for this
-
-        function to report. An `out=` buffer must be sized to exactly
-
-        `len(x)`, not to this function's return value.
+        function to report. An `out=` buffer must be sized to exactly `len(x)`,
+        not to this function's return value.
 
         Returns
         -------

@@ -162,6 +162,21 @@ error = "OSError"
 nogil = false
 doc = "Make every sample written so far durable and observable to a concurrent reader, without ending the capture. Leaves the file on a sample boundary, which is what lets a follower read it without meeting a partial sample. Raises OSError if this or any earlier write failed; a capture is not finished until close()."
 
+# annotate(scene): the sidecar close() writes gets the scene's annotations,
+# one per source per instance, with THIS writer's sample type, fs, fc and t0
+# (doppler#2564). The Composer crosses as its capsule (jm gh-2346) and is
+# retained, because the writer reads its segments at close.
+[[wfm_writer.methods]]
+name = "annotate"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+params = [
+  { name = "scene", type = "const dp_wfm_compose_state_t *", capsule = "doppler.wfm.composer", retain = true, header = "doppler/wfm/wfm_compose.h" },
+]
+doc = "Annotate the capture with a scene's sources: the SigMF sidecar close() writes gets one annotation per source per instance, from the same builder Composer.to_sigmf() and wfmgen use, with this writer's own sample_type, fs, fc and t0, so every field has one source. Pass the Composer whose samples this capture holds, and write its samples from the capture's first sample. The scene is kept alive and read at close, so a data source's annotation is final. A second call replaces the scene. Raises ValueError where the rows would be dropped: a BLUE writer (its header has no annotations) or a raw/CSV writer opened with sidecar=False."
+
 [[wfm_writer.methods]]
 name = "track_clipping"
 arg_type = "void"

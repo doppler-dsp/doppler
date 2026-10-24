@@ -117,6 +117,8 @@ size_t dp_wfm_reader_read_max_out(dp_wfm_reader_state_t *state, size_t n);
 
 size_t dp_wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
 
+char *dp_wfm_reader_get_annotations(const dp_wfm_reader_state_t *state);
+
   const wfm_keyword_t *dp_wfm_reader_keyword (const dp_wfm_reader_state_t *r, size_t i);
 
 const char *dp_wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t i);

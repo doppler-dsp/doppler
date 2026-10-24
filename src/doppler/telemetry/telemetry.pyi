@@ -111,12 +111,8 @@ class Telemetry:
         """Upper bound on what dp_tlm_read() can return right now.
 
         Simply the available count: a caller sizing a destination cannot know
-        the
-
-        request will be smaller, and jm's generated binding allocates this
-        much,
-
-        reads, then resizes to what actually came back.
+        the request will be smaller, and jm's generated binding allocates this
+        much, reads, then resizes to what actually came back.
 
         Returns
         -------
@@ -398,15 +394,17 @@ class Telemetry:
         """capsule."""
 
     def destroy(self) -> None:
-        """Release the underlying C resources immediately.
+        """Close the object; the memory goes with its last user.
 
         Ordinarily unnecessary: the resources are freed when the object is
-        garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on
-        exit.
+        garbage-collected. Call this, or use the object as a context manager,
+        to end its use at a definite point.
 
-        Idempotent: calling it again on an already-released object does
-        nothing. Every other method raises ``RuntimeError`` once it has run.
+        A consumer this object's ``_capsule`` was handed to may still hold its
+        pointer, and keeps this object alive while it does: the memory is freed
+        when the last of them, and this object, are gone, not here (gh-2346).
+        Idempotent: calling it again does nothing. Every other method raises
+        ``RuntimeError`` once it has run.
         """
 
     def __enter__(self) -> "Telemetry":
@@ -602,11 +600,8 @@ class MemoryCapture:
         """Upper bound on what dp_tlm_capture_read() can return right now.
 
         The accumulated count: a caller sizing a destination cannot know its
-        own
-
-        request will be smaller, and the generated binding allocates this much,
-
-        reads, then resizes to what actually came back.
+        own request will be smaller, and the generated binding allocates this
+        much, reads, then resizes to what actually came back.
 
         Returns
         -------

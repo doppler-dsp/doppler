@@ -2031,7 +2031,6 @@ class BurstCapture:
         """Upper bound on samples push() can return for x_len input.
 
         Distinct bursts cannot overlap, so `x_len` samples complete at most
-
         `x_len/burst_len + 1` of them, plus whatever is already queued.
 
         Parameters
@@ -2784,7 +2783,6 @@ class PersistentBurstCapture:
         """Upper bound on samples push() can return for x_len input.
 
         Distinct bursts cannot overlap, so `x_len` samples complete at most
-
         `x_len/burst_len + 1` of them, plus whatever is already queued.
 
         Parameters

@@ -85,9 +85,7 @@ class DopplerChannel:
         """Upper bound on the output of one execute() call.
 
         Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see
-        that
-
-        macro for why the bound cannot depend on the actual input length.
+        that macro for why the bound cannot depend on the actual input length.
 
         Returns
         -------
@@ -196,23 +194,14 @@ class DopplerChannel:
         """The BINDING's output bound for execute_profile() (jm pass_capacity).
 
         The generated binding knows the INPUT LENGTH n -- it passes it -- but
-
         has not looked at the profile array, so it knows how many samples go in
-
         and not how far they dilate. With the profile unseen there is no exact
-
         answer: the bound scales n by a floor on the scale and the kernel
-        clamps
-
-        to the caller's real capacity, as `Resampler_execute_ctrl_max_out` does
-        for
-
-        its equally arbitrary `ctrl`. The floor allows a 2x expansion, i.e. a
-
-        Doppler of -500000 ppm -- half the speed of light closing, six orders
-        of
-
-        magnitude past any geometry this object models.
+        clamps to the caller's real capacity, as
+        `Resampler_execute_ctrl_max_out` does for its equally arbitrary `ctrl`.
+        The floor allows a 2x expansion, i.e. a Doppler of -500000 ppm -- half
+        the speed of light closing, six orders of magnitude past any geometry
+        this object models.
 
         Parameters
         ----------

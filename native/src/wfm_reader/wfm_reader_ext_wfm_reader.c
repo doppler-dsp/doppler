@@ -787,6 +787,52 @@ Reader_getprop_trailing_bytes (ReaderObject *self, void *Py_UNUSED (closure))
       (unsigned long long)dp_wfm_reader_get_trailing_bytes (self->handle));
 }
 static PyObject *
+Reader_getprop_annotations (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  char *_js = dp_wfm_reader_get_annotations (self->handle);
+  if (!_js)
+    {
+      PyErr_SetString (
+          PyExc_RuntimeError,
+          "annotations: dp_wfm_reader_get_annotations returned NULL");
+      return NULL;
+    }
+  PyObject *_mod = PyImport_ImportModule ("json");
+  if (!_mod)
+    {
+      free (_js);
+      return NULL;
+    }
+  PyObject *_v = PyObject_CallMethod (_mod, "loads", "s", _js);
+  Py_DECREF (_mod);
+  free (_js);
+  if (!_v && PyErr_ExceptionMatches (PyExc_ValueError))
+    {
+      /* JSONDecodeError and UnicodeDecodeError are both
+         ValueErrors: re-raise naming the property. */
+#if PY_VERSION_HEX >= 0x030C0000
+      PyObject *_e = PyErr_GetRaisedException ();
+#else
+      PyObject *_t, *_e, *_tb;
+      PyErr_Fetch (&_t, &_e, &_tb);
+      PyErr_NormalizeException (&_t, &_e, &_tb);
+      Py_XDECREF (_t);
+      Py_XDECREF (_tb);
+#endif
+      PyErr_Format (PyExc_ValueError,
+                    "annotations: dp_wfm_reader_get_annotations returned "
+                    "malformed JSON: %S",
+                    _e ? _e : Py_None);
+      Py_XDECREF (_e);
+    }
+  return _v;
+}
+static PyObject *
 Reader_decode_keywords (const wfm_keyword_t *_e)
 {
   size_t _esz      = 0;
@@ -1265,6 +1311,22 @@ static PyGetSetDef Reader_getset[] = {
     "tell which, and stops at the last complete sample either way. This is "
     "the only signal available for a raw file: a wrong hint does not fail, it "
     "returns plausible garbage at the wrong stride.\n",
+    NULL },
+  { "annotations", (getter)Reader_getprop_annotations, NULL,
+    "The capture's SigMF annotations: the sidecar's `annotations` array, one "
+    "dict per row with the SigMF keys as the file has them "
+    "(`core:sample_start`, `core:sample_count`, `core:freq_lower_edge`, "
+    "`core:label`, ...). Keys and strings are the file's. Numbers are "
+    "re-printed by cJSON at 15 significant digits whenever that is within one "
+    "ulp, so in a sidecar written elsewhere an integer past 2**53 comes back "
+    "rounded, and a float with more than 15 significant digits can move by "
+    "one ulp (and read back as an int if that lands on a whole number). A "
+    "capture this library wrote reads back exactly, since its writer prints "
+    "through the same cJSON: one written from a scene with Writer.annotate() "
+    "gives the rows Composer.to_sigmf() gives for it. An empty list when "
+    "there are none: a BLUE capture, a sidecar without the key, or a raw/CSV "
+    "capture with no sidecar. A raw or CSV capture reads them from the "
+    "sidecar this library's writer leaves beside it.\n",
     NULL },
   { "keywords", (getter)Reader_getprop_keywords, NULL,
     "The BLUE extended header as a {tag: value} dict, in file order; empty "

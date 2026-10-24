@@ -62,12 +62,20 @@ def _strip(text: str) -> str:
     return re.sub(r"//[^\n]*", "", text)
 
 
-def parse(text: str, where: str, errors: list[str]) -> dict[str, int]:
+def parse(
+    text: str, where: str, errors: list[str], literals: bool = False
+) -> dict[str, int]:
     """Map each magic in one file to its version.
 
     A `<P>_STATE_MAGIC` pairs with the `<P>_STATE_VERSION` in the same file.
     A magic that is not a `DP_FOURCC(...)`, or has no numeric version beside
     it, is reported into `errors`.
+
+    With `literals`, which is for reading a release tag, a magic with no
+    version define takes the literal its header was written with,
+    `<P>_STATE_MAGIC, 1u` (DP_GET_OPEN, dp_w_hdr and the others all spell it
+    that way). The framer shipped like that through v0.74.0. The current
+    tree gets no such allowance: there the define is required.
     """
     magics: dict[str, str] = {}
     versions: dict[str, int | None] = {}
@@ -86,8 +94,17 @@ def parse(text: str, where: str, errors: list[str]) -> dict[str, int]:
             n = NUMBER.match(value)
             versions[m["prefix"]] = int(n[1]) if n else None
     out: dict[str, int] = {}
+    flat = _strip(text)
     for prefix, magic in magics.items():
         v = versions.get(prefix)
+        if v is None and literals:
+            found = {
+                int(n)
+                for n in re.findall(
+                    rf"\b{prefix}_STATE_MAGIC\s*,\s*(\d+)[uU]?\b", flat
+                )
+            }
+            v = max(found) if found else None
         if v is None:
             errors.append(
                 f"{where}: {prefix}_STATE_MAGIC '{magic}' has no "
@@ -132,24 +149,31 @@ def current(root: Path, errors: list[str]) -> dict[str, int]:
     return {k: v for k, (v, _) in seen.items()}
 
 
-def shipped(root: Path) -> tuple[list[str], dict[str, list[tuple[int, str]]]]:
+History = dict[str, list[tuple[int, int]]]
+
+
+def shipped(root: Path) -> tuple[list[str], History, dict[str, list[int]]]:
     """Every release tag, oldest first, and per magic its (index, version).
+
+    The third value maps a magic some tag carried with no readable version to
+    the indexes of those tags.
 
     Read with one `git grep` over all the tags and one `cat-file --batch`.
     """
     tags = (
         _git(root, "tag", "-l", "v[0-9]*", "--sort=v:refname").decode().split()
     )
-    hist: dict[str, list[tuple[int, str]]] = defaultdict(list)
+    hist: History = defaultdict(list)
+    blind: dict[str, list[int]] = defaultdict(list)
     if not tags:
-        return tags, hist
+        return tags, hist, blind
     hits = (
         _git(root, "grep", "-l", "-E", "_STATE_MAGIC", *tags, "--", *SCAN)
         .decode()
         .split()
     )
     if not hits:
-        return tags, hist
+        return tags, hist, blind
     blobs = _git(
         root,
         "cat-file",
@@ -167,22 +191,28 @@ def shipped(root: Path) -> tuple[list[str], dict[str, list[tuple[int, str]]]]:
         )
         pos = header_end + 1 + size + 1
         tag = h.split(":", 1)[0]
-        # A tag's own oddities (a bad define long since fixed) are history,
-        # not this tree's findings: parse into a throwaway list.
-        per_tag[tag].update(parse(body, h, []))
+        # A magic a tag carried with no version this can read would count as
+        # never released, and so pass at ANY number: that is a finding, once
+        # per magic. A tag's other oddities (a define since fixed) are not.
+        errs: list[str] = []
+        per_tag[tag].update(parse(body, h, errs, literals=True))
+        for e in errs:
+            m = re.search(r"_STATE_MAGIC '(.{4})' has no", e)
+            if m:
+                blind[m[1]].append(index[tag])
     for tag, magics in per_tag.items():
         for magic, v in magics.items():
             hist[magic].append((index[tag], v))
     for rows in hist.values():
         rows.sort()
-    return tags, hist
+    return tags, hist, blind
 
 
 def check(root: Path) -> tuple[list[str], str]:
     """The findings, and a one-line account of what was compared."""
     errors: list[str] = []
     now = current(root, errors)
-    tags, hist = shipped(root)
+    tags, hist, blind = shipped(root)
     if not tags:
         return [
             *errors,
@@ -190,6 +220,13 @@ def check(root: Path) -> tuple[list[str], str]:
             "(git fetch --tags) -- with no history this gate "
             "cannot check anything",
         ], ""
+    for magic, at in sorted(blind.items()):
+        first, last = tags[min(at)], tags[max(at)]
+        errors.append(
+            f"'{magic}' shipped at {first}..{last} with no version this "
+            f"can read (no _STATE_VERSION define, no `_STATE_MAGIC, Nu` "
+            f"literal), so its history is unknown: teach parse() its spelling"
+        )
     for magic, v in sorted(now.items()):
         rows = hist.get(magic)
         if not rows:

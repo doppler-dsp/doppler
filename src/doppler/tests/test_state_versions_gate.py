@@ -50,7 +50,9 @@ def _repo(tmp_path: Path, history: list[tuple[str, str]]) -> Path:
     _git(root, "config", "user.email", "t@example.com")
     _git(root, "config", "user.name", "t")
     for tag, version in history:
-        (root / HEADER).write_text(_header("ADPL", version))
+        # A full header text rather than a version: a tag's own spelling.
+        text = version if "\n" in version else _header("ADPL", version)
+        (root / HEADER).write_text(text)
         _git(root, "add", "-A")
         _git(root, "commit", "-q", "--allow-empty", "-m", tag)
         _git(root, "tag", tag)
@@ -136,3 +138,35 @@ def test_no_tags_fails_closed(tmp_path):
     r = _run(root, "4u")
     assert r.returncode == 1
     assert "no release tags" in r.stderr
+
+
+#: The framer through v0.74.0: no version define, the literal at the call.
+LITERAL = (
+    "#define OBJ_STATE_MAGIC DP_FOURCC ('F', 'R', 'M', 'R')\n"
+    "    DP_GET_OPEN (OBJ_STATE_MAGIC, 1u, total);  \\\n"
+    "    DP_SET_OPEN (OBJ_STATE_MAGIC, 1u, want);\n"
+)
+
+
+def _framer(version: str) -> str:
+    return _header("FRMR", version)
+
+
+@pytest.mark.parametrize(("version", "rc"), [("0u", 1), ("1u", 0), ("2u", 0)])
+def test_a_call_site_literal_at_a_tag_is_its_version(tmp_path, version, rc):
+    """Read as never released, FRMR would pass at 0u (the review of #2573).
+    The tag's literal `1u` is its shipped version, so 0u is refused."""
+    root = _repo(tmp_path, [("v1.0.0", LITERAL)])
+    r = _run(root, text=_framer(version))
+    assert r.returncode == rc, r.stderr
+    if rc:
+        assert "'FRMR' is version 0" in r.stderr
+
+
+def test_a_tag_with_no_readable_version_fails_loud(tmp_path):
+    """History the gate cannot read is not history it may assume empty."""
+    blind = "#define OBJ_STATE_MAGIC DP_FOURCC ('F', 'R', 'M', 'R')\n"
+    root = _repo(tmp_path, [("v1.0.0", blind)])
+    r = _run(root, text=_framer("5u"))
+    assert r.returncode == 1
+    assert "'FRMR' shipped at v1.0.0..v1.0.0 with no version" in r.stderr

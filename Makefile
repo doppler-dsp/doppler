@@ -3330,13 +3330,14 @@ print-stock-registry: ## Print the registry stock images are pulled through
 
 # For a build that pulls inside BuildKit's own container (buildx's
 # docker-container driver, as release.yml's image builds run), where no
-# pre-pull reaches. This pulls the FROMs of STOCK_REGISTRY_FILES on the
-# daemon as a probe and prints `stock_registry=<R>`, STOCK_MIRROR when any
-# needed it, to $STOCK_REGISTRY_OUT or stdout. The build takes that registry
-# as its STOCK_REGISTRY (#1982, #2572).
+# pre-pull reaches. This fetches the MANIFEST of each FROM in
+# STOCK_REGISTRY_FILES, with the helper's retry and mirror policy, pulling
+# nothing, and prints `stock_registry=<R>`, STOCK_MIRROR when any needed
+# it, to $STOCK_REGISTRY_OUT or stdout. The build takes that registry as its
+# STOCK_REGISTRY (#1982, #2572).
 STOCK_REGISTRY_FILES ?= deploy/docker/Dockerfile.cli \
                         deploy/docker/Dockerfile.examples
-stock-registry: ## Probe-pull release image FROMs; print the registry to build from
+stock-registry: ## Probe release image FROMs' manifests; print the registry to build from
 	@$(STOCK_PULL) --registry-for $(STOCK_REGISTRY_FILES)
 
 # The same arrangement for the uv pin, which the SDK image bakes in.

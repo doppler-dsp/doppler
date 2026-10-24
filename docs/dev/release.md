@@ -428,9 +428,9 @@ If it fails, bump the missed file manually, push a fixup commit on main, then re
 limits): re-run the failed jobs. `publish-container` builds on buildx's
 container driver, which pulls inside BuildKit's own container, out of
 `scripts/stock-pull.sh`'s reach. So its first step, `make stock-registry`,
-pulls the same FROMs through the helper as a probe. That step retries a
-rate limit and falls back to `STOCK_MIRROR` on a quota, and the builds then
-pull from whichever registry it needed (#2572). A refusal that begins
+fetches each FROM's manifest through the helper, pulling nothing. That step
+retries a rate limit and falls back to `STOCK_MIRROR` on a quota, and the
+builds then pull from whichever registry it needed (#2572). A refusal that begins
 between the probe and the build still fails the build. Re-running the
 failed jobs probes again. Before that step existed, two releases in a row
 lost an image job this way after PyPI had published (#1982).

@@ -37,8 +37,9 @@ HELPER = REPO / "scripts" / "stock-pull.sh"
 IMAGE = "r.io/lib/debian:stable"
 
 #: A docker client that answers `pull` from a script: line N of $PLAN is the
-#: Nth call's outcome, `ok` or the error text to print. Every pull is
-#: appended to $CALLS, so a test can count them. `image inspect IMG` finds
+#: Nth call's outcome, `ok` or the error text to print. Every pull, and every
+#: `buildx imagetools inspect` (the probe's manifest fetch), is appended to
+#: $CALLS, so a test can count them. `image inspect IMG` finds
 #: IMG in the local store when it is a line of $PRESENT; with `--format` it
 #: prints a size of 28 MB. `tag SRC DST` is appended to $TAGS.
 _FAKE = """#!/usr/bin/env bash
@@ -48,7 +49,8 @@ if [ "$1 $2" = "image inspect" ]; then
     echo "Error: No such image: $3" >&2; exit 1
 fi
 if [ "$1" = tag ]; then echo "$2 $3" >> "$TAGS"; exit 0; fi
-[ "$1" = pull ] || { echo "fake docker: pull, inspect, tag" >&2; exit 2; }
+[ "$1" = pull ] || [ "$1 $2 $3" = "buildx imagetools inspect" ] ||
+    { echo "fake docker: pull, inspect, tag, imagetools" >&2; exit 2; }
 echo "$*" >> "$CALLS"
 n=$(wc -l < "$CALLS")
 line=$(sed -n "${n}p" "$PLAN")
@@ -379,6 +381,35 @@ def test_registry_for_is_the_primary_when_it_answers(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stderr
     assert len(pulled) == 2
     assert answer == "stock_registry=r.io/lib\n"
+
+
+def test_registry_for_fetches_manifests_and_pulls_nothing(
+    tmp_path: Path,
+) -> None:
+    """The quota refusal is on the manifest GET, so the probe asks for the
+    manifest alone: a pull would spend ~100 MB of the quota the builds need
+    (#2572 review). Nothing is pulled, so nothing is tagged, and an image
+    already in the local store is no answer about the registry."""
+    df = tmp_path / "Dockerfile"
+    df.write_text(_TWO, encoding="utf-8")
+    os.environ["STOCK_REGISTRY_OUT"] = str(tmp_path / "out")
+    try:
+        r, calls = _helper(
+            tmp_path,
+            [QUOTA, "ok"],
+            "--registry-for",
+            str(df),
+            mirror=MIRROR,
+            present=("r.io/lib/python:3.12-slim",),
+        )
+    finally:
+        del os.environ["STOCK_REGISTRY_OUT"]
+    assert r.returncode == 0, r.stderr
+    assert calls and all(
+        c.startswith("buildx imagetools inspect ") for c in calls
+    )
+    assert calls[0].endswith("r.io/lib/python:3.12-slim")
+    assert _tags(tmp_path) == []
 
 
 @pytest.mark.parametrize("plan", [[QUOTA, "ok"], ["ok", QUOTA, "ok"]])

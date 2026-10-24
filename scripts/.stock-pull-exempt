@@ -15,6 +15,3 @@
 # not have at the merge base with origin/main, so listing a new build is
 # not a way in. Fix the build instead (#1982).
 .github/workflows/ci-image.yml docker/ci.Dockerfile CI-image rebuild; FROM ${BASE} is CI_BASE_<key>
-.github/workflows/release.yml deploy/docker/Dockerfile.cli runtime image, build-push-action
-.github/workflows/release.yml deploy/docker/Dockerfile.examples:sdk SDK image, build-push-action
-.github/workflows/release.yml deploy/docker/Dockerfile.examples:downstream-jm downstream-jm image, build-push-action

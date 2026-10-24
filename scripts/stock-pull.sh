@@ -49,6 +49,15 @@
 # the bytes it pulled: under a volume quota, the biggest pullers are the
 # number to read.
 #
+# --registry-for is --dockerfile for a build that cannot see the pulls: a
+# buildx container-driver build, which pulls inside BuildKit's own
+# container (#1982, #2572). It pulls the same FROMs on the daemon, as a
+# probe, then names the registry the build should pull from: STOCK_MIRROR
+# when any of them had to come from it, else STOCK_REGISTRY. The build then
+# meets a quota-refused ECR only if the refusal began in the seconds since.
+# The answer is one `stock_registry=<R>` line, appended to the file
+# STOCK_REGISTRY_OUT names ($GITHUB_OUTPUT in a workflow), or to stdout.
+#
 #   STOCK_MIRROR          the fallback registry; the Makefile sets it. Unset,
 #                         there is none.
 #   STOCK_PULL_ATTEMPTS   tries per image, default 5
@@ -63,10 +72,30 @@ delay="${STOCK_PULL_DELAY:-5}"
 docker="${DOCKER:-docker}"
 
 usage() {
-    echo "usage: stock-pull.sh IMAGE... | --dockerfile FILE..." >&2
+    echo "usage: stock-pull.sh IMAGE... | --dockerfile FILE..." \
+        "| --registry-for FILE..." >&2
     exit 2
 }
 [ $# -ge 1 ] || usage
+
+registry_for=0
+if [ "$1" = --registry-for ]; then
+    : "${STOCK_MIRROR:?stock-pull: --registry-for needs STOCK_MIRROR; run it through make}"
+    registry_for=1
+    set -- --dockerfile "${@:2}"
+fi
+# Set by pull() when an image came from STOCK_MIRROR.
+fell_back=0
+
+# --registry-for's answer. Written on every exit path that succeeds, so a
+# build never reads an empty registry.
+answer() {
+    [ "$registry_for" = 1 ] || return 0
+    local chosen="$STOCK_REGISTRY"
+    [ "$fell_back" = 1 ] && chosen="$STOCK_MIRROR"
+    echo "stock-pull: build from $chosen" >&2
+    echo "stock_registry=$chosen" >>"${STOCK_REGISTRY_OUT:-/dev/stdout}"
+}
 
 if [ "$1" = --dockerfile ]; then
     shift
@@ -82,6 +111,7 @@ if [ "$1" = --dockerfile ]; then
     done
     if [ "${#images[@]}" -eq 0 ]; then
         echo "stock-pull: no stock FROM in $*; nothing to pull"
+        answer
         exit 0
     fi
     set -- "${images[@]}"
@@ -163,6 +193,7 @@ pull() {
         if [ "$rc" -eq 0 ]; then
             "$docker" tag "$alt" "$img"
             how=" (from $alt)"
+            fell_back=1
         else
             img=$alt
         fi
@@ -177,3 +208,4 @@ pull() {
 for img in "$@"; do
     pull "$img"
 done
+answer

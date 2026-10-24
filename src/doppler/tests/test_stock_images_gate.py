@@ -516,3 +516,83 @@ def test_the_live_tree_passes_through_make() -> None:
     )
     assert r.returncode == 0, r.stdout + r.stderr
     assert "check_stock_images: OK" in r.stdout
+
+
+# ── a container-driver build handed a probed registry is covered (#2572) ─────
+#
+# release.yml's image builds pull inside BuildKit's own container, where no
+# pre-pull reaches. A step before them runs the helper's `--registry-for`
+# probe (`make stock-registry`), and each build takes the registry it
+# needed. Such a build needs no exemption; one wired any other way still
+# does.
+
+_PROBE_MK = (
+    _MK + "STOCK_REGISTRY_FILES ?= d/Dockerfile\n"
+    "stock-registry:\n\t$(STOCK_PULL) --registry-for $(STOCK_REGISTRY_FILES)\n"
+)
+_PROBE_STEP = (
+    "      - name: Pick the registry\n        id: registry\n"
+    '        run: STOCK_REGISTRY_OUT="$GITHUB_OUTPUT" make -s stock-registry\n'
+)
+_PROBED_ARG = "STOCK_REGISTRY=${{ steps.registry.outputs.stock_registry }}"
+
+
+def _probed_buildx(probe: str = _PROBE_STEP, arg: str = _PROBED_ARG) -> str:
+    return (
+        "jobs:\n  b:\n    steps:\n"
+        "      - uses: docker/setup-buildx-action@v4\n"
+        + probe
+        + "      - uses: docker/build-push-action@v7\n"
+        "        with:\n          file: d/Dockerfile\n          target: sdk\n"
+        "          build-args: |\n            " + arg + "\n"
+    )
+
+
+def test_a_build_from_the_probed_registry_needs_no_exemption(
+    tmp_path: Path,
+) -> None:
+    r = _run(
+        tmp_path,
+        {"Makefile": _PROBE_MK, ".github/workflows/r.yml": _probed_buildx()},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+@pytest.mark.parametrize(
+    ("makefile", "workflow"),
+    [
+        # the build-arg is the fixed registry, not the probe's answer
+        (
+            _PROBE_MK,
+            _probed_buildx(
+                arg="STOCK_REGISTRY=${{ needs.v.outputs.stock_registry }}"
+            ),
+        ),
+        # the step it names does not probe
+        (
+            _PROBE_MK,
+            _probed_buildx(
+                probe="      - id: registry\n        run: echo hi\n"
+            ),
+        ),
+        # the probe does not pull this build's Dockerfile
+        (
+            _PROBE_MK.replace("d/Dockerfile", "e/Dockerfile"),
+            _probed_buildx(),
+        ),
+        # the probe comes AFTER the build
+        (
+            _PROBE_MK,
+            _probed_buildx(probe="") + _PROBE_STEP,
+        ),
+    ],
+    ids=["fixed-registry", "not-a-probe", "other-dockerfile", "probe-after"],
+)
+def test_a_build_not_wired_to_the_probe_is_refused(
+    tmp_path: Path, makefile: str, workflow: str
+) -> None:
+    r = _run(
+        tmp_path, {"Makefile": makefile, ".github/workflows/r.yml": workflow}
+    )
+    assert r.returncode == 1, r.stdout
+    assert "buildx container-driver build of d/Dockerfile" in r.stdout

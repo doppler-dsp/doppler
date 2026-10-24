@@ -711,10 +711,11 @@ jobs:
       # buildx's docker-container driver pulls each FROM inside BuildKit's own
       # container, with no retry and no mirror. v0.73.0 and v0.74.0 both lost
       # an image job to ECR Public's anonymous data quota after PyPI had
-      # published (#1982, #2572). So the FROMs are pulled here first, through
-      # the one helper (retry, then STOCK_MIRROR), as a probe, and the builds
-      # below take whichever registry it needed. The pulled copies are not
-      # what BuildKit uses; the registry it is told to use is.
+      # published (#1982, #2572). So each FROM's manifest is fetched here
+      # first, through the one helper (retry, then STOCK_MIRROR), and the
+      # builds below take whichever registry it needed. ECR's quota refusal
+      # is on the manifest GET, so a few KB read the answer; nothing is
+      # pulled, and the quota is left to the builds.
       - name: Pick the registry the image builds pull from
         id: registry
         shell: bash

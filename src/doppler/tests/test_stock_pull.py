@@ -37,8 +37,9 @@ HELPER = REPO / "scripts" / "stock-pull.sh"
 IMAGE = "r.io/lib/debian:stable"
 
 #: A docker client that answers `pull` from a script: line N of $PLAN is the
-#: Nth call's outcome, `ok` or the error text to print. Every pull is
-#: appended to $CALLS, so a test can count them. `image inspect IMG` finds
+#: Nth call's outcome, `ok` or the error text to print. Every pull, and every
+#: `buildx imagetools inspect` (the probe's manifest fetch), is appended to
+#: $CALLS, so a test can count them. `image inspect IMG` finds
 #: IMG in the local store when it is a line of $PRESENT; with `--format` it
 #: prints a size of 28 MB. `tag SRC DST` is appended to $TAGS.
 _FAKE = """#!/usr/bin/env bash
@@ -48,7 +49,8 @@ if [ "$1 $2" = "image inspect" ]; then
     echo "Error: No such image: $3" >&2; exit 1
 fi
 if [ "$1" = tag ]; then echo "$2 $3" >> "$TAGS"; exit 0; fi
-[ "$1" = pull ] || { echo "fake docker: pull, inspect, tag" >&2; exit 2; }
+[ "$1" = pull ] || [ "$1 $2 $3" = "buildx imagetools inspect" ] ||
+    { echo "fake docker: pull, inspect, tag, imagetools" >&2; exit 2; }
 echo "$*" >> "$CALLS"
 n=$(wc -l < "$CALLS")
 line=$(sed -n "${n}p" "$PLAN")
@@ -318,6 +320,7 @@ def test_dockerfile_mode_reaches_the_mirror(tmp_path: Path) -> None:
         # start-nats.sh calls the helper itself, so the variable rides in
         # its environment.
         ("nats-up", "scripts/start-nats.sh"),
+        ("stock-registry", "scripts/stock-pull.sh"),
     ],
 )
 def test_the_makefile_hands_the_helper_its_mirror(
@@ -342,3 +345,98 @@ def test_the_makefile_hands_the_helper_its_mirror(
     assert r.returncode == 0, r.stderr
     recipe = re.sub(r"\s+", " ", r.stdout.replace("\\\n", " "))
     assert f"STOCK_MIRROR=mirror.gcr.io/library bash {script}" in recipe
+
+
+# --------------------------------------------------------------------------
+# --registry-for: the registry a build that cannot see the pulls should use
+# (doppler#1982, #2572). A buildx container-driver build pulls inside
+# BuildKit's own container, so a pre-pull cannot help it. The helper pulls
+# the same FROMs on the daemon as a probe, and the build is handed the
+# registry the probe needed.
+# --------------------------------------------------------------------------
+
+_TWO = (
+    "ARG STOCK_REGISTRY\nFROM ${STOCK_REGISTRY}/python:3.12-slim\n"
+    "FROM ${STOCK_REGISTRY}/ubuntu:24.04\n"
+)
+
+
+def _registry_for(tmp_path: Path, plan: list[str], text: str = _TWO):
+    df = tmp_path / "Dockerfile"
+    df.write_text(text, encoding="utf-8")
+    out = tmp_path / "out"
+    os.environ["STOCK_REGISTRY_OUT"] = str(out)
+    try:
+        r, pulled = _helper(
+            tmp_path, plan, "--registry-for", str(df), mirror=MIRROR
+        )
+    finally:
+        del os.environ["STOCK_REGISTRY_OUT"]
+    answer = out.read_text(encoding="utf-8") if out.exists() else ""
+    return r, pulled, answer
+
+
+def test_registry_for_is_the_primary_when_it_answers(tmp_path: Path) -> None:
+    r, pulled, answer = _registry_for(tmp_path, ["ok"])
+    assert r.returncode == 0, r.stderr
+    assert len(pulled) == 2
+    assert answer == "stock_registry=r.io/lib\n"
+
+
+def test_registry_for_fetches_manifests_and_pulls_nothing(
+    tmp_path: Path,
+) -> None:
+    """The quota refusal is on the manifest GET, so the probe asks for the
+    manifest alone: a pull would spend ~100 MB of the quota the builds need
+    (#2572 review). Nothing is pulled, so nothing is tagged, and an image
+    already in the local store is no answer about the registry."""
+    df = tmp_path / "Dockerfile"
+    df.write_text(_TWO, encoding="utf-8")
+    os.environ["STOCK_REGISTRY_OUT"] = str(tmp_path / "out")
+    try:
+        r, calls = _helper(
+            tmp_path,
+            [QUOTA, "ok"],
+            "--registry-for",
+            str(df),
+            mirror=MIRROR,
+            present=("r.io/lib/python:3.12-slim",),
+        )
+    finally:
+        del os.environ["STOCK_REGISTRY_OUT"]
+    assert r.returncode == 0, r.stderr
+    assert calls and all(
+        c.startswith("buildx imagetools inspect ") for c in calls
+    )
+    assert calls[0].endswith("r.io/lib/python:3.12-slim")
+    assert _tags(tmp_path) == []
+
+
+@pytest.mark.parametrize("plan", [[QUOTA, "ok"], ["ok", QUOTA, "ok"]])
+def test_registry_for_is_the_mirror_when_any_image_needed_it(
+    tmp_path: Path, plan: list[str]
+) -> None:
+    """One refused image is enough: the build pulls all of them, and the
+    mirror holds the same digests."""
+    r, _, answer = _registry_for(tmp_path, plan)
+    assert r.returncode == 0, r.stderr
+    assert answer == f"stock_registry={MIRROR}\n"
+
+
+def test_registry_for_gives_no_answer_when_the_pull_fails(
+    tmp_path: Path,
+) -> None:
+    """A failure is a failure, not the primary: the step stops the job."""
+    r, _, answer = _registry_for(tmp_path, [QUOTA, QUOTA])
+    assert r.returncode != 0
+    assert answer == ""
+
+
+def test_registry_for_answers_when_there_is_nothing_to_pull(
+    tmp_path: Path,
+) -> None:
+    """No stock FROM still names a registry, never an empty build-arg."""
+    r, pulled, answer = _registry_for(tmp_path, ["ok"], "FROM ghcr.io/x:1\n")
+    assert r.returncode == 0, r.stderr
+    assert pulled == []
+    assert answer == "stock_registry=r.io/lib\n"

@@ -425,12 +425,15 @@ If it fails, bump the missed file manually, push a fixup commit on main, then re
 
 **A container build that dies on `toomanyrequests` at a `FROM`** (either
 `Rate exceeded` or `Data limit exceeded`, ECR Public's anonymous per-IP
-limits): re-run the failed jobs, and cite
-[#1982](https://github.com/doppler-dsp/doppler/issues/1982) where you report
-it. `publish-container` builds on buildx's container driver, which neither
-`scripts/stock-pull.sh`'s retry nor its `STOCK_MIRROR` fallback reaches
-(#1979, #2256). Release run 38841117463's amd64 image died this way, and
-re-running its failed jobs passed.
+limits): re-run the failed jobs. `publish-container` builds on buildx's
+container driver, which pulls inside BuildKit's own container, out of
+`scripts/stock-pull.sh`'s reach. So its first step, `make stock-registry`,
+fetches each FROM's manifest through the helper, pulling nothing. That step
+retries a rate limit and falls back to `STOCK_MIRROR` on a quota, and the
+builds then pull from whichever registry it needed (#2572). A refusal that begins
+between the probe and the build still fails the build. Re-running the
+failed jobs probes again. Before that step existed, two releases in a row
+lost an image job this way after PyPI had published (#1982).
 
 ______________________________________________________________________
 

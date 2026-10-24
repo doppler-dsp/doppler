@@ -200,7 +200,8 @@ typedef struct
 {
   PyObject_HEAD dp_sample_clock_t *h;
   int                              closed;
-  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
+  int                              lent; /* gh-2346: the handle was lent */
+  jm_inflight_t _jm_inflight;            /* gh-2272: GIL-free calls running */
 } SampleClockObject;
 
 static int
@@ -214,6 +215,13 @@ SampleClock_init (SampleClockObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
 
+  if (self->lent)
+    {
+      PyErr_SetString (PyExc_RuntimeError,
+                       "SampleClock: its pointer was lent as a capsule; a "
+                       "second __init__ would free it under the borrower");
+      return -1;
+    }
   if (!self->closed && self->h)
     {
       self->closed = 1;
@@ -502,6 +510,8 @@ SampleClock_get__capsule (SampleClockObject *self, void *Py_UNUSED (closure))
     }
   /* Lent, not owned: the capsule never frees the pointer, and
      holds SampleClock, so the pointer lives as long as it. */
+  /* gh-2346: lent once, so close() leaves the free to dealloc. */
+  self->lent = 1;
   return jm_capsule_lend ((void *)(self->h), "doppler.wfm.dp_sample_clock",
                           (PyObject *)self);
 }
@@ -530,8 +540,15 @@ SampleClock_close (SampleClockObject *self, PyObject *Py_UNUSED (ignored))
           self->closed = 0;
           return NULL;
         }
-      free (self->h);
-      self->closed = 1;
+      if (self->lent)
+        {
+          self->closed = 1;
+        }
+      else
+        {
+          free (self->h);
+          self->closed = 1;
+        }
     }
   Py_RETURN_NONE;
 }
@@ -539,7 +556,7 @@ SampleClock_close (SampleClockObject *self, PyObject *Py_UNUSED (ignored))
 static void
 SampleClock_dealloc (SampleClockObject *self)
 {
-  if (!self->closed && self->h)
+  if (self->h && (!self->closed || self->lent))
     {
       free (self->h);
     }
@@ -638,7 +655,10 @@ static PyMethodDef SampleClock_methods[] = {
     "forward from the present. (pace() does this automatically when\n"
     "``resync`` is set.)\n" },
   { "close", (PyCFunction)SampleClock_close, METH_NOARGS,
-    "Release the handle and free resources." },
+    "Release the handle and free resources. Once its `_capsule` has been "
+    "taken, close() only marks it closed: the teardown waits until the last "
+    "borrower lets go (gh-2346), so a file or socket it holds is not released "
+    "here, and a status the close function would report is not raised." },
   { NULL, NULL, 0, NULL }
 };
 

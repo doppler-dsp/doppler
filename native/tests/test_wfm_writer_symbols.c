@@ -25,6 +25,7 @@ __attribute__((used))
 const jm_any_fn jm_bound_symbols_wfm_writer[] = {
     (jm_any_fn)dp_wfm_writer_write,
     (jm_any_fn)dp_wfm_writer_add_keyword,
+    (jm_any_fn)dp_wfm_writer_annotate,
     (jm_any_fn)dp_wfm_writer_destroy,
     (jm_any_fn)dp_wfm_writer_track_clipping,
     (jm_any_fn)dp_wfm_writer_create,

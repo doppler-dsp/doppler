@@ -868,6 +868,14 @@ class Composer:
         t0: float = ...,
     ) -> str:
         """Serialise as to_sigmf."""
+    @property
+    def _capsule(self) -> Any:
+        """Borrowed `doppler.wfm.composer` capsule for this composer.
+
+        Pass it (or this object) wherever a `doppler.wfm.composer`
+        capsule is accepted. It never frees the composer, and
+        it keeps this object alive; it is valid until the
+        composer is closed."""
     def close(self) -> None:
         """Release native resources."""
     def __enter__(self) -> Composer: ...

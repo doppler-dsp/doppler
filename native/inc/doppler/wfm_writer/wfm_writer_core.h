@@ -171,7 +171,7 @@ int dp_wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char ty
  * scene's own samples, so write the scene's samples from the capture's first
  * sample. A second call replaces the scene (doppler#2564).
  *
- * @param w     a writer opened by path that writes a sidecar: `sigmf`, or
+ * @param state a writer opened by path that writes a sidecar: `sigmf`, or
  *              `raw`/`csv` with its SigMF-shaped sidecar.
  * @param scene the composer whose samples this capture holds; BORROWED, and
  *              it must outlive the writer's close.
@@ -179,8 +179,7 @@ int dp_wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char ty
  *         header has no annotations) or a writer with no sidecar (opened on
  *         a FILE*, or with the sidecar turned off).
  */
-int dp_wfm_writer_annotate(dp_wfm_writer_state_t *w,
-                           const dp_wfm_compose_state_t *scene);
+int dp_wfm_writer_annotate(dp_wfm_writer_state_t *state, const dp_wfm_compose_state_t * scene);
 
 /**
  * @brief Flush, patch the BLUE data_size from the actual count (if seekable),

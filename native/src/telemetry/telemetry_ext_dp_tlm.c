@@ -15,6 +15,7 @@
 typedef struct
 {
   PyObject_HEAD dp_tlm_state_t *handle;
+  dp_tlm_state_t               *_jm_parked; /* gh-2187: freed by tp_dealloc */
 } TelemetryObject;
 
 static void
@@ -22,6 +23,8 @@ TelemetryObj_dealloc (TelemetryObject *self)
 {
   if (self->handle)
     dp_tlm_destroy (self->handle);
+  if (self->_jm_parked)
+    dp_tlm_destroy (self->_jm_parked);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -570,8 +573,11 @@ TelemetryObj_destroy (TelemetryObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      dp_tlm_destroy (self->handle);
-      self->handle = NULL;
+      /* gh-2187: the views this object lent point into the
+         state; the free waits for tp_dealloc, and every method
+         refuses from here on. */
+      self->_jm_parked = self->handle;
+      self->handle     = NULL;
     }
   Py_RETURN_NONE;
 }
@@ -589,8 +595,11 @@ TelemetryObj_exit (TelemetryObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_tlm_destroy (self->handle);
-      self->handle = NULL;
+      /* gh-2187: the views this object lent point into the
+         state; the free waits for tp_dealloc, and every method
+         refuses from here on. */
+      self->_jm_parked = self->handle;
+      self->handle     = NULL;
     }
   Py_RETURN_NONE;
 }
@@ -980,15 +989,17 @@ static PyMethodDef TelemetryObj_methods[] = {
     ">>> tlm.stats().emitted\n"
     "1\n" },
   { "destroy", (PyCFunction)TelemetryObj_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
+    "Close the object; the memory goes with its last user.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on\n"
-    "exit.\n"
+    "garbage-collected. Call this, or use the object as a context manager,\n"
+    "to end its use at a definite point.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does\n"
-    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+    "A consumer this object's ``_capsule`` was handed to may still hold its\n"
+    "pointer, and keeps this object alive while it does: the memory is freed\n"
+    "when the last of them, and this object, are gone, not here (gh-2346).\n"
+    "Idempotent: calling it again does nothing. Every other method raises\n"
+    "``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)TelemetryObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

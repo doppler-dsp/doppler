@@ -65,7 +65,7 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 |  char \* | [**dp\_wfm\_sigmf\_meta\_json**](#function-dp_wfm_sigmf_meta_json) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_Build a SigMF_ `.sigmf-meta` _JSON document for a generated capture._ |
 |  char \* | [**dp\_wfm\_sigmf\_meta\_json\_ex**](#function-dp_wfm_sigmf_meta_json_ex) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, const char \* extra\_global\_json, const char \*const \* annotations, size\_t n\_ann) <br>[_**dp\_wfm\_sigmf\_meta\_json()**_](wfm__writer__core_8h.md#function-dp_wfm_sigmf_meta_json) _plus the two things a caller can add to it._ |
 |  int | [**dp\_wfm\_writer\_add\_keyword**](#function-dp_wfm_writer_add_keyword) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, const char \* tag, char type, const void \* value, size\_t count) <br>_Attach a BLUE extended-header keyword (a tag/value pair)._  |
-|  int | [**dp\_wfm\_writer\_annotate**](#function-dp_wfm_writer_annotate) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* scene) <br>_Annotate the capture with a scene's sources: the SigMF sidecar close() writes gets one annotation per source per instance._  |
+|  int | [**dp\_wfm\_writer\_annotate**](#function-dp_wfm_writer_annotate) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state, const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* scene) <br>_Annotate the capture with a scene's sources: the SigMF sidecar close() writes gets one annotation per source per instance._  |
 |  double | [**dp\_wfm\_writer\_clip\_fraction**](#function-dp_wfm_writer_clip_fraction) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br> |
 |  int | [**dp\_wfm\_writer\_close**](#function-dp_wfm_writer_close) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br>_Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._  |
 |  [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* | [**dp\_wfm\_writer\_create**](#function-dp_wfm_writer_create) (const char \* path, double fs, int file\_type, int sample\_type, int endian, double fc, size\_t total, double headroom, double t0, bool sidecar) <br>_Open a capture for writing._  |
@@ -404,7 +404,7 @@ dp_wfm_writer_close(w);   // keywords land after the data, HCB patched
 _Annotate the capture with a scene's sources: the SigMF sidecar close() writes gets one annotation per source per instance._ 
 ```C++
 int dp_wfm_writer_annotate (
-    dp_wfm_writer_state_t * w,
+    dp_wfm_writer_state_t * state,
     const dp_wfm_compose_state_t * scene
 ) 
 ```
@@ -419,7 +419,7 @@ The rows come from the same builder `wfmgen` and `Composer.to_sigmf()` use ([**d
 **Parameters:**
 
 
-* `w` a writer opened by path that writes a sidecar: `sigmf`, or `raw`/`csv` with its SigMF-shaped sidecar. 
+* `state` a writer opened by path that writes a sidecar: `sigmf`, or `raw`/`csv` with its SigMF-shaped sidecar. 
 * `scene` the composer whose samples this capture holds; BORROWED, and it must outlive the writer's close. 
 
 

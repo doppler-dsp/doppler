@@ -2354,7 +2354,6 @@ class Spectrogram:
         rows_for(n_in) count times nfft.
 
         The capacity that makes a push take ALL of its input. Saturates at
-
         SIZE_MAX rather than wrapping.
 
         Parameters
@@ -2428,9 +2427,7 @@ class Spectrogram:
         """Floats dp_spectrogram_flush() writes: nfft, the one row it can owe.
 
         Sized by the object alone, since a flush owes at most one row. It is
-        also
-
-        the only row length dp_spectrogram_flush() accepts.
+        also the only row length dp_spectrogram_flush() accepts.
 
         Returns
         -------

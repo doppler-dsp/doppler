@@ -94,20 +94,13 @@ class NCO:
         """Pre-allocation hint: the buffer size the binding starts with.
 
         NOT a limit on the call, and it used to say it was ("requesting more
-
-        samples per call is undefined behaviour"). That was the contract
-
-        before `pass_capacity` (jm gh-138) started telling the kernel the
-
-        caller's capacity: every stepper now clamps to its own max_out
-
-        argument and returns what it actually wrote, and the Python binding
-
-        grows its buffer on demand. Measured: all three faces return 70000
-
-        correct samples for a 70000-sample request. Size an out= buffer
-
-        with this, or ignore it and let the binding allocate.
+        samples per call is undefined behaviour"). That was the contract before
+        `pass_capacity` (jm gh-138) started telling the kernel the caller's
+        capacity: every stepper now clamps to its own max_out argument and
+        returns what it actually wrote, and the Python binding grows its buffer
+        on demand. Measured: all three faces return 70000 correct samples for a
+        70000-sample request. Size an out= buffer with this, or ignore it and
+        let the binding allocate.
 
         Returns
         -------
@@ -900,9 +893,8 @@ class AWGN:
     def generate_max_out(self) -> int:
         """Conservative upper bound on generate() output size.
 
-        Returns 65536. The Python extension uses this for the initial
-
-        buffer allocation; the buffer grows on demand if n > 65536.
+        Returns 65536. The Python extension uses this for the initial buffer
+        allocation; the buffer grows on demand if n > 65536.
 
         Returns
         -------

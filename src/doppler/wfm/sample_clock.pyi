@@ -132,4 +132,9 @@ class SampleClock:
         keeps this object alive; it is valid until the handle
         is closed."""
     def close(self) -> None:
-        """Release the handle and free resources."""
+        """Release the handle and free resources. Once its `_capsule` has been
+        taken, close() only marks it closed: the teardown waits until the last
+        borrower lets go (gh-2346), so a file or socket it holds is not
+        released here, and a status the close function would report is not
+        raised.
+        """

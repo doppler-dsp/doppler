@@ -79,11 +79,8 @@ class DDC:
         """Maximum output samples one execute() of x_len inputs can produce.
 
         A DDC decimates (or passes at unity), so the output never exceeds the
-
         input length: returns x_len. The binding sizes the output buffer to
-        this
-
-        per-call bound and resizes down to the actual count (gh-607).
+        this per-call bound and resizes down to the actual count (gh-607).
 
         Parameters
         ----------
@@ -472,11 +469,8 @@ class MatchedDDC:
         """Maximum output samples one execute() of x_len inputs can produce.
 
         A DDC decimates (or passes at unity), so the output never exceeds the
-
         input length: returns x_len. The binding sizes the output buffer to
-        this
-
-        per-call bound and resizes down to the actual count (gh-607).
+        this per-call bound and resizes down to the actual count (gh-607).
 
         Parameters
         ----------

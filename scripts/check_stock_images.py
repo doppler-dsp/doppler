@@ -59,10 +59,14 @@ with backoff; nothing else does. So, for a stock image:
   reads only the ARG's default, so BuildKit would pull it unretried;
 - a workflow build on buildx's container driver (a job that runs
   setup-buildx-action) pulls inside BuildKit's own container, where no
-  pre-pull reaches. Each is named in scripts/.stock-pull-exempt, which may
-  only shrink: an unlisted one fails, so does a listed one that is gone,
-  and so does a listed one the list at the merge base with ``--base``
-  (origin/main) did not have (doppler#1982).
+  pre-pull reaches. One whose ``STOCK_REGISTRY`` build-arg is
+  ``${{ steps.ID.outputs.stock_registry }}``, where step ID runs the
+  helper's ``--registry-for`` probe (``make stock-registry``) over its
+  Dockerfile, is covered: it builds from the registry the probe needed
+  (doppler#2572). Every other one is named in scripts/.stock-pull-exempt,
+  which may only shrink: an unlisted one fails, so does a listed one that
+  is gone, and so does a listed one the list at the merge base with
+  ``--base`` (origin/main) did not have (doppler#1982).
 
 Every docker command on a line is checked, not only the first: a command's
 arguments end where it does (``;``, ``&&``, ``||``, ``|``). A Makefile line
@@ -579,10 +583,11 @@ def _site_key(rel: str, dockerfile: str, target: str) -> str:
     return f"{rel} {dockerfile}" + (f":{target}" if target else "")
 
 
-def _build_push_site(lines: list[str], i: int) -> tuple[str, str]:
-    """``(file, target)`` of the build-push-action step whose ``uses:`` is
-    line ``i``, read up to the next list item (the next step)."""
-    file = target = ""
+def _build_push_site(lines: list[str], i: int) -> tuple[str, str, str]:
+    """``(file, target, registry)`` of the build-push-action step whose
+    ``uses:`` is line ``i``, read up to the next list item (the next step).
+    ``registry`` is the value its ``STOCK_REGISTRY=`` build-arg is given."""
+    file = target = registry = ""
     for raw in lines[i + 1 :]:
         s = raw.strip()
         if s.startswith("- "):
@@ -591,7 +596,65 @@ def _build_push_site(lines: list[str], i: int) -> tuple[str, str]:
             file = s.split(":", 1)[1].strip().strip("'\"")
         elif s.startswith("target:"):
             target = s.split(":", 1)[1].strip().strip("'\"")
-    return file, target
+        elif s.startswith(f"{VAR}="):
+            registry = s.split("=", 1)[1].strip()
+    return file, target, registry
+
+
+#: A build-arg handed a step's probed registry.
+_PROBED = re.compile(
+    r"^\$\{\{\s*steps\.([\w-]+)\.outputs\.stock_registry\s*\}\}$"
+)
+
+#: The probe: the make target, or the helper's mode it runs.
+_PROBE = re.compile(r"\bmake\b.*\bstock-registry\b|--registry-for\b")
+
+
+def _probes(lines: list[str], upto: int) -> dict[str, str]:
+    """``{step id: run text}`` of the steps before line ``upto``.
+
+    A step is the lines from its ``- `` item to the next one; its id is its
+    ``id:`` key and its text everything after ``run:``.
+    """
+    out: dict[str, str] = {}
+    sid, run, in_run = "", "", False
+    for raw in [*lines[:upto], "- end"]:
+        s = raw.strip()
+        if s.startswith("- "):
+            if sid:
+                out[sid] = run
+            sid, run, in_run = "", "", False
+            s = s[2:].strip()
+        if s.startswith("id:"):
+            sid = s.split(":", 1)[1].strip().strip("'\"")
+        elif s.startswith("run:"):
+            in_run, run = True, s[4:]
+        elif in_run:
+            run += " " + s
+    return out
+
+
+def _probed(
+    lines: list[str], i: int, file: str, registry: str, mk: MakeVars
+) -> bool:
+    """Whether a build-push step at line ``i`` builds from a registry an
+    earlier step probed for its Dockerfile (#1982, #2572).
+
+    The build-arg must be ``${{ steps.ID.outputs.stock_registry }}``, step ID
+    must run the probe, and ``file`` must be among the Dockerfiles the probe
+    pulls: the helper's arguments, or the Makefile's STOCK_REGISTRY_FILES
+    when it runs the make target.
+    """
+    m = _PROBED.match(registry)
+    if not m:
+        return False
+    run = _probes(lines, i).get(m.group(1), "")
+    if not _PROBE.search(run):
+        return False
+    files = _tokens(run)
+    if "stock-registry" in files:
+        files += mk.expand("$(STOCK_REGISTRY_FILES)").split()
+    return file in files
 
 
 def _exemption_keys(text: str) -> dict[str, int]:
@@ -737,7 +800,10 @@ def offenders(
                         )
                 if kind == "workflow" and _BUILD_PUSH.search(line):
                     i = n - 1
-                    file, target = _build_push_site(raw_lines, i)
+                    file, target, registry = _build_push_site(raw_lines, i)
+                    seen += 1
+                    if _probed(raw_lines, i, file, registry, mk):
+                        continue
                     sites[_site_key(rel, file, target)] = f"{rel}:{n}"
                 scope.append(line)
         bad += [f"[vendored] {f}" if rel in vendored else f for f in found]
@@ -750,7 +816,9 @@ def offenders(
                 f"{where}: buildx container-driver build of "
                 f"{key.split(' ', 1)[1]} -- BuildKit pulls its FROMs in its "
                 "own container, so no pre-pull reaches it and a 429 is not "
-                f"retried; list it in {EXEMPT} (#1982) or build on the daemon"
+                f"retried; hand it a probed registry (make stock-registry, "
+                "#2572), build on the daemon, or list it in "
+                f"{EXEMPT} (#1982)"
             )
     for key, n in sorted(exempt.items(), key=lambda kv: kv[1]):
         if key not in sites:

@@ -13,6 +13,192 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-10-24
+
+### Breaking
+
+- **The `Dll` state blob is version 15, and a blob saved by v0.73.0 or
+    earlier is refused** (`set_state()` raises `ValueError`; C returns
+    `DP_ERR_INVALID`), as is any blob that nests one: `Despreader` v5,
+    `DsssReceiver` v3 and `AsyncDsssReceiver` v13. The blob now carries the
+    output's level (#2495).
+
+- **`AsyncDsssPool` and `CellAsyncDsssReceiver` are deleted.** The pool's
+    central searcher could not keep up with its design point, and the cell
+    receivers existed only to take its seeds. The name `AsyncDsssPool`
+    returns on the parallel design
+    ([async-dsss-parallel](../../docs/design/async-dsss-parallel.md)): N
+    `AsyncDsssReceiver`s, each searching for itself. `AsyncDsssReceiver`'s
+    `idle` state and property go with the cell mode (its value, 3, stays
+    reserved, so `lost` is still 4), and its state blob is version 13: any
+    blob saved by v0.73.0 (v9) or earlier is refused (`ValueError`; C
+    returns `DP_ERR_INVALID`).
+
+### Added
+
+- **The acquisition engine reports its Doppler-offset sidelobe level and
+    its gate.** `dp_acq_dsl_db()` is the code's ambiguity at the worst
+    offset the search's tiles can put between an emitter and a tile,
+    relative to the emitter's own peak: -16.95 dB for the SPEC Gold-1023
+    search over +-5 kHz, where the zero-offset `dp_acq_psl_db()` reads
+    -23.9 dB. It is computed on its first read, so an engine that never
+    asks does not pay for the sweep. `dp_acq_gate_stat()` is the gate a
+    dwell's `test_stat` must clear, on either detection path.
+
+- **The acquisition surface's §8 numbers come from a validator, not a
+    scratch script.** `validate_acq_surface` computes the code's ambiguity at
+    a tile offset (the band's worst is −16.95 dB, at −4500 Hz), what a window
+    on either transform costs, and what the engine's peak lists hold. Its
+    `--check` is a CTest, and `make docs-check` fails when a table on
+    [the page](../../docs/design/acq-surface.md) is not what its run renders.
+    `make acq-surface-record` re-runs it.
+
+- **`AsyncDsssPool` returns as N `AsyncDsssReceiver`s under a controller.**
+    Each receiver searches the whole range for itself; `push(x)` steps all
+    of them on one block in parallel (`threads`), then releases the lost,
+    resets the later of two receivers within a chip of one code phase, and
+    hands out exclusions and ranks so they hold different signals.
+    `status(i)` and `symbols(i)` report each one. Results do not depend on
+    the thread count (`async-dsss-parallel.md` §4).
+
+- **Gallery: `AsyncDsssPool`, emitters that come and go.** Three receivers
+    and four emitters on one Gold code (`async_dsss_pool_demo.py`): each
+    emitter held by one receiver, a departure freeing its receiver, and the
+    newcomer taking it.
+
+- **`AsyncDsssPool` releases sidelobe ghosts.** A receiver that took a
+    strong emitter's Doppler-offset sidelobe, hundreds of chips from it, is
+    reset when its carrier tracks a stronger holder's a whole lattice step
+    away (`chip_rate / (2 code_len)`) while its Dll rarely holds code lock,
+    both over the last 0.2 s (doppler#2529). `released_ghost` counts them.
+
+- **Gallery: `AsyncDsssPool`, ten emitters through six receivers.** Ten
+    emitters on one Gold code, each on its own Doppler ramp and within ±8 dB
+    of the others, come and go through six receivers
+    (`async_dsss_pool_scene.py`). Each is held by one receiver from soon
+    after it arrives, and a weak emitter waits for the strong one that masks
+    it.
+
+- **The `AsyncDsssReceiver` certification measures the error rate against the
+    BPSK bound.** At the SPEC operating point, over the bursts that settle, the
+    BER sits 0.65 to 0.89 dB from `Q(sqrt(2 Es/N0))` from 5 to 8 dB Es/N0. The
+    bursts that do not settle (F3, a known defect) are counted and ratcheted.
+    The receiver, the stimulus and the measurement are the certification's own,
+    and the spot check asserts the loss within 1.1 dB and the ratchet
+    ([the record](../../src/doppler/dsss/tests/validation/async_dsss_receiver/results.md),
+    §2.6). Where the loss goes, stage by stage, is the record's §2.7 (#2495).
+
+- **`AsyncDsssReceiver` takes a ranked, filtered peak, so searchers on one
+    stream split the signals.** `set_rank(r)` and `set_exclusions(phases)`
+    skip stronger or held signals; a peak a stronger signal's own
+    Doppler-offset sidelobes could explain is not a signal, which sets the
+    pool's near-far limit. While refining, `status().chip_phase` names the
+    seed's signal instead of 0. Rank 0 with no exclusions picks as before
+    (`async-dsss-parallel.md` §3, #2525).
+
+- **`AsyncDsssReceiver` searches in slow time, on a shared block grid, at
+    a thread count you set.** New create parameters `code_only_s` and
+    `doppler_rate` size the search's coherent depth (read back as
+    `coherent_bins`; SPEC's 450-symbol window at 500 Hz/s runs D = 90), so
+    at 32 dB-Hz it finds a signal inside one code-only window that the
+    one-epoch search cannot. `set_threads()`/`threads` forward the engine's
+    pool. A restarted search now begins on the next multiple of
+    `D * sf * spc` input samples since create (one code epoch at the
+    default D = 1).
+
+- **Continuous DSSS takes its per-frame code-only window on every face.**
+    `code_only_symbols` of every `frame_symbols` carry the code alone, so a
+    searcher can integrate the pure code; the data pauses through each window.
+    It is a field of the public `Synth`, a `Segment`, a scene and a `Plan`, and
+    `--code-only-symbols`/`--frame-symbols` on the CLI, recorded in the SigMF
+    sidecar. Before, only the private `_SynthEngine.set_dsss_window` had it
+    (#1294).
+
+- **`Reader.annotations` returns a capture's SigMF annotations.** It gives
+    one dict per row with the SigMF keys as the file has them
+    (`core:sample_start`, `core:label`, ...), so a capture written with
+    `Writer.annotate()` reads back the rows `Composer.to_sigmf()` gives. A
+    raw/CSV capture reads them from its sidecar. Empty when there are none
+    (#2565).
+
+- **`Writer.annotate(scene)` writes a scene's SigMF annotations into the
+    capture.** The sidecar `close()` writes gets one annotation per source per
+    instance, from the same builder `Composer.to_sigmf()` and wfmgen use, with
+    the writer's own sample type, fs, fc and t0. A BLUE writer, or a raw/CSV
+    writer with `sidecar=False`, raises `ValueError` rather than dropping the
+    rows (#2564).
+
+### Changed
+
+- **The continuous search's coherent depth is a fast FFT length.** `D` is
+    now rounded down to a 7-smooth length (`dp_fft_smooth_floor()`, new in
+    `fft_core.h`), because the slow-time transform's cost follows its
+    factors: at the async-DSSS design point D = 94 (2·47) cost 1.46× D = 90.
+    The rate bound's 154 now runs as 150 and 61 as 60, the bench rows renamed
+    to match: 1.15× faster at `op5M_U50k_t1` and 1.95× at `op2M_U50k_t1`,
+    where 61 is prime (#1247).
+
+- **`async-dsss-receiver.md` describes the receiver as it ships, under the
+    parallel design.** The old pool's sections (§5–§9, §11.1) retire to the
+    page as it stood. Its false and stale claims are corrected, among them
+    "nothing allocates per state change" and "measured Pfa ≈ 9e-4". No cost
+    figure is restated; the published bench rows are named instead
+    ([the page](../../docs/design/async-dsss-receiver.md), #2466).
+
+- **just-makeit pin 0.108.0 → 0.109.0: an object that lends its pointer as
+    a capsule no longer frees it under a consumer that kept it.** `Telemetry`,
+    `Frame`, `FrameDesc`, `SampleClock` and the `Composer` park their state at
+    `close()`/`destroy()` and free it with their last holder, so a
+    `set_telemetry` consumer reading after its producer closed now reads live
+    memory instead of freed memory (jm gh-2346). The pin also brings the
+    `json` property type behind `Reader.annotations`, and
+    `composer_field_keys`, which ends ~20 lines of expected warnings per
+    `jm apply` for the keys wfmgen's generator reads.
+
+### Fixed
+
+- **`AsyncDsssReceiver`'s ranked or excluded search no longer narrows its
+    near-far range with every signal on the air.** The sidelobe rule
+    compared a candidate against the sum of every stronger signal, so with
+    six emitters up a true one 10 dB below the strongest, inside the 17 dB
+    sidelobe range, was never taken while receivers sat idle. The bound is
+    now the strongest signal, plus, on a deep block, the stronger signals
+    on the candidate's own Doppler row, whose fixed sidelobes can stack. In
+    a pool, that emitter is held 96% of its air time, from 58 ms
+    (doppler#2554).
+
+- **The `AsyncDsssPool` scene's release and masking checks can now fail**
+    (before, they could not).
+    `async_dsss_pool_scene.py` checked "released after it leaves" over
+    epochs it never matched, and asserted "F waits for C" on its table
+    rather than on the run. Both now read the run, and the page states the
+    near-far limit as the design's table does (doppler#2560).
+
+- **`BerMeter.align()` holds its false-alarm probability at BPSK.** It
+    thresholded a circular null, but BPSK's is rank-one, so a 1e-6 search
+    false-aligned about 3e-3 of the time (#2496). Every record alignment in
+    the tree is unchanged. The receiver test harness's per-frame sync states
+    the 1e-3 it was running at (`DP_RX_SYNC_PFA`) and confirms only at lag 0.
+    The Barker-13 burst frame's sync miss now reads 0.836 where it read 0.845
+    ([rx-test §6](../../docs/design/rx-test.md)).
+
+- **`Dll(segments > 1)` divides its output by a slowly tracked level, not a
+    period's own noisy magnitude.** `AsyncDsssReceiver`'s error rate moves
+    from 0.89–1.00 dB to 0.65–0.89 dB off the BPSK bound, and its EVM and
+    M2M4 stop flattering it (#2495).
+
+- **The release validator's `cross-on` row watches the crossing.** Its
+    watch opened when symbol lock settled, which is after the crossing on
+    29 of 30 seeds, so #2495's Dll level moved the window rather than the
+    receiver. The row now starts at T_OFF_S with the neighbour 1.9 chips
+    away; code lock holds 20 vs 21 of 30 at the slow level against the old
+    divisor (#2513, record §12.29).
+
+- **`make warnings-check` no longer overwrites the checkout's Python
+    extensions and `wfmgen` with its clang build.** Its throwaway trees stage
+    them inside themselves, and a gate fails the target if any compiled
+    artifact under `src/` changed (#2518).
+
 ## [0.73.0] - 2026-10-19
 
 ### Added
@@ -17513,6 +17699,7 @@ ______________________________________________________________________
 [0.71.0]: https://github.com/doppler-dsp/doppler/compare/v0.70.0...v0.71.0
 [0.72.0]: https://github.com/doppler-dsp/doppler/compare/v0.71.0...v0.72.0
 [0.73.0]: https://github.com/doppler-dsp/doppler/compare/v0.72.0...v0.73.0
+[0.74.0]: https://github.com/doppler-dsp/doppler/compare/v0.73.0...v0.74.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.73.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.74.0...HEAD

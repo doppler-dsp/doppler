@@ -248,6 +248,29 @@ def test_a_relative_link_resolves_against_the_citing_file(
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
+@pytest.mark.parametrize(
+    ("link", "ok"),
+    [("docs/design/widget.md", True), ("../../docs/design/widget.md", False)],
+    ids=["from-the-root", "from-the-fragment"],
+)
+def test_a_changelog_fragment_resolves_from_the_root(
+    tmp_path: Path, link: str, ok: bool
+) -> None:
+    """A fragment is read in the root CHANGELOG.md it is assembled into.
+
+    `../../docs/...` is right from `changelog.d/fixed/` and points outside
+    the repository once assembled. v0.74.0's release commit went red on
+    every CI leg for exactly that (#2571), after the fragment's own PR had
+    passed, so the fragment's PR is where it must be caught.
+    """
+    root = _tree(tmp_path, "# Changelog\n")
+    frag = root / "changelog.d" / "fixed" / "x.md"
+    frag.parent.mkdir(parents=True)
+    frag.write_text(f"- **X.** ([widget §3.2]({link})).\n", encoding="utf-8")
+    proc = _run(root)
+    assert (proc.returncode == 0) is ok, proc.stdout + proc.stderr
+
+
 def test_a_tracked_file_anywhere_is_scanned(tmp_path: Path) -> None:
     """The scan set is git's, so no directory has to be remembered.
 

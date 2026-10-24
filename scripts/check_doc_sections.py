@@ -189,11 +189,17 @@ def resolve(
     the changelog names a page. Anything else is relative to the file doing
     the citing — the spelling `docs/design/*.md` pages use for each other,
     and the reason the markdown-link shape needs resolving at all rather
-    than a prefix match.
+    than a prefix match. The exception is a `changelog.d/` fragment, which is
+    read from the root `CHANGELOG.md` it is assembled into.
     """
     if doc.startswith("docs/"):
         return root / doc
-    return (citing.parent / doc).resolve()
+    # A changelog fragment is read where `changelog-assemble` puts it, in the
+    # root CHANGELOG.md, so its links resolve from there (#2571).
+    home = citing.parent
+    if citing.resolve().is_relative_to((root / "changelog.d").resolve()):
+        home = root
+    return (home / doc).resolve()
 
 
 def citations(

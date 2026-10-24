@@ -232,23 +232,28 @@ WriterObj_annotate (WriterObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &scene_obj))
     return NULL;
   const dp_wfm_compose_state_t *scene = NULL;
-  if (scene_obj != Py_None)
+  if (scene_obj == Py_None || scene_obj == NULL)
     {
-      PyObject *scene_cap = scene_obj;
-      Py_INCREF (scene_cap);
-      if (!PyCapsule_CheckExact (scene_cap))
-        {
-          Py_DECREF (scene_cap);
-          scene_cap = PyObject_GetAttrString (scene_obj, "_capsule");
-          if (!scene_cap)
-            return NULL;
-        }
-      scene = (const dp_wfm_compose_state_t *)PyCapsule_GetPointer (
-          scene_cap, "doppler.wfm.composer");
+      PyErr_SetString (PyExc_TypeError,
+                       "scene is required and cannot be None;"
+                       " pass the doppler.wfm.composer capsule or an object"
+                       " exposing it as ._capsule");
+      return NULL;
+    }
+  PyObject *scene_cap = scene_obj;
+  Py_INCREF (scene_cap);
+  if (!PyCapsule_CheckExact (scene_cap))
+    {
       Py_DECREF (scene_cap);
-      if (!scene)
+      scene_cap = PyObject_GetAttrString (scene_obj, "_capsule");
+      if (!scene_cap)
         return NULL;
     }
+  scene = (const dp_wfm_compose_state_t *)PyCapsule_GetPointer (
+      scene_cap, "doppler.wfm.composer");
+  Py_DECREF (scene_cap);
+  if (!scene)
+    return NULL;
   int _rc = dp_wfm_writer_annotate (self->handle, scene);
   if (_rc != 0)
     {
@@ -666,7 +671,7 @@ static PyMethodDef WriterObj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "scene : object | None\n"
+    "scene : object\n"
     "    the composer whose samples this capture holds. It is read at close,\n"
     "    so it must still be alive then: a C caller keeps it alive itself;\n"
     "    the Python binding keeps a reference for you.\n"

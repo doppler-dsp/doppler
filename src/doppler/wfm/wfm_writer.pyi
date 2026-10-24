@@ -198,7 +198,7 @@ class Writer:
 
         """
 
-    def annotate(self, scene: object | None) -> None:
+    def annotate(self, scene: object) -> None:
         """Annotate the capture with a scene's sources: the SigMF sidecar
         close() writes gets one annotation per source per instance, from the
         same builder Composer.to_sigmf() and wfmgen use, with this writer's own
@@ -222,7 +222,7 @@ class Writer:
 
         Parameters
         ----------
-        scene : object | None
+        scene : object
             the composer whose samples this capture holds. It is read at close,
             so it must still be alive then: a C caller keeps it alive itself;
             the Python binding keeps a reference for you.

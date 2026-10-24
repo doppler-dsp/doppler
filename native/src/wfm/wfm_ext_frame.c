@@ -24,7 +24,7 @@ static void
 FrameObj_dealloc (FrameObject *self)
 {
   /* gh-2187: destroy() parks the state here instead of
-     freeing it under the views this object lent; they are
+     freeing it under the capsule this object lent; it is
      gone now, so the free is now. */
   if (self->handle)
     dp_frame_destroy (self->handle);
@@ -1163,7 +1163,7 @@ FrameObj_destroy (FrameObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      /* gh-2187: the views this object lent point into the
+      /* gh-2187: the capsule this object lent points into the
          state; the free waits for tp_dealloc, and every method
          refuses from here on. */
       self->_jm_parked = self->handle;
@@ -1185,7 +1185,7 @@ FrameObj_exit (FrameObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      /* gh-2187: the views this object lent point into the
+      /* gh-2187: the capsule this object lent points into the
          state; the free waits for tp_dealloc, and every method
          refuses from here on. */
       self->_jm_parked = self->handle;

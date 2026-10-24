@@ -563,7 +563,7 @@ char * dp_wfm_reader_get_annotations (
 
 
 
-The array as cJSON re-prints it: keys and strings are the file's, but every number passes through a double, so an integer past 2^53 or a float written with more digits than a double holds comes back rounded. A capture written from a scene reads back exactly the rows `Composer.to_sigmf()` gives for it, since this library's writer prints through the same double. `"[]"` when there are none: a BLUE capture, a sidecar without the key, or a raw/CSV capture with no sidecar. A raw or CSV capture reads its annotations from the sidecar this library's writer leaves beside it, like its rate and centre frequency.
+Keys and strings are the file's. Numbers are re-printed by cJSON at 15 significant digits whenever that is within one ulp, so in a sidecar written elsewhere an integer past 2^53 comes back rounded, and a float with more than 15 significant digits can move by one ulp (and read back as an int if that lands on a whole number). A capture this library wrote reads back exactly, since its writer prints through the same cJSON: a capture written from a scene gives the rows `Composer.to_sigmf()` gives for it. `"[]"` when there are none: a BLUE capture, a sidecar without the key, or a raw/CSV capture with no sidecar. A raw or CSV capture reads its annotations from the sidecar this library's writer leaves beside it, like its rate and centre frequency.
 
 
 

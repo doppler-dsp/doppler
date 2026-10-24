@@ -61,8 +61,9 @@ struct wfm_reader_state
   size_t         scratch_cap;
   wfm_keyword_t *kw; /* decoded extended-header keywords (BLUE only) */
   /* The sidecar's `annotations` array as JSON text, re-printed by cJSON
-     (numbers through a double), or NULL when there is none: a non-SigMF
-     capture, or a sidecar without the key (doppler#2565). */
+     (numbers at 15 significant digits when within one ulp), or NULL when there
+     is none: a non-SigMF capture, or a sidecar without the key (doppler#2565).
+   */
   char  *ann;
   size_t nkw;
   /* Every field of the 512-byte HCB, decoded and carried as keyword entries

@@ -570,14 +570,17 @@ class Reader:
         """The capture's SigMF annotations: the sidecar's `annotations` array,
         one dict per row with the SigMF keys as the file has them
         (`core:sample_start`, `core:sample_count`, `core:freq_lower_edge`,
-        `core:label`, ...). Numbers pass through a double, so in a sidecar
-        written elsewhere an integer past 2**53, or a float with more digits
-        than a double holds, reads back rounded. A capture written from a scene
-        with Writer.annotate() reads back exactly the rows Composer.to_sigmf()
-        gives for it. An empty list when there are none: a BLUE capture, a
-        sidecar without the key, or a raw/CSV capture with no sidecar. A raw or
-        CSV capture reads them from the sidecar this library's writer leaves
-        beside it.
+        `core:label`, ...). Keys and strings are the file's. Numbers are
+        re-printed by cJSON at 15 significant digits whenever that is within
+        one ulp, so in a sidecar written elsewhere an integer past 2**53 comes
+        back rounded, and a float with more than 15 significant digits can move
+        by one ulp (and read back as an int if that lands on a whole number). A
+        capture this library wrote reads back exactly, since its writer prints
+        through the same cJSON: one written from a scene with Writer.annotate()
+        gives the rows Composer.to_sigmf() gives for it. An empty list when
+        there are none: a BLUE capture, a sidecar without the key, or a raw/CSV
+        capture with no sidecar. A raw or CSV capture reads them from the
+        sidecar this library's writer leaves beside it.
         """
 
     @property

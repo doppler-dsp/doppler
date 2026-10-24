@@ -116,6 +116,7 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 | define  | [**DP\_BUFFER\_UNUSED**](buffer_8h.md#define-dp_buffer_unused)  <br> |
 | define  | [**DP\_CACHELINE**](buffer_8h.md#define-dp_cacheline)  `64`<br>_Standard x86-64 cache-line size (64 bytes)._  |
 | define  | [**DP\_FRAMER\_STATE\_MAGIC**](buffer_8h.md#define-dp_framer_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F', 'R', 'M', 'R')`<br>_FourCC of a framer snapshot (see dp\_&lt;name&gt;\_framer\_state\_bytes)._  |
+| define  | [**DP\_FRAMER\_STATE\_VERSION**](buffer_8h.md#define-dp_framer_state_version)  `1u`<br>_Layout version of a framer snapshot._  |
 | define  | [**DP\_FRAMER\_STATE\_WRITTEN\_OFFSET**](buffer_8h.md#define-dp_framer_state_written_offset) (sample\_t, frame\_n) `/* multi line expression */`<br>_Byte offset of the_ `written` _counter in a framer snapshot._ |
 | define  | [**DP\_SPIN\_HINT**](buffer_8h.md#define-dp_spin_hint) () `((void)0)`<br> |
 
@@ -584,6 +585,20 @@ _Standard x86-64 cache-line size (64 bytes)._
 _FourCC of a framer snapshot (see dp\_&lt;name&gt;\_framer\_state\_bytes)._ 
 ```C++
 #define DP_FRAMER_STATE_MAGIC `DP_FOURCC ('F', 'R', 'M', 'R')`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_FRAMER\_STATE\_VERSION 
+
+_Layout version of a framer snapshot._ 
+```C++
+#define DP_FRAMER_STATE_VERSION `1u`
 ```
 
 

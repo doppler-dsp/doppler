@@ -142,7 +142,11 @@ extern "C"
 #define ASYNC_DSSS_POOL_NO_RECEIVER (-1)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC   DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 2u
+/* v4, not 3: 'ADPL' v3 was the cell-receiver pool this one replaced
+ * (v0.48.0 - v0.73.0), and v0.74.0 shipped this pool as v2. Each version
+ * of a magic names one layout, so this pool steps past every number the
+ * magic has carried (#2569; scripts/check_state_versions.py). */
+#define ASYNC_DSSS_POOL_STATE_VERSION 4u
 
   /** The ghost rule's window, s: the trailing span both its tests read
    *  (doppler#2529). */

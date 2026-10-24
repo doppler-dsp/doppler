@@ -135,7 +135,7 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 | define  | [**ASYNC\_DSSS\_POOL\_MAX\_RECEIVERS**](async__dsss__pool__core_8h.md#define-async_dsss_pool_max_receivers)  `[**ASYNC\_DSSS\_RX\_MAX\_PEAKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_peaks)`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_NO\_RECEIVER**](async__dsss__pool__core_8h.md#define-async_dsss_pool_no_receiver)  `(-1)`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_STATE\_MAGIC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'P', 'L')`<br> |
-| define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `2u`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `4u`<br> |
 
 ## Detailed Description
 
@@ -945,7 +945,7 @@ Most receivers a pool runs: one rank per peak a dwell reports ([**ASYNC\_DSSS\_R
 ### define ASYNC\_DSSS\_POOL\_STATE\_VERSION 
 
 ```C++
-#define ASYNC_DSSS_POOL_STATE_VERSION `2u`
+#define ASYNC_DSSS_POOL_STATE_VERSION `4u`
 ```
 
 

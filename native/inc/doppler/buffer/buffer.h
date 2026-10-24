@@ -1117,6 +1117,8 @@ typedef enum
 
 /** @brief FourCC of a framer snapshot (see dp_<name>_framer_state_bytes). */
 #define DP_FRAMER_STATE_MAGIC DP_FOURCC ('F', 'R', 'M', 'R')
+/** @brief Layout version of a framer snapshot. */
+#define DP_FRAMER_STATE_VERSION 1u
 
 /**
  * @brief Byte offset of the @c written counter in a framer snapshot.
@@ -1561,7 +1563,7 @@ typedef enum
         memset (blob, 0, total);                                              \
         return;                                                               \
       }                                                                       \
-    DP_GET_OPEN (DP_FRAMER_STATE_MAGIC, 1u, total);                           \
+    DP_GET_OPEN (DP_FRAMER_STATE_MAGIC, DP_FRAMER_STATE_VERSION, total);      \
     size_t t = DP_LOAD_RLX (&fr->ring->tail) + fr->owed;                      \
     size_t live = dp_##name##_available (fr->ring) - fr->owed;                \
     dp_w_u64 (&_w, live);                                                     \
@@ -1586,7 +1588,7 @@ typedef enum
                                    uint64_t *frames)                          \
   {                                                                           \
     size_t want = dp_##name##_framer_state_bytes (fr);                        \
-    DP_SET_OPEN (DP_FRAMER_STATE_MAGIC, 1u, want);                            \
+    DP_SET_OPEN (DP_FRAMER_STATE_MAGIC, DP_FRAMER_STATE_VERSION, want);       \
     *live = dp_r_u64 (&_r);                                                   \
     uint64_t elem_bytes = dp_r_u64 (&_r);                                     \
     *src = dp_r_reserve (&_r, (fr->frame_n - 1) * 2 * sizeof (type));         \

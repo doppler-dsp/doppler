@@ -420,7 +420,7 @@ The rows come from the same builder `wfmgen` and `Composer.to_sigmf()` use ([**d
 
 
 * `state` a writer opened by path that writes a sidecar: `sigmf`, or `raw`/`csv` with its SigMF-shaped sidecar. 
-* `scene` the composer whose samples this capture holds; BORROWED, and it must outlive the writer's close. 
+* `scene` the composer whose samples this capture holds. It is read at close, so it must still be alive then: a C caller keeps it alive itself; the Python binding keeps a reference for you. 
 
 
 

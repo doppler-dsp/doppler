@@ -223,8 +223,9 @@ class Writer:
         Parameters
         ----------
         scene : object | None
-            the composer whose samples this capture holds; BORROWED, and it
-            must outlive the writer's close.
+            the composer whose samples this capture holds. It is read at close,
+            so it must still be alive then: a C caller keeps it alive itself;
+            the Python binding keeps a reference for you.
 
         Raises
         ------

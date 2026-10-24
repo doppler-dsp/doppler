@@ -362,9 +362,12 @@ size_t dp_wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
  * @brief The capture's SigMF annotations, as the JSON text of the sidecar's
  *        `annotations` array (doppler#2565).
  *
- * The array exactly as the file has it, keys and values untouched, so a
- * capture written from a scene reads back the rows `Composer.to_sigmf()`
- * gives for it. `"[]"` when there are none: a BLUE capture, a sidecar
+ * The array as cJSON re-prints it: keys and strings are the file's, but
+ * every number passes through a double, so an integer past 2^53 or a float
+ * written with more digits than a double holds comes back rounded. A capture
+ * written from a scene reads back exactly the rows `Composer.to_sigmf()`
+ * gives for it, since this library's writer prints through the same double.
+ * `"[]"` when there are none: a BLUE capture, a sidecar
  * without the key, or a raw/CSV capture with no sidecar. A raw or CSV
  * capture reads its annotations from the sidecar this library's writer
  * leaves beside it, like its rate and centre frequency.

@@ -173,8 +173,9 @@ int dp_wfm_writer_add_keyword(dp_wfm_writer_state_t *w, const char *tag, char ty
  *
  * @param state a writer opened by path that writes a sidecar: `sigmf`, or
  *              `raw`/`csv` with its SigMF-shaped sidecar.
- * @param scene the composer whose samples this capture holds; BORROWED, and
- *              it must outlive the writer's close.
+ * @param scene the composer whose samples this capture holds. It is read at
+ *              close, so it must still be alive then: a C caller keeps it
+ *              alive itself; the Python binding keeps a reference for you.
  * @return DP_OK, or DP_ERR_INVALID for a NULL argument, a BLUE writer (its
  *         header has no annotations) or a writer with no sidecar (opened on
  *         a FILE*, or with the sidecar turned off).

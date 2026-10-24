@@ -1314,13 +1314,16 @@ static PyGetSetDef Reader_getset[] = {
     NULL },
   { "annotations", (getter)Reader_getprop_annotations, NULL,
     "The capture's SigMF annotations: the sidecar's `annotations` array, one "
-    "dict per row with the SigMF keys exactly as the file has them "
+    "dict per row with the SigMF keys as the file has them "
     "(`core:sample_start`, `core:sample_count`, `core:freq_lower_edge`, "
-    "`core:label`, ...). A capture written from a scene with "
-    "Writer.annotate() reads back the rows Composer.to_sigmf() gives for it. "
-    "An empty list when there are none: a BLUE capture, a sidecar without the "
-    "key, or a raw/CSV capture with no sidecar. A raw or CSV capture reads "
-    "them from the sidecar this library's writer leaves beside it.\n",
+    "`core:label`, ...). Numbers pass through a double, so in a sidecar "
+    "written elsewhere an integer past 2**53, or a float with more digits "
+    "than a double holds, reads back rounded. A capture written from a scene "
+    "with Writer.annotate() reads back exactly the rows Composer.to_sigmf() "
+    "gives for it. An empty list when there are none: a BLUE capture, a "
+    "sidecar without the key, or a raw/CSV capture with no sidecar. A raw or "
+    "CSV capture reads them from the sidecar this library's writer leaves "
+    "beside it.\n",
     NULL },
   { "keywords", (getter)Reader_getprop_keywords, NULL,
     "The BLUE extended header as a {tag: value} dict, in file order; empty "

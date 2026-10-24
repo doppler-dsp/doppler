@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -55,6 +56,22 @@ ROOT = Path(__file__).resolve().parent.parent
 #: contributor (or an agent) is told to follow, so a stale path there
 #: misleads the same way.
 ROOT_PAGES = ("CONTRIBUTING.md", "CLAUDE.md")
+
+#: Changelog text, whose LINKS are judged from the repository root -- where
+#: `CHANGELOG.md` lives, and so where a `changelog.d/` fragment's text ends
+#: up: `changelog-assemble` moves it there verbatim. A link spelled from the
+#: fragment's own directory (`../../docs/...`) is right in the fragment's PR
+#: and points outside the repository once assembled, so it is refused at the
+#: fragment (#2571, found cutting v0.74.0). Code-span paths are NOT checked
+#: here: a released entry names files that have since been deleted, and that
+#: is history, not a defect.
+CHANGELOG_PAGES = ("CHANGELOG.md", "changelog.d/*/*.md")
+
+#: `CHANGELOG.md` links that already pointed nowhere when this check was
+#: added, one target per line. Released entries are a record and are not
+#: rewritten, so the list may only SHRINK: a listed target that no longer
+#: occurs is itself a failure, and a new broken link is not on it.
+CHANGELOG_EXEMPT = Path("scripts") / ".changelog-link-exempt"
 
 #: Where prose lives. Headers are included deliberately -- see above.
 SOURCES = (
@@ -137,6 +154,56 @@ def _paragraph_around(text: str, pos: int) -> str:
     return text[start : end if end != -1 else len(text)]
 
 
+def _changelog_links(failures: list[str], root: Path = ROOT) -> int:
+    """Check changelog links from the root; return how many were read.
+
+    `CHANGELOG.md`'s pre-existing broken links are matched against
+    CHANGELOG_EXEMPT as a multiset, so a second copy of an exempt target is
+    still a finding, and a listed target that is gone is a stale entry.
+    """
+    exempt = Counter(
+        line.strip()
+        for line in (root / CHANGELOG_EXEMPT)
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip() and not line.startswith("#")
+    )
+    broken: Counter[str] = Counter()
+    checked = 0
+    for pat in CHANGELOG_PAGES:
+        for src in sorted(root.glob(pat)):
+            rel = src.relative_to(root).as_posix()
+            if rel == "changelog.d/README.md":
+                continue
+            text = src.read_text(encoding="utf-8")
+            for m in _LINK.finditer(text):
+                checked += 1
+                target = m.group(1)
+                if (root / target).exists():
+                    continue
+                if rel == "CHANGELOG.md":
+                    broken[target] += 1
+                    continue
+                failures.append(
+                    f"{rel}: links to `{target}`, which does not exist from "
+                    "the repository root. The fragment is assembled into "
+                    "CHANGELOG.md there, so spell the link from the root "
+                    "(`docs/...`), not from changelog.d/."
+                )
+    for target, n in sorted((broken - exempt).items()):
+        failures.append(
+            f"CHANGELOG.md: links to `{target}` ({n}x), which does not exist "
+            "from the repository root."
+        )
+    for target in sorted(exempt - broken):
+        failures.append(
+            f"{CHANGELOG_EXEMPT.as_posix()}: `{target}` no longer "
+            "occurs as a broken link; delete the line (the list only "
+            "shrinks)."
+        )
+    return checked
+
+
 def main() -> int:
     failures: list[str] = []
     checked = 0
@@ -172,6 +239,8 @@ def main() -> int:
             failures.append(
                 f"{rel}: links to `{m.group(1)}`, which does not exist."
             )
+
+    checked += _changelog_links(failures)
 
     if failures:
         print("check_doc_paths: FAIL\n", file=sys.stderr)

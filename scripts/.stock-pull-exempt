@@ -1,12 +1,16 @@
 # Container builds no stock-pull.sh pre-pull can reach (doppler#1982).
 # Read by scripts/check_stock_images.py (make lint-stock-images, #1979).
 #
-# Each of these runs `docker/setup-buildx-action`, whose docker-container
-# driver runs BuildKit in its own container: it resolves and pulls the FROMs
-# there, so an image pulled into the runner's daemon is never consulted, and
-# BuildKit does not retry a 429. They run at release time and on CI-image
-# rebuilds, not on every PR; a `toomanyrequests` there is re-run by hand
-# (docs/dev/release.md).
+# A build that runs `docker/setup-buildx-action` uses the docker-container
+# driver, which runs BuildKit in its own container: it resolves and pulls the
+# FROMs there, so an image pulled into the runner's daemon is never
+# consulted, and BuildKit does not retry a 429.
+#
+# EMPTY since #1982, and meant to stay so. Every such build here now pulls
+# from a registry a probe chose under retry: release.yml's images through
+# `make stock-registry` (#2572), the CI-image rebuild through canonical's
+# `make ci-image-base` (just-buildit.github.io#139). A new one is wired the
+# same way, not listed here.
 #
 # One site per line: the workflow, then the Dockerfile (with `:target` when
 # the step builds one), then why. This list may only SHRINK: the gate fails
@@ -14,4 +18,3 @@
 # container-driver build that is not listed, and on an entry the list did
 # not have at the merge base with origin/main, so listing a new build is
 # not a way in. Fix the build instead (#1982).
-.github/workflows/ci-image.yml docker/ci.Dockerfile CI-image rebuild; FROM ${BASE} is CI_BASE_<key>

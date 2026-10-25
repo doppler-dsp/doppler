@@ -1505,12 +1505,22 @@ endif
 #   CI_IMAGE_CI_WORKFLOW   the workflow a repin dispatches, since a push or PR
 #                          made with GITHUB_TOKEN starts none
 #   CI_IMAGE_USER          the uid ci-shell runs as (the runner's is 1001)
+#   CI_IMAGE_BASE_REGISTRY where an official base is fetched from, e.g.
+#                          public.ecr.aws/docker/library; empty: Docker Hub,
+#                          as named, with no retry (the old behaviour)
+#   CI_IMAGE_BASE_MIRROR   where it is fetched from when that registry stays
+#                          unreachable (rate limit, quota), e.g.
+#                          mirror.gcr.io/library; empty: no fallback
+#
+# The pin names each base registry-free (`ubuntu:24.04@sha256:...`): a
+# digest is the same image on every registry carrying it, so setting or
+# changing either registry owes no repin.
 #
 # The project's own extras -- a tool no package manager has -- go in an
 # optional docker/ci-extra.sh, whose --fingerprint lines join the fingerprint.
 ifeq ($(HAS_CI_IMAGE),1)
 STD_TARGETS += ci-image-config ci-image-check ci-image-build ci-image-smoke \
-               ci-shell
+               ci-image-base ci-shell
 
 CI_IMAGE_REPO         ?=
 CI_IMAGE_BASES        ?= ubuntu:24.04
@@ -1519,6 +1529,8 @@ CI_IMAGE_SMOKE_TARGET ?=
 CI_IMAGE_LANDING      ?= pr
 CI_IMAGE_CI_WORKFLOW  ?= ci.yml
 CI_IMAGE_USER         ?= 1001
+CI_IMAGE_BASE_REGISTRY ?=
+CI_IMAGE_BASE_MIRROR   ?=
 CI_IMAGE_PIN          := .github/ci-images.env
 VENDORED_FILES        += scripts/ci-image.py docker/ci.Dockerfile \
                          .github/workflows/ci-image.yml
@@ -1526,7 +1538,9 @@ VENDORED_FILES        += scripts/ci-image.py docker/ci.Dockerfile \
 
 $(call _std_require,CI_IMAGE_REPO,HAS_CI_IMAGE)
 
-_std_ci_image = CI_IMAGE_BASES='$(CI_IMAGE_BASES)' python3 scripts/ci-image.py
+_std_ci_image = CI_IMAGE_BASES='$(CI_IMAGE_BASES)' \
+    CI_IMAGE_BASE_REGISTRY='$(CI_IMAGE_BASE_REGISTRY)' \
+    CI_IMAGE_BASE_MIRROR='$(CI_IMAGE_BASE_MIRROR)' python3 scripts/ci-image.py
 
 # Offline: the pin is complete, well formed, and built from this tree's
 # image sources. So it hangs off `lint` -- a PR that edits the Dockerfile,
@@ -1541,6 +1555,8 @@ ci-image-config: ## Print the CI image settings as KEY=VALUE (plumbing)
 	@printf '%s\n' 'repo=$(CI_IMAGE_REPO)' 'bases=$(CI_IMAGE_BASES)' \
 	    'groups=$(CI_IMAGE_GROUPS)' 'smoke=$(CI_IMAGE_SMOKE_TARGET)' \
 	    'landing=$(CI_IMAGE_LANDING)' 'ci_workflow=$(CI_IMAGE_CI_WORKFLOW)' \
+	    'base_registry=$(CI_IMAGE_BASE_REGISTRY)' \
+	    'base_mirror=$(CI_IMAGE_BASE_MIRROR)' \
 	    $(if $(filter 1,$(HAS_PACKAGER_IMAGE)),'packager=1' \
 	      'packager_repo=$(PACKAGER_IMAGE_REPO)' \
 	      'packager_base_amd64=$(PACKAGER_IMAGE_BASE_AMD64)' \
@@ -1553,13 +1569,22 @@ ci-image-build: ## [BASE=<image>] Build a CI image locally from the pinned input
 	@base='$(or $(BASE),$(firstword $(CI_IMAGE_BASES)))'; \
 	 k=$$($(_std_ci_image) key "$$base"); \
 	 eval "$$($(_std_ci_image) inputs)"; \
-	 ref=$$(eval echo "\$$CI_BASE_$$k"); \
+	 ref=$$($(_std_ci_image) source "$$(eval echo "\$$CI_BASE_$$k")"); \
 	 docker buildx build --load -f docker/ci.Dockerfile \
 	   --build-arg BASE="$$ref" --build-arg APT_SNAPSHOT="$$CI_APT_SNAPSHOT" \
 	   --build-arg JB_VERSION="$$CI_JB_VERSION" \
 	   --build-arg JB_SHA256="$$CI_JB_SHA256" \
 	   --build-arg CI_IMAGE_GROUPS='$(CI_IMAGE_GROUPS)' \
 	   -t "ci-image:$$k" .
+
+# Where the build fetches a pinned base from: the base itself, or under
+# CI_IMAGE_BASE_REGISTRY, or CI_IMAGE_BASE_MIRROR when the registry stays
+# unreachable. A probe of the manifest under retry, pulling nothing: a buildx
+# docker-container build pulls its FROM inside BuildKit, where nothing
+# retries it, so the workflow asks here first and builds from the answer.
+ci-image-base: ## REF=<pinned base> Print where to fetch a pinned base from
+	@test -n '$(REF)' || { echo "usage: make ci-image-base REF=<base@digest>"; exit 1; }
+	@$(_std_ci_image) source '$(REF)'
 
 # Run INSIDE an image (IMAGE=<ref>), as CI_IMAGE_USER, on this checkout.
 ci-image-smoke: ## IMAGE=<ref> Run CI_IMAGE_SMOKE_TARGET inside an image
@@ -1827,7 +1852,7 @@ _STD_SECTION = case "$$t" in \
     changelog-check|changelog-sections-check|changelog-assemble \
         |changelog-assembled-check|changelog-version-check) tsec="Changelog";; \
     test-examples) tsec="Examples";; \
-    ci-image-config|ci-image-check|ci-image-build|ci-image-smoke|ci-shell) \
+    ci-image-config|ci-image-check|ci-image-build|ci-image-smoke|ci-image-base|ci-shell) \
         tsec="CI-image";; \
     packager-image-check|packager-image-build|packager-image-smoke) tsec="Packager-image";; \
     standard-check|standard-update|standard-files|help-check|ghost-check|hook-dispatch-check|hook-stage-check|tracked-paths-check|workflow-timeout-check|workflow-dispatch-check|close-keywords-check) \

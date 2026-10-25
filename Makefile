@@ -61,6 +61,14 @@ CI_IMAGE_BASES        = ubuntu:22.04 ubuntu:24.04
 CI_IMAGE_GROUPS       = dev docs clang-rt
 CI_IMAGE_LANDING      = branch
 CI_IMAGE_SMOKE_TARGET = build
+# The CI-image rebuild fetches each pinned base the way every other stock pull
+# here does: through STOCK_REGISTRY, retried, falling back to STOCK_MIRROR. It
+# builds on buildx's container driver, which pulls its FROM inside BuildKit
+# where nothing retries a 429, so canonical's ci-image-base probes the
+# manifest first and the build pulls from the registry that answered
+# (#1982). The pin stays registry-free: a digest is the same image on both.
+CI_IMAGE_BASE_REGISTRY = $(STOCK_REGISTRY)
+CI_IMAGE_BASE_MIRROR   = $(STOCK_MIRROR)
 # The packager image: rpm-build baked into a manylinux_2_28 base, so the
 # package build never reaches a distro mirror at CI time (#2544). Its bases
 # are canonical's defaults; its package list is bootstrap.toml's [packager.dnf].

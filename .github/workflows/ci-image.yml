@@ -117,6 +117,11 @@ jobs:
           make -s ci-image-config >> "$GITHUB_OUTPUT"
           bases=$(make -s ci-image-config | sed -n 's/^bases=//p')
           export CI_IMAGE_BASES="$bases"
+          # Where a refresh reads each base's digest from (#139); empty is
+          # Docker Hub, as before.
+          CI_IMAGE_BASE_REGISTRY=$(make -s ci-image-config | sed -n 's/^base_registry=//p')
+          CI_IMAGE_BASE_MIRROR=$(make -s ci-image-config | sed -n 's/^base_mirror=//p')
+          export CI_IMAGE_BASE_REGISTRY CI_IMAGE_BASE_MIRROR
           # The packager is on only when the Makefile says so: then its per-arch
           # bases join the inputs, and its two arches join the matrix below.
           pk=$(make -s ci-image-config | sed -n 's/^packager=//p')
@@ -194,7 +199,11 @@ jobs:
         run: |
           set -euo pipefail
           . ./inputs.env
-          base_ref=$(eval echo "\$CI_BASE_$KEY")
+          # The pinned base, fetched from the registry that answers a
+          # manifest probe under retry (CI_IMAGE_BASE_REGISTRY, else its
+          # mirror): this build pulls inside BuildKit's own container, where
+          # nothing retries a rate limit (#139, doppler-dsp/doppler#1982).
+          base_ref=$(make -s ci-image-base REF="$(eval echo "\$CI_BASE_$KEY")")
           img="$REPO:$KEY-$TAG-$ARCH"
           # --provenance/--sbom off: the index the publish job builds must
           # name exactly the platform images, so a pinned digest resolves to

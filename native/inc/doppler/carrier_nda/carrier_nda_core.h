@@ -585,8 +585,8 @@ extern "C"
    * Full lockdet control, mirroring dp_costas_configure_lock(): a split
    * declare/drop threshold pair on the lock-signal EMA (level hysteresis)
    * and both verify counts (time hysteresis). Defaults (0.5/0.4, 64 up /
-   * 32 down) start from MpskReceiver's own pre-existing acquisition<->
-   * tracking handover thresholds, but size n_up independently: `lock` is
+   * 32 down) start from MpskReceiver's own carrier lock-indicator
+   * thresholds, but size n_up independently: `lock` is
    * a fast per-sample EMA, so consecutive looks are highly autocorrelated
    * and MpskReceiver's own n_up=8 does not compound the false-declare
    * rate the way it would for independent looks (direct Monte Carlo

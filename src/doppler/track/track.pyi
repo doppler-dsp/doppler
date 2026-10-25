@@ -3126,16 +3126,15 @@ class CarrierNda:
         Full lockdet control, mirroring dp_costas_configure_lock(): a split
         declare/drop threshold pair on the lock-signal EMA (level hysteresis)
         and both verify counts (time hysteresis). Defaults (0.5/0.4, 64 up / 32
-        down) start from MpskReceiver's own pre-existing acquisition<->
-        tracking handover thresholds, but size n_up independently: `lock` is a
-        fast per-sample EMA, so consecutive looks are highly autocorrelated and
-        MpskReceiver's own n_up=8 does not compound the false-declare rate the
-        way it would for independent looks (direct Monte Carlo against a
-        noise-only, no-carrier input found real false locks at n_up=8; n_up=64
-        was the smallest verify count that reliably eliminated them -- see
-        carrier_nda_core.c's CARRIER_NDA_LOCK_DEFAULT_* comment for the exact
-        trial data). A live lock survives the re-tune; the in-flight verify run
-        restarts.
+        down) start from MpskReceiver's own carrier lock-indicator thresholds,
+        but size n_up independently: `lock` is a fast per-sample EMA, so
+        consecutive looks are highly autocorrelated and MpskReceiver's own
+        n_up=8 does not compound the false-declare rate the way it would for
+        independent looks (direct Monte Carlo against a noise-only, no-carrier
+        input found real false locks at n_up=8; n_up=64 was the smallest verify
+        count that reliably eliminated them -- see carrier_nda_core.c's
+        CARRIER_NDA_LOCK_DEFAULT_* comment for the exact trial data). A live
+        lock survives the re-tune; the in-flight verify run restarts.
 
         Parameters
         ----------
@@ -3852,9 +3851,10 @@ class MpskReceiver:
 
     @property
     def lock_thresh(self) -> float:
-        """Handover declare threshold actually in use. Reads back the DERIVED
-        `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was
-        given 0. See `zeta` for why every derived value is reported.
+        """Carrier lock-indicator declare threshold actually in use. Reads back
+        the DERIVED `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the
+        constructor was given 0. See `zeta` for why every derived value is
+        reported.
         """
 
     @property
@@ -4432,9 +4432,10 @@ class BpskReceiver:
 
     @property
     def lock_thresh(self) -> float:
-        """Handover declare threshold actually in use. Reads back the DERIVED
-        `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was
-        given 0. See `zeta` for why every derived value is reported.
+        """Carrier lock-indicator declare threshold actually in use. Reads back
+        the DERIVED `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the
+        constructor was given 0. See `zeta` for why every derived value is
+        reported.
         """
 
     @property
@@ -5107,9 +5108,10 @@ class MpskReceiverR:
 
     @property
     def lock_thresh(self) -> float:
-        """Handover declare threshold actually in use. Reads back the DERIVED
-        `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was
-        given 0. See `zeta` for why every derived value is reported.
+        """Carrier lock-indicator declare threshold actually in use. Reads back
+        the DERIVED `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the
+        constructor was given 0. See `zeta` for why every derived value is
+        reported.
         """
 
     @property

@@ -847,9 +847,10 @@ static PyGetSetDef MpskReceiverR_getset[] = {
     "reported.\n",
     NULL },
   { "lock_thresh", (getter)MpskReceiverR_getprop_lock_thresh, NULL,
-    "Handover declare threshold actually in use. Reads back the DERIVED "
-    "`sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was "
-    "given 0. See `zeta` for why every derived value is reported.\n",
+    "Carrier lock-indicator declare threshold actually in use. Reads back the "
+    "DERIVED `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the "
+    "constructor was given 0. See `zeta` for why every derived value is "
+    "reported.\n",
     NULL },
   { "lock_drop_thresh", (getter)MpskReceiverR_getprop_lock_drop_thresh, NULL,
     "Carrier DROP threshold actually in use -- 0.8x `lock_thresh`, the level "

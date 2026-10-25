@@ -4,6 +4,9 @@ import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray
 
+PSD_WINDOW: dict[int, str]
+SPECTROGRAM_MODE: dict[int, str]
+
 @final
 class FFT:
     """Allocate a reusable 1-D FFT engine for a fixed length and sign. Two

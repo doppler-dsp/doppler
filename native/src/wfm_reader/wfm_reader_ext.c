@@ -213,8 +213,145 @@ PyInit_wfm_reader (void)
       Py_DECREF (&ReaderObjType);
       Py_DECREF (m);
       return NULL;
-    } /* gh-1117: adopt dp_interrupt_guard's process-global state from its
-         owner. */
+    }
+  { /* gh-2344: [[enum]] follow_end -> FOLLOW_END */
+    PyObject *_e = PyTuple_New (4);
+    for (Py_ssize_t _i = 0; _e && _i < 4; _i++)
+      {
+        PyObject *_s = PyUnicode_FromString (_enum_Reader_follow_end[_i]);
+        if (_s)
+          PyTuple_SET_ITEM (_e, _i, _s);
+        else
+          Py_CLEAR (_e);
+      }
+    if (!_e || PyModule_AddObject (m, "FOLLOW_END", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  { /* gh-2344: [[enum]] ftype -> FTYPE */
+    PyObject *_e = PyTuple_New (4);
+    for (Py_ssize_t _i = 0; _e && _i < 4; _i++)
+      {
+        PyObject *_s = PyUnicode_FromString (_enum_Reader_ftype[_i]);
+        if (_s)
+          PyTuple_SET_ITEM (_e, _i, _s);
+        else
+          Py_CLEAR (_e);
+      }
+    if (!_e || PyModule_AddObject (m, "FTYPE", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  { /* gh-2344: [[enum]] stype -> STYPE */
+    PyObject *_e = PyTuple_New (10);
+    for (Py_ssize_t _i = 0; _e && _i < 10; _i++)
+      {
+        PyObject *_s = PyUnicode_FromString (_enum_Reader_stype[_i]);
+        if (_s)
+          PyTuple_SET_ITEM (_e, _i, _s);
+        else
+          Py_CLEAR (_e);
+      }
+    if (!_e || PyModule_AddObject (m, "STYPE", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  { /* gh-2344: [[enum]] sample_mode -> SAMPLE_MODE */
+    PyObject *_e = PyTuple_New (2);
+    for (Py_ssize_t _i = 0; _e && _i < 2; _i++)
+      {
+        PyObject *_s = PyUnicode_FromString (_enum_Reader_sample_mode[_i]);
+        if (_s)
+          PyTuple_SET_ITEM (_e, _i, _s);
+        else
+          Py_CLEAR (_e);
+      }
+    if (!_e || PyModule_AddObject (m, "SAMPLE_MODE", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  { /* gh-2344: [[enum]] endian -> ENDIAN */
+    PyObject *_e = PyTuple_New (2);
+    for (Py_ssize_t _i = 0; _e && _i < 2; _i++)
+      {
+        PyObject *_s = PyUnicode_FromString (_enum_Reader_endian[_i]);
+        if (_s)
+          PyTuple_SET_ITEM (_e, _i, _s);
+        else
+          Py_CLEAR (_e);
+      }
+    if (!_e || PyModule_AddObject (m, "ENDIAN", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  { /* gh-2344: [[enum]] fs_source -> FS_SOURCE */
+    PyObject *_e = PyTuple_New (3);
+    for (Py_ssize_t _i = 0; _e && _i < 3; _i++)
+      {
+        PyObject *_s = PyUnicode_FromString (_enum_Reader_fs_source[_i]);
+        if (_s)
+          PyTuple_SET_ITEM (_e, _i, _s);
+        else
+          Py_CLEAR (_e);
+      }
+    if (!_e || PyModule_AddObject (m, "FS_SOURCE", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  { /* gh-2344: [[enum]] t0_source -> T0_SOURCE */
+    PyObject *_e = PyTuple_New (3);
+    for (Py_ssize_t _i = 0; _e && _i < 3; _i++)
+      {
+        PyObject *_s = PyUnicode_FromString (_enum_Reader_t0_source[_i]);
+        if (_s)
+          PyTuple_SET_ITEM (_e, _i, _s);
+        else
+          Py_CLEAR (_e);
+      }
+    if (!_e || PyModule_AddObject (m, "T0_SOURCE", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  { /* gh-2344: [[enum]] fc_source -> FC_SOURCE */
+    PyObject *_e = PyTuple_New (6);
+    for (Py_ssize_t _i = 0; _e && _i < 6; _i++)
+      {
+        PyObject *_s = PyUnicode_FromString (_enum_Reader_fc_source[_i]);
+        if (_s)
+          PyTuple_SET_ITEM (_e, _i, _s);
+        else
+          Py_CLEAR (_e);
+      }
+    if (!_e || PyModule_AddObject (m, "FC_SOURCE", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  /* gh-1117: adopt dp_interrupt_guard's process-global state from its owner.
+   */
   {
     void     *dp_interrupt_guard_state_ptr (void);
     void      dp_interrupt_guard_state_adopt (void *shared);

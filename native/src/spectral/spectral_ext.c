@@ -911,8 +911,47 @@ PyInit_spectral (void)
       Py_DECREF (&SpectrogramObjType);
       Py_DECREF (m);
       return NULL;
-    } /* gh-1117: adopt dp_interrupt_guard's process-global state from its
-         owner. */
+    }
+  { /* gh-2344: [[enum]] psd_window -> PSD_WINDOW */
+    PyObject *_e = PyDict_New ();
+    for (Py_ssize_t _i = 0; _e && _i < 4; _i++)
+      {
+        PyObject *_k = PyLong_FromLong (_enum_Spectrogram_psd_window_c[_i]);
+        PyObject *_v = PyUnicode_FromString (_enum_Spectrogram_psd_window[_i]);
+        if (!_k || !_v || PyDict_SetItem (_e, _k, _v) < 0)
+          Py_CLEAR (_e);
+        Py_XDECREF (_k);
+        Py_XDECREF (_v);
+      }
+    if (!_e || PyModule_AddObject (m, "PSD_WINDOW", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  { /* gh-2344: [[enum]] spectrogram_mode -> SPECTROGRAM_MODE */
+    PyObject *_e = PyDict_New ();
+    for (Py_ssize_t _i = 0; _e && _i < 2; _i++)
+      {
+        PyObject *_k
+            = PyLong_FromLong (_enum_Spectrogram_spectrogram_mode_c[_i]);
+        PyObject *_v
+            = PyUnicode_FromString (_enum_Spectrogram_spectrogram_mode[_i]);
+        if (!_k || !_v || PyDict_SetItem (_e, _k, _v) < 0)
+          Py_CLEAR (_e);
+        Py_XDECREF (_k);
+        Py_XDECREF (_v);
+      }
+    if (!_e || PyModule_AddObject (m, "SPECTROGRAM_MODE", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  /* gh-1117: adopt dp_interrupt_guard's process-global state from its owner.
+   */
   {
     void     *dp_interrupt_guard_state_ptr (void);
     void      dp_interrupt_guard_state_adopt (void *shared);

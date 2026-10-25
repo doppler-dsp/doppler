@@ -5,6 +5,15 @@ import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray
 
+FOLLOW_END: tuple[str, ...]
+FTYPE: tuple[str, ...]
+STYPE: tuple[str, ...]
+SAMPLE_MODE: tuple[str, ...]
+ENDIAN: tuple[str, ...]
+FS_SOURCE: tuple[str, ...]
+T0_SOURCE: tuple[str, ...]
+FC_SOURCE: tuple[str, ...]
+
 @final
 class Reader:
     """Open a capture, auto-detecting its file type from its content.

@@ -262,11 +262,9 @@ WriterObj_annotate (WriterObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   /* retain: the kernel keeps `scene`, so this object keeps its owner
-     until the next call replaces it or None detaches it. */
-  if (scene_obj != Py_None)
-    Py_INCREF (scene_obj);
-  Py_XSETREF (self->_jm_retain_annotate_scene,
-              scene_obj != Py_None ? scene_obj : NULL);
+     until the next call replaces it. */
+  Py_INCREF (scene_obj);
+  Py_XSETREF (self->_jm_retain_annotate_scene, scene_obj);
   Py_RETURN_NONE;
 }
 

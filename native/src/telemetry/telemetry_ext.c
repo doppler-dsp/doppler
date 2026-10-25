@@ -273,8 +273,43 @@ PyInit_telemetry (void)
       Py_DECREF (&CaptureObjType);
       Py_DECREF (m);
       return NULL;
-    } /* gh-1117: adopt dp_interrupt_guard's process-global state from its
-         owner. */
+    }
+  { /* gh-2344: [[enum]] stype -> STYPE */
+    PyObject *_e = PyTuple_New (10);
+    for (Py_ssize_t _i = 0; _e && _i < 10; _i++)
+      {
+        PyObject *_s = PyUnicode_FromString (_enum_EventLog_stype[_i]);
+        if (_s)
+          PyTuple_SET_ITEM (_e, _i, _s);
+        else
+          Py_CLEAR (_e);
+      }
+    if (!_e || PyModule_AddObject (m, "STYPE", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  { /* gh-2344: [[enum]] endian -> ENDIAN */
+    PyObject *_e = PyTuple_New (2);
+    for (Py_ssize_t _i = 0; _e && _i < 2; _i++)
+      {
+        PyObject *_s = PyUnicode_FromString (_enum_EventLog_endian[_i]);
+        if (_s)
+          PyTuple_SET_ITEM (_e, _i, _s);
+        else
+          Py_CLEAR (_e);
+      }
+    if (!_e || PyModule_AddObject (m, "ENDIAN", _e) < 0)
+      {
+        Py_XDECREF (_e);
+        Py_DECREF (m);
+        return NULL;
+      }
+  }
+  /* gh-1117: adopt dp_interrupt_guard's process-global state from its owner.
+   */
   {
     void     *dp_interrupt_guard_state_ptr (void);
     void      dp_interrupt_guard_state_adopt (void *shared);

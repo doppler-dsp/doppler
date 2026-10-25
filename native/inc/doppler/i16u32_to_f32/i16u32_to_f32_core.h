@@ -11,8 +11,8 @@
  *   uint32 0x00007FFF → int16  32767 → float ~+1.0
  *   uint32 0x00000000 → int16      0 → float  0.0
  *
- * Upper 16 bits of the uint32 are masked off and ignored, so values
- * carrying CIC bit-growth headroom in those bits are handled correctly.
+ * Upper 16 bits of the uint32 are masked off and ignored, so a value
+ * whose upper bits are set decodes from its lower 16 bits alone.
  *
  * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
@@ -92,7 +92,7 @@ void dp_i16u32_to_f32_reset(dp_i16u32_to_f32_state_t *state);
  *
  * Masks off the lower 16 bits, reinterprets them as a signed int16 (two's
  * complement), then multiplies by @c iscale — a single multiply after the
- * extraction. The upper 16 bits (which may carry CIC bit-growth headroom) are
+ * extraction. The upper 16 bits are
  * ignored. Exact inverse of F32ToI16U32 at the same scale.
  *
  * @param state  Must be non-NULL.

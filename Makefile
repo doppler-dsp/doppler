@@ -1814,7 +1814,7 @@ LOCAL_TARGETS = specan record-demo parallel-record-write acq-surface-record \
                 apt-stall-config deps-budget-check cargo-floor-check \
                 bench-coverage-check kwarg-parity-check issues issues-check \
                 gates-extra-home-check \
-                doc-sections-check state-versions-check \
+                doc-sections-check doc-symbols-check state-versions-check \
                 installed-headers-check exported-link-check symbol-prefix-check \
                 export-check public-symbols \
                 vendored-collision-check \
@@ -1930,7 +1930,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       issue-link-check bootstrap-cmd-check deps-budget-check \
       ci-image-refs-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
-      state-versions-check \
+      doc-symbols-check state-versions-check \
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check mem-guard-check \
       design-pages-check gallery-scripts-check bench-commits-check \
@@ -2010,6 +2010,12 @@ kwarg-parity-check: ## Verify each binding accepts the keywords its stub publish
 # none -- the reader concludes the claim is unsupported (#795).
 doc-sections-check: ## Verify every `docs/x.md` section citation resolves
 	@$(UV) run python scripts/check_doc_sections.py
+
+# The third half of a prose citation: a `dp_*` name a page tells the reader
+# to call. A fence marked skip= is not compiled and prose is not a fence, so
+# a renamed or deleted symbol survived every other docs gate (#2580).
+doc-symbols-check: ## Verify every C symbol named in docs/ exists in the tree
+	@$(UV) run python scripts/check_doc_symbols.py
 
 # A state blob's `(magic, version)` names one layout for all time, or
 # `set_state` reinterprets an old blob instead of refusing it. Read from the

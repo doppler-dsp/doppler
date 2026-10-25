@@ -28,8 +28,10 @@ make up. The trace is quantised to an eighth of a chip because slip is counted
 in whole samples at `spc=8`.
 
 **Right — a Doppler ramp is the integral of the rate.** With
-`doppler_rate_ppm_s = 0.2` (SPEC.md's 500 Hz/s at 2.5 GHz), the instantaneous
-offset climbs as `fc·ḋ·t`. The dotted orange line is the natural wrong
+`doppler_rate_ppm_s = 0.2` (the
+[async DSSS receiver spec](../design/async-dsss-receiver.md)'s 500 Hz/s at
+2.5 GHz), the instantaneous offset climbs as `fc·ḋ·t`. The dotted orange line
+is the natural wrong
 implementation — accumulating `t·d(t)` instead of `∫d dt` double-counts the
 ramp and lands at exactly twice the truth. It is the one error that passes every
 static-Doppler check, which is why both the C and Python test suites assert
@@ -58,7 +60,7 @@ rate and the carrier can never drift apart.
     isolating a code loop under test, but not what a real channel does.
 
 What is deliberately **not** plotted: under a Doppler rate the code slips
-quadratically, `Rc·½·ḋ·t²`. At SPEC.md's 0.2 ppm/s that is 0.08 chips over the
+quadratically, `Rc·½·ḋ·t²`. At the spec's 0.2 ppm/s that is 0.08 chips over the
 whole half-second run — a fraction of a single sample, below what sample
 counting can resolve. The carrier effect of a ramp is first order and plainly
 visible; the code effect is second order and, over a realistic dwell,

@@ -197,7 +197,7 @@ dp_RateConverter_state_t *dp_RateConverter_create (double rate, int compensate);
  * taps per arm and no extra pass over the data. Folded or appended agree to
  * within 0.6 dB, i.e. the fold gives up nothing to a separate comp FIR.
  *
- * @note Keep the INPUT inside +-1.0 whenever the plan contains a CIC stage —
+ * @note Keep the INPUT inside +-2.0 whenever the plan contains a CIC stage —
  * see the file header.  The clip is silent, and it costs 25 dB of the EVM
  * quoted above for reasons that have nothing to do with the matched filter.
  *
@@ -228,7 +228,7 @@ dp_RateConverter_create_matched (double rate, int compensate, int pulse,
 /**
  * @brief Has any planned CIC stage clipped its input since the last reset?
  *
- * The cascade inherits cic_core's input bound (|Re|, |Im| <= 1.0) whenever the
+ * The cascade inherits cic_core's input bound (|Re|, |Im| <= 2.0) whenever the
  * plan contains a CIC — any decimation by 8 or more — and the clip does not
  * show up in the samples: the output stays finite and plausible, merely
  * distorted.  This is the only reliable way to find out, and it is free (the

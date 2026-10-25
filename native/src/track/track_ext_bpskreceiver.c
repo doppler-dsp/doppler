@@ -797,9 +797,10 @@ static PyGetSetDef BpskReceiver_getset[] = {
     "reported.\n",
     NULL },
   { "lock_thresh", (getter)BpskReceiver_getprop_lock_thresh, NULL,
-    "Handover declare threshold actually in use. Reads back the DERIVED "
-    "`sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the constructor was "
-    "given 0. See `zeta` for why every derived value is reported.\n",
+    "Carrier lock-indicator declare threshold actually in use. Reads back the "
+    "DERIVED `sigma_H0 * eta(Pfa)` = 0.4999 at `Pfa = 5e-6` when the "
+    "constructor was given 0. See `zeta` for why every derived value is "
+    "reported.\n",
     NULL },
   { "lock_drop_thresh", (getter)BpskReceiver_getprop_lock_drop_thresh, NULL,
     "Carrier DROP threshold actually in use -- 0.8x `lock_thresh`, the level "
@@ -869,7 +870,7 @@ static PyGetSetDef BpskReceiver_getset[] = {
     "Terminal outputs per symbol (the old `n`, now the cascade's).\n", NULL },
   { "clipped", (getter)BpskReceiver_getprop_clipped, NULL,
     "Has the cascade's CIC stage clipped its input since the last reset? A "
-    "CIC bounds its input to |Re|, |Im| <= 1.0 and clips silently past that "
+    "CIC bounds its input to |Re|, |Im| <= 2.0 and clips silently past that "
     "-- the output stays finite and plausible, merely distorted, at a cost of "
     "~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no "
     "CIC stage.\n",

@@ -411,7 +411,7 @@ Measured on RRC-BPSK (beta 0.35, span 8, two outputs per symbol), best-case timi
 
 **Note:**
 
-Keep the INPUT inside +-1.0 whenever the plan contains a CIC stage — see the file header. The clip is silent, and it costs 25 dB of the EVM quoted above for reasons that have nothing to do with the matched filter.
+Keep the INPUT inside +-2.0 whenever the plan contains a CIC stage — see the file header. The clip is silent, and it costs 25 dB of the EVM quoted above for reasons that have nothing to do with the matched filter.
 
 
 
@@ -904,7 +904,7 @@ bool dp_RateConverter_get_clipped (
 
 
 
-The cascade inherits cic\_core's input bound (\|Re\|, \|Im\| &lt;= 1.0) whenever the plan contains a CIC — any decimation by 8 or more — and the clip does not show up in the samples: the output stays finite and plausible, merely distorted. This is the only reliable way to find out, and it is free (the boundary comparisons run on every sample regardless).
+The cascade inherits cic\_core's input bound (\|Re\|, \|Im\| &lt;= 2.0) whenever the plan contains a CIC — any decimation by 8 or more — and the clip does not show up in the samples: the output stays finite and plausible, merely distorted. This is the only reliable way to find out, and it is free (the boundary comparisons run on every sample regardless).
 
 
 Sticky, cleared by [**dp\_RateConverter\_reset()**](RateConverter__core_8h.md#function-dp_rateconverter_reset). Always 0 for a cascade with no CIC stage, which is the honest answer: those plans are scale-free.

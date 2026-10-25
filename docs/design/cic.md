@@ -1,13 +1,13 @@
 # CIC Decimator — the fixed-point input budget
 
 The CIC is doppler's cheap bulk decimator: no multipliers, four integrators and
-four combs, decimation by any power of two up to 4096. It is **fixed point by
+four combs, decimation by any power of two up to 2048. It is **fixed point by
 construction** — that is the whole reason it is cheap — and a fixed-point
 pipeline has an input budget that must be spent explicitly. This page is that
 budget.
 
 Fixed design parameters: `N = 4` stages, `M = 1` (one-sample comb),
-`R` a power of two in `[2, 4096]`.
+`R` a power of two in `[2, 2048]` (`CIC_R_MAX`).
 
 ______________________________________________________________________
 
@@ -35,16 +35,17 @@ composite response is
 
 $$H(z) = \left(\frac{1 - z^{-R}}{1 - z^{-1}}\right)^{N}$$
 
-whose DC gain is $R^N$ — at `R = 4096`, `N = 4` that is $2^{48}$.
+whose DC gain is $R^N$ — at the cap `R = 2048`, `N = 4` that is $2^{44}$.
 
 The input is encoded to **UQ16** (16 bits, offset binary), so the largest value
-any accumulator can hold is
+any accumulator can hold at the cap is
 
-$$(2^{16} - 1)\cdot R^N \;=\; (2^{16}-1)\cdot 2^{48} \;=\; 2^{64} - 2^{48} \;<\; 2^{64}$$
+$$(2^{16} - 1)\cdot R^N \;=\; (2^{16}-1)\cdot 2^{44} \;=\; 2^{60} - 2^{44} \;<\; 2^{64}$$
 
-which is why the accumulators are `uint64_t` and why `R` is capped at 4096: the
-budget is consumed **exactly** at the top of the range. Below it there is
-slack, and a lot of it:
+which is why the accumulators are `uint64_t`. `R = 4096` would fit too, as
+$2^{64} - 2^{48}$, but only to within one part in 65536 — the budget consumed
+**exactly**, which is not headroom — so `CIC_R_MAX` sits a halving below it,
+with 16x margin. Below the cap there is more slack still, and a lot of it:
 
 | R    | pipeline gain `R^4` | max accumulation | spare   |
 | ---- | ------------------- | ---------------- | ------- |
@@ -139,9 +140,9 @@ $$2^{16+h}\cdot R^{N} \le 2^{64} \quad\Longrightarrow\quad h \le 48 - N\log_2 R$
 | 4096 | 48          | 0          | 1                      | **0.0**               |
 
 Every ratio the planner actually produces has decades of room: even `R = 2048`
-allows 24 dB, four times what a pulse-shaped signal needs. **`R = 4096` is the
-sole exception** — the budget is consumed exactly there (16 + 48 = 64), so it
-has no spare bit and any headroom at that ratio must be bought by attenuation.
+allows 24 dB, four times what a pulse-shaped signal needs. **`R = 4096` would
+be the sole exception** — the budget is consumed exactly there (16 + 48 = 64),
+so it has no spare bit — and it is past `CIC_R_MAX`, so no CIC is built at it.
 
 The implementation currently buys the headroom the attenuating way at every
 `R`, which costs **2 dB** of quantisation SNR relative to a caller performing a

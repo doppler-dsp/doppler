@@ -22,7 +22,7 @@ doppler/
 │   ├── inc/<obj>/<obj>_core.h           public C API + opaque state struct (hand-written)
 │   ├── src/<obj>/<obj>_core.c           algorithm implementation (hand-written; source of truth)
 │   ├── src/<module>/<mod>_ext.c         CPython aggregator (jm-generated — do not edit)
-│   ├── src/<module>/<mod>_ext_<obj>.c   per-object binding fragment (jm-generated — free to edit)
+│   ├── src/<module>/<mod>_ext_<obj>.c   per-object binding fragment (jm-generated if bannered)
 │   ├── tests/test_<obj>_core.c          C-level unit tests (CTest)
 │   └── benchmarks/bench_<obj>_core.c    C microbenchmarks
 │
@@ -51,7 +51,7 @@ doppler/
 │
 ├── benchmarks/                          published per-release perf snapshots (portable + native)
 │   ├── published/v<ver>/                hand-measured representative numbers (not CI)
-│   └── history/                         CI-committed bench scratch
+│   └── history/                         local bench scratch (git-ignored)
 │
 ├── tests/install/                       install smoke tests across package managers
 ├── scripts/                             repo tooling (benchmarking, API-doc coverage, capture)
@@ -75,19 +75,20 @@ doppler/
 Every public capability traces back to exactly one C core, with no algorithm
 duplicated across language layers:
 
-| Layer                                          | What it is                  | Who owns it                                                 |
-| ---------------------------------------------- | --------------------------- | ----------------------------------------------------------- |
-| `objects/<obj>.toml`                           | the interface declaration   | hand-written (the source)                                   |
-| `native/inc` + `native/src/<obj>/<obj>_core.c` | the algorithm in C          | hand-written                                                |
-| `native/src/<module>/<mod>_ext.c`              | CPython aggregator binding  | **jm-generated** (never edited)                             |
-| `native/src/<module>/<mod>_ext_<obj>.c`        | per-object binding fragment | jm-generated, then hand-owned (regenerated only if deleted) |
-| `src/doppler/<module>/__init__.py` + `.pyi`    | the Python surface          | re-export + jm-synthesized stubs                            |
-| `ffi/rust/src`                                 | the Rust surface            | hand-maintained over the C ABI                              |
+| Layer                                          | What it is                  | Who owns it                                                          |
+| ---------------------------------------------- | --------------------------- | -------------------------------------------------------------------- |
+| `objects/<obj>.toml`                           | the interface declaration   | hand-written (the source)                                            |
+| `native/inc` + `native/src/<obj>/<obj>_core.c` | the algorithm in C          | hand-written                                                         |
+| `native/src/<module>/<mod>_ext.c`              | CPython aggregator binding  | **jm-generated** (never edited)                                      |
+| `native/src/<module>/<mod>_ext_<obj>.c`        | per-object binding fragment | **jm-generated** when bannered `/* jm:generated */`, else hand-owned |
+| `src/doppler/<module>/__init__.py` + `.pyi`    | the Python surface          | re-export + jm-synthesized stubs                                     |
+| `ffi/rust/src`                                 | the Rust surface            | hand-maintained over the C ABI                                       |
 
 `jm apply` turns a changed `objects/<obj>.toml` into reconciled glue, build
 files, stubs, and test/bench scaffolding; the `jm status --check` drift gate in
 CI fails if any generated file diverges from what the manifest implies. The
-hand-written `_core.c`, the `_ext_<obj>.c` fragments, and the Rust FFI are the
-parts a human edits — the rest is materialised. See
+hand-written `_core.c`, the few `_ext_<obj>.c` fragments without the
+`/* jm:generated */` banner, and the Rust FFI are the parts a human edits —
+the rest is materialised. See
 [Adding a Module](adding-a-module.md) for the per-object workflow and
 [Architecture](../../architecture.md) for the C-first rationale.

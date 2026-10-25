@@ -36,11 +36,12 @@ cascade is rebuilt transparently whenever `rate` is changed.
 | rate ≥ 1.0 or D < 2     | `Resampler(rate)`                       |
 | D ≈ 2                   | `HalfbandDecimator`                     |
 | D ≈ 4                   | `HalfbandDecimator → HalfbandDecimator` |
-| D = 2ⁿ, n ≥ 3, D ≤ 4096 | `CIC(D)`                                |
+| D = 2ⁿ, n ≥ 3, D ≤ 2048 | `CIC(D)`                                |
+| D = 2ⁿ, D > 2048        | `CIC(2048) → Resampler(2048/D)`         |
 | D ≥ 8, non-power-of-2   | `CIC(R*) → Resampler(R*/D)`             |
 | 2 ≤ D < 8, non-integer  | `Resampler(rate)`                       |
 
-where R\* = nearest power-of-two to D.
+where R\* = nearest power-of-two to D, capped at 2048 (`CIC_R_MAX`).
 
 ```python
 from doppler.resample import RateConverter
@@ -104,9 +105,8 @@ samples per symbol, where the one-symbol-wide rectangle's matched filter is a
 ### Streaming
 
 State is preserved across `execute()` calls, so splitting a stream at any block
-boundary is byte-identical to one large call. `execute()` returns a zero-copy
-**view** into an internal buffer — `process()` it (or `.copy()` it) before the
-next `execute()`:
+boundary is byte-identical to one large call. Each `execute()` returns a fresh
+array that owns its memory, so a result can be kept as long as you like:
 
 ```python
 rc = RateConverter(0.5)
@@ -115,16 +115,15 @@ process = np.abs                   # a real downstream consumer
 
 for block in iq_stream:        # CF32 blocks, any length
     y = rc.execute(block)
-    process(y)                 # consume now; the next execute() reuses y's buffer
+    process(y)                 # y is yours; the next execute() leaves it alone
 ```
 
-!!! warning "View lifetime"
+!!! note "Results own their memory"
 
-    The returned array is valid only until you next touch the converter.
-    **Copy it to retain it.** The next `execute()` reuses the buffer in place;
-    `reset()`, assigning `.rate`, or a block larger than any seen so far
-    *reallocates* it (a previously-returned array then dangles). The fixed-block
-    consume-then-next loop above needs no copy. This is the convention for every
+    The returned array shares nothing with the converter or with any other
+    call's result, so it survives the next `execute()`, `reset()` and a change
+    of `.rate` without a copy. Pass `out=` (sized by `execute_max_out()`) to
+    write into a buffer of your own instead. This is the convention for every
     `variable_output` execute in doppler (`Resampler`, `FIR`, the DDC chain, …).
 
 ### Serializable state — elastic resume

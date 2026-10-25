@@ -280,7 +280,7 @@ before collapsing — so a receiver tuned against EVM alone is rewarded for
 drifting toward a cliff.
 
 `dp_ratesync_get_clipped()` reports the subset of over-drive a CIC's input
-quantiser sees (a CIC bounds its input to ±1.0 and clips silently past that).
+quantiser sees (a CIC bounds its input to ±2.0 and clips silently past that).
 It is not a level check: on a plan the planner built without a CIC there is
 nothing to clip, and over-driving costs EVM with the flag reading clean. The
 missing under-drive report is tracked as

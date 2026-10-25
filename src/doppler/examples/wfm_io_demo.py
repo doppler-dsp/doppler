@@ -58,10 +58,11 @@ def psd_db(x, nfft=1024):
 
 
 # ── the capture: a QPSK signal at +150 kHz, written with fs/fc tagged ────────
-# Keep it as an explicit Segment so SigMF can annotate it (Composer.to_sigmf
+# Keep it as an explicit Segment so SigMF can annotate it (Writer.annotate
 # annotates each resolved segment).
 seg = Segment("qpsk", fs=FS, freq=1.5e5, snr=20.0, sps=8, num_samples=N)
-x = Composer([seg]).compose()
+comp = Composer([seg])
+x = comp.compose()
 
 work = tempfile.mkdtemp()
 # (file_type, filename, how to open the Reader). Raw has no magic/metadata, so
@@ -79,16 +80,13 @@ for file_type, name, read_kw in formats:
     with Writer(
         path, file_type=file_type, sample_type="cf32", fs=FS, fc=FC
     ) as w:
+        # SigMF is a pair: the Writer writes the .sigmf-data samples and, at
+        # close, the .sigmf-meta sidecar (sample rate, datatype, centre
+        # frequency) the Reader recovers fs/fc from. annotate() adds one
+        # annotation per segment from the scene that made the samples.
+        if file_type == "sigmf":
+            w.annotate(comp)
         w.write(x)
-    # SigMF is a pair: the Writer lays down the .sigmf-data samples; the
-    # .sigmf-meta JSON sidecar (sample rate, datatype, per-segment annotations)
-    # is written alongside it so the Reader can auto-detect and recover fs/fc.
-    if file_type == "sigmf":
-        meta_path = path.replace(".sigmf-data", ".sigmf-meta")
-        with open(meta_path, "w") as fh:
-            fh.write(
-                Composer([seg]).to_sigmf(sample_type="cf32", fs=FS, fc=FC)
-            )
     with Reader(path, **read_kw) as r:
         y = r.read(N)  # read the whole capture (N < one read block)
         meta = {"file_type": r.file_type, "fs": r.fs, "fc": r.fc}

@@ -99,13 +99,16 @@ so the reader returns **which metadata it read**, not just the number:
 | ----------- | -------------------------------------------------------------------- |
 | `fc_source` | the keyword's own tag (`FREQ`, `RF_FREQ`, …), SigMF's key, or `none` |
 | `fs_source` | BLUE `xdelta`, SigMF `core:sample_rate`, or `none`                   |
-| `t0_source` | BLUE `timecode`, or `none`                                           |
+| `t0_source` | BLUE `timecode`, SigMF `core:datetime` (`sigmf`), or `none`          |
 
 `t0_source` is the one that bites. BLUE stores time as a J1950 timecode,
-and **doppler's own writer leaves the field zero** — so a zero there
-means *unset*, never 1950-01-01. A reader that skips the check dates
-every capture this library writes to 1950. `none` is the common answer,
-not an edge case, which is exactly why it has to be visible.
+and **doppler's own writer leaves the field zero unless it is given a
+`t0`** — so a zero there means *unset*, never 1950-01-01. A reader that
+skips the check dates every capture written without one to 1950. `none`
+is the common answer, not an edge case, which is exactly why it has to be
+visible. SigMF carries the start as an ISO 8601 `core:datetime`; one that
+is malformed or carries no timezone also reads as `none`, since taking a
+zone-less local time for UTC would be wrong by hours.
 
 `fc` also shows why BLUE needs keywords at all: **type-1000 has no header
 field for centre frequency.** The adjunct carries `xstart`/`xdelta`,
@@ -294,9 +297,6 @@ ______________________________________________________________________
     another is a caller composing a reader and a writer.
 - **No repair.** A truncated capture is *reported* (§5, §9), never
     reconstructed.
-- **No SigMF `core:datetime` parsing.** It is an ISO 8601 string and the
-    reader has no parser, so such a capture reports `t0_source = none`
-    rather than a guess.
 - **No time INDEX.** Random access is by sample index (§6).
     `seek_time()` is arithmetic over `fs`, not a lookup — there is no
     time-to-byte map, no search by timestamp, and no use made of a SigMF

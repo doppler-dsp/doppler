@@ -425,7 +425,7 @@ including the two points where nothing synchronised at all: **zero**.
 ### Node synchronization moved into the library
 
 It was the harness's job for exactly one measurement.
-[#834](https://github.com/doppler-dsp/doppler/issues/834) is closed: `conv`
+[#834](https://github.com/doppler-dsp/doppler/issues/834) is closed: `viterbi`
 owns it now (`dp_node_sync_score` / `dp_node_sync_scan`,
 [The Viterbi Decoder](viterbi.md) §9), it uses §3's re-encoding metric rather
 than the marker correlation the harness had improvised, and it is scored over

@@ -85,7 +85,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* | [**dp\_ratesync\_create**](#function-dp_ratesync_create) (double sps, int pulse, double beta, size\_t span, size\_t m, size\_t num\_phases, double bn, double zeta, int ted) <br>_Create a RateSync instance._  |
 |  void | [**dp\_ratesync\_destroy**](#function-dp_ratesync_destroy) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Destroy a RateSync instance and release all memory._  |
 |  double | [**dp\_ratesync\_get\_bn**](#function-dp_ratesync_get_bn) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Timing-loop noise bandwidth, normalised to the symbol rate. Writing it re-derives the loop gains at the damping already in use, exactly as configure() does._  |
-|  int | [**dp\_ratesync\_get\_clipped**](#function-dp_ratesync_get_clipped) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? Forwarded from the RateConverter: a CIC bounds its input to +-1.0 and clips silently past that, which no timing metric reveals. Always 0 when the plan has no CIC stage._  |
+|  int | [**dp\_ratesync\_get\_clipped**](#function-dp_ratesync_get_clipped) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? Forwarded from the RateConverter: a CIC bounds its input to +-2.0 and clips silently past that, which no timing metric reveals. Always 0 when the plan has no CIC stage._  |
 |  double | [**dp\_ratesync\_get\_ctrl**](#function-dp_ratesync_get_ctrl) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Current per-input control deviation steering the strobe._  |
 |  double | [**dp\_ratesync\_get\_lock\_stat**](#function-dp_ratesync_get_lock_stat) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Last block-averaged lock statistic (the eye-opening ratio)._  |
 |  int | [**dp\_ratesync\_get\_locked**](#function-dp_ratesync_get_locked) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Current lock decision (1 = locked), verify-counted._  |
@@ -492,7 +492,7 @@ double dp_ratesync_get_bn (
 
 ### function dp\_ratesync\_get\_clipped 
 
-_Has the cascade's CIC stage clipped its input since the last reset? Forwarded from the RateConverter: a CIC bounds its input to +-1.0 and clips silently past that, which no timing metric reveals. Always 0 when the plan has no CIC stage._ 
+_Has the cascade's CIC stage clipped its input since the last reset? Forwarded from the RateConverter: a CIC bounds its input to +-2.0 and clips silently past that, which no timing metric reveals. Always 0 when the plan has no CIC stage._ 
 ```C++
 int dp_ratesync_get_clipped (
     const dp_ratesync_state_t * state

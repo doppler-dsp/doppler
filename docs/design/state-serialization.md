@@ -390,13 +390,15 @@ As of **jm 0.20.0** the flag is the whole story for the two harder kinds too —
 no hand-binding anywhere:
 
 - **Sacred fragments.** An object whose `_ext_<obj>.c` fragment is hand-owned
-    (a bespoke property, a custom `execute`) is not regenerated, so `jm apply`
+    (no `/* jm:generated */` banner) is not regenerated, so `jm apply`
     **transplants** the triplet into it — injecting the wrappers + `PyMethodDef`
     rows idempotently, leaving every hand-written binding intact (gh-404).
-    `DDC` and `RateConverter` are such objects.
-- **Handle modules.** A `kind="handle"` module (`ddc_fn`'s `Ddcr`) generates the
-    triplet over its opaque handle when `serializable = "true"` is set on
-    `[module.<name>]` (gh-403).
+    No serializable object has one today: `DDC` and `RateConverter`, the
+    objects this path was built for, now have generated fragments.
+- **Handle modules.** A `kind="handle"` module generates the triplet over its
+    opaque handle when `serializable = "true"` is set on `[module.<name>]`
+    (gh-403). No handle module sets it today: `Ddcr`, once `ddc_fn`'s handle,
+    is a module object with its own `objects/ddcr.toml`.
 
 ______________________________________________________________________
 
@@ -456,10 +458,10 @@ converters, FFT plans, by-value analyzers) are exempt.
 1. **Flip the flag** — `serializable = "true"` in `objects/<obj>.toml`, then
     `jm apply`. As of **jm 0.20.0** the flag is the entire Python story for every
     object kind: jm generates the `state_bytes`/`get_state`/`set_state` binding +
-    `.pyi`, **transplanting** the triplet into a hand-owned (sacred) `_ext_<obj>.c`
-    fragment when one exists (gh-404), and generating it over the handle for a
-    `kind="handle"` module (gh-403). **clang-format the touched fragment** (jm
-    emits 4-space; doppler is GNU 2-space).
+    `.pyi`, rendering it into a generated (`/* jm:generated */`) fragment,
+    **transplanting** it into a hand-owned (sacred) `_ext_<obj>.c` fragment when
+    one exists (gh-404), and generating it over the handle for a
+    `kind="handle"` module (gh-403).
 
 1. **Test both faces** — a C round-trip + reject in `test_<obj>_core.c` (the
     `DP_STATE_ROUNDTRIP_TEST` macro, plus a buffer/field equality check for
@@ -499,13 +501,13 @@ ______________________________________________________________________
 
 As of **jm 0.20.0**, `serializable = "true"` is the entire Python binding for
 every object kind — regenerable, sacred-fragment (jm transplants the triplet,
-gh-404), and `kind="handle"` (jm generates it over the handle, gh-403):
+gh-404), and `kind="handle"` (jm generates it over the handle, gh-403). Every
+serializable object's fragment is generated today:
 
-| Type                                          | C triplet | Python ser/des | Binding                          |
-| --------------------------------------------- | --------- | -------------- | -------------------------------- |
-| `LO`, `CIC`, `FIR`, `Acquisition`, generators | ✅        | ✅             | `jm`-auto from the flag          |
-| `DDC`, `RateConverter`, compositions, loops   | ✅        | ✅             | `jm` transplant into sacred frag |
-| `Ddcr` (`ddc_fn`, `kind="handle"`)            | ✅        | ✅             | `jm`-auto over the handle        |
+| Type                                                | C triplet | Python ser/des | Binding                 |
+| --------------------------------------------------- | --------- | -------------- | ----------------------- |
+| `LO`, `CIC`, `FIR`, `Acquisition`, generators       | ✅        | ✅             | `jm`-auto from the flag |
+| `DDC`, `Ddcr`, `RateConverter`, compositions, loops | ✅        | ✅             | `jm`-auto from the flag |
 
 **The rollout is complete: every stateful object is serializable** (the gate's
 burn-down list is empty). A CI gate (`scripts/check_serializable.py`, see

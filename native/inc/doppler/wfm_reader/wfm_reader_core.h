@@ -113,10 +113,10 @@ extern "C"
    *  `dp_sample_clock_track()`; the sample clock owns the arithmetic.
    *
    *  ::WFM_T0_NONE is the common case and has to stay visible: doppler's own
-   *  BLUE writer leaves the timecode field zero, so a zero there means
-   *  "unset", never 1950-01-01 (see `wfm/wfm_time.h`). A caller that cannot
-   *  tell those apart will confidently date every doppler-written capture to
-   *  1950. */
+   *  BLUE writer leaves the timecode field zero unless it is given a `t0`,
+   *  so a zero there means "unset", never 1950-01-01 (see `wfm/wfm_time.h`).
+   *  A caller that cannot tell those apart will confidently date every such
+   *  capture to 1950. */
   typedef enum
   {
     WFM_T0_NONE = 0,      /**< no start time found; `t0_unix_sec` is 0.0. */
@@ -527,8 +527,9 @@ int dp_wfm_reader_seek(dp_wfm_reader_state_t *state, int64_t index);
    *
    * **Seconds are measured from the FIRST SAMPLE of the capture, never from
    * the UNIX epoch.** A capture's absolute start is `t0`, and `t0_source` is
-   * `none` on every capture doppler itself writes — so an absolute face would
-   * be unusable by default. Converting is the caller's,
+   * `none` on every capture written without one — doppler's own writer
+   * included, unless it is given a `t0` — so an absolute face would be
+   * unusable by default. Converting is the caller's,
    * and it is `r.seek_time(t_unix - r.t0)` once `t0_source` says there is a
    * `t0` to subtract.
    *

@@ -225,7 +225,7 @@ ______________________________________________________________________
 A rate-1/n decoder needs to know **which symbol starts a branch**. Nothing in
 the waveform says so: a capture opens wherever the receiver settled, and the
 answer changes mid-stream whenever the receiver slips by an odd number of
-symbols. It lives here, in `conv`, for the same reason the decoder does —
+symbols. It lives here, in `viterbi`, for the same reason the decoder does —
 every rate-1/n code has the question and CCSDS is not what supplies the
 answer.
 

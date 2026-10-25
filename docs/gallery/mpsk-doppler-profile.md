@@ -62,8 +62,8 @@ rx.lock_time  # symbols to the FIRST lock declaration, or -1 if never
 ## The top panel plots the sum, not the integrator
 
 `rx.car.nco` is the command that actually drives the LO: `integ + kp*e`.
-`rx.car.freq` is the **integrator alone** — the frequency *memory*, which is
-what survives a handover — and on a ramp the two differ by exactly the
+`rx.car.freq` is the **integrator alone** — the frequency *memory* — and on a
+ramp the two differ by exactly the
 proportional term. Measured on the ramp up: the sum lags by 4.4e-06
 cycles/sample against a 1.0e-03 excursion, the integrator by 3.3e-05, a factor
 of 7.5.
@@ -80,7 +80,8 @@ because the proportional term carries the discriminator's full data noise. Its
 Because a **step-only test cannot size a loop.** A type-2 loop nulls a step
 whatever its gain, so a loop running several times narrower than configured
 passes every step test unchanged. That is not hypothetical: it is how
-`freq_scale` under-drove every non-`strobe` NDA tap in this library until a
+`freq_scale` under-drove every non-`strobe` NDA tap in this library (taps since
+removed, [#832](https://github.com/doppler-dsp/doppler/issues/832)) until a
 ramp measurement found it
 ([gh-765](https://github.com/doppler-dsp/doppler/issues/765)).
 `native/validation/rx_dynamics.c` now gates the closed form.
@@ -109,5 +110,5 @@ acquisition is taking implausibly long, that ratio is the first thing to check.
 - [M-PSK Receiver](mpsk-receiver.md) — the constellation, lock and BER story.
 - [M-PSK Receiver: Performance](mpsk-receiver-performance.md) — EVM, SER and
     lock time over random geometries.
-- [Design note](../design/mpsk.md) — the two-clock architecture, the NDA taps,
-    and where the discriminator reads.
+- [Design note](../design/mpsk.md) — the two-clock architecture, and why the
+    discriminator reads the on-time strobe.

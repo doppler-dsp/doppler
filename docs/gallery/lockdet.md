@@ -103,10 +103,11 @@ struct. Two shipped loops already run on it:
     CFAR statistic at each N-look decision
     (`Dll.configure_lock` derives `n_up` from the pfa exactly as
     above), and
-- the [M-PSK receiver](mpsk-receiver.md)'s acquisition↔tracking
-    handover steps it on the carrier lock metric each recovered symbol
-    — two-way: 8 straight above-threshold symbols hand over, 32
-    straight below the drop threshold fall back to NDA acquisition.
+- the [M-PSK receiver](mpsk-receiver.md)'s carrier lock indicator
+    (`locked`, probe `rx.car.locked`) steps it on the carrier lock
+    metric each recovered symbol — 8 straight above-threshold symbols
+    declare, 32 straight below the drop threshold withdraw. It is an
+    indicator only: it steers no loop and gates no output.
 
 ## Run it
 

@@ -85,7 +85,8 @@ ______________________________________________________________________
 ## `AWGN` — Additive White Gaussian Noise
 
 xoshiro256++ RNG + Box-Muller transform. Per-component std dev = `amplitude`.
-AVX-512 path runs 8 independent streams in parallel (~525 MSa/s).
+One scalar stream on every platform, so a seed reproduces the same noise
+everywhere.
 
 ```python
 from doppler.source import AWGN

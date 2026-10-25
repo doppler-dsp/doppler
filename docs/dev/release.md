@@ -20,7 +20,6 @@ confidence before an unusually disruptive release).
 git status                    # nothing uncommitted
 git checkout main && git pull  # sync to the latest green main
 gh pr checks <last-merged-pr>  # spot-check CI was actually green, if in doubt
-just-makeit bench --python-only --tag vX.Y.Z   # local fallback; CI commits automatically on tag push
 ```
 
 !!! tip "The release is the bump-only fast path"

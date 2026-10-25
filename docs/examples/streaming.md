@@ -93,7 +93,7 @@ dp_pull_t *pull = dp_pull_create("nats://127.0.0.1:4222/work");
 dp_msg_t *msg;
 dp_header_t hdr;
 dp_pull_recv(pull, &msg, &hdr);
-dp_cf64_t *data = (dp_cf64_t *)dp_msg_data(msg);
+double _Complex *data = (double _Complex *)dp_msg_data(msg);
 // use data ...
 dp_msg_ack(msg);   // processed: otherwise it is redelivered, and stays queued
 dp_msg_free(msg);

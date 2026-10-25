@@ -23,14 +23,16 @@ on-disk size and the metadata the file type recovered:
     for its metadata, ~3× the bytes (and a tiny text-rounding error).
 - **BLUE (type-1000)** — a 512-byte header recording the sample format, byte
     order, and `fs` (as `xdelta = 1/fs`); the reader recovers them with no hints.
-    The `format` field is a `[mode][type]` pair: doppler writes `C` (complex,
-    interleaved I/Q) and reads back both `C` and `S` (scalar/real — `r.mode`
-    says which, and an `S` capture comes back with `imag == 0`). Every other
+    The `format` field is a `[mode][type]` pair: doppler writes and reads both
+    `C` (complex, interleaved I/Q) and `S` (scalar/real — a real `sample_type`
+    such as `"f32"` writes `SF`; `r.mode` says which, and an `S` capture comes
+    back with `imag == 0`). Every other
     Midas mode (`V`/`Q`/`M`/`T`/…, three or more components per sample) is
     **refused at open** rather than walked at the wrong stride and returned as
     garbage.
-- **SigMF** — a `.sigmf-data` + `.sigmf-meta` JSON pair; the most self-describing,
-    recovering **both** `fs` and `fc` (and one annotation per segment).
+- **SigMF** — a `.sigmf-data` + `.sigmf-meta` JSON pair, both written by
+    `Writer`; the most self-describing, recovering `fs`, `fc` and the start
+    time `t0` (from `core:datetime`), and one annotation per segment.
 
 `Reader` auto-detects the file type (BLUE magic / `.sigmf-meta` sidecar / `.csv`
 extension / else raw). Pass `sample_type=` only to override what a capture says
@@ -52,12 +54,10 @@ with Writer("cap.blue", file_type="blue", sample_type="cf32", fs=1e6, fc=2.4e9) 
 with Reader("cap.blue") as r:                 # file type auto-detected
     y, fs = r.read(r.num_samples), r.fs        # fs recovered from the header
 
-# SigMF is a pair: Writer lays down .sigmf-data; Composer.to_sigmf() the sidecar.
+# SigMF is a pair: Writer writes both, and annotate() adds the scene's rows.
 with Writer("cap.sigmf-data", file_type="sigmf", sample_type="cf32", fs=1e6, fc=2.4e9) as w:
+    w.annotate(comp)
     w.write(x)
-open("cap.sigmf-meta", "w").write(
-    comp.to_sigmf(sample_type="cf32", fs=1e6, fc=2.4e9)
-)
 ```
 
 The CLI writes the same file types — `wfmgen --file-type raw|csv|blue|sigmf` —

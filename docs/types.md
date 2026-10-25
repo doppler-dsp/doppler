@@ -93,8 +93,10 @@ ______________________________________________________________________
 hardware output (RTL-SDR, HackRF, LimeSDR, PlutoSDR, USRP).
 SIMD-friendly: AVX-512 processes eight CF32 pairs per instruction.
 
-**CF64 (`double _Complex`)** — spectral and accumulation paths. The FFT
-backend (pocketfft) works in `double _Complex` throughout. Running sums
+**CF64 (`double _Complex`)** — spectral and accumulation paths. A CF64 FFT
+runs in double on pocketfft; a CF32 FFT runs in single precision on PFFFT
+when the length is a multiple of 16 with no prime factor above 5, and is
+promoted to double on pocketfft at any other length. Running sums
 accumulate in `double` to prevent rounding error before rounding back to
 `float`.
 

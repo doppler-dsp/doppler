@@ -231,7 +231,7 @@ which stops before the last frame. `specan`'s two re-blockers feed a live
 display.
 
 **What the transports promise.** End of stream is a marker, and how
-reliable it is depends on the transport (`stream.h`, `dp_stream_send_eos`,
+reliable it is depends on the transport (`stream.h`, `dp_pub_send_eos`,
 "What it does NOT promise"; `io-termination.md`, on PUSH/PULL):
 
 | transport               | the end-of-stream marker                                                    |

@@ -338,8 +338,9 @@ class Reader:
 
         **Seconds are measured from the FIRST SAMPLE of the capture, never from
         the UNIX epoch.** A capture's absolute start is `t0`, and `t0_source`
-        is `none` on every capture doppler itself writes — so an absolute face
-        would be unusable by default. Converting is the caller's, and it is
+        is `none` on every capture written without one — doppler's own writer
+        included, unless it is given a `t0` — so an absolute face would be
+        unusable by default. Converting is the caller's, and it is
         `r.seek_time(t_unix - r.t0)` once `t0_source` says there is a `t0` to
         subtract.
 

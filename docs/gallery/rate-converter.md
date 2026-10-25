@@ -35,15 +35,17 @@ The selection rule is pure arithmetic on D = 1/rate:
 rate >= 1.0 or D < 2        →  Resampler(rate)
 D ≈ 2^1                     →  HalfbandDecimator
 D ≈ 2^2                     →  HalfbandDecimator → HalfbandDecimator
-D = 2^n, n>=3, D<=4096      →  CIC(D)
+D = 2^n, n>=3, D<=2048      →  CIC(D)
+D = 2^n, D>2048             →  CIC(2048) → Resampler(2048/D)
 D >= 8, non-power-of-2      →  CIC(R*) → Resampler(R*/D)
 otherwise (2 ≤ D < 8)       →  Resampler(rate)
 ```
 
-where R\* = nearest power-of-two to D. Halfband stages are the cheapest
-(one multiply per two input samples); CIC has no multiplies at all. The
-polyphase Resampler handles any rate but is the most compute-intensive, so
-it is used only when a pure-power-of-two topology cannot be applied.
+where R\* = nearest power-of-two to D, capped at 2048 (`CIC_R_MAX`).
+Halfband stages are the cheapest (one multiply per two input samples); CIC
+has no multiplies at all. The polyphase Resampler handles any rate but is the
+most compute-intensive, so it is used only when a pure-power-of-two topology
+cannot be applied.
 
 ```python
 --8<-- "src/doppler/examples/rate_converter_demo.py:cascade"
@@ -57,27 +59,25 @@ rate change, so callers pay no per-call allocation overhead in steady state.
 `execute()` carries filter state across calls, so a stream split at any block
 boundary is **byte-identical** to one large call.
 
-!!! warning "The result is a zero-copy view — copy it to keep it"
+!!! note "Each result is yours to keep"
 
-    `execute()` returns a zero-copy **view** into the converter's internal
-    output buffer, valid only until you next touch the converter. Two things
-    invalidate it: the **next `execute()`** reuses the buffer in place, and
-    **`reset()`, assigning `.rate`, or a block larger than any seen so far**
-    *reallocates* it. `.copy()` any result you need to retain. The common
-    fixed-block streaming loop (consume each block before the next call) needs
-    no copy.
+    `execute()` returns a fresh NumPy array that owns its memory and shares
+    nothing with the converter or with the next call's result, so a block can
+    be held across later `execute()`, `reset()` or `.rate` changes without a
+    copy. Pass `out=` (sized by `execute_max_out()`) to place the samples in a
+    buffer of your own instead.
 
 ```python
 import numpy as np
 from doppler.resample import RateConverter
 
 x = np.random.randn(2048).astype(np.complex64)
-y_full = RateConverter(0.5).execute(x).copy()
+y_full = RateConverter(0.5).execute(x)
 
 rc = RateConverter(0.5)
 y_split = np.concatenate([
-    rc.execute(x[:1024]).copy(),   # copy: the next execute() reuses the buffer
-    rc.execute(x[1024:]).copy(),
+    rc.execute(x[:1024]),          # each result owns its memory: no copy
+    rc.execute(x[1024:]),
 ])
 assert np.array_equal(y_full, y_split)   # byte-identical ✓
 ```

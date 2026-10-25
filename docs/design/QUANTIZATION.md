@@ -87,21 +87,25 @@ that intermediate overflow is defined and cancels exactly across the N stages.
 **UQ16 encode (CIC encoder)**
 
 ```
-float sr → [saturate to [-32768, 32767]] → (int16_t)sr
-         → (int32_t)sr + 32768 → (uint64_t)
+float x → sr = x · (32768 / CIC_PAPR_HEADROOM)
+        → [saturate to [-32768, 32767]] → (int16_t)sr
+        → (int32_t)sr + 32768 → (uint64_t)
 ```
 
+`CIC_PAPR_HEADROOM` is 2.0 (6 dB): full scale sits above unity amplitude so
+a pulse-shaped signal's peaks have somewhere to go.
+
 > **What this means for a caller: the CIC's input amplitude is bounded to
-> `|Re|, |Im| <= 1.0`.** That first saturation step is a cast-safety measure
+> `|Re|, |Im| <= 2.0`.** That saturation step is a cast-safety measure
 > here, but from outside the block it is a hard amplitude boundary — a
-> component past ±1.0 is clipped before any filtering, with no exception and
+> component past ±2.0 is clipped before any filtering, with no exception and
 > no NaN. The CIC is the one block in doppler that is not scale-free, and it
 > is inherited by anything that plans one: `resample.RateConverter` uses a CIC
 > for **any decimation by 8 or more**, so `RateConverter(rate=0.1)` carries
 > the same bound without ever mentioning a CIC. Read `stages` to tell — a plan
 > naming `CIC(...)` is bounded, every other plan is scale-free. Measured cost
-> of ignoring it: an RRC-BPSK waveform at peak 1.29 matched-filters to −25 dB
-> EVM where the same waveform at peak 0.32 reaches −50 dB.
+> of ignoring it: an RRC-BPSK waveform driven into the clip matched-filters to
+> −25 dB EVM where the same waveform well inside it reaches −50 dB.
 >
 > Both blocks therefore expose a sticky **`clipped`** flag — `CIC.clipped` and
 > `RateConverter.clipped`, cleared by `reset()`, following the same convention
@@ -267,9 +271,8 @@ x = -1.0  →  v = -32768  →  uint32  0x00008000
 ```
 
 Note that `-1.0` maps to `0x00008000`, **not** `0xFFFF8000` — the upper
-16 bits are zero-extended, not sign-extended. The CIC filter's integrator
-cascade uses the upper bits as **accumulation headroom**; the zero upper
-bits leave the full 48 bits available for bit-growth.
+16 bits are zero-extended, not sign-extended, so the upper bits are free
+for a consumer's own accumulation headroom.
 
 ### 5.3 `F32ToI16U64` — Q15-in-uint64 (I16U64)
 
@@ -295,11 +298,10 @@ x =  0.0  →  uint64  0x0000000000000000
 x = -1.0  →  uint64  0x0000000000008000
 ```
 
-The CIC decimator (`resample.CIC`) consumes this format directly. Each
-sample enters the first integrator stage; the 48 bits above the Q15
-value absorb up to `N · log₂(R)` bits of bit-growth without overflow,
-where `N = 4` (stages) and `R ≤ 4096` (decimation ratio), giving a
-maximum bit-growth of 48 bits — exactly filling the 64-bit word.
+The CIC decimator (`resample.CIC`) does **not** consume this format: it
+takes complex64 and encodes each component to offset-binary UQ16 internally
+(§2.4, §8), with the 48 bits above it absorbing the `N · log₂(R)` bits of
+bit-growth — 44 at the cap `R = CIC_R_MAX = 2048`.
 
 ______________________________________________________________________
 
@@ -366,7 +368,7 @@ ______________________________________________________________________
 
 ## 8. Headroom budget for the CIC pipeline
 
-The CIC decimator's integrators accumulate Q15 samples in `uint64_t`
+The CIC decimator's integrators accumulate UQ16 samples in `uint64_t`
 accumulators using modular (wrapping) unsigned arithmetic. The unsigned
 modular-arithmetic CIC property guarantees that every intermediate overflow
 in the N integrator stages cancels exactly in the N comb stages, provided
@@ -375,27 +377,29 @@ the **true result** of each comb difference fits within 64 bits.
 For N = 4 stages, M = 1 (one-sample comb delay), and R-to-1 decimation:
 
 ```
-max comb output = max sum of R consecutive Q15 inputs
-               ≤ 32768 · R                          (per comb stage)
-               ≤ 32768 · 4096   for R_max = 4096
-               = 2²⁷            (27 bits)
+max comb output = max sum of R consecutive UQ16 inputs
+               ≤ 65535 · R                          (per comb stage)
+               ≤ 65535 · 2048   for R_max = CIC_R_MAX = 2048
+               < 2²⁷            (27 bits)
 ```
 
 After N = 4 comb stages accumulate:
 
 ```
-max output ≤ 32768 · R^N = 2¹⁵ · 2^(4·12) = 2¹⁵ · 2⁴⁸ = 2⁶³
+max output ≤ 65535 · R^N = (2¹⁶ − 1) · 2^(4·11) = 2⁶⁰ − 2⁴⁴
 ```
 
-This fits in 63 bits — within the 64-bit uint64 without ambiguity, so the
-modular arithmetic gives exact results for all `R ≤ 4096`. The output
+This fits in 60 bits — 16x inside the 64-bit uint64, so the modular
+arithmetic gives exact results for all `R ≤ 2048`. (`R = 4096` would fit
+too, but to within one part in 65536, which is why the cap sits a halving
+below it.) The output
 is right-shifted by `shift = N · log₂(R)` bits before conversion back to
 CF32, restoring unit gain for DC.
 
 Note what this budget does and does not promise. It says the *pipeline* never
-loses a bit for any `R ≤ 4096` — the accumulators are exact. It says nothing
+loses a bit for any `R ≤ 2048` — the accumulators are exact. It says nothing
 about the signal arriving intact, because the input was already bounded to
-`|Re|, |Im| ≤ 1.0` at the encoder (§2.4). "No overflow occurs" is a statement
+`|Re|, |Im| ≤ 2.0` at the encoder (§2.4). "No overflow occurs" is a statement
 about the integer arithmetic, not a licence to feed the block whatever
 amplitude you have.
 

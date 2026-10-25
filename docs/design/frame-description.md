@@ -247,8 +247,9 @@ One flag and one JSON key per field on the text faces — `--sync`,
 
 **An object takes bits; module helpers make them.** `Frame` and `FrameDesc`
 take each field as an unpacked `uint8` array and nothing else:
-`Frame(preamble=, sync=, payload=, crc=)`, each field an empty-by-default
-keyword (omitted, it reaches C as `NULL, 0`), and
+`Frame(preamble=, sync=, payload=)`, each field an empty-by-default
+keyword (omitted, it reaches C as `NULL, 0`), plus a `crc=` choice of
+`"none"` or `"crc16"` that is a stage, not a field; and
 `FrameDesc.add_field(name, bits)`. A composer source's bit fields (`Synth` /
 `Segment` `data=`, `fill=`, `acq_code=`, `data_code=`) follow the
 same rule: they take bits, and a `str` is refused with a reason naming
@@ -403,17 +404,17 @@ frame that could be said two ways needed a compiler between them, a rule
 refusing both at once, and a record that had to choose which to write; with
 one way, all three go.
 
-| representation                                                                                                                           | fate                                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `wfm_frame_desc_t`                                                                                                                       | **the frame**: fields + stages                                                                                                                                         |
-| a source's `frame`                                                                                                                       | the description, carried as given                                                                                                                                      |
-| the flat framing fields on a `wfm_source_t` — `rs_depth`, `randomise`, `attach_asm`, `convolutional`, `interleave_*`                     | **deleted**. `sync` and `crc` stay as the common frame's fields until [#1617](https://github.com/doppler-dsp/doppler/issues/1617); the payload is a data source (§F.5) |
-| the CLI coding flags `--asm`, `--rs-depth`, `--randomise`, `--conv`, `--interleave`, `--interleave-unit`                                 | **deleted**; a coded frame is a `--frame` file                                                                                                                         |
-| the by-name compiler that built a source's frame from those fields                                                                       | **deleted** with what it compiled; a source's frame is its description, or `dp_wfm_frame_fixed()` of the common fields                                                 |
-| the four-field frame struct, its named layout and its describe bridge; the four-field DSSS helpers and the synth's four-field DSSS entry | **deleted**; their callers read the description                                                                                                                        |
-| `ccsds_tm_frame_spec_t` + `dp_ccsds_tm_frame_desc_of()`                                                                                  | **deleted**: literal-only, and a second derivation of covers                                                                                                           |
-| `ccsds_tm_frame_cfg_t`                                                                                                                   | **kept** — it configures the codec's kernels, not a generated frame                                                                                                    |
-| `Frame`'s 38 arguments, `add_field`'s 15, `add_hex`, `add_value`                                                                         | **replaced** by one bit array each; text through `field_bits`                                                                                                          |
+| representation                                                                                                                           | fate                                                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wfm_frame_desc_t`                                                                                                                       | **the frame**: fields + stages                                                                                                                                              |
+| a source's `frame`                                                                                                                       | the description, carried as given                                                                                                                                           |
+| the flat framing fields on a `wfm_source_t` — `rs_depth`, `randomise`, `attach_asm`, `convolutional`, `interleave_*`                     | **deleted**. `sync` and `crc` followed in [#1617](https://github.com/doppler-dsp/doppler/issues/1617) and are refused, naming `frame=`; the payload is a data source (§F.5) |
+| the CLI coding flags `--asm`, `--rs-depth`, `--randomise`, `--conv`, `--interleave`, `--interleave-unit`                                 | **deleted**; a coded frame is a `--frame` file                                                                                                                              |
+| the by-name compiler that built a source's frame from those fields                                                                       | **deleted** with what it compiled; a source's frame is its description, or `dp_wfm_frame_fixed()` of the common fields                                                      |
+| the four-field frame struct, its named layout and its describe bridge; the four-field DSSS helpers and the synth's four-field DSSS entry | **deleted**; their callers read the description                                                                                                                             |
+| `ccsds_tm_frame_spec_t` + `dp_ccsds_tm_frame_desc_of()`                                                                                  | **deleted**: literal-only, and a second derivation of covers                                                                                                                |
+| `ccsds_tm_frame_cfg_t`                                                                                                                   | **kept** — it configures the codec's kernels, not a generated frame                                                                                                         |
+| `Frame`'s 38 arguments, `add_field`'s 15, `add_hex`, `add_value`                                                                         | **replaced** by one bit array each; text through `field_bits`                                                                                                               |
 
 **What a source still carries, and why it is not framing.** A DSSS source's
 acquisition code and data code are how its bits become chips — the spreading,

@@ -117,7 +117,7 @@ eye is wide open at +0.75. The eye statistic is the honest indicator; EVM is
 only meaningful once the loop has settled.
 
 **Check `clipped` at least once against real input.** The cascade inherits its
-CIC's ±1.0 input bound, and an overdriven front end costs about 25 dB of EVM
+CIC's ±2.0 input bound, and an overdriven front end costs about 25 dB of EVM
 with a perfectly healthy lock — nothing in the timing metrics reveals it. That
 is exactly why the flag exists.
 

@@ -53,7 +53,8 @@ import numpy as np
 
 from doppler.impairment import DopplerChannel
 
-# SPEC.md geometry, with its RF numbers restated as ppm of the time base.
+# The async DSSS receiver spec's geometry (docs/design/async-dsss-receiver.md
+# §1), with its RF numbers restated as ppm of the time base.
 CHIP_RATE = 3.069e6  # Mcps
 SPC = 8  # samples per chip
 FS = CHIP_RATE * SPC  # 24.552 MS/s

@@ -99,7 +99,7 @@ w.accumulate(scene)  # folds all 96 frames into the average
 edges = np.array(  # [lo0, hi0, lo1, hi1, ...] channel edges, Hz
     [-10e6, -5e6, -5e6, 0, 0, 5e6, 5e6, 10e6], dtype=np.float64
 )
-band_db = np.array(w.band_power(edges))  # per-channel power, dB
+band_db = w.band_power(edges)  # per-channel power, dB
 # The whole occupied span as ONE band: the channels share their -5/0/+5
 # MHz edges, so totalling them would count each shared bin twice (#1958).
 total_db = w.total_band_power(np.array([-10e6, 10e6]))  # dB
@@ -119,10 +119,7 @@ KAISER_BETA = 12.0  # ~ -90 dB sidelobes: resolves the -10 dB carrier
 
 def main() -> None:
     # ── PSD measurements come from the narrative block above ──────────────
-    # psd_db() / band_power() return zero-copy views into PSD's internal
-    # buffers, so np.array(...) snapshots them before a later call to the same
-    # method (e.g. the ACLR band_power below) reuses that buffer.
-    psd = np.array(w.psd_db())
+    psd = w.psd_db()
     freqs = (np.arange(NFFT) - NFFT // 2) * (FS / NFFT)  # DC-centred bin freqs
 
     # ── AccTrace directly: raw vs mean vs max-hold (panel 2) ────────────────

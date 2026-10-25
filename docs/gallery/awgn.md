@@ -40,10 +40,13 @@ out = r × cos(idx) + j × r × sin(idx)             — complex Gaussian
 `amplitude` is the per-component standard deviation.
 Total complex power = 2 × amplitude².
 
-The AVX-512 path runs 8 independent xoshiro256++ streams in parallel,
-uses glibc libmvec `_ZGVdN8v_logf` for 8-wide vectorised log, and reads
-sin/cos from the same 65 536-entry LUT as `LO` via AVX gather
-instructions — reaching **~525 MSa/s** on a single AVX-512 core.
+There is one path: a single scalar xoshiro256++ stream, so a seed gives the
+same noise on every platform. The sin/cos lookup is the same 65 536-entry LUT
+as `LO`. An AVX-512 eight-stream path used to be selected at run time; it
+produced a *different* sequence from the same seed, so it was removed
+([#690](https://github.com/doppler-dsp/doppler/issues/690)).
+`native/src/awgn/awgn_core.c` records why, and what a vectorized replacement
+would have to reproduce.
 
 ```bash
 python src/doppler/examples/awgn_demo.py   # → ./awgn_demo.png

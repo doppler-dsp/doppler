@@ -521,7 +521,8 @@ Assume a LEO-like downlink: `Rc = 1 Mcps`, `L = 1000` (`T_epoch = 1 ms`),
 **±500 Hz/s** (matches the standard LEO worst-case nadir-pass derivation
 `f_dot_max = (f_c/c)*(v^2/h)` at a representative S-band carrier and
 ~800 km altitude, ~579 Hz/s -- corrected from an earlier "±5 kHz/s" typo,
-which was 10x too high; see `SPEC.md`'s own corrected figure).
+which was 10x too high; see the
+[async DSSS receiver spec](async-dsss-receiver.md) §1 for the corrected figure).
 
 **Wide Doppler.** Native span is `±500 Hz`. Either a **coarse mixer bank**
 (primary): 50%-overlap step `500 Hz` → **400 channels** for the 200 kHz range at

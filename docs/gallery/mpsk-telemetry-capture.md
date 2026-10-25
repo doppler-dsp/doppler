@@ -111,4 +111,4 @@ python src/doppler/examples/mpsk_telemetry_capture_demo.py   # → mpsk_telemetr
 See the [telemetry API](../api/python-telemetry.md) for the probe tables
 and record layout, [M-PSK Receiver](mpsk-receiver.md) for the receiver
 itself, and [Lock Detection](lockdet.md) for the verify-counted decisions
-the `*.locked` / `rx.tracking` traces come from.
+the `*.locked` traces come from.

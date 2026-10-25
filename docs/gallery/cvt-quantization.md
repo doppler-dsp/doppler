@@ -28,12 +28,12 @@ quantization noise remains.
 | ----------------------------- | ---------- | -------------------- | ---------- | ----------------------- |
 | `F32ToI16` / `I16ToF32`       | `int16_t`  | 15+sign              | —          | Audio, signed buffers   |
 | `F32ToI16U32` / `I16U32ToF32` | `uint32_t` | 15+sign in bits 15:0 | 16 zero    | Legacy 32-bit pipelines |
-| `F32ToI16U64` / `I16U64ToF32` | `uint64_t` | 15+sign in bits 15:0 | 48 zero    | CIC integrator input    |
+| `F32ToI16U64` / `I16U64ToF32` | `uint64_t` | 15+sign in bits 15:0 | 48 zero    | 64-bit accumulators     |
 
 All three carry the same Q15 bit pattern — the container width determines
-downstream integer headroom, not quantization error. The CIC decimator
-consumes `I16U64` directly: the 48 upper bits absorb up to `N·log₂(R)` = 48
-bits of pipeline gain before overflow.
+downstream integer headroom, not quantization error. The CIC decimator does
+not consume any of them: it takes complex64 and encodes to offset-binary UQ16
+internally (see [Quantization](../design/QUANTIZATION.md)).
 
 The encoders expose a sticky `.clipped` property that reads `True` if any
 sample has been saturated since the last `reset()`:

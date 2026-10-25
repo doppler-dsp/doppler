@@ -312,8 +312,9 @@ for (size_t i = 0; i < n; i++)
           (unsigned long long) recs[i].n, (double) recs[i].value);
 ```
 
-The Python face — `doppler.telemetry.Telemetry`, a hand-owned `no_generate`
-module like `buffer` and `stream` — reads the same ring as a numpy
+The Python face — `doppler.telemetry.Telemetry`, the `dp_tlm` object of the
+jm `telemetry` module (its `_ext` fragment is still hand-owned) — reads the
+same ring as a numpy
 structured array (`dtype: n u8 | value f4 | probe u2 | flags u2`): one
 `read()` returning everything since the last drain, plus the probe-name map
 (`probe_names`), per-probe `emitted()` and the `dropped` counter. Its
@@ -433,8 +434,9 @@ the top of the block loop before stepping — so an existing loop becomes
 lossless by opening a capture and changing nothing else. See
 `native/inc/doppler/dp_tlm_capture/dp_tlm_capture_core.h`.
 
-The Python surface (`Telemetry.capture(...)`, per-probe views, a time axis)
-lands with the jm migration rather than as more hand-written binding — see
+The Python surface is the `dp_tlm_capture` object of the jm `telemetry`
+module: `Capture` (to a file) and its parent flavor `MemoryCapture` (in
+memory), constructed over a `Telemetry` — the jm gaps that blocked it were
 [jm#788](https://github.com/just-buildit/just-makeit/issues/788) and
 [jm#790](https://github.com/just-buildit/just-makeit/issues/790).
 
@@ -479,9 +481,10 @@ t(record) = t0 + n / fs
 > So telemetry's time base **is a `dp_sample_clock_t`**, carried by
 > reference — never re-declared as a private `fs`/`t0` pair. The API is
 > `capture(…, clock=sample_clock)`, not `capture(…, fs=…, t0=…)`.
-> What is genuinely missing is only the *feed*: J1950 → Unix conversion so a
-> BLUE `timecode` can reach `track()`, and `fs_source`/`t0_source` so a
-> caller can tell "adopted" from "never anchored".
+> What was missing was only the *feed*, and both halves now exist:
+> `wfm/wfm_time.h` converts a BLUE J1950 `timecode` to Unix seconds so it can
+> reach `track()`, and `Reader.t0` with `fs_source`/`t0_source` lets a caller
+> tell "adopted" from "never anchored".
 
 `now` is merely one possible `t0`, correct only for a live capture and
 **never a silent default**. Processing a 2019 file would otherwise stamp its
@@ -513,10 +516,11 @@ than a fabricated number:
 | no timecode in the source             | relative seconds, no absolute epoch |
 | `set_now` never called (`n == 0`)     | ordinal only                        |
 
-**Prerequisite primitive.** BLUE `timecode` is J1950 seconds and nothing in
-the tree converts it — `wfm_reader_core.c` reads it as a raw double and
-passes it through. The converter lives **once**, beside the BLUE code in
-`wfm`; telemetry consumes epochs and must not learn what J1950 is.
+**Prerequisite primitive.** BLUE `timecode` is J1950 seconds. The converter
+lives **once**, beside the BLUE code in `wfm` (`wfm/wfm_time.h`): the reader
+reports `t0` in Unix seconds and the writer converts back. A SigMF
+`core:datetime` reaches the same `t0`. Telemetry consumes epochs and must not
+learn what J1950 is.
 
 **Say where the time base came from.** `fs == 0.0` and `t0 == 0.0` are
 ambiguous exactly as `fc == 0.0` is, and doppler already solved that once:
@@ -527,11 +531,11 @@ than silently degrading to an ordinal axis.
 
 ### Raw and CSV: stop discarding metadata we already hold
 
-`Writer.__init__` already takes `fs` and `fc` for every file type and then
-**throws them away** for raw and CSV — "raw and CSV have nowhere to put
-them". The user has already supplied the values; the library silently drops
-them and hands back a file nobody can interpret. That is a footgun we ship
-today, and removing footguns is the job.
+`Writer.__init__` took `fs` and `fc` for every file type and then **threw
+them away** for raw and CSV — "raw and CSV have nowhere to put them". The
+user had already supplied the values; the library silently dropped them and
+handed back a file nobody could interpret. That was a footgun, and removing
+footguns is the job.
 
 Two additive mechanisms, neither of which invents a format:
 
@@ -699,16 +703,16 @@ Run before writing any v2 code, after `dp_sample_clock_t` turned up mid-build
 as a primitive this document had specified from scratch. Everything below was
 searched for and found; the design above is corrected accordingly.
 
-| this design asked for                 | what already exists                                                                                                  | what it collapses to              |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| time base `(fs, t0)`, `t = t0 + n/fs` | `dp_sample_clock_t` + `dp_sample_clock_stamp_at`, exposed as `wfm.SampleClock`                                       | pass a clock by reference         |
-| anchoring a replayed capture          | `dp_sample_clock_track()`                                                                                            | one `track()` call                |
-| auto `.sigmf-meta` sidecar            | **`write_sigmf_sidecar()`** (`wfm_writer_core.c`) over the public `dp_wfm_sigmf_meta_json()`; wired for `sigmf` only | call it on the raw/CSV close path |
-| `fs_source` / `t0_source`             | `wfm_fc_source_t` + `dp_wfm_reader_get_fc_source()`, both faces                                                      | follow the sibling                |
-| a capture record that round-trips     | `--record` JSON, "one canonical, sample-exact schema", `--record` → `--from-file`                                    | reuse                             |
+| this design asked for                 | what already exists                                                                                                                            | what it collapses to              |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| time base `(fs, t0)`, `t = t0 + n/fs` | `dp_sample_clock_t` + `dp_sample_clock_stamp_at`, exposed as `wfm.SampleClock`                                                                 | pass a clock by reference         |
+| anchoring a replayed capture          | `dp_sample_clock_track()`                                                                                                                      | one `track()` call                |
+| auto `.sigmf-meta` sidecar            | **`write_sigmf_sidecar()`** (`wfm_writer_core.c`) over the public `dp_wfm_sigmf_meta_json()`; then wired for `sigmf` only, now for raw/CSV too | call it on the raw/CSV close path |
+| `fs_source` / `t0_source`             | `wfm_fc_source_t` + `dp_wfm_reader_get_fc_source()`, both faces                                                                                | follow the sibling                |
+| a capture record that round-trips     | `--record` JSON, "one canonical, sample-exact schema", `--record` → `--from-file`                                                              | reuse                             |
 
 Genuinely missing, verified absent by search: **J1950 → Unix** (no
-`631152000`, no epoch helper anywhere); an **ISO 8601 *basic*** formatter
+`631152000`, no epoch helper anywhere — since added as `wfm/wfm_time.h`); an **ISO 8601 *basic*** formatter
 (only extended exists); **grouping records by probe** (the three example
 copies are the only implementations); a **threaded recorder** (no pthread in
 telemetry — `dp_parallel.h` is the precedent); and a telemetry **file**
@@ -765,8 +769,8 @@ the cheapest of the three.
 **2 — `read_dict()` — no struct-array parsing.**
 `{probe_name: values}`, or `{name: (n, values)}` with `index=True` when the
 x-axis is wanted. This retires the `series()` helper each example currently
-rewrites. It lives **in the C extension beside `read()`** — telemetry is a
-hand-owned `no_generate` module, so that is its normal home, and it keeps
+rewrites. It lives **in the C extension beside `read()`** — the `Telemetry`
+fragment is hand-owned, so that is its normal home, and it keeps
 `__init__.py` re-export-only.
 
 **3 — `to_file` — a self-describing TLM16 container, in C.**

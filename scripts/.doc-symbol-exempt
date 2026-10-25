@@ -1,0 +1,27 @@
+# Pages that name a C symbol BECAUSE it is gone: `page symbol`, one per line.
+# Read by scripts/check_doc_symbols.py (`make doc-symbols-check`).
+#
+# The list only SHRINKS. An entry whose symbol exists again, or whose page no
+# longer names it, fails the gate. A stale name that a page uses as if it
+# were current is a defect, not an entry: fix the page.
+
+# §11.1 records that the cell flavor was deleted with the pool (#2516).
+docs/design/async-dsss-receiver.md dp_async_dsss_receiver_create_cell
+# Alternatives the design weighed: a reserved keyword, an owned interrupt.
+docs/design/end-of-capture.md DP_EOS
+docs/design/end-of-capture.md dp_interrupt_t
+# Dated measurements of the frame-description migration: what was measured,
+# by the names it had then.
+docs/design/frame-description-measurements.md dp_ccsds_tm_frame_desc_of
+docs/design/frame-description-measurements.md dp_wfm_source_describe_frame
+docs/design/frame-description-measurements.md dp_wfm_synth_set_dsss
+# The table row that says it was deleted.
+docs/design/frame-description.md dp_ccsds_tm_frame_desc_of
+# "There is no dp_source_t": the absence is the point.
+docs/design/io-termination.md dp_source_t
+# The before/after of the receiver constructors (#1620).
+docs/design/rx-frame-description.md dp_burst_demod_create
+docs/design/rx-frame-description.md dp_burst_demod_set_sync
+docs/design/rx-frame-description.md dp_dsss_burst_receiver_create
+# The consistency test that missed the all-zero PN field, as it was written.
+docs/design/rx-test.md dp_wfm_frame_bits

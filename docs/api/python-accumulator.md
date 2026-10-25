@@ -1,6 +1,6 @@
 # Python Accumulator API
 
-Running-sum accumulators backed by `dp_acc_f32_t` and `dp_acc_cf64_t`.
+Running-sum accumulators backed by `dp_acc_f32_state_t` and `dp_acc_cf64_state_t`.
 Used as the integrate-and-dump register in polyphase resamplers.
 
 Source:

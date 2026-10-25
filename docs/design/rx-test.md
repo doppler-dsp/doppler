@@ -246,8 +246,8 @@ check against the best competitor outside the guard band, `phase` recovers the
 residual constellation rotation (which resolves an M-fold ambiguity), and `ok`
 says whether to believe any of it.
 
-Also present: `dp_ber_ci`, `dp_ber_enough`, `ber_esn0_db_for_ser`,
-`dp_ber_measure`, `ber_lock_symbol`, `dp_ber_evm_m`, `dp_ber_in_marker`.
+Also present: `dp_ber_ci`, `dp_ber_enough`, `dp_ber_esn0_db_for_ser`,
+`dp_ber_measure`, `dp_ber_lock_symbol`, `dp_ber_evm_m2m4`.
 The settling budget it documents is
 `2*(5/bn_timing + 5/bn_carrier)`, taken as
 `max(budget, timing lock, carrier lock, handover + budget)`.
@@ -1206,7 +1206,7 @@ and what was missing was the NUMBER and the statement of scope.
 ### 8.7 All four metrics, on a receiver, from one record
 
 `native/validation/rx_frame_fer.c` (`make test` → `validate_rx_frame_fer`) is
-the sequence of §8 end to end: a **named frame** → `dp_wfm_frame_bits()` →
+the sequence of §8 end to end: a **named frame** → `dp_wfm_frame_assemble()` →
 `wfm_synth` → `MpskReceiver` → `ber` + `snr` + `frame_meter`. It is the first
 FER measured on a receiver rather than on synthetic outcomes, and the first run
 to produce all four metrics together (goal 4). It owns no pulse, no estimator,

@@ -1,7 +1,7 @@
 # Python Delay Line API
 
 Dual-write circular delay line for complex128 samples, backed by
-`dp_delay_cf64_t`. Designed for polyphase FIR resamplers that need a
+`dp_delay_state_t`. Designed for polyphase FIR resamplers that need a
 contiguous window of history with no modulo arithmetic.
 
 Source:

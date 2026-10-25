@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-#
 # The CI toolchain image (HAS_CI_IMAGE). VENDORED from canonical: change it
 # there, not here -- standard-check fails on any difference. Built by
 # .github/workflows/ci-image.yml, pinned in .github/ci-images.env; why each

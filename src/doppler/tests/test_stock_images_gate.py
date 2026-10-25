@@ -596,3 +596,104 @@ def test_a_build_not_wired_to_the_probe_is_refused(
     )
     assert r.returncode == 1, r.stdout
     assert "buildx container-driver build of d/Dockerfile" in r.stdout
+
+
+# ── covered: a CI-image rebuild from canonical's base probe (#1982) ──────────
+#
+# The CI-image build is `docker buildx build --build-arg BASE=...` on the
+# container driver. Canonical's `make ci-image-base` probes the pinned base's
+# manifest through CI_IMAGE_BASE_REGISTRY, retried, falling back to
+# CI_IMAGE_BASE_MIRROR, and prints where to pull it from. A build fed that
+# answer needs no exemption, while the Makefile points the probe at this
+# repo's registry and mirror and every FROM comes through it.
+
+_BASE_MK = (
+    _MK + "STOCK_MIRROR ?= mirror.gcr.io/library\n"
+    "CI_IMAGE_BASE_REGISTRY = $(STOCK_REGISTRY)\n"
+    "CI_IMAGE_BASE_MIRROR = $(STOCK_MIRROR)\n"
+)
+_BASE_DOCKERFILE = "ARG BASE\nFROM ${BASE}\nRUN true\n"
+_BASE_PROBE_LINE = (
+    '          base_ref=$(make -s ci-image-base REF="$(eval echo x)")\n'
+)
+
+
+def _base_buildx(probe: str = _BASE_PROBE_LINE, arg: str = '"$base_ref"'):
+    return (
+        "jobs:\n  b:\n    steps:\n"
+        "      - uses: docker/setup-buildx-action@v4\n"
+        "      - name: Build\n        run: |\n"
+        + probe
+        + "          docker buildx build --load -f docker/ci.Dockerfile \\\n"
+        f"            --build-arg BASE={arg} -t img .\n"
+    )
+
+
+def _base_files(**over: str) -> dict[str, str]:
+    files = {
+        "Makefile": _BASE_MK,
+        "docker/ci.Dockerfile": _BASE_DOCKERFILE,
+        ".github/workflows/ci-image.yml": _base_buildx(),
+    }
+    files.update(over)
+    return files
+
+
+def test_a_base_from_the_probe_needs_no_exemption(tmp_path: Path) -> None:
+    r = _run(tmp_path, _base_files())
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+@pytest.mark.parametrize(
+    "over",
+    [
+        # unset, the probe asks no registry and names Docker Hub
+        {"Makefile": _MK + "STOCK_MIRROR ?= mirror.gcr.io/library\n"},
+        # a registry other than this repo's
+        {
+            "Makefile": _BASE_MK.replace(
+                "CI_IMAGE_BASE_REGISTRY = $(STOCK_REGISTRY)",
+                "CI_IMAGE_BASE_REGISTRY = quay.io/x",
+            )
+        },
+        # no mirror to fall back to
+        {
+            "Makefile": _BASE_MK.replace(
+                "CI_IMAGE_BASE_MIRROR = $(STOCK_MIRROR)",
+                "CI_IMAGE_BASE_MIRROR =",
+            )
+        },
+        # BASE is not the probe's answer
+        {".github/workflows/ci-image.yml": _base_buildx(arg='"$other"')},
+        # nothing probed at all
+        {".github/workflows/ci-image.yml": _base_buildx(probe="")},
+        # a second FROM the probe never saw
+        {"docker/ci.Dockerfile": _BASE_DOCKERFILE + "FROM ${OTHER}\n"},
+        # a frontend BuildKit fetches before the build
+        {
+            "docker/ci.Dockerfile": "# syntax=docker/dockerfile:1\n"
+            + _BASE_DOCKERFILE
+        },
+        # an image copied in from elsewhere
+        {
+            "docker/ci.Dockerfile": _BASE_DOCKERFILE
+            + "COPY --from=busybox:1 /bin/sh /x\n"
+        },
+    ],
+    ids=[
+        "registry-unset",
+        "other-registry",
+        "no-mirror",
+        "arg-not-probed",
+        "no-probe",
+        "second-from",
+        "syntax-directive",
+        "copy-from-image",
+    ],
+)
+def test_a_base_not_wholly_from_the_probe_is_refused(
+    tmp_path: Path, over: dict[str, str]
+) -> None:
+    r = _run(tmp_path, _base_files(**over))
+    assert r.returncode == 1, r.stdout
+    assert "buildx container-driver build of docker/ci.Dockerfile" in r.stdout

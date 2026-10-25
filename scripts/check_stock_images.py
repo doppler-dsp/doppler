@@ -63,7 +63,12 @@ with backoff; nothing else does. So, for a stock image:
   ``${{ steps.ID.outputs.stock_registry }}``, where step ID runs the
   helper's ``--registry-for`` probe (``make stock-registry``) over its
   Dockerfile, is covered: it builds from the registry the probe needed
-  (doppler#2572). Every other one is named in scripts/.stock-pull-exempt,
+  (doppler#2572). So is a ``docker buildx build`` whose every FROM is a
+  build-arg set from canonical's base probe, ``v=$(make -s ci-image-base
+  REF=...)``, while the Makefile points that probe at STOCK_REGISTRY and
+  STOCK_MIRROR (``CI_IMAGE_BASE_REGISTRY``/``CI_IMAGE_BASE_MIRROR``): the
+  CI-image rebuild (doppler#1982, just-buildit.github.io#139). Every other
+  one is named in scripts/.stock-pull-exempt,
   which may only shrink: an unlisted one fails, so does a listed one that
   is gone, and so does a listed one the list at the merge base with
   ``--base`` (origin/main) did not have (doppler#1982).
@@ -657,6 +662,79 @@ def _probed(
     return file in files
 
 
+#: A shell variable set from canonical's base probe: ``v=$(make -s
+#: ci-image-base REF=...)`` prints where to fetch a pinned base from, after
+#: a manifest probe under retry with a mirror fallback (#1982).
+_BASE_PROBE = re.compile(r"\b(\w+)=\$\(make\s+(?:-s\s+)?ci-image-base\b")
+
+
+def _base_probed(
+    root: Path,
+    dockerfile: str,
+    toks: list[str],
+    scope: list[str],
+    mk: MakeVars,
+) -> bool:
+    """Whether a container-driver ``docker buildx build`` pulls only bases
+    canonical's probe chose through STOCK_REGISTRY and STOCK_MIRROR.
+
+    All of it must hold, because each is a way for BuildKit to make a pull
+    nothing retried: the Makefile points the probe at this repo's registry
+    and mirror (unset, it probes nothing and names Docker Hub); each FROM of
+    ``dockerfile`` is a build-arg (or an earlier stage) whose value is a
+    variable an earlier line set from the probe; and the Dockerfile has no
+    ``# syntax=`` directive, a frontend BuildKit would fetch first.
+    """
+    if mk.expand("$(CI_IMAGE_BASE_REGISTRY)") != f"$({VAR})":
+        return False
+    mirror = mk.expand("$(CI_IMAGE_BASE_MIRROR)")
+    if not mirror or mirror != mk.expand("$(STOCK_MIRROR)"):
+        return False
+    probed = {m.group(1) for line in scope for m in _BASE_PROBE.finditer(line)}
+    fed: set[str] = set()
+    for i, tok in enumerate(toks):
+        kv = toks[i + 1] if tok == "--build-arg" and i + 1 < len(toks) else ""
+        name, _, value = kv.partition("=")
+        pv = _PURE_VAR.match(value.strip("'\""))
+        if pv and (pv.group(1) or pv.group(2) or pv.group(3)) in probed:
+            fed.add(name)
+    try:
+        text = (root / dockerfile).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    for raw in text.splitlines():
+        m = _DIRECTIVE.match(raw)
+        if not m:
+            break
+        if m.group(1).lower() == "syntax":
+            return False
+    stages: set[str] = set()
+    froms = 0
+    for _, line in _logical(text):
+        words = line.split()
+        op = words[0].upper() if words else ""
+        if op == "COPY" and any(
+            w.startswith("--from=")
+            and w.split("=", 1)[1].lower() not in stages
+            and not w.split("=", 1)[1].isdigit()
+            for w in words[1:]
+        ):
+            return False
+        if op != "FROM":
+            continue
+        rest = [w for w in words[1:] if not w.startswith("--")]
+        if not rest:
+            continue
+        froms += 1
+        pv = _PURE_VAR.match(rest[0])
+        name = pv and (pv.group(1) or pv.group(2) or pv.group(3))
+        if rest[0].lower() not in stages and name not in fed:
+            return False
+        if len(rest) >= 3 and rest[1].upper() == "AS":
+            stages.add(rest[2].lower())
+    return froms > 0
+
+
 def _exemption_keys(text: str) -> dict[str, int]:
     """``{site key: line}`` from the text of the exemption list: the one
     reader, for the list as it is and as the merge base had it."""
@@ -768,6 +846,9 @@ def offenders(
                         fm.group(1).strip("'\"") if fm else "Dockerfile"
                     )
                     if container:
+                        if _base_probed(root, dockerfile, toks, scope, mk):
+                            seen += 1
+                            continue
                         key = _site_key(
                             rel, dockerfile, tm.group(1) if tm else ""
                         )

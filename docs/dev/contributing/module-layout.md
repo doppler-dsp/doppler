@@ -25,7 +25,7 @@ native/inc/<module>/
 native/src/<module>/
 ├── <module>_core.c            # module-level function implementations (scaffold)
 ├── <module>_ext.c             # aggregator — jm-regenerated, do not edit
-├── <module>_ext_<component>.c # per-object binding fragment — hand-owned, jm-recreatable
+├── <module>_ext_<component>.c # per-object binding fragment — jm-generated if it has the banner
 ├── <component>_core.c         # per-object algorithm (scaffold, fill in)
 └── CMakeLists.txt             # auto-managed by just-makeit
 
@@ -50,16 +50,24 @@ There is **no `__init__.pyi`**. Stubs live in `<module>.pyi`.
 
 ______________________________________________________________________
 
-## `<module>_ext_<component>.c` fragments are hand-owned
+## `<module>_ext_<component>.c` fragments: check the banner
 
-`jm apply`/`jm status` only regenerate the aggregator `<module>_ext.c`,
-which `#include`s each object's own `<module>_ext_<component>.c` fragment.
-The fragments are sacred, like `<component>_core.c` — bespoke binding logic
-(dtype dispatch, non-trivial argument validation, lazy-alloc buffer growth)
-lives there by design and is not drift. To pick up a jm codegen
-improvement in an already-hand-owned fragment, delete it and re-run
-`jm apply`; it gets recreated from the manifest, `_core.c`/tests/benches
-untouched.
+The aggregator `<module>_ext.c` `#include`s each object's own
+`<module>_ext_<component>.c` fragment. Who owns a fragment is set by its
+manifest, and the file says which on its first line:
+
+- **Generated** — `fragment = "generated"` in `objects/<component>.toml`
+    stamps the fragment `/* jm:generated */`. Most fragments are this kind.
+    `jm apply` re-renders it from the manifest like a `.pyi`, and a hand edit
+    turns `make drift-check` red. A behaviour the binding needs is declared
+    in the manifest, not patched into the file.
+- **Hand-owned** — no banner. The fragment is sacred, like
+    `<component>_core.c`: `jm apply` regenerates only the aggregator, and
+    bespoke binding logic there is not drift. To pick up a jm codegen
+    improvement in one, delete it and re-run `jm apply`; it gets recreated
+    from the manifest, `_core.c`/tests/benches untouched.
+
+`head -1` on the fragment tells you which you have before you edit it.
 
 ## Serialization is required for stateful objects
 
@@ -210,8 +218,9 @@ ______________________________________________________________________
 Every module ships a Python benchmark alongside its C benchmark
 (`native/benchmarks/bench_<module>_core.c`). Python benchmarks use
 [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) so results are
-saved as versioned JSON snapshots in `benchmarks/history/` and checked into
-git for regression tracking.
+saved as JSON snapshots in `benchmarks/history/` (local scratch,
+git-ignored); each release's committed numbers are measured into
+`benchmarks/published/v<ver>/`.
 
 ```python
 """Benchmark for FIR."""
@@ -240,13 +249,14 @@ def test_bench_execute_cf32(benchmark, fir, x_cf32):
         benchmark.extra_info["MSa_s"] = BLOCK / benchmark.stats["mean"] / 1e6
 ```
 
-CI commits a snapshot automatically on every push to `main` and on release
-tags. Run locally when you need an immediate result:
+No CI job runs benchmarks; a release measures and commits its set by hand
+([release step 2b](../release.md#2b-refresh-the-benchmarks-page)). Run
+locally when you need an immediate result:
 
 ```sh
 make bench                       # C + Python (delegates to just-makeit bench)
 just-makeit bench --python-only  # Python only
-just-makeit bench --tag v1.2.3   # version-tagged snapshot (matches CI on tag push)
+just-makeit bench --tag v1.2.3   # label the snapshot (default: UTC timestamp)
 ```
 
 Rules:
@@ -259,8 +269,8 @@ Rules:
     which derive a `module::case` label from the pytest fullname. See
     [Benchmarking](benchmarking.md) for the full convention.
 - Use `scope="module"` fixtures to avoid re-constructing objects per round
-- Snapshots are always taken on `ubuntu-24.04` + Python 3.12 in CI for
-    comparability; local snapshots are for development only
+- Published snapshots are measured on one representative machine per
+    release for comparability; local snapshots are for development only
 
 ______________________________________________________________________
 

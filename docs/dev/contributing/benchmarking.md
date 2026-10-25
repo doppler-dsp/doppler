@@ -406,9 +406,9 @@ below 1.0 looks like a finding.
 benchmarks still time their configurations one after another with no settle
 at all — [#896](https://github.com/doppler-dsp/doppler/issues/896) has the
 counts and argues the loop belongs in `jm_bench.h` rather than in 38 hand
-edits. Version-over-version comparison (`bench-interleaved`, and
-`bench-save` / `bench-compare` for the Python microbenchmarks) is largely
-unaffected, since a consistent first-config penalty cancels
+edits. Comparison between snapshots (one release's published set against
+the next, and `bench-save` / `bench-compare` for the Python
+microbenchmarks) is largely unaffected, since a consistent first-config penalty cancels
 between snapshots; what it corrupts is the comparison between rows inside
 one snapshot.
 
@@ -493,54 +493,43 @@ Benchmark history exists to catch performance regressions across
 releases. That only works if every snapshot is measured the same way, so
 the policy is deliberately strict about *which* snapshots are kept.
 
-**CI owns the committed history.** The
-[`benchmark.yml`](https://github.com/doppler-dsp/doppler/blob/main/.github/workflows/benchmark.yml) workflow runs
-the full `just-makeit bench` (C **and** Python) on a pinned runner (fixed
-OS and Python version) on **every release tag (`v*`)** and on **manual
-`workflow_dispatch`**, then commits **both** trimmed snapshots —
-`<tag>.json` (Python) and `<tag>-c.json` (C) — to the dedicated
-`benchmarks` branch. Because the hardware and toolchain are constant,
-those snapshots are directly comparable over time — that is the canonical
-record.
+**The committed history is the published per-release sets.** Each release
+is measured by hand, on the same representative machine, and committed
+under `benchmarks/published/v<ver>/` — `portable.json` / `portable-c.json`
+(the wheel's build) and `native.json` / `native-c.json`
+(`-DDOPPLER_NATIVE=ON`). The [Benchmarks](../../benchmarks.md) page is
+rendered from them. Shared CI runners are not hardware-representative, so
+no workflow measures or commits benchmarks; the procedure is
+[release step 2b](../release.md#2b-refresh-the-benchmarks-page).
 
-It does **not** run on ordinary pushes to `main`: a full benchmark on
-every merge would add cost and per-commit noise without a comparable
-anchor. To snapshot a specific non-release commit, trigger it manually:
-
-```sh
-gh workflow run benchmark.yml -f tag=<label>
-```
+**`make bench-interleaved VERSION=X.Y.Z`** produces a set. It checks out
+the current commit into two worktrees, builds one portable and one native,
+and runs them *alternately* K times (K=5), keeping the per-benchmark best,
+so drift on the machine cannot be charged to one build. What it compares is
+the two builds of one commit, not two commits.
 
 **There is no per-PR regression gate.** There was one — a
 `perf-regression.yml` workflow that benchmarked the PR base and head on one
 runner and flagged anything past 30% — and it was removed, because it reported
 regressions whose sign reversed when the same comparison was run locally
 ([#543](https://github.com/doppler-dsp/doppler/issues/543)). An advisory gate
-nobody trusts costs attention and buys nothing.
-
-What replaced it is the local path, which is sound: **`make bench-interleaved VERSION=X.Y.Z`** builds both sides in worktrees and runs them *alternately*
-K times (K=5), keeping the per-benchmark best, so drift on the machine cannot
-be charged to one side. That alternation is exactly what the CI gate lacked —
-it always ran base first and head second. `make bench-save` and
-`make bench-compare` are still here for a two-point comparison you drive
+nobody trusts costs attention and buys nothing. To compare two commits, use
+`make bench-save` and `make bench-compare`, a two-point comparison you drive
 yourself.
 
 **Local runs are throwaway.** Run `just-makeit bench` locally to
 spot-check a change before you push, but **do not commit the result**.
 Developer machines differ in CPU, turbo behaviour, and background load,
-so a local snapshot is not comparable to the CI baseline and would only
+so a local snapshot is not comparable to the published sets and would only
 pollute the history. Local snapshots are written into
 `benchmarks/history/` and are git-ignored — only `.gitkeep` is tracked
 on `main`. Delete them freely.
 
-**Tagging.** CI tags release snapshots with the version (`v1.2.3`); a
-manual `workflow_dispatch` uses its `tag` input, or defaults to
-`<date>-<sha>` when none is given. Locally the default tag is a UTC
-timestamp; pass `--tag` only when you want a labelled local comparison
-between two of your own runs.
+**Tagging.** Locally the default tag is a UTC timestamp; pass `--tag` only
+when you want a labelled local comparison between two of your own runs.
 
-In short: never commit a snapshot from your own machine — let CI record
-the canonical history on the `benchmarks` branch.
+In short: never commit a `benchmarks/history/` snapshot; the only committed
+numbers are a release's set under `benchmarks/published/`.
 
 ______________________________________________________________________
 

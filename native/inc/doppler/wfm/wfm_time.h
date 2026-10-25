@@ -34,7 +34,8 @@
  * The value a BLUE header carries when nothing set a capture time.
  *
  * **A zero timecode is "unset", not 1950-01-01.** doppler's own writer
- * leaves the field zero (`wfm_writer_core.c` zeroes bytes 54-96), and so do
+ * leaves the field zero unless it is given a `t0` (`wfm_writer_core.c`
+ * zeroes bytes 54-96), and so do
  * many producers, so converting a zero straight through would date every
  * such capture to 1950 — confidently, and wrongly. Same ambiguity
  * `wfm_fc_source_t` exists to resolve for centre frequency: ask whether it

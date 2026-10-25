@@ -90,9 +90,7 @@ flowchart LR
 
     IN --> MIX
     AGC --> MFR
-    AGC -.->|"nda_tap=mf_in"| PED
-    STROBE -.->|"nda_tap=mf_out — every output"| PED
-    STROBE -.->|"nda_tap=strobe — on-time only"| PED
+    STROBE -.->|"on-time strobe"| PED
     STROBE --> TED
     PLF -.->|"freq_ctrl"| LO
     TLF -.->|"rate_ctrl"| MFR
@@ -103,8 +101,9 @@ flowchart LR
 The figure groups by **clock**, not by component, because that is the
 distinction that explains the receiver: everything left of the MFR runs at a
 rate the *plan* fixed, everything from the MFR on runs at a rate the *timing
-loop* is stretching. The two loops hang off that boundary, and where the PED
-reads relative to it is exactly what `nda_tap` chooses.
+loop* is stretching. The two loops hang off that boundary: both detectors read
+the on-time strobe on the steered side (§3.3), and the carrier loop's control
+port reaches back across it to the LO.
 
 **LO sits inside the fixed-rate group deliberately.** Its *rate* is the input
 sample rate, fixed by the plan; it is its *frequency* that PLF steers. Drawing
@@ -122,36 +121,28 @@ below disagrees with a symbol in the source, the source is the thing to fix.
 | **DEC** | Integer decimator        | The planner's CIC / halfband chain, at a fixed integer rate                                                                |
 | **AGC** | Automatic gain control   | The signal level; its reference is derived for this exact node                                                             |
 | **MFR** | Matched filter resampler | The terminal polyphase stage — the bank *is* the matched filter, the arm *is* the fractional delay; steered by `rate_ctrl` |
-| **PED** | Phase error detector     | The NDA M-th-power discriminator; reads wherever `nda_tap` points it                                                       |
+| **PED** | Phase error detector     | The NDA M-th-power discriminator; reads the on-time strobe (§3.3)                                                          |
 | **PLF** | Phase loop filter        | Type-2 PI, output `freq_ctrl`                                                                                              |
 | **TED** | Timing error detector    | Gardner, carrier-blind (magnitude-squared, so it is independent of carrier phase)                                          |
 | **TLF** | Timing loop filter       | Type-2 PI, output `rate_ctrl`                                                                                              |
 
-### The taps are named for their node
+### The node the discriminator reads
 
-`nda_tap` chooses where the PED reads. The names are the MFR's two ports plus
-one well-known gate:
+The PED reads one node, the **on-time strobe**: the MFR's output at `Rs`,
+gated by the timing loop. That name is standard, and it is the only tap there
+is. `nda_tap` once offered two others — `mf_in`, the MFR's **input** (the
+AGC's output), and `mf_out`, every MFR **output** at `m_out`·Rs — and both
+were removed on measurement (§3.3,
+[#832](https://github.com/doppler-dsp/doppler/issues/832)).
 
-| `nda_tap` | node                                   | needs symbol timing? |
-| --------- | -------------------------------------- | -------------------- |
-| `mf_in`   | the MFR's **input** — the AGC's output | no                   |
-| `mf_out`  | the MFR's **output**, at `m_out`·Rs    | no                   |
-| `strobe`  | the **on-time** MFR output, at Rs      | yes                  |
-
-`mf_in` and `mf_out` are the two sides of the matched filter; `strobe` is
-`mf_out` with the timing loop's gate applied, and keeps its own name because
-that name is standard.
-
-Naming the **node** rather than a region is deliberate, and both halves were
-wrong before. `preterm` / "pre-MF" describe a region — the LO's output and
+Those names are kept in this document because they name a **node** rather
+than a region. `preterm` / "pre-MF" describe a region — the LO's output and
 DEC's output are equally "before the matched filter" — where `mf_in` is one
-edge in the figure above (`AGC --> MFR`) and nowhere else. And `mf_all` read
-as *both* sides of the filter rather than its output, which is the one thing
-it never meant.
+edge in the figure above (`AGC --> MFR`) and nowhere else.
 
 At the `RateConverter` layer the same node is called *pre-terminal*, which is
 the honest name there: a plain cascade's terminal stage is not a matched
-filter at all, so it has no `mf` to be the input of.
+filter at all, so it has no `mf` to be the input of. It is the AGC's tap.
 
 - **The matched filter is the cascade's terminal polyphase stage.** It is not
     a separate FIR: the bank the down-converter was already evaluating carries
@@ -188,16 +179,12 @@ flowchart TB
     FE["front end<br/>dp_ddc_execute_ctrl_push_tap2()<br/>LO · MIX · DEC · AGC · MFR"]
     X --> FE
 
-    FE -->|"zpre, n_pre"| PMI["mpsk_rx_push_mf_in()"]
     FE -->|"ys 0..n"| TO["mpsk_rx_take_output()"]
 
-    PMI -->|"nda_tap == MF_IN"| DISC
-    TO -->|"nda_tap == MF_OUT<br/>every output, ahead of the strobe"| DISC
-
     TO --> RL["ratesync_loop_take_output()<br/>gates to the on-time sample `on`"]
-    RL -->|"nda_tap == STROBE"| DISC
+    RL -->|"on"| DISC
 
-    subgraph D["mpsk_rx_disc() — runs in BOTH modes, always"]
+    subgraph D["mpsk_rx_disc() — every strobe, from the first"]
         direction TB
         DISC["carrier_nda_disc(z, m) → pe, lk"]
         LKE["lock += CARRIER_NDA_LOCK_ALPHA · (lk − lock)"]
@@ -242,10 +229,10 @@ in every case the gate a reader would expect is deliberately absent.
     statistic swings −0.947 to +0.888 where a settled lock reads +0.906).
     But across a 24-cell sweep the gate changed exactly one cell, and what it
     really bought was making carrier acquisition easier to *measure*, not
-    easier to *achieve*. A tap that needs timing it cannot wait for is a
-    reason to choose a different tap — which is what `nda_tap` is for. Gating
-    the default hid that choice behind a coupling the caller could neither see
-    nor override.
+    easier to *achieve*. A pre-lock strobe also costs less than it looks: an
+    unmodulated carrier is sampling-phase invariant, so the discriminator
+    does not care which phase the timing loop nominated (§3.3). Gating the
+    steer hid a coupling the caller could neither see nor override.
 
 ### 1.1 The two domains, and why the split is the design
 
@@ -253,11 +240,11 @@ Everything above divides into two domains that run at **different clocks**,
 and almost every design decision in this document follows from which side of
 that line a thing sits on.
 
-|                | **fixed-rate domain**                           | **steered domain**                                       |
-| -------------- | ----------------------------------------------- | -------------------------------------------------------- |
-| where          | LO, decimation cascade, pre-terminal stream     | terminal stage and everything after it                   |
-| clock          | set by the plan; nothing downstream moves it    | the timing loop is actively stretching it                |
-| who lives here | AGC, **NDA carrier discriminator**, LO steering | matched filter, Gardner TED, strobes, symbols, decisions |
+|                | **fixed-rate domain**                        | **steered domain**                                       |
+| -------------- | -------------------------------------------- | -------------------------------------------------------- |
+| where          | LO, decimation cascade, pre-terminal stream  | terminal stage and everything after it                   |
+| clock          | set by the plan; nothing downstream moves it | the timing loop is actively stretching it                |
+| who lives here | AGC, and the LO the carrier loop steers      | matched filter, Gardner TED, strobes, symbols, decisions |
 
 The pre-terminal stream is the fixed-rate side, and `RateConverter` already
 says why, in the AGC's own words
@@ -268,8 +255,10 @@ says why, in the AGC's own words
 > bandwidth is quoted in cycles per sample of a stream another loop is
 > stretching is coupled to that loop. **The pre-terminal rate is fixed.**
 
-The AGC was put there for exactly the decoupling the carrier loop needs, so
-the carrier discriminator is the **second tenant of one tap**, not a new one.
+The AGC was put there for exactly that decoupling. The carrier discriminator
+is not its second tenant: it reads the on-time strobe, on the steered side
+(§3.3), and only its control port — `freq_ctrl`, into the LO — lives in the
+fixed-rate domain.
 
 **The AGC is load-bearing on that tap, not optional.** It is what makes the
 pre-terminal stream a *defined-level* stream, and the timing detector's slope
@@ -277,19 +266,12 @@ is a construct-time constant for a unit-amplitude signal (§6.1). An
 un-levelled receiver is not a configuration; it is a broken one, which is why
 `agc` stops being a construction parameter (§8).
 
-Two consequences worth stating outright, because the shipped code does not yet
-have them:
-
-- **The carrier loop leaves the timing domain entirely.** It reads
-    pre-terminal, so it depends on no strobe, no symbol timing and no lock
-    detector. There is nothing to gate and nothing to wait for.
-- **The matched filter leaves the carrier loop.** Today the loop closes
-    *around* the matched filter, so its dead time is that filter's group delay
-    — at RRC `span = 8` that is ~8 symbols inside the loop, which is why the
-    shipped header tells callers to keep `bn_carrier` a small fraction of the
-    symbol rate. Reading pre-terminal leaves only the LO and the decimators in
-    the loop, a fraction of a symbol. That is the change that buys back loop
-    bandwidth, and with it the ability to track real dynamics.
+One consequence is worth stating outright: **the matched filter is inside the
+carrier loop.** Its dead time is that filter's group delay — at RRC
+`span = 8`, ~8 symbols — which is why the shipped header tells callers to keep
+`bn_carrier` a small fraction of the symbol rate. Reading pre-terminal would
+leave only the LO and the decimators in the loop; that tap (`mf_in`) was built,
+measured, and lost to the strobe on every axis (§3.3).
 
 ### 1.2 One object, two faces — and why it took a jm feature
 
@@ -455,9 +437,10 @@ ______________________________________________________________________
 ## 2. The modes
 
 A mode is defined by **which discriminator steers the carrier loop, and at
-what clock**. That is the definition to hold onto: the shipped code names its
-two discriminators "acquisition" and "tracking" as though those were modes,
-and they are not — in Mode 1 the NDA discriminator *is* the tracking loop.
+what clock**. That is the definition to hold onto: the receiver once named two
+discriminators "acquisition" and "tracking" as though those were modes (#877
+removed the second), and they are not — in Mode 1 the NDA discriminator *is*
+the tracking loop.
 
 ### 2.1 Mode 1 — NDA carrier tracking, full stop
 
@@ -474,14 +457,14 @@ which mode it is in, because there is one.** No declaring on garbage, no
 drop-back that never fires, no metric that has to be trusted before the loop
 is allowed to act.
 
-|                               | Mode 1                                                                        |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| steers from                   | NDA M-th-power error, `carrier_nda_disc`                                      |
-| reads                         | the pre-terminal stream, decimated to **2 samples/symbol** (§3.3)             |
-| clock                         | fixed at construction; independent of the timing loop and of the cascade plan |
-| needs                         | no data, no symbol timing, no lock                                            |
-| capture                       | `\|Δf\| ≲ k·Bn/M`, reported as `pull_in_hz` (§3.4)                            |
-| resolves the M-fold ambiguity | **never** — that is the caller's, via differential demapping or a sync word   |
+|                               | Mode 1                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| steers from                   | NDA M-th-power error, `carrier_nda_disc`                                    |
+| reads                         | the on-time strobe (§3.3)                                                   |
+| clock                         | the symbol strobe — one update per symbol, at every rate ratio              |
+| needs                         | no data, no symbol timing, no lock                                          |
+| capture                       | `\|Δf\| ≲ k·Bn/M`, reported as `pull_in_hz` (§3.4)                          |
+| resolves the M-fold ambiguity | **never** — that is the caller's, via differential demapping or a sync word |
 
 **The M-fold ambiguity is permanent here.** No decision-directed stage ever
 pins the absolute phase, so `bits()` defaults to the differential
@@ -505,7 +488,7 @@ else Mode 1 does wrong, it does visibly.
     that if it returns. This is now the shipped surface rather than a target:
     `acq_to_track`, the handover `lockdet`, `mpsk_receiver_configure_lock()`
     and `get_tracking()` were all removed in #877, on the measurement recorded
-    in §2.4. `warmup_syms` went earlier, with the Costas arm (`1f417e97`), so
+    in §11. `warmup_syms` went earlier, with the Costas arm (`1f417e97`), so
     it survives only on `dsss_receiver`.
 
 ### 2.3 The invariant
@@ -531,8 +514,8 @@ again if a second discriminator ever returns:
     tapped sample. So `locked` meant "8 symbols" at one tap and "1 symbol" at
     another.
 
-Mode 1 has one clock on the steering path and one on the reporting path, and
-both are fixed at construction. None of the three can arise — and all three
+Mode 1 steers and reports on one clock, the symbol strobe. None of the three
+can arise — and all three
 are now closed in the shipped code rather than only in this section: one tap
 (#832) removed the rate spread, and one discriminator (#877) removed the
 second `lockdet` entirely.
@@ -746,8 +729,9 @@ constant-modulus input this yields the S-curve slope 2; for a pulse-shaped
 ~80×. Because the loop filter is **type-2 (PI)**, the steady-state frequency
 error is still driven to zero — the loop **locks on RRC as well as
 constant-modulus** — only pull-in is slower and jitter higher. This is the
-regime the pre-terminal tap operates in by construction (§3.3), so it is a
-property of the design rather than an edge case.
+regime the standalone `CarrierNda` meets on a pulse-shaped input, so it is a
+property of the design rather than an edge case; the receiver's discriminator
+reads the matched-filtered strobe (§3.3) and stays out of it.
 
 ### 3.3 Where the discriminator reads — the strobe, and why the menu closed
 
@@ -816,10 +800,10 @@ information the tap choice carried, asked as a question the caller can answer.
 
 ### The 2-samples/symbol decimation, considered and declined
 
-The original argument stands on its own terms and is kept because the
-trade is live: `bank_sps = sps / D` for whatever integer decimation `D` the
-plan chooses (`RateConverter_core.c`), so `mf_in`'s clock is a **planner
-outcome**. At the default (8 samples/symbol, `m_out = 8`, terminal rate 1.0)
+The original argument stands on its own terms and is kept because it would
+return with any pre-terminal tap: `bank_sps = sps / D` for whatever integer
+decimation `D` the plan chooses (`RateConverter_core.c`), so `mf_in`'s clock
+was a **planner outcome**. At the default (8 samples/symbol, `m_out = 8`, terminal rate 1.0)
 the planner decimates by nothing and the stream sits at 8 samples/symbol —
 four times past Nyquist, with heavily correlated neighbours. The matched
 filter wants that fine grid; the discriminator gains nothing from eight
@@ -830,19 +814,17 @@ construction-constant clock, a pull-in ceiling of a stated `Rs/M`, and
 approximately independent looks.
 
 **It was not built, for a reason this document did not anticipate: a
-decimator carries state.** The tap takes the raw stream so that it costs no
+decimator carries state.** The tap took the raw stream so that it cost no
 serialized state at all — which matters because every stateful thing in this
 receiver has to appear in the state blob, be packed, be versioned, and resume
 bit-exactly (`docs/design/state-serialization.md`). A decimator on the carrier
 path buys a tidier clock and pays for it in the one place this project is
 strictest about.
 
-So the consequence is real and stands: **`mf_in`'s pull-in ceiling moves with
-the caller's rate ratio** rather than being quotable as a constant.
-`mpsk_rx_updates_per_symbol()` reports what the rate actually came out as,
-which is the honest substitute for a number the architecture will not fix.
-Whether that trade should be revisited is open; it is not a gap left by
-accident.
+With `mf_in` gone (#832) the question no longer arises: the discriminator
+reads the strobe, so its clock is `Rs` at every rate ratio and
+`mpsk_rx_updates_per_symbol()` returns 1. The decimation trade reopens only if
+a pre-terminal tap ever returns.
 
 ### 3.4 Pull-in is a loop-bandwidth property, not a tap property
 
@@ -855,10 +837,10 @@ taps measured the same `0.01·Rs`.
 
 There are two bounds, and the tighter one is almost never the tap's:
 
-| bound            | value                                    | what it is                                                                        |
-| ---------------- | ---------------------------------------- | --------------------------------------------------------------------------------- |
-| aliasing ceiling | `F/(2M)` = **`Rs/M`** at the 2-sps clock | above it the M-th-power phase advances more than π per update and the error folds |
-| loop capture     | `≈ k·Bn/M`                               | where pull-in is prompt and predictable                                           |
+| bound            | value                                  | what it is                                                                        |
+| ---------------- | -------------------------------------- | --------------------------------------------------------------------------------- |
+| aliasing ceiling | `F/(2M)` = **`Rs/(2M)`** at the strobe | above it the M-th-power phase advances more than π per update and the error folds |
+| loop capture     | `≈ k·Bn/M`                             | where pull-in is prompt and predictable                                           |
 
 Both scale as `1/M` — the S-curve is periodic in `2π/M` however its slope is
 normalised — so **an 8PSK receiver needs four times tighter tuning than BPSK
@@ -878,11 +860,11 @@ and that is worth recognising as a tuning problem rather than a bug.
 own `(bn, ζ, t)` parameterisation, so the number that goes in this document is
 measured against the shipped filter rather than quoted from a textbook.
 
-!!! note "Measured on the shipped strobe tap, for the record"
+!!! note "Measured on the strobe tap, for the record"
 
     Largest unaided frequency error each tap could still acquire, QPSK at 8
-    samples/symbol, each at its own best `bn_carrier`. These describe the
-    shipped architecture, not §3.3's:
+    samples/symbol, each at its own best `bn_carrier` (`mf_out` was measured
+    before it was removed in #832):
 
     | tap      | `m_out = 4` | `m_out = 8` |
     | -------- | ----------- | ----------- |
@@ -890,10 +872,8 @@ measured against the shipped filter rather than quoted from a textbook.
     | `mf_out` | `0.015·Rs`  | `0.033·Rs`  |
 
     Both rows move with `m_out`, which is the mechanism showing through: both
-    taps sit on the terminal stage's grid. The tap that does NOT move with it
-    is `mf_in`, which reads ahead of the MFR — but its number is not measured
-    yet (gh-766), so the check on §3.4's claim is currently the shape of these
-    two rows rather than a third.
+    taps sat on the terminal stage's grid, so what they measure is how wide a
+    loop each tolerates, not a range the tap confers.
 
 ### 3.5 Stable false lock at `Δf = k·F/M`
 
@@ -910,9 +890,9 @@ looks healthy. It takes an **external** frequency reference, or a sync word /
 known preamble.
 
 This is Mode 1's single quiet failure, and the defence is upstream: a coarse
-estimate passed as `center_freq_hz`. The 2-sps tap moves the alias out to
-`2·Rs/M`, which is a wider spacing than the shipped symbol-rate tap gives, but
-it does not remove the mechanism.
+estimate passed as `center_freq_hz`. The strobe updates at `F = Rs`, so the
+false locks sit `Rs/M` apart; a faster tap would widen that spacing, but it
+would not remove the mechanism.
 
 ______________________________________________________________________
 
@@ -924,12 +904,11 @@ hysteretic binary counterpart) is a user-facing confidence signal — and that
 makes their honesty *more* important, not less: they are the only thing a
 caller has to judge whether the receiver is working.
 
-**It is computed on the on-time strobe, whatever steers the loop.** That is
-the deliberate opposite of §3.3: steer wide and unmatched from the
-pre-terminal stream; report clean and calibrated from the matched-filtered
-symbol. One look per symbol, approximately independent, best available SNR —
+**It is computed on the on-time strobe** — the same sample the discriminator
+steers from (§3.3), so steering and reporting share one clock and one
+calibrated, matched-filtered input. One look per symbol, approximately independent, best available SNR —
 so one calibration covers every configuration instead of degrading silently
-with the steering clock.
+with the configuration.
 
 ### 4.1 The detector spec
 
@@ -1047,23 +1026,20 @@ capture round-trips through its own file bytes. `test_examples.py` runs it on
 every push. **A probe added without a plot fails the example**, so the surface
 cannot quietly grow past what a user can see.
 
-Mode 1 puts three different clocks on that one ring, and they must be compared
+Mode 1 puts two different clocks on that one ring, and they must be compared
 by **time, never by record index**:
 
-| probe group                                              | clock                                          |
-| -------------------------------------------------------- | ---------------------------------------------- |
-| `rx.lock`                                                | symbol — computed on the on-time strobe (§4)   |
-| `rx.car.e`, `rx.car.freq`, `rx.car.locked`               | the **carrier clock**, 2 samples/symbol (§3.3) |
-| `rx.sync.e`, `.ctrl`, `.rate`, `.lock`, `.locked`, `.mu` | symbol                                         |
-| `rx.agc.gain_db`, `rx.agc.level_db`                      | the pre-terminal gain-update grid              |
+| probe group                                              | clock                                        |
+| -------------------------------------------------------- | -------------------------------------------- |
+| `rx.lock`                                                | symbol — computed on the on-time strobe (§4) |
+| `rx.car.e`, `rx.car.freq`, `rx.car.locked`               | symbol — the discriminator reads the strobe  |
+| `rx.sync.e`, `.ctrl`, `.rate`, `.lock`, `.locked`, `.mu` | symbol                                       |
+| `rx.agc.gain_db`, `rx.agc.level_db`                      | the pre-terminal gain-update grid            |
 
-Two changes from the shipped surface, both consequences of §3.3:
+The AGC probes are the only ones off the symbol grid, which is why the capture
+demo plots real seconds rather than record indices. One change from the
+earlier surface:
 
-- **The carrier probes leave the symbol grid.** Today the discriminator reads
-    the strobe, so its probes are symbol-rate; moving it to the pre-terminal tap
-    moves its telemetry with it. This is exactly the situation the AGC probes
-    are already in, and the same warning now covers both — which is why the
-    capture demo plots real seconds rather than record indices.
 - **`rx.tracking` is GONE** (#877). With no handover it was a constant 0, and
     a probe that cannot vary is not a diagnostic. It returns with Mode 2, if
     Mode 2 does. The receiver publishes 15 probes, not 16.
@@ -1746,19 +1722,19 @@ ______________________________________________________________________
 
 Everything here is reused, not reimplemented:
 
-| Piece                                                               | Verdict                                               |
-| ------------------------------------------------------------------- | ----------------------------------------------------- |
-| `MatchedDDC` / `MatchedDdcr`                                        | the whole front end — mix, decimate, match            |
-| `RateConverter` terminal polyphase stage                            | matched filter **and** fractional delay, fused        |
-| `RateConverter` pre-terminal tap                                    | the fixed-rate domain — AGC, and now the carrier disc |
-| `ratesync_loop_t`                                                   | timing loop — RateSync's own, factored out for reuse  |
-| `carrier_nda_disc`                                                  | NDA math — shared with the standalone `CarrierNda`    |
-| `loop_filter` PI                                                    | every loop embeds it by value — as-is                 |
-| `lockdet`                                                           | the hysteretic lock indicator (§4)                    |
-| `detection`                                                         | the Pd/Pfa/verify-count chain (§4.1)                  |
-| `mpsk` slicer/demap (`mpsk_slice`, `mpsk_demap`, `mpsk_diff_demap`) | decision + bits + differential — as-is (§9)           |
-| `mpsk_rx_loops_t`                                                   | **shared verbatim** by both receiver types (§1.2)     |
-| `Dll(segments)`                                                     | optional DSSS front-end — pipeline, not fused         |
+| Piece                                                               | Verdict                                              |
+| ------------------------------------------------------------------- | ---------------------------------------------------- |
+| `MatchedDDC` / `MatchedDdcr`                                        | the whole front end — mix, decimate, match           |
+| `RateConverter` terminal polyphase stage                            | matched filter **and** fractional delay, fused       |
+| `RateConverter` pre-terminal tap                                    | the fixed-rate domain — the AGC's tap                |
+| `ratesync_loop_t`                                                   | timing loop — RateSync's own, factored out for reuse |
+| `carrier_nda_disc`                                                  | NDA math — shared with the standalone `CarrierNda`   |
+| `loop_filter` PI                                                    | every loop embeds it by value — as-is                |
+| `lockdet`                                                           | the hysteretic lock indicator (§4)                   |
+| `detection`                                                         | the Pd/Pfa/verify-count chain (§4.1)                 |
+| `mpsk` slicer/demap (`mpsk_slice`, `mpsk_demap`, `mpsk_diff_demap`) | decision + bits + differential — as-is (§9)          |
+| `mpsk_rx_loops_t`                                                   | **shared verbatim** by both receiver types (§1.2)    |
+| `Dll(segments)`                                                     | optional DSSS front-end — pipeline, not fused        |
 
 Retired from this receiver by the cascade rebuild (all still first-class
 objects in their own right): `lo` driven directly, `boxcar` as an NDA arm,
@@ -1805,8 +1781,9 @@ ______________________________________________________________________
     and what it mainly bought was *measurability* — with the steer frozen until
     timing declares, the carrier transient starts at a known instant, which is
     convenient for instrumenting an acquisition and is not a property of a
-    working receiver. The previous remedy was "choose another tap"; Mode 1's is
-    structural — the carrier loop no longer reads a timed sample at all
+    working receiver. The previous remedy was "choose another tap"; the answer
+    now is the strobe, ungated — an unmodulated carrier is sampling-phase
+    invariant, so a pre-lock strobe is not the liability it looked
     ([#536](https://github.com/doppler-dsp/doppler/issues/536)).
 
 - **The handover's update-period defect** — *closed by deletion, and Mode 2's

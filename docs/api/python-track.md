@@ -504,7 +504,7 @@ rx_sync.locked                # verify-counted timing-lock decision
 Judge lock by `lock_stat` / `locked` rather than by an error-vector magnitude:
 a single cycle slip during acquisition drags a windowed EVM by 20 dB while the
 eye is wide open. And check `clipped` at least once against real input — the
-cascade inherits its CIC's ±1.0 input bound, and overdriving it costs ~25 dB
+cascade inherits its CIC's ±2.0 input bound, and overdriving it costs ~25 dB
 with a perfectly healthy lock.
 
 Use `m >= 4` with `pulse="iandd"`: the rectangle is one symbol wide, so at

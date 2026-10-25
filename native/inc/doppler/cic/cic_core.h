@@ -53,7 +53,7 @@
  * stages, provided the true result fits in 64 bits.  So the integrator/comb
  * pipeline itself needs no saturation, no range checks and no
  * floating-point — the one saturation in the block is at the CF32 encoder,
- * and it is the +-1.0 input bound described at the top of this file, not an
+ * and it is the +-2.0 input bound described at the top of this file, not an
  * arithmetic guard.
  *
  * With M=1 and N fixed, the entire comb state is four uint64_t values
@@ -115,7 +115,7 @@ typedef struct {
     uint32_t R;               /* decimation ratio (power of two)       */
     uint32_t phase;           /* input sample counter 0..R-1           */
     uint32_t shift;           /* CIC_N * log2(R) — right-shift to norm */
-    uint8_t  clipped;         /* sticky: input exceeded +-1.0          */
+    uint8_t  clipped;         /* sticky: input exceeded +-2.0          */
 } dp_cic_state_t;
 
 /**
@@ -124,8 +124,8 @@ typedef struct {
  * normalisation right-shift (CIC_N * log2(R) bits). All integrator
  * and comb accumulators are zeroed; the first output arrives after
  * R input samples. Returns NULL for invalid R or OOM.
- * Input amplitude is bounded: |Re| and |Im| <= 1.0. A component beyond
- * +-1.0 is clipped at the boundary before any filtering; the sample
+ * Input amplitude is bounded: |Re| and |Im| <= 2.0. A component beyond
+ * +-2.0 is clipped at the boundary before any filtering; the sample
  * stream gives no sign of it, so check the sticky @c clipped flag.
  * Unlike doppler's floating-point blocks this one is not scale-free --
  * scale the input into range first.
@@ -245,13 +245,13 @@ double dp_cic_dc_gain(const dp_cic_state_t *state);
  * Feeding blocks that are multiples of R gives predictable output
  * counts (exactly n_in/R samples per block).
  *
- * @note **Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component
- * beyond +-1.0 is clipped at the boundary before filtering; the sample stream
+ * @note **Input amplitude is bounded: |Re| and |Im| <= 2.0.** A component
+ * beyond +-2.0 is clipped at the boundary before filtering; the sample stream
  * gives no sign of it, so check the sticky @c clipped flag. Scale the input
  * into range first; see the file header.
  *
  * @param state  Pointer to a valid dp_cic_state_t.
- * @param in     CF32 input block, |Re| and |Im| <= 1.0 (clipped otherwise).
+ * @param in     CF32 input block, |Re| and |Im| <= 2.0 (clipped otherwise).
  * @param n_in   Number of input samples.
  * @param out    Output buffer; must hold at least max_out elements.
  * @param max_out Capacity of @p out in samples.  Normally n_in (the loosest

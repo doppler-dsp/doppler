@@ -12,8 +12,9 @@ and writes the capture to disk. Every trace in the figure came out of
 the same `read()` loop:
 
 - **`rx`** — QPSK with a mid-stream outage: the carrier lock EMA
-    (`rx.lock`) collapses, the two-way handover (`rx.tracking`) drops
-    back to NDA acquisition, and re-declares when the signal returns.
+    (`rx.lock`) collapses, the verify-counted decision on it
+    (`rx.car.locked`) withdraws, and both recover when the signal
+    returns.
 - **`code0`** — a PN-31 code seeded half a chip off: the CFAR
     statistic (`code0.lock`) climbs through pull-in past the dashed
     detection threshold, and the verify-counted decision
@@ -21,8 +22,8 @@ the same `read()` loop:
 - **`agc`** — a −12 dB input level step: `agc.gain_db` ramps to
     re-level the output.
 
-Statistic and decision stream side by side (`.lock`/`.locked`,
-`.lock`/`.tracking`) — the consumer never re-derives a threshold.
+Statistic and decision stream side by side (`code0.lock`/`code0.locked`,
+`rx.lock`/`rx.car.locked`) — the consumer never re-derives a threshold.
 
 ## The consumption model
 
@@ -128,6 +129,6 @@ python src/doppler/examples/telemetry_fanin_demo.py   # → telemetry_fanin_demo
 
 See the [telemetry API](../api/python-telemetry.md) for the probe
 tables and record layout, [Lock Detection](lockdet.md) for the
-verify-counted decisions the `rx.tracking` / `code0.locked` traces come
+verify-counted decisions the `rx.car.locked` / `code0.locked` traces come
 from, and [Streaming](../examples/streaming.md) for the NATS wire layer
 itself.

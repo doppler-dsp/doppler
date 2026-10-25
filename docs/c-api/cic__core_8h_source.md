@@ -32,7 +32,7 @@ typedef struct {
     uint32_t R;               /* decimation ratio (power of two)       */
     uint32_t phase;           /* input sample counter 0..R-1           */
     uint32_t shift;           /* CIC_N * log2(R) — right-shift to norm */
-    uint8_t  clipped;         /* sticky: input exceeded +-1.0          */
+    uint8_t  clipped;         /* sticky: input exceeded +-2.0          */
 } dp_cic_state_t;
 
 dp_cic_state_t *dp_cic_create(uint32_t R);

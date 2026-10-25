@@ -105,7 +105,7 @@ _Scale-and-saturate float to Q15-in-uint32 converter._ [More...](#detailed-descr
 ## Detailed Description
 
 
-Converts a float to a saturated int16, then zero-extends the 16-bit two's complement bit pattern into the lower 16 bits of a uint32 (upper 16 bits are always zero). This is the wire format expected by the CIC filter's integer input path, which exploits the upper bits as headroom for the bit-growth that naturally occurs through an integrator cascade.
+Converts a float to a saturated int16, then zero-extends the 16-bit two's complement bit pattern into the lower 16 bits of a uint32 (upper 16 bits are always zero). The upper bits leave room for a consumer that accumulates in place. The CIC does not take this format: it takes CF32 and encodes to UQ16 internally (`cic_core.h`).
 
 
 input +1.0 → int16 32767 → uint32 0x00007FFF input -1.0 → int16 -32768 → uint32 0x00008000
@@ -311,7 +311,7 @@ JM_FORCEINLINE  JM_HOT uint32_t dp_f32_to_i16u32_step (
 
 
 
-Computes `round(x * scale)`, saturates to `[-32768, 32767]`, then zero-extends the 16-bit two's-complement pattern into the lower 16 bits of a uint32 (upper 16 bits are always zero — headroom for the CIC integrator cascade). Latches the sticky `clipped` flag on saturation.
+Computes `round(x * scale)`, saturates to `[-32768, 32767]`, then zero-extends the 16-bit two's-complement pattern into the lower 16 bits of a uint32 (upper 16 bits are always zero). Latches the sticky `clipped` flag on saturation.
 
 
 

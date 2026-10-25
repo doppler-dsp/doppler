@@ -660,12 +660,14 @@ x = comp.compose()
 This page is the one home for everything `type="dsss"` means; the other
 guide pages carry a summary and link here.
 
-The **frame** — `acq_code` / `acq_reps` / `sync` / `crc` — is not DSSS-specific:
-the same four describe an unspread `type="bits"` waveform, and the layout comes
-from one descriptor either way. See
-[Framing](waveforms.md#framing-preamble-sync-word-crc).
-What is DSSS's own is everything below: the second code, the chip clock, and
-the Es/N0 that refers to the outer data symbol.
+The **frame** — the `frame=` description, carrying the sync word as a field
+and the CRC as a stage — is not DSSS-specific: the same description frames an
+unspread `type="bits"` waveform, and the CLI's `--sync` / `--crc` build it for
+you. A source has no `sync=` or `crc=` of its own; both are refused, naming
+`frame=`. See [Framing](waveforms.md#framing-preamble-sync-word-crc).
+What is DSSS's own is everything below: the `acq_code` × `acq_reps` preamble
+sent unspread, the second code, the chip clock, and the Es/N0 that refers to
+the outer data symbol.
 
 ______________________________________________________________________
 

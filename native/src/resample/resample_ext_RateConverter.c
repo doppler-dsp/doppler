@@ -695,7 +695,7 @@ static PyGetSetDef RateConverter_getset[] = {
   { "clipped", (getter)RateConverter_getprop_clipped, NULL,
     "True if any planned CIC stage has clipped its input since the last "
     "`reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <= "
-    "1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The "
+    "2.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The "
     "clip is invisible in the samples (finite, no NaN, merely distorted), so "
     "this is the only reliable check, and it is free: the boundary "
     "comparisons run on every sample regardless. Always False for a cascade "

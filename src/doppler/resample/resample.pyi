@@ -514,7 +514,7 @@ class CIC:
     on the heap and pre-computes the normalisation right-shift (CIC_N * log2(R)
     bits). All integrator and comb accumulators are zeroed; the first output
     arrives after R input samples. Returns NULL for invalid R or OOM. Input
-    amplitude is bounded: |Re| and |Im| <= 1.0. A component beyond +-1.0 is
+    amplitude is bounded: |Re| and |Im| <= 2.0. A component beyond +-2.0 is
     clipped at the boundary before any filtering; the sample stream gives no
     sign of it, so check the sticky clipped flag. Unlike doppler's
     floating-point blocks this one is not scale-free -- scale the input into
@@ -603,8 +603,8 @@ class CIC:
 
         Notes
         -----
-        **Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component
-        beyond +-1.0 is clipped at the boundary before filtering; the sample
+        **Input amplitude is bounded: |Re| and |Im| <= 2.0.** A component
+        beyond +-2.0 is clipped at the boundary before filtering; the sample
         stream gives no sign of it, so check the sticky clipped flag. Scale the
         input into range first; see the file header.
 
@@ -701,7 +701,7 @@ class CIC:
 
     @property
     def clipped(self) -> bool:
-        """True if any input component has exceeded the +-1.0 bound since the
+        """True if any input component has exceeded the +-2.0 bound since the
         last reset(). Sticky, and free to read: the CIC's boundary comparisons
         run on every sample anyway, so it records something the sample stream
         cannot tell you -- a clipped stream still looks entirely plausible
@@ -1044,7 +1044,7 @@ class RateConverter:
     def clipped(self) -> bool:
         """True if any planned CIC stage has clipped its input since the last
         `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <=
-        1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The
+        2.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The
         clip is invisible in the samples (finite, no NaN, merely distorted), so
         this is the only reliable check, and it is free: the boundary
         comparisons run on every sample regardless. Always False for a cascade
@@ -1445,7 +1445,7 @@ class MatchedRateConverter:
     def clipped(self) -> bool:
         """True if any planned CIC stage has clipped its input since the last
         `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <=
-        1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The
+        2.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The
         clip is invisible in the samples (finite, no NaN, merely distorted), so
         this is the only reliable check, and it is free: the boundary
         comparisons run on every sample regardless. Always False for a cascade

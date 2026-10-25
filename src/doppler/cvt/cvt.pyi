@@ -1271,8 +1271,8 @@ class F32ToI16U32:
 
         Computes round(x * scale), saturates to `[-32768, 32767]`, then
         zero-extends the 16-bit two's-complement pattern into the lower 16 bits
-        of a uint32 (upper 16 bits are always zero — headroom for the CIC
-        integrator cascade). Latches the sticky clipped flag on saturation.
+        of a uint32 (upper 16 bits are always zero). Latches the sticky clipped
+        flag on saturation.
 
         Parameters
         ----------
@@ -1685,8 +1685,8 @@ class I16U32ToF32:
 
         Masks off the lower 16 bits, reinterprets them as a signed int16 (two's
         complement), then multiplies by iscale — a single multiply after the
-        extraction. The upper 16 bits (which may carry CIC bit-growth headroom)
-        are ignored. Exact inverse of F32ToI16U32 at the same scale.
+        extraction. The upper 16 bits are ignored. Exact inverse of F32ToI16U32
+        at the same scale.
 
         Parameters
         ----------

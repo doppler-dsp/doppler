@@ -169,10 +169,11 @@ same thing at every M — see how its threshold is derived below.
 ### Where `lock_thresh` comes from — a Pfa, not a guess
 
 The lock statistic is `Re((z/|z|)^M)`: the M-th power of a **limited** sample,
-smoothed by an EMA. The limiter is on this path only — the phase error keeps its
-raw `|z|^M` weighting, which is the natural matched weighting on a pulse-shaped
-signal. Limiting the *lock* signal is what makes it a detector you can put a
-number on, because under H0 (no carrier) the phase is uniform and so
+smoothed by an EMA. The phase error is limited the same way,
+`Im((z/|z|)^M)`, so the discriminator divides out its own amplitude law and
+needs no AGC of its own ([the design](../design/mpsk.md), §3.2). Limiting the
+*lock* signal is what makes it a detector you can put a number on, because
+under H0 (no carrier) the phase is uniform and so
 
 ```text
 Var[Re(e^{jMtheta})] = 1/2   for EVERY M
@@ -221,22 +222,21 @@ the number describes the detector rather than the flag it was read from.)
     far more than it cuts H1. With the raw form only BPSK ever cleared a 1e-3 Pfa,
     so for M ≥ 4 there was no Pfa-derived threshold to be had at all.
 
-!!! warning "`0.5` is calibrated for the `strobe` tap"
+!!! note "The reading at lock, on the strobe"
 
-    `σ_H0` is tap-independent, but the value at lock is not: a tap that averages
-    badly-timed samples has small `|z|` on some of them, and limiting promotes
-    those to full weight. Measured at Es/N0 20 dB, `m_out = 8`, with all nine
-    combinations decoding at SER 0.0000, the *lock reading* is
+    `σ_H0` fixes the false-alarm side; the value at lock sets the margin. The
+    discriminator reads the on-time strobe, and measured there at Es/N0 20 dB,
+    `m_out = 8`, with every order decoding at SER 0.0000, the *lock reading* is
 
-    | tap      | BPSK   | QPSK   | 8PSK       |
-    | -------- | ------ | ------ | ---------- |
-    | `strobe` | +0.989 | +0.956 | +0.862     |
-    | `mf_out` | +0.904 | +0.384 | **+0.209** |
+    | BPSK   | QPSK   | 8PSK   |
+    | ------ | ------ | ------ |
+    | +0.989 | +0.956 | +0.862 |
 
-    So on `mf_out` at higher M the receiver can decode perfectly and
-    still not declare, because 0.5 sits above where that tap's statistic settles.
-    Scale `lock_thresh` by the reading for your tap and order — the Pfa mapping
-    (`thresh / 0.1132` in σ) is unchanged; you are only trading margin.
+    — clear of 0.5 at every M. A tap that averaged badly-timed samples read as
+    low as +0.209 at 8PSK, decoding perfectly without declaring; it went with
+    `nda_tap` ([#832](https://github.com/doppler-dsp/doppler/issues/832)).
+    Moving `lock_thresh` leaves the Pfa mapping (`thresh / 0.1132` in σ)
+    unchanged; you are only trading margin.
 
 ### Pull-in range, and why there is no tap to choose
 

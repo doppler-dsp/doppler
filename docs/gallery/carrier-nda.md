@@ -10,8 +10,10 @@ moving average of `sps/n` samples** (one output per input sample — no rate
 change), and on **every sample** runs an **M-th-power** phase discriminator.
 Raising the arm sample to the Mth power strips the M-PSK data, so
 the loop locks **with no symbol timing and no data present** — a bare carrier, or
-a modulated carrier before timing settles. It is the robust acquisition aid the
-MPSK receiver hands over from (see the [design note](../design/mpsk.md)).
+a modulated carrier before timing settles. Its discriminator is also the only
+carrier discriminator the [M-PSK receiver](mpsk-receiver.md) runs — there on the
+on-time strobe rather than a boxcar arm, and with no decision-directed stage
+after it (see the [design note](../design/mpsk.md)).
 
 **Left — Discriminator S-curve.** Driving the discriminator open-loop traces the
 scaled M-th-power detector `phase_error = Im(z^M)·{1, ½, ¼}` for M = 2 / 4 / 8: a
@@ -23,8 +25,8 @@ matches the analytic M-th power to **~9e-8**. The lock signal (not plotted) is
 and its H0 variance is exactly 1/2 at every M. It reads ≈ 1.0 at lock, and that
 M-independence is what lets one threshold mean one false-alarm probability at
 every order (`σ` after the EMA is 0.1132, so the default 0.5 is 4.42 σ, a
-per-look Pfa of 5e-6). Its EMA is the carrier lock metric that drives handover;
-the derivation is on the [receiver page](mpsk-receiver.md).
+per-look Pfa of 5e-6). Its EMA is the carrier lock metric, an indicator that
+steers nothing; the derivation is on the [receiver page](mpsk-receiver.md).
 
 **Right — Cold-start acquisition.** A carrier step `f0 = 0.0015` cycles/sample on
 an **unmodulated** carrier (no data, no timing): the tracked frequency snaps onto
@@ -34,14 +36,15 @@ the tests).
 
 ## Computation — repeated squaring
 
-The M-th power is built by repeatedly squaring the arm sample `z = i + jq` —
-driven to unit average power by an internal AGC so the loop gain is
-amplitude-invariant: `z²` strips BPSK, `z⁴` QPSK, `z⁸` 8PSK. Each level yields a
-phase error and a lock signal at one complex multiply — no `atan2`, no `pow`. The
-discriminator is the **raw** M-th-power form (best squaring loss for
-constant-modulus signals like DSSS), not a per-sample magnitude limiter. See
-[`docs/design/mpsk.md`](../design/mpsk.md) §2.3 for the derivation and the
-squaring-loss equations.
+The M-th power is built by repeatedly squaring the arm sample `z = i + jq`,
+normalized to unit magnitude (`z/|z|`) by one divide at the first squaring:
+`z²` strips BPSK, `z⁴` QPSK, `z⁸` 8PSK. Each level yields a phase error and a
+lock signal at one complex multiply — no `atan2`, no `pow`. Because the
+detector divides out its own amplitude law, the loop gain is
+amplitude-invariant with **no AGC** in the loop (the arm AGC it once carried is
+gone). See [`docs/design/mpsk.md`](../design/mpsk.md) §3.2 for the derivation,
+the squaring-loss equations, and the measured cost of normalizing against the
+raw form.
 
 ```python
 --8<-- "src/doppler/examples/mpsk_nda_theory_demo.py:track"

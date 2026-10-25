@@ -331,7 +331,7 @@ static PyGetSetDef CIC_getset[] = {
   { "R", (getter)CIC_getprop_R, NULL, "R.\n", NULL },
   { "shift", (getter)CIC_getprop_shift, NULL, "Shift.\n", NULL },
   { "clipped", (getter)CIC_getprop_clipped, NULL,
-    "True if any input component has exceeded the +-1.0 bound since the last "
+    "True if any input component has exceeded the +-2.0 bound since the last "
     "reset(). Sticky, and free to read: the CIC's boundary comparisons run on "
     "every sample anyway, so it records something the sample stream cannot "
     "tell you -- a clipped stream still looks entirely plausible (finite, no "
@@ -435,8 +435,8 @@ static PyMethodDef CICObj_methods[] = {
     "\n"
     "Notes\n"
     "-----\n"
-    "**Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component\n"
-    "beyond +-1.0 is clipped at the boundary before filtering; the sample\n"
+    "**Input amplitude is bounded: |Re| and |Im| <= 2.0.** A component\n"
+    "beyond +-2.0 is clipped at the boundary before filtering; the sample\n"
     "stream gives no sign of it, so check the sticky clipped flag. Scale the\n"
     "input into range first; see the file header.\n"
     "\n"
@@ -565,7 +565,7 @@ static PyTypeObject CICObjType = {
     "bits). All integrator and comb accumulators are zeroed; the first "
     "output\n"
     "arrives after R input samples. Returns NULL for invalid R or OOM. Input\n"
-    "amplitude is bounded: |Re| and |Im| <= 1.0. A component beyond +-1.0 is\n"
+    "amplitude is bounded: |Re| and |Im| <= 2.0. A component beyond +-2.0 is\n"
     "clipped at the boundary before any filtering; the sample stream gives "
     "no\n"
     "sign of it, so check the sticky clipped flag. Unlike doppler's\n"

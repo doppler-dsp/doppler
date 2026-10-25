@@ -282,7 +282,7 @@ type = "size_t"
 [[mpsk_receiver.properties]]
 name = "clipped"
 type = "int"
-doc = "Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to |Re|, |Im| <= 1.0 and clips silently past that -- the output stays finite and plausible, merely distorted, at a cost of ~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no CIC stage."
+doc = "Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to |Re|, |Im| <= 2.0 and clips silently past that -- the output stays finite and plausible, merely distorted, at a cost of ~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no CIC stage."
 
 # The real-input face (docs/design/mpsk-refactor.md). A VIEW, like the
 # continuous flavor above and for the same reason: one core, one state, one

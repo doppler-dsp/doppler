@@ -224,7 +224,7 @@ native/inc/<module>/
 native/src/<module>/
 ├── <module>_core.c             # module-level function implementations
 ├── <module>_ext.c              # aggregator — jm-regenerated, do not edit
-├── <module>_ext_<component>.c  # per-object binding fragment — hand-owned
+├── <module>_ext_<component>.c  # per-object binding fragment — see its banner
 ├── <component>_core.c          # algorithm skeleton (fill in)
 └── CMakeLists.txt              # auto-managed
 
@@ -525,8 +525,9 @@ ______________________________________________________________________
 Fill in `src/doppler/<module>/benchmarks/bench_<module>.py` (scaffolded
 empty by `jm apply` in Step 3). Benchmarks use
 [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) so results are
-collected into versioned JSON snapshots in `benchmarks/history/` and tracked
-in git for regression detection.
+collected into JSON snapshots in `benchmarks/history/` (local scratch,
+git-ignored); each release's committed numbers are measured into
+`benchmarks/published/v<ver>/`.
 
 For a full description of both the Python and C benchmark pipelines, history
 file format, and how to compare snapshots, see [Benchmarking](benchmarking.md).
@@ -579,14 +580,14 @@ this at PR time yet ([#2390](https://github.com/doppler-dsp/doppler/issues/2390)
 mistyped label surfaces when the next release is measured
 ([Benchmarking](benchmarking.md#the-benchmarks-page-reads-every-row-through-a-label)).
 
-CI commits a snapshot automatically on every push to `main` and on every
-release tag — no manual step required. Run locally when you want an
-immediate result during development:
+No CI job runs benchmarks; a release measures and commits its set by hand
+([release step 2b](../release.md#2b-refresh-the-benchmarks-page)). Run
+locally when you want an immediate result during development:
 
 ```sh
 make bench                       # C + Python (delegates to just-makeit bench)
 just-makeit bench --python-only  # Python only
-just-makeit bench --tag v1.2.3   # version-tagged snapshot (matches CI on tag push)
+just-makeit bench --tag v1.2.3   # label the snapshot (default: UTC timestamp)
 ```
 
 Compare two snapshots:

@@ -55,9 +55,8 @@ x_iq[0::2] = x_c.real.astype(np.int16)
 x_iq[1::2] = x_c.imag.astype(np.int16)
 
 # ── execute ────────────────────────────────────────────────────────────
-# execute() returns a zero-copy view; copy it before the next call
-# overwrites it.
-y_iq = dec.execute(x_iq).copy()
+# execute() returns a fresh array that owns its memory; no copy needed.
+y_iq = dec.execute(x_iq)
 print(f"output length: {len(y_iq) // 2} complex samples")  # 2048
 
 # ── decode ─────────────────────────────────────────────────────────────

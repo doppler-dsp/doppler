@@ -2,10 +2,10 @@
 
 The `doppler.cvt` module converts sample streams between **float32** and the
 fixed-point / integer formats used at the edges of a DSP chain — ADC codes, Q15
-fractions, Q15-in-wide-word for CIC — plus an ideal-quantiser **`ADC`** model for
-characterisation. Every converter is a tiny stateful object with a `scale` (or
-ADC depth) fixed at construction; `steps()` runs a whole block (optionally
-in-place via `out=`), `step()` does one sample.
+fractions, Q15 in a wide integer word — plus an ideal-quantiser **`ADC`**
+model for characterisation. Every converter is a tiny stateful object with a
+`scale` (or ADC depth) fixed at construction; `steps()` runs a whole block
+(optionally in-place via `out=`), `step()` does one sample.
 
 For the `F32To*` direction, `scale` is the gain applied before quantising
 (`code = round(x · scale)`); the default `scale = 32768` maps the normalised
@@ -29,8 +29,8 @@ ______________________________________________________________________
 | `F32ToI16` / `I16ToF32`       | float32 ↔ int16  | signed Q15 / 16-bit PCM round-trip          |
 | `F32ToI32` / `I32ToF32`       | float32 ↔ int32  | 24/32-bit ADC codes round-trip              |
 | `F32ToUQ15` / `UQ15ToF32`     | float32 ↔ uint16 | **unsigned** Q15 (offset-binary) round-trip |
-| `F32ToI16U32` / `I16U32ToF32` | float32 ↔ uint32 | one Q15 in the low 16 bits (CIC integer in) |
-| `F32ToI16U64` / `I16U64ToF32` | float32 ↔ uint64 | one Q15 in the low 16 bits (CIC integer in) |
+| `F32ToI16U32` / `I16U32ToF32` | float32 ↔ uint32 | one Q15 in the low 16 bits (wide integer)   |
+| `F32ToI16U64` / `I16U64ToF32` | float32 ↔ uint64 | one Q15 in the low 16 bits (wide integer)   |
 | `ADC`                         | float32 → int64  | ideal `bits`-bit quantiser (codes)          |
 
 The `F32To*` directions expose a `clipped` flag that latches when an input
@@ -166,11 +166,12 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Q15 in a wide word (CIC integer input)
+## Q15 in a wide word
 
 These pack a single saturated Q15 into the low 16 bits of a `uint32`/`uint64`
-(upper bits zero) — the integer-input wire format the CIC filter expects, where
-the headroom absorbs the bit-growth of the integrator cascade.
+(upper bits zero), leaving the upper bits as headroom for an integer
+accumulator downstream. The CIC filter does not take this format: it accepts
+complex64 and encodes to offset-binary UQ16 internally.
 
 ::: doppler.cvt.F32ToI16U32
 

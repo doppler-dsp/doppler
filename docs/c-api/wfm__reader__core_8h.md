@@ -344,10 +344,7 @@ Where the capture's absolute start time came from.
 This is the `t0` of `t = t0 + n/fs` — the epoch belonging to the DATA, which is what makes a replayed capture's telemetry line up with the recording rather than with the machine replaying it. Hand it to `dp_sample_clock_track()`; the sample clock owns the arithmetic.
 
 
-WFM\_T0\_NONE is the common case and has to stay visible: doppler's own BLUE writer leaves the timecode field zero, so a zero there means "unset", never 1950-01-01 (see `wfm/wfm_time.h`). A caller that cannot tell those apart will confidently date every doppler-written capture to
-* 
-
-
+WFM\_T0\_NONE is the common case and has to stay visible: doppler's own BLUE writer leaves the timecode field zero unless it is given a `t0`, so a zero there means "unset", never 1950-01-01 (see `wfm/wfm_time.h`). A caller that cannot tell those apart will confidently date every such capture to 1950. 
 
 
         
@@ -1276,7 +1273,7 @@ int dp_wfm_reader_seek_time (
 A capture that declares no sample rate reports `fs == 0.0`, and that is raw and CSV always — neither container has anywhere to record one. A caller computing `round(t * r.fs)` for itself gets sample 0 for every time, silently. So this refuses when `fs_source` says nothing declared a rate, rather than convert through one — the same reason the provenance accessors exist at all.
 
 
-**Seconds are measured from the FIRST SAMPLE of the capture, never from the UNIX epoch.** A capture's absolute start is `t0`, and `t0_source` is `none` on every capture doppler itself writes — so an absolute face would be unusable by default. Converting is the caller's, and it is `r.seek_time(t_unix - r.t0)` once `t0_source` says there is a `t0` to subtract.
+**Seconds are measured from the FIRST SAMPLE of the capture, never from the UNIX epoch.** A capture's absolute start is `t0`, and `t0_source` is `none` on every capture written without one — doppler's own writer included, unless it is given a `t0` — so an absolute face would be unusable by default. Converting is the caller's, and it is `r.seek_time(t_unix - r.t0)` once `t0_source` says there is a `t0` to subtract.
 
 
 

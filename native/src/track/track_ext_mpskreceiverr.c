@@ -919,7 +919,7 @@ static PyGetSetDef MpskReceiverR_getset[] = {
     "Terminal outputs per symbol (the old `n`, now the cascade's).\n", NULL },
   { "clipped", (getter)MpskReceiverR_getprop_clipped, NULL,
     "Has the cascade's CIC stage clipped its input since the last reset? A "
-    "CIC bounds its input to |Re|, |Im| <= 1.0 and clips silently past that "
+    "CIC bounds its input to |Re|, |Im| <= 2.0 and clips silently past that "
     "-- the output stays finite and plausible, merely distorted, at a cost of "
     "~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no "
     "CIC stage.\n",

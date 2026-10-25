@@ -30,12 +30,14 @@ ______________________________________________________________________
 | ------------- | --------------------------------------------- | ---------------------------------------------------------- |
 | `raw`         | interleaved I/Q in the chosen `--sample-type` | the SDR default; honors `--endian`                         |
 | `csv`         | one `I,Q` line per sample                     | `%0.9f` cf32, `%0.17g` cf64, `%d` integer; text, no endian |
-| `blue`        | **X-Midas / REDHAWK BLUE type-1000**          | *(`wfmgen` only)* self-describing 512-byte header          |
-| `sigmf`       | `<base>.sigmf-data` + `<base>.sigmf-meta`     | *(`wfmgen` only)* one annotation per segment               |
+| `blue`        | **X-Midas / REDHAWK BLUE type-1000**          | self-describing 512-byte header                            |
+| `sigmf`       | `<base>.sigmf-data` + `<base>.sigmf-meta`     | one annotation per segment                                 |
 
 **BLUE type-1000** writes a complete 512-byte X-Midas/REDHAWK Header Control
 Block so one file is fully self-describing: `data_rep`←`--endian`, `format`
-(`CB`/`CI`/`CL`/`CF`/`CD`)←`--sample-type`, and `xdelta = 1/fs`. Add
+(`CB`/`CI`/`CL`/`CF`/`CD`)←`--sample-type`, and `xdelta = 1/fs`. The Python
+`Writer` also takes a real `sample_type` (`"f32"`, `"i16"`, …), which writes
+the scalar forms (`SF`, `SI`, …). Add
 **`--detached`** to split it into a header + data pair — `<out>.hdr` (the HCB,
 with `detached=1` and `data_start=0`) and `<out>.det` (the raw samples). Detached
 output requires `--output` and a finite (non-`--continuous`) run; attached mode
@@ -151,7 +153,9 @@ see `native/src/wfm_writer/wfm_writer_core.c`:
     parameters so the capture round-trips to the spec that made it.
 
 `Composer.to_sigmf(sample_type="cf32", endian="le", fc=0.0)` returns this
-document as a string; pair it with a `Writer(..., file_type="sigmf")` data file.
+document as a string. A `Writer(..., file_type="sigmf")` writes the
+`.sigmf-meta` itself at `close()`; `Writer.annotate(comp)` gives it the same
+annotations, built with the writer's own sample type, `fs`, `fc` and `t0`.
 
 `fs` is **derived from the segments** when you don't pass one — they already
 carry a rate, and the annotation edges above are computed from it, so the

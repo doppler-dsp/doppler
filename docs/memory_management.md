@@ -133,10 +133,6 @@ for _ in range(10_000):
     documented below the way it is: the retention existed to make the plain
     form "as fast as" `out=`, and the fix was to stop trying.
 
-    One component — `Farrow` — still carries the old path, because its
-    binding holds a method the manifest cannot express yet. Its public
-    contract is unchanged; only the retention differs.
-
 ### `out=`: placement and determinism, not throughput
 
 Every block method that returns an array also accepts `out=`, which makes
@@ -273,8 +269,8 @@ with treating an allocation as the thing to eliminate.
 
 ### Releasing the block instead of keeping it
 
-If you only need a reduction, let the array die inside the expression. The
-object then reuses its buffer in place and nothing accumulates:
+If you only need a reduction, let the array die inside the expression. It is
+freed as soon as the expression is done, so nothing accumulates:
 
 ```python
 >>> lo = LO(0.1)
@@ -293,8 +289,11 @@ Two consequences are worth knowing, because both are silent.
 
 ### Alignment
 
-doppler's float FFT path is [PFFFT](https://bitbucket.org/jpommier/pffft),
-which requires 16-byte-aligned buffers. `dp_pocketfft_execute_1d_cf32` checks
+doppler's float FFT path is [PFFFT](https://bitbucket.org/jpommier/pffft) in
+single precision whenever the length is a multiple of 16 with no prime factor
+above 5 (any other length is promoted to double on pocketfft, where alignment
+does not matter). PFFFT requires 16-byte-aligned buffers.
+`dp_pocketfft_execute_1d_cf32` checks
 `aligned16(in) && aligned16(out)` and transforms straight in→out when both
 qualify; otherwise it bounces the unaligned side through internal aligned
 scratch. The 2-D path never touches caller alignment at all — it copies into
@@ -422,9 +421,6 @@ ______________________________________________________________________
     the allocator out of the loop, accepting ~60 ns on the median to cut p99 by
     ~2.6×. For small blocks this argument does not apply: `out=` is worse at
     p99 too, because there is no allocator tail to remove.
-- **You are holding large blocks in a long-lived loop today** — release each
-    block, or pass `out=`, until [604](https://github.com/just-buildit/just-makeit/issues/604)
-    lands. This one is a workaround with an expiry date, not a rule.
 - **Streaming between threads** — use `doppler.buffer`, and copy anything that
     must outlive `consume(n)`.
 

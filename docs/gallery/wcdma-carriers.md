@@ -50,13 +50,12 @@ Sum four of them at 5 MHz spacing over a composed AWGN floor, then measure with
 --8<-- "src/doppler/examples/wcdma_carriers_demo.py:scene"
 ```
 
-!!! note "Snapshot zero-copy results"
+!!! note "Results are yours to keep"
 
-    `psd_db()` and `band_power()` return zero-copy **views** into PSD's
-    internal buffers (the library's variable-output idiom). Wrap a result in
-    `np.array(...)` if you need it to survive a later call to the same method —
-    e.g. the ACLR `band_power(guard)` call would otherwise overwrite an earlier
-    `band_power(edges)` view.
+    `psd_db()` and `band_power()` each return a fresh array that owns its
+    memory, so a later call to the same method — e.g. the ACLR
+    `band_power(guard)` after `band_power(edges)` — leaves an earlier result
+    untouched.
 
 ## See also
 

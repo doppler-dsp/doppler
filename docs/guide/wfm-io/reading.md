@@ -196,9 +196,13 @@ with Reader(tmp / "untimed.raw", sample_type="cf32") as r:
     assert r.position == 250
 ```
 
-For an **absolute** time, subtract the capture's own start: \`r.seek_time(t_unix
-
-- r.t0)`, and check `t0_source`first — it is`"none"`on every capture doppler writes, so`t0\` is 0.0 there and the subtraction would be meaningless.
+For an **absolute** time, subtract the capture's own start,
+`r.seek_time(t_unix - r.t0)`, and check `t0_source` first: it is `"timecode"`
+for a BLUE header that declares a start, `"sigmf"` for a `core:datetime`
+(in a SigMF capture, or in the sidecar beside a raw or CSV one), and `"none"`
+otherwise. doppler's `Writer` writes a start only
+when given `t0=`, so on its other captures `t0` is 0.0 and the subtraction
+would be meaningless.
 
 ______________________________________________________________________
 
@@ -280,6 +284,7 @@ tmpdir.cleanup()
 
 For a capture with per-segment **annotations** — ground truth for scoring a
 detector — build it through
-[`Composer`](../../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink), which knows the scene; a plain `Writer` has nothing to
-annotate and emits an empty `annotations` array. The sidecar's schema is
+[`Composer`](../../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink), which knows the scene, and hand the scene to the writer with
+`w.annotate(comp)`; without it a `Writer` has nothing to annotate and emits an
+empty `annotations` array. The sidecar's schema is
 documented in [Output & file types](writing.md#sigmf-sidecar-schema).

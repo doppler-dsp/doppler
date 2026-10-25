@@ -803,7 +803,7 @@ extern "C"
 
   /** @brief Has the cascade's CIC stage clipped its input since the last
    *         reset? Forwarded from the RateConverter: a CIC bounds its input
-   *         to +-1.0 and clips silently past that, which no timing metric
+   *         to +-2.0 and clips silently past that, which no timing metric
    *         reveals. Always 0 when the plan has no CIC stage. */
   int dp_ratesync_get_clipped (const dp_ratesync_state_t *state);
 

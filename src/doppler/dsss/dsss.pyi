@@ -251,6 +251,8 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
         tail.
         """
 
+ASYNC_DSSS_RX_STATE: dict[int, str]
+
 @final
 class Despreader:
     """Create a continuous DSSS despreader (COPIES code).

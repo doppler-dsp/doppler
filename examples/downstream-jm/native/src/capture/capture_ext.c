@@ -220,5 +220,21 @@ PyInit_capture(void)
     if (PyModule_AddObject(m, "RawCapture", (PyObject *)&RawCaptureObjType) < 0) {
         Py_DECREF(&RawCaptureObjType); Py_DECREF(m); return NULL;
     }
+    {  /* gh-2344: [[enum]] metadata_source -> METADATA_SOURCE */
+        PyObject *_e = PyTuple_New(3);
+        for (Py_ssize_t _i = 0; _e && _i < 3; _i++) {
+            PyObject *_s = PyUnicode_FromString(_enum_Capture_metadata_source[_i]);
+            if (_s)
+                PyTuple_SET_ITEM(_e, _i, _s);
+            else
+                Py_CLEAR(_e);
+        }
+        if (!_e || PyModule_AddObject(m, "METADATA_SOURCE", _e) < 0) {
+            Py_XDECREF(_e);
+            Py_DECREF(m);
+            return NULL;
+        }
+    }
+
     return m;
 }

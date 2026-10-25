@@ -40,6 +40,9 @@ class TelemetryStats(tuple[int, int, int, int]):
     def probes(self) -> int:
         """Registered probes."""
 
+STYPE: tuple[str, ...]
+ENDIAN: tuple[str, ...]
+
 @final
 class Telemetry:
     """Creates a telemetry context with a ring of ring_records slots.

@@ -31,6 +31,8 @@ class CaptureSummary(tuple[int, float, float]):
     def fc_hz(self) -> float:
         """Centre frequency (Hz); 0 if the file was silent."""
 
+METADATA_SOURCE: tuple[str, ...]
+
 @final
 class Capture:
     """Capture component.

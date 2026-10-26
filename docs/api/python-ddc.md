@@ -426,9 +426,18 @@ not yet in the library.
 
 ______________________________________________________________________
 
-### Performance (Release build, x86-64)
+### Performance of the candidate architectures (a 2026-05-17 record)
 
-Block = 65536 samples × 200 iterations, M=3 N=19.
+!!! note "A dated design study, not the shipped DDC's throughput"
+
+    These numbers come from the architecture comparison made when the
+    library began (2026-05-17), before `DDC` moved onto `RateConverter`. No
+    script in the tree reproduces them, and architectures A and C were never
+    shipped. For the shipped DDC's throughput, measured on every release,
+    see "Down-converter, decimate by 2" on
+    [the benchmarks page](../benchmarks.md).
+
+Block = 65536 samples × 200 iterations, M=3 N=19, Release build, x86-64.
 
 Architecture C is measured here but has no section above, since B beats it
 at every rate. It is B's order reversed, a wide-band (0.2/0.8) resample at

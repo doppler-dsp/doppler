@@ -38,17 +38,24 @@ $$
 (The familiar factor of two belongs to an **I-only** measurement, which
 discards the Q channel. EVM is a plane quantity unless it says otherwise.)
 
-Measured, ten seeds per point:
+The reference is what the meter reads on a perfect stream,
+[`ber_evm_ideal_db`](../api/python-ber.md): `ber_evm_db` scales its window to
+unit total power, so even an ideal receiver reads a little under −Es/N0
+(−10.31 dB at 10 dB). The script sweeps three operating points over ten
+seeds each:
 
-| Es/N0 | bound    | measured  | offset   |
-| ----- | -------- | --------- | -------- |
-| 10 dB | −10.0 dB | −10.02 dB | −0.02 dB |
-| 15 dB | −15.0 dB | −15.01 dB | −0.01 dB |
-| 20 dB | −20.0 dB | −19.97 dB | +0.03 dB |
+```python
+--8<-- "src/doppler/examples/ratesync_demo.py:sweep"
+```
 
-So the fused matched filter **is on the bound**, across a 10 dB span — fusing
-it into the resampler's polyphase bank costs nothing in detection performance.
-It is the same filter, evaluated at a steered instant.
+and asserts every mean lands within **0.15 dB** of the ideal. It prints the
+three rows it checked; on the run behind this page they read −10.24 / −15.13
+/ −20.01 dB against −10.31 / −15.10 / −20.03 dB.
+
+So the fused matched filter **is on the bound**, within 0.15 dB of a perfect
+receiver across a 10 dB span — fusing it into the resampler's polyphase bank
+costs nothing in detection performance. It is the same filter, evaluated at a
+steered instant.
 
 (The settled window is 4000 symbols — the 6000-symbol record less the
 2000-symbol `ber_settle_syms` budget — and carries under 0.1 dB of estimator

@@ -118,7 +118,7 @@ there is no child accessor and there is not going to be one. What is true
 instead:
 
 - **`BurstAcquisition` is public.** A caller who wants the search's own face
-    constructs one with the same parameters and gets all 22 of its
+    constructs one with the same parameters and gets every one of its
     read-backs. Nothing was taken away by this object existing, which is what
     makes the swallowing survivable.
 - **The search this capture will do is visible FROM the capture** —
@@ -487,8 +487,8 @@ is the axis to minimise, because every required parameter is a decision a
 caller has to make before they can begin.
 
 **Read-backs, optional configuration and diagnostics are rich, deliberately.**
-Twenty-two read-backs is not bloat when each answers a question the object alone
-can answer:
+Its read-backs (every property on `BurstCapture`) are not bloat when each
+answers a question the object alone can answer:
 
 | group                            | what it answers                                            |
 | -------------------------------- | ---------------------------------------------------------- |

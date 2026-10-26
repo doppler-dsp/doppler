@@ -487,12 +487,12 @@ and sometimes the receiver is legitimately hunting in the noise floor.
 
 ______________________________________________________________________
 
-## 6. Settling is level-dependent, and the header says otherwise
+## 6. Settling is level-dependent
 
-`agc_core.h` currently states that the loop converges *"with a time constant
-of roughly `1/(4·loop_bw)` samples — independent of the absolute signal
-level. A 60 dB-loud signal and a 0 dB-quiet signal settle in the same number
-of samples; only a level-dependent loop would not."*
+The loop-filter reduction in `agc_core.h` converges *"with a time constant of
+roughly `1/(4·loop_bw)` samples, independent of the absolute signal level"* —
+and the header now says straight after it that this is the filter's property,
+not the object's.
 
 Measured 1/e settling, `loop_bw = 0.005`, predicted 50:
 
@@ -515,10 +515,10 @@ detector's own bandwidth:
 | 0.05     | 82     | 165     | 1.01     |
 | **0.01** | 86     | **342** | **2.98** |
 
-**`MPSK_RX_AGC_ALPHA` is 0.01** — the worst row. This lands directly on
-`warmup_syms`, whose proposed derivation takes the AGC term as a
-level-independent `1/(4·bn_agc)`. It is not one, and a receiver acquiring a
-weak signal waits up to 3× longer than that term predicts.
+**`MPSK_RX_AGC_ALPHA` is 0.01** — the worst row. Any warm-up budget that
+takes the AGC term as a level-independent `1/(4·bn_agc)` is optimistic: a
+receiver acquiring a weak signal waits up to 3× longer than that term
+predicts.
 
 Worse for a derivation: combined with §3.1, the AGC's contribution to warmup
 is not a constant the constructor can compute at all. It depends on the
@@ -528,9 +528,12 @@ derived from `bn_agc` alone quietly assumes a worst case and states it as a
 number. Any honest derivation either takes the expected level error as an
 input, or admits the AGC term is a bound rather than an estimate.
 
-The fix is to the prose, not the loop: the level-independence belongs to the
-filter, and the object's settling should be quoted with the detector's
-contribution stated.
+The fix was to the prose, not the loop. `agc_core.h` now attributes the
+level-independence to the filter alone, quotes the measured settling above,
+and ships the design query that takes the level error as an input:
+`dp_agc_settling_samples(loop_bw, alpha, gain_err_db, tol_db)` runs the real
+loop against a constant input and counts, so its answer is whatever the
+shipped loop does.
 
 ______________________________________________________________________
 

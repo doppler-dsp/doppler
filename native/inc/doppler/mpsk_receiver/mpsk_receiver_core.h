@@ -78,8 +78,9 @@
  * bank either way (~34 taps/arm at both ends of a 64x span of input rates,
  * against the 4225 taps/arm a single-stage design would need). An
  * irrational `sps` — a free-running ADC clock against the symbol clock — is
- * no harder than an integer one, because the terminal accumulator is a double
- * and the loop only has to steer the strobe.
+ * no harder than an integer one, because the terminal stage takes a double
+ * rate (its phase is a 32-bit word, 2^-32 of an input interval) and the loop
+ * only has to steer the strobe.
  *
  * The M-fold phase ambiguity is unchanged: resolve it with differential
  * demapping (`bits(..., differential=1)`) or a sync word downstream. A
@@ -807,15 +808,16 @@ extern "C"
   /**
    * @brief Attach (or detach) a telemetry context across the receiver.
    * Registers the receiver's own "<prefix>.lock" probe (the carrier lock
-   * EMA), then the carrier loop's "<prefix>.car.e" / ".freq" / ".locked" and
-   * the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" /
-   * ".locked" / ".mu" -- ten probes emitted once per recovered symbol --
-   * then the front end's AGC under "<prefix>.agc" ("<prefix>.agc.gain_db" and
-   * "<prefix>.agc.level_db"; see dp_agc_set_telemetry()).  Twelve probes total,
-   * all thinned by @p decim.  Passing NULL detaches everything.
+   * EMA), the carrier loop's "<prefix>.car.e" / ".freq" / ".nco" / ".locked",
+   * the decided symbol's "<prefix>.sym.i" / ".sym.q", and the symbol-timing
+   * loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" /
+   * ".mu" -- thirteen probes emitted once per recovered symbol -- then the
+   * front end's AGC under "<prefix>.agc" ("<prefix>.agc.gain_db" and
+   * "<prefix>.agc.level_db"; see dp_agc_set_telemetry()).  Fifteen probes
+   * total, all thinned by @p decim.  Passing NULL detaches everything.
    *
-   * @warning The two AGC probes are NOT at the symbol rate the other ten
-   * are.  That AGC sits pre-terminal in the cascade (RateConverter's tap,
+   * @warning The two AGC probes are NOT at the symbol rate the other
+   * thirteen are.  That AGC sits pre-terminal in the cascade (RateConverter's tap,
    * ahead of the stage the timing loop steers) and emits once per
    * gain-update event, i.e. every @c AGC_DECIM_DEFAULT samples of that
    * fixed-rate stream -- so it reports on a grid that depends on the planned

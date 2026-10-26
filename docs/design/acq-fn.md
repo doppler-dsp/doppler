@@ -53,7 +53,8 @@ alongside** the OO API, never a replacement.
     1. the envelope, then `acq_extra_t`: `n`, `n_noncoh`, `max_peaks`, the
         running sample offset `samples_consumed` (the code-phase anchor,
         carried so a resumed pod keeps a continuous phase reference),
-        `nc_count`, `n_twins` and the block epoch;
+        `nc_count`, `n_twins`, the block epoch and `rate_hyps` (the number of
+        Doppler-rate hypotheses searched, added in version 6);
     1. the carry, as the ring framer's own snapshot, a child blob: the partial
         frame (at most `frame_n - 1` samples, zero-filled past them) and the
         framer's written and frame counts;
@@ -63,7 +64,7 @@ alongside** the OO API, never a replacement.
         only the epochs this block has written, zero past them (#2052).
 
     `set_state` refuses, writing nothing, a blob whose envelope or
-    `n`/`n_noncoh`/`max_peaks` differ from the engine; whose carry the framer
+    `n`/`n_noncoh`/`max_peaks`/`rate_hyps` differ from the engine; whose carry the framer
     refuses; or whose counters disagree with one another: the stream position
     must be the framer's frames times `frame_n`, and the block epoch and the
     non-coherent look count must be where that many frames leave them (#2042).
@@ -110,7 +111,8 @@ main (void)
      triplet). */
   size_t (*bytes) (const dp_acq_state_t *) = dp_acq_state_bytes;
   void (*get) (const dp_acq_state_t *, void *) = dp_acq_get_state;
-  int (*set) (dp_acq_state_t *, const void *) = dp_acq_set_state; /* 0 ok / -1 */
+  /* DP_OK, or DP_ERR_INVALID (-4) on a refused blob. */
+  int (*set) (dp_acq_state_t *, const void *) = dp_acq_set_state;
 
   /* pure run: (state_in, input) -> (state_out, hits). Either blob may be
      NULL (NULL in = fresh; NULL out = discard). */
@@ -156,4 +158,4 @@ main (void)
     thread-pool fan-out over coarse-Doppler shards, bit-identical
     `get_state`/`set_state` pod hand-off.
 
-The OO objects (`Acquisition`, `Ddc`/`Ddcr`) are preserved at every step.
+The OO objects (`Acquisition`, `DDC`/`Ddcr`) are preserved at every step.

@@ -301,8 +301,11 @@ consequences:
 
 - A symbol clock that is 1.004× fast and 1.7 samples late has to be
     **hand-placed** in a demo, because no declaration can say it.
-- Sources cannot express clock Doppler at all
-    ([gh-942](https://github.com/doppler-dsp/doppler/issues/942)).
+- Clock Doppler is expressed by a different mechanism: a source's
+    `doppler` (ppm), `doppler_rate` (ppm/s) and `doppler_lifetime`
+    ([gh-942](https://github.com/doppler-dsp/doppler/issues/942)) rescale its
+    received time base through a per-source channel, rather than through the
+    integer symbol clock.
 - The RRC tap count is `2 * span * sps + 1`, so the integer is baked into the
     filter geometry as well as the timeline.
 
@@ -360,9 +363,9 @@ Four flags describing one object that exists is the same collapse the frame
 descriptor performs for framing, on a different axis.
 
 Deliberately **not** here: the timing loop itself, which is the receive side
-and has its own page; and the stateful per-source channel gh-942 also asks
-for, which is a larger question than the clock and should not be smuggled in
-behind it.
+and has its own page; and the stateful per-source Doppler channel, which
+gh-942 shipped separately (a source's `doppler`, `doppler_rate` and
+`doppler_lifetime`, declared in `native/inc/doppler/wfm/wfm_compose.h`).
 
 ## Open questions
 

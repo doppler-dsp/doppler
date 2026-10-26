@@ -161,9 +161,10 @@ reachable, which is why the loop needs no check.
 that died *before* the stop leaves a wait nothing ends, and the Ctrl+C
 that would have escaped has been spent on a sticky flag with no second
 meaning. The fix belongs to the interrupt primitive — a second request
-while one is pending means "stop now" — and is tracked with
-[#977](https://github.com/doppler-dsp/doppler/issues/977) rather than
-worked around here.
+while one is pending means "stop now" — rather than to a workaround here.
+It is not built: it was parked on
+[#977](https://github.com/doppler-dsp/doppler/issues/977), which closed
+when the flag became process-wide (§8), without taking it up.
 
 ______________________________________________________________________
 
@@ -513,7 +514,9 @@ ______________________________________________________________________
     `data_size` is still the placeholder and `apply_hcb` enforces it as a
     bound. *Lean: yield the samples and expose the ending as a property.*
     The one place this design would touch existing behaviour.
-- **A second interrupt escalates** (§3). Belongs to #977.
+- **A second interrupt escalates** (§3). Belongs to the interrupt
+    primitive; #977 closed without it, and it is tracked as
+    [#2601](https://github.com/doppler-dsp/doppler/issues/2601).
 - **`follow_slice_ms`** — currently the interrupt macro; §7's first
     unknown decides whether it needs to be settable.
 

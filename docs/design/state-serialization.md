@@ -199,32 +199,38 @@ Hand-packing is a few bounds-checked calls on a writer/reader cursor, not raw
 pointer arithmetic. The cursors use a **sticky-error** model: an overrun sets
 `err` and subsequent operations no-op, so call sites stay flat.
 
-<!-- docs-snippet: skip=illustrative excerpt (param names simplified from the real lo_core.c for exposition), not standalone -->
+<!-- docs-snippet: skip=excerpt of native/src/lo/lo_core.c, not a standalone program -->
 
 ```c
 void
-dp_lo_get_state (const dp_lo_state_t *s, void *blob)
+dp_lo_get_state (const dp_lo_state_t *state, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, dp_lo_state_bytes (s));
-  dp_w_hdr (&w, LO_STATE_MAGIC, LO_STATE_VERSION, dp_lo_state_bytes (s));
-  dp_w_f64 (&w, s->phase);          /* pack the module's own fields */
-  dp_w_f64 (&w, s->phase_inc);
+  dp_writer_t w = dp_writer_init (blob, dp_lo_state_bytes (state));
+  dp_w_hdr (&w, LO_STATE_MAGIC, LO_STATE_VERSION, dp_lo_state_bytes (state));
+  dp_w_u32 (&w, state->phase);     /* pack the module's own fields */
 }
 
 int
-dp_lo_set_state (dp_lo_state_t *s, const void *blob)
+dp_lo_set_state (dp_lo_state_t *state, const void *blob)
 {
-  int rc = dp_state_validate (blob, dp_lo_state_bytes (s),
-                              LO_STATE_MAGIC, LO_STATE_VERSION);
+  int rc = dp_state_validate (blob, dp_lo_state_bytes (state), LO_STATE_MAGIC,
+                              LO_STATE_VERSION);
   if (rc != DP_OK)
-    return rc;                       /* wrong object / version / size → reject */
-  dp_reader_t r = dp_reader_init (blob, dp_lo_state_bytes (s));
-  r.off = sizeof (dp_state_hdr_t);
-  s->phase     = dp_r_f64 (&r);
-  s->phase_inc = dp_r_f64 (&r);
+    return rc;                      /* wrong object / version / size → reject */
+  dp_reader_t r = dp_reader_init (blob, dp_lo_state_bytes (state));
+  r.off         = sizeof (dp_state_hdr_t);
+  state->phase  = dp_r_u32 (&r);
   return DP_OK;
 }
 ```
+
+LO packs one `u32`, the phase accumulator. Its frequency (`norm_freq`, and
+the `phase_inc` derived from it) is not in the blob, although a setter can
+change it — an open breach of
+[What goes in the blob](#what-goes-in-the-blob-a-mutators-value-is-state),
+listed in
+`scripts/.mutator-state-exempt` and tracked as
+[#2079](https://github.com/doppler-dsp/doppler/issues/2079).
 
 The writer/reader pairs cover `u32`/`u64`/`f64`/`cf32`/`f32`/raw `bytes`, plus
 `dp_w_reserve`/`dp_r_reserve` for handing a region to a child's get/set.
@@ -331,31 +337,52 @@ embedded-by-value member (`&s->lf`). `DP_R_CHILD` returns `DP_ERR_INVALID` from
 the enclosing `set_state` if a child rejects, so a composite restore is
 atomic-by-validation.
 
-<!-- docs-snippet: skip=illustrative excerpt (design pattern), not a standalone compilable program -->
+<!-- docs-snippet: skip=excerpt of native/src/ddc/ddc_core.c, not a standalone program -->
 
 ```c
-size_t dp_mpsk_receiver_state_bytes(const dp_mpsk_receiver_state_t *s)
-{ return sizeof(dp_state_hdr_t) + dp_carrier_nda_state_bytes(&s->car)
-         + dp_symsync_state_bytes(&s->sync) + dp_fir_state_bytes(s->mf)
-         + /* running scalars … */; }
-
-void dp_mpsk_receiver_get_state(const dp_mpsk_receiver_state_t *s, void *blob)
+size_t
+dp_ddc_state_bytes (const dp_ddc_state_t *s)
 {
-  DP_GET_OPEN(MPSK_RECEIVER_STATE_MAGIC, MPSK_RECEIVER_STATE_VERSION,
-              dp_mpsk_receiver_state_bytes(s));
-  DP_W_CHILD(&_w, carrier_nda, &s->car);   /* embedded by value      */
-  DP_W_CHILD(&_w, symsync,     &s->sync);
-  DP_W_CHILD(&_w, fir,         s->mf);      /* pointer member         */
-  /* … then dp_w_* the running scalars … */
+  return sizeof (dp_state_hdr_t) + sizeof (ddc_extra_t)
+         + dp_lo_state_bytes (s->lo) + dp_RateConverter_state_bytes (s->rc);
+}
+
+void
+dp_ddc_get_state (const dp_ddc_state_t *s, void *blob)
+{
+  DP_GET_OPEN (DDC_STATE_MAGIC, DDC_STATE_VERSION, dp_ddc_state_bytes (s));
+  dp_w_f64 (&_w, s->rc->rate); /* ddc_extra_t */
+  DP_W_CHILD (&_w, dp_lo, s->lo);
+  DP_W_CHILD (&_w, dp_RateConverter, s->rc);
+}
+
+int
+dp_ddc_set_state (dp_ddc_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (DDC_STATE_MAGIC, DDC_STATE_VERSION, dp_ddc_state_bytes (s));
+  if (dp_r_f64 (&_r) != s->rc->rate) /* ddc_extra_t.rate is the layout key */
+    return DP_ERR_INVALID;
+  DP_R_CHILD (&_r, dp_lo, s->lo);
+  DP_R_CHILD (&_r, dp_RateConverter, s->rc);
+  return DP_OK;
 }
 ```
+
+The `[extra]` here is the resampling rate: it sizes the child blob, so a
+mismatch is a reject rather than a reinterpretation. Not every composition
+uses the macros — `dp_mpsk_receiver_get_state` concatenates its front end's
+blob (`dp_ddc_*` or `dp_ddcr_*`) and its loops' blob by hand — but every one
+nests self-validating children the same way.
 
 ## The `run` transducer
 
 For a single-`execute` object, `DP_DEFINE_RUN(pfx, STATE_T, IN_T, OUT_T)`
 generates the identical pure-transducer wrapper
-`pfx_run(state_in, state_out, in, n_in, out, max_out)`: optionally restore
-`state_in`, run one `execute`, optionally emit `state_out`. (Frame/push shapes
+`pfx_run(s, state_in, state_out, in, n_in, out, max_out)`, where `s` is a
+`STATE_T *` the caller owns: optionally restore `state_in` into `s`, run one
+`execute` on it, optionally emit `state_out`. A restore that is refused
+returns 0 without executing. `DP_DEFINE_RUN (dp_ddc, …)` in `ddc_core.c` is
+one. (Frame/push shapes
 like `acq` keep a hand-written `run`.)
 
 ______________________________________________________________________
@@ -413,8 +440,10 @@ them.
     `DP_ERR_INVALID`. Each `test_<obj>_core.c` also splits a real stream and
     asserts bit-exact resume.
 - **Python** — `src/doppler/tests/test_state_serialization.py`, a parametrized
-    matrix over every block-`execute` type (LO, CIC, FIR, DDC, RateConverter)
-    asserting bit-exact elastic resume across a mid-stream split and the
+    matrix (`CASES`, one `(make, feed)` row per type, from LO, CIC and FIR
+    through the receivers and acquisition engines; `len(CASES)` is the
+    current count) asserting bit-exact
+    elastic resume across a mid-stream split and the
     self-validating rejects (short / long / clobbered → `ValueError`, non-`bytes`
     → `TypeError`).
 

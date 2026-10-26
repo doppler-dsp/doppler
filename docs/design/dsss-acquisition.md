@@ -74,27 +74,27 @@ ______________________________________________________________________
 
 ## 2. Glossary
 
-| Term                      | Definition (doppler units)                                                                                                 |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Chip / chip-rate `Rc`     | PN code element; `Rc` in chips/s.                                                                                          |
-| Code / PN / `sf` = `L`    | Spreading code; spreading factor `sf` = code length `L` in chips.                                                          |
-| Epoch `T_epoch`           | One code period = `L / Rc` s = `nx` samples.                                                                               |
-| `spc` vs `sps`            | `spc` = samples per **chip** = `fs/Rc`; `sps` = samples per **symbol** (not in the acq grid). `nx = sf·spc`.               |
-| Segment                   | One epoch of fast-time samples = one slow-time row.                                                                        |
-| Sub-block                 | An epoch chopped into `K` pieces; segment = `epoch/K`.                                                                     |
-| Code phase / delay        | Circular shift of the code = propagation delay; fast-time axis `0 … nx-1`.                                                 |
-| Doppler                   | Carrier frequency offset `f`; slow-time axis.                                                                              |
-| Doppler rate              | `rdot` = d`f`/d`t` (Hz/s); quadratic carrier phase from acceleration.                                                      |
-| Code Doppler              | Chip-rate dilation `Rc·(1+v/c)`; code phase walks over long integration.                                                   |
-| Fast-time / slow-time     | Within an epoch (code phase) / across epochs (Doppler).                                                                    |
-| CAF / delay-Doppler map   | The cross-ambiguity surface over `(delay × Doppler [× rate])`.                                                             |
-| Coherent / non-coherent   | Sum **complex** surfaces (gain `10·log10(M)`, phase-fragile) / sum squared **magnitude** (robust, squaring loss).          |
-| Dwell / look              | One coherent dump; a "look" is one such dump fed to non-coherent integration.                                              |
-| `T_coh`                   | Coherent integration time = `ny · T_epoch`.                                                                                |
-| Pfa / Pd                  | False-alarm / detection probability; Bonferroni `pfa_cell = 1-(1-pfa)^(1/N)`, `N = ny·nx` on the **native** grid — see §9. |
-| Processing gain           | Coherent `10·log10(M·N)`; non-coherent adds about `5·log10(N_nc)` in the weak limit.                                       |
-| Squaring / combining loss | Non-coherent's few-dB shortfall versus ideal coherent.                                                                     |
-| CFAR                      | Constant-false-alarm-rate gate; `test_stat = peak / noise_est`.                                                            |
+| Term                      | Definition (doppler units)                                                                                            |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Chip / chip-rate `Rc`     | PN code element; `Rc` in chips/s.                                                                                     |
+| Code / PN / `sf` = `L`    | Spreading code; spreading factor `sf` = code length `L` in chips.                                                     |
+| Epoch `T_epoch`           | One code period = `L / Rc` s = `nx` samples.                                                                          |
+| `spc` vs `sps`            | `spc` = samples per **chip** = `fs/Rc`; `sps` = samples per **symbol** (not in the acq grid). `nx = sf·spc`.          |
+| Segment                   | One epoch of fast-time samples = one slow-time row.                                                                   |
+| Sub-block                 | An epoch chopped into `K` pieces; segment = `epoch/K`.                                                                |
+| Code phase / delay        | Circular shift of the code = propagation delay; fast-time axis `0 … nx-1`.                                            |
+| Doppler                   | Carrier frequency offset `f`; slow-time axis.                                                                         |
+| Doppler rate              | `rdot` = d`f`/d`t` (Hz/s); quadratic carrier phase from acceleration.                                                 |
+| Code Doppler              | Chip-rate dilation `Rc·(1+v/c)`; code phase walks over long integration.                                              |
+| Fast-time / slow-time     | Within an epoch (code phase) / across epochs (Doppler).                                                               |
+| CAF / delay-Doppler map   | The cross-ambiguity surface over `(delay × Doppler [× rate])`.                                                        |
+| Coherent / non-coherent   | Sum **complex** surfaces (gain `10·log10(M)`, phase-fragile) / sum squared **magnitude** (robust, squaring loss).     |
+| Dwell / look              | One coherent dump; a "look" is one such dump fed to non-coherent integration.                                         |
+| `T_coh`                   | Coherent integration time = `ny · T_epoch`.                                                                           |
+| Pfa / Pd                  | False-alarm / detection probability; Šidák `pfa_cell = 1-(1-pfa)^(1/N)`, `N = ny·nx` on the **native** grid — see §9. |
+| Processing gain           | Coherent `10·log10(M·N)`; non-coherent adds about `5·log10(N_nc)` in the weak limit.                                  |
+| Squaring / combining loss | Non-coherent's few-dB shortfall versus ideal coherent.                                                                |
+| CFAR                      | Constant-false-alarm-rate gate; `test_stat = peak / noise_est`.                                                       |
 
 ______________________________________________________________________
 
@@ -680,7 +680,7 @@ P( sup > eta )  ~=  N_eff · p(eta)          for small p
 
 `N_eff` is the *effective number of independent looks* — a property of the
 surface's correlation structure (its Doppler and code bandwidth), not of the
-grid it was evaluated on. It is what `N` in the Bonferroni expression is
+grid it was evaluated on. It is what `N` in the Šidák expression is
 trying to approximate. Native sampling gives `N_eff_native <= N_eff`, and
 padding by `L` walks the estimate toward the true value:
 
@@ -791,7 +791,7 @@ removed from both classes — see the Update below.)
 `reps`/`spc`/`chip_rate`/`cn0_dbhz`/`doppler_uncertainty`. `sf` is inferred from
 `len(code)`; the engine picks the smallest coherent depth `doppler_bins ≤ reps`
 meeting `pd`; `doppler_uncertainty` narrows the scanned Doppler band (fewer
-Bonferroni cells → lower gate, with a matching masked argmax); an infeasible
+cells in the Šidák split → lower gate, with a matching masked argmax); an infeasible
 operating point builds best-effort, flags `underpowered`, and warns.
 
 **Update — shipped: the burst/continuous split.** The single `Acquisition`

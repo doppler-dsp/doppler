@@ -1,7 +1,9 @@
 # `DsssBurstReceiver`: the burst chain, composed in C
 
-**Status:** shipped — the object exists, is certified (32 limits, 11
-findings, 0 open) and this document has been kept current with it.
+**Status:** shipped — the object exists, is certified (every limit holds
+and no finding is open, per its validation report,
+`src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md`) and
+this document has been kept current with it.
 **Looking for the API?** §8. Sections 1–7 are the design record: the problem,
 what a prototype measured, and the four assumptions that did not survive
 contact.
@@ -34,7 +36,7 @@ in Python, and the cost is already on the record: **one bin-to-frequency fold
 was restated in four Python call sites, in three mutually inconsistent ways**,
 one of them spelled `((bin + n/2) % n) - n/2` — the exact form `acq_core.h`
 names as a past full-span sign inversion that surfaced as a receiver
-reporting lock while decoding noise. That was fixed in `02b7714c` by giving
+reporting lock while decoding noise. That was fixed in `ea7ccbcf0` by giving
 the fold one home (`dp_fftfreq`), but the fold was the symptom. Four
 hand-rolled copies is what a seam with no owner produces, and the next
 caller starts the count again.
@@ -53,9 +55,10 @@ rest of this design follows from.
 
 This is the requirement the component exists to satisfy, and it is stronger
 than "the demo works". It is the standard
-[`async-dsss-receiver.md` §2.2](async-dsss-receiver.md) already sets for
-the continuous chain — "consumable by another process/service, not just
-another Python object in the same interpreter" — applied to bursts.
+[`async-dsss-receiver.md` §2.2](async-dsss-receiver.md) sets for the
+continuous chain, applied to bursts: a detection crosses a thread or process
+boundary as a physical record, never a grid index that means nothing without
+the emitting engine's configuration.
 
 ______________________________________________________________________
 
@@ -201,10 +204,10 @@ residual Doppler.
 
 It is also the same stage
 [`dsss-use-cases.md`](../dev/contributing/dsss-use-cases.md) already calls for on
-the frequency axis ("refine only if needed: column-FFT over the reps within
-the winning coarse bin"), and the chain
-[`async-dsss-receiver.md`](async-dsss-receiver.md) records as validated end to end —
-"search → handoff → **refine** → track". The burst path simply never grew
+the frequency axis (refine only if needed, with a column FFT over the reps
+within the winning coarse bin), and the one the continuous chain
+[`async-dsss-receiver.md`](async-dsss-receiver.md) §4 runs between its
+search and its tracking: search, hand-off, **refine**, track. The burst path simply never grew
 one, which is why §6.1 looked like an open question instead of an absent
 component.
 
@@ -674,22 +677,23 @@ power of two. (As built, the capture reaches further in both directions —
 **The primitive already exists, and `acq` already depends on it.**
 `native/inc/doppler/buffer/buffer.h` generates a double-mapped SPSC ring
 (`dp_f32_t` for cf32), and `acq_core.h` includes it — `dp_acq_state_t` holds
-`dp_f32_t *ring`, "the only ring". So this is not a new dependency for a DSP
+`dp_f32_t *ring`, the storage its framer carries the stream in. So this is not a new dependency for a DSP
 core, and **no new type is needed**: `DECLARE_DP_BUFFER` already covers the
 dtype. The double mapping is the property that matters here — a window
 spanning the wrap comes back as one contiguous `float complex *`, so the
 burst can be handed to `demod()` with no copy and no seam.
 
-**What it does not already do is retain.** `dp_acq_push()` calls
-`dp_f32_consume(st->ring, frame_n)` on every frame it processes
+**What it does not already do is retain.** `dp_acq_push()` drains the ring
+through a `dp_f32_framer_t`, one frame a call of `dp_f32_framer_next_view()`,
+and each frame it hands out is released on the framer's next call
 (`dp_acq_push` in `acq_core.c`), so by the time a hit is emitted acquisition has
 *released* the samples the receiver still needs. The receiver therefore
 keeps its **own** history ring alongside acq's, rather than borrowing one it
 does not own.
 
 > **Do not read behind acq's tail.** The samples are still physically mapped
-> after `consume()` and can be dereferenced, which makes this the tempting
-> shortcut. It is reading released memory: the next `write()` overwrites it,
+> after the framer releases them and can be dereferenced, which makes this
+> the tempting shortcut. It is reading released memory: the next `write()` overwrites it,
 > on a schedule the reader does not control. The double mapping makes the
 > bug silent rather than a fault.
 

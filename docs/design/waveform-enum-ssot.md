@@ -3,7 +3,7 @@
 *Part of [wfmgen](wfmgen.md), which owns the tool's goals, what it
 composes, and what is still unknown about it.*
 
-Every waveform choice a user spells as a word — `--type qpsk`, `--file-type sigmf`, `"data": "prbs"` — is an **index** by the time it reaches C. The word
+Every waveform choice a user spells as a word — `--type qpsk`, `--file-type sigmf`, `"snr_mode": "ebno"` — is an **index** by the time it reaches C. The word
 is looked up in a table of strings and the *position* it was found at is the
 value that gets stored. Nothing else records that mapping: there is no
 per-value tag, no lookup by name at the point of use, no assertion. The table
@@ -111,7 +111,7 @@ static const char *const TYPE_NAMES[]
         "chirp", "bits",  "symbols", "dsss" };
 #define N_TYPES 9
 
-/* SSOT: enum=ftype, cenum=wfm_writer/wfm_writer_core.h:wfm_filetype_t */
+/* SSOT: enum=ftype, cenum=doppler/wfm_writer/wfm_writer_core.h:wfm_filetype_t */
 static const char *const FTYPE_NAMES[] = { "raw", "csv", "blue", "sigmf" };
 ```
 
@@ -158,13 +158,13 @@ and an emptied header. A gate that has only ever passed has not been tested.
 
 ## Scope, and what is deliberately outside it
 
-**Three enums are declared in the manifest that no binding renders**
-(`seed_advance`, `data_src`, `randomise`). They are C-only: their values reach
-Python through other paths, so jm emits nothing for them. They are declared
-anyway, because the alternative is a table whose ordering is authoritative and
-written down nowhere the gate can reach — an enum with no declaration at all.
-Ten of the nineteen pre-existing `[[enum]]` blocks are likewise unreferenced by
-any binding, so this is the file's existing convention rather than a new one.
+**An enum can be declared in the manifest that no binding renders**
+(`seed_advance`). It is C-only: its value reaches Python through another
+path, so jm emits nothing for it. It is declared anyway, because the
+alternative is a table whose ordering is authoritative and written down
+nowhere the gate can reach — an enum with no declaration at all. Other
+`[[enum]]` blocks are likewise unreferenced by any binding, so this is the
+file's existing convention rather than a new one.
 
 **`ELEMNAME[]` in `wfm_writer_core.c` is left alone.** Its five strings equal
 the scalar half of `STYPE_NAMES`, but it is indexed by the *element-kind* enum

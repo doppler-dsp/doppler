@@ -508,7 +508,9 @@ library and not in the first.
 
 **Memory.** Three counts across one `dp_spectrogram_create`, after a warm-up
 create and destroy at the same size, in bytes: the heap (`mallinfo2`'s
-`uordblks + hblkhd`, the method of `async_dsss_pool_soak.c`), the rings' memfd
+`uordblks + hblkhd`, the method of `async_dsss_pool_soak.c` — a harness
+since deleted with the old pool in
+[#2516](https://github.com/doppler-dsp/doppler/pull/2516)), the rings' memfd
 (`memfd:dp_shm` in `/proc/self/maps`: a ring is mapped, not malloc'd), and all
 address space (`VmSize`, both of those included):
 

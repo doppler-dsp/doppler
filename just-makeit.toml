@@ -3718,8 +3718,8 @@ values = ["crc16", "rs", "randomise", "conv", "interleave"]
 name = "doppler_lifetime"
 values = ["per_instance", "persist"]
 
-# The three below name tables that no binding renders — the C side is their
-# only consumer. They are declared here anyway because doppler#760 made this
+# The enum below names a table that no binding renders — the C side is its
+# only consumer. It is declared here anyway because doppler#760 made this
 # file the SSOT for the C tables too (native/inc/doppler/wfm/wfm_names.h, gated by
 # scripts/check_wfm_enum_tables.py), and an enum the gate cannot reach here
 # would be an enum with no declaration at all.

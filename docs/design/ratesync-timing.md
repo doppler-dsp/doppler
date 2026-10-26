@@ -67,11 +67,13 @@ matched filter at 256 samples per symbol costs what one at 4 costs.
 ### Arbitrary rate is not a feature, it is the default
 
 `sps` is a `double`. 4, 17.33389, an irrational ratio and a slowly drifting
-clock are all the same case, because the terminal stage's accumulator is a
-double and the loop only has to steer the strobe. There is no integer path
-and no special case for one — which is the honest arrangement, since a
-free-running ADC clock against a symbol clock is the normal situation rather
-than the exotic one.
+clock are all the same case, because the terminal stage (`resamp`) takes its
+rate as a double, re-derives each output's step from it, and keeps its place
+in a 32-bit phase word — a `uint32_t` fraction of one input interval, so
+`2^-32` resolution — and the loop only has to steer the strobe. There is no
+integer-ratio path and no special case for one — which is the honest
+arrangement, since a free-running ADC clock against a symbol clock is the
+normal situation rather than the exotic one.
 
 ______________________________________________________________________
 

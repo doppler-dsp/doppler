@@ -1,6 +1,7 @@
-> **Historical document** — This records the design process that led to the
-> current static-libzmq approach. The implementation is done; see `vendor/`
-> in the repository root for current policy and paths.
+> **Historical document** — This records the design process that led to
+> statically linking libzmq into doppler's Python extensions. ZMQ has since
+> been removed entirely, replaced by NATS (the vendored `nats.c`); see
+> `vendor/` in the repository root for current policy and paths.
 
 # Python C Extension with Static libzmq: Complete Guide
 

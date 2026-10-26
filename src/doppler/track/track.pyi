@@ -3503,12 +3503,13 @@ class MpskReceiver:
     ) -> None:
         """Attach (or detach) a telemetry context across the receiver.
         Registers the receiver's own "<prefix>.lock" probe (the carrier lock
-        EMA), then the carrier loop's "<prefix>.car.e" / ".freq" / ".locked"
-        and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" /
-        ".lock" / ".locked" / ".mu" -- ten probes emitted once per recovered
-        symbol -- then the front end's AGC under "<prefix>.agc"
+        EMA), the carrier loop's "<prefix>.car.e" / ".freq" / ".nco" /
+        ".locked", the decided symbol's "<prefix>.sym.i" / ".sym.q", and the
+        symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" /
+        ".locked" / ".mu" -- thirteen probes emitted once per recovered symbol
+        -- then the front end's AGC under "<prefix>.agc"
         ("<prefix>.agc.gain_db" and "<prefix>.agc.level_db"; see
-        dp_agc_set_telemetry()). Twelve probes total, all thinned by decim.
+        dp_agc_set_telemetry()). Fifteen probes total, all thinned by decim.
         Passing NULL detaches everything.
 
         Instrumenting it matters because it is FIRST in the chain, and a level
@@ -3550,14 +3551,14 @@ class MpskReceiver:
 
         Warnings
         --------
-        The two AGC probes are NOT at the symbol rate the other ten are. That
-        AGC sits pre-terminal in the cascade (RateConverter's tap, ahead of the
-        stage the timing loop steers) and emits once per gain-update event,
-        i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream -- so it
-        reports on a grid that depends on the planned cascade, not on recovered
-        symbols, and a run yields a different number of AGC records than
-        carrier records. Compare the two by TIME, never by record index. This
-        is deliberate: the AGC's bandwidth is quoted in the pre-terminal
+        The two AGC probes are NOT at the symbol rate the other thirteen are.
+        That AGC sits pre-terminal in the cascade (RateConverter's tap, ahead
+        of the stage the timing loop steers) and emits once per gain-update
+        event, i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream
+        -- so it reports on a grid that depends on the planned cascade, not on
+        recovered symbols, and a run yields a different number of AGC records
+        than carrier records. Compare the two by TIME, never by record index.
+        This is deliberate: the AGC's bandwidth is quoted in the pre-terminal
         stream's units precisely so it is not coupled to the loop that is
         stretching the symbol grid (see dp_RateConverter_enable_agc()).
 
@@ -4084,12 +4085,13 @@ class BpskReceiver:
     ) -> None:
         """Attach (or detach) a telemetry context across the receiver.
         Registers the receiver's own "<prefix>.lock" probe (the carrier lock
-        EMA), then the carrier loop's "<prefix>.car.e" / ".freq" / ".locked"
-        and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" /
-        ".lock" / ".locked" / ".mu" -- ten probes emitted once per recovered
-        symbol -- then the front end's AGC under "<prefix>.agc"
+        EMA), the carrier loop's "<prefix>.car.e" / ".freq" / ".nco" /
+        ".locked", the decided symbol's "<prefix>.sym.i" / ".sym.q", and the
+        symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" /
+        ".locked" / ".mu" -- thirteen probes emitted once per recovered symbol
+        -- then the front end's AGC under "<prefix>.agc"
         ("<prefix>.agc.gain_db" and "<prefix>.agc.level_db"; see
-        dp_agc_set_telemetry()). Twelve probes total, all thinned by decim.
+        dp_agc_set_telemetry()). Fifteen probes total, all thinned by decim.
         Passing NULL detaches everything.
 
         Instrumenting it matters because it is FIRST in the chain, and a level
@@ -4131,14 +4133,14 @@ class BpskReceiver:
 
         Warnings
         --------
-        The two AGC probes are NOT at the symbol rate the other ten are. That
-        AGC sits pre-terminal in the cascade (RateConverter's tap, ahead of the
-        stage the timing loop steers) and emits once per gain-update event,
-        i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream -- so it
-        reports on a grid that depends on the planned cascade, not on recovered
-        symbols, and a run yields a different number of AGC records than
-        carrier records. Compare the two by TIME, never by record index. This
-        is deliberate: the AGC's bandwidth is quoted in the pre-terminal
+        The two AGC probes are NOT at the symbol rate the other thirteen are.
+        That AGC sits pre-terminal in the cascade (RateConverter's tap, ahead
+        of the stage the timing loop steers) and emits once per gain-update
+        event, i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream
+        -- so it reports on a grid that depends on the planned cascade, not on
+        recovered symbols, and a run yields a different number of AGC records
+        than carrier records. Compare the two by TIME, never by record index.
+        This is deliberate: the AGC's bandwidth is quoted in the pre-terminal
         stream's units precisely so it is not coupled to the loop that is
         stretching the symbol grid (see dp_RateConverter_enable_agc()).
 
@@ -4754,12 +4756,13 @@ class MpskReceiverR:
     ) -> None:
         """Attach (or detach) a telemetry context across the receiver.
         Registers the receiver's own "<prefix>.lock" probe (the carrier lock
-        EMA), then the carrier loop's "<prefix>.car.e" / ".freq" / ".locked"
-        and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" /
-        ".lock" / ".locked" / ".mu" -- ten probes emitted once per recovered
-        symbol -- then the front end's AGC under "<prefix>.agc"
+        EMA), the carrier loop's "<prefix>.car.e" / ".freq" / ".nco" /
+        ".locked", the decided symbol's "<prefix>.sym.i" / ".sym.q", and the
+        symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" /
+        ".locked" / ".mu" -- thirteen probes emitted once per recovered symbol
+        -- then the front end's AGC under "<prefix>.agc"
         ("<prefix>.agc.gain_db" and "<prefix>.agc.level_db"; see
-        dp_agc_set_telemetry()). Twelve probes total, all thinned by decim.
+        dp_agc_set_telemetry()). Fifteen probes total, all thinned by decim.
         Passing NULL detaches everything.
 
         Instrumenting it matters because it is FIRST in the chain, and a level
@@ -4801,14 +4804,14 @@ class MpskReceiverR:
 
         Warnings
         --------
-        The two AGC probes are NOT at the symbol rate the other ten are. That
-        AGC sits pre-terminal in the cascade (RateConverter's tap, ahead of the
-        stage the timing loop steers) and emits once per gain-update event,
-        i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream -- so it
-        reports on a grid that depends on the planned cascade, not on recovered
-        symbols, and a run yields a different number of AGC records than
-        carrier records. Compare the two by TIME, never by record index. This
-        is deliberate: the AGC's bandwidth is quoted in the pre-terminal
+        The two AGC probes are NOT at the symbol rate the other thirteen are.
+        That AGC sits pre-terminal in the cascade (RateConverter's tap, ahead
+        of the stage the timing loop steers) and emits once per gain-update
+        event, i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream
+        -- so it reports on a grid that depends on the planned cascade, not on
+        recovered symbols, and a run yields a different number of AGC records
+        than carrier records. Compare the two by TIME, never by record index.
+        This is deliberate: the AGC's bandwidth is quoted in the pre-terminal
         stream's units precisely so it is not coupled to the loop that is
         stretching the symbol grid (see dp_RateConverter_enable_agc()).
 

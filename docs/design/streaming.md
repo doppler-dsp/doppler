@@ -275,7 +275,7 @@ base `default`.
 
 | Role | Subject                                             |
 | ---- | --------------------------------------------------- |
-| PUB  | publishes `iq.<base>.<type>` (e.g. `iq.iq.cf64`)    |
+| PUB  | publishes `iq.<base>.<type>` (e.g. `iq.iq.CF64`)    |
 | SUB  | subscribes `iq.<base>.>` — every type on that base  |
 | PUSH | publishes `work.<base>.<type>` via JetStream        |
 | PULL | pulls the durable consumer below                    |
@@ -440,13 +440,17 @@ Two answers, and the layer supports both:
 - **Bound the wait.** `*_set_timeout` plus treating `DP_ERR_TIMEOUT` as
     "loop round and re-read my flag". Simple, and it makes every caller
     trade latency against responsiveness.
-- **Interrupt it.** `dp_stream_interrupt()` sets a process-wide flag that
+- **Interrupt it.** `dp_interrupt()` sets a process-wide flag that
     the library checks *inside* the wait, so a blocking receive stays
     blocking and still returns — with `DP_ERR_INTERRUPTED`, which is a
     request to stop rather than a failure. It assigns to a
     `volatile sig_atomic_t` and does nothing else, so a signal handler
-    may call it. `dp_stream_interrupt_on_signal()` installs such a handler
-    for you; `dp_stream_resume()` clears the flag.
+    may call it. `dp_interrupt_on_signal()` installs such a handler
+    for you; `dp_resume()` clears the flag. The primitive is not
+    specific to streaming and lives in `native/inc/doppler/dp_interrupt.h`;
+    the `dp_stream_interrupt*` / `dp_stream_resume()` spellings in
+    `stream.h` are deprecated forwarders to it (see
+    [Ending a wait](io-termination.md)).
 
 Internally every wait is sliced at 100 ms, which is what bounds how long
 an interrupt appears to be ignored — ten wakeups a second on an idle
@@ -463,9 +467,10 @@ leave the rest parked.
 implementation detail.** A Python handler runs when the interpreter next
 regains control, which is precisely what the blocking wait prevents — the
 flag would be set only after the wait it is meant to end. Measured: a
-first version of `interrupt_on_sigint()` used `signal.signal` and left a
-blocked `recv()` blocked forever. So `interrupt_on_sigint()` installs a
-`sigaction` and **chains** to whatever was there, including CPython's own
+first version of the Python handler (`interrupt_on_sigint()`, since retired)
+used `signal.signal` and left a blocked `recv()` blocked forever. So the
+[`doppler.interrupt.Interrupt`](io-termination.md) guard installs a
+`sigaction` for the signals it is given and **chains** to whatever was there, including CPython's own
 handler; without the chaining, a Ctrl+C arriving outside a receive would
 set a flag nobody reads, fixing the blocking case by breaking the
 ordinary one.
@@ -531,8 +536,8 @@ ______________________________________________________________________
 Everything above describes behaviour. None of it carries a number, and
 several of the claims are quantitative — §8b bounds an interrupt at one
 100 ms slice, §6b's flush warns that the client's own close drops a
-backlog it cannot clear in 500 ms, and §321's drain defaults to 5 s
-because that is "generous for a link that is keeping up". Not one of
+backlog it cannot clear in 500 ms, and its drain (`dp_stream_drain()`)
+defaults to 5 s because that is "generous for a link that is keeping up". Not one of
 those three figures has been measured on this layer. They are design
 intent written as prose, which is the state the characterization phase
 exists to end.
@@ -595,6 +600,6 @@ latency.
 
 Per [Adding an algorithm](../dev/contributing/adding-algorithms.md), a
 long sweep is phase 7 and belongs under `characterization/`, not in the
-pinning tests. The claims in §6b, §8b and §321 are phase 8 material: they
+pinning tests. The claims in §6b and §8b are phase 8 material: they
 are header prose today, and each one that survives measurement becomes an
 assertion in `test_stream_*.c` rather than a sentence.

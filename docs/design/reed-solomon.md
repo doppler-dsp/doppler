@@ -250,11 +250,12 @@ ______________________________________________________________________
 - **Shortened codes / virtual fill.** CCSDS 4.4.2's shortened codeblock is
     [#813](https://github.com/doppler-dsp/doppler/issues/813); a frame off the
     `223*I` grid is refused rather than padded.
-- **The lazy table build's data race**
-    ([#817](https://github.com/doppler-dsp/doppler/issues/817)) — `ccsds_tm`'s
-    CCSDS singleton builds its tables on first use. `dp_rs_init` is explicit and
-    has no such state; the race lives in the configuration layer and becomes
-    reachable the moment a `nogil` binding or `dp_parallel` calls it.
+- **A data race in the lazy table build.** `ccsds_tm`'s CCSDS singleton
+    builds its tables on first use, and that build is guarded by `dp_once()`
+    (`native/src/ccsds_tm/rs.c`), so a `nogil` binding or `dp_parallel`
+    reaching it from several threads builds them once
+    ([#817](https://github.com/doppler-dsp/doppler/issues/817), fixed).
+    `dp_rs_init` is explicit and never had such state.
 
 ______________________________________________________________________
 

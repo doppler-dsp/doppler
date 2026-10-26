@@ -92,8 +92,8 @@ The integer accumulator has no such term. After `N` samples the phase is
 ```
 
 **exactly** — a closed form with no error at all, for any `N`, on any host.
-`test_nco_core.c` streams 30 million samples and checks the accumulator
-against that expression; it matches, and the output never leaves the unit
+`test_lo_core.c` streams 30 million samples through the LO's NCO and checks
+the accumulator against that expression; it matches, and the output never leaves the unit
 circle.
 
 What is given up is *frequency* resolution. `phase_inc` is an integer, so the
@@ -466,13 +466,15 @@ ______________________________________________________________________
 A steered rate is `nominal × (1 + control)`, and `control` comes from a loop
 filter free to ask for anything during acquisition.
 
-`symsync` routed that product straight through `nco_phase_units`, which
-correctly killed an undefined cast — and turned a **negative** product into
-`0`. Zero is a *stopped* timing NCO: it never strobes again, never emits a
-symbol, and never locks. The undefined cast it replaced wrapped to a huge
-increment, which slipped a cycle and **recovered**. Timing acquisition is
-non-linear and does reach `control < -1`, so the honest conversion was
-strictly worse than the undefined one until the command itself was bounded.
+`symsync` still casts that product to `uint32_t` itself
+(`(uint32_t)((double)s->base_inc * (1.0 + control))` in `symsync_core.h`), and
+routing it straight through `nco_phase_units` instead was measured to be
+worse: it kills the undefined cast but turns a **negative** product into `0`.
+Zero is a *stopped* timing NCO: it never strobes again, never emits a symbol,
+and never locks. The undefined cast wraps to a huge increment, which slips a
+cycle and **recovers**. Timing acquisition is non-linear and does reach
+`control < -1`, so the honest conversion is strictly worse than the undefined
+one until the command itself is bounded.
 
 The band was not new. `rate_est` had always been clamped to
 `[0.5·sps, 1.5·sps]` samples/symbol, and since `inst = sps / (1 + control)` is
@@ -619,6 +621,9 @@ ______________________________________________________________________
 
 - **Private copies of the conversion.** `symsync` (×2) and `lo`'s AVX-512
     kernel each grew their own, and each was undefined at its boundary.
+    `lo`'s is removed; `symsync`'s two remain — the nominal increment in
+    `symsync_core.c` (recorded as a violation in
+    `scripts/.phase-conversion-allow`) and the steer in `symsync_core.h` (§8).
     `symsync` at `sps == 1` produced **0** on x86 where arm64 saturates — a
     dead NCO — and its steer wrapped rather than clamped, returning roughly a
     ninth of the correct increment for a control asking to speed up. `lo`'s
@@ -627,13 +632,12 @@ ______________________________________________________________________
     phase units with 175 outputs differing, because `ctrl_inc` feeds a prefix
     sum and a per-sample error integrates.
 
-    `lo`'s copy is also **unreachable**: the default build targets
-    `-march=x86-64-v2`, so `__AVX512F__` is undefined in every wheel and every
-    CI job, and the vector path is live only under `DOPPLER_NATIVE=ON` on an
-    AVX-512 host. Two complete implementations of one function where only one
-    is ever built — so the divergence is real and no gate can catch it. The
-    standing decision is to delete the vector halves and keep the scalar
-    fallbacks.
+    `lo`'s copy was also **unreachable**: the default build targets
+    `-march=x86-64-v2`, so `__AVX512F__` was undefined in every wheel and every
+    CI job, and the vector path was live only under `DOPPLER_NATIVE=ON` on an
+    AVX-512 host — two implementations of one function where only one was
+    ever built, so no gate could catch the divergence. Both AVX-512 kernels
+    are deleted; `lo_core.c` is scalar throughout.
 
 ______________________________________________________________________
 

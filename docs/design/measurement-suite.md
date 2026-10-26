@@ -183,7 +183,7 @@ $$
 \text{NPR} = 10\log_{10}\frac{\overline{P}_\text{in-band}}{\overline{P}_\text{notch}}
 $$
 
-with a `guard` keep-out around the notch to avoid skirt contamination.
+with a `guard_hz` keep-out (Hz) around the notch to avoid skirt contamination.
 
 ### Two-tone IMD / TOI
 

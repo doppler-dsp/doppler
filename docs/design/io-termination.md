@@ -64,14 +64,14 @@ ______________________________________________________________________
 
 ### Interruptible — the primitive already exists
 
-`dp_stream_interrupt()` is a `volatile sig_atomic_t` and four trivial
+`dp_stream_interrupt()` was a `volatile sig_atomic_t` and four trivial
 accessors in `native/src/stream/stream_core.c`, a file that includes
-nothing but libc and its own header. **It has no NATS dependency.** It is
-already the general primitive; only its name and location say otherwise.
+nothing but libc and its own header. **It had no NATS dependency.** It was
+already the general primitive; only its name and location said otherwise.
 
-So nothing new gets written here. It moves down a layer and gains two
-callers: the ring's wait and the disk tail-wait check the same flag the
-NATS wait already checks.
+So nothing new was written. It moved down a layer, to
+`native/src/dp_interrupt.c`, and gained callers beyond NATS: the ring's
+wait and the disk reader check the same flag the NATS wait checks.
 
 **It is renamed.** `dp_interrupt()`, `dp_interrupted()`, `dp_resume()`,
 `dp_interrupt_on_signal()`, and the latency accessors lose the `stream_`
@@ -84,21 +84,25 @@ the more expensive option, just later.
 
 **The second half of that has not happened**, and saying so here is the
 point of §0. `dp_interrupt.c` exists and the old names forward to it
-verbatim, but nothing has been removed and doppler's own Python binding
-still calls the deprecated spellings throughout — so the tree currently
+verbatim, but nothing has been removed. The Python bindings use the
+`dp_interrupt*` spellings; the C side does not yet — the NATS receive
+path in `native/src/stream/stream_nats.c`, two C examples and the stream
+C tests still call the deprecated `dp_stream_*` forwarders. So the tree
 has the two-spellings state this paragraph argues against, reached by
 default rather than by decision. Tracked as
 [#974](https://github.com/doppler-dsp/doppler/issues/974).
 
 #### The primitive is an OBJECT, and the guard moves into C
 
-Renaming it was half the problem. The other half is that it was never
-*declared* — it has no manifest fragment at all, so its CMake object
-library is hand-written in the root `CMakeLists.txt`, three modules splice
-it into their link lines by hand, its binding lives inside `stream`'s
-`no_generate` extension, and it has no `.pyi` of its own. Every symptom
-in [#974](https://github.com/doppler-dsp/doppler/issues/974) follows from
-that one omission, which is why the fix is phase 2 rather than a delete.
+Renaming it was half the problem. The other half was that it was never
+*declared* — it had no manifest fragment at all, its binding lived inside
+`stream`'s `no_generate` extension, and it had no `.pyi` of its own. It
+is declared now: `objects/dp_interrupt_guard.toml` is the manifest, jm
+generates the `doppler.interrupt` binding and `interrupt.pyi`, and the
+component has a C test and a benchmark like any other. The flag itself is
+still a root-level object library (`dp_interrupt_obj` in the root
+`CMakeLists.txt`) that the guard links, because it is a primitive below
+any component. The reasoning that shaped the declaration follows.
 
 **It cannot be declared as free functions.** A module function's C symbol
 *is* its Python name — jm has no `fn` override there, and says so
@@ -149,24 +153,28 @@ Two things this decides, both deliberate:
     holds — per-wait interruption is a different feature. What the object
     scopes is the *arming*: which signals this guard installed, and the
     latency it overrode.
-- **The guard's logic moves into C.** Today `InterruptGuardObject` lives
-    in `stream_ext.c` and does real work there — saving and restoring the
-    latency, tracking which handlers it installed, unwinding a partial
-    install. That is orchestration in a binding, which the repo forbids
-    everywhere else, and it is why the guard has no C test: there is no C
-    to test. `dp_interrupt_guard_t` with a create/destroy pair puts it
-    where every other lifecycle lives, and `__enter__`/`__exit__` are then
+- **The guard's logic lives in C.** It used to be a hand-written
+    `InterruptGuardObject` in `stream_ext.c` doing real work there —
+    saving and restoring the latency, tracking which handlers it
+    installed, unwinding a partial install. That was orchestration in a
+    binding, which the repo forbids everywhere else, and it left the
+    guard with no C test because there was no C to test.
+    `dp_interrupt_guard_t` with a create/destroy pair
+    (`native/src/dp_interrupt_guard/dp_interrupt_guard_core.c`) puts it
+    where every other lifecycle lives, and `__enter__`/`__exit__` are
     generated rather than hand-written.
 
 **It is a breaking change, and pre-1.0 is when to take it.**
-`doppler.stream.interrupt()` becomes `doppler.interrupt.Interrupt().interrupt()`.
-The free functions go: they are the spelling that cannot be declared, and
+`doppler.stream.interrupt()` became `doppler.interrupt.Interrupt().interrupt()`.
+The free functions went: they are the spelling that cannot be declared, and
 keeping them would mean keeping the hand binding that this exists to
 retire. The C face is untouched — every `dp_*` symbol keeps its name — so
 no C caller moves.
 
-The cost worth naming: a declared component owes a benchmark, and `make lint` will require one (jm warns about it on scaffold). The primitive has
-a C test and no benchmark today, which nothing notices, because an
+The cost worth naming: a declared component owes a benchmark, and `make lint` requires one. The guard pays it —
+`native/benchmarks/bench_dp_interrupt_guard_core.c` and
+`src/doppler/interrupt/benchmarks/bench_dp_interrupt_guard.py` — where
+the undeclared primitive had none and nothing noticed, because an
 undeclared component is invisible to that gate too.
 
 ______________________________________________________________________
@@ -377,8 +385,9 @@ became of it.
     and the half that is missing is the one this page argued for*
     ([#974](https://github.com/doppler-dsp/doppler/issues/974)). The
     rename happened and the old names forward verbatim; nothing has been
-    deleted, and doppler's own Python binding still calls the deprecated
-    spellings throughout. "Two spellings forever" is the state §3 rejected,
+    deleted. The Python bindings call the `dp_interrupt*` names, but the
+    NATS receive path, two C examples and the stream C tests still call
+    the deprecated ones. "Two spellings forever" is the state §3 rejected,
     now reached by default rather than by decision.
 
 - **End of stream is a KIND, not a flag bit** — *resolved, shipped.*

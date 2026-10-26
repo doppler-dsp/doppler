@@ -218,7 +218,7 @@ means one definition of the geometry to get right.
 <!-- related-pages:start -->
 
 **Gallery** — [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md), [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md)
-**Design** — [The FEC Receive Half](../design/fec-receive.md), [Design](../design/index.md), [Interleaving — spreading a burst across codewords](../design/interleaving.md), [Reed-Solomon](../design/reed-solomon.md)
+**Design** — [The FEC Receive Half](../design/fec-receive.md), [Design](../design/index.md), [Interleaving — spreading a burst across codewords](../design/interleaving.md), [Reed-Solomon](../design/reed-solomon.md), [The Viterbi Decoder](../design/viterbi.md)
 **Contributing** — [Validation log](../dev/contributing/validation-log.md)
 
 <!-- related-pages:end -->

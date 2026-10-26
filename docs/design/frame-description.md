@@ -302,9 +302,9 @@ whole of what can go wrong:
 
 **One primitive unpacks.** Packed octets become bits in exactly one place, a
 `bytes_to_bin` beside `hex_to_bin` in `cvt` — the same conversion a hex
-string already is, four bits at a time instead of eight. Today that
-conversion is private to `wfmgen.c`, so the file path works from the CLI and
-from nowhere else.
+string already is, four bits at a time instead of eight. It is public in C as
+`dp_bytes_to_bin()` (`cvt_core.h`) and in Python as `cvt.bytes_to_bin`, so
+the file path works on every face, not just from the CLI.
 
 **A Python `bytes` object is unpacked**, because that is what the composer's
 `bit_pattern` coercion already takes it to mean (`b"\x01\x00\x01"` is three
@@ -390,10 +390,13 @@ it is a function of its seed; stdin replays only if the same bytes are fed
 again.
 
 This is designed here so that Field and the one frame are shaped for it; it
-is **built as its own pass through the lifecycle, after** the Field and the
-surface table land ([#853](https://github.com/doppler-dsp/doppler/issues/853)).
-That pass is [The Payload as a Data Source](payload-data-source.md): the
-rules this section leaves open, what it deletes, and its unknowns.
+was **built as its own pass through the lifecycle, after** the Field and the
+surface table landed
+([#853](https://github.com/doppler-dsp/doppler/issues/853)), and ships as
+`data:LEN` with `--data` / `--data-from-file`
+([#1619](https://github.com/doppler-dsp/doppler/issues/1619)). That pass is
+[The Payload as a Data Source](payload-data-source.md): the rules this section
+leaves open, what it deletes, and its unknowns.
 
 ______________________________________________________________________
 
@@ -449,10 +452,11 @@ A field's kind answers one question only: who produces the bits.
 | `PN`      | `dp_pn_create()` — one LFSR    | `poly`, `seed`, `reg_bits`, `lfsr`                 |
 | `GOLD`    | `dp_gold_create()` — two LFSRs | `taps_a`, `seed_a`, `taps_b`, `seed_b`, `reg_bits` |
 | `DOTTED`  | alternating `1010…`            | none — a line at Rs/2 to settle on                 |
+| `DATA`    | the frame's data source (§F.5) | `len` — the bits drawn per frame                   |
 
 Two properties sit **across** the kinds rather than inside them, which is what
-keeps the table four rows long instead of eight: **`reps`** repeats the run
-verbatim, so a preamble is not a fifth kind but any of the four repeated; and
+keeps the table five rows long instead of ten: **`reps`** repeats the run
+verbatim, so a preamble is not another kind but any of the others repeated; and
 **`derived_by`** names the stage that produces the field instead of the
 caller, which is what makes a CRC trailer and a block of check symbols the
 same concept.
@@ -554,15 +558,15 @@ Each is enforced where the description is read, not documented and hoped for.
 All exist because the failure mode of this design is a frame that still
 assembles, still decodes against itself, and syncs to nothing.
 
-| invariant                                                                                                                                                | why                                                                                                                       | enforced in                                |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| **A stage's cover is what it OCCUPIES on the wire** — information and derived check symbols together; what it *reads* is the cover minus what it derives | both from one declaration, so the two cannot disagree                                                                     | `wfm_frame.h` (the struct's contract)      |
-| **A derived field must be the LAST field of its producing stage's cover**                                                                                | lets one `in_unit` signature serve every in-place stage; the alternative is parity in the middle of the data              | `wfm_frame.c:156`                          |
-| **At most one emitting stage, and it must cover the whole frame**                                                                                        | two streams is not a frame; a partial emit has no defined wire order                                                      | `wfm_frame.c:206-215`                      |
-| **A stage whose kind is in neither table is a refusal, never a skip**                                                                                    | a stage that quietly did not run is the exact failure this design prevents; it is pre-flighted before any byte is written | `wfm_frame.c:451-458`                      |
-| **A stage covering no caller-supplied bits derives nothing**                                                                                             | a CRC over an empty payload protects nothing and is not emitted                                                           | `wfm_frame.c:162`                          |
-| **A Field is refused, never repaired** — a stray character, a zero length, a register outside `1..64`                                                    | a typo that silently shortens a sync word still assembles and syncs to nothing                                            | `dp_wfm_field_parse` (§F; lands with #853) |
-| **A CLI frame is said one way** — `--frame` and the fixed-layout field flags together are refused                                                        | two descriptions of one frame is a render that can disagree with its own length check                                     | `wfmgen.c` (§R; lands with #853)           |
+| invariant                                                                                                                                                | why                                                                                                                       | enforced in                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| **A stage's cover is what it OCCUPIES on the wire** — information and derived check symbols together; what it *reads* is the cover minus what it derives | both from one declaration, so the two cannot disagree                                                                     | `wfm_frame.h` (the struct's contract)       |
+| **A derived field must be the LAST field of its producing stage's cover**                                                                                | lets one `in_unit` signature serve every in-place stage; the alternative is parity in the middle of the data              | `dp_wfm_frame_desc_layout()`                |
+| **At most one emitting stage, and it must cover the whole frame**                                                                                        | two streams is not a frame; a partial emit has no defined wire order                                                      | `dp_wfm_frame_desc_layout()`                |
+| **A stage whose kind is in neither table is a refusal, never a skip**                                                                                    | a stage that quietly did not run is the exact failure this design prevents; it is pre-flighted before any byte is written | `dp_wfm_frame_assemble_data()`'s pre-flight |
+| **A stage covering no caller-supplied bits derives nothing**                                                                                             | a CRC over an empty payload protects nothing and is not emitted                                                           | `dp_wfm_frame_desc_layout()`                |
+| **A Field is refused, never repaired** — a stray character, a zero length, a register outside `1..64`                                                    | a typo that silently shortens a sync word still assembles and syncs to nothing                                            | `dp_wfm_field_parse` (§F)                   |
+| **A CLI frame is said one way** — `--frame` and the fixed-layout field flags together are refused                                                        | two descriptions of one frame is a render that can disagree with its own length check                                     | `wfmgen.c` (§R)                             |
 
 ## The limits, as numbers
 
@@ -725,8 +729,8 @@ it is measured:
 - **New coding stages.** Turbo and LDPC are configurations this model should
     grow into; the block interleaver already ships as `INTERLEAVE`. None is
     being added here.
-- **The receive side.** `BurstDemod` and `DsssBurstReceiver` still take raw
-    code arrays and a hand-computed `frame_syms`. Moving them onto a
-    description is its own pass through the lifecycle:
-    [A Receiver Built from a Frame Description](rx-frame-description.md)
+- **The receive side.** It was its own pass through the lifecycle, and it
+    has shipped: `BurstDemod` and `DsssBurstReceiver` take a `frame`
+    description rather than raw code arrays and a hand-computed
+    `frame_syms` — [A Receiver Built from a Frame Description](rx-frame-description.md)
     ([#1620](https://github.com/doppler-dsp/doppler/issues/1620)).

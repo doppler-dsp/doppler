@@ -78,7 +78,7 @@ The default Kaiser bank has this by construction (arm `p` peaks at tap
 `(halflen − p)/L`); a hand-built bank — a matched pulse bank, say — has to be
 laid out the same way or the arm and the accumulator fight, and the effective
 sampling instant becomes a sawtooth that still "works" and merely jitters. See
-`_build_bank()` in `RateConverter_core.c` for the derivation from the
+`rc_build_bank()` in `RateConverter_core.c` for the derivation from the
 matched-filter identity.
 
 ## Decimator (r = Fout/Fin < 1, input-driven, transposed form)
@@ -163,7 +163,8 @@ matched-filter identity.
 The benchmark numbers under "Current numbers" reflect the *shipped*
 polyphase resampler, not any of Ideas 1–5. Idea 1 (DPMFS) is the exception —
 it *was* built and shipped as `ResamplerDpmfs`, then removed in v0.3.0 (see
-the note above); Ideas 2–5 remain untried.
+the note above) — and Idea 4 (halfband cascade) ships as `RateConverter`'s
+planner; Ideas 2, 3 and 5 remain untried.
 
 ## Current numbers (cf32, AVX-512, -march=native)
 
@@ -317,7 +318,12 @@ taps for the same stopband attenuation. Both the filter length and
 the sample rate it operates at shrink simultaneously.
 
 Best fit: integer-ratio coarse decimation followed by arbitrary-rate
-fine resampling. Halfband design belongs in `doppler.polyphase`.
+fine resampling.
+
+**Shipped:** `doppler.resample.RateConverter` plans exactly this. Its
+constructor picks the cheapest cascade of CIC, `HalfbandDecimator` and a
+terminal polyphase `Resampler` for the requested rate (the selection table
+is in `native/inc/doppler/RateConverter/RateConverter_core.h`).
 
 ## Idea 5 — Parallel phase computation / threading
 
@@ -354,8 +360,8 @@ ever need it; leave the inner loop single-threaded.
 1. **Multi-output vectorization (Idea 2)** — once the table is
     register-resident, this removes the remaining memory traffic
     from the interpolator hot path.
-1. **Halfband cascade (Idea 4)** — for large decimation ratios,
-    reduces both filter length and sample rate simultaneously.
+1. **Halfband cascade (Idea 4)** — shipped as `RateConverter`'s
+    cascade planner (see Idea 4).
 1. **Input sample double-buffer (Idea 3, revised)** — for streaming
     pipelines where I/O and compute should overlap.
 1. **Block threading (Idea 5)** — only if we ever saturate a single

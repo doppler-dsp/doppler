@@ -223,7 +223,7 @@ file, and `-` means stdin, the Unix convention.
 | ---------- | --------------------------------------------------------------------------------------------- |
 | CLI        | `--data FIELD` or `--data-from-file PATH`, with `--data-len LEN [--fill FIELD]`               |
 | JSON scene | `"data"` or `"data_from_file"`, with `"data_len"` and `"fill"`; the values are the CLI's text |
-| Python     | `Source(data=, data_len=, fill=)`: a bit array; a `str` is refused, naming `field_bits()`     |
+| Python     | `Synth(data=, data_len=, fill=)`: a bit array; a `str` is refused, naming `field_bits()`      |
 | C          | the data source object (§7), built from a Field or from a path                                |
 
 **The pair is one declaration.** Both given is refused, naming the pair,
@@ -250,17 +250,17 @@ Every site below was read at `adf362b9`, before the deletions; each
 deletion is made, so a site names where the code was, and every old
 name is refused as listed.
 
-| deleted                                                                         | where it lived                                                                                                                                                                    | replaced by                                                          |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| payload **cycling**                                                             | `wfm_synth_core.h:222,227,275` (`% n_bits`); the latch at `wfm_synth_core.c:622-628`; the bridge's single assemble, `wfm_synth_bridge.c:316-330`; the help text at `wfmgen.c:354` | a frame pulled from the source at each frame boundary                |
-| `--bits FIELD`, JSON `"payload"`                                                | the surface row at `wfm_surface.h:273-280`                                                                                                                                        | `--data FIELD --data-len LEN`                                        |
-| `--bits-file PATH`                                                              | `wfmgen.c:641`, `bits_from_file` at `wfmgen.c:184` (reads the whole file)                                                                                                         | `--data-from-file PATH`                                              |
-| `--data prbs\|none` (a two-way choice)                                          | `wfmgen.c:645-649`, `DATA_SRC_NAMES` at `wfm_names.h:91-97`                                                                                                                       | `--code-only` for `none`; `prbs` is the default (on `--data`: #1717) |
-| `wfm_source_t.dsss_code_only`                                                   | `wfm_compose.h:377-381`                                                                                                                                                           | kept, as the `--code-only` / `"code_only"` row                       |
-| `wfm_source_t.payload` (a `wfm_seq_t`)                                          | `wfm_compose.h:217-228`; moved off by [#1731](https://github.com/doppler-dsp/doppler/pull/1731)                                                                                   | the source's data source                                             |
-| Python `Source(bits=)`, and `pattern=`/`payload=` **silently remapped** onto it | `wfm_compose.pyi:113,198`; `wfm_compose_ext.c:390-430`                                                                                                                            | `Source(data=)`; the old names refused                               |
-| `_SynthEngine.set_dsss_cont(data="prbs", payload=)`                             | `wfm_ext_wfm_synth_extra.c:129-192`                                                                                                                                               | a data source argument                                               |
-| the refusal of `data:LEN`                                                       | `wfm_frame.c:285-287`, pinned by `test_wfm_frame.c:591-594` and `test_field_bits.py:62,77`                                                                                        | the parser accepts it                                                |
+| deleted                                                                        | where it lived                                                                                                                                                                    | replaced by                                                          |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| payload **cycling**                                                            | `wfm_synth_core.h:222,227,275` (`% n_bits`); the latch at `wfm_synth_core.c:622-628`; the bridge's single assemble, `wfm_synth_bridge.c:316-330`; the help text at `wfmgen.c:354` | a frame pulled from the source at each frame boundary                |
+| `--bits FIELD`, JSON `"payload"`                                               | the surface row at `wfm_surface.h:273-280`                                                                                                                                        | `--data FIELD --data-len LEN`                                        |
+| `--bits-file PATH`                                                             | `wfmgen.c:641`, `bits_from_file` at `wfmgen.c:184` (reads the whole file)                                                                                                         | `--data-from-file PATH`                                              |
+| `--data prbs\|none` (a two-way choice)                                         | `wfmgen.c:645-649`, `DATA_SRC_NAMES` at `wfm_names.h:91-97`                                                                                                                       | `--code-only` for `none`; `prbs` is the default (on `--data`: #1717) |
+| `wfm_source_t.dsss_code_only`                                                  | `wfm_compose.h:377-381`                                                                                                                                                           | kept, as the `--code-only` / `"code_only"` row                       |
+| `wfm_source_t.payload` (a `wfm_seq_t`)                                         | `wfm_compose.h:217-228`; moved off by [#1731](https://github.com/doppler-dsp/doppler/pull/1731)                                                                                   | the source's data source                                             |
+| Python `Synth(bits=)`, and `pattern=`/`payload=` **silently remapped** onto it | `wfm_compose.pyi:113,198`; `wfm_compose_ext.c:390-430`                                                                                                                            | `Synth(data=)`; the old names refused                                |
+| `_SynthEngine.set_dsss_cont(data="prbs", payload=)`                            | `wfm_ext_wfm_synth_extra.c:129-192`                                                                                                                                               | a data source argument                                               |
+| the refusal of `data:LEN`                                                      | `wfm_frame.c:285-287`, pinned by `test_wfm_frame.c:591-594` and `test_field_bits.py:62,77`                                                                                        | the parser accepts it                                                |
 
 `--bits-hex`, `--payload-gen` and `--payload-len` are refused naming
 `--data`, and so are `--bits`, `"payload"`, `"pattern"` and
@@ -286,7 +286,7 @@ source is refused as two spellings of one thing.
     rate runs a cycled frame and moves to `pn:0`.
 - **The flag-matrix golden:** 40 of its 102 cases name a payload flag.
 - **Docs and examples:** 38 lines use `--bits`, 10 use `--bits-file`, and
-    six example scripts use `"payload"` or `Source(bits=)`.
+    six example scripts use `"payload"` or `Synth(bits=)`.
 
 ## 6. Unknowns — stated before they are measured
 
@@ -356,7 +356,7 @@ by `dp_wfm_frame_assemble`, once per chunk.
     frame boundary, and idle frames happen in the paced loop.
 1. **The faces**: the surface rows for `--data`, `--data-from-file` (one
     exclusive pair, §4.9), `--data-len` and `--fill`
-    through `gen_wfm_defaults.py`, the JSON keys, and `Source(data=)`, with
+    through `gen_wfm_defaults.py`, the JSON keys, and `Synth(data=)`, with
     the deletions and refusals of §5, which take the payload off
     `wfm_source_t`.
 1. **The record and SigMF** (§4.8), and replay: a literal byte for byte, a

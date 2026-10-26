@@ -58,7 +58,9 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
         cn0_dbhz=52,           # sensitivity (carrier-to-noise density, dB-Hz)
         pfa=1e-3, pd=0.9,      # target false-alarm / detection rates
     )
-    # The engine sized the grid: doppler_bins=7, code_bins=124, res≈4714 Hz.
+    # The engine sized the grid: 8 Doppler bins of 4125 Hz, 124 code bins.
+    assert (acq.doppler_bins, acq.code_bins) == (8, 124)
+    assert round(acq.doppler_res_hz) == 4125
     # Sizing is honest: pd_burst is the Pd of the whole BURST -- every dwell
     # its preamble spans, at an alignment it does not choose -- AVERAGED over
     # the straddle priors (random Doppler / code phase across the grid), not
@@ -202,7 +204,7 @@ acq = BurstAcquisition(preamble, reps=16, fs=1.023e6 * 4, cn0_dbhz=56,
 acq.doppler_bins, acq.code_bins   # 2, 124    — the grid the engine chose
 acq.doppler_span_hz, acq.doppler_res_hz   # ±16500 Hz, 16500 Hz
 acq.fs                            # 4.092e6   — the rate given
-acq.pfa_cell                      # per-cell false-alarm prob (Bonferroni)
+acq.pfa_cell                      # per-cell false-alarm prob (Šidák)
 acq.eta                           # raw Rayleigh threshold √(-2 ln pfa_cell)
 acq.threshold                     # the CFAR gate actually applied (eta·√(2/π))
 acq.n_noncoh                      # non-coherent looks (1 = pure coherent)
@@ -237,11 +239,20 @@ Doppler and code phase across the grid — see `acq.straddle_loss` for the
 mean amplitude derating), so the engine buys enough integration to meet
 `pd` in operation, not just on-grid:
 
-| `cn0_dbhz` | chosen `doppler_bins` (reps=16) | `pd_burst` | `pd_predicted` (one dwell) |
-| ---------- | ------------------------------- | ---------- | -------------------------- |
-| 56         | 2                               | 0.95       | 0.60                       |
-| 54         | 3                               | 0.90       | 0.58                       |
-| 52         | 7                               | 0.91       | 0.84                       |
+```pycon
+>>> for cn0 in (56, 54, 52):
+...     a = BurstAcquisition(preamble, reps=16, fs=1.023e6 * 4,
+...                          cn0_dbhz=cn0, pfa=1e-3, pd=0.9)
+...     print(f"{cn0} dB-Hz: doppler_bins {a.doppler_bins}, "
+...           f"pd_burst {a.pd_burst:.2f}, pd_predicted {a.pd_predicted:.2f}")
+56 dB-Hz: doppler_bins 2, pd_burst 0.93, pd_predicted 0.55
+54 dB-Hz: doppler_bins 4, pd_burst 0.94, pd_predicted 0.75
+52 dB-Hz: doppler_bins 8, pd_burst 0.91, pd_predicted 0.88
+
+```
+
+`pd_predicted` (one dwell wholly inside the preamble) is not monotonic in
+`cn0_dbhz`, because the depth it is evaluated at changes with it.
 
 `noise_mode` selects the CFAR estimator (`"mean"` by default, which is what the
 analytic `threshold` assumes; `"median"` is more robust but is not analytically

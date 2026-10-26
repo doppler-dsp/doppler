@@ -34,15 +34,18 @@ workload the feature exists for.
 **Right — the field as one control.** Welch PSD of three renders that differ by
 a single number. The background is the broad shelf; the wanted signal is the
 flat-topped block at DC, the interferer the one at +330 kHz. Trim the composite
-by 10 dB and the whole field drops by 10 dB — measured at **10.01 dB** — while
-the wanted signal moves 0.06 dB. Disable it and the field vanishes, leaving
+by 10 dB and the whole field drops by 10 dB — **10.01 dB** in the run that
+drew this figure, and the script asserts 9.5–10.5 dB on every run — while the
+wanted signal moves 0.06 dB (asserted under 0.5 dB). Disable it and the field
+vanishes, leaving
 exactly the two signals and the noise floor.
 
 That is the part worth internalising: the fold does not merely save memory, it
 gives you a control you did not have before. The background is now *one* entry
 in `gains` / `phases` / `enable`, so scaling, rotating or removing the entire
-interference field is a single scalar — and re-rendering it is ~5× faster,
-because each render touches 3 buffers instead of 102.
+interference field is a single scalar — and re-rendering it is faster
+(about 5× on the machine that drew this figure; the script prints its own
+ratio), because each render touches 3 buffers instead of 102.
 
 ## Building it
 

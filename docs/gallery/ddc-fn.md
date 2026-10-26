@@ -99,12 +99,17 @@ y_whole = d.execute(x, out).copy()
 d = Ddcr(lo, 0.25)
 y0 = d.execute(x[:4096], out).copy()   # state advances in place
 y1 = d.execute(x[4096:], out).copy()   # picks up exactly where y0 left off
-# np.concatenate([y0, y1]) == y_whole   (max|Δ| == 0)
+assert np.array_equal(np.concatenate([y0, y1]), y_whole)   # max|Δ| == 0
+
+# the same two halves through FRESH handles -------------------------------
+z0 = Ddcr(lo, 0.25).execute(x[:4096], out).copy()
+z1 = Ddcr(lo, 0.25).execute(x[4096:], out).copy()
+seam = float(np.abs(np.concatenate([z0, z1]) - y_whole).max())
+assert round(seam, 2) == 1.56
 ```
 
-Run those same two halves through *fresh* handles instead and the seam shows a
-phase jump and a filter transient (`max|Δ| ≈ 1.56`) — the carried history is
-exactly the in-place state. Setting `norm_freq` and calling `reset()` likewise
+Through *fresh* handles the seam shows a phase jump and a filter transient
+(`max|Δ| ≈ 1.56`) — the carried history is exactly the in-place state. Setting `norm_freq` and calling `reset()` likewise
 mutate the same handle.
 
 Consequences:

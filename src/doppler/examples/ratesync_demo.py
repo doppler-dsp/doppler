@@ -421,7 +421,8 @@ def main(out_path="ratesync_demo.png"):
         f"({evm - floor:+.1f} dB from the {floor:.1f} dB bound), "
         f"ted gardner {dets['gardner'][0]:.1f} / dttl "
         f"{dets['dttl'][0]:.1f} dB (both noise-limited here), "
-        f"bank {cascade_taps[0]} taps/arm at every sps "
+        f"bank {cascade_taps.min()}-{cascade_taps.max()} taps/arm across "
+        f"sps {sps_grid[0]:g}-{sps_grid[-1]:g} "
         f"(vs {input_taps[-1]} at the input rate, sps=256)"
     )
 

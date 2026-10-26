@@ -121,16 +121,25 @@ the preamble's own correlation energy away from its peak lands in that mean.
 The sizer prices that. So a sequence with high autocorrelation sidelobes
 needs a little more signal for the same detection probability, and a very
 short one needs a lot more. At 127 samples the four families above barely
-differ:
+differ. The engine reports each sequence's peak sidelobe (`psl_db`, cyclic,
+relative to the peak) alongside the depth it chose:
 
-| preamble (N = 127) | worst sidelobe | depth chosen at 50 dB-Hz | `pd_burst` |
-| ------------------ | -------------- | ------------------------ | ---------- |
-| Zadoff-Chu         | 0.000          | 4                        | 0.924      |
-| m-sequence (PN)    | 0.008          | 4                        | 0.923      |
-| chirp              | 0.086          | 4                        | 0.921      |
-| random QPSK        | 0.184          | 4                        | 0.905      |
+```pycon
+>>> from doppler.acquire import BurstAcquisition
+>>> for name, p in (("Zadoff-Chu", zadoff_chu), ("m-sequence (PN)", pn),
+...                 ("chirp", chirp), ("random QPSK", qpsk)):
+...     a = BurstAcquisition(p, reps=8, fs=1e6, cn0_dbhz=50)
+...     print(f"{name:16s} psl {a.psl_db:6.1f} dB  depth {a.doppler_bins}"
+...           f"  pd_burst {a.pd_burst:.3f}")
+Zadoff-Chu       psl   -inf dB  depth 4  pd_burst 0.909
+m-sequence (PN)  psl  -42.1 dB  depth 4  pd_burst 0.909
+chirp            psl  -21.4 dB  depth 4  pd_burst 0.906
+random QPSK      psl  -15.7 dB  depth 5  pd_burst 0.916
 
-(`reps=8`, `fs = 1 MS/s`. Sidelobes are cyclic, relative to the peak.)
+```
+
+The random QPSK draw needs one more repetition of depth than the others; its
+sidelobes are the highest of the four.
 
 !!! warning "Zadoff-Chu couples delay and Doppler"
 
@@ -259,11 +268,20 @@ aligned to it, and for the target sitting between grid cells.
 
 The Zadoff-Chu preamble above (`reps=8`, 1 MS/s):
 
-| `cn0_dbhz` | depth chosen | resolution | `pd_burst` | `underpowered` |
-| ---------- | ------------ | ---------- | ---------- | -------------- |
-| 55         | 1            | 7874 Hz    | 0.98       | False          |
-| 50         | 4            | 1969 Hz    | 0.92       | False          |
-| 47         | 5            | 1575 Hz    | 0.65       | True           |
+```pycon
+>>> import warnings
+>>> for cn0 in (55, 50, 47):
+...     with warnings.catch_warnings():
+...         warnings.simplefilter("ignore")   # 47 dB-Hz warns: under-powered
+...         a = BurstAcquisition(zadoff_chu, reps=8, fs=1e6, cn0_dbhz=cn0)
+...     print(f"{cn0} dB-Hz: depth {a.doppler_bins}, "
+...           f"{a.doppler_res_hz:.0f} Hz, pd_burst {a.pd_burst:.2f}, "
+...           f"underpowered {a.underpowered}")
+55 dB-Hz: depth 1, 7874 Hz, pd_burst 0.98, underpowered False
+50 dB-Hz: depth 4, 1969 Hz, pd_burst 0.91, underpowered False
+47 dB-Hz: depth 5, 1575 Hz, pd_burst 0.61, underpowered True
+
+```
 
 When no depth up to `reps` reaches `pd`, the constructor does not raise. It
 builds the best grid it can, sets `underpowered`, and warns. The symptom in

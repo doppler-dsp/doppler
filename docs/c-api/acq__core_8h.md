@@ -988,12 +988,12 @@ What it predicts: a detection's sidelobes sit this far below it, at delays outsi
 >>> nrz = np.zeros(31, dtype=np.float32)
 >>> _ = bin_to_nrz(chips, nrz)
 >>> pre = np.repeat(nrz, 4).astype(np.complex64)    # 4 samples a chip
->>> a = BurstAcquisition(pre, reps=4, fs=4.0e6, cn0_dbhz=50.0)
+>>> a = BurstAcquisition(pre, reps=4, fs=4.0e6, cn0_dbhz=61.0)
 >>> round(a.psl_db, 2)          # an m-sequence: 1/31
 -29.83
 >>> k = np.arange(127)
 >>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
->>> BurstAcquisition(zc, reps=8, fs=1.0e6, cn0_dbhz=50.0).psl_db
+>>> BurstAcquisition(zc, reps=8, fs=1.0e6, cn0_dbhz=53.0).psl_db
 -inf
 ```
  

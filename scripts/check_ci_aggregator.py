@@ -42,7 +42,12 @@ What is checked
   It was ``changes`` until that became the vendored workflow (#1809), which
   knows nothing of doppler's Python matrix;
 - docs/dev/ci.md's table of those steps (between the ``python-legs``
-  markers) names exactly the steps, targets and lanes the workflow runs.
+  markers) names exactly the steps, targets and lanes the workflow runs;
+- docs/dev/ci.md's "What runs where" table (between the ``ci-jobs``
+  markers) names every job in the workflow exactly once, and no job it
+  lacks, by the backticked job ids in its first column (#2599). A hand-kept
+  job list drifted with every workflow edit; one row may group jobs that
+  share an environment.
 
 Usage
 -----
@@ -102,6 +107,11 @@ PRIMARY_TARGET = "print-python-primary"
 
 DOC_START = "<!-- python-legs:start -->"
 DOC_END = "<!-- python-legs:end -->"
+#: The markers around docs/dev/ci.md's table of every job.
+JOBS_START = "<!-- ci-jobs:start -->"
+JOBS_END = "<!-- ci-jobs:end -->"
+#: A job id as the jobs table writes it: backticked, in the first column.
+_JOB_ID = re.compile(r"`([\w-]+)`")
 
 
 def check(path: pathlib.Path) -> list[str]:
@@ -440,6 +450,53 @@ def check_doc(path: pathlib.Path, doc: pathlib.Path) -> list[str]:
     return problems
 
 
+def _doc_jobs(doc: pathlib.Path) -> list[str] | None:
+    """Every backticked job id in the first column of the doc's jobs table,
+    in order and with repeats, or None when the table is absent."""
+    text = doc.read_text(encoding="utf-8")
+    if JOBS_START not in text or JOBS_END not in text:
+        return None
+    body = text.split(JOBS_START, 1)[1].split(JOBS_END, 1)[0]
+    named: list[str] = []
+    for line in body.splitlines()[1:]:
+        cells = line.strip().split("|")[1:-1]
+        if not cells or set(cells[0].strip()) <= set("-: "):
+            continue
+        named += _JOB_ID.findall(cells[0])
+    return named
+
+
+def check_jobs_doc(path: pathlib.Path, doc: pathlib.Path) -> list[str]:
+    """docs/dev/ci.md's jobs table names each workflow job exactly once."""
+    try:
+        jobs = (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get(
+            "jobs"
+        ) or {}
+    except yaml.YAMLError:
+        return []  # check() already reports it
+    named = _doc_jobs(doc)
+    if named is None:
+        return [
+            f"{doc}: no `{JOBS_START}` ... `{JOBS_END}` table of the jobs "
+            f"{path.name} runs"
+        ]
+    problems = []
+    for job in jobs:
+        if job not in named:
+            problems.append(
+                f"{doc}: the jobs table lacks `{job}`, which {path.name} runs"
+            )
+    for job in sorted(set(named)):
+        if job not in jobs:
+            problems.append(
+                f"{doc}: the jobs table names `{job}`, which {path.name} "
+                "has no job called"
+            )
+        elif named.count(job) > 1:
+            problems.append(f"{doc}: the jobs table names `{job}` twice")
+    return problems
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("paths", nargs="*", type=pathlib.Path)
@@ -450,6 +507,7 @@ def main(argv: list[str]) -> int:
     problems = [p for path in paths for p in check(path)]
     if doc is not None:
         problems += check_doc(paths[0], doc)
+        problems += check_jobs_doc(paths[0], doc)
     for p in problems:
         print(f"ci-aggregator-check: {p}")
     if problems:

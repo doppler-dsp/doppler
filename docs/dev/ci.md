@@ -347,15 +347,36 @@ ______________________________________________________________________
 
 ## What runs where
 
-| job                                               | environment                           | notes                                                                                             |
-| ------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `build-and-test-linux`                            | pinned image, one per glibc           | split from macOS because `container:` is Linux-only and cannot be switched off for one matrix leg |
-| `build-and-test-macos`                            | hosted runner, brew                   | no macOS container to bake                                                                        |
-| `python` (3.9–3.14)                               | pinned image                          | uv supplies the interpreters; only the extension build differs per ABI                            |
-| `coverage`                                        | pinned image                          | clang source-based, C ∪ Python ∪ Rust — see [Coverage](coverage.md)                               |
-| `glibc-228`                                       | Debian 10 image via `make glibc-gate` | the floor gate; its own toolchain by necessity                                                    |
-| `doxygen`, `docs`, `pre-commit`, `manifest-drift` | pinned image or plain runner          | no system deps beyond the image                                                                   |
-| `docker`                                          | hosted runner                         | builds the shipped images, so it needs a daemon                                                   |
+<!-- ci-jobs:start -->
+
+| job                          | environment                                | what it runs                                                                                                                    |
+| ---------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `changes`                    | the vendored `changes.yml` workflow        | classifies the diff, so a docs-only PR can skip the code jobs (`SKIPPABLE` / `CODE_ONLY`, above)                                |
+| `pythons`                    | plain runner                               | derives the Python matrix and the primary leg (`make -s print-python-primary`)                                                  |
+| `pin`                        | plain runner                               | resolves the pinned CI image digests the container jobs run in                                                                  |
+| `build-and-test-linux`       | pinned image, one per glibc (22.04, 24.04) | `make build`, `test`, `test-examples`; split from macOS because `container:` is Linux-only and cannot be switched off for a leg |
+| `build-and-test-linux-arm64` | pinned 24.04 image on an arm64 runner      | `make build`, `test`, `uno-q-check`                                                                                             |
+| `build-and-test-windows`     | hosted Windows runner, clang-cl            | the C tarball, `make complex-helpers-check`, `test`, `package-c-smoke`                                                          |
+| `wheel-smoke-windows`        | hosted Windows runner                      | `make wheel`, `wheel-smoke` (win_amd64, cp312)                                                                                  |
+| `build-and-test-macos`       | hosted runner, brew                        | `make build`, `test`, `test-examples`; no macOS container to bake                                                               |
+| `python`                     | pinned image, one leg per supported Python | uv supplies the interpreters; only the extension build differs per ABI. Single-leg steps are in the table above                 |
+| `glibc-228`                  | Debian 10 image via `make glibc-gate`      | the glibc floor; its own toolchain by necessity                                                                                 |
+| `doxygen`                    | pinned image                               | `make doxygen-check`, `gen-c-api-check`                                                                                         |
+| `sweep-validators`           | pinned image                               | `make test-sweep SWEEP_STRICT=1`                                                                                                |
+| `docs`                       | plain runner                               | `make docs-check`                                                                                                               |
+| `docker`                     | hosted runner                              | `make docker-examples`: builds the shipped images, so it needs a daemon                                                         |
+| `linux-packages`             | hosted runner, one container per distro    | `make package-linux-smoke`: builds the .deb/.rpm and installs them in each distro, reaching its mirrors on purpose              |
+| `pre-commit`                 | plain runner                               | `make lint`                                                                                                                     |
+| `manifest-drift`             | plain runner                               | `make drift-check`                                                                                                              |
+| `sanitizers`                 | pinned image, one leg per sanitizer        | `make test-asan`, `test-ubsan`, `test-tsan` (the C suite)                                                                       |
+| `warnings`                   | pinned image                               | `make warnings-check` (gcc + clang, `-Wall -Wextra`)                                                                            |
+| `coverage`                   | pinned image                               | `make coverage`: clang source-based, C ∪ Python ∪ Rust; see [Coverage](coverage.md)                                             |
+| `ci-passed`                  | plain runner                               | the aggregator, `CI passed`: the one required check (below)                                                                     |
+
+<!-- ci-jobs:end -->
+
+`make ci-aggregator-check` holds this table to `ci.yml`: every job named
+exactly once, and no job `ci.yml` lacks.
 
 **One check name is load-bearing: `CI passed`.** It is the only status check
 the `protect-main` ruleset requires, and it is green only when every job in

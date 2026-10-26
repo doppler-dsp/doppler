@@ -6,7 +6,7 @@ pinned, the refusals in place, the frame layer and its named set landed, the
 frame-statistics accumulator shipped, and §8.7 running all four metrics on
 `MpskReceiver` from one record. Step 7 — the measurements this document
 interrupted — is what remains. Everything below was read from the tree, not
-recalled; line counts and symbol lists are as measured, and every number in
+recalled; symbol lists are as measured, and every number in
 §7.6, §8.4–§8.7 came out of a run. The immediate cause of this document was a
 hand-rolled measurement harness that produced three wrong conclusions in one
 session — one of which reached a filed issue.
@@ -24,10 +24,10 @@ been met.
     detect, a window that has not settled, too few trials for the interval
     claimed — each is a refusal to report, not a number with a caveat.
 1. **Every measurement primitive is itself tested, and proven by sabotage.**
-    `dp_ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` and the harness headers
+    `dp_ber_align_detect`, `dp_ber_evm_db`, `dp_snr_m2m4_db` and the harness headers
     that wrap them. A test nobody has watched fail is not evidence.
 1. **Anchored to theory, not to itself.** Every rate is checked against
-    closed form (`ber_theory_ser`, `ber_esn0_db_for_ser`), so "all
+    closed form (`dp_ber_theory_ser`, `dp_ber_esn0_db_for_ser`), so "all
     configurations agree" can never be mistaken for "all configurations are
     correct". A comparison between configurations is not a measurement.
 1. **BER, EVM, M2M4 and FER reported together, always.** They fail
@@ -125,7 +125,7 @@ Attach functions: `dp_wfm_synth_set_bits`, `dp_wfm_synth_set_dsss_chips`,
 
 ### 1.2 The application
 
-`wfmgen` (`native/src/app/wfmgen.c`) exposes that generator with 45 flags,
+`wfmgen` (`native/src/app/wfmgen.c`) exposes that generator as a CLI,
 including the output axes (`--file-type`, `--endian`, `--record`,
 `--sample-type`) and the level/SNR controls (`--level`, `--snr`,
 `--snr-mode`).
@@ -165,7 +165,7 @@ from three numbers rather than a stored array.
 
 ### 1.5 The test-layer stimulus
 
-`native/tests/dp_tx_test.h` (307 lines) calls itself "the SSOT for harness
+`native/tests/dp_tx_test.h` calls itself "the SSOT for harness
 STIMULUS: one shaped symbol stream, one place." Its configuration is:
 
 <!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/doppler/wfm/wfm_frame.h, native/inc/doppler/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
@@ -179,7 +179,7 @@ size_t nsym;  uint32_t seed;
 Pulse, rate, timing offset, amplitude, carrier, length, seed — and **no frame
 structure**. It cannot express a preamble, a sync word or a payload.
 
-`native/tests/dp_rng_test.h` (312 lines) is "the SSOT for harness RANDOMNESS:
+`native/tests/dp_rng_test.h` is "the SSOT for harness RANDOMNESS:
 one generator, one Box-Muller."
 
 ______________________________________________________________________
@@ -189,15 +189,15 @@ ______________________________________________________________________
 ### 2.1 `ber_core.h` — the theory and the window
 
 ```
-dp_ber_qfunc              ber_theory_ser          ber_theory_ber
-ber_esn0_db_for_ser    ber_evm_scatter_floor_db
-ber_settle_syms        ber_settle_from         ber_lock_symbol
-ber_evm_db             dp_ber_confidence
+dp_ber_qfunc              dp_ber_theory_ser       dp_ber_theory_ber
+dp_ber_esn0_db_for_ser    dp_ber_evm_scatter_floor_db
+dp_ber_settle_syms        dp_ber_settle_from      dp_ber_lock_symbol
+dp_ber_evm_db             dp_ber_evm_ideal_db     dp_ber_confidence
 ```
 
-`ber_esn0_db_for_ser` is what anchors a measurement to theory rather than to
-itself. `ber_settle_syms` / `ber_settle_from` define the settled window;
-`ber_evm_db` computes EVM over it.
+`dp_ber_esn0_db_for_ser` is what anchors a measurement to theory rather than
+to itself. `dp_ber_settle_syms` / `dp_ber_settle_from` define the settled
+window; `dp_ber_evm_db` computes EVM over it.
 
 ### 2.2 `ber_meter_core.h` — alignment and accumulation
 
@@ -226,7 +226,7 @@ alignment decision. What they do **not** have is the frame layer (§7) and any
 frame-level accumulation (§2.5) — which is the gap this document exists to
 close, on the external side as much as ours.
 
-### 2.3 `dp_ber_test.h` (834 lines) — the statistical harness
+### 2.3 `dp_ber_test.h` — the statistical harness
 
 Owns the settled window, the marker model and the sync decision:
 
@@ -241,14 +241,16 @@ dp_ber_sync_t dp_ber_sync (rx, n_rx, truth, n_truth, mk, m, lag_span, pfa);
 ```
 
 This is a **detection**, not a search: the threshold is Pfa-derived and
-Bonferroni-corrected over the candidate lags, `runner_db` is an ambiguity
+Šidák-corrected over the candidate lags (`dp_det_pfa_cell()`, called by
+`dp_ber_align_detect()`), `runner_db` is an ambiguity
 check against the best competitor outside the guard band, `phase` recovers the
 residual constellation rotation (which resolves an M-fold ambiguity), and `ok`
 says whether to believe any of it.
 
-Also present: `dp_ber_ci`, `dp_ber_enough`, `dp_ber_esn0_db_for_ser`,
-`dp_ber_measure`, `dp_ber_lock_symbol`, `dp_ber_evm_m2m4`.
-The settling budget it documents is
+Also present: `dp_ber_settle`, `dp_ber_score`, `dp_ber_ci`, `dp_ber_enough`,
+`dp_ber_measure`, `dp_ber_evm_m2m4`, `dp_ber_report`. `dp_ber_settle` wraps
+`ber_core.h`'s `dp_ber_settle_syms`, `dp_ber_lock_symbol` and
+`dp_ber_settle_from`. The settling budget it documents is
 `2*(5/bn_timing + 5/bn_carrier)`, taken as
 `max(budget, timing lock, carrier lock, handover + budget)`.
 
@@ -257,13 +259,13 @@ The settling budget it documents is
 Three numbers describe a receiver's output, and the reason to carry all three
 is that **they fail differently**. Each already exists in the library:
 
-| metric        | needs                                            | primitive                                                                     | test-layer wrapper                |
-| ------------- | ------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------- |
-| **BER / SER** | external truth **and** alignment                 | `dp_ber_meter_score`, `dp_ber_align_detect`                                   | `dp_ber_measure`                  |
-| **EVM**       | nothing — self-referenced against hard decisions | `ber_evm_db`                                                                  | `dp_test_evm_db_hard{,_m,_range}` |
-| **M2M4**      | nothing — blind, from 2nd/4th moments            | `snr_m2m4_db` (`native/inc/doppler/snr/snr_core.h`, Pauluzzi & Beaulieu 2000) | `dp_test_m2m4_snr_db{,_range}`    |
+| metric        | needs                                            | primitive                                                                        | test-layer wrapper                |
+| ------------- | ------------------------------------------------ | -------------------------------------------------------------------------------- | --------------------------------- |
+| **BER / SER** | external truth **and** alignment                 | `dp_ber_meter_score`, `dp_ber_align_detect`                                      | `dp_ber_measure`                  |
+| **EVM**       | nothing — self-referenced against hard decisions | `dp_ber_evm_db`                                                                  | `dp_test_evm_db_hard{,_m,_range}` |
+| **M2M4**      | nothing — blind, from 2nd/4th moments            | `dp_snr_m2m4_db` (`native/inc/doppler/snr/snr_core.h`, Pauluzzi & Beaulieu 2000) | `dp_test_m2m4_snr_db{,_range}`    |
 
-A fourth sits alongside them: `snr_data_aided_db` (and the sliding-window
+A fourth sits alongside them: `dp_snr_data_aided_db` (and the sliding-window
 `*_series` forms of both estimators), which is the truth-using counterpart to
 M2M4 and therefore a cross-check on it.
 
@@ -361,19 +363,19 @@ Two things this buys that the symbol-level metrics cannot:
 
 ### 2.6 The other harness headers
 
-| header            | lines | role                                                                                                                                                          |
-| ----------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dp_test.h`       | —     | foundation: `DP_CHECK`, `DP_CHECK_NEAR`, `DP_CHECK_MSG`, `DP_TEST_END`, `dp_bit_distance`                                                                     |
-| `dp_sym_test.h`   | 220   | truth-free symbol quality: `dp_test_evm_db_hard`, `dp_test_evm_db_hard_m`, `dp_test_evm_db_hard_range`, `dp_test_evm_scatter_floor_db`, `dp_test_settle_syms` |
-| `dp_mf_test.h`    | 109   | matched-filter fixtures: RRC-BPSK on a carrier + EVM                                                                                                          |
-| `dp_dsss_test.h`  | 211   | DSSS fixtures                                                                                                                                                 |
-| `dp_state_test.h` | 37    | `DP_STATE_ROUNDTRIP_TEST`                                                                                                                                     |
-| `dp_tx_test.h`    | 307   | stimulus (§1.5)                                                                                                                                               |
-| `dp_rng_test.h`   | 312   | randomness (§1.5)                                                                                                                                             |
-| `dp_ber_test.h`   | 834   | statistics (§2.3)                                                                                                                                             |
-| `dp_frame_test.h` | 228   | the named frame set (§7.4)                                                                                                                                    |
-| `dp_rx_test.h`    | —     | the instrument: the point, the burst, the standard record, the gates                                                                                          |
-| `dp_rx_mpsk.h`    | 146   | the two `MpskReceiver` adapters — a SECOND harness is why they are a header and not a copy                                                                    |
+| header            | role                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dp_test.h`       | foundation: `DP_CHECK`, `DP_CHECK_NEAR`, `DP_CHECK_MSG`, `DP_TEST_END`, `dp_bit_distance`                                                                     |
+| `dp_sym_test.h`   | truth-free symbol quality: `dp_test_evm_db_hard`, `dp_test_evm_db_hard_m`, `dp_test_evm_db_hard_range`, `dp_test_evm_scatter_floor_db`, `dp_test_settle_syms` |
+| `dp_mf_test.h`    | matched-filter fixtures: RRC-BPSK on a carrier + EVM                                                                                                          |
+| `dp_dsss_test.h`  | DSSS fixtures                                                                                                                                                 |
+| `dp_state_test.h` | `DP_STATE_ROUNDTRIP_TEST`                                                                                                                                     |
+| `dp_tx_test.h`    | stimulus (§1.5)                                                                                                                                               |
+| `dp_rng_test.h`   | randomness (§1.5)                                                                                                                                             |
+| `dp_ber_test.h`   | statistics (§2.3)                                                                                                                                             |
+| `dp_frame_test.h` | the named frame set (§7.4)                                                                                                                                    |
+| `dp_rx_test.h`    | the instrument: the point, the burst, the standard record, the gates                                                                                          |
+| `dp_rx_mpsk.h`    | the two `MpskReceiver` adapters — a SECOND harness is why they are a header and not a copy                                                                    |
 
 **A harness that needs a helper adds it here rather than privately.** Two
 landed with the coding-gain measurement, and both had been about to become
@@ -419,9 +421,11 @@ standard receiver harness that exists.
 
 ### 3.2 Python certification
 
-Ten objects carry a generated `results.md` under
-`src/doppler/<pkg>/tests/validation/<obj>/`: `agc`, `lo`, `nco`, `mpsk`,
-`ema`, `resamp`, `ratesync`, `loop_filter`, `carrier_nda`, `lockdet`.
+A certified object carries a generated `results.md` under
+`src/doppler/<pkg>/tests/validation/<obj>/`, or under
+`src/doppler/tests/validation/<obj>/` when it has no package of its own. The
+tree is the list — `git ls-files 'src/doppler/**/results.md'` — so the set is
+not restated here.
 
 ### 3.3 Make targets
 
@@ -433,7 +437,8 @@ ______________________________________________________________________
 
 ## 4. Gates that already police this
 
-Fourteen `scripts/check_*.py`. The two that matter here:
+The `scripts/check_*.py` family (`ls scripts/check_*.py` lists it). The two
+that matter here:
 
 - **`check_stimulus_sources.py`** — "stimulus and its measurement have ONE
     home, and it is the library." It forbids a private pulse, a private level
@@ -442,9 +447,10 @@ Fourteen `scripts/check_*.py`. The two that matter here:
     `ber_evm_db` over `ber_settle_syms`/`ber_settle_from`). Its recorded
     motivation is a demo that peak-normalised an RRC stream and lost ~40x of
     loop gain with nothing pointing at the level.
-- **`check_tests_ssot.py`** — enumerates the `dp_*_test.h` family (reports 32
-    macros and 41 helpers across 8 headers) and checks no test file loses
-    assertions against `origin/main`.
+- **`check_tests_ssot.py`** — enumerates the macros and helpers the
+    `dp_*.h` test family defines, fails a test that re-defines one, and with
+    `--base origin/main` checks no test file loses assertions against the
+    base.
 
 ______________________________________________________________________
 
@@ -452,23 +458,23 @@ ______________________________________________________________________
 
 Five findings, each measured above rather than asserted.
 
-### 5.1 The two primitives every receiver number rests on have no direct test
+### 5.1 ~~The two primitives every receiver number rests on have no direct test~~
 
-| primitive             | defined                | referenced in the tree                                              | own test      |
-| --------------------- | ---------------------- | ------------------------------------------------------------------- | ------------- |
-| `dp_ber_align_detect` | `ber_meter_core.c:133` | **only** `dp_ber_test.h:300`                                        | **none**      |
-| `ber_evm_db`          | `ber_core.h:247`       | `dp_ber_test.h`, `dp_sym_test.h`, `test_ratesync_core.c`            | **none**      |
-| `snr_m2m4_db`         | `snr_core.h:100`       | `dp_sym_test.h`, `dp_ber_test.h`, `test_async_dsss_receiver_core.c` | **no C test** |
+~~None of the trio had a direct C test.~~ **CLOSED — each primitive now has a
+test of its own**, known-answer and proven by mutation:
 
-`test_dp_ber.c` is 637 lines and covers `dp_ber_ci` (18 references) and
-`ber_settle` (5). It contains **zero** references to either of the first two.
-All three are exercised only through consumers — the shape in which a broken
-primitive returns a plausible number and every downstream test still passes.
+| primitive             | own test                |
+| --------------------- | ----------------------- |
+| `dp_ber_align_detect` | `test_ber_meter_core.c` |
+| `dp_ber_evm_db`       | `test_ber_core.c`       |
+| `dp_snr_m2m4_db`      | `test_snr_core.c`       |
 
-So **none of the trio (§2.4) has a direct C test**, and the `snr` module has no
-`native/tests/test_snr_core.c` at all (it has a Python test,
-`src/doppler/snr/tests/test_snr.py`). Every receiver number this project
-quotes rests on three primitives that are checked only by their own consumers.
+Until then all three were exercised only through consumers (the harness
+headers and a few receiver tests) — the shape in which a broken primitive
+returns a plausible number and every downstream test still passes — and the
+`snr` module had no C test at all. Writing them found that the
+self-referenced EVM reads better than `-Es/N0` at low Es/N0; the measured
+table, and why, is in `test_ber_core.c`'s claim 1.
 
 ### 5.2 ~~Five of seven harness headers have no test of their own~~
 
@@ -476,25 +482,25 @@ quotes rests on three primitives that are checked only by their own consumers.
 and `dp_test.h`, the foundation the whole family rests on, which the original
 table did not even list:
 
-| header            | lines | own test                                             |
-| ----------------- | ----- | ---------------------------------------------------- |
-| `dp_ber_test.h`   | 834   | `test_dp_ber.c`                                      |
-| `dp_rng_test.h`   | 312   | `test_dp_rng.c`                                      |
-| `dp_tx_test.h`    | 307   | `test_dp_tx.c`                                       |
-| `dp_test.h`       | 306   | `test_dp_test.c` + `test_dp_test_end.c`              |
-| `dp_sym_test.h`   | 220   | `test_dp_sym.c`                                      |
-| `dp_dsss_test.h`  | 211   | `test_dp_dsss.c`                                     |
-| `dp_mf_test.h`    | 109   | `test_dp_mf.c`                                       |
-| `dp_state_test.h` | 37    | `test_dp_state.c`                                    |
-| `dp_frame_test.h` | 228   | `test_dp_frame.c`                                    |
-| `dp_rx_test.h`    | 1004  | **none** — the instrument, exercised only end to end |
+| header            | own test                                             |
+| ----------------- | ---------------------------------------------------- |
+| `dp_ber_test.h`   | `test_dp_ber.c`                                      |
+| `dp_rng_test.h`   | `test_dp_rng.c`                                      |
+| `dp_tx_test.h`    | `test_dp_tx.c`                                       |
+| `dp_test.h`       | `test_dp_test.c` + `test_dp_test_end.c`              |
+| `dp_sym_test.h`   | `test_dp_sym.c`                                      |
+| `dp_dsss_test.h`  | `test_dp_dsss.c`                                     |
+| `dp_mf_test.h`    | `test_dp_mf.c`                                       |
+| `dp_state_test.h` | `test_dp_state.c`                                    |
+| `dp_frame_test.h` | `test_dp_frame.c`                                    |
+| `dp_rx_test.h`    | **none** — the instrument, exercised only end to end |
 
 `dp_tx_test.h` and `dp_sym_test.h` were called out here as "the two that
 silently shape every measurement", and that was right — but the header the
 list omitted turned out to matter more. **`dp_test.h` is the assertion
-foundation 97 C test files include**, and its failure mode is not a red suite
-but a green one: a `DP_CHECK` that stops recording failures turns all 97 into
-programs that run to completion and report success.
+foundation nearly every C test file includes** (`grep -l dp_test.h native/tests/*.c`), and its failure mode is not a red suite but a green one: a
+`DP_CHECK` that stops recording failures turns all of them into programs that
+run to completion and report success.
 
 **What writing them found**, none of which a review had:
 
@@ -549,7 +555,7 @@ ______________________________________________________________________
     word REPEATS.** Barker maxes at 13 symbols; `dp_ber_test.h`'s default
     marker is `DP_BER_SYNC_SYMS = 256`. That is a ~13x processing-gain
     shortfall, and at a 4 dB Es/N0 floor a 13-symbol sync may not clear the
-    Bonferroni-corrected threshold. `validate_rx_frame_fer` now measures it
+    Šidák-corrected threshold. `validate_rx_frame_fer` now measures it
     at the SER = 1e-3 anchor (Es/N0 6.8 dB, BPSK) as a **per-frame sync miss
     rate** over 640 frames, against `RX_FRAME_CONT`'s PN-127 as the control:
 
@@ -658,7 +664,8 @@ typedef enum
   WFM_SEQ_LITERAL = 0, /**< a 0/1 array the caller owns                     */
   WFM_SEQ_PN      = 1, /**< dp_pn_create()   — m-sequence, one LFSR           */
   WFM_SEQ_GOLD    = 2, /**< dp_gold_create() — two LFSRs, a Gold family       */
-  WFM_SEQ_DOTTED  = 3  /**< alternating 1010...; a line at Rs/2 to settle on */
+  WFM_SEQ_DOTTED  = 3, /**< alternating 1010...; a line at Rs/2 to settle on */
+  WFM_SEQ_DATA    = 4  /**< LEN bits per frame from the frame's data source */
 } wfm_seq_kind_t;
 
 /**
@@ -683,7 +690,7 @@ typedef struct
   uint32_t reg_bits;    /**< register width 1..64; period 2^reg_bits - 1    */
   int      lfsr;        /**< PN_GALOIS (0) or PN_FIBONACCI (1)              */
 
-  /* GOLD: dp_gold_create (taps_a, seed_a, taps_b, seed_b) */
+  /* GOLD: dp_gold_create (taps_a, seed_a, taps_b, seed_b, reg_bits) */
   uint64_t taps_a, seed_a, taps_b, seed_b;
 } wfm_seq_t;
 
@@ -856,8 +863,9 @@ feedback**: it shifts the seed out and then emits zeros for ever. Measured, a
 field in the tree was a constant that still looked like a field.
 
 `test_wfm_frame.c` did not catch it because its check was a **consistency**
-test: it compared `dp_wfm_frame_bits()` against `dp_pn_generate()` with `poly = 0` on
-both sides, and the two agreed perfectly — on two all-zero sequences. The gate
+test: it compared the frame's bits (then `wfm_frame_bits()`, today
+`dp_wfm_frame_assemble()`) against `dp_pn_generate()` with `poly = 0` on both
+sides, and the two agreed perfectly — on two all-zero sequences. The gate
 that catches it is a property no agreement between two halves can establish:
 one period of a length-n MLS carries exactly `2^(n-1)` ones, so a **balance
 check** over `2^n - 1` bits says the descriptor resolved a real polynomial. It
@@ -925,7 +933,7 @@ produced a number that looked like a receiver result.
 
 ### 8.1 What today's sequence actually is
 
-`src/doppler/track/tests/_mpsk_rx_harness.py` (430 lines) is the de-facto
+`src/doppler/track/tests/_mpsk_rx_harness.py` is the de-facto
 receiver harness, and it already implements most of the flow — so the gaps are
 concrete rather than hypothetical. It **delegates** to the library for
 `ber_lock_symbol`, `ber_settle_syms`, `ber_settle_from`,
@@ -967,8 +975,8 @@ thin wrapper that delegates to `BerMeter.interval()` and accepts-and-ignores
 its legacy `z` argument, because the exact interval is not symmetric and a
 two-sided z-score has nothing to multiply.
 
-So the one gap at stage 7 stands alone: **M2M4 is simply absent**, so the
-harness cannot see the disagreement §2.4 relies on.
+So the one gap at stage 7 was **M2M4, simply absent**, which left the
+harness unable to see the disagreement §2.4 relies on; §8.6 closed it.
 
 ### 8.2 Why the stimulus gate does not catch stage 2
 
@@ -1002,9 +1010,9 @@ the convention exactly is not the failure mode this is about.
 
 Ordered so that nothing depends on an unpinned measurement:
 
-1. **Pin the trio** (§5.1). `dp_ber_align_detect`, `ber_evm_db`, `snr_m2m4_db` —
-    known-answer tests plus sabotage, and a `native/tests/test_snr_core.c`
-    where none exists. Nothing below is trustworthy until this is done.
+1. ~~**Pin the trio**~~ **DONE** (§5.1). `dp_ber_align_detect`,
+    `dp_ber_evm_db`, `dp_snr_m2m4_db` — known-answer tests plus sabotage, and
+    `native/tests/test_snr_core.c` for the module that had none.
 1. ~~**Test the five untested harness headers**~~ **DONE** (§5.2) — all five,
     plus `dp_test.h`, the foundation the original list did not include and the
     one that mattered most. `dp_rx_test.h` is the only member still without a

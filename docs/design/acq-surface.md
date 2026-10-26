@@ -372,8 +372,9 @@ the preamble's peak sidelobe, which the constructor already computes
 three autocorrelation values give $65/1023$: $-23.9$ dB.
 
 **Sidelobes at a tile offset**, $\nu = f - \hat f_q$ for the tiles the
-emitter is not in, are much larger, and nothing on the engine computes them.
-Computed from $\chi$ for the Gold code the receiver validators use
+emitter is not in, are much larger. The engine computes their worst case
+on first read (`acq_shape_t::dsl`, `dp_acq_dsl_db()`). Computed from $\chi$
+for the Gold code the receiver validators use
 (`dp_dsss_gold_1023()`, $S = 2$, $f_E = 3$ kHz, five tiles), the largest
 $|\chi(\Delta, f - \hat f_q)|$ with $\Delta$ more than a chip from 0,
 circularly, over every tile, relative to the emitter's own peak:
@@ -515,8 +516,9 @@ data a floor at the ambiguity's level alone does not hold the sidelobes
 off: the last row is far above it.
 
 **Decided (2026-10-21).** The owner ruled that the ranked search's floor is
-derived at construction from the code's Doppler-offset sidelobe level, as
-`psl` already is from its zero-offset one: a peak is a second emitter only
+derived from the code's Doppler-offset sidelobe level, as `psl` is from its
+zero-offset one; the level is defined on the grid the engine was built with
+and computed on its first read, `dp_acq_dsl_db()`. A peak is a second emitter only
 if its statistic stands higher than the stronger emitters' sidelobes can
 reach, their statistic times that level, and it still clears the detector's
 gate. The mechanism and its numbers are #2525's, in its design text.

@@ -23,6 +23,8 @@ ______________________________________________________________________
 | ---------------------------------------------- | ------- | ---------------------------------------------------------------------------------- |
 | `acq`                                          | one     | the framed face, one frame at a time: a frame that ends a dwell waits for its room |
 | `detector`, `detector2d`                       | one     | the framed face: chunks in through `framer_feed`, frames out through `framer_next` |
+| `psd`                                          | one     | the framed face, with a hop: overlapping frames out through `framer_next`          |
+| `spectrogram`                                  | one     | the framed face, with a hop, and `framer_flush` for the last partial row           |
 | `burst_capture`                                | one     | a **history**: samples addressed by absolute stream position; may be file-backed   |
 | Python `F32Buffer` / `F64Buffer` / `I16Buffer` | two     | a producer thread `write()`s, a consumer thread `wait()`s                          |
 
@@ -245,5 +247,5 @@ It costs what the loop it replaces costs: the same 0.356 ns/sample at a
 Its claims are certified like the ring's, in C, because it has no Python face:
 `native/validation/framer_certify.c` measures and
 `src/doppler/tests/validation/framer/results.md` is the generated report, with
-the header's eighteen claims inventoried against their pins and the sabotage
+every claim in the header inventoried against its pin and the sabotage
 that turned each red.

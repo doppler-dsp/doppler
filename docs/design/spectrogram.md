@@ -24,11 +24,12 @@ ______________________________________________________________________
 | an averaging consumer (video-averaged waterfall, max-hold over many rows) | rows                                                       | folds them with `AccTrace`; the spectrogram does not average, so this composes cleanly |
 | a resumable pipeline (a worker moved to another thread, process or pod)   | its state blob                                             | resumes **bit for bit** mid-frame                                                      |
 
-What those callers do today is the evidence the object is missing, not a list
-of things to port:
+What those callers did when this was designed is the evidence the object was
+missing, not a list of things to port:
 
-- the only spectrograms in the tree are whole-array loops in two examples,
-    one of which drops its last frame;
+- the only spectrograms in the tree were whole-array loops in two examples,
+    one of which dropped its last frame (both examples now stream through
+    `Spectrogram`);
 - the spectrum analyzer carries two copies of the same re-blocking loop in
     its sources, and its engine deliberately emits only the **newest** window,
     which is right for a display that cannot keep up and exactly wrong for a
@@ -219,12 +220,13 @@ stands in. `push` returns `(rows, nfft)` through jm's `out_cols`
 (just-buildit/just-makeit#2115), sized from its input by the two-argument
 `push_max_out (state, n_in)`. `mode` defaults to `"power"`, and `"db"` is
 asked for by name, as in C: both faces name the same constants, bound by name
-(`[[enum]] spectrogram_mode`), so their order is the header's alone. Two
-gaps are jm's: a short `out` cannot reach `push`
-(just-buildit/just-makeit#2230), and `flush` takes the caller's row until a
-count-less method can return one
-([#2181](https://github.com/doppler-dsp/doppler/issues/2181), waiting on
-just-buildit/just-makeit#2233).
+(`[[enum]] spectrogram_mode`), so their order is the header's alone. `flush`
+returns the owed row as `push` returns its rows, a `(1, nfft)` matrix, or
+`None` when no row is owed
+([#2181](https://github.com/doppler-dsp/doppler/issues/2181)). A short `out`
+is still refused by `push`: jm can now pass one through
+(just-buildit/just-makeit#2230), and adopting it is
+[#2592](https://github.com/doppler-dsp/doppler/issues/2592).
 
 ### 4.4 What it composes, and what it does not re-implement
 

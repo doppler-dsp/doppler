@@ -194,8 +194,9 @@ on one cell. A sum over every stronger signal, on any row, narrowed the
 range with each signal on the air: with six up, a true signal 10 dB below
 the strongest was never taken. On a one-epoch search a row is a whole
 tile, so the strongest alone bounds it; two equal signals on one carrier
-did not stack past the gate there (doppler#2554, doppler#2556). The level is computed once, by the searcher's constructor, over
-every residual and tile offset its grid can put between an emitter and a
+did not stack past the gate there (doppler#2554, doppler#2556). The level is computed once, on the searcher's first read of
+it, which the receiver's constructor makes so the sweep never stalls a
+`push()`, over every residual and tile offset its grid can put between an emitter and a
 tile (`dp_acq_dsl_db()`, the Doppler-offset twin of `dp_acq_psl_db()`).
 Noise riding on a sidelobe lifts it by no more than the noise's own
 magnitude, so a sidelobe gets through only when that noise alone would

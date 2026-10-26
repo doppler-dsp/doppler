@@ -422,7 +422,7 @@ ______________________________________________________________________
     the quantization scheme summary
 - [`cic_core.h`](../c-api/cic__core_8h.md) — CIC integer pipeline
     implementation (UQ16 encode/decode)
-- `native/inc/cvt/f32_to_uq15/` — F32ToUQ15 C header (UQ15 encode)
-- `native/inc/cvt/uq15_to_f32/` — UQ15ToF32 C header (UQ15 decode)
+- `native/inc/doppler/f32_to_uq15/` — F32ToUQ15 C header (UQ15 encode)
+- `native/inc/doppler/uq15_to_f32/` — UQ15ToF32 C header (UQ15 decode)
 - `src/doppler/examples/cvt_quantization_demo.py` — spectral comparison of all
     three bipolar quantization formats

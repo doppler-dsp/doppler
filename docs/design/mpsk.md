@@ -15,7 +15,7 @@ this row is stale:
 | §3.3 the tap       | **BUILT.** One tap: the discriminator reads the strobe (#832)               |
 | §3.4 pull-in       | **design.** Corrects the shipped prose; `pull_in_hz` is not a surface yet   |
 | §4.1 detector spec | **partly built.** The threshold's `Pfa` half landed with gh-644 (§8.1)      |
-| §7 rates and units | **design.** Nothing takes `sample_rate_hz`/`symbol_rate_hz` yet             |
+| §7 rates and units | **partly built.** `BpskReceiver` takes Hz; `MpskReceiver(R)` take `sps`     |
 | §8 construction    | **partly built.** Five parameters derive today (§8.1); §8.2 is what remains |
 
 A section marked **design** describes a receiver that does not exist yet, and
@@ -279,8 +279,8 @@ measured, and lost to the strobe on every axis (§3.3).
 are **one object with two constructors**, and the real face is a jm view over
 the same core — the same shape the continuous flavor already had.
 
-They were separate *types* until the collapse (`mpsk.md` §12), by the
-rule the down-converters follow: a difference in *constructor* is a flavor (a
+They were separate *types* until the collapse
+([§12](#12-the-collapse-one-object-two-faces)), by the rule the down-converters follow: a difference in *constructor* is a flavor (a
 jm view), a difference in *method signature* is a separate type. `steps(x)`
 takes `cf32` on one and `f32` on the other, and a view shared its parent's
 methods verbatim, so one class could not have both. **That constraint was
@@ -953,17 +953,17 @@ The equations already exist; this is composition, not derivation:
     It inverts `Pfa = exp(−η²/2)` — the envelope/amplitude-ratio statistic —
     giving **4.94** at Pfa 5e-6. This statistic is Gaussian after the EMA and
     wants `Q⁻¹(5e-6) = 4.417`, which is exactly the 4.416 `carrier_nda`
-    already quotes. So the existing default was computed on the Gaussian tail,
-    and `detection` has no primitive for it. That quantile belongs in
-    `detection` beside the others, not hand-rolled at the call site.
+    already quotes. So the default is computed on the Gaussian tail, and the
+    quantile it needs ships in `detection` as `dp_det_q_inv()`
+    (`detection_core.h`), beside `dp_det_threshold()` and with the same warning
+    against confusing the two.
 
-    **This came true rather than being heeded.** gh-644 derived the threshold
-    and carried `η = 4.4159` as a literal in `MPSK_RX_LOCK_THRESH_DEFAULT`'s
+    **The receiver does not call it yet.** gh-644 derived the threshold and
+    carried `η = 4.4159` as a literal in `MPSK_RX_LOCK_THRESH_DEFAULT`'s
     comment, with the product pre-multiplied into `0.4999` — so the derivation
-    is now written down in two places (here and that comment) and computed in
-    none. Adding the Gaussian quantile to `detection` is still the open work,
-    and is now the difference between a derived default and a hard-coded one
-    that is merely *described* as derived.
+    is written down (here and in that comment) but not computed. Computing it
+    from `dp_det_q_inv()` is the difference between a derived default and a
+    hard-coded one that is merely *described* as derived.
 
 **Publish the latency.** `det_verify_delay(pd_look, n_up)` × the look period is
 how long the indicator takes to light up. That number is the difference
@@ -1032,7 +1032,8 @@ by **time, never by record index**:
 | probe group                                              | clock                                        |
 | -------------------------------------------------------- | -------------------------------------------- |
 | `rx.lock`                                                | symbol — computed on the on-time strobe (§4) |
-| `rx.car.e`, `rx.car.freq`, `rx.car.locked`               | symbol — the discriminator reads the strobe  |
+| `rx.car.e`, `rx.car.freq`, `rx.car.nco`, `rx.car.locked` | symbol — the discriminator reads the strobe  |
+| `rx.sym.i`, `rx.sym.q`                                   | symbol — the recovered symbol, `Re`/`Im`     |
 | `rx.sync.e`, `.ctrl`, `.rate`, `.lock`, `.locked`, `.mu` | symbol                                       |
 | `rx.agc.gain_db`, `rx.agc.level_db`                      | the pre-terminal gain-update grid            |
 
@@ -1162,8 +1163,13 @@ ______________________________________________________________________
 
 ## 7. Rates and units
 
-**Design, not yet built.** The receivers take **`sample_rate_hz` and
-`symbol_rate_hz`**; the primitives they compose stay normalized.
+**Partly built.** `track.BpskReceiver` — a view of `MpskReceiver` over
+`dp_mpsk_receiver_create_bpsk()` — takes **`sample_rate_hz`,
+`symbol_rate_hz` and `carrier_freq_hz`** and derives `sps` from them.
+`MpskReceiver` and `MpskReceiverR` still take `sps` and `init_norm_freq`, and
+every face still states `bn_carrier`/`bn_timing` normalized to the symbol
+rate. The rest of this section is the target; the primitives the receivers
+compose stay normalized.
 
 That boundary is a rule, not an exception: **an object that owns a complete
 signal chain takes physical units; a stream processor takes normalized ones.**
@@ -1200,32 +1206,11 @@ Both rates are **required**; there is no sane default sample rate, so the
     property this architecture advertises stops being silently lost on every
     DSSS-composed receiver.
 
-    The same file carries a hand-written `dsss_rx_derive_m_out()`, which is
-    §8's `m_out` rule implemented in the wrong place. It has already drifted
-    once, returning an illegal `m_out` for odd `sps` and turning a `create()`
-    failure into a process abort.
-
-    **That is now a duplicate of a shipped primitive, not merely a misplaced
-    rule.** gh-644 gave the rule a canonical home —
-    `mpsk_rx_derive_m_out(cap, strict)` in `mpsk_rx_loops.h`, which both
-    receivers call — and `dsss_receiver_core.c` was not migrated onto it, so
-    the tree carries two implementations of one rule. Their return values
-    already differ below `sps = 2`: the shared rule refuses (0), while
-    `dsss_rx_derive_m_out()` floors at 2.
-
-    **The outcome is the same, and that is worth saying rather than
-    implying otherwise** — measured, both `m_out = 0` and `m_out = 2` at
-    `sps = 1` are rejected by `dp_mpsk_receiver_create()`, so migrating changes
-    which rule refuses, not whether it does. The duplication is a
-    drift hazard, not today's bug.
-
-    Today's bug is next to it: `dp_dsss_receiver_create()` guards only
-    `sps < 1`, so `sps = 1` is accepted, reaches that rejection, and is fed
-    to `dp_xnn()` — an **abort-on-OOM** helper — on a NULL that means
-    "invalid argument". `DsssReceiver(sps=1)` therefore **SIGABRTs the
-    interpreter** with no exception and no message, which is the same
-    failure this note already records for odd `sps`, still live at one
-    value. Both are [#782](https://github.com/doppler-dsp/doppler/issues/782).
+    The `m_out` rule itself has one home: `mpsk_rx_derive_m_out(cap, strict)` in `mpsk_rx_loops.h` (gh-644), which both receivers and
+    `dsss_receiver_core.c` call, and `dp_dsss_receiver_create()` refuses
+    `sps < 2` itself rather than handing an argument-error NULL to the
+    abort-on-OOM `dp_xnn()`
+    ([#782](https://github.com/doppler-dsp/doppler/issues/782)).
 
 ______________________________________________________________________
 
@@ -1243,7 +1228,7 @@ drives both the loop bandwidths and the lock indicator.
 caller who wants to pin one still can; passing `0` — which every one of these
 validators previously **rejected**, so no working call site can be relying on
 it — asks the object for its own answer. That is what makes this additive
-rather than a break, and it is why the surface still lists seventeen
+rather than a break, and it is why the surface still lists fifteen
 parameters while a caller supplies four.
 
 The minimal call, with every derivable knob left at zero:
@@ -1449,10 +1434,10 @@ the rest, and it is what keeps "derived" from meaning "hidden".
 
 !!! note "Three rows this table used to disagree with itself about"
 
-    `docs/design/mpsk.md §12` §4.3 specified the same constructor and
-    derived `nda_tap` from `pull_in_hz`, `acq_to_track` from `m` (on at M = 8)
-    and `differential` from `coherent`. That page has been folded into this one
-    (§10), and where the two disagreed **this section is the answer**:
+    The collapse's original specification (now
+    [§12](#12-the-collapse-one-object-two-faces)) specified the same constructor and derived `nda_tap` from `pull_in_hz`, `acq_to_track`
+    from `m` (on at M = 8) and `differential` from `coherent`. Where the two
+    disagreed **this section is the answer**:
 
     - **`nda_tap` is gone, not derived.** One tap
         ([#832](https://github.com/doppler-dsp/doppler/issues/832)); a
@@ -1574,10 +1559,14 @@ this resolves an ambiguity and does not replace a carrier loop.
 
 **The cost is measured, and `~2x` is an asymptote rather than a constant.**
 `native/validation/mpsk_diff_penalty.c` runs both modes over one shared noise
-realisation — paired, so the seed's luck cancels out of the ratio — and
-anchors the coherent path to closed-form theory so that a defect shared by
-both paths cannot divide out to a plausible 2.0. Measured penalty
-(SER_diff / SER_coh):
+realisation and anchors the coherent path to closed-form theory so that a
+defect shared by both paths cannot divide out to a plausible 2.0. The sharing
+cancels the noise draw's overall power, not which symbols err: the two paths
+carry different constellation points, so their error events are nearly
+independent and the ratio scatters like a ratio of two independent counts.
+That is why the harness sizes each cell for about 4000 coherent errors
+rather than a fixed symbol count. Measured penalty (SER_diff / SER_coh), from
+the harness's full sweep (`validate_mpsk_diff_penalty` with no arguments):
 
 | Es/N0 | BPSK        | QPSK        | 8PSK  |
 | ----- | ----------- | ----------- | ----- |
@@ -1596,6 +1585,18 @@ matters least when the decision regions are already wide.
 Cells marked *starved* collected too few errors for the run length to
 resolve, and are not evidence — the harness marks them rather than printing
 a number that looks like one.
+
+`mpsk`'s certification report (`src/doppler/mpsk/tests/validation/mpsk/results.md`
+§2.4) measures the same ratio on a shorter grid — 200,000 symbols per cell —
+and its 8PSK 14 dB cell reads **2.17x** on 1,281 coherent errors, against
+2.03x here on 3,910. Both are faithful outputs of their own runs; the gap is
+run length. Re-measured 2026-10-26 with the same `doppler.mpsk` calls the
+report makes: 40 seeds at 200,000 symbols gave 1.99x mean, 0.06x standard
+deviation (so the report's draw is about three deviations high), and one
+20,000,000-symbol run gave **2.00x** (133,756 coherent errors). The theory
+for a differentially encoded, coherently sliced stream is just under 2 —
+`2 − P_s·(1 + p)`, where `p` is the chance two consecutive errors slip the
+same way — about 1.99x at this `P_s`.
 
 The first symbol is also not free: it references the implicit zero-phase
 start, so a constant rotation leaves `out[0]` wrong and every later symbol
@@ -1634,7 +1635,7 @@ ______________________________________________________________________
 ### 9.7 Soft decisions
 
 **Shipped** as `mpsk_soft_demap(x, llr, m, n0)`. This subsection is folded in
-from the `mpsk.md` §9.7 page that designed it — which opened *"there is no soft
+from the separate page that designed it — which opened *"there is no soft
 anything in it: five functions, all hard-decision"*, a sentence the
 implementation has since made false.
 
@@ -1692,10 +1693,12 @@ documents that it takes `mpsk_soft_demap`'s convention** (its `llr` parameter,
 "positive means bit 0"), so the seam between this receiver and the shipped
 Viterbi decoder is specified on the decoder's side and unimplemented on the
 receiver's. Today the bridge is hand-wired: `native/validation/rx_coding_gain.c`
-calls `mpsk_soft_demap(sym, nsym, llr, nsym, 2, 1.0f)` itself — with `n0`
+calls `dp_mpsk_soft_demap(sym, nsym, llr, nsym, 2, 1.0f)` itself — with `n0`
 **hard-coded to 1.0** — which is how the ≥6.1 dB coding-gain result is
-obtained. From Python there is no path at all; `mpsk_soft_demap` appears only
-in `mpsk`'s own tests.
+obtained. From Python the demapper is public (`doppler.mpsk.mpsk_soft_demap`,
+which the `conv` and `rs` validators call the same way), but a caller still
+wires it to the receiver's `steps()` output by hand and picks `n0` without the
+receiver's help.
 
 **So the receiver owes a soft-bit output beside `bits()`** — the same shape,
 returning `float` LLRs rather than packed hard bits, delegating to
@@ -1834,8 +1837,8 @@ ______________________________________________________________________
 **Landed.** `MpskReceiverR` was a separate *type* until
 [#806](https://github.com/doppler-dsp/doppler/pull/806); it is now a view over
 this object. This section is the record of that change, folded in from the
-`mpsk.md` §12 page that specified it, because a page that has done its job
-is a section rather than a peer.
+separate page that specified it, because a page that has done its job is a
+section rather than a peer.
 
 ### 12.1 What the split cost, measured
 
@@ -1952,4 +1955,7 @@ run the same vector through both and compare.
     the node already matched to the signal for free.
 - **The TED is not cosmetic.** On a rectangular pulse, Gardner deepens the
     data-onset lock dip from 0.075 to 0.306 — four times, from the detector
-    choice alone. Use DTTL with I&D.
+    choice alone. The receiver nonetheless runs Gardner (`RATESYNC_TED_GARDNER`,
+    hard-coded): DTTL's decision device does not hold for 8PSK (§6), so DTTL
+    with I&D is a choice for a `SymbolSync` caller, not one this receiver
+    offers.

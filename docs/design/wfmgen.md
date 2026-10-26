@@ -130,7 +130,7 @@ ones the tool exists for, are the least gated of all.
 1. **Full-featured across the three axes.** A user should not have to leave
     wfmgen for a modulation, an impairment or a container the domain
     routinely needs. *Gated:* only per feature — `check_wfmgen_flag_docs.py`
-    proves every one of the 67 flags is documented, but nothing states the
+    proves every flag the parser accepts is documented, but nothing states the
     intended coverage, so a missing capability is a gap nobody's gate can
     see.
 
@@ -215,18 +215,25 @@ from that declaration. jm already generates the Python face from it, and
 path, because it is doppler's own and needs no new jm mechanism.
 
 **What the manifest declares, per field,** beyond what jm reads: the CLI
-spelling (`cli`, `cli_aliases`), the JSON key where it differs from the field
-name, the metavar, which faces expose it, and `kind = "field"` for the four
-that take a [Field](frame-description.md#f-the-field-one-text-form). Options
-that exist only on the command line (`--output`, `--realtime`, `--record`, …)
-are declared in a sibling table.
+spelling (`cli`), the JSON key (`json`, with `json_required`, `json_omit`,
+`json_type`, `json_when`, `json_range` and `json_schema` where the default
+does not fit), the `metavar` and `help_section`, `exclusive` pairs, and
+`surface = "bespoke"` for a row whose value each face reads with its own
+code; the full key list is `composer_field_keys` in `just-makeit.toml`. A
+field that takes a
+[Field](frame-description.md#f-the-field-one-text-form) is recognized by
+its `c_ptr` to a `wfm_seq_t`, not by a key of its own. Options that exist
+only on the command line (`--output`, `--realtime`, `--record`, …), and the
+CLI aliases such as `--randomize`, are not in the manifest: they are rows of
+the hand-written `OPTS[]` table in `native/src/app/wfmgen.c`.
 
 **A field's meaning is written once, in the header.** Its help text is the
 struct member's comment in `wfm_compose.h`: the header is the primary SSOT.
-A manifest `doc` key is valid only where the header says nothing. Today
-both exist, independently, and doppler's 40 pairs have drifted (`freq`)
-([jm#1703](https://github.com/just-buildit/just-makeit/issues/1703)). The
-surface table reads the header and never adds a third copy.
+A manifest `doc` key is valid only where the header says nothing. Where
+both exist they must agree: `gen_wfm_defaults.py --check` fails when a
+field's manifest `doc` differs from its header comment
+([jm#1703](https://github.com/just-buildit/just-makeit/issues/1703) is the
+jm side). The surface table reads the header and never adds a third copy.
 
 **What is generated from it,** by `gen_wfm_defaults.py`, each file refused
 if edited by hand:
@@ -256,7 +263,7 @@ it uses is somebody else's object, called rather than copied — the rule that
 conversion.
 
 ```text
-WRAPPERS  wfmgen CLI (67 flags) · doppler.wfm (Python) · JSON scene file
+WRAPPERS  wfmgen CLI · doppler.wfm (Python) · JSON scene file
           └── none holds logic; each fills in the C structs below
 
 ENGINE    wfm_compose ── composer: segments, instances, gaps, the noise floor
@@ -302,8 +309,8 @@ engine's own contracts — the composer's segment sequencing and block-size
 invariance, the frame description, the reader/writer round trips — and run
 under ctest, ASan, TSan and UBSan on every push.
 
-Over them, `src/doppler/wfm/tests/test_dsp_correctness.py` is 509 lines and
-is the honest answer to "is the instrument right": tone unit magnitude, exact-bin
+Over them, `src/doppler/wfm/tests/test_dsp_correctness.py` is the honest
+answer to "is the instrument right": tone unit magnitude, exact-bin
 placement and LUT SFDR; noise unit power, I/Q independence, Gaussianity and a
 flat PSD; PN period, balance and two-level autocorrelation; the BPSK/QPSK
 constellations; chirp instantaneous frequency and phase continuity; RRC

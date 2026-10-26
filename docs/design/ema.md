@@ -12,8 +12,9 @@ conventions are load-bearing, what it does at its boundaries, and — the
 part that took measurement rather than reading — which of the two ways of
 writing it is the right one, and why that is not a matter of taste.
 
-The contract lives in `native/inc/doppler/util/util_core.h` (`ema_step`,
-`ema_alpha_decim`) and the C-level evidence in
+The contract lives in `native/inc/doppler/util/util_core.h` (`dp_ema_step`,
+`dp_ema_alpha_decim`; `ema_step`/`ema_alpha_decim` from `doppler.util`) and
+the C-level evidence in
 `native/tests/test_util_core.c`. This page does not restate either; it
 explains the reasoning they assume.
 
@@ -239,13 +240,13 @@ the average lengthens:
 | 1e-5    | 26865 ulps off               |
 | 1e-7    | 3977032 ulps off             |
 
-`ema_alpha_decim` goes through `-expm1(d * log1p(-alpha))`, which is
+`dp_ema_alpha_decim` goes through `-expm1(d * log1p(-alpha))`, which is
 exact at `d = 1` at every coefficient tried, and answers `alpha = 0` and
 `alpha = 1` directly rather than through `log1p(-1) = -inf`.
 
-`dp_agc_steps` forms its detector pole by repeated multiplication —
-`ac *= a1` `d` times, then `1 - ac` — and therefore carries exactly this
-defect today. See §8.
+`dp_agc_steps` forms both its detector pole and its loop-filter pole with
+`dp_ema_alpha_decim`, so it does not carry this defect; it did while it
+compounded the pole by repeated multiplication (§8).
 
 ______________________________________________________________________
 
@@ -513,7 +514,7 @@ of the *rate requirement*, not of the CIC.
 
 Two places, both deliberate:
 
-- **Inside `dp_agc_steps` itself.** The chunk power — `JM_SUMSQ_F32` over the
+- **Inside `dp_agc_steps` itself.** The chunk power — `DP_SUMSQ_F32` over the
     chunk followed by `* inv_c` — **is** a first-order CIC decimator at
     `R = decim`, computed as a direct block sum so it needs no integrator
     state at all. It supplies the short average; the EMA supplies the long

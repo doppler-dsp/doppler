@@ -414,9 +414,9 @@ dp_ber_enough (const dp_ber_t *b)
  * canonical Gray mapping in `mpsk_core.h`, so they match what
  * `mpsk_receiver_steps_bits()` would emit.
  *
- * Symbols covered by a marker occurrence are excluded (see
- * dp_ber_in_marker()), as are any whose truth index falls outside the truth
- * array; both land in `skipped`.
+ * Symbols covered by a marker occurrence are excluded (the meter's own
+ * marker test, in ber_meter_core.c), as are any whose truth index falls
+ * outside the truth array; both land in `skipped`.
  */
 static inline void
 dp_ber_score (dp_ber_t *b, const float _Complex *rx, size_t lo, size_t hi,

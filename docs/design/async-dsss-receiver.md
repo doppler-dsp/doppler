@@ -80,7 +80,10 @@ engine never adds looks: it sizes on the burst and reports `underpowered`.
 `doppler_rate`.** It is the smaller of `⌊(code_only_epochs + 1)/2⌋`, so a
 whole block always fits inside the pure-code window, and
 `f_epoch/√(2·doppler_rate)`, which is `f_epoch/√1000` at 500 Hz/s, so the
-drift over one block stays inside half a slow-time bin. `code_only_epochs`
+drift over one block stays inside half a slow-time bin, rounded down to a
+7-smooth length (`dp_fft_smooth_floor()`): `D` is a slow-time FFT length,
+and a prime factor of 13 or more costs the FFT its slow path, so 94 epochs
+run as 90. `code_only_epochs`
 counts the **whole** epochs a window holds at any chip phase: the window is
 `W` symbols on the data clock, with no fixed relation to the code clock, so
 a partial epoch is lost at each edge and
@@ -540,7 +543,7 @@ switch).
 
 ______________________________________________________________________
 
-## 4. The receiver is one object with five states
+## 4. The receiver is one object with four states
 
 `AsyncDsssReceiver`
 (`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`) is
@@ -550,7 +553,8 @@ design of record is [async-dsss-parallel.md](async-dsss-parallel.md) §3;
 this section is the chain under it.
 
 - **searching** — samples feed an embedded continuous `Acquisition` (§2)
-    over `±doppler_uncertainty`, one epoch a look (`D = 1`). A hit becomes
+    over `±doppler_uncertainty`, at the coherent depth `D` its code-only
+    window sizes (§2.3; `D = 1`, one epoch a look, without one). A hit becomes
     a seed through `dp_acq_build_handoff()` and `seed()`, and the
     unconsumed tail of the same call goes straight on. A hit at or past
     half the sample rate is outside the seed domain: it is refused, counted

@@ -26,13 +26,13 @@ ______________________________________________________________________
 Any rate-1/n convolutional code, given its constraint length, its generator
 polynomials, and a mask saying which outputs are inverted:
 
-| parameter |                            | CCSDS 131.0-B-3 §3.3 |
-| --------- | -------------------------- | -------------------- |
-| `k`       | constraint length          | 7                    |
-| `n`       | outputs per input bit      | 2                    |
-| `poly[]`  | generator polynomials      | `0171`, `0133`       |
-| `invert`  | which outputs are inverted | bit 1 — G2 only      |
-| `depth`   | traceback depth            | 60 (§4)              |
+| parameter |                            | CCSDS 131.0-B-3 §3.3                          |
+| --------- | -------------------------- | --------------------------------------------- |
+| `k`       | constraint length          | 7                                             |
+| `n`       | outputs per input bit      | 2                                             |
+| `poly[]`  | generator polynomials      | `0171`, `0133`                                |
+| `invert`  | which outputs are inverted | bit 1 — G2 only                               |
+| `depth`   | traceback depth            | not in CCSDS; default 35, recommended 60 (§4) |
 
 `dp_conv_encode` ships that encoder and is pinned against the impulse
 response; this decodes it, and the same object decodes anything else with a
@@ -125,7 +125,10 @@ disagreement of this kind.
 
 **Design number: 60**, with 90 available where the memory cost is acceptable.
 The cost is linear in depth on both storage and traceback work, which is why
-this is the number the implementation cannot be written without.
+this is the number the implementation cannot be written without. The
+`Viterbi` object's **default is still 35** (`objects/viterbi.toml`), the
+`5·K` rule of thumb, so a caller decoding near the floor passes `depth=60`
+explicitly.
 
 ______________________________________________________________________
 

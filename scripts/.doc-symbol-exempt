@@ -25,5 +25,3 @@ docs/design/io-termination.md dp_source_t
 docs/design/rx-frame-description.md dp_burst_demod_create
 docs/design/rx-frame-description.md dp_burst_demod_set_sync
 docs/design/rx-frame-description.md dp_dsss_burst_receiver_create
-# The consistency test that missed the all-zero PN field, as it was written.
-docs/design/rx-test.md dp_wfm_frame_bits

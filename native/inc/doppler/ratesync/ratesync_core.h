@@ -17,10 +17,11 @@
  * input samples per symbol costs the same bank as one at 4.
  *
  * **Arbitrary rate, by construction.** `sps` is a double — 4, 17.33389, an
- * irrational ratio, or a slowly drifting clock — because the terminal stage's
- * accumulator is a double and the loop only has to steer the strobe. That is
- * the real-world case whenever the ADC clock is free-running against the
- * symbol clock.
+ * irrational ratio, or a slowly drifting clock — because the terminal stage
+ * (resamp) takes its rate as a double and keeps its place in a uint32_t phase
+ * word (a 2^-32 fraction of one input interval), and the loop only has to
+ * steer the strobe. That is the real-world case whenever the ADC clock is
+ * free-running against the symbol clock.
  *
  * ## Two things this object gets right that are easy to get wrong
  *

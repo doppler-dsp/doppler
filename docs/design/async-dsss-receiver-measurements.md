@@ -608,7 +608,7 @@ it) and the rate (500 Hz/s from zero).
 
 \*Note, 2026-10-17: the harness's receiver is the searching flavour
 (`tracker_through_window.c:27`); the hand-off flavour was retired in 9ddb8a3af.
-`dp_acq_build_handoff()` still builds the seed (`acq_core.c:2721`).
+`dp_acq_build_handoff()` still builds the seed (`acq_core.c:2841`).
 
 | condition, C/N0 (Es/N0) | settled            | window blocks | code lock off | symbol lock off    | both off | release | pull-in after the window |
 | ----------------------- | ------------------ | ------------- | ------------- | ------------------ | -------- | ------- | ------------------------ |
@@ -830,7 +830,7 @@ restated `dp_acq_build_handoff()`'s fold and did not carry the advance; it is
 retired, and every hit carries `chip_phase` from the one C helper
 ([#1257](https://github.com/doppler-dsp/doppler/issues/1257)).
 
-\*Note, 2026-10-17: `dp_acq_build_handoff()` takes no carrier now (`acq_core.c:2721`):
+\*Note, 2026-10-17: `dp_acq_build_handoff()` takes no carrier now (`acq_core.c:2841`):
 the carrier is on the engine (`dp_acq_set_carrier_freq_hz`, §12.12), and the advance is
 `acq_handoff_chip_phase` (`acq_core.c:73`). Both issues are closed (#1256, #1257).
 
@@ -2199,7 +2199,8 @@ refine did, and two measurements were owed before deleting the hand-off
 path: the pull-in as a curve rather than a count, and the 600 s soak at
 the floor on both flavours — the run #1273 was found on.
 
-**The curve** (`validate_receiver_pullin`): one emitter at the operating
+**The curve** (`validate_receiver_pullin`, deleted with the cell mode in
+`3a02d6820`): one emitter at the operating
 geometry through the channel at its own Doppler, noise after; for each seed
 offset in carrier a fresh receiver of each flavour seeded from the truth a
 tenth of a chip off in code, from a point inside the data (where the
@@ -2271,7 +2272,8 @@ What it settles:
     which the cell receiver cannot produce (stated in the assertion
     ratchet's ignore list).
 - **The gates.** `validate_receiver_pullin --check` (45 dB-Hz, 0/400/800
-    Hz, six draws each, every draw); the soak's check and budget twin on
+    Hz, six draws each, every draw; deleted with the cell mode in
+    `3a02d6820`); the soak's check and budget twin on
     the one path; the receiver's tests (a seed sixteen bounds off pulled
     in, red with the fold skipped); the pool's tests on the windowed
     fixture at `D = 16`; both faces of the gallery example self-validating

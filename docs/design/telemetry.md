@@ -139,13 +139,13 @@ canonical example:
 ```c
 typedef struct
 {
-  dp_tlm_t *ctx;     /* NULL = detached                    */
-  int32_t   id_gain; /* probe id from a successful attach  */
-  int32_t   _pad;
+  dp_tlm_t *ctx;      /* NULL = detached                    */
+  int32_t   id_gain;  /* probe ids from a successful attach  */
+  int32_t   id_level;
 } agc_tlm_t;
 
-/* ... last member of dp_agc_state_t: */
-agc_tlm_t tlm; /* live attachment; zeroed in blobs */
+/* ... member of dp_agc_state_t: */
+agc_tlm_t tlm; /* live telemetry attachment; zeroed in blobs */
 ```
 
 **2. Attach function** — registers the object's probes under a caller prefix
@@ -156,25 +156,30 @@ nowhere else, which `make lint-tlm-name-join` enforces:
 
 ```c
 int
-dp_agc_set_telemetry (dp_agc_state_t *s, dp_tlm_t *t, const char *prefix,
-                   uint32_t decim)
+dp_agc_set_telemetry (dp_agc_state_t *state, dp_tlm_t *tlm, const char *prefix,
+                      uint32_t decim)
 {
-  if (!t) /* detach */
+  if (!tlm) /* detach: probe sites revert to the single-branch cost */
     {
-      s->tlm.ctx = NULL;
+      state->tlm.ctx = NULL;
       return DP_OK;
     }
   /* Every name is joined BEFORE the first registration, and only by
      dp_tlm_name_join(): it refuses a prefix that would not fit, where a
      bare snprintf truncates it and aliases two probes onto one entry. */
-  char name[DP_TLM_NAME_MAX];
-  if (dp_tlm_name_join (name, prefix, "gain_db") != DP_OK)
-    return DP_ERR_INVALID; /* overlong prefix: nothing registered */
-  int id = dp_tlm_probe (t, name, decim);
-  if (id < 0)
-    return id; /* full table / bad name: attach fails whole */
-  s->tlm.id_gain = id;
-  s->tlm.ctx     = t; /* set last: emit sites gate on ctx */
+  const char              *p      = prefix ? prefix : "agc";
+  static const char *const sfx[2] = { "gain_db", "level_db" };
+  char                     name[2][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 2; i++) /* all names before any registration */
+    if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
+      return DP_ERR_INVALID; /* overlong prefix: nothing registered */
+  int id_gain  = dp_tlm_probe (tlm, name[0], decim);
+  int id_level = dp_tlm_probe (tlm, name[1], decim);
+  if (id_gain < 0 || id_level < 0)
+    return DP_ERR_INVALID; /* full table: fails whole */
+  state->tlm.id_gain  = id_gain;
+  state->tlm.id_level = id_level;
+  state->tlm.ctx      = tlm; /* set last: emit sites gate on ctx */
   return DP_OK;
 }
 ```
@@ -305,7 +310,7 @@ non-blocking, from any single consumer thread.
 
 ```c
 dp_tlm_rec_t recs[512];
-size_t n = dp_tlm_read (tlm, recs, 512);
+size_t n = dp_tlm_read (tlm, 512, recs, 512); /* n wanted, out, max_out */
 for (size_t i = 0; i < n; i++)
   printf ("%s @ %llu = %f\n",
           dp_tlm_probe_name (tlm, recs[i].probe),
@@ -778,7 +783,8 @@ Header + probe registry (name↔id) + time base (`fs`, `t0`, epoch kind) +
 decim + `dropped` + packed 16-byte records. One implementation shared with
 `dp_tlm_sink`, readable from C, with Python `to_file`/`from_file` as thin
 bindings. The record itself does **not** change: 16 bytes is structurally
-two ring slots, and widening it would cost hot-loop bandwidth and break the
+one ring slot (a slot is a pair of `uint64_t`s, asserted at compile time in
+`dp_tlm_core.h`), and widening it would cost hot-loop bandwidth and break the
 TLM16 wire type.
 
 **4 — `recording()` — the drain stops being the caller's problem.**
@@ -821,7 +827,7 @@ and on replay that line is exactly where the source offset enters.
 
 ### Deliberately not doing
 
-- **Widening the record** — breaks the 16-byte/two-slot invariant, ring
+- **Widening the record** — breaks the 16-byte/one-slot invariant, ring
     bandwidth, and TLM16.
 - **Per-record wall clock** — a batch stamped at drain time is a fabricated
     number (see the time-base section).

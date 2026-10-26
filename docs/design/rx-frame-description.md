@@ -1,8 +1,8 @@
 # A Receiver Built from a Frame Description
 
-`BurstDemod` and `DsssBurstReceiver` will take the frame's description, the
-same `wfm_frame_desc_t` the transmitter spreads, and derive from it
-everything they are told by hand today: the sync word, how many symbols a
+`BurstDemod` and `DsssBurstReceiver` take the frame's description, the same
+`wfm_frame_desc_t` the transmitter spreads, and derive from it everything
+they used to be told by hand: the sync word, how many symbols a
 frame occupies, how long a burst is, and whether a frame passed its check.
 This page is that pass through the lifecycle ([#1620][i1620], part E of
 [#853][i853]).
@@ -15,15 +15,18 @@ the frame stays `Frame.deframe()`. The model the description comes from is
 receive side.
 
 **Why a page of its own.** `frame-description.md` states the model and is
-already 722 lines. This is a separate pass with its own inventory, deletions
+already long. This is a separate pass with its own inventory, deletions
 and plan, the same shape as the payload pass beside it ([#1650][p1650]). The
 model page's "not in scope: the receive side" entry links here.
 
-**Status (2026-10-03).** Steps 1-5 of §11 have landed: both receivers are
-built from a description only. The `frame_syms` constructors,
-`dp_burst_demod_set_sync()` and the hand CRC are deleted (#1620 step 5);
-what remains is `data:LEN` on the receive side and the Python transmit side.
-`frame_syms` survives as a read-only result of the layout.
+**Status.** Built; [#1620][i1620] is closed. Both receivers are built from a
+description only. The `frame_syms` constructors, `dp_burst_demod_set_sync()`
+and the hand CRC are deleted (step 5); a receiver over a `data:LEN`
+description recovers its source (step 6,
+`src/doppler/dsss/tests/test_receiver_data_source.py`); and a Python
+transmitter is built with `Source(frame=)`, a source carrying no sync word or
+CRC of its own (§8.3). `frame_syms` survives as a read-only result of the
+layout.
 
 ______________________________________________________________________
 
@@ -40,9 +43,10 @@ and no burst ever passes its CRC ([#1669][i1669]).
 The description is read from both ends everywhere else. The transmitter
 spreads it (`dp_wfm_dsss_desc_chips`), and the scorer checks against it
 (`dp_wfm_frame_check`, `Frame.deframe()`). The receiver is the one reader
-handed a copy of its numbers instead. `DsssBurstReceiver` also restates the
-frame's shape in C: `dsss_br_frame_valid` assumes `sync | payload | CRC-16`
-(`native/src/dsss_burst_receiver/dsss_burst_receiver_core.c:30,42`).
+handed a copy of its numbers instead. `DsssBurstReceiver` also restated the
+frame's shape in C: `dsss_br_frame_valid` assumed `sync | payload | CRC-16`.
+(It now asks the description, `dp_wfm_frame_desc_crc_ok()`, in
+`native/src/dsss_burst_receiver/dsss_burst_receiver_core.c`.)
 
 ## 2. Use cases — who builds a receiver from a description
 
@@ -100,23 +104,22 @@ description (`dp_frame_state_t.d`, `native/inc/doppler/frame/frame_core.h`).
 ### 3.2 What is derived, and from what
 
 Each value comes from a function that already exists, and the transmitter
-reads the same one.
+reads the same one. Each line says what it replaced.
 
-- **The sync word** is field 0's bits (§3.3). Today it is the `sync`
-    argument, or `set_sync()`.
+- **The sync word** is field 0's bits (§3.3). It was the `sync` argument, or
+    `set_sync()`.
 - **`frame_syms`** is `out_bits` from `dp_wfm_frame_desc_layout()`, one
-    symbol per bit. Today it is the caller's sum.
+    symbol per bit. It was the caller's sum.
 - **The burst length** is
-    `dp_wfm_dsss_desc_nchips (d, acq_len, reps, data_len) * spc` samples.
-    Today it is restated at `dsss_burst_receiver_core.c:125`.
-- **`frame_valid`** is `dp_wfm_frame_desc_crc_ok (d, bits) == 1`. Today it
-    is a hand CRC-16 over an assumed layout.
+    `dp_wfm_dsss_desc_nchips (d, acq_len, reps, data_len) * spc` samples. It
+    was restated by hand in `dsss_burst_receiver_core.c`.
+- **`frame_valid`** is `dp_wfm_frame_desc_crc_ok (d, bits) == 1`. It was a
+    hand CRC-16 over an assumed layout.
 
 `frame_syms` counts **from the sync word on**, sync included. That is what
-the demodulator slices (`burst_demod_core.c:498` onward), and the header
-example asserts `bits == frame`, sync first. The struct's own comment says
-"AFTER the sync word" (`burst_demod_core.h:81`); that is wrong, and it goes
-with the parameter.
+the demodulator slices, and the header example asserts `bits == frame`, sync
+first. The struct's comment used to say "AFTER the sync word", which was
+wrong; it now reads "sync word included" (`burst_demod_core.h`).
 
 ### 3.3 Field 0 is the sync word
 
@@ -397,14 +400,13 @@ renders the same samples as a scene's `"frame"` key or `wfmgen --frame` with
 that text, byte for byte, over a multi-frame data source
 (`test_frame_source.py`; `test_frame_core.c` holds the two fields equal).
 
-The receive half is not built. `deframe()` and `check()` read the layout
-that `build()` writes, and `build()` refuses a description with a data
-field, because it materialises one frame and a data field has no bits of its
-own. The existing receiver test still works around it with zeros,
-"geometry, when the bits arrive later"
-(`src/doppler/dsss/tests/test_dsss_burst_receiver.py:397`); plan step 6
-replaces it. What `build()` and `bits()` mean for a data description is an
-open question, [#1789][i1789].
+The receive half is built ([#1789][i1789]). `build()` lays a data
+description out from its lengths alone — the data field is `LEN` bits at its
+offset, with none materialised — and `bits()` writes nothing, because a data
+field has no bits of its own and so there is no single frame. `deframe()` and
+`check()` read that layout like any other. A receiver over a `data:LEN`
+description recovers its source frame by frame
+(`src/doppler/dsss/tests/test_receiver_data_source.py`, plan step 6).
 
 ### 8.3 The transmit side in Python takes the description
 
@@ -417,9 +419,9 @@ builds the transmitter from the receiver's `Frame` directly. A `data:LEN`
 payload renders through `data=` on the common frame (`[preamble | data]`), or
 through a `frame=` description carrying a `data:LEN` field from
 `FrameDesc.add_data` (§8.2), which is also how a sync word and a CRC are
-given: a source carries neither (#1617). The Python half of goal 2 waits on moving the
-existing tests and examples (step 7), not on #1617, whose
-remainder moves `sync` and `crc` off `wfm_source_t`.
+given: a source carries neither (#1617). The Python half of goal 2 was
+moving the existing tests and examples onto it (step 7); #1620, which
+that step was to close, is closed.
 
 ### 8.4 Dependencies
 

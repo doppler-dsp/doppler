@@ -57,7 +57,7 @@ _Asking a blocking wait to stop, whatever it is waiting on._ [More...](#detailed
 |  void | [**dp\_interrupt**](#function-dp_interrupt) (void) <br>_Ask every blocking wait in this process to stop._  |
 |  unsigned | [**dp\_interrupt\_latency\_ms**](#function-dp_interrupt_latency_ms) (void) <br>_The interrupt latency in force._  |
 |  int | [**dp\_interrupt\_on\_signal**](#function-dp_interrupt_on_signal) (int sig) <br>_Install a handler for_ `sig` _that calls_[_**dp\_interrupt()**_](dp__interrupt_8h.md#function-dp_interrupt) _._ |
-|  int | [**dp\_interrupted**](#function-dp_interrupted) (void) <br>_Non-zero when an interrupt is pending._  |
+|  int | [**dp\_interrupted**](#function-dp_interrupted) (void) <br>_How many stops are pending: 0, 1, or 2 for "stop now"._  |
 |  int | [**dp\_restore\_signal**](#function-dp_restore_signal) (int sig) <br>_Put back whatever handler_ [_**dp\_interrupt\_on\_signal()**_](dp__interrupt_8h.md#function-dp_interrupt_on_signal) _displaced._ |
 |  void | [**dp\_resume**](#function-dp_resume) (void) <br>_Clear the interrupt, so blocking waits block again._  |
 |  void | [**dp\_set\_interrupt\_latency\_ms**](#function-dp_set_interrupt_latency_ms) (unsigned ms) <br>_How soon a blocking wait must notice an interrupt._  |
@@ -127,10 +127,13 @@ void dp_interrupt (
 
 
 
-Assigns to a `volatile sig_atomic_t` and does nothing else, which is the only thing the C standard promises can be done from a signal handler without tearing — and being callable from a handler is the entire point of this API.
+Updates a lock-free atomic and does nothing else, which is what keeps it safe to call from a signal handler  and being callable from a handler is the entire point of this API.
 
 
 The flag is **sticky**: one handler firing may have to release several parked loops, so it stays set until [**dp\_resume()**](dp__interrupt_8h.md#function-dp_resume) clears it.
+
+
+**A second request escalates** (#2601). The first asks a wait to finish cleanly: a follow read keeps waiting for the writer's marker, for as long as its grace allows, and the default grace is unbounded. A second request while the first is pending means "stop now", so a Ctrl+C pressed again ends that wait at once. [**dp\_interrupted()**](dp__interrupt_8h.md#function-dp_interrupted) reports which: the count saturates at 2.
 
 
 
@@ -239,7 +242,7 @@ DP\_OK, or [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) if t
 
 ### function dp\_interrupted 
 
-_Non-zero when an interrupt is pending._ 
+_How many stops are pending: 0, 1, or 2 for "stop now"._ 
 ```C++
 int dp_interrupted (
     void
@@ -248,14 +251,30 @@ int dp_interrupted (
 
 
 
-The check a hand-written loop makes between blocks. A wait that cannot be sliced — a busy-spin over a ring, a read of a file still being appended to — polls this and gives up when it is set.
+The check a hand-written loop makes between blocks. A wait that cannot be sliced — a busy-spin over a ring, a read of a file still being appended to — polls this and gives up when it is non-zero. A wait that grants a grace after the stop (the follow read, waiting for the writer's marker) gives that grace up as well once it reads 2.
+
+
+
+```C++
+dp_resume ();
+int none = dp_interrupted ();   // 0
+dp_interrupt ();
+int stop = dp_interrupted ();   // 1: finish cleanly
+dp_interrupt ();
+dp_interrupt ();
+int now = dp_interrupted ();    // 2, and it stays 2
+dp_resume ();
+if (none != 0 || stop != 1 || now != 2 || dp_interrupted () != 0)
+  return 1;
+```
+
 
 
 
 
 **Returns:**
 
-Non-zero when interrupted, 0 otherwise. 
+0 when no stop is pending, 1 after one request, 2 after two or more. 
 
 
 

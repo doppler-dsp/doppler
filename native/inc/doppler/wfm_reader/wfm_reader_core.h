@@ -141,7 +141,8 @@ extern "C"
     WFM_FOLLOW_NONE = 0,    /**< DP_OK -- the capture is still live. */
     WFM_FOLLOW_EOF,         /**< DP_ERR_EOF -- the writer closed and said so. */
     WFM_FOLLOW_TIMEOUT,     /**< DP_ERR_TIMEOUT -- a bounded wait expired. */
-    WFM_FOLLOW_INTERRUPTED  /**< DP_ERR_INTERRUPTED -- a bounded grace did. */
+    WFM_FOLLOW_INTERRUPTED  /**< DP_ERR_INTERRUPTED -- a bounded grace
+                                 expired, or a second stop ended it. */
   } wfm_follow_end_t;
 
   /** @brief `sample_type` value meaning "the caller said nothing".
@@ -592,6 +593,13 @@ int dp_wfm_reader_seek_time(dp_wfm_reader_state_t *state, double seconds);
    *
    * NULL (the default) means the follow read never stops early -- only the
    * capture's end or a bounded budget finishes it.
+   *
+   * @p fn returns 0 for "go on", non-zero for "stop": the follow read then
+   * drains what is on disk and waits up to the grace for the writer's
+   * marker. A return of **2 or more** means "stop now" and ends that grace
+   * at once, with ending WFM_FOLLOW_INTERRUPTED -- which is how a second
+   * Ctrl+C escapes a writer that died before the first (#2601).
+   * dp_interrupted() returns exactly that count.
    *
    * @code
    * dp_wfm_reader_set_stop_fn (r, dp_interrupted);

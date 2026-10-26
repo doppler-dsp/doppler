@@ -139,7 +139,7 @@ nogil = true
 # which matters in a spool loop that would otherwise allocate per block.
 # The budgets move to writable properties below: they are policy for a stream,
 # set once, not an argument for every block.
-doc = """Read whatever whole samples have arrived in a capture that is still being written, blocking until at least one does. Unlike `read()`, a short or empty result does not mean end-of-file: the reader waits. **0 means wait forever** for both budgets, which is the default and the right answer for a stream with no end -- any finite budget fires during an ordinary quiet patch. An empty result therefore means the capture ENDED; read `ending` for which way. `timeout_ms` bounds the wait for data; `grace_ms` bounds how long to keep waiting for the writer's marker after a stop has been requested, and expiring it may cost you the tail. Never consumes a partial sample, so a writer flushing mid-sample cannot desynchronise the stream."""
+doc = """Read whatever whole samples have arrived in a capture that is still being written, blocking until at least one does. Unlike `read()`, a short or empty result does not mean end-of-file: the reader waits. **0 means wait forever** for both budgets, which is the default and the right answer for a stream with no end -- any finite budget fires during an ordinary quiet patch. An empty result therefore means the capture ENDED; read `ending` for which way. `timeout_ms` bounds the wait for data; `grace_ms` bounds how long to keep waiting for the writer's marker after a stop has been requested, and expiring it may cost you the tail. A second stop (a second Ctrl+C) ends that wait at once, bounded or not. Never consumes a partial sample, so a writer flushing mid-sample cannot desynchronise the stream."""
 
 # seek(index) / seek_time(seconds) -- random access. status_return, not
 # error_negative: the int is ONLY a status (DP_OK / DP_ERR_INVALID), with no
@@ -191,13 +191,13 @@ doc = """How long `read_follow()` waits for samples to arrive, in milliseconds; 
 name = "follow_grace_ms"
 type = "uint32_t"
 writable = true
-doc = """How long `read_follow()` keeps waiting for the writer's end-of-capture marker after a stop has been requested, in milliseconds; **0 (the default) waits forever**. The writer needs a moment to flush and patch its header, and expiring this budget before it does costs you the tail -- so the default trades an unlikely hang against a certain loss. A bounded grace that expires leaves `ending` at `"interrupted"`."""
+doc = """How long `read_follow()` keeps waiting for the writer's end-of-capture marker after a stop has been requested, in milliseconds; **0 (the default) waits forever**. The writer needs a moment to flush and patch its header, and expiring this budget before it does costs you the tail -- so the default trades an unlikely hang against a certain loss. The hang has an escape: a second stop request (a second Ctrl+C) ends the wait at once. A bounded grace that expires, or a second stop, leaves `ending` at `"interrupted"`."""
 
 [[wfm_reader.properties]]
 name = "ending"
 type = "int"
 enum = "follow_end"
-doc = """Why the last `read_follow()` came back empty -- `"none"` while the capture is still live, `"eof"` once the writer closed and said so, `"timeout"` if a bounded `timeout_ms` expired, `"interrupted"` if a stop was requested and a bounded `grace_ms` expired before the writer's marker arrived. With the default unbounded budgets only `"none"` and `"eof"` are reachable, which is why an empty result needs no check in the common case. The values are doppler's own return codes (`DP_OK`, `DP_ERR_EOF`, `DP_ERR_TIMEOUT`, `DP_ERR_INTERRUPTED`), so a C caller reads the same vocabulary every other transport uses."""
+doc = """Why the last `read_follow()` came back empty -- `"none"` while the capture is still live, `"eof"` once the writer closed and said so, `"timeout"` if a bounded `timeout_ms` expired, `"interrupted"` if a stop was requested and a bounded `grace_ms` expired before the writer's marker arrived, or a second stop ended the wait. With the default unbounded budgets and a single stop, only `"none"` and `"eof"` are reachable, which is why an empty result needs no check in the common case. The values are doppler's own return codes (`DP_OK`, `DP_ERR_EOF`, `DP_ERR_TIMEOUT`, `DP_ERR_INTERRUPTED`), so a C caller reads the same vocabulary every other transport uses."""
 
 # Computed properties (no `field`): jm declares wfm_reader_get_<prop>() for the
 # core to implement and calls it from the binding, so the state struct stays

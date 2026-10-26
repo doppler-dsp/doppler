@@ -33,6 +33,12 @@ import argparse
 import pathlib
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+# The one reader of which PNG a gallery script writes; `make gallery` moves
+# exactly what it derives, so this gate asks about exactly those files.
+from check_gallery_scripts import plots
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -70,6 +76,11 @@ WAIVER_RE = re.compile(
     r"^-\s*(gallery|benchmarks)\s*:\s*(\S+)\s*(?:--|\u2014)\s*(\S.*)$"
 )
 
+#: Any line that STARTS a waiver, reason or not. One that does not also
+#: match WAIVER_RE is refused by name (#2608): left to fall through, its
+#: continuation lines were glued onto the previous entry's reason.
+WAIVER_HEAD_RE = re.compile(r"^-\s*(gallery|benchmarks)\s*:\s*(\S+)")
+
 
 def _git(*args: str, cwd: pathlib.Path) -> str:
     return subprocess.run(
@@ -90,20 +101,43 @@ def changed_since(ref: str, cwd: pathlib.Path) -> list[str]:
     return [line for line in out.splitlines() if line]
 
 
-def stale_gallery(changed: list[str], scripts: list[str]) -> list[str]:
-    """Gallery scripts that moved while ``docs/assets/`` did not.
+def stale_gallery(
+    changed: list[str],
+    scripts: list[str],
+    cwd: pathlib.Path,
+    given: dict[str, str] | None = None,
+) -> list[str]:
+    """Gallery scripts that moved while their own plot did not.
 
     The plot committed beside a script IS the documentation -- a gallery page
     ``--8<--`` includes regions of the script and shows the PNG next to it --
     so a script that changed without its plot being re-rendered publishes a
     picture of code that no longer exists.
+
+    Per script (#2609): a change to ANY file under ``docs/assets/`` used to
+    clear every script, so one re-rendered PNG answered for scripts that
+    were never run. A script's plots are what ``check_gallery_scripts``
+    derives from its source -- the same list ``make gallery`` moves -- or,
+    for a subject whose plot path ``make gallery`` hands it on argv, the
+    path in *given*. A re-render that came out byte-identical leaves no
+    diff, so it needs a waiver saying so; the gate cannot tell it from a
+    script nobody ran.
     """
-    touched = [s for s in scripts if s in changed]
-    if not touched:
-        return []
-    if any(c.startswith(ASSETS + "/") for c in changed):
-        return []
-    return touched
+    given = given or {}
+    moved = set(changed)
+    stale = []
+    for s in scripts:
+        if s not in moved:
+            continue
+        if s in given:
+            mine = [given[s]]
+        else:
+            path = cwd / s
+            names = plots(path) if path.is_file() else []
+            mine = [f"{ASSETS}/{n}" for n in names]
+        if not any(p in moved for p in mine):
+            stale.append(s)
+    return stale
 
 
 def _is_comment(path: str, line: str) -> bool:
@@ -162,22 +196,33 @@ def stale_benchmarks(
     return moved
 
 
-def waivers(version: str, cwd: pathlib.Path) -> dict[tuple[str, str], str]:
-    """``{(kind, path): reason}`` declared for *version*, or ``{}``.
+def waivers(
+    version: str, cwd: pathlib.Path
+) -> tuple[dict[tuple[str, str], str], list[str]]:
+    """``({(kind, path): reason}, [refused lines])`` declared for *version*.
 
-    A line without a reason is not a waiver and is ignored, so the file
-    cannot waive anything by accident: the reason is the point.
+    A waiver line without a reason on the SAME line waives nothing and is
+    refused by name, so the file cannot waive anything by accident and the
+    gate cannot print a reason that belongs to another entry (#2608).
     """
     path = cwd / WAIVERS / f"v{version}.md"
     if not path.is_file():
-        return {}
+        return {}, []
     out: dict[tuple[str, str], str] = {}
+    refused: list[str] = []
     key: tuple[str, str] | None = None
     for raw in path.read_text(encoding="utf-8").splitlines():
         m = WAIVER_RE.match(raw.strip())
         if m:
             key = (m.group(1), m.group(2))
             out[key] = m.group(3).strip()
+            continue
+        head = WAIVER_HEAD_RE.match(raw.strip())
+        if head:
+            # A waiver with no reason on its line: whatever follows is its
+            # continuation, not the previous entry's, so drop the key.
+            key = None
+            refused.append(f"{head.group(1)}: {head.group(2)}")
             continue
         # A wrapped reason: mdformat reflows this file like any other
         # markdown, so a reason longer than the line width arrives as
@@ -187,7 +232,7 @@ def waivers(version: str, cwd: pathlib.Path) -> dict[tuple[str, str], str]:
             out[key] = f"{out[key]} {raw.strip()}"
         elif not raw.strip():
             key = None
-    return out
+    return out, refused
 
 
 def apply_waivers(
@@ -213,6 +258,14 @@ def main(argv: list[str] | None = None) -> int:
         help="repo root (a test points this at its fixture)",
     )
     ap.add_argument(
+        "--plot",
+        action="append",
+        default=[],
+        metavar="SCRIPT=PNG",
+        help="a script whose plot path `make gallery` passes on argv "
+        "(the characterization), so its source cannot name it",
+    )
+    ap.add_argument(
         "scripts", nargs="*", help="the Makefile's GALLERY_SCRIPTS"
     )
     args = ap.parse_args(argv)
@@ -225,10 +278,19 @@ def main(argv: list[str] | None = None) -> int:
     changed = changed_since(ref, cwd)
 
     rc = 0
-    declared = waivers(args.version, cwd)
+    declared, refused = waivers(args.version, cwd)
     used: set[tuple[str, str]] = set()
+    if refused:
+        rc = 1
+        for item in refused:
+            print(
+                f"release-freshness: waiver for {item} has no reason on its "
+                "line -- put the first words of the reason after `--` on the "
+                "same line"
+            )
 
-    gal = stale_gallery(changed, args.scripts)
+    given = dict(p.split("=", 1) for p in args.plot)
+    gal = stale_gallery(changed, args.scripts, cwd, given)
     gal, waived_gal = apply_waivers("gallery", gal, declared)
     for item, reason in waived_gal:
         used.add(("gallery", item))
@@ -237,14 +299,16 @@ def main(argv: list[str] | None = None) -> int:
         rc = 1
         print(
             f"release-freshness: {len(gal)} gallery script(s) changed since "
-            f"{ref}, and nothing under {ASSETS}/ did:"
+            f"{ref}, and their own plot under {ASSETS}/ did not:"
         )
         for s in gal:
             print(f"    {s}")
         print(
             "  The committed PNG is what the gallery page shows beside the\n"
             "  script it includes, so this would publish a picture of code\n"
-            "  that no longer exists. Run `make gallery`, commit docs/assets."
+            "  that no longer exists. Run `make gallery`, commit\n"
+            "  docs/assets. A plot that re-rendered byte-identically leaves\n"
+            "  no diff: waive it in release-waivers/ and say so."
         )
 
     bench = stale_benchmarks(changed, args.version, cwd)

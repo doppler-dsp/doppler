@@ -29,6 +29,8 @@ if TYPE_CHECKING:
 REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "check_release_freshness.py"
 GALLERY = "src/doppler/examples/demo.py"
+OTHER = "src/doppler/examples/other.py"
+SUBJECT = "src/doppler/acquire/characterize.py"
 
 
 def _git(cwd: Path, *args: str) -> None:
@@ -45,9 +47,17 @@ def _fixture(tmp_path: Path, *, tag: bool = True) -> Path:
     (tmp_path / "src/doppler/examples").mkdir(parents=True)
     (tmp_path / "native/src").mkdir(parents=True)
     (tmp_path / "docs/assets").mkdir(parents=True)
-    (tmp_path / GALLERY).write_text("print('plot')\n")
+    (tmp_path / "src/doppler/acquire").mkdir(parents=True)
+    # Each script names its plot the way check_gallery_scripts reads it.
+    (tmp_path / GALLERY).write_text('savefig("demo.png")\n')
+    (tmp_path / OTHER).write_text('savefig("other.png")\n')
+    # The characterization takes its plot path on argv: its source names a
+    # local default, not the committed file.
+    (tmp_path / SUBJECT).write_text('out = "local.png"\n')
     (tmp_path / "native/src/k.c").write_text("int k(void){return 0;}\n")
     (tmp_path / "docs/assets/demo.png").write_text("PNG\n")
+    (tmp_path / "docs/assets/other.png").write_text("PNG\n")
+    (tmp_path / "docs/assets/char.png").write_text("PNG\n")
     _git(tmp_path, "init", "-q", "-b", "main")
     _git(tmp_path, "add", "-A")
     _git(tmp_path, "commit", "-qm", "base")
@@ -57,6 +67,8 @@ def _fixture(tmp_path: Path, *, tag: bool = True) -> Path:
 
 
 def _run(repo: Path, version: str) -> subprocess.CompletedProcess[str]:
+    """Run the gate the way the Makefile does: scripts, plus the subject
+    with its argv plot passed as ``--plot``."""
     return subprocess.run(
         [
             sys.executable,
@@ -65,7 +77,11 @@ def _run(repo: Path, version: str) -> subprocess.CompletedProcess[str]:
             version,
             "--repo",
             str(repo),
+            "--plot",
+            f"{SUBJECT}=docs/assets/char.png",
             GALLERY,
+            OTHER,
+            SUBJECT,
         ],
         capture_output=True,
         text=True,
@@ -90,7 +106,7 @@ def test_a_changed_gallery_script_with_no_new_plot_is_refused(
 ) -> None:
     """The committed PNG is what the page shows beside the script."""
     repo = _fixture(tmp_path)
-    (repo / GALLERY).write_text("print('plot v2')\n")
+    (repo / GALLERY).write_text('savefig("demo.png")  # v2\n')
     _git(repo, "commit", "-qam", "tweak the plot script")
     r = _run(repo, "1.0.1")
     assert r.returncode != 0
@@ -101,7 +117,7 @@ def test_a_changed_gallery_script_with_no_new_plot_is_refused(
 def test_regenerating_the_plot_clears_it(tmp_path: Path) -> None:
     """Touching docs/assets is what a `make gallery` run leaves behind."""
     repo = _fixture(tmp_path)
-    (repo / GALLERY).write_text("print('plot v2')\n")
+    (repo / GALLERY).write_text('savefig("demo.png")  # v2\n')
     (repo / "docs/assets/demo.png").write_text("PNG v2\n")
     _git(repo, "commit", "-qam", "tweak the script and re-render")
     r = _run(repo, "1.0.1")
@@ -227,7 +243,7 @@ def _waive(repo: Path, version: str, body: str) -> None:
 
 def test_a_waiver_clears_the_named_gallery_script(tmp_path: Path) -> None:
     repo = _fixture(tmp_path)
-    (repo / GALLERY).write_text("print('plot v2')\n")
+    (repo / GALLERY).write_text('savefig("demo.png")  # v2\n')
     _git(repo, "commit", "-qam", "tweak the plot script")
     _waive(
         repo, "1.0.1", f"- gallery: {GALLERY} -- windows-only, art identical\n"
@@ -254,7 +270,7 @@ def test_a_waiver_clears_the_named_perf_path(tmp_path: Path) -> None:
 def test_a_waiver_for_one_item_does_not_clear_another(tmp_path: Path) -> None:
     """The point of naming the item: it cannot widen into a blanket skip."""
     repo = _fixture(tmp_path)
-    (repo / GALLERY).write_text("print('plot v2')\n")
+    (repo / GALLERY).write_text('savefig("demo.png")  # v2\n')
     (repo / "native/src/k.c").write_text("int k(void){return 1;}\n")
     _git(repo, "commit", "-qam", "tweak both")
     _waive(repo, "1.0.1", f"- gallery: {GALLERY} -- windows-only\n")
@@ -265,7 +281,7 @@ def test_a_waiver_for_one_item_does_not_clear_another(tmp_path: Path) -> None:
 
 def test_a_waiver_without_a_reason_waives_nothing(tmp_path: Path) -> None:
     repo = _fixture(tmp_path)
-    (repo / GALLERY).write_text("print('plot v2')\n")
+    (repo / GALLERY).write_text('savefig("demo.png")  # v2\n')
     _git(repo, "commit", "-qam", "tweak the plot script")
     _waive(repo, "1.0.1", f"- gallery: {GALLERY}\n")
     r = _run(repo, "1.0.1")
@@ -286,7 +302,7 @@ def test_a_waiver_matching_nothing_stale_is_refused(tmp_path: Path) -> None:
 
 def test_a_waiver_for_another_version_is_not_read(tmp_path: Path) -> None:
     repo = _fixture(tmp_path)
-    (repo / GALLERY).write_text("print('plot v2')\n")
+    (repo / GALLERY).write_text('savefig("demo.png")  # v2\n')
     _git(repo, "commit", "-qam", "tweak the plot script")
     _waive(repo, "9.9.9", f"- gallery: {GALLERY} -- other release\n")
     r = _run(repo, "1.0.1")
@@ -298,7 +314,7 @@ def test_a_wrapped_reason_is_printed_whole(tmp_path: Path) -> None:
     """mdformat reflows the waiver file, so a long reason arrives wrapped.
     Printing only its first line would make the record look like a shrug."""
     repo = _fixture(tmp_path)
-    (repo / GALLERY).write_text("print('plot v2')\n")
+    (repo / GALLERY).write_text('savefig("demo.png")  # v2\n')
     _git(repo, "commit", "-qam", "tweak the plot script")
     _waive(
         repo,
@@ -313,3 +329,83 @@ def test_a_wrapped_reason_is_printed_whole(tmp_path: Path) -> None:
     waived = [ln for ln in r.stdout.splitlines() if "WAIVED" in ln]
     assert len(waived) == 1
     assert waived[0].endswith("byte-identically")
+
+
+# ── per script (#2609): each changed script answers with its own plot ───────
+
+
+def test_another_scripts_plot_does_not_clear_this_one(tmp_path: Path) -> None:
+    """One re-rendered PNG used to answer for every changed script."""
+    repo = _fixture(tmp_path)
+    (repo / GALLERY).write_text('savefig("demo.png")  # v2\n')
+    (repo / OTHER).write_text('savefig("other.png")  # v2\n')
+    (repo / "docs/assets/other.png").write_text("PNG v2\n")
+    _git(repo, "commit", "-qam", "tweak both, re-render only one")
+    r = _run(repo, "1.0.1")
+    assert r.returncode != 0
+    assert GALLERY in r.stdout
+    assert OTHER not in r.stdout
+
+
+def test_a_byte_identical_rerender_is_waived_in_writing(
+    tmp_path: Path,
+) -> None:
+    """No diff cannot be told from never run, so it is said in a waiver."""
+    repo = _fixture(tmp_path)
+    (repo / GALLERY).write_text('savefig("demo.png")  # v2\n')
+    _git(repo, "commit", "-qam", "comment-only script edit")
+    _waive(
+        repo,
+        "1.0.1",
+        f"- gallery: {GALLERY} -- re-rendered, byte-identical\n",
+    )
+    r = _run(repo, "1.0.1")
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_subject_is_cleared_by_its_argv_plot(tmp_path: Path) -> None:
+    """The characterization's plot comes from --plot, not its source."""
+    repo = _fixture(tmp_path)
+    (repo / SUBJECT).write_text('out = "local.png"  # v2\n')
+    (repo / "docs/assets/char.png").write_text("PNG v2\n")
+    _git(repo, "commit", "-qam", "re-characterize")
+    r = _run(repo, "1.0.1")
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_subject_without_its_argv_plot_is_refused(tmp_path: Path) -> None:
+    repo = _fixture(tmp_path)
+    (repo / SUBJECT).write_text('out = "local.png"  # v2\n')
+    (repo / "docs/assets/demo.png").write_text("PNG v2\n")
+    _git(repo, "commit", "-qam", "change the subject, render another")
+    r = _run(repo, "1.0.1")
+    assert r.returncode != 0
+    assert SUBJECT in r.stdout
+
+
+# ── a waiver's reason starts on its own line (#2608) ────────────────────────
+
+
+def test_a_reason_on_the_next_line_is_refused_not_glued(
+    tmp_path: Path,
+) -> None:
+    """A line ending in `--` used to hand its reason to the entry above."""
+    repo = _fixture(tmp_path)
+    (repo / "native/src/k.c").write_text("int k(void){return 1;}\n")
+    (repo / "native/src/j.c").write_text("int j(void){return 1;}\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "tweak two kernels")
+    _waive(
+        repo,
+        "1.0.1",
+        "- benchmarks: native/src/j.c -- j's own reason\n"
+        "- benchmarks: native/src/k.c --\n"
+        "  k's reason, wrapped onto the next line\n",
+    )
+    r = _run(repo, "1.0.1")
+    assert r.returncode != 0
+    assert "waiver for benchmarks: native/src/k.c has no reason" in r.stdout
+    waived = [ln for ln in r.stdout.splitlines() if "WAIVED" in ln]
+    assert waived == [
+        "release-freshness: WAIVED benchmarks native/src/j.c — j's own reason"
+    ]

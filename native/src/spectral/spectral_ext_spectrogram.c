@@ -252,17 +252,7 @@ SpectrogramObj_push (SpectrogramObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = dp_spectrogram_push_max_out (self->handle, (size_t)n);
-      size_t _min_cap = _omax;
-      if (_cap < _min_cap)
-        {
-          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
-                        _cap, _min_cap);
-          Py_DECREF (out_arr);
-          Py_DECREF (in_arr);
-          return NULL;
-        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
       /* nogil: GIL released across the pure-C kernel. Two calls on
        * one object may run at once only if its kernel allows it; a
        * teardown waits for a running call (gh-2272). */
@@ -866,13 +856,11 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "\n"
     "The rows come back as a (rows, nfft) float32 matrix, or None when the "
     "chunk\n"
-    "completes none. A partial frame is carried to the next push. consumed "
-    "equals\n"
-    "the input length: the binding allocates room for every row the chunk "
-    "can\n"
-    "complete, so no input is held back. To bound memory, push smaller "
-    "chunks,\n"
-    "sized with rows_for(n).\n"
+    "completes none. A partial frame is carried to the next push. Without "
+    "out=,\n"
+    "consumed equals the input length: the binding allocates room for every "
+    "row\n"
+    "the chunk can complete, so no input is held back.\n"
     "\n"
     "An object is not thread-safe: one Spectrogram must not be pushed from "
     "two\n"
@@ -880,10 +868,11 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "releases\n"
     "the GIL, so other Python threads run meanwhile, but not on this object.\n"
     "\n"
-    "An out array, if given, must be a float32 array of at least\n"
-    "push_max_out(len(x)) elements. A smaller out raises ValueError; it is "
-    "not\n"
-    "taken as a short one.\n"
+    "An out array may be any (k, nfft) float32 matrix, k = 0 included: push\n"
+    "writes the whole rows that fit and stops before a row it has no room "
+    "for, so\n"
+    "consumed can then be less than len(x). Offer x[consumed:] again after\n"
+    "draining the rows; nothing is lost and the rows resume bit-exact.\n"
     "\n"
     ">>> import numpy as np\n"
     ">>> from doppler.spectral import Spectrogram\n"

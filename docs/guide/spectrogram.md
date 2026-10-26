@@ -52,13 +52,25 @@ sp = Spectrogram(nfft=1024, window="kaiser", beta=7.5)
 assert (sp.nfft, sp.hop, sp.window, sp.mode) == (1024, 1024, "kaiser", "power")
 ```
 
-A chunk's output buffer is sized for every row the chunk can complete, so
-`push` takes all of its input and `consumed` equals the chunk length. To bound
-memory, push smaller chunks, sized with `rows_for`. A caller that supplies its
-own `out` must give it at least `push_max_out(len(x))` elements: a smaller
-`out` is refused with `ValueError`, not taken as a short push. That is the
-Python face today; adopting jm's `short_out`, which would take it as one, is
-[#2592](https://github.com/doppler-dsp/doppler/issues/2592).
+Without `out=`, a chunk's output buffer is sized for every row the chunk can
+complete, so `push` takes all of its input and `consumed` equals the chunk
+length. To bound memory, pass your own `out` of any `(k, nfft)` shape: `push`
+writes the whole rows that fit, and `consumed` says where to resume, exactly
+as the C face does (below).
+
+```pycon
+>>> import numpy as np
+>>> from doppler.spectral import Spectrogram
+>>> sp = Spectrogram(nfft=8, hop=8, window="rect")
+>>> x = np.ones(40, np.complex64)
+>>> out = np.empty((2, 8), np.float32)  # room for 2 of the 5 rows
+>>> sp.push(x, out=out).shape
+(2, 8)
+>>> sp.consumed  # the other 17 samples are still the caller's
+23
+>>> sp.push(x[sp.consumed:]).shape
+(3, 8)
+```
 
 One object is not thread-safe: do not push one `Spectrogram` from two threads
 at once. `push` releases the GIL, so other threads run, but not on the same

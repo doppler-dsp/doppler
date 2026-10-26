@@ -340,8 +340,8 @@ would be a skip permission that nothing takes.
 `issue-link-check` reads the `Closes #N` / `No-issue:` declaration from
 commit messages, and both methods keep it: the squash template is the
 branch's commit messages, so every `Closes` line lands in the squash body.
-Squash a one-issue PR. Rebase a train, so that each landed commit can be
-checked by patch-id against the commit that was reviewed.
+A train of several reviewed PRs is usually rebased, so that each landed
+commit can be checked by patch-id against the commit that was reviewed.
 
 `windows.yml` is advisory.
 

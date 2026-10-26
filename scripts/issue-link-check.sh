@@ -5,8 +5,9 @@
 # ## Why this exists
 #
 # GitHub closes an issue only when a closing keyword reaches the default
-# branch, in a PR body or in a commit message. doppler rebase-merges, so
-# commit messages land on `main` and are a valid carrier. Nothing checked that
+# branch, in a PR body or in a commit message. doppler squash- or
+# rebase-merges, and both put the branch's commit messages on `main` (the
+# squash body is those messages), so a commit message is a valid carrier. Nothing checked that
 # any branch used one, and the cost was not hypothetical:
 #
 #   c0e0e615  "gate the generated C API tree, which had drifted 22 pages"

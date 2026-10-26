@@ -296,8 +296,9 @@ def characterise() -> Data:
         "differential error lands on a different constellation point from "
         "the coherent one, so the two error counts are close to independent. "
         "Pairing therefore does **not** cancel the seed's luck: the ratio's "
-        "sampling error is the unpaired count variance, and §4 bounds it by "
-        "that. The coherent column is anchored to closed-form theory so that "
+        "sampling error is bounded by the unpaired count variance, and §4 "
+        "bounds it by that. The coherent column is anchored to closed-form "
+        "theory so that "
         "a defect shared by both paths cannot divide out to a plausible 2.0."
     )
     R.md()

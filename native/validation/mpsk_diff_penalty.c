@@ -15,8 +15,11 @@
  *
  * Method. Draw uniform labels, map them both ways, add complex AWGN at a
  * stated Es/N0, demap both ways, and count symbol errors against the truth.
- * The two paths see the SAME noise realisation and the same labels, so the
- * ratio is a paired measurement and the seed's luck cancels out of it.
+ * The two paths see the same labels and noise, but a differential symbol's
+ * error lands on a different constellation point from the coherent one, so
+ * the two error counts are close to independent. The ratio's sampling error
+ * is therefore the unpaired count variance, and the check bounds the ratio by
+ * it rather than by a fixed band. Pairing does NOT cancel the seed's luck.
  *
  * The constellation is unit amplitude, so Es = 1 and N0 = 1/(Es/N0); awgn's
  * amplitude parameter IS the per-component standard deviation, hence
@@ -68,7 +71,7 @@ qfunc (double x)
  * fed the identical samples. */
 static int
 measure (int m, double esn0_db, size_t nsym, uint64_t seed, double *ser_coh,
-         double *ser_diff, size_t *n_err_coh)
+         double *ser_diff, size_t *n_err_coh, size_t *n_err_diff)
 {
   double           esn0  = pow (10.0, esn0_db / 10.0);
   double           sigma = sqrt (1.0 / (2.0 * esn0));
@@ -88,7 +91,8 @@ measure (int m, double esn0_db, size_t nsym, uint64_t seed, double *ser_coh,
       free (pd);
       free (nz);
       dp_awgn_destroy (g);
-      *n_err_coh = 0;
+      *n_err_coh  = 0;
+      *n_err_diff = 0;
       return -1;
     }
 
@@ -130,9 +134,10 @@ measure (int m, double esn0_db, size_t nsym, uint64_t seed, double *ser_coh,
       done += n;
     }
 
-  *ser_coh   = (double)err_coh / (double)done;
-  *ser_diff  = (double)err_diff / (double)done;
-  *n_err_coh = err_coh;
+  *ser_coh    = (double)err_coh / (double)done;
+  *ser_diff   = (double)err_diff / (double)done;
+  *n_err_coh  = err_coh;
+  *n_err_diff = err_diff;
   free (sym);
   free (dc);
   free (dd);
@@ -162,13 +167,14 @@ main (int argc, char **argv)
   if (check)
     {
       /* QPSK at 9 dB: coherent SER ~4.8e-3, so 1.5e6 symbols collect ~7200
-         coherent and ~14500 differential errors — around 1% on each and
-         better than that on the paired ratio. The band is set from the
-         measured sweep below, not from the header's round number: the sweep
-         puts QPSK between 1.85x and 2.03x across 6 to 12 dB. */
+         coherent and ~14500 differential errors. The penalty's sampling
+         error follows from those two counts (see the header), so the band
+         is four of its sigmas around the asymptote 2x, not a fixed range
+         that one seed could sit inside by luck. */
       double coh = 0.0, dif = 0.0;
-      size_t nerr = 0;
-      if (measure (4, 9.0, 1500000u, 20260814u, &coh, &dif, &nerr) != 0)
+      size_t nerr = 0, nerr_d = 0;
+      if (measure (4, 9.0, 1500000u, 20260814u, &coh, &dif, &nerr, &nerr_d)
+          != 0)
         {
           printf ("FAIL allocation\n");
           return 1;
@@ -177,12 +183,17 @@ main (int argc, char **argv)
       /* Precondition, not decoration: a cell that collected too few errors
          makes both comparisons below meaningless, and a silently starved
          cell reads exactly like a passing one. */
-      if (nerr < 500u)
+      if (nerr < 500u || nerr_d < 500u)
         {
-          printf ("FAIL only %zu coherent errors — cell is starved\n", nerr);
+          printf ("FAIL only %zu coherent / %zu differential errors — cell is "
+                  "starved\n",
+                  nerr, nerr_d);
           return 1;
         }
       double ratio = (coh > 0.0) ? dif / coh : 0.0;
+      /* Relative sampling error of the ratio: unpaired counts, so the
+         relative variances add. */
+      double sigma = ratio * sqrt (1.0 / (double)nerr + 1.0 / (double)nerr_d);
       int    fail  = 0;
       /* Anchor the coherent path to theory first: a shared slicer defect
          divides out of the ratio and would otherwise pass unnoticed. */
@@ -191,21 +202,23 @@ main (int argc, char **argv)
           printf ("FAIL coherent SER %.5e want %.5e (theory)\n", coh, want);
           fail = 1;
         }
-      if (!(ratio > 1.70 && ratio < 2.30))
+      if (!(fabs (ratio - 2.0) <= 4.0 * sigma))
         {
-          printf ("FAIL differential penalty %.3fx, want ~2x\n", ratio);
+          printf ("FAIL differential penalty %.3fx, want 2x +/- %.3f "
+                  "(4 sigma)\n",
+                  ratio, 4.0 * sigma);
           fail = 1;
         }
       if (!fail)
         printf ("mpsk_diff_penalty: OK (SER %.4e vs theory %.4e, "
-                "penalty %.3fx)\n",
-                coh, want, ratio);
+                "penalty %.3fx +/- %.3f)\n",
+                coh, want, ratio, sigma);
       return fail;
     }
 
   const int    ms[] = { 2, 4, 8 };
   const double es[] = { 4.0, 6.0, 8.0, 10.0, 12.0, 14.0 };
-  printf ("mpsk differential penalty — paired Monte-Carlo, noise from awgn\n");
+  printf ("mpsk differential penalty — Monte-Carlo, noise from awgn\n");
   printf ("unit-amplitude constellation, so Es = 1 and sigma = "
           "sqrt(N0/2).\n\n");
   printf ("Cells collecting fewer than 100 coherent errors are marked "
@@ -225,9 +238,9 @@ main (int argc, char **argv)
         double nd  = 4000.0 / (want > 1e-9 ? want : 1e-9);
         size_t ns  = (size_t)(nd > 4e7 ? 4e7 : (nd < 2e5 ? 2e5 : nd));
         double coh = 0.0, dif = 0.0;
-        size_t nerr = 0;
+        size_t nerr = 0, nerr_d = 0;
         if (measure (ms[i], es[j], ns, 4242u + (uint64_t)(i * 8 + j), &coh,
-                     &dif, &nerr)
+                     &dif, &nerr, &nerr_d)
             != 0)
           return 1;
         printf ("  %3d   %5.1f   %9.3e   %9.3e   %+5.1f%%   %9.3e   %6.3fx   "

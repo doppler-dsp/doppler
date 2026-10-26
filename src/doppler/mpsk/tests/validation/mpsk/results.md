@@ -61,7 +61,7 @@ Sorting the constellation by angle and walking it cyclically, every neighbouring
 | 8 | 14 | 6.405e-03 | 6.680e-03 | -4.1% | 1.389e-02 | 2.17x | 1,281 |
 
 
-Both modes see the **same noise realisation** — the penalty is a paired measurement, so the seed's luck cancels out of the ratio — and the coherent column is anchored to closed-form theory so that a defect shared by both paths cannot divide out to a plausible 2.0.
+Both modes see the **same labels and noise realisation**, but a differential error lands on a different constellation point from the coherent one, so the two error counts are close to independent. Pairing therefore does **not** cancel the seed's luck: the ratio's sampling error is the unpaired count variance, and §4 bounds it by that. The coherent column is anchored to closed-form theory so that a defect shared by both paths cannot divide out to a plausible 2.0.
 
 The rightmost column is the precondition, not decoration: a cell that collected too few errors makes both comparisons meaningless and reads exactly like a passing one. Every cell here clears 200, and §4 asserts it.
 
@@ -109,8 +109,8 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | M=4: differential decoding is invariant to ANY constant carrier phase, past the first symbol |
 | PASS | M=8: differential decoding is invariant to ANY constant carrier phase, past the first symbol |
 | PASS | coherent SER is within 15% of theory at every measured cell (worst 6.4%) |
-| PASS | the differential penalty never exceeds 2.2x (worst 2.17x) — the header's ~2x is an upper bound, not a typical value |
-| PASS | QPSK at 10 dB Es/N0 pays 2.09x for differential mode — the asymptote is reached where a receiver operates |
+| PASS | every cell's differential penalty is within 2x plus four sigma of its own error counts (largest excess -0.124x, negative is inside the bound) — the header's ~2x is an upper bound, not a typical value |
+| PASS | QPSK at 10 dB Es/N0 pays 2.09x for differential mode, within four sigma (±0.58x) of the 2x asymptote — the cell collects few errors, so its band is wide by construction |
 | PASS | every error-rate cell collected at least 200 errors (fewest 306) — without this the comparisons above pass vacuously on a starved cell |
 
 

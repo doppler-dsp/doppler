@@ -347,35 +347,54 @@ ______________________________________________________________________
 The [`release.yml`](https://github.com/doppler-dsp/doppler/blob/main/.github/workflows/release.yml)
 workflow runs these jobs in order:
 
-```
-verify-version  ──  tag == pyproject == Cargo == CMakeLists
-verify-ci       ──  poll the "CI passed" aggregator on the tagged SHA
-    │                (the merge to main already ran the full suite — we do
-    │                 NOT re-test here, we confirm it was green)
-    ▼
-build-python         ──  manylinux_2_28 x86_64 + aarch64 wheels, one docker run per cp3x/arch
-build-macos          ──  macOS arm64 wheels, `make wheel` per Python version
-build-sdist          ──  source distribution (`make sdist`)
-build-c-linux        ──  C library tarballs (linux-x86_64 + linux-aarch64, matrixed)
-build-c-macos        ──  C library tarball (macos-arm64)
-    │  (all five build-* jobs run in parallel, gated only on verify-version)
-    │  every C tarball is `make package-c-tarball VERSION=x.y.z`, which a
-    │  developer can run before cutting a tag
-    ▼
-smoke-wheel      ──  pip-install the cp312 wheel (x86_64 + aarch64, matrixed)
+```text
+verify-version  ──  tag == pyproject == Cargo == CMakeLists == bootstrap == just-makeit
+    │
+    ├── verify-ci        ──  poll the "CI passed" aggregator on the tagged SHA
+    │                         (the merge to main already ran the full suite — we
+    │                          do NOT re-test here, we confirm it was green)
+    │
+    ├── build-python     ──  manylinux_2_28 x86_64 + aarch64 wheels, one docker run per cp3x/arch
+    ├── build-macos      ──  macOS arm64 wheels, `make wheel` per Python version
+    ├── build-windows    ──  win_amd64 wheels (clang-cl), `make wheel` per Python version
+    ├── build-sdist      ──  source distribution (`make sdist`)
+    ├── build-c-linux    ──  C library tarballs (linux-x86_64 + linux-aarch64, matrixed)
+    ├── build-c-macos    ──  C library tarball (macos-arm64)
+    └── build-c-windows  ──  C library zip (windows-x86_64, clang-cl)
+          (all seven build-* jobs run in parallel, gated only on verify-version;
+           every C archive is `make package-c-tarball VERSION=x.y.z`, which a
+           developer can run before cutting a tag)
+
+smoke-wheel      ──  install the cp312 wheel (x86_64, aarch64, win_amd64)   needs build-python, build-windows
     │                 + run deploy/validation/wfm_e2e.py
     │                 (smoke-tests the ARTIFACT, not the source tree)
+wheel-tags       ──  every wheel's name parses as installable by pip         needs the three wheel builds
+    │
     ▼
 publish-python   ──  PyPI (OIDC trusted publishing, no token needed)
-    │
+    │                 needs verify-ci, smoke-wheel, wheel-tags, sdist + every wheel build
+    ├──────────────────────────────┐
+    ▼                              ▼
+publish-container                smoke-pypi  ──  install doppler-dsp==X.Y.Z FROM PyPI
+    │  runtime, SDK + downstream     and run wfm_e2e.py, per platform x Python
+    │  images per arch, pushed by
+    │  digest (the runtime image
+    │  pip-installs the just-
+    │  published wheel, no rebuild)
     ▼
-publish-container ──  ghcr.io/doppler-dsp/doppler:X.Y.Z (+ :latest) —
-    │                  pip-installs the just-published wheel, no rebuild
+publish-container-merge  ──  multi-arch :X.Y.Z (+ :latest) tags for each image
+    │                         (ghcr.io/doppler-dsp/doppler, -sdk, -downstream-jm),
+    │                         smoked as a user would pull them
     ▼
-github-release   ──  GitHub Release + auto-generated notes + wheel/tarball attachments
-    │
-    ▼
-smoke-c          ──  download the published C tarball; find_package + pkg-config
+github-release   ──  GitHub Release + auto-generated notes + wheel/C-archive attachments
+    │                 (also needs the three build-c-* jobs)
+    ├──────────────────────────────┐
+    ▼                              ▼
+smoke-c                          smoke-packages
+  download the published C         install THIS arch's published .deb/.rpm
+  archive (Linux x2, macOS,        in several distros (x86_64 + aarch64);
+  Windows); find_package +         find_package + pkg-config from /usr
+  pkg-config
 ```
 
 The release pipeline **does not re-run the test suite** — the bump PR's merge
@@ -402,10 +421,15 @@ minimal PEP 517 backend driving the whole thing):
     `_PYTHON_HOST_PLATFORM=macosx-11.0-arm64` so `delocate` tags the wheel
     `arm64`: cmake emits an arm64-only `.so` on this runner, and without the
     override `delocate` fails demanding the absent `x86_64` slice.
+1. **Windows (`build-windows`)** — natively on a `windows-latest` runner,
+    the same **`make wheel`** under the MSVC environment with clang-cl +
+    Ninja (`CMAKE_ARGS`), the toolchain `ci.yml`'s Windows jobs use on every
+    PR.
 1. `just-buildit`'s backend (`make just-build` → cmake + pyext) assembles the
     wheel from the build's output dir, detects the platform tag from the `.so`
     suffix, and runs `auditwheel repair` (Linux, via `uvx`) / `delocate-wheel`
-    (macOS) to bundle shared-lib deps into the wheel — this is why the
+    (macOS) / `delvewheel repair` (Windows) to bundle shared-lib deps into
+    the wheel — this is why the
     published wheel needs zero system packages to `pip install`. Each Linux
     wheel is then scanned for both a leaked `-march=native` (AVX/AVX-512 on
     x86_64) and a leaked `-mcpu=native` (SVE/SVE2 on aarch64) — see
@@ -464,8 +488,9 @@ Two gates cover it now:
 Neither is a substitute for a look at the
 [GitHub Release page](https://github.com/doppler-dsp/doppler/releases): the
 asset check counts tarballs, so confirming that **every** platform wheel (Linux
-x86_64, Linux aarch64, win_amd64, macOS arm64) plus the three C library
-tarballs are present is still worth ten seconds of your eyes.
+x86_64, Linux aarch64, win_amd64, macOS arm64) plus the four C library
+archives (three tarballs and the Windows zip) are present is still worth ten
+seconds of your eyes.
 
 To re-run the published-wheel check by hand — against any released version,
 which is what makes it rehearsable before touching the script.

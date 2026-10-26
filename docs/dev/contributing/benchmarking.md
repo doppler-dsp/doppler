@@ -48,7 +48,8 @@ Python benchmarks use [pytest-benchmark](https://pytest-benchmark.readthedocs.io
 Each module keeps its benchmarks under `src/doppler/<module>/benchmarks/`:
 
 ```text
-src/doppler/accumulator/benchmarks/bench_acc.py
+src/doppler/accumulator/benchmarks/bench_acc_f32.py
+src/doppler/accumulator/benchmarks/bench_acc_cf64.py
 src/doppler/filter/benchmarks/bench_fir.py
 ...
 ```
@@ -542,7 +543,9 @@ uv run pytest-benchmark compare \
     benchmarks/history/20260519T120000Z.json
 
 # Quick diff — ops (samples/sec) for every entry shared by two snapshots
-python3 - <<'EOF'
+python3 - \
+    benchmarks/history/20260501T000000Z-c.json \
+    benchmarks/history/20260519T120000Z-c.json <<'EOF'
 import json, sys
 
 def load(path):
@@ -555,9 +558,7 @@ b = load(sys.argv[2])
 for name in sorted(a.keys() & b.keys()):
     pct = (b[name] - a[name]) / a[name] * 100
     print(f"  {name:<52s}  {pct:+.1f}%")
-EOF \
-benchmarks/history/20260501T000000Z-c.json \
-benchmarks/history/20260519T120000Z-c.json
+EOF
 ```
 
 The `-c.json` files share the same top-level schema as the Python files

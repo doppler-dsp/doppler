@@ -1,7 +1,7 @@
 # Authoring docstrings — write the C header, get the Python docs
 
 doppler's Python documentation is **derived**, not written. You write Doxygen
-comments in a `native/inc/<obj>/<obj>_core.h` header; `jm` turns them into the
+comments in a `native/inc/doppler/<obj>/<obj>_core.h` header; `jm` turns them into the
 numpy docstrings that land in the `.pyi` type stubs (what IDEs, type-checkers,
 and the mkdocstrings site read) and, increasingly, into the runtime `__doc__`
 that `help()` shows. Write the header once, well, and both faces improve
@@ -118,7 +118,8 @@ ______________________________________________________________________
     to use: jm strips the marker and keeps the word (`@c clip_db` → `clip_db`,
     `@p n` → `n`). Use `@c` for a literal or expression, `@p` for a parameter
     name. Non-word arguments (`@c -1`, `@c "A"`, `@c +/-10^(x)`) only strip
-    cleanly from **jm v0.35.0** — the version doppler pins as of this pass.
+    cleanly from **jm v0.35.0** on; the version doppler runs is the
+    `just-makeit` pin in `pyproject.toml`'s dev group.
 
 ______________________________________________________________________
 
@@ -311,8 +312,9 @@ ______________________________________________________________________
 
 ## The workflow
 
-1. Edit `native/inc/<obj>/<obj>_core.h`.
-1. Run `jm apply` (scoped — `jm apply objects/<obj>.toml` — when a sacred
+1. Edit `native/inc/doppler/<obj>/<obj>_core.h`.
+1. Run `make jm-apply` (scoped —
+    `make jm-apply JM_APPLY_ARGS=objects/<obj>.toml` — when a sacred
     `_ext_<obj>.c` fragment exists), which regenerates the `.pyi` from the
     header.
 1. `make test-stubs` — runs every `@code` doctest against the build.

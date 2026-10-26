@@ -197,11 +197,14 @@ That only holds if everything else has already landed:
 
 ## 7. The weekly image repin
 
-`ci-image.yml` runs every Monday at 04:17 UTC. It picks a new apt
-snapshot and new base digests, and when the package set has moved it
-pushes a one-file repin to `ci/repin-image`. Until that lands,
-`CI image repin pending` is red on **every** PR, so the repin is the
-first thing merged on Monday:
+`ci-image.yml` runs every Monday at 04:23 UTC. It picks a new apt
+snapshot and new base digests, and when the package set or the image's
+sources have moved it pushes a one-file repin to `ci/repin-image` (the
+org forbids Actions from opening PRs, so no PR appears on its own). Until
+that lands, every `CI image` run on `main` ends red on its last step,
+`An unlanded repin keeps this run red`. PR checks are unaffected, so
+nothing else announces it: the repin is the first thing merged on
+Monday:
 
 ```sh
 gh pr create --head ci/repin-image --fill

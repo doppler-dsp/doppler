@@ -140,7 +140,7 @@ code = np.asarray(
 nrz = np.zeros(code.size, np.float32)
 bin_to_nrz(code, nrz)
 preamble = np.repeat(nrz, 4).astype(np.complex64)
-acq = BurstAcquisition(preamble, reps=8, fs=4e6, cn0_dbhz=55.0)
+acq = BurstAcquisition(preamble, reps=8, fs=4e6, cn0_dbhz=60.0)
 
 # One repeated-code burst, so push() reports a hit to read the bin off.
 burst = np.tile(preamble, 8)

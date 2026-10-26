@@ -196,11 +196,11 @@ more depth than its raw coherent gain suggests (doppler#1501).
 The chosen grid is exposed as **read-only** properties:
 
 ```python
-acq = BurstAcquisition(preamble, reps=16, fs=1.023e6 * 4, cn0_dbhz=52,
+acq = BurstAcquisition(preamble, reps=16, fs=1.023e6 * 4, cn0_dbhz=56,
                        pfa=1e-3, pd=0.9)
 
-acq.doppler_bins, acq.code_bins   # 7, 124    — the grid the engine chose
-acq.doppler_span_hz, acq.doppler_res_hz   # ±16500 Hz, 4714 Hz
+acq.doppler_bins, acq.code_bins   # 2, 124    — the grid the engine chose
+acq.doppler_span_hz, acq.doppler_res_hz   # ±16500 Hz, 16500 Hz
 acq.fs                            # 4.092e6   — the rate given
 acq.pfa_cell                      # per-cell false-alarm prob (Bonferroni)
 acq.eta                           # raw Rayleigh threshold √(-2 ln pfa_cell)

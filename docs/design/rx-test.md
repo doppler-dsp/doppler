@@ -252,7 +252,7 @@ Also present: `dp_ber_settle`, `dp_ber_score`, `dp_ber_ci`, `dp_ber_enough`,
 `ber_core.h`'s `dp_ber_settle_syms`, `dp_ber_lock_symbol` and
 `dp_ber_settle_from`. The settling budget it documents is
 `2*(5/bn_timing + 5/bn_carrier)`, taken as
-`max(budget, timing lock, carrier lock, handover + budget)`.
+`max(budget, timing lock, carrier lock)`.
 
 ### 2.4 The trio — BER, EVM, M2M4
 

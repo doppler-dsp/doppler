@@ -1200,28 +1200,11 @@ dp_rx_check (const dp_rx_result_t *r)
      stated bandwidth is invisible to every other number this instrument
      produces, which is the whole argument for the point.
 
-     WHAT IT DOES NOT COVER, and the reason is structural rather than a
-     tolerance. gh-765 itself was `freq_scale` missing its `* upd` factor —
-     the loop filter's output taken as radians per UPDATE rather than per
-     symbol. Every point in this battery runs `nda_tap = 0` (STROBE), whose
-     update rate is exactly 1, so that factor IS 1 and removing it changes
-     nothing: applied here it leaves this gate byte-identical and green.
-     `rx_nda_tap.c` is what catches it, because it sweeps the taps whose
-     update rate is not 1 — under the same sabotage it fails six ramp rows on
-     `mf_out` (upd 2.0) and `mf_in` (upd 1.5625) and none on `strobe`. So
-     this gate pins the gain of the loop the battery actually runs; it does
-     not pin the tap-rate conversion, and a battery point at a non-unity tap
-     is what would.
-
-     That is a SETTLED boundary, not a gap awaiting a decision. The battery is
-     STROBE-only on purpose: `ContinuousMpskReceiver` was measured pinning a
-     tap whose update rate is not 1 and its lock statistic no longer meant
-     what its threshold said, so the flavor moved to `strobe` too
-     (doppler#791). The tap-rate conversion is therefore `rx_nda_tap.c`'s to
-     pin, permanently, and that file sweeps all three taps precisely because
-     nothing else does. Do not add a fast-tap point here to close the gap —
-     it would import a lock statistic this harness's settling gate cannot
-     read, which is the defect that started it. */
+     WHAT IT DOES NOT COVER: the `* upd` factor in `freq_scale` (gh-765 was
+     that factor missing). The carrier loop updates once per symbol
+     (mpsk_rx_updates_per_symbol() is 1, pinned in
+     test_mpsk_receiver_core.c), so the factor is 1 and removing it leaves
+     this gate byte-identical and green. */
   if (r->ramp_law_rad > 0.0
       && !(fabs (r->ramp_lag_rad - r->ramp_law_rad)
            <= DP_RX_RAMP_TOL * r->ramp_law_rad))
@@ -1347,11 +1330,10 @@ dp_rx_witness_check (const dp_rx_witness_t *w)
  * `dp_rx_check()` returns 0 for a refusal, deliberately — a refusal is the
  * harness declining to defend a number, which is goal 1 working, and a
  * `qpsk`/`psk8` frame-geometry refusal is the design doing its job. But
- * **`--check` therefore exits 0 when a receiver refuses EVERY point**, and
- * that is how `ContinuousMpskReceiver` shipped pinning `nda_tap = mf_in`:
- * nine `no burst settled` lines, exit 0, on a receiver whose EVM is on the
- * matched-filter bound (doppler#791). Each line was individually correct.
- * The aggregate was a receiver that does not work.
+ * **`--check` therefore exits 0 when a receiver refuses EVERY point**.
+ * doppler#791 was exactly that: nine `no burst settled` lines, exit 0, on a
+ * receiver whose EVM was on the matched-filter bound. Each line was
+ * individually correct. The aggregate was a receiver that did not work.
  *
  * Nine refusals is not nine refusals. It is one result.
  *

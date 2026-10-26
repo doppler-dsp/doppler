@@ -282,8 +282,8 @@ wfm_cont_dsss_nchips(size_t n_chips)
  * so both clocks advance independently off the same chip index; the symbol
  * edges are `dp_wfm_dsss_cont_edge`'s, the one symbol clock. Because the
  * symbol index is a floor of a fractional quotient, consecutive symbols
- * legitimately span different numbers of chips (1136 or 1137 at SPEC.md's
- * 3.069 Mcps / 2700 bps) — that jitter IS the asynchronicity, not an artifact.
+ * legitimately span different numbers of chips (1136 or 1137 at the
+ * 3.069 Mcps / 2700 bps of docs/design/async-dsss-receiver.md §1) — that jitter IS the asynchronicity, not an artifact.
  *
  * Materialising the pattern up front, exactly as the burst builder does, is
  * what lets the synth's existing cyclic chip latch play it back unchanged: no

@@ -69,7 +69,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**carrier\_nda\_arm\_step**](#function-carrier_nda_arm_step) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* s, float \_Complex d, double \* pe, double \* lock) <br>_Slide the moving-average arm by one sample; discriminate the output._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**carrier\_nda\_disc**](#function-carrier_nda_disc) (float \_Complex z, int m, double \* pe, double \* lock) <br>_The M-th-power discriminator on an arm sample, normalized by its own amplitude law._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**carrier\_nda\_steer**](#function-carrier_nda_steer) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* s, double pe) <br>_Steer the shared NCO with a phase error through the loop filter._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**carrier\_nda\_steer**](#function-carrier_nda_steer) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* s, double pe) <br>_Steer the NCO with a phase error through the loop filter._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**carrier\_nda\_wipeoff**](#function-carrier_nda_wipeoff) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* s, float \_Complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
 |  void | [**dp\_carrier\_nda\_configure\_lock**](#function-dp_carrier_nda_configure_lock) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the carrier lock detector's geometry directly._  |
 |  [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* | [**dp\_carrier\_nda\_create**](#function-dp_carrier_nda_create) (double bn, double zeta, double init\_norm\_freq, size\_t sps, int n, int m) <br>_Create an NDA carrier loop instance._  |
@@ -149,7 +149,7 @@ threshold a Pfa", for the derivation.
 
 
 
-The block API (dp\_carrier\_nda\_steps) is the Python face and emits the de-rotated sample stream; the JM\_FORCEINLINE [**carrier\_nda\_wipeoff()**](carrier__nda__core_8h.md#function-carrier_nda_wipeoff)/\_arm\_step()/\_steer() are the C composition API a receiver inlines into its own sample loop (it can also steer the shared NCO with its own decision-directed error on handover).
+The block API (dp\_carrier\_nda\_steps) is the Python face and emits the de-rotated sample stream; the JM\_FORCEINLINE [**carrier\_nda\_wipeoff()**](carrier__nda__core_8h.md#function-carrier_nda_wipeoff)/\_arm\_step()/\_steer() are the same loop's three steps as a C composition API, for a caller that runs the loop inside its own sample loop.
 
 
 
@@ -296,7 +296,7 @@ signal", for the squaring-loss measurement that says normalizing is equal or bet
 
 ### function carrier\_nda\_steer 
 
-_Steer the shared NCO with a phase error through the loop filter._ 
+_Steer the NCO with a phase error through the loop filter._ 
 ```C++
 JM_FORCEINLINE  JM_HOT void carrier_nda_steer (
     dp_carrier_nda_state_t * s,
@@ -306,7 +306,7 @@ JM_FORCEINLINE  JM_HOT void carrier_nda_steer (
 
 
 
-Filters `pe` and updates the NCO frequency (per sample) + a proportional phase nudge. Shared by the NDA acquisition path and a composing receiver's decision-directed tracking path (handover writes the same NCO).
+Filters `pe` and stores the PI filter's output (`integ + kp*pe`, in cycles/sample) as the frequency control the next [**carrier\_nda\_wipeoff()**](carrier__nda__core_8h.md#function-carrier_nda_wipeoff) feeds the LO.
 
 
 
@@ -315,7 +315,7 @@ Filters `pe` and updates the NCO frequency (per sample) + a proportional phase n
 
 
 * `s` Carrier loop state. Must be non-NULL. 
-* `pe` Phase error (NDA discriminator, or a decision-directed error). 
+* `pe` Phase error from the NDA discriminator (carrier\_nda\_arm\_step). 
 
 
 

@@ -109,12 +109,9 @@ main (int argc, char **argv)
          0.87 dB from the fully-scattered EVM floor, i.e. barely
          distinguishable from noise. The extra ~1.3 dB at M = 8 is (b).
 
-         This matters most at MPSK_RX_NDA_TAP_MF_OUT, where the M-th power
-         genuinely runs on an oversampled pulse at m_out*Rs and needs
-         `m_out >= M` outright -- and since m_out maxes out at 8, 8PSK at that
-         tap is exactly critically sampled with no margin. The header's
-         `|df| < F/(2M)` pull-in rule is the single-tone face of the same
-         constraint. We use _STROBE, so the tone limit is `Rs/(2M)`.
+         The carrier discriminator reads the on-time strobe, so its M-th
+         power runs at Rs and its single-tone limit is `Rs/(2M)`, the
+         `1/(2M)` cycles-per-update aliasing ceiling in carrier_nda_core.h.
 
          The cascade behind the halfband runs at twice the overall rate, so
          MpskReceiverR requires sps > 2*m_out: 32. */

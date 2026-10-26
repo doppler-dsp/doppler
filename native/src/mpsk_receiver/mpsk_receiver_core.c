@@ -39,14 +39,9 @@
 void
 dp_mpsk_rx_config_carrier (mpsk_rx_loops_t *l)
 {
-  /* bn_carrier keeps its meaning — normalised to the SYMBOL rate — whatever
-     tap the caller picked, so one setting means the same loop at every tap.
-     What the tap changes is how often that loop is updated, which is the
-     filter's `t` (its update period, here measured in symbols). A tap that
-     updates m_out or lo_sps times per symbol therefore does NOT silently
-     widen the loop; it widens the range of frequency error the discriminator
-     can still SEE, and improves the stability margin at any given bn, which
-     is what lets a caller then raise bn_carrier on purpose. */
+  /* bn_carrier is normalized to the SYMBOL rate; the filter's `t` is its
+     update period in symbols, one here because the discriminator reads the
+     on-time strobe. */
   double upd = mpsk_rx_updates_per_symbol (l);
   dp_loop_filter_init (&l->car_lf, l->bn_carrier, l->zeta, 1.0 / upd);
   l->freq_scale = CARRIER_NDA_INV_2PI * upd / l->lo_sps;
@@ -58,18 +53,13 @@ dp_mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
                        double bn_timing, double bn_agc_ratio, int ted,
                        double lock_thresh, int differential)
 {
-  l->m      = m;
-  l->sps    = sps;
-  l->lo_sps = lo_sps;
-  /* Overwritten by any front end that publishes a real bank rate; this
-     default only keeps mpsk_rx_updates_per_symbol() non-zero. */
+  l->m            = m;
+  l->sps          = sps;
+  l->lo_sps       = lo_sps;
   l->m_out        = m_out;
   l->bn_carrier   = bn_carrier;
   l->bn_agc_ratio = bn_agc_ratio;
   l->zeta         = zeta;
-  /* Only the strobe tap reads an output the timing loop had to nominate; the
-     other two are timing-independent by construction. */
-
   l->differential = differential ? 1 : 0;
 
   /* The NDA M-th-power loop's stable points are the 0-grid (z^m = +1), but

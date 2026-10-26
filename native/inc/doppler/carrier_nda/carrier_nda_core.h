@@ -36,9 +36,9 @@
  *
  * The block API (dp_carrier_nda_steps) is the Python face and emits the
  * de-rotated sample stream; the JM_FORCEINLINE
- * carrier_nda_wipeoff()/_arm_step()/_steer() are the C composition API a
- * receiver inlines into its own sample loop (it can also steer the shared NCO
- * with its own decision-directed error on handover).
+ * carrier_nda_wipeoff()/_arm_step()/_steer() are the same loop's three steps
+ * as a C composition API, for a caller that runs the loop inside its own
+ * sample loop.
  *
  * @note **The input SCALE does not matter, and there is no AGC here.** The
  * discriminator divides out its own amplitude law (`|z|^M`) exactly, so both
@@ -436,14 +436,14 @@ extern "C"
   }
 
   /**
-   * @brief Steer the shared NCO with a phase error through the loop filter.
+   * @brief Steer the NCO with a phase error through the loop filter.
    *
-   * Filters @p pe and updates the NCO frequency (per sample) + a proportional
-   * phase nudge. Shared by the NDA acquisition path and a composing receiver's
-   * decision-directed tracking path (handover writes the same NCO).
+   * Filters @p pe and stores the PI filter's output (`integ + kp*pe`, in
+   * cycles/sample) as the frequency control the next carrier_nda_wipeoff()
+   * feeds the LO.
    *
    * @param s   Carrier loop state.  Must be non-NULL.
-   * @param pe  Phase error (NDA discriminator, or a decision-directed error).
+   * @param pe  Phase error from the NDA discriminator (carrier_nda_arm_step).
    */
   JM_FORCEINLINE JM_HOT void
   carrier_nda_steer (dp_carrier_nda_state_t *s, double pe)

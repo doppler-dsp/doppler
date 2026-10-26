@@ -91,7 +91,7 @@ _Wire-ready hand-off record built from one_ [_**acq\_result\_t**_](structacq__re
 ## Detailed Description
 
 
-The C twin of the acquisition hand-off prototype's `DetectionEvent` (minus `timestamp_ns`, which depends on an optional `dp_sample_clock_t*` only that Python layer currently threads through). Fields are named/shaped to match `SPEC.md`'s own `DetectionEvent` table so a future wire encoding needs no renaming. 
+Every field is in a physical unit and the record is flat and pointer-free, so it can cross a thread or process boundary. It carries no timestamp: whatever feeds the engine samples owns the clock and stamps the record at its `samples_consumed`. The fields are tabulated in docs/design/async-dsss-receiver.md §2.2. 
 
 
     

@@ -1235,8 +1235,9 @@ acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t window_bins,
  *   exactly n/2 whose signed reading is the one index the search and the
  *   handoff used to disagree on (see dp_fftfreq_index()).
  *
- * Worked example, SPEC.md's geometry (chip_rate 3.069 Mcps, sf 1023 -> span
- * 1500 Hz, res 3000 Hz) at du = 50 kHz: n_side = ceil(48500/3000) = 17 ->
+ * Worked example, the specification's geometry
+ * (docs/design/async-dsss-receiver.md §1: chip_rate 3.069 Mcps, sf 1023 ->
+ * span 1500 Hz, res 3000 Hz) at du = 50 kHz: n_side = ceil(48500/3000) = 17 ->
  * 35 windows, k in [-17, +17], reach +/-51000 Hz.  The old formula gave
  * ceil(50000/1500) = 34, k in [-16, +17], reach [-48000, +51000] -- so a true
  * -50 kHz had no hypothesis within half a bin. */

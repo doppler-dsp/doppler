@@ -421,11 +421,11 @@ mpsk_rx_derive_m_out (double cap, int strict)
                            int ted, double lock_thresh, int differential);
 
   /**
-   * @brief How many times per symbol the chosen tap updates the carrier loop.
+   * @brief How many times per symbol the carrier loop updates.
    *
-   * The tap's whole point, as one number: it is both the factor by which the
-   * discriminator's unambiguous frequency range grows over the symbol-rate
-   * case, and the loop filter's update rate (see config_carrier).
+   * Always 1: the discriminator reads the on-time strobe, one output per
+   * symbol. It is the loop filter's update rate, which
+   * dp_mpsk_rx_config_carrier() sizes the filter against.
    */
   JM_FORCEINLINE double
   mpsk_rx_updates_per_symbol (const mpsk_rx_loops_t *l)
@@ -440,13 +440,12 @@ mpsk_rx_derive_m_out (double cap, int strict)
   }
 
   /**
-   * @brief (Re-)size the carrier loop filter for the tap's update rate.
+   * @brief Size the carrier loop filter for its update rate.
    *
-   * Called by dp_mpsk_rx_loops_init(), and AGAIN by each receiver's create()
-   * once the cascade has published its `bank_sps` — which arrives too late
-   * for init, so the MF_IN tap would otherwise keep gains designed for the
-   * `lo_sps` placeholder. `integ` survives dp_loop_filter_init() by contract,
-   * and every other tap re-derives the gains it already had.
+   * Called once, by dp_mpsk_rx_loops_init(). Designs the loop filter from
+   * `bn_carrier` (normalized to the symbol rate) and `zeta` at
+   * mpsk_rx_updates_per_symbol() updates per symbol, and sets `freq_scale`,
+   * which turns the filter's phase command into cycles per LO sample.
    */
   void dp_mpsk_rx_config_carrier (mpsk_rx_loops_t *l);
 
@@ -487,17 +486,18 @@ mpsk_rx_derive_m_out (double cap, int strict)
   }
 
   /**
-   * @brief Run the NDA discriminator on one tapped sample.
+   * @brief Run the NDA discriminator on one on-time strobe.
    *
-   * Shared by all three tap points so the discriminator, its AGC and its lock
-   * statistic exist exactly once however the caller chose to feed them.
+   * Computes the M-th-power phase error and lock statistic, updates the lock
+   * EMA and its indicator, and steers the carrier loop. There is no AGC here:
+   * the discriminator divides out `|z|^M`, so it is amplitude-blind.
    *
    * The discriminator, its lock EMA and the steer all run on every sample it
    * is handed, from the first strobe to the last. Nothing gates them: `lock`
    * is an indicator the caller reads, not an input the loop obeys.
    *
    * @param l        Loops.
-   * @param z        The tapped sample.
+   * @param z        The on-time strobe.
    */
   JM_FORCEINLINE JM_HOT void
   mpsk_rx_disc (mpsk_rx_loops_t *l, float _Complex z)

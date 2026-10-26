@@ -267,12 +267,6 @@ dp_ber_sync (const float _Complex *rx, size_t n_rx, const uint8_t *truth,
   return o;
 }
 
-/** @brief 1 when truth index @p t is covered by a marker occurrence.
- *
- * Marker symbols are KNOWN, so scoring them would flatter the error rate with
- * symbols that had no chance of being wrong — and, in the blind case, with the
- * very symbols that fixed the alignment. dp_ber_score() excludes them. */
-
 /* --- 3. The settled window ----------------------------------------------- */
 
 /**
@@ -415,8 +409,11 @@ dp_ber_enough (const dp_ber_t *b)
  * `mpsk_receiver_steps_bits()` would emit.
  *
  * Symbols covered by a marker occurrence are excluded (the meter's own
- * marker test, in ber_meter_core.c), as are any whose truth index falls
- * outside the truth array; both land in `skipped`.
+ * marker test, `in_marker()` in ber_meter_core.c), as are any whose truth
+ * index falls outside the truth array; both land in `skipped`. Marker
+ * symbols are KNOWN, so scoring them would flatter the error rate with
+ * symbols that had no chance of being wrong — and, in the blind case, with
+ * the very symbols that fixed the alignment.
  */
 static inline void
 dp_ber_score (dp_ber_t *b, const float _Complex *rx, size_t lo, size_t hi,
@@ -772,12 +769,12 @@ dp_ber_measure (dp_ber_t *b, const float _Complex *rx, size_t n_rx,
       long   e  = (long)(mk->period ? mk->t0 : mk->t0 + mn) - sy.lag;
       if (e > 0 && (size_t)e > lo)
         lo = (size_t)e;
-      /* And the SAME argument at the other end of the window. `in_marker`
-         bounds exclusion at both ends — `t < t0` above, and
-         `off / period >= occurrences` here — so scoring past the last
-         EXCLUDED occurrence reintroduces the identical defect at the tail:
-         sync words counted as data, flattering the denominator in the same
-         direction.
+      /* And the SAME argument at the other end of the window. The meter's
+         `in_marker()` (ber_meter_core.c) bounds exclusion at both ends —
+         `t < t0` above, and `off / period >= occurrences` here — so scoring
+         past the last EXCLUDED occurrence reintroduces the identical defect
+         at the tail: sync words counted as data, flattering the denominator
+         in the same direction.
 
          Measured on both named frames it does not currently bite — exclusion
          already reaches 44 symbols past the scored top at period 285 and 824

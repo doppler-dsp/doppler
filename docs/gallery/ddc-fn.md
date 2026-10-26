@@ -103,7 +103,7 @@ y1 = d.execute(x[4096:], out).copy()   # picks up exactly where y0 left off
 ```
 
 Run those same two halves through *fresh* handles instead and the seam shows a
-phase jump and a filter transient (`max|Δ| ≈ 0.78`) — the carried history is
+phase jump and a filter transient (`max|Δ| ≈ 1.56`) — the carried history is
 exactly the in-place state. Setting `norm_freq` and calling `reset()` likewise
 mutate the same handle.
 

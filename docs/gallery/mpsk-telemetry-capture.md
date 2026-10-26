@@ -34,8 +34,10 @@ cold-start BPSK pull-in leaves a complete record of the whole receiver:
     that used to sit here was flat at 0 by construction — a probe that cannot
     vary is not a diagnostic — and it went with the handover in
     [#877](https://github.com/doppler-dsp/doppler/issues/877).
-- **`rx.car.freq`** — the tracked NCO frequency pulls in to the injected
-    0.0015 cyc/sample offset.
+- **`rx.car.freq` / `rx.car.nco`** — the loop integrator (the frequency
+    the loop remembers) and the frequency the NCO actually applies
+    (integrator plus proportional arm) both pull in to the injected
+    0.00125 cyc/sample offset.
 - **`rx.car.e` / `rx.sync.e` / `rx.sync.ctrl`** — the carrier discriminator
     and the timing TED / loop-filter control settle out of the acquisition
     transient.
@@ -61,11 +63,10 @@ cold-start BPSK pull-in leaves a complete record of the whole receiver:
     separates, and that measurement belongs with the AGC's own evidence
     rather than here.
 
-Nothing is decimated (`decim=1`) and nothing is dropped — the summary cell
-reports the full capture: 16 probes, one 16-byte record per event. For the
-fourteen carrier, timing and symbol probes an event is a recovered symbol;
-the two
-`rx.agc.*` probes are tapped **pre-terminal**, ahead of the stage the timing
+Nothing is decimated (`decim=1`) and nothing is dropped — the script
+prints the full capture on stdout: 15 probes, one 16-byte record per event.
+For the thirteen carrier, timing and symbol probes an event is a recovered
+symbol; the two `rx.agc.*` probes are tapped **pre-terminal**, ahead of the stage the timing
 loop steers, and emit once per gain update instead, so they are denser and
 carry no symbol index. The x-axis is real time, because each record carries
 the sample index it was stamped with — which is what lets two probes counted

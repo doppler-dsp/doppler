@@ -13,11 +13,11 @@ the one job it owns:
   following `ber_awgn_demo.py`'s method: stop on ERRORS, assert on the
   interval's limits, never on the point estimate.
 
-The payload is PN data and nothing else -- no CRC, no frame description.
-The transmitted bits and the scoring truth come from ONE Field string,
-through ``doppler.wfm.field_bits``, so they cannot disagree. What is
-measured is a bit error rate; with no framing there is no frame error rate
-to quote.
+The frame is a sync word and PN data and nothing else -- a ``FrameDesc``
+of ``[sync | data]`` with no CRC. The transmitted bits and the scoring
+truth come from ONE Field string, through ``doppler.wfm.field_bits``, so
+they cannot disagree. What is measured is a bit error rate; with no CRC
+there is no frame check, so no frame error rate to quote.
 
 Limits, stated rather than hidden:
 

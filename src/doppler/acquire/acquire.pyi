@@ -1145,9 +1145,7 @@ class Acquisition:
 
     @property
     def pfa_cell(self) -> float:
-        """Bonferroni per-cell false-alarm probability over the searched
-        cells.
-        """
+        """Šidák per-cell false-alarm probability over the searched cells."""
 
     @property
     def pd_predicted(self) -> float:
@@ -1713,9 +1711,7 @@ class BurstAcquisition:
 
     @property
     def pfa_cell(self) -> float:
-        """Bonferroni per-cell false-alarm probability over the searched
-        cells.
-        """
+        """Šidák per-cell false-alarm probability over the searched cells."""
 
     @property
     def pd_predicted(self) -> float:

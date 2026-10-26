@@ -363,10 +363,10 @@ def main(out_path="ratesync_demo.png"):
     # and a correct one gets within a decibel or two of it. The lower bound
     # matters as much as the upper -- beating the bound would mean the
     # measurement is wrong, not that the receiver is brilliant.
-    # A settled window of this length carries ~0.4 dB of estimator noise (the
-    # relative std of a variance estimate is sqrt(2/N)), so one seed can land
-    # either side of the bound; over 12 seeds the mean sits 0.03 dB from it.
-    # +-1.5 dB is three sigma on one seed, not a fudge factor.
+    # The settled window is NSYM - settle = 4000 symbols, which carries under
+    # 0.1 dB of estimator noise (measured 0.07-0.08 dB std over seeds 0-9),
+    # so +-1.5 dB is a loose bound: a failure means a broken receiver, not
+    # an unlucky seed.
     # ...and the RELATION, not just one point: EVM should track -(Es/N0)
     # across operating points. Two extra points cost ~1 s and turn "it hit
     # the bound once" into "it is on the bound".

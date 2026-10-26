@@ -1,17 +1,14 @@
-"""dsss_receiver_demo.py -- the single-object form of the chain Stage 1-3
-validated by hand: ``Acquisition -> Dll(segments) -> RateConverter ->
-MpskReceiver``, composed into one C object, :class:`~doppler.dsss.
-DsssReceiver`.
+"""dsss_receiver_demo.py -- the four-object continuous async-DSSS chain
+``Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver``,
+composed into one C object, :class:`~doppler.dsss.DsssReceiver`.
 
-Same CCSDS Gold-code, continuous-asynchronous-BPSK-data signal and
-operating point (CN0=97 dB-Hz, SEED=6) as
-the four-object chain (Stage 3) -- this page is not a new
-finding, it's the payoff: everything that page hand-composed across
-four objects (``_new_acq``/``_new_chain``/``_receive``, the phase-
-inversion hand-off, the ``RateConverter`` bridge) is one object and one
-``steps()`` call here. Only ``code``/``chip_rate``/``symbol_rate`` are
-required; ``segments``/``sps`` default to Stage 2/3's own validated
-values (4 and 8) and can be overridden, and ``configure_search_raw``/
+A CCSDS Gold-code, continuous-asynchronous-BPSK-data signal at
+CN0=97 dB-Hz (SEED=6). Everything a caller would otherwise wire by hand
+across four objects (building the tracking chain from an acquisition hit,
+the phase-inversion hand-off, the ``RateConverter`` bridge) is one object
+and one ``steps()`` call here. Only ``code``/``chip_rate``/``symbol_rate``
+are required; ``segments``/``sps`` default to the receiver's own
+validated values (4 and 8) and can be overridden, and ``configure_search_raw``/
 ``configure_lock_raw``/``configure_chain_raw`` are the escape hatches
 for a power user who wants to pin the acquisition grid, code-lock
 detector, or despread/resample/demod grid directly -- the same "easy
@@ -46,7 +43,7 @@ CODE = Gold().generate(SF)
 
 
 def make_signal(cn0_dbhz: float, seed: int):
-    """The same signal Stage 1-3 used, described rather than assembled.
+    """The continuous async-DSSS test signal, described, not assembled.
 
     :class:`~doppler.wfm.Synth` in continuous DSSS mode (``symbol_rate > 0``)
     is the transmitter: the Gold code repeats forever and a known random
@@ -104,7 +101,7 @@ CN0_OPERATING_DBHZ = 97.0
 # --8<-- [start:receiver]
 def _new_receiver() -> DsssReceiver:
     """The "just works" call: only the signal's own physical parameters
-    are required. segments/sps default to Stage 2/3's own validated
+    are required. segments/sps default to the receiver's own validated
     values (4, 8) -- this page passes them explicitly for clarity, not
     because they're required."""
     with warnings.catch_warnings():

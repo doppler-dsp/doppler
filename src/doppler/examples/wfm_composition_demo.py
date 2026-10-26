@@ -6,7 +6,7 @@ resolved noise floor, the ``Segment.add`` timeline, and clip detection +
 ``headroom`` at the writer. Four panels:
 
 Top-left — **the scene's spectrum.** ``Segment.sum`` mixes a QPSK signal of
-interest (−10 dBFS) with a full-scale CW interferer at +200 kHz over one shared
+interest (−10 dBFS) with a −3 dBFS CW interferer at +200 kHz over one shared
 noise floor. SNR lives on the SoI (``snr=15`` Es/No); the composer resolves
 that
 into an explicit AWGN floor in C, so the SoI sits its **over-fs SNR** above the

@@ -38,7 +38,7 @@ reference design this object descends from.
 
 A linear filter applied to a white bipolar sequence has average PSD
 proportional to `|H(f)|^2` — the direct RRC analogue of the default
-template's rectangular-pulse sinc². [`doppler.wfm.rrc_taps`](wfm-io.md)
+template's rectangular-pulse sinc². [`doppler.wfm.rrc_taps`](../api/python-wfmgen.md#module-level-helpers)
 already generates the filter; the template is just its own zero-padded,
 DC-centred squared frequency response.
 
@@ -79,4 +79,5 @@ Source: `src/doppler/examples/carrier_acq_rrc_demo.py`. See also
 [Correlation](corr.md) (the `PSD`/`Corr`/`CorrDetector` primitives this
 object composes), [2-D Acquisition](detection2d.md) (the same Pfa/Pd
 statistics applied to `Acquisition`'s own code-phase × Doppler search), and
-[wfm I/O](wfm-io.md) (`rrc_taps` and pulse shaping in general).
+the [waveform generator API](../api/python-wfmgen.md#rrc-pulse-shaping-band-limited-carriers)
+(`rrc_taps` and RRC pulse shaping in general).

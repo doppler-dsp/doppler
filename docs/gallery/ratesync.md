@@ -50,9 +50,12 @@ So the fused matched filter **is on the bound**, across a 10 dB span — fusing
 it into the resampler's polyphase bank costs nothing in detection performance.
 It is the same filter, evaluated at a steered instant.
 
-(One 375-symbol window carries ~0.3 dB of estimator noise, so a single seed
-lands either side. The script asserts ±1.5 dB at three operating points rather
-than pretending one measurement is tighter than it is.)
+(The settled window is 4000 symbols — the 6000-symbol record less the
+2000-symbol `ber_settle_syms` budget — and carries under 0.1 dB of estimator
+noise: over seeds 0–9 the per-seed EVM spreads by 0.07–0.08 dB at each
+operating point. The script asserts ±1.5 dB at three operating points, a
+bound loose enough that a failure means a broken receiver, not an unlucky
+seed.)
 
 **Middle — Tracked clock.** `RateSync.rate` pulling off the nominal it was
 constructed with (dotted) onto the stream's true rate (dashed). The loop is
@@ -63,8 +66,9 @@ memory, and reading the noisy total instead biases the estimate.
 
 **Bottom — Matched-filter cost.** Taps per arm against input samples per
 symbol. Applied at the input rate (red) a root-raised-cosine matched filter
-grows linearly with `sps` — 4225 taps per arm at 256 samples/symbol, some 35 MB
-of bank. Riding the cascade's terminal stage (blue) it is **flat**: the HB/CIC
+grows linearly with `sps` — 4225 taps per arm at 256 samples/symbol, some 17 MB
+of `float` bank at the 1024 polyphase phases the cascade's own bank uses
+(`bank_shape`). Riding the cascade's terminal stage (blue) it is **flat**: the HB/CIC
 stages ahead of it have already done the bulk decimation, at no multiplies, so
 the filter is sized by the *post*-decimation rate. The single 34 → 40 step is
 the CIC droop compensator folding into the bank once the planner picks a CIC; a

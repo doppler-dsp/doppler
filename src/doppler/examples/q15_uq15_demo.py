@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 # --8<-- [start:roundtrips]
 import numpy as np
 
-from doppler.cvt import F32ToI16, I16ToF32
+from doppler.cvt import F32ToI16, F32ToUQ15, I16ToF32, UQ15ToF32
 
 # full-scale complex tone at 0.07 cycles/sample (the demo's signal)
 x = np.exp(2j * np.pi * 0.07 * np.arange(65536)).astype(np.complex64)
@@ -35,10 +35,12 @@ x = np.exp(2j * np.pi * 0.07 * np.arange(65536)).astype(np.complex64)
 enc, dec = F32ToI16(), I16ToF32()
 x_q15 = dec.steps(enc.steps(x.real))  # real channel only
 
-# UQ15 offset-binary roundtrip (numpy — no cvt UQ15 type yet)
-v = np.clip(np.round(x.real * 32768.0), -32768, 32767).astype(np.int16)
-u = (v.astype(np.int32) + 32768).astype(np.uint16)
-x_uq15 = (u.astype(np.float32) - 32768.0) / 32768.0
+# UQ15 offset-binary roundtrip: uint16, 0.0 -> 32768
+u = F32ToUQ15().steps(x.real)
+x_uq15 = UQ15ToF32().steps(u)
+
+# the +32768 offset cancels on decode: the same quantizer, bit for bit
+assert np.array_equal(x_q15, x_uq15)
 # --8<-- [end:roundtrips]
 
 # ---------------------------------------------------------------------------
@@ -52,7 +54,7 @@ def _q15_roundtrip(x: np.ndarray) -> np.ndarray:
 
 
 def _uq15_roundtrip(x: np.ndarray) -> np.ndarray:
-    """UQ15 offset-binary roundtrip (correct encode + correct decode).
+    """UQ15 offset-binary roundtrip via cvt.F32ToUQ15 / UQ15ToF32.
 
     Encode: v_q15 = round(x * 32768); u = v_q15 + 32768  → [0, 65535]
     Decode: x̂ = (u - 32768) / 32768
@@ -60,9 +62,7 @@ def _uq15_roundtrip(x: np.ndarray) -> np.ndarray:
     The +32768 shift cancels exactly on decode; quantisation error is
     identical to the Q15 path.
     """
-    v = np.clip(np.round(x * 32768.0), -32768, 32767).astype(np.int16)
-    u = (v.astype(np.int32) + 32768).astype(np.uint16)
-    return (u.astype(np.float32) - 32768.0) / 32768.0
+    return UQ15ToF32().steps(F32ToUQ15().steps(x))
 
 
 def _uq15_wrongdecode(x: np.ndarray) -> np.ndarray:

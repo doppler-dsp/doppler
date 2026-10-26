@@ -170,7 +170,7 @@ ______________________________________________________________________
 
 <!-- related-pages:start -->
 
-**Gallery** — [AsyncDsssReceiver: the SPEC link](../gallery/async-dsss-receiver-spec.md), [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [Gallery](../gallery/index.md), [M-PSK Receiver — Performance Characterisation](../gallery/mpsk-receiver-performance.md)
+**Gallery** — [AsyncDsssReceiver: the SPEC link](../gallery/async-dsss-receiver-spec.md), [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [Gallery](../gallery/index.md), [M-PSK Receiver — Performance Characterisation](../gallery/mpsk-receiver-performance.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md), [Arbitrary-Rate Symbol Recovery](../gallery/ratesync.md)
 **Design** — [Detection Sizing — the four laws behind one prefix](../design/detection.md), [The FEC Receive Half](../design/fec-receive.md), [Receiver Test Harness](../design/rx-test.md)
 **Contributing** — [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md), [Measuring a receiver](../dev/contributing/measuring-a-receiver.md)
 

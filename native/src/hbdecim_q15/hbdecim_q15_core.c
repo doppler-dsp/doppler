@@ -82,8 +82,8 @@ rev16_256 (__m256i v)
  * which overflows at inputs above -6 dBFS (sum of two in-phase samples
  * exceeds 32767).  Each madd operand stays within int16_t range, and the
  * two 8-wide int32 partial sums stay within int32_t for all practical
- * halfband coefficient magnitudes (max |h| < 0.65 → max |coeff_q15| < 21299
- * after ×0.5 scaling, giving max per-lane = 2×21299×32767 < 2^31).
+ * halfband coefficient magnitudes (max |h| < 0.65 → max |coeff_q15| < 10650
+ * after ×0.5 scaling, giving max per-lane = 2×10650×32767 < 2^31).
  */
 static int64_t
 fir_q15_avx2 (const int16_t *a, size_t N, const int16_t *coeffs, size_t Kp)

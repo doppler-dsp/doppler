@@ -32,7 +32,7 @@ three ways:
   receiver reads 10*log10(N/(S+N)), a little below -Es/N0.
 - **M2M4**, :func:`~doppler.snr.snr_m2m4_db`: a blind SNR estimate from the
   symbol moments. It assumes circular noise, and the demodulated stream's
-  noise is not circular, so it reads above the input Es/N0. It is a lock
+  noise is not circular, so it reads below the input Es/N0. It is a lock
   check here, not a measurement of the link.
 
 The script reads the receiver through ``status()`` and ``lifecycle`` after

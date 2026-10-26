@@ -14,7 +14,7 @@ whose circular autocorrelation is exactly zero at all non-zero lags.
 
 **Centre — Pd vs dwell M.** Marcum Q theory curve with the Monte
 Carlo operating point overlaid. The per-cell Pfa is tighter than the
-system Pfa by the Bonferroni factor (see below).
+system Pfa by the Šidák correction (see below).
 
 **Right — ROC at operating SNR and dwell.** Three traces: Marcum Q
 theory, empirical swept-threshold curve, and the MC operating point.
@@ -23,7 +23,8 @@ Theory and simulation agree throughout.
 ## How it works
 
 With N=256 cells, the system Pfa budget must be divided across all
-cells. The Bonferroni correction gives a conservative per-cell gate:
+cells. The Šidák correction (`det_pfa_cell`) gives the per-cell gate that
+makes N independent cells together meet the system Pfa exactly:
 
 ```
 pfa_cell = 1 − (1 − Pfa_sys)^(1/N)

@@ -41,12 +41,13 @@ phase *differences*, so an unknown constant rotation cancels — and *any*
 constant rotation cancels, not merely the M constellation steps, because a
 constant offset shifts every sliced index equally.
 
-The cost is **up to 2× the symbol-error rate**, which is a high-SNR asymptote
-rather than a flat factor. Measured, BPSK and QPSK reach it by ~8 dB Es/N0
-while 8PSK — the case below — pays only 1.44× at 4 dB and 2.03× by 14 dB, so a
-link sized at low Es/N0 is charged less than the round number suggests
-([validation report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md),
-[design §9.5](../design/mpsk.md)):
+The cost is **about 2× the symbol-error rate**, which is a high-SNR asymptote
+rather than a flat factor. Measured, the penalty runs from 1.72× to 2.17×:
+BPSK and QPSK reach ~2× by 6–8 dB Es/N0, while 8PSK — the case below — pays
+1.72× at 8 dB and 2.17× by 14 dB, so a link sized at low Es/N0 is charged less
+than the round number suggests
+([validation report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md)
+§2.4, [design §9.5](../design/mpsk.md)):
 
 ```python
 from doppler.mpsk import mpsk_diff_map, mpsk_diff_demap
@@ -62,7 +63,7 @@ assert np.array_equal(out[1:], sym[1:])   # rotation-invariant after the referen
 `map` takes the Gray label `g`, recovers the constellation index `k = gray_decode(g)`, and emits `exp(j·(2πk/M + φ0))`. `demap` slices to the nearest
 index by phase and returns `gray_encode(k̂)`. The inline `mpsk_slice()` /
 `mpsk_constellation()` helpers in `mpsk_core.h` are the C composition API the
-carrier loop (`track.Carrier.Mpsk`) and the MPSK receiver inline per symbol —
+carrier loop (`track.CarrierMpsk`) and the MPSK receiver inline per symbol —
 the decision-directed carrier error is `Im(y · conj(â))` where `â` is the sliced
 point. Differential map/demap accumulate / difference the index across the array.
 

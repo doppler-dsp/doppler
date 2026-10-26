@@ -34,7 +34,7 @@ workload the feature exists for.
 **Right — the field as one control.** Welch PSD of three renders that differ by
 a single number. The background is the broad shelf; the wanted signal is the
 flat-topped block at DC, the interferer the one at +330 kHz. Trim the composite
-by 10 dB and the whole field drops by 10 dB — measured at **9.98 dB** — while
+by 10 dB and the whole field drops by 10 dB — measured at **10.01 dB** — while
 the wanted signal moves 0.06 dB. Disable it and the field vanishes, leaving
 exactly the two signals and the noise floor.
 

@@ -63,8 +63,10 @@ the end of the capture:
     every locked draw within `EVM_TOL_DB` of that.
 - **M2M4**, [`snr.snr_m2m4_db`](../api/python-snr.md): a blind SNR estimate from
     the symbol moments. It assumes circular noise, and the demodulated stream's
-    noise is not circular, so it reads above the input Es/N0. Here it is a lock
-    check: every locked draw clears the input Es/N0 less the loss budget.
+    noise is not circular, so it is not a measurement of the link: it reads
+    below the input Es/N0 (7.0–7.3 dB against 8 dB across the three regimes).
+    Here it is a lock check: every locked draw clears the input Es/N0 less the
+    loss budget.
 
 Two more checks hold the timing. The slowest pull-in, from a hand-off to its
 first symbol lock, must stay under `lost_confirm_s`, so the release rule cuts no

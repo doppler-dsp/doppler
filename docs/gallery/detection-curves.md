@@ -49,8 +49,9 @@ predict performance:
 ```
 
 `det_threshold` inverts the Rayleigh CDF at `Pfa` to get the CFAR
-gate `eta`. `det_dwell` binary-searches over M until
-`det_pd(snr, M, eta) >= pd_target`.
+gate `eta`. `det_dwell` scans M = 1, 2, … up to `max_dwell` and returns
+the first M with `det_pd(snr, M, eta) >= pd_target`, or -1 if none
+reaches it.
 
 ```bash
 python src/doppler/examples/detection_curves.py   # → detection_curves.png

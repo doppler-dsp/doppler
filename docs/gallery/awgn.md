@@ -16,8 +16,10 @@ is white — no tonal artefacts from the LUT phase quantisation.
 
 **Bottom panel — noisy carrier.** Real part of `LO(0.1) + AWGN(σ=0.3)`,
 first 256 samples. The clean carrier (dashed) rides underneath the noise.
-Total complex power is split evenly: carrier ≈ 1/√2 per component, noise
-σ=0.3 per component, giving ≈ 10 dB SNR.
+The carrier is a unit-power complex tone (1/√2 RMS per component); the
+noise is σ=0.3 per component, so 2σ² = 0.18 in total, giving
+10·log10(1/0.18) ≈ 7.4 dB SNR. The panel title prints the SNR measured on
+this 256-sample draw (7.6 dB).
 
 ## How it works
 

@@ -82,24 +82,25 @@ madd chains — the superscalar core executes them in parallel at no cost.
 
 The naive approach is to fold first: `fold[k] = a[k] + a[N-1-k]` (int16),
 then `madd(fold, coeffs)`. This fails above −6 dBFS: for a tone at amplitude
-20000, two in-phase samples sum to 38042, which exceeds the int16 maximum of
+20000, two in-phase samples sum to 40000, which exceeds the int16 maximum of
 32767\. Saturating addition (`_mm256_adds_epi16`) would clip the result,
 introducing a non-linear distortion that cannot be corrected downstream.
 
 The two-pass approach keeps every operand in `[−32768, 32767]`. Each pass
 multiplies an un-folded delay-line slice (max ≈ 32767) by a coefficient
-(max ≈ 21299 after ×0.5 polyphase scaling). The `vpmaddwd` product fits in
-int32 (max = 2 × 21299 × 32767 ≈ 1.4 × 10⁹ < 2³¹), so no per-lane overflow
-occurs before the horizontal reduction to int64.
+(peak 10348 for this design: 0.632 × 0.5 × 32768 after the ×0.5 polyphase
+scaling). The `vpmaddwd` product fits in int32 (max = 2 × 10348 × 32767 ≈
+6.8 × 10⁸ < 2³¹), so no per-lane overflow occurs before the horizontal
+reduction to int64.
 
 ## Q15 arithmetic budget
 
 | Quantity                | Range             | Notes                        |
 | ----------------------- | ----------------- | ---------------------------- |
 | Input sample            | `[−32768, 32767]` | int16, full ADC range        |
-| FIR coefficient         | `[−21845, 21845]` | Q15 × 0.5 polyphase scaling  |
+| FIR coefficient         | `[−10348, 10348]` | Q15 × 0.5 polyphase scaling  |
 | Center-tap multiplier   | `16384`           | = 0.5 in Q15 (1 \<< 14)      |
-| Per-lane madd product   | `≤ ±1.43 × 10⁹`   | fits int32                   |
+| Per-lane madd product   | `≤ ±6.8 × 10⁸`    | fits int32                   |
 | Accumulator before hsum | 8 × int32 lanes   | no int32 overflow for K ≤ 64 |
 | Final accumulator       | int64             | Q30 fixed-point              |
 | Output rounding         | `+= 1 << 14`      | round-to-nearest             |

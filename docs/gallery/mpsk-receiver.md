@@ -92,8 +92,8 @@ the level the cascade was built for.*
 
 `lock` cannot see a level error **at all**. It is the M-th-power carrier
 statistic, and `carrier_nda_disc` divides out its own `|z|^M`, so it is
-invariant to amplitude by construction — 0.936 / 0.948 / 0.950 across the same
-16× span below. That invariance is a feature of the carrier loop (it needs no
+invariant to amplitude by construction — 0.946 / 0.955 / 0.979 across the same
+16× span below, which the example asserts stays within 0.05. That invariance is a feature of the carrier loop (it needs no
 AGC in front of it) and a trap for a caller using `lock` as a general health
 metric.
 
@@ -101,9 +101,10 @@ metric.
 --8<-- "src/doppler/examples/mpsk_receiver_demo.py:level"
 ```
 
-At 20 dB Es/N0 the error rate cannot see it either — every level above decodes
-cleanly. The pattern generalises across this object: **its lock statistic moves
-before its error rate, and its level readout moves before either.**
+The sweep above measures no error rate at each level, so it makes no claim
+about one; what it pins is the pair of readouts — `agc_gain_db` tracks the
+level exactly while `lock` stays put. **To find a level problem, read the
+level readout.**
 
 ## Resolving the M-fold ambiguity — differential bits
 
@@ -243,7 +244,7 @@ the number describes the detector rather than the flag it was read from.)
 The carrier discriminator's update rate sets how much frequency error it can
 even *see*: an M-th-power detector updating at rate `F` is unambiguous only for
 `|Δf| < F/(2M)`. It reads the **on-time strobe**, so `F = Rs` and the range is
-`Rs/(2M)` — `0.01·Rs` at QPSK.
+`Rs/(2M)` — `Rs/8 = 0.125·Rs` at QPSK.
 
 `nda_tap` used to be a knob offering two wider, timing-independent taps in
 exchange for signal quality. It is **gone**
@@ -277,9 +278,10 @@ Their **disagreement** is what carries the diagnosis. M2M4 uses only `|x|²` and
 `|x|⁴`, so it is **rotation-blind**: a constellation that is cleanly shaped but
 spinning still reads a healthy M2M4 while EVM collapses. A healthy M2M4 beside a
 collapsed EVM therefore says *the amplitudes are fine, the phase is not* — which
-no error rate could have told you. In the run above they agree within ~0.5 dB
-(EVM −23.8 dB, M2M4 +24.1 dB), which is what a real lock looks like. In C, both
-helpers are shared in `native/tests/dp_sym_test.h`.
+no error rate could have told you. At a real lock the two agree, both near
+the stream's Es/N0. In Python the EVM is
+[`ber_evm_db`](../api/python-ber.md); in C, both helpers are shared in
+`native/tests/dp_sym_test.h`.
 
 ## DSSS-MPSK — chain after a despreader
 

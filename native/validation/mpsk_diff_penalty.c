@@ -18,8 +18,9 @@
  * The two paths see the same labels and noise, but a differential symbol's
  * error lands on a different constellation point from the coherent one, so
  * the two error counts are close to independent. The ratio's sampling error
- * is therefore the unpaired count variance, and the check bounds the ratio by
- * it rather than by a fixed band. Pairing does NOT cancel the seed's luck.
+ * is therefore bounded by the unpaired count variance, and the check bounds
+ * the ratio by that rather than by a fixed band. Pairing does NOT cancel the
+ * seed's luck.
  *
  * The constellation is unit amplitude, so Es = 1 and N0 = 1/(Es/N0); awgn's
  * amplitude parameter IS the per-component standard deviation, hence

@@ -278,8 +278,8 @@ So a producer that spins on :meth:`write` until it succeeds, the obvious way to 
 True
 >>> buf.write(np.zeros(3, dtype=IQ16))
 False
->>> buf.dropped
-1
+>>> buf.dropped        # the refused call's length, not 1
+3
 ```
  
 

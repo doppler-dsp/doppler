@@ -1,4 +1,6 @@
-"""Fail-closed gate: every C ``@code`` block in a header compiles and runs.
+"""Fail-closed gate: every ``@code`` block in a header runs.
+
+A C block compiles and runs; a ``>>>`` block runs as a doctest (#2595).
 
 ``adding-algorithms.md`` says a header's ``@code`` blocks are tests: jm
 flows each into the ``.pyi`` and ``make test-stubs`` executes it. That holds
@@ -10,8 +12,8 @@ half of the same hole is ``scripts/check_header_example_arity.py``
 (doppler#1082); this is the compiler half.
 
 **Which blocks.** Derived from the block itself, not registered and not
-looked up: a block containing ``>>>`` is Python and belongs to
-``make test-stubs``; a ``@code{.lang}`` block names its own language
+looked up: a block containing ``>>>`` is Python; a ``@code{.lang}`` block
+names its own language
 (``{.unparsed}`` is a grammar, not a program) and is not C; every other
 ``@code`` block under ``native/inc/**`` is C and is gated here. Deriving
 "has a binding" from the manifests instead would be a second copy of jm's
@@ -39,12 +41,26 @@ listed in ``native/.c-header-code-ignore`` -- a RATCHET: an entry that now
 passes, or no longer exists, fails ``test_ignore_list_not_stale`` until it
 is deleted, so the list can only shrink (#1651).
 
+**The Python blocks run here too** (#2595). ``make test-stubs`` runs a
+``>>>`` block only once jm has transplanted it into a ``.pyi``, and jm does
+not carry every one: a property getter's, a ``destroy``'s and a C function
+with no binding of its own reach no stub. When this half landed, 94 of 635
+blocks reached none, and four of those were wrong -- an under-powered
+``BurstAcquisition``, a ``dropped`` count the header's own prose
+contradicted, a ``steps()`` call one symbol long. Every block runs, not only
+the unreached ones: all 635 take about a second, and deciding which reached
+a stub would be a second copy of jm's transplant rules. Each runs with a
+``UserWarning`` as an error, as the stub doctests do, from a scratch cwd.
+A deliberate skip is doctest's own ``# doctest: +SKIP`` on the line.
+
 Run with ``make test-snippets`` (after ``make build``).
 """
 
 from __future__ import annotations
 
+import doctest
 import re
+import warnings
 
 import pytest
 
@@ -119,8 +135,22 @@ def _documented(text, pos):
     return "file"
 
 
-def _blocks():
-    """``[(block id, header rel path, C source)]`` for every C block.
+def _python_source(raw):
+    """A ``>>>`` block's doctest text, gutter stripped.
+
+    A trailing backslash is stripped only when EVERY line carries one -- a
+    doc comment inside a multi-line macro. Otherwise it is Python's own line
+    continuation and is part of the example.
+    """
+    lines = [ln for ln in raw.splitlines() if ln.strip()]
+    if lines and all(ln.rstrip().endswith("\\") for ln in lines):
+        raw = _CONTINUATION.sub("", raw)
+    return _GUTTER.sub("", raw).rstrip() + "\n"
+
+
+def _blocks(python=False):
+    """``[(block id, header rel path, source)]`` for every C block, or with
+    *python*, every ``>>>`` block.
 
     The id is ``<header>::<documented function>``, with ``#n`` appended from
     the second block on the same function -- stable across edits elsewhere
@@ -133,10 +163,13 @@ def _blocks():
         seen: dict[str, int] = {}
         for m in _BLOCK.finditer(text):
             lang, raw = m.group(1), m.group(2)
-            if lang or ">>>" in raw:
+            if lang or (">>>" in raw) != python:
                 continue
-            code = _GUTTER.sub("", _CONTINUATION.sub("", raw))
-            code = code.rstrip() + "\n"
+            if python:
+                code = _python_source(raw)
+            else:
+                code = _GUTTER.sub("", _CONTINUATION.sub("", raw))
+                code = code.rstrip() + "\n"
             name = _documented(text, m.end())
             k = seen.get(name, 0)
             seen[name] = k + 1
@@ -158,6 +191,7 @@ def _load_ignore():
 BLOCKS = _blocks()
 IGNORED = _load_ignore()
 CASES = [b for b in BLOCKS if b[0] not in IGNORED]
+PY_BLOCKS = _blocks(python=True)
 
 
 def _translation_unit(rel, code):
@@ -243,3 +277,60 @@ def test_wrapping_catches_a_renamed_function(tmp_path):
     code = "size_t n = dp_no_such_function (1);\n"
     with pytest.raises(AssertionError, match="failed to compile"):
         _check("sabotage::renamed", "doppler/dp_state.h", code, tmp_path)
+
+
+def _doctest(blockid, rel, code, cwd, monkeypatch):
+    """Run one ``>>>`` block; fail naming it, with doctest's report.
+
+    The UserWarning filter is set HERE rather than left to the make
+    target's ``-W``, so the rule holds however the test is invoked.
+    """
+    monkeypatch.chdir(cwd)
+    test = doctest.DocTestParser().get_doctest(code, {}, blockid, rel, 0)
+    # ELLIPSIS is pytest's default doctest flag, so the stub doctests
+    # read a block exactly as this does.
+    runner = doctest.DocTestRunner(optionflags=doctest.ELLIPSIS)
+    report: list[str] = []
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        result = runner.run(test, out=report.append)
+    assert result.failed == 0, f"{blockid}:\n" + "".join(report)
+
+
+@pytest.mark.docs_snippets
+@pytest.mark.parametrize(
+    "blockid,rel,code", PY_BLOCKS, ids=[c[0] for c in PY_BLOCKS]
+)
+def test_py_header_code(blockid, rel, code, tmp_path, monkeypatch):
+    """Doctest one header ``>>>`` block, stub or no stub (#2595)."""
+    _doctest(blockid, rel, code, tmp_path, monkeypatch)
+
+
+@pytest.mark.docs_snippets
+def test_py_discovery_nonempty():
+    assert PY_BLOCKS, "no >>> @code blocks under native/inc -- parser broken?"
+
+
+@pytest.mark.docs_snippets
+@pytest.mark.parametrize(
+    "code,why",
+    [
+        (">>> 1 + 1\n3\n", "wrong expected output"),
+        (
+            ">>> import warnings\n>>> warnings.warn('under-powered')\n",
+            "a UserWarning",
+        ),
+    ],
+    ids=["wrong-output", "warns"],
+)
+def test_py_harness_fails_a_bad_block(code, why, tmp_path, monkeypatch):
+    """Sabotage, pinned: the harness must not pass a block that is wrong."""
+    with pytest.raises(AssertionError):
+        _doctest(f"sabotage::{why}", "x.h", code, tmp_path, monkeypatch)
+
+
+@pytest.mark.docs_snippets
+def test_py_line_continuation_survives(tmp_path, monkeypatch):
+    """A Python ``\\`` continuation is the example's, not a macro's."""
+    raw = " * >>> x = 1 + \\\n * ...     2\n * >>> x\n * 3\n"
+    _doctest("continuation", "x.h", _python_source(raw), tmp_path, monkeypatch)

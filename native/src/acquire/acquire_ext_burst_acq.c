@@ -721,7 +721,7 @@ static PyGetSetDef BurstAcquisition_getset[] = {
   { "eta_nc", (getter)BurstAcquisition_getprop_eta_nc, NULL,
     "Non-coherent CFAR threshold (order-N_nc Marcum).\n", NULL },
   { "pfa_cell", (getter)BurstAcquisition_getprop_pfa_cell, NULL,
-    "Bonferroni per-cell false-alarm probability over the searched cells.\n",
+    "Šidák per-cell false-alarm probability over the searched cells.\n",
     NULL },
   { "pd_predicted", (getter)BurstAcquisition_getprop_pd_predicted, NULL,
     "Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the "

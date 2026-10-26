@@ -2,14 +2,14 @@
 
 ![Constellation, running BER, windowed correctness, and carrier pull-in](../assets/dsss_receiver_demo.png)
 
-The composed form of `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`, the four-object continuous async-DSSS receive chain, now
-composed into one C object,
-[`DsssReceiver`](../api/python-dsss.md). Same CCSDS Gold-code signal and
-operating point (CN0=97 dB-Hz, SEED=6) as that page — this page isn't a new
-finding, it's everything that page hand-composed across four objects
-(the `_new_acq()`/`_new_chain()`/`_receive()` helpers, the phase-inversion
-hand-off, the `RateConverter` bridge) collapsed into one object and one
-`steps()` call.
+`Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`, the
+four-object continuous async-DSSS receive chain, composed into one C
+object, [`DsssReceiver`](../api/python-dsss.md). Everything a caller would
+otherwise wire by hand across four objects — building the tracking chain
+from an acquisition hit, the phase-inversion hand-off, the
+`RateConverter` bridge from the chip clock to the symbol clock — is one
+object and one `steps()` call. The signal is a CCSDS Gold-code,
+continuous asynchronous BPSK stream at CN0=97 dB-Hz (SEED=6).
 
 ## A simple API, with escape hatches
 
@@ -62,18 +62,15 @@ required. Three escape hatches cover the power-user surface:
 active: while searching, samples feed the embedded Acquisition and
 nothing is emitted (an empty array is normal, not an error). The moment a
 hit fires, `Dll`/`RateConverter`/`MpskReceiver` are built and seeded from
-it — the exact phase-inversion hand-off and rate-bridging the
-hand-composed receiver validated — and the **unconsumed tail of that same
-call** is
-handed straight to them, so no samples are dropped at the transition.
+it — with the phase-inversion hand-off and the rate bridge — and the
+**unconsumed tail of that same call** is handed straight to them, so no samples are dropped at the transition.
 While tracking, samples feed `Dll -> RateConverter -> MpskReceiver` in
 sequence and demodulated symbols come back. `steps()` accepts any block
 size; state carries across calls.
 
 ## What you're seeing
 
-Same four panels as the hand-composed receiver, now produced by one
-object: decoded BPSK
+Four panels, all produced by the one object: decoded BPSK
 constellation (settled window), running BER (settled window), windowed
 decode correctness across the full run, and `DsssReceiver.norm_freq` vs.
 epoch — flat at zero through the searching phase (the placeholder chain's

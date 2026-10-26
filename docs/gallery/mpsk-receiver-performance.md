@@ -9,7 +9,7 @@ is measured over **randomly drawn geometries** rather than a fixed grid, on both
 [walkthrough page](mpsk-receiver.md) for what they are and the
 [design note](../design/mpsk.md) for how they work.
 
-Each trial independently draws the constellation order, `m_out`, a **non-integer**
+Each trial independently draws the constellation order, a **non-integer**
 samples-per-symbol, the IF placement, both loop bandwidths, the frequency and
 clock offsets, the absolute level, and the data. That is the point:
 
@@ -159,10 +159,16 @@ python src/doppler/examples/mpsk_receiver_performance_demo.py --only falsealarm
 python src/doppler/examples/mpsk_receiver_performance_demo.py --trials 400
 ```
 
-!!! note "Not run by the examples gate"
+!!! note "Run by the examples gate"
 
-    This script is listed in `src/doppler/examples/.examples-skip`. Its Monte
-    Carlo asserts the coherent bound, and 8PSK at `m_out < 8` genuinely misses it
-    (measured 8.1 dB of loss at `m_out = 4`, `sps = 10.73`), so pass/fail depends
-    on the draw. Everything it measures about the *shipped defaults* is covered by
-    `src/doppler/track/tests/`, which does run in CI.
+    The default run (the `evm` and `lock` panels, six trials per cell)
+    executes in CI like every example not listed in
+    `src/doppler/examples/.examples-skip`, so the sweep's asserts — lock above
+    each order's Es/N0 threshold, EVM within the squaring-loss allowance of
+    the bound, implementation loss, settling budget — are checked on every
+    PR. The other panels' asserts run only when `--only` selects them. It
+    used to be skipped:
+    8PSK at `m_out < 8` genuinely misses the bound (measured 8.1 dB of loss at
+    `m_out = 4`, `sps = 10.73`), so pass/fail depended on the draw. `m_out` is
+    now pinned at 8, the value the receiver is operated at, and that
+    configuration is no longer drawn.

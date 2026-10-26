@@ -18,8 +18,10 @@ which. Each phase is tried, and the one whose bits repeat the description's
 sync word at the frame period is kept — the way a real receiver resolves it.
 
 **Every frame after the lock transient passes, with the right payload.** The
-first frame or two are lost while the loops settle; the rest pass
-`FrameDesc.check`, and each passed payload is one that was sent.
+first frames are lost while the loops settle — 2 of 200 for BPSK and 10 of
+200 for QPSK, which has half the symbols per bit, on the run printed by the
+script. The script allows the loops `SETTLE = 12` frames; every frame after
+that passes `FrameDesc.check`, and each passed payload is one that was sent.
 
 **The check is a real detector.** One flipped bit fails it. At 4 dB Es/N0 more
 than half the frames are damaged and fail, and none passes carrying a payload

@@ -211,7 +211,7 @@ doc = "Non-coherent CFAR threshold (order-N_nc Marcum)."
 name = "pfa_cell"
 type = "double"
 expr = "self->handle->engine->pfa_cell"
-doc = "Bonferroni per-cell false-alarm probability over the searched cells."
+doc = "Šidák per-cell false-alarm probability over the searched cells."
 
 [[burst_acq.properties]]
 name = "pd_predicted"

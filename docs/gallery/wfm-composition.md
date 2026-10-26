@@ -28,9 +28,10 @@ floor — the full 15 dB Es/No is realised later, by the receiver's matched filt
 burst (at −300 kHz), a short gap, then the scene. The spectrogram shows the
 hand-off in time — the composer simply plays its segment list back-to-back.
 
-**Bottom-left — PAPR and headroom.** A sum of two tones plus noise is **not**
-constant-envelope, so its peak runs past full-scale: here the raw composite
-peaks at **+3.2 dBFS** and an integer capture clips **7 %** of its samples (red).
+**Bottom-left — PAPR and headroom.** A QPSK signal plus a CW tone plus noise
+is **not** constant-envelope, so its peak runs past full-scale: here the raw
+composite peaks at **+3.2 dBFS** and an integer capture clips **7 %** of its
+samples (red).
 `headroom` backs the whole composite off by 4 dB so the peak fits under ±1.0
 (green). Headroom is a single scale, so it moves the absolute level *without*
 touching any power ratio — the SNR is unchanged.

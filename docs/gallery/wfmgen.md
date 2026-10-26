@@ -48,7 +48,7 @@ the simple single-waveform case of the composer.
 The goal is that a bare command Just Works and you only dial in what you need:
 
 ```sh
-wfmgen --type tone                  # clean baseband tone, fs 1 MHz, 1024 cf32
+wfmgen --type tone                  # clean baseband tone, fs 1 Hz, 1024 cf32
 wfmgen --type qpsk --snr 12         # QPSK at 12 dB Es/No (the auto mode for *psk)
 wfmgen --type pn --pn-length 9      # length-9 MLS, primitive poly chosen for you
 ```
@@ -83,9 +83,11 @@ order in its 512-byte header, so one file is fully self-describing.
 
 ## Multi-segment specs and reproducible runs
 
-`--record FILE` writes the **fully-resolved** spec as JSON — every value after
-defaulting (the chosen MLS polynomial, the resolved SNR mode, …). Feed that file
-straight back with `--from-file` and you get a byte-identical stream:
+`--record FILE` writes the run's spec as JSON — every field, defaults filled
+in. Automatic choices are recorded as the request, not the result:
+`"pn_poly": 0` and `"snr_mode": "auto"` stay as written, and the engine
+resolves them the same way again on replay. Feed that file straight back with
+`--from-file` and you get a byte-identical stream:
 
 ```sh
 wfmgen --type bpsk --count 50000 --sps 4 --record run.json -o a.iq

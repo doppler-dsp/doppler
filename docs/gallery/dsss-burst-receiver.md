@@ -76,8 +76,9 @@ these stops being true.
 
 ### 1. Block size does not change the answer
 
-The same capture is pushed whole, then in 64 KiB, 1000 and 333-sample
-blocks — the smallest **32x shorter than a single burst**. All five decode
+The same capture is pushed whole, then in 64 KiB, 8 KiB, 1000 and
+333-sample blocks — the smallest **31x shorter than a single burst**. All
+five decode
 the same four bursts at the same samples, with `dropped == 0`.
 
 ```python
@@ -179,7 +180,7 @@ produced them: the C/N0 estimate lands within about a decibel of the
 scene's **57.1 dB-Hz** on every burst, from a bound that is allowed to be
 pessimistic and must not run hot.
 
-Two of these are easy to misread, so the example asserts them rather than
+Three of these are easy to misread, so the example asserts them rather than
 mentioning them:
 
 - **`est_rate_hz == 0` is a configuration fact, not a measurement.** This
@@ -318,15 +319,16 @@ periodic autocorrelation (an extended m-sequence gives 8.0; the best of a
 4000-code random search reached 10.7), and this object's own
 [certification](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md)
 brackets what that costs — ratio 31 found every burst offset, 1.07 lost
-47% of them.
+50% of them.
 
 ## BER vs Eb/N0, through one `Plan`
 
 ![DSSS burst BER against Eb/N0: measured points with 99% intervals on coherent BPSK and the sync-phase-limited curve](../assets/dsss_burst_ber_demo.png)
 
 The last step is the receiver's performance: a Monte Carlo of bit error
-rate against Eb/N0, scored against theory. The burst carries **PN data and
-nothing else** — no CRC, no frame description — and the transmit bits and
+rate against Eb/N0, scored against theory. The burst carries **a sync word
+and PN data, nothing else** — a `FrameDesc` of `[sync | data]` with no CRC —
+and the transmit bits and
 the scoring truth come from one Field string through `wfm.field_bits`. The
 script is its own gate,
 [`dsss_burst_ber_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/dsss_burst_ber_demo.py),

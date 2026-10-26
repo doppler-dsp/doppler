@@ -259,7 +259,7 @@ doc = "Non-coherent CFAR threshold (order-N_nc Marcum)."
 name = "pfa_cell"
 type = "double"
 field = true
-doc = "Bonferroni per-cell false-alarm probability over the searched cells."
+doc = "Šidák per-cell false-alarm probability over the searched cells."
 
 [[acq.properties]]
 name = "pd_predicted"

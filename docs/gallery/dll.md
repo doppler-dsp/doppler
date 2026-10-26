@@ -16,9 +16,9 @@ incoming rate (black dashed) — the loop has matched the code Doppler, so its
 replica neither leads nor lags.
 
 **Bottom — Loop stress vs time.** The sliding-RMS of the non-coherent
-early-minus-late discriminator `(|E| - |L|) / (|E| + |L|)` — the *stress* on the
-code loop. The half-chip misalignment drives a large transient that decays to a
-low locked floor as the replica aligns.
+early-minus-late power discriminator `0.5·(|E|² - |L|²) / |P|²` — the
+*stress* on the code loop. The half-chip misalignment drives a large
+transient that decays to a low locked floor as the replica aligns.
 
 ## How it works
 

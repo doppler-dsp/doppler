@@ -82,7 +82,7 @@ their rate `fs = chip_rate·spc`, the repetitions `reps`, a sizing sensitivity
     filter on the fast-time axis).
 1. Estimates a CFAR noise floor and gates the peak — emitting an
     `(doppler_bin, code_phase, …)` event whenever the test statistic crosses an
-    automatically configured, Bonferroni-corrected threshold.
+    automatically configured, Šidák-corrected threshold.
 
 The script pins the coherent depth to all five repetitions with
 `configure_search_raw(reps, 1)` (`doppler_bins == reps`), so one acquisition

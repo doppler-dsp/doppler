@@ -24,7 +24,7 @@ Two conditions, same signal, same true 137 Hz residual:
   margin, template shape barely matters.
 - **0 dB Es/N0**: both templates still confidently detect (the CFAR
   gate fires for both -- a corrected threshold, see
-  FINISHING_PLAN.md's CarrierAcquisition section, replaced the earlier
+  carrier_acq_ratio_threshold() in carrier_acq_core.c, replaced the earlier
   overly-conservative one that used to make the wrong template miss
   outright at moderate SNR), but the DEFAULT (rectangular-pulse)
   template's own estimate is roughly 2x worse than the matched RRC
@@ -77,18 +77,6 @@ def make_signal(esn0_db: float, seed: int = SEED):
 
 # --8<-- [end:signal]
 
-from doppler.acquire import CarrierAcquisition  # noqa: E402
-from doppler.spectral import PSD  # noqa: E402
-
-NO_TEMPLATE = np.array([], dtype=np.float32)
-# design_snr picks a multi-look non-sequential dwell (det_n_noncoh) instead
-# of the object's own ergonomic default (design_snr=2.0, dwell_target=1) --
-# a single look's own periodogram carries real "self-noise" from the random
-# data pattern's own realization, so this compares CONVERGED estimates, not
-# single-look noise (see FINISHING_PLAN.md's own CarrierAcquisition section
-# for the broader open question about calibrating this properly).
-CA_KWARGS = {"design_snr": 0.08, "sequential": False}
-
 
 # --8<-- [start:templates]
 def rrc_template_for(nfft: int) -> np.ndarray:
@@ -110,6 +98,18 @@ def rrc_template_for(nfft: int) -> np.ndarray:
 
 
 # --8<-- [start:compare]
+from doppler.acquire import CarrierAcquisition  # noqa: E402
+
+# An empty template selects the object's built-in rectangular-pulse sinc^2.
+NO_TEMPLATE = np.array([], dtype=np.float32)
+# design_snr picks a multi-look non-sequential dwell (det_n_noncoh) instead
+# of the object's own ergonomic default (design_snr=2.0, dwell_target=1) --
+# a single look's own periodogram carries real "self-noise" from the random
+# data pattern's own realization, so this compares CONVERGED estimates, not
+# single-look noise.
+CA_KWARGS = {"design_snr": 0.08, "sequential": False}
+
+
 def estimate(x: np.ndarray, template: np.ndarray) -> CarrierAcquisition:
     ca = CarrierAcquisition(
         SAMPLE_RATE_HZ, SYM_RATE_HZ, psd_template=template, **CA_KWARGS
@@ -131,6 +131,9 @@ def run_condition(esn0_db: float):
 
 
 # --8<-- [end:compare]
+
+
+from doppler.spectral import PSD  # noqa: E402
 
 
 def main(out_path: str = "carrier_acq_rrc_demo.png") -> None:

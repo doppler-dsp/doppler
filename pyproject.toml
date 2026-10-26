@@ -161,7 +161,7 @@ dev = [
     # reuses whatever version happens to be installed as a uv TOOL, which is
     # not "latest" and drifts per machine. Keep in sync with jm_version in
     # just-makeit.toml.
-    "just-makeit==0.111.0",
+    "just-makeit==0.111.2",
     # The lint/format toolchain. It lives HERE, not in
     # .pre-commit-config.yaml's `additional_dependencies`, because that is what
     # makes local and CI resolve identically: the hooks dispatch to
@@ -255,6 +255,9 @@ extend-exclude = [
     "*.pyi",
     "vendor",
     "src/doppler/*/__init__.py",
+    # ... and the downstream example's, which jm renders the same way: a
+    # re-export line past 79 columns is jm's render, not ours to wrap.
+    "examples/downstream-jm/src/*/*/__init__.py",
     # Vendored VERBATIM from canonical standard.mk's VENDORED_FILES, held to
     # it byte for byte by standard-check: reformatting it here is drift.
     "scripts/ci-docs.py",

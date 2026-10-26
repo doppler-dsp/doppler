@@ -17,7 +17,7 @@ What this shows
 3. **How to tell a real burst from a false alarm.** At `pfa = 1e-3` a
    spurious window is expected — this object is a detector's output stage and
    will not gate on signal quality. The read-back that separates them is
-   `cn0_dbhz_est`, by about 9 dB.
+   `cn0_dbhz_est`, by more than 6 dB here (the run prints the margin).
 
 Every claim above is asserted, so exit 0 means demonstrated AND checked.
 
@@ -142,7 +142,9 @@ def capture() -> BurstCapture:
         burst_len=BURST_LEN,
         reps=REPS,
         fs=CHIP_RATE * SPC,
-        cn0_dbhz=55.0,
+        # The design point, 3 dB over this geometry's feasibility floor
+        # (58 dB-Hz). The scene's bursts arrive far stronger (~97 dB-Hz).
+        cn0_dbhz=61.0,
     )
 
 
@@ -210,7 +212,10 @@ def main() -> None:
             f"  cn0_dbhz_est separates them by {cn0_real - cn0_spur:.1f} dB "
             f"({cn0_real:.1f} vs {cn0_spur:.1f}) — filter on THIS"
         )
-        assert cn0_real > cn0_spur, "C/N0 must be higher at a real burst"
+        assert cn0_real - cn0_spur > 6.0, (
+            f"cn0_dbhz_est must separate real from spurious by > 6 dB "
+            f"({cn0_real:.1f} vs {cn0_spur:.1f})"
+        )
     else:
         print("  (no false alarm in this scene — the separation is in §2.5 of")
         print("   the validation report, over many more trials)")

@@ -15,8 +15,13 @@ How each example runs
 As a subprocess of the current interpreter, from a throwaway working
 directory (an example writing a PNG or a capture file is fine and never
 pollutes the repo), with ``MPLBACKEND=Agg`` (headless plotting), stdin
-closed, and a wall-clock timeout. Exit code 0 is required; stderr is
-shown on failure. Examples are expected to *validate themselves* --
+closed, a wall-clock timeout, and ``PYTHONWARNINGS=error::UserWarning``
+(#2594): a gallery page ``--8<--``-includes these scripts, so a warning
+here shows the reader a configuration the object itself calls wrong --
+the same rule ``make test-stubs`` and ``make test-snippets`` hold with
+``-W error::UserWarning``. An example that warns ON PURPOSE catches the
+warning in its own code. Exit code 0 is required; stderr is shown on
+failure. Examples are expected to *validate themselves* --
 assert on a BER threshold, a lock flag, a round-trip equality -- so exit
 0 means "demonstrated and checked", not merely "didn't crash".
 
@@ -150,6 +155,11 @@ def _broker_reachable(host: str = "127.0.0.1", port: int = 4222) -> bool:
         return False
 
 
+#: What every example runs under: headless plots, and a UserWarning is an
+#: error (#2594), as it is for the stub and doc-snippet doctests.
+EXAMPLE_ENV = {"MPLBACKEND": "Agg", "PYTHONWARNINGS": "error::UserWarning"}
+
+
 @pytest.mark.parametrize(
     "script",
     [_param(s) for s in SCRIPTS],
@@ -178,7 +188,7 @@ def test_example_runs(script: Path, tmp_path: Path) -> None:
     # FileNotFoundError (gh-954). Creating the directory an example
     # expects is accommodating the defect, not testing for it.
 
-    env = dict(os.environ, MPLBACKEND="Agg")
+    env = dict(os.environ, **EXAMPLE_ENV)
     proc = subprocess.run(
         [sys.executable, str(script)],
         cwd=tmp_path,
@@ -223,7 +233,7 @@ def _start(script: str, cwd: Path) -> tuple[subprocess.Popen, list[str]]:
     proc = subprocess.Popen(
         [sys.executable, str(EXAMPLES_DIR / script)],
         cwd=cwd,
-        env=dict(os.environ, MPLBACKEND="Agg", PYTHONUNBUFFERED="1"),
+        env=dict(os.environ, **EXAMPLE_ENV, PYTHONUNBUFFERED="1"),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

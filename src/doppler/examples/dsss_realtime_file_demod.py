@@ -253,7 +253,10 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
         np.repeat(nrz, SPC).astype(np.complex64),
         reps=REPS,
         fs=CHIP_RATE * SPC,
-        cn0_dbhz=40.0,
+        # 3 dB over this preamble's feasibility floor (45 dB-Hz), so the
+        # object does not call its own sizing under-powered; the depth is
+        # pinned just below, so this sets no detection behaviour.
+        cn0_dbhz=48.0,
     )
     # Pin n_noncoh=1: a single push() below must decide immediately: with
     # no caller-facing max_noncoh knob left to default to "coherent-only,"

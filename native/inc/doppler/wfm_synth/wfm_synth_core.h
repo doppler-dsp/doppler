@@ -836,9 +836,10 @@ int dp_wfm_synth_set_dsss_window(dp_wfm_synth_state_t *state,
  * >>> from doppler.wfm import _SynthEngine, rrc_taps
  * >>> s = _SynthEngine(
  * ...     type="symbols", fs=1.0, freq=0.0, snr=100.0, sps=4)
- * >>> s.set_symbols(np.array([1+0j, 1j, -1+0j, -1j], np.complex64))
- * >>> s.steps(4)[::4].tolist()   # symbol centres (rect hold)
- * [(1+0j), (1+0j), (1+0j), (1+0j)]
+ * >>> syms = np.array([1+0j, 1j, -1+0j, -1j], np.complex64)
+ * >>> s.set_symbols(syms)
+ * >>> np.array_equal(s.steps(16)[::4], syms)  # each held for sps samples
+ * True
  * @endcode
  */
 int dp_wfm_synth_set_symbols(dp_wfm_synth_state_t *state,

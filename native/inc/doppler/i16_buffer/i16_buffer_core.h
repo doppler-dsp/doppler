@@ -481,8 +481,8 @@ dp_i16_buffer_get_space (const dp_i16_buffer_state_t *state)
  * True
  * >>> buf.write(np.zeros(3, dtype=IQ16))
  * False
- * >>> buf.dropped
- * 1
+ * >>> buf.dropped        # the refused call's length, not 1
+ * 3
  * @endcode
  */
 static inline size_t

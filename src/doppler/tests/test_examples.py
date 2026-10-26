@@ -156,8 +156,15 @@ def _broker_reachable(host: str = "127.0.0.1", port: int = 4222) -> bool:
 
 
 #: What every example runs under: headless plots, and a UserWarning is an
-#: error (#2594), as it is for the stub and doc-snippet doctests.
-EXAMPLE_ENV = {"MPLBACKEND": "Agg", "PYTHONWARNINGS": "error::UserWarning"}
+#: error (#2594), as it is for the stub and doc-snippet doctests. The later
+#: filter wins, so a DeprecationWarning stays ignored even when it is also a
+#: UserWarning: pyparsing's is both, and on the 3.9 floor matplotlib 3.9.4
+#: raises one at import, before any example line runs. A deprecation is a
+#: library's notice to its caller, not a configuration the example chose.
+EXAMPLE_ENV = {
+    "MPLBACKEND": "Agg",
+    "PYTHONWARNINGS": "error::UserWarning,ignore::DeprecationWarning",
+}
 
 
 @pytest.mark.parametrize(

@@ -2304,18 +2304,18 @@ class Spectrogram:
         """Push a chunk of samples, and return the rows it completes.
 
         The rows come back as a (rows, nfft) float32 matrix, or None when the chunk
-        completes none. A partial frame is carried to the next push. consumed equals
-        the input length: the binding allocates room for every row the chunk can
-        complete, so no input is held back. To bound memory, push smaller chunks,
-        sized with rows_for(n).
+        completes none. A partial frame is carried to the next push. Without out=,
+        consumed equals the input length: the binding allocates room for every row
+        the chunk can complete, so no input is held back.
 
         An object is not thread-safe: one Spectrogram must not be pushed from two
         threads at once, because the kernel uses the object's scratch. push releases
         the GIL, so other Python threads run meanwhile, but not on this object.
 
-        An out array, if given, must be a float32 array of at least
-        push_max_out(len(x)) elements. A smaller out raises ValueError; it is not
-        taken as a short one.
+        An out array may be any (k, nfft) float32 matrix, k = 0 included: push
+        writes the whole rows that fit and stops before a row it has no room for, so
+        consumed can then be less than len(x). Offer x[consumed:] again after
+        draining the rows; nothing is lost and the rows resume bit-exact.
 
         >>> import numpy as np
         >>> from doppler.spectral import Spectrogram

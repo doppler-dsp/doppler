@@ -149,12 +149,22 @@ class TestLevels:
 class TestBackpressure:
     """The out buffer's shape and size are checked on the Python face."""
 
-    def test_a_short_out_is_refused_not_taken_as_a_short_push(self):
-        """An out smaller than push_max_out(n) raises ValueError (jm#2230)."""
+    def test_a_short_out_takes_what_fits_and_resumes_bit_exact(self):
+        """A short out writes the whole rows that fit; the rest resumes.
+
+        Pushing 4 rows' worth through a 2-row out takes 2 rows and reports
+        consumed below the input length. Offering x[consumed:] again yields
+        the remaining rows, and the two halves equal one full push bit for
+        bit (gh-2230, #2592).
+        """
+        x = np.arange(4 * NFFT).astype(np.complex64)
+        ref = Spectrogram(nfft=NFFT, hop=NFFT).push(x)
         sp = Spectrogram(nfft=NFFT, hop=NFFT)
-        x = np.ones(4 * NFFT, np.complex64)
-        with pytest.raises(ValueError):
-            sp.push(x, out=np.empty((1, NFFT), np.float32))
+        first = sp.push(x, out=np.empty((2, NFFT), np.float32))
+        assert first.shape == (2, NFFT)
+        assert 0 < sp.consumed < len(x)
+        rest = sp.push(x[sp.consumed :])
+        np.testing.assert_array_equal(np.vstack([first, rest]), ref)
 
     def test_a_full_capacity_push_takes_all_its_input(self):
         """With out sized to push_max_out, one call takes every sample."""

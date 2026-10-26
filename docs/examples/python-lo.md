@@ -1,7 +1,7 @@
 # LO — Complex Phasor Generator
 
 `LO` chains a 32-bit NCO with a 2¹⁶-entry sin/cos LUT to produce CF32 IQ
-phasors. `freq` is a normalised frequency in cycles/sample (0.25 = fs/4).
+phasors. `freq` is a normalized frequency in cycles/sample (0.25 = fs/4).
 
 ## Free-running tone
 
@@ -12,15 +12,17 @@ import numpy as np
 lo = LO(0.25)          # quarter-rate tone
 iq = lo.steps(8)
 
-# The 16-bit LUT leaves ~1e-8 residue on the axes, so compare with a tolerance.
+# The float32 LUT leaves ~1e-7 residue on the axes, so compare with a tolerance.
 assert np.allclose(iq, np.tile([1, 1j, -1, -1j], 2), atol=1e-6)
 ```
 
 !!! note "CF32 precision"
 
-    The LUT is 16-bit, so values like `0+1j` appear as
-    `-8.7e-08+1.000000e+00j` in `repr()`. The absolute error is
-    < 1.6 × 10⁻⁵ radians, well below −96 dBc.
+    The LUT holds float32 values, so values like `0+1j` appear as
+    `-8.7e-08+1.000000e+00j` in `repr()`. Its index is the top 16 bits of
+    the phase, truncated, so the phase error is < 2π/2¹⁶ ≈ 9.6 × 10⁻⁵
+    radians (zero here, where the increment is a whole number of LUT bins).
+    The spurs it makes are ≥ 90 dBc down; ~96 dBc is typical.
 
 ## FM via control port
 

@@ -80,7 +80,8 @@ default = "power"
 # `state` alias is what the binding generates for it. The binding sizes its
 # output for every row the chunk can complete, so consumed equals the chunk
 # length; a caller bounds memory by pushing smaller chunks, sized with
-# rows_for. A smaller out is refused with ValueError (jm#2230 is the gap).
+# rows_for. A smaller out is refused with ValueError (adopting jm's short_out
+# is #2592).
 [[spectrogram.methods]]
 name = "push"
 arg_type = "float _Complex[]"

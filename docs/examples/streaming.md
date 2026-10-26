@@ -300,19 +300,33 @@ statically-linked streaming binaries on `PATH`:
 ```yaml
 services:
   nats:
-    image: nats:latest
-    command: ["-js"]
-    ports:
-      - "4222:4222"
-  tx:
-    build: { context: ., dockerfile: deploy/docker/Dockerfile.examples, target: stream-services }
+    image: nats:2.10
+    command: "-js"           # no ports: — reached only over doppler-net
+    networks: [doppler-net]
+  transmitter:
+    build: &stream-build
+      context: .
+      dockerfile: deploy/docker/Dockerfile.examples
+      target: stream-services
+    image: doppler-stream-services:compose
+    depends_on: [nats]
     command: transmitter nats://nats:4222/iq cf64
-    depends_on: [nats]
-  rx:
-    image: doppler-stream-services   # reuse tx's built image
-    command: receiver nats://nats:4222/iq  # uses Docker DNS
-    depends_on: [nats]
+    networks: [doppler-net]
+  receiver-1:
+    build: *stream-build
+    image: doppler-stream-services:compose   # the one shared image
+    depends_on: [transmitter]
+    command: receiver nats://nats:4222/iq    # uses Docker DNS
+    networks: [doppler-net]
+  # receiver-2 (PUB/SUB fan-out) and spectrum-analyzer follow the same shape
+networks:
+  doppler-net:
+    driver: bridge
 ```
+
+The stream-services image is built in a glibc 2.28 toolchain image that
+nothing pulls from a registry, so run `make docker-stream` before the first
+`docker compose up`.
 
 ______________________________________________________________________
 
@@ -412,16 +426,12 @@ listening at the endpoint's host:port.
 
 ### No output / silent failure
 
-**Check library paths (Linux):**
-
-```bash
-# Verify libdoppler.so is found:
-ldd ./build/native/examples/transmitter
-ldd ./build/native/examples/receiver
-
-# If missing, set LD_LIBRARY_PATH:
-export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-```
+**It is not a library path:** the streaming examples link doppler and the
+vendored `nats.c` statically, so there is no `libdoppler.so` for them to miss
+and no `LD_LIBRARY_PATH` to set. Silence means no messages are arriving: check
+that both ends name the same broker and subject, and that `nats-server` is
+running (see [Receiver can't connect to the
+broker](#receiver-cant-connect-to-the-broker)).
 
 ### Performance tips
 
@@ -438,5 +448,5 @@ If you're still stuck:
 1. Include in your bug report:
     - Output of `./build/native/examples/transmitter --help` and `./build/native/examples/receiver --help`
     - Network topology (same machine, LAN, cloud, containers)
-    - `nats-server` logs (run it in the foreground, without `-js` daemonizing, to see connection attempts)
+    - `nats-server` logs (run it in the foreground with `-DV` to log connection attempts; `-js` only enables JetStream)
     - OS and toolchain versions (`uname -a`, `cmake --version`) — note doppler statically embeds the vendored `nats.c` client, so there is no system NATS client library to query

@@ -2,7 +2,7 @@
 
 doppler's transport moves framed sample blocks between threads, processes,
 and hosts over NATS. Every frame — whatever the role, whatever the sample
-type — is one 96-byte `dp_header_t` followed by raw payload bytes, so a C
+type — is one 64-byte `dp_header_t` followed by raw payload bytes, so a C
 transmitter and a Python subscriber are the same participant seen twice.
 
 This page owns the **contract**: what is on the wire, which subjects carry
@@ -313,7 +313,7 @@ Receive is zero-copy, and that has a lifetime consequence the API makes
 explicit rather than hiding.
 
 `*_recv` yields an opaque `dp_msg_t *`. `dp_msg_data()` points **into**
-the NATS message (past the 96-byte header) for an unchunked frame, or to
+the NATS message (past the 64-byte header) for an unchunked frame, or to
 a doppler-owned buffer for a reassembled one — `dp_msg_free()` is correct
 for both. The data is valid until that free, and not after.
 

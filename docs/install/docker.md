@@ -50,8 +50,9 @@ docker run --rm --network host ghcr.io/doppler-dsp/doppler \
 doppler installed to `/usr/local` (headers, static *and* shared library, CMake
 package config, pkg-config `.pc`) plus the dev toolchain, `uv`, and the pinned
 `just-makeit`. A downstream `find_package(doppler)` resolves with no flags.
-Under `/workspace/examples` are four real consumers, smallest to largest —
-`consumer/`, `standalone/`, `c/`, and the full jm project `downstream-jm/`.
+Under `/workspace`, the working directory, are real consumers to start from:
+`example-projects/` (`consumer/` is the smallest), the C demos in
+`native/examples/`, and the full jm project `examples/downstream-jm/`.
 
 ```sh
 --8<-- "tests/install/docker-build.sh:sdk"

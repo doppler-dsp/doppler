@@ -87,16 +87,16 @@ x = k / 2ⁿ
 x = 0.707           # -3 dBFS
 scale = 32768       # 2^15
 
-k = np.int16(round(x * scale))     # 23170
-recovered = k / scale               # 0.706970... (quantisation error < 1 LSB)
+k = np.int16(round(x * scale))     # 23167
+recovered = k / scale               # 0.707000... (quantization error < ½ LSB)
 
 # Float → Q8 → float
 scale8 = 128        # 2^7
-k8 = np.int8(round(x * scale8))    # 91
-recovered8 = k8 / scale8           # 0.7109...  (larger error — 7 fraction bits)
+k8 = np.int8(round(x * scale8))    # 90
+recovered8 = k8 / scale8           # 0.703125  (larger error — 7 fraction bits)
 ```
 
-The difference between `x` and `recovered` is the **quantisation error**,
+The difference between `x` and `recovered` is the **quantization error**,
 bounded by ½ LSB when rounding (one full LSB when truncating).
 
 ______________________________________________________________________
@@ -217,7 +217,7 @@ print(quarter[0] / 32768)                   # 0.25
 
 `dot_q15(a, b)` returns the **raw Q30 accumulation** as int64 — no shift, no
 saturation. This lets you inspect the full precision before deciding how to
-normalise.
+normalize.
 
 ```python
 from doppler.arith import dot_q15, shr_i64
@@ -225,12 +225,12 @@ from doppler.arith import dot_q15, shr_i64
 a = np.full(4, 16384, dtype=np.int16)   # [0.5, 0.5, 0.5, 0.5]
 b = np.full(4, 16384, dtype=np.int16)
 
-raw = dot_q15(a, b)          # Q30: 4 × (0.5 × 0.5 × 32768²) = 536_870_912
-print(raw)                   # 536870912
+raw = dot_q15(a, b)          # Q30: 4 × (0.5 × 0.5 × 32768²) = 1_073_741_824
+print(raw)                   # 1073741824
 
-# Normalise to Q15: shift right 15
+# Normalize to Q15: shift right 15
 q15_scalar = shr_i64(np.array([raw], dtype=np.int64), 15)
-print(q15_scalar[0])         # 16384  (= 1.0 in Q15 — correct: Σ 0.5² = 1.0)
+print(q15_scalar[0])         # 32768  (= 1.0 in Q15 — correct: Σ 0.5² = 1.0)
 ```
 
 ______________________________________________________________________
@@ -238,7 +238,7 @@ ______________________________________________________________________
 ## 7. Required accumulator width (no precision loss)
 
 The accumulator must be wide enough to hold the sum of all products before any
-normalising shift.
+normalizing shift.
 
 | Operation     | Operand type | Product width | Max terms | Min accumulator |
 | ------------- | ------------ | :-----------: | :-------: | :-------------: |
@@ -278,7 +278,7 @@ you are throwing away.
 
 `doppler.arith` uses **round-half-up** throughout: the bias of ½ LSB is added
 before the shift. This is the standard choice for DSP and matches the
-behaviour of most hardware DSPs.
+behavior of most hardware DSPs.
 
 ```
 Q15 multiply, round-half-up:
@@ -356,7 +356,7 @@ def fir_sample(x: np.ndarray, h: np.ndarray) -> np.int16:
     """Compute Σ h[k]·x[k] in Q15 with full precision accumulation."""
     raw_q30 = dot_q15(x, h)                    # int64, Q30
     q30_arr = np.array([raw_q30], dtype=np.int64)
-    q15_arr = shr_i64(q30_arr, 15)             # normalise to Q15
+    q15_arr = shr_i64(q30_arr, 15)             # normalize to Q15
     # Saturate to int16 range
     return np.int16(min(max(q15_arr[0], -32768), 32767))
 
@@ -385,7 +385,7 @@ for block in blocks:                    # streaming blocks of int16
 
 raw_sum = mac.dump()                    # int64, Q30; resets accumulator
 
-# Normalise to Q15 scalar
+# Normalize to Q15 scalar
 q15_out = np.int16(np.clip(
     (raw_sum + (1 << 14)) >> 15, -32768, 32767
 ))
@@ -402,7 +402,7 @@ q15_out = np.int16(np.clip(
 | Typical use                | rough quantization, neural-net weights | audio, SDR, precision DSP  |
 
 A 6 dB/bit rule of thumb: each additional bit buys ~6 dB of
-signal-to-quantisation-noise ratio (SQNR).
+signal-to-quantization-noise ratio (SQNR).
 
 ______________________________________________________________________
 
@@ -421,8 +421,8 @@ ______________________________________________________________________
     clamp at the final output word. Intermediate saturation destroys precision.
 
 1. **Size your accumulator.** Accumulating k products of n-bit width needs
-    n + ⌈log₂ k⌉ bits. For k = 1024 Q15 products that is 26 bits — int32 is
-    tight; int64 is safe.
+    n + ⌈log₂ k⌉ bits. For k = 1024 Q15 products that is 30 + 10 = 40 bits —
+    int32 is too narrow; int64 is safe.
 
 ______________________________________________________________________
 
@@ -432,7 +432,7 @@ ______________________________________________________________________
     `shl_q15`, `shr_q15`, `AccQ15`, `AccQ8`, and Q8 counterparts.
 - [Quantization design note](../design/QUANTIZATION.md) — doppler's encoding
     conventions for the `cvt` module (Q15 ↔ float, UQ15, I16).
-- [ADC gallery walkthrough](../gallery/adc.md) — 3–8 bit quantisation noise
+- [ADC gallery walkthrough](../gallery/adc.md) — 3–8 bit quantization noise
     visualised: time-domain staircase and 6 dB/bit noise-floor descent.
 - [HalfbandDecimatorQ15 gallery walkthrough](../gallery/hbdecim_q15.md) — Q15 halfband
     decimator: the `_mm256_madd_epi16` inner loop and symmetric-fold trick.

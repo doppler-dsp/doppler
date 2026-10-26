@@ -23,6 +23,7 @@ engine produces nine types from one declarative core.
 | `chirp`   | linear-FM sweep `--freq` → `--f-end` over `--count`            | `--freq`, `--f-end`                 |
 | `bits`    | **your** bits (a data source), oversampled `--sps`, sent once  | `--data`, `--modulation`, `--sps`   |
 | `symbols` | **your** complex constellation, oversampled `--sps` and cycled | `--symbols-file`, `--sps`           |
+| `dsss`    | a DSSS burst (preamble, spread frame), or continuous DSSS      | `--acq-code`, `--data-code`         |
 
 The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
 `--seed`), so output is reproducible and receiver-correlatable.
@@ -102,8 +103,8 @@ first per byte (`--data-from-file frame.bin`), which is how a real transfer
 frame reaches the tool. `--modulation` (`none` / `bpsk` / `qpsk`) maps the
 bits to symbols (`none` → 0/1 amplitude, `bpsk` → ±1, `qpsk` → two bits per
 symbol, Gray-coded). Each bit is held `--sps` samples, and the bits are sent
-**once**: the run is the data. A source is a frame's payload, so the default
-`--crc crc16` appends a CRC-16; `--crc none` sends the bits exactly as given.
+**once**: the run is the data. The default `--crc none` sends the bits
+exactly as given; `--crc crc16` appends a CRC-16 over them.
 
 ```sh
 wfmgen --type bits --data 10110101 --crc none --modulation bpsk --sps 8 -o sync.cf32
@@ -120,8 +121,8 @@ ______________________________________________________________________
 ## Data — a payload drawn frame by frame
 
 A **data source** fills a frame's payload a chunk at a time: `--data-len`
-bits per frame, each frame carrying the **next** chunk with its own CRC,
-until the source ends. This is how a message, a file or a pipe is sent as a
+bits per frame, each frame carrying the **next** chunk (with its own CRC
+under `--crc crc16`), until the source ends. This is how a message, a file or a pipe is sent as a
 sequence of frames rather than as one pattern cycled. It works on the framed
 types (`bits`, `bpsk`, `qpsk`, `pn`) and on a DSSS burst, where each burst
 is the preamble then the next chunk's frame, spread. **Continuous DSSS** has
@@ -229,14 +230,16 @@ python3 -c "import os; assert not os.path.exists('c.cf32')"
 
 ```sh
 # A message, three 16-bit frames, each with a CRC-16 over its own chunk.
-wfmgen --type bpsk --data 0x0123456789AB --data-len 16 --sps 4 -o frames.cf32
+wfmgen --type bpsk --data 0x0123456789AB --data-len 16 --crc crc16 --sps 4 \
+       -o frames.cf32
 
 # The same bytes from a file, then from stdin: the same waveform.
 printf '\001\043\105\147\211\253' > six.bin
-wfmgen --type bpsk --data-from-file six.bin --data-len 16 --sps 4 -o file.cf32
+wfmgen --type bpsk --data-from-file six.bin --data-len 16 --crc crc16 \
+       --sps 4 -o file.cf32
 printf '\001\043\105\147\211\253' \
-  | wfmgen --type bpsk --data-from-file - --data-len 16 --fill 0 --sps 4 \
-           -o stdin.cf32
+  | wfmgen --type bpsk --data-from-file - --data-len 16 --fill 0 \
+           --crc crc16 --sps 4 -o stdin.cf32
 cmp frames.cf32 file.cf32
 cmp frames.cf32 stdin.cf32
 
@@ -294,8 +297,8 @@ ______________________________________________________________________
 ```
 
 Setting `--acq-code` **or** `--sync` is what makes a source framed. `--crc` on
-its own does not — it defaults to `crc16`, so treating it as intent would put a
-trailer on every plain bit pattern ever generated.
+its own does not: it defaults to `none`, and `crc16` adds the trailer only to
+a source that is already framed or drawn from a data source.
 
 ### One Field per sequence
 
@@ -441,7 +444,7 @@ ______________________________________________________________________
 | `--acq-code`     | Field                                             | —        | preamble code; `*REPS` repeats it, e.g. `'pn:127:7*4'`                                           |
 | `--data-code`    | Field                                             | —        | `dsss`: payload spreading code                                                                   |
 | `--sync`         | Field                                             | —        | frame-sync word (optional)                                                                       |
-| `--crc`          | `none crc16`                                      | `crc16`  | `dsss`: CRC-16 trailer over the payload bits                                                     |
+| `--crc`          | `none crc16`                                      | `none`   | CRC-16 trailer over the payload bits (framed `bits`/`bpsk`/`qpsk`/`pn`, and `dsss`)              |
 | `--pulse`        | `rect rrc`                                        | `rect`   | pulse shape; `rrc` = band-limited RRC shaping                                                    |
 | `--rrc-beta`     | float                                             | `0.35`   | RRC roll-off (`--pulse rrc`)                                                                     |
 | `--rrc-span`     | int                                               | `8`      | RRC filter support in symbols (`--pulse rrc`)                                                    |

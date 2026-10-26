@@ -19,8 +19,8 @@ shape entirely: the squared magnitude of the RRC filter's own frequency
 response, a raised-cosine roll-off with no sidelobes past `(1+beta)/(2*sps)`
 of the symbol rate. `psd_template` exists precisely so a caller running a
 different pulse shape or modulation can supply the *correct* known shape —
-mirroring `~/legacy-commz`'s own `FrequencyAcquisition.power_spectrum`
-override, the reference this object's design descends from.
+mirroring the `power_spectrum` override of the `FrequencyAcquisition`
+reference design this object descends from.
 
 ## How it works
 

@@ -4,7 +4,7 @@
  *
  * Drains a dp_tlm_t record ring (dp_tlm/dp_tlm_core.h) to a NATS subject
  * using doppler's `dp_pub_*` wire layer: each pump publishes the available
- * records as TLM16 frames (SIGS header, sample_type = TLM16, num_samples =
+ * records as TLM16 frames (a dp_header_t of kind DP_KIND_TLM, num_samples =
  * record count, payload = packed 16-byte dp_tlm_rec_t). A `dp_sub_*`
  * receiver on the subject gets the same structured rows the in-process
  * Python `Telemetry.read()` returns.

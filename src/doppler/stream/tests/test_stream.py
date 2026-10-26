@@ -3,7 +3,7 @@
 Requires a nats-server reachable on 127.0.0.1:4222 (run `nats-server -js`);
 the whole module skips cleanly without one.
 
-Wire format: a 96-byte dp_header_t binary prefix followed by the
+Wire format: a 64-byte dp_header_t binary prefix followed by the
 interleaved I/Q payload, all in one NATS message.  The header carries
 sample type, sample_rate, center_freq, and a nanosecond timestamp.
 Zero-copy recv: the returned NumPy array holds a reference to the

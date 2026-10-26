@@ -6,7 +6,7 @@
  * calls straight into dp__nats_ctx_create() below. This translation unit is
  * the only place nats.h is included — stream_core.c never sees a nats type.
  *
- * Wire format: a 96-byte dp_header_t binary prefix followed by the
+ * Wire format: a 64-byte dp_header_t binary prefix followed by the
  * interleaved I/Q payload, all in one NATS message. Receive stays
  * zero-copy — dp_msg_data() points into the natsMsg past the header, and
  * dp_msg_free() does exactly one natsMsg_Destroy().

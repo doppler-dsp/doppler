@@ -41,8 +41,9 @@ ______________________________________________________________________
 `wait` / `consume`. `write` is non-blocking and **refuses** the whole call if
 the ring has no room — it copies nothing and leaves your array untouched, so
 you still hold the data and can retry. Nothing is dropped unless you discard
-it; `dropped` counts refused calls, not lost samples. `wait` blocks the
-consumer and releases the GIL so the producer can run concurrently.
+it; `dropped` counts the samples in refused calls, not lost samples. `wait`
+blocks the consumer and releases the GIL so the producer can run
+concurrently.
 
 **Single-threaded.** `wait` would deadlock a caller that is its own
 producer, so `peek(n)` returns the same zero-copy view when `n` samples are

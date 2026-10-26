@@ -4785,8 +4785,12 @@ check-isotime-parity: build ## Check dp_isotime.h against just-bashit
 # counted them as five gates with no target (#555); they are three targets
 # because the snippet trio always runs together, under one CI condition.
 
+# A UserWarning is an error here: an example that warns (an under-powered
+# BurstAcquisition, #2581) teaches a reader the configuration the object
+# itself says is wrong. An example that warns ON PURPOSE catches the warning
+# in the example, where the reader can see it.
 test-stubs: ## Doctest every generated .pyi stub
-	$(UV) run python -m pytest --doctest-glob='*.pyi' -q \
+	$(UV) run python -m pytest --doctest-glob='*.pyi' -q -W error::UserWarning \
 	    $$(find $(PYEXT_DIR) -name '*.pyi')
 
 # 79-col gate for the generated .pyi stubs. They are jm-owned and excluded from
@@ -4845,6 +4849,8 @@ test-api-docs: ## Doctest the docs/api/*.md reference pages
 # Unscoped is still the gate. PAGE is an iteration aid, so it says so on the
 # way out rather than printing the same "ALL FENCE GATES PASS" line a full run
 # earns.
+# A UserWarning fails a fence, as in test-stubs: a page example that warns
+# shows the reader a configuration the object itself calls wrong (#2581).
 test-snippets: ## Run the python/C/shell doc-fence gates (PAGE=<path> to narrow)
 	@fail=0; empty=0; n=0; \
 	 for t in test_doc_snippets test_c_doc_snippets test_c_header_code \
@@ -4852,7 +4858,7 @@ test-snippets: ## Run the python/C/shell doc-fence gates (PAGE=<path> to narrow)
 	     echo "=== $$t ==="; \
 	     n=$$((n + 1)); \
 	     $(LEAK_CHECK) -- $(UV) run python -m pytest -m docs_snippets -q \
-	         $(if $(PAGE),-k "$(PAGE)") \
+	         -W error::UserWarning $(if $(PAGE),-k "$(PAGE)") \
 	         src/doppler/tests/$$t.py; rc=$$?; \
 	     : "5 is pytest's 'collected nothing'. Under PAGE that is the normal"; \
 	     : "answer for two of the three -- a page with only sh fences has no"; \

@@ -66,11 +66,12 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-This is the build `.github/workflows/windows.yml` runs, once per driver, on
-every push to `main` and on pull requests that touch the C. The clang-cl
-build is **binding** (`ci.yml`'s Windows job) and is what every release
-publishes as `doppler-<version>-windows-x86_64.zip` — see
+This clang-cl build is `ci.yml`'s Windows job (`build-and-test-windows`),
+which is **binding**, and it is what every release publishes as
+`doppler-<version>-windows-x86_64.zip` — see
 [Install the C library → Windows](c.md#windows) to use it without building.
+The GNU `clang` driver runs in `.github/workflows/windows.yml`, a non-binding
+reference leg, on pushes to `main` and on pull requests that touch the C.
 For Python on Windows, `pip install doppler-dsp` installs a pre-built wheel;
 see [Install for Python](python.md). On Windows the static library is
 `doppler_static.lib`, because `doppler.lib` is already the DLL's import
@@ -142,7 +143,7 @@ Example — build Python extensions against a specific interpreter:
 | `make test-all`    | CTest + pytest + example smoke tests          |
 | `make test-rust`   | Build C library + run Rust FFI tests          |
 | `make bench`       | Run C + Python benchmarks on this machine     |
-| `make debug`       | Clean + Debug build                           |
+| `make debug`       | Debug build (no clean)                        |
 | `make release`     | Clean + Release build                         |
 | `make blazing`     | Clean + Release + `-march=native`             |
 | `make clean`       | Remove `build/` and compiled `.so` files      |

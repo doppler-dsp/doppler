@@ -3,7 +3,7 @@
  * @brief NATS PUB sink for generated IQ (Phase B).
  *
  * Streams cf32 blocks (from synth or the composer) to a NATS subject using
- * doppler's `dp_pub_*` wire layer (SIGS header, magic "SIGS"), converting to
+ * doppler's `dp_pub_*` wire layer (`dp_header_t`, magic "DPSTREAM"), converting to
  * the requested wire sample type per block. This is the `--output nats://…`
  * destination; a `dp_sub_*` receiver (e.g. native/examples/spectrum_analyzer) reads
  * the stream.

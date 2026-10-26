@@ -29,7 +29,7 @@ All DSP logic runs in C; the crate is pure glue.
 
 | Module | C functions wrapped                                                                    |
 | ------ | -------------------------------------------------------------------------------------- |
-| `acc`  | `acc_f32_*`, `acc_cf64_*`                                                              |
+| `acc`  | `dp_acc_f32_*`, `dp_acc_cf64_*`                                                        |
 | `fft`  | `dp_fft_create`, `dp_fft_execute_cf32/cf64`                                            |
 | `fir`  | `dp_fir_create`, `dp_fir_execute`                                                      |
 | `lo`   | `dp_lo_create`, `dp_lo_steps`, `dp_lo_steps_ctrl`                                      |

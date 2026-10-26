@@ -1025,7 +1025,7 @@ size_t dp_dll_lookback_segments (
 
 
 
-Ports the coupled-despreader prototype's `async_lookback_windows()` verbatim (itself ported from `~/legacy-commz`'s `asynchronous_correlation_loss`): derives an ideal segment size from `max_error_db`, then snaps to the nearest exact divisor of `tsamps` so `tsamps/segment_size` is always an integer count (ties broken toward the smaller/earlier divisor, matching `numpy.argmin`'s own first-occurrence convention). This project found hand-picked `segments`/`windows` values go stale silently (a `WINDOWS=62` constant was carried for a long time implying an unexamined ~0.07-0.1dB loss tolerance, ~5-7x tighter than this formula's own validated 0.5dB default) — this function is the canonical, derived replacement.
+Ports the coupled-despreader prototype's `async_lookback_windows()` verbatim (itself ported from the reference design's `asynchronous_correlation_loss`): derives an ideal segment size from `max_error_db`, then snaps to the nearest exact divisor of `tsamps` so `tsamps/segment_size` is always an integer count (ties broken toward the smaller/earlier divisor, matching `numpy.argmin`'s own first-occurrence convention). This project found hand-picked `segments`/`windows` values go stale silently (a `WINDOWS=62` constant was carried for a long time implying an unexamined ~0.07-0.1dB loss tolerance, ~5-7x tighter than this formula's own validated 0.5dB default) — this function is the canonical, derived replacement.
 
 
 

@@ -73,9 +73,9 @@ convention to drift from the one doppler ships.
 
 | you want                                   | call                                                                     |
 | ------------------------------------------ | ------------------------------------------------------------------------ |
-| SNR of a burst, knowing what was sent      | `snr_data_aided_db`                                                      |
-| SNR of a burst, knowing nothing about it   | `snr_m2m4_db`                                                            |
-| to tell a silent gap from a noisy one      | `snr_m2m4_db` — NaN on a block with zero power                           |
+| SNR of a burst, knowing what was sent      | `dp_snr_data_aided_db`                                                   |
+| SNR of a burst, knowing nothing about it   | `dp_snr_m2m4_db`                                                         |
+| to tell a silent gap from a noisy one      | `dp_snr_m2m4_db` — NaN on a block with zero power                        |
 | to find a marker in a bit stream           | `dp_syncword_find` — offset, polarity and Hamming distance in one answer |
 | to choose how many bit errors to tolerate  | `dp_syncword_max_errors_for`, `dp_syncword_pfa`                          |
 | to know whether a received frame is intact | `dp_wfm_frame_desc_crc_ok` — no payload truth needed                     |

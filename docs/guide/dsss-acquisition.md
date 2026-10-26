@@ -139,8 +139,9 @@ the slow-time FFT itself, you never pre-transform anything — just `push` IQ.
     - **resolution** `doppler_res_hz = fs / (n · doppler_bins)` — set by how
         many repetitions the engine integrates (deeper → finer bins); `n` is the
         preamble's length in samples. (When the search is widened past the
-        span by window tiles, `doppler_bins` counts tiles and the resolution
-        is one tile's width, `fs / n`.)
+        span by window tiles, the depth `D` is chosen inside every tile,
+        `doppler_bins` counts tiles times `D`, and the resolution is
+        `fs / (n · D)`.)
     - **span** `doppler_span_hz = ±fs / (2·n)` — the slow-time Nyquist, set by
         the *repetition period* `n/fs` alone, independent of `doppler_bins`.
 
@@ -261,16 +262,17 @@ for (
     ...
 ```
 
-| field              | meaning                                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------------------------- |
-| `doppler_bin`      | peak row — slow-time Doppler bin (`0 … doppler_bins-1`)                                               |
-| `code_phase`       | peak column — integer-sample code phase (`0 … code_bins-1`)                                           |
-| `peak_mag`         | peak correlation magnitude over the surface                                                           |
-| `noise_est`        | CFAR noise estimate                                                                                   |
-| `test_stat`        | `peak_mag / noise_est` (compared against `threshold`)                                                 |
-| `cn0_dbhz_est`     | estimated carrier-to-noise density (dB-Hz), comparable to `cn0_dbhz`                                  |
-| `samples_consumed` | raw sample offset (since this engine's own stream start) this hit's epoch ended at                    |
-| `chip_phase`       | the `Dll` seed in chips: the code phase inverted, advanced by the dwell's drift when a carrier is set |
+| field               | meaning                                                                                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `doppler_bin`       | peak row — slow-time Doppler bin (`0 … doppler_bins-1`)                                                                                                                    |
+| `code_phase`        | peak column — integer-sample code phase (`0 … code_bins-1`)                                                                                                                |
+| `peak_mag`          | peak correlation magnitude over the surface                                                                                                                                |
+| `noise_est`         | CFAR noise estimate                                                                                                                                                        |
+| `test_stat`         | `peak_mag / noise_est` (compared against `threshold`)                                                                                                                      |
+| `cn0_dbhz_est`      | estimated carrier-to-noise density (dB-Hz), comparable to `cn0_dbhz`                                                                                                       |
+| `samples_consumed`  | raw sample offset (since this engine's own stream start) this hit's epoch ended at                                                                                         |
+| `chip_phase`        | the `Dll` seed: the code phase inverted, in template samples (`[0, code_bins)`), advanced by the dwell's drift when a carrier is set; divide by samples per chip for chips |
+| `doppler_rate_hz_s` | the winning Doppler-rate hypothesis (Hz/s); 0 without `rate_hypotheses`                                                                                                    |
 
 Map the integer bins back to physical units:
 
@@ -405,7 +407,8 @@ If you already know the carrier offset lies within `±Δf`, pass
 the Doppler bins inside that band, so the CFAR threshold pays a Bonferroni penalty
 over **fewer** cells — a lower gate at the same system `pfa`, i.e. more
 sensitivity for free. A value beyond the native span is accepted: the engine
-tiles the range with frequency windows, one epoch each (see
+tiles the range with frequency windows one native span wide, and chooses the
+coherent depth inside every tile (see
 [Widening the Doppler search](#widening-the-doppler-search) for that and for the
 coarse-mix bank).
 
@@ -584,9 +587,9 @@ ______________________________________________________________________
 The native search spans only `±fs/(2n)` (`±chip_rate/(2·sf)` for a code) — one
 slow-time Nyquist, set by the code period. Past that, the engine can tile the
 range itself: pass the wider `doppler_uncertainty`, and it searches frequency
-windows of one epoch each. For a range many times the span, or to keep the
-coherent depth in every channel, tile it with a sequence of **coarse Doppler
-hypotheses** instead: mix the raw stream down by each
+windows one native span wide, with the coherent depth chosen inside every
+tile. For a range many times the span, tile it with a sequence of **coarse
+Doppler hypotheses** instead: mix the raw stream down by each
 `f_coarse` and run `BurstAcquisition` on the result. The engine's fine FFT then
 resolves the residual within the native span, and the absolute Doppler is
 `f_coarse +` the fine bin.
@@ -600,7 +603,7 @@ fs = chip_rate * 2                         # spc = 2
 coarse_step = chip_rate / (2 * len(nrz))
 coarse = np.arange(-100e3, 100e3, coarse_step)   # coarse grid (Hz)
 pre2 = np.repeat(nrz, 2).astype(np.complex64)   # the code at 2 samples/chip
-bank = [BurstAcquisition(pre2, reps=10, fs=fs, cn0_dbhz=50, pfa=1e-3, pd=0.9)
+bank = [BurstAcquisition(pre2, reps=10, fs=fs, cn0_dbhz=55, pfa=1e-3, pd=0.9)
         for _ in coarse]                   # one engine per channel (own state)
 
 n0 = 0

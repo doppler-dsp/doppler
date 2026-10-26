@@ -57,7 +57,8 @@ A chunk's output buffer is sized for every row the chunk can complete, so
 memory, push smaller chunks, sized with `rows_for`. A caller that supplies its
 own `out` must give it at least `push_max_out(len(x))` elements: a smaller
 `out` is refused with `ValueError`, not taken as a short push. That is the
-Python face today; the jm gap is jm#2230.
+Python face today; adopting jm's `short_out`, which would take it as one, is
+[#2592](https://github.com/doppler-dsp/doppler/issues/2592).
 
 One object is not thread-safe: do not push one `Spectrogram` from two threads
 at once. `push` releases the GIL, so other threads run, but not on the same

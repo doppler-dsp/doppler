@@ -1,7 +1,7 @@
 # Python Resample API
 
-Three resampler implementations backed by the native C library — all accept
-and return `complex64` NumPy arrays with state preserved across calls. For the
+Resampler implementations backed by the native C library, with state
+preserved across calls; most accept and return `complex64` NumPy arrays. For the
 polyphase interpolator/decimator architecture behind `Resampler` and
 `RateConverter`, see the [Resampler design notes](../design/RESAMPLER.md).
 
@@ -78,7 +78,7 @@ from doppler.resample import MatchedRateConverter
 mf = MatchedRateConverter(rate=2 / 17.333333333, pulse="rrc", beta=0.35,
                           span=8, pulse_sps=2.0)
 print(mf.stages)        # ['CIC(8)', 'Resampler(0.923077,rrc)']
-print(mf.bank_shape)    # [1024, 40] — arms x taps, set by the OUTPUT rate
+print(mf.bank_shape)    # [1024, 43] — arms x taps, set by the OUTPUT rate
 y = mf.execute(x)
 ```
 

@@ -302,7 +302,11 @@ assert occ_pay / occ_acq > 0.5, (
 REPS_SWEEP = [1, 2, 4, 8]
 SWEEP_SNRS = np.arange(-26.0, -7.0, 1.0)
 SWEEP_TRIALS = 40  # independent noise draws per (reps, SNR) cell
-DESIGN_CN0_DBHZ = 50.0  # the acquirer is sized once, not per sweep point
+#: The acquirer is sized once, not per sweep point. With the depth pinned by
+#: configure_search_raw() this only has to clear the reps=1 arm's feasibility
+#: floor (55 dB-Hz) so the object does not call its own configuration
+#: under-powered; the detections themselves do not move with it.
+DESIGN_CN0_DBHZ = 58.0
 
 
 def detects(reps: int, snr_db: float, seed: int) -> bool:

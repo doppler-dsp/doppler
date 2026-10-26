@@ -210,8 +210,8 @@ def main(out_path: str = "mpsk_doppler_profile_demo.png") -> None:
         "does not, these two probes are the same view"
     )
 
-    fig = plt.figure(figsize=(9.5, 9.0))
-    gs = fig.add_gridspec(3, 1, hspace=0.55)
+    fig = plt.figure(figsize=(9.5, 9.0), layout="constrained")
+    gs = fig.add_gridspec(3, 1)
     ax0, ax1, ax2 = (fig.add_subplot(gs[i]) for i in range(3))
     ax1.sharex(ax0)
     t_all = np.arange(freq.size) / FS
@@ -354,7 +354,6 @@ def main(out_path: str = "mpsk_doppler_profile_demo.png") -> None:
             bbox={"fc": "white", "ec": "0.8", "lw": 0.5, "pad": 1.5},
         )
 
-    fig.tight_layout()
     fig.savefig(out_path, dpi=120)
     print(
         f"wrote {out_path}  (lock_time {rx.lock_time} symbols, "

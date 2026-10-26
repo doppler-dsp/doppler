@@ -283,7 +283,10 @@ def _doctest(blockid, rel, code, cwd, monkeypatch):
     """Run one ``>>>`` block; fail naming it, with doctest's report.
 
     The UserWarning filter is set HERE rather than left to the make
-    target's ``-W``, so the rule holds however the test is invoked.
+    target's ``-W``, so the rule holds however the test is invoked. A
+    DeprecationWarning stays ignored even when it is also a UserWarning,
+    as the examples gate rules (#2594): pyparsing's is both, and the 3.9
+    floor's matplotlib raises one at import.
     """
     monkeypatch.chdir(cwd)
     test = doctest.DocTestParser().get_doctest(code, {}, blockid, rel, 0)
@@ -293,6 +296,7 @@ def _doctest(blockid, rel, code, cwd, monkeypatch):
     report: list[str] = []
     with warnings.catch_warnings():
         warnings.simplefilter("error", UserWarning)
+        warnings.simplefilter("ignore", DeprecationWarning)  # wins: later
         result = runner.run(test, out=report.append)
     assert result.failed == 0, f"{blockid}:\n" + "".join(report)
 
@@ -334,3 +338,14 @@ def test_py_line_continuation_survives(tmp_path, monkeypatch):
     """A Python ``\\`` continuation is the example's, not a macro's."""
     raw = " * >>> x = 1 + \\\n * ...     2\n * >>> x\n * 3\n"
     _doctest("continuation", "x.h", _python_source(raw), tmp_path, monkeypatch)
+
+
+@pytest.mark.docs_snippets
+def test_py_a_library_deprecation_is_not_a_failure(tmp_path, monkeypatch):
+    """A class that is both (pyparsing's) is ignored; a UserWarning is not."""
+    code = (
+        ">>> import warnings\n"
+        ">>> class Dep(UserWarning, DeprecationWarning): pass\n"
+        ">>> warnings.warn('oneOf deprecated', Dep)\n"
+    )
+    _doctest("deprecation", "x.h", code, tmp_path, monkeypatch)

@@ -399,6 +399,15 @@ _DOC = """\
 | Test with coverage | `make test-python` | primary | 1 s |
 EXTRA
 <!-- python-legs:end -->
+
+<!-- ci-jobs:start -->
+
+| job | environment | what it runs |
+| --- | --- | --- |
+| `pythons`, `ci-passed` | plain runner | the matrix; the aggregator |
+| `python` | image | the tests |
+JOBS_EXTRA
+<!-- ci-jobs:end -->
 """
 
 
@@ -414,8 +423,12 @@ def _check_doc(tmp_path: Path, doc: str):
     )
 
 
-def _doc(lane: str = "primary", extra: str = "") -> str:
-    return _DOC.replace("FENCE_LANE", lane).replace("EXTRA", extra)
+def _doc(lane: str = "primary", extra: str = "", jobs: str = "") -> str:
+    return (
+        _DOC.replace("FENCE_LANE", lane)
+        .replace("JOBS_EXTRA", jobs)
+        .replace("EXTRA", extra)
+    )
 
 
 def test_a_doc_table_that_matches_passes(tmp_path: Path) -> None:
@@ -442,3 +455,34 @@ def test_a_doc_without_the_table_is_refused(tmp_path: Path) -> None:
     r = _check_doc(tmp_path, "# CI\n")
     assert r.returncode == 1
     assert "python-legs:start" in r.stdout
+
+
+# ── the jobs table (#2599): every ci.yml job named exactly once ────────────
+
+
+def test_a_jobs_table_with_a_missing_job_is_refused(tmp_path: Path) -> None:
+    """The drift #2599 found: a job added to ci.yml and never to the doc."""
+    doc = _doc().replace("| `python` | image | the tests |\n", "")
+    r = _check_doc(tmp_path, doc)
+    assert r.returncode == 1
+    assert "the jobs table lacks `python`" in r.stdout
+
+
+def test_a_jobs_table_naming_a_ghost_job_is_refused(tmp_path: Path) -> None:
+    """#2584 removed a `specan-demo` row that named no job."""
+    r = _check_doc(tmp_path, _doc(jobs="| `specan-demo` | runner | gone |"))
+    assert r.returncode == 1
+    assert "names `specan-demo`, which ci.yml has no job called" in r.stdout
+
+
+def test_a_jobs_table_naming_a_job_twice_is_refused(tmp_path: Path) -> None:
+    r = _check_doc(tmp_path, _doc(jobs="| `python` | image | again |"))
+    assert r.returncode == 1
+    assert "names `python` twice" in r.stdout
+
+
+def test_a_doc_without_the_jobs_table_is_refused(tmp_path: Path) -> None:
+    doc = _doc().split("<!-- ci-jobs:start -->")[0]
+    r = _check_doc(tmp_path, doc)
+    assert r.returncode == 1
+    assert "ci-jobs:start" in r.stdout

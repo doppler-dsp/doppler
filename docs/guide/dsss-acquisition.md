@@ -603,7 +603,7 @@ fs = chip_rate * 2                         # spc = 2
 coarse_step = chip_rate / (2 * len(nrz))
 coarse = np.arange(-100e3, 100e3, coarse_step)   # coarse grid (Hz)
 pre2 = np.repeat(nrz, 2).astype(np.complex64)   # the code at 2 samples/chip
-bank = [BurstAcquisition(pre2, reps=10, fs=fs, cn0_dbhz=55, pfa=1e-3, pd=0.9)
+bank = [BurstAcquisition(pre2, reps=10, fs=fs, cn0_dbhz=60, pfa=1e-3, pd=0.9)
         for _ in coarse]                   # one engine per channel (own state)
 
 n0 = 0

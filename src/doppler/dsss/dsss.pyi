@@ -2306,9 +2306,9 @@ class AsyncDsssReceiver:
         CarrierAcquisition's own zero_pad; default 8.
     refine_sequential : bool, default False
         CarrierAcquisition's sequential mode; default false -- its early
-        per-block test fires on far too little averaging at SPEC's Es/N0 floor
-        (as few as 4 blocks, 150-200+ Hz off), so false waits the full
-        design_snr-derived dwell.
+        per-block test fires on far too little averaging at the specification's
+        Es/N0 floor (as few as 4 blocks, 150-200+ Hz off), so false waits the
+        full design_snr-derived dwell.
     refine_max_n_blocks : int, default 100000
         CarrierAcquisition's give-up cap in sequential mode, and the cap on the
         dwell in either mode; default 100000.
@@ -2431,10 +2431,10 @@ class AsyncDsssReceiver:
         a noise false alarm can reach tracking and emit until the release rule
         lets it go -- or, at the default lost_confirm_s of 0, until reset() --
         and symbol lock (`locked`) is what says the symbols are a signal's, so
-        read it rather than the count (#2439). Under SPEC's coupled offset +
-        500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier
-        dynamics before the code loop, so the recovered constellation lands
-        cleanly on the BPSK real axis.
+        read it rather than the count (#2439). Under the specification's
+        coupled offset + 500 Hz/s Doppler ramp the pre-despread Costas removes
+        the full carrier dynamics before the code loop, so the recovered
+        constellation lands cleanly on the BPSK real axis.
 
         Parameters
         ----------
@@ -2995,12 +2995,12 @@ class AsyncDsssReceiver:
         (doppler#2554). A sidelobe then passes only when the noise on it alone
         would have cleared the gate, the rate the search already runs at. What
         it costs is near-far: a second signal much more than dp_acq_dsl_db()
-        below a stronger one (-16.95 dB on the SPEC Gold-1023 search) is not
-        taken while the stronger one is on the air (async-dsss-parallel.md §3).
-        Searchers that share a stream and its block grid (get_coherent_bins())
-        and hold ranks 0..k-1 therefore take k different signals in one dwell.
-        Takes effect at the next dwell. A mutator's value, so it travels in the
-        state blob (#2022).
+        below a stronger one (-16.95 dB on the specification Gold-1023 search)
+        is not taken while the stronger one is on the air
+        (async-dsss-parallel.md §3). Searchers that share a stream and its
+        block grid (get_coherent_bins()) and hold ranks 0..k-1 therefore take k
+        different signals in one dwell. Takes effect at the next dwell. A
+        mutator's value, so it travels in the state blob (#2022).
 
         Parameters
         ----------

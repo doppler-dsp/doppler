@@ -6,8 +6,9 @@
  * symbol is not a whole number of code periods. Each timed round feeds the
  * NEXT contiguous block.
  *
- * SEARCHING, while it searches: the SPEC
- * configuration the certification measures, with its own search over
+ * SEARCHING, while it searches: the specification
+ * (docs/design/async-dsss-receiver.md) configuration the certification
+ * measures, with its own search over
  * +/-1/T_E, fed noise alone from the shipped awgn. That is the per-sample
  * cost the parallel design multiplies (docs/design/async-dsss-parallel.md:
  * every receiver searches the whole range), and the row is recorded only if
@@ -15,15 +16,14 @@
  * one refused back to search, would be timed as the search.
  *
  * And TRACKING, the mode a receiver spends most of
- * its time in while signals are present: the same SPEC configuration,
- * seeded at chip 0 on the SPEC capture at its design Es/N0 (10 dB, the
- * shipped awgn), run through its refine and
- * pull-in until it tracks with code AND symbol lock, then timed. This is
- * the full closed-loop chain: the Dll's own code
- * loop closed every period, beside the carrier loop, the resampler and the
- * MpskReceiver's carrier and timing loops and matched filter. It records
- * only if the receiver stayed in tracking for every timed sample with both
- * locks up at either end.
+ * its time in while signals are present: the same specification configuration,
+ * seeded at chip 0 on the specification capture at its design Es/N0 (10 dB,
+ * the shipped awgn), run through its refine and pull-in until it tracks with
+ * code AND symbol lock, then timed. This is the full closed-loop chain: the
+ * Dll's own code loop closed every period, beside the carrier loop, the
+ * resampler and the MpskReceiver's carrier and timing loops and matched
+ * filter. It records only if the receiver stayed in tracking for every timed
+ * sample with both locks up at either end.
  *
  * Not timed here: refinement, a one-time transient rather than a rate.
  */
@@ -126,11 +126,11 @@ searching (const dp_async_dsss_receiver_state_t *rx, uint64_t fed,
   return 0;
 }
 
-/* The searching flavor at the SPEC point, while it searches: the SPEC
-   configuration, a 1,023-chip code at 3.069 Mcps and 2 samples a chip,
-   2,700 sym/s, its own search over +/-1/T_E and designed for Es/N0 10 dB,
-   the rest at the binding's defaults. The input is the shipped awgn at that
-   C/N0's noise level for a unit-power emitter, and no emitter.
+/* The searching flavor at the specification point, while it searches: the
+   specification configuration, a 1,023-chip code at 3.069 Mcps and 2 samples a
+   chip, 2,700 sym/s, its own search over +/-1/T_E and designed for Es/N0 10
+   dB, the rest at the binding's defaults. The input is the shipped awgn at
+   that C/N0's noise level for a unit-power emitter, and no emitter.
 
    The configuration MIRRORS make_rx() in
    native/validation/async_dsss_receiver_lock.c, the receiver the
@@ -219,13 +219,13 @@ tracking (const dp_async_dsss_receiver_state_t *rx, const char *when)
   return 0;
 }
 
-/* The searching flavor's closed-loop tracking at the SPEC point: the SPEC
-   configuration run_searching() times (and make_rx() in
+/* The searching flavor's closed-loop tracking at the specification point: the
+   specification configuration run_searching() times (and make_rx() in
    native/validation/async_dsss_receiver_lock.c measures), seeded at chip 0
-   on the SPEC capture, fed until it tracks with both locks -- through the
-   refine and the pull-in, bounded at MAX_LOCK_S -- then TRACK_SETTLE blocks
-   more, then timed. Recorded only if it was tracking for every timed sample
-   (state_samples grew by exactly the samples timed: no release, no
+   on the specification capture, fed until it tracks with both locks -- through
+   the refine and the pull-in, bounded at MAX_LOCK_S -- then TRACK_SETTLE
+   blocks more, then timed. Recorded only if it was tracking for every timed
+   sample (state_samples grew by exactly the samples timed: no release, no
    re-entry) with both locks up after. */
 #define MAX_LOCK_S 4.0
 #define TRACK_SETTLE 2u

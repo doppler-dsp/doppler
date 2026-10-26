@@ -49,14 +49,14 @@ extern "C" {
  *     N >= 16.
  *   - fast enough: after a step in level the error decays as (1 - 1/N)^n,
  *     to 1% at n = ln 100 / -ln(1 - 1/N), about 4.6 N periods. Settling
- *     inside a third of the 185 ms data-free block (555 periods at SPEC's
+ *     inside a third of the 185 ms data-free block (555 periods at the specification's (docs/design/async-dsss-receiver.md)
  *     3.069 Mcps), and far ahead of MpskReceiver's AGC, needs N <= 40.
  * N = 32 is inside the band 16..40, a power of two; the 1% settle is then
- * 146 periods, 49 ms at SPEC. Until N periods have accrued the level is
+ * 146 periods, 49 ms at the specification. Until N periods have accrued the level is
  * their plain mean, so the first output already carries a level, but not
  * a slow one: the first period is divided by its own magnitude, and the
  * current period weighs 1/n, so the compression the band bounds holds
- * only once about 16 periods have accrued, 5 ms at SPEC. */
+ * only once about 16 periods have accrued, 5 ms at the specification. */
 #define DLL_OUT_LEVEL_PERIODS 32u
 
 /* Clamp on the discriminator output |e| before it reaches the loop filter.

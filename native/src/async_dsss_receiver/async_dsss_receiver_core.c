@@ -630,23 +630,24 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
 /* One carrier-wiped code period through dll -> ONE costas_update() call per
  * period, driven by a NON-DATA-AIDED (squaring) carrier discriminator over
  * that period's emitted coherent-I&D partials. A code period spans ~0.9 data
- * symbols at SPEC's async ratio, so a data transition lands inside nearly
- * every period; the earlier decision-directed combine (sign-align each
- * partial by its own real part, then sum) was corrupted by exactly those
- * transitions -- direct measurement showed a +/-57deg discriminator that
- * averaged to zero, so the loop never tracked and the whole carrier burden
- * silently fell to the post-despread MpskReceiver loop (which then held the
- * Type-II ramp phase error). Squaring removes the +/-1 BPSK data with NO
- * per-partial sign decision (dll_out[i]^2 = A^2 exp(j2phi) regardless of the
- * data bit); a partial straddling a transition merely loses amplitude, not
- * phase. This is the SAME non-data-aided principle the downstream
- * MpskReceiver carrier loop already uses, applied PRE-despread on the
- * transition-free windows so despreading stays coherent (no residual carrier
- * rotating within the correlation) -- the "unfreeze and track loop 1" step
- * of coarse -> freeze -> refine -> track. The dll_out partials are the actual
- * despread symbol stream this object also hands to RateConverter/mpsk_
- * receiver, so this squaring lives here in the consumer, not in dll_core.c.
- * Writes emitted partials into dll_out (capacity max_out); returns count. */
+ * symbols at the specification's async ratio, so a data transition lands
+ * inside nearly (docs/design/async-dsss-receiver.md) every period; the earlier
+ * decision-directed combine (sign-align each partial by its own real part,
+ * then sum) was corrupted by exactly those transitions -- direct measurement
+ * showed a +/-57deg discriminator that averaged to zero, so the loop never
+ * tracked and the whole carrier burden silently fell to the post-despread
+ * MpskReceiver loop (which then held the Type-II ramp phase error). Squaring
+ * removes the +/-1 BPSK data with NO per-partial sign decision (dll_out[i]^2 =
+ * A^2 exp(j2phi) regardless of the data bit); a partial straddling a
+ * transition merely loses amplitude, not phase. This is the SAME
+ * non-data-aided principle the downstream MpskReceiver carrier loop already
+ * uses, applied PRE-despread on the transition-free windows so despreading
+ * stays coherent (no residual carrier rotating within the correlation) -- the
+ * "unfreeze and track loop 1" step of coarse -> freeze -> refine -> track. The
+ * dll_out partials are the actual despread symbol stream this object also
+ * hands to RateConverter/mpsk_ receiver, so this squaring lives here in the
+ * consumer, not in dll_core.c. Writes emitted partials into dll_out (capacity
+ * max_out); returns count. */
 static size_t
 adr_track_period (dp_async_dsss_receiver_state_t *s,
                   const float _Complex *period, float _Complex *dll_out,
@@ -700,7 +701,8 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
        * windows. Each emitted partial is dll_out[i] = A * d * exp(j*phi),
        * d = +/-1 BPSK data, phi = residual carrier phase. Squaring removes
        * the data (d^2 = 1) with NO per-partial sign DECISION -- the failure
-       * mode of the old decision-directed sum, which at SPEC's async ratio
+       * mode of the old decision-directed sum, which at the specification's
+       * async ratio
        * (~0.9 symbols/code period) straddles a data transition almost every
        * period, giving a garbage +/-57deg discriminator that averages to
        * zero so the loop never tracks. The dp_dll_steps() windows are short
@@ -1416,8 +1418,8 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
        * own elapsed-time formula, ported verbatim -- a resampled chain
        * has no exact raw-sample-to-block correspondence to track through
        * RateConverter's own filter delay; this approximation is already
-       * validated to ~tens-of-Hz accuracy at SPEC's own real rate (see
-       * the plan doc). Uses `refine_n_fft` (the RAW per-block sample
+       * validated to ~tens-of-Hz accuracy at the specification's own real rate
+       * (see the plan doc). Uses `refine_n_fft` (the RAW per-block sample
        * count `dp_carrier_acq_create()` consumes per `n_blocks` increment)
        * -- NOT `ca->nfft` (the zero-padded PSD *transform* length,
        * `next_pow_two(refine_n_fft*refine_zero_pad)`, a different and much

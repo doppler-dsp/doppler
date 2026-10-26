@@ -90,9 +90,11 @@ def ser_theory(m: int, esn0_db: float) -> float:
 def penalty_sigma(ratio: float, n_coh: int, n_diff: int) -> float:
     """Sampling sigma of a differential-penalty ratio, from its two counts.
 
-    The two error counts are unpaired (see §2.4: a differential error lands
-    on a different constellation point), so their relative variances add:
-    sigma = ratio * sqrt(1/n_coh + 1/n_diff). A fixed band over one seed is
+    The two error counts are close to independent (see §2.4: a differential
+    error lands on a different constellation point). Treat
+    sigma = ratio * sqrt(1/n_coh + 1/n_diff) as a bound on the ratio's
+    sampling error, not as its exact value: it is the error for independent
+    counts, which is what this report assumes. A fixed band over one seed is
     not a bound on the penalty; four of these sigmas is.
 
     >>> round(penalty_sigma(2.0, 100, 100), 3)

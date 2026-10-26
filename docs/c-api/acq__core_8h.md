@@ -385,7 +385,7 @@ Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`
 
 * **Chip phase**: `hit's` `code_phase` is a correlation LAG (0 … code\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - code_phase/spc, code_len)`, folded non-negative.
 * **Doppler**: `state` is assumed built via [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous) (`window_bins` tiles of `coherent_bins` each, the only mode this function supports), so `hit`'s `doppler_bin` indexes the uniform grid of `window_bins * coherent_bins` bins, mapped to a signed bin by `dp_fftfreq_index()` — the SAME helper the search uses — and scaled by `state->doppler_res_hz`.
-* **The dwell's dilation** (doppler#1254): a hit is decided on a non-coherent sum over `n_noncoh` looks, and the code phase it reports is that sum's peak  the phase at the MIDDLE of the dwell, not at its end, when the chip clock is dilated by the same Doppler the hit reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz` chips per chip). The seed a code loop wants is the phase at the next sample, so with the carrier set ([**dp\_acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-dp_acq_set_carrier_freq_hz)) the phase is advanced by the drift over HALF the dwell, `doppler_hz_est / carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips (a coherent block's epochs are aligned to its middle by the same setting, so the block's peak is its middle too). At SPEC's 20 ppm the continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs  0.9 chip, measured directly, past the refine Dll's; without this the floor's hand-offs never refined. Uncoupled (0.0): no advance. 
+* **The dwell's dilation** (doppler#1254): a hit is decided on a non-coherent sum over `n_noncoh` looks, and the code phase it reports is that sum's peak  the phase at the MIDDLE of the dwell, not at its end, when the chip clock is dilated by the same Doppler the hit reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz` chips per chip). The seed a code loop wants is the phase at the next sample, so with the carrier set ([**dp\_acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-dp_acq_set_carrier_freq_hz)) the phase is advanced by the drift over HALF the dwell, `doppler_hz_est / carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips (a coherent block's epochs are aligned to its middle by the same setting, so the block's peak is its middle too). At the specification's 20 ppm the continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs  0.9 chip, measured directly, past the refine Dll's; without this the floor's hand-offs never refined. Uncoupled (0.0): no advance. 
 
 **Parameters:**
 
@@ -859,7 +859,7 @@ int main (void)
 {
   uint8_t          code[1023];
   dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
-  dp_gold_generate (g, 1023, code, 1023); // the SPEC Gold-1023 code
+  dp_gold_generate (g, 1023, code, 1023); // the specification Gold-1023 code
   dp_gold_destroy (g);
   dp_acq_state_t *a = dp_acq_create_continuous (
       code, 1023, 2, 3.069e6, 2700.0, 47.0, 5000.0, 1e-3, 0.9, 0, 1,
@@ -1238,7 +1238,7 @@ int dp_acq_set_carrier_freq_hz (
 
 
 A physically-coupled Doppler moves the code as well as the carrier  100 chips/s at 20 ppm of 5 Mcps  and the engine's two long integrations both smear over it (doppler#1256, #1254):
-* **Inside a coherent block** of D epochs every tile's epoch correlations are shifted along the code axis by the drift the tile's own frequency implies, `f_tile / carrier` chips per chip, aligned to the block's middle, before the slow-time transform (a linear phase on each epoch's product, exact to a fraction of a sample). Measured at SPEC's 20 ppm with D = 154 (3.1 chips of drift across the block): without it the block's peak is 13 dB down and 3 chips wide and the depth detects nothing at 34 dB-Hz; with it the block reads as a still one.
+* **Inside a coherent block** of D epochs every tile's epoch correlations are shifted along the code axis by the drift the tile's own frequency implies, `f_tile / carrier` chips per chip, aligned to the block's middle, before the slow-time transform (a linear phase on each epoch's product, exact to a fraction of a sample). Measured at the specification's 20 ppm with D = 154 (3.1 chips of drift across the block): without it the block's peak is 13 dB down and 3 chips wide and the depth detects nothing at 34 dB-Hz; with it the block reads as a still one.
 * **The hand-off** ([**dp\_acq\_build\_handoff()**](acq__core_8h.md#function-dp_acq_build_handoff)) advances the hit's code phase by the drift over half the dwell  the non-coherent sum's peak is the phase at the dwell's middle, the seed is wanted at its end: 0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
 
 

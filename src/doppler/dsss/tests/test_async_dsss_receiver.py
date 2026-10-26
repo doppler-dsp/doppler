@@ -5,8 +5,9 @@ refine -> track pipeline (validated in the coupled-despreader, freq-refine,
 and end-to-end acquisition prototypes). See
 `~/.claude/plans/crystalline-knitting-hopper.md` for the design.
 
-Uses SPEC's own Gold-1023/3.069Mcps/2700bps geometry and 500 Hz/s Doppler
-ramp throughout -- the genuinely-async (~1.111 periods/symbol) data-clock
+Uses the specification's own Gold-1023/3.069Mcps/2700bps geometry and 500
+Hz/s Doppler ramp throughout -- the genuinely-async (~1.111 periods/symbol)
+data-clock
 relationship this whole story's own architecture exists to handle. Like
 `DsssReceiver` (a frame/push object, not a simple block-`execute` shape),
 the state-serialization round trip is bespoke here rather than in the
@@ -26,12 +27,13 @@ from doppler.wfm import Gold
 SF = 1023
 CHIP_RATE = 3.069e6
 SYM_RATE = 2700.0  # chip_rate/(sf*sym_rate) ~= 1.111 periods/symbol --
-# deliberately NOT an integer, SPEC's own genuinely-async clock.
+# deliberately NOT an integer, the specification's own genuinely-async clock.
+# (docs/design/async-dsss-receiver.md)
 SPC = 2
 FS = CHIP_RATE * SPC
 TE = SF * SPC
 TSYM = FS / SYM_RATE
-RATE_HZ_PER_S = 500.0  # SPEC's corrected worst case
+RATE_HZ_PER_S = 500.0  # the specification's corrected worst case
 PRE_SILENCE = TE * 5 + 3
 N_SYM = 2430
 
@@ -337,7 +339,8 @@ def _stream(rx, x, chunk=TE):
 
 
 def test_acquires_refines_and_decodes():
-    """A moderately-stressed Es/N0 (NOT SPEC's own literal 5dB floor -- see
+    """A moderately-stressed Es/N0 (NOT the specification's own literal 5dB
+    floor -- see
     test_spec_floor_reaches_tracking_but_may_not_decode()'s own docstring
     for why) proves this object's own new machinery -- the refine stage's
     CarrierAcquisition-based frequency estimate and the per-code-period
@@ -459,12 +462,13 @@ def test_extreme_high_snr_stays_stable():
 
 
 def test_spec_floor_reaches_tracking_but_may_not_decode():
-    """SPEC's own literal Es/N0=5dB floor. Direct measurement while
-    building this object found that the ALREADY-SHIPPED, already-validated
+    """The specification's own literal Es/N0=5dB floor. Direct measurement
+    while building this object found the ALREADY-SHIPPED, already-validated
     `DsssReceiver` fails to decode (BER~0.43, lock~0.55) at this exact
     Es/N0 even given a trivial STATIC ZERO Doppler offset -- no frequency
     estimation error at all, coarse or refined. So this object cannot be
-    expected to decode at SPEC's literal floor either (task #99's own
+    expected to decode at the specification's literal floor either (task
+    #99's own
     "leading remaining candidate, not yet directly inspected: Acquisition's
     own hit quality" -- not a Doppler-estimation problem this object's
     refine stage could fix). This test checks only what THIS object's own

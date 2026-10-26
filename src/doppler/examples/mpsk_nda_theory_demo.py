@@ -53,7 +53,8 @@ ORDERS = [
 SPS, N = 8, 4
 ARM = SPS // N
 
-# The acquisition panel's loop, as a SPEC: 0.01 cycles/sample, zeta 0.707.
+# The acquisition panel's loop, as the specification gives it: 0.01
+# cycles/sample, zeta 0.707 (docs/design/async-dsss-receiver.md).
 # 911c9d01 (#300) redefined CarrierNda's bn from "per arm update" to
 # cycles/sample. This demo used to pass bn=0.02, which at ARM = 2 samples per
 # update WAS 0.01 cycles/sample. After #300 the same literal built a loop

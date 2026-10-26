@@ -151,7 +151,7 @@ extern "C"
     double   cn0_dbhz_est;   /**< Cached from the winning acquisition hit. */
   } dp_dsss_receiver_state_t;
 
-  /* SPEC-derived defaults for the pre-despread carrier loop (bn<=0.01
+  /* the specification-derived defaults for the pre-despread carrier loop (bn<=0.01 (docs/design/async-dsss-receiver.md)
    * rule + this session's own validated test_costas_core.c/floor-sweep
    * bn_fll=0.03 calibration point) -- hardcoded, not public constructor
    * params, matching how Dll's own bn=0.002/zeta/spacing are already

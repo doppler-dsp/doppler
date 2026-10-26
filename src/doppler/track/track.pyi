@@ -1161,10 +1161,10 @@ class Dll:
         windows become the detector's looks and the discriminator's windows. A
         look then integrates `L` partials coherently -- at 1.81 epochs per
         symbol (1,023 chips at 5 Mcps, 2,700 sym/s) and four partials per
-        epoch, six partials instead of one, 7.8 dB more per look; at SPEC's
-        1.11 epochs, three and 4.8 dB -- and never straddles a transition. Size
-        `n_looks` for it with detection.det_n_noncoh() over `L * (sf * sps /
-        segments)` samples.
+        epoch, six partials instead of one, 7.8 dB more per look; at the
+        specification's 1.11 epochs, three and 4.8 dB -- and never straddles a
+        transition. Size `n_looks` for it with detection.det_n_noncoh() over `L
+        * (sf * sps / segments)` samples.
 
         The code loop steers once per symbol, on the early/prompt/late sums
         over the winning window, instead of once per epoch on the look-back's:

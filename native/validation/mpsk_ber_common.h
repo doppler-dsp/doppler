@@ -215,13 +215,13 @@ typedef struct
  * real seed-to-seed variation in the receiver.
  *
  * Each burst independently: derives its settled window from the receiver's own
- * carrier lock and handover plus the analytic budget, detects its alignment
+ * carrier lock plus the analytic budget, detects its alignment
  * against a marker taken from truth well inside that window, and scores only
  * what is left. A burst that never settles contributes nothing and is counted
  * in `unsettled` rather than silently averaged in.
  *
  * @note The timing detector is not exposed at the object level (only the
- *       carrier lock and the handover are), so its `5/bn_timing` term reaches
+ *       carrier lock is), so its `5/bn_timing` term reaches
  *       the window through dp_ber_settle()'s analytic budget rather than
  *       through a measured indicator. That is the documented NULL case.
  */

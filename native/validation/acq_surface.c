@@ -7,12 +7,12 @@
  * The geometry is the receiver validators' operating point, read off a
  * continuous engine built there rather than restated: the 1023-chip Gold
  * code of dp_dsss_gold_1023(), 3.069 Mcps at two samples a chip, an
- * uncertainty of +/-5 kHz, and the SPEC window (code_only_epochs 449,
- * doppler_rate 500 Hz/s). From the engine come the epoch N (`code_bins`),
- * the tiles W (`window_bins`) at the epoch rate f_E = 2 `doppler_span_hz`,
- * the depth D (`coherent_bins`), the interpolation I (`interp`) and the
- * zone (`shape.zone`, samples). The code's ambiguity is computed through
- * the library's FFT,
+ * uncertainty of +/-5 kHz, and the specification window (code_only_epochs 449,
+ * (docs/design/async-dsss-receiver.md) doppler_rate 500 Hz/s). From the engine
+ * come the epoch N (`code_bins`), the tiles W (`window_bins`) at the epoch
+ * rate f_E = 2 `doppler_span_hz`, the depth D (`coherent_bins`), the
+ * interpolation I (`interp`) and the zone (`shape.zone`, samples). The code's
+ * ambiguity is computed through the library's FFT,
  *
  *     |chi(Delta, nu)| = |IFFT{ FFT{c e^{j 2 pi nu t}} conj(FFT{c}) }[Delta]|,
  *
@@ -95,7 +95,8 @@ static const double SYM_RATE  = 2700.0;
 static const double U_HZ      = 5000.0; /* one-sided uncertainty */
 static const double CN0_SIZED = 47.0;   /* the engine's design C/N0 */
 static const double PFA = 1e-3, PD = 0.9;
-/* The SPEC window, in whole code-only epochs, and its Doppler rate. */
+/* The specification window, in whole code-only epochs, and its Doppler rate.
+ */
 enum
 {
   CODE_ONLY_EPOCHS = 449

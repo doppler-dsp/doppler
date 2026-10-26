@@ -1107,8 +1107,8 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                  signal PLUS NOISE, so it rescaled every period by its own
                  noise, compressed the in-phase error against the
                  quadrature and coupled the symbols that share a period; at
-                 SPEC's Es/N0 5 dB it read a decision SNR 1.4 dB above the
-                 despread's while costing 0.2 dB of error rate
+                 the specification's Es/N0 5 dB it read a decision SNR 1.4 dB
+                 above the despread's while costing 0.2 dB of error rate
                  (doppler#2495). Never the lookback-shifted reconstruction
                  either, and never sign-adjusted. `out[]` is not internal
                  scratch: it is the

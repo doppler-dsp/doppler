@@ -401,7 +401,7 @@ still (the near-far limits, below).
 
 **What the engine lists.** The shipped engine over the same code, sized at
 47 dB-Hz over $\pm 5$ kHz with `max_peaks` 16, at a depth of one epoch and at
-the depth the SPEC window allows: 600-symbol streams framed 450 code-only
+the depth [the specification](async-dsss-receiver.md#1-the-specification) window allows: 600-symbol streams framed 450 code-only
 symbols in 500, at 200, 750, 1500 and $-2600$ Hz with 6 noise draws each.
 Each cell is the largest off-lag peak in a list, relative to the list's
 first, in power, and how many lists hold one. The last column is the deep

@@ -9,12 +9,13 @@
  * (pure noise never fires CarrierAcquisition -- must still reach
  * tracking with the unrefined coarse estimate, never stall), the
  * state-serialization round trip in all three phases, an envelope-reject
- * check, and SPEC's own combined-scenario geometry (500 Hz/s Doppler
- * ramp, Gold-1023-style code / async BPSK data clock) at two operating
- * points: a moderately-stressed Es/N0 where full decode is verified
+ * check, and the specification's own combined-scenario geometry (500 Hz/s
+ * Doppler (docs/design/async-dsss-receiver.md) ramp, Gold-1023-style code /
+ * async BPSK data clock) at two operating points: a moderately-stressed Es/N0
+ * where full decode is verified
  * (_test_spec_ramp_decode(), proving this object's own new machinery --
  * the refine stage and its per-code-period carrier cadence -- works
- * correctly under a real ramp), and SPEC's own literal 5dB floor
+ * correctly under a real ramp), and the specification's own literal 5dB floor
  * (_test_spec_combined_scenario_at_spec_floor(), which only checks the
  * state machine doesn't stall and produces a finite estimate -- see its
  * own comment for the decisive finding that full decode failure at this
@@ -33,7 +34,7 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/carrier_acq/carrier_acq_core.h" /* its blob magic, for forging */
 #include "doppler/doppler_channel/doppler_channel_core.h"
-#include "doppler/gold/gold_core.h" /* SPEC Gold-1023 for the Es/N0-floor sweep   */
+#include "doppler/gold/gold_core.h" /* the specification Gold-1023 for the Es/N0-floor sweep   */
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
@@ -398,14 +399,14 @@ _test_give_up_cap (void)
 }
 
 /* The full Acquisition -> CarrierAcquisition refine -> Costas/Dll/
- * RateConverter/MpskReceiver chain, at SPEC's own real operating-point
- * RATIOS (chip_rate=3.069e6, code_len=1023, symbol_rate=2700 -- CCSDS
- * Gold-1023 @ 3.069 Mcps / async BPSK @ 2700 bps) against a 500 Hz/s
- * Doppler ramp (SPEC's corrected worst case), run once at a moderately
- * stressed Es/N0 where the shared MpskReceiver/Dll chain is known able
- * to lock at all (see _test_spec_combined_scenario_at_spec_floor()'s own
- * comment for why SPEC's literal 5dB floor is NOT used here). Proves
- * THIS object's own new machinery -- the refine stage's frequency
+ * RateConverter/MpskReceiver chain, at the specification's own real
+ * operating-point RATIOS (chip_rate=3.069e6, code_len=1023, symbol_rate=2700
+ * -- CCSDS Gold-1023 @ 3.069 Mcps / async BPSK @ 2700 bps) against a 500 Hz/s
+ * Doppler ramp (the specification's corrected worst case), run once at a
+ * moderately stressed Es/N0 where the shared MpskReceiver/Dll chain is known
+ * able to lock at all (see _test_spec_combined_scenario_at_spec_floor()'s own
+ * comment for why the specification's literal 5dB floor is NOT used here).
+ * Proves THIS object's own new machinery -- the refine stage's frequency
  * estimate and the per-code-period (not per-partial -- see
  * adr_build_track_chain()'s comment) carrier cadence -- correctly closes
  * the loop and decodes under a real Doppler RAMP, the scenario the
@@ -422,15 +423,15 @@ _test_spec_ramp_decode (void)
   const double sym_rate  = 2700.0; /* chip_rate/(sf*sym_rate) ~= 1.111
                                        periods/symbol -- deliberately NOT
                                        an integer, the genuinely-async
-                                       clock relationship SPEC's own
-                                       waveform has. */
+                                       clock relationship the specification's
+                                      own  waveform has. */
   const double tsym          = fs / sym_rate;
   const size_t te            = sf * spc;
   const double rate_hz_per_s = 500.0;
   const size_t n_sym         = 2430;
   const size_t pre_silence   = te * 5 + 3;
   const double esn0_db       = 30.0; /* moderately stressed -- see the
-                                         comment above; not SPEC's own
+                                         comment above; not the specification's own
                                          5dB floor. */
   const double cn0
       = esn0_db + 10.0 * log10 (sym_rate); /* es_n0_to_cn0_dbhz() */
@@ -504,11 +505,11 @@ _test_spec_ramp_decode (void)
  * call site -> the floor's seeds red (the 45 dB-Hz ones survive it, which
  * is why the floor is in the test).
  *
- * The stimulus is the shipped channel at SPEC's 20 ppm of a 2.5 GHz
- * carrier with no rate (SPEC's two worst cases do not coincide); three
- * seeds closing and one opening, every one must lock the code and decode,
- * at 45 dB-Hz with the margin the old test used and at the floor with the
- * shipped one. */
+ * The stimulus is the shipped channel at the specification's 20 ppm of a 2.5
+ * GHz carrier with no rate (the specification's two worst cases do not
+ * coincide); three seeds closing and one opening, every one must lock the code
+ * and decode, at 45 dB-Hz with the margin the old test used and at the floor
+ * with the shipped one. */
 static int
 _test_handover_under_clock_offset (void)
 {
@@ -520,9 +521,9 @@ _test_handover_under_clock_offset (void)
   const double tsym      = fs / sym_rate;
   const size_t te        = sf * spc;
   const double carrier   = 2.5e9;
-  /* SPEC's 20 ppm: 50 kHz, 100 chips/s of dilation. Two operating points:
-     45 dB-Hz with a design margin of 19 dB, which sizes the same 7-block,
-     42 ms refine dwell that the shipped 14 dB does at 40 dB-Hz
+  /* the specification's 20 ppm: 50 kHz, 100 chips/s of dilation. Two operating
+     points: 45 dB-Hz with a design margin of 19 dB, which sizes the same
+     7-block, 42 ms refine dwell that the shipped 14 dB does at 40 dB-Hz
      (validate_refine_bias prints the margin -> dwell table) -- so #1249's
      old hand-over is 4 chips off, unambiguously outside the Dll's pull-in
      (over its 12 ms dwell it was 1.2 chips, a coin toss) -- and the
@@ -596,7 +597,7 @@ _test_handover_under_clock_offset (void)
   return 0;
 }
 
-/* SPEC's own literal Es/N0=5dB floor, same geometry/ramp as
+/* the specification's own literal Es/N0=5dB floor, same geometry/ramp as
  * _test_spec_ramp_decode() above. task #99's own cliff at this exact
  * operating point was ALREADY characterized as "pure-SNR, rate-
  * independent" with "Acquisition's own hit quality/reliability... the
@@ -606,8 +607,8 @@ _test_handover_under_clock_offset (void)
  * the ALREADY-SHIPPED, already-validated `DsssReceiver` fails to decode
  * (BER~0.43, lock~0.55) at this exact Es/N0 even given a trivial STATIC
  * ZERO Doppler offset -- no frequency estimation error at all, coarse or
- * refined. So this object cannot be expected to decode at SPEC's literal
- * floor either (task #99's real fix is elsewhere -- see the comment
+ * refined. So this object cannot be expected to decode at the specification's
+ * literal floor either (task #99's real fix is elsewhere -- see the comment
  * above); this test instead checks the two things THIS object's own
  * refine stage is actually responsible for: the state machine reaches
  * tracking (doesn't stall) and the refined Doppler estimate is finite/
@@ -626,7 +627,7 @@ _test_spec_combined_scenario_at_spec_floor (void)
   const double rate_hz_per_s = 500.0;
   const size_t n_sym         = 2430;
   const size_t pre_silence   = te * 5 + 3;
-  const double esn0_db       = 5.0; /* SPEC's own floor */
+  const double esn0_db       = 5.0; /* the specification's own floor */
   const double cn0
       = esn0_db + 10.0 * log10 (sym_rate); /* es_n0_to_cn0_dbhz() */
 
@@ -669,21 +670,22 @@ _test_spec_combined_scenario_at_spec_floor (void)
   return 0;
 }
 
-/* AWGN-only Es/N0 decode floor at SPEC's own geometry (Gold-1023, 3.069
- * Mcps, 2700 bps asynchronous BPSK, spc=2), ZERO Doppler -- characterizes
- * the decode floor, independent of Doppler and of the aiding path.
- * Generated with the wfmgen C API (dp_wfm_cont_dsss_chips) so this test
+/* AWGN-only Es/N0 decode floor at the specification's own geometry
+ * (Gold-1023, 3.069 Mcps, 2700 bps asynchronous BPSK, spc=2), ZERO Doppler --
+ * characterizes the decode floor, independent of Doppler and of the aiding
+ * path. Generated with the wfmgen C API (dp_wfm_cont_dsss_chips) so this test
  * exercises the same continuous-DSSS builder the wfmgen tool ships. Sweeps
  * Es/N0 and prints three metrics (visible under `ctest -V`) so the floor is
  * a tracked, inspectable quantity: the truth-referenced BER PLUS two
  * truth-free validators that cannot be fooled by a lucky BER lag/polarity --
  * the self-referenced EVM (each symbol vs its OWN hard decision, no lag) and
  * the blind M2M4 SNR (snr_m2m4_db, moment-based, no reference symbols).
- * AWGN-only, this receiver essentially MEETS SPEC's 5 dB floor: it decodes
- * cleanly at 5 dB and only fails at 4 dB. (An earlier "~12 dB floor" was a
- * pure BER-lag artifact -- the settling delay grows toward the floor, so a
- * fixed short lag window reports chance while the receiver actually decodes;
- * the EVM/M2M4 corroboration is what caught and corrected it.)
+ * AWGN-only, this receiver essentially MEETS the specification's 5 dB floor:
+ * it decodes cleanly at 5 dB and only fails at 4 dB. (An earlier "~12 dB
+ * floor" was a pure BER-lag artifact -- the settling delay grows toward the
+ * floor, so a fixed short lag window reports chance while the receiver
+ * actually decodes; the EVM/M2M4 corroboration is what caught and corrected
+ * it.)
  */
 static int
 _test_awgn_esn0_floor (void)
@@ -766,16 +768,18 @@ _test_awgn_esn0_floor (void)
     }
   free (code);
 
-  /* AWGN-only, this receiver essentially MEETS SPEC's 5 dB floor: it decodes
-     cleanly at 5 dB and only fails at 4 dB. (An earlier characterization put
-     the floor ~12 dB -- that was purely a narrow BER lag-search artifact:
-     the settling delay grows toward the floor, so a fixed short lag window
-     misses the alignment and reports chance even while the receiver decodes
-     perfectly. Widening the lag AND cross-checking with the truth-free
-     EVM/M2M4 validators is what corrected it.) */
+  /* AWGN-only, this receiver essentially MEETS the specification's 5 dB floor:
+     it decodes cleanly at 5 dB and only fails at 4 dB. (An earlier
+     characterization put the floor ~12 dB -- that was purely a narrow BER
+     lag-search artifact: the settling delay grows toward the floor, so a fixed
+     short lag window misses the alignment and reports chance even while the
+     receiver decodes perfectly. Widening the lag AND cross-checking with the
+     truth-free EVM/M2M4 validators is what corrected it.) */
   DP_CHECK (ber_at[4] < 0.05); /* 10 dB: clean */
   DP_CHECK (ber_at[3] < 0.05); /* 8 dB: clean */
-  DP_CHECK (ber_at[1] < 0.05); /* 5 dB: MEETS SPEC's 5 dB floor (AWGN-only) */
+  DP_CHECK (
+      ber_at[1]
+      < 0.05); /* 5 dB: MEETS the specification's 5 dB floor (AWGN-only) */
   DP_CHECK (ber_at[0] > 0.10); /* 4 dB: below the floor */
 
   /* Independent, truth-free corroboration (no lag, no reference symbols):
@@ -3485,8 +3489,9 @@ _test_tlm_names_documented (void)
   return 0;
 }
 
-/* The design point of docs/design/async-dsss-parallel.md: the SPEC Gold-1023
- * receiver at 3.069 Mchip/s and 2700 symbols/s, two samples a chip. */
+/* The design point of docs/design/async-dsss-parallel.md: the specification
+ * Gold-1023 receiver at 3.069 Mchip/s and 2700 symbols/s, two samples a chip.
+ */
 #define SLOW_CR 3.069e6
 #define SLOW_RS 2700.0
 #define SLOW_SPC 2
@@ -3528,7 +3533,8 @@ _test_slow_time_depth_from_physical_inputs (void)
     { 1.5 / 3000.0, 0.0, 1 },     /* under two epochs: no window           */
     { 7.5 / 3000.0, 0.0, 3 },     /* floor 7 - 1 = 6 epochs: (6 + 1)/2 = 3 */
     { 170.0 / SLOW_RS, 2000.0, 45 }, /* the rate bounds it: 47 -> 45      */
-    { 450.0 / SLOW_RS, 500.0, 90 },  /* SPEC: 499 epochs, 500 Hz/s -> 94  */
+    { 450.0 / SLOW_RS, 500.0,
+      90 }, /* the specification: 499 epochs, 500 Hz/s -> 94  */
   };
   for (size_t i = 0; i < sizeof rows / sizeof rows[0]; i++)
     {
@@ -3872,8 +3878,8 @@ _test_ranks_and_exclusions_split_two_signals (void)
  * rate): a rank-0 search must take W. 10 dB is well inside the -16.95 dB
  * sidelobe level, so W is a signal against any one of them; a bound summed
  * over all five read W as their sidelobes and never took it. Run on a
- * one-epoch search over data and on the SPEC frame's deep block (D = 90,
- * 450 code-only symbols in 500). Each emitter's phase comes from a rank-0
+ * one-epoch search over data and on the specification frame's deep block (D =
+ * 90, 450 code-only symbols in 500). Each emitter's phase comes from a rank-0
  * receiver fed it alone. Sabotage: sum every stronger emitter in
  * adr_sidelobe_bound() -> red at D = 1; sum them regardless of row at
  * D > 1 -> red at D = 90. */
@@ -3964,8 +3970,8 @@ _test_near_far_range_holds_with_many_signals (void)
  * window an emitter's Doppler-offset sidelobes are fixed cells on its own
  * Doppler row, so two emitters on the same row can put theirs on one cell
  * and together pass a bound that only the stronger one sets. Hand-built
- * geometries from the reviews, D = 90 on the SPEC frame, B clean at A's
- * amplitude: A at 1500 Hz with B on its carrier 674 chips after it, or at
+ * geometries from the reviews, D = 90 on the specification frame, B clean at
+ * A's amplitude: A at 1500 Hz with B on its carrier 674 chips after it, or at
  * -4500 Hz (the same row modulo the epoch rate) 426 chips after it, two
  * draws each; and A at -994 Hz with B at -977 Hz, 367 chips after it,
  * draw 9 -- 17 Hz apart, the two quantize to ADJACENT rows (review
@@ -4092,9 +4098,9 @@ _test_one_signal_holds_one_rank (void)
  * acq-surface.md §8), and noise rides on them. A search that skips the
  * strongest peak must not take one as a second signal: on a stream holding
  * A alone, neither a rank-1 receiver nor a rank-0 receiver with A excluded
- * may leave searching. Draws: data throughout, the SPEC search (+-5 kHz,
- * five tiles), two C/N0 and three Dopplers, one near a tile centre and one
- * on a tile edge, three noise seeds and starts each. Without the sidelobe
+ * may leave searching. Draws: data throughout, the specification search (+-5
+ * kHz, five tiles), two C/N0 and three Dopplers, one near a tile centre and
+ * one on a tile edge, three noise seeds and starts each. Without the sidelobe
  * rule both seed on a sidelobe in every draw. Sabotage: drop the rule
  * (adr_pick()'s dsl term) -> red; leave the excluded peak out of the
  * strongest-statistic bound -> the excluded search seeds. */
@@ -4150,8 +4156,9 @@ _test_ranked_search_takes_no_sidelobe (void)
           free (data);
         }
   /* The deep block's thinnest margin (review 5606641242): D = 90 on the
-     SPEC frame (450 code-only symbols of 500), a strong emitter on a tile
-     edge, where its own peak has lost the most and its sidelobe has not. */
+     the specification frame (450 code-only symbols of 500), a strong emitter
+     on a tile edge, where its own peak has lost the most and its sidelobe has
+     not. */
   {
     float _Complex *x;
     size_t          n;

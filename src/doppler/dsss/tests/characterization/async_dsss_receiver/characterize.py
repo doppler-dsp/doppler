@@ -5,8 +5,9 @@ threshold or a ``|P|``-normaliser whose denominator tends to zero blows up to
 inf/NaN. This receiver guards every ratio's denominator, so fed a signal far
 above its design point it should stay finite, lock, and decode. This sweep is
 how that claim is checked: a receiver designed at a normal Es/N0 = 20 dB is
-fed the SPEC geometry's 500 Hz/s Doppler ramp from 20 dB up to effectively
-noiseless (200 dB), over several seeds, at the full capture length.
+fed the specification geometry's 500 Hz/s Doppler ramp from 20 dB up to
+effectively noiseless (200 dB), over several seeds, at the full capture
+length.
 
 It is a characterization rather than a unit test because it is a stress
 sweep, not a contract of one operating point, and because it streams ~5.5 M

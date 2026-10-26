@@ -1,8 +1,9 @@
 /**
  * @file rx_dynamics.c
  * @brief The receiver under a COUPLED Doppler ramp across a data onset --
- *        the continuous flavor's own scenario, and the one measurement that
- *        separates the three NDA carrier taps on it.
+ *        the continuous flavor's own scenario, and the measurement that
+ *        chose its carrier tap. The comparison ran three taps; #832 removed
+ *        two, and `strobe` is the one that remains.
  *
  * `docs/design/mpsk.md` S0 describes the continuous flavor as **NRZ BPSK,
  * periods of data modulation off but carrier on**. Nothing in the tree
@@ -33,8 +34,8 @@
  *
  * ## What it found, and what it did not
  *
- * The tap that reads the on-time strobe wins on every axis measured, which
- * is the opposite of what the tap enum's prose implied:
+ * Measured before #832 removed the other two, the tap that reads the on-time
+ * strobe won on every axis, the opposite of what the tap enum's prose implied:
  *
  * | tap      | lock quiet | min post-onset | recovered | end    |
  * | -------- | ---------- | -------------- | --------- | ------ |
@@ -57,17 +58,17 @@
  *
  * `mf_in` is worst throughout and starts from a lower baseline. That is NOT
  * an intrinsic cost of reading ahead of the matched filter, and this file
- * previously said it was. Measured at the node with the AGC off so the path
- * is linear, the `mf_in` node sits **6.01 dB** below Es/N0 while the terminal
- * node sits 1.7 dB below it -- and `10*log10(bank_sps) = 6.02 dB`. The
- * deficit is a pure BANDWIDTH ratio (identical at 6.79, 12 and 20 dB Es/N0),
- * not a loss of signal energy: a Nyquist-sampled band-limited signal loses
- * nothing, and this node is not band-limited to the signal. DEC filters to
- * ITS OWN Nyquist -- +-bank_sps*Rs/2 -- while the signal occupies ~+-Rs, and
- * nothing between them removes the difference. That is the tap's PRICE, not a
- * defect: an arm filter would recover it and is declined, because `strobe`
- * reads the node already matched to the signal for free and measures better
- * here anyway.
+ * an earlier version of this file said it was. Measured at the node with the
+ * AGC off so the path is linear, the `mf_in` node sits **6.01 dB** below Es/N0
+ * while the terminal node sits 1.7 dB below it -- and `10*log10(bank_sps)
+ * = 6.02 dB`. The deficit is a pure BANDWIDTH ratio (identical at 6.79, 12 and
+ * 20 dB Es/N0), not a loss of signal energy: a Nyquist-sampled band-limited
+ * signal loses nothing, and this node is not band-limited to the signal. DEC
+ * filters to ITS OWN Nyquist -- +-bank_sps*Rs/2 -- while the signal occupies
+ * ~+-Rs, and nothing between them removes the difference. That was the mf_in
+ * tap's PRICE, not a defect: an arm filter would recover it and is declined,
+ * because `strobe` reads the node already matched to the signal for free and
+ * measures better here anyway.
  *
  * ## Telemetry is the deliverable, not a side effect
  *

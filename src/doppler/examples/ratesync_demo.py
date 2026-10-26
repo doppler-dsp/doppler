@@ -35,7 +35,7 @@ import sys
 # --8<-- [start:signal]
 import numpy as np
 
-from doppler.ber import ber_evm_db, ber_settle_syms
+from doppler.ber import ber_evm_db, ber_evm_ideal_db, ber_settle_syms
 from doppler.track import RateSync
 from doppler.wfm import rrc_h
 
@@ -250,6 +250,33 @@ def bank_cost(sps_values, span=SPAN, m=2):
 # --8<-- [end:cost]
 
 
+# --8<-- [start:sweep]
+def evm_sweep(esn0_db=(10.0, 15.0, 20.0), n_seeds=10):
+    """Mean settled EVM over seeds 0..n_seeds-1 at each Es/N0, and the ideal.
+
+    The reference is ``ber_evm_ideal_db``: what ``ber_evm_db`` reads on a
+    perfect stream. The meter scales its window to unit total power, so
+    even an ideal receiver reads a little under -Es/N0 (-10.31 dB at 10 dB);
+    a receiver's loss is its EVM minus this, not its EVM plus Es/N0.
+    """
+    rows = []
+    for esn0 in esn0_db:
+        evm = []
+        for seed in range(n_seeds):
+            sig, _ = make_signal(
+                SPS * (1 + CLOCK_PPM * 1e-6), seed=seed, es_n0_db=esn0
+            )
+            rs = RateSync(
+                sps=SPS, pulse="rrc", beta=BETA, span=SPAN, m=2, bn=BN
+            )
+            evm.append(_evm_db(np.asarray(rs.steps(sig))))
+        rows.append((esn0, float(np.mean(evm)), ber_evm_ideal_db(esn0)))
+    return rows
+
+
+# --8<-- [end:sweep]
+
+
 def main(out_path="ratesync_demo.png"):
     import matplotlib
 
@@ -376,6 +403,18 @@ def main(out_path="ratesync_demo.png"):
         got = _evm_db(np.asarray(obj.steps(sig)))
         assert abs(got - evm_floor_db(esn0)) < 1.5, (
             f"Es/N0 {esn0:g} dB: EVM {got:.1f} dB, bound {-esn0:.1f} dB"
+        )
+
+    # Ten seeds per point put the fused matched filter within 0.15 dB of a
+    # perfect receiver on this meter (the mean's own spread is ~0.02 dB).
+    for esn0, mean_db, ideal_db in evm_sweep():
+        print(
+            f"Es/N0 {esn0:.0f} dB: EVM {mean_db:.2f} dB over 10 seeds, "
+            f"ideal {ideal_db:.2f} dB"
+        )
+        assert abs(mean_db - ideal_db) < 0.15, (
+            f"Es/N0 {esn0:g} dB: mean EVM {mean_db:.2f} dB is not within "
+            f"0.15 dB of the ideal {ideal_db:.2f} dB"
         )
 
     floor = evm_floor_db()

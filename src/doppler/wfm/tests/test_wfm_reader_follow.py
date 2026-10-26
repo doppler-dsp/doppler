@@ -303,3 +303,35 @@ def test_following_an_already_closed_capture_ends_at_once(tmp_path):
     tail = _in_thread(lambda: r.read_follow(4096))
     assert len(tail) == 0
     assert r.ending == "eof"
+
+
+def test_a_second_stop_ends_the_unbounded_grace(tmp_path):
+    """The escape #2601 adds: a writer that never lands its marker.
+
+    With the DEFAULT grace (0, forever) a first stop waits for a marker that,
+    from a writer that died, never comes. A second request is "stop now".
+    The grace here is the default on purpose: a broken build hangs, and
+    `_in_thread` turns that hang into a failure.
+    """
+    p = tmp_path / "escalate.blue"
+    w = _capture(p)
+    try:
+        it = Interrupt(np.array([], dtype=np.int32))
+        r = Reader(p)
+        assert r.follow_grace_ms == 0  # the unbounded default
+        assert len(r.read_follow(4096)) == 4096
+
+        it.interrupt()
+        assert it.interrupted() == 1
+        timer = threading.Timer(0.3, it.interrupt)  # the second Ctrl+C
+        timer.start()
+        try:
+            got = _in_thread(lambda: r.read_follow(4096))
+        finally:
+            timer.join()
+
+        assert it.interrupted() == 2
+        assert len(got) == 0
+        assert r.ending == "interrupted"
+    finally:
+        w.close()

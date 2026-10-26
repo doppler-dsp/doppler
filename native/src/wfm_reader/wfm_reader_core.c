@@ -1536,10 +1536,19 @@ dp_wfm_reader_read_follow (dp_wfm_reader_state_t *r, size_t n,
           r->ending = WFM_FOLLOW_EOF;
           return 0;
         }
-      if (!stopping && r->stop_fn && r->stop_fn ())
+      int stop = r->stop_fn ? r->stop_fn () : 0;
+      if (!stopping && stop)
         {
           stopping = 1;
           budget   = r->follow_grace_ms;
+        }
+      /* A second stop while the first is pending means "stop now": it ends
+         the grace, bounded or not (#2601). Only after the drain above, so
+         even this never discards a tail already on disk. */
+      if (stop >= 2)
+        {
+          r->ending = WFM_FOLLOW_INTERRUPTED;
+          return 0;
         }
       if (budget == 0)
         {

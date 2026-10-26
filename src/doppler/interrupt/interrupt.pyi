@@ -55,7 +55,9 @@ class Interrupt:
         """
 
     def interrupted(self) -> int:
-        """Non-zero once a stop has been requested.
+        """How many stops are pending: 0, 1 once a stop has been requested, 2
+        once it has been requested again ("stop now": it ends a follow read's
+        grace).
 
         Returns
         -------

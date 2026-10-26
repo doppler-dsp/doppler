@@ -1830,6 +1830,64 @@ test_follow_drains_before_honouring_a_stop (void)
   return 0;
 }
 
+/* A SECOND STOP ENDS THE GRACE (#2601). The first stop makes a follow read
+   wait for the writer's marker; a writer that died never lands one, and the
+   default grace is forever, so the second request is the only way out. The
+   predicate reports 1 for three calls and then 2, the count dp_interrupted()
+   returns after a second Ctrl+C.
+
+   The grace is BOUNDED (2 s) so a broken build cannot hang the suite, and the
+   CALL COUNT tells the two apart: a working build returns on the fourth call,
+   while a broken one keeps calling until the grace runs out.
+
+   Sabotage: delete the `stop >= 2` return in dp_wfm_reader_read_follow and
+   the call count goes red. */
+static int g_stop_calls = 0;
+static int
+test_stop_escalates_on_the_fourth_call (void)
+{
+  return ++g_stop_calls >= 4 ? 2 : 1;
+}
+
+static int
+test_follow_second_stop_ends_the_grace (void)
+{
+  const char *path = "wfm_follow_escalate.blue";
+  FILE       *fp   = fopen (path, "wb+");
+  DP_REQUIRE_MSG (fp, "open for write");
+  dp_wfm_writer_state_t *w
+      = dp_wfm_writer_open (fp, WFM_FT_BLUE, 3, 0, 2.4e6, 0.0, 0, 0.0);
+  DP_REQUIRE_MSG (w, "writer open");
+  float _Complex x[12];
+  make_signal (x, 12);
+  DP_REQUIRE_MSG (dp_wfm_writer_write (w, x, 12) == 12, "wrote 12");
+  DP_REQUIRE_MSG (dp_wfm_writer_flush (w) == 0, "flush");
+
+  dp_wfm_reader_state_t *r = dp_wfm_reader_create (path, 3, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+  dp_wfm_reader_set_stop_fn (r, test_stop_escalates_on_the_fourth_call);
+  dp_wfm_reader_set_follow_grace_ms (r, 2000);
+
+  float _Complex y[16];
+  g_stop_calls = 0;
+  /* Drain still wins over "stop now": the 12 samples on disk come back. */
+  DP_REQUIRE_MSG (dp_wfm_reader_read_follow (r, 16, y, 16) == 12,
+                  "an escalated stop does not discard what is on disk");
+  DP_REQUIRE_MSG (g_stop_calls == 0, "a read with data asks nothing");
+
+  DP_REQUIRE_MSG (dp_wfm_reader_read_follow (r, 16, y, 16) == 0, "drained");
+  DP_REQUIRE_MSG (dp_wfm_reader_get_ending (r) == WFM_FOLLOW_INTERRUPTED,
+                  "the second stop ends the wait as INTERRUPTED");
+  DP_REQUIRE_MSG (g_stop_calls == 4,
+                  "it returns on the escalating call, not when the grace "
+                  "expires");
+  dp_wfm_reader_destroy (r);
+  dp_wfm_writer_close (w);
+  fclose (fp);
+  remove (path);
+  return 0;
+}
+
 /* The interruptible creator is the one the Python Reader calls, and what it
    adds over dp_wfm_reader_create is exactly one thing: Ctrl-C ends a follow
    read. So pin both halves -- the plain creator ignores the process
@@ -2479,6 +2537,8 @@ main (void)
   if (test_follow_drains_before_honouring_a_stop ())
     return 1;
   if (test_follow_distinguishes_timeout_from_interrupted ())
+    return 1;
+  if (test_follow_second_stop_ends_the_grace ())
     return 1;
   if (test_interruptible_creator_honours_the_process_interrupt ())
     return 1;

@@ -41,7 +41,7 @@ _Static_assert (ATOMIC_INT_LOCK_FREE == 2,
    an opaque `void *`, which is jm's whole contract. */
 typedef struct
 {
-  atomic_int flag;       /* set by a handler; read by waits */
+  atomic_int flag;       /* requests pending, 0..2; see dp_interrupted() */
   unsigned   latency_ms; /* wait slice, milliseconds */
 } dp_interrupt_shared_t;
 
@@ -105,7 +105,13 @@ dp_interrupt_guard_state_adopt (void *shared)
 void
 dp_interrupt (void)
 {
-  atomic_store (dp_interrupt_flag, 1);
+  /* Count the request, saturating at 2 ("stop now", #2601). A CAS loop on a
+     lock-free atomic is still async-signal-safe: it never blocks, and a
+     handler that interrupts another dp_interrupt() mid-loop just makes that
+     one retry. Saturating keeps a held-down Ctrl+C from wrapping. */
+  int v = atomic_load (dp_interrupt_flag);
+  while (v < 2 && !atomic_compare_exchange_weak (dp_interrupt_flag, &v, v + 1))
+    ;
 }
 
 void
@@ -117,7 +123,7 @@ dp_resume (void)
 int
 dp_interrupted (void)
 {
-  return atomic_load (dp_interrupt_flag) != 0;
+  return atomic_load (dp_interrupt_flag);
 }
 
 void
@@ -267,9 +273,11 @@ static struct
 static void
 dp_sig_forward (int sig, siginfo_t *info, void *uctx)
 {
-  /* Lock-free by the static assert above, so this store is
+  /* The one primitive, as the Windows handler calls it: a second signal must
+     escalate (#2601), and a private store here would set 1 forever. It only
+     touches a lock-free atomic (the static assert above), so it is
      async-signal-safe. */
-  atomic_store (dp_interrupt_flag, 1);
+  dp_interrupt ();
 
   /* Chain. The previous handler is usually an interpreter's own, and its
      absence is how "Ctrl+C works during a receive" turns into "Ctrl+C

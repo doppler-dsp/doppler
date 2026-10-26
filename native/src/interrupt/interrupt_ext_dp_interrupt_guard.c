@@ -178,7 +178,9 @@ static PyMethodDef InterruptObj_methods[] = {
   { "interrupted", (PyCFunction)InterruptObj_interrupted, METH_NOARGS,
     "interrupted() -> int\n"
     "\n"
-    "Non-zero once a stop has been requested.\n"
+    "How many stops are pending: 0, 1 once a stop has been requested, 2 once "
+    "it has been requested again (\"stop now\": it ends a follow read's "
+    "grace).\n"
     "\n"
     "Returns\n"
     "-------\n"

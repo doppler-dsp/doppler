@@ -195,7 +195,8 @@ class Reader:
         ENDED; read `ending` for which way. `timeout_ms` bounds the wait for
         data; `grace_ms` bounds how long to keep waiting for the writer's
         marker after a stop has been requested, and expiring it may cost you
-        the tail. Never consumes a partial sample, so a writer flushing
+        the tail. A second stop (a second Ctrl+C) ends that wait at once,
+        bounded or not. Never consumes a partial sample, so a writer flushing
         mid-sample cannot desynchronise the stream.
 
         Blocks until whole samples arrive. A short or empty result does not
@@ -434,8 +435,9 @@ class Reader:
         **0 (the default) waits forever**. The writer needs a moment to flush
         and patch its header, and expiring this budget before it does costs you
         the tail -- so the default trades an unlikely hang against a certain
-        loss. A bounded grace that expires leaves `ending` at
-        `"interrupted"`.
+        loss. The hang has an escape: a second stop request (a second Ctrl+C)
+        ends the wait at once. A bounded grace that expires, or a second stop,
+        leaves `ending` at `"interrupted"`.
         """
     @follow_grace_ms.setter
     def follow_grace_ms(self, value: int) -> None: ...
@@ -445,11 +447,12 @@ class Reader:
         capture is still live, `"eof"` once the writer closed and said so,
         `"timeout"` if a bounded `timeout_ms` expired, `"interrupted"` if a
         stop was requested and a bounded `grace_ms` expired before the writer's
-        marker arrived. With the default unbounded budgets only `"none"` and
-        `"eof"` are reachable, which is why an empty result needs no check in
-        the common case. The values are doppler's own return codes (`DP_OK`,
-        `DP_ERR_EOF`, `DP_ERR_TIMEOUT`, `DP_ERR_INTERRUPTED`), so a C caller
-        reads the same vocabulary every other transport uses.
+        marker arrived, or a second stop ended the wait. With the default
+        unbounded budgets and a single stop, only `"none"` and `"eof"` are
+        reachable, which is why an empty result needs no check in the common
+        case. The values are doppler's own return codes (`DP_OK`, `DP_ERR_EOF`,
+        `DP_ERR_TIMEOUT`, `DP_ERR_INTERRUPTED`), so a C caller reads the same
+        vocabulary every other transport uses.
         """
 
     @property

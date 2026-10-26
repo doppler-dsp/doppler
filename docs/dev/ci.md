@@ -336,10 +336,12 @@ would be a skip permission that nothing takes.
 `issue-link-check`) and `coverage`'s `COV_BASE` both read
 `pull_request.base.sha`, falling back to `origin/main` on a push.
 
-**Merge method: rebase.** `issue-link-check` reads the `Closes #N` /
-`No-issue:` declaration from commit messages. A squash commit carries
-whatever message the squash template produces, which can drop that
-declaration.
+**Merge method: squash or rebase.** `protect-main` allows both.
+`issue-link-check` reads the `Closes #N` / `No-issue:` declaration from
+commit messages, and both methods keep it: the squash template is the
+branch's commit messages, so every `Closes` line lands in the squash body.
+Squash a one-issue PR. Rebase a train, so that each landed commit can be
+checked by patch-id against the commit that was reviewed.
 
 `windows.yml` is advisory.
 
@@ -376,7 +378,8 @@ ______________________________________________________________________
 <!-- ci-jobs:end -->
 
 `make ci-aggregator-check` holds this table to `ci.yml`: every job named
-exactly once, and no job `ci.yml` lacks.
+exactly once, and no job `ci.yml` lacks. The "what it runs" column names
+each job's main targets, not every step; `ci.yml` is the full list.
 
 **One check name is load-bearing: `CI passed`.** It is the only status check
 the `protect-main` ruleset requires, and it is green only when every job in

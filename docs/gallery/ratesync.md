@@ -38,17 +38,38 @@ $$
 (The familiar factor of two belongs to an **I-only** measurement, which
 discards the Q channel. EVM is a plane quantity unless it says otherwise.)
 
-Measured, ten seeds per point:
+The reference is what the meter reads on a perfect stream,
+[`ber_evm_ideal_db`](../api/python-ber.md): `ber_evm_db` scales its window to
+unit total power, so even an ideal receiver reads a little under −Es/N0
+(−10.31 dB at 10 dB). Measured with the script's own signal and EVM, ten
+seeds per point (about 20 s):
 
-| Es/N0 | bound    | measured  | offset   |
-| ----- | -------- | --------- | -------- |
-| 10 dB | −10.0 dB | −10.02 dB | −0.02 dB |
-| 15 dB | −15.0 dB | −15.01 dB | −0.01 dB |
-| 20 dB | −20.0 dB | −19.97 dB | +0.03 dB |
+```pycon
+>>> import numpy as np
+>>> from doppler.ber import ber_evm_ideal_db
+>>> from doppler.examples.ratesync_demo import (
+...     BETA, BN, CLOCK_PPM, SPAN, SPS, _evm_db, make_signal)
+>>> from doppler.track import RateSync
+>>> for esn0 in (10.0, 15.0, 20.0):
+...     evm = []
+...     for seed in range(10):
+...         sig, _ = make_signal(SPS * (1 + CLOCK_PPM * 1e-6), seed=seed,
+...                              es_n0_db=esn0)
+...         rs = RateSync(sps=SPS, pulse="rrc", beta=BETA, span=SPAN, m=2,
+...                       bn=BN)
+...         evm.append(_evm_db(np.asarray(rs.steps(sig))))
+...     print(f"Es/N0 {esn0:.0f} dB: EVM {np.mean(evm):.2f} dB, "
+...           f"ideal {ber_evm_ideal_db(esn0):.2f} dB")
+Es/N0 10 dB: EVM -10.24 dB, ideal -10.31 dB
+Es/N0 15 dB: EVM -15.13 dB, ideal -15.10 dB
+Es/N0 20 dB: EVM -20.01 dB, ideal -20.03 dB
 
-So the fused matched filter **is on the bound**, across a 10 dB span — fusing
-it into the resampler's polyphase bank costs nothing in detection performance.
-It is the same filter, evaluated at a steered instant.
+```
+
+So the fused matched filter **is on the bound**, within 0.1 dB of a perfect
+receiver across a 10 dB span — fusing it into the resampler's polyphase bank
+costs nothing in detection performance. It is the same filter, evaluated at a
+steered instant.
 
 (The settled window is 4000 symbols — the 6000-symbol record less the
 2000-symbol `ber_settle_syms` budget — and carries under 0.1 dB of estimator

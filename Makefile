@@ -2315,6 +2315,10 @@ acq-surface-record: build ## Re-run the acq surface's validator; rewrite its §8
 # before adding one — gh-694.
 GALLERY_CHARACTERIZATIONS := \
     src/doppler/acquire/tests/characterization/burst_acquisition/characterize.py
+# Where `make gallery` tells the characterization to write its plot. Its
+# source cannot name the path (it takes it on argv), so release-freshness-check
+# is handed this too: a changed subject needs THIS file to change (#2609).
+GALLERY_CHARACTERIZATION_PLOT := docs/assets/dsss_acq_characterization.png
 
 # ONE list. The PNGs `make gallery` moves into docs/assets/ are DERIVED from
 # it (`check_gallery_scripts.py --outputs`, each script's quoted "<name>.png").
@@ -2450,7 +2454,7 @@ gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 ifeq ($(origin GALLERY_SCRIPTS),file)
 	@printf "  %-45s" "$(GALLERY_CHARACTERIZATIONS)"
 	@$(UV) run python $(GALLERY_CHARACTERIZATIONS) \
-	     docs/assets/dsss_acq_characterization.png > /dev/null 2>&1 \
+	     $(GALLERY_CHARACTERIZATION_PLOT) > /dev/null 2>&1 \
 	     && echo "OK" || { echo "FAIL"; exit 1; }
 endif
 	@echo "Gallery plots written to docs/assets/."
@@ -3926,7 +3930,10 @@ ifndef VERSION
 	@echo "usage: make release-freshness-check VERSION=<x.y.z>"; exit 1
 endif
 	@$(UV) run python scripts/check_release_freshness.py \
-	    --version $(VERSION) $(GALLERY_SCRIPTS) $(GALLERY_CHARACTERIZATIONS)
+	    --version $(VERSION) \
+	    $(foreach c,$(GALLERY_CHARACTERIZATIONS),\
+	        --plot $(c)=$(GALLERY_CHARACTERIZATION_PLOT)) \
+	    $(GALLERY_SCRIPTS) $(GALLERY_CHARACTERIZATIONS)
 
 tag-release: release-freshness-check
 

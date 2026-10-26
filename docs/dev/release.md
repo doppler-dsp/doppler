@@ -54,11 +54,14 @@ ______________________________________________________________________
 
 ## 2a. When freshness asks for work that is not there
 
-`make release-freshness-check` asks whether a gallery script or a
-perf-relevant path moved since the last tag. It cannot see *what* moved
-inside one, so a change confined to a platform this release does not
+`make release-freshness-check` asks, per gallery script, whether the script
+moved since the last tag while its own plot under `docs/assets/` did not, and
+whether a perf-relevant path moved with no snapshot. It cannot see *what*
+moved inside one, so a change confined to a platform this release does not
 measure — Windows, for doppler's Linux-measured benchmarks and art — still
-reads as stale.
+reads as stale. Nor can it tell a plot that re-rendered byte-identically from
+one nobody rendered: neither leaves a diff, so the identical re-render is
+waived in writing too.
 
 Answer it in writing rather than with a re-render that changes nothing:
 add `release-waivers/v<ver>.md` (repo root) with one line per item,
@@ -68,7 +71,9 @@ add `release-waivers/v<ver>.md` (repo root) with one line per item,
 - benchmarks: native/inc/header.h -- why the numbers still describe the tree
 ```
 
-Each line waives exactly that item, must carry a reason, and is **printed**
+Each line waives exactly that item, must carry at least the first words of
+its reason on the same line as `--` (a line without one fails the gate by
+name), and is **printed**
 by the gate while it runs, so a skipped check lands in the release log. A
 line that matches nothing stale fails the gate, so a waiver cannot outlive
 its reason. `v0.55.0.md` is the worked example: four Windows-only items.

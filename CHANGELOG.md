@@ -13,6 +13,133 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.75.0] - 2026-10-26
+
+### Breaking
+
+- **`AsyncDsssPool` state blobs are now version 4.** A blob saved by v0.74.0
+    (version 2) is refused. v0.74.0's pool took over the old pool's magic and
+    restarted its numbering, so the next bump would have reused version 3, the
+    old pool's number. Such a blob would then pass the envelope check and be
+    misread instead of refused. A new lint gate, `make state-versions-check`,
+    now refuses a state version that returns to one its magic has already
+    shipped (a layout change made without a version bump is still not caught,
+    [#2574](https://github.com/doppler-dsp/doppler/issues/2574))
+    ([#2569](https://github.com/doppler-dsp/doppler/issues/2569)).
+
+### Changed
+
+- **just-makeit pin 0.109.0 → 0.110.0: `Writer.annotate(None)` raises
+    `TypeError`.** The scene is declared `required = true` (jm gh-2360), so
+    the binding refuses `None` with a message naming `scene`. Before, `None`
+    reached C as NULL and came back as `ValueError`. The stub now types it
+    `scene: object`, not `object | None`. 0.109.1's comment-only fix to the
+    capsule-lender teardown comments comes with it.
+
+- **just-makeit pin 0.110.0 → 0.111.0: each extension module publishes its
+    enums' values.** `doppler.dsss.dsss.ASYNC_DSSS_RX_STATE` maps each
+    receiver state's C value to its name, and `PSD_WINDOW`,
+    `SPECTROGRAM_MODE`, the wfm `STYPE`/`T0_SOURCE`/… tuples and their
+    siblings do the same, declared in the stubs (jm gh-2344).
+    `Writer.annotate` loses an unreachable `None` branch (jm #2368).
+
+- **just-makeit pin 0.111.0 → 0.111.2: an enum is importable from its
+    package.** `doppler.dsss.ASYNC_DSSS_RX_STATE`, `doppler.spectral.PSD_WINDOW`,
+    the wfm `STYPE`/`T0_SOURCE`/… tuples and their siblings now resolve
+    without the submodule path, and `from doppler.wfm import *` binds every
+    name `__all__` lists (0.111.1 re-exported them; 0.111.2 fixes the wfm
+    reader's enums being listed but never imported, jm #2376).
+
+### Fixed
+
+- **A changelog fragment's links are checked where they will be read.**
+    `check_doc_paths` and `check_doc_sections` now resolve a `changelog.d/`
+    fragment's links from the repository root, where `CHANGELOG.md` holds them.
+    A `../../docs/...` link fails on its own PR, not on the release commit,
+    which is where v0.74.0's did. The 16 links in `CHANGELOG.md` that already
+    point nowhere sit on a list that may only shrink
+    ([#2571](https://github.com/doppler-dsp/doppler/issues/2571)).
+
+- **The CI-image rebuild no longer fails when a registry rate-limits it.** It
+    used to pull its Ubuntu bases anonymously from Docker Hub, inside
+    BuildKit, where nothing retried a 429. It now gets them through
+    `STOCK_REGISTRY`: a probe fetches each pinned base's manifest first,
+    retrying, and falls back to `STOCK_MIRROR`. The build then pulls from
+    whichever registry answered. This uses canonical's new
+    `CI_IMAGE_BASE_REGISTRY`/`CI_IMAGE_BASE_MIRROR` settings, and the
+    stock-image gate now exempts no container build
+    ([#1982](https://github.com/doppler-dsp/doppler/issues/1982)).
+
+- **A C function or type named in the docs is one the tree defines.**
+    `make doc-symbols-check` checks every `dp_*` name in a page's code spans
+    and fences against the C sources. It found eight stale names, including a
+    `dp_cf64_t` in a `skip=` fence the C snippet gate never compiles. Pages
+    that name a symbol because it is gone sit on a list that may only shrink
+    ([#2580](https://github.com/doppler-dsp/doppler/issues/2580)).
+
+- **Facts the docs repeated wrongly are corrected on every page.** They
+    include the CIC cap and its ±2.0 input bound, owning arrays called views,
+    and removed MPSK and AWGN paths. Where a header or manifest carried the
+    same text it is fixed there, so the docstrings agree too
+    ([#2580](https://github.com/doppler-dsp/doppler/issues/2580)).
+
+- **The design pages describe the code as it is.** Shipped work no longer
+    reads as planned (the RateConverter cascade, the stateful channel,
+    `flush()` returning a row, #1620/#1789/#853/#977), the correction is
+    Šidák wherever `dp_det_pfa_cell` computes it, the state-serialization
+    examples are real code (LO's u32 phase, the DDC composition,
+    `DP_DEFINE_RUN`'s leading `STATE_T *s`), the MPSK receiver's fifteen
+    probes and fifteen parameters are named, and `mpsk.md` §9.5 reconciles
+    its 2.03× differential penalty with the report's 2.17× (≈2.0×; [#2603](https://github.com/doppler-dsp/doppler/issues/2603))
+    ([#2583](https://github.com/doppler-dsp/doppler/issues/2583)).
+
+- **The contributing and release docs match the tree.** The module layout
+    (`native/inc/doppler/<component>/`, and jm scaffolds the Python tests and
+    benches), the release job graph (seven build jobs, Windows included, and
+    the publish/smoke tail), the eleven `DP_ERR_*` codes, the coverage
+    exclusions, the receiver-measurement harness's real signatures, and every
+    jm step through `make` ([#2584](https://github.com/doppler-dsp/doppler/issues/2584)).
+
+- **The gallery pages match what their examples run.** Twenty-odd pages
+    quoted numbers and mechanisms that had drifted: measured values
+    re-taken from each page's own script (DDC split transient 1.56, Q15
+    coefficient peak 10348, the background-plan trim 10.01 dB, framed-link
+    losses 2/200 and 10/200), the correction is Šidák, not Bonferroni
+    (also in the `pfa_cell` docstrings of `Acquisition` and
+    `BurstAcquisition`), the DLL discriminator is `0.5·(|E|²-|L|²)/|P|²`,
+    and included regions are self-sufficient
+    ([#2582](https://github.com/doppler-dsp/doppler/issues/2582)).
+
+- **The guides, install, examples, CLI and API pages match the code.** About
+    45 wrong commands, outputs and claims are fixed, among them `wfmgen`'s
+    `--crc` default, the whole-archive link `nats://` needs, and a stream
+    header documented as 96-byte "SIGS" rather than 64-byte `DPSTREAM`
+    ([#2581](https://github.com/doppler-dsp/doppler/issues/2581)).
+
+- **A doc example that warns fails its gate.** `make test-stubs` and
+    `make test-snippets` treat a `UserWarning` as an error, so an example
+    cannot show an under-powered `BurstAcquisition` again
+    ([#2581](https://github.com/doppler-dsp/doppler/issues/2581)).
+
+- **The docs' measured tables are checked, not restated.** The acquisition
+    sizing tables (`guide/acquisition.md`, `guide/dsss-acquisition.md`) and
+    the DDC split seam are now `>>>` examples or asserts the doc gate runs,
+    and the RateSync EVM sweep is asserted by its example script, so a value
+    that drifts fails the build. Re-measuring moved several of them (54
+    dB-Hz now sizes 4 Doppler bins of 8250 Hz), and every acquisition example
+    sits at least 2 dB clear of the under-powered warning the doc gate fails
+    on. The DDC architecture table is labeled as the 2026-05-17 study it is,
+    pointing at the release benchmarks for the shipped DDC
+    ([#2585](https://github.com/doppler-dsp/doppler/issues/2585)).
+
+- **A release's container images no longer fail when ECR Public's
+    anonymous data quota runs out.** The image builds pulled their base images
+    inside BuildKit, where the helper's mirror fallback could not reach.
+    v0.73.0 and v0.74.0 each lost an image job that way after PyPI had
+    published. A first step now fetches their manifests through
+    `scripts/stock-pull.sh`, pulling nothing, and the builds use whichever
+    registry it needed ([#2572](https://github.com/doppler-dsp/doppler/issues/2572)).
+
 ## [0.74.0] - 2026-10-24
 
 ### Breaking
@@ -17700,6 +17827,7 @@ ______________________________________________________________________
 [0.72.0]: https://github.com/doppler-dsp/doppler/compare/v0.71.0...v0.72.0
 [0.73.0]: https://github.com/doppler-dsp/doppler/compare/v0.72.0...v0.73.0
 [0.74.0]: https://github.com/doppler-dsp/doppler/compare/v0.73.0...v0.74.0
+[0.75.0]: https://github.com/doppler-dsp/doppler/compare/v0.74.0...v0.75.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.74.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.75.0...HEAD

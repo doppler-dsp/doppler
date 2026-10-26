@@ -37,7 +37,7 @@ set(DOPPLER_LINK "static" CACHE STRING "Link mode: static or shared")
 
 if(DEFINED DOPPLER_BUILD_DIR)
     # <!-- doc-version:start -->
-    find_package(doppler 0.74.0 CONFIG REQUIRED
+    find_package(doppler 0.75.0 CONFIG REQUIRED
                  PATHS "${DOPPLER_BUILD_DIR}" NO_DEFAULT_PATH)
     # <!-- doc-version:end -->
     if(DOPPLER_LINK STREQUAL "shared")
@@ -47,7 +47,7 @@ if(DEFINED DOPPLER_BUILD_DIR)
     endif()
 else()
     # <!-- doc-version:start -->
-    find_package(doppler 0.74.0 REQUIRED)
+    find_package(doppler 0.75.0 REQUIRED)
     # <!-- doc-version:end -->
     set(_dp_target doppler::doppler)
 endif()

@@ -8,9 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* SPEC.md's geometry: 3.069 Mcps at spc=2, a 2.5 GHz carrier, and the +/-50
-   kHz uncertainty expressed as what it physically is — 20 ppm of the time
-   base. */
+/* The specification's geometry (docs/design/async-dsss-receiver.md §1):
+   3.069 Mcps at spc=2, a 2.5 GHz carrier, and the +/-50 kHz uncertainty
+   expressed as what it physically is — 20 ppm of the time base. */
 #define T_FS 6.138e6
 #define T_FC 2.5e9
 #define T_PPM 20.0

@@ -2,7 +2,7 @@
 object (``objects/burst_acq.toml``) whose C core (``burst_acq_core.c``) is a
 pure forwarder onto the SAME shared ``dp_acq_state_t``/``acq_core.c`` engine
 ``Acquisition`` (continuous) uses -- the two public front doors onto one
-engine that ``SPEC.md``'s Acquisition/BurstAcquisition split calls for.
+engine (``docs/design/async-dsss-receiver.md`` §2.1).
 ``test_acq.py`` already exhaustively covers this class's own streaming/
 physics behavior (it predates the split and was renamed wholesale, since its
 reps/coherent-depth scenario matches ``BurstAcquisition``, not continuous
@@ -147,7 +147,7 @@ def test_same_config_diverges_by_design():
     not a bug: BurstAcquisition coherently combines up to its reps ceiling
     (doppler_bins > 1 possible), Acquisition never does (doppler_bins == 1
     always in-span, sensitivity purely from n_noncoh). This is the split's
-    whole point (SPEC.md's Acquisition/BurstAcquisition rationale)."""
+    whole point (``docs/design/async-dsss-receiver.md`` §2.1)."""
     cont = _continuous_acq()
     burst = _burst_acq()
 

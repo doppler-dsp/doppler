@@ -1423,9 +1423,9 @@ _acq_hit_chip_phase_check (void)
  * disagreed at exactly one index -- bin == window_bins/2, reachable only
  * for an EVEN window_bins. The search read that row as +n/2 and the
  * handoff as -n/2, so a true Doppler landing there was reported with the
- * wrong sign and a full-span magnitude error (at SPEC.md's geometry: +50
- * kHz truth -> -51 kHz estimate, 101 kHz off, while the receiver still
- * reported tracking == 1).
+ * wrong sign and a full-span magnitude error (at the specification's
+ * geometry, docs/design/async-dsss-receiver.md §1: +50 kHz truth -> -51 kHz
+ * estimate, 101 kHz off, while the receiver still reported tracking == 1).
  *
  * Asserting bin counts would not have caught it; asserting coverage
  * does. */
@@ -1433,10 +1433,9 @@ static int
 _acq_wideband_coverage_check (void)
 {
 
-  /* SPEC.md's own geometry -- span 1500 Hz, doppler_res_hz 3000 Hz, and
-     a
-     +/-50 kHz uncertainty whose maximum is exactly where the bug lived.
-   */
+  /* The specification's geometry (docs/design/async-dsss-receiver.md §1)
+     -- span 1500 Hz, doppler_res_hz 3000 Hz, and a +/-50 kHz uncertainty
+     whose maximum is exactly where the bug lived. */
   const size_t sf = 1023, spc = 2;
   const double crate = 3.069e6, du = 50000.0;
   uint8_t     *code = malloc (sf);

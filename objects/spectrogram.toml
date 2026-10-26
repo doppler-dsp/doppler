@@ -77,11 +77,12 @@ default = "power"
 
 # push() returns the completed rows as a (rows, nfft) float32 matrix, or None
 # when it completes none. out_cols names the row width from the object; the
-# `state` alias is what the binding generates for it. The binding sizes its
-# output for every row the chunk can complete, so consumed equals the chunk
-# length; a caller bounds memory by pushing smaller chunks, sized with
-# rows_for. A smaller out is refused with ValueError (adopting jm's short_out
-# is #2592).
+# `state` alias is what the binding generates for it. Without out=, the
+# binding sizes its output for every row the chunk can complete, so consumed
+# equals the chunk length. short_out (jm gh-2230, #2592) lets a caller bound
+# memory with a short out= instead: the kernel is told its real size
+# (pass_capacity), writes the whole rows that fit, and consumed says where to
+# resume.
 [[spectrogram.methods]]
 name = "push"
 arg_type = "float _Complex[]"
@@ -90,24 +91,25 @@ variable_output = true
 pass_capacity = true
 out_cols = "state->nfft"
 none_on_empty = true
+short_out = true
 # The GIL is released across the kernel, as the ddc precedent does for its
 # execute. A single object is not safe for concurrent use from two threads.
 nogil = true
 doc = """Push a chunk of samples, and return the rows it completes.
 
 The rows come back as a (rows, nfft) float32 matrix, or None when the chunk
-completes none. A partial frame is carried to the next push. consumed equals
-the input length: the binding allocates room for every row the chunk can
-complete, so no input is held back. To bound memory, push smaller chunks,
-sized with rows_for(n).
+completes none. A partial frame is carried to the next push. Without out=,
+consumed equals the input length: the binding allocates room for every row
+the chunk can complete, so no input is held back.
 
 An object is not thread-safe: one Spectrogram must not be pushed from two
 threads at once, because the kernel uses the object's scratch. push releases
 the GIL, so other Python threads run meanwhile, but not on this object.
 
-An out array, if given, must be a float32 array of at least
-push_max_out(len(x)) elements. A smaller out raises ValueError; it is not
-taken as a short one.
+An out array may be any (k, nfft) float32 matrix, k = 0 included: push
+writes the whole rows that fit and stops before a row it has no room for, so
+consumed can then be less than len(x). Offer x[consumed:] again after
+draining the rows; nothing is lost and the rows resume bit-exact.
 
 >>> import numpy as np
 >>> from doppler.spectral import Spectrogram

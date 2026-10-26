@@ -87,6 +87,20 @@ def ser_theory(m: int, esn0_db: float) -> float:
     return 2.0 * _qfunc(math.sqrt(2.0 * esn0) * math.sin(math.pi / m))
 
 
+def penalty_sigma(ratio: float, n_coh: int, n_diff: int) -> float:
+    """Sampling sigma of a differential-penalty ratio, from its two counts.
+
+    The two error counts are unpaired (see §2.4: a differential error lands
+    on a different constellation point), so their relative variances add:
+    sigma = ratio * sqrt(1/n_coh + 1/n_diff). A fixed band over one seed is
+    not a bound on the penalty; four of these sigmas is.
+
+    >>> round(penalty_sigma(2.0, 100, 100), 3)
+    0.283
+    """
+    return ratio * math.sqrt(1.0 / n_coh + 1.0 / n_diff)
+
+
 @dataclass
 class Data:
     """Everything the report measures, so review and limits share one run."""
@@ -102,6 +116,7 @@ class Data:
         default_factory=dict
     )
     n_err: dict[tuple[int, float], int] = field(default_factory=dict)
+    n_err_diff: dict[tuple[int, float], int] = field(default_factory=dict)
     diff_rt_ok: dict[int, bool] = field(default_factory=dict)
     diff_rot_ok: dict[int, bool] = field(default_factory=dict)
     diff_arb_ok: dict[int, bool] = field(default_factory=dict)
@@ -244,10 +259,12 @@ def characterise() -> Data:
             dif = (mpsk_diff_map(sym, m) + noise).astype(np.complex64)
             n_err = int(np.count_nonzero(mpsk_demap(coh, m) != sym))
             ser_c = n_err / NSYM
-            ser_d = float(np.mean(mpsk_diff_demap(dif, m) != sym))
+            n_err_d = int(np.count_nonzero(mpsk_diff_demap(dif, m) != sym))
+            ser_d = n_err_d / NSYM
             want = ser_theory(m, e)
             d.ser[(m, e)] = (ser_c, ser_d, want)
             d.n_err[(m, e)] = n_err
+            d.n_err_diff[(m, e)] = n_err_d
             rows.append(
                 [
                     str(m),
@@ -275,11 +292,13 @@ def characterise() -> Data:
     )
     R.md()
     R.md(
-        "Both modes see the **same noise realisation** — the penalty is a "
-        "paired measurement, so the seed's luck cancels out of the ratio "
-        "— and the coherent column is anchored to closed-form theory so "
-        "that a defect shared by both paths cannot divide out to a "
-        "plausible 2.0."
+        "Both modes see the **same labels and noise realisation**, but a "
+        "differential error lands on a different constellation point from "
+        "the coherent one, so the two error counts are close to independent. "
+        "Pairing therefore does **not** cancel the seed's luck: the ratio's "
+        "sampling error is the unpaired count variance, and §4 bounds it by "
+        "that. The coherent column is anchored to closed-form theory so that "
+        "a defect shared by both paths cannot divide out to a plausible 2.0."
     )
     R.md()
     R.md(
@@ -458,17 +477,30 @@ def limits(d: Data) -> None:
         f"coherent SER is within 15% of theory at every measured cell "
         f"(worst {100.0 * worst:.1f}%)",
     )
-    hi = max(dd / c for (c, dd, _w) in d.ser.values() if c > 0)
+    # Each cell's penalty is bounded by its own counts: 2x plus four sigma of
+    # the ratio's sampling error. A fixed 2.2 ceiling passed or failed one
+    # seed's draw, and a correct ~2.0 cell at ~1 300 errors can sit above it.
+    margin = max(
+        (dd / c - 2.0)
+        - 4.0 * penalty_sigma(dd / c, d.n_err[k], d.n_err_diff[k])
+        for k, (c, dd, _w) in d.ser.items()
+        if c > 0
+    )
     R.limit(
-        hi < 2.20,
-        f"the differential penalty never exceeds 2.2x (worst {hi:.2f}x) — "
-        f"the header's ~2x is an upper bound, not a typical value",
+        margin < 0,
+        f"every cell's differential penalty is within 2x plus four sigma of "
+        f"its own error counts (largest excess {margin:+.3f}x, negative is "
+        f"inside the bound) — the header's ~2x is an upper bound, not a "
+        f"typical value",
     )
     ser_c, ser_d, _w = d.ser[(4, 10.0)]
+    r10 = ser_d / ser_c
+    s10 = 4.0 * penalty_sigma(r10, d.n_err[(4, 10.0)], d.n_err_diff[(4, 10.0)])
     R.limit(
-        1.80 < ser_d / ser_c < 2.20,
-        f"QPSK at 10 dB Es/N0 pays {ser_d / ser_c:.2f}x for differential "
-        f"mode — the asymptote is reached where a receiver operates",
+        abs(r10 - 2.0) <= s10,
+        f"QPSK at 10 dB Es/N0 pays {r10:.2f}x for differential mode, within "
+        f"four sigma (±{s10:.2f}x) of the 2x asymptote — the cell collects "
+        f"few errors, so its band is wide by construction",
     )
     fewest = min(d.n_err.values())
     R.limit(

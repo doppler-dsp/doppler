@@ -344,7 +344,7 @@ default. The smallest robust call is:
 acq = BurstAcquisition(
     preamble,             # one period of the preamble's samples
     fs=1.023e6 * 4,       # their sample rate (Hz)
-    cn0_dbhz=66,          # your link-budget sensitivity (dB-Hz)
+    cn0_dbhz=68,          # your link-budget sensitivity (dB-Hz)
 )
 assert acq.pd_burst >= acq.pd       # confirm the search can meet the target
 ```

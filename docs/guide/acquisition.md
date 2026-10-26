@@ -33,7 +33,7 @@ ______________________________________________________________________
 ## The 30-second version
 
 A 127-sample Zadoff-Chu preamble, repeated 8 times at 1 MS/s, arrives 300
-samples into a stream with a 1.5 kHz carrier offset, at 50 dB-Hz:
+samples into a stream with a 1.5 kHz carrier offset, at 52 dB-Hz:
 
 ```python
 import numpy as np
@@ -52,7 +52,7 @@ x = np.zeros(20_000, np.complex64)
 x[300:300 + burst.size] = burst
 n = np.arange(x.size)
 x = (x * np.exp(2j * np.pi * 1500.0 / fs * n)).astype(np.complex64)
-cn0_dbhz = 50.0
+cn0_dbhz = 52.0
 sigma = np.sqrt(fs / 10 ** (cn0_dbhz / 10) / 2)       # per I and Q
 x += (sigma * (rng.standard_normal(x.size)
                + 1j * rng.standard_normal(x.size))).astype(np.complex64)
@@ -128,13 +128,13 @@ relative to the peak) alongside the depth it chose:
 >>> from doppler.acquire import BurstAcquisition
 >>> for name, p in (("Zadoff-Chu", zadoff_chu), ("m-sequence (PN)", pn),
 ...                 ("chirp", chirp), ("random QPSK", qpsk)):
-...     a = BurstAcquisition(p, reps=8, fs=1e6, cn0_dbhz=50)
+...     a = BurstAcquisition(p, reps=8, fs=1e6, cn0_dbhz=54)
 ...     print(f"{name:16s} psl {a.psl_db:6.1f} dB  depth {a.doppler_bins}"
 ...           f"  pd_burst {a.pd_burst:.3f}")
-Zadoff-Chu       psl   -inf dB  depth 4  pd_burst 0.909
-m-sequence (PN)  psl  -42.1 dB  depth 4  pd_burst 0.909
-chirp            psl  -21.4 dB  depth 4  pd_burst 0.906
-random QPSK      psl  -15.7 dB  depth 5  pd_burst 0.916
+Zadoff-Chu       psl   -inf dB  depth 1  pd_burst 0.958
+m-sequence (PN)  psl  -42.1 dB  depth 1  pd_burst 0.956
+chirp            psl  -21.4 dB  depth 1  pd_burst 0.951
+random QPSK      psl  -15.7 dB  depth 2  pd_burst 0.967
 
 ```
 
@@ -270,7 +270,7 @@ The Zadoff-Chu preamble above (`reps=8`, 1 MS/s):
 
 ```pycon
 >>> import warnings
->>> for cn0 in (55, 50, 47):
+>>> for cn0 in (55, 52, 47):
 ...     with warnings.catch_warnings():
 ...         warnings.simplefilter("ignore")   # 47 dB-Hz warns: under-powered
 ...         a = BurstAcquisition(zadoff_chu, reps=8, fs=1e6, cn0_dbhz=cn0)
@@ -278,7 +278,7 @@ The Zadoff-Chu preamble above (`reps=8`, 1 MS/s):
 ...           f"{a.doppler_res_hz:.0f} Hz, pd_burst {a.pd_burst:.2f}, "
 ...           f"underpowered {a.underpowered}")
 55 dB-Hz: depth 1, 7874 Hz, pd_burst 0.98, underpowered False
-50 dB-Hz: depth 4, 1969 Hz, pd_burst 0.91, underpowered False
+52 dB-Hz: depth 2, 3937 Hz, pd_burst 0.93, underpowered False
 47 dB-Hz: depth 5, 1575 Hz, pd_burst 0.61, underpowered True
 
 ```

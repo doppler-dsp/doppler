@@ -55,12 +55,12 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
         preamble,              # one period of the preamble's samples
         reps=16,               # up to 16 coherent repetitions
         fs=1.023e6 * 4,        # sample rate (Hz): chip_rate · samples/chip
-        cn0_dbhz=52,           # sensitivity (carrier-to-noise density, dB-Hz)
+        cn0_dbhz=54,           # sensitivity (carrier-to-noise density, dB-Hz)
         pfa=1e-3, pd=0.9,      # target false-alarm / detection rates
     )
-    # The engine sized the grid: 8 Doppler bins of 4125 Hz, 124 code bins.
-    assert (acq.doppler_bins, acq.code_bins) == (8, 124)
-    assert round(acq.doppler_res_hz) == 4125
+    # The engine sized the grid: 4 Doppler bins of 8250 Hz, 124 code bins.
+    assert (acq.doppler_bins, acq.code_bins) == (4, 124)
+    assert round(acq.doppler_res_hz) == 8250
     # Sizing is honest: pd_burst is the Pd of the whole BURST -- every dwell
     # its preamble spans, at an alignment it does not choose -- AVERAGED over
     # the straddle priors (random Doppler / code phase across the grid), not
@@ -240,19 +240,20 @@ mean amplitude derating), so the engine buys enough integration to meet
 `pd` in operation, not just on-grid:
 
 ```pycon
->>> for cn0 in (56, 54, 52):
+>>> for cn0 in (58, 56, 54):
 ...     a = BurstAcquisition(preamble, reps=16, fs=1.023e6 * 4,
 ...                          cn0_dbhz=cn0, pfa=1e-3, pd=0.9)
 ...     print(f"{cn0} dB-Hz: doppler_bins {a.doppler_bins}, "
 ...           f"pd_burst {a.pd_burst:.2f}, pd_predicted {a.pd_predicted:.2f}")
+58 dB-Hz: doppler_bins 1, pd_burst 0.93, pd_predicted 0.40
 56 dB-Hz: doppler_bins 2, pd_burst 0.93, pd_predicted 0.55
 54 dB-Hz: doppler_bins 4, pd_burst 0.94, pd_predicted 0.75
-52 dB-Hz: doppler_bins 8, pd_burst 0.91, pd_predicted 0.88
 
 ```
 
-`pd_predicted` (one dwell wholly inside the preamble) is not monotonic in
-`cn0_dbhz`, because the depth it is evaluated at changes with it.
+`pd_predicted` (one dwell wholly inside the preamble) falls as `cn0_dbhz`
+rises, because it is evaluated at the chosen depth, and a stronger signal is
+given less of it.
 
 `noise_mode` selects the CFAR estimator (`"mean"` by default, which is what the
 analytic `threshold` assumes; `"median"` is more robust but is not analytically

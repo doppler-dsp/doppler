@@ -64,13 +64,19 @@ extern "C"
   /**
    * @brief Ask every blocking wait in this process to stop.
    *
-   * Assigns to a `volatile sig_atomic_t` and does nothing else, which is
-   * the only thing the C standard promises can be done from a signal
-   * handler without tearing — and being callable from a handler is the
-   * entire point of this API.
+   * Updates a lock-free atomic and does nothing else, which is what keeps
+   * it safe to call from a signal handler -- and being callable from a
+   * handler is the entire point of this API.
    *
    * The flag is **sticky**: one handler firing may have to release
    * several parked loops, so it stays set until dp_resume() clears it.
+   *
+   * **A second request escalates** (#2601). The first asks a wait to
+   * finish cleanly: a follow read keeps waiting for the writer's marker,
+   * for as long as its grace allows, and the default grace is unbounded. A
+   * second request while the first is pending means "stop now", so a
+   * Ctrl+C pressed again ends that wait at once. dp_interrupted() reports
+   * which: the count saturates at 2.
    *
    * @code
    * static void on_sigint (int sig) { (void)sig; dp_interrupt (); }
@@ -85,13 +91,29 @@ extern "C"
   void dp_resume (void);
 
   /**
-   * @brief Non-zero when an interrupt is pending.
+   * @brief How many stops are pending: 0, 1, or 2 for "stop now".
    *
    * The check a hand-written loop makes between blocks. A wait that
    * cannot be sliced — a busy-spin over a ring, a read of a file still
-   * being appended to — polls this and gives up when it is set.
+   * being appended to — polls this and gives up when it is non-zero. A
+   * wait that grants a grace after the stop (the follow read, waiting for
+   * the writer's marker) gives that grace up as well once it reads 2.
    *
-   * @return Non-zero when interrupted, 0 otherwise.
+   * @code
+   * dp_resume ();
+   * int none = dp_interrupted ();   // 0
+   * dp_interrupt ();
+   * int stop = dp_interrupted ();   // 1: finish cleanly
+   * dp_interrupt ();
+   * dp_interrupt ();
+   * int now = dp_interrupted ();    // 2, and it stays 2
+   * dp_resume ();
+   * if (none != 0 || stop != 1 || now != 2 || dp_interrupted () != 0)
+   *   return 1;
+   * @endcode
+   *
+   * @return 0 when no stop is pending, 1 after one request, 2 after two
+   *         or more.
    */
   int dp_interrupted (void);
 

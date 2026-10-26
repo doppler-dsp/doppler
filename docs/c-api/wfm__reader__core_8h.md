@@ -1389,6 +1389,9 @@ void dp_wfm_reader_set_stop_fn (
 NULL (the default) means the follow read never stops early  only the capture's end or a bounded budget finishes it.
 
 
+`fn` returns 0 for "go on", non-zero for "stop": the follow read then drains what is on disk and waits up to the grace for the writer's marker. A return of **2 or more** means "stop now" and ends that grace at once, with ending WFM\_FOLLOW\_INTERRUPTED  which is how a second Ctrl+C escapes a writer that died before the first (#2601). [**dp\_interrupted()**](dp__interrupt_8h.md#function-dp_interrupted) returns exactly that count.
+
+
 
 ```C++
 dp_wfm_reader_set_stop_fn (r, dp_interrupted);

@@ -43,6 +43,29 @@ test_flag_round_trip (void)
   DP_CHECK (dp_interrupted () == 0);
 }
 
+/* A second request escalates (#2601): 1 is "finish cleanly", 2 is "stop
+   now". It saturates, so a held-down Ctrl+C never wraps back to 0 or 1.
+
+   Sabotage: restore `atomic_store (flag, 1)` in dp_interrupt() and the 2
+   below goes red. */
+static void
+test_a_second_request_escalates (void)
+{
+  dp_resume ();
+  dp_interrupt ();
+  DP_CHECK (dp_interrupted () == 1);
+  dp_interrupt ();
+  DP_CHECK (dp_interrupted () == 2);
+  for (int i = 0; i < 5; i++)
+    dp_interrupt ();
+  DP_CHECK (dp_interrupted () == 2);
+  dp_resume ();
+  DP_CHECK (dp_interrupted () == 0);
+  dp_interrupt ();
+  DP_CHECK (dp_interrupted () == 1); /* a resume starts the count over */
+  dp_resume ();
+}
+
 static void
 test_latency_knob (void)
 {
@@ -72,6 +95,21 @@ test_signal_sets_the_flag (void)
   raise (SIGUSR1);
   DP_CHECK (dp_interrupted () != 0);
 
+  DP_CHECK (dp_restore_signal (SIGUSR1) == DP_OK);
+  dp_resume ();
+}
+
+/* The case escalation exists for: the same signal twice, through the
+   installed handler, is the second Ctrl+C. */
+static void
+test_a_second_signal_escalates (void)
+{
+  dp_resume ();
+  DP_CHECK (dp_interrupt_on_signal (SIGUSR1) == DP_OK);
+  raise (SIGUSR1);
+  DP_CHECK (dp_interrupted () == 1);
+  raise (SIGUSR1);
+  DP_CHECK (dp_interrupted () == 2);
   DP_CHECK (dp_restore_signal (SIGUSR1) == DP_OK);
   dp_resume ();
 }
@@ -279,10 +317,12 @@ int
 main (void)
 {
   test_flag_round_trip ();
+  test_a_second_request_escalates ();
   test_adopting_a_foreign_state_redirects_the_flag ();
   test_latency_knob ();
 #ifndef _WIN32
   test_signal_sets_the_flag ();
+  test_a_second_signal_escalates ();
   test_installing_twice_is_not_an_error ();
   test_chaining_calls_the_previous_handler ();
   test_restoring_what_was_never_installed_fails ();

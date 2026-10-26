@@ -157,14 +157,19 @@ io-termination fixed its unbounded spin by giving it a *flag to check*.
 The last two are opt-in. With the defaults only `"none"` and `"eof"` are
 reachable, which is why the loop needs no check.
 
-**The cost of the unbounded grace**, stated rather than glossed: a writer
-that died *before* the stop leaves a wait nothing ends, and the Ctrl+C
-that would have escaped has been spent on a sticky flag with no second
-meaning. The fix belongs to the interrupt primitive — a second request
-while one is pending means "stop now" — rather than to a workaround here.
-It is not built: it was parked on
-[#977](https://github.com/doppler-dsp/doppler/issues/977), which closed
-when the flag became process-wide (§8), without taking it up.
+**The cost of the unbounded grace**, and its escape: a writer that died
+*before* the stop never lands a marker, so a wait that grants it forever
+would never end. **A second request while one is pending means "stop
+now"** ([#2601](https://github.com/doppler-dsp/doppler/issues/2601)). The
+fix is in the interrupt primitive, not a workaround here: `dp_interrupt()`
+counts requests, saturating at 2, and `dp_interrupted()` returns that
+count. The follow read gives up its grace — bounded or not — when its stop
+predicate reports 2, with `ending = "interrupted"`. Drain still wins: it
+returns whatever whole samples are already on disk first. Pinned in C by
+`test_dp_interrupt.c` (the count, and two signals through the installed
+handler) and `test_wfm_reader_core.c`
+(`test_follow_second_stop_ends_the_grace`), and in Python by
+`test_wfm_reader_follow.py`.
 
 ______________________________________________________________________
 
@@ -514,9 +519,6 @@ ______________________________________________________________________
     `data_size` is still the placeholder and `apply_hcb` enforces it as a
     bound. *Lean: yield the samples and expose the ending as a property.*
     The one place this design would touch existing behaviour.
-- **A second interrupt escalates** (§3). Belongs to the interrupt
-    primitive; #977 closed without it, and it is tracked as
-    [#2601](https://github.com/doppler-dsp/doppler/issues/2601).
 - **`follow_slice_ms`** — currently the interrupt macro; §7's first
     unknown decides whether it needs to be settable.
 

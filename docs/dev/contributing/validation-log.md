@@ -51,10 +51,13 @@ a vacuous assertion is faithfully vacuous.
 
 Rows are sorted by module, then by object, so the table reads as a map of
 the library rather than as a history — arrival order is what the git log
-is for. Discovery is a glob of
-`src/doppler/*/tests/validation/*/results.md`, the same one `make validate`
-uses, so a newly certified object is listed the moment its folder exists.
-There is no list here to update.
+is for. Discovery is two globs:
+`src/doppler/*/tests/validation/*/results.md` for an object certified beside
+its module, and `src/doppler/tests/validation/*/results.md` for a component
+with no Python face (see
+[certifying a component with no binding](validation.md#certifying-a-component-with-no-binding)). Together they
+cover the folders `make validate` finds, so a newly certified object is
+listed the moment its folder exists. There is no list here to update.
 
 ## Certified objects
 

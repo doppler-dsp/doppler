@@ -60,17 +60,21 @@ A live NATS broker on `127.0.0.1:4222` lets the `nats://` stream path count too
 
 - **Included:** first-party `native/src/**/*_core.c` (and the wfm/timing/measure
     cores) — the hand-written algorithms.
-- **Excluded** (`COV_IGNORE` in the `Makefile`): `vendor/**`, the jm-generated
-    `*_ext.c` binding aggregators, and the `tests/`/`benchmarks/` harnesses.
+- **Excluded** (`COV_IGNORE` in the `Makefile`): `vendor/**` and the build
+    trees, jm's vendored `jm_*.h` headers, every CPython binding file — the
+    `<mod>_ext.c` aggregators **and** the per-object `<mod>_ext_<obj>.c`
+    fragments — the `tests/`, `benchmarks/` and `validation/` harnesses, and
+    `native/src/app/` (the wfmgen CLI, whose report copy is the `.so` that
+    never runs it).
 
 The report is generated against `build-cov/libdoppler.so` plus every staged
-module `.so`. Hand-owned binding **fragments** (`<mod>_ext_<obj>.c`) count;
-jm-generated `<mod>_ext.c` **aggregators** are excluded.
+module `.so`; the bindings are what the Python harness drives, not what it
+measures.
 
 Phase 1 (C tests) covered ~72% of the cores it reached; phase 2 adds the Python
 harness, which lifts the cores the C tests can't reach (`magnitude_db_cf32.c`
 0%→100%, `wfm_synth_bridge.c` 0%→96%) while widening the denominator with the
-binding fragments and the stream layer. Remaining 0% spots are genuine gaps
+stream layer. Remaining 0% spots are genuine gaps
 worth a test — e.g. `obw_from_power.c` (no caller in any suite) — or are
 environment-gated (`stream_nats.c` needs the broker).
 

@@ -347,15 +347,15 @@ ______________________________________________________________________
 
 ## What runs where
 
-| job                                                              | environment                           | notes                                                                                             |
-| ---------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `build-and-test-linux`                                           | pinned image, one per glibc           | split from macOS because `container:` is Linux-only and cannot be switched off for one matrix leg |
-| `build-and-test-macos`                                           | hosted runner, brew                   | no macOS container to bake                                                                        |
-| `python` (3.9–3.14)                                              | pinned image                          | uv supplies the interpreters; only the extension build differs per ABI                            |
-| `coverage`                                                       | pinned image                          | clang source-based, C ∪ Python ∪ Rust — see [Coverage](coverage.md)                               |
-| `glibc-228`                                                      | Debian 10 image via `make glibc-gate` | the floor gate; its own toolchain by necessity                                                    |
-| `doxygen`, `docs`, `pre-commit`, `manifest-drift`, `specan-demo` | pinned image or plain runner          | no system deps beyond the image                                                                   |
-| `docker`                                                         | hosted runner                         | builds the shipped images, so it needs a daemon                                                   |
+| job                                               | environment                           | notes                                                                                             |
+| ------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `build-and-test-linux`                            | pinned image, one per glibc           | split from macOS because `container:` is Linux-only and cannot be switched off for one matrix leg |
+| `build-and-test-macos`                            | hosted runner, brew                   | no macOS container to bake                                                                        |
+| `python` (3.9–3.14)                               | pinned image                          | uv supplies the interpreters; only the extension build differs per ABI                            |
+| `coverage`                                        | pinned image                          | clang source-based, C ∪ Python ∪ Rust — see [Coverage](coverage.md)                               |
+| `glibc-228`                                       | Debian 10 image via `make glibc-gate` | the floor gate; its own toolchain by necessity                                                    |
+| `doxygen`, `docs`, `pre-commit`, `manifest-drift` | pinned image or plain runner          | no system deps beyond the image                                                                   |
+| `docker`                                          | hosted runner                         | builds the shipped images, so it needs a daemon                                                   |
 
 **One check name is load-bearing: `CI passed`.** It is the only status check
 the `protect-main` ruleset requires, and it is green only when every job in

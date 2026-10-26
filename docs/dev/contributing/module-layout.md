@@ -14,20 +14,26 @@ ______________________________________________________________________
 ## Canonical file tree
 
 `just-makeit module` + `just-makeit object --module` scaffold the native/ side
-and the Python package skeleton. Python `tests/` and `benchmarks/` are created
-manually (Steps 4 and 8 of [Adding a Module](adding-a-module.md)).
+and the Python package, including a test and a benchmark skeleton per object
+under `tests/` and `benchmarks/` — you fill them in (Steps 9 and 10 of
+[Adding a Module](adding-a-module.md)).
 
 ```text
-native/inc/<module>/
-├── <module>_core.h        # module-level function declarations (scaffold)
+native/inc/doppler/<module>/
+└── <module>_core.h        # module-level function declarations (scaffold)
+
+native/inc/doppler/<component>/
 └── <component>_core.h     # per-object header (scaffold, one per object)
 
 native/src/<module>/
 ├── <module>_core.c            # module-level function implementations (scaffold)
 ├── <module>_ext.c             # aggregator — jm-regenerated, do not edit
 ├── <module>_ext_<component>.c # per-object binding fragment — jm-generated if it has the banner
+└── CMakeLists.txt             # auto-managed by just-makeit (the .so)
+
+native/src/<component>/
 ├── <component>_core.c         # per-object algorithm (scaffold, fill in)
-└── CMakeLists.txt             # auto-managed by just-makeit
+└── CMakeLists.txt             # auto-managed by just-makeit (<component>_core)
 
 native/tests/
 └── test_<component>_core.c  # C unit tests (scaffold, one per object)
@@ -39,11 +45,12 @@ src/doppler/<module>/
 ├── __init__.py              # re-export only — see rules below (scaffold)
 ├── <module>.pyi             # type stubs for the C extension (scaffold)
 ├── <module>.*.so            # compiled C extension (build artifact, not in VCS)
-├── tests/                   # created manually
+├── tests/
 │   ├── __init__.py
-│   └── test_<module>.py
-└── benchmarks/              # created manually
-    └── bench_<module>.py
+│   └── test_<component>.py  # scaffold, one per object (fill in)
+└── benchmarks/
+    ├── __init__.py
+    └── bench_<component>.py # scaffold, one per object (fill in)
 ```
 
 There is **no `__init__.pyi`**. Stubs live in `<module>.pyi`.
@@ -109,8 +116,9 @@ __all__ = ["FIR", "FIRKind"]
 - **No business logic** — no computations, no helper functions, no constants.
 
 The one explicit exception: pure-Python utilities that are genuinely public
-and have no C equivalent (e.g., `kaiser_beta_for_enbw` in `spectral/`) may
-live in `__init__.py`. They must be stubbed in `<module>.pyi`.
+and have no C equivalent (e.g., `rate_convert` in `resample/`) may live in
+`__init__.py`. They are not in the jm-generated `<module>.pyi` or in
+`__all__`, so their docstring is their only documentation — keep it complete.
 
 ______________________________________________________________________
 
@@ -141,7 +149,7 @@ appears in `__all__`, it needs a stub.
 ### Docstring format
 
 All docstrings use [numpy-style format](https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard).
-This is also what `mkdocstrings` is configured to render (see `zensical.toml`).
+This is also what `mkdocstrings` is configured to render (see the `mkdocstrings` plugin in `mkdocs.yml`).
 
 ### Class stubs: docstring + Parameters + Examples
 
@@ -189,8 +197,10 @@ class FIR:
     num_taps: int
     """Number of filter taps."""
 
-    def execute_cf32(
-        self, x: NDArray[np.complex64]
+    def execute(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Filter a block of CF32 samples."""
         ...
@@ -204,7 +214,7 @@ class FIR:
 Every example in a `.pyi` stub is a runnable doctest:
 
 ```sh
-python -m doctest -v src/doppler/filter/filter.pyi
+make test-stubs
 ```
 
 All examples must pass before a module can be merged. The CI suite runs
@@ -213,10 +223,10 @@ real output values, no ellipsis (`...`) to skip important output.
 
 ______________________________________________________________________
 
-## `benchmarks/bench_<module>.py` rules
+## `benchmarks/bench_<component>.py` rules
 
-Every module ships a Python benchmark alongside its C benchmark
-(`native/benchmarks/bench_<module>_core.c`). Python benchmarks use
+Every object ships a Python benchmark alongside its C benchmark
+(`native/benchmarks/bench_<component>_core.c`). Python benchmarks use
 [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) so results are
 saved as JSON snapshots in `benchmarks/history/` (local scratch,
 git-ignored); each release's committed numbers are measured into
@@ -243,8 +253,8 @@ def x_cf32():
     return np.ones(BLOCK, dtype=np.complex64)
 
 
-def test_bench_execute_cf32(benchmark, fir, x_cf32):
-    benchmark(fir.execute_cf32, x_cf32)
+def test_bench_execute(benchmark, fir, x_cf32):
+    benchmark(fir.execute, x_cf32)
     if benchmark.stats:
         benchmark.extra_info["MSa_s"] = BLOCK / benchmark.stats["mean"] / 1e6
 ```
@@ -254,14 +264,14 @@ No CI job runs benchmarks; a release measures and commits its set by hand
 locally when you need an immediate result:
 
 ```sh
-make bench                       # C + Python (delegates to just-makeit bench)
-just-makeit bench --python-only  # Python only
-just-makeit bench --tag v1.2.3   # label the snapshot (default: UTC timestamp)
+make bench          # C + Python (delegates to just-makeit bench)
+make bench-python   # Python only (pytest-benchmark)
+make bench-save     # save a baseline to compare against
 ```
 
 Rules:
 
-- One file per module: `benchmarks/bench_<module>.py`
+- One file per object: `benchmarks/bench_<component>.py`
 - Name each test `test_bench_<case>` — **not** module-qualified (every
     `bench_*.py` draws from the same small vocabulary); identifiability
     across the full suite comes from the *filename*, via `conftest.py`'s

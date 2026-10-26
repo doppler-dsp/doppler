@@ -23,7 +23,7 @@ mistake it for a guarantee.
 
 ## The order is not negotiable
 
-1. **The C header is the SSOT.** Read `native/inc/<obj>/<obj>_core.h`
+1. **The C header is the SSOT.** Read `native/inc/doppler/<obj>/<obj>_core.h`
     first and enumerate every claim its prose makes.
 1. **Map each claim onto `native/tests/test_<obj>_core.c`** — pinned,
     pinned only at literals, or absent. The uncovered rows dictate the C
@@ -350,7 +350,7 @@ in-process library render. Everything else is unchanged.
 
 | piece       | bound object                                   | TOOL                                                  |
 | ----------- | ---------------------------------------------- | ----------------------------------------------------- |
-| SSOT        | `native/inc/<obj>/<obj>_core.h`                | the CLI contract + `docs/design/<tool>.md`            |
+| SSOT        | `native/inc/doppler/<obj>/<obj>_core.h`        | the CLI contract + `docs/design/<tool>.md`            |
 | step 1      | the header's prose claims                      | the design page's **goals**, and the gate each names  |
 | measurement | `validate.py`, through the binding             | `native/validation/<tool>_certify.c`, rendering bytes |
 | folder      | `src/doppler/<module>/tests/validation/<obj>/` | `src/doppler/tests/validation/<tool>/`                |
@@ -373,7 +373,7 @@ Two things specific to a tool, both learned from wfmgen:
 
 `check_validation_reports.py` knows about this substitution. Its phase-4 rule
 normally requires a C test under `native/tests/` naming the object; when
-there is **no `native/inc/<obj>/` at all** — the fact that distinguishes an
+there is **no `native/inc/doppler/<obj>/` at all** — the fact that distinguishes an
 application from a component — it requires `native/validation/<obj>_certify.c`
 instead. The branch is deliberately unreachable for an ordinary object, which
 must not be allowed to count its own validator as its C pin: that would let

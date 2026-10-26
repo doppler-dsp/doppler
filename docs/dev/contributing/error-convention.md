@@ -11,18 +11,21 @@ Functions that return `int` use the named constants from `clib_common.h`.
 The core DSP algorithm path only ever returns three of these; the rest are
 meaningful to the streaming layer (below):
 
-| Constant           | Value | Meaning                                |
-| ------------------ | ----- | -------------------------------------- |
-| `DP_OK`            | `0`   | Success                                |
-| `DP_ERR_INIT`      | `−1`  | Initialisation failed (context/socket) |
-| `DP_ERR_SEND`      | `−2`  | Send failed                            |
-| `DP_ERR_RECV`      | `−3`  | Receive failed or timed out (EAGAIN)   |
-| `DP_ERR_INVALID`   | `−4`  | Invalid argument                       |
-| `DP_ERR_TIMEOUT`   | `−5`  | Operation timed out                    |
-| `DP_ERR_MEMORY`    | `−6`  | Memory allocation failure              |
-| `DP_ERR_TOO_LARGE` | `−7`  | Frame exceeds transport max payload    |
+| Constant             | Value | Meaning                                                                             |
+| -------------------- | ----- | ----------------------------------------------------------------------------------- |
+| `DP_OK`              | `0`   | Success                                                                             |
+| `DP_ERR_INIT`        | `−1`  | Initialisation failed (context/socket)                                              |
+| `DP_ERR_SEND`        | `−2`  | Send failed                                                                         |
+| `DP_ERR_RECV`        | `−3`  | Receive failed or timed out (EAGAIN)                                                |
+| `DP_ERR_INVALID`     | `−4`  | Invalid argument                                                                    |
+| `DP_ERR_TIMEOUT`     | `−5`  | Operation timed out                                                                 |
+| `DP_ERR_MEMORY`      | `−6`  | Memory allocation failure                                                           |
+| `DP_ERR_TOO_LARGE`   | `−7`  | Frame exceeds transport max payload                                                 |
+| `DP_ERR_INTERRUPTED` | `−8`  | Blocking call stopped by `dp_stream_interrupt()` — a request to stop, not a failure |
+| `DP_ERR_CLOSED`      | `−9`  | Context draining or closed — a state, not a transport failure                       |
+| `DP_ERR_EOF`         | `−10` | Producer finished, no more data ever — distinct from `DP_ERR_TIMEOUT` ("not yet")   |
 
-All eight live in one unified enum in `clib_common.h` — `stream.h` doesn't
+All eleven are `#define`s in one place, `clib_common.h` — `stream.h` doesn't
 define its own codes, it just includes this header, so a value never means
 two things in one TU.
 
@@ -173,10 +176,10 @@ ______________________________________________________________________
 
 ## Where the constants live
 
-All eight codes are defined once in `native/inc/doppler/clib_common.h`, which every
+All eleven codes are defined once in `native/inc/doppler/clib_common.h`, which every
 `_core.c`/`_core.h` includes transitively. `native/inc/doppler/stream/stream.h`
 includes `clib_common.h` for the same codes rather than defining its own —
 one scheme everywhere. The DSP algorithm layer only ever returns
 `DP_OK`/`DP_ERR_MEMORY`/`DP_ERR_INVALID`; the rest
-(`DP_ERR_INIT`/`SEND`/`RECV`/`TIMEOUT`/`TOO_LARGE`) are meaningful to the
-streaming transport.
+(`DP_ERR_INIT`/`SEND`/`RECV`/`TIMEOUT`/`TOO_LARGE`/`INTERRUPTED`/`CLOSED`/`EOF`)
+are meaningful to the streaming transport and the file readers.

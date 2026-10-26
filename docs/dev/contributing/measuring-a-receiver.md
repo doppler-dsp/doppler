@@ -37,7 +37,7 @@ emits symbols — you do not write a harness. You write an adapter and the
 instrument does the rest.
 
 `native/tests/dp_rx_test.h` is that instrument, and `dp_rx_iface_t` is the
-only part that forks per design. Eleven entries, all of which a receiver worth
+only part that forks per design. Twelve members, all of which a receiver worth
 measuring already exposes:
 
 <!-- docs-snippet: skip=the harness family lives in native/tests/, which is deliberately NOT on the doc-snippet compiler's include path (it takes native/inc only) — this is a real declaration, compiled where it lives -->
@@ -45,19 +45,25 @@ measuring already exposes:
 ```c
 typedef struct
 {
-  const char    *name;
-  dp_rx_domain_t domain;              /* complex baseband, or real IF     */
+  const char    *name;   /**< printed with every number it produces      */
+  dp_rx_domain_t domain; /**< drives the step call AND the Es/N0 offset  */
 
+  /** Construct at an operating point, or NULL if the point is unbuildable. */
   void *(*create) (const struct dp_rx_point *);
-  void  (*destroy) (void *);
-  int   (*step) (void *, float complex x, float complex *y);
+  void (*destroy) (void *);
 
-  double (*norm_freq) (const void *);  /* tracked carrier, cycles/sample  */
-  double (*last_error) (const void *); /* discriminator output, radians   */
-  double (*lock) (const void *);       /* normalised lock statistic       */
-  int    (*locked) (const void *);     /* lock declared                   */
-  long   (*lock_time) (const void *);  /* symbols to first lock, -1 none  */
-  int    (*clipped) (const void *);    /* front end clipped               */
+  /** One input sample in, 0 or more terminal outputs out. A real receiver
+   *  takes `crealf(x)`; the instrument does that conversion, not the caller.
+   */
+  int (*step) (void *, float _Complex x, float _Complex *y);
+
+  double (*norm_freq) (const void *);  /**< tracked carrier, cycles/sample */
+  double (*last_error) (const void *); /**< discriminator output, radians  */
+  double (*lock) (const void *);       /**< normalised lock statistic      */
+  int (*locked) (const void *);        /**< lock declared                  */
+  long (*lock_time) (const void *);    /**< symbols to first lock, -1 none */
+  int (*clipped) (const void *);       /**< front end clipped: reading dead */
+  double (*zeta) (const void *);       /**< carrier damping, as BUILT       */
 } dp_rx_iface_t;
 ```
 
@@ -179,14 +185,20 @@ cfg.nsym = 20000;
 cfg.sps  = 8.0;
 
 size_t          n = 0;
-int8_t          truth[20000];
-float _Complex *x = dp_tx_make (&cfg, truth, &n);
+int8_t          tx[20000];     /* the +-1 BPSK sequence, as transmitted */
+uint8_t         truth[20000];  /* the same, as symbol indices (0..m-1)  */
+float _Complex *x = dp_tx_make (&cfg, tx, &n);
+for (size_t i = 0; i < cfg.nsym; i++)
+  truth[i] = tx[i] < 0;        /* index k is phase 2*pi*k/m: +1 -> 0    */
 
 /* ... run your object over x, collecting `out` and per-symbol lock flags ... */
 
-size_t settle = dp_ber_settle (bn_timing, bn_carrier, NULL, lock_c, NULL,
-                               nout, &ok);
-dp_ber_report_t rep = dp_ber_measure (&acc, out, nout, sym, nsym,
+dp_ber_t acc;
+int      ok;
+dp_ber_init (&acc, 2, DP_BER_TARGET_ERRORS);
+size_t settle = dp_ber_settle (bn_timing, bn_carrier, NULL, lock_c, nout,
+                               &ok);
+dp_ber_report_t rep = dp_ber_measure (&acc, out, nout, truth, cfg.nsym,
                                       esn0_db, settle, ok, NULL);
 dp_ber_print ("my object @ 6.8 dB", &rep);
 ```

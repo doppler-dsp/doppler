@@ -12,7 +12,7 @@ run any of them locally with:
 
 ```sh
 make test-snippets                                   # all three gates
-make test-snippets PAGE=guide/wfmgen/coding.md       # one page, all three
+make test-snippets PAGE=guide/wfmgen/scenes.md       # one page, all three
 ```
 
 The shell gate covers the third fence class — documented CLI invocations
@@ -124,16 +124,19 @@ Examples are required to **validate themselves** (assert on a BER
 threshold, a lock flag, a round-trip equality), so exit 0 means
 "demonstrated and checked". Most gallery pages include their code from
 these scripts, so page, script, and committed figure are one artifact.
-Mark a **self-contained** region (imports included) in the tested script:
+Mark a **self-contained** region (imports included) in the tested script.
+(In this page's source each marker carries a leading `;`, the
+pymdownx.snippets escape that keeps the docs build from stripping it; the
+script itself has none.)
 
 ```text title="src/doppler/examples/lo_demo.py"
-# --8<-- [start:quarter_rate]
+# ;--8<-- [start:quarter_rate]
 import numpy as np
 from doppler.source import LO
 
 lo = LO(0.25)  # a free-running quarter-rate tone
 iq = lo.steps(8)  # 8 complex64 samples: 1, j, -1, -j, repeating
-# --8<-- [end:quarter_rate]
+# ;--8<-- [end:quarter_rate]
 ```
 
 Then pull it into the page with a single `--8<--` line inside a `python` fence.
@@ -249,9 +252,10 @@ Pages not yet brought under a gate are listed in an ignore file — a
 **temporary** backlog that shrinks to empty, the same idiom as
 `docs/api/.api-coverage-ignore` and `scripts/.serializable-ignore`:
 `docs/.doc-snippet-ignore` for Python, `docs/.c-doc-snippet-ignore` for C.
-A **new** page is never added to either; it is gated on arrival. Each run
-prints `doc-snippet backlog: N page(s) not yet gated`. To retire a page, make
-its fences pass (or `skip=`-mark them with reasons) and delete its line.
+A **new** page is never added to either; it is gated on arrival. The list
+can only shrink: `test_ignore_list_not_stale` fails on an entry whose page is
+gone or no longer has fences of that language. To retire a page, make its
+fences pass (or `skip=`-mark them with reasons) and delete its line.
 
 ## Building the docs locally (gotchas)
 

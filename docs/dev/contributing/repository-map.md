@@ -40,7 +40,7 @@ doppler/
 │   ├── src/                             extern decls + safe wrappers
 │   └── examples/                        Rust usage examples
 │
-├── docs/                                mkdocs-material site
+├── docs/                                zensical site
 │   ├── api/                             Python API pages (mkdocstrings)
 │   ├── c-api/                           C API (mkdoxy-generated from Doxygen XML)
 │   ├── design/                          architecture + per-subsystem design docs
@@ -54,17 +54,18 @@ doppler/
 │   └── history/                         local bench scratch (git-ignored)
 │
 ├── tests/install/                       install smoke tests across package managers
+├── deploy/docker/                       Dockerfiles for the shipped images (runtime, SDK, downstream)
 ├── scripts/                             repo tooling (benchmarking, API-doc coverage, capture)
 ├── vendor/                              third-party sources compiled straight in
 │
 ├── CMakeLists.txt                       C + Python extension build
 ├── cmake/                               install exports: find_package + pkg-config templates
-├── Makefile                             test-all, docs-build, gallery, bump-version, tag-release
-├── pyproject.toml                       Python package metadata (uv_build)
-├── Dockerfile / docker-compose.yml      multi-container streaming demo (NATS PUB/SUB tx → rx/spectrum)
-├── Doxyfile / mkdocs.yml                docs toolchain (mkdocs-material + mkdoxy)
+├── Makefile                             test-all, docs, gallery, bump-version, tag-release
+├── pyproject.toml                       Python package metadata; build backend just_buildit
+├── docker-compose.yml                   multi-container streaming demo (NATS PUB/SUB tx → rx/spectrum)
+├── Doxyfile / mkdocs.yml                docs toolchain (zensical reads mkdocs.yml, + mkdoxy)
 ├── .pre-commit-config.yaml              lints/formats hand-written code only (jm glue excluded)
-├── bootstrap.toml                              just-buildit packaging config
+├── bootstrap.toml                       system deps per group, read by just-bashit's install-deps
 ├── CLAUDE.md / CONTRIBUTING.md          assistant + contributor guides
 ├── README.md / CHANGELOG.md / LICENSE   project docs
 └── conftest.py                          pytest root config (doctest gate wiring)

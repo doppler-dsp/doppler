@@ -15,12 +15,12 @@ flowchart TD
     so["C extensions\n*.cpython-*.so"]
     bin["wfmgen binary\nsrc/doppler/wfm/_bin/wfmgen"]
     jb["just-buildit\nPEP 517 backend"]
-    manylinux["manylinux_2_28 x86_64/aarch64\ncontainer (Linux) + native macOS arm64 runner"]
-    auditwheel["auditwheel repair / delocate\nbundle shared deps"]
-    wheel["Wheels\ndoppler_dsp-X.Y.Z-*.whl (6 CPython × 3 platforms)"]
+    manylinux["manylinux_2_28 x86_64/aarch64\ncontainer (Linux) + native macOS arm64\nand Windows x64 runners"]
+    auditwheel["auditwheel repair / delocate / delvewheel\nbundle shared deps"]
+    wheel["Wheels\ndoppler_dsp-X.Y.Z-*.whl (every supported CPython × 4 platforms)"]
     pypi["PyPI\nOIDC trusted publishing"]
     ghcr["ghcr.io/doppler-dsp/doppler\npip-installs the published wheel"]
-    ctarball["C library tarballs\ndoppler-X.Y.Z-{linux-x86_64,linux-aarch64,macos-arm64}.tar.gz"]
+    ctarball["C library archives\ndoppler-X.Y.Z-{linux-x86_64,linux-aarch64,macos-arm64}.tar.gz\n+ doppler-X.Y.Z-windows-x86_64.zip"]
 
     src --> cmake --> so --> jb --> manylinux --> auditwheel --> wheel --> pypi --> ghcr
     cmake --> bin --> jb
@@ -184,13 +184,24 @@ ______________________________________________________________________
 
 `ci.yml` runs on every push to `main`/`develop` and on all pull requests.
 
-| Job                                           | What it tests                                                                       | Acts as gate for                                 |
-| --------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `build-and-test` (Ubuntu 22.04, 24.04, macOS) | CMake build, CTest, C example smoke tests, C++-free symbol check, static-link smoke | C layer correctness                              |
-| `python` (3.9–3.14)                           | `make pyext`, pytest, `--doctest-glob` on `.pyi` stubs, Python example smoke tests  | Python API and bindings                          |
-| `glibc-228` (Debian 10 buster)                | `make glibc-gate` — builds + smoke-runs the C examples inside the floor image       | glibc symbol floor (catches `GLIBC_2.29+` leaks) |
-| `manifest-drift`                              | `jm status --check`                                                                 | jm TOML matches generated files                  |
-| `ci-passed`                                   | Aggregates all required jobs                                                        | Required by `release.yml verify-ci`              |
+| Job                                                                      | What it does                                                                                                                                           | If it fails                                                                                           |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `verify-version`                                                         | `make version-check`: tag == `pyproject.toml` == `ffi/rust/Cargo.toml` == `CMakeLists.txt` == `bootstrap.toml` == `just-makeit.toml`                   | Run `make bump-version VERSION=X.Y.Z`, which writes every probed site, before tagging                 |
+| `verify-ci`                                                              | Polls for `ci-passed` on the tagged commit SHA                                                                                                         | The tagged commit must have a green CI run; check GitHub Actions on that SHA directly                 |
+| `build-python`                                                           | Builds every supported Python × **Linux x86_64/aarch64** wheels (native runners, no QEMU), runs the AVX/SVE portability gates                          | Fix any `-march=native`/`-mcpu=native` leak or C compile error; re-tag after fixing                   |
+| `build-macos`                                                            | Builds every supported Python × **macOS arm64** wheels natively on `macos-14`                                                                          | C compile error on macOS; check `delocate` output                                                     |
+| `build-windows`                                                          | Builds every supported Python × **win_amd64** wheels natively on `windows-latest` (clang-cl + Ninja, `delvewheel repair`)                              | C compile error under clang-cl; `ci.yml`'s Windows wheel smoke runs the same build on every PR        |
+| `build-sdist`                                                            | Source tarball via `make sdist` (`uv build --sdist` through the `just_buildit` backend)                                                                | Rare; run `make sdist` locally and check `[build-system]` / `[tool.just-buildit]` in `pyproject.toml` |
+| `build-c-linux` (x86_64 + aarch64) / `build-c-macos` / `build-c-windows` | Standalone C library archives (`lib/` layout, not `lib64/`; a `.zip` on Windows) via `make package-c-tarball`                                          | Run `make package-c-tarball VERSION=x.y.z` locally; check `cmake --install` output                    |
+| `smoke-wheel`                                                            | Installs the cp312 wheel (Linux x86_64, aarch64 **and** win_amd64, matrixed) into a clean venv; runs `wfm_e2e.py`                                      | Python API regression; check what `wfm_e2e.py` exercises                                              |
+| `wheel-tags`                                                             | `make check-wheel-tags`: every built wheel's name is one pip would install                                                                             | A malformed platform/ABI tag from the backend; see doppler#1817                                       |
+| `publish-python`                                                         | Uploads all wheels + sdist to PyPI via OIDC                                                                                                            | Check PyPI trusted publisher config; once published, the version cannot be replaced                   |
+| `smoke-pypi`                                                             | Installs `doppler-dsp==X.Y.Z` **from PyPI** on every wheel platform × supported Python; runs `wfm_e2e.py`                                              | Re-run by hand with `make release-smoke-pypi VERSION=X.Y.Z`                                           |
+| `publish-container`                                                      | Builds the runtime, SDK and downstream images per arch and pushes them by digest; the runtime image pip-installs the just-published wheel — no rebuild | Check the Dockerfiles and GHCR push permissions                                                       |
+| `publish-container-merge`                                                | Assembles each image's per-arch digests into multi-arch `:X.Y.Z` (+ `:latest`) tags, then smokes them                                                  | Re-run the failed jobs; check `make smoke-image` output                                               |
+| `github-release`                                                         | Creates GitHub Release with auto-generated notes; attaches all wheel + C library artifacts                                                             | Permissions; check `GITHUB_TOKEN` has `contents: write`                                               |
+| `smoke-c`                                                                | Downloads the just-published C archive (all four platforms); runs `cmake find_package` and `pkg-config` smoke tests                                    | CMake install layout or `pkg-config` `.pc` file                                                       |
+| `smoke-packages`                                                         | Installs the published `.deb`/`.rpm` (x86_64 + aarch64) with each distro's package manager, then builds a consumer from `/usr`                         | Package layout or dependency metadata                                                                 |
 
 The `ci-passed` aggregator job is what `release.yml` polls. It exists so
 the release pipeline has a single stable job name to wait on, regardless of
@@ -271,11 +282,11 @@ Symptom: `jm status --check` reports drift that you cannot reproduce locally.
 Cause: Your local `jm` CLI version differs from the pinned `jm_version` in
 `just-makeit.toml`.
 
-Fix: always drive doppler with the pinned version:
+Fix: run the gate through `make`, which syncs the pinned jm from
+`uv.lock` first and checks that every pin site agrees:
 
 ```bash
-JM_VERSION=$(grep jm_version just-makeit.toml | grep -oP '"\K[^"]+')
-uvx --from "just-makeit==$JM_VERSION" just-makeit status --check
+make drift-check
 ```
 
 ### `verify-ci` times out

@@ -208,7 +208,7 @@ ______________________________________________________________________
 ## Step 3 — Apply
 
 ```sh
-jm apply objects/myobj.toml
+make jm-apply JM_APPLY_ARGS=objects/myobj.toml
 ```
 
 Materializes: `<component>_core.h` stub, `<component>_core.c` stub,
@@ -217,16 +217,21 @@ C test, C benchmark, Python test skeleton, Python benchmark skeleton.
 After this:
 
 ```text
-native/inc/<module>/
-├── <module>_core.h             # module-level function declarations
+native/inc/doppler/<module>/
+└── <module>_core.h             # module-level function declarations
+
+native/inc/doppler/<component>/
 └── <component>_core.h          # per-object C header
 
 native/src/<module>/
 ├── <module>_core.c             # module-level function implementations
 ├── <module>_ext.c              # aggregator — jm-regenerated, do not edit
 ├── <module>_ext_<component>.c  # per-object binding fragment — see its banner
+└── CMakeLists.txt              # auto-managed (builds the .so)
+
+native/src/<component>/
 ├── <component>_core.c          # algorithm skeleton (fill in)
-└── CMakeLists.txt              # auto-managed
+└── CMakeLists.txt              # auto-managed (builds <component>_core)
 
 native/tests/
 └── test_<component>_core.c     # C test skeleton
@@ -236,17 +241,20 @@ native/benchmarks/
 
 src/doppler/<module>/
 ├── __init__.py                 # re-export stub
-└── <module>.pyi                # type stub skeleton
+├── <module>.pyi                # type stub skeleton
+├── tests/test_<component>.py   # Python test skeleton (fill in, Step 9)
+└── benchmarks/bench_<component>.py  # Python bench skeleton (Step 10)
 ```
 
-`tests/` and `benchmarks/` under `src/doppler/<module>/` are not
-scaffolded — you create them in Steps 9 and 10.
+The `filter` module is a real instance: `FIR`'s header is
+`native/inc/doppler/fir/fir_core.h`, its core `native/src/fir/fir_core.c`,
+and its binding fragment `native/src/filter/filter_ext_fir.c`.
 
 ______________________________________________________________________
 
 ## Step 4 — Implement the C core
 
-Open `native/src/<module>/<component>_core.c`. The primary thing to
+Open `native/src/<component>/<component>_core.c`. The primary thing to
 implement is `step()` (for a Step-1-Entry-A object — the scaffold
 generates `steps()` as an inline loop over `step()`, so it comes for
 free) or the `execute`/`steps` method body you declared (for a
@@ -256,8 +264,8 @@ also need their bodies filled in.
 <!-- docs-snippet: skip=template scaffold (placeholder <module>/<component> tokens), not compilable -->
 
 ```c
-/* native/src/<module>/<component>_core.c */
-#include "<module>/<component>_core.h"
+/* native/src/<component>/<component>_core.c */
+#include "doppler/<component>/<component>_core.h"
 
 float _Complex
 dp_<component>_step(dp_<component>_t *s, float _Complex x)
@@ -436,8 +444,8 @@ ______________________________________________________________________
 
 ## Step 9 — Write Python tests
 
-Open `src/doppler/<module>/tests/test_<module>.py` and write `pytest`
-tests that exercise the Python API end-to-end through the C extension.
+Open `src/doppler/<module>/tests/test_<component>.py` (scaffolded by
+`jm apply` in Step 3) and write `pytest` tests that exercise the Python API end-to-end through the C extension.
 
 At minimum, cover these categories:
 
@@ -522,8 +530,8 @@ ______________________________________________________________________
 
 ## Step 10 — Write the Python benchmark
 
-Fill in `src/doppler/<module>/benchmarks/bench_<module>.py` (scaffolded
-empty by `jm apply` in Step 3). Benchmarks use
+Fill in `src/doppler/<module>/benchmarks/bench_<component>.py`
+(scaffolded by `jm apply` in Step 3). Benchmarks use
 [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) so results are
 collected into JSON snapshots in `benchmarks/history/` (local scratch,
 git-ignored); each release's committed numbers are measured into
@@ -660,9 +668,9 @@ the initial `jm apply` — e.g. added a property, tweaked a param default —
 reconcile the generated glue:
 
 ```sh
-jm apply                            # reconciles CMakeLists, __init__.py, .pyi
-jm status --check                   # confirms zero drift; this is what CI's manifest-drift gate runs
-git diff --stat                     # confirm only your component's files changed
+make jm-apply      # reconciles CMakeLists, __init__.py, .pyi
+make drift-check   # confirms zero drift; CI's manifest-drift gate
+git diff --stat    # confirm only your component's files changed
 ```
 
 ______________________________________________________________________
@@ -680,7 +688,7 @@ Before opening a PR:
     spectrogram's is); a `c_deps` entry's or a function-only module's is
     hand-written and hand-registered (Step 10b). `make lint` gates both
     halves
-- [ ] `jm status --check` — zero manifest drift
+- [ ] `make drift-check` — zero manifest drift
 - [ ] `__init__.py` and `<module>.pyi` are **generated**, not hand-edited
     — the surface is declared in the manifest and documented in the header
 - [ ] No Python wrapper classes — C extension types are the public API

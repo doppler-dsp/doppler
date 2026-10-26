@@ -183,6 +183,21 @@ peaks = find_peaks_f32(db, n_peaks=5, min_db=-60.0)
 
 ::: doppler.spectral.noise_floor_db
 
+## Window and mode names
+
+`PSD_WINDOW` and `SPECTROGRAM_MODE` map each C enum value to the name the
+`window=` and `mode=` arguments take, so a configuration can be checked
+against the values the library actually has:
+
+```pycon
+>>> from doppler.spectral import PSD_WINDOW, SPECTROGRAM_MODE
+>>> sorted(PSD_WINDOW.values())
+['blackman-harris', 'hann', 'kaiser', 'rect']
+>>> SPECTROGRAM_MODE
+{0: 'power', 1: 'db'}
+
+```
+
 ## Related pages
 
 <!-- related-pages:start -->

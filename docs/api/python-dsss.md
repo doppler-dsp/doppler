@@ -283,6 +283,20 @@ the stream is blocked nor on the thread count.
 
 ::: doppler.dsss.PoolReceiverStatus
 
+## `ASYNC_DSSS_RX_STATE` — naming a receiver's state
+
+`ReceiverStatus.state` and `PoolReceiverStatus.state` are the C
+`async_dsss_rx_state_t` value (`ASYNC_DSSS_RX_SEARCHING` .. `_LOST`), an `int`. `ASYNC_DSSS_RX_STATE` maps each
+value to its name, so a log line can say where the receiver is without a
+copy of the enum:
+
+```pycon
+>>> from doppler.dsss import ASYNC_DSSS_RX_STATE
+>>> ASYNC_DSSS_RX_STATE
+{0: 'searching', 1: 'refining', 2: 'tracking', 3: 'reserved', 4: 'lost'}
+
+```
+
 ## Related pages
 
 <!-- related-pages:start -->

@@ -93,6 +93,20 @@ COVERAGE: dict[str, str] = {
     "Reader": "TestReaderWriter",
     "StreamSink": "TestStreamSinkAndClock",
     "SampleClock": "TestStreamSinkAndClock",
+    # the C enums' names, published by jm (0.111.2, jm#2376)
+    **dict.fromkeys(
+        [
+            "FTYPE",
+            "STYPE",
+            "ENDIAN",
+            "SAMPLE_MODE",
+            "FOLLOW_END",
+            "FS_SOURCE",
+            "T0_SOURCE",
+            "FC_SOURCE",
+        ],
+        "TestVocabularies",
+    ),
 }
 
 
@@ -103,7 +117,7 @@ ENUMS = {
     "modulation": ["none", "bpsk", "qpsk"],
     "pulse": ["rect", "rrc"],
     "sample_type": ["cf32", "cf64", "ci32", "ci16", "ci8"],
-    "file_type": ["raw", "csv", "blue", "sigmf"],
+    "file_type": list(w.FTYPE),
     "endian": ["le", "be"],
 }
 
@@ -467,6 +481,53 @@ class TestComposerGraph:
     def test_context_manager_and_close(self) -> None:
         with w.Composer([w.Segment("tone", freq=1e5, num_samples=64)]) as c:
             assert c.compose().shape == (64,)
+
+
+class TestVocabularies:
+    """Each published tuple names exactly what the Reader reports.
+
+    A tuple lists a C enum's names in C order, and a `Reader` property
+    reports one of them. Writing every `STYPE` at every `ENDIAN` to BLUE
+    (the type that records both) and reading it back holds the tuples to
+    the code: each value read must be the one written, and every property
+    must report a member of its own tuple.
+    """
+
+    @pytest.mark.parametrize("endian", w.ENDIAN)
+    @pytest.mark.parametrize("sample_type", w.STYPE)
+    def test_every_value_reported_is_a_member(
+        self, tmp_path, sample_type: str, endian: str
+    ) -> None:
+        real = not sample_type.startswith("c")
+        x = (
+            np.linspace(-0.5, 0.5, 64, dtype=np.float32)
+            if real
+            else w.Synth(type="tone", freq=1e4, snr=100.0).steps(64)
+        )
+        path = str(tmp_path / "v.blue")
+        with w.Writer(
+            path,
+            file_type="blue",
+            sample_type=sample_type,
+            endian=endian,
+            fs=1e6,
+            total=len(x),
+        ) as wr:
+            wr.write(x)
+        with w.Reader(path) as r:
+            assert (r.sample_type, r.endian) == (sample_type, endian)
+            assert r.mode == ("scalar" if real else "complex")
+            for value, names in (
+                (r.file_type, w.FTYPE),
+                (r.sample_type, w.STYPE),
+                (r.endian, w.ENDIAN),
+                (r.mode, w.SAMPLE_MODE),
+                (r.ending, w.FOLLOW_END),
+                (r.fs_source, w.FS_SOURCE),
+                (r.t0_source, w.T0_SOURCE),
+                (r.fc_source, w.FC_SOURCE),
+            ):
+                assert value in names, (value, names)
 
 
 class TestReaderWriter:

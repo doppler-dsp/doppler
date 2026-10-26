@@ -336,6 +336,19 @@ assert recs["value"].tolist() == [12.0, 13.0, 14.0, 15.0]
 
 ::: doppler.telemetry.TelemetryStats
 
+## Sample type and endian names
+
+`STYPE` and `ENDIAN` list the strings `EventLog.finalize()` takes for
+`sample_type=` and `endian=`, in C enum order (a name's index is its C
+value):
+
+```pycon
+>>> from doppler.telemetry import STYPE, ENDIAN
+>>> STYPE.index("ci16"), ENDIAN
+(3, ('le', 'be'))
+
+```
+
 ## Related pages
 
 <!-- related-pages:start -->

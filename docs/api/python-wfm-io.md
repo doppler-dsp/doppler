@@ -238,6 +238,32 @@ header). `Reader` opens either half and resolves the other.
 
 ______________________________________________________________________
 
+## The metadata vocabularies
+
+Each string-valued `Reader` property has a tuple listing every value it can
+report, in C enum order (a name's index is its C value). `STYPE` and `ENDIAN`
+are also the names `Writer` takes.
+
+| tuple         | the values of        |
+| ------------- | -------------------- |
+| `FTYPE`       | `Reader.file_type`   |
+| `STYPE`       | `Reader.sample_type` |
+| `ENDIAN`      | `Reader.endian`      |
+| `SAMPLE_MODE` | `Reader.mode`        |
+| `FOLLOW_END`  | `Reader.ending`      |
+| `FS_SOURCE`   | `Reader.fs_source`   |
+| `T0_SOURCE`   | `Reader.t0_source`   |
+| `FC_SOURCE`   | `Reader.fc_source`   |
+
+```pycon
+>>> from doppler.wfm import FTYPE, FOLLOW_END, FC_SOURCE
+>>> FTYPE
+('raw', 'csv', 'blue', 'sigmf')
+>>> FOLLOW_END[-1], FC_SOURCE[-1]
+('interrupted', 'core:frequency')
+
+```
+
 ## Related pages
 
 <!-- related-pages:start -->

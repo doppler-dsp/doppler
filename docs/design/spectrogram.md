@@ -224,9 +224,12 @@ asked for by name, as in C: both faces name the same constants, bound by name
 returns the owed row as `push` returns its rows, a `(1, nfft)` matrix, or
 `None` when no row is owed
 ([#2181](https://github.com/doppler-dsp/doppler/issues/2181)). A short `out`
-is still refused by `push`: jm can now pass one through
-(just-buildit/just-makeit#2230), and adopting it is
-[#2592](https://github.com/doppler-dsp/doppler/issues/2592).
+is taken, not refused: `push` takes any `(k, nfft)` float32 matrix (jm's
+`short_out`, just-buildit/just-makeit#2230, adopted in
+[#2592](https://github.com/doppler-dsp/doppler/issues/2592)), writes the whole
+rows that fit, and stops before a row it has no room for. `consumed` then
+says where to resume, and offering `x[consumed:]` again yields the rest
+bit-exact.
 
 ### 4.4 What it composes, and what it does not re-implement
 

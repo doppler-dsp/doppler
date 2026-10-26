@@ -6,9 +6,10 @@ together, from one parameter. Tests that only check the carrier would pass
 against an implementation that leaves the code rate untouched — the classic
 unphysical shortcut — so the dilation is checked explicitly and separately.
 
-The geometry throughout is SPEC.md's: 3.069 Mcps at ``spc=2`` on a 2.5 GHz
-carrier, with the +/-50 kHz uncertainty written as what it physically is,
-20 ppm of the time base.
+The geometry throughout is the specification's
+(``docs/design/async-dsss-receiver.md`` §1): 3.069 Mcps at ``spc=2`` on a
+2.5 GHz carrier, with the +/-50 kHz uncertainty written as what it physically
+is, 20 ppm of the time base.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ import pytest
 from doppler.impairment import DopplerChannel
 
 FS = 6.138e6  # 3.069 Mcps x spc=2
-FC = 2.5e9  # SPEC.md nominal carrier
+FC = 2.5e9  # the specification's nominal carrier
 PPM = 20.0  # +/-50 kHz at 2.5 GHz
 RATE_PPM_S = 0.2  # 500 Hz/s at 2.5 GHz
 N = 1 << 16

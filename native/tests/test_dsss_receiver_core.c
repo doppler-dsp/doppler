@@ -334,7 +334,7 @@ _test_carrier_dll_composition_ramp (void)
   const size_t sf            = 1023;
   const size_t spc           = 2;
   const double fs            = 4.092e6;
-  const double rate_hz_per_s = 500.0; /* SPEC's corrected worst case */
+  const double rate_hz_per_s = 500.0; /* the specification's worst case */
   const size_t n_periods     = 2700;  /* matches this session's own
                                           Python floor-sweep scale */
   const double sigma = 0.6;           /* a stressed, not comfortable,
@@ -364,45 +364,35 @@ _test_carrier_dll_composition_ramp (void)
   return 0;
 }
 
-/* The first sustained-Doppler-rate regression this object has ever had
- * (task #18/#93/#97): the full Acquisition -> carrier(bn_fll) -> Dll ->
- * RateConverter -> MpskReceiver chain, at SPEC's own real operating-point
- * RATIOS (`chip_rate=3.069e6`, `code_len=1023`, `symbol_rate=2700` --
- * CCSDS Gold-1023 @ 3.069 Mcps / async BPSK @ 2700 bps, `SPEC.md`'s own
- * numbers), against a 500 Hz/s ramp -- SPEC's corrected worst case -- must
- * stay locked and decode. Critically, `chip_rate/(code_len*symbol_rate)`
- * ~= 1.111 periods/symbol -- NOT an integer -- so the data-symbol clock is
- * genuinely ASYNCHRONOUS to the code-epoch clock (symbol boundaries drift
- * across period boundaries over the run, exactly the scenario `segments>1`
- * exists to handle; this project's whole "async despreader" story, tasks
- * #40-60). An earlier draft of this test picked `symbol_rate =
- * chip_rate/code_len` for convenience -- an exact 1 period/symbol, i.e. a
- * SYNCHRONOUS clock -- which would have proven the carrier-rate mechanism
- * survives in combination with a clock relationship SPEC doesn't actually
- * have, silently skipping the one dimension (async data) this whole
- * codebase's history says is the hard part. Fixed to use SPEC's real
- * ratio, caught by the user asking "have you tested the SPEC use-case with
- * async data?" before this was committed. cn0 is moderately (not
- * maximally) stressed: the SNR-floor behavior of the mechanism itself is
- * already covered by the Python floor sweep (FINISHING_PLAN.md) and the
- * isolated C composition test above; this test's own job is proving the
- * FULL composed receiver survives a sustained RATE *and* async data
- * end-to-end together, not re-proving the SNR floor. */
+/* Sustained Doppler rate through the full Acquisition -> carrier(bn_fll) ->
+ * Dll -> RateConverter -> MpskReceiver chain, at the specification's
+ * operating-point ratios (docs/design/async-dsss-receiver.md §1:
+ * `chip_rate=3.069e6`, `code_len=1023`, `symbol_rate=2700`, CCSDS Gold-1023
+ * with async BPSK), against its 500 Hz/s worst-case ramp: the receiver must
+ * stay locked and decode. `chip_rate/(code_len*symbol_rate)` ~= 1.111
+ * periods/symbol, NOT an integer, so the data-symbol clock is genuinely
+ * ASYNCHRONOUS to the code-epoch clock and symbol boundaries drift across
+ * period boundaries over the run (the case `segments>1` exists for). A
+ * synchronous `symbol_rate = chip_rate/code_len` would skip the async-data
+ * dimension, which is the hard part. cn0 is moderately (not maximally)
+ * stressed: the isolated C composition test above covers the mechanism's
+ * SNR floor; this test proves the FULL composed receiver survives a
+ * sustained RATE and async data together. */
 static int
 _test_sustained_doppler_rate (void)
 {
 
   const size_t sf        = 1023;
   const size_t spc       = 2;
-  const double chip_rate = 3.069e6; /* SPEC.md's own Gold-1023 rate */
+  const double chip_rate = 3.069e6; /* the specification's Gold-1023 rate */
   const double fs        = chip_rate * (double)spc;
-  const double sym_rate  = 2700.0; /* SPEC.md's own async BPSK rate --
+  const double sym_rate  = 2700.0; /* the specification's async BPSK rate --
                                        chip_rate/(sf*sym_rate) ~= 1.111
                                        periods/symbol, deliberately
                                        NOT an integer (see above). */
   const double tsym          = fs / sym_rate;
   const size_t te            = sf * spc;
-  const double rate_hz_per_s = 500.0; /* SPEC's corrected worst case */
+  const double rate_hz_per_s = 500.0; /* the specification's worst case */
   const size_t n_sym         = 2430;  /* ~2700 code periods' worth of
                                           duration at this async ratio,
                                           matching this session's own

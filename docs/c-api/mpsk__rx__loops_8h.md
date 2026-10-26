@@ -75,7 +75,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_mpsk\_rx\_config\_carrier**](#function-dp_mpsk_rx_config_carrier) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_(Re-)size the carrier loop filter for the tap's update rate._  |
+|  void | [**dp\_mpsk\_rx\_config\_carrier**](#function-dp_mpsk_rx_config_carrier) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Size the carrier loop filter for its update rate._  |
 |  double | [**dp\_mpsk\_rx\_freq\_est**](#function-dp_mpsk_rx_freq_est) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._  |
 |  void | [**dp\_mpsk\_rx\_loops\_get\_state**](#function-dp_mpsk_rx_loops_get_state) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, void \* blob) <br>_Serialize the loops' mutable state into_ `blob` _._ |
 |  void | [**dp\_mpsk\_rx\_loops\_init**](#function-dp_mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, double bn\_agc\_ratio, int ted, double lock\_thresh, int differential) <br>_Initialise the loops in place (no allocation)._  |
@@ -88,11 +88,11 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  void | [**dp\_mpsk\_rx\_tlm\_flush**](#function-dp_mpsk_rx_tlm_flush) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y) <br>_Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_agc\_bn**](#function-mpsk_rx_agc_bn) (double bn\_carrier, double bn\_timing, double ratio) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**mpsk\_rx\_derive\_m\_out**](#function-mpsk_rx_derive_m_out) (double cap, int strict) <br>_Terminal outputs per symbol, derived: the largest even count in 2..8 the caller's own rate constraint allows._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex z) <br>_Run the NDA discriminator on one tapped sample._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex z) <br>_Run the NDA discriminator on one on-time strobe._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_fold**](#function-mpsk_rx_fold) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const float \_Complex \* ys, size\_t n, float \_Complex \* y\_out, int ted) <br>_Fold one front end's burst of outputs into both loops._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_steer**](#function-mpsk_rx_steer) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double pe) <br>_Filter a carrier phase error and update_ `freq_ctrl` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_take\_output**](#function-mpsk_rx_take_output) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y, float \_Complex \* sym, int ted) <br>_Fold one terminal-stage output into both loops._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_updates\_per\_symbol**](#function-mpsk_rx_updates_per_symbol) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_How many times per symbol the chosen tap updates the carrier loop._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_updates\_per\_symbol**](#function-mpsk_rx_updates_per_symbol) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_How many times per symbol the carrier loop updates._  |
 
 
 
@@ -208,7 +208,7 @@ enum mpsk__rx__loops_8h_1a99fb83031ce9923c84392b4e92f956b5 {
 
 ### function dp\_mpsk\_rx\_config\_carrier 
 
-_(Re-)size the carrier loop filter for the tap's update rate._ 
+_Size the carrier loop filter for its update rate._ 
 ```C++
 void dp_mpsk_rx_config_carrier (
     mpsk_rx_loops_t * l
@@ -217,7 +217,7 @@ void dp_mpsk_rx_config_carrier (
 
 
 
-Called by [**dp\_mpsk\_rx\_loops\_init()**](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_loops_init), and AGAIN by each receiver's create() once the cascade has published its `bank_sps` — which arrives too late for init, so the MF\_IN tap would otherwise keep gains designed for the `lo_sps` placeholder. `integ` survives [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init) by contract, and every other tap re-derives the gains it already had. 
+Called once, by [**dp\_mpsk\_rx\_loops\_init()**](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_loops_init). Designs the loop filter from `bn_carrier` (normalized to the symbol rate) and `zeta` at [**mpsk\_rx\_updates\_per\_symbol()**](mpsk__rx__loops_8h.md#function-mpsk_rx_updates_per_symbol) updates per symbol, and sets `freq_scale`, which turns the filter's phase command into cycles per LO sample. 
 
 
         
@@ -522,7 +522,7 @@ An even count in 2..8, or 0 when the bound cannot carry even 2 — a refusal, no
 
 ### function mpsk\_rx\_disc 
 
-_Run the NDA discriminator on one tapped sample._ 
+_Run the NDA discriminator on one on-time strobe._ 
 ```C++
 JM_FORCEINLINE  JM_HOT void mpsk_rx_disc (
     mpsk_rx_loops_t * l,
@@ -532,7 +532,7 @@ JM_FORCEINLINE  JM_HOT void mpsk_rx_disc (
 
 
 
-Shared by all three tap points so the discriminator, its AGC and its lock statistic exist exactly once however the caller chose to feed them.
+Computes the M-th-power phase error and lock statistic, updates the lock EMA and its indicator, and steers the carrier loop. There is no AGC here: the discriminator divides out `|z|^M`, so it is amplitude-blind.
 
 
 The discriminator, its lock EMA and the steer all run on every sample it is handed, from the first strobe to the last. Nothing gates them: `lock` is an indicator the caller reads, not an input the loop obeys.
@@ -544,7 +544,7 @@ The discriminator, its lock EMA and the steer all run on every sample it is hand
 
 
 * `l` Loops. 
-* `z` The tapped sample. 
+* `z` The on-time strobe. 
 
 
 
@@ -667,7 +667,7 @@ The receiver's whole per-output body, shared verbatim by the complex- and real-i
 
 ### function mpsk\_rx\_updates\_per\_symbol 
 
-_How many times per symbol the chosen tap updates the carrier loop._ 
+_How many times per symbol the carrier loop updates._ 
 ```C++
 JM_FORCEINLINE double mpsk_rx_updates_per_symbol (
     const mpsk_rx_loops_t * l
@@ -676,7 +676,7 @@ JM_FORCEINLINE double mpsk_rx_updates_per_symbol (
 
 
 
-The tap's whole point, as one number: it is both the factor by which the discriminator's unambiguous frequency range grows over the symbol-rate case, and the loop filter's update rate (see config\_carrier). 
+Always 1: the discriminator reads the on-time strobe, one output per symbol. It is the loop filter's update rate, which [**dp\_mpsk\_rx\_config\_carrier()**](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_config_carrier) sizes the filter against. 
 
 
         

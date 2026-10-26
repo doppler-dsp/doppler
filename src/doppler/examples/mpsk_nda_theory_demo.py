@@ -105,10 +105,10 @@ def _jitter_bound(kd):
     updates every sample). A step-by-step simulation of the discrete loop
     (the 2-sample boxcar arm included) agrees with this closed form to 1%.
     The loop measures ~8% above it, because the model is linear and leaves
-    out the M-th power's higher-order noise terms and the arm AGC, and a
-    600-symbol std is itself uncertain by several percent. So the bound is
-    1.5x the theory: loose enough for both, and well below the ~2.8x that
-    doubling the bandwidth costs (sigma_f grows as bn**1.5).
+    out the M-th power's higher-order noise terms, and a 600-symbol std is
+    itself uncertain by several percent. So the bound is 1.5x the theory:
+    loose enough for both, and well below the ~2.8x that doubling the
+    bandwidth costs (sigma_f grows as bn**1.5).
     """
     from doppler.track import LoopFilter
 

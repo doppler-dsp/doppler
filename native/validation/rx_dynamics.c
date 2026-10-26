@@ -186,9 +186,8 @@ typedef struct
 } rx_dyn_result_t;
 
 /**
- * @brief Run one tap over the whole scenario.
+ * @brief Run the strobe tap over the whole scenario.
  *
- * @param tap   MPSK_RX_NDA_TAP_*.
  * @param ted   RATESYNC_TED_DTTL or RATESYNC_TED_GARDNER.
  * @param path  Telemetry capture path, or NULL for no capture.
  * @return The dynamics; check `.refused` and `.clipped` before reading.

@@ -11,8 +11,9 @@ check before assuming a field survives the round trip.
 | Flag              | Values                    | Default | Meaning                                                                     |
 | ----------------- | ------------------------- | ------- | --------------------------------------------------------------------------- |
 | `--sample-type`   | `cf32 cf64 ci32 ci16 ci8` | `cf32`  | wire type; integers are full-scale ±1.0                                     |
+|                   | `f32 f64 i32 i16 i8`      |         | real (one component): Q is dropped; files only, not `nats://`               |
 | `--file-type`     | `raw csv blue sigmf`      | `raw`   | file type (below)                                                           |
-| `--endian`        | `le be`                   | `le`    | byte order (raw/BLUE only; csv is text)                                     |
+| `--endian`        | `le be`                   | `le`    | byte order (raw/BLUE/SigMF; csv is text)                                    |
 | `--output` / `-o` | path *(or `nats://…`)*    | stdout  | sink                                                                        |
 | `--record`        | path                      | —       | write a JSON record of the resolved run (see [Scenes](../wfmgen/scenes.md)) |
 
@@ -31,13 +32,13 @@ ______________________________________________________________________
 | `raw`         | interleaved I/Q in the chosen `--sample-type` | the SDR default; honors `--endian`                         |
 | `csv`         | one `I,Q` line per sample                     | `%0.9f` cf32, `%0.17g` cf64, `%d` integer; text, no endian |
 | `blue`        | **X-Midas / REDHAWK BLUE type-1000**          | self-describing 512-byte header                            |
-| `sigmf`       | `<base>.sigmf-data` + `<base>.sigmf-meta`     | one annotation per segment                                 |
+| `sigmf`       | `<base>.sigmf-data` + `<base>.sigmf-meta`     | one annotation per source per segment instance             |
 
 **BLUE type-1000** writes a complete 512-byte X-Midas/REDHAWK Header Control
 Block so one file is fully self-describing: `data_rep`←`--endian`, `format`
-(`CB`/`CI`/`CL`/`CF`/`CD`)←`--sample-type`, and `xdelta = 1/fs`. The Python
-`Writer` also takes a real `sample_type` (`"f32"`, `"i16"`, …), which writes
-the scalar forms (`SF`, `SI`, …). Add
+(`CB`/`CI`/`CL`/`CF`/`CD`)←`--sample-type`, and `xdelta = 1/fs`. A real
+sample type (`--sample-type f32`, `i16`, …, or the same `sample_type` on the
+Python `Writer`) writes the scalar forms (`SF`, `SI`, …). Add
 **`--detached`** to split it into a header + data pair — `<out>.hdr` (the HCB,
 with `detached=1` and `data_start=0`) and `<out>.det` (the raw samples). Detached
 output requires `--output` and a finite (non-`--continuous`) run; attached mode
@@ -45,8 +46,8 @@ keeps whatever extension you give `-o` (`.blue`/`.prm`/`.tmp`).
 
 **SigMF** writes the samples as `raw` into `<base>.sigmf-data` and a JSON sidecar
 `<base>.sigmf-meta` with `core:datatype`/`core:sample_rate`, a capture at `--fc`,
-and one annotation per composer segment (frequency edges, label, `wfmgen:*`
-params).
+and one annotation per source per segment instance (frequency edges, label,
+`wfmgen:*` params).
 
 ### raw and CSV keep their metadata beside them
 
@@ -111,9 +112,18 @@ print(json.load(open('tuned.sigmf-meta'))['captures'][0])"
 ### SigMF sidecar schema
 
 The `.sigmf-meta` JSON is SigMF 1.0.0 with one **annotation per source per
-segment**, so a multi-segment / multi-source scene becomes a self-labelling
-ground-truth capture. The exact shape `wfmgen` (and `Composer.to_sigmf`) emit —
-see `native/src/wfm_writer/wfm_writer_core.c`:
+segment instance** (each of a segment's `repeats` gets its own), so a
+multi-segment / multi-source scene becomes a self-labelling ground-truth
+capture. The exact shape `wfmgen` (and `Composer.to_sigmf`) emit —
+see `native/src/wfm_writer/wfm_writer_core.c` — here from this command:
+
+```sh
+wfmgen --type qpsk --fs 1e6 --sps 8 --snr 20 --snr-mode esno --seed 1 \
+       --pn-length 7 --count 4096 --fc 2.4e9 --sample-type ci16 \
+       --headroom 3 --file-type sigmf -o capture
+```
+
+`capture.sigmf-meta`, indented:
 
 ```json
 {
@@ -125,16 +135,17 @@ see `native/src/wfm_writer/wfm_writer_core.c`:
     "core:author": "doppler wfmgen"
   },
   "captures": [
-    { "core:sample_start": 0, "core:frequency": 2400000000.0 }
+    { "core:sample_start": 0, "core:frequency": 2400000000 }
   ],
   "annotations": [
     {
       "core:sample_start": 0,
       "core:sample_count": 4096,
-      "core:freq_lower_edge": -62500.0,
-      "core:freq_upper_edge": 62500.0,
+      "core:freq_lower_edge": 2399937500,
+      "core:freq_upper_edge": 2400062500,
       "core:label": "qpsk",
-      "wfmgen:snr": 20.0,
+      "wfmgen:snr": 20,
+      "wfmgen:level_db": 0,
       "wfmgen:snr_mode": "esno",
       "wfmgen:sps": 8,
       "wfmgen:seed": 1,
@@ -145,10 +156,12 @@ see `native/src/wfm_writer/wfm_writer_core.c`:
 }
 ```
 
-- `core:datatype` is `<sample_type>_<endian>` (`cf32_le`, `ci16_be`, …).
-- `captures[0].core:frequency` is `--fc` (the RF centre); annotation frequency
-    edges are **baseband** offsets from it — a chirp spans `f_start..f_end`, a
-    modulated source is roughly `±fs/(2·sps)` wide, a tone is a point.
+- `core:datatype` is `<sample_type>_<endian>` (`cf32_le`, `ci16_be`, …), and
+    `r<sample_type>_<endian>` for a real type (`rf32_le`, `ri16_be`, …).
+- `captures[0].core:frequency` is `--fc` (the RF centre), omitted when `--fc`
+    is 0; annotation frequency edges are **absolute**, `fc` plus the source's
+    offset — a chirp spans `fc+f_start..fc+f_end`, a modulated source is
+    `fs/sps` wide about `fc+freq`, a tone is a point.
 - `core:label` is the source type; the `wfmgen:*` keys carry the generator
     parameters so the capture round-trips to the spec that made it.
 
@@ -168,11 +181,11 @@ ______________________________________________________________________
 
 ## Sinks
 
-| `--output`                 | Result                                                                                            |
-| -------------------------- | ------------------------------------------------------------------------------------------------- |
-| *(omitted)*                | binary stream to **stdout** (pipe it)                                                             |
-| `file.iq`                  | write to a file                                                                                   |
-| `nats://127.0.0.1:4222/iq` | *(`wfmgen` only)* publish to a **NATS PUB** endpoint (SIGS wire format); requires a `nats-server` |
+| `--output`                 | Result                                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| *(omitted)*                | binary stream to **stdout** (pipe it)                                                                                                     |
+| `file.iq`                  | write to a file                                                                                                                           |
+| `nats://127.0.0.1:4222/iq` | *(`wfmgen` only)* publish to a **NATS PUB** endpoint (doppler stream frames: a `dp_header_t`, magic `DPSTREAM`); requires a `nats-server` |
 
 ```sh
 wfmgen --type tone --count 1000000 | other-tool                    # pipe via stdout

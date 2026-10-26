@@ -23,8 +23,8 @@ doppler routes by **plane**, all over NATS:
 
 The C library is a pure NATS **client** (vendored `nats.c`); the Go
 `nats-server` is infrastructure (sidecar / StatefulSet), never embedded in
-the library. The 96-byte `dp_header_t` "SIGS" wire envelope is the same
-across every pattern (PUB/SUB, PUSH/PULL, REQ/REP).
+the library. The 64-byte `dp_header_t` wire envelope (magic `DPSTREAM`) is
+the same across every pattern (PUB/SUB, PUSH/PULL, REQ/REP).
 
 ### Endpoint format
 

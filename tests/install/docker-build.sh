@@ -7,7 +7,7 @@ set -euo pipefail
 # `docker build`).
 
 # --8<-- [start:runtime]
-# The runtime "try it" image — doppler installed, ~70 demos under /examples.
+# The runtime "try it" image — doppler installed, the demos under /examples.
 docker run --rm ghcr.io/doppler-dsp/doppler:latest python awgn_demo.py
 docker run --rm -it ghcr.io/doppler-dsp/doppler:latest   # shell among the demos
 # --8<-- [end:runtime]

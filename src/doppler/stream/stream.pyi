@@ -631,10 +631,6 @@ class Subscriber:
                 Samples per second as reported by the sender.
             ``center_freq`` : float
                 Centre frequency in Hz as reported by the sender.
-            ``sample_type`` : int
-                Wire sample type (one of :data:`CI8`, :data:`CI16`,
-                :data:`CI32`, :data:`CF32`, :data:`CF64`,
-                :data:`TLM16`).
             ``timestamp_ns`` : int
                 Frame timestamp (``CLOCK_REALTIME`` nanoseconds) set
                 by the sender at the moment of the send call.
@@ -645,10 +641,22 @@ class Subscriber:
                 Number of IQ samples in the frame (``len(samples)``
                 for CF32/CF64; ``len(samples)//2`` for the interleaved
                 integer types).
-            ``protocol`` : int
-                Wire protocol (0 = SIGS, 1 = DIFI/VITA 49).
-            ``stream_id`` : int
-                Opaque stream identifier (0 for SIGS protocol).
+            ``format`` : int
+                BLUE sample-format code, one of :data:`CI8`,
+                :data:`CI16`, :data:`CI32`, :data:`CF32`, :data:`CF64`;
+                0 for a frame that is not sample data.
+            ``kind`` : int
+                What the payload is: 0 sample data, 1 telemetry
+                records (:data:`TLM16`), 2 end of stream.
+            ``data_rep`` : str
+                Byte order of the payload, ``"EEEI"`` (little-endian)
+                or ``"IEEE"`` (big-endian).
+            ``flags`` : int
+                Bitwise OR of the ``DP_FLAG_*`` bits.
+            ``payload_bytes`` : int
+                Payload bytes in this message.
+            ``version`` : int
+                Wire revision the sender wrote.
 
         Raises
         ------

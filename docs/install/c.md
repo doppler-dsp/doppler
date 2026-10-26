@@ -348,7 +348,7 @@ target_link_libraries(my_app PRIVATE doppler::doppler)
 
 The `wfmgen` composer CLI is archived into the library as a plain callable, so
 a C program can drive the full generator in-process — same flags, same output
-as the command line — without spawning a subprocess. Include `wfm/wfmgen.h`
+as the command line — without spawning a subprocess. Include `doppler/wfm/wfmgen.h`
 and call `dp_doppler_wfmgen(argc, argv)`:
 
 ```c
@@ -376,19 +376,23 @@ gcc -o app app.c -I "$PREFIX/include" "$PREFIX/lib/libdoppler.a" \
 
 The `--output nats://…` PUB-sink path additionally needs the optional stream
 component (it carries the vendored `nats.c`, pure C). Link
-`libdoppler_stream.a` alongside the core; `nats.c` is statically embedded, so
-there is still **no runtime client-library dependency** — just a running
-`nats-server` to connect to:
+`libdoppler_stream.a` alongside the core, **whole**: the core ships weak no-op
+stubs of the sink, and a plain archive link keeps them, because nothing pulls
+the real definitions out of the archive. Wrap it in `-Wl,--whole-archive`
+(`-Wl,-force_load,<path>` on macOS), or link the shared `libdoppler_stream`
+instead. `nats.c` is statically embedded, so there is still **no runtime
+client-library dependency** — just a running `nats-server` to connect to:
 
 ```sh
 gcc -o app app.c -I "$PREFIX/include" \
-    "$PREFIX/lib/libdoppler.a" "$PREFIX/lib/libdoppler_stream.a" \
-    -lpthread -lm
+    "$PREFIX/lib/libdoppler.a" \
+    -Wl,--whole-archive "$PREFIX/lib/libdoppler_stream.a" \
+    -Wl,--no-whole-archive -lpthread -lm
 ```
 
 Without the stream component, `dp_doppler_wfmgen()` still builds and runs; only the
 `nats://` path is unavailable (it reports a clear "requires the stream component"
-error via the weak `wfm_stream_sink_*` seam).
+error via the weak `dp_wfm_stream_sink_*` seam).
 
 The **shared** library is even simpler — `-ldoppler` alone is sufficient.
 

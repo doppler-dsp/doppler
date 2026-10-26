@@ -20,6 +20,7 @@
     y = r.execute(iq)
     ```
 
-    The built-in bank is fixed (≈60 dB rejection, 0.4/0.6 pass/stop) and has
-    no per-instance spec knob in the Python API; design a custom bank in C
-    via `dp_Resampler_create_custom()` for tighter rejection.
+    The built-in bank is fixed (≈60 dB rejection, 0.4/0.6 pass/stop). For
+    tighter rejection, design your own bank and pass it as `bank=`: a 2-D
+    `float32` array of shape `(num_phases, num_taps)`, `num_phases` a power
+    of two.

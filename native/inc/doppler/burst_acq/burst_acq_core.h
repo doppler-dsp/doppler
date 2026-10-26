@@ -106,7 +106,7 @@ extern "C"
    * >>> _ = bin_to_nrz(code & 1, nrz)
    * >>> s0 = np.repeat(nrz, 4).astype(np.complex64)    # 4 samples a chip
    * >>> burst = np.tile(np.roll(s0, 17), 24)
-   * >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+   * >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=60.0)
    * >>> b.push(burst)[0][:2]      # detects (Doppler bin, delay in samples)
    * (0, 17)
    *
@@ -169,7 +169,7 @@ extern "C"
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
    * >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
-   * >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+   * >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=60.0)
    * >>> _ = b.push(burst[:100])   # a partial frame, buffered mid-stream
    * >>> b.reset()                 # drop it before it can bias a detection
    * >>> b.push(burst)[0][:2]      # (Doppler bin, delay in samples)
@@ -207,7 +207,7 @@ extern "C"
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
    * >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
-   * >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+   * >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=60.0)
    * >>> b.push(burst)[0][:2]      # (Doppler bin, delay in samples)
    * (0, 17)
    *
@@ -248,7 +248,7 @@ extern "C"
    * ...                      length=5).generate(31)).astype(np.uint8)
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
-   * >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+   * >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=60.0)
    * >>> b.configure_search_raw(doppler_bins=4, n_noncoh=2)  # pin the grid
    * >>> b.doppler_bins, b.n_noncoh
    * (4, 2)
@@ -281,7 +281,7 @@ extern "C"
    * >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
-   * >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+   * >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=60.0)
    * >>> b.set_max_peaks(4)
    * >>> b.max_peaks
    * 4

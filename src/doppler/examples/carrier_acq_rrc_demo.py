@@ -13,10 +13,10 @@ rectangular-pulse (plain NRZ) BPSK stream -- a sinc^2. An RRC-shaped
 stream's average PSD is a DIFFERENT shape entirely (the squared
 magnitude of the RRC filter's own frequency response, a raised-cosine
 roll-off with no sidelobes past ``(1+beta)/(2*sps)`` of the symbol
-rate) -- matching this session's finding that the template is a
-property of the *pulse shape*, not a universal constant (see
-``~/legacy-commz``'s own ``FrequencyAcquisition.power_spectrum``
-override, which this object's own ``psd_template`` mirrors).
+rate) -- the template is a property of the *pulse shape*, not a
+universal constant (the ``FrequencyAcquisition`` reference design
+overrides its ``power_spectrum`` for the same reason, and this
+object's ``psd_template`` mirrors that override).
 
 Two conditions, same signal, same true 137 Hz residual:
 

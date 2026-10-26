@@ -15,7 +15,8 @@ ______________________________________________________________________
 
 ## `LO` — complex phasor generator
 
-96 dBc SFDR from 16-bit phase truncation into the 65 536-entry LUT.
+SFDR ≥ 90 dBc at any frequency from 16-bit phase truncation into the
+65 536-entry LUT; about 96 dBc is typical, not a bound.
 
 ```python
 from doppler.source import LO
@@ -63,8 +64,9 @@ nco = NCO(0.25)
 # Raw 32-bit phase values
 ph = nco.steps_u32(16)
 
-# Overflow carry — 1 at each wrap (every 4 samples for 0.25)
-carry = nco.steps_u32_ovf(16)
+# Phase plus overflow carry — carry is 1 at each wrap (every 4 samples
+# for 0.25)
+phase, carry = nco.steps_u32_ovf(16)
 # carry: [0, 0, 0, 1, 0, 0, 0, 1, ...]
 
 # Scaled to [0, nmax) — fixed-point multiply, no division

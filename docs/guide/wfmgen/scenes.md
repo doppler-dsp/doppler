@@ -501,15 +501,18 @@ reproduced.
 
 `prepare()` needs a scene whose length is **fixed** and whose per-source
 weights are **fixed**, because that is what makes a re-render a re-weighted
-sum instead of a re-synthesis. Two things break that, and they are the two it
-refuses:
+sum instead of a re-synthesis. These break that, and it refuses them:
 
 | refused                                                       | why                                                                                                                                                |
 | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | a **ranged signal** field — `snr=(4, 8)`, `freq=(0.01, 0.05)` | the value the cache was rendered at is the one thing a sweep is supposed to vary afterwards, so a per-repeat redraw of it has nothing to re-weight |
-| **`continuous=True`**                                         | the length is open-ended, and the cache is the rendered samples                                                                                    |
+| a **ranged `num_samples`** — `num_samples=(512, 1024)`        | the on-time sizes the cache, so a per-instance draw of it has no fixed render to re-weight                                                         |
+| **`continuous=True`** or **`repeat=True`**                    | the length is open-ended, and the cache is the rendered samples                                                                                    |
+| segments at **different `fs`**                                | a plan carries one sample rate for the whole scene                                                                                                 |
+| a **Doppler channel on a `background`** source                | background sources are folded into one sum before the render, and a channel is per source                                                          |
+| a **`background`** source after a foreground one              | the fold must come first in the segment for render() to match compose() bit for bit                                                                |
 
-Everything else the scene can say is fine. Multi-segment scenes, `repeats`,
+Everything else prepares. Multi-segment scenes, `repeats`,
 and ranged **timing** (`off_samples`, `delay_samples`, the per-instance jitter
 a burst train wants) all prepare. So does a lone **bundled** noisy source,
 whose private RNG is fused into the signal: the

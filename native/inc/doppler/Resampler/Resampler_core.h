@@ -42,7 +42,7 @@ extern "C"
    * The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop
    * normalised cutoffs. Pass rate >= 1.0 to interpolate (upsample);
    * pass rate < 1.0 to decimate (downsample). For a custom bank use
-   * dp_Resampler_create_custom() instead.
+   * dp_Resampler_create_custom() instead (from Python, pass bank=).
    *
    * @param rate  Output-to-input sample rate ratio (any positive float).
    *              Values >= 1.0 interpolate; values < 1.0 decimate.

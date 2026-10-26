@@ -172,16 +172,17 @@ assert abs(doppler_hz - 1500.0) <= acq.doppler_res_hz / 2
 assert chip_phase == (127 - delay) % 127        # the lag, inverted
 ```
 
-| field              | meaning                                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `doppler_bin`      | Doppler bin, `0 … doppler_bins-1`; `bin_to_signed` folds it                                                  |
-| `code_phase`       | delay into one preamble period, in samples (`0 … N-1`)                                                       |
-| `peak_mag`         | the peak's correlation magnitude                                                                             |
-| `noise_est`        | the CFAR reference it was divided by                                                                         |
-| `test_stat`        | `peak_mag / noise_est`, compared against `threshold`                                                         |
-| `cn0_dbhz_est`     | estimated C/N0 (dB-Hz), comparable to the `cn0_dbhz` you designed                                            |
-| `samples_consumed` | the stream position (from this engine's start) the dwell ended at                                            |
-| `chip_phase`       | the code loop's seed: the lag inverted, in preamble samples (`[0, N)`); divide by samples per chip for chips |
+| field               | meaning                                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `doppler_bin`       | Doppler bin, `0 … doppler_bins-1`; `bin_to_signed` folds it                                                  |
+| `code_phase`        | delay into one preamble period, in samples (`0 … N-1`)                                                       |
+| `peak_mag`          | the peak's correlation magnitude                                                                             |
+| `noise_est`         | the CFAR reference it was divided by                                                                         |
+| `test_stat`         | `peak_mag / noise_est`, compared against `threshold`                                                         |
+| `cn0_dbhz_est`      | estimated C/N0 (dB-Hz), comparable to the `cn0_dbhz` you designed                                            |
+| `samples_consumed`  | the stream position (from this engine's start) the dwell ended at                                            |
+| `chip_phase`        | the code loop's seed: the lag inverted, in preamble samples (`[0, N)`); divide by samples per chip for chips |
+| `doppler_rate_hz_s` | the winning Doppler-rate hypothesis (Hz/s); 0 without `rate_hypotheses`                                      |
 
 Two things a detection does **not** tell you:
 
@@ -294,23 +295,24 @@ ______________________________________________________________________
 ## Doppler: span, uncertainty and rate
 
 - **Inside the native span** (`±fs / (2N)`) the engine resolves Doppler
-    directly, at resolution `fs / (N · D)`. (Once the search is tiled, the
-    resolution is one tile's width, `fs / N`.)
+    directly, at resolution `fs / (N · D)`.
 
 - **`doppler_uncertainty`** (Hz, one-sided) narrows or widens the search.
     Narrower than the span, the engine searches fewer bins, so the threshold
     covers fewer cells: more sensitivity at the same `pfa`. Wider than the
-    span, `BurstAcquisition` tiles the range with frequency windows of one
-    repetition each, and `doppler_bins` counts the tiles: with the Zadoff-Chu
-    preamble at 50 dB-Hz, `doppler_uncertainty=20_000` against a ±3.9 kHz
-    span builds 7. Mind the [Zadoff-Chu coupling](#what-the-choice-of-sequence-costs)
+    span, `BurstAcquisition` tiles the range with frequency windows one
+    native span wide, chooses the depth `D` again inside every tile, and
+    `doppler_bins` counts tiles times depth at the same `fs / (N · D)`: with
+    the Zadoff-Chu preamble at 50 dB-Hz, `doppler_uncertainty=20_000`
+    against a ±3.9 kHz span builds 7 tiles of depth 5, so 35 bins of
+    1575 Hz. Mind the [Zadoff-Chu coupling](#what-the-choice-of-sequence-costs)
     there.
 
     `BurstCapture` searches the same tiles and reports the burst's start
     and its absolute Doppler, tile included
     ([#1512](https://github.com/doppler-dsp/doppler/issues/1512)). That
     holds for a preamble whose correlation has a single peak, such as a PN
-    code. It does not hold for Zadoff-Chu: see below.
+    code. It does not hold for Zadoff-Chu: see above.
 
 - **`doppler_rate`** (Hz/s) caps the coherent depth, so a carrier that moves
     during the preamble does not smear it. Leave it at 0 for a carrier that

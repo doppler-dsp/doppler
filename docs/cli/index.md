@@ -106,6 +106,7 @@ sink:
   rbw: null
   level: null
   web_port: 8080
+  web_host: 127.0.0.1
 ```
 
 Ports default to auto-assigned from the range `5600–5700`. Specify
@@ -139,7 +140,7 @@ ______________________________________________________________________
 
 ## Block catalog
 
-These are the built-in blocks shipped with `doppler-cli`. Custom blocks
+These are the built-in blocks shipped with the `doppler-dsp[cli]` extra. Custom blocks
 can be added via a [Dopplerfile](dopplerfile.md) — they appear alongside
 these in `doppler compose init`.
 
@@ -189,14 +190,15 @@ ______________________________________________________________________
 Displays the spectrum of the incoming IQ stream. Connects to the
 `doppler-specan` terminal or web UI.
 
-| Field      | Default | Description                                   |
-| ---------- | ------- | --------------------------------------------- |
-| `mode`     | `"web"` | `"terminal"` or `"web"`                       |
-| `center`   | `0.0`   | Center frequency (Hz)                         |
-| `span`     | `null`  | Display span (Hz); defaults to full bandwidth |
-| `rbw`      | `null`  | Resolution bandwidth (Hz)                     |
-| `level`    | `null`  | Reference level, top of display (dBm)         |
-| `web_port` | `8080`  | HTTP port for web mode                        |
+| Field      | Default       | Description                                   |
+| ---------- | ------------- | --------------------------------------------- |
+| `mode`     | `"web"`       | `"terminal"` or `"web"`                       |
+| `center`   | `0.0`         | Center frequency (Hz)                         |
+| `span`     | `null`        | Display span (Hz); defaults to full bandwidth |
+| `rbw`      | `null`        | Resolution bandwidth (Hz)                     |
+| `level`    | `null`        | Reference level, top of display (dBm)         |
+| `web_port` | `8080`        | HTTP port for web mode                        |
+| `web_host` | `"127.0.0.1"` | Address the web UI binds in web mode          |
 
 ______________________________________________________________________
 
@@ -264,7 +266,7 @@ ______________________________________________________________________
 
 The following shows how to add a built-in block in Python. Use this
 path when you need full control over config validation, complex arg
-building, or want to ship the block as part of `doppler-cli` itself.
+building, or want to ship the block as part of the doppler CLI itself.
 
 Here is a minimal example — a `noise` source that emits pure AWGN:
 

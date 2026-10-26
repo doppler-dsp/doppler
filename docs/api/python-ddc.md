@@ -430,6 +430,13 @@ ______________________________________________________________________
 
 Block = 65536 samples × 200 iterations, M=3 N=19.
 
+Architecture C is measured here but has no section above, since B beats it
+at every rate. It is B's order reversed, a wide-band (0.2/0.8) resample at
+rate 2r *before* the halfband:
+`LO ──► polyphase resample (0.2/0.8, rate 2r) ──► HB ÷2`. The
+wider transition band needs fewer taps, but the resampler emits twice the
+samples and the halfband must then process all of them.
+
 | Rate | Decimation |   Arch A |        Arch B |   Arch C |
 | ---- | ---------- | -------: | ------------: | -------: |
 | 0.50 | 2×         | 61 MSa/s | **335 MSa/s** | 70 MSa/s |

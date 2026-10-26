@@ -9,7 +9,8 @@ class Resampler:
     """Create a Resampler with the built-in 4096×19 Kaiser bank. The bank
     provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs.
     Pass rate >= 1.0 to interpolate (upsample); pass rate < 1.0 to decimate
-    (downsample). For a custom bank use dp_Resampler_create_custom() instead.
+    (downsample). For a custom bank use dp_Resampler_create_custom() instead
+    (from Python, pass bank=).
 
     Parameters
     ----------

@@ -27,7 +27,7 @@ pages.
     fs, n = 100e6, 1 << 14
     x = np.cos(2 * np.pi * 10.017e6 * np.arange(8 * n) / fs).astype(np.float32)
 
-    # display spectrum: 8 averaged segments, one-sided, in dBFS
+    # display spectrum: 8 averaged segments, two-sided DC-centred, in dBFS
     w = PSD(n=n, fs=fs, window="kaiser", beta=12.0)
     w.accumulate_real(x)
     psd = w.psd_db()                       # averaged power spectrum, dB
@@ -104,7 +104,8 @@ real_capture = np.cos(
 for frame in cf32_frames:           # each frame: any multiple of n samples
     w.accumulate(frame)
 
-# real input (f32) — folded to a one-sided spectrum
+# real input (f32) — still a two-sided, DC-centred spectrum (symmetric);
+# power_onesided() reads the fold to [0, fs/2]
 w.accumulate_real(real_capture)     # averages the whole segments; a tail is dropped
 
 w.count                             # number of segments folded in so far

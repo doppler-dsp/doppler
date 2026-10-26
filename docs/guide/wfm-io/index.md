@@ -58,6 +58,7 @@ ______________________________________________________________________
 | Choice          | Values                    | What it decides                                      |
 | --------------- | ------------------------- | ---------------------------------------------------- |
 | **sample type** | `cf32 cf64 ci32 ci16 ci8` | the datatype on the wire; integers are full-scale ±1 |
+|                 | `f32 f64 i32 i16 i8`      | the same, real: one component, Q dropped             |
 | **file type**   | `raw csv blue sigmf`      | what wraps the samples, and what metadata survives   |
 | **byte order**  | `le be`                   | byte order for the binary file types                 |
 

@@ -352,9 +352,9 @@ Cross-process consumers read the same records over NATS via the
 split: the implementation lives in the **optional `libdoppler_stream`
 component** (it publishes through the vendored nats.c), and
 `telemetry_core` itself stays dependency-free. Each pump drains the ring
-and publishes the records as **`TLM16`** frames (a `dp_sample_type_t`
-appended for the purpose: SIGS header, `num_samples` counts records,
-payload is packed `dp_tlm_rec_t`):
+and publishes the records as **`TLM16`** frames (a `dp_header_t` of kind
+`DP_KIND_TLM` with `format` 0, `num_samples` counts records, payload is
+packed `dp_tlm_rec_t`):
 
 <!-- docs-snippet: skip=illustrative excerpt (tlm undeclared; needs a live NATS server + the optional libdoppler_stream component) -->
 
@@ -716,12 +716,12 @@ Genuinely missing, verified absent by search: **J1950 → Unix** (no
 (only extended exists); **grouping records by probe** (the three example
 copies are the only implementations); a **threaded recorder** (no pthread in
 telemetry — `dp_parallel.h` is the precedent); and a telemetry **file**
-container (SIGS + `dp_pub_send_tlm16` exist for the *wire* only, and nothing
-persists the registry or time base).
+container (`dp_header_t` + `dp_pub_send_tlm16` exist for the *wire* only, and
+nothing persists the registry or time base).
 
-The container therefore reuses **SIGS framing + a TLM16 payload** plus a
-registry/time-base block, so a file and a NATS frame decode through one path
-and the existing Python TLM16 decode is reusable — rather than a second
+The container therefore reuses **`dp_header_t` framing + a TLM16 payload**
+plus a registry/time-base block, so a file and a NATS frame decode through one
+path and the existing Python TLM16 decode is reusable — rather than a second
 framing to keep in step forever.
 
 **Adjacent duplication found en route:** three byte-identical `_log()`

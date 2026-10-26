@@ -110,8 +110,8 @@ Expected output (all paths):
 
 ```
 samples : 4096
-mean    : -0.0168 + 0.0288i  (expect ≈ 0)
-std dev : 0.9952 (Re)  1.0090 (Im)  (expect ≈ 1.0)
+mean    : 0.0237 + -0.0007i  (expect ≈ 0)
+std dev : 0.9847 (Re)  0.9858 (Im)  (expect ≈ 1.0)
 ```
 
 ______________________________________________________________________
@@ -131,7 +131,7 @@ pkg-config commands.
 ### Generating waveforms in-process
 
 The `wfmgen` CLI is archived in the library as the callable
-**`dp_doppler_wfmgen(argc, argv)`** (header `wfm/wfmgen.h`), so a C program can
+**`dp_doppler_wfmgen(argc, argv)`** (header `doppler/wfm/wfmgen.h`), so a C program can
 produce the same captures without spawning a subprocess — see
 [Embedding the `wfmgen` generator](../install/c.md#embedding-the-wfmgen-generator).
 
@@ -225,9 +225,10 @@ int main(void) {
     dp_awgn_set_amplitude(g, 0.5f);
     dp_awgn_generate(g, 4096, buf, 4096);
 
-    /* Deterministic replay */
+    /* Deterministic replay: reset reseeds the RNG but keeps amplitude
+       0.5, so this is the first call's stream at half the amplitude */
     dp_awgn_reset(g);
-    dp_awgn_generate(g, 4096, buf, 4096);               /* identical to first call */
+    dp_awgn_generate(g, 4096, buf, 4096);
 
     dp_awgn_destroy(g);
     return 0;
@@ -439,8 +440,11 @@ ______________________________________________________________________
 ## AGC — automatic gain control
 
 The AGC drives output power to `ref_db` using a first-order loop filter.
-`dp_agc_step()` processes one sample at a time; the loop is linear in the
-dB domain so settling time is independent of the step size.
+`dp_agc_step()` processes one sample at a time. The loop filter is linear in
+the dB domain, settling in roughly `1/(4*loop_bw)` samples, but the power
+detector inside the loop makes the object's settling level-dependent: a
+quiet input settles more slowly, up to about 3x at small `alpha`
+(`agc_core.h`; [AGC design](../design/agc.md)).
 
 ```c
 #include <doppler/agc/agc_core.h>

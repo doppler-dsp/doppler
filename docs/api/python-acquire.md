@@ -36,7 +36,7 @@ averaged power against the known template, plus a noise-referenced test
 statistic), and `doppler.detection`'s Pfa/Pd statistics (the same ones
 `Acquisition` itself is built on) for the detection gate. `sequential`
 (test every block, adaptive) vs. non-sequential (a fixed `dwell_target`
-wait) mirror `~/legacy-commz`'s own `FrequencyAcquisition` reference —
+wait) mirror the two modes of the `FrequencyAcquisition` reference design —
 `max_n_blocks` is sequential mode's own give-up cap, deliberately
 independent of `dwell_target`.
 
@@ -140,7 +140,7 @@ code = np.asarray(
 nrz = np.zeros(code.size, np.float32)
 bin_to_nrz(code, nrz)
 preamble = np.repeat(nrz, 4).astype(np.complex64)
-acq = BurstAcquisition(preamble, reps=4, fs=4e6, cn0_dbhz=55.0)
+acq = BurstAcquisition(preamble, reps=8, fs=4e6, cn0_dbhz=60.0)
 
 # One repeated-code burst, so push() reports a hit to read the bin off.
 burst = np.tile(preamble, 8)

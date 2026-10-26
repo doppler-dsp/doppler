@@ -16,10 +16,14 @@ page is about *using* it.
 
 ## The pattern
 
-Two things ride in a blob: the object's **running** state, and nothing else.
-Construction-time config (tap coefficients, a spreading code, a sample rate)
+Two things ride in a blob: the object's **running** state, and the value of
+every **mutator** — a setter, a writable property, a `configure`/`retune` —
+since each can change the object after it was built. Construction-time config
+that no mutator reaches (tap coefficients, a spreading code, a sample rate)
 is **not** in the blob — it comes back from building the fresh instance
-identically, the same way `reset()` doesn't forget the taps either.
+identically, the same way `reset()` doesn't forget the taps either. The rule
+is the design note's
+[What goes in the blob](../design/state-serialization.md#what-goes-in-the-blob-a-mutators-value-is-state).
 
 ```python
 import numpy as np

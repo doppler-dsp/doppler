@@ -714,8 +714,8 @@ int dp_dll_symbol_period_ok(size_t segments, double partials_per_symbol);
  *        async-lookback correlation-power loss, instead of hand-picking one.
  *
  * Ports the coupled-despreader prototype's
- * `async_lookback_windows()` verbatim (itself ported from
- * `~/legacy-commz`'s `asynchronous_correlation_loss`): derives an ideal
+ * `async_lookback_windows()` verbatim (itself ported from the reference
+ * design's `asynchronous_correlation_loss`): derives an ideal
  * segment size from @p max_error_db, then snaps to the nearest exact
  * divisor of @p tsamps so `tsamps/segment_size` is always an integer count
  * (ties broken toward the smaller/earlier divisor, matching

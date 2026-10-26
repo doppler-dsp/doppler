@@ -163,7 +163,7 @@ Forwards to [**dp\_acq\_configure\_search\_raw()**](acq__core_8h.md#function-dp_
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+>>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=60.0)
 >>> b.configure_search_raw(doppler_bins=4, n_noncoh=2)  # pin the grid
 >>> b.doppler_bins, b.n_noncoh
 (4, 2)
@@ -267,7 +267,7 @@ Heap-allocated state, or NULL on bad arguments / allocation failure.
 >>> _ = bin_to_nrz(code & 1, nrz)
 >>> s0 = np.repeat(nrz, 4).astype(np.complex64)    # 4 samples a chip
 >>> burst = np.tile(np.roll(s0, 17), 24)
->>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+>>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=60.0)
 >>> b.push(burst)[0][:2]      # detects (Doppler bin, delay in samples)
 (0, 17)
 
@@ -399,7 +399,7 @@ Number of events written (0 … max\_results).
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
 >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
->>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+>>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=60.0)
 >>> b.push(burst)[0][:2]      # (Doppler bin, delay in samples)
 (0, 17)
 ```
@@ -444,7 +444,7 @@ Forwards to [**dp\_acq\_reset()**](acq__core_8h.md#function-dp_acq_reset) on the
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
 >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
->>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+>>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=60.0)
 >>> _ = b.push(burst[:100])   # a partial frame, buffered mid-stream
 >>> b.reset()                 # drop it before it can bias a detection
 >>> b.push(burst)[0][:2]      # (Doppler bin, delay in samples)
@@ -495,7 +495,7 @@ Forwards to [**dp\_acq\_set\_max\_peaks()**](acq__core_8h.md#function-dp_acq_set
 >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+>>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=60.0)
 >>> b.set_max_peaks(4)
 >>> b.max_peaks
 4

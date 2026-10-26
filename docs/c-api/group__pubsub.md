@@ -524,7 +524,7 @@ DP_NODISCARD int dp_pub_send_tlm16 (
 
 
 
-The payload is `num_records` packed [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) (see [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)) — the header's num\_samples counts records and sample\_type is TLM16. Kept `const void *` so the wire layer stays decoupled from the telemetry component; the dp\_tlm\_sink\_\* helper ([**stream/tlm\_sink.h**](tlm__sink_8h.md)) is the intended caller.
+The payload is `num_records` packed [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) (see [**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)) — the header's num\_samples counts records and its kind is DP\_KIND\_TLM. Kept `const void *` so the wire layer stays decoupled from the telemetry component; the dp\_tlm\_sink\_\* helper ([**stream/tlm\_sink.h**](tlm__sink_8h.md)) is the intended caller.
 
 
 

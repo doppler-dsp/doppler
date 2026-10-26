@@ -478,7 +478,7 @@ extern "C"
    *
    * The payload is @p num_records packed dp_tlm_rec_t (see
    * dp_tlm/dp_tlm_core.h) — the header's num_samples counts records and
-   * sample_type is TLM16. Kept `const void *` so the wire layer stays
+   * its kind is DP_KIND_TLM. Kept `const void *` so the wire layer stays
    * decoupled from the telemetry component; the dp_tlm_sink_* helper
    * (stream/tlm_sink.h) is the intended caller.
    *

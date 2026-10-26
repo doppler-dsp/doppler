@@ -200,9 +200,8 @@ For an **absolute** time, subtract the capture's own start,
 `r.seek_time(t_unix - r.t0)`, and check `t0_source` first: it is `"timecode"`
 for a BLUE header that declares a start, `"sigmf"` for a `core:datetime`
 (in a SigMF capture, or in the sidecar beside a raw or CSV one), and `"none"`
-otherwise. doppler's `Writer` writes a start only
-when given `t0=`, so on its other captures `t0` is 0.0 and the subtraction
-would be meaningless.
+otherwise. doppler's `Writer` writes a start only when given `t0=`, so on
+its other captures `t0` is 0.0 and the subtraction would be meaningless.
 
 ______________________________________________________________________
 

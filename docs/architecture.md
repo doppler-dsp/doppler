@@ -41,7 +41,7 @@ ______________________________________________________________________
 
 `stream/stream.h` adds a NATS-backed wire protocol on top of the DSP
 library. It defines one header struct (`dp_header_t`), one magic
-value (`SIGS`), and three messaging patterns, each addressed by a
+value (`DPSTREAM`), and three messaging patterns, each addressed by a
 `nats://host:port/subject` endpoint:
 
 | Pattern       | Use                                                                              |

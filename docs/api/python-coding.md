@@ -14,7 +14,7 @@ symbol, and returns information bits. Hard-decision decoding throws away most
 of the coding gain the code exists to provide — roughly 2 dB of it — which is
 why the input is LLRs and not sliced bits. The convention is the library's:
 **positive means symbol 0**, which is what
-[`doppler.mpsk.mpsk_demap`](python-mpsk.md) produces, so the two compose
+[`doppler.mpsk.mpsk_soft_demap`](python-mpsk.md) produces, so the two compose
 without a sign fix in between.
 
 Only the SIGN carries the decision and only the RATIO of magnitudes carries

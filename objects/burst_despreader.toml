@@ -69,7 +69,12 @@ params = [{ name = "x", type = "float _Complex[]" }]
 name = "set_acq"
 doc = "Enable preamble-aided pull-in: track acq_reps periods of the (distinct) acq_code coherently before despreading the payload with the data code. Call before feeding the burst; clears when the preamble is consumed."
 arg_type = "void"
-return_type = "void"
+return_type = "int"
+# The copy of acq_code can fail to allocate; it used to disable the preamble
+# silently (#2647). jm raises on the non-zero return.
+status_return = true
+error = "ValueError"
+error_message = "set_acq: the acquisition code could not be allocated; the previous preamble stands"
 params = [{ name = "acq_code", type = "uint8_t[]" }, { name = "acq_reps", type = "size_t" }]
 
 [[burst_despreader.methods]]

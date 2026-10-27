@@ -116,27 +116,37 @@ burst_despreader_acq_ok (size_t acq_sf, size_t acq_reps, size_t preamble_left)
   return preamble_left <= acq_reps;
 }
 
-void
+int
 dp_burst_despreader_set_acq (dp_burst_despreader_state_t *state,
                              const uint8_t *acq_code, size_t acq_code_len,
                              size_t acq_reps)
 {
-  free (state->acq_code);
-  state->acq_code      = NULL;
-  state->acq_sf        = 0;
-  state->acq_reps      = 0;
-  state->preamble_left = 0;
   if (!acq_code || acq_code_len == 0
       || !burst_despreader_acq_ok (acq_code_len, acq_reps, 0))
-    return; /* disable: payload-only */
-  state->acq_code = malloc (acq_code_len);
-  if (!state->acq_code)
-    return;
+    {
+      /* The documented disable: payload-only. */
+      free (state->acq_code);
+      state->acq_code      = NULL;
+      state->acq_sf        = 0;
+      state->acq_reps      = 0;
+      state->preamble_left = 0;
+      return DP_OK;
+    }
+  /* Allocate before touching the state (#2647): a failure used to leave
+     the preamble silently disabled, and the preamble's chips were then
+     despread as payload. Now it is reported and the previous preamble, or
+     its absence, stands. */
+  uint8_t *copy = malloc (acq_code_len);
+  if (!copy)
+    return DP_ERR_MEMORY;
   for (size_t i = 0; i < acq_code_len; i++)
-    state->acq_code[i] = acq_code[i];
+    copy[i] = acq_code[i];
+  free (state->acq_code);
+  state->acq_code      = copy;
   state->acq_sf        = acq_code_len;
   state->acq_reps      = acq_reps;
   state->preamble_left = acq_reps;
+  return DP_OK;
 }
 
 void

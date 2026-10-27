@@ -3672,8 +3672,29 @@ main (void)
         (void)snprintf (nm, sizeof nm, "pad.%zu", i);
         (void)dp_tlm_probe (full, nm, 1);
       }
+    const size_t n_pad = dp_tlm_probe_count (full);
     DP_CHECK (dp_acq_set_telemetry (c, full, "acq", 1) == DP_ERR_INVALID);
     DP_CHECK (c->tlm.ctx == NULL);
+    /* Nothing registered: the refused attach used to leave its first three
+       names behind in the caller's table (#2647). */
+    DP_CHECK (dp_tlm_probe_count (full) == n_pad);
+    /* ... and a refused RE-attach leaves the previous attachment whole
+       (#2647). The table has room for three of the ten probes: the old
+       attach registered those three on `full` and overwrote the first
+       three ids with full's, while ctx stayed on `t`, so later emits went
+       to t's records under full's ids. Now nothing registers on `full`
+       and every id is still t's. */
+    DP_REQUIRE (dp_acq_set_telemetry (c, t, "acq", 1) == DP_OK);
+    const acq_tlm_t before = c->tlm;
+    const size_t    n_full = dp_tlm_probe_count (full);
+    DP_CHECK (dp_acq_set_telemetry (c, full, "acq", 1) == DP_ERR_INVALID);
+    DP_CHECK (dp_tlm_probe_count (full) == n_full);
+    DP_CHECK (memcmp (&before, &c->tlm, sizeof before) == 0);
+    DP_CHECK (c->tlm.ctx == t);
+    /* A decim of 0 is refused the same way, before anything registers. */
+    DP_CHECK (dp_acq_set_telemetry (c, full, "acq", 0) == DP_ERR_INVALID);
+    DP_CHECK (memcmp (&before, &c->tlm, sizeof before) == 0);
+    DP_CHECK (dp_acq_set_telemetry (c, NULL, NULL, 1) == DP_OK);
     dp_tlm_destroy (full);
     free (s);
     free (x);

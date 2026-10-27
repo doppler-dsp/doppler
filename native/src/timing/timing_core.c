@@ -162,18 +162,26 @@ sleep_until_mono_ns (uint64_t target)
          against naps measured in milliseconds, and caching it would need a
          lifetime story (thread-local, or an init/teardown pair) for no gain
          a paced stream can measure. Sleep() is the fallback if the flag is
-         unsupported, which is the pre-Windows-10 case. */
+         unsupported, which is the pre-Windows-10 case, or if the timer will
+         not arm. */
       HANDLE tmr = CreateWaitableTimerExW (
           NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+      int slept = 0;
       if (tmr)
         {
           LARGE_INTEGER due;
           due.QuadPart = -(LONGLONG)(nap / 100ULL);
           if (SetWaitableTimer (tmr, &due, 0, NULL, NULL, FALSE))
-            WaitForSingleObject (tmr, INFINITE);
+            {
+              WaitForSingleObject (tmr, INFINITE);
+              slept = 1;
+            }
           CloseHandle (tmr);
         }
-      else
+      /* Either failure -- no timer, or a timer that would not arm -- falls
+         back to Sleep(); without it a failed SetWaitableTimer slept not at
+         all and the slice loop busy-spun to the deadline (#2647). */
+      if (!slept)
         Sleep ((DWORD)(nap / 1000000ULL));
 #elif defined(__linux__)
       while (clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL)

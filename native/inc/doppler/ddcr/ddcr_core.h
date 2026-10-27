@@ -330,8 +330,9 @@ extern "C"
    * frequency f_c has amplitude 0.5 in the baseband output (one-sided
    * spectrum), consistent with analytic signal theory.
    *
-   * Allocates two scratch buffers per call (about n_in/2 complex samples
-   * each); if either allocation fails the call returns 0.
+   * Allocates one scratch buffer per call (about n_in complex samples),
+   * before any input is consumed; if the allocation fails the call returns
+   * 0 having consumed nothing, so the same block may be retried.
    *
    * @param s        Must be non-NULL.
    * @param in       Real float32 input block.

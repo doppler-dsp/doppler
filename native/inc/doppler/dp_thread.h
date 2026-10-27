@@ -197,6 +197,7 @@ dp_thread_sleep_us (unsigned us)
 
 #else /* POSIX */
 
+#include <errno.h>
 #include <pthread.h>
 #include <sched.h>
 #include <time.h>
@@ -323,9 +324,10 @@ dp_thread_yield (void)
   sched_yield ();
 }
 
-/** @brief Sleeps for about @p us microseconds: at least that long unless a
- *  signal cuts the sleep short, since nanosleep() is not restarted. For
- *  "let the other thread get there", never for timing.
+/** @brief Sleeps for at least @p us microseconds. For "let the other thread
+ *  get there", never for timing. A signal does not cut the sleep short:
+ *  nanosleep() reports the time it had left, and the sleep resumes with
+ *  that remainder until it is spent (#2647).
  *  @param us  Requested sleep, microseconds. */
 static inline void
 dp_thread_sleep_us (unsigned us)
@@ -333,7 +335,12 @@ dp_thread_sleep_us (unsigned us)
   struct timespec ts;
   ts.tv_sec  = (time_t)(us / 1000000u);
   ts.tv_nsec = (long)(us % 1000000u) * 1000L;
-  nanosleep (&ts, NULL);
+  /* nanosleep writes the unslept remainder into its second argument when a
+     signal interrupts it, so passing ts for both resumes where it stopped.
+     Any failure other than EINTR (EINVAL cannot arise from these fields)
+     ends the loop rather than spinning. */
+  while (nanosleep (&ts, &ts) != 0 && errno == EINTR)
+    ;
 }
 
 #endif /* _WIN32 */

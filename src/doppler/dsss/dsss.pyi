@@ -915,8 +915,15 @@ class BurstDespreader:
             Acquisition code (0/1), length acq_code_len; copied.
         acq_reps : int
             Number of acq-code periods in the preamble. A NULL/empty acq_code
-            or `acq_reps == 0` disables the preamble (payload-only), as does an
-            allocation failure; any previous acq code is freed either way.
+            or `acq_reps == 0` disables the preamble (payload-only) and frees
+            any previous acq code.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_acq: the acquisition code could not be allocated; the
+            previous preamble stands``, with the return code appended (gh-869).
 
         Examples
         --------

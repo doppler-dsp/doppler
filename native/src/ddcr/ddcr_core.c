@@ -212,35 +212,31 @@ dp_ddcr_execute (dp_ddcr_state_t *s, const float *in, size_t n_in,
   if (n_in == 0)
     return 0;
 
-  /* Step 1: halfband R2C decimation (2:1). */
+  /* Both scratch buffers are allocated before the halfband consumes any
+     input (#2647): a failure after it would lose the consumed samples
+     while the 0 it returns reads as "no output yet". One allocation holds
+     both, so there is one failure point and it comes first. */
   size_t          hb_max = n_in / 2 + 2;
-  float _Complex *hb_buf = malloc (hb_max * sizeof (float _Complex));
+  float _Complex *hb_buf = malloc (2 * hb_max * sizeof (float _Complex));
   if (!hb_buf)
-    return 0;
+    return 0; /* nothing consumed: the caller may retry the same block */
+  float _Complex *mix = hb_buf + hb_max;
 
+  /* Step 1: halfband R2C decimation (2:1). */
   size_t n_hb = dp_hbdecim_r2c_execute (s->r2c, in, n_in, hb_buf, hb_max);
 
-  if (n_hb == 0)
+  size_t nout = 0;
+  if (n_hb > 0)
     {
-      free (hb_buf);
-      return 0;
-    }
+      /* Step 2: LO mix at intermediate rate. */
+      dp_lo_steps (s->lo, n_hb, mix, n_hb);
+      for (size_t i = 0; i < n_hb; i++)
+        mix[i] = hb_buf[i] * mix[i];
 
-  /* Step 2: LO mix at intermediate rate. */
-  float _Complex *mix = malloc (n_hb * sizeof (float _Complex));
-  if (!mix)
-    {
-      free (hb_buf);
-      return 0;
+      /* Step 3: rate-convert to target output rate. */
+      nout = dp_RateConverter_execute (s->rc, mix, n_hb, out, max_out);
     }
-  dp_lo_steps (s->lo, n_hb, mix, n_hb);
-  for (size_t i = 0; i < n_hb; i++)
-    mix[i] = hb_buf[i] * mix[i];
   free (hb_buf);
-
-  /* Step 3: rate-convert to target output rate. */
-  size_t nout = dp_RateConverter_execute (s->rc, mix, n_hb, out, max_out);
-  free (mix);
   return nout;
 }
 

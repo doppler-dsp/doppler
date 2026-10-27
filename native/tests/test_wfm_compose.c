@@ -2652,6 +2652,19 @@ main (void)
       .off_samples = 0 },
   };
 
+  /* ── NULL composer: every entry point is NULL-safe (#2647) ── */
+  {
+    float _Complex nb[4];
+    double fs  = -1.0;
+    size_t nn  = 7;
+    int    rep = 7, cont = 7;
+    DP_CHECK (dp_wfm_compose_execute (NULL, nb, 4) == 0);
+    DP_CHECK (dp_wfm_compose_execute_rate (NULL, nb, 4, &fs) == 0);
+    DP_CHECK (fs == -1.0); /* left untouched when no samples are written */
+    DP_CHECK (dp_wfm_compose_segments (NULL, &nn, &rep, &cont) == NULL);
+    DP_CHECK (nn == 0 && rep == 0 && cont == 0);
+  }
+
   /* ── once-through: collect the whole stream in odd-sized chunks ── */
   dp_wfm_compose_state_t *c = dp_wfm_compose_create (segs, 2, 0, 0);
   DP_REQUIRE_MSG (c, "create");

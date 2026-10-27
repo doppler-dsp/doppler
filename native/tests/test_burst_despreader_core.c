@@ -210,8 +210,15 @@ main (void)
   uint8_t acq[16];
   for (size_t i = 0; i < 16; i++)
     acq[i] = (uint8_t)(i & 1u);
-  dp_burst_despreader_set_acq (d, acq, 16, 3);
-  dp_burst_despreader_set_acq (d, NULL, 0, 0); /* disable */
+  /* set_acq reports its result (#2647): DP_OK for a preamble and for the
+     documented disable alike. Its one failure, the copy's allocation, is
+     not reachable from a test; that it leaves the state alone is by
+     reading. */
+  DP_CHECK (dp_burst_despreader_set_acq (d, acq, 16, 3) == DP_OK);
+  DP_CHECK (d->acq_sf == 16 && d->acq_reps == 3 && d->preamble_left == 3);
+  DP_CHECK (dp_burst_despreader_set_acq (d, NULL, 0, 0)
+            == DP_OK); /* disable */
+  DP_CHECK (d->acq_sf == 0 && d->acq_code == NULL && d->preamble_left == 0);
 
   dp_burst_despreader_destroy (d);
   free (burst);

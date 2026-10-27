@@ -617,19 +617,41 @@ seq_to_chips (const wfm_seq_t *q, size_t *n)
  * their own name -- a framed --type qpsk is Gray-coded QPSK over the frame,
  * not over the PN stream it would otherwise have emitted -- so asking for a
  * --modulation there would be a second way to spell the type. */
-static int
+static wfm_bitmod_t
 frame_modulation (const wfm_source_t *src)
 {
   switch (src->type)
     {
     case WFM_SYNTH_QPSK:
-      return 2; /* qpsk */
+      return WFM_BITMOD_QPSK;
     case WFM_SYNTH_BPSK:
     case WFM_SYNTH_PN:
-      return 1; /* bpsk */
+      return WFM_BITMOD_BPSK;
     default:
-      return src->modulation;
+      return (wfm_bitmod_t)src->modulation;
     }
+}
+
+/* Bits per symbol of a mapping: what the synth's `bit_mod` counts, and what
+ * a frame's symbol count divides by. Spelled out per mapping (#2647): the
+ * enum's wire values happen to equal the counts today (bpsk 1, qpsk 2), but
+ * an enum is an ordering, not a count, and a new mapping appended at 3 need
+ * not carry 3 bits. 0 is `none`, the synth's 0/1 line (one bit per
+ * symbol); -1 is a value no mapping has, which the synth refuses and the
+ * symbol count treats as unknown. */
+static int
+bitmod_bits_per_symbol (wfm_bitmod_t m)
+{
+  switch (m)
+    {
+    case WFM_BITMOD_NONE:
+      return 0;
+    case WFM_BITMOD_BPSK:
+      return 1;
+    case WFM_BITMOD_QPSK:
+      return 2;
+    }
+  return -1;
 }
 
 /* Can this waveform type carry a frame at all?
@@ -683,8 +705,9 @@ dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
         return -1;
       wfm_frame_ops_t ops;
       dp_ccsds_tm_frame_ops (&ops, NULL);
-      return dp_wfm_synth_attach_data (syn, &d, &ops, ds, WFM_DATA_UNPACED,
-                                       frame_modulation (src));
+      return dp_wfm_synth_attach_data (
+          syn, &d, &ops, ds, WFM_DATA_UNPACED,
+          bitmod_bits_per_symbol (frame_modulation (src)));
     }
   if (!type_can_frame (src) || !src->frame)
     return 0; /* nothing to attach; mirrors dp_wfm_synth_set_bits */
@@ -703,8 +726,9 @@ dp_wfm_source_attach_frame (dp_wfm_synth_state_t *syn, const wfm_source_t *src)
   dp_ccsds_tm_frame_ops (&ops, NULL);
   int rc = -1;
   if (dp_wfm_frame_assemble (&d, &ops, bits, lay.out_bits) == lay.out_bits)
-    rc = dp_wfm_synth_set_bits (syn, bits, lay.out_bits,
-                                frame_modulation (src));
+    rc = dp_wfm_synth_set_bits (
+        syn, bits, lay.out_bits,
+        bitmod_bits_per_symbol (frame_modulation (src)));
   free (bits); /* set_bits copies */
   return rc;
 }
@@ -1155,8 +1179,10 @@ dp_wfm_source_data_samples (const wfm_source_t *src, double fs,
      one), then sps samples each -- what the synth emits per frame. A frame
      that does not divide into symbols ends on a symbol the next frame
      completes (wfm_synth_bit_symbol), so it rounds UP. */
-  const int      m   = frame_modulation (src);
-  const uint64_t bps = m > 0 ? (uint64_t)m : 1u;
+  const int b = bitmod_bits_per_symbol (frame_modulation (src));
+  if (b < 0)
+    return 0; /* a mapping with no bit count: the length is unknown */
+  const uint64_t bps = b > 0 ? (uint64_t)b : 1u;
   return frames * ((l.out_bits + bps - 1u) / bps * sps);
 }
 

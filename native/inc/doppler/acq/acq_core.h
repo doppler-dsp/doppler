@@ -1272,8 +1272,11 @@ extern "C"
    * @param tlm    Telemetry context to attach, or NULL to detach.
    * @param prefix Probe-name prefix, e.g. "acq" or "ch0.acq".
    * @param decim  Emit every decim-th decided dwell; >= 1.
-   * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
-   *         ten probes (the attach fails whole; the engine stays detached).
+   * @return DP_OK; DP_ERR_INVALID for an overlong @p prefix, a @p decim
+   *         of 0, or a probe table without room for all ten probes;
+   *         DP_ERR_MEMORY when the dry run's scratch context cannot be
+   *         allocated. A refusal registers nothing on @p tlm and leaves the
+   *         previous attachment (or detachment) exactly as it was.
    * @code
    * >>> import numpy as np
    * >>> from doppler.acquire import Acquisition

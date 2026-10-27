@@ -807,8 +807,9 @@ class Ddcr:
     ) -> NDArray[np.complex64]:
         """Down-convert a block of real float32 samples to CF32 baseband.
 
-        Allocates two scratch buffers per call (about n_in/2 complex samples
-        each); if either allocation fails the call returns 0.
+        Allocates one scratch buffer per call (about n_in complex samples),
+        before any input is consumed; if the allocation fails the call returns
+        0 having consumed nothing, so the same block may be retried.
 
         Parameters
         ----------
@@ -1174,8 +1175,9 @@ class MatchedDdcr:
     ) -> NDArray[np.complex64]:
         """Down-convert a block of real float32 samples to CF32 baseband.
 
-        Allocates two scratch buffers per call (about n_in/2 complex samples
-        each); if either allocation fails the call returns 0.
+        Allocates one scratch buffer per call (about n_in complex samples),
+        before any input is consumed; if the allocation fails the call returns
+        0 having consumed nothing, so the same block may be retried.
 
         Parameters
         ----------

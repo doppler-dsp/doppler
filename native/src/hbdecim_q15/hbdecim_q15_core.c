@@ -224,6 +224,11 @@ dp_hbdecim_q15_create (size_t num_taps, const float *h)
    * harmless (multiply by zero).                                        */
 #ifdef _WIN32
   r->coeffs = (int16_t *)_aligned_malloc (r->K_pad * sizeof (int16_t), 32);
+  if (!r->coeffs)
+    {
+      free (r);
+      return NULL;
+    }
 #else
   if (posix_memalign ((void **)&r->coeffs, 32, r->K_pad * sizeof (int16_t))
       != 0)

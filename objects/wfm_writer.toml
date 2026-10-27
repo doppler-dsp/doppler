@@ -206,7 +206,7 @@ params = [
 [[wfm_writer.properties]]
 name = "clip_fraction"
 type = "double"
-doc = """Fraction (0..1) of I/Q components that saturated. Always 0.0 unless `track_clipping()` was enabled before writing -- the counter is the one extra per-sample compare, so it is opt-in. `peak_dbfs` is always tracked and is enough to tell you clipping happened; this tells you how much."""
+doc = """Fraction (0..1) of I/Q components that saturated. Always 0.0 unless `track_clipping()` was enabled: only components quantised while it is on count, in the clips and the denominator alike (one per sample for a real type, two for a complex one), so enabling it mid-stream measures what follows -- the counter is the one extra per-sample compare, so it is opt-in. `peak_dbfs` is always tracked and is enough to tell you clipping happened; this tells you how much."""
 
 [[wfm_writer.properties]]
 name = "peak_dbfs"

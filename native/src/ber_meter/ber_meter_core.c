@@ -344,6 +344,7 @@ dp_ber_meter_align (dp_ber_meter_state_t *s, const float _Complex *rx,
   s->mk_t0     = t0;
   s->mk_n      = n_marker ? n_marker : BER_SYNC_SYMS;
   s->mk_period = period;
+  s->armed     = s->last.ok; /* a failed detection leaves nothing to score */
   return s->last.ok;
 }
 
@@ -361,7 +362,9 @@ dp_ber_meter_score (dp_ber_meter_state_t *s, const float _Complex *rx,
   size_t period   = s->mk_period;
   size_t scored   = 0;
 
-  if (!rx || !s->truth)
+  /* No usable alignment: scoring at the zeroed lag/phase would count a
+     misaligned burst's symbols as errors (#2651). Refused, counters kept. */
+  if (!rx || !s->truth || !s->armed)
     return 0;
   if (hi > rx_len)
     hi = rx_len;
@@ -408,6 +411,7 @@ dp_ber_meter_set_align (dp_ber_meter_state_t *s, ber_align_t align, size_t t0,
   s->mk_t0     = t0;
   s->mk_n      = n_marker ? n_marker : BER_SYNC_SYMS;
   s->mk_period = period;
+  s->armed     = 1;
 }
 
 int

@@ -11,7 +11,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-int
+int64_t
 dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
                     double min_frac)
 {
@@ -36,7 +36,7 @@ dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
         return -1; /* not enough record left to judge */
       if (z - i >= sustain
           && (double)(total - before) / (double)(flags_len - i) >= min_frac)
-        return (long)i;
+        return (int64_t)i;
       before += flags[i] ? 1u : 0u;
     }
   return -1;

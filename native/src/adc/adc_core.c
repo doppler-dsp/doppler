@@ -70,17 +70,19 @@ dp_adc_steps (dp_adc_state_t *state, const float *input, int64_t *output,
           JM_STORE_F32 (tmp, v);
           for (size_t k = 0; k < stride; k++)
             {
+              /* The flag latches on the quantity step() latches on -- the
+                 double-precision scaled value, BEFORE rounding -- so
+                 whether a sample in (clip_max, clip_max + 0.5) clips does
+                 not depend on which path it took (#2651). Only the code
+                 comes from the float32 product. */
+              const double sd = (double)input[i + k] * state->scale;
+              state->clipped |= (uint8_t)(sd > (double)state->clip_max
+                                          || sd < (double)state->clip_min);
               int64_t q = llroundf (tmp[k]);
               if (q > state->clip_max)
-                {
-                  q              = state->clip_max;
-                  state->clipped = 1;
-                }
+                q = state->clip_max;
               else if (q < state->clip_min)
-                {
-                  q              = state->clip_min;
-                  state->clipped = 1;
-                }
+                q = state->clip_min;
               output[i + k] = q;
             }
         }

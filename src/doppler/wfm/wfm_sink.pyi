@@ -97,9 +97,10 @@ class StreamSink:
     def track_clipping(self, on: int = ...) -> None:
         """Enable or disable the per-component clip counter.
 
-        Off by default; the peak is tracked regardless. Only clips seen while
-        tracking is on are counted, but every integer-path component sent since
-        open counts toward dp_wfm_stream_sink_clip_fraction()'s denominator.
+        Off by default; the peak is tracked regardless. Only components sent
+        while tracking is on are counted, in both the clips and the
+        dp_wfm_stream_sink_clip_fraction() denominator, so enabling it
+        mid-stream measures only what follows.
 
         Parameters
         ----------

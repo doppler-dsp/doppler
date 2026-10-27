@@ -363,7 +363,7 @@ run_draw (const uint8_t *code, const uint8_t *payload, const struct regime *r,
      meter detects where the stream sits against the payload from a marker
      inside that window. BER and EVM are scored on the same window. */
   struct draw d = { 0 };
-  int lo = dp_ber_lock_symbol (flags, n_sym, LOCK_SUSTAIN, LOCK_MIN_FRAC);
+  int64_t lo = dp_ber_lock_symbol (flags, n_sym, LOCK_SUSTAIN, LOCK_MIN_FRAC);
   if (lo >= 0)
     {
       CHECK (dp_ber_meter_align (meter, syms, n_sym, (size_t)lo + LAG_SPAN, 0,

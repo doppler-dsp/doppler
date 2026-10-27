@@ -212,11 +212,23 @@ main (void)
     DP_CHECK (dp_wfm_stream_sink_send (m, none, 40, 1e6, 2.4e9) == 0);
     DP_CHECK (dp_wfm_stream_sink_send (m, half, 40, 1e6, 2.4e9) == 0);
     DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (m), 0.25, 1e-12);
-    /* and it can be turned back OFF mid-stream */
+    /* and it can be turned back OFF mid-stream: what is sent then counts in
+       neither the clips nor the denominator, so the ratio holds (#2651; it
+       used to dilute to 40/240) */
     dp_wfm_stream_sink_track_clipping (m, 0);
     DP_CHECK (dp_wfm_stream_sink_send (m, all, 40, 1e6, 2.4e9) == 0);
-    DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (m), 40.0 / 240.0, 1e-12);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (m), 0.25, 1e-12);
     dp_wfm_stream_sink_close (m);
+    /* #2651: enabled mid-stream, it measures only what follows. Clean
+       samples sent before tracking used to sit in the denominator, so this
+       read 0.5 instead of 1. */
+    wfm_stream_sink_t *late = open_sink (3);
+    DP_REQUIRE_MSG (late, "clip: open late");
+    DP_CHECK (dp_wfm_stream_sink_send (late, none, 40, 1e6, 2.4e9) == 0);
+    dp_wfm_stream_sink_track_clipping (late, 1);
+    DP_CHECK (dp_wfm_stream_sink_send (late, all, 40, 1e6, 2.4e9) == 0);
+    DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (late), 1.0, 1e-12);
+    dp_wfm_stream_sink_close (late);
     DP_CHECK_NEAR (dp_wfm_stream_sink_clip_fraction (NULL), 0.0, 1e-12);
   }
 

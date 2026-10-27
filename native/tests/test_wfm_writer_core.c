@@ -274,6 +274,45 @@ test_untested_accessors_and_headroom (void)
     remove (path);
   }
 
+  /* ── #2651: clip_fraction divides by the components actually quantised
+     while tracking. A real (one-component) type all past full scale is 1,
+     not the 1/2 a fixed two-per-sample denominator gave; and tracking
+     enabled mid-stream measures only what follows (it read 1/2 here). */
+  {
+    float _Complex hot[16], cool[16];
+    for (size_t i = 0; i < 16; i++)
+      {
+        hot[i]  = 1.5f - 2.0f * (float _Complex)I;
+        cool[i] = 0.25f + 0.25f * (float _Complex)I;
+      }
+    remove (path);
+    FILE *fp = fopen (path, "wb+");
+    DP_REQUIRE_MSG (fp, "clipfrac: open");
+    dp_wfm_writer_state_t *w = dp_wfm_writer_open (fp, WFM_FT_RAW, 8, 0, 1e6,
+                                                   0.0, 0, 0.0); /* si16 */
+    DP_REQUIRE_MSG (w, "clipfrac: real writer");
+    dp_wfm_writer_track_clipping (w, 1);
+    DP_REQUIRE_MSG (dp_wfm_writer_write (w, hot, 16) == 16, "clipfrac: write");
+    DP_REQUIRE_MSG (dp_near (dp_wfm_writer_clip_fraction (w), 1.0, 1e-12),
+                    "clip_fraction counts the components quantised");
+    DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "clipfrac: close");
+    fclose (fp);
+
+    remove (path);
+    fp = fopen (path, "wb+");
+    DP_REQUIRE_MSG (fp, "clipfrac: reopen");
+    w = dp_wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0.0, 0, 0.0); /* ci16 */
+    DP_REQUIRE_MSG (w, "clipfrac: complex writer");
+    DP_REQUIRE_MSG (dp_wfm_writer_write (w, cool, 16) == 16, "untracked");
+    dp_wfm_writer_track_clipping (w, 1);
+    DP_REQUIRE_MSG (dp_wfm_writer_write (w, hot, 16) == 16, "tracked");
+    DP_REQUIRE_MSG (dp_near (dp_wfm_writer_clip_fraction (w), 1.0, 1e-12),
+                    "tracking enabled mid-stream measures what follows");
+    DP_REQUIRE_MSG (dp_wfm_writer_close (w) == 0, "clipfrac: close 2");
+    fclose (fp);
+    remove (path);
+  }
+
   /* ── clipped is a rule about the WIRE TYPE, not just the level: only the
      integer types saturate, so a float capture above full scale is loud, not
      clipped. Same samples, same peak, opposite answers. */

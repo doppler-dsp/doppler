@@ -138,6 +138,22 @@ main (void)
     return 1;
   DP_REQUIRE_MSG (dp_ber_meter_set_truth (obj, truth, NSYM) == 0, "set_truth");
 
+  /* ── 0. #2651: no alignment, no score. Before any align() -- and after a
+     failed one -- score() used to run at the zeroed lag 0 / phase 0 and
+     count a misaligned stream's symbols as errors. ───────────────────── */
+  {
+    build (37, 0.9, 0.0); /* lag 0 would be wrong on every symbol */
+    DP_CHECK (dp_ber_meter_score (obj, rx, NSYM, 0, NSYM) == 0);
+    DP_CHECK (dp_ber_meter_get_symbols (obj) == 0
+              && dp_ber_meter_get_errors (obj) == 0);
+    static float _Complex dead[NSYM]; /* nothing to detect: align fails */
+    DP_CHECK (dp_ber_meter_align (obj, dead, NSYM, 1000, 256, 0, 200, 0.0)
+              == 0);
+    DP_CHECK (dp_ber_meter_score (obj, rx, NSYM, 0, NSYM) == 0);
+    DP_CHECK (dp_ber_meter_get_symbols (obj) == 0
+              && dp_ber_meter_get_errors (obj) == 0);
+  }
+
   /* ── 1. a planted lag and rotation come back exactly ──────────────────── */
   {
     const int    lags[4] = { 0, 7, -13, 61 };

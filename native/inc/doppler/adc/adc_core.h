@@ -175,13 +175,20 @@ dp_adc_step(dp_adc_state_t *state, float x)
      * there, not here; `jm apply` overwrites this. */
         double s = (double)x * state->scale;
         if (state->dithering) {
-            /* TPDF dither: two xorshift32 draws summed → triangular PDF
-             * over [-1, +1] LSB.  Each uniform is in [-0.5, +0.5] LSB. */
-            state->rng ^= state->rng << 13;
-            state->rng ^= state->rng >> 17;
-            state->rng ^= state->rng << 5;
-            uint32_t r2 = state->rng * 2654435761u;
-            s += ((double)(int32_t)state->rng + (double)(int32_t)r2)
+            /* TPDF dither: two SUCCESSIVE xorshift32 draws summed →
+             * triangular PDF over [-1, +1] LSB.  Each uniform is in
+             * [-0.5, +0.5] LSB.  The second is a draw of its own: a multiply
+             * of the first is one variable, not two (#2651). */
+            uint32_t r = state->rng;
+            r ^= r << 13;
+            r ^= r >> 17;
+            r ^= r << 5;
+            uint32_t r1 = r;
+            r ^= r << 13;
+            r ^= r >> 17;
+            r ^= r << 5;
+            state->rng = r;
+            s += ((double)(int32_t)r1 + (double)(int32_t)r)
                  * (1.0 / 4294967296.0);
         }
         state->clipped |= (uint8_t)(s > (double)state->clip_max
@@ -197,8 +204,9 @@ dp_adc_step(dp_adc_state_t *state, float x)
  *
  * When dithering is disabled and a SIMD tier is available (jm_simd.h), whole
  * SIMD-width groups are scaled by @c scale rounded to float32, multiplied in
- * float32, rounded with @c llroundf and clamped; the clip flag latches only
- * when the ROUNDED code exceeds the range.  The remaining tail samples, and
+ * float32, rounded with @c llroundf and clamped; the clip flag latches on
+ * the same double-precision pre-rounding value step() uses, so it does not
+ * depend on which path a sample took.  The remaining tail samples, and
  * every sample when dithering is enabled, go through dp_adc_step() (double
  * precision, sequential PRNG).  For converters wider than ~24 bits the
  * float32 path can therefore differ from step() in the last codes.

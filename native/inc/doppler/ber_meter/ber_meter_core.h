@@ -79,6 +79,8 @@ extern "C"
     size_t      mk_t0;     /**< Marker start used by that align.           */
     size_t      mk_n;      /**< Marker length used.                        */
     size_t      mk_period; /**< Marker period used.                        */
+    int armed; /**< 1 once an alignment score() may use is installed: the
+                    last align() succeeded, or set_align() was called. */
   } dp_ber_meter_state_t;
 
   /**
@@ -282,10 +284,12 @@ extern "C"
    * Symbols covered by a marker occurrence are excluded, as are any whose truth
    * index falls outside the installed sequence; both land in @c skipped.
    *
-   * @param state   Must be non-NULL, with an alignment set by align().
-   *               The stored alignment's `ok` flag is NOT checked: check
-   *               align()'s return first. With no truth installed (or a
-   *               NULL @p rx) nothing is scored and 0 is returned.
+   * @param state   Must be non-NULL. Without a usable alignment -- before
+   *               any align(), or after one that failed (`ok == 0`), unless
+   *               set_align() installed one since -- nothing is scored, the
+   *               counters are untouched and 0 is returned, rather than
+   *               scoring at lag 0, phase 0. With no truth installed (or a
+   *               NULL @p rx) nothing is scored and 0 is returned either.
    * @param rx      Recovered symbols to score.
    * @param rx_len  How many recovered symbols.
    * @param lo      First symbol index to score (inclusive).
@@ -325,8 +329,10 @@ extern "C"
    * could have been searched for.
    *
    * @param state     Must be non-NULL.
-   * @param align     The alignment record to install verbatim (its `ok`
-   *                  flag is stored but not checked).
+   * @param align     The alignment record to install verbatim. Its `ok`
+   *                  flag is stored but not checked: installing it is the
+   *                  caller's statement that it is known, so score() uses
+   *                  it.
    * @param t0        Truth index of the marker's first occurrence.
    * @param n_marker  Marker length in symbols; 0 selects BER_SYNC_SYMS.
    * @param period    Repeat period in symbols; 0 for a single occurrence.

@@ -56,8 +56,8 @@ depends_on = [
 ]
 # wfm_dsp_core: the wfmgen C API used by test_async_dsss_receiver_core.c's
 # AWGN Es/N0-floor characterization (dp_wfm_cont_dsss_chips continuous DSSS
-# builder). gold_core: the the specification Gold-1023 code for that same test. snr_core:
-# the canonical blind M2M4 SNR validator (snr_m2m4_db) that same test uses to
+# builder). gold_core: the specification Gold-1023 code for that same test.
+# snr_core: the canonical blind M2M4 SNR validator (snr_m2m4_db) that same test uses to
 # validate lock independently of BER.
 extra_link_libs = ["wfm_dsp_core", "gold_core", "snr_core"]
 fragment = "generated"
@@ -187,8 +187,8 @@ default = "8"
 
 # false (NOT carrier_acq.toml's own standalone default of true): matches
 # freq_refine.refine_seed_carrier_acq()'s own default, the one actually
-# validated at the specification's operating point. Sequential mode's per-block early
-# test fires the moment ANY block crosses threshold -- confirmed via a
+# validated at the specification's operating point. Sequential mode's
+# per-block early test fires the moment ANY block crosses threshold -- confirmed via a
 # direct isolated CarrierAcquisition probe to fire on as few as 4 blocks
 # at this SNR/geometry, ~150-200Hz+ off; non-sequential mode waits the
 # full dwell_target (design_snr-derived) before testing once, giving a

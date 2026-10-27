@@ -1200,11 +1200,11 @@ DOXYGEN_COVERAGE_OVERRIDES = EXTRACT_ALL=NO WARN_NO_PARAMDOC=YES \
                              FILE_PATTERNS=*.h
 
 # Headers the coverage pass leaves out, each because jm writes it: vendored
-# create-only (jm_simd.h, jm_perf.h) or generated (the _bridge.h and
-# _procglobal.h seams). Their docs are jm's to add (just-makeit#2405); remove
+# create-only (jm_simd.h, jm_perf.h) or generated (the doppler.h umbrella and
+# the _bridge.h and _procglobal.h seams). Their docs are jm's to add (just-makeit#2405); remove
 # a line when the pin carries them. lint-header-file-blocks reads this same
 # list, so the two never disagree about which headers are in scope.
-DOXYGEN_COVERAGE_EXCLUDE = */jm_simd.h */jm_perf.h \
+DOXYGEN_COVERAGE_EXCLUDE = */jm_simd.h */jm_perf.h */doppler/doppler.h \
                            */wfm_compose_bridge.h \
                            */dp_interrupt_guard_procglobal.h
 

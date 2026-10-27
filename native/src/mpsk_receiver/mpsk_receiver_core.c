@@ -365,10 +365,9 @@ mpsk_rx_create_impl (int real, int m, double sps, size_t m_out, int pulse,
      real face's bound is 2*m_out and strict: the cascade behind the R2C
      halfband runs at twice the overall rate, and Ddcr requires that below
      0.5. */
-  const int sps_ok
-      = real ? (sps > 2.0 * (double)m_out) : (sps >= (double)m_out);
-  if (!dp_ratesync_m_ok (m_out) || !sps_ok || !(rrc_beta >= 0.0)
-      || !(rrc_beta <= 1.0)
+  const int sps_ok = real ? mpsk_rx_m_out_ok (0.5 * sps, m_out, 1)
+                          : mpsk_rx_m_out_ok (sps, m_out, 0);
+  if (!sps_ok || !(rrc_beta >= 0.0) || !(rrc_beta <= 1.0)
       || rrc_span < 1
       /* The loop filter's own domain, once per loop (doppler#2103). */
       || !dp_loop_filter_params_ok (bn_carrier, zeta, 1.0)

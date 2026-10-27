@@ -14,6 +14,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* ── dp_ddcr_run pure-transducer round-trip ──────────────────────────────────
  * The stateless `dp_ddcr_run(state_in, state_out, …)` face: a whole-stream
@@ -308,6 +309,45 @@ test_clipped_forwards (void)
   free (out);
 }
 
+/* The execute scratch persists in the state (doppler#2650): grown once to
+ * the largest block, then reused -- the same buffer for an equal or smaller
+ * block, both faces -- and the output is unchanged by where a stream is
+ * cut, so keeping the buffer carries nothing between calls. */
+static void
+test_scratch_persists (void)
+{
+  const size_t     L  = 4096;
+  float           *in = malloc (2 * L * sizeof *in);
+  float _Complex  *a  = malloc (2 * L * sizeof *a);
+  float _Complex  *b  = malloc (2 * L * sizeof *b);
+  dp_ddcr_state_t *r1 = dp_ddcr_create (-0.1, 0.25);
+  dp_ddcr_state_t *r2 = dp_ddcr_create (-0.1, 0.25);
+  DP_CHECK (in && a && b && r1 && r2);
+  for (size_t i = 0; i < 2 * L; i++)
+    in[i] = cosf (0.11f * (float)i);
+
+  DP_CHECK (r1->scratch == NULL && r1->scratch_cap == 0);
+  size_t                na  = dp_ddcr_execute (r1, in, L, a, 2 * L);
+  const float _Complex *p   = r1->scratch;
+  const size_t          cap = r1->scratch_cap;
+  DP_CHECK (p != NULL && cap >= L / 2 + 2);
+  na += dp_ddcr_execute (r1, in + L, L, a + na, 2 * L - na);
+  DP_CHECK (r1->scratch == p && r1->scratch_cap == cap);
+  (void)dp_ddcr_execute_ctrl (r1, in, L / 2, 0.0, 0.0, b, 2 * L);
+  DP_CHECK (r1->scratch == p && r1->scratch_cap == cap);
+
+  /* The same stream in one block: the same samples. */
+  size_t nb = dp_ddcr_execute (r2, in, 2 * L, b, 2 * L);
+  DP_CHECK (na == nb);
+  DP_CHECK (memcmp (a, b, na * sizeof *a) == 0);
+
+  dp_ddcr_destroy (r1);
+  dp_ddcr_destroy (r2);
+  free (in);
+  free (a);
+  free (b);
+}
+
 int
 main (void)
 {
@@ -326,6 +366,7 @@ main (void)
   test_push_equals_block ();
   test_matched_recovers_symbols ();
   test_clipped_forwards ();
+  test_scratch_persists ();
 
   DP_TEST_END ("test_ddcr_core");
 }

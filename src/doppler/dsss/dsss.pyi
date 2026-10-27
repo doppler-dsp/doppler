@@ -2074,7 +2074,10 @@ class DsssReceiver:
             MpskReceiver samples per symbol (the resample target), >= 2.
         n : int
             MpskReceiver's terminal outputs per symbol (`m_out`): inside
-            dp_ratesync_m_ok() (even, 2..8), and dividing sps.
+            dp_ratesync_m_ok() (even, 2..8) and at most sps --
+            mpsk_rx_m_out_ok(), the rule create()'s own derived `n` satisfies,
+            so get_n() always re-applies (doppler#2650). It need not divide
+            sps.
 
         Raises
         ------
@@ -2795,7 +2798,10 @@ class AsyncDsssReceiver:
             MpskReceiver samples per symbol (the resample target), >= 2.
         n : int
             MpskReceiver's terminal outputs per symbol (`m_out`): inside
-            dp_ratesync_m_ok() (even, 2..8), and dividing sps.
+            dp_ratesync_m_ok() (even, 2..8) and at most sps --
+            mpsk_rx_m_out_ok(), the rule create()'s own derived `n` satisfies,
+            so get_n() always re-applies (doppler#2650). It need not divide
+            sps.
 
         Raises
         ------

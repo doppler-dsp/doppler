@@ -1807,6 +1807,7 @@ mpsk_rx_agc_bn function
 mpsk_rx_derive_m_out function
 mpsk_rx_disc function
 mpsk_rx_fold function
+mpsk_rx_m_out_ok function
 mpsk_rx_steer function
 mpsk_rx_take_output function
 mpsk_rx_updates_per_symbol function

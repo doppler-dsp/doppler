@@ -1667,10 +1667,9 @@ dp_async_dsss_receiver_configure_chain_raw (
      anything is rebuilt: a period past what the Dll's aid takes, or an `n`
      MpskReceiver refuses, would abort the rebuild under dp_xnn (doppler#2103,
      #2421). A negative `n` is refused before the cast. */
-  if (n < 0 || !dp_ratesync_m_ok ((size_t)n)
+  if (n < 0 || !mpsk_rx_m_out_ok ((double)sps, (size_t)n, 0)
       || !adr_track_chain_ok (state->code_len, state->chip_rate,
-                              state->symbol_rate, segments, sps)
-      || (int)(sps % (size_t)n) != 0)
+                              state->symbol_rate, segments, sps))
     return -1;
 
   /* Read before the rebuild, while sps is still the old grid's: the sum

@@ -345,3 +345,18 @@ def test_configure_chain_raw_refuses_a_grid_create_would(cls):
         with pytest.raises(ValueError, match="configure_chain_raw failed"):
             rx.configure_chain_raw(*grid)
         assert rx.get_state() == held
+
+
+@pytest.mark.parametrize("cls", _ALL)
+@pytest.mark.parametrize("sps", [3, 5, 10])
+def test_configure_chain_raw_takes_the_receivers_own_n(cls, sps):
+    """doppler#2650: create() derives ``n`` as ``2*floor(sps/2)`` capped at
+    8 -- 2, 4 and 8 here, none dividing ``sps`` -- and configure_chain_raw()
+    refused any ``n`` that did not divide ``sps``, so re-applying the
+    receiver's own grid raised. Both receivers now share one rule."""
+    import doppler.dsss as dsss
+
+    rx = getattr(dsss, cls)(CODE, sps=sps, **_RX_BASE[cls])
+    n = rx.n
+    rx.configure_chain_raw(rx.segments, sps, n)
+    assert rx.n == n

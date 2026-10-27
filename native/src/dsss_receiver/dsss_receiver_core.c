@@ -297,11 +297,27 @@ dsss_rx_track_carrier_dll (dp_dsss_receiver_state_t *s,
   return emitted;
 }
 
+/* Grow a persistent scratch buffer to at least @p need samples. Scratch,
+ * not state: the contents are dead between calls, so realloc's copy is
+ * harmless, and the buffer only grows, so a steady stream of equal blocks
+ * allocates once (doppler#2650). An OOM aborts, the convention for a
+ * trusted internal allocation (dp_xrealloc). */
+static float _Complex *
+dsss_rx_scratch (float _Complex **buf, size_t *cap, size_t need)
+{
+  if (*cap < need)
+    {
+      *buf = dp_xrealloc (*buf, need * sizeof **buf);
+      *cap = need;
+    }
+  return *buf;
+}
+
 /* Carrier-wipe -> despread -> resample -> demod a block through the
- * already-built chain. Scratch buffers sized generously (dll's own
+ * already-built chain. Scratch sized generously (dll's own
  * "emitted <= x_len" bound, then the RateConverter's own configured
  * ratio) rather than relying on a *_max_out() call that would need to
- * know x_len in advance. */
+ * know x_len in advance, and kept in the state between calls. */
 static size_t
 dsss_rx_track_chain (dp_dsss_receiver_state_t *s, const float _Complex *x,
                      size_t x_len, float _Complex *out, size_t max_out)
@@ -309,18 +325,17 @@ dsss_rx_track_chain (dp_dsss_receiver_state_t *s, const float _Complex *x,
   if (x_len == 0)
     return 0;
 
-  float _Complex *dll_out = dp_xmalloc (x_len * sizeof *dll_out);
+  float _Complex *dll_out
+      = dsss_rx_scratch (&s->trk_dll_buf, &s->trk_dll_cap, x_len);
   size_t n_dll = dsss_rx_track_carrier_dll (s, x, x_len, dll_out, x_len);
 
   size_t          rc_cap = (size_t)((double)n_dll * s->rc->rate) + 64;
-  float _Complex *rc_out = dp_xmalloc (rc_cap * sizeof *rc_out);
-  size_t          n_rc
+  float _Complex *rc_out
+      = dsss_rx_scratch (&s->trk_rc_buf, &s->trk_rc_cap, rc_cap);
+  size_t n_rc
       = dp_RateConverter_execute (s->rc, dll_out, n_dll, rc_out, rc_cap);
-  free (dll_out);
 
-  size_t n_out = dp_mpsk_receiver_steps (s->rx, rc_out, n_rc, out, max_out);
-  free (rc_out);
-  return n_out;
+  return dp_mpsk_receiver_steps (s->rx, rc_out, n_rc, out, max_out);
 }
 
 dp_dsss_receiver_state_t *
@@ -407,6 +422,8 @@ dp_dsss_receiver_destroy (dp_dsss_receiver_state_t *state)
   dsss_rx_free_chain (state);
   free (state->car_wiped_buf);
   free (state->car_carry_buf);
+  free (state->trk_dll_buf);
+  free (state->trk_rc_buf);
   dp_acq_destroy (state->acq);
   free (state->code);
   free (state);
@@ -514,8 +531,8 @@ dp_dsss_receiver_configure_chain_raw (dp_dsss_receiver_state_t *state,
   /* Everything the rebuild would refuse under dp_xnn is refused here,
      before anything is rebuilt: the chain's ratio, and an `n` MpskReceiver
      refuses (doppler#2426, the second copy of #2421). */
-  if (segments < 1 || sps < 2 || n < 1 || !dp_ratesync_m_ok ((size_t)n)
-      || (int)(sps % (size_t)n) != 0
+  if (segments < 1 || sps < 2 || n < 1
+      || !mpsk_rx_m_out_ok ((double)sps, (size_t)n, 0)
       || !dsss_rx_chain_ok (state->chip_rate, state->symbol_rate,
                             state->code_len, segments, sps))
     return -1;

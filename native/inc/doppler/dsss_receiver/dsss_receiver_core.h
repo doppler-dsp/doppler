@@ -131,6 +131,15 @@ extern "C"
     float _Complex *car_carry_buf;
     size_t         car_carry_len; /**< Valid samples in `car_carry_buf`,
                                        0..tsamps-1; running state. */
+    /** Scratch, not state: the tracking chain's Dll output, grown on
+     * demand to the largest block seen and kept, so a tracking steps()
+     * allocates nothing once warm (doppler#2650). Freed in destroy(). */
+    float _Complex *trk_dll_buf;
+    size_t         trk_dll_cap; /**< Capacity of `trk_dll_buf`, samples. */
+    /** Scratch, not state: the tracking chain's RateConverter output,
+     * grown on demand and kept like `trk_dll_buf`. */
+    float _Complex *trk_rc_buf;
+    size_t         trk_rc_cap; /**< Capacity of `trk_rc_buf`, samples. */
 
     /** Own copy of the spreading code -- dp_acq_create_continuous()/
      * dp_dll_create()'s own borrow-vs-copy semantics aren't part of either's
@@ -485,8 +494,10 @@ extern "C"
    * @param sps       MpskReceiver samples per symbol (the resample target),
    *                  >= 2.
    * @param n         MpskReceiver's terminal outputs per symbol (`m_out`):
-   *                  inside dp_ratesync_m_ok() (even, 2..8), and dividing
-   *                  @p sps.
+   *                  inside dp_ratesync_m_ok() (even, 2..8) and at most
+   *                  @p sps -- mpsk_rx_m_out_ok(), the rule create()'s own
+   *                  derived `n` satisfies, so get_n() always re-applies
+   *                  (doppler#2650). It need not divide @p sps.
    * @return 0 on success, -1 on a grid refused as above (the receiver keeps
    *         its prior grid).
    * @code

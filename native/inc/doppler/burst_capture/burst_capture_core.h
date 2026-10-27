@@ -1068,6 +1068,7 @@ int dp_burst_capture_set_state (dp_burst_capture_state_t *state, const void *blo
  * Never late is refine's design goal, not a guarantee: refine takes the
  * strongest whole-period position over a range reaching both sides of the
  * anchor, so at low C/N0 it can pick a wrong repetition, early or late.
+ *
  * @param state  Capture. Must be non-NULL.
  * @return The start sample; 0 before the first window and after reset().
  */

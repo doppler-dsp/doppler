@@ -290,7 +290,9 @@ def test_set_telemetry_wrong_capsule_rejected():
     from doppler.telemetry import Telemetry  # noqa: F401
 
     obj = AGC(0.0, 0.0025, 0.05)
-    with pytest.raises((ValueError, AttributeError)):
+    # jm 0.112.0 (just-makeit#2355): a wrong object for a capsule param is
+    # a TypeError naming the param, not an AttributeError from the unwrap.
+    with pytest.raises(TypeError, match=r"^tlm must be the .* capsule"):
         obj.set_telemetry(object(), "agc")
 
 

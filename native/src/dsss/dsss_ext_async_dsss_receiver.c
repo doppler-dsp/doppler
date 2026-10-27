@@ -372,7 +372,14 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_async_dsss_receiver_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -383,6 +390,13 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -423,6 +437,12 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_async_dsss_receiver_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -445,6 +465,13 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -498,6 +525,11 @@ AsyncDsssReceiverObj_seed (AsyncDsssReceiverObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &chip_phase,
                                     &doppler_hz_est, &cn0_dbhz_est))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_async_dsss_receiver_seed (self->handle, chip_phase,
                                          doppler_hz_est, cn0_dbhz_est);
   if (_rc != 0)
@@ -568,6 +600,11 @@ AsyncDsssReceiverObj_status (AsyncDsssReceiverObject *self,
           = PyStructSequence_NewType (&AsyncDsssReceiverObj_status_desc);
       if (!AsyncDsssReceiverObj_status_type)
         return NULL;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
   async_dsss_receiver_status_t _r
       = dp_async_dsss_receiver_status (self->handle);
@@ -655,7 +692,12 @@ AsyncDsssReceiverObj_configure_search_raw (AsyncDsssReceiverObject *self,
       Py_DECREF (_ix);
     }
   size_t n_noncoh = (size_t)n_noncoh_raw;
-  int    _rc      = dp_async_dsss_receiver_configure_search_raw (
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_async_dsss_receiver_configure_search_raw (
       self->handle, doppler_bins, n_noncoh);
   if (_rc != 0)
     {
@@ -700,7 +742,12 @@ AsyncDsssReceiverObj_set_refine_min_blocks (AsyncDsssReceiverObject *self,
       Py_DECREF (_ix);
     }
   size_t n_blocks = (size_t)n_blocks_raw;
-  int    _rc
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc
       = dp_async_dsss_receiver_set_refine_min_blocks (self->handle, n_blocks);
   if (_rc != 0)
     {
@@ -770,6 +817,11 @@ AsyncDsssReceiverObj_configure_lock_raw (AsyncDsssReceiverObject *self,
       return NULL;
     }
   uint32_t n_down = (uint32_t)n_down_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_async_dsss_receiver_configure_lock_raw (
       self->handle, up_thresh, down_thresh, n_looks, alpha, n_up, n_down);
   Py_RETURN_NONE;
@@ -833,6 +885,11 @@ AsyncDsssReceiverObj_configure_chain_raw (AsyncDsssReceiverObject *self,
       Py_DECREF (_ix);
     }
   size_t sps = (size_t)sps_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_async_dsss_receiver_configure_chain_raw (self->handle, segments,
                                                         sps, n);
   if (_rc != 0)
@@ -848,6 +905,11 @@ static PyObject *
 AsyncDsssReceiverObj_reset (AsyncDsssReceiverObject *self,
                             PyObject                *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -883,7 +945,17 @@ AsyncDsssReceiverObj_set_telemetry (AsyncDsssReceiverObject *self,
           Py_DECREF (tlm_cap);
           tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
           if (!tlm_cap)
-            return NULL;
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
         }
       tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
                                               "doppler.telemetry.dp_tlm");
@@ -899,6 +971,11 @@ AsyncDsssReceiverObj_set_telemetry (AsyncDsssReceiverObject *self,
       return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_async_dsss_receiver_set_telemetry (self->handle, tlm, prefix,
                                                   decim);
   if (_rc != 0)
@@ -929,6 +1006,11 @@ AsyncDsssReceiverObj_set_threads (AsyncDsssReceiverObject *self,
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "i", _kwlist, &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_async_dsss_receiver_set_threads (self->handle, n);
   if (_rc != 0)
     {
@@ -973,7 +1055,12 @@ AsyncDsssReceiverObj_set_rank (AsyncDsssReceiverObject *self, PyObject *args,
       Py_DECREF (_ix);
     }
   size_t rank = (size_t)rank_raw;
-  int    _rc  = dp_async_dsss_receiver_set_rank (self->handle, rank);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_async_dsss_receiver_set_rank (self->handle, rank);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -1006,6 +1093,12 @@ AsyncDsssReceiverObj_set_exclusions (AsyncDsssReceiverObject *self,
     }
   const double *phases     = (const double *)PyArray_DATA (phases_arr);
   size_t        phases_len = (size_t)PyArray_SIZE (phases_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (phases_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_async_dsss_receiver_set_exclusions (self->handle, phases,
                                                    phases_len);
   Py_DECREF (phases_arr);

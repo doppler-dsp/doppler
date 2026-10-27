@@ -364,7 +364,7 @@ opaque = true
 name = "type"
 type = "string_enum:tone,noise,pn,bpsk,qpsk,chirp,bits,symbols,dsss"
 default = "tone"
-
+doc = 'The waveform. For `bits` attach the pattern with set_bits(), for `symbols` the complex stream with set_symbols(), and for `dsss` the burst with set_dsss_chips(), after construction.'
 [[wfm_synth.init_params]]
 name = "fs"
 type = "double"
@@ -384,7 +384,7 @@ default = "100.0"
 name = "snr_mode"
 type = "string_enum:auto,fs,ebno,esno"
 default = "auto"
-
+doc = 'What `snr` is referenced to: `fs` the full band, `ebno` Eb/N0, `esno` Es/N0. `auto` is Es/N0 for bpsk/qpsk/dsss and full scale for the others.'
 [[wfm_synth.init_params]]
 name = "seed"
 type = "uint32_t"

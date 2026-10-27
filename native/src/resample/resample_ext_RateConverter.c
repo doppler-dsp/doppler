@@ -119,7 +119,14 @@ RateConverterObj_execute (RateConverterObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_RateConverter_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -130,6 +137,13 @@ RateConverterObj_execute (RateConverterObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_RateConverter_execute (
@@ -162,6 +176,12 @@ RateConverterObj_execute (RateConverterObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_RateConverter_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -184,6 +204,13 @@ RateConverterObj_execute (RateConverterObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out = dp_RateConverter_execute (self->handle, x, x_len, _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -271,7 +298,14 @@ RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_RateConverter_execute_ctrl_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -282,6 +316,13 @@ RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_RateConverter_execute_ctrl (
@@ -314,6 +355,12 @@ RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_RateConverter_execute_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -336,6 +383,13 @@ RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out = dp_RateConverter_execute_ctrl (self->handle, x, x_len, ctrl,
                                                 _d0, _cap);
   Py_DECREF (x_arr);
@@ -415,7 +469,13 @@ RateConverterObj_execute_ctrl_push (RateConverterObject *self, PyObject *args,
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax = dp_RateConverter_execute_ctrl_push_max_out (self->handle);
       size_t _min_cap
           = _omax > dp_RateConverter_execute_ctrl_push_max_out (self->handle)
@@ -426,6 +486,12 @@ RateConverterObj_execute_ctrl_push (RateConverterObject *self, PyObject *args,
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_RateConverter_execute_ctrl_push (
@@ -457,6 +523,11 @@ RateConverterObj_execute_ctrl_push (RateConverterObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = dp_RateConverter_execute_ctrl_push_max_out (self->handle);
   size_t _cap  = dp_RateConverter_execute_ctrl_push_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -477,7 +548,13 @@ RateConverterObj_execute_ctrl_push (RateConverterObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out
       = dp_RateConverter_execute_ctrl_push (self->handle, x, ctrl, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -508,6 +585,11 @@ static PyObject *
 RateConverterObj_reset (RateConverterObject *self,
                         PyObject            *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");

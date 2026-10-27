@@ -58,7 +58,7 @@ default = "0"
 name = "window"
 type = "enum:psd_window"
 default = "hann"
-
+doc = 'The window every frame is shaped by, as PSD takes them. A window that sums to zero at this nfft (the symmetric Hann at nfft = 2) is refused.'
 [[spectrogram.init_params]]
 name = "beta"
 type = "float"
@@ -74,7 +74,7 @@ default = "0.0f"
 name = "mode"
 type = "enum:spectrogram_mode"
 default = "power"
-
+doc = 'The row units: `power` is linear against full scale (the default), `db` is dBFS.'
 # push() returns the completed rows as a (rows, nfft) float32 matrix, or None
 # when it completes none. out_cols names the row width from the object; the
 # `state` alias is what the binding generates for it. Without out=, the

@@ -85,7 +85,7 @@ doc = "Payload bits, one per element, each 0 or 1. Omitted, the frame carries no
 name = "crc"
 type = "enum:crc"
 default = "none"
-
+doc = '`crc16` covers the payload with a CRC-16; `none` adds no check.'
 # ── methods ─────────────────────────────────────────────────────────────────
 [[frame.methods]]
 name = "bits"

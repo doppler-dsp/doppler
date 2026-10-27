@@ -225,6 +225,12 @@ ToneMeasureObj_analyze (ToneMeasureObject *self, PyObject *args)
           return NULL;
         }
     }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -331,6 +337,12 @@ ToneMeasureObj_analyze_complex (ToneMeasureObject *self, PyObject *args)
           return NULL;
         }
     }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -419,6 +431,12 @@ ToneMeasureObj_time_stats (ToneMeasureObject *self, PyObject *args)
           return NULL;
         }
     }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   time_stats_t _r = dp_tonemeas_time_stats (
       self->handle, (const float *)PyArray_DATA (in_arr), n_in);
   Py_DECREF (in_arr);
@@ -492,7 +510,14 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_tonemeas_spectrum_dbfs_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -503,6 +528,13 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_tonemeas_spectrum_dbfs (
@@ -534,6 +566,12 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_tonemeas_spectrum_dbfs_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -555,7 +593,14 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
       Py_DECREF (x_arr);
       return NULL;
     }
-  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out = dp_tonemeas_spectrum_dbfs (self->handle, x, x_len, _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))

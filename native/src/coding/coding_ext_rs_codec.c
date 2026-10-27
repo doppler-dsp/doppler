@@ -171,7 +171,14 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_rs_codec_encode_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
@@ -180,6 +187,13 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_rs_codec_encode (
@@ -212,6 +226,12 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_rs_codec_encode_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -231,10 +251,17 @@ ReedSolomonObj_encode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (in_arr);
       return NULL;
     }
-  uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = dp_rs_codec_encode (self->handle,
-                                       (const uint8_t *)PyArray_DATA (in_arr),
-                                       (size_t)n, _d0, _cap);
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_rs_codec_encode (self->handle,
+                                     (const uint8_t *)PyArray_DATA (in_arr),
+                                     (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -294,7 +321,13 @@ ReedSolomonObj_decode (ReedSolomonObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *codeword     = (uint8_t *)PyArray_DATA (codeword_arr);
   size_t   codeword_len = (size_t)PyArray_SIZE (codeword_arr);
-  int      y = dp_rs_codec_decode (self->handle, codeword, codeword_len);
+  if (!self->handle)
+    {
+      Py_DECREF (codeword_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int y = dp_rs_codec_decode (self->handle, codeword, codeword_len);
   Py_DECREF (codeword_arr);
   return PyLong_FromLong ((long)y);
 }
@@ -359,7 +392,14 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax = dp_rs_codec_syndromes_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
@@ -368,6 +408,13 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_rs_codec_syndromes (
@@ -400,6 +447,12 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_rs_codec_syndromes_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -421,6 +474,13 @@ ReedSolomonObj_syndromes (ReedSolomonObject *self, PyObject *args,
       return NULL;
     }
   uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out = dp_rs_codec_syndromes (self->handle,
                                         (const uint8_t *)PyArray_DATA (in_arr),
                                         (size_t)n, _d0, _cap);
@@ -471,6 +531,12 @@ ReedSolomonObj_codeword_ok (ReedSolomonObject *self, PyObject *args,
     }
   const uint8_t *codeword     = (const uint8_t *)PyArray_DATA (codeword_arr);
   size_t         codeword_len = (size_t)PyArray_SIZE (codeword_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (codeword_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int y = dp_rs_codec_codeword_ok (self->handle, codeword, codeword_len);
   Py_DECREF (codeword_arr);
   return PyLong_FromLong ((long)y);
@@ -508,7 +574,13 @@ ReedSolomonObj_generator (ReedSolomonObject *self, PyObject *args,
     }
   uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
   size_t   out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t   y       = dp_rs_codec_generator (self->handle, out, out_len);
+  if (!self->handle)
+    {
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = dp_rs_codec_generator (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }

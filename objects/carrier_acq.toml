@@ -75,7 +75,7 @@ default = "4"
 name = "window"
 type = "enum:carrier_acq_window"
 default = "hann"
-
+doc = 'The search window. `hann` is the default and the window the detection threshold was fit at.'
 [[carrier_acq.init_params]]
 name = "beta"
 type = "float"

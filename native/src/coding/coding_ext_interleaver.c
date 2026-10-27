@@ -196,6 +196,13 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax
           = dp_interleaver_interleave_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
@@ -205,6 +212,13 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_interleaver_interleave (
@@ -247,6 +261,12 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_interleaver_interleave_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -267,8 +287,15 @@ InterleaverObj_interleave (InterleaverObject *self, PyObject *args,
       Py_DECREF (in_arr);
       return NULL;
     }
-  uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = dp_interleaver_interleave (
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_interleaver_interleave (
       self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n, _d0,
       _cap);
   Py_DECREF (in_arr);
@@ -367,6 +394,13 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax
           = dp_interleaver_deinterleave_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
@@ -376,6 +410,13 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_interleaver_deinterleave (
@@ -418,6 +459,12 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_interleaver_deinterleave_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -438,8 +485,15 @@ InterleaverObj_deinterleave (InterleaverObject *self, PyObject *args,
       Py_DECREF (in_arr);
       return NULL;
     }
-  uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = dp_interleaver_deinterleave (
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_interleaver_deinterleave (
       self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n, _d0,
       _cap);
   Py_DECREF (in_arr);
@@ -539,6 +593,13 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax
           = dp_interleaver_deinterleave_soft_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
@@ -548,6 +609,13 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_interleaver_deinterleave_soft (
@@ -590,6 +658,12 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap
       = dp_interleaver_deinterleave_soft_max_out (self->handle, (size_t)n);
@@ -611,7 +685,14 @@ InterleaverObj_deinterleave_soft (InterleaverObject *self, PyObject *args,
       Py_DECREF (in_arr);
       return NULL;
     }
-  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out = dp_interleaver_deinterleave_soft (
       self->handle, (const float *)PyArray_DATA (in_arr), (size_t)n, _d0,
       _cap);

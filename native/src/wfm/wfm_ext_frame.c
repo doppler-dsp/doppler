@@ -182,7 +182,13 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_frame_bits_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
@@ -190,6 +196,12 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -228,6 +240,11 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_frame_bits_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -246,6 +263,12 @@ FrameObj_bits (FrameObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -302,6 +325,12 @@ FrameObj_crc_ok (FrameObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *rx_bits     = (const uint8_t *)PyArray_DATA (rx_bits_arr);
   size_t         rx_bits_len = (size_t)PyArray_SIZE (rx_bits_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (rx_bits_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -340,7 +369,13 @@ FrameObj_add_field (FrameObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *bits     = (const uint8_t *)PyArray_DATA (bits_arr);
   size_t         bits_len = (size_t)PyArray_SIZE (bits_arr);
-  int            _rc = dp_frame_add_field (self->handle, name, bits, bits_len);
+  if (!self->handle)
+    {
+      Py_DECREF (bits_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_frame_add_field (self->handle, name, bits, bits_len);
   Py_DECREF (bits_arr);
   if (_rc < 0)
     {
@@ -429,8 +464,13 @@ FrameObj_add_stage (FrameObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t unit_bits = (uint32_t)unit_bits_raw;
-  int      _rc = dp_frame_add_stage (self->handle, kind, first_field, n_fields,
-                                     depth, emit_num, emit_den, unit_bits);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_frame_add_stage (self->handle, kind, first_field, n_fields,
+                                depth, emit_num, emit_den, unit_bits);
   if (_rc < 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -454,6 +494,11 @@ FrameObj_field_index (FrameObject *self, PyObject *args, PyObject *kwds)
   const char  *name      = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s", _kwlist, &name))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int y = dp_frame_field_index (self->handle, name);
   return PyLong_FromLong ((long)y);
 }
@@ -480,7 +525,12 @@ FrameObj_name_field (FrameObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t index = (uint32_t)index_raw;
-  int      _rc   = dp_frame_name_field (self->handle, index, name);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_frame_name_field (self->handle, index, name);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -528,7 +578,12 @@ FrameObj_add_derived (FrameObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   size_t bits = (size_t)bits_raw;
-  int    _rc  = dp_frame_add_derived (self->handle, name, bits);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_frame_add_derived (self->handle, name, bits);
   if (_rc < 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -575,7 +630,12 @@ FrameObj_add_data (FrameObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   size_t len = (size_t)len_raw;
-  int    _rc = dp_frame_add_data (self->handle, name, len);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_frame_add_data (self->handle, name, len);
   if (_rc < 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -624,6 +684,11 @@ FrameObj_add_stage_over (FrameObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t unit_bits = (uint32_t)unit_bits_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_frame_add_stage_over (self->handle, kind, first, last, depth,
                                      unit_bits);
   if (_rc < 0)
@@ -641,6 +706,11 @@ FrameObj_add_stage_over (FrameObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 FrameObj_build (FrameObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -721,7 +791,14 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (rx_bits_arr);
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (rx_bits_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax = dp_frame_deframe_max_out (
           self->handle, (size_t)PyArray_SIZE (rx_bits_arr));
       size_t _min_cap = _omax;
@@ -731,6 +808,13 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (rx_bits_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (rx_bits_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out
@@ -763,6 +847,12 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (rx_bits_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (rx_bits_arr);
   size_t _cap  = dp_frame_deframe_max_out (self->handle,
                                            (size_t)PyArray_SIZE (rx_bits_arr));
@@ -784,7 +874,14 @@ FrameObj_deframe (FrameObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (rx_bits_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out
       = dp_frame_deframe (self->handle, rx_bits, rx_bits_len, _d0, _cap);
   Py_DECREF (rx_bits_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -866,6 +963,12 @@ FrameObj_check (FrameObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
     }
+  if (!self->handle)
+    {
+      Py_DECREF (rx_bits_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -904,6 +1007,11 @@ FrameObj_n_fields (FrameObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t y = dp_frame_n_fields (self->handle);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -911,6 +1019,11 @@ FrameObj_n_fields (FrameObject *self, PyObject *Py_UNUSED (ignored))
 static PyObject *
 FrameObj_n_stages (FrameObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -953,6 +1066,11 @@ FrameObj_field_off (FrameObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   size_t i = (size_t)i_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t y = dp_frame_field_off (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -990,6 +1108,11 @@ FrameObj_field_bits (FrameObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   size_t i = (size_t)i_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t y = dp_frame_field_bits (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -1027,6 +1150,11 @@ FrameObj_stage_first (FrameObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   size_t i = (size_t)i_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t y = dp_frame_stage_first (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -1064,6 +1192,11 @@ FrameObj_stage_bits (FrameObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   size_t i = (size_t)i_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t y = dp_frame_stage_bits (self->handle, i);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -2092,7 +2225,8 @@ static PyTypeObject FrameObjType = {
     "carries\n"
     "    none.\n"
     "crc : Literal[\"none\", \"crc16\"], default \"none\"\n"
-    "    Enum index; 0=none, 1=crc16 over the payload.\n"
+    "    `crc16` covers the payload with a CRC-16; `none` adds no check.\n"
+    "    One of ``\"none\"``, ``\"crc16\"``.\n"
     "\n"
     "Raises\n"
     "------\n"

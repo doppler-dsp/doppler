@@ -190,6 +190,12 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
     }
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
   acq_result_t results[1024];
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -297,6 +303,11 @@ AcquisitionObj_configure_search_raw (AcquisitionObject *self, PyObject *args,
       Py_DECREF (_ix);
     }
   size_t n_noncoh = (size_t)n_noncoh_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_acq_configure_search_raw (self->handle, doppler_bins, n_noncoh);
   if (_rc != 0)
     {
@@ -340,8 +351,13 @@ AcquisitionObj_set_max_peaks (AcquisitionObject *self, PyObject *args,
         }
       Py_DECREF (_ix);
     }
-  size_t n   = (size_t)n_raw;
-  int    _rc = dp_acq_set_max_peaks (self->handle, n);
+  size_t n = (size_t)n_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_acq_set_max_peaks (self->handle, n);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
@@ -365,6 +381,11 @@ AcquisitionObj_set_carrier_freq_hz (AcquisitionObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist,
                                     &carrier_freq_hz))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_acq_set_carrier_freq_hz (self->handle, carrier_freq_hz);
   if (_rc != 0)
     {
@@ -388,6 +409,11 @@ AcquisitionObj_set_threads (AcquisitionObject *self, PyObject *args,
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "i", _kwlist, &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_acq_set_threads (self->handle, n);
   if (_rc != 0)
     {
@@ -424,7 +450,17 @@ AcquisitionObj_set_telemetry (AcquisitionObject *self, PyObject *args,
           Py_DECREF (tlm_cap);
           tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
           if (!tlm_cap)
-            return NULL;
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
         }
       tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
                                               "doppler.telemetry.dp_tlm");
@@ -440,7 +476,12 @@ AcquisitionObj_set_telemetry (AcquisitionObject *self, PyObject *args,
       return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = dp_acq_set_telemetry (self->handle, tlm, prefix, decim);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_acq_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
@@ -488,7 +529,13 @@ AcquisitionObj_surface (AcquisitionObject *self, PyObject *args,
     }
   float *out     = (float *)PyArray_DATA (out_arr);
   size_t out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t y       = dp_acq_surface (self->handle, out, out_len);
+  if (!self->handle)
+    {
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = dp_acq_surface (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -526,7 +573,13 @@ AcquisitionObj_surface_doppler_hz (AcquisitionObject *self, PyObject *args,
     }
   double *out     = (double *)PyArray_DATA (out_arr);
   size_t  out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t  y       = dp_acq_surface_doppler_hz (self->handle, out, out_len);
+  if (!self->handle)
+    {
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = dp_acq_surface_doppler_hz (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -564,7 +617,13 @@ AcquisitionObj_surface_chip_phase (AcquisitionObject *self, PyObject *args,
     }
   double *out     = (double *)PyArray_DATA (out_arr);
   size_t  out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t  y       = dp_acq_surface_chip_phase (self->handle, out, out_len);
+  if (!self->handle)
+    {
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = dp_acq_surface_chip_phase (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -602,7 +661,13 @@ AcquisitionObj_surface_complex (AcquisitionObject *self, PyObject *args,
     }
   float _Complex *out     = (float _Complex *)PyArray_DATA (out_arr);
   size_t          out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t          y = dp_acq_surface_complex (self->handle, out, out_len);
+  if (!self->handle)
+    {
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = dp_acq_surface_complex (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -685,6 +750,12 @@ AcquisitionObj_block_prompt (AcquisitionObject *self, PyObject *args,
     }
   float _Complex *out     = (float _Complex *)PyArray_DATA (out_arr);
   size_t          out_len = (size_t)PyArray_SIZE (out_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t y = dp_acq_block_prompt (self->handle, tile, col, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
@@ -723,7 +794,13 @@ AcquisitionObj_block_raw (AcquisitionObject *self, PyObject *args,
     }
   float _Complex *out     = (float _Complex *)PyArray_DATA (out_arr);
   size_t          out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t          y       = dp_acq_block_raw (self->handle, out, out_len);
+  if (!self->handle)
+    {
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = dp_acq_block_raw (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -2100,7 +2177,7 @@ static PyTypeObject AcquisitionObjType = {
     "    Target detection probability (0,1).\n"
     "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
     "\"mean\"\n"
-    "    CFAR mode index: 0=mean, 1=median, 2=min, 3=max.\n"
+    "    One of ``\"mean\"``, ``\"median\"``, ``\"min\"``, ``\"max\"``.\n"
     "code_only_epochs : int, default 1\n"
     "    Whole code-only epochs a waveform's code-only window holds at any "
     "chip\n"

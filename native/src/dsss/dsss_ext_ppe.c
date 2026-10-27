@@ -138,6 +138,12 @@ PolynomialPhaseEstimatorObj_estimate (PolynomialPhaseEstimatorObject *self,
           return NULL;
         }
     }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */

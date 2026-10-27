@@ -103,13 +103,13 @@ def test_annotate_refuses_where_rows_would_be_dropped(tmp_path, scene):
 def test_annotate_refuses_a_non_composer(tmp_path):
     """The scene is required (jm gh-2360, `required = true`), so None is
     refused at the binding, naming the param, and never reaches C. Any other
-    non-Composer fails the capsule unwrap. That raises AttributeError today,
-    like every capsule param (just-buildit/just-makeit#2355 asks for
-    TypeError)."""
+    non-Composer is refused at the capsule unwrap with a TypeError that
+    names the param and the capsule (just-buildit/just-makeit#2355, jm
+    0.112.0; it was AttributeError before)."""
     with Writer(tmp_path / "y.sigmf-data", file_type="sigmf", fs=FS) as w:
         with pytest.raises(TypeError, match="scene is required"):
             w.annotate(None)
-        with pytest.raises(AttributeError):
+        with pytest.raises(TypeError, match=r"^scene must be the .* capsule"):
             w.annotate(object())
 
 

@@ -181,6 +181,12 @@ CarrierAcquisitionObj_steps (CarrierAcquisitionObject *self, PyObject *args,
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_carrier_acq_steps (self->handle, x, x_len);
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
@@ -190,6 +196,11 @@ static PyObject *
 CarrierAcquisitionObj_reset (CarrierAcquisitionObject *self,
                              PyObject                 *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -558,9 +569,10 @@ static PyTypeObject CarrierAcquisitionObjType = {
     "    PSD zero-pad factor (>= 1); see psd_core.h.\n"
     "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\"], default "
     "\"hann\"\n"
-    "    \"hann\" (the default, and the window the threshold was fit at), "
-    "\"kaiser\"\n"
-    "    or \"blackman-harris\".\n"
+    "    The search window. `hann` is the default and the window the "
+    "detection\n"
+    "    threshold was fit at.\n"
+    "    One of ``\"hann\"``, ``\"kaiser\"``, ``\"blackman-harris\"``.\n"
     "\n"
     "    - ``\"hann\"`` — Hann: the default.\n"
     "    - ``\"kaiser\"`` — Kaiser, shaped by `beta`.\n"

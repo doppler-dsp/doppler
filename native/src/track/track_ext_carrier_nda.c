@@ -148,7 +148,14 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_carrier_nda_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -159,6 +166,13 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -199,6 +213,12 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_carrier_nda_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -220,6 +240,13 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -282,7 +309,17 @@ CarrierNdaObj_set_telemetry (CarrierNdaObject *self, PyObject *args,
           Py_DECREF (tlm_cap);
           tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
           if (!tlm_cap)
-            return NULL;
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
         }
       tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
                                               "doppler.telemetry.dp_tlm");
@@ -298,6 +335,11 @@ CarrierNdaObj_set_telemetry (CarrierNdaObject *self, PyObject *args,
       return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_carrier_nda_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
@@ -349,6 +391,11 @@ CarrierNdaObj_configure_lock (CarrierNdaObject *self, PyObject *args,
       return NULL;
     }
   uint32_t n_down = (uint32_t)n_down_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_carrier_nda_configure_lock (self->handle, up_thresh, down_thresh, n_up,
                                  n_down);
   Py_RETURN_NONE;
@@ -357,6 +404,11 @@ CarrierNdaObj_configure_lock (CarrierNdaObject *self, PyObject *args,
 static PyObject *
 CarrierNdaObj_reset (CarrierNdaObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");

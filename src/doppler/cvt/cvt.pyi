@@ -797,7 +797,7 @@ class U8ToF32:
     Parameters
     ----------
     mode : Literal["shift", "midpoint"], default "shift"
-        mode constructor parameter.
+        One of ``"shift"``, ``"midpoint"``.
 
     Examples
     --------

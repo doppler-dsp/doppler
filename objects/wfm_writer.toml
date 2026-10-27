@@ -69,7 +69,7 @@ required = true
 name = "file_type"
 type = "enum:ftype"
 default = "raw"
-
+doc = 'The container: `raw` is headerless interleaved I/Q, `csv` one `I,Q` line per sample, `blue` the self-describing X-Midas/REDHAWK type-1000 file, `sigmf` a SigMF recording. BLUE and SigMF record `fs`/`fc`/`t0` in the capture itself; raw and CSV have nowhere to put them and keep them in the `sidecar` instead.'
 # The wire vocabulary is the project's [[enum]] tables, not a list spelled out
 # here: this param repeated the FIVE complex names while stype has TEN (the real
 # types drop Q, doppler#1032), so the binding the manifest described accepted
@@ -78,11 +78,12 @@ default = "raw"
 name = "sample_type"
 type = "enum:stype"
 default = "cf32"
-
+doc = 'The wire type. The integer types quantise +/-1.0 to full scale and can clip: see track_clipping() and peak_dbfs.'
 [[wfm_writer.init_params]]
 name = "endian"
 type = "enum:endian"
 default = "le"
+doc = "Byte order of the samples on disk; CSV is text and ignores it."
 
 [[wfm_writer.init_params]]
 name = "fc"

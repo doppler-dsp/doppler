@@ -170,7 +170,17 @@ MpskReceiverRObj_set_telemetry (MpskReceiverRObject *self, PyObject *args,
           Py_DECREF (tlm_cap);
           tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
           if (!tlm_cap)
-            return NULL;
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
         }
       tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
                                               "doppler.telemetry.dp_tlm");
@@ -186,6 +196,11 @@ MpskReceiverRObj_set_telemetry (MpskReceiverRObject *self, PyObject *args,
       return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_mpsk_receiver_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
@@ -206,6 +221,11 @@ static PyObject *
 MpskReceiverRObj_reset (MpskReceiverRObject *self,
                         PyObject            *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -274,7 +294,14 @@ MpskReceiverRObj_steps (MpskReceiverRObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_mpsk_receiver_steps_real_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -285,6 +312,13 @@ MpskReceiverRObj_steps (MpskReceiverRObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -325,6 +359,12 @@ MpskReceiverRObj_steps (MpskReceiverRObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_mpsk_receiver_steps_real_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -346,6 +386,13 @@ MpskReceiverRObj_steps (MpskReceiverRObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -440,7 +487,14 @@ MpskReceiverRObj_bits (MpskReceiverRObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_mpsk_receiver_bits_real_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -451,6 +505,13 @@ MpskReceiverRObj_bits (MpskReceiverRObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -491,6 +552,12 @@ MpskReceiverRObj_bits (MpskReceiverRObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_mpsk_receiver_bits_real_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -512,6 +579,13 @@ MpskReceiverRObj_bits (MpskReceiverRObject *self, PyObject *args,
       return NULL;
     }
   uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -1388,7 +1462,7 @@ static PyTypeObject MpskReceiverRObjType = {
     "    (NDA arm dumps per symbol): the cascade's own outputs now feed the\n"
     "    carrier discriminator, so there is no separate arm to size.\n"
     "pulse : Literal[\"iandd\", \"rrc\"], default \"iandd\"\n"
-    "    As dp_mpsk_receiver_create().\n"
+    "    One of ``\"iandd\"``, ``\"rrc\"``.\n"
     "rrc_beta : float, default 0.35\n"
     "    As dp_mpsk_receiver_create().\n"
     "rrc_span : int, default 8\n"

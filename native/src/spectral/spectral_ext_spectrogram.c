@@ -253,6 +253,13 @@ SpectrogramObj_push (SpectrogramObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       /* nogil: GIL released across the pure-C kernel. Two calls on
        * one object may run at once only if its kernel allows it; a
        * teardown waits for a running call (gh-2272). */
@@ -308,6 +315,12 @@ SpectrogramObj_push (SpectrogramObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_spectrogram_push_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -328,6 +341,13 @@ SpectrogramObj_push (SpectrogramObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -439,7 +459,13 @@ SpectrogramObj_flush (SpectrogramObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_spectrogram_flush_max_out (self->handle);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
@@ -447,6 +473,12 @@ SpectrogramObj_flush (SpectrogramObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       int64_t _rc = dp_spectrogram_flush (
@@ -501,6 +533,11 @@ SpectrogramObj_flush (SpectrogramObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = dp_spectrogram_flush_max_out (self->handle);
   size_t _cap  = dp_spectrogram_flush_max_out (self->handle);
   (void)_need;
@@ -518,7 +555,13 @@ SpectrogramObj_flush (SpectrogramObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float  *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int64_t _rc = dp_spectrogram_flush (self->handle, _d0, _cap);
   if (_rc < 0)
     {
@@ -599,13 +642,23 @@ SpectrogramObj_rows_for (SpectrogramObject *self, PyObject *args,
       Py_DECREF (_ix);
     }
   size_t n_in = (size_t)n_in_raw;
-  size_t y    = dp_spectrogram_rows_for (self->handle, n_in);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = dp_spectrogram_rows_for (self->handle, n_in);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
 static PyObject *
 SpectrogramObj_reset (SpectrogramObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -1198,10 +1251,12 @@ static PyTypeObject SpectrogramObjType = {
     "    nfft would leave samples no row covers, so it is refused.\n"
     "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\", \"rect\"], "
     "default \"hann\"\n"
-    "    The window: \"hann\", \"kaiser\", \"blackman-harris\" or \"rect\", "
-    "as PSD takes\n"
-    "    them. It also refuses a window that sums to zero at this nfft (the\n"
-    "    symmetric Hann at nfft = 2).\n"
+    "    The window every frame is shaped by, as PSD takes them. A window "
+    "that\n"
+    "    sums to zero at this nfft (the symmetric Hann at nfft = 2) is "
+    "refused.\n"
+    "    One of ``\"hann\"``, ``\"kaiser\"``, ``\"blackman-harris\"``, "
+    "``\"rect\"``.\n"
     "\n"
     "    - ``\"hann\"`` — Hann: the default.\n"
     "    - ``\"kaiser\"`` — Kaiser, shaped by `beta`.\n"
@@ -1211,9 +1266,10 @@ static PyTypeObject SpectrogramObjType = {
     "beta : float, default 0.0\n"
     "    Kaiser beta (ignored for the other windows).\n"
     "mode : Literal[\"power\", \"db\"], default \"power\"\n"
-    "    Row units: \"power\" (linear rows, the default) or \"db\" (dBFS "
-    "rows, asked\n"
-    "    for by name). Any other value is refused.\n"
+    "    The row units: `power` is linear against full scale (the default), "
+    "`db`\n"
+    "    is dBFS.\n"
+    "    One of ``\"power\"``, ``\"db\"``.\n"
     "\n"
     "Raises\n"
     "------\n"

@@ -36,7 +36,7 @@ default = "1.0"
 name = "window"
 type = "enum:psd_window"
 default = "hann"
-
+doc = 'The window each segment is shaped by. `rect` is no taper: best resolution, worst leakage.'
 [[psd.init_params]]
 name = "beta"
 type = "float"

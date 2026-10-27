@@ -30,20 +30,17 @@ class Reader:
         resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta`
         sidecar the same way.
     sample_type : Literal["auto", "cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"], default "auto"
-        the wire sample type, used only as a HINT for the headerless file types
-        (raw, CSV) -- BLUE and SigMF carry their own and ignore it. The five
-        complex names `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"` or the
-        five real ones `"f32"`, `"f64"`, `"i32"`, `"i16"`, `"i8"` from Python;
-        the matching 0..9 from C. A real hint is the only way to say that a
-        headerless file carries one component per sample rather than
-        interleaved I/Q. `"auto"` (::WFM_READER_STYPE_AUTO from C) is the
-        DEFAULT and says the caller has no opinion: a headerless capture takes
-        its type, byte order and rate from the `<path>.sigmf-meta` sidecar this
-        library's own writer leaves beside it, falling back to cf32/le when
-        there is none. A NAMED type still wins over the sidecar, so a stale one
-        can be overridden. A wrong hint does not fail, and
-        ::dp_wfm_reader_get_trailing_bytes is NOT the way to notice -- see what
-        it says about itself.
+        The wire sample type, used only as a HINT for the headerless file types
+        (raw, CSV); BLUE and SigMF carry their own and ignore it. A real type
+        is the only way to say that a headerless file carries one component per
+        sample rather than interleaved I/Q. `auto`, the default, names no type:
+        a headerless capture takes its type, byte order and rate from the
+        `<path>.sigmf-meta` sidecar the writer of this library leaves beside
+        it, falling back to cf32/le when there is none. A named type still wins
+        over the sidecar, so a stale one can be overridden. A wrong hint does
+        not fail, and the trailing-bytes count is NOT the way to notice it.
+        One of ``"auto"``, ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``,
+        ``"ci8"``, ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
 
         - ``"auto"`` — the caller said nothing.
         - ``"cf32"`` — interleaved float32 I/Q.
@@ -57,8 +54,8 @@ class Reader:
         - ``"i16"`` — real int16.
         - ``"i8"`` — real int8.
     endian : Literal["le", "be"], default "le"
-        byte order, likewise a hint that only headerless raw uses; `"le"` or
-        `"be"` from Python, 0 or 1 from C.
+        Byte order, likewise a hint that only headerless raw uses.
+        One of ``"le"``, ``"be"``.
 
     Raises
     ------

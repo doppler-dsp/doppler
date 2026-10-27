@@ -166,6 +166,11 @@ AccQ8_get (AccQ8Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int32_t y = dp_acc_q8_get (self->handle);
   return PyLong_FromLong ((long)y);
 }
@@ -173,6 +178,11 @@ AccQ8_get (AccQ8Object *self, PyObject *Py_UNUSED (ignored))
 static PyObject *
 AccQ8_dump (AccQ8Object *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -212,6 +222,13 @@ AccQ8_madd (AccQ8Object *self, PyObject *args, PyObject *kwds)
     }
   const int8_t *b     = (const int8_t *)PyArray_DATA (b_arr);
   size_t        b_len = (size_t)PyArray_SIZE (b_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (a_arr);
+      Py_DECREF (b_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_q8_madd (self->handle, a, a_len, b, b_len);
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);

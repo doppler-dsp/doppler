@@ -195,7 +195,14 @@ MatchedDdcrObj_execute (MatchedDdcrObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_ddcr_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -206,6 +213,13 @@ MatchedDdcrObj_execute (MatchedDdcrObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -246,6 +260,12 @@ MatchedDdcrObj_execute (MatchedDdcrObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_ddcr_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -267,6 +287,13 @@ MatchedDdcrObj_execute (MatchedDdcrObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -363,7 +390,14 @@ MatchedDdcrObj_execute_ctrl (MatchedDdcrObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_ddcr_execute_ctrl_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -374,6 +408,13 @@ MatchedDdcrObj_execute_ctrl (MatchedDdcrObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -415,6 +456,12 @@ MatchedDdcrObj_execute_ctrl (MatchedDdcrObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_ddcr_execute_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -437,6 +484,13 @@ MatchedDdcrObj_execute_ctrl (MatchedDdcrObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -524,7 +578,13 @@ MatchedDdcrObj_execute_ctrl_push (MatchedDdcrObject *self, PyObject *args,
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax = dp_ddcr_execute_ctrl_push_max_out (self->handle);
       size_t _min_cap
           = _omax > dp_ddcr_execute_ctrl_push_max_out (self->handle)
@@ -535,6 +595,12 @@ MatchedDdcrObj_execute_ctrl_push (MatchedDdcrObject *self, PyObject *args,
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_ddcr_execute_ctrl_push (
@@ -566,6 +632,11 @@ MatchedDdcrObj_execute_ctrl_push (MatchedDdcrObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = dp_ddcr_execute_ctrl_push_max_out (self->handle);
   size_t _cap  = dp_ddcr_execute_ctrl_push_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -586,8 +657,14 @@ MatchedDdcrObj_execute_ctrl_push (MatchedDdcrObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out        = dp_ddcr_execute_ctrl_push (self->handle, x, rate_ctrl,
-                                                   freq_ctrl, _d0, _cap);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_ddcr_execute_ctrl_push (self->handle, x, rate_ctrl,
+                                            freq_ctrl, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -616,6 +693,11 @@ MatchedDdcrObj_execute_ctrl_push (MatchedDdcrObject *self, PyObject *args,
 static PyObject *
 MatchedDdcrObj_reset (MatchedDdcrObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -1083,8 +1165,7 @@ static PyTypeObject MatchedDdcrObjType = {
     "rate : float, default 0.25\n"
     "    Total output/input rate; must be in (0, 0.5).\n"
     "pulse : Literal[\"iandd\", \"rrc\"], default \"rrc\"\n"
-    "    RC_PULSE_RRC / RC_PULSE_IANDD (RC_PULSE_NONE is invalid here — use\n"
-    "    dp_ddcr_create()).\n"
+    "    One of ``\"iandd\"``, ``\"rrc\"``.\n"
     "beta : float, default 0.35\n"
     "    RRC roll-off in `[0, 1]` (ignored for the rectangle).\n"
     "span : int, default 8\n"

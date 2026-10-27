@@ -104,6 +104,11 @@ FrameMeterObj_add (FrameMeterObject *self, PyObject *args, PyObject *kwds)
   int          crc       = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ii", _kwlist, &sync_ok, &crc))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_frame_meter_add (self->handle, sync_ok, crc);
   Py_RETURN_NONE;
 }
@@ -139,6 +144,11 @@ FrameMeterObj_fer (FrameMeterObject *self, PyObject *Py_UNUSED (ignored))
           = PyStructSequence_NewType (&FrameMeterObj_fer_desc);
       if (!FrameMeterObj_fer_type)
         return NULL;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
   ber_interval_t _r = dp_frame_meter_fer (self->handle);
   PyObject      *_o = PyStructSequence_New (FrameMeterObj_fer_type);
@@ -187,6 +197,11 @@ FrameMeterObj_sync_miss (FrameMeterObject *self, PyObject *Py_UNUSED (ignored))
           = PyStructSequence_NewType (&FrameMeterObj_sync_miss_desc);
       if (!FrameMeterObj_sync_miss_type)
         return NULL;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
   ber_interval_t _r = dp_frame_meter_sync_miss (self->handle);
   PyObject      *_o = PyStructSequence_New (FrameMeterObj_sync_miss_type);

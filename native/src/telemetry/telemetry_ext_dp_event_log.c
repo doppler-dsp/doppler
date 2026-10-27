@@ -110,6 +110,11 @@ EventLogObj_field (EventLogObject *self, PyObject *args, PyObject *kwds)
   double       value     = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "sd", _kwlist, &name, &value))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_event_log_field (self->handle, name, value);
   if (_rc != 0)
     {
@@ -136,6 +141,11 @@ EventLogObj_field_str (EventLogObject *self, PyObject *args, PyObject *kwds)
   const char  *value     = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ss", _kwlist, &name, &value))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_event_log_field_str (self->handle, name, value);
   if (_rc != 0)
     {
@@ -212,8 +222,13 @@ EventLogObj_append (EventLogObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   uint64_t sample_count = (uint64_t)sample_count_raw;
-  int      _rc = dp_event_log_append (self->handle, sample_start, label,
-                                      sample_count, freq_hz, bandwidth_hz);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_event_log_append (self->handle, sample_start, label,
+                                 sample_count, freq_hz, bandwidth_hz);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_OSError, "%s (rc=%lld)",
@@ -261,6 +276,11 @@ EventLogObj_finalize (EventLogObject *self, PyObject *args, PyObject *kwds)
                     endian);
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_event_log_finalize (self->handle, meta_path, _arg_sample_type,
                                    _arg_endian, fs, t0);
   if (_rc != 0)
@@ -287,6 +307,11 @@ EventLogObj_set_dataset (EventLogObject *self, PyObject *args, PyObject *kwds)
   const char  *name      = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s", _kwlist, &name))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_event_log_set_dataset (self->handle, name);
   if (_rc != 0)
     {
@@ -310,6 +335,11 @@ EventLogObj_set_telemetry (EventLogObject *self, PyObject *args,
   const char  *path      = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s", _kwlist, &path))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_event_log_set_telemetry (self->handle, path);
   if (_rc != 0)
     {
@@ -323,6 +353,11 @@ EventLogObj_set_telemetry (EventLogObject *self, PyObject *args,
 static PyObject *
 EventLogObj_close (EventLogObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -559,9 +594,13 @@ static PyMethodDef EventLogObj_methods[] = {
     "meta_path : str\n"
     "    Sidecar to write, conventionally `<base>.sigmf-meta`.\n"
     "sample_type : str\n"
-    "    Dataset wire type (wavegen order) → `core:datatype`.\n"
+    "    The dataset wire type, recorded as SigMF `core:datatype`.\n"
+    "\n"
+    "    One of ``\"cf32\"``, ``\"cf64\"``, ``\"ci32\"``, ``\"ci16\"``, "
+    "``\"ci8\"``, ``\"f32\"``, ``\"f64\"``, ``\"i32\"``, ``\"i16\"``, "
+    "``\"i8\"``.\n"
     "endian : str\n"
-    "    0 little, 1 big.\n"
+    "    One of ``\"le\"``, ``\"be\"``.\n"
     "fs : float\n"
     "    Sample rate (Hz), or 0.0 to leave `core:sample_rate` unstated. The\n"
     "    dataset and the telemetry file come from dp_event_log_set_dataset()\n"

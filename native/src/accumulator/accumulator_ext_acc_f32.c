@@ -139,6 +139,11 @@ AccF32_get (AccF32Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   float y = dp_acc_f32_get (self->handle);
   return PyFloat_FromDouble ((double)y);
 }
@@ -146,6 +151,11 @@ AccF32_get (AccF32Object *self, PyObject *Py_UNUSED (ignored))
 static PyObject *
 AccF32_dump (AccF32Object *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -185,6 +195,13 @@ AccF32_madd (AccF32Object *self, PyObject *args, PyObject *kwds)
     }
   const float *h     = (const float *)PyArray_DATA (h_arr);
   size_t       h_len = (size_t)PyArray_SIZE (h_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (h_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_f32_madd (self->handle, x, x_len, h, h_len);
   Py_DECREF (x_arr);
   Py_DECREF (h_arr);
@@ -211,6 +228,12 @@ AccF32_add2d (AccF32Object *self, PyObject *args, PyObject *kwds)
     }
   const float *x     = (const float *)PyArray_DATA (x_arr);
   size_t       x_len = (size_t)PyArray_SIZE (x_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_f32_add2d (self->handle, x, x_len);
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
@@ -246,6 +269,13 @@ AccF32_madd2d (AccF32Object *self, PyObject *args, PyObject *kwds)
     }
   const float *h     = (const float *)PyArray_DATA (h_arr);
   size_t       h_len = (size_t)PyArray_SIZE (h_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (h_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_f32_madd2d (self->handle, x, x_len, h, h_len);
   Py_DECREF (x_arr);
   Py_DECREF (h_arr);

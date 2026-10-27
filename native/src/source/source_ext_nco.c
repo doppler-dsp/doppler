@@ -122,7 +122,13 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_nco_steps_u32_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
@@ -130,6 +136,12 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_nco_steps_u32 (
@@ -160,6 +172,11 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_nco_steps_u32_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -178,8 +195,14 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  uint32_t *_d0   = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t    n_out = dp_nco_steps_u32 (self->handle, (size_t)n, _d0, _cap);
+  uint32_t *_d0 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_nco_steps_u32 (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -250,7 +273,13 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_nco_steps_u32_scaled_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
@@ -258,6 +287,12 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_nco_steps_u32_scaled (
@@ -288,6 +323,11 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_nco_steps_u32_scaled_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -308,7 +348,13 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t *_d0 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out  = dp_nco_steps_u32_scaled (self->handle, (size_t)n, _d0, _cap);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_nco_steps_u32_scaled (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -345,6 +391,11 @@ NCOObj_steps_u32_ovf (NCOObject *self, PyObject *args)
   Py_ssize_t n = 1;
   if (!PyArg_ParseTuple (args, "|n", &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_nco_steps_u32_ovf_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -368,7 +419,14 @@ NCOObj_steps_u32_ovf (NCOObject *self, PyObject *args)
     }
   uint32_t *_d0 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
   uint8_t  *_d1 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr1);
-  size_t    n_out
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out
       = dp_nco_steps_u32_ovf (self->handle, (size_t)n, _d0, _d1, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -468,7 +526,14 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (ctrl_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_nco_steps_u32_ctrl_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
                             ? _omax
@@ -479,6 +544,13 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (ctrl_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (ctrl_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out
@@ -511,6 +583,12 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (ctrl_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = dp_nco_steps_u32_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -532,7 +610,14 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t *_d0 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t    n_out
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (ctrl_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out
       = dp_nco_steps_u32_ctrl (self->handle, ctrl, ctrl_len, _d0, _cap);
   Py_DECREF (ctrl_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -618,7 +703,14 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (ctrl_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_nco_steps_u32_scaled_ctrl_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
                             ? _omax
@@ -629,6 +721,13 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (ctrl_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (ctrl_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_nco_steps_u32_scaled_ctrl (
@@ -661,6 +760,12 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (ctrl_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = dp_nco_steps_u32_scaled_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -683,7 +788,14 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t *_d0 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t    n_out
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (ctrl_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out
       = dp_nco_steps_u32_scaled_ctrl (self->handle, ctrl, ctrl_len, _d0, _cap);
   Py_DECREF (ctrl_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -731,8 +843,14 @@ NCOObj_steps_u32_ovf_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   const double *ctrl     = (const double *)PyArray_DATA (ctrl_arr);
   size_t        ctrl_len = (size_t)PyArray_SIZE (ctrl_arr);
-  size_t        _need    = (size_t)PyArray_SIZE (ctrl_arr);
-  size_t        _cap     = dp_nco_steps_u32_ovf_ctrl_max_out (self->handle);
+  if (!self->handle)
+    {
+      Py_DECREF (ctrl_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
+  size_t _cap  = dp_nco_steps_u32_ovf_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   size_t _adim_need = (size_t)(_cap);
@@ -757,8 +875,16 @@ NCOObj_steps_u32_ovf_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   uint32_t *_d0 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
   uint8_t  *_d1 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr1);
-  size_t n_out  = dp_nco_steps_u32_ovf_ctrl (self->handle, ctrl, ctrl_len, _d0,
-                                             _d1, _cap);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (ctrl_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_nco_steps_u32_ovf_ctrl (self->handle, ctrl, ctrl_len, _d0,
+                                            _d1, _cap);
   Py_DECREF (ctrl_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {

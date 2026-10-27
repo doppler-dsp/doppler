@@ -1141,8 +1141,7 @@ class MatchedRateConverter:
         Non-zero to correct CIC passband droop (folded into the bank here, not
         appended as a stage).
     pulse : Literal["iandd", "rrc"], default "rrc"
-        RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid here — use
-        dp_RateConverter_create() for a plain conversion.
+        One of ``"iandd"``, ``"rrc"``.
     beta : float, default 0.35
         RRC roll-off in `[0, 1]` (ignored for the rectangle).
     span : int, default 8
@@ -1536,7 +1535,7 @@ class Farrow:
     Parameters
     ----------
     order : Literal["linear", "parabolic", "cubic"], default "cubic"
-        0 = linear, 1 = parabolic, 2 = cubic.
+        One of ``"linear"``, ``"parabolic"``, ``"cubic"``.
 
     Examples
     --------

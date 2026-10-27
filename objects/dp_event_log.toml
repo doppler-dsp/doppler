@@ -106,7 +106,7 @@ params = [
   # _build_params_parse. The cost is that finalize takes `str` where the
   # constructor takes os.PathLike. Filed upstream.
   { name = "meta_path", type = "const char *" },
-  { name = "sample_type", type = "int", enum = "stype", default = "cf32" },
+  { name = "sample_type", type = "int", enum = "stype", default = "cf32", doc = "The dataset wire type, recorded as SigMF `core:datatype`." },
   { name = "endian", type = "int", enum = "endian", default = "le" },
   { name = "fs", type = "double", default = "0.0" },
   { name = "t0", type = "double", default = "0.0" },

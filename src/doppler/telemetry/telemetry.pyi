@@ -1238,9 +1238,11 @@ class EventLog:
         meta_path : str
             Sidecar to write, conventionally `<base>.sigmf-meta`.
         sample_type : str
-            Dataset wire type (wavegen order) → `core:datatype`.
+            The dataset wire type, recorded as SigMF `core:datatype`.
+
+            One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``, ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
         endian : str
-            0 little, 1 big.
+            One of ``"le"``, ``"be"``.
         fs : float
             Sample rate (Hz), or 0.0 to leave `core:sample_rate` unstated. The
             dataset and the telemetry file come from dp_event_log_set_dataset()

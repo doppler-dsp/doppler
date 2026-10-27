@@ -375,6 +375,11 @@ _SynthEngine_set_chirp_span (_SynthEngineObject *self, PyObject *args,
       Py_DECREF (_ix);
     }
   size_t span = (size_t)span_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_wfm_synth_set_chirp_span (self->handle, span);
   Py_RETURN_NONE;
 }
@@ -450,6 +455,13 @@ _SynthEngine_prod (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       /* nogil: GIL released across the pure-C kernel. Two calls on
        * one object may run at once only if its kernel allows it; a
        * teardown waits for a running call (gh-2272). */
@@ -470,6 +482,13 @@ _SynthEngine_prod (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
   if (!out)
     {
       Py_DECREF (in_arr);
+      return NULL;
+    }
+  if (!self->handle)
+    {
+      Py_DECREF (out);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
   /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -1033,17 +1052,12 @@ static PyTypeObject _SynthEngineType = {
     "----------\n"
     "type : Literal[\"tone\", \"noise\", \"pn\", \"bpsk\", \"qpsk\", "
     "\"chirp\", \"bits\", \"symbols\", \"dsss\"], default \"tone\"\n"
-    "    Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, "
-    "6=bits,\n"
-    "    7=symbols, 8=dsss. The Python binding accepts strings\n"
-    "    "
-    "\"tone\"|\"noise\"|\"pn\"|\"bpsk\"|\"qpsk\"|\"chirp\"|\"bits\"|"
-    "\"symbols\"|\"dsss\". For\n"
-    "    \"bits\" attach the pattern with dp_wfm_synth_set_bits(); for "
-    "\"symbols\"\n"
-    "    attach the complex stream with dp_wfm_synth_set_symbols(); for "
-    "\"dsss\"\n"
-    "    attach the burst with dp_wfm_synth_set_dsss_chips() after create().\n"
+    "    The waveform. For `bits` attach the pattern with set_bits(), for\n"
+    "    `symbols` the complex stream with set_symbols(), and for `dsss` the\n"
+    "    burst with set_dsss_chips(), after construction.\n"
+    "    One of ``\"tone\"``, ``\"noise\"``, ``\"pn\"``, ``\"bpsk\"``, "
+    "``\"qpsk\"``,\n"
+    "    ``\"chirp\"``, ``\"bits\"``, ``\"symbols\"``, ``\"dsss\"``.\n"
     "fs : float, default 1000000.0\n"
     "    Sample rate in Hz. Sets the carrier frequency normalisation and the\n"
     "    noise bandwidth. Default 1 000 000.0.\n"
@@ -1058,9 +1072,11 @@ static PyTypeObject _SynthEngineType = {
     "    WFM_SYNTH_SNR_CLEAN (100) disable AWGN. Default 100.0.\n"
     "snr_mode : Literal[\"auto\", \"fs\", \"ebno\", \"esno\"], default "
     "\"auto\"\n"
-    "    SNR reference: 0=auto, 1=fs (full-band), 2=ebno, 3=esno. The Python\n"
-    "    binding accepts strings \"auto\"|\"fs\"|\"ebno\"|\"esno\". Default "
-    "0.\n"
+    "    What `snr` is referenced to: `fs` the full band, `ebno` Eb/N0, "
+    "`esno`\n"
+    "    Es/N0. `auto` is Es/N0 for bpsk/qpsk/dsss and full scale for the\n"
+    "    others.\n"
+    "    One of ``\"auto\"``, ``\"fs\"``, ``\"ebno\"``, ``\"esno\"``.\n"
     "seed : int, default 1\n"
     "    PRNG seed shared by AWGN and the PN LFSR. Default 1.\n"
     "sps : int, default 8\n"
@@ -1076,7 +1092,7 @@ static PyTypeObject _SynthEngineType = {
     "    polynomial for pn_length\" from the wfm_synth_mls_poly table. "
     "Default 0.\n"
     "lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    LFSR realization: PN_GALOIS (0) or PN_FIBONACCI (1).\n"
+    "    One of ``\"galois\"``, ``\"fibonacci\"``.\n"
     "f_end : float, default 0.0\n"
     "    Chirp end frequency in Hz (type=chirp only; ignored otherwise). "
     "With\n"

@@ -23,8 +23,9 @@ class CarrierAcquisition:
     zero_pad : int, default 4
         PSD zero-pad factor (>= 1); see psd_core.h.
     window : Literal["hann", "kaiser", "blackman-harris"], default "hann"
-        "hann" (the default, and the window the threshold was fit at), "kaiser"
-        or "blackman-harris".
+        The search window. `hann` is the default and the window the detection
+        threshold was fit at.
+        One of ``"hann"``, ``"kaiser"``, ``"blackman-harris"``.
 
         - ``"hann"`` — Hann: the default.
         - ``"kaiser"`` — Kaiser, shaped by `beta`.
@@ -326,7 +327,7 @@ class Acquisition:
     pd : float, default 0.9
         Target detection probability (0,1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
-        CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+        One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     code_only_epochs : int, default 1
         Whole code-only epochs a waveform's code-only window holds at any chip
         phase (floor(W_symbols * chips_per_symbol / sf) - 1; design §2.1) --
@@ -1335,7 +1336,7 @@ class BurstAcquisition:
     pd : float, default 0.9
         Target detection probability (0,1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
-        CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+        One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     doppler_rate : float, default 0.0
         Doppler rate in Hz/s (>= 0) that caps the coherent depth at
         `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no
@@ -1875,7 +1876,7 @@ class BurstCapture:
     pd : float, default 0.9
         Target detection probability, in (0, 1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
-        CFAR reference: 0=mean, 1=median, 2=min, 3=max.
+        One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     doppler_rate : float, default 0.0
         Doppler rate, Hz/s (>= 0), that caps the acquisition's coherent depth
         at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no
@@ -2651,7 +2652,7 @@ class PersistentBurstCapture:
     pd : float, default 0.9
         Target detection probability, in (0, 1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
-        CFAR reference: 0=mean, 1=median, 2=min, 3=max.
+        One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     doppler_rate : float, default 0.0
         Doppler rate, Hz/s (>= 0), that caps the acquisition's coherent depth
         at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no

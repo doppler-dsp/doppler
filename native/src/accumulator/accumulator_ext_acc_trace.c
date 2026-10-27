@@ -120,6 +120,12 @@ AccTraceObj_accumulate (AccTraceObject *self, PyObject *args, PyObject *kwds)
     }
   const float *p     = (const float *)PyArray_DATA (p_arr);
   size_t       p_len = (size_t)PyArray_SIZE (p_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (p_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -136,6 +142,11 @@ AccTraceObj_accumulate (AccTraceObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 AccTraceObj_reset (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -190,7 +201,13 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_acc_trace_value_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
@@ -198,6 +215,12 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_acc_trace_value (
@@ -233,6 +256,11 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_acc_trace_value_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -251,7 +279,13 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out = dp_acc_trace_value (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -646,7 +680,7 @@ static PyTypeObject AccTraceObjType = {
     "    holds; returns NULL otherwise.\n"
     "mode : Literal[\"mean\", \"exp\", \"maxhold\", \"minhold\"], default "
     "\"mean\"\n"
-    "    Reduction mode: \"mean\", \"exp\", \"maxhold\" or \"minhold\".\n"
+    "    One of ``\"mean\"``, ``\"exp\"``, ``\"maxhold\"``, ``\"minhold\"``.\n"
     "\n"
     "    - ``\"mean\"`` — Linear running mean of all frames.\n"
     "    - ``\"exp\"`` — Exponential moving average (alpha).\n"

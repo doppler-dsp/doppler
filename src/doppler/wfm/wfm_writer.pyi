@@ -24,17 +24,20 @@ class Writer:
         would have written a rate nobody supplied into a file that outlives the
         process.
     file_type : Literal["raw", "csv", "blue", "sigmf"], default "raw"
-        `"raw"` (headerless interleaved I/Q), `"csv"` (one `I,Q` line per
-        sample), `"blue"` (self-describing X-Midas/REDHAWK type-1000) or
-        `"sigmf"`. BLUE and SigMF record `fs`/`fc`/`t0` in the capture itself;
-        raw and CSV have nowhere to put them and keep them in the `sidecar`
-        instead.
+        The container: `raw` is headerless interleaved I/Q, `csv` one `I,Q`
+        line per sample, `blue` the self-describing X-Midas/REDHAWK type-1000
+        file, `sigmf` a SigMF recording. BLUE and SigMF record `fs`/`fc`/`t0`
+        in the capture itself; raw and CSV have nowhere to put them and keep
+        them in the `sidecar` instead.
+        One of ``"raw"``, ``"csv"``, ``"blue"``, ``"sigmf"``.
     sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"], default "cf32"
-        wire type: `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"`. The
-        integer types quantise ±1.0 to full scale and can clip -- see
-        track_clipping()/peak_dbfs.
+        The wire type. The integer types quantise +/-1.0 to full scale and can
+        clip: see track_clipping() and peak_dbfs.
+        One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``,
+        ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
     endian : Literal["le", "be"], default "le"
-        `"le"` or `"be"`; ignored for CSV, which is text.
+        Byte order of the samples on disk; CSV is text and ignores it.
+        One of ``"le"``, ``"be"``.
     fc : float, default 0.0
         centre frequency (Hz). BLUE records it as a `FREQ` keyword, SigMF as
         `captures[0]["core:frequency"]`, raw and CSV in the `sidecar`. 0.0

@@ -171,7 +171,14 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_symsync_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -182,6 +189,13 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -222,6 +236,12 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_symsync_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -243,6 +263,13 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -305,7 +332,17 @@ SymbolSyncObj_set_telemetry (SymbolSyncObject *self, PyObject *args,
           Py_DECREF (tlm_cap);
           tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
           if (!tlm_cap)
-            return NULL;
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
         }
       tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
                                               "doppler.telemetry.dp_tlm");
@@ -321,7 +358,12 @@ SymbolSyncObj_set_telemetry (SymbolSyncObject *self, PyObject *args,
       return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = dp_symsync_set_telemetry (self->handle, tlm, prefix, decim);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_symsync_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
@@ -351,6 +393,11 @@ SymbolSyncObj_configure (SymbolSyncObject *self, PyObject *args,
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_symsync_configure (self->handle, bn, zeta);
   if (_rc != 0)
     {
@@ -378,6 +425,11 @@ SymbolSyncObj_configure_lock (SymbolSyncObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dddd", _kwlist, &rolloff,
                                     &esno_min_db, &pfa, &pd))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_symsync_configure_lock (self->handle, rolloff, esno_min_db, pfa,
                                        pd);
   if (_rc != 0)
@@ -447,6 +499,11 @@ SymbolSyncObj_configure_lock_raw (SymbolSyncObject *self, PyObject *args,
       return NULL;
     }
   uint32_t n_down = (uint32_t)n_down_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_symsync_configure_lock_raw (self->handle, avgs, up_thresh, down_thresh,
                                  n_up, n_down);
   Py_RETURN_NONE;
@@ -455,6 +512,11 @@ SymbolSyncObj_configure_lock_raw (SymbolSyncObject *self, PyObject *args,
 static PyObject *
 SymbolSyncObj_reset (SymbolSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -1060,7 +1122,7 @@ static PyTypeObject SymbolSyncObjType = {
     "    zeta constructor parameter.\n"
     "order : Literal[\"linear\", \"parabolic\", \"cubic\"], default "
     "\"cubic\"\n"
-    "    order constructor parameter.\n"
+    "    One of ``\"linear\"``, ``\"parabolic\"``, ``\"cubic\"``.\n"
     "ted : Literal[\"gardner\", \"dttl\"], default \"gardner\"\n"
     "    Timing-error detector: \"gardner\" (blind, works for any "
     "constellation)\n"
@@ -1069,6 +1131,7 @@ static PyTypeObject SymbolSyncObjType = {
     "    lower self-noise near lock but degrades faster at low SNR. "
     "BPSK/QPSK\n"
     "    only -- invalid for 8PSK/QAM).\n"
+    "    One of ``\"gardner\"``, ``\"dttl\"``.\n"
     "\n"
     "Raises\n"
     "------\n"

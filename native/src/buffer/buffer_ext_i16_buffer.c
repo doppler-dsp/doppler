@@ -183,7 +183,13 @@ I16BufferObj_write (I16BufferObject *self, PyObject *args, PyObject *kwds)
   PyArrayObject   *x_arr = (PyArrayObject *)x_obj;
   const dp_iq16_t *x     = (const dp_iq16_t *)PyArray_DATA (x_arr);
   size_t           x_len = (size_t)PyArray_SIZE (x_arr);
-  bool             y     = dp_i16_write_view (self->handle, x, x_len);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  bool y = dp_i16_write_view (self->handle, x, x_len);
   Py_DECREF (x_arr);
   return PyBool_FromLong ((long)(y));
 }
@@ -285,7 +291,13 @@ I16BufferObj_write_some (I16BufferObject *self, PyObject *args, PyObject *kwds)
   PyArrayObject   *x_arr = (PyArrayObject *)x_obj;
   const dp_iq16_t *x     = (const dp_iq16_t *)PyArray_DATA (x_arr);
   size_t           x_len = (size_t)PyArray_SIZE (x_arr);
-  size_t           y     = dp_i16_write_some_view (self->handle, x, x_len);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = dp_i16_write_some_view (self->handle, x, x_len);
   Py_DECREF (x_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -372,6 +384,11 @@ I16BufferObj_wait (I16BufferObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   size_t n = (size_t)n_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -517,7 +534,12 @@ I16BufferObj_peek (I16BufferObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t     n  = (size_t)n_raw;
+  size_t n = (size_t)n_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_iq16_t *_p = dp_i16_peek_view (self->handle, n);
   if (!_p)
     {
@@ -618,7 +640,12 @@ I16BufferObj_consume (I16BufferObject *self, PyObject *args, PyObject *kwds)
         }
     }
   self->_jm_borrowed = 0;
-  int _rc            = dp_i16_consume (self->handle, n);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_i16_consume (self->handle, n);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -638,6 +665,11 @@ I16BufferObj_close (I16BufferObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_i16_close (self->handle);
   Py_RETURN_NONE;
 }
@@ -651,6 +683,11 @@ I16BufferObj_reset (I16BufferObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   self->_jm_borrowed = 0;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_i16_reset (self->handle);
   Py_RETURN_NONE;
 }

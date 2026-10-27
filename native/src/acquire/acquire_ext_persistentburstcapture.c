@@ -253,7 +253,14 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax = dp_burst_capture_push_max_out (
           self->handle, (size_t)PyArray_SIZE (x_arr));
       size_t _min_cap = _omax;
@@ -263,6 +270,13 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -303,6 +317,12 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_burst_capture_push_max_out (self->handle,
                                                 (size_t)PyArray_SIZE (x_arr));
@@ -325,6 +345,13 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -484,6 +511,12 @@ PersistentBurstCaptureObj_detections (PersistentBurstCaptureObject *self,
       PyArrayObject *out_arr = (PyArrayObject *)out_obj;
       Py_INCREF (out_arr);
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax
           = dp_burst_capture_detections_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
@@ -492,6 +525,12 @@ PersistentBurstCaptureObj_detections (PersistentBurstCaptureObject *self,
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_burst_capture_detections (
@@ -531,6 +570,11 @@ PersistentBurstCaptureObj_detections (PersistentBurstCaptureObject *self,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_burst_capture_detections_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -557,6 +601,12 @@ PersistentBurstCaptureObj_detections (PersistentBurstCaptureObject *self,
     }
   burst_capture_detection_t *_d0
       = (burst_capture_detection_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out
       = dp_burst_capture_detections (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -706,7 +756,13 @@ PersistentBurstCaptureObj_events (PersistentBurstCaptureObject *self,
       }
       PyArrayObject *out_arr = (PyArrayObject *)out_obj;
       Py_INCREF (out_arr);
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax = dp_burst_capture_events_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
@@ -714,6 +770,12 @@ PersistentBurstCaptureObj_events (PersistentBurstCaptureObject *self,
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_burst_capture_events (
@@ -752,6 +814,11 @@ PersistentBurstCaptureObj_events (PersistentBurstCaptureObject *self,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_burst_capture_events_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -778,6 +845,12 @@ PersistentBurstCaptureObj_events (PersistentBurstCaptureObject *self,
     }
   burst_capture_event_t *_d0
       = (burst_capture_event_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out = dp_burst_capture_events (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -862,6 +935,11 @@ PersistentBurstCaptureObj_configure_search_raw (
       Py_DECREF (_ix);
     }
   size_t n_noncoh = (size_t)n_noncoh_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_burst_capture_configure_search_raw (self->handle, doppler_bins,
                                                    n_noncoh);
   if (_rc != 0)
@@ -906,8 +984,13 @@ PersistentBurstCaptureObj_release (PersistentBurstCaptureObject *self,
         }
       Py_DECREF (_ix);
     }
-  size_t i   = (size_t)i_raw;
-  int    _rc = dp_burst_capture_release (self->handle, i);
+  size_t i = (size_t)i_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_burst_capture_release (self->handle, i);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "release failed",
@@ -921,6 +1004,11 @@ static PyObject *
 PersistentBurstCaptureObj_reset (PersistentBurstCaptureObject *self,
                                  PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -2022,7 +2110,7 @@ static PyTypeObject PersistentBurstCaptureObjType = {
     "    Target detection probability, in (0, 1).\n"
     "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
     "\"mean\"\n"
-    "    CFAR reference: 0=mean, 1=median, 2=min, 3=max.\n"
+    "    One of ``\"mean\"``, ``\"median\"``, ``\"min\"``, ``\"max\"``.\n"
     "doppler_rate : float, default 0.0\n"
     "    Doppler rate, Hz/s (>= 0), that caps the acquisition's coherent "
     "depth\n"

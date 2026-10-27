@@ -274,7 +274,14 @@ DsssBurstReceiverObj_push (DsssBurstReceiverObject *self, PyObject *args,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax = dp_dsss_burst_receiver_push_max_out (
           self->handle, (size_t)PyArray_SIZE (x_arr));
       size_t _min_cap = _omax;
@@ -284,6 +291,13 @@ DsssBurstReceiverObj_push (DsssBurstReceiverObject *self, PyObject *args,
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -324,6 +338,12 @@ DsssBurstReceiverObj_push (DsssBurstReceiverObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_dsss_burst_receiver_push_max_out (
       self->handle, (size_t)PyArray_SIZE (x_arr));
@@ -346,6 +366,13 @@ DsssBurstReceiverObj_push (DsssBurstReceiverObject *self, PyObject *args,
       return NULL;
     }
   uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -434,6 +461,12 @@ DsssBurstReceiverObj_llrs (DsssBurstReceiverObject *self, PyObject *args,
           return NULL;
         }
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax
           = dp_dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
@@ -442,6 +475,12 @@ DsssBurstReceiverObj_llrs (DsssBurstReceiverObject *self, PyObject *args,
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_dsss_burst_receiver_llrs (
@@ -472,6 +511,11 @@ DsssBurstReceiverObj_llrs (DsssBurstReceiverObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_dsss_burst_receiver_llrs_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -491,6 +535,12 @@ DsssBurstReceiverObj_llrs (DsssBurstReceiverObject *self, PyObject *args,
       return NULL;
     }
   float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out
       = dp_dsss_burst_receiver_llrs (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -646,7 +696,13 @@ DsssBurstReceiverObj_events (DsssBurstReceiverObject *self, PyObject *args,
       }
       PyArrayObject *out_arr = (PyArrayObject *)out_obj;
       Py_INCREF (out_arr);
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_dsss_burst_receiver_events_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
@@ -654,6 +710,12 @@ DsssBurstReceiverObj_events (DsssBurstReceiverObject *self, PyObject *args,
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_dsss_burst_receiver_events (
@@ -692,6 +754,11 @@ DsssBurstReceiverObj_events (DsssBurstReceiverObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_dsss_burst_receiver_events_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -719,6 +786,12 @@ DsssBurstReceiverObj_events (DsssBurstReceiverObject *self, PyObject *args,
     }
   dsss_br_event_t *_d0
       = (dsss_br_event_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out
       = dp_dsss_burst_receiver_events (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -804,7 +877,12 @@ DsssBurstReceiverObj_configure_search_raw (DsssBurstReceiverObject *self,
       Py_DECREF (_ix);
     }
   size_t n_noncoh = (size_t)n_noncoh_raw;
-  int    _rc      = dp_dsss_burst_receiver_configure_search_raw (
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_dsss_burst_receiver_configure_search_raw (
       self->handle, doppler_bins, n_noncoh);
   if (_rc != 0)
     {
@@ -819,6 +897,11 @@ static PyObject *
 DsssBurstReceiverObj_reset (DsssBurstReceiverObject *self,
                             PyObject                *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");

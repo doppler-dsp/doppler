@@ -137,7 +137,14 @@ HalfbandDecimatorQ15Obj_execute (HalfbandDecimatorQ15Object *self,
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr) / 2;
+      size_t _cap = (size_t)PyArray_SIZE (out_arr) / 2;
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_hbdecim_q15_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr) / 2
                             ? _omax
@@ -149,6 +156,13 @@ HalfbandDecimatorQ15Obj_execute (HalfbandDecimatorQ15Object *self,
                         _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_hbdecim_q15_execute (
@@ -180,6 +194,12 @@ HalfbandDecimatorQ15Obj_execute (HalfbandDecimatorQ15Object *self,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr) / 2;
   size_t _cap  = dp_hbdecim_q15_execute_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -202,8 +222,15 @@ HalfbandDecimatorQ15Obj_execute (HalfbandDecimatorQ15Object *self,
       Py_DECREF (x_arr);
       return NULL;
     }
-  int16_t *_d0   = (int16_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = dp_hbdecim_q15_execute (self->handle, x, x_len, _d0, _cap);
+  int16_t *_d0 = (int16_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_hbdecim_q15_execute (self->handle, x, x_len, _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -234,6 +261,11 @@ static PyObject *
 HalfbandDecimatorQ15Obj_reset (HalfbandDecimatorQ15Object *self,
                                PyObject                   *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");

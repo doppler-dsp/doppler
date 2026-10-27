@@ -196,7 +196,13 @@ WriterObj_write (WriterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  size_t                y     = dp_wfm_writer_write (self->handle, x, x_len);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = dp_wfm_writer_write (self->handle, x, x_len);
   Py_DECREF (x_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -204,6 +210,11 @@ WriterObj_write (WriterObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 WriterObj_flush (WriterObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -247,13 +258,28 @@ WriterObj_annotate (WriterObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (scene_cap);
       scene_cap = PyObject_GetAttrString (scene_obj, "_capsule");
       if (!scene_cap)
-        return NULL;
+        {
+          if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+            return NULL;
+          PyErr_Clear ();
+          PyErr_Format (PyExc_TypeError,
+                        "scene must be the doppler.wfm.composer capsule"
+                        " or an object exposing it as ._capsule,"
+                        " not %s",
+                        Py_TYPE (scene_obj)->tp_name);
+          return NULL;
+        }
     }
   scene = (const dp_wfm_compose_state_t *)PyCapsule_GetPointer (
       scene_cap, "doppler.wfm.composer");
   Py_DECREF (scene_cap);
   if (!scene)
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_wfm_writer_annotate (self->handle, scene);
   if (_rc != 0)
     {
@@ -280,6 +306,11 @@ WriterObj_track_clipping (WriterObject *self, PyObject *args, PyObject *kwds)
   int          on        = 1;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|i", _kwlist, &on))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_wfm_writer_track_clipping (self->handle, on);
   Py_RETURN_NONE;
 }
@@ -347,6 +378,11 @@ WriterObj_add_keyword (WriterObject *self, PyObject *args, PyObject *kwds)
       const char *_s = PyUnicode_AsUTF8AndSize (value, &_n);
       if (!_s)
         return NULL;
+      if (!self->handle)
+        {
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       int _rc = dp_wfm_writer_add_keyword (self->handle, tag, _type, _s,
                                            (size_t)_n);
       if (_rc != 0)
@@ -451,6 +487,13 @@ WriterObj_add_keyword (WriterObject *self, PyObject *args, PyObject *kwds)
     _err:
       free (_buf);
       Py_XDECREF (_seq);
+      return NULL;
+    }
+  if (!self->handle)
+    {
+      free (_buf);
+      Py_XDECREF (_seq);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
   int _rc = dp_wfm_writer_add_keyword (self->handle, tag, _type, _buf, _count);
@@ -812,21 +855,26 @@ static PyTypeObject WriterObjType = {
     "    process.\n"
     "file_type : Literal[\"raw\", \"csv\", \"blue\", \"sigmf\"], default "
     "\"raw\"\n"
-    "    `\"raw\"` (headerless interleaved I/Q), `\"csv\"` (one `I,Q` line "
-    "per\n"
-    "    sample), `\"blue\"` (self-describing X-Midas/REDHAWK type-1000) or\n"
-    "    `\"sigmf\"`. BLUE and SigMF record `fs`/`fc`/`t0` in the capture "
-    "itself;\n"
-    "    raw and CSV have nowhere to put them and keep them in the `sidecar`\n"
-    "    instead.\n"
+    "    The container: `raw` is headerless interleaved I/Q, `csv` one `I,Q`\n"
+    "    line per sample, `blue` the self-describing X-Midas/REDHAWK "
+    "type-1000\n"
+    "    file, `sigmf` a SigMF recording. BLUE and SigMF record "
+    "`fs`/`fc`/`t0`\n"
+    "    in the capture itself; raw and CSV have nowhere to put them and "
+    "keep\n"
+    "    them in the `sidecar` instead.\n"
+    "    One of ``\"raw\"``, ``\"csv\"``, ``\"blue\"``, ``\"sigmf\"``.\n"
     "sample_type : Literal[\"cf32\", \"cf64\", \"ci32\", \"ci16\", \"ci8\", "
     "\"f32\", \"f64\", \"i32\", \"i16\", \"i8\"], default \"cf32\"\n"
-    "    wire type: `\"cf32\"`, `\"cf64\"`, `\"ci32\"`, `\"ci16\"` or "
-    "`\"ci8\"`. The\n"
-    "    integer types quantise ±1.0 to full scale and can clip -- see\n"
-    "    track_clipping()/peak_dbfs.\n"
+    "    The wire type. The integer types quantise +/-1.0 to full scale and "
+    "can\n"
+    "    clip: see track_clipping() and peak_dbfs.\n"
+    "    One of ``\"cf32\"``, ``\"cf64\"``, ``\"ci32\"``, ``\"ci16\"``, "
+    "``\"ci8\"``,\n"
+    "    ``\"f32\"``, ``\"f64\"``, ``\"i32\"``, ``\"i16\"``, ``\"i8\"``.\n"
     "endian : Literal[\"le\", \"be\"], default \"le\"\n"
-    "    `\"le\"` or `\"be\"`; ignored for CSV, which is text.\n"
+    "    Byte order of the samples on disk; CSV is text and ignores it.\n"
+    "    One of ``\"le\"``, ``\"be\"``.\n"
     "fc : float, default 0.0\n"
     "    centre frequency (Hz). BLUE records it as a `FREQ` keyword, SigMF "
     "as\n"

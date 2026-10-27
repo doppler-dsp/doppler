@@ -342,6 +342,12 @@ AsyncDsssPoolObj_push (AsyncDsssPoolObject *self, PyObject *args,
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -438,6 +444,11 @@ AsyncDsssPoolObj_status (AsyncDsssPoolObject *self, PyObject *args,
         {
           return NULL;
         }
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
   async_dsss_receiver_status_t _r
       = dp_async_dsss_pool_status (self->handle, receiver);
@@ -536,7 +547,13 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax = dp_async_dsss_pool_symbols_max_out (self->handle);
       size_t _min_cap
           = _omax > dp_async_dsss_pool_symbols_max_out (self->handle)
@@ -547,6 +564,12 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_async_dsss_pool_symbols (
@@ -578,6 +601,11 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = dp_async_dsss_pool_symbols_max_out (self->handle);
   size_t _cap  = dp_async_dsss_pool_symbols_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -598,7 +626,13 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out
       = dp_async_dsss_pool_symbols (self->handle, receiver, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -634,6 +668,11 @@ AsyncDsssPoolObj_reset (AsyncDsssPoolObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_async_dsss_pool_reset (self->handle);
   Py_RETURN_NONE;
 }
@@ -651,6 +690,11 @@ AsyncDsssPoolObj_set_threads (AsyncDsssPoolObject *self, PyObject *args,
   int          n         = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "i", _kwlist, &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_async_dsss_pool_set_threads (self->handle, n);
   if (_rc != 0)
     {
@@ -689,7 +733,17 @@ AsyncDsssPoolObj_set_telemetry (AsyncDsssPoolObject *self, PyObject *args,
           Py_DECREF (tlm_cap);
           tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
           if (!tlm_cap)
-            return NULL;
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
         }
       tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
                                               "doppler.telemetry.dp_tlm");
@@ -705,7 +759,12 @@ AsyncDsssPoolObj_set_telemetry (AsyncDsssPoolObject *self, PyObject *args,
       return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc
       = dp_async_dsss_pool_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {

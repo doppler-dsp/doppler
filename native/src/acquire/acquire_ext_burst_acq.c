@@ -194,6 +194,12 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
     }
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
   acq_result_t results[1024];
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -301,8 +307,13 @@ BurstAcquisitionObj_configure_search_raw (BurstAcquisitionObject *self,
       Py_DECREF (_ix);
     }
   size_t n_noncoh = (size_t)n_noncoh_raw;
-  int    _rc = dp_burst_acq_configure_search_raw (self->handle, doppler_bins,
-                                                  n_noncoh);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_burst_acq_configure_search_raw (self->handle, doppler_bins,
+                                               n_noncoh);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -345,8 +356,13 @@ BurstAcquisitionObj_set_max_peaks (BurstAcquisitionObject *self,
         }
       Py_DECREF (_ix);
     }
-  size_t n   = (size_t)n_raw;
-  int    _rc = dp_burst_acq_set_max_peaks (self->handle, n);
+  size_t n = (size_t)n_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_burst_acq_set_max_peaks (self->handle, n);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
@@ -1128,7 +1144,7 @@ static PyTypeObject BurstAcquisitionObjType = {
     "    Target detection probability (0,1).\n"
     "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
     "\"mean\"\n"
-    "    CFAR mode index: 0=mean, 1=median, 2=min, 3=max.\n"
+    "    One of ``\"mean\"``, ``\"median\"``, ``\"min\"``, ``\"max\"``.\n"
     "doppler_rate : float, default 0.0\n"
     "    Doppler rate in Hz/s (>= 0) that caps the coherent depth at\n"
     "    `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no\n"

@@ -90,7 +90,7 @@ class PN:
         Register width in bits, 1..64. The sequence period is 2^length - 1 for
         a primitive polynomial.
     lfsr : Literal["galois", "fibonacci"], default "galois"
-        Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).
+        One of ``"galois"``, ``"fibonacci"``.
 
     Examples
     --------
@@ -303,12 +303,11 @@ class _SynthEngine:
     Parameters
     ----------
     type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"], default "tone"
-        Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits,
-        7=symbols, 8=dsss. The Python binding accepts strings
-        "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols"|"dsss". For
-        "bits" attach the pattern with dp_wfm_synth_set_bits(); for "symbols"
-        attach the complex stream with dp_wfm_synth_set_symbols(); for "dsss"
-        attach the burst with dp_wfm_synth_set_dsss_chips() after create().
+        The waveform. For `bits` attach the pattern with set_bits(), for
+        `symbols` the complex stream with set_symbols(), and for `dsss` the
+        burst with set_dsss_chips(), after construction.
+        One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``,
+        ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
     fs : float, default 1000000.0
         Sample rate in Hz. Sets the carrier frequency normalisation and the
         noise bandwidth. Default 1 000 000.0.
@@ -320,8 +319,10 @@ class _SynthEngine:
         Target SNR in dB, interpreted per ``snr_mode``. Values >=
         WFM_SYNTH_SNR_CLEAN (100) disable AWGN. Default 100.0.
     snr_mode : Literal["auto", "fs", "ebno", "esno"], default "auto"
-        SNR reference: 0=auto, 1=fs (full-band), 2=ebno, 3=esno. The Python
-        binding accepts strings "auto"|"fs"|"ebno"|"esno". Default 0.
+        What `snr` is referenced to: `fs` the full band, `ebno` Eb/N0, `esno`
+        Es/N0. `auto` is Es/N0 for bpsk/qpsk/dsss and full scale for the
+        others.
+        One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
     seed : int, default 1
         PRNG seed shared by AWGN and the PN LFSR. Default 1.
     sps : int, default 8
@@ -334,7 +335,7 @@ class _SynthEngine:
         Galois tap polynomial for the LFSR. 0 means "look up the canonical MLS
         polynomial for pn_length" from the wfm_synth_mls_poly table. Default 0.
     lfsr : Literal["galois", "fibonacci"], default "galois"
-        LFSR realization: PN_GALOIS (0) or PN_FIBONACCI (1).
+        One of ``"galois"``, ``"fibonacci"``.
     f_end : float, default 0.0
         Chirp end frequency in Hz (type=chirp only; ignored otherwise). With
         ``freq`` as the start, the instantaneous frequency sweeps linearly from
@@ -1147,7 +1148,8 @@ class Frame:
         Payload bits, one per element, each 0 or 1. Omitted, the frame carries
         none.
     crc : Literal["none", "crc16"], default "none"
-        Enum index; 0=none, 1=crc16 over the payload.
+        `crc16` covers the payload with a CRC-16; `none` adds no check.
+        One of ``"none"``, ``"crc16"``.
 
     Raises
     ------
@@ -2146,7 +2148,8 @@ class FrameDesc:
         Payload bits, one per element, each 0 or 1. Omitted, the frame carries
         none.
     crc : Literal["none", "crc16"], default "none"
-        Enum index; 0=none, 1=crc16 over the payload.
+        `crc16` covers the payload with a CRC-16; `none` adds no check.
+        One of ``"none"``, ``"crc16"``.
 
     Raises
     ------

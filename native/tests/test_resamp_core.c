@@ -26,6 +26,7 @@
  *   §17b The same bank anti-imaging: the artifact floor for R >= 1
  *   §18 execute_ctrl rides the interpolator at EVERY rate
  *   §20 interp_inputs_needed is exact at every rate, not just integer ones
+ *   §21 The built-in bank is sized and shaped by the public Kaiser rules
  *
  * Sections numbered §10 onward were added by the validation campaign, which
  * enumerated resamp_core.h's prose claims and asked of each whether anything
@@ -44,6 +45,7 @@
 
 #include "doppler/dp_complex.h"
 #include "doppler/resamp/resamp_impl.h"
+#include "doppler/resample/resample_core.h"
 #include "dp_chunk_inv.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
@@ -1399,6 +1401,58 @@ reset_zeroes_state (void)
   return ok;
 }
 
+/* ── §21 — the built-in bank uses the library's Kaiser rules ─────────────
+ *
+ * resamp used to carry private copies of dp_kaiser_beta() and
+ * dp_kaiser_num_taps(); the formulas now live once, header-inline in
+ * resample_core.h, and the public functions call them (doppler#2652). This
+ * holds both ends to each other: the default bank's size is exactly what
+ * dp_kaiser_num_taps() says for its spec, and the inline beta and sizing
+ * agree with the public functions bit for bit across a sweep -- so a third
+ * copy, or a public function that grows its own formula, goes red here. */
+static int
+builtin_bank_uses_public_kaiser (void)
+{
+  int             ok = 1;
+  resamp_state_t *r  = dp_resamp_create (1.0);
+  if (!r)
+    return 0;
+  if (dp_resamp_get_num_phases (r) != 4096
+      || dp_resamp_get_num_taps (r)
+             != (size_t)dp_kaiser_num_taps (4096, 60.0, 0.4, 0.6)
+      || dp_resamp_get_num_taps (r) != 19)
+    {
+      DP_TEST_ERR ("  §21 built-in bank %zu x %zu, dp_kaiser_num_taps %d\n",
+                   dp_resamp_get_num_phases (r), dp_resamp_get_num_taps (r),
+                   dp_kaiser_num_taps (4096, 60.0, 0.4, 0.6));
+      ok = 0;
+    }
+  dp_resamp_destroy (r);
+
+  for (double atten = 0.0; atten <= 140.0; atten += 0.25)
+    {
+      if (dp_kaiser_beta (atten) != dp_kaiser_beta_eval (atten))
+        {
+          DP_TEST_ERR ("  §21 beta(%g) differs\n", atten);
+          ok = 0;
+        }
+      for (int lg = 0; lg <= 14; lg++)
+        {
+          int    P = 1 << lg;
+          size_t t = dp_kaiser_num_taps_eval ((size_t)P, atten, 0.4, 0.6);
+          /* Below 8 dB the length formula goes negative and its cast is
+             undefined; no bank is designed there. */
+          if (atten >= 8.0
+              && (size_t)dp_kaiser_num_taps (P, atten, 0.4, 0.6) != t)
+            {
+              DP_TEST_ERR ("  §21 num_taps(%d, %g) differs\n", P, atten);
+              ok = 0;
+            }
+        }
+    }
+  return ok;
+}
+
 int
 main (void)
 {
@@ -1774,6 +1828,7 @@ main (void)
   DP_CHECK (lifecycle_rejects ());
   DP_CHECK (non_power_of_two_phases_refused ());
   DP_CHECK (crossing_set_rate_is_a_fresh_create ());
+  DP_CHECK (builtin_bank_uses_public_kaiser ());
 
   /* ── §15 / §16 — the two promises the old literals could not see ────── */
   DP_CHECK (set_rate_preserves_state ());

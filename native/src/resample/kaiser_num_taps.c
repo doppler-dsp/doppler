@@ -2,12 +2,6 @@
  * kaiser_num_taps.c — resample module-level function.
  */
 #include "doppler/resample/resample_core.h"
-#include <math.h>
-#include <stddef.h>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 int
 dp_kaiser_num_taps (int num_phases, double atten, double pb, double sb)
@@ -21,11 +15,7 @@ dp_kaiser_num_taps (int num_phases, double atten, double pb, double sb)
   if (num_phases < 1)
     return 0;
 
-  double pb_ph   = pb / (double)num_phases;
-  double sb_ph   = sb / (double)num_phases;
-  double tw      = sb_ph - pb_ph;
-  size_t proto   = (size_t)(1.0 + (atten - 8.0) / (2.285 * (2.0 * M_PI * tw)));
-  size_t halflen = proto / 2;
-  size_t htaps   = 2 * halflen + 1;
-  return (int)(htaps / (size_t)num_phases + 1);
+  /* The formula lives once, header-inline, so resamp's built-in bank uses
+     the same code without linking this module (doppler#2652). */
+  return (int)dp_kaiser_num_taps_eval ((size_t)num_phases, atten, pb, sb);
 }

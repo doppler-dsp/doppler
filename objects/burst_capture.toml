@@ -240,7 +240,7 @@ return_type = "void"
 [[burst_capture.properties]]
 name = "preamble_start"
 type = "uint64_t"
-doc = "Stream-absolute sample index the most recent window's preamble starts at. NEVER LATE: a window that began after the preamble has destroyed the burst, so the refine stage's obligation is to be early-or-exact and to say how early."
+doc = "Stream-absolute sample index the most recent window's preamble starts at; 0 before the first window and after reset(). Never late is refine's design goal, not a guarantee (a window that began after the preamble has destroyed the burst): refine takes the strongest whole-period position over a range reaching both sides of the anchor, so at low C/N0 it can pick a wrong repetition, early or late."
 
 [[burst_capture.properties]]
 name = "doppler_hz_est"

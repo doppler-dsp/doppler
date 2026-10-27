@@ -1587,13 +1587,15 @@ resolve, and are not evidence — the harness marks them rather than printing
 a number that looks like one.
 
 `mpsk`'s certification report (`src/doppler/mpsk/tests/validation/mpsk/results.md`
-§2.4) measures the same ratio on a shorter grid — 200,000 symbols per cell —
-and its 8PSK 14 dB cell reads **2.17x** on 1,281 coherent errors, against
-2.03x here on 3,910. Both are faithful outputs of their own runs; the gap is
-run length. Re-measured 2026-10-26 with the same `doppler.mpsk` calls the
-report makes: 40 seeds at 200,000 symbols gave 1.99x mean, 0.06x standard
-deviation (so the report's draw is about three deviations high), and one
-20,000,000-symbol run gave **2.00x** (133,756 coherent errors). The theory
+§2.4) sizes each cell to about 4,000 coherent errors, with the symbol count
+clamped to 200,000–2,500,000. So every cell's penalty carries a known sampling
+error, and its 8PSK 14 dB cell reads **2.07x** on 3,966 coherent errors, inside
+its band (§4). An earlier fixed-length grid of 200,000 symbols per cell read
+2.17x on 1,281 errors. That draw sat about three deviations high, and it is
+why cells are sized by their error count now. Re-measured 2026-10-26 with the
+same `doppler.mpsk` calls the report makes: 40 seeds at 200,000 symbols gave
+1.99x mean, 0.06x standard deviation, and one 20,000,000-symbol run gave
+**2.00x** (133,756 coherent errors). The theory
 for a differentially encoded, coherently sliced stream is just under 2 —
 `2 − P_s·(1 + p)`, where `p` is the chance two consecutive errors slip the
 same way — about 1.99x at this `P_s`.

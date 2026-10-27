@@ -1,1 +1,0 @@
-- **Comments name the specification, not a bare "SPEC".** The sweep behind #2590 left 113 mentions in 28 files, and the removed-machinery references in `rx_dynamics.c`, `carrier_nda_core.c` and `mpsk_ber_common.h`. Comment and printout text only: the preprocessed C and the Python ASTs are unchanged, apart from three printouts and one docstring (#2621; the report text is #2626).

@@ -372,11 +372,12 @@ typedef struct {
                           bpsk/qpsk/pn framed, a dsss burst (one burst per
                           frame), and continuous dsss (one bit per data
                           symbol, no frame); not with data_from_file. */
-    size_t data_len;   /* Bits of the data source per frame: the data:LEN
-                          of the common frame [preamble x reps | sync |
-                          data:LEN | crc]. 0 takes a finite source whole, as
-                          one frame. A carried frame names its own data
-                          field, and this is then 0 or that field's LEN.
+    size_t data_len;   /**< Bits of the data source per frame: the
+                          data:LEN field of the common frame (preamble x
+                          reps, sync, data:LEN, crc). 0 takes a finite
+                          source whole, as one frame. A carried frame
+                          names its own data field, and this is then 0
+                          or that field's LEN.
                           Continuous dsss has no frame, and refuses it. */
     wfm_seq_t fill;  /**< The bits that pad a data source's last frame when
                           it does not divide into data_len-bit frames, tiled

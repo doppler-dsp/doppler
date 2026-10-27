@@ -422,7 +422,10 @@ extern "C"
    * @brief Send an array of CI32 samples via a Publisher.
    *
    * @param ctx         Publisher context.
-   * @param samples     Interleaved int32_t I/Q pairs; length 2×num_samples.
+   * @param samples     The samples, in the type the function's suffix
+   *                    names: for ci8/ci16/ci32, interleaved integer I/Q
+   *                    pairs, 2×num_samples elements; for cf32/cf64,
+   *                    num_samples complex values.
    * @param num_samples Number of complex samples.
    * @param sample_rate Sample rate in Hz.
    * @param center_freq Centre frequency in Hz.

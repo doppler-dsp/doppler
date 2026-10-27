@@ -825,5 +825,48 @@ main (void)
     dp_burst_despreader_destroy (tt);
   }
 
+  /* ── a frequency is written at the symbol period IN FORCE (#2648) ──────
+   * The carrier integrator holds the per-symbol phase advance and the loop
+   * reads it back as integ / cur_tsamps, where cur_tsamps is acq_sf * sps
+   * during a set_acq preamble. Every write -- create's seed armed into a
+   * preamble by set_acq, set_norm_freq mid-preamble, reset re-arming it --
+   * used to scale by the DATA period, so the frequency became
+   * val * sf / acq_sf at the next symbol. With both bandwidths 0 the loop
+   * gains are 0 and the integrator moves only by those writes, so after
+   * one (silent) symbol norm_freq must read back exactly what was set. */
+  {
+    const size_t fsf = 32, fsps = 4, asf = 128;
+    uint8_t      fcode[32], facq[128];
+    for (size_t i = 0; i < fsf; i++)
+      fcode[i] = (uint8_t)(i & 1u);
+    for (size_t i = 0; i < asf; i++)
+      facq[i] = (uint8_t)((i * 7u) >> 2 & 1u);
+    static float _Complex zeros[128 * 4];
+    float _Complex sym[4];
+    const double f0 = 0.01, f1 = 0.02, tol = 1e-12;
+
+    dp_burst_despreader_state_t *f = dp_burst_despreader_create (
+        fcode, fsf, fsf, fsps, f0, 0.0, 0.0, 0.0);
+    DP_REQUIRE (f != NULL);
+    DP_REQUIRE (dp_burst_despreader_set_acq (f, facq, asf, 4) == DP_OK);
+    (void)dp_burst_despreader_steps (f, zeros, asf * fsps, sym, 4);
+    DP_CHECK_NEAR (dp_burst_despreader_get_norm_freq (f), f0, tol);
+
+    dp_burst_despreader_set_norm_freq (f, f1);
+    (void)dp_burst_despreader_steps (f, zeros, asf * fsps, sym, 4);
+    DP_CHECK_NEAR (dp_burst_despreader_get_norm_freq (f), f1, tol);
+
+    dp_burst_despreader_reset (f); /* re-arms the 4-period preamble */
+    (void)dp_burst_despreader_steps (f, zeros, asf * fsps, sym, 4);
+    DP_CHECK_NEAR (dp_burst_despreader_get_norm_freq (f), f0, tol);
+
+    /* Disabling the preamble mid-way hands the data period over the same
+       way, and the payload symbols then read the frequency back too. */
+    DP_CHECK (dp_burst_despreader_set_acq (f, NULL, 0, 0) == DP_OK);
+    (void)dp_burst_despreader_steps (f, zeros, fsf * fsps, sym, 4);
+    DP_CHECK_NEAR (dp_burst_despreader_get_norm_freq (f), f0, tol);
+    dp_burst_despreader_destroy (f);
+  }
+
   DP_TEST_END ("test_burst_despreader_core");
 }

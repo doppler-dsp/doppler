@@ -353,3 +353,29 @@ def test_set_state_checks_the_blob_in_c_not_only_its_size():
 
     with pytest.raises(ValueError, match="finite"):
         BurstDespreader(data, sf=31, sps=4, init_chip_phase=float("nan"))
+
+
+def test_norm_freq_is_written_at_the_symbol_period_in_force():
+    """#2648: during a ``set_acq`` preamble the symbol is ``acq_sf * sps``
+    samples, and a frequency set then must read back unchanged after one
+    symbol. It used to be scaled by the data period and came back as
+    ``val * sf / acq_sf``. Both loop bandwidths are 0, so only the writes
+    move the carrier integrator."""
+    rng = np.random.default_rng(2648)
+    data = rng.integers(0, 2, 32).astype(np.uint8)
+    acq = rng.integers(0, 2, 128).astype(np.uint8)
+    d = BurstDespreader(
+        data,
+        sf=32,
+        sps=SPS,
+        init_norm_freq=0.01,
+        bn_carrier=0.0,
+        bn_code=0.0,
+    )
+    d.set_acq(acq, 4)
+    one = np.zeros(128 * SPS, np.complex64)
+    d.steps(one)
+    assert d.norm_freq == pytest.approx(0.01, abs=1e-12)
+    d.norm_freq = 0.02
+    d.steps(one)
+    assert d.norm_freq == pytest.approx(0.02, abs=1e-12)

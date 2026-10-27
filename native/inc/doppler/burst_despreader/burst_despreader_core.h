@@ -130,6 +130,9 @@ dp_burst_despreader_state_t *dp_burst_despreader_create(const uint8_t *code, siz
  * pull in even a wide residual) before switching to the data code for the
  * payload. Call before feeding the burst; the acq mode clears automatically
  * once the preamble is consumed, and re-arms on dp_burst_despreader_reset().
+ * The tracked carrier frequency carries over: the carrier loop's integrator
+ * is rescaled to the symbol period now in force (the acq code's, or the data
+ * code's when this disables the preamble).
  * NB: set_acq re-arms the PREAMBLE only — the cumulative burst statistics
  * (lock_metric / snr_est / lock_stat / stat_n) are re-armed by
  * dp_burst_despreader_reset(); call it between bursts.
@@ -339,10 +342,15 @@ int dp_burst_despreader_set_bn_code (dp_burst_despreader_state_t *state, double 
 double dp_burst_despreader_get_norm_freq (const dp_burst_despreader_state_t *state);
 /** @brief Override the carrier frequency estimate, cycles/sample (re-seed).
  *
- *  Sets the NCO frequency and the carrier loop's integrator (scaled to the
- *  data-code symbol period) so tracking continues from @p val.  The
- *  create-time seed is not changed: dp_burst_despreader_reset() still
- *  returns to `init_norm_freq`.  The value is not validated.
+ *  Sets the NCO frequency and the carrier loop's integrator, scaled to the
+ *  symbol period in force (the acq code's during a
+ *  dp_burst_despreader_set_acq() preamble, the data code's otherwise), so
+ *  tracking continues from @p val and dp_burst_despreader_get_norm_freq()
+ *  reads @p val back after the next symbol's loop update absent any
+ *  error.  The create-time seed is not changed:
+ *  dp_burst_despreader_reset() still returns to `init_norm_freq`.
+ *
+ *  The value is not validated.
  *
  *  @param state  Must be non-NULL.
  *  @param val    New carrier frequency, cycles/sample. */

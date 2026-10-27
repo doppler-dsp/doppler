@@ -904,10 +904,12 @@ class BurstDespreader:
         loops pull in even a wide residual) before switching to the data code
         for the payload. Call before feeding the burst; the acq mode clears
         automatically once the preamble is consumed, and re-arms on
-        dp_burst_despreader_reset(). NB: set_acq re-arms the PREAMBLE only —
-        the cumulative burst statistics (lock_metric / snr_est / lock_stat /
-        stat_n) are re-armed by dp_burst_despreader_reset(); call it between
-        bursts.
+        dp_burst_despreader_reset(). The tracked carrier frequency carries
+        over: the carrier loop's integrator is rescaled to the symbol period
+        now in force (the acq code's, or the data code's when this disables the
+        preamble). NB: set_acq re-arms the PREAMBLE only — the cumulative burst
+        statistics (lock_metric / snr_est / lock_stat / stat_n) are re-armed by
+        dp_burst_despreader_reset(); call it between bursts.
 
         Parameters
         ----------

@@ -24,11 +24,20 @@ extern "C" {
 
 /** @brief NPRMeasure state: owned window, FFT plan and one-sided power scratch. */
 typedef struct {
-    dp_psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg) */
-    float         *pwr;     /* metric working buffer, one-sided power     */
-    double enbw;            /* window equivalent noise bandwidth (bins)   */
-    double beta;            /* auto-selected Kaiser shape (from DR target) */
-    size_t spur_guard_bins; /* min notch keep-out (bins) from window skirt */
+    dp_psd_state_t *psd;     /**< Owned averaging PSD core (Kaiser window,
+                                  FFT plan, segment average); also holds
+                                  the dBFS reference.  Set at create(). */
+    float         *pwr;     /**< Owned scratch, nfft floats: one-sided
+                                 power spectrum (first nfft/2 + 1 used),
+                                 rewritten by every analyze().           */
+    double enbw;            /**< Window equivalent noise bandwidth, bins
+                                 (copied from the PSD core at create()).  */
+    double beta;            /**< Kaiser beta auto-selected at create() so
+                                 sidelobes sit below the dynamic-range
+                                 target.                                   */
+    size_t spur_guard_bins; /**< Minimum notch keep-out, bins: main lobe
+                                 plus sidelobe skirt of the window.  A
+                                 smaller guard_hz is raised to this.     */
     size_t n;               /**< Capture / frame length, samples.            */
     size_t nfft;            /**< Zero-padded transform length, bins.         */
     double fs;              /**< Sample rate, Hz.                            */
@@ -90,7 +99,9 @@ void dp_nprmeas_reset(dp_nprmeas_state_t *state);
  * @param notch_lo   Notch lower edge (Hz).
  * @param notch_hi   Notch upper edge (Hz).
  * @param guard_hz   Keep-out around the notch edges (Hz).
- * @return the NPR metric record (by value).
+ * @return The NPR metric record (by value): npr_db, in-band and notch PSD
+ *         in dBFS, the bin counts averaged, and rbw_hz.  All fields are 0
+ *         when @p n_in holds no full analysis frame.
  *
  * @code
  * >>> from doppler.measure import NPRMeasure
@@ -114,7 +125,11 @@ npr_meas_t dp_nprmeas_analyze(dp_nprmeas_state_t *state, const float *x, size_t 
                            double active_lo, double active_hi, double notch_lo,
                            double notch_hi, double guard_hz);
 
-/** @brief Capacity (== nfft) of the spectrum_dbfs output buffer. */
+/**
+ * @brief Capacity of the spectrum_dbfs() output buffer.
+ * @param state  The analyser (non-NULL).
+ * @return nfft, the number of floats spectrum_dbfs() writes.
+ */
 size_t dp_nprmeas_spectrum_dbfs_max_out(dp_nprmeas_state_t *state);
 
 /**
@@ -130,7 +145,9 @@ size_t dp_nprmeas_spectrum_dbfs_max_out(dp_nprmeas_state_t *state);
  * @param x_len    Number of input samples.
  * @param out      Destination buffer (length >= @p max_out).
  * @param max_out  Capacity of @p out (== nfft).
- * @return DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+ * @return Number of DC-centred dBFS values written to @p out: nfft
+ *         (clipped to @p max_out), or 0 when the capture holds no full
+ *         frame.  The Python binding returns those values as an array.
  *
  * @code
  * >>> from doppler.measure import NPRMeasure

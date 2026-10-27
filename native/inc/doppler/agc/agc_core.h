@@ -237,6 +237,11 @@ extern "C"
    * @ref AGC_POWER_CEIL uses: when the input is unknown, attenuate.  A gain
    * saturated low is silence; a gain saturated high rails everything
    * downstream of it.
+   *
+   * @param v  Exponent (any double, NaN included).
+   * @return Approximately 10^v; never negative and always finite.  The
+   *         low rail (z <= -1023, and NaN) assembles a zero exponent field,
+   *         so it returns exactly 0.0; the high rail stays below 2^1024.
    */
   JM_FORCEINLINE double
   agc_exp10_ (double v)
@@ -284,6 +289,10 @@ extern "C"
    * The floor is why silence reads as about @c -300 dB rather than
    * @c -INF, so that promise is now structural rather than something each
    * caller has to remember to add.
+   *
+   * @param p  Linear power (any double); NaN is treated as AGC_POWER_CEIL.
+   * @return Approximately log10 of @p p after saturation into
+   *         [AGC_POWER_FLOOR, AGC_POWER_CEIL]; always finite.
    */
   JM_FORCEINLINE double
   agc_log10_ (double p)
@@ -312,6 +321,9 @@ extern "C"
    * double across the AGC's full (dB) dynamic range, so the squaring promotes
    * the float components once.  Defined here so dp_agc_step() — and any composing
    * sample loop that accumulates AGC input power — measures power identically.
+   *
+   * @param y  Complex sample (cf32).
+   * @return |y|^2 = re^2 + im^2, computed in double.
    */
   JM_FORCEINLINE double
   agc_power_ (float _Complex y)
@@ -329,9 +341,11 @@ extern "C"
    */
   typedef struct
   {
-    dp_tlm_t *ctx;      /* NULL = detached                    */
-    int32_t   id_gain;  /* probe ids from a successful attach  */
-    int32_t   id_level; /* (fills what used to be _pad)        */
+    dp_tlm_t *ctx;      /**< Borrowed telemetry context; NULL = detached. */
+    int32_t   id_gain;  /**< Probe id of "<prefix>.gain_db", from a
+                             successful dp_agc_set_telemetry().           */
+    int32_t   id_level; /**< Probe id of "<prefix>.level_db", from the
+                             same attach.                                 */
   } agc_tlm_t;
 
   /**
@@ -344,24 +358,31 @@ extern "C"
    */
   typedef struct
   {
-    double ref_db;  /* target output power, dB                        */
-    double loop_bw; /* loop noise bandwidth, cycles/sample             */
-    double alpha;   /* power-detector EMA coefficient, (0, 1]          */
+    double ref_db;  /**< Target output power, dB (config, writable).  */
+    double loop_bw; /**< Loop noise bandwidth, cycles/sample (config,
+                         writable); filter time constant 1/(4*loop_bw). */
+    double alpha;   /**< Power-detector EMA coefficient in (0, 1]
+                         (config, writable).                            */
     size_t decim;   /**< Envelope decimation: the detector and loop filter
                          run once per chunk of this many samples, >= 1
                          (typically 8, 16 or 32).                        */
-    double clip_db; /* output square-clip level, dB (per component)    */
-    /* dp_agc_step() control-update period: the detector + gain-apply run
-     * every sample, but the loop-filter command (the exp10/log10 work)
-     * refreshes once per this many samples — a zero-order hold on the
-     * gain that amortises the transcendentals on a sample-rate hot loop.
-     * 1 (default) is the exact per-sample loop; >1 trades gain-update
-     * latency for speed (keep well below 1/(4*loop_bw)).  The same shape
-     * as decim's `4*decim*loop_bw <= 0.05`, but only decim's is measured —
-     * this one is a zero-order hold on a different quantity. */
+    double clip_db; /**< Output square-clip level, dB: each of I and Q
+                         is limited to +/- 10^(clip_db/20) (config,
+                         writable; default AGC_CLIP_DB_DEFAULT).       */
+    /** dp_agc_step() control-update period, samples (config, >= 1): the
+     * detector + gain-apply run every sample, but the loop-filter command
+     * (the exp10/log10 work) refreshes once per this many samples — a
+     * zero-order hold on the gain that amortises the transcendentals on a
+     * sample-rate hot loop.  1 (default) is the exact per-sample loop; >1
+     * trades gain-update latency for speed (keep well below
+     * 1/(4*loop_bw)).  The same shape as decim's
+     * `4*decim*loop_bw <= 0.05`, but only decim's is measured — this one
+     * is a zero-order hold on a different quantity. */
     size_t gain_update_period;
-    double gain_db; /* loop-filter integrator: current gain, dB        */
-    /* Power-detector EMA of OUTPUT power, linear. Anything setting this by
+    double gain_db; /**< Loop-filter integrator: commanded gain, dB
+                         (running state; 0 at create/reset).          */
+    /** Power-detector EMA of OUTPUT power, linear (running state; seeded
+       to 10^(ref_db/10) at create/reset). Anything setting this by
        hand must use the REFERENCE power, not a measured input power: the loop
        filter's error is (ref_db - 10log10(p_avg)), so seeding it with an
        input measurement hands the loop an error equal to the whole gain and
@@ -371,10 +392,15 @@ extern "C"
        already do the right thing; this note is for anyone tempted to
        shortcut them. */
     double p_avg;
-    double g_last;  /* current linear gain held across the period      */
-    size_t gain_phase; /* dp_agc_step() position in the update period     */
-    float  clip_lin;   /* cached 10^(clip_db/20), refreshed per period */
-    agc_tlm_t tlm; /* live telemetry attachment; zeroed in blobs        */
+    double g_last;  /**< Linear gain applied to the latest sample, held
+                         across the update period (running state; 1.0
+                         at create/reset).                             */
+    size_t gain_phase; /**< dp_agc_step() position in the update period,
+                            [0, gain_update_period) (running state).  */
+    float  clip_lin;   /**< Cached 10^(clip_db/20), refreshed at each
+                            period boundary and at create/reset.      */
+    agc_tlm_t tlm; /**< Live telemetry attachment; zeroed in state blobs
+                        and kept across set_state.                  */
   } dp_agc_state_t;
 
   /**
@@ -433,7 +459,8 @@ void dp_agc_destroy(dp_agc_state_t *state);
 
   /**
    * @brief Reset the AGC loop state to its post-create condition.
-   * Sets @c gain_db back to 0 dB (unity), clears @c g_last, and re-seeds
+   * Sets @c gain_db back to 0 dB, @c g_last to 1.0 (unity), restarts the
+   * update period, refreshes @c clip_lin, and re-seeds
    * the power-detector EMA @c p_avg from the current @c ref_db so that
    * the first post-reset block produces no transient.  All configuration
    * fields (@c ref_db, @c loop_bw, @c alpha, @c decim, @c clip_db) are
@@ -579,6 +606,7 @@ void dp_agc_reset(dp_agc_state_t *state);
    * @c applied_gain_db still reflects what the signal actually saw.  At
    * loop convergence the two values are numerically equal.  At create/reset
    * both are 0.0 dB (unity).
+   * @param state  Must be non-NULL.
    * @return  Applied gain in dB; 0.0 at create / reset.
    * @code
    * >>> from doppler.agc import AGC
@@ -709,12 +737,44 @@ int dp_agc_set_telemetry(dp_agc_state_t *state, dp_tlm_t * tlm, const char * pre
    * Whole-struct POD snapshot (pointer-free); the loop integrator, detector EMA, and ramp memory resume exactly into an
    * identically-built instance.  The telemetry attachment is zeroed in
    * blobs and preserved across restore (DP_DEFINE_POD_STATE_TLM). */
+/** @brief State-blob magic ("AGC "); set_state() rejects any other. */
 #define AGC_STATE_MAGIC DP_FOURCC ('A', 'G', 'C', ' ')
+/** @brief State-blob layout version (3: adds the zeroed telemetry slot). */
 #define AGC_STATE_VERSION 3u /* v3: telemetry attachment (zeroed in blob) */
+  /**
+   * @brief Size of this instance's serialized state blob.
+   * @param state  Instance to size (non-NULL).
+   * @return Bytes: the dp_state_hdr_t envelope plus the whole state struct.
+   */
   size_t dp_agc_state_bytes (const dp_agc_state_t *state);
+  /**
+   * @brief Serialize config and loop memory into a caller-owned blob; the
+   *        telemetry attachment is written as zeros.
+   * @param state  Instance to snapshot (non-NULL).
+   * @param blob   Destination of at least dp_agc_state_bytes() bytes.
+   */
   void    dp_agc_get_state (const dp_agc_state_t *state, void *blob);
+  /**
+   * @brief Restore config and loop memory from a dp_agc_get_state() blob,
+   *        keeping this instance's own telemetry attachment.
+   * @param state  Instance to overwrite (non-NULL).
+   * @param blob   Blob of dp_agc_state_bytes() bytes.
+   * @return DP_OK on success; DP_ERR_INVALID (state untouched) when the
+   *         magic, version, endianness or size does not match.
+   */
   int     dp_agc_set_state (dp_agc_state_t *state, const void *blob);
 
+/**
+ * @brief Python-face name of dp_agc_settling_samples(): samples the AGC
+ *        loop needs to settle (a one-call delegating shim).
+ * @param loop_bw      Loop noise bandwidth, cycles/sample.
+ * @param alpha        Detector EMA coefficient, (0, 1].
+ * @param gain_err_db  Starting gain error, dB; POSITIVE for a quiet input
+ *                     (the slow direction).
+ * @param tol_db       Settled means within this many dB of the target.
+ * @return Samples to settle (>= 1), or 0 if the arguments are invalid or
+ *         the loop does not settle within a bounded search.
+ */
 size_t dp_settling_samples(double loop_bw, double alpha, double gain_err_db, double tol_db);
 #ifdef __cplusplus
 }

@@ -25,6 +25,13 @@ extern "C"
 {
 #endif
 
+  /**
+   * @brief FFT engine state: two fixed-length pocketfft plans (CF64, CF32)
+   *        plus a lazily allocated truncation scratch.
+   *
+   * All fields are config set at dp_fft_create(); nothing runs between
+   * calls.  Allocate with dp_fft_create().
+   */
   typedef struct
   {
     pocketfft_plan *plan_f64; /**< CF64 1-D plan. */
@@ -51,7 +58,8 @@ extern "C"
    * @param n         Transform length in samples (power of two recommended).
    * @param sign      -1 for the forward DFT, +1 for the inverse DFT.
    * @param nthreads  Accepted for API compatibility; ignored.
-   * @return Heap-allocated state, or NULL on allocation failure.
+   * @return Heap-allocated state, or NULL when @p n is 0 or an allocation
+   *         fails.  @p sign is not validated.
    * @code
    * >>> from doppler.spectral import FFT
    * >>> import numpy as np
@@ -103,10 +111,17 @@ extern "C"
   /** @brief Destroy and free an fft instance. @param state May be NULL. */
   void dp_fft_destroy (dp_fft_state_t *state);
 
-  /** @brief No-op reset (plans are immutable after creation). */
+  /**
+   * @brief No-op reset: an FFT keeps no running state between calls.
+   * @param state  FFT engine (unused).
+   */
   void dp_fft_reset (dp_fft_state_t *state);
 
-  /** @brief Maximum output samples per execute call (always == n). */
+  /**
+   * @brief Output capacity for dp_fft_execute_cf64().
+   * @param state  Allocated FFT engine (non-NULL).
+   * @return state->n, the number of bins one call writes.
+   */
   size_t dp_fft_execute_cf64_max_out (dp_fft_state_t *state);
 
   /**
@@ -138,7 +153,11 @@ extern "C"
   size_t dp_fft_execute_cf64 (dp_fft_state_t *state, const double _Complex *in,
                            size_t n_in, double _Complex *out, size_t max_out);
 
-  /** @brief Maximum output samples for CF32 execute (always == n). */
+  /**
+   * @brief Output capacity for dp_fft_execute_cf32().
+   * @param state  Allocated FFT engine (non-NULL).
+   * @return state->n, the number of bins one call writes.
+   */
   size_t dp_fft_execute_cf32_max_out (dp_fft_state_t *state);
 
   /**
@@ -170,7 +189,11 @@ extern "C"
   size_t dp_fft_execute_cf32 (dp_fft_state_t *state, const float _Complex *in,
                            size_t n_in, float _Complex *out, size_t max_out);
 
-  /** @brief Maximum output samples for inplace CF64 (always == n). */
+  /**
+   * @brief Output capacity for dp_fft_execute_inplace_cf64().
+   * @param state  Allocated FFT engine (non-NULL).
+   * @return state->n, the number of bins one call writes.
+   */
   size_t dp_fft_execute_inplace_cf64_max_out (dp_fft_state_t *state);
 
   /**
@@ -204,7 +227,11 @@ extern "C"
                                    const double _Complex *in, size_t n_in,
                                    double _Complex *out, size_t max_out);
 
-  /** @brief Maximum output samples for inplace CF32 (always == n). */
+  /**
+   * @brief Output capacity for dp_fft_execute_inplace_cf32().
+   * @param state  Allocated FFT engine (non-NULL).
+   * @return state->n, the number of bins one call writes.
+   */
   size_t dp_fft_execute_inplace_cf32_max_out (dp_fft_state_t *state);
 
   /**
@@ -237,7 +264,11 @@ extern "C"
                                    size_t n_in, float _Complex *out,
                                    size_t max_out);
 
-  /** @brief Maximum output samples for the ci16 execute (always == n). */
+  /**
+   * @brief Output capacity for dp_fft_execute_ci16().
+   * @param state  Allocated FFT engine (non-NULL).
+   * @return state->n, the number of bins one call writes.
+   */
   size_t dp_fft_execute_ci16_max_out (dp_fft_state_t *state);
 
   /**
@@ -269,7 +300,11 @@ extern "C"
   size_t dp_fft_execute_ci16 (dp_fft_state_t *state, const int16_t *in, size_t n_in,
                            float _Complex *out);
 
-  /** @brief Maximum output samples for the ci8 execute (always == n). */
+  /**
+   * @brief Output capacity for dp_fft_execute_ci8().
+   * @param state  Allocated FFT engine (non-NULL).
+   * @return state->n, the number of bins one call writes.
+   */
   size_t dp_fft_execute_ci8_max_out (dp_fft_state_t *state);
 
   /**

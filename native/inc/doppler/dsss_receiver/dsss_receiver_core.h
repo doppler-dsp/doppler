@@ -100,22 +100,28 @@ extern "C"
    */
   typedef struct
   {
-    dp_acq_state_t           *acq;
-    dp_dll_state_t           *dll;
-    dp_RateConverter_state_t *rc;
-    dp_mpsk_receiver_state_t *rx;
+    dp_acq_state_t           *acq; /**< Owned continuous acquisition engine;
+                                      fed while `tracking` is 0. */
+    dp_dll_state_t           *dll; /**< Owned code loop (despreader); always
+                                      allocated, rebuilt on each hit,
+                                      reset() and configure_chain_raw(). */
+    dp_RateConverter_state_t *rc;  /**< Owned resampler from the Dll's
+                                      partial rate to sps*symbol_rate;
+                                      rebuilt with `dll`. */
+    dp_mpsk_receiver_state_t *rx;  /**< Owned demodulator at `sps`
+                                      samples/symbol; rebuilt with `dll`. */
 
-    /* Pre-despread carrier loop -- embedded by value, same pattern
+    /** Pre-despread carrier loop -- embedded by value, same pattern
      * dp_despreader_state_t's own `car` uses. Rebuilt alongside dll/rc/rx
      * (create-time placeholder, every real hit, configure_chain_raw(),
      * reset()). One update per code period (`tsamps` samples). */
     dp_costas_state_t car;
     size_t         tsamps; /**< code_len*spc -- one code period, samples;
                                  the carrier loop's own fixed chunk size. */
-    /* Scratch, not state: sized `tsamps`, allocated once (never per
+    /** Scratch, not state: sized `tsamps`, allocated once (never per
      * steps() call -- no allocation in the hot streaming path). */
     float _Complex *car_wiped_buf;
-    /* Genuinely stateful: raw samples handed to steps() that didn't fill
+    /** Genuinely stateful: raw samples handed to steps() that didn't fill
      * a whole code period yet, carried to the NEXT call so the carrier
      * loop always wipes exact, complete periods regardless of how a
      * caller chunks its input (this object's own "any block size, state
@@ -123,28 +129,30 @@ extern "C"
      * `car_carry_len` samples are valid. Must be serialized (see below)
      * or a resumed instance silently loses its period alignment. */
     float _Complex *car_carry_buf;
-    size_t         car_carry_len;
+    size_t         car_carry_len; /**< Valid samples in `car_carry_buf`,
+                                       0..tsamps-1; running state. */
 
-    /* Own copy of the spreading code -- dp_acq_create_continuous()/
+    /** Own copy of the spreading code -- dp_acq_create_continuous()/
      * dp_dll_create()'s own borrow-vs-copy semantics aren't part of either's
      * public contract,
      * so this object keeps a persistent copy rather than depend on being
      * able to read it back out of a child, or on the caller's original
      * buffer outliving construction. */
     uint8_t *code;
-    size_t   code_len;
+    size_t   code_len; /**< Chips in `code` (spreading factor); config. */
 
     /* Config carried across a dll/rc/rx rebuild (create-time or
      * configure_chain_raw()) — everything dp_mpsk_receiver_create() and
      * dp_dll_create() need that isn't re-derived from the acquisition hit. */
-    size_t spc;
-    int    m;
-    int    differential;
+    size_t spc;          /**< Samples per chip at the input; config. */
+    int    m;            /**< PSK order (2, 4 or 8); config. */
+    int    differential; /**< Nonzero = differential demap; config. */
     size_t segments; /**< Dll's own tracking parameter.                  */
     size_t sps;      /**< MpskReceiver's own samples/symbol.             */
-    int    n;        /**< MpskReceiver's own carrier-arm count.          */
-    double chip_rate;
-    double symbol_rate;
+    int    n;        /**< MpskReceiver's terminal outputs per symbol
+                              (`m_out`).                                  */
+    double chip_rate;   /**< Chip rate, Hz; config. */
+    double symbol_rate; /**< Data-symbol rate, Hz; config. */
 
     int      tracking; /**< 0 = searching, 1 = locked and demodulating.    */
     double   doppler_hz_est; /**< Cached from the winning acquisition hit. */
@@ -157,7 +165,11 @@ extern "C"
    * params, matching how Dll's own bn=0.002/zeta/spacing are already
    * hardcoded (this object's "just works" philosophy: only the signal's
    * physical parameters are required). */
+  /** @brief Pre-despread carrier loop's PLL noise bandwidth, normalized to
+   *  its once-per-code-period update rate. */
 #define DSSS_RX_BN_CARRIER 0.01
+  /** @brief Pre-despread carrier loop's FLL-assist bandwidth, normalized to
+   *  its once-per-code-period update rate. */
 #define DSSS_RX_BN_FLL 0.03
 
   /**
@@ -184,9 +196,10 @@ extern "C"
    * EMA's noise-only sd is 0.1132 at every M, so 0.3 is **2.65 noise sigmas**,
    * a per-look Pfa of ~4e-3 — looser than `MpskReceiver`'s own 0.5 default
    * (4.42 sigma, 5e-6) and still ~6 sigma clear of the +0.99 a locked BPSK
-   * constellation reads, which is why it holds. See `carrier_nda_core.h`. `n` (MpskReceiver's carrier-arm
-   * count) is derived from `sps`: the largest divisor of `sps` in
-   * `{4, 2, 1}`.
+   * constellation reads, which is why it holds. See `carrier_nda_core.h`.
+   * `n` (MpskReceiver's terminal outputs per symbol, `m_out`) is derived
+   * from `sps` by mpsk_rx_derive_m_out(): the even count
+   * `2*floor(sps/2)`, capped at 8.
    *
    * @param code                Spreading code, one 0/1 chip per element
    *                            (0 -> +1, 1 -> -1 BPSK; only the low bit is
@@ -220,6 +233,14 @@ extern "C"
    *                             constructor default.
    * @param differential         MpskReceiver's differential (rotation-
    *                             invariant) demap; default 0 (coherent).
+   * @return A new receiver in the searching state, owned by the caller
+   *         (free with dp_dsss_receiver_destroy()); NULL when @p code is
+   *         NULL, a parameter is outside its domain (@p m not 2/4/8,
+   *         @p spc < 1, @p sps < 2, a non-positive or non-finite rate, a
+   *         symbol rate above the chip rate, a code/segments pair the Dll
+   *         refuses), or the embedded Acquisition refuses its own
+   *         parameters (@p pfa, @p pd, @p cn0_dbhz, ...). An allocation
+   *         failure aborts the process rather than returning NULL.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import DsssReceiver
@@ -269,8 +290,12 @@ extern "C"
 
   /**
    * @brief Return to the searching state.
-   * Resets the embedded Acquisition and frees `dll`/`rc`/`rx` (rebuilt
-   * from scratch on the next hit) — a receiver that has locked cannot
+   * Resets the embedded Acquisition and rebuilds `dll`/`rc`/`rx` and the
+   * carrier loop at the placeholder seed (phase 0, no Doppler) on the
+   * current grid (a configure_chain_raw() pin survives), clearing the
+   * carrier carry and the cached Doppler/C/N0 estimates. Any
+   * configure_lock_raw() tuning is lost with the old Dll; a grid pinned by
+   * configure_search_raw() is kept. A receiver that has locked cannot
    * be "reset back to tracking the same signal," only back to searching,
    * matching every other object's reset() semantics in this codebase.
    * @param state Must be non-NULL.
@@ -288,6 +313,10 @@ extern "C"
    */
   void dp_dsss_receiver_reset (dp_dsss_receiver_state_t *state);
 
+  /** @brief Output capacity hint for dp_dsss_receiver_steps().
+   *  @param state  Unused.
+   *  @return Always 0: size @p out from the input length @p x_len, which
+   *          is always enough (at most one symbol per input sample). */
   size_t dp_dsss_receiver_steps_max_out (dp_dsss_receiver_state_t *state);
 
   /**
@@ -301,8 +330,9 @@ extern "C"
    * straight to them in the same call. While tracking, samples feed `Dll ->
    * RateConverter -> MpskReceiver` in sequence. Accepts any block size; state
    * carries across calls (`Acquisition`/`Dll`/ `RateConverter`/`MpskReceiver`
-   * are all already block-size invariant, so this object needs no
-   * ring-buffering of its own).
+   * are all already block-size invariant; the only buffering this object
+   * adds is the carrier loop's partial-code-period carry). While tracking,
+   * each call allocates two scratch buffers (abort on OOM).
    *
    * @param state    Must be non-NULL.
    * @param x        Input cf32 samples.
@@ -356,19 +386,21 @@ extern "C"
    * @brief Pin the embedded Acquisition's search grid directly.
    * Forwards to `dp_acq_configure_search_raw()` — the escape hatch under
    * this object's own `symbol_rate`-driven auto-sizing, for a power user
-   * who wants a specific `(doppler_bins, n_noncoh)` instead. Only
-   * meaningful while searching (a no-op has already happened once
-   * tracking has begun; the acquisition search doesn't run again until
-   * the next `reset()`).
+   * who wants a specific `(doppler_bins, n_noncoh)` instead. Pinning
+   * exits the continuous engine's wideband window-tiling mode, re-derives
+   * its thresholds and resets it, discarding any search in flight. While
+   * tracking the engine is idle, so the pinned grid governs the search
+   * that resumes after the next `reset()`.
    *
    * @param state         Must be non-NULL.
-   * @param doppler_bins  Number of Doppler window tiles to search (>= 1);
-   *                      capped by the create-time `doppler_uncertainty`
-   *                      span (one tile per code-epoch Doppler bin width).
+   * @param doppler_bins  Coherent depth to pin, in `[1, reps]` as
+   *                      dp_acq_configure_search_raw() defines it.
    * @param n_noncoh      Non-coherent looks accumulated per grid cell
    *                      (1..256); more looks buys sensitivity at the cost
    *                      of dwell, replacing the auto-sized count.
-   * @return 0 on success, -1 on invalid grid (see dp_acq_configure_search_raw).
+   * @return 0 on success, -1 on an invalid grid or a failed allocation
+   *         (the engine keeps its prior grid; see
+   *         dp_acq_configure_search_raw()).
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import DsssReceiver
@@ -387,11 +419,13 @@ extern "C"
 
   /**
    * @brief Re-tune the embedded Dll's code-lock detector directly.
-   * Forwards to `dp_dll_configure_lock_raw()`. Only meaningful once
-   * tracking has begun (`dll` is NULL before then); a no-op while
-   * searching. The detector is the hysteretic lockdet over the DLL's
-   * per-N-look CFAR statistic — @p up_thresh / @p down_thresh set the
-   * declare/drop levels and @p n_up / @p n_down the consecutive-look
+   * Forwards to `dp_dll_configure_lock_raw()`, which also clears the
+   * in-flight lock statistic and drops lock. Only meaningful once tracking
+   * has begun: while searching it tunes the placeholder Dll, which the
+   * next hit replaces, so the setting is lost (as it is on reset() and
+   * configure_chain_raw()). The detector is the hysteretic lockdet over
+   * the DLL's per-N-look CFAR statistic — @p up_thresh / @p down_thresh set
+   * the declare/drop levels and @p n_up / @p n_down the consecutive-look
    * verify counts, trading declare latency against false-alarm rate.
    *
    * @param state        Must be non-NULL.
@@ -469,19 +503,54 @@ extern "C"
   int dp_dsss_receiver_configure_chain_raw (dp_dsss_receiver_state_t *state,
                                          size_t segments, size_t sps, int n);
 
+  /** @brief Routing state: searching or tracking.
+   *  @param state  Must be non-NULL.
+   *  @return 0 while searching (after create/reset), 1 once a hit has
+   *          built the chain and symbols are being demodulated. */
   int    dp_dsss_receiver_get_tracking (const dp_dsss_receiver_state_t *state);
+  /** @brief Doppler estimate from the winning acquisition hit.
+   *  @param state  Must be non-NULL.
+   *  @return Hz; 0.0 before the first hit and after reset(). Not updated
+   *          while tracking. */
   double dp_dsss_receiver_get_doppler_hz (const dp_dsss_receiver_state_t *state);
+  /** @brief C/N0 estimate from the winning acquisition hit.
+   *  @param state  Must be non-NULL.
+   *  @return dB-Hz; 0.0 before the first hit and after reset(). */
   double dp_dsss_receiver_get_cn0_dbhz_est (const dp_dsss_receiver_state_t *state);
+  /** @brief Dll partial correlations per code period currently in use.
+   *  @param state  Must be non-NULL.
+   *  @return The create-time value, or the last configure_chain_raw() pin.
+   */
   size_t dp_dsss_receiver_get_segments (const dp_dsss_receiver_state_t *state);
+  /** @brief MpskReceiver samples per symbol currently in use.
+   *  @param state  Must be non-NULL.
+   *  @return The create-time value, or the last configure_chain_raw() pin.
+   */
   size_t dp_dsss_receiver_get_sps (const dp_dsss_receiver_state_t *state);
+  /** @brief MpskReceiver terminal outputs per symbol (`m_out`) in use.
+   *  @param state  Must be non-NULL.
+   *  @return `2*floor(sps/2)` capped at 8 from create, or the last
+   *          configure_chain_raw() pin. */
   int    dp_dsss_receiver_get_n (const dp_dsss_receiver_state_t *state);
-  /** @brief Dll's live tracked code phase (chips); 0.0 while searching. */
+  /** @brief Dll's live tracked code phase (chips); 0.0 while searching.
+   *  @param state  Must be non-NULL.
+   *  @return Code phase in chips, from dp_dll_get_code_phase(). */
   double dp_dsss_receiver_get_chip_phase (const dp_dsss_receiver_state_t *state);
-  /** @brief Dll's own tracking-quality indicator; 1.0 while searching. */
+  /** @brief Dll's tracked code rate; 1.0 while searching.
+   *  @param state  Must be non-NULL.
+   *  @return Chips advanced per nominal chip (~1.0 at lock), from
+   *          dp_dll_get_code_rate(). */
   double dp_dsss_receiver_get_code_rate (const dp_dsss_receiver_state_t *state);
-  /** @brief MpskReceiver's carrier lock EMA; 0.0 while searching. */
+  /** @brief MpskReceiver's carrier lock EMA; 0.0 while searching.
+   *  @param state  Must be non-NULL.
+   *  @return The NDA lock statistic, near 1 when locked and near 0 on
+   *          noise, from dp_mpsk_receiver_get_lock(). */
   double dp_dsss_receiver_get_lock (const dp_dsss_receiver_state_t *state);
-  /** @brief MpskReceiver's tracked carrier frequency; 0.0 while searching. */
+  /** @brief MpskReceiver's tracked carrier frequency; 0.0 while searching.
+   *  @param state  Must be non-NULL.
+   *  @return Cycles/sample at the demodulator's rate (sps * symbol_rate):
+   *          the residual left after the pre-despread carrier loop, not
+   *          the full Doppler. */
   double dp_dsss_receiver_get_norm_freq (const dp_dsss_receiver_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
@@ -496,27 +565,61 @@ extern "C"
    * carrier loop's period alignment. The carry region itself is packed
    * LAST, at its fixed tsamps size: the live samples, then zeros. */
 
+  /** @brief Receiver-level payload that follows the state envelope: the
+   *  routing flag, cached hit estimates, the grid (layout key) and the
+   *  carrier-carry depth. */
   typedef struct
   {
-    uint8_t  tracking;
-    uint8_t  _pad[7];
-    double   doppler_hz_est;
-    double   cn0_dbhz_est;
-    uint64_t segments;
-    uint64_t sps;
-    uint64_t n;
-    uint64_t car_carry_len;
+    uint8_t  tracking;       /**< 0 searching, 1 tracking. */
+    uint8_t  _pad[7];        /**< Explicit padding to 8-byte alignment. */
+    double   doppler_hz_est; /**< Cached hit Doppler estimate, Hz. */
+    double   cn0_dbhz_est;   /**< Cached hit C/N0 estimate, dB-Hz. */
+    uint64_t segments;       /**< Layout key; must match the live engine. */
+    uint64_t sps;            /**< Layout key; must match the live engine. */
+    uint64_t n;              /**< Layout key; must match the live engine. */
+    uint64_t car_carry_len;  /**< Valid carry samples, < tsamps. */
   } dsss_receiver_extra_t;
 
+  /** @brief Magic tag ("DSRX") stamped in a receiver state blob. */
 #define DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('D', 'S', 'R', 'X')
+  /** @brief Layout version of the receiver state blob. */
 #define DSSS_RECEIVER_STATE_VERSION 3u /* v3: the dll child grew (output
                                            level, #2495); v2: pre-despread
                                            dp_costas_state_t car + carry
                                            buffer added */
 
+  /**
+   * @brief Byte size of @p state's blob.
+   * @param state  Must be non-NULL.
+   * @return Envelope + extra + the five children + a tsamps-sample carry
+   *         region; fixed for a given grid, independent of `tracking`.
+   */
   size_t dp_dsss_receiver_state_bytes (const dp_dsss_receiver_state_t *state);
+  /**
+   * @brief Serialize the whole receiver (searching or tracking) into
+   *        @p blob.
+   * @param state  Must be non-NULL; not modified.
+   * @param blob   Caller-owned buffer of dp_dsss_receiver_state_bytes()
+   *               bytes.
+   */
   void   dp_dsss_receiver_get_state (const dp_dsss_receiver_state_t *state,
                                   void                        *blob);
+  /**
+   * @brief Restore a blob from dp_dsss_receiver_get_state() into @p state.
+   *
+   * A searching engine may restore a tracking blob and vice versa.
+   * Children are restored in order (acq, carrier, dll, rc, rx); a child
+   * that rejects aborts with DP_ERR_INVALID after the earlier children
+   * were already restored.
+   *
+   * @param state  Must be non-NULL, built with the same code/spc and set to
+   *               the same `segments`/`sps`/`n` grid as the blob's source.
+   * @param blob   Blob of dp_dsss_receiver_state_bytes(state) bytes.
+   * @return DP_OK, or DP_ERR_INVALID on an envelope mismatch, a grid that
+   *         differs from the live engine's (pin it with
+   *         configure_chain_raw() first), a carry length >= tsamps, or a
+   *         rejected child.
+   */
   int dp_dsss_receiver_set_state (dp_dsss_receiver_state_t *state, const void *blob);
 
 #ifdef __cplusplus

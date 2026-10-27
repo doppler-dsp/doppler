@@ -13,6 +13,94 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.76.0] - 2026-10-27
+
+### Added
+
+- **A second Ctrl+C means "stop now".** `dp_interrupt()` counts requests,
+    saturating at 2, and `dp_interrupted()` / `Interrupt.interrupted()` return
+    that count. A follow read that is waiting for a writer's end marker (its
+    grace, unbounded by default) gives up when the count reaches 2, with
+    `ending = "interrupted"`, so a writer that died before the first Ctrl+C can
+    no longer hang the reader. Samples already on disk are still returned
+    first. The POSIX signal handler now counts too: it used to store 1 directly,
+    so a second signal could never escalate (#2601).
+
+### Changed
+
+- **just-makeit pin 0.111.2 → 0.112.0: a string-enum parameter is documented
+    by its choices, and a wrong capsule is a `TypeError`.** Every Python
+    docstring for a string-valued parameter now lists what it takes
+    (`One of "le", "be".`) instead of the C header's integer prose ("0 little,
+    1 big", #2597); explanation that matters on the Python face moved into the
+    manifest and is shown first. Passing the wrong object where a capsule is
+    expected (`Writer.annotate(object())`, `AGC.set_telemetry(object(), …)`)
+    now raises `TypeError` naming the parameter, not `AttributeError`
+    (just-makeit #2355).
+
+- **Reader-facing text and comments say "the specification", not a bare
+    "SPEC".** The async receiver's validation report and its gallery titles
+    and links named a term no reader could find (#2626, #2629); the report and
+    its plots are regenerated. The comment sweep behind #2590 left 113 more
+    mentions in 28 files, and removed-machinery references in
+    `rx_dynamics.c`, `carrier_nda_core.c` and `mpsk_ber_common.h`. Those are
+    comment and printout text only: the preprocessed C and the Python ASTs
+    are unchanged, apart from three printouts and one docstring (#2621).
+
+- **`Spectrogram.push` takes a short `out=`.** A caller bounds memory with a
+    buffer of any `(k, nfft)` shape: push writes the whole rows that fit, and
+    `consumed` says where to resume (adopts jm 0.111.2's `short_out`, #2592).
+
+### Fixed
+
+- **`docs/dev/ci.md` lists every CI job, and a gate keeps it that way.** The
+    "What runs where" table named a hand-picked third of `ci.yml`'s jobs.
+    It now names all of them, and `make ci-aggregator-check` fails when a job
+    is missing, named twice, or does not exist (#2599).
+
+- **`docs/dev/ci.md` states the merge methods main actually uses.** It said
+    rebase only; `protect-main` allows squash and rebase, and the squash body
+    keeps every `Closes` line (#2622).
+
+- **An example script that raises a `UserWarning` now fails its gate.**
+    `make test-examples-python` runs every example with
+    `PYTHONWARNINGS=error::UserWarning`, as the stub and doc-snippet doctests
+    already do, since gallery pages include these scripts (#2594). Three
+    acquisition examples were built under their own feasibility floor and now
+    sit 3 dB above it; the Doppler-profile figure uses constrained layout.
+
+- **Every `>>>` example in a C header now runs, stub or no stub.** jm
+    carries a header example into a `.pyi` only for some surfaces (not a
+    property getter, a `destroy`, or a C function with no binding), so 94 of
+    635 ran nowhere (#2595). Three of them were wrong: an under-powered
+    `BurstAcquisition` in `dp_acq_psl_db`, an `I16Buffer.dropped` count its own
+    header prose contradicted, and a `dp_wfm_synth_set_symbols` call one symbol
+    long.
+
+- **The M-PSK differential-penalty bound now follows its own error counts.**
+    The old 2.2x ceiling passed or failed one seed's draw: the 8PSK 14 dB cell
+    (2.17x on 1 281 errors) sat under it by luck. Each cell is now bounded by
+    2x plus four sigma of its own count, and the "paired, so luck cancels"
+    claim is withdrawn (#2603; the thin QPSK 10 dB cell is #2624).
+
+- **The M-PSK validation report sizes each cell by its error count.** A fixed
+    200k symbols left QPSK at 10 dB with ~300 errors, so its penalty band was
+    ±0.58x. Each cell now targets 4 000 coherent errors (clamped to 200k–2.5M
+    symbols), and that cell's band is ±0.16x (#2624).
+
+- **The release freshness gate asks each gallery script for its own plot.**
+    One re-rendered PNG used to clear every changed script, including ones that
+    never ran; a byte-identical re-render is now waived in writing (#2609). A
+    waiver line with no reason on its own line fails the gate by name instead of
+    lending the lines below it to the previous entry (#2608).
+
+- **Comments no longer describe removed machinery.** Code, test and example
+    comments that still named the `nda_tap` taps, the carrier handover, an arm
+    AGC, `SPEC.md` and `dp_ber_in_marker()` now describe the code as it is;
+    the specification references point at
+    [the async DSSS receiver design](https://doppler-dsp.github.io/doppler/design/async-dsss-receiver/)
+    (#2590).
+
 ## [0.75.0] - 2026-10-26
 
 ### Breaking
@@ -17828,6 +17916,7 @@ ______________________________________________________________________
 [0.73.0]: https://github.com/doppler-dsp/doppler/compare/v0.72.0...v0.73.0
 [0.74.0]: https://github.com/doppler-dsp/doppler/compare/v0.73.0...v0.74.0
 [0.75.0]: https://github.com/doppler-dsp/doppler/compare/v0.74.0...v0.75.0
+[0.76.0]: https://github.com/doppler-dsp/doppler/compare/v0.75.0...v0.76.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.75.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.76.0...HEAD

@@ -682,7 +682,7 @@ samples = 1
 ["c:async_dsss_pool::push[search,n=3,threads=1]"]
 name = "Async DSSS pool, 3 receivers searching, one thread"
 unit = "sample"
-definition = "One push of the next 65,536 samples of noise through a pool of three AsyncDsssReceivers in the SPEC configuration (a 1,023-chip code at 3.069 Mcps, 2 samples per chip, each searching plus or minus one code-period frequency), stepped one after another on one thread, every receiver searching for every sample fed; throughput counts input samples."
+definition = "One push of the next 65,536 samples of noise through a pool of three AsyncDsssReceivers in the specification configuration (a 1,023-chip code at 3.069 Mcps, 2 samples per chip, each searching plus or minus one code-period frequency), stepped one after another on one thread, every receiver searching for every sample fed; throughput counts input samples."
 samples = 1
 
 ["c:async_dsss_pool::push[search,n=3,threads=3]"]
@@ -796,13 +796,13 @@ definition = "One push of 65,536 noisy samples carrying four 8,316-sample bursts
 samples = 1
 
 ["c:async_dsss_receiver::steps[track,sf=1023,3.069Mcps]"]
-name = "Async DSSS receiver, tracking, at the SPEC point"
+name = "Async DSSS receiver, tracking, at the specification point"
 unit = "sample"
-definition = "The searching receiver in the SPEC configuration the certification measures, seeded on a 1,023-chip code at 3.069 Mcps and 2 samples per chip with 2,700 sym/s asynchronous BPSK data at its design Es/N0 of 10 dB, run through its refine and pull-in: the full closed-loop chain (code loop closed every period, carrier loop, resampler, MpskReceiver carrier and timing loops), tracking with code and symbol lock before and after and for every timed sample: 65,536 samples per round; throughput counts input samples."
+definition = "The searching receiver in the specification configuration the certification measures, seeded on a 1,023-chip code at 3.069 Mcps and 2 samples per chip with 2,700 sym/s asynchronous BPSK data at its design Es/N0 of 10 dB, run through its refine and pull-in: the full closed-loop chain (code loop closed every period, carrier loop, resampler, MpskReceiver carrier and timing loops), tracking with code and symbol lock before and after and for every timed sample: 65,536 samples per round; throughput counts input samples."
 samples = 1
 
 ["c:async_dsss_receiver::steps[search,sf=1023,3.069Mcps]"]
-name = "Async DSSS receiver, searching, at the SPEC point"
+name = "Async DSSS receiver, searching, at the specification point"
 unit = "sample"
-definition = "The searching receiver in the SPEC configuration the certification measures: a 1,023-chip code at 3.069 Mcps and 2 samples per chip, its own search over plus or minus one code-period frequency (3 kHz), fed noise and searching for every sample fed: 65,536 samples per round; throughput counts input samples."
+definition = "The searching receiver in the specification configuration the certification measures: a 1,023-chip code at 3.069 Mcps and 2 samples per chip, its own search over plus or minus one code-period frequency (3 kHz), fed noise and searching for every sample fed: 65,536 samples per round; throughput counts input samples."
 samples = 1

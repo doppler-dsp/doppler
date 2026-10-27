@@ -5007,7 +5007,7 @@ bench-python: ## Time the Python microbenchmarks (serial; pytest-benchmark)
 	$(UV) run pytest $(PYTEST_BENCH_DIRS) -v $(PYTEST_SELECT) $(PYTEST_ARGS)
 
 # The AsyncDsssReceiver's cost in one command, in seconds: the held cell at
-# three operating points and the searching flavor at the SPEC point, as
+# three operating points and the searching flavor at the specification point, as
 # ns/sample and x real time on one core (bench_async_dsss_receiver_core.c).
 # A delegation to `bench`, so the run is jm's and the JSON lands where every
 # bench's does; the release's numbers still come from bench-interleaved on a

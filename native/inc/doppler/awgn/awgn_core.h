@@ -15,9 +15,9 @@
  * 64-bit RNG outputs per complex output sample:
  *
  *   u1 ∈ (0, 1]  (top 24 bits of first 64-bit word, +1 offset, /2^24)
- *   u2 ∈ [0, 1)  (top 24 bits of second 64-bit word, /2^24)
+ *   idx ∈ [0, 65535]  (top 16 bits of second 64-bit word)
  *   r     = amplitude * sqrt(−2 · ln u1)
- *   θ     = 2π · u2
+ *   θ     = 2π · idx / 65536  (65536-entry sin/cos table, SFDR ≈ 96 dBc)
  *   out   = r·cos θ  +  j·r·sin θ
  *
  * ### Usage
@@ -41,12 +41,20 @@ extern "C"
 {
 #endif
 
+  /**
+   * @brief AWGN generator state (opaque to callers; use the API).
+   *
+   * All three fields are serialized by dp_awgn_get_state().
+   */
   typedef struct
   {
-    uint64_t s[4];      /* xoshiro256++ scalar state             */
-    uint64_t seed;      /* the seed dp_awgn_reset() replays: create's,
+    uint64_t s[4];      /**< xoshiro256++ running state; advanced by two
+                             words per generated sample. Never all zero. */
+    uint64_t seed;      /**< the seed dp_awgn_reset() replays: create's,
                            or the last reseed's or restored blob's     */
-    float    amplitude;
+    float    amplitude; /**< Per-component (I and Q) standard deviation;
+                             finite and >= 0. Set by create and
+                             dp_awgn_set_amplitude(). */
   } dp_awgn_state_t;
 
   /**
@@ -70,7 +78,8 @@ extern "C"
    */
   dp_awgn_state_t *dp_awgn_create (uint64_t seed, float amplitude);
 
-  /** Free all resources.  NULL is a no-op. */
+  /** @brief Free the generator.  NULL is a no-op.
+   *  @param state Generator from dp_awgn_create(), or NULL. */
   void dp_awgn_destroy (dp_awgn_state_t *state);
 
   /**
@@ -80,6 +89,7 @@ extern "C"
    * so the next dp_awgn_generate() call produces exactly the same samples as
    * the first call after that seed was set.  amplitude is not changed.
    *
+   * @param state  Generator state. Must be non-NULL.
    * @code
    * >>> import numpy as np
    * >>> from doppler.source import AWGN
@@ -102,15 +112,27 @@ extern "C"
    * Envelope: [dp_state_hdr_t][u64 s[4]][u64 seed][f32 amplitude].
    * v2 (#2084): the seed and amplitude; the unread AVX2 stream words
    * vs[4][8] are gone. */
+  /** State-blob magic ("AWGN") checked by dp_awgn_set_state(). */
 #define AWGN_STATE_MAGIC DP_FOURCC ('A', 'W', 'G', 'N')
+  /** State-blob layout version (2 since #2084). */
 #define AWGN_STATE_VERSION 2u
 
-  /** @brief Serialized-state byte size. */
+  /** @brief Serialized-state byte size.
+   *  @param state Generator state (unused: the size is fixed).
+   *  @return sizeof(dp_state_hdr_t) + 44 bytes (five u64 words and one
+   *          f32), the same for every generator. */
   size_t dp_awgn_state_bytes (const dp_awgn_state_t *state);
-  /** @brief Serialize the RNG state, seed and amplitude into @p blob. */
+  /** @brief Serialize the RNG state, seed and amplitude into @p blob.
+   *  @param state Generator state. Must be non-NULL.
+   *  @param blob  [out] At least dp_awgn_state_bytes() bytes. */
   void dp_awgn_get_state (const dp_awgn_state_t *state, void *blob);
   /** @brief Restore the RNG state, seed and amplitude; DP_OK, or
-   *  DP_ERR_INVALID if rejected (and nothing changes). */
+   *  DP_ERR_INVALID if rejected (and nothing changes).
+   *  Rejected: a bad envelope (magic, version, endianness, size), an
+   *  amplitude outside dp_awgn_amplitude_ok(), or an all-zero RNG state.
+   *  @param state Generator state to overwrite. Must be non-NULL.
+   *  @param blob  [in] Blob from dp_awgn_get_state().
+   *  @return DP_OK, or DP_ERR_INVALID. */
   int dp_awgn_set_state (dp_awgn_state_t *state, const void *blob);
 
   /**
@@ -118,6 +140,9 @@ extern "C"
    *
    * Assigning an invalid value (NaN, infinite or negative) raises
    * ValueError, and the amplitude keeps its old value (doppler#1987).
+   * @param state  Generator state. Must be non-NULL.
+   * @return Per-component standard deviation (linear, in the units of the
+   *         output samples).
    * @code
    * >>> from doppler.source import AWGN
    * >>> gen = AWGN(seed=0, amplitude=1.0)
@@ -178,6 +203,8 @@ extern "C"
    * rather than gaining a bad one. The Python property raises ValueError on
    * the refusal (doppler#1987).
    *
+   * @param state  Generator state. Must be non-NULL.
+   * @param val    New per-component standard deviation; finite and >= 0.
    * @return DP_OK, or DP_ERR_INVALID for a value outside the domain (nothing
    *         changes).
    */
@@ -209,6 +236,9 @@ extern "C"
    *
    * Returns 65536.  The Python extension uses this for the initial
    * buffer allocation; the buffer grows on demand if n > 65536.
+   *
+   * @param state  Generator state (unused).
+   * @return 65536, always.
    */
   size_t dp_awgn_generate_max_out (dp_awgn_state_t *state);
 

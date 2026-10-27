@@ -35,13 +35,32 @@ extern "C"
 {
 #endif
 
+  /**
+   * @brief Direct-form FIR filter state (opaque to callers; use the API).
+   *
+   * Exactly one of @c taps / @c rtaps is non-NULL, chosen by the
+   * constructor. Config (taps, num_taps) is fixed at create; the delay line
+   * is the only running state; the scratch buffer is a reusable workspace.
+   */
   typedef struct
   {
-    float _Complex *taps;    /* complex taps  (NULL for real-tap filter)   */
-    float *rtaps;           /* real taps     (NULL for complex-tap filter) */
-    float _Complex *delay;   /* delay line, length num_taps - 1            */
-    float _Complex *scratch; /* [delay | input] workspace, grown on demand  */
+    /** Complex tap copy, num_taps long; NULL for a real-tap filter. Config,
+     *  set by dp_fir_create(). */
+    float _Complex *taps;
+    /** Real tap copy, num_taps long; NULL for a complex-tap filter. Config,
+     *  set by dp_fir_create_real(). */
+    float *rtaps;
+    /** Delay line: the last num_taps - 1 inputs, oldest first. Running
+     *  state, written by every execute/fir_step call and zeroed by
+     *  dp_fir_reset(); NULL when num_taps == 1. */
+    float _Complex *delay;
+    /** Workspace laid out [delay | input | zero pad]; allocated on the
+     *  first dp_fir_execute() and grown (never shrunk) as blocks grow. */
+    float _Complex *scratch;
+    /** Allocated length of @c scratch in complex samples (0 until the
+     *  first dp_fir_execute()). */
     size_t scratch_cap;
+    /** Filter length in taps (>= 1). Config, fixed at create. */
     size_t num_taps;
   } dp_fir_state_t;
 
@@ -132,6 +151,7 @@ extern "C"
    * instance of the same length, without paying the allocation cost again.
    * Call this between unrelated signal segments to prevent inter-segment
    * leakage through the delay line.
+   * @param state Filter state. Must be non-NULL.
    * @code
    * >>> import numpy as np
    * >>> from doppler.filter import FIR
@@ -149,15 +169,30 @@ extern "C"
 
   /* Serializable state (standard bytes interface; see dp_state.h): the delay
    * line (num_taps-1 samples) after the envelope; taps/scratch are config. */
+  /** State-blob magic ("FIR_") checked by dp_fir_set_state(). */
 #define FIR_STATE_MAGIC DP_FOURCC ('F', 'I', 'R', '_')
+  /** State-blob layout version; bumped whenever the payload changes. */
 #define FIR_STATE_VERSION 1u
 
-  /** @brief Bytes dp_fir_get_state() writes for @p state (envelope + payload). */
+  /** @brief Bytes dp_fir_get_state() writes for @p state (envelope + payload).
+   *  @param state Filter state. Must be non-NULL.
+   *  @return sizeof(dp_state_hdr_t) + (num_taps - 1) * sizeof(float _Complex);
+   *          just the header when num_taps == 1. */
   size_t dp_fir_state_bytes (const dp_fir_state_t *state);
-  /** @brief Serialize @p state's delay line into @p blob. */
+  /** @brief Serialize @p state's delay line into @p blob.
+   *  @param state Filter state. Must be non-NULL.
+   *  @param blob  [out] Destination of at least dp_fir_state_bytes(state)
+   *               bytes. */
   void dp_fir_get_state (const dp_fir_state_t *state, void *blob);
   /** @brief Restore the delay line from @p blob (same num_taps).
-   *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
+   *  The taps are not in the blob: restore into a filter built with the same
+   *  taps, or the output continues with the new filter's response.
+   *  @param state Filter state to overwrite. Must be non-NULL.
+   *  @param blob  [in] Blob from dp_fir_get_state() on a filter of the same
+   *               length.
+   *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects (wrong
+   *          magic, version, endianness or size); @p state is then
+   *          unchanged. */
   int dp_fir_set_state (dp_fir_state_t *state, const void *blob);
 
   /**
@@ -166,6 +201,8 @@ extern "C"
    * struct itself.  Passing NULL is a no-op.  The Python wrapper calls
    * this automatically in __del__ and __exit__; call it explicitly only
    * when you want deterministic resource release before GC.
+   * @param state Filter state from dp_fir_create() or dp_fir_create_real(),
+   *              or NULL.
    * @code
    * >>> import numpy as np
    * >>> from doppler.filter import FIR
@@ -180,8 +217,10 @@ extern "C"
 
   /**
    * @brief Number of tap coefficients supplied at creation.
-   * This equals the filter group delay plus one, and determines the
-   * minimum input block length for which no latency is observable.
+   * The filter length M; the delay line holds M - 1 samples. For a
+   * linear-phase (symmetric) design the group delay is (M - 1) / 2 samples.
+   * @param state Filter state. Must be non-NULL.
+   * @return Filter length in taps (>= 1).
    * @code
    * >>> import numpy as np
    * >>> from doppler.filter import FIR
@@ -197,6 +236,8 @@ extern "C"
    * Real-tap filters (dp_fir_create_real) use a cheaper inner loop: 1 FMA/tap
    * versus the 2 FMA + lane permute required for complex multiplication.
    * Use this flag to confirm which constructor path was used at runtime.
+   * @param state Filter state. Must be non-NULL.
+   * @return 1 if built by dp_fir_create_real(), 0 if by dp_fir_create().
    * @code
    * >>> import numpy as np
    * >>> from doppler.filter import FIR
@@ -235,6 +276,9 @@ extern "C"
    * call-independent upper bound smaller than the input length for this
    * function to report. An `out=` buffer must be sized to exactly
    * `len(x)`, not to this function's return value.
+   *
+   * @param state Filter state (unused).
+   * @return 0, always.
    */
   size_t dp_fir_execute_max_out (dp_fir_state_t *state);
 
@@ -249,7 +293,9 @@ extern "C"
    * @param in    Input array of n_in CF32 samples.
    * @param n_in  Number of input samples to process.
    * @param out   Output buffer; caller must provide space for n_in CF32 values.
-   * @return      Number of output samples written (always == n_in).
+   * @return      Number of output samples written: n_in on success; 0 if any
+   *              pointer is NULL, n_in is 0, or growing the scratch buffer
+   *              fails (state is then unchanged).
    * @code
    * >>> import numpy as np
    * >>> from doppler.filter import FIR

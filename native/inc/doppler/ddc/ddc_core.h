@@ -119,7 +119,9 @@ extern "C"
    * @param rate       Output rate / input rate.  Must be > 0.  Values
    *                   >= 1 are up-sampling; typical use is decimation
    *                   (0 < rate < 1).
-   * @return Non-NULL on success, NULL on OOM or invalid args.
+   * @return A heap-allocated state owned by the caller (free it with
+   *         dp_ddc_destroy()), or NULL when `rate <= 0`, when the
+   *         RateConverter cannot plan the rate, or on OOM.
    *
    * @code
    * >>> from doppler.ddc import DDC
@@ -165,7 +167,10 @@ dp_ddc_state_t *dp_ddc_create(double norm_freq, double rate);
    *                   samples per symbol out).
    * @param num_phases Terminal-stage arms; a power of two.  Sets the timing
    *                   resolution to `1/num_phases` of an output period.
-   * @return Non-NULL on success, NULL on a bad parameter or OOM.
+   * @return A heap-allocated state owned by the caller (free it with
+   *         dp_ddc_destroy()), or NULL on a bad parameter (`rate <= 0`,
+   *         `pulse == RC_PULSE_NONE`, or anything
+   *         dp_RateConverter_create_matched() rejects) or on OOM.
    *
    * @code
    * >>> from doppler.ddc import MatchedDDC
@@ -183,6 +188,8 @@ dp_ddc_state_t *dp_ddc_create(double norm_freq, double rate);
    * Releases the RateConverter and LO substructures, then the struct
    * itself.  Passing NULL is a no-op.
    *
+   * @param state  DDC to free, or NULL.  Invalid after this call.
+   *
    * @code
    * >>> from doppler.ddc import DDC
    * >>> ddc = DDC(norm_freq=0.0, rate=0.25)
@@ -195,7 +202,11 @@ void dp_ddc_destroy(dp_ddc_state_t *state);
    * @brief Zero LO phase and resampler history.
    * After reset, the next execute call produces the same output as the
    * first execute after create — useful for reproducible block-by-block
-   * processing or looped test fixtures.
+   * processing or looped test fixtures.  Also clears the cascade's sticky
+   * CIC clip flag (see dp_ddc_get_clipped()).  The configured norm_freq and
+   * rate are kept.
+   *
+   * @param state  Must be non-NULL.
    *
    * @code
    * >>> from doppler.ddc import DDC
@@ -213,6 +224,11 @@ void dp_ddc_reset(dp_ddc_state_t *state);
 
   /**
    * @brief Return the current LO normalised frequency (cycles/sample).
+   *
+   * @param state  Must be non-NULL.
+   * @return The LO centre frequency in cycles/sample at the input rate, as
+   *         last set by create or dp_ddc_set_norm_freq().  Per-call
+   *         `freq_ctrl` deviations are never folded in.
    *
    * @code
    * >>> from doppler.ddc import DDC
@@ -248,6 +264,9 @@ void dp_ddc_set_norm_freq(dp_ddc_state_t *state, double val);
    * The rate is fixed at create time; change it by destroying and
    * recreating the DDC with the new value.
    *
+   * @param state  Must be non-NULL.
+   * @return The output/input sample-rate ratio passed at create time.
+   *
    * @code
    * >>> from doppler.ddc import DDC
    * >>> ddc = DDC(norm_freq=0.0, rate=0.25)
@@ -271,7 +290,8 @@ double dp_ddc_get_rate(const dp_ddc_state_t *state);
    * @param x_len    Number of input samples (C-only, hidden from Python).
    * @param out      CF32 output buffer (C-only, hidden from Python).
    * @param max_out  Output buffer capacity (C-only, hidden from Python).
-   * @return Number of output samples written (C-only).
+   * @return Number of output samples written (C-only); 0 when
+   *         @p x_len is 0 or the temporary mix buffer cannot be allocated.
    *
    * @code
    * >>> from doppler.ddc import DDC
@@ -316,7 +336,8 @@ size_t dp_ddc_execute(dp_ddc_state_t *state, const float _Complex *x, size_t x_l
    *                  the INPUT rate (any sign).
    * @param out       CF32 output buffer.
    * @param max_out   Capacity of @p out in samples.
-   * @return Number of output samples written.
+   * @return Number of output samples written; 0 when @p x_len is 0 or the
+   *         temporary mix buffer cannot be allocated.
    *
    * @code
    * >>> from doppler.ddc import DDC
@@ -458,7 +479,18 @@ size_t dp_ddc_execute(dp_ddc_state_t *state, const float _Complex *x, size_t x_l
                                      float _Complex *lo_out, int *n_lo,
                                      float _Complex *pre_out, int *n_pre);
 
-  /** @brief Samples per symbol of the pre-terminal tap; a planner outcome. */
+  /**
+   * @brief Samples per symbol of the pre-terminal tap; a planner outcome.
+   *
+   * Forwarded from dp_RateConverter_get_bank_sps(): the symbol period on the
+   * terminal stage's input grid, `pulse_sps / terminal_stage_rate`, fixed at
+   * construction.  This is the rate of the @p pre_out tap of
+   * dp_ddc_execute_ctrl_push_tap2().
+   *
+   * @param state  Must be non-NULL.
+   * @return Samples per symbol at the pre-terminal node for the matched
+   *         flavor; 0.0 for the plain flavor, which has no pulse.
+   */
   double dp_ddc_get_bank_sps (const dp_ddc_state_t *state);
 
   /**
@@ -471,6 +503,11 @@ size_t dp_ddc_execute(dp_ddc_state_t *state, const float _Complex *x, size_t x_l
    * lock statistic of -0.34 at two samples per symbol against +0.95 at four.
    * The RRC spans many symbols and is never affected. Construction also
    * raises a UserWarning, so this is the pull half of the same diagnostic.
+   *
+   * @param state  Must be non-NULL.
+   * @return true when the matched flavor has `pulse == RC_PULSE_IANDD` and
+   *         `pulse_sps < 4`; false otherwise (always false for the plain
+   *         flavor).  Fixed at construction.
    */
   bool dp_ddc_get_narrow_pulse (const dp_ddc_state_t *state);
 
@@ -484,6 +521,10 @@ size_t dp_ddc_execute(dp_ddc_state_t *state, const float _Complex *x, size_t x_l
    * downstream metric attributes to the front end. Sticky until dp_ddc_reset();
    * always false for a plan with no CIC stage, which is the honest answer since
    * those plans are scale-free.
+   *
+   * @param state  Must be non-NULL.
+   * @return true if any CIC input sample has been clipped since create or
+   *         the last dp_ddc_reset(); false otherwise.
    */
 bool dp_ddc_get_clipped(const dp_ddc_state_t *state);
 
@@ -524,28 +565,77 @@ size_t dp_ddc_execute_max_out(dp_ddc_state_t *state, size_t x_len);
    * `[dp_state_hdr_t][ddc_extra_t][lo][rc]`.  Like ddcr without the real-input
    * halfband front end; `rate` is the layout key. */
 
+  /** @brief DDC-specific blob header, written after the envelope and before
+   *  the LO and RateConverter child blobs. */
   typedef struct
   {
     double rate; /**< Total rate; must equal the engine's (layout key). */
   } ddc_extra_t;
 
+/** @brief Blob magic for a DDC state blob ("DDC_"). */
 #define DDC_STATE_MAGIC DP_FOURCC ('D', 'D', 'C', '_')
+/** @brief Blob layout version for a DDC state blob. */
 #define DDC_STATE_VERSION 1u
 
-  /** @brief Byte size of @p state's blob (envelope + extra + lo + rc). */
+  /** @brief Byte size of @p state's blob (envelope + extra + lo + rc).
+   *  @param state  Must be non-NULL.
+   *  @return Size in bytes of the buffer dp_ddc_get_state() writes and
+   *          dp_ddc_set_state() expects; fixed for a given construction. */
   size_t dp_ddc_state_bytes (const dp_ddc_state_t *state);
-  /** @brief Serialize @p state's LO + RateConverter state into @p blob. */
+  /** @brief Serialize @p state's LO + RateConverter state into @p blob.
+   *  @param state  Must be non-NULL; not modified.
+   *  @param blob   [out] Caller-owned buffer of at least
+   *                dp_ddc_state_bytes() bytes. */
   void dp_ddc_get_state (const dp_ddc_state_t *state, void *blob);
   /** @brief Restore LO + RateConverter state from @p blob.
+   *  @param state  Must be non-NULL; built with the same rate (and the same
+   *                flavor/pulse) as the instance that wrote @p blob.
+   *  @param blob   Blob written by dp_ddc_get_state().
    *  @return DP_OK, or DP_ERR_INVALID if the envelope/rate rejects. */
   int dp_ddc_set_state (dp_ddc_state_t *state, const void *blob);
   /** @brief Pure run: `(state_in, input) -> (state_out, output)`; either blob
-   *  may be NULL (NULL in = current; NULL out = discard). */
+   *  may be NULL (NULL in = current; NULL out = discard).
+   *
+   *  Restores @p state_in into @p state (when non-NULL), runs
+   *  dp_ddc_execute(), then exports the resulting state to @p state_out
+   *  (when non-NULL).
+   *
+   *  @param state      Must be non-NULL; the working instance.
+   *  @param state_in   Blob to restore first, or NULL to keep the current
+   *                    state.
+   *  @param state_out  [out] Buffer of dp_ddc_state_bytes() bytes that
+   *                    receives the post-run state, or NULL to discard it.
+   *  @param in         CF32 input block.
+   *  @param n_in       Number of input samples.
+   *  @param out        [out] CF32 output buffer.
+   *  @param max_out    Capacity of @p out in samples.
+   *  @return Number of output samples written; 0 (and nothing run) when
+   *          @p state_in is rejected by dp_ddc_set_state(). */
   size_t dp_ddc_run (dp_ddc_state_t *state, const void *state_in, void *state_out,
                   const float _Complex *in, size_t n_in, float _Complex *out,
                   size_t max_out);
 
+  /**
+   * @brief Maximum output samples one execute_ctrl() of x_len inputs can
+   *        produce.
+   *
+   * Same bound as dp_ddc_execute_max_out(): the binding sizes its output
+   * buffer from it and resizes down to the actual count.
+   *
+   * @param state  Unused; may be any instance.
+   * @param x_len  Number of input samples the matching call sees.
+   * @return       x_len.
+   */
 size_t dp_ddc_execute_ctrl_max_out(dp_ddc_state_t *state, size_t x_len);
+  /**
+   * @brief Output-buffer capacity for one execute_ctrl_push() call.
+   *
+   * A single input completes at most `ceil(rate) + 1` output periods; the
+   * binding has no input block to size from, so it uses this fixed bound.
+   *
+   * @param state  Must be non-NULL.
+   * @return `(size_t)max(rate, 1.0) + 2` samples.
+   */
 size_t dp_ddc_execute_ctrl_push_max_out(dp_ddc_state_t *state);
 #ifdef __cplusplus
 }

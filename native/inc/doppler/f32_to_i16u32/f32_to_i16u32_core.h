@@ -51,8 +51,11 @@ extern "C" {
  * scaled value falls outside `[-32768, 32767]`; cleared only by reset().
  */
 typedef struct {
-    float   scale;   /* multiply factor applied before saturation */
-    uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
+    float   scale;   /**< Multiply factor applied before saturation; set
+                          by create (> 0) and never changed after */
+    uint8_t clipped; /**< Sticky: 1 once any sample has been saturated,
+                          0 otherwise; written by step/steps, cleared
+                          by reset (running state) */
 } dp_f32_to_i16u32_state_t;
 
 /**
@@ -62,8 +65,10 @@ typedef struct {
  *
  * @param scale  Multiply factor applied before quantisation and saturation
  *               (default: 32768.0f).  Use 32768.0 to convert normalised
- *               `[-1, +1]` samples to Q15 packed into a uint32.
- * @return Heap-allocated state, or NULL on allocation failure.
+ *               `[-1, +1]` samples to Q15 packed into a uint32.  Must be
+ *               > 0.
+ * @return Heap-allocated state, or NULL if @p scale <= 0 or allocation
+ *         fails.
  * @note Caller must call dp_f32_to_i16u32_destroy() when done.
  */
 dp_f32_to_i16u32_state_t *dp_f32_to_i16u32_create(float scale);
@@ -101,7 +106,9 @@ void dp_f32_to_i16u32_reset(dp_f32_to_i16u32_state_t *state);
  *
  * Computes @c round(x * scale), saturates to `[-32768, 32767]`, then
  * zero-extends the 16-bit two's-complement pattern into the lower 16 bits of a
- * uint32 (upper 16 bits are always zero). Latches the sticky @c clipped flag on saturation.
+ * uint32 (upper 16 bits are always zero). Latches the sticky @c clipped
+ * flag on saturation. A NaN input maps to 0x8000 (-32768) without
+ * setting @c clipped.
  *
  * @param state  Must be non-NULL.
  * @param x      Input sample, normally a normalised float in `[-1, +1]`.
@@ -133,12 +140,14 @@ dp_f32_to_i16u32_step(dp_f32_to_i16u32_state_t *state, float x)
  * @brief Process a block of float samples to Q15-in-uint32.
  *
  * Applies step() to every element.  The @c clipped flag is updated
- * cumulatively across the block.  Accepts an optional pre-allocated output
- * array; allocates a fresh one when @p output is NULL.
+ * cumulatively across the block.  In C the caller supplies @p output; the
+ * Python binding accepts an optional pre-allocated @c out array and
+ * allocates a fresh one when it is omitted.
  *
  * @param state   Must be non-NULL.
  * @param input   Input float32 array; must contain at least @p n elements.
- * @param output  Output uint32 array; must contain at least @p n elements.
+ * @param output  [out] Output uint32 array; must be non-NULL and contain at
+ *                least @p n elements.
  * @param n       Number of samples to process.
  *
  * @code
@@ -163,10 +172,34 @@ void dp_f32_to_i16u32_steps(
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the sticky clip flag resumes exactly into an
  * identically-built instance. */
+/** Envelope magic ("FU32") that tags an f32_to_i16u32 state blob. */
 #define F32_TO_I16U32_STATE_MAGIC DP_FOURCC ('F','U','3','2')
+/** Payload layout version of an f32_to_i16u32 state blob. */
 #define F32_TO_I16U32_STATE_VERSION 1u
+/**
+ * @brief Bytes dp_f32_to_i16u32_get_state() writes (envelope + payload).
+ * @param state  State; not read (the size is fixed).
+ * @return sizeof(dp_state_hdr_t) + sizeof(dp_f32_to_i16u32_state_t).
+ */
 size_t dp_f32_to_i16u32_state_bytes (const dp_f32_to_i16u32_state_t *state);
+/**
+ * @brief Snapshot the whole state struct (scale and clipped) into @p blob.
+ * @param state  State.  Must be non-NULL.  Not modified.
+ * @param blob   [out] Caller-owned buffer of at least
+ *               dp_f32_to_i16u32_state_bytes() bytes.
+ */
 void dp_f32_to_i16u32_get_state (const dp_f32_to_i16u32_state_t *state, void *blob);
+/**
+ * @brief Restore the whole state struct from @p blob.
+ *
+ * The envelope (magic, version, endianness, size) is validated first; on
+ * success both @c scale and @c clipped are overwritten from the blob, so
+ * the instance takes the source's scale too.
+ *
+ * @param state  State.  Must be non-NULL; unchanged on rejection.
+ * @param blob   Blob from dp_f32_to_i16u32_get_state().
+ * @return DP_OK, or DP_ERR_INVALID if the envelope rejects.
+ */
 int dp_f32_to_i16u32_set_state (dp_f32_to_i16u32_state_t *state, const void *blob);
 
 #ifdef __cplusplus

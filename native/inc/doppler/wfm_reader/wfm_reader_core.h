@@ -51,8 +51,7 @@ extern "C"
 {
 #endif
 
-  /** Opaque reader handle. */
-  /** Opaque reader state; the layout is private to wfm_reader_core.c. */
+  /** Opaque reader handle; the layout is private to wfm_reader_core.c. */
   typedef struct wfm_reader_state dp_wfm_reader_state_t;
 
 
@@ -145,13 +144,6 @@ extern "C"
                                  expired, or a second stop ended it. */
   } wfm_follow_end_t;
 
-  /** @brief `sample_type` value meaning "the caller said nothing".
-   *
-   *  Distinct from cf32 deliberately. `Reader(p)` and
-   *  `Reader(p, sample_type="cf32")` have to mean different things for a
-   *  stale sidecar to be overridable, and they cannot if the default IS
-   *  cf32. -1 was free -- ::dp_wfm_reader_create returned NULL for it -- so
-   *  giving it a meaning cannot change what any existing caller gets. */
   /** The `sample_type` hint ::dp_wfm_reader_create takes, by name.
    *
    *  Ten wire types in wavegen order (the same indices as the `stype`
@@ -162,7 +154,13 @@ extern "C"
   /* SSOT: enum=reader_stype */
   typedef enum
   {
-    WFM_READER_STYPE_AUTO = -1, /**< the caller said nothing. */
+    /** The caller said nothing. Distinct from cf32 deliberately:
+     *  `Reader(p)` and `Reader(p, sample_type="cf32")` have to mean
+     *  different things for a stale sidecar to be overridable, and they
+     *  cannot if the default IS cf32. -1 was free -- ::dp_wfm_reader_create
+     *  returned NULL for it -- so giving it a meaning changed nothing any
+     *  existing caller got. */
+    WFM_READER_STYPE_AUTO = -1,
     WFM_READER_STYPE_CF32 = 0,  /**< interleaved float32 I/Q. */
     WFM_READER_STYPE_CF64,      /**< interleaved float64 I/Q. */
     WFM_READER_STYPE_CI32,      /**< interleaved int32 I/Q. */
@@ -180,10 +178,11 @@ extern "C"
   typedef struct
   {
     int    file_type;   /**< detected wfm_filetype_t. */
-    /** Element type only -- 0 f32, 1 f64, 2 i32, 3 i16, 4 i8. How many
-        components make a sample is @c mode, never this: the two are
-        independent axes and the BLUE format field spells them as two
-        separate characters for the same reason. */
+    /** The ::wfm_reader_stype_t index of the wire type, 0..9: element type
+        plus 5 for a scalar (one-component) capture -- 0 cf32 .. 4 ci8,
+        5 f32 .. 9 i8. The same combined index ::dp_wfm_reader_create takes
+        as a hint and ::dp_wfm_reader_get_sample_type returns; @c mode
+        repeats the component count on its own. */
     int    sample_type;
     int    mode;        /**< wfm_mode_t: 0 complex, 1 scalar (BLUE 'S'). */
     int    endian;      /**< 0 little, 1 big. */
@@ -201,11 +200,23 @@ extern "C"
    * @brief Open a capture exactly as ::dp_wfm_reader_create_interruptible
    *        does, but install no stop predicate.
    *
-   * @copydetails dp_wfm_reader_create_interruptible
-   *
    * The one difference: the stop predicate is left NULL, so a
    * `read_follow()` ends only with the capture or a bounded budget until the
-   * caller installs one with ::dp_wfm_reader_set_stop_fn.
+   * caller installs one with ::dp_wfm_reader_set_stop_fn. Detection, the
+   * hints and the sidecar rules are described under
+   * ::dp_wfm_reader_create_interruptible.
+   *
+   * @param path         file to open (header file for a detached BLUE
+   *                     capture, or its `.det`; `.sigmf-data` for SigMF).
+   *                     Copied during the call. NULL returns NULL.
+   * @param sample_type  wire-type hint for headerless raw/CSV, a
+   *                     ::wfm_reader_stype_t: ::WFM_READER_STYPE_AUTO (-1)
+   *                     or 0..9. Anything else returns NULL.
+   * @param endian       byte-order hint for headerless raw: 0 little,
+   *                     non-zero big.
+   * @return a reader the caller frees with ::dp_wfm_reader_destroy, or NULL
+   *         on a bad argument or an open/parse failure (missing file,
+   *         unsupported BLUE mode, ...).
    */
 dp_wfm_reader_state_t *dp_wfm_reader_create(const char *path, int sample_type, int endian);
 
@@ -294,7 +305,16 @@ dp_wfm_reader_state_t *dp_wfm_reader_create(const char *path, int sample_type, i
 dp_wfm_reader_state_t *dp_wfm_reader_create_interruptible(const char *path, int sample_type, int endian);
 
 
-  /** @brief Copy the resolved capture metadata into @p info. */
+  /**
+   * @brief Copy the resolved capture metadata into @p info.
+   *
+   * One snapshot of every getter below. For a CSV this counts the file on
+   * the first call (as ::dp_wfm_reader_get_num_samples does), so
+   * `num_samples` is the real length rather than 0.
+   *
+   * @param r          the reader.
+   * @param[out] info  filled field-by-field; must be non-NULL.
+   */
   void dp_wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info);
 
   /**
@@ -313,6 +333,8 @@ dp_wfm_reader_state_t *dp_wfm_reader_create_interruptible(const char *path, int 
    *                to avoid an allocation per block in a streaming loop).
    * @param out     destination, at least @p max_out samples.
    * @param max_out capacity of @p out; emission stops there.
+   * @return samples written to @p out, at most min(@p n, @p max_out); 0 at
+   *         the end of the capture (or when @p n or @p max_out is 0).
    *
    * @code
    * >>> import pathlib, tempfile
@@ -344,7 +366,11 @@ size_t dp_wfm_reader_read(dp_wfm_reader_state_t *state, size_t n,
    *
    *  A reader streams, so a read of n produces at most n samples; the binding
    *  sizes its buffer to this per-call bound (gh-607) and resizes down to the
-   *  actual count, never pre-allocating the whole capture. */
+   *  actual count, never pre-allocating the whole capture.
+   *
+   *  @param state  the reader (unused).
+   *  @param n      the requested sample count.
+   *  @return @p n. */
 size_t dp_wfm_reader_read_max_out(dp_wfm_reader_state_t *state, size_t n);
 
   /**
@@ -356,6 +382,10 @@ size_t dp_wfm_reader_read_max_out(dp_wfm_reader_state_t *state, size_t n);
    * yields whatever decoded cleanly before it, since metadata must never cost
    * you the samples. For a detached capture the keywords come from the HEADER
    * file, not the `.det`.
+   *
+   * @param state  the reader.
+   * @return the keyword count; valid indices for ::dp_wfm_reader_keyword are
+   *         0 to this minus one.
    */
 size_t dp_wfm_reader_num_keywords(const dp_wfm_reader_state_t *state);
 
@@ -386,6 +416,10 @@ char *dp_wfm_reader_get_annotations(const dp_wfm_reader_state_t *state);
    *
    * The returned pointer (and its `value` buffer) is owned by the reader and
    * is freed by dp_wfm_reader_destroy().
+   *
+   * @param r  the reader.
+   * @param i  keyword index, 0 to ::dp_wfm_reader_num_keywords minus one.
+   * @return the keyword (tag, type code, count, decoded value), or NULL.
    */
   const wfm_keyword_t *dp_wfm_reader_keyword (const dp_wfm_reader_state_t *r, size_t i);
 
@@ -395,16 +429,20 @@ char *dp_wfm_reader_get_annotations(const dp_wfm_reader_state_t *state);
    * jm's generated dict loop (gh-543) calls this for every index in
    * [0, dp_wfm_reader_num_keywords()), so @p i is always in range. The returned
    * pointer is owned by the reader.
+   *
+   * @param state  the reader.
+   * @param i      keyword index; NOT bounds-checked, so an out-of-range
+   *               @p i is undefined behavior.
+   * @return the NUL-terminated tag, valid until ::dp_wfm_reader_destroy.
    */
 const char *dp_wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t i);
 
   /**
-   * @brief The first keyword whose tag equals @p tag, or NULL if absent.
-   *
-   * Tags are not required to be unique; this returns the earliest match.
-   */
-  /**
    * @brief Number of decoded HCB fields (0 for a non-BLUE file type).
+   *
+   * @param state  the reader.
+   * @return the field count; valid indices for ::dp_wfm_reader_header_field
+   *         are 0 to this minus one.
    */
   size_t dp_wfm_reader_num_header_fields(const dp_wfm_reader_state_t *state);
 
@@ -417,22 +455,48 @@ const char *dp_wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t
    * keyword struct means the header and the keywords share one tag/value
    * codec, so a double or an ASCII field can never be turned into a Python
    * object two different ways.
+   *
+   * @param state  the reader.
+   * @param i      field index, 0 to ::dp_wfm_reader_num_header_fields minus
+   *               one.
+   * @return the field, owned by the reader, or NULL.
    */
   const wfm_keyword_t *dp_wfm_reader_header_field(const dp_wfm_reader_state_t *state,
                                                size_t i);
 
   /**
    * @brief The i-th HCB field's name, for the `.header` dict binding.
+   *
+   * @param state  the reader.
+   * @param i      field index; NOT bounds-checked (the generated dict loop
+   *               only passes indices below
+   *               ::dp_wfm_reader_num_header_fields).
+   * @return the NUL-terminated field name, owned by the reader.
    */
   const char *dp_wfm_reader_header_tag(const dp_wfm_reader_state_t *state, size_t i);
 
   /**
    * @brief Look up one HCB field by name, or NULL if absent.
+   *
+   * @param state  the reader.
+   * @param name   the field name as the format spells it (`data_size`,
+   *               `xdelta`, ...); exact, case-sensitive match.
+   * @return the field, owned by the reader, or NULL (always NULL for a
+   *         non-BLUE file type).
    */
   const wfm_keyword_t *
   dp_wfm_reader_find_header_field(const dp_wfm_reader_state_t *state,
                                const char *name);
 
+  /**
+   * @brief The first keyword whose tag equals @p tag, or NULL if absent.
+   *
+   * Tags are not required to be unique; this returns the earliest match.
+   *
+   * @param r    the reader.
+   * @param tag  the keyword tag; exact, case-sensitive match.
+   * @return the keyword, owned by the reader, or NULL.
+   */
   const wfm_keyword_t *dp_wfm_reader_find_keyword (const dp_wfm_reader_state_t *r,
                                                 const char        *tag);
 
@@ -445,6 +509,8 @@ const char *dp_wfm_reader_keyword_tag(const dp_wfm_reader_state_t *state, size_t
    * byte 0 of a `.det` or a raw/SigMF payload), so the capture reads again
    * from the top. The file's metadata and decoded keywords are unaffected:
    * they came from the header and do not change.
+   *
+   * @param state  the reader; NULL is a no-op.
    */
 void dp_wfm_reader_reset(dp_wfm_reader_state_t *state);
 
@@ -601,6 +667,10 @@ int dp_wfm_reader_seek_time(dp_wfm_reader_state_t *state, double seconds);
    * Ctrl+C escapes a writer that died before the first (#2601).
    * dp_interrupted() returns exactly that count.
    *
+   * @param state  the reader.
+   * @param fn     the stop predicate, polled once per wait slice; NULL
+   *               removes it.
+   *
    * @code
    * dp_wfm_reader_set_stop_fn (r, dp_interrupted);
    * @endcode
@@ -608,7 +678,12 @@ int dp_wfm_reader_seek_time(dp_wfm_reader_state_t *state, double seconds);
   void dp_wfm_reader_set_stop_fn (dp_wfm_reader_state_t *state, int (*fn) (void));
 
 
-  /** @brief Close the file, free the reader and its decoded keywords. */
+  /** @brief Close the file, free the reader and its decoded keywords.
+   *
+   *  Every pointer the reader handed out (keywords, header fields, tags)
+   *  dies with it.
+   *
+   *  @param state  the reader; NULL is a no-op. */
 void dp_wfm_reader_destroy(dp_wfm_reader_state_t *state);
 
   /**
@@ -617,6 +692,9 @@ void dp_wfm_reader_destroy(dp_wfm_reader_state_t *state);
    * A ::wfm_fc_source_t. ::WFM_FC_NONE means nothing was found, which is the
    * only way to tell a baseband capture (`fc` genuinely 0 Hz) from one whose
    * frequency this library could not locate — both report `fc == 0.0`.
+   *
+   * @param state  the reader.
+   * @return a ::wfm_fc_source_t value, fixed at open.
    */
 int dp_wfm_reader_get_fc_source(const dp_wfm_reader_state_t *state);
 
@@ -625,6 +703,9 @@ int dp_wfm_reader_get_fc_source(const dp_wfm_reader_state_t *state);
    *
    * A ::wfm_fs_source_t. ::WFM_FS_NONE means nothing carried a rate — raw
    * and CSV always, and any BLUE header whose `xdelta` is zero.
+   *
+   * @param state  the reader.
+   * @return a ::wfm_fs_source_t value, fixed at open.
    */
 int dp_wfm_reader_get_fs_source(const dp_wfm_reader_state_t *state);
 
@@ -639,6 +720,10 @@ int dp_wfm_reader_get_fs_source(const dp_wfm_reader_state_t *state);
    * **0.0 does not mean 1970.** Check ::dp_wfm_reader_get_t0_source first:
    * ::WFM_T0_NONE is "not found", which is the usual answer, including for
    * every capture doppler itself writes.
+   *
+   * @param state  the reader.
+   * @return capture start (seconds since 1970-01-01 UTC), or 0.0 when none
+   *         was found.
    */
 double dp_wfm_reader_get_t0(const dp_wfm_reader_state_t *state);
 
@@ -649,6 +734,9 @@ double dp_wfm_reader_get_t0(const dp_wfm_reader_state_t *state);
    * matters: a zero BLUE timecode means the field was never set, not
    * 1950-01-01, so a caller that skips this check dates every such capture
    * to 1950.
+   *
+   * @param state  the reader.
+   * @return a ::wfm_t0_source_t value, fixed at open.
    */
 int dp_wfm_reader_get_t0_source(const dp_wfm_reader_state_t *state);
 
@@ -679,6 +767,9 @@ int dp_wfm_reader_get_t0_source(const dp_wfm_reader_state_t *state);
    * sidecar name its type.
    *
    * Always 0 for CSV, which is delimited rather than strided.
+   *
+   * @param state  the reader.
+   * @return the leftover byte count, computed at open.
    */
 size_t dp_wfm_reader_get_trailing_bytes(const dp_wfm_reader_state_t *state);
 
@@ -689,16 +780,80 @@ size_t dp_wfm_reader_get_trailing_bytes(const dp_wfm_reader_state_t *state);
    * after `reset()`, `num_samples` once the capture is
    * exhausted. Counted in samples rather than bytes so that it means the
    * same thing on a CSV, which has no fixed stride to divide by.
+   *
+   * @param state  the reader.
+   * @return the index of the next sample a read will return.
    */
 size_t dp_wfm_reader_get_position(const dp_wfm_reader_state_t *state);
 
+  /**
+   * @brief The detected file type.
+   * @param state  the reader.
+   * @return a wfm_filetype_t value (raw, CSV, BLUE or SigMF), decided from
+   *         the content at open; raw is also the fallback for a file nothing
+   *         else recognised.
+   */
 int dp_wfm_reader_get_file_type(const dp_wfm_reader_state_t *state);
+  /**
+   * @brief The wire sample type being decoded.
+   * @param state  the reader.
+   * @return a ::wfm_reader_stype_t index, 0..9 (complex five, then the
+   *         scalar five). Read from the metadata for BLUE/SigMF (or an
+   *         adopted sidecar); the constructor hint echoed back otherwise.
+   *         Never ::WFM_READER_STYPE_AUTO.
+   */
 int dp_wfm_reader_get_sample_type(const dp_wfm_reader_state_t *state);
+  /**
+   * @brief Components per wire sample.
+   * @param state  the reader.
+   * @return a ::wfm_mode_t: ::WFM_MODE_COMPLEX or ::WFM_MODE_SCALAR (a
+   *         scalar capture reads back with Q exactly 0).
+   */
 int dp_wfm_reader_get_mode(const dp_wfm_reader_state_t *state);
+  /**
+   * @brief Byte order of the samples on the wire.
+   * @param state  the reader.
+   * @return 0 little-endian, 1 big-endian; from the metadata for BLUE and
+   *         SigMF, the constructor hint for raw; meaningless for CSV.
+   */
 int dp_wfm_reader_get_endian(const dp_wfm_reader_state_t *state);
+  /**
+   * @brief Sample rate.
+   * @param state  the reader.
+   * @return Hz, or 0.0 when nothing declared one (raw/CSV without a
+   *         sidecar); see ::dp_wfm_reader_get_fs_source.
+   */
 double dp_wfm_reader_get_fs(const dp_wfm_reader_state_t *state);
+  /**
+   * @brief Centre frequency.
+   * @param state  the reader.
+   * @return Hz, or 0.0 when nothing declared one -- ambiguous with a true
+   *         baseband capture; see ::dp_wfm_reader_get_fc_source.
+   */
 double dp_wfm_reader_get_fc(const dp_wfm_reader_state_t *state);
+  /**
+   * @brief Total samples in the capture.
+   *
+   * BLUE takes it from the header's `data_size`; raw and SigMF divide the
+   * payload length by the sample stride. A CSV is counted by a full scan on
+   * the first call (exact, and the read position is restored); later calls
+   * are free.
+   *
+   * @param state  the reader.
+   * @return the sample count, or 0 when the file type cannot say.
+   */
 size_t dp_wfm_reader_get_num_samples(const dp_wfm_reader_state_t *state);
+  /**
+   * @brief Output capacity for one ::dp_wfm_reader_read_follow of @p n.
+   *
+   * Returns the caller's ask, NOT what is available now: the binding sizes
+   * the output before the blocking read starts, so "available now" would
+   * hand the wait a zero-length buffer.
+   *
+   * @param state  the reader (unused).
+   * @param n      the requested sample count.
+   * @return @p n.
+   */
 size_t dp_wfm_reader_read_follow_max_out(dp_wfm_reader_state_t *state, size_t n);
 /**
  * @brief Read from a capture that is still being written.
@@ -708,6 +863,20 @@ size_t dp_wfm_reader_read_follow_max_out(dp_wfm_reader_state_t *state, size_t n)
  * **Zero means the capture ENDED**, because with the default unbounded
  * budgets the call does not come back for "not yet"; ::dp_wfm_reader_get_ending
  * says which way it ended.
+ *
+ * Polls the file once per interrupt slice. Data already on disk is returned
+ * before any stop is honored. Only whole samples are consumed, so a writer
+ * flushing mid-sample cannot desynchronize the stream. For a BLUE capture
+ * the end is the writer patching `data_size` at close; raw, CSV and SigMF
+ * carry no end marker, so only a stop or a bounded budget ends their wait.
+ *
+ * @param state    the reader.
+ * @param n        the most samples to return (`count` in Python).
+ * @param out      destination, at least @p max_out samples.
+ * @param max_out  capacity of @p out; caps @p n.
+ * @return samples written (at most min(@p n, @p max_out)), or 0 when the
+ *         capture ended -- then ::dp_wfm_reader_get_ending says why. Also 0,
+ *         with ending ::WFM_FOLLOW_NONE, if @p n or @p max_out is 0.
  *
  * @code
  * >>> import pathlib, tempfile
@@ -729,10 +898,48 @@ size_t dp_wfm_reader_read_follow_max_out(dp_wfm_reader_state_t *state, size_t n)
  * @endcode
  */
 size_t dp_wfm_reader_read_follow(dp_wfm_reader_state_t *state, size_t n, float _Complex *out, size_t max_out);
+/**
+ * @brief How long ::dp_wfm_reader_read_follow waits for data.
+ * @param state  the reader.
+ * @return the budget in ms; 0 (the default) means wait forever.
+ */
 uint32_t dp_wfm_reader_get_follow_timeout_ms(const dp_wfm_reader_state_t *state);
+/**
+ * @brief Bound the wait for data in ::dp_wfm_reader_read_follow.
+ *
+ * A finite budget fires during any ordinary quiet patch, so leave it 0 for
+ * a stream with no end. When it expires with no stop requested the read
+ * returns 0 with ending ::WFM_FOLLOW_TIMEOUT.
+ *
+ * @param state  the reader.
+ * @param val    budget in ms, per call; 0 waits forever.
+ */
 void dp_wfm_reader_set_follow_timeout_ms(dp_wfm_reader_state_t *state, uint32_t val);
+/**
+ * @brief How long a following read waits for the writer's end marker
+ *        after a stop is requested.
+ * @param state  the reader.
+ * @return the grace in ms; 0 (the default) means wait forever.
+ */
 uint32_t dp_wfm_reader_get_follow_grace_ms(const dp_wfm_reader_state_t *state);
+/**
+ * @brief Bound the post-stop wait in ::dp_wfm_reader_read_follow.
+ *
+ * Once the stop predicate fires, the read keeps waiting up to this long
+ * for the writer's marker; expiry returns 0 with ending
+ * ::WFM_FOLLOW_INTERRUPTED and may cost the capture's tail. A second stop
+ * (predicate >= 2) ends the wait at once regardless.
+ *
+ * @param state  the reader.
+ * @param val    grace in ms; 0 waits forever.
+ */
 void dp_wfm_reader_set_follow_grace_ms(dp_wfm_reader_state_t *state, uint32_t val);
+/**
+ * @brief Why the last ::dp_wfm_reader_read_follow came back empty.
+ * @param state  the reader.
+ * @return a ::wfm_follow_end_t; ::WFM_FOLLOW_NONE before the first follow
+ *         read and after any that returned samples.
+ */
 int dp_wfm_reader_get_ending(const dp_wfm_reader_state_t *state);
 #ifdef __cplusplus
 }

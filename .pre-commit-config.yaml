@@ -287,6 +287,15 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # doxygen-check's coverage pass skips a header with no @file block
+      # without saying so. Fires on any C change: a new header lands anywhere.
+      - id: header-file-blocks
+        name: every header opens a @file block
+        entry: make -s lint-header-file-blocks
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
       # The shared libraries export what native/inc publishes (#1164), read
       # by the build from cmake/public-symbols.txt; a header that moves
       # without the list would export the old API.

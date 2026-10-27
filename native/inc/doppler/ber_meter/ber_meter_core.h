@@ -29,7 +29,8 @@
 #ifndef DP_BER_METER_CORE_H
 #define DP_BER_METER_CORE_H
 
-#include "doppler/ber/ber_core.h" /* the records and the free functions */
+#include "doppler/ber/ber_core.h" /* the records, dp_ber_confidence() and the
+                                      other free functions */
 #include "doppler/clib_common.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/dp_state.h"
@@ -122,11 +123,6 @@ extern "C"
                                 const uint8_t *truth, size_t truth_len, int m,
                                 size_t t0, size_t n_marker, size_t period,
                                 int lag_span, double pfa);
-
-  /* dp_ber_confidence() is declared and documented in ber/ber_core.h;
-     redeclared here because BerMeter's ser()/ber() reach it (it is not
-     a module free function: jm free functions cannot return a record). */
-  ber_interval_t dp_ber_confidence (size_t errors, size_t symbols, double conf);
 
   /* ── the meter ────────────────────────────────────────────────────────── */
 

@@ -142,6 +142,12 @@ dp_detector_reset (dp_detector_state_t *state)
   dp_corr_reset (state->corr);
   state->_last_corr_valid = 0;
   state->consumed         = 0;
+  /* The last dump's result is in the blob, so a reset that kept it would
+     serialize a dump this fresh cycle never made (doppler#2642). */
+  state->peak_lag  = 0;
+  state->peak_mag  = 0.0f;
+  state->noise_est = 0.0f;
+  state->test_stat = 0.0f;
 }
 
 /* Serializable state — the corr child (restored, not reset) + the framer's

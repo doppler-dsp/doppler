@@ -636,8 +636,11 @@ dp_dsss_burst_receiver_set_state (dp_dsss_burst_receiver_state_t *s,
   }
 
   /* The last push's rows describe a call that did not happen on this
-     instance. Clearing them is what keeps events() honest after a resume. */
-  s->ev_len  = 0;
-  s->llr_len = 0;
+     instance. Clearing them is what keeps events() honest after a resume.
+     frame_valid is the same: this instance's last verdict, not the blob's
+     (doppler#2642), so it reads 0 as after reset. */
+  s->ev_len      = 0;
+  s->llr_len     = 0;
+  s->frame_valid = 0;
   return DP_OK;
 }

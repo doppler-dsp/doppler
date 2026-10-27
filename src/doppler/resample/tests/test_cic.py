@@ -295,3 +295,26 @@ def test_clipped_survives_state_round_trip():
     assert b.clipped is False
     b.set_state(a.get_state())
     assert b.clipped is True
+
+
+def test_state_carries_r_from_reconfigure():
+    """R travels in the blob, so a restore follows reconfigure() (#2642).
+
+    A blob from R=64 restored into an R=16 CIC used to be accepted and its
+    accumulators read at the R=16 gain; now the target takes R=64 and its
+    continuation matches the source's exactly.
+    """
+    rng = np.random.default_rng(7)
+    x = 0.3 * (rng.standard_normal(2048) + 1j * rng.standard_normal(2048))
+    x = x.astype(np.complex64)
+    src = CIC(R=16)
+    src.reconfigure(64)
+    src.decimate(x[:333])
+    blob = src.get_state()
+    want = src.decimate(x[333:])
+
+    dst = CIC(R=16)
+    dst.set_state(blob)
+    assert dst.R == 64
+    assert dst.shift == src.shift
+    np.testing.assert_array_equal(dst.decimate(x[333:]), want)

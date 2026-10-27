@@ -1048,8 +1048,10 @@ extern "C"
   int dp_mpsk_receiver_get_clipped (const dp_mpsk_receiver_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition: the front end's and the loops' self-validating child blobs.
- * Every scalar this object carries across inputs lives in one of them; the
- * cascade, its banks, the LO centre and the `real` tag are restored by create.
+ * Every scalar this object carries across inputs lives in one of them, except
+ * the carrier centre, which dp_mpsk_receiver_set_norm_freq() moves and so is
+ * packed ahead of them (doppler#2642); the cascade, its banks and the `real`
+ * tag are restored by create.
  *
  * The MAGIC is keyed on the face. The two faces hold genuinely different
  * state — a DDC's cascade against a DDCR's halfband plus cascade — so a blob
@@ -1060,17 +1062,18 @@ extern "C"
 /** State-blob envelope magic for the complex-input face ("MPSK"). */
 #define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'K')
 /** State-blob layout version for the complex-input face. */
-#define MPSK_RECEIVER_STATE_VERSION 6u /* v5: rebuilt on the matched DDC */
+#define MPSK_RECEIVER_STATE_VERSION 7u /* v5: rebuilt on the matched DDC;
+                                          v7: packs the carrier centre */
 /** State-blob envelope magic for the real-IF face ("MPSR"); a blob from one
  *  face is refused by the other at the envelope. */
 #define MPSK_RECEIVER_R_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'R')
 /** State-blob layout version for the real-IF face. */
-#define MPSK_RECEIVER_R_STATE_VERSION 2u
+#define MPSK_RECEIVER_R_STATE_VERSION 3u /* v3: packs the carrier centre */
   /**
    * @brief Size of this receiver's serialized state blob, in bytes.
    *
-   * The envelope header plus the front end's child blob plus the loops'
-   * child blob. Fixed for a given construction (it depends on the face and
+   * The envelope header, the carrier centre (a double), the front end's
+   * child blob and the loops' child blob. Fixed for a given construction (it depends on the face and
    * the planned cascade, not on the stream).
    *
    * @param state  Receiver state. Must be non-NULL.
@@ -1081,10 +1084,11 @@ extern "C"
   /**
    * @brief Serialize the receiver's running state into @p blob.
    *
-   * Writes `[header][front-end child][loops child]`, the header tagged with
-   * the face's magic (MPSK_RECEIVER_STATE_MAGIC or
-   * MPSK_RECEIVER_R_STATE_MAGIC). Configuration restored by create (the
-   * cascade, its banks, the LO centre, the face) is not packed.
+   * Writes `[header][f64 centre][front-end child][loops child]`, the header
+   * tagged with the face's magic (MPSK_RECEIVER_STATE_MAGIC or
+   * MPSK_RECEIVER_R_STATE_MAGIC). The centre travels because
+   * dp_mpsk_receiver_set_norm_freq() moves it; configuration restored by
+   * create (the cascade, its banks, the face) is not packed.
    *
    * @param state  Receiver state. Must be non-NULL.
    * @param blob   Destination; at least dp_mpsk_receiver_state_bytes()
@@ -1098,7 +1102,9 @@ extern "C"
    *
    * The envelope is validated first (magic for this face, version, endian,
    * size); then the front end's child blob and the loops' child blob are
-   * restored in that order, each validating its own envelope. The receiver
+   * restored in that order, each validating its own envelope, and last the
+   * carrier centre, with the front end's LO retuned to it as
+   * dp_mpsk_receiver_set_norm_freq() would. The receiver
    * must have been built with the same face and parameters as the one that
    * produced the blob.
    *

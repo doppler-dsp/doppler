@@ -180,7 +180,10 @@ void dp_detector2d_destroy (dp_detector2d_state_t *state);
 /**
  * @brief Reset the 2-D correlator, the carry, and last-corr flag.
  * Discards any partial frame carried between pushes and zeroes the coherent
- * accumulator.  The reference spectrum and FFT plans are preserved.
+ * accumulator.  The reference spectrum and FFT plans are preserved.  The
+ * last-dump fields (peak_row, peak_col, peak_mag, noise_est, test_stat)
+ * read 0 until the next dump, so the state blob after a reset matches a
+ * fresh object's (doppler#2642).
  *
  * @param state  Must be non-NULL.
  *

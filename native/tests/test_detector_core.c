@@ -4,6 +4,7 @@
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define N 64
@@ -507,6 +508,33 @@ main (void)
           dp_detector_destroy (one);
           dp_detector_destroy (d);
         }
+  }
+
+  /* reset clears the last dump's fields, so a reset detector's blob is a
+     fresh one's (doppler#2642): they are in the blob, and a reset that
+     kept them serialized a dump the new cycle never made. */
+  {
+    float _Complex ref[N] = { 0 }, x[N];
+    ref[0]                = 1.0f;
+    for (size_t i = 0; i < N; i++)
+      x[i] = 1.0f;
+    dp_detector_state_t *a
+        = dp_detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    dp_detector_state_t *b
+        = dp_detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    det_result_t res[4];
+    DP_CHECK (dp_detector_push (a, x, N, res, 4) == 1);
+    DP_CHECK (a->peak_mag != 0.0f);
+    dp_detector_reset (a);
+    size_t         sb = dp_detector_state_bytes (a);
+    unsigned char *ba = malloc (sb), *bb = malloc (sb);
+    dp_detector_get_state (a, ba);
+    dp_detector_get_state (b, bb);
+    DP_CHECK (memcmp (ba, bb, sb) == 0);
+    free (ba);
+    free (bb);
+    dp_detector_destroy (a);
+    dp_detector_destroy (b);
   }
 
   DP_TEST_END ("test_detector_core");

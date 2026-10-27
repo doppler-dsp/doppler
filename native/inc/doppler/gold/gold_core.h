@@ -42,14 +42,14 @@ extern "C" {
  * Allocate with dp_gold_create().
  */
 typedef struct {
-    uint64_t reg_a;   /* Register A: current LFSR register */
-    uint64_t reg_b;   /* Register B: current LFSR register */
-    uint64_t taps_a;  /* Register A: fixed feedback-tap mask (bit k = stage k+1) */
-    uint64_t taps_b;  /* Register B: fixed feedback-tap mask (bit k = stage k+1) */
-    uint64_t seed_a;  /* Register A: initial value (for reset); user-dependent */
-    uint64_t seed_b;  /* Register B: initial value (for reset); fixed by CCSDS */
-    uint64_t mask;    /* (1 << length) - 1; all ones when length == 64 */
-    uint32_t length;  /* register width in bits (stage count); CCSDS uses 10 */
+    uint64_t reg_a;   /**< Register A contents (running; bit k = stage k+1) */
+    uint64_t reg_b;   /**< Register B contents (running; bit k = stage k+1) */
+    uint64_t taps_a;  /**< Register A feedback-tap mask, masked (config) */
+    uint64_t taps_b;  /**< Register B feedback-tap mask, masked (config) */
+    uint64_t seed_a;  /**< Register A initial value, reloaded by reset */
+    uint64_t seed_b;  /**< Register B initial value; fixed by CCSDS */
+    uint64_t mask;    /**< (1 << length) - 1; all ones when length == 64 */
+    uint32_t length;  /**< Register width in bits, 1..64; CCSDS uses 10 */
 } dp_gold_state_t;
 
 /**
@@ -144,14 +144,40 @@ void dp_gold_reset(dp_gold_state_t *state);
  * Only the two running LFSR registers are serialized; taps / seeds / mask /
  * length are config restored by the constructor.
  * Envelope: [dp_state_hdr_t][u64 reg_a][u64 reg_b]. */
+/** @brief State-blob magic tag for a Gold generator ("GOLD"). */
 #define GOLD_STATE_MAGIC DP_FOURCC('G', 'O', 'L', 'D')
+/** @brief State-blob layout version for a Gold generator. */
 #define GOLD_STATE_VERSION 1u
 
-/** @brief Serialized-state byte size. */
+/**
+ * @brief Serialized-state byte size.
+ *
+ * @param state  Gold state (unused: the size is the same for every
+ *               instance).
+ * @return Envelope header plus two uint64 registers, in bytes.
+ */
 size_t dp_gold_state_bytes(const dp_gold_state_t *state);
-/** @brief Serialize both LFSR registers into @p blob. */
+/**
+ * @brief Serialize both LFSR registers into @p blob.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Destination buffer of at least dp_gold_state_bytes() bytes.
+ */
 void dp_gold_get_state(const dp_gold_state_t *state, void *blob);
-/** @brief Restore both registers; DP_OK, or DP_ERR_INVALID if rejected. */
+/**
+ * @brief Restore both registers; DP_OK, or DP_ERR_INVALID if rejected.
+ *
+ * Only the two running registers are restored; taps, seeds and length
+ * come from the target's own dp_gold_create() arguments, so create the
+ * target with the same configuration.  The restored registers are taken
+ * as stored, without masking to length or a non-zero check.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Blob written by dp_gold_get_state().
+ * @return DP_OK on success, or DP_ERR_INVALID when the envelope (magic,
+ *         version, endianness, size) does not match; the state is then
+ *         left untouched.
+ */
 int dp_gold_set_state(dp_gold_state_t *state, const void *blob);
 
 /**
@@ -179,6 +205,15 @@ gold_step(dp_gold_state_t *state)
     return out;
 }
 
+/**
+ * @brief Output capacity hint for dp_gold_generate(): always 0.
+ *
+ * The chip count is the caller-requested @p n of dp_gold_generate(), so
+ * there is no fixed per-call maximum; size the output buffer to @p n.
+ *
+ * @param state  Gold state (unused).
+ * @return 0, meaning "no fixed bound; the output length is n".
+ */
 size_t dp_gold_generate_max_out(dp_gold_state_t *state);
 
 /**

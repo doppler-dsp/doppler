@@ -110,6 +110,11 @@ extern "C"
    * 4.3.9.3, first equation: `[z0..z7] = [u7..u0] T`. The returned byte holds
    * `z0` in its most significant bit, because 4.3.9.2 fixes `z0` as the first
    * bit transmitted and this codebase writes MSB-first.
+   *
+   * @param u  A symbol in the conventional basis, `u7` in the most
+   *           significant bit; all 256 values are valid.
+   * @return   The same field element in the dual basis, `z0` in the most
+   *           significant bit.
    */
   uint8_t dp_ccsds_tm_rs_conv_to_dual (uint8_t u);
 
@@ -121,6 +126,11 @@ extern "C"
    * values — but note that inversion ALONE catches only a single
    * mis-transcribed bit, never a wrong pair consistent with itself. The two
    * checks that separate those are described at the top of this file.
+   *
+   * @param z  A symbol in the dual basis, `z0` in the most significant bit
+   *           (first transmitted); all 256 values are valid.
+   * @return   The same field element in the conventional basis, `u7` in the
+   *           most significant bit.
    */
   uint8_t dp_ccsds_tm_rs_dual_to_conv (uint8_t z);
 

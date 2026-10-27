@@ -104,7 +104,9 @@ typedef struct
   void          *stage_ptrs[RC_MAX_STAGES];   /**< sub-object per slot       */
   /** Ping-pong intermediate buffers, grown lazily on first execute. */
   float _Complex *bufs[2];
-  size_t          buf_cap;
+  size_t          buf_cap; /**< capacity of each bufs[] entry, samples;
+                                0 until the first execute, then grown to
+                                the largest n_in seen (never shrinks) */
   /* Matched-filter configuration (RC_PULSE_NONE = plain Kaiser terminal
      bank, i.e. everything dp_RateConverter_create() builds).  Kept so
      dp_RateConverter_set_rate() can re-plan without losing the pulse. */
@@ -151,7 +153,9 @@ typedef struct
  * @param rate       Output-to-input sample rate ratio. Any positive float.
  * @param compensate Non-zero to append a CIC passband-droop compensating
  *                   FIR after any CIC stage.
- * @return Non-NULL on success; NULL if rate <= 0 or OOM.
+ * @return Non-NULL on success, owned by the caller and released with
+ *         dp_RateConverter_destroy(); NULL if rate <= 0, if no cascade can
+ *         be planned for @p rate, or on OOM.
  *
  * @code
  * >>> from doppler.resample import RateConverter
@@ -251,10 +255,21 @@ bool dp_RateConverter_get_clipped (const dp_RateConverter_state_t *s);
  * (measured on the timing loop this feeds, a lock statistic of -0.34 at two
  * samples per symbol against +0.95 at four).  The RRC spans many symbols and
  * is never affected.  Construction also raises a UserWarning.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @return True for a narrow rectangular matched cascade; always false for
+ *         a plain cascade (dp_RateConverter_create()) and for RRC.
  */
 bool dp_RateConverter_get_narrow_pulse (const dp_RateConverter_state_t *s);
 
-/** @brief Number of planned cascade stages (backs the `stages` property). */
+/**
+ * @brief Number of planned cascade stages (backs the `stages` property).
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @return Active stage count, 1 to RC_MAX_STAGES for a successfully built
+ *         cascade; 0 only after a dp_RateConverter_set_rate() whose rebuild
+ *         failed (see that function).
+ */
 size_t dp_RateConverter_num_stages (const dp_RateConverter_state_t *s);
 
 /**
@@ -292,16 +307,36 @@ double dp_RateConverter_gain (const dp_RateConverter_state_t *s);
  * Points at a per-thread scratch buffer valid until this thread's next call —
  * the binding converts it to a Python string immediately.  NULL if @p i is
  * out of range.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @param i  Stage index in `[0, dp_RateConverter_num_stages(s))`.
+ * @return Borrowed pointer to a NUL-terminated label (do not free), or NULL.
  */
 const char *dp_RateConverter_stages_value (const dp_RateConverter_state_t *s,
                                         size_t i);
 
 /**
  * @brief Terminal polyphase bank shape (backs the `bank_shape` property).
+ *
+ * The shape is the 2-element sequence `(num_phases, num_taps)` of the
+ * terminal Resampler stage's bank, and empty when the cascade ends in an
+ * integer decimator (HB / CIC), which has no polyphase bank.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
  * @return 2 when the cascade ends in a Resampler stage, else 0.
  */
 size_t dp_RateConverter_num_bank_shape (const dp_RateConverter_state_t *s);
-/** @brief Element @p i of the bank shape: 0 -> num_phases, 1 -> num_taps. */
+/**
+ * @brief Element @p i of the bank shape: 0 -> num_phases, 1 -> num_taps.
+ *
+ * Only valid when dp_RateConverter_num_bank_shape() returns 2: the terminal
+ * stage is read as a Resampler without checking its type.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @param i  0 for the number of polyphase arms, any other value for the
+ *           number of taps per arm.
+ * @return The requested dimension of the terminal bank.
+ */
 size_t dp_RateConverter_bank_shape_value (const dp_RateConverter_state_t *s,
                                        size_t i);
 
@@ -387,6 +422,9 @@ int dp_RateConverter_enable_agc (dp_RateConverter_state_t *s, double bn_sym,
  * stream has where the AGC sits, derived from the terminal bank's own pulse
  * energy. Defined for any MATCHED cascade whether or not the AGC is enabled,
  * because it describes the bank rather than the loop; 0.0 for a plain one.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @return Reference power in dB (relative to unit power per sample).
  */
 double dp_RateConverter_agc_ref_db (const dp_RateConverter_state_t *s);
 
@@ -398,6 +436,9 @@ double dp_RateConverter_agc_ref_db (const dp_RateConverter_state_t *s);
  * stages' own COEFFICIENTS, and an AGC has none. A caller asking "what did
  * this cascade do to my amplitude" with the AGC on wants both, and they
  * multiply.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @return Last applied AGC gain in dB; 0.0 when the AGC is not enabled.
  */
 double dp_RateConverter_agc_gain_db (const dp_RateConverter_state_t *s);
 
@@ -441,7 +482,10 @@ double dp_RateConverter_agc_gain_db (const dp_RateConverter_state_t *s);
  * @param decim  Emit every decim-th gain update; >= 1.
  * @return DP_OK — including when no AGC is enabled — or DP_ERR_INVALID when
  *         the probe table cannot take the AGC's probes (the attach fails
- *         whole; the AGC stays detached).
+ *         whole; the AGC stays detached), or when "<prefix>.gain_db" /
+ *         "<prefix>.level_db" would not fit a probe name (checked before
+ *         the request is recorded). A NULL @p prefix with a non-NULL
+ *         @p tlm is treated as "agc".
  *
  * @code
  * dp_RateConverter_state_t *rc =
@@ -457,7 +501,11 @@ double dp_RateConverter_agc_gain_db (const dp_RateConverter_state_t *s);
 int dp_RateConverter_set_telemetry (dp_RateConverter_state_t *s, dp_tlm_t *tlm,
                                  const char *prefix, uint32_t decim);
 
-/** @brief Free all resources.  NULL is a no-op. */
+/**
+ * @brief Free all resources: every sub-stage, the AGC, and the state itself.
+ *
+ * @param s  Converter to free; NULL is a no-op.
+ */
 void dp_RateConverter_destroy (dp_RateConverter_state_t *s);
 
 /**
@@ -465,7 +513,11 @@ void dp_RateConverter_destroy (dp_RateConverter_state_t *s);
  * Rate, stage count, and stage types are preserved. Processing from a
  * reset state produces the same output as a freshly created converter
  * fed the same input. Use between signal bursts to suppress transient
- * artefacts from prior filter memory.
+ * artefacts from prior filter memory. An enabled AGC is reset too (back to
+ * unity gain with its detector at the reference), and the clip flag read by
+ * dp_RateConverter_get_clipped() is cleared with the CIC stages.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
  *
  * @code
  * >>> from doppler.resample import RateConverter
@@ -486,14 +538,33 @@ void dp_RateConverter_reset (dp_RateConverter_state_t *s);
  * sub-blob after the stages. A converter with the AGC off writes exactly the
  * bytes v1 did — but the version still moves, because nothing in the blob
  * distinguishes an AGC-off v2 from a v1, and the size check alone cannot. */
+/** State-blob magic: FOURCC 'RCVT'. */
 #define RC_STATE_MAGIC DP_FOURCC ('R', 'C', 'V', 'T')
+/** State-blob layout version; 2 adds the optional pre-terminal AGC part. */
 #define RC_STATE_VERSION 2u
 
-/** @brief Bytes dp_RateConverter_get_state() writes for @p s (envelope + stages). */
+/**
+ * @brief Bytes dp_RateConverter_get_state() writes for @p s (envelope +
+ *        stages + the AGC's sub-blob when enabled).
+ *
+ * Depends on the current plan, so it changes with dp_RateConverter_set_rate()
+ * and dp_RateConverter_enable_agc().
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @return Blob size in bytes.
+ */
 size_t dp_RateConverter_state_bytes (const dp_RateConverter_state_t *s);
-/** @brief Serialize @p s's active-stage state into @p blob. */
+/**
+ * @brief Serialize @p s's active-stage state into @p blob.
+ *
+ * @param s     Pointer to a valid dp_RateConverter_state_t.
+ * @param blob  Destination; must hold dp_RateConverter_state_bytes(s) bytes.
+ */
 void dp_RateConverter_get_state (const dp_RateConverter_state_t *s, void *blob);
 /** @brief Restore active-stage state from @p blob (same rate).
+ *  @param s     Converter with the same plan (rate, compensate, pulse, AGC
+ *               on/off) as the one that wrote @p blob.
+ *  @param blob  Blob from dp_RateConverter_get_state().
  *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope or any stage's
  *          (or the AGC's) part rejects. Stages restore in order, so a later
  *          stage's refusal leaves the earlier ones restored until doppler#2104's
@@ -534,13 +605,33 @@ size_t dp_RateConverter_execute (dp_RateConverter_state_t *s,
  *
  * Returns (size_t)(65536 * max(rate, 1.0)) + 2.  The Python extension uses
  * this to pre-allocate the output buffer on the first execute call.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @return Output capacity in samples.
  */
 size_t dp_RateConverter_execute_max_out (dp_RateConverter_state_t *s);
 
-/** @brief As dp_RateConverter_execute_max_out(), for the block control form. */
+/**
+ * @brief Output-capacity hint for the block control form.
+ *
+ * Unlike dp_RateConverter_execute_max_out() this always returns 0, which
+ * tells the binding to size the output buffer from the input block instead.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t (unused).
+ * @return 0.
+ */
 size_t dp_RateConverter_execute_ctrl_max_out (dp_RateConverter_state_t *s);
-/** @brief Bound for ONE pushed input: `ceil(rate) + 1` output periods.
- *  Non-zero because the push form has no input block to size from. */
+/**
+ * @brief Output bound for ONE pushed input.
+ *
+ * Computed as `(size_t)max(rate, 1.0) + 2`, which is at least
+ * `ceil(rate) + 1`. Non-zero because the push form has no input block to
+ * size from.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @return Output capacity, in samples, for one
+ *         dp_RateConverter_execute_ctrl_push() call.
+ */
 size_t dp_RateConverter_execute_ctrl_push_max_out (dp_RateConverter_state_t *s);
 
 /**
@@ -668,6 +759,10 @@ size_t dp_RateConverter_execute_ctrl_push_tap (dp_RateConverter_state_t *s,
  * whatever integer decimation the plan chose, so it depends on the caller's
  * rate ratio. Reported for the same reason RateConverter::stages is — a
  * caller who can read back what was planned can check it.
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @return Samples per symbol at the terminal stage's input; 0.0 for a plain
+ *         cascade (dp_RateConverter_create()), which has no pulse.
  */
 double dp_RateConverter_get_bank_sps (const dp_RateConverter_state_t *s);
 
@@ -687,12 +782,18 @@ double dp_RateConverter_get_bank_sps (const dp_RateConverter_state_t *s);
  * >>> rc.rate
  * 2.0
  * @endcode
+ *
+ * @param s  Pointer to a valid dp_RateConverter_state_t.
+ * @return Current output/input sample rate ratio.
  */
 double dp_RateConverter_get_rate (const dp_RateConverter_state_t *s);
 
 /**
  * @brief Change the rate; rebuilds the cascade and resets all filter state.
- * Silently ignores rate <= 0.
+ * Silently ignores rate <= 0. A matched cascade keeps its pulse and an
+ * enabled AGC survives (its reference is re-derived for the new terminal
+ * bank). If building the new stages fails (OOM) the converter is left with
+ * zero stages and the new rate; there is no error return.
  *
  * @param s     Pointer to a valid dp_RateConverter_state_t.
  * @param rate  New output/input rate ratio.

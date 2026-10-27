@@ -73,9 +73,12 @@ extern "C"
    */
   typedef struct
   {
-    uint32_t phase;     /* current accumulator value [0, 2^32)          */
-    uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
-    double norm_freq;   /* normalised frequency (cycles/sample)           */
+    uint32_t phase;     /**< running state: accumulator, [0, 2^32) = one
+                             cycle; 0 after create/init/reset            */
+    uint32_t phase_inc; /**< config: advance per sample,
+                             floor(frac(norm_freq) * 2^32)               */
+    double norm_freq;   /**< config: frequency as set, cycles/sample
+                             (stored unfolded, e.g. 1.25 stays 1.25)     */
   } dp_lo_state_t;
 
 /* ---- Inline composition API (C-only; not exposed as Python methods) ----
@@ -84,8 +87,11 @@ extern "C"
  * a sample stream one sample at a time with zero call overhead — the block
  * generators below (dp_lo_steps) stay the fast path for bulk synthesis.  The
  * shared sin LUT is exposed here so the inline step can index it directly.   */
+/** Bits of phase that index the sine LUT (the top 16 of 32). */
 #define LO_LUT_BITS 16u
+/** Number of sine-LUT entries, 2^LO_LUT_BITS = 65536. */
 #define LO_LUT_SIZE (1u << LO_LUT_BITS) /* 65536                    */
+/** Quarter-cycle LUT offset, 16384: index + LO_LUT_QTR reads cos. */
 #define LO_LUT_QTR (LO_LUT_SIZE >> 2u)  /* 16384  (π/2 phase shift) */
 
   /**
@@ -201,13 +207,20 @@ extern "C"
    */
   dp_lo_state_t *dp_lo_create (double norm_freq);
 
-  /** Free all resources.  May be NULL (no-op). */
+  /**
+   * @brief Free an LO made by dp_lo_create() (not one set up by
+   *        dp_lo_init(), which owns no heap memory).
+   *
+   * @param state  LO to free; NULL is a no-op.
+   */
   void dp_lo_destroy (dp_lo_state_t *state);
 
   /**
    * @brief Zero the phase accumulator.
    * Sets phase to 0 so the next dp_lo_steps call starts at angle 0 (1+0j).
    * norm_freq and phase_inc are unchanged.
+   *
+   * @param state  LO state.  Must be non-NULL.
    *
    * @code
    * >>> from doppler.source import LO
@@ -240,8 +253,20 @@ extern "C"
    * >>> lo.phase_inc
    * 2147483648
    * @endcode
+   *
+   * @param state  LO state.  Must be non-NULL.
+   * @return The frequency last set, cycles/sample, exactly as passed (not
+   *         folded into [0, 1)).
    */
   double dp_lo_get_norm_freq (const dp_lo_state_t *state);
+  /**
+   * @brief Set the normalised frequency; phase is kept (see
+   *        dp_lo_get_norm_freq()).
+   *
+   * @param state      LO state.  Must be non-NULL.
+   * @param norm_freq  New frequency, cycles/sample; any real value, only
+   *                   the fractional part sets phase_inc.
+   */
   void dp_lo_set_norm_freq (dp_lo_state_t *state, double norm_freq);
 
   /**
@@ -258,8 +283,18 @@ extern "C"
    * >>> lo.phase
    * 1073741824
    * @endcode
+   *
+   * @param state  LO state.  Must be non-NULL.
+   * @return Accumulator value; 2^32 is one full cycle.
    */
   uint32_t dp_lo_get_phase (const dp_lo_state_t *state);
+  /**
+   * @brief Overwrite the phase accumulator (see dp_lo_get_phase()).
+   *
+   * @param state  LO state.  Must be non-NULL.
+   * @param phase  New accumulator value; 2^32 is one full cycle, so
+   *               1073741824 is a quarter cycle (90 degrees).
+   */
   void dp_lo_set_phase (dp_lo_state_t *state, uint32_t phase);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
@@ -269,14 +304,32 @@ extern "C"
    * what evolves per sample (here: the phase accumulator) — config (phase_inc,
    * norm_freq) is rebuilt from the descriptor.  Layout is the standard
    * envelope: [dp_state_hdr_t][uint32 phase]. */
+/** State-blob magic: FOURCC 'LO__'. */
 #define LO_STATE_MAGIC DP_FOURCC ('L', 'O', '_', '_')
+/** State-blob layout version. */
 #define LO_STATE_VERSION 1u
 
-  /** @brief Bytes dp_lo_get_state() writes for @p state (envelope + payload). */
+  /**
+   * @brief Bytes dp_lo_get_state() writes for @p state (envelope + payload).
+   *
+   * @param state  LO state (unused: the size is fixed).
+   * @return sizeof(dp_state_hdr_t) + 4.
+   */
   size_t dp_lo_state_bytes (const dp_lo_state_t *state);
-  /** @brief Serialize @p state's mutable state into @p blob (>= dp_lo_state_bytes). */
+  /**
+   * @brief Serialize @p state's mutable state (the phase) into @p blob.
+   *
+   * @param state  LO state.  Must be non-NULL.
+   * @param blob   Destination; must hold dp_lo_state_bytes() bytes.
+   */
   void dp_lo_get_state (const dp_lo_state_t *state, void *blob);
   /** @brief Restore mutable state from @p blob.
+   *
+   *  Only the phase is restored; phase_inc and norm_freq are left as they
+   *  are on @p state.
+   *
+   *  @param state  LO state.  Must be non-NULL.
+   *  @param blob   Blob from dp_lo_get_state().
    *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
   int dp_lo_set_state (dp_lo_state_t *state, const void *blob);
 
@@ -291,13 +344,22 @@ extern "C"
    * >>> lo.phase_inc
    * 1073741824
    * @endcode
+   *
+   * @param state  LO state.  Must be non-NULL.
+   * @return Per-sample phase advance; 2^32 is one full cycle.
    */
   uint32_t dp_lo_get_phase_inc (const dp_lo_state_t *state);
 
   /* ---- Block generators ---- */
 
   /**
-   * @brief Maximum samples per call (determines pre-allocated buffer size).
+   * @brief Output buffer size the binding pre-allocates for dp_lo_steps().
+   *
+   * Not a ceiling on a call: dp_lo_steps() clamps to the capacity it is
+   * given and the binding grows its buffer on demand.
+   *
+   * @param state  Unused.
+   * @return Always 65536.
    */
   size_t dp_lo_steps_max_out (dp_lo_state_t *state);
 
@@ -330,6 +392,13 @@ extern "C"
   size_t dp_lo_steps (dp_lo_state_t *state, size_t n, float _Complex *out,
                    size_t max_out);
 
+  /**
+   * @brief Output buffer size the binding pre-allocates for
+   *        dp_lo_steps_ctrl(); as dp_lo_steps_max_out().
+   *
+   * @param state  Unused.
+   * @return Always 65536.
+   */
   size_t dp_lo_steps_ctrl_max_out (dp_lo_state_t *state);
 
   /**

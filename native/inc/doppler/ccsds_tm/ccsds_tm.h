@@ -176,9 +176,10 @@ extern "C"
    */
   typedef struct
   {
-    uint32_t reg;
-    uint32_t taps;
-    unsigned stages;
+    uint32_t reg;    /**< shift register, low @p stages bits; the top
+                          stage is the next bit emitted. Running state */
+    uint32_t taps;   /**< feedback mask, copied from the randomiser   */
+    unsigned stages; /**< register width in bits, copied likewise     */
   } ccsds_tm_rand_state_t;
 
   /**

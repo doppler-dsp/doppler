@@ -1,5 +1,6 @@
 /**
- * dp_state.h — the standard state **bytes interface** for doppler.
+ * @file dp_state.h
+ * @brief The standard state **bytes interface** for doppler.
  *
  * Serialization is module-specific (only `lo` knows it holds a phase, only
  * `fir` knows it holds a delay line); the *bytes interface* around it is not.
@@ -35,16 +36,18 @@
 
 #include "doppler/clib_common.h" /* DP_OK, DP_ERR_INVALID, fixed-width ints, memcpy */
 
-/* FourCC type tag, e.g. DP_FOURCC('A','C','Q','R'). Stored little-end-first so
- * the bytes read as "ACQR" in a hex dump on a little-endian host. */
+/** FourCC type tag, e.g. DP_FOURCC('A','C','Q','R'). Stored little-end-first
+ * so the bytes read as "ACQR" in a hex dump on a little-endian host. */
 #define DP_FOURCC(a, b, c, d)                                                 \
   ((uint32_t) ((uint32_t) (uint8_t) (a) | ((uint32_t) (uint8_t) (b) << 8)     \
                | ((uint32_t) (uint8_t) (c) << 16)                             \
                | ((uint32_t) (uint8_t) (d) << 24)))
 
 #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+/** Host byte-order tag stamped in every blob: 1 = little, 2 = big. */
 #  define DP_STATE_ENDIAN 2u
 #else
+/** Host byte-order tag stamped in every blob: 1 = little, 2 = big. */
 #  define DP_STATE_ENDIAN 1u /* little-endian (x86-64, arm64 — doppler targets) */
 #endif
 
@@ -64,18 +67,23 @@ typedef struct
   uint32_t _pad;    /**< Reserved; 0.                                       */
 } dp_state_hdr_t;
 
-/* ── writer cursor ──────────────────────────────────────────────────────────
+/* ── writer cursor ────────────────────────────────────────────────────── */
+/**
+ * @brief Bounds-checked write cursor over a caller-owned state blob.
+ *
  * Sticky-error model: a bounds overrun sets `err` and subsequent writes no-op,
  * so call sites stay flat (check `w.err` once at the end if desired). Overrun
- * cannot happen when the caller allocated obj_state_bytes() — it is a guard. */
+ * cannot happen when the caller allocated obj_state_bytes() — it is a guard.
+ */
 typedef struct
 {
-  uint8_t *buf;
-  size_t   cap;
-  size_t   off;
-  int      err;
+  uint8_t *buf; /**< Start of the blob being written (not owned).        */
+  size_t   cap; /**< Blob capacity in bytes; writes past it are refused. */
+  size_t   off; /**< Bytes written so far; next write lands here.        */
+  int      err; /**< Sticky: 1 after any overrun, then writes no-op.     */
 } dp_writer_t;
 
+/** Start a writer at offset 0 over @p blob of @p cap bytes. */
 static inline dp_writer_t
 dp_writer_init (void *blob, size_t cap)
 {
@@ -83,6 +91,7 @@ dp_writer_init (void *blob, size_t cap)
   return w;
 }
 
+/** Copy @p n bytes from @p src; on overrun write nothing and set err. */
 static inline void
 dp_w_bytes (dp_writer_t *w, const void *src, size_t n)
 {
@@ -110,26 +119,31 @@ dp_w_reserve (dp_writer_t *w, size_t n)
   return p;
 }
 
+/** Write a native-endian uint32_t. */
 static inline void
 dp_w_u32 (dp_writer_t *w, uint32_t v)
 {
   dp_w_bytes (w, &v, sizeof v);
 }
+/** Write a native-endian uint64_t. */
 static inline void
 dp_w_u64 (dp_writer_t *w, uint64_t v)
 {
   dp_w_bytes (w, &v, sizeof v);
 }
+/** Write a native double. */
 static inline void
 dp_w_f64 (dp_writer_t *w, double v)
 {
   dp_w_bytes (w, &v, sizeof v);
 }
+/** Write @p n complex float samples. */
 static inline void
 dp_w_cf32 (dp_writer_t *w, const float _Complex *p, size_t n)
 {
   dp_w_bytes (w, p, n * sizeof (float _Complex));
 }
+/** Write @p n float samples. */
 static inline void
 dp_w_f32 (dp_writer_t *w, const float *p, size_t n)
 {
@@ -159,14 +173,20 @@ dp_w_hdr (dp_writer_t *w, uint32_t magic, uint16_t version, size_t total)
 }
 
 /* ── reader cursor ──────────────────────────────────────────────────────── */
+/**
+ * @brief Bounds-checked read cursor over a state blob; the mirror of
+ *        dp_writer_t with the same sticky-error model (an overrun sets
+ *        `err`, and later reads leave their destination untouched).
+ */
 typedef struct
 {
-  const uint8_t *buf;
-  size_t         cap;
-  size_t         off;
-  int            err;
+  const uint8_t *buf; /**< Start of the blob being read (not owned).   */
+  size_t         cap; /**< Blob size in bytes; reads past it refused.  */
+  size_t         off; /**< Bytes consumed so far; next read starts here. */
+  int            err; /**< Sticky: 1 after any overrun, then reads no-op. */
 } dp_reader_t;
 
+/** Start a reader at offset 0 over @p blob of @p cap bytes. */
 static inline dp_reader_t
 dp_reader_init (const void *blob, size_t cap)
 {
@@ -174,6 +194,7 @@ dp_reader_init (const void *blob, size_t cap)
   return r;
 }
 
+/** Copy @p n bytes into @p dst; on overrun copy nothing and set err. */
 static inline void
 dp_r_bytes (dp_reader_t *r, void *dst, size_t n)
 {
@@ -201,6 +222,7 @@ dp_r_reserve (dp_reader_t *r, size_t n)
   return p;
 }
 
+/** Read a native-endian uint32_t (0 on overrun). */
 static inline uint32_t
 dp_r_u32 (dp_reader_t *r)
 {
@@ -208,6 +230,7 @@ dp_r_u32 (dp_reader_t *r)
   dp_r_bytes (r, &v, sizeof v);
   return v;
 }
+/** Read a native-endian uint64_t (0 on overrun). */
 static inline uint64_t
 dp_r_u64 (dp_reader_t *r)
 {
@@ -215,6 +238,7 @@ dp_r_u64 (dp_reader_t *r)
   dp_r_bytes (r, &v, sizeof v);
   return v;
 }
+/** Read a native double (0.0 on overrun). */
 static inline double
 dp_r_f64 (dp_reader_t *r)
 {
@@ -222,11 +246,13 @@ dp_r_f64 (dp_reader_t *r)
   dp_r_bytes (r, &v, sizeof v);
   return v;
 }
+/** Read @p n complex float samples into @p p. */
 static inline void
 dp_r_cf32 (dp_reader_t *r, float _Complex *p, size_t n)
 {
   dp_r_bytes (r, p, n * sizeof (float _Complex));
 }
+/** Read @p n float samples into @p p. */
 static inline void
 dp_r_f32 (dp_reader_t *r, float *p, size_t n)
 {
@@ -239,9 +265,15 @@ dp_r_f32 (dp_reader_t *r, float *p, size_t n)
  * Every obj_set_state opens with this.  @p expect_bytes is the receiving
  * object's obj_state_bytes() — a blob from a different object (magic),
  * format (version), endianness, or config/size (bytes) is rejected rather than
- * reinterpreted.
+ * reinterpreted.  Only the header is inspected: the caller must already
+ * know @p blob holds at least sizeof(dp_state_hdr_t) readable bytes.
  *
- * @return DP_OK, or DP_ERR_INVALID on any mismatch.
+ * @param blob          Blob to check; its first bytes are the header.
+ * @param expect_bytes  The receiving object's obj_state_bytes().
+ * @param magic         The receiving object's FourCC tag.
+ * @param version       The receiving object's blob format version.
+ * @return DP_OK, or DP_ERR_INVALID on any mismatch (or when
+ *         @p expect_bytes is smaller than the header).
  */
 static inline int
 dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
@@ -352,7 +384,13 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
     return DP_OK;                                                             \
   }
 
-/* ── field-wise scaffolding ──────────────────────────────────────────────────
+/* ── field-wise scaffolding ─────────────────────────────────────────────── */
+/** @def DP_GET_OPEN
+ * Open a hand-written get_state: declare writer `_w` and stamp the header.
+ * @def DP_SET_OPEN
+ * Open a hand-written set_state: validate, then declare reader `_r` past
+ * the header (returns the validation error from the enclosing function).
+ *
  * For a hand-written triplet that packs a subset of fields: the running state
  * and every mutator's value, while create() restores the config no mutator
  * reaches (docs/design/state-serialization.md, "What goes in the blob",
@@ -378,10 +416,16 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
   dp_reader_t _r = dp_reader_init (blob, (BYTES));                             \
   _r.off = sizeof (dp_state_hdr_t)
 
-/* ── composition: nest a child's self-contained sub-blob ─────────────────────
- * A composition's state_bytes sums `<child>_state_bytes(child_ptr)`; its
- * get/set then writes/reads each child as a nested envelope.  `child_ptr` may be
- * a pointer member or the address of an embedded-by-value member (`&s->lf`).
+/* ── composition ───────────────────────────────────────────────────────── */
+/** @def DP_W_CHILD
+ * Write a child's state as a nested sub-blob at writer @p w.
+ * @def DP_R_CHILD
+ * Restore a child from the next nested sub-blob at reader @p r.
+ *
+ * Nest a child's self-contained sub-blob. A composition's state_bytes sums
+ * `<child>_state_bytes(child_ptr)`; its get/set then writes/reads each
+ * child as a nested envelope.  `child_ptr` may be a pointer member or the
+ * address of an embedded-by-value member (`&s->lf`).
  * DP_R_CHILD returns DP_ERR_INVALID from the enclosing set_state if the child
  * rejects, so the whole restore is atomic-by-validation. */
 #define DP_W_CHILD(w, pfx, child_ptr)                                          \

@@ -59,8 +59,13 @@ extern "C" {
  * scaled value falls outside `[-128, 127]`; cleared only by reset().
  */
 typedef struct {
-    float   scale;   /* multiply factor applied before saturation */
-    uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
+    float   scale;   /**< Multiply factor applied before rounding and
+                          saturation (codes per unit input).  Config, set
+                          by create(). */
+    uint8_t clipped; /**< Sticky flag: 1 once any scaled sample fell
+                          outside `[-128, 127]`, 0 otherwise.  Running
+                          state, set by step()/steps(), cleared by
+                          reset(). */
 } dp_f32_to_i8_state_t;
 
 /**
@@ -81,7 +86,7 @@ dp_f32_to_i8_state_t *dp_f32_to_i8_create(float scale);
 
 /**
  * @brief Destroy a f32_to_i8 instance and release all memory.
- * @param state  May be NULL.
+ * @param state  Instance from dp_f32_to_i8_create(); may be NULL (no-op).
  */
 void dp_f32_to_i8_destroy(dp_f32_to_i8_state_t *state);
 
@@ -112,10 +117,11 @@ void dp_f32_to_i8_reset(dp_f32_to_i8_state_t *state);
  *
  * Computes @c round(x * scale), clamps to the int8 range `[-128, 127]`,
  * and latches the sticky @c clipped flag if the scaled value fell outside that
- * range before clamping. At the default scale of 128 a normalised `[-1, +1]`
- * input maps to the full 8-bit code range.
+ * range before clamping (and before rounding, so 127.3 latches it even
+ * though it would round to 127). At the default scale of 128 a normalised
+ * `[-1, +1]` input maps to the full 8-bit code range.
  *
- * @param state  Must be non-NULL.
+ * @param state  Instance to update (clip flag); must be non-NULL.
  * @param x      Input sample, normally a normalised float in `[-1, +1]`.
  * @return Saturated int8 code in `[-128, 127]`.
  *
@@ -147,13 +153,15 @@ dp_f32_to_i8_step(dp_f32_to_i8_state_t *state, float x)
  *
  * Applies step() to every element.  The @c clipped flag is updated
  * cumulatively across the block — a single saturating sample raises it
- * for the entire call.  Accepts an optional pre-allocated output array;
- * allocates a fresh one when @p output is NULL.
+ * for the entire call.  The C function writes into @p output and never
+ * allocates; the Python binding allocates the output array when its
+ * optional @c out is omitted.
  *
- * @param state   Must be non-NULL.
+ * @param state   Instance to update (clip flag); must be non-NULL.
  * @param input   Input float32 array; must contain at least @p n elements.
- * @param output  Output int8 array; must contain at least @p n elements.
- * @param n       Number of samples to process.
+ * @param output  Output int8 array; must hold at least @p n elements and
+ *                must be non-NULL.
+ * @param n       Number of samples to process (0 is a no-op).
  *
  * @code
  * >>> from doppler.cvt import F32ToI8
@@ -173,10 +181,40 @@ void dp_f32_to_i8_steps(
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the sticky clip flag resumes exactly into an
  * identically-built instance. */
+/** FourCC type tag ("F2_8") stamped in every F32ToI8 state blob. */
 #define F32_TO_I8_STATE_MAGIC DP_FOURCC ('F','2','_','8')
+/** F32ToI8 state blob format version; another version is rejected. */
 #define F32_TO_I8_STATE_VERSION 1u
+/**
+ * @brief Size in bytes of this instance's serialized state blob.
+ *
+ * A fixed size: the 16-byte dp_state_hdr_t envelope plus
+ * sizeof(dp_f32_to_i8_state_t) (the whole struct is snapshotted).
+ *
+ * @param state  Instance to size; not dereferenced.
+ * @return Blob size in bytes; allocate this much for
+ *         dp_f32_to_i8_get_state().
+ */
 size_t dp_f32_to_i8_state_bytes (const dp_f32_to_i8_state_t *state);
+/**
+ * @brief Serialize the full state (scale and sticky clip flag).
+ *
+ * @param state  Instance to snapshot; non-NULL.
+ * @param[out] blob  Destination of at least dp_f32_to_i8_state_bytes()
+ *                   bytes.
+ */
 void dp_f32_to_i8_get_state (const dp_f32_to_i8_state_t *state, void *blob);
+/**
+ * @brief Restore a state blob written by dp_f32_to_i8_get_state().
+ *
+ * Validates the envelope (magic, version, endianness, size) first and
+ * leaves @p state untouched on rejection.  On success the whole struct,
+ * @c scale included, is overwritten.
+ *
+ * @param state  Instance to overwrite; non-NULL.
+ * @param blob   Blob of dp_f32_to_i8_state_bytes() bytes.
+ * @return DP_OK, or DP_ERR_INVALID if the envelope does not match.
+ */
 int dp_f32_to_i8_set_state (dp_f32_to_i8_state_t *state, const void *blob);
 
 #ifdef __cplusplus

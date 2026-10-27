@@ -256,7 +256,7 @@ behind one `steps()` call for the continuous *asynchronous* waveform
 Costas that tracks the Doppler dynamics before the code loop, and a
 post-despread mop-up loop — plus carrier→code aiding for coupled clock
 Doppler and a binary symbol-lock indicator. See the gallery page
-[AsyncDsssReceiver: the SPEC Waveform](../gallery/async-dsss-receiver-spec.md)
+[AsyncDsssReceiver: the specification waveform](../gallery/async-dsss-receiver-spec.md)
 for an end-to-end decode through physically-coupled Doppler.
 
 ::: doppler.dsss.AsyncDsssReceiver

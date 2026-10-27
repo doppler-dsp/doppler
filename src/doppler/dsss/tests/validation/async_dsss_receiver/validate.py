@@ -825,9 +825,8 @@ def review(sw: Blocks, bsw: Blocks) -> None:
         "`steps_max_out()` returns 0, which is not a bound: a call that "
         "completes a carried code period emits that whole period's symbols, "
         "so at more than one symbol per period an `out` sized to the call's "
-        "`x_len` drops symbols silently. At the specification (0.9 symbols a "
-        "period) it "
-        "never binds. Tracked as #2469.",
+        "`x_len` drops symbols silently. At the specification's operating "
+        "point (0.9 symbols a period) it never binds. Tracked as #2469.",
     )
     R.find(
         "F2",
@@ -1065,8 +1064,7 @@ def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
         f"signal that leaves drops it within {max(drops):.0f} ms (2.5).",
         "**Size `out` with care above one symbol a code period:** "
         "`steps_max_out()` is not yet a bound (F1, #2469). At the "
-        "specification it "
-        "never binds.",
+        "specification's operating point it never binds.",
     ]
 
 

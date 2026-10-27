@@ -22,8 +22,21 @@
  * drift vs time/index rather than reading one block-average scalar.
  *
  * @code
- * double snr = snr_data_aided_db(soft, n_soft, sign_bits, n_bits);
- * double blind = snr_m2m4_db(x, n);
+ * // 1000 BPSK symbols (bit 1 -> -1, bit 0 -> +1) plus a small fixed
+ * // perturbation in place of noise; both estimators read the same block.
+ * enum { N = 1000 };
+ * float _Complex soft[N];
+ * uint8_t        bits[N];
+ * for (size_t i = 0; i < N; i++)
+ *   {
+ *     bits[i]   = (uint8_t)((i * 7u + 3u) % 5u < 2u);
+ *     float sgn = bits[i] ? -1.0f : 1.0f;
+ *     soft[i]   = (sgn + 0.1f * (float)((int)(i % 3u) - 1))
+ *                 + 0.1f * (float)((int)((i / 3u) % 3u) - 1) * I;
+ *   }
+ * double snr   = dp_snr_data_aided_db (soft, N, bits, N);
+ * double blind = dp_snr_m2m4_db (soft, N);
+ * printf ("data-aided %.1f dB, M2M4 %.1f dB\n", snr, blind);
  * @endcode
  */
 #ifndef DP_SNR_CORE_H

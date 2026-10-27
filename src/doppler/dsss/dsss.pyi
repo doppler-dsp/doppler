@@ -1198,7 +1198,8 @@ class PolynomialPhaseEstimator:
         """
 
     def estimate(self, x: complex, /) -> PolynomialPhaseEstimate:
-        """Estimate (freq, chirp-rate) of a complex sequence via the 2-lag HAF.
+        """Estimate (freq, chirp-rate) of a complex sequence by dechirp and FFT
+        peak search over the chirp-rate hypotheses.
 
         Runs the full 2-D matched-filter search in one shot: for each
         chirp-rate hypothesis the segment is dechirped and FFT-ed, and the peak

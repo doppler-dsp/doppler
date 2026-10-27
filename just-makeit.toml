@@ -1083,7 +1083,7 @@ type = "const char *"
 
 [[module.wfm.functions]]
 name = "rrc_taps"
-doc = "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."
+doc = "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy real float32 taps)."
 out_type = "float"
 variable_output = true
 out_size = "2 * span * sps + 1"

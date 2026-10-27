@@ -35,7 +35,7 @@ default = "0.0"
 
 [[ppe.methods]]
 name = "estimate"
-doc = "Estimate (freq, chirp-rate) of a complex sequence via the 2-lag HAF."
+doc = "Estimate (freq, chirp-rate) of a complex sequence by dechirp and FFT peak search over the chirp-rate hypotheses."
 arg_type = "float _Complex"
 return_type = "ppe_result_t"
 nogil = true

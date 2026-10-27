@@ -82,7 +82,7 @@ dp_interp_table_execute (dp_interp_table_state_t *state, const double *in,
       size_t hi   = (lo + 1 >= n) ? 0 : lo + 1;
       double frac = point - floor_pt;
 
-      if (state->method == 1) /* nearest (ties round up) */
+      if (state->method == 1) /* nearest (a tie takes the floor) */
         {
           out[i] = (frac > 0.5) ? table[hi] : table[lo];
           continue;

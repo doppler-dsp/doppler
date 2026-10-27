@@ -35,9 +35,18 @@ def test_n_taps_matches_kaiser_num_taps():
         assert len(taps) == expected
 
 
-def test_unit_dc_gain():
-    taps = design_lowpass()
-    assert taps.sum() == pytest.approx(1.0, abs=1e-3)
+@pytest.mark.parametrize(
+    "fpass,fstop,atten_db",
+    [(0.4, 0.6, 60.0), (0.2, 0.3, 40.0), (0.1, 0.14, 80.0), (0.3, 0.9, 20.0)],
+)
+def test_unit_dc_gain(fpass, fstop, atten_db):
+    # The taps are renormalized by their sum, so the DC gain is 1 to float
+    # precision: each tap's float32 rounding moves the sum by at most half
+    # an ulp of that tap. The windowed sinc alone misses by up to ~4.5e-2.
+    taps = design_lowpass(fpass=fpass, fstop=fstop, atten_db=atten_db)
+    t = taps.astype(np.float64)
+    eps = float(np.finfo(np.float32).eps)
+    assert abs(t.sum() - 1.0) <= eps * np.abs(t).sum()
 
 
 @pytest.mark.parametrize(

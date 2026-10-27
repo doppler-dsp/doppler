@@ -19,6 +19,7 @@
 #include "doppler/filter/filter_core.h"
 #include "doppler/resample/resample_core.h"
 #include "dp_test.h"
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -71,16 +72,19 @@ main (void)
         dp_design_lowpass (fp[c], fs_[c], at[c], h);
 
         /* Unity DC gain: the sum of the taps is 1, so the filter does
-           not change the level of a signal it passes. It is a windowed
-           sinc and is NOT renormalised afterwards, so the sum lands
-           within a thousandth of 1 rather than on it -- measured at
-           1.0003 / 1.00003 / 1.0011 for the three specs here. The
-           tolerance is that truncation error, not a fudge: tighten it
-           and this becomes a test of the window, which is elsewhere. */
-        double sum = 0.0;
+           not change the level of a signal it passes. The windowed sinc
+           alone misses it -- measured 1.0003 / 1.00003 / 1.0011 for the
+           three specs here -- so design_lowpass renormalizes by the sum,
+           and the sum is 1 to float precision: each tap's float rounding
+           moves the sum by at most half an ulp of that tap, so the bound
+           is FLT_EPSILON times the taps' absolute sum. */
+        double sum = 0.0, abs_sum = 0.0;
         for (size_t i = 0; i < n; i++)
-          sum += (double)h[i];
-        DP_CHECK (fabs (sum - 1.0) < 2e-3);
+          {
+            sum += (double)h[i];
+            abs_sum += fabs ((double)h[i]);
+          }
+        DP_CHECK (fabs (sum - 1.0) <= FLT_EPSILON * abs_sum);
 
         /* Symmetric, which for an odd length IS linear phase. A group
            delay that varied with frequency would smear every edge the

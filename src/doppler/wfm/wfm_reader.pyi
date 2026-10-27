@@ -476,11 +476,13 @@ class Reader:
 
     @property
     def sample_type(self) -> Literal["cf32", "cf64", "ci32", "ci16", "ci8", "f32", "f64", "i32", "i16", "i8"]:
-        """The wire sample type the samples are being decoded FROM -- `"cf32"`,
-        `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"`. For BLUE and SigMF this was
-        read from the file's metadata and is authoritative; for raw and CSV it
-        is simply the hint passed to the constructor, echoed back. `read()`
-        returns `complex64` at unit scale regardless.
+        """The wire sample type the samples are being decoded FROM -- one of
+        the complex `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"`, or for a
+        scalar (real) capture `"f32"`, `"f64"`, `"i32"`, `"i16"`, `"i8"`, so it
+        always agrees with `mode`. For BLUE and SigMF this was read from the
+        file's metadata and is authoritative; for raw and CSV it is simply the
+        hint passed to the constructor, echoed back. `read()` returns
+        `complex64` at unit scale regardless.
         """
 
     @property

@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* The specification's geometry (docs/design/async-dsss-receiver.md §1):
    3.069 Mcps at spc=2, a 2.5 GHz carrier, and the +/-50 kHz uncertainty
@@ -656,5 +657,78 @@ main (void)
   }
 
   free (x);
+  /* execute_profile on a short out (doppler#2643). An empty call changes
+     nothing: offset_hz still reports the create-time ramp, where it used to
+     report carrier_hz * 0. A call that stops early takes its last d from the
+     last CONSUMED sample, reports what it consumed, and re-offering the rest
+     gives output identical to one whole call. */
+  {
+    dp_doppler_channel_state_t *e
+        = dp_doppler_channel_create (T_FS, T_FC, 20.0, 0.0);
+    double before      = dp_doppler_channel_get_offset_hz (e);
+    float _Complex one = 1.0f, sink;
+    double p0          = 5.0;
+    DP_CHECK (dp_doppler_channel_execute_profile (e, &one, 0, &p0, 0, &sink, 1)
+              == 0);
+    DP_CHECK (dp_doppler_channel_get_offset_hz (e) == before);
+    DP_CHECK (before != 0.0);
+    dp_doppler_channel_destroy (e);
+
+    enum
+    {
+      L   = 600,
+      CAP = 2 * L + 2
+    };
+    float _Complex *x   = malloc (L * sizeof *x);
+    float _Complex *ref = malloc (CAP * sizeof *ref);
+    float _Complex *got = malloc (CAP * sizeof *got);
+    double         *ppm = malloc (L * sizeof *ppm);
+    for (size_t i = 0; i < L; i++)
+      {
+        x[i] = (float)cos (0.1 * (double)i) + I * (float)sin (0.1 * (double)i);
+        ppm[i] = 3000.0 * sin (0.02 * (double)i);
+      }
+    dp_doppler_channel_state_t *a
+        = dp_doppler_channel_create (T_FS, T_FC, 0.0, 0.0);
+    int64_t nref
+        = dp_doppler_channel_execute_profile (a, x, L, ppm, L, ref, CAP);
+    DP_CHECK (nref > 0);
+    DP_CHECK (dp_doppler_channel_consumed (a) == L);
+
+    dp_doppler_channel_state_t *b
+        = dp_doppler_channel_create (T_FS, T_FC, 0.0, 0.0);
+    /* An early stop: the last d is the last consumed sample's. */
+    int64_t n1 = dp_doppler_channel_execute_profile (b, x, L, ppm, L, got, 7);
+    size_t  c1 = dp_doppler_channel_consumed (b);
+    DP_CHECK (n1 == 7 && c1 > 0 && c1 < L);
+    /* The profile moves up to 60 ppm a sample here, so the next sample's d
+       would read kHz away; 1e-6 Hz tells the two apart and absorbs a
+       reassociated product. */
+    DP_CHECK (fabs (ppm[c1] - ppm[c1 - 1]) > 1e-3);
+    DP_CHECK_NEAR (dp_doppler_channel_get_offset_hz (b),
+                   T_FC * ppm[c1 - 1] * 1e-6, 1e-6);
+    size_t off = c1, ngot = (size_t)n1, calls = 0;
+    while (off < L && calls++ < 4 * L)
+      {
+        int64_t n = dp_doppler_channel_execute_profile (
+            b, x + off, L - off, ppm + off, L - off, got + ngot,
+            1 + calls % 9);
+        DP_CHECK (n >= 0);
+        ngot += (size_t)n;
+        off += dp_doppler_channel_consumed (b);
+      }
+    DP_CHECK (off == L);
+    DP_CHECK (ngot == (size_t)nref);
+    DP_CHECK (memcmp (ref, got, ngot * sizeof *ref) == 0);
+    DP_CHECK (dp_doppler_channel_get_offset_hz (b)
+              == dp_doppler_channel_get_offset_hz (a));
+    dp_doppler_channel_destroy (a);
+    dp_doppler_channel_destroy (b);
+    free (x);
+    free (ref);
+    free (got);
+    free (ppm);
+  }
+
   DP_TEST_END ("test_doppler_channel_core");
 }

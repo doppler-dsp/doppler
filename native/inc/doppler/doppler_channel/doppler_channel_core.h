@@ -127,12 +127,16 @@ typedef struct {
        report -- hence these two, and the layout version. */
     double  prof_d;   /**< running: most recent instantaneous d from a
                            profile (dimensionless, not ppm)         */
-    uint8_t profiled; /**< running: set by any execute_profile() call;
-                           cleared by a non-empty execute() or reset */
+    uint8_t profiled; /**< running: set by an execute_profile() call
+                           that consumes input; cleared by a
+                           non-empty execute() or reset */
 
     double *pos;      /**< owned per-output input position scratch
                            (not state); grown on demand          */
     size_t  pos_cap;  /**< length of @c pos, samples              */
+    size_t  consumed; /**< input samples the last execute() or
+                           execute_profile() took (per-call, not
+                           state)                                 */
 } dp_doppler_channel_state_t;
 
 /**
@@ -301,7 +305,10 @@ size_t dp_doppler_channel_execute_max_out(dp_doppler_channel_state_t *state);
  * @param x        Input block.
  * @param x_len    Input length in samples.
  * @param out      Output buffer.
- * @param max_out  Capacity of @p out; production stops there.
+ * @param max_out  Capacity of @p out; production stops there, and the input
+ *                 after the last sample taken is not consumed: the input
+ *                 clock advances by dp_doppler_channel_consumed(), not by
+ *                 @p x_len, so the caller resumes at x + consumed.
  * @return Samples written to @p out.
  * @code
  * >>> import numpy as np
@@ -395,7 +402,13 @@ size_t dp_doppler_channel_execute_profile_max_out(dp_doppler_channel_state_t *st
  * @param ppm      Doppler in ppm, parallel to @p x.
  * @param ppm_len  Profile length; must EQUAL @p x_len.
  * @param out      Output buffer.
- * @param max_out  Capacity of @p out in samples.
+ * @param max_out  Capacity of @p out in samples. Production stops there and
+ *                 the rest of the input is not consumed:
+ *                 dp_doppler_channel_consumed() says how much was, and the
+ *                 last instantaneous d is the last consumed sample's
+ *                 (doppler#2643). An empty call, or one that consumes
+ *                 nothing, changes nothing -- offset_hz still reports what
+ *                 drove the stream before it.
  * @return Samples written (>= 0); in Python, the array's length. A refused
  *         call writes nothing, leaves the clocks alone and returns
  *         DP_ERR_INVALID (negative), so a refusal is never mistaken for an
@@ -409,6 +422,19 @@ size_t dp_doppler_channel_execute_profile_max_out(dp_doppler_channel_state_t *st
  *         bad call writes nothing rather than a valid prefix.
  */
 int64_t dp_doppler_channel_execute_profile(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, const double *ppm, size_t ppm_len, float _Complex *out, size_t max_out);
+
+/**
+ * @brief Input samples the last dp_doppler_channel_execute() or
+ *        dp_doppler_channel_execute_profile() took.
+ *
+ * Equal to its @p x_len unless @p out filled first; then the caller resumes
+ * at x + consumed (and ppm + consumed).  0 after create, reset and a
+ * refused call.
+ *
+ * @param state  Must be non-NULL.
+ * @return Input samples taken by the last execute.
+ */
+size_t dp_doppler_channel_consumed(const dp_doppler_channel_state_t *state);
 
 /**
  * @brief Receive time in seconds produced so far (`n_out/fs`).

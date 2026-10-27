@@ -366,9 +366,9 @@ class HalfbandDecimator:
             CF32 input array. A sample left unpaired at the end is held for the
             next call.
         out : npt.NDArray[np.complex64] | None
-            Output buffer; must hold at least (x_len + 1) / 2 samples. If it
-            fills first, the first unconsumed sample is held and every sample
-            after it is dropped (doppler#2643).
+            Output buffer; must hold at least (x_len + 1) / 2 samples. A
+            shorter one drops nothing: the call stops at a pair boundary and
+            dp_hbdecim_consumed() says how much input it took.
 
         Returns
         -------
@@ -1876,8 +1876,9 @@ class HalfbandDecimatorQ15:
         NDArray[np.int16]
             min(available, max_out) COMPLEX samples -- twice that many int16_t
             values; 0 when n_in or max_out is 0. When max_out stops the loop
-            early, only the next unconsumed input pair is buffered as pending;
-            any further input in this call is dropped.
+            early, the call stops at the pair boundary and drops nothing:
+            dp_hbdecim_q15_consumed() says how much input it took, and offering
+            the rest again resumes exactly (doppler#2643).
 
         Examples
         --------

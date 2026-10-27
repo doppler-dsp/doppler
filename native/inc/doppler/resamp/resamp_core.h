@@ -122,6 +122,9 @@ extern "C"
        the next request is satisfied from it instead of from a new sample. */
     uint32_t ctrl_ahead; /**< execute_ctrl: inputs loaded ahead of any
                               request (see above). */
+    size_t ctrl_consumed; /**< Inputs the last dp_resamp_execute_ctrl() or
+                               dp_resamp_execute_ctrl_pos() took; per-call,
+                               not in the blob. */
   } resamp_state_t;
 
   /* ------------------------------------------------------------------
@@ -300,6 +303,19 @@ extern "C"
                                      const double *ctrl, size_t num_in,
                                      float _Complex *out, double *pos,
                                      size_t max_out);
+
+  /**
+   * @brief Inputs the last dp_resamp_execute_ctrl() or
+   *        dp_resamp_execute_ctrl_pos() took.
+   *
+   * Both block forms stop offering input once @p out is full, so this is
+   * their @p num_in unless the output filled first; the caller resumes at
+   * in + consumed (doppler#2643).  0 after create and reset.
+   *
+   * @param state  Must be non-NULL.
+   * @return Input samples taken by the last block ctrl call.
+   */
+  size_t dp_resamp_ctrl_consumed (const resamp_state_t *state);
 
   /* ------------------------------------------------------------------
    * Streaming interpolation (fixed integer rate, output-count driven)

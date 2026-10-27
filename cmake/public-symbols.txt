@@ -731,6 +731,7 @@ dp_dll_symbol_period_ok function
 dp_dll_take_error function
 dp_dll_take_error_mean function
 dp_dll_tlm_flush function
+dp_doppler_channel_consumed function
 dp_doppler_channel_create function
 dp_doppler_channel_destroy function
 dp_doppler_channel_execute function
@@ -960,6 +961,7 @@ dp_gold_reset function
 dp_gold_set_state function
 dp_gold_state_bytes function
 dp_hann_window function
+dp_hbdecim_consumed function
 dp_hbdecim_create function
 dp_hbdecim_dc_gain function
 dp_hbdecim_destroy function
@@ -967,6 +969,7 @@ dp_hbdecim_execute function
 dp_hbdecim_get_num_taps function
 dp_hbdecim_get_rate function
 dp_hbdecim_get_state function
+dp_hbdecim_q15_consumed function
 dp_hbdecim_q15_create function
 dp_hbdecim_q15_destroy function
 dp_hbdecim_q15_execute function
@@ -977,6 +980,7 @@ dp_hbdecim_q15_get_state function
 dp_hbdecim_q15_reset function
 dp_hbdecim_q15_set_state function
 dp_hbdecim_q15_state_bytes function
+dp_hbdecim_r2c_consumed function
 dp_hbdecim_r2c_create function
 dp_hbdecim_r2c_destroy function
 dp_hbdecim_r2c_execute function
@@ -1342,6 +1346,7 @@ dp_req_send_ci8 function
 dp_req_set_timeout function
 dp_resamp_create function
 dp_resamp_create_custom function
+dp_resamp_ctrl_consumed function
 dp_resamp_dc_gain function
 dp_resamp_destroy function
 dp_resamp_execute function

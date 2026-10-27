@@ -266,11 +266,12 @@ dp_resamp_destroy (resamp_state_t *s)
 void
 dp_resamp_reset (resamp_state_t *s)
 {
-  s->phase      = 0;
-  s->ctrl_phase = 0;
-  s->ctrl_debt  = 0;
-  s->ctrl_ahead = 0;
-  s->delay_head = 0;
+  s->phase         = 0;
+  s->ctrl_phase    = 0;
+  s->ctrl_debt     = 0;
+  s->ctrl_ahead    = 0;
+  s->ctrl_consumed = 0;
+  s->delay_head    = 0;
   memset (s->delay_buf, 0, 2 * s->delay_cap * sizeof (float _Complex));
   memset (s->decim_iad, 0, s->num_taps * sizeof (float _Complex));
   if (s->num_taps > 1)
@@ -637,7 +638,7 @@ dp_resamp_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
 static inline size_t
 ctrl_push_impl (resamp_state_t *s, float _Complex x, double ctrl,
                 float _Complex *out, size_t max_out, double *pos,
-                size_t call_idx)
+                size_t call_idx, int *took)
 {
   /* NOTE the sample is NOT pushed here.  Nothing enters an interpolator's
      delay line without a load request: a tick emits, the accumulator fails
@@ -733,9 +734,21 @@ ctrl_push_impl (resamp_state_t *s, float _Complex x, double ctrl,
      would destroy it, and a lost output is a strobe-parity shift. */
   if (offered)
     {
+      /* A block form CAN decline: it stops here and reports the sample as
+         not consumed, so the ticks still owed before it are emitted on the
+         next call against the same delay line, exactly as one whole call
+         emits them (doppler#2643). Loading it ahead instead would put those
+         ticks one sample late. */
+      if (took)
+        {
+          *took = 0;
+          return n;
+        }
       dl_push (s, x);
       s->ctrl_ahead++;
     }
+  if (took)
+    *took = 1;
   return n;
 }
 
@@ -743,7 +756,7 @@ size_t
 dp_resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
                              float _Complex *out, size_t max_out)
 {
-  return ctrl_push_impl (s, x, ctrl, out, max_out, NULL, 0);
+  return ctrl_push_impl (s, x, ctrl, out, max_out, NULL, 0, NULL);
 }
 
 /* ------------------------------------------------------------------ */
@@ -756,10 +769,17 @@ dp_resamp_execute_ctrl (resamp_state_t *s, const float _Complex *in,
                         const double *ctrl, size_t num_in, float _Complex *out,
                         size_t max_out)
 {
-  size_t oi = 0;
-  for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
-    oi += dp_resamp_execute_ctrl_push (s, in[xi], ctrl[xi], out + oi,
-                                       max_out - oi);
+  size_t oi = 0, xi = 0;
+  while (xi < num_in && oi < max_out)
+    {
+      int took;
+      oi += ctrl_push_impl (s, in[xi], ctrl[xi], out + oi, max_out - oi, NULL,
+                            0, &took);
+      if (!took)
+        break; /* out filled with ticks still owed before in[xi] */
+      xi++;
+    }
+  s->ctrl_consumed = xi;
   return oi;
 }
 
@@ -768,9 +788,22 @@ dp_resamp_execute_ctrl_pos (resamp_state_t *s, const float _Complex *in,
                             const double *ctrl, size_t num_in,
                             float _Complex *out, double *pos, size_t max_out)
 {
-  size_t oi = 0;
-  for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
-    oi += ctrl_push_impl (s, in[xi], ctrl[xi], out + oi, max_out - oi,
-                          pos + oi, xi);
+  size_t oi = 0, xi = 0;
+  while (xi < num_in && oi < max_out)
+    {
+      int took;
+      oi += ctrl_push_impl (s, in[xi], ctrl[xi], out + oi, max_out - oi,
+                            pos + oi, xi, &took);
+      if (!took)
+        break; /* out filled with ticks still owed before in[xi] */
+      xi++;
+    }
+  s->ctrl_consumed = xi;
   return oi;
+}
+
+size_t
+dp_resamp_ctrl_consumed (const resamp_state_t *s)
+{
+  return s->ctrl_consumed;
 }

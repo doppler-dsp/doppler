@@ -3708,19 +3708,23 @@ class MpskReceiver:
 
         """
 
-    def bits_max_out(self) -> int:
-        """Output-capacity hint for the generated binding's bits().
+    def bits_max_out(self, x_len: int, /) -> int:
+        """Output capacity bits() needs for an x_len-sample block.
 
-        Always returns 0, which the binding reads as "the input length is a
-        safe bound": a block yields at most `x_len / sps` symbols of log2(M)
-        bits each. That bound is <= the input length except for M = 8 at an
-        `sps` below 3, where the input-length buffer can be too small and the
-        excess bits are dropped (never overrun: writes stop at max_out).
+        A block yields at most one symbol per input sample, of log2(M) bits
+        each, so `x_len * log2(M)` bits always fit. The bound used to be the
+        input length alone, which 8PSK at an `sps` below 3 outruns; the bits
+        past it were dropped silently (doppler#2643).
+
+        Parameters
+        ----------
+        x_len : int
+            Input samples in the block.
 
         Returns
         -------
         int
-            0.
+            `x_len * log2(M)`.
         """
 
     def reset(self) -> None:
@@ -4291,19 +4295,23 @@ class BpskReceiver:
 
         """
 
-    def bits_max_out(self) -> int:
-        """Output-capacity hint for the generated binding's bits().
+    def bits_max_out(self, x_len: int, /) -> int:
+        """Output capacity bits() needs for an x_len-sample block.
 
-        Always returns 0, which the binding reads as "the input length is a
-        safe bound": a block yields at most `x_len / sps` symbols of log2(M)
-        bits each. That bound is <= the input length except for M = 8 at an
-        `sps` below 3, where the input-length buffer can be too small and the
-        excess bits are dropped (never overrun: writes stop at max_out).
+        A block yields at most one symbol per input sample, of log2(M) bits
+        each, so `x_len * log2(M)` bits always fit. The bound used to be the
+        input length alone, which 8PSK at an `sps` below 3 outruns; the bits
+        past it were dropped silently (doppler#2643).
+
+        Parameters
+        ----------
+        x_len : int
+            Input samples in the block.
 
         Returns
         -------
         int
-            0.
+            `x_len * log2(M)`.
         """
 
     def reset(self) -> None:

@@ -1211,16 +1211,20 @@ test_configure_semantics (void)
       DP_CHECK (dp_ratesync_get_locked (s) == 1);
       double integ = s->loop.lf.integ, rate = dp_ratesync_get_rate (s);
 
-      dp_ratesync_configure (s, 0.002, 0.707);
+      DP_CHECK (dp_ratesync_configure (s, 0.002, 0.707) == DP_OK);
       DP_CHECK (dp_ratesync_get_bn (s) == 0.002);
       DP_CHECK (s->loop.lf.integ == integ); /* the rate memory survives */
       DP_CHECK (dp_ratesync_get_rate (s) == rate);
       DP_CHECK (dp_ratesync_get_locked (s) == 1); /* and so does the lock */
 
-      /* An invalid retune is ignored rather than applied destructively. */
-      dp_ratesync_configure (s, -1.0, 0.707);
+      /* An invalid retune is refused, with a status (#2646), rather than
+         applied destructively. */
+      DP_CHECK (dp_ratesync_configure (s, -1.0, 0.707) == DP_ERR_INVALID);
       DP_CHECK (dp_ratesync_get_bn (s) == 0.002);
-      dp_ratesync_configure (s, 0.002, 0.0);
+      DP_CHECK (dp_ratesync_configure (s, 0.002, 0.0) == DP_ERR_INVALID);
+      DP_CHECK (dp_ratesync_set_bn (s, NAN) == DP_ERR_INVALID);
+      DP_CHECK (dp_ratesync_loop_configure (&s->loop, -1.0, 0.707)
+                == DP_ERR_INVALID);
       DP_CHECK (dp_ratesync_get_bn (s) == 0.002);
       /* So is an infinite bn or zeta, which the private check this call
          used to keep took (doppler#2103): nothing is written. */
@@ -1231,7 +1235,7 @@ test_configure_semantics (void)
       DP_CHECK (s->loop.lf.kp == kp && s->loop.lf.ki == ki);
 
       /* set_bn is the property face of the same call. */
-      dp_ratesync_set_bn (s, 0.004);
+      DP_CHECK (dp_ratesync_set_bn (s, 0.004) == DP_OK);
       DP_CHECK (dp_ratesync_get_bn (s) == 0.004);
       DP_CHECK (dp_ratesync_get_locked (s) == 1);
 

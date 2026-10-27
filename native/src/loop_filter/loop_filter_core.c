@@ -74,6 +74,14 @@ dp_loop_filter_params_ok (double bn, double zeta, double t)
   return isfinite (kp) && isfinite (ki);
 }
 
+int
+dp_loop_filter_fll_bn_ok (double bn_fll)
+{
+  /* NaN fails the comparison; the gain itself must be finite, which refuses
+     +inf and the finite values whose 4x overflows. */
+  return bn_fll >= 0.0 && isfinite (4.0 * bn_fll);
+}
+
 /* Whether a stored filter (a restored blob's) is one a live filter could
  * hold. Its gains are restored verbatim, so they are not recomputed; they are
  * checked against the one gains body at the filter's own bandwidth, zeta and

@@ -382,3 +382,15 @@ def test_an_infinite_loop_parameter_is_refused_and_named(change):
     RateSync(**{"sps": 8.0})
     with pytest.raises(ValueError, match="bn >= 0 and zeta > 0 both finite"):
         RateSync(**{"sps": 8.0}, **change)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), -1.0, float("inf")])
+def test_bad_bn_raises_and_keeps_the_running_value(bad: float) -> None:
+    """#2646: the setter and configure() refuse; both used to return."""
+    rs = RateSync(sps=8.0, bn=0.01)
+    with pytest.raises(ValueError, match="bn is outside"):
+        rs.bn = bad
+    assert rs.bn == 0.01
+    with pytest.raises(ValueError):
+        rs.configure(bad, 0.707)
+    assert rs.bn == 0.01

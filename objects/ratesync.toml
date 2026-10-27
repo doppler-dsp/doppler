@@ -106,9 +106,10 @@ params = [
 
 [[ratesync.methods]]
 name = "configure"
-doc = "Recompute the loop gains for a new (bn, zeta); preserve the timing estimate."
+doc = "Recompute the loop gains for a new (bn, zeta); preserve the timing estimate. Raises ValueError, changing nothing, when (bn, zeta) is outside the loop filter's domain: bn >= 0 and zeta > 0, both finite, with finite gains."
 arg_type = "void"
-return_type = "void"
+return_type = "int"
+status_return = true
 params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
 
 [[ratesync.methods]]
@@ -134,6 +135,10 @@ return_type = "void"
 name = "bn"
 type = "double"
 writable = true
+# The C setter refuses and keeps the value; jm raises on its non-zero
+# return (just-makeit#2182, doppler#2646).
+error = "ValueError"
+error_message = "RateSync: bn is outside the loop filter's domain (need bn >= 0, finite, whose loop gains come out finite)"
 
 [[ratesync.properties]]
 name = "timing_error"

@@ -532,5 +532,22 @@ main (void)
       }
   }
 
+  /* #2646: bn_fll outside dp_loop_filter_fll_bn_ok() is refused, at
+     create and live; the getter keeps the value the loop is running. */
+  DP_CHECK (dp_costas_create (0.05, 0.707, 0.0, 64, -0.01) == NULL);
+  DP_CHECK (dp_costas_create (0.05, 0.707, 0.0, 64, NAN) == NULL);
+  DP_CHECK (dp_costas_create (0.05, 0.707, 0.0, 64, INFINITY) == NULL);
+  {
+    dp_costas_state_t *f = dp_costas_create (0.05, 0.707, 0.0, 64, 0.01);
+    DP_REQUIRE (f != NULL);
+    DP_CHECK (dp_costas_set_bn_fll (f, -0.5) == DP_ERR_INVALID);
+    DP_CHECK (dp_costas_set_bn_fll (f, NAN) == DP_ERR_INVALID);
+    DP_CHECK (dp_costas_set_bn_fll (f, INFINITY) == DP_ERR_INVALID);
+    DP_CHECK (dp_costas_get_bn_fll (f) == 0.01 && f->k_fll == 0.04);
+    DP_CHECK (dp_costas_set_bn_fll (f, 0.0) == DP_OK);
+    DP_CHECK (dp_costas_get_bn_fll (f) == 0.0 && f->k_fll == 0.0);
+    dp_costas_destroy (f);
+  }
+
   DP_TEST_END ("test_costas_core");
 }

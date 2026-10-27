@@ -443,7 +443,13 @@ RateSyncObj_configure (RateSyncObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  dp_ratesync_configure (self->handle, bn, zeta);
+  int _rc = dp_ratesync_configure (self->handle, bn, zeta);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure failed",
+                    (long long)_rc);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -606,7 +612,15 @@ RateSync_setprop_bn (RateSyncObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_ratesync_set_bn (self->handle, v);
+  int _rc = dp_ratesync_set_bn (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "RateSync: bn is outside the loop filter's domain (need "
+                    "bn >= 0, finite, whose loop gains come out finite)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -672,9 +686,17 @@ RateSync_getprop_clipped (RateSyncObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef RateSync_getset[] = {
   { "bn", (getter)RateSync_getprop_bn, (setter)RateSync_setprop_bn,
-    "Timing-loop noise bandwidth, normalised to the symbol rate. Writing it "
-    "re-derives the loop gains at the damping already in use, exactly as "
-    "configure() does.\n",
+    "Timing-loop noise bandwidth, normalised to the symbol rate. Writing\n"
+    "it re-derives the loop gains at the damping already in use, exactly as\n"
+    "configure() does.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_ratesync_set_bn`` refuses the value by\n"
+    "    returning non-zero. The exception message is ``RateSync: bn is\n"
+    "    outside the loop filter's domain (need bn >= 0, finite, whose loop\n"
+    "    gains come out finite)``, with the return code appended.\n",
     NULL },
   { "timing_error", (getter)RateSync_getprop_timing_error, NULL,
     "Last normalised TED error — the loop stress.\n", NULL },
@@ -863,7 +885,9 @@ static PyMethodDef RateSyncObj_methods[] = {
     "configure(bn, zeta) -> None\n"
     "\n"
     "Recompute the loop gains for a new (bn, zeta); preserve the timing "
-    "estimate.\n"
+    "estimate. Raises ValueError, changing nothing, when (bn, zeta) is "
+    "outside the loop filter's domain: bn >= 0 and zeta > 0, both finite, "
+    "with finite gains.\n"
     "\n"
     "Only the PI coefficients change; the integrator, and therefore the\n"
     "tracked rate and the lock, carries through untouched. Use it to narrow\n"
@@ -875,9 +899,13 @@ static PyMethodDef RateSyncObj_methods[] = {
     "bn : float\n"
     "    Loop noise bandwidth, normalised to the symbol rate.\n"
     "zeta : float\n"
-    "    Damping factor (1.0 = critical; 0.707 usual). A (bn, zeta) outside\n"
-    "    dp_loop_filter_params_ok() is ignored silently: nothing changes and\n"
-    "    no status is returned.\n"
+    "    Damping factor (1.0 = critical; 0.707 usual).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``configure failed``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"

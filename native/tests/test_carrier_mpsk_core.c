@@ -376,5 +376,24 @@ main (void)
   /* #2645: a zero-sample symbol is refused; init() used to run it as 1. */
   DP_CHECK (dp_carrier_mpsk_create (0.05, 0.707, 0.0, 0, 0.0, 4) == NULL);
 
+  /* #2646: bn_fll outside dp_loop_filter_fll_bn_ok() is refused, at
+     create and live; the getter keeps the value the loop is running. */
+  DP_CHECK (dp_carrier_mpsk_create (0.05, 0.707, 0.0, 64, -0.01, 4) == NULL);
+  DP_CHECK (dp_carrier_mpsk_create (0.05, 0.707, 0.0, 64, NAN, 4) == NULL);
+  DP_CHECK (dp_carrier_mpsk_create (0.05, 0.707, 0.0, 64, INFINITY, 4)
+            == NULL);
+  {
+    dp_carrier_mpsk_state_t *f
+        = dp_carrier_mpsk_create (0.05, 0.707, 0.0, 64, 0.01, 4);
+    DP_REQUIRE (f != NULL);
+    DP_CHECK (dp_carrier_mpsk_set_bn_fll (f, -0.5) == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_mpsk_set_bn_fll (f, NAN) == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_mpsk_set_bn_fll (f, INFINITY) == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_mpsk_get_bn_fll (f) == 0.01 && f->k_fll == 0.04);
+    DP_CHECK (dp_carrier_mpsk_set_bn_fll (f, 0.0) == DP_OK);
+    DP_CHECK (dp_carrier_mpsk_get_bn_fll (f) == 0.0 && f->k_fll == 0.0);
+    dp_carrier_mpsk_destroy (f);
+  }
+
   DP_TEST_END ("test_carrier_mpsk_core");
 }

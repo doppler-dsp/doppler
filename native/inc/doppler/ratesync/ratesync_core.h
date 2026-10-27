@@ -330,13 +330,14 @@ extern "C"
 
   /** @brief Retune the loop; preserves the integrator (and so the lock).
    *
-   *  A (@p bn, @p zeta) outside dp_loop_filter_params_ok() is ignored
-   *  silently: nothing changes and no status is returned.
+   *  A (@p bn, @p zeta) outside dp_loop_filter_params_ok() is refused:
+   *  nothing changes.
    *
    *  @param l     Must be non-NULL.
    *  @param bn    Loop noise bandwidth, normalized to the symbol rate.
-   *  @param zeta  Damping factor. */
-  void dp_ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta);
+   *  @param zeta  Damping factor.
+   *  @return DP_OK, or DP_ERR_INVALID when (@p bn, @p zeta) is refused. */
+  int dp_ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta);
 
   /** @brief Set the lock detector's geometry; see
    *         dp_ratesync_configure_lock_raw(), which forwards here.
@@ -791,9 +792,9 @@ extern "C"
    * @param state  Must be non-NULL.
    * @param bn     Loop noise bandwidth, normalised to the symbol rate.
    * @param zeta   Damping factor (1.0 = critical; 0.707 usual).
-   *
-   * A (@p bn, @p zeta) outside dp_loop_filter_params_ok() is ignored
-   * silently: nothing changes and no status is returned.
+   * @return DP_OK, or DP_ERR_INVALID when (@p bn, @p zeta) is outside
+   *         dp_loop_filter_params_ok(); nothing changes then (Python
+   *         raises ValueError).
    * @code
    * >>> import numpy as np
    * >>> from doppler.track import RateSync
@@ -812,7 +813,7 @@ extern "C"
    *
    * @endcode
    */
-  void   dp_ratesync_configure (dp_ratesync_state_t *state, double bn, double zeta);
+  int    dp_ratesync_configure (dp_ratesync_state_t *state, double bn, double zeta);
   /** @brief Timing-loop noise bandwidth, normalised to the symbol rate.
    *  Writing it re-derives the loop gains at the damping already in use,
    *  exactly as configure() does.
@@ -821,13 +822,15 @@ extern "C"
   double dp_ratesync_get_bn (const dp_ratesync_state_t *state);
   /** @brief Retune bn at the current zeta, through dp_ratesync_configure().
    *
-   *  An out-of-domain value is ignored silently (no status, no error), so
-   *  dp_ratesync_get_bn() keeps reporting the bandwidth in use.
+   *  An out-of-domain value is refused and nothing changes, so
+   *  dp_ratesync_get_bn() keeps reporting the bandwidth in use (Python
+   *  raises ValueError).
    *
    *  @param state  Must be non-NULL.
    *  @param val    New loop noise bandwidth, normalized to the symbol
-   *                rate. */
-  void   dp_ratesync_set_bn (dp_ratesync_state_t *state, double val);
+   *                rate.
+   *  @return DP_OK, or DP_ERR_INVALID when @p val is refused. */
+  int    dp_ratesync_set_bn (dp_ratesync_state_t *state, double val);
 
   /** @brief Last normalised TED error — the loop stress.
    *  @param state  Must be non-NULL.

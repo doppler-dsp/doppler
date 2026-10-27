@@ -182,7 +182,8 @@ carrier_mpsk_update(dp_carrier_mpsk_state_t *s, float _Complex P)
  * @param m               Constellation order M, 2/4/8 (default 4 = QPSK).
  * @return Heap-allocated state, or NULL if @p m is not 2, 4 or 8, if
  *         @p tsamps is 0, if (bn, zeta) fails dp_loop_filter_params_ok(),
- *         or on allocation failure.
+ *         if @p bn_fll fails dp_loop_filter_fll_bn_ok(), or on allocation
+ *         failure.
  * @note Caller must call dp_carrier_mpsk_destroy() when done.
  */
 dp_carrier_mpsk_state_t *dp_carrier_mpsk_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll, int m);
@@ -415,13 +416,15 @@ double dp_carrier_mpsk_get_bn_fll(const dp_carrier_mpsk_state_t *state);
 /**
  * @brief Set the FLL-assist bandwidth, live; the loop estimate is kept.
  *
- * Re-derives the FLL gain as 4 * @p val.  Not validated: a value <= 0
- * disables the FLL assist.
+ * Re-derives the FLL gain as 4 * @p val; 0 is a pure PLL.  A value outside
+ * dp_loop_filter_fll_bn_ok() (negative, NaN, or one whose gain overflows)
+ * is refused and nothing changes.
  *
  * @param state  Must be non-NULL.
  * @param val    New FLL-assist bandwidth, normalised to the symbol rate.
+ * @return DP_OK, or DP_ERR_INVALID when @p val is refused.
  */
-void dp_carrier_mpsk_set_bn_fll(dp_carrier_mpsk_state_t *state, double val);
+int dp_carrier_mpsk_set_bn_fll(dp_carrier_mpsk_state_t *state, double val);
 /**
  * @brief Constellation order M.
  * @param state  Must be non-NULL.

@@ -1093,6 +1093,7 @@ dp_lockdet_steps function
 dp_loop_filter_configure function
 dp_loop_filter_create function
 dp_loop_filter_destroy function
+dp_loop_filter_fll_bn_ok function
 dp_loop_filter_get_state function
 dp_loop_filter_init function
 dp_loop_filter_params_ok function

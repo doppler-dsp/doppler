@@ -6,7 +6,7 @@ no_state = "true"
 no_step = "true"
 class_name = "Costas"
 create_error = "ValueError"
-create_error_message = "Costas: invalid parameter (need bn >= 0 and zeta > 0, both finite, whose loop gains come out finite)"
+create_error_message = "Costas: invalid parameter (need bn >= 0 and zeta > 0, both finite, whose loop gains come out finite, and bn_fll >= 0 and finite)"
 serializable = "true"
 depends_on = [
   { name = "lo", link = true },
@@ -124,3 +124,6 @@ type = "double"
 name = "bn_fll"
 type = "double"
 writable = true
+# The C setter refuses and keeps the value (doppler#2646).
+error = "ValueError"
+error_message = "Costas: bn_fll must be >= 0 and finite (0 = pure PLL)"

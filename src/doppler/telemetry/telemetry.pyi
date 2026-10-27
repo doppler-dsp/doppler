@@ -120,7 +120,7 @@ class Telemetry:
         Returns
         -------
         int
-            Output.
+            dp_tlm_avail(): records readable now.
         """
 
     def probe(self, name: str, decim: int = 1) -> int:
@@ -609,7 +609,7 @@ class MemoryCapture:
         Returns
         -------
         int
-            Output.
+            Records accumulated in memory; always 0 for a file capture.
         """
 
     def block(self) -> None:

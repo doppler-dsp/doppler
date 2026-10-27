@@ -621,12 +621,12 @@ class Despreader:
 
     @property
     def norm_freq(self) -> float:
-        """Norm freq."""
+        """The carrier loop's tracked frequency, cycles/sample."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
     @property
     def code_phase(self) -> float:
-        """Code phase."""
+        """The code loop's current prompt code phase, chips."""
 
     @property
     def code_rate(self) -> float:
@@ -657,11 +657,12 @@ class Despreader:
 
     @property
     def bit_phase(self) -> int:
-        """detected bit boundary (argmax flip_hist)."""
+        """The detected data-bit boundary, in code periods."""
 
     @property
     def bn_carrier(self) -> float:
-        """Bn carrier.
+        """Carrier loop noise bandwidth, normalized to the code-period (symbol)
+        rate.
 
         Raises
         ------
@@ -676,7 +677,7 @@ class Despreader:
     def bn_carrier(self, value: float) -> None: ...
     @property
     def bn_code(self) -> float:
-        """Bn code.
+        """Code loop noise bandwidth, normalized to the code-period rate.
 
         Raises
         ------
@@ -743,7 +744,8 @@ class BurstDespreader:
     Parameters
     ----------
     code : NDArray[np.uint8]
-        Data spreading code (0/1 chips), length code_len; copied.
+        Data spreading code (0/1 chips), length code_len; the first sf chips
+        are copied (only bit 0 of each byte is read: 0 -> +1, 1 -> -1).
     sf : int, default 1
         Spreading factor: chips integrated per prompt symbol (default: 1).
     sps : int, default 2
@@ -912,7 +914,9 @@ class BurstDespreader:
         acq_code : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Acquisition code (0/1), length acq_code_len; copied.
         acq_reps : int
-            Number of acq-code periods in the preamble.
+            Number of acq-code periods in the preamble. A NULL/empty acq_code
+            or `acq_reps == 0` disables the preamble (payload-only), as does an
+            allocation failure; any previous acq code is freed either way.
 
         Examples
         --------
@@ -1503,7 +1507,7 @@ class BurstDemod:
         Returns
         -------
         int
-            Output.
+            frame_syms (fixed at create), or 0 if state is NULL.
         """
 
     def symbols(
@@ -1581,7 +1585,7 @@ class BurstDemod:
         Returns
         -------
         int
-            Output.
+            frame_syms (fixed at create), or 0 if state is NULL.
         """
 
     def set_prior(self, f0_coarse: float, start: int) -> None:
@@ -1878,8 +1882,10 @@ class DsssReceiver:
         straight to them in the same call. While tracking, samples feed `Dll ->
         RateConverter -> MpskReceiver` in sequence. Accepts any block size;
         state carries across calls (`Acquisition`/`Dll`/
-        `RateConverter`/`MpskReceiver` are all already block-size invariant, so
-        this object needs no ring-buffering of its own).
+        `RateConverter`/`MpskReceiver` are all already block-size invariant;
+        the only buffering this object adds is the carrier loop's
+        partial-code-period carry). While tracking, each call allocates two
+        scratch buffers (abort on OOM).
 
         Parameters
         ----------
@@ -1933,17 +1939,13 @@ class DsssReceiver:
         """
 
     def steps_max_out(self) -> int:
-        """Largest number of samples steps() can return in the current state.
-
-        Size an `out=` buffer with this before calling steps(), or use it to
-        allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on steps_max_out()
-        replaces this text.
+        """Output capacity hint for dp_dsss_receiver_steps().
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            Always 0: size out from the input length x_len, which is always
+            enough (at most one symbol per input sample).
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
@@ -1955,9 +1957,8 @@ class DsssReceiver:
         Parameters
         ----------
         doppler_bins : int
-            Number of Doppler window tiles to search (>= 1); capped by the
-            create-time `doppler_uncertainty` span (one tile per code-epoch
-            Doppler bin width).
+            Coherent depth to pin, in `[1, reps]` as
+            dp_acq_configure_search_raw() defines it.
         n_noncoh : int
             Non-coherent looks accumulated per grid cell (1..256); more looks
             buys sensitivity at the cost of dwell, replacing the auto-sized
@@ -2163,27 +2164,27 @@ class DsssReceiver:
 
     @property
     def tracking(self) -> int:
-        """0 = searching, 1 = locked and demodulating."""
+        """Routing state: searching or tracking."""
 
     @property
     def doppler_hz(self) -> float:
-        """Doppler hz."""
+        """Doppler estimate from the winning acquisition hit."""
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """Cached from the winning acquisition hit."""
+        """C/N0 estimate from the winning acquisition hit."""
 
     @property
     def segments(self) -> int:
-        """Dll's own tracking parameter."""
+        """Dll partial correlations per code period currently in use."""
 
     @property
     def sps(self) -> int:
-        """MpskReceiver's own samples/symbol."""
+        """MpskReceiver samples per symbol currently in use."""
 
     @property
     def n(self) -> int:
-        """MpskReceiver's own carrier-arm count."""
+        """MpskReceiver terminal outputs per symbol (`m_out`) in use."""
 
     @property
     def chip_phase(self) -> float:
@@ -2191,7 +2192,7 @@ class DsssReceiver:
 
     @property
     def code_rate(self) -> float:
-        """Dll's own tracking-quality indicator; 1.0 while searching."""
+        """Dll's tracked code rate; 1.0 while searching."""
 
     @property
     def lock(self) -> float:
@@ -3194,9 +3195,7 @@ class AsyncDsssReceiver:
 
     @property
     def segments(self) -> int:
-        """The live-tracking Dll's partial correlations per code period
-        (refine_segments is the refine collector's).
-        """
+        """The live-tracking Dll's partial correlations per code period."""
 
     @property
     def sps(self) -> int:
@@ -3204,7 +3203,7 @@ class AsyncDsssReceiver:
 
     @property
     def n(self) -> int:
-        """MpskReceiver's terminal outputs per symbol (`m_out`: even, 2..8)."""
+        """MpskReceiver's terminal outputs per symbol (even, 2..8)."""
 
     @property
     def chip_phase(self) -> float:
@@ -3579,7 +3578,8 @@ class AsyncDsssPool:
         Returns
         -------
         int
-            Output.
+            The largest per-receiver symbol count from the last push(); 0
+            before the first push and after reset() or set_state().
         """
 
     def reset(self) -> None:
@@ -4084,7 +4084,8 @@ class DsssBurstReceiver:
         Returns
         -------
         int
-            Output.
+            LLRs the last push() produced (`bursts * frame_syms`); 0 after
+            create, reset() or set_state().
         """
 
     def events(
@@ -4274,27 +4275,27 @@ class DsssBurstReceiver:
 
     @property
     def preamble_start(self) -> int:
-        """Stream-absolute preamble start. Never late."""
+        """Stream-absolute preamble start of the most recent burst, samples."""
 
     @property
     def doppler_hz_est(self) -> float:
-        """Signed coarse Doppler, Hz."""
+        """Signed coarse Doppler of the most recent burst, from acquisition."""
 
     @property
     def doppler_res_hz(self) -> float:
-        """Width of that estimate."""
+        """Width of the coarse Doppler estimate (acquisition's bin), Hz."""
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """C/N0 lower bound, dB-Hz (saturating)."""
+        """Acquisition's C/N0 lower bound for the most recent burst."""
 
     @property
     def est_freq_hz(self) -> float:
-        """Demod's own residual estimate, Hz."""
+        """The demodulator's residual-frequency estimate, most recent burst."""
 
     @property
     def est_rate_hz(self) -> float:
-        """Demod's own chirp-rate estimate."""
+        """The demodulator's Doppler-rate estimate, most recent burst."""
 
     @property
     def demod_cn0_dbhz(self) -> float:
@@ -4392,10 +4393,7 @@ class DsssBurstReceiver:
 
     @property
     def n_bursts(self) -> int:
-        """Bursts DEMODULATED, lifetime. Distinct from the capture's own count,
-        which is windows EMITTED: they differ by any window the demodulator
-        refused, and that difference is the thing worth seeing.
-        """
+        """Bursts demodulated over this receiver's lifetime."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

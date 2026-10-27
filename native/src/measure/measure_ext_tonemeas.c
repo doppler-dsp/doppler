@@ -735,26 +735,30 @@ ToneMeasure_getprop_proc_gain_db (ToneMeasureObject *self,
       (10.0 * log10 ((double)self->handle->nfft / 2.0)));
 }
 
-static PyGetSetDef ToneMeasure_getset[]
-    = { { "n", (getter)ToneMeasure_getprop_n, NULL,
-          "Capture / frame length, samples.\n", NULL },
-        { "nfft", (getter)ToneMeasure_getprop_nfft, NULL,
-          "Zero-padded transform length, bins.\n", NULL },
-        { "fs", (getter)ToneMeasure_getprop_fs, NULL, "Sample rate, Hz.\n",
-          NULL },
-        { "enbw", (getter)ToneMeasure_getprop_enbw, NULL,
-          "Window equivalent noise bandwidth, bins.\n", NULL },
-        { "lobe_bins", (getter)ToneMeasure_getprop_lobe_bins, NULL,
-          "Window main-lobe half-width L, bins.\n", NULL },
-        { "spur_guard_bins", (getter)ToneMeasure_getprop_spur_guard_bins, NULL,
-          "Spur guard bins.\n", NULL },
-        { "beta", (getter)ToneMeasure_getprop_beta, NULL, "Beta.\n", NULL },
-        { "rbw", (getter)ToneMeasure_getprop_rbw, NULL, "Rbw.\n", NULL },
-        { "bin_hz", (getter)ToneMeasure_getprop_bin_hz, NULL,
-          "FFT bin spacing, fs/nfft (Hz).\n", NULL },
-        { "proc_gain_db", (getter)ToneMeasure_getprop_proc_gain_db, NULL,
-          "FFT processing gain, 10*log10(nfft/2) (dB).\n", NULL },
-        { NULL, NULL, NULL, NULL, NULL } };
+static PyGetSetDef ToneMeasure_getset[] = {
+  { "n", (getter)ToneMeasure_getprop_n, NULL,
+    "Capture / frame length, samples.\n", NULL },
+  { "nfft", (getter)ToneMeasure_getprop_nfft, NULL,
+    "Zero-padded transform length, bins.\n", NULL },
+  { "fs", (getter)ToneMeasure_getprop_fs, NULL, "Sample rate, Hz.\n", NULL },
+  { "enbw", (getter)ToneMeasure_getprop_enbw, NULL,
+    "Window equivalent noise bandwidth, bins.\n", NULL },
+  { "lobe_bins", (getter)ToneMeasure_getprop_lobe_bins, NULL,
+    "Window main-lobe half-width L, bins.\n", NULL },
+  { "spur_guard_bins", (getter)ToneMeasure_getprop_spur_guard_bins, NULL,
+    "Fundamental keep-out half-width for the worst-spur search, bins (>= "
+    "L).\n",
+    NULL },
+  { "beta", (getter)ToneMeasure_getprop_beta, NULL,
+    "Kaiser shape auto-selected at create() from the dynamic-range target.\n",
+    NULL },
+  { "rbw", (getter)ToneMeasure_getprop_rbw, NULL, "Rbw.\n", NULL },
+  { "bin_hz", (getter)ToneMeasure_getprop_bin_hz, NULL,
+    "FFT bin spacing, fs/nfft (Hz).\n", NULL },
+  { "proc_gain_db", (getter)ToneMeasure_getprop_proc_gain_db, NULL,
+    "FFT processing gain, 10*log10(nfft/2) (dB).\n", NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
 
 static PyObject *
 ToneMeasureObj_destroy (ToneMeasureObject *self, PyObject *Py_UNUSED (ignored))
@@ -829,15 +833,22 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "\n"
     "Analyze a real time-domain capture; returns a ToneMetrics result.\n"
     "\n"
+    "The capture is cut into floor(n_in / n) non-overlapping frames of n\n"
+    "samples (a trailing partial frame is ignored); their windowed power\n"
+    "spectra are averaged and folded one-sided over `[0, fs/2]`. 0 dBFS is a\n"
+    "sine of peak amplitude full_scale. The fundamental is the strongest bin\n"
+    "outside the DC guard; frequencies are in Hz.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "x : float\n"
-    "    Input.\n"
+    "    Real time-domain capture, n_in samples.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "ToneMetrics\n"
-    "    the metric record (by value).\n"
+    "    The metric record (by value). All fields are zero when n_in holds\n"
+    "    no full frame of n samples.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -862,15 +873,20 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "\n"
     "Analyze a complex baseband capture (two-sided spectrum).\n"
     "\n"
+    "As dp_tonemeas_analyze(), but over the DC-centred two-sided band\n"
+    "`[-fs/2, fs/2)`: harmonics wrap rather than reflect, frequencies may be\n"
+    "negative, and 0 dBFS is a complex exponential of amplitude full_scale.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
-    "    Input.\n"
+    "    Complex baseband capture, n_in samples.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "ToneMetrics\n"
-    "    Output.\n"
+    "    The metric record (by value). All fields are zero when n_in holds\n"
+    "    no full frame of n samples.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -887,15 +903,20 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "\n"
     "Time-domain stats: RMS, peak, crest/PAPR, DC offset, FS utilisation.\n"
     "\n"
+    "Uses every sample of x (no framing). `rms` includes DC; `peak` and the\n"
+    "crest factor are AC-coupled (the mean is removed first), and `papr_db`\n"
+    "equals `crest_db`. `fs_util_pct` is the largest |x| as a percentage of\n"
+    "the 0-dBFS amplitude. Crest is 0 dB for a constant or empty capture.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "x : float\n"
-    "    Input.\n"
+    "    Real capture, n_in samples.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "TimeStats\n"
-    "    Output.\n"
+    "    The statistics record (by value).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -928,7 +949,9 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.float32]\n"
-    "    DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).\n"
+    "    Number of values written, `min(nfft, max_out)`, or 0 when x_len\n"
+    "    holds no full frame of n samples; from Python, the DC-centred dBFS\n"
+    "    magnitude spectrum, one value per FFT bin.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -945,12 +968,12 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     METH_NOARGS,
     "spectrum_dbfs_max_out() -> int\n"
     "\n"
-    "Capacity (== nfft) of the spectrum_dbfs output buffer.\n"
+    "Capacity of the dp_tonemeas_spectrum_dbfs() output buffer.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    nfft, the zero-padded transform length (bins).\n" },
   { "destroy", (PyCFunction)ToneMeasureObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

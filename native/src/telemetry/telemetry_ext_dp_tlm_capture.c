@@ -600,7 +600,7 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Records accumulated in memory; always 0 for a file capture.\n" },
   { "block", (PyCFunction)MemoryCaptureObj_block, METH_NOARGS,
     "block() -> None\n"
     "\n"

@@ -114,7 +114,8 @@ FrameMeterObj_add (FrameMeterObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyStructSequence_Field FrameMeterObj_fer_fields[] = {
-  { "p_hat", "Unbiased point estimate `(r-1)/(N-1)`." },
+  { "p_hat", "Point estimate: unbiased `(r-1)/(N-1)` for r >= 2, `r/N` at r = "
+             "1, 0 at r = 0, NAN when N = 0." },
   { "lo", "Lower confidence limit." },
   { "hi", "Upper confidence limit." },
   { "rel", "Relative standard error `1/sqrt(r)`." },
@@ -167,7 +168,8 @@ FrameMeterObj_fer (FrameMeterObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyStructSequence_Field FrameMeterObj_sync_miss_fields[] = {
-  { "p_hat", "Unbiased point estimate `(r-1)/(N-1)`." },
+  { "p_hat", "Point estimate: unbiased `(r-1)/(N-1)` for r >= 2, `r/N` at r = "
+             "1, 0 at r = 0, NAN when N = 0." },
   { "lo", "Lower confidence limit." },
   { "hi", "Upper confidence limit." },
   { "rel", "Relative standard error `1/sqrt(r)`." },

@@ -11,7 +11,7 @@ class BerInterval(tuple[float, float, float, float, float, int, int]):
     Attributes
     ----------
     p_hat : float
-        Unbiased point estimate `(r-1)/(N-1)`.
+        Point estimate: unbiased `(r-1)/(N-1)` for r >= 2, `r/N` at r = 1, 0 at r = 0, NAN when N = 0.
     lo : float
         Lower confidence limit.
     hi : float
@@ -28,7 +28,9 @@ class BerInterval(tuple[float, float, float, float, float, int, int]):
 
     @property
     def p_hat(self) -> float:
-        """Unbiased point estimate `(r-1)/(N-1)`."""
+        """Point estimate: unbiased `(r-1)/(N-1)` for r >= 2, `r/N` at r = 1, 0
+        at r = 0, NAN when N = 0.
+        """
 
     @property
     def lo(self) -> float:
@@ -908,9 +910,10 @@ def ber_theory_ser(m: int, esn0: float) -> float:
     Parameters
     ----------
     m : int
-        Input.
+        Constellation order: 2, 4 or 8.
     esn0 : float
-        Input.
+        Matched-filter Es/N0 as a LINEAR ratio (not dB). At or below 0 the
+        chance rate is returned: 0.5 for BPSK, `1 - 1/M` otherwise.
 
     Returns
     -------
@@ -928,14 +931,14 @@ def ber_theory_ber(m: int, esn0: float) -> float:
     Parameters
     ----------
     m : int
-        Input.
+        Constellation order: 2, 4 or 8.
     esn0 : float
-        Input.
+        Es/N0 as a LINEAR ratio (not dB), >= 0.
 
     Returns
     -------
     float
-        Output.
+        The bit error rate, or NAN for an unsupported M.
     """
 
 def ber_esn0_db_for_ser(m: int, ser: float) -> float:
@@ -961,9 +964,9 @@ def ber_esn0_db_for_ser(m: int, ser: float) -> float:
     Parameters
     ----------
     m : int
-        Input.
+        Constellation order: 2, 4 or 8.
     ser : float
-        Input.
+        Measured symbol error rate, in (0, 1).
 
     Returns
     -------
@@ -1012,7 +1015,7 @@ def ber_evm_scatter_floor_db(m: int) -> float:
     Parameters
     ----------
     m : int
-        Input.
+        Constellation order; any M >= 2.
 
     Returns
     -------
@@ -1078,14 +1081,17 @@ def ber_settle_syms(bn_timing: float, bn_carrier: float) -> int:
     Parameters
     ----------
     bn_timing : float
-        Input.
+        Timing-loop noise bandwidth, normalized to the symbol rate; <= 0
+        drops that loop's term.
     bn_carrier : float
-        Input.
+        Carrier-loop noise bandwidth, normalized to the symbol rate; <= 0
+        drops that loop's term.
 
     Returns
     -------
     int
-        Output.
+        The budget in symbols, truncated to an integer; 0 when neither loop
+        runs.
     """
 
 def ber_lock_symbol(
@@ -1114,11 +1120,12 @@ def ber_lock_symbol(
     Parameters
     ----------
     flags : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
-        Input.
+        Per-symbol lock flags, nonzero = locked; NULL gives -1.
     sustain : int
-        Input.
+        Consecutive locked symbols required; 0 selects 200.
     min_frac : float
-        Input.
+        Fraction of the remaining record that must be locked, in (0, 1]; a
+        value <= 0 (or NaN) selects 0.9.
 
     Returns
     -------
@@ -1167,13 +1174,14 @@ def ber_evm_db(
     Parameters
     ----------
     rx : npt.NDArray[np.complex64]
-        Input.
+        Symbol-rate complex samples (matched-filter output). NULL gives
+        0.0.
     lo : int
-        Input.
+        First symbol of the window (inclusive).
     hi : int
-        Input.
+        One past the last symbol; clamped to rx_len.
     m : int
-        Input.
+        Constellation order the stream carries (2, 4, 8, ...).
 
     Returns
     -------

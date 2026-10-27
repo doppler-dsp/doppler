@@ -360,8 +360,13 @@ CIC_getprop_clipped (CICObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef CIC_getset[] = {
-  { "R", (getter)CIC_getprop_R, NULL, "R.\n", NULL },
-  { "shift", (getter)CIC_getprop_shift, NULL, "Shift.\n", NULL },
+  { "R", (getter)CIC_getprop_R, NULL,
+    "Decimation ratio, a power of two in `[2, CIC_R_MAX]`; config, set by "
+    "create and dp_cic_reconfigure().\n",
+    NULL },
+  { "shift", (getter)CIC_getprop_shift, NULL,
+    "Normalizing right-shift in bits, `CIC_N * log2(R)`; derived from R.\n",
+    NULL },
   { "clipped", (getter)CIC_getprop_clipped, NULL,
     "True if any input component has exceeded the +-2.0 bound since the last "
     "reset(). Sticky, and free to read: the CIC's boundary comparisons run on "
@@ -407,7 +412,8 @@ static PyMethodDef CICObj_methods[] = {
     "Zero all integrator and comb accumulators; preserve R and shift. The\n"
     "first output sample after reset arrives after R more input samples,\n"
     "matching post-create behaviour. Use between signal bursts to eliminate\n"
-    "transient artefacts caused by residual pipeline state.\n"
+    "transient artefacts caused by residual pipeline state. Also clears the\n"
+    "sticky clipped flag.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -462,8 +468,9 @@ static PyMethodDef CICObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    CF32 output array; length is min(floor((phase + n_in) / R),\n"
-    "    max_out).\n"
+    "    Number of CF32 samples written to out: min(floor((phase + n_in) /\n"
+    "    R), max_out), where phase is the input count carried from the\n"
+    "    previous call.\n"
     "\n"
     "Notes\n"
     "-----\n"
@@ -494,7 +501,8 @@ static PyMethodDef CICObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always 0, meaning \"no fixed cap\": size the output to the input\n"
+    "    length.\n" },
   { "state_bytes", (PyCFunction)CICObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

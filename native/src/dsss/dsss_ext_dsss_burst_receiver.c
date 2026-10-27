@@ -1153,17 +1153,20 @@ DsssBurstReceiver_getprop_n_bursts (DsssBurstReceiverObject *self,
 
 static PyGetSetDef DsssBurstReceiver_getset[] = {
   { "preamble_start", (getter)DsssBurstReceiver_getprop_preamble_start, NULL,
-    "Stream-absolute preamble start. Never late.\n", NULL },
+    "Stream-absolute preamble start of the most recent burst, samples.\n",
+    NULL },
   { "doppler_hz_est", (getter)DsssBurstReceiver_getprop_doppler_hz_est, NULL,
-    "Signed coarse Doppler, Hz.\n", NULL },
+    "Signed coarse Doppler of the most recent burst, from acquisition.\n",
+    NULL },
   { "doppler_res_hz", (getter)DsssBurstReceiver_getprop_doppler_res_hz, NULL,
-    "Width of that estimate.\n", NULL },
+    "Width of the coarse Doppler estimate (acquisition's bin), Hz.\n", NULL },
   { "cn0_dbhz_est", (getter)DsssBurstReceiver_getprop_cn0_dbhz_est, NULL,
-    "C/N0 lower bound, dB-Hz (saturating).\n", NULL },
+    "Acquisition's C/N0 lower bound for the most recent burst.\n", NULL },
   { "est_freq_hz", (getter)DsssBurstReceiver_getprop_est_freq_hz, NULL,
-    "Demod's own residual estimate, Hz.\n", NULL },
+    "The demodulator's residual-frequency estimate, most recent burst.\n",
+    NULL },
   { "est_rate_hz", (getter)DsssBurstReceiver_getprop_est_rate_hz, NULL,
-    "Demod's own chirp-rate estimate.\n", NULL },
+    "The demodulator's Doppler-rate estimate, most recent burst.\n", NULL },
   { "demod_cn0_dbhz", (getter)DsssBurstReceiver_getprop_demod_cn0_dbhz, NULL,
     "The demodulator's C/N0 for the last completed burst, dB-Hz, referred to "
     "the CHANNEL: measured on the decoded symbols and corrected for the "
@@ -1264,10 +1267,7 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "BURST, not a statistic -- a lifetime count that survives reset().\n",
     NULL },
   { "n_bursts", (getter)DsssBurstReceiver_getprop_n_bursts, NULL,
-    "Bursts DEMODULATED, lifetime. Distinct from the capture's own count, "
-    "which is windows EMITTED: they differ by any window the demodulator "
-    "refused, and that difference is the thing worth seeing.\n",
-    NULL },
+    "Bursts demodulated over this receiver's lifetime.\n", NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -1488,7 +1488,8 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    LLRs the last push() produced (`bursts * frame_syms`); 0 after\n"
+    "    create, reset() or set_state().\n" },
   { "events", (PyCFunction)(void *)DsssBurstReceiverObj_events,
     METH_VARARGS | METH_KEYWORDS,
     "events(count=1, out=None) -> ndarray\n"

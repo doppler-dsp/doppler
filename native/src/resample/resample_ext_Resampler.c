@@ -612,13 +612,18 @@ static PyGetSetDef Resampler_getset[] = {
   { "rate", (getter)Resampler_getprop_rate, (setter)Resampler_setprop_rate,
     "Get / set the output-to-input sample rate ratio. The setter recomputes "
     "the phase increment immediately; the delay line and phase accumulator "
-    "are preserved so in-stream rate changes are glitch-free. Switching sign "
-    "of (rate - 1) (i.e. crossing the boundary between interp and decim "
-    "modes) requires a fresh create().\n",
+    "are preserved so in-stream rate changes are glitch-free. Crossing 1.0 "
+    "also switches the engine between its interpolation and decimation modes "
+    "(the doctest below goes 0.5 -> 1.5). Each mode keeps its own filter "
+    "memory, so the first outputs after a crossing are built from that mode's "
+    "last (or still-zero) history: a transient, not an error.\n",
     NULL },
   { "ctrl_acc", (getter)Resampler_getprop_ctrl_acc, NULL,
     "The control accumulator's fractional phase, in [0, 1).\n", NULL },
-  { "num_phases", (getter)Resampler_getprop_num_phases, NULL, "Num phases.\n",
+  { "num_phases", (getter)Resampler_getprop_num_phases, NULL,
+    "Number of polyphase branches in the filter bank. Always a power of two. "
+    "The built-in bank has 4096 phases giving sub-sample timing resolution of "
+    "1/4096 of an input sample period.\n",
     NULL },
   { "num_taps", (getter)Resampler_getprop_num_taps, NULL,
     "Taps per polyphase branch. Total prototype filter length is num_phases * "
@@ -695,12 +700,12 @@ static PyMethodDef ResamplerObj_methods[] = {
   { "execute_max_out", (PyCFunction)ResamplerObj_execute_max_out, METH_NOARGS,
     "execute_max_out() -> int\n"
     "\n"
-    "Always returns RESAMPLER_MAX_OUT.\n"
+    "Output-capacity hint for dp_Resampler_execute().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always RESAMPLER_MAX_OUT.\n" },
   { "execute_ctrl", (PyCFunction)(void *)ResamplerObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl(x, ctrl, out) -> ndarray\n"
@@ -752,19 +757,20 @@ static PyMethodDef ResamplerObj_methods[] = {
     METH_NOARGS,
     "execute_ctrl_max_out() -> int\n"
     "\n"
-    "Always returns RESAMPLER_MAX_OUT.\n"
+    "Output-capacity hint for dp_Resampler_execute_ctrl().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always RESAMPLER_MAX_OUT.\n" },
   { "reset", (PyCFunction)ResamplerObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
     "Zero the delay line and phase accumulator. Rate and polyphase bank\n"
     "are preserved so the resampler can be resumed at the same ratio.\n"
     "Zeroing state eliminates transient artefacts when starting a new signal\n"
-    "burst.\n"
+    "burst. The control accumulator read by dp_Resampler_get_ctrl_acc()\n"
+    "returns to 0.0 as well.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -884,7 +890,9 @@ static PyTypeObject ResamplerObjType = {
     "rate : float, default 0.0\n"
     "    Output-to-input sample rate ratio (any positive float). Values >= "
     "1.0\n"
-    "    interpolate; values < 1.0 decimate.\n"
+    "    interpolate; values < 1.0 decimate. Not validated here: a rate <= 0 "
+    "is\n"
+    "    not refused.\n"
     "bank : NDArray[np.float32] or None\n"
     "    Optional polyphase bank: a 2-D float32 array of shape (num_phases,\n"
     "    num_taps), num_phases a power of two. Omit for the built-in 4096x19\n"

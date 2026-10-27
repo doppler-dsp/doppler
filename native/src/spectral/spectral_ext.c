@@ -806,7 +806,24 @@ static PyMethodDef spectral_module_methods[] = {
     ">>> obw_from_power(pwr, 64.0, 1.0)   # outside (0, 1)\n"
     "nan\n" },
   { "noise_floor_db", (PyCFunction)(void *)_bind_noise_floor_db,
-    METH_VARARGS | METH_KEYWORDS, "Noise floor db.\n" },
+    METH_VARARGS | METH_KEYWORDS,
+    "Robust noise-floor estimate: the median of a dB spectrum.\n"
+    "\n"
+    "Tones and spurs occupy few bins and sit well above the median, so the\n"
+    "median tracks the noise pedestal rather than the signal. The median is\n"
+    "taken on a sorted heap copy; db is not modified. For an even length it\n"
+    "is the mean of the two middle values.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "db : npt.NDArray[np.float32]\n"
+    "    Spectrum in dB (any reference: dBFS, dBc, ...).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Median of db, in the same dB units; 0.0 when db_len is 0 or the\n"
+    "    scratch copy cannot be allocated.\n" },
   { NULL, NULL, 0, NULL }
 };
 

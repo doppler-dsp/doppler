@@ -502,7 +502,7 @@ CarrierMpsk_getprop_m (CarrierMpskObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef CarrierMpsk_getset[] = {
   { "bn", (getter)CarrierMpsk_getprop_bn, (setter)CarrierMpsk_setprop_bn,
-    "PLL loop noise bandwidth (retained).\n"
+    "PLL loop noise bandwidth in force, normalised to the symbol rate.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -513,16 +513,17 @@ static PyGetSetDef CarrierMpsk_getset[] = {
     "    gains come out finite)``, with the return code appended.\n",
     NULL },
   { "norm_freq", (getter)CarrierMpsk_getprop_norm_freq,
-    (setter)CarrierMpsk_setprop_norm_freq, "Norm freq.\n", NULL },
+    (setter)CarrierMpsk_setprop_norm_freq,
+    "Current carrier-NCO frequency estimate, cycles/sample.\n", NULL },
   { "lock_metric", (getter)CarrierMpsk_getprop_lock_metric, NULL,
-    "EMA of Re(P conj a)/|P| (1 = locked).\n", NULL },
+    "Decision-aligned lock metric.\n", NULL },
   { "last_error", (getter)CarrierMpsk_getprop_last_error, NULL,
-    "last PLL discriminator (loop stress).\n", NULL },
+    "Last PLL phase-discriminator output, `Im(P conj(ahat))/|P|`.\n", NULL },
   { "bn_fll", (getter)CarrierMpsk_getprop_bn_fll,
     (setter)CarrierMpsk_setprop_bn_fll,
     "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
-  { "m", (getter)CarrierMpsk_getprop_m, NULL,
-    "constellation order M (2, 4, 8).\n", NULL },
+  { "m", (getter)CarrierMpsk_getprop_m, NULL, "Constellation order M.\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -608,13 +609,16 @@ static PyMethodDef CarrierMpskObj_methods[] = {
     "x : npt.NDArray[np.complex64]\n"
     "    Input block, one complex baseband sample per element.\n"
     "out : npt.NDArray[np.complex64] | None\n"
-    "    Prompt output buffer written by the binding.\n"
+    "    Prompt output buffer. Each prompt is the I&D sum divided by tsamps\n"
+    "    (the mean de-rotated sample).\n"
     "\n"
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    One de-rotated prompt symbol per completed integrate-and-dump\n"
-    "    period; the count is `x_len / tsamps`.\n"
+    "    Number of prompts written: one per completed integrate-and-dump\n"
+    "    period, `(carried + x_len) / tsamps` where `carried` is the partial\n"
+    "    symbol held from the previous call, capped at max_out. From Python,\n"
+    "    the prompt array.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -639,18 +643,16 @@ static PyMethodDef CarrierMpskObj_methods[] = {
   { "steps_max_out", (PyCFunction)CarrierMpskObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps() can return in the current state.\n"
+    "Output capacity hint for dp_carrier_mpsk_steps().\n"
     "\n"
-    "Size an `out=` buffer with this before calling steps(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on steps_max_out()\n"
-    "replaces this text.\n"
+    "steps() emits at most one prompt per input sample, so the binding sizes\n"
+    "the buffer to the input length; this returns the \"caller sizes it\"\n"
+    "sentinel.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    Always 0.\n" },
   { "configure", (PyCFunction)(void *)CarrierMpskObj_configure,
     METH_VARARGS | METH_KEYWORDS,
     "configure(bn, zeta) -> None\n"

@@ -522,7 +522,9 @@ static PyMethodDef NPRMeasureObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NPRMetrics\n"
-    "    the NPR metric record (by value).\n"
+    "    The NPR metric record (by value): npr_db, in-band and notch PSD in\n"
+    "    dBFS, the bin counts averaged, and rbw_hz. All fields are 0 when\n"
+    "    n_in holds no full analysis frame.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -562,7 +564,9 @@ static PyMethodDef NPRMeasureObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.float32]\n"
-    "    DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).\n"
+    "    Number of DC-centred dBFS values written to out: nfft (clipped to\n"
+    "    max_out), or 0 when the capture holds no full frame. The Python\n"
+    "    binding returns those values as an array.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -579,12 +583,12 @@ static PyMethodDef NPRMeasureObj_methods[] = {
     METH_NOARGS,
     "spectrum_dbfs_max_out() -> int\n"
     "\n"
-    "Capacity (== nfft) of the spectrum_dbfs output buffer.\n"
+    "Capacity of the spectrum_dbfs() output buffer.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    nfft, the number of floats spectrum_dbfs() writes.\n" },
   { "destroy", (PyCFunction)NPRMeasureObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

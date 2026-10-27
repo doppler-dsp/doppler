@@ -753,21 +753,21 @@ DsssReceiver_getprop_norm_freq (DsssReceiverObject *self,
 
 static PyGetSetDef DsssReceiver_getset[] = {
   { "tracking", (getter)DsssReceiver_getprop_tracking, NULL,
-    "0 = searching, 1 = locked and demodulating.\n", NULL },
+    "Routing state: searching or tracking.\n", NULL },
   { "doppler_hz", (getter)DsssReceiver_getprop_doppler_hz, NULL,
-    "Doppler hz.\n", NULL },
+    "Doppler estimate from the winning acquisition hit.\n", NULL },
   { "cn0_dbhz_est", (getter)DsssReceiver_getprop_cn0_dbhz_est, NULL,
-    "Cached from the winning acquisition hit.\n", NULL },
+    "C/N0 estimate from the winning acquisition hit.\n", NULL },
   { "segments", (getter)DsssReceiver_getprop_segments, NULL,
-    "Dll's own tracking parameter.\n", NULL },
+    "Dll partial correlations per code period currently in use.\n", NULL },
   { "sps", (getter)DsssReceiver_getprop_sps, NULL,
-    "MpskReceiver's own samples/symbol.\n", NULL },
+    "MpskReceiver samples per symbol currently in use.\n", NULL },
   { "n", (getter)DsssReceiver_getprop_n, NULL,
-    "MpskReceiver's own carrier-arm count.\n", NULL },
+    "MpskReceiver terminal outputs per symbol (`m_out`) in use.\n", NULL },
   { "chip_phase", (getter)DsssReceiver_getprop_chip_phase, NULL,
     "Dll's live tracked code phase (chips); 0.0 while searching.\n", NULL },
   { "code_rate", (getter)DsssReceiver_getprop_code_rate, NULL,
-    "Dll's own tracking-quality indicator; 1.0 while searching.\n", NULL },
+    "Dll's tracked code rate; 1.0 while searching.\n", NULL },
   { "lock", (getter)DsssReceiver_getprop_lock, NULL,
     "MpskReceiver's carrier lock EMA; 0.0 while searching.\n", NULL },
   { "norm_freq", (getter)DsssReceiver_getprop_norm_freq, NULL,
@@ -847,8 +847,10 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "straight to them in the same call. While tracking, samples feed `Dll ->\n"
     "RateConverter -> MpskReceiver` in sequence. Accepts any block size;\n"
     "state carries across calls (`Acquisition`/`Dll`/\n"
-    "`RateConverter`/`MpskReceiver` are all already block-size invariant, so\n"
-    "this object needs no ring-buffering of its own).\n"
+    "`RateConverter`/`MpskReceiver` are all already block-size invariant;\n"
+    "the only buffering this object adds is the carrier loop's\n"
+    "partial-code-period carry). While tracking, each call allocates two\n"
+    "scratch buffers (abort on OOM).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -901,18 +903,13 @@ static PyMethodDef DsssReceiverObj_methods[] = {
   { "steps_max_out", (PyCFunction)DsssReceiverObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps() can return in the current state.\n"
-    "\n"
-    "Size an `out=` buffer with this before calling steps(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on steps_max_out()\n"
-    "replaces this text.\n"
+    "Output capacity hint for dp_dsss_receiver_steps().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    Always 0: size out from the input length x_len, which is always\n"
+    "    enough (at most one symbol per input sample).\n" },
   { "configure_search_raw",
     (PyCFunction)(void *)DsssReceiverObj_configure_search_raw,
     METH_VARARGS | METH_KEYWORDS,
@@ -926,9 +923,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "doppler_bins : int\n"
-    "    Number of Doppler window tiles to search (>= 1); capped by the\n"
-    "    create-time `doppler_uncertainty` span (one tile per code-epoch\n"
-    "    Doppler bin width).\n"
+    "    Coherent depth to pin, in `[1, reps]` as\n"
+    "    dp_acq_configure_search_raw() defines it.\n"
     "n_noncoh : int\n"
     "    Non-coherent looks accumulated per grid cell (1..256); more looks\n"
     "    buys sensitivity at the cost of dwell, replacing the auto-sized\n"

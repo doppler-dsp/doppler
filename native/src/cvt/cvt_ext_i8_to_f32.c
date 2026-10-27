@@ -245,8 +245,8 @@ static PyMethodDef I8ToF32Obj_methods[] = {
     "\n"
     "Process a block of int8 samples to float32.\n"
     "\n"
-    "Applies step() to every element. Accepts an optional pre-allocated\n"
-    "output array; allocates a fresh one when output is NULL.\n"
+    "Applies step() to every element. In C, output must be non-NULL; the\n"
+    "Python binding allocates a fresh array when no `out=` is passed.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -309,23 +309,24 @@ static PyTypeObject I8ToF32ObjType = {
   .tp_basicsize                           = sizeof (I8ToF32Object),
   .tp_dealloc                             = (destructor)I8ToF32Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc
-  = "Create a i8_to_f32 instance.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "scale : float, default 128.0\n"
-    "    Denominator scale; 1/scale is applied to each sample (default: "
-    "128.0f).\n"
-    "    Use 128.0 to recover normalised floats from a signed 8-bit stream.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Create with defaults:\n"
-    "\n"
-    ">>> from doppler.cvt import I8ToF32\n"
-    ">>> obj = I8ToF32(scale=128.0)\n",
-  .tp_methods = I8ToF32Obj_methods,
-  .tp_new     = I8ToF32Obj_new,
-  .tp_init    = (initproc)I8ToF32Obj_init,
+  .tp_doc                                 = "Create a i8_to_f32 instance.\n"
+                                            "\n"
+                                            "Parameters\n"
+                                            "----------\n"
+                                            "scale : float, default 128.0\n"
+                                            "    Denominator scale; 1/scale is applied to each sample "
+                                            "(default: 128.0f).\n"
+                                            "    Use 128.0 to recover normalised floats from a signed 8-bit "
+                                            "stream. Must\n"
+                                            "    be > 0.\n"
+                                            "\n"
+                                            "Examples\n"
+                                            "--------\n"
+                                            "Create with defaults:\n"
+                                            "\n"
+                                            ">>> from doppler.cvt import I8ToF32\n"
+                                            ">>> obj = I8ToF32(scale=128.0)\n",
+  .tp_methods                             = I8ToF32Obj_methods,
+  .tp_new                                 = I8ToF32Obj_new,
+  .tp_init                                = (initproc)I8ToF32Obj_init,
 };

@@ -809,7 +809,7 @@ static PyMethodDef RateSyncObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    0.\n" },
   { "set_telemetry", (PyCFunction)(void *)RateSyncObj_set_telemetry,
     METH_VARARGS | METH_KEYWORDS,
     "set_telemetry(tlm, prefix, decim) -> None\n"
@@ -875,7 +875,9 @@ static PyMethodDef RateSyncObj_methods[] = {
     "bn : float\n"
     "    Loop noise bandwidth, normalised to the symbol rate.\n"
     "zeta : float\n"
-    "    Damping factor (0.707 = critically damped).\n"
+    "    Damping factor (0.707 = critically damped). A (bn, zeta) outside\n"
+    "    dp_loop_filter_params_ok() is ignored silently: nothing changes and\n"
+    "    no status is returned.\n"
     "\n"
     "Examples\n"
     "--------\n"

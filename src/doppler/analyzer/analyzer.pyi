@@ -69,9 +69,12 @@ class Specan:
 
         Feeds x through the Ddc, buffers the decimated output, and once
         `n·navg` decimated samples are available windows + FFTs + averages them
-        into a fresh frame, crops the central ±span/2 band and writes it in dB
-        (+ ref_db). Returns 0 (writing nothing) until a frame is ready — the
-        binding maps that to Python ``None``.
+        into a fresh frame, crops the central ±span/2 band and writes it in
+        dBFS (+ offset_db). When more than one frame's worth is pending, only
+        the newest complete window is averaged and older samples are dropped,
+        so a display that cannot keep up shows the latest frame. Returns 0
+        (writing nothing) until a frame is ready — the binding maps that to
+        Python ``None``.
 
         Parameters
         ----------
@@ -83,8 +86,8 @@ class Specan:
         Returns
         -------
         NDArray[np.float32] | None
-            Display bins written (disp_n), or 0 if no frame is ready yet. None
-            when the C call writes no output.
+            Display bins written (min(disp_n, max_out)), or 0 if no frame is
+            ready yet. None when the C call writes no output.
 
         Examples
         --------
@@ -100,12 +103,12 @@ class Specan:
         """
 
     def execute_max_out(self) -> int:
-        """Output capacity hint for dp_specan_execute(); equals disp_n.
+        """Output capacity dp_specan_execute() needs: the display length.
 
         Returns
         -------
         int
-            Output.
+            dp_specan_state_t::disp_n, fixed at create().
         """
 
     def retune(self, center: float) -> None:

@@ -392,15 +392,22 @@ class ToneMeasure:
     def analyze(self, x: float, /) -> ToneMetrics:
         """Analyze a real time-domain capture; returns a ToneMetrics result.
 
+        The capture is cut into floor(n_in / n) non-overlapping frames of n
+        samples (a trailing partial frame is ignored); their windowed power
+        spectra are averaged and folded one-sided over `[0, fs/2]`. 0 dBFS is a
+        sine of peak amplitude full_scale. The fundamental is the strongest bin
+        outside the DC guard; frequencies are in Hz.
+
         Parameters
         ----------
         x : float
-            Input.
+            Real time-domain capture, n_in samples.
 
         Returns
         -------
         ToneMetrics
-            the metric record (by value).
+            The metric record (by value). All fields are zero when n_in holds
+            no full frame of n samples.
 
         Examples
         --------
@@ -421,15 +428,20 @@ class ToneMeasure:
     def analyze_complex(self, x: complex, /) -> ToneMetrics:
         """Analyze a complex baseband capture (two-sided spectrum).
 
+        As dp_tonemeas_analyze(), but over the DC-centred two-sided band
+        `[-fs/2, fs/2)`: harmonics wrap rather than reflect, frequencies may be
+        negative, and 0 dBFS is a complex exponential of amplitude full_scale.
+
         Parameters
         ----------
         x : complex
-            Input.
+            Complex baseband capture, n_in samples.
 
         Returns
         -------
         ToneMetrics
-            Output.
+            The metric record (by value). All fields are zero when n_in holds
+            no full frame of n samples.
 
         Examples
         --------
@@ -446,15 +458,20 @@ class ToneMeasure:
     def time_stats(self, x: float, /) -> TimeStats:
         """Time-domain stats: RMS, peak, crest/PAPR, DC offset, FS utilisation.
 
+        Uses every sample of x (no framing). `rms` includes DC; `peak` and the
+        crest factor are AC-coupled (the mean is removed first), and `papr_db`
+        equals `crest_db`. `fs_util_pct` is the largest |x| as a percentage of
+        the 0-dBFS amplitude. Crest is 0 dB for a constant or empty capture.
+
         Parameters
         ----------
         x : float
-            Input.
+            Real capture, n_in samples.
 
         Returns
         -------
         TimeStats
-            Output.
+            The statistics record (by value).
 
         Examples
         --------
@@ -491,7 +508,9 @@ class ToneMeasure:
         Returns
         -------
         NDArray[np.float32]
-            DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+            Number of values written, `min(nfft, max_out)`, or 0 when x_len
+            holds no full frame of n samples; from Python, the DC-centred dBFS
+            magnitude spectrum, one value per FFT bin.
 
         Examples
         --------
@@ -508,12 +527,12 @@ class ToneMeasure:
         """
 
     def spectrum_dbfs_max_out(self) -> int:
-        """Capacity (== nfft) of the spectrum_dbfs output buffer.
+        """Capacity of the dp_tonemeas_spectrum_dbfs() output buffer.
 
         Returns
         -------
         int
-            Output.
+            nfft, the zero-padded transform length (bins).
         """
 
     @property
@@ -538,11 +557,15 @@ class ToneMeasure:
 
     @property
     def spur_guard_bins(self) -> int:
-        """Spur guard bins."""
+        """Fundamental keep-out half-width for the worst-spur search, bins (>=
+        L).
+        """
 
     @property
     def beta(self) -> float:
-        """Beta."""
+        """Kaiser shape auto-selected at create() from the dynamic-range
+        target.
+        """
 
     @property
     def rbw(self) -> float:
@@ -694,7 +717,9 @@ class NPRMeasure:
         Returns
         -------
         NPRMetrics
-            the NPR metric record (by value).
+            The NPR metric record (by value): npr_db, in-band and notch PSD in
+            dBFS, the bin counts averaged, and rbw_hz. All fields are 0 when
+            n_in holds no full analysis frame.
 
         Examples
         --------
@@ -738,7 +763,9 @@ class NPRMeasure:
         Returns
         -------
         NDArray[np.float32]
-            DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+            Number of DC-centred dBFS values written to out: nfft (clipped to
+            max_out), or 0 when the capture holds no full frame. The Python
+            binding returns those values as an array.
 
         Examples
         --------
@@ -755,12 +782,12 @@ class NPRMeasure:
         """
 
     def spectrum_dbfs_max_out(self) -> int:
-        """Capacity (== nfft) of the spectrum_dbfs output buffer.
+        """Capacity of the spectrum_dbfs() output buffer.
 
         Returns
         -------
         int
-            Output.
+            nfft, the number of floats spectrum_dbfs() writes.
         """
 
     @property
@@ -890,15 +917,24 @@ class IMDMeasure:
     def analyze(self, x: float, /) -> IMDMetrics:
         """Two-tone IMD/TOI of a real capture (finds the two strongest tones).
 
+        Averages the Kaiser-windowed power spectrum over floor(n_in / n) whole
+        frames (a trailing partial frame is dropped), takes the two strongest
+        bins more than spur_guard_bins from DC and from each other as f1 < f2,
+        and integrates each tone and the IM products 2f1-f2, 2f2-f1 and f2-f1
+        (folded into [0, fs/2]) over +/- lobe_bins. `imd3_dbc` is the worse of
+        the two third-order products; both IMD ratios are relative to the mean
+        tone power. TOI = P_tone + |IMD3|/2 and SOI = P_tone + |IMD2| (dBFS).
+
         Parameters
         ----------
         x : float
-            Input.
+            Real capture (float32), length n_in.
 
         Returns
         -------
         IMDMetrics
-            the IMD metric record (by value; zeroed if no two tones are found).
+            the IMD metric record (by value; zeroed if no two tones are found
+            or n_in < n).
 
         Examples
         --------
@@ -932,14 +968,16 @@ class IMDMeasure:
         Parameters
         ----------
         x : npt.NDArray[np.float32]
-            Real time-domain capture (length x_len).
+            Real time-domain capture (length x_len); averaged over its whole
+            n-sample frames like analyze().
         out : npt.NDArray[np.float32] | None
             Destination buffer (length >= max_out).
 
         Returns
         -------
         NDArray[np.float32]
-            DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+            Number of bins written to out: min(nfft, max_out), or 0 when x_len
+            < n (no whole frame to transform).
 
         Examples
         --------
@@ -962,7 +1000,7 @@ class IMDMeasure:
         Returns
         -------
         int
-            Output.
+            nfft, the zero-padded transform length (bins).
         """
 
     @property
@@ -1064,31 +1102,38 @@ def measure_min_samples(
 def measure_rec_nfft(n: int, pad: int) -> int:
     """Recommended zero-padded transform length: next_pow_two(n * pad).
 
+    The same rule the measurement objects apply (with pad = ::MEASURE_PAD),
+    exposed so a caller can plan an FFT size before building an analyser.
+
     Parameters
     ----------
     n : int
-        Input.
+        Capture length (samples).
     pad : int
-        Input.
+        Zero-pad factor; 0 is treated as 1.
 
     Returns
     -------
     int
-        Output.
+        The smallest power of two >= n * pad (1 when n is 0).
     """
 
 def measure_proc_gain(nfft: int) -> float:
     """FFT processing gain in dB: 10*log10(nfft / 2).
 
+    How far a single bin's noise sits below the total noise power for an
+    nfft-point transform of a real capture. No argument check: nfft = 0
+    returns -inf.
+
     Parameters
     ----------
     nfft : int
-        Input.
+        Transform length (bins).
 
     Returns
     -------
     float
-        Output.
+        Processing gain (dB).
     """
 
 def dp_coherent_freq(fs: float, f_target: float, N: int) -> float:
@@ -1099,17 +1144,21 @@ def dp_coherent_freq(fs: float, f_target: float, N: int) -> float:
     capture (no leakage) with J coprime to N (so quantisation-noise
     correlation is minimised).
 
+    J starts at round(f_target * N / fs), is clamped to [1, N-1], then
+    moved by the smallest distance that makes it coprime with N; on a tie
+    the higher J wins.
+
     Parameters
     ----------
     fs : float
-        Input.
+        Sample rate (Hz, > 0).
     f_target : float
-        Input.
+        Desired test frequency (Hz).
     N : int
-        Input.
+        Capture length (samples, >= 2).
 
     Returns
     -------
     float
-        The coherent frequency (Hz), or 0 on bad args.
+        The coherent frequency J * fs / N (Hz), or 0 if N < 2 or fs <= 0.
     """

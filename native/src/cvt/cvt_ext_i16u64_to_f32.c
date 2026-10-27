@@ -324,22 +324,23 @@ static PyTypeObject I16U64ToF32ObjType = {
   .tp_basicsize                           = sizeof (I16U64ToF32Object),
   .tp_dealloc                             = (destructor)I16U64ToF32Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc
-  = "Create a i16u64_to_f32 instance.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "scale : float, default 32768.0\n"
-    "    Denominator scale; 1/scale is applied after sign-extension "
-    "(default:\n"
-    "    32768.0f). Use 32768.0 to match F32ToI16U64 at its default scale.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Create with defaults:\n"
-    "\n"
-    ">>> from doppler.cvt import I16U64ToF32\n"
-    ">>> obj = I16U64ToF32(scale=32768.0)\n",
+  .tp_doc     = "Create an I16U64ToF32 converter (Q15-in-uint64 to float).\n"
+                "\n"
+                "Parameters\n"
+                "----------\n"
+                "scale : float, default 32768.0\n"
+                "    Denominator scale; 1/scale is applied after sign-extension "
+                "(default:\n"
+                "    32768.0f). Use 32768.0 to match F32ToI16U64 at its default "
+                "scale. Must\n"
+                "    be > 0.\n"
+                "\n"
+                "Examples\n"
+                "--------\n"
+                "Create with defaults:\n"
+                "\n"
+                ">>> from doppler.cvt import I16U64ToF32\n"
+                ">>> obj = I16U64ToF32(scale=32768.0)\n",
   .tp_methods = I16U64ToF32Obj_methods,
   .tp_new     = I16U64ToF32Obj_new,
   .tp_init    = (initproc)I16U64ToF32Obj_init,

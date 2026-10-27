@@ -1228,18 +1228,16 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
   { "steps_max_out", (PyCFunction)MpskReceiverRObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps() can return in the current state.\n"
+    "Output-capacity hint for the generated binding's steps_real().\n"
     "\n"
-    "Size an `out=` buffer with this before calling steps(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on steps_max_out()\n"
-    "replaces this text.\n"
+    "Always returns 0, which the binding reads as \"the input length is a\n"
+    "safe bound\": `sps > 2 * m_out`, so a block never yields more symbols\n"
+    "than it has samples.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    0.\n" },
   { "bits", (PyCFunction)(void *)MpskReceiverRObj_bits,
     METH_VARARGS | METH_KEYWORDS,
     "bits(x, out) -> ndarray\n"
@@ -1289,18 +1287,17 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
   { "bits_max_out", (PyCFunction)MpskReceiverRObj_bits_max_out, METH_NOARGS,
     "bits_max_out() -> int\n"
     "\n"
-    "Largest number of samples bits() can return in the current state.\n"
+    "Output-capacity hint for the generated binding's bits_real().\n"
     "\n"
-    "Size an `out=` buffer with this before calling bits(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on bits_max_out()\n"
-    "replaces this text.\n"
+    "Always returns 0, which the binding reads as \"the input length is a\n"
+    "safe bound\": `sps > 2 * m_out >= 4`, so a block yields at most `x_len "
+    "/\n"
+    "4` symbols of at most 3 bits each, which is below the input length.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    0.\n" },
   { "state_bytes", (PyCFunction)MpskReceiverRObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

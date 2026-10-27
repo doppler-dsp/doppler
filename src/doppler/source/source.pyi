@@ -62,7 +62,7 @@ class NCO:
         is the phase value BEFORE the increment fires, so `out[0]` is the phase
         at the moment of the call. The accumulator wraps silently at 2^32,
         giving the full-resolution integer ramp that the scaled and carry
-        variants derive from. Returns n.
+        variants derive from.
 
         Parameters
         ----------
@@ -105,7 +105,7 @@ class NCO:
         Returns
         -------
         int
-            Output.
+            65536, for every instance.
         """
 
     def steps_u32_scaled(
@@ -118,7 +118,7 @@ class NCO:
         full accumulator range uniformly onto [0, nmax) without a modulo
         operation. When nmax == 0 falls back to the raw accumulator (identical
         to dp_nco_steps_u32). Useful for polyphase filter bank indexing and
-        direct LUT addressing. Returns n.
+        direct LUT addressing.
 
         Parameters
         ----------
@@ -147,18 +147,15 @@ class NCO:
         """
 
     def steps_u32_scaled_max_out(self) -> int:
-        """Largest number of samples steps_u32_scaled() can return in the
-        current state.
+        """Pre-allocation hint for dp_nco_steps_u32_scaled().
 
-        Size an `out=` buffer with this before calling steps_u32_scaled(), or
-        use it to allocate one up front. The bound is this object's own: what
-        it depends on is a property of the algorithm, so a header block on
-        steps_u32_scaled_max_out() replaces this text.
+        Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,
+        not a per-call limit; the stepper clamps to its own max_out.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            65536, for every instance.
         """
 
     def steps_u32_ovf(
@@ -171,7 +168,7 @@ class NCO:
         fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that
         produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The
         carry marks the exact boundary of one input period and is the primitive
-        for polyphase sample-clock and rational resampling engines. Returns n.
+        for polyphase sample-clock and rational resampling engines.
 
         Parameters
         ----------
@@ -215,7 +212,7 @@ class NCO:
         `lo_step_ctrl`/`dp_lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h),
         which does this for the CF32 phasor output; this is the same
         control-port pattern for NCO's raw phase output. With every `ctrl[i] ==
-        0` this is bit-identical to dp_nco_steps_u32(). Returns ctrl_len.
+        0` this is bit-identical to dp_nco_steps_u32().
 
         Python's `out=` keyword writes into a caller-supplied buffer instead of
         allocating a fresh one. This used to claim it was "essential for a hot
@@ -266,18 +263,15 @@ class NCO:
         """
 
     def steps_u32_ctrl_max_out(self) -> int:
-        """Largest number of samples steps_u32_ctrl() can return in the current
-        state.
+        """Pre-allocation hint for dp_nco_steps_u32_ctrl().
 
-        Size an `out=` buffer with this before calling steps_u32_ctrl(), or use
-        it to allocate one up front. The bound is this object's own: what it
-        depends on is a property of the algorithm, so a header block on
-        steps_u32_ctrl_max_out() replaces this text.
+        Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,
+        not a per-call limit; the stepper clamps to its own max_out.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            65536, for every instance.
         """
 
     def steps_u32_scaled_ctrl(
@@ -294,7 +288,7 @@ class NCO:
         loop can drive LUT-indexed output (nmax = table length) exactly as it
         would raw phase output, without ever touching phase_inc/norm_freq. With
         every `ctrl[i] == 0` this is bit-identical to
-        dp_nco_steps_u32_scaled(). Returns ctrl_len.
+        dp_nco_steps_u32_scaled().
 
         Parameters
         ----------
@@ -327,18 +321,15 @@ class NCO:
         """
 
     def steps_u32_scaled_ctrl_max_out(self) -> int:
-        """Largest number of samples steps_u32_scaled_ctrl() can return in the
-        current state.
+        """Pre-allocation hint for dp_nco_steps_u32_scaled_ctrl().
 
-        Size an `out=` buffer with this before calling steps_u32_scaled_ctrl(),
-        or use it to allocate one up front. The bound is this object's own:
-        what it depends on is a property of the algorithm, so a header block on
-        steps_u32_scaled_ctrl_max_out() replaces this text.
+        Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,
+        not a per-call limit; the stepper clamps to its own max_out.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            65536, for every instance.
         """
 
     def steps_u32_ovf_ctrl(
@@ -361,7 +352,6 @@ class NCO:
         nco_step_u32_ovf_ctrl for why the sign cannot be recovered after the
         fold, nor taken from `ctrl` alone. With every `ctrl[i] == 0` and
         `norm_freq` in [0, 1) this is bit-identical to dp_nco_steps_u32_ovf().
-        Returns ctrl_len.
 
         Parameters
         ----------
@@ -604,12 +594,15 @@ class LO:
         """
 
     def steps_max_out(self) -> int:
-        """Maximum samples per call (determines pre-allocated buffer size).
+        """Output buffer size the binding pre-allocates for dp_lo_steps().
+
+        Not a ceiling on a call: dp_lo_steps() clamps to the capacity it is
+        given and the binding grows its buffer on demand.
 
         Returns
         -------
         int
-            Output.
+            Always 65536.
         """
 
     def steps_ctrl(
@@ -657,18 +650,13 @@ class LO:
         """
 
     def steps_ctrl_max_out(self) -> int:
-        """Largest number of samples steps_ctrl() can return in the current
-        state.
-
-        Size an `out=` buffer with this before calling steps_ctrl(), or use it
-        to allocate one up front. The bound is this object's own: what it
-        depends on is a property of the algorithm, so a header block on
-        steps_ctrl_max_out() replaces this text.
+        """Output buffer size the binding pre-allocates for dp_lo_steps_ctrl();
+        as dp_lo_steps_max_out().
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            Always 65536.
         """
 
     def state_bytes(self) -> int:
@@ -899,7 +887,7 @@ class AWGN:
         Returns
         -------
         int
-            Output.
+            65536, always.
         """
 
     def reseed(self, seed: int) -> None:

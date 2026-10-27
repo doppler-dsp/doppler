@@ -616,12 +616,15 @@ static PyMethodDef LOObj_methods[] = {
   { "steps_max_out", (PyCFunction)LOObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Maximum samples per call (determines pre-allocated buffer size).\n"
+    "Output buffer size the binding pre-allocates for dp_lo_steps().\n"
+    "\n"
+    "Not a ceiling on a call: dp_lo_steps() clamps to the capacity it is\n"
+    "given and the binding grows its buffer on demand.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always 65536.\n" },
   { "steps_ctrl", (PyCFunction)(void *)LOObj_steps_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "steps_ctrl(ctrl, out) -> ndarray\n"
@@ -665,19 +668,13 @@ static PyMethodDef LOObj_methods[] = {
   { "steps_ctrl_max_out", (PyCFunction)LOObj_steps_ctrl_max_out, METH_NOARGS,
     "steps_ctrl_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps_ctrl() can return in the current\n"
-    "state.\n"
-    "\n"
-    "Size an `out=` buffer with this before calling steps_ctrl(), or use it\n"
-    "to allocate one up front. The bound is this object's own: what it\n"
-    "depends on is a property of the algorithm, so a header block on\n"
-    "steps_ctrl_max_out() replaces this text.\n"
+    "Output buffer size the binding pre-allocates for dp_lo_steps_ctrl();\n"
+    "as dp_lo_steps_max_out().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    Always 65536.\n" },
   { "state_bytes", (PyCFunction)LOObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

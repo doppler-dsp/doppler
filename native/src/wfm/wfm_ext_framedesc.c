@@ -1289,7 +1289,12 @@ static PyGetSetDef FrameDesc_getset[] = {
     "Symbol errors the last deframe() repaired. Margin being spent, visible "
     "before it is lost -- what an outer code reports and a CRC cannot.\n",
     NULL },
-  { "nbits", (getter)FrameDesc_getprop_nbits, NULL, "Nbits.\n", NULL },
+  { "nbits", (getter)FrameDesc_getprop_nbits, NULL,
+    "Bits in one frame as transmitted: the assembled frame's length for "
+    "dp_frame_create(), and the last emitting stage's output length "
+    "(`out_bits`) after dp_frame_build(). 0 until a description is built, or "
+    "if building fails.\n",
+    NULL },
   { "_capsule", (getter)FrameDesc_getprop__capsule, NULL,
     "The description as a `doppler.wfm.frame_desc` capsule (a borrowed "
     "`wfm_frame_desc_t *`), the handle a composer source's `frame=` copies "
@@ -1387,7 +1392,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    `n * nbits`, the output capacity in bits (one per byte) that\n"
+    "    dp_frame_bits() needs; 0 for a NULL state or an unbuilt\n"
+    "    description.\n" },
   { "crc_ok", (PyCFunction)(void *)FrameDescObj_crc_ok,
     METH_VARARGS | METH_KEYWORDS,
     "crc_ok(rx_bits) -> int\n"
@@ -1660,7 +1667,9 @@ static PyMethodDef FrameDescObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n"
+    "    The new field's index, or -1 on NULL state, a built frame, a zero\n"
+    "    bits, a full description (`WFM_FRAME_MAX_FIELDS`) or a name another\n"
+    "    field already carries.\n"
     "\n"
     "Raises\n"
     "------\n"

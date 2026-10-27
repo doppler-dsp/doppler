@@ -997,12 +997,12 @@ static PyMethodDef FFT2DObj_methods[] = {
     METH_NOARGS,
     "execute_cf64_max_out() -> int\n"
     "\n"
-    "Maximum output samples per execute call (ny * nx).\n"
+    "Output capacity dp_fft2d_execute_cf64() needs.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    ny * nx samples.\n" },
   { "execute_cf32", (PyCFunction)(void *)FFT2DObj_execute_cf32,
     METH_VARARGS | METH_KEYWORDS,
     "execute_cf32(x, out) -> ndarray\n"
@@ -1048,12 +1048,12 @@ static PyMethodDef FFT2DObj_methods[] = {
     METH_NOARGS,
     "execute_cf32_max_out() -> int\n"
     "\n"
-    "Maximum output samples for CF32 execute (ny * nx).\n"
+    "Output capacity dp_fft2d_execute_cf32() needs.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    ny * nx samples.\n" },
   { "execute_inplace_cf64", (PyCFunction)(void *)FFT2DObj_execute_inplace_cf64,
     METH_VARARGS | METH_KEYWORDS,
     "execute_inplace_cf64(x, out) -> ndarray\n"
@@ -1097,12 +1097,12 @@ static PyMethodDef FFT2DObj_methods[] = {
     (PyCFunction)FFT2DObj_execute_inplace_cf64_max_out, METH_NOARGS,
     "execute_inplace_cf64_max_out() -> int\n"
     "\n"
-    "Maximum output samples for inplace CF64 execute (ny * nx).\n"
+    "Output capacity dp_fft2d_execute_inplace_cf64() needs.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    ny * nx samples.\n" },
   { "execute_inplace_cf32", (PyCFunction)(void *)FFT2DObj_execute_inplace_cf32,
     METH_VARARGS | METH_KEYWORDS,
     "execute_inplace_cf32(x, out) -> ndarray\n"
@@ -1145,12 +1145,12 @@ static PyMethodDef FFT2DObj_methods[] = {
     (PyCFunction)FFT2DObj_execute_inplace_cf32_max_out, METH_NOARGS,
     "execute_inplace_cf32_max_out() -> int\n"
     "\n"
-    "Maximum output samples for inplace CF32 execute (ny * nx).\n"
+    "Output capacity dp_fft2d_execute_inplace_cf32() needs.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    ny * nx samples.\n" },
   { "destroy", (PyCFunction)FFT2DObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

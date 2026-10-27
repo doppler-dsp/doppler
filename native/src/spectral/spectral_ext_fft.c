@@ -755,7 +755,7 @@ FFTObj_exit (FFTObject *self, PyObject *args)
 
 static PyMethodDef FFTObj_methods[] = {
   { "reset", (PyCFunction)FFTObj_reset, METH_NOARGS,
-    "No-op reset (plans are immutable after creation)." },
+    "No-op reset: an FFT keeps no running state between calls.\n" },
 
   { "execute_cf64", (PyCFunction)(void *)FFTObj_execute_cf64,
     METH_VARARGS | METH_KEYWORDS,
@@ -793,12 +793,12 @@ static PyMethodDef FFTObj_methods[] = {
     METH_NOARGS,
     "execute_cf64_max_out() -> int\n"
     "\n"
-    "Maximum output samples per execute call (always == n).\n"
+    "Output capacity for dp_fft_execute_cf64().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    state->n, the number of bins one call writes.\n" },
   { "execute_cf32", (PyCFunction)(void *)FFTObj_execute_cf32,
     METH_VARARGS | METH_KEYWORDS,
     "execute_cf32(x, out) -> ndarray\n"
@@ -835,12 +835,12 @@ static PyMethodDef FFTObj_methods[] = {
     METH_NOARGS,
     "execute_cf32_max_out() -> int\n"
     "\n"
-    "Maximum output samples for CF32 execute (always == n).\n"
+    "Output capacity for dp_fft_execute_cf32().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    state->n, the number of bins one call writes.\n" },
   { "execute_ci16", (PyCFunction)FFTObj_execute_ci16, METH_VARARGS,
     "execute_ci16(iq) -> ndarray\n"
     "\n"
@@ -924,12 +924,12 @@ static PyMethodDef FFTObj_methods[] = {
     (PyCFunction)FFTObj_execute_inplace_cf64_max_out, METH_NOARGS,
     "execute_inplace_cf64_max_out() -> int\n"
     "\n"
-    "Maximum output samples for inplace CF64 (always == n).\n"
+    "Output capacity for dp_fft_execute_inplace_cf64().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    state->n, the number of bins one call writes.\n" },
   { "execute_inplace_cf32", (PyCFunction)(void *)FFTObj_execute_inplace_cf32,
     METH_VARARGS | METH_KEYWORDS,
     "execute_inplace_cf32(x, out) -> ndarray\n"
@@ -965,12 +965,12 @@ static PyMethodDef FFTObj_methods[] = {
     (PyCFunction)FFTObj_execute_inplace_cf32_max_out, METH_NOARGS,
     "execute_inplace_cf32_max_out() -> int\n"
     "\n"
-    "Maximum output samples for inplace CF32 (always == n).\n"
+    "Output capacity for dp_fft_execute_inplace_cf32().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    state->n, the number of bins one call writes.\n" },
   { "destroy", (PyCFunction)FFTObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

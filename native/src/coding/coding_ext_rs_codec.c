@@ -741,12 +741,12 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "n_in : int\n"
-    "    Input.\n"
+    "    Ignored: a codeword is `n` symbols whatever it encodes.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    `n` symbols.\n" },
   { "decode", (PyCFunction)(void *)ReedSolomonObj_decode,
     METH_VARARGS | METH_KEYWORDS,
     "decode(codeword) -> int\n"
@@ -838,12 +838,12 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "n_in : int\n"
-    "    Input.\n"
+    "    Ignored: the syndrome count does not depend on it.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    `nroots` symbols.\n" },
   { "codeword_ok", (PyCFunction)(void *)ReedSolomonObj_codeword_ok,
     METH_VARARGS | METH_KEYWORDS,
     "codeword_ok(codeword) -> int\n"

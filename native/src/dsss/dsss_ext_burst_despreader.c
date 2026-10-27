@@ -961,7 +961,8 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always 0, meaning \"size the output from the input length\" (one\n"
+    "    symbol per sf*sps >= 2 input samples, so x_len is ample).\n" },
   { "bits", (PyCFunction)(void *)BurstDespreaderObj_bits,
     METH_VARARGS | METH_KEYWORDS,
     "bits(x, out) -> ndarray\n"
@@ -1012,7 +1013,7 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always 0, meaning \"size the output from the input length\".\n" },
   { "set_acq", (PyCFunction)(void *)BurstDespreaderObj_set_acq,
     METH_VARARGS | METH_KEYWORDS,
     "set_acq(acq_code, acq_reps) -> None\n"
@@ -1036,7 +1037,9 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "acq_code : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    Acquisition code (0/1), length acq_code_len; copied.\n"
     "acq_reps : int\n"
-    "    Number of acq-code periods in the preamble.\n"
+    "    Number of acq-code periods in the preamble. A NULL/empty acq_code\n"
+    "    or `acq_reps == 0` disables the preamble (payload-only), as does an\n"
+    "    allocation failure; any previous acq code is freed either way.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1190,7 +1193,9 @@ static PyTypeObject BurstDespreaderObjType = {
     "Parameters\n"
     "----------\n"
     "code : NDArray[np.uint8]\n"
-    "    Data spreading code (0/1 chips), length code_len; copied.\n"
+    "    Data spreading code (0/1 chips), length code_len; the first sf "
+    "chips\n"
+    "    are copied (only bit 0 of each byte is read: 0 -> +1, 1 -> -1).\n"
     "sf : int, default 1\n"
     "    Spreading factor: chips integrated per prompt symbol (default: 1).\n"
     "sps : int, default 2\n"

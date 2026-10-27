@@ -1097,7 +1097,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    frame_syms (fixed at create), or 0 if state is NULL.\n" },
   { "symbols", (PyCFunction)(void *)BurstDemodObj_symbols,
     METH_VARARGS | METH_KEYWORDS,
     "symbols(count=1, out=None) -> ndarray\n"
@@ -1172,7 +1172,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    frame_syms (fixed at create), or 0 if state is NULL.\n" },
   { "set_prior", (PyCFunction)(void *)BurstDemodObj_set_prior,
     METH_VARARGS | METH_KEYWORDS,
     "set_prior(f0_coarse, start) -> None\n"
@@ -1289,7 +1289,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    frame_syms, the frame length in bits, fixed at create.\n" },
   { "destroy", (PyCFunction)BurstDemodObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

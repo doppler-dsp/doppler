@@ -243,9 +243,16 @@ ADC_getprop_bits (ADCObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef ADC_getset[]
-    = { { "clipped", (getter)ADC_getprop_clipped, NULL, "Clipped.\n", NULL },
-        { "scale", (getter)ADC_getprop_scale, NULL, "Scale.\n", NULL },
-        { "bits", (getter)ADC_getprop_bits, NULL, "Bits.\n", NULL },
+    = { { "clipped", (getter)ADC_getprop_clipped, NULL,
+          "Sticky saturation flag: 1 once any sample saturated, 0 otherwise.  "
+          "Running state, set by step()/steps(), cleared by reset().\n",
+          NULL },
+        { "scale", (getter)ADC_getprop_scale, NULL,
+          "Input-to-code gain, 2^(bits-1) * 10^(-dbfs/20) (codes per unit "
+          "input).  Config, set by create().\n",
+          NULL },
+        { "bits", (getter)ADC_getprop_bits, NULL,
+          "ADC resolution in bits, 1..64.  Config.\n", NULL },
         { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
@@ -305,8 +312,10 @@ static PyMethodDef ADCObj_methods[] = {
     "Multiplies x by the pre-computed double-precision scale, optionally\n"
     "adds TPDF dither (when the object was built with dithering enabled),\n"
     "rounds with llround, and clamps to the signed integer range `[clip_min,\n"
-    "clip_max]`. Latches the sticky clipped flag if the sample saturated. A\n"
-    "sample at amplitude 10^(dbfs/20) reaches full scale.\n"
+    "clip_max]`. Latches the sticky clipped flag when the scaled (and\n"
+    "dithered) value lies outside `[clip_min, clip_max]` BEFORE rounding, so\n"
+    "a value such as clip_max + 0.3 latches it even though it rounds to\n"
+    "clip_max. A sample at amplitude 10^(dbfs/20) reaches full scale.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -334,11 +343,17 @@ static PyMethodDef ADCObj_methods[] = {
     "\n"
     "Process a block of float samples to int64.\n"
     "\n"
-    "When dithering is disabled the float-to-double multiply can use SIMD\n"
-    "widening (jm_simd.h); the int64_t conversion and clamp remain scalar.\n"
-    "When dithering is enabled the loop is scalar to preserve sequential\n"
-    "PRNG state. Accepts an optional pre-allocated output array; allocates a\n"
-    "fresh one when output is NULL.\n"
+    "When dithering is disabled and a SIMD tier is available (jm_simd.h),\n"
+    "whole SIMD-width groups are scaled by scale rounded to float32,\n"
+    "multiplied in float32, rounded with llroundf and clamped; the clip flag\n"
+    "latches only when the ROUNDED code exceeds the range. The remaining\n"
+    "tail samples, and every sample when dithering is enabled, go through\n"
+    "dp_adc_step() (double precision, sequential PRNG). For converters wider\n"
+    "than ~24 bits the float32 path can therefore differ from step() in the\n"
+    "last codes.\n"
+    "\n"
+    "The C function writes into output and never allocates; the Python\n"
+    "binding allocates the output array when its optional out is omitted.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -455,29 +470,31 @@ static PyTypeObject ADCObjType = {
   .tp_basicsize                           = sizeof (ADCObject),
   .tp_dealloc                             = (destructor)ADCObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create an ADC instance.\n"
-                                            "\n"
-                                            "Parameters\n"
-                                            "----------\n"
-                                            "bits : int, default 16\n"
-                                            "    ADC resolution in bits (1..64).\n"
-                                            "dbfs : float, default -10.0\n"
-                                            "    Full-scale reference level in dBFS (typically negative, e.g. "
-                                            "-10.0). A\n"
-                                            "    signal with amplitude 10^(dbfs/20) fills the converter's "
-                                            "integer range\n"
-                                            "    exactly.\n"
-                                            "dithering : int, default 0\n"
-                                            "    0 = no dither; non-zero = TPDF dither before rounding.\n"
-                                            "\n"
-                                            "Examples\n"
-                                            "--------\n"
-                                            "Create with defaults:\n"
-                                            "\n"
-                                            ">>> from doppler.cvt import ADC\n"
-                                            ">>> obj = ADC(bits=16, dbfs=-10.0, dithering=0)\n",
-  .tp_methods                             = ADCObj_methods,
-  .tp_getset                              = ADC_getset,
-  .tp_new                                 = ADCObj_new,
-  .tp_init                                = (initproc)ADCObj_init,
+  .tp_doc
+  = "Create an ADC instance.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "bits : int, default 16\n"
+    "    ADC resolution in bits (1..64; default 16).\n"
+    "dbfs : float, default -10.0\n"
+    "    Full-scale reference level in dBFS (typically negative, e.g. -10.0). "
+    "A\n"
+    "    signal with amplitude 10^(dbfs/20) fills the converter's integer "
+    "range\n"
+    "    exactly (default -10.0).\n"
+    "dithering : int, default 0\n"
+    "    0 = no dither (default); positive = TPDF dither before rounding. A\n"
+    "    negative value is rejected (NULL).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.cvt import ADC\n"
+    ">>> obj = ADC(bits=16, dbfs=-10.0, dithering=0)\n",
+  .tp_methods = ADCObj_methods,
+  .tp_getset  = ADC_getset,
+  .tp_new     = ADCObj_new,
+  .tp_init    = (initproc)ADCObj_init,
 };

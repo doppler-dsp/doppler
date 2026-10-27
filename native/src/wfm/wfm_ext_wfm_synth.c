@@ -613,6 +613,12 @@ static PyMethodDef _SynthEngine_methods[] = {
     "Reset Synth to its post-create state. Resets the LO phase\n"
     "accumulator, AWGN internal state, and PN LFSR register to their initial\n"
     "values so the output sequence is perfectly reproducible from sample 0.\n"
+    "Also rewinds the bit/symbol cursors, the chirp phase and the\n"
+    "continuous-DSSS clocks, and clears the shaper's delay line.\n"
+    "Configuration (patterns, codes, window, RRC taps, chirp span) is kept.\n"
+    "With a refill attached the data-ended latch is NOT cleared and the\n"
+    "rewound cursor replays the frame in the buffer (the last one pulled),\n"
+    "since a pulled source cannot rewind what it consumed.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -648,10 +654,15 @@ static PyMethodDef _SynthEngine_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "steps(n=1) -> ndarray\n"
     "\n"
-    "Generate a block of output samples. Calls dp_wfm_synth_step() in a\n"
-    "tight loop, writing each cf32 sample into ``output``. The Python\n"
-    "binding returns a freshly allocated NumPy complex64 array; ownership is\n"
-    "transferred to the caller.\n"
+    "Generate a block of output samples. Produces the same stream as n\n"
+    "calls of dp_wfm_synth_step(), writing each cf32 sample into ``output``,\n"
+    "but batched: the LO, AWGN and PN are generated a chunk at a time and\n"
+    "the symbol map, carrier mix and noise add are separate passes. Because\n"
+    "the mix and the add round separately, the result can differ from step()\n"
+    "by an ULP under -ffast-math on FMA targets (arm64, QPSK); drive one\n"
+    "path where byte-for-byte agreement matters. The Python binding returns\n"
+    "a freshly allocated NumPy complex64 array; ownership is transferred to\n"
+    "the caller.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -677,34 +688,42 @@ static PyMethodDef _SynthEngine_methods[] = {
 
   { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
     "Return the active waveform type discriminant. Maps to the WFM_SYNTH_* "
-    "enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which "
-    "synthesis path is active at runtime.\n" },
+    "enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols, "
+    "8=dsss. Use this to inspect which synthesis path is active at "
+    "runtime.\n" },
   { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,
     "Override the waveform type discriminant in-place. Changing wtype does "
-    "not reinitialise sub-objects; use with care.\n" },
+    "not reinitialise sub-objects (no PN, LO, AWGN or pattern is created or "
+    "freed, and the value is not validated); use with care.\n" },
   { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS,
-    "Return the samples-per-symbol count. For modulated types (BPSK, QPSK, "
-    "PN) each symbol is held for nsps consecutive output samples.  For "
-    "tone/noise this field is present but unused by the synthesis path.\n" },
+    "Return the samples-per-symbol count. For symbol types (PN, BPSK, QPSK, "
+    "bits, symbols, dsss chips) each symbol is held for nsps consecutive "
+    "output samples.  For tone/noise/chirp this field is present but unused "
+    "by the synthesis path.\n" },
   { "set_nsps", (PyCFunction)_SynthEngine_set_nsps, METH_VARARGS,
     "Override the samples-per-symbol count in-place. Does not flush the "
     "symbol-position counter (sym_pos); set sym_pos=0 as well when changing "
-    "sps mid-stream.\n" },
+    "sps mid-stream.  Not validated, and does not rebuild an attached RRC "
+    "shaper (whose taps and polyphase split were fixed for the nsps at "
+    "dp_wfm_synth_set_rrc() time) or rescale the noise.\n" },
   { "get_sym_pos", (PyCFunction)_SynthEngine_get_sym_pos, METH_NOARGS,
     "Return the current position within the current symbol (0..nsps-1). "
-    "Reaches nsps and wraps to 0 each time a new symbol is consumed from the "
-    "PN LFSR.  Useful for frame alignment: sym_pos==0 on a step boundary "
-    "means the very next sample begins a fresh symbol.\n" },
+    "Reaches nsps and wraps to 0 each time a new symbol is latched from the "
+    "active source (PN LFSR, bit pattern, symbol stream or DSSS chip). Useful "
+    "for frame alignment: sym_pos==0 on a step boundary means the very next "
+    "sample begins a fresh symbol.  Not advanced on the polyphase-shaper path "
+    "(power-of-two sps with RRC), nor for tone/noise/chirp.\n" },
   { "set_sym_pos", (PyCFunction)_SynthEngine_set_sym_pos, METH_VARARGS,
     "Override the symbol-position counter in-place. Injecting 0 forces the "
-    "next dp_wfm_synth_step() to latch a new PN chip; any other value "
+    "next dp_wfm_synth_step() to latch a new symbol; any other value "
     "fast-forwards into the middle of the current symbol hold.\n" },
   { "get_cur_re", (PyCFunction)_SynthEngine_get_cur_re, METH_NOARGS,
     "Return the real part of the current held symbol. For modulated types "
     "this is the I component latched at the last symbol boundary (±1 for "
     "BPSK/PN, ±1/√2 for QPSK).  For tone the synthesiser initialises cur_re "
-    "to 1.0 so that the held symbol is a clean unit-power carrier; for noise "
-    "it is 0.0 (noise has no held symbol).\n" },
+    "to 1.0 so that the held symbol is a clean unit-power carrier (chirp "
+    "too); for noise it is 0.0 (noise has no held symbol), as it is for every "
+    "symbol type before its first latch.\n" },
   { "set_cur_re", (PyCFunction)_SynthEngine_set_cur_re, METH_VARARGS,
     "Override the held-symbol real (I) component in-place. Takes effect on "
     "the next dp_wfm_synth_step() within the current symbol hold.\n" },
@@ -1080,12 +1099,14 @@ static PyTypeObject _SynthEngineType = {
     "seed : int, default 1\n"
     "    PRNG seed shared by AWGN and the PN LFSR. Default 1.\n"
     "sps : int, default 8\n"
-    "    Samples per symbol for modulated types (BPSK, QPSK, PN). Ignored "
+    "    Samples per symbol for modulated types (BPSK, QPSK, PN; per chip "
     "for\n"
-    "    tone/noise. Default 8.\n"
+    "    dsss). Ignored for tone/noise. Values < 1 are clamped to 1. Default "
+    "8.\n"
     "pn_length : int, default 7\n"
-    "    LFSR register length (1..64); period = 2^pn_length - 1. Default 7\n"
-    "    (period 127).\n"
+    "    LFSR register length; period = 2^pn_length - 1. With pn_poly 0 it "
+    "must\n"
+    "    be 2..64 (the MLS table's range). Default 7 (period 127).\n"
     "pn_poly : int, default 0\n"
     "    Galois tap polynomial for the LFSR. 0 means \"look up the canonical "
     "MLS\n"

@@ -1128,7 +1128,7 @@ static PyMethodDef NCOObj_methods[] = {
     "is the phase value BEFORE the increment fires, so `out[0]` is the phase\n"
     "at the moment of the call. The accumulator wraps silently at 2^32,\n"
     "giving the full-resolution integer ramp that the scaled and carry\n"
-    "variants derive from. Returns n.\n"
+    "variants derive from.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1171,7 +1171,7 @@ static PyMethodDef NCOObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    65536, for every instance.\n" },
   { "steps_u32_scaled", (PyCFunction)(void *)NCOObj_steps_u32_scaled,
     METH_VARARGS | METH_KEYWORDS,
     "steps_u32_scaled(count=1, out=None) -> ndarray\n"
@@ -1181,7 +1181,7 @@ static PyMethodDef NCOObj_methods[] = {
     "full accumulator range uniformly onto [0, nmax) without a modulo\n"
     "operation. When nmax == 0 falls back to the raw accumulator (identical\n"
     "to dp_nco_steps_u32). Useful for polyphase filter bank indexing and\n"
-    "direct LUT addressing. Returns n.\n"
+    "direct LUT addressing.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1210,19 +1210,15 @@ static PyMethodDef NCOObj_methods[] = {
     METH_NOARGS,
     "steps_u32_scaled_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps_u32_scaled() can return in the\n"
-    "current state.\n"
+    "Pre-allocation hint for dp_nco_steps_u32_scaled().\n"
     "\n"
-    "Size an `out=` buffer with this before calling steps_u32_scaled(), or\n"
-    "use it to allocate one up front. The bound is this object's own: what\n"
-    "it depends on is a property of the algorithm, so a header block on\n"
-    "steps_u32_scaled_max_out() replaces this text.\n"
+    "Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,\n"
+    "not a per-call limit; the stepper clamps to its own max_out.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    65536, for every instance.\n" },
   { "steps_u32_ovf", (PyCFunction)NCOObj_steps_u32_ovf, METH_VARARGS,
     "steps_u32_ovf(count=1) -> tuple[ndarray, ndarray]\n"
     "\n"
@@ -1231,7 +1227,7 @@ static PyMethodDef NCOObj_methods[] = {
     "fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that\n"
     "produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The\n"
     "carry marks the exact boundary of one input period and is the primitive\n"
-    "for polyphase sample-clock and rational resampling engines. Returns n.\n"
+    "for polyphase sample-clock and rational resampling engines.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1271,7 +1267,7 @@ static PyMethodDef NCOObj_methods[] = {
     "`lo_step_ctrl`/`dp_lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h),\n"
     "which does this for the CF32 phasor output; this is the same\n"
     "control-port pattern for NCO's raw phase output. With every `ctrl[i] ==\n"
-    "0` this is bit-identical to dp_nco_steps_u32(). Returns ctrl_len.\n"
+    "0` this is bit-identical to dp_nco_steps_u32().\n"
     "\n"
     "Python's `out=` keyword writes into a caller-supplied buffer instead of\n"
     "allocating a fresh one. This used to claim it was \"essential for a hot\n"
@@ -1322,19 +1318,15 @@ static PyMethodDef NCOObj_methods[] = {
     METH_NOARGS,
     "steps_u32_ctrl_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps_u32_ctrl() can return in the current\n"
-    "state.\n"
+    "Pre-allocation hint for dp_nco_steps_u32_ctrl().\n"
     "\n"
-    "Size an `out=` buffer with this before calling steps_u32_ctrl(), or use\n"
-    "it to allocate one up front. The bound is this object's own: what it\n"
-    "depends on is a property of the algorithm, so a header block on\n"
-    "steps_u32_ctrl_max_out() replaces this text.\n"
+    "Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,\n"
+    "not a per-call limit; the stepper clamps to its own max_out.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    65536, for every instance.\n" },
   { "steps_u32_scaled_ctrl", (PyCFunction)(void *)NCOObj_steps_u32_scaled_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "steps_u32_scaled_ctrl(ctrl, out) -> ndarray\n"
@@ -1348,7 +1340,7 @@ static PyMethodDef NCOObj_methods[] = {
     "loop can drive LUT-indexed output (nmax = table length) exactly as it\n"
     "would raw phase output, without ever touching phase_inc/norm_freq. With\n"
     "every `ctrl[i] == 0` this is bit-identical to\n"
-    "dp_nco_steps_u32_scaled(). Returns ctrl_len.\n"
+    "dp_nco_steps_u32_scaled().\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1381,19 +1373,15 @@ static PyMethodDef NCOObj_methods[] = {
     (PyCFunction)NCOObj_steps_u32_scaled_ctrl_max_out, METH_NOARGS,
     "steps_u32_scaled_ctrl_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps_u32_scaled_ctrl() can return in the\n"
-    "current state.\n"
+    "Pre-allocation hint for dp_nco_steps_u32_scaled_ctrl().\n"
     "\n"
-    "Size an `out=` buffer with this before calling steps_u32_scaled_ctrl(),\n"
-    "or use it to allocate one up front. The bound is this object's own:\n"
-    "what it depends on is a property of the algorithm, so a header block on\n"
-    "steps_u32_scaled_ctrl_max_out() replaces this text.\n"
+    "Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,\n"
+    "not a per-call limit; the stepper clamps to its own max_out.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    65536, for every instance.\n" },
   { "steps_u32_ovf_ctrl", (PyCFunction)(void *)NCOObj_steps_u32_ovf_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "steps_u32_ovf_ctrl(ctrl) -> tuple[ndarray, ndarray]\n"
@@ -1415,7 +1403,6 @@ static PyMethodDef NCOObj_methods[] = {
     "nco_step_u32_ovf_ctrl for why the sign cannot be recovered after the\n"
     "fold, nor taken from `ctrl` alone. With every `ctrl[i] == 0` and\n"
     "`norm_freq` in [0, 1) this is bit-identical to dp_nco_steps_u32_ovf().\n"
-    "Returns ctrl_len.\n"
     "\n"
     "Parameters\n"
     "----------\n"

@@ -257,11 +257,13 @@ class DelayCf64:
 
     @property
     def num_taps(self) -> int:
-        """Num taps."""
+        """Window length requested at create(), samples (config)."""
 
     @property
     def capacity(self) -> int:
-        """Capacity."""
+        """Smallest power of two >= num_taps (1 when num_taps is 0), samples
+        (config).
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

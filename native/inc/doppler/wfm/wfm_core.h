@@ -246,12 +246,15 @@ void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
  */
 size_t dp_field_bits(const char * spec, uint8_t *out, const char **why);
 /**
- * @brief Start and end frequency of the chirp that sweeps about a center
- *        (private; bound as `doppler.wfm._sweep_ends`).
+ * @brief Start and end frequency of the chirp that sweeps about a center.
  *
- * Thin wrapper over dp_wfm_synth_sweep_ends(), the one home of the
- * chirp-centering arithmetic, returning both ends in a two-element array.
- * Pure arithmetic: no state, nothing allocated.
+ * A chirp from `f0` to `f_end` pinned over `n` samples has instantaneous
+ * frequency `f_mid + rate*u` Hz at sample `i`, `u = (i - center)/fs`
+ * seconds, so it multiplies a block by
+ * `exp(j*2*pi*(f_mid*u + rate*u**2/2))` up to one constant phase. This is
+ * the single copy of that arithmetic (dp_wfm_synth_sweep_ends());
+ * `doppler.wfm.rotate` takes it from here. Private: bound as
+ * `doppler.wfm._sweep_ends`. Pure arithmetic: no state, nothing allocated.
  *
  * @param fs      Sample rate, Hz (> 0).
  * @param f_mid   Frequency at the center, Hz.
@@ -261,6 +264,13 @@ size_t dp_field_bits(const char * spec, uint8_t *out, const char **why);
  *                integer).
  * @param[out] out     Two doubles: `out[0]` = start frequency f0 (Hz),
  *                `out[1]` = end frequency f_end (Hz).
+ *
+ * @code
+ * >>> from doppler.wfm import _sweep_ends
+ * >>> f0, f_end = _sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
+ * >>> round(float(f0), 6), round(float(f_end), 6)
+ * (-0.04995, 0.05015)
+ * @endcode
  */
 void dp__sweep_ends(double fs, double f_mid, double rate, size_t n, double center, double *out);
 #ifdef __cplusplus

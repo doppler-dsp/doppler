@@ -518,9 +518,11 @@ DelayCf64_getprop_capacity (DelayCf64Object *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef DelayCf64_getset[]
-    = { { "num_taps", (getter)DelayCf64_getprop_num_taps, NULL, "Num taps.\n",
-          NULL },
-        { "capacity", (getter)DelayCf64_getprop_capacity, NULL, "Capacity.\n",
+    = { { "num_taps", (getter)DelayCf64_getprop_num_taps, NULL,
+          "Window length requested at create(), samples (config).\n", NULL },
+        { "capacity", (getter)DelayCf64_getprop_capacity, NULL,
+          "Smallest power of two >= num_taps (1 when num_taps is 0), samples "
+          "(config).\n",
           NULL },
         { NULL, NULL, NULL, NULL, NULL } };
 

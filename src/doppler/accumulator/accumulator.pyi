@@ -841,8 +841,8 @@ class AccTrace:
         Returns
         -------
         NDArray[np.float32] | None
-            min(n, max_out) samples, or 0 if empty. None when the C call writes
-            no output.
+            min(trace length, max_out) samples written, or 0 before the first
+            frame (or after reset()). None when the C call writes no output.
 
         Examples
         --------
@@ -859,12 +859,12 @@ class AccTrace:
         """
 
     def value_max_out(self) -> int:
-        """Output capacity hint for value(); equals the trace length n.
+        """Output capacity value() needs: the trace length n.
 
         Returns
         -------
         int
-            Output.
+            The trace length n (bins) given to create(); constant.
         """
 
     def state_bytes(self) -> int:

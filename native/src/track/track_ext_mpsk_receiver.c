@@ -1193,18 +1193,16 @@ static PyMethodDef MpskReceiverObj_methods[] = {
   { "steps_max_out", (PyCFunction)MpskReceiverObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps() can return in the current state.\n"
+    "Output-capacity hint for the generated binding's steps().\n"
     "\n"
-    "Size an `out=` buffer with this before calling steps(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on steps_max_out()\n"
-    "replaces this text.\n"
+    "Always returns 0, which the binding reads as \"the input length is a\n"
+    "safe bound\": `sps >= m_out >= 2`, so a block never yields more symbols\n"
+    "than it has samples.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    0.\n" },
   { "bits", (PyCFunction)(void *)MpskReceiverObj_bits,
     METH_VARARGS | METH_KEYWORDS,
     "bits(x, out) -> ndarray\n"
@@ -1254,18 +1252,18 @@ static PyMethodDef MpskReceiverObj_methods[] = {
   { "bits_max_out", (PyCFunction)MpskReceiverObj_bits_max_out, METH_NOARGS,
     "bits_max_out() -> int\n"
     "\n"
-    "Largest number of samples bits() can return in the current state.\n"
+    "Output-capacity hint for the generated binding's bits().\n"
     "\n"
-    "Size an `out=` buffer with this before calling bits(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on bits_max_out()\n"
-    "replaces this text.\n"
+    "Always returns 0, which the binding reads as \"the input length is a\n"
+    "safe bound\": a block yields at most `x_len / sps` symbols of log2(M)\n"
+    "bits each. That bound is <= the input length except for M = 8 at an\n"
+    "`sps` below 3, where the input-length buffer can be too small and the\n"
+    "excess bits are dropped (never overrun: writes stop at max_out).\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    0.\n" },
   { "reset", (PyCFunction)MpskReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

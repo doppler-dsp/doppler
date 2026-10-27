@@ -64,15 +64,15 @@ main (void)
                        * (0.54 + 0.46 * cos (M_PI * k / (N_TAPS / 2.0))));
     }
 
-  /* Capped at 2 * HBDECIM_MAX_OUT: the OBJECT will not emit more than
-     HBDECIM_MAX_OUT per call, so a larger block is silently truncated.
-     bench_hbdecim_core.c swept to 819200 because the c_dep beneath has no
-     such limit -- measuring a block size no caller can actually request,
-     which is the level error doppler#893 is about. */
-  const size_t blocks[4]
-      = { 1024, 8192, HBDECIM_MAX_OUT, 2 * (size_t)HBDECIM_MAX_OUT };
-  float _Complex *x   = malloc (blocks[3] * sizeof *x);
-  float _Complex *out = malloc (blocks[3] * sizeof *out);
+  /* Stops at 65536, the block sizes a caller of this object realistically
+     hands it per call. bench_hbdecim_core.c swept to 819200 -- measuring a
+     block size no caller requests, which is the level error doppler#893 is
+     about. (The sweep used to be capped at twice a fixed 32768 output
+     capacity this object reported; it now reports the real per-call bound,
+     doppler#2644.) */
+  const size_t    blocks[4] = { 1024, 8192, 32768, 65536 };
+  float _Complex *x         = malloc (blocks[3] * sizeof *x);
+  float _Complex *out       = malloc (blocks[3] * sizeof *out);
   if (!x || !out)
     return 1;
   for (size_t i = 0; i < blocks[3]; i++)
@@ -101,9 +101,7 @@ main (void)
                          N_TAPS);
           return 1;
         }
-      size_t cap = dp_HalfbandDecimator_execute_max_out (d);
-      if (cap == 0 || cap > block)
-        cap = block;
+      size_t cap = dp_HalfbandDecimator_execute_max_out (d, block);
 
       /* Decimate-by-two must emit about half its input; a short or empty
          return would mean the rows below time a path no caller takes. */
@@ -149,12 +147,9 @@ main (void)
 
   printf ("\n  block 1024 -> %zu costs %.2fx per sample: the same total\n"
           "  work, so the difference is per-call overhead and delay-line\n"
-          "  management amortising. The sweep stops at 2 * HBDECIM_MAX_OUT\n"
-          "  (%d) because the object emits at most that many samples per\n"
-          "  call -- ask for more and the rest is silently not processed.\n",
+          "  management amortising.\n",
           blocks[3],
-          min_sec (t_ex[3], ITERATIONS) / min_sec (t_ex[0], ITERATIONS),
-          HBDECIM_MAX_OUT);
+          min_sec (t_ex[3], ITERATIONS) / min_sec (t_ex[0], ITERATIONS));
 
   (void)sink;
   free (x);

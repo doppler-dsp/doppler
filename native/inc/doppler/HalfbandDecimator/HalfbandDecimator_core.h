@@ -30,13 +30,6 @@ extern "C"
    *  function here forwards to the dp_hbdecim_* leaf unchanged. */
   typedef hbdecim_state_t dp_HalfbandDecimator_state_t;
 
-/* Maximum output samples per call (pre-allocated by ext.c at init). */
-/** Output capacity reported by dp_HalfbandDecimator_execute_max_out().
- *  The C execute takes the caller's real max_out, so this is not a limit
- *  there; the Python binding allocates max(HBDECIM_MAX_OUT, len(x))
- *  output samples per call. */
-#define HBDECIM_MAX_OUT 32768
-
   /* ------------------------------------------------------------------ */
   /* Lifecycle                                                           */
   /* ------------------------------------------------------------------ */
@@ -140,11 +133,22 @@ extern "C"
   /* ------------------------------------------------------------------ */
 
   /**
-   * @brief Default output capacity, used by the binding to size buffers.
+   * @brief The most outputs one dp_HalfbandDecimator_execute() call over
+   *        @p x_len inputs can write: `(x_len + 1) / 2`.
+   *
+   * A 2:1 decimator emits one output per input pair, and at most one sample
+   * is held over from the previous call, so `(x_len + held) / 2` never
+   * exceeds this. It is a true per-call bound, which is what lets the
+   * binding accept an `out=` of `len(x) // 2 + 1` and allocate no more than
+   * that when it sizes the output itself (doppler#2644; this used to return
+   * a fixed 32768, which the binding then demanded of every `out=`).
+   *
    * @param state  State; ignored.
-   * @return Always HBDECIM_MAX_OUT (32768).
+   * @param x_len  Number of inputs the call will be given.
+   * @return `(x_len + 1) / 2`; 0 for an empty call.
    */
-  size_t dp_HalfbandDecimator_execute_max_out (dp_HalfbandDecimator_state_t *state);
+  size_t dp_HalfbandDecimator_execute_max_out (dp_HalfbandDecimator_state_t *state,
+                                            size_t x_len);
 
   /**
    * @brief Decimate x by 2 using the polyphase halfband FIR filter.

@@ -76,15 +76,18 @@ HalfbandDecimatorObj_init (HalfbandDecimatorObject *self, PyObject *args,
 
 static PyObject *
 HalfbandDecimatorObj_execute_max_out (HalfbandDecimatorObject *self,
-                                      PyObject *Py_UNUSED (ignored))
+                                      PyObject                *args)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  Py_ssize_t x_len = 0;
+  if (!PyArg_ParseTuple (args, "n", &x_len))
+    return NULL;
   return PyLong_FromSize_t (
-      dp_HalfbandDecimator_execute_max_out (self->handle));
+      dp_HalfbandDecimator_execute_max_out (self->handle, (size_t)x_len));
 }
 
 static PyObject *
@@ -141,10 +144,9 @@ HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_HalfbandDecimator_execute_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
-                            ? _omax
-                            : ((size_t)PyArray_SIZE (x_arr));
+      size_t _omax = dp_HalfbandDecimator_execute_max_out (
+          self->handle, (size_t)PyArray_SIZE (x_arr));
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -197,9 +199,9 @@ HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args,
       return NULL;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = dp_HalfbandDecimator_execute_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  size_t _cap  = dp_HalfbandDecimator_execute_max_out (
+      self->handle, (size_t)PyArray_SIZE (x_arr));
+  (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
     {
@@ -439,15 +441,28 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     ">>> y.shape, y.dtype\n"
     "((50,), dtype('complex64'))\n" },
   { "execute_max_out", (PyCFunction)HalfbandDecimatorObj_execute_max_out,
-    METH_NOARGS,
-    "execute_max_out() -> int\n"
+    METH_VARARGS,
+    "execute_max_out(x_len) -> int\n"
     "\n"
-    "Default output capacity, used by the binding to size buffers.\n"
+    "The most outputs one dp_HalfbandDecimator_execute() call over x_len\n"
+    "inputs can write: `(x_len + 1) / 2`.\n"
+    "\n"
+    "A 2:1 decimator emits one output per input pair, and at most one sample\n"
+    "is held over from the previous call, so `(x_len + held) / 2` never\n"
+    "exceeds this. It is a true per-call bound, which is what lets the\n"
+    "binding accept an `out=` of `len(x) // 2 + 1` and allocate no more than\n"
+    "that when it sizes the output itself (doppler#2644; this used to return\n"
+    "a fixed 32768, which the binding then demanded of every `out=`).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x_len : int\n"
+    "    Number of inputs the call will be given.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Always HBDECIM_MAX_OUT (32768).\n" },
+    "    `(x_len + 1) / 2`; 0 for an empty call.\n" },
   { "reset", (PyCFunction)HalfbandDecimatorObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

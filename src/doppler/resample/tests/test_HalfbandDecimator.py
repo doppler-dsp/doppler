@@ -171,3 +171,23 @@ class TestHalfbandDecimatorSpectral:
         )
         n = min(len(y_even), len(y_odd))
         np.testing.assert_allclose(y_even[:n], y_odd[:n], atol=1e-5)
+
+
+@pytest.mark.parametrize("n", [1, 64, 1001, 40000])
+def test_execute_accepts_a_correctly_sized_out(hb_fir, n):
+    """An ``out=`` of ``len(x) // 2 + 1`` holds every output (#2644).
+
+    ``execute_max_out`` used to return a fixed 32768, and the binding
+    demanded that much of every ``out=``. It now returns the real per-call
+    bound, so a buffer that fits the result is accepted, and a call with no
+    ``out`` allocates about half the input rather than 32768 samples.
+    """
+    rng = np.random.default_rng(n)
+    x = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(
+        np.complex64
+    )
+    ref = HalfbandDecimator(h=hb_fir).execute(x)
+    out = np.empty(n // 2 + 1, np.complex64)
+    y = HalfbandDecimator(h=hb_fir).execute(x, out=out)
+    np.testing.assert_array_equal(y, ref)
+    assert HalfbandDecimator(h=hb_fir).execute_max_out(n) == (n + 1) // 2

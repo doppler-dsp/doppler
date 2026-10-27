@@ -87,5 +87,29 @@ main (void)
     dp_HalfbandDecimator_destroy (d);
   }
 
+  /* ── execute_max_out is the real per-call bound (doppler#2644) ────────
+   * It used to return a fixed 32768, which the binding then demanded of
+   * every out= buffer. The bound is (x_len + 1) / 2, and it must cover a
+   * call that has a sample held over from the last one. */
+  {
+    float                         h[3] = { 0.25f, 0.5f, 0.25f };
+    dp_HalfbandDecimator_state_t *d    = dp_HalfbandDecimator_create (h, 3);
+    float _Complex in[64], out[64];
+    DP_CHECK (d != NULL);
+    for (int i = 0; i < 64; i++)
+      in[i] = (float)i + 0.0f * I;
+    DP_CHECK (dp_HalfbandDecimator_execute_max_out (d, 0) == 0);
+    DP_CHECK (dp_HalfbandDecimator_execute_max_out (d, 1) == 1);
+    DP_CHECK (dp_HalfbandDecimator_execute_max_out (d, 64) == 32);
+    DP_CHECK (dp_HalfbandDecimator_execute_max_out (d, 65) == 33);
+    /* 7 inputs: 3 out, 1 held. Then 7 more: (7 + 1) / 2 = 4 out, which is
+       exactly the bound for 7 -- the held sample is inside it. */
+    DP_CHECK (dp_HalfbandDecimator_execute (d, in, 7, out, 64) == 3);
+    size_t n = dp_HalfbandDecimator_execute (d, in, 7, out, 64);
+    DP_CHECK (n == 4);
+    DP_CHECK (n <= dp_HalfbandDecimator_execute_max_out (d, 7));
+    dp_HalfbandDecimator_destroy (d);
+  }
+
   DP_TEST_END ("test_HalfbandDecimator_core");
 }

@@ -126,5 +126,38 @@ main (void)
     dp_hbdecim_q15_destroy (b);
   }
 
+  /* Two instances in the same logical state give the same blob
+     (doppler#2642): one held an even sample across a call and consumed it,
+     the other never held one; one reset after a held sample, the other is
+     fresh. A consumed or reset pending sample is zeroed, as hbdecim does. */
+  {
+    static const int16_t in[16]
+        = { 100, -200, 300,  400,   -500, 600,  700,   -800,
+            900, 1000, 1100, -1200, 1300, 1400, -1500, 1600 };
+    int16_t                 o[16];
+    dp_hbdecim_q15_state_t *a = dp_hbdecim_q15_create (25, H25_stub);
+    dp_hbdecim_q15_state_t *b = dp_hbdecim_q15_create (25, H25_stub);
+    (void)dp_hbdecim_q15_execute (a, in, 3, o, 8); /* holds pair 2 */
+    (void)dp_hbdecim_q15_execute (a, in + 6, 5, o, 8);
+    (void)dp_hbdecim_q15_execute (b, in, 8, o, 8);
+    size_t         sb = dp_hbdecim_q15_state_bytes (a);
+    unsigned char *ba = malloc (sb), *bb = malloc (sb);
+    dp_hbdecim_q15_get_state (a, ba);
+    dp_hbdecim_q15_get_state (b, bb);
+    DP_CHECK (memcmp (ba, bb, sb) == 0);
+
+    (void)dp_hbdecim_q15_execute (a, in, 3, o, 8); /* holds pair 2 */
+    dp_hbdecim_q15_reset (a);
+    dp_hbdecim_q15_state_t *c = dp_hbdecim_q15_create (25, H25_stub);
+    dp_hbdecim_q15_get_state (a, ba);
+    dp_hbdecim_q15_get_state (c, bb);
+    DP_CHECK (memcmp (ba, bb, sb) == 0);
+    free (ba);
+    free (bb);
+    dp_hbdecim_q15_destroy (a);
+    dp_hbdecim_q15_destroy (b);
+    dp_hbdecim_q15_destroy (c);
+  }
+
   DP_TEST_END ("test_hbdecim_q15_core");
 }

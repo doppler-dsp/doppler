@@ -683,14 +683,24 @@ dp_mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state)
   return state->centre_freq - mpsk_rx_lo_to_input (state) * state->l.freq_ctrl;
 }
 
-void
-dp_mpsk_receiver_set_norm_freq (dp_mpsk_receiver_state_t *state, double val)
+/* The centre and the front end's LO it maps to, set together: one mapping
+   for set_norm_freq() and for a restore, which carries the centre because
+   set_norm_freq() moves it (#2022's rule, doppler#2642) while the LO leaf's
+   blob does not carry its frequency. */
+static void
+mpsk_rx_apply_centre (dp_mpsk_receiver_state_t *state, double val)
 {
   state->centre_freq = val;
   if (state->real)
     dp_ddcr_set_norm_freq (state->fe.r, -(2.0 * val + 0.5));
   else
     dp_ddc_set_norm_freq (state->fe.c, -val);
+}
+
+void
+dp_mpsk_receiver_set_norm_freq (dp_mpsk_receiver_state_t *state, double val)
+{
+  mpsk_rx_apply_centre (state, val);
   dp_mpsk_rx_set_freq_est (&state->l, 0.0);
 }
 
@@ -857,7 +867,7 @@ mpsk_rx_state_version (const dp_mpsk_receiver_state_t *s)
 size_t
 dp_mpsk_receiver_state_bytes (const dp_mpsk_receiver_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + mpsk_rx_fe_state_bytes (s)
+  return sizeof (dp_state_hdr_t) + sizeof (double) + mpsk_rx_fe_state_bytes (s)
          + dp_mpsk_rx_loops_state_bytes (&s->l);
 }
 
@@ -867,6 +877,7 @@ dp_mpsk_receiver_get_state (const dp_mpsk_receiver_state_t *s, void *blob)
   const size_t total = dp_mpsk_receiver_state_bytes (s);
   dp_writer_t  w     = dp_writer_init (blob, total);
   dp_w_hdr (&w, mpsk_rx_state_magic (s), mpsk_rx_state_version (s), total);
+  dp_w_f64 (&w, s->centre_freq);
   char *p = (char *)blob + w.off;
   if (s->real)
     dp_ddcr_get_state (s->fe.r, p);
@@ -884,11 +895,20 @@ dp_mpsk_receiver_set_state (dp_mpsk_receiver_state_t *s, const void *blob)
                                           mpsk_rx_state_version (s));
   if (rc != DP_OK)
     return rc;
-  const char *p = (const char *)blob + sizeof (dp_state_hdr_t);
-  rc            = s->real ? dp_ddcr_set_state (s->fe.r, p)
-                          : dp_ddc_set_state (s->fe.c, p);
+  dp_reader_t r       = dp_reader_init (blob, total);
+  r.off               = sizeof (dp_state_hdr_t);
+  const double centre = dp_r_f64 (&r);
+  const char  *p      = (const char *)blob + r.off;
+  rc                  = s->real ? dp_ddcr_set_state (s->fe.r, p)
+                                : dp_ddc_set_state (s->fe.c, p);
   if (rc != DP_OK)
     return rc;
   p += mpsk_rx_fe_state_bytes (s);
-  return dp_mpsk_rx_loops_set_state (&s->l, p);
+  rc = dp_mpsk_rx_loops_set_state (&s->l, p);
+  if (rc != DP_OK)
+    return rc;
+  /* Last, once both children accepted: the centre, and the LO it maps to,
+     which the front end's blob restored at the target's own frequency. */
+  mpsk_rx_apply_centre (s, centre);
+  return DP_OK;
 }

@@ -167,7 +167,9 @@ dp_hbdecim_r2c_reset (hbdecim_r2c_state_t *r)
   r->even_head   = 0;
   r->odd_head    = 0;
   r->has_pending = 0;
-  r->parity      = 0;
+  r->pending     = 0; /* in the blob: a held sample is state, a stale one
+                         not (doppler#2642, as hbdecim does) */
+  r->parity = 0;
   memset (r->even_buf, 0, 2 * r->even_cap * sizeof (float));
   memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (float));
 }
@@ -247,6 +249,7 @@ dp_hbdecim_r2c_execute (hbdecim_r2c_state_t *r, const float *in, size_t num_in,
       out[oi++] = r2_compute_output (r);
       r->parity ^= 1;
       r->has_pending = 0;
+      r->pending     = 0; /* consumed: the blob carries no stale sample */
     }
 
   while (xi + 1 < num_in && oi < max_out)

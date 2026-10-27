@@ -111,8 +111,8 @@ typedef struct
                                      noise_lo..noise_hi (config).       */
   float threshold;          /**< 0 = always fire; >0 = gate on test_stat.  */
   /* Last dump results — updated on every dump regardless of threshold. */
-  size_t peak_lag;          /**< Last dump: argmax |R| lag index.  Not
-                                 cleared by reset (0 after create).   */
+  size_t peak_lag;          /**< Last dump: argmax |R| lag index; 0
+                                 after create and reset.               */
   float peak_mag;           /**< Last dump: max |R| (linear magnitude). */
   float noise_est;          /**< Last dump: aggregated noise |R|.       */
   float test_stat;          /**< Last dump: peak_mag / noise_est, or 0
@@ -167,9 +167,10 @@ void dp_detector_destroy (dp_detector_state_t *state);
  * @brief Reset the correlator, the carry, and last-corr flag.
  * Discards any partial frame carried between pushes and zeroes the coherent
  * accumulator.  Equivalent to starting fresh from the same reference without
- * rebuilding any internal object, except that the last-dump fields
- * (peak_lag, peak_mag, noise_est, test_stat) keep their values until the
- * next dump.  dp_detector_consumed() reads 0 afterwards.
+ * rebuilding any internal object.  The last-dump fields (peak_lag,
+ * peak_mag, noise_est, test_stat) read 0 until the next dump, so the state
+ * blob after a reset matches a fresh object's (doppler#2642).
+ * dp_detector_consumed() reads 0 afterwards.
  *
  * @param state  Must be non-NULL.
  *

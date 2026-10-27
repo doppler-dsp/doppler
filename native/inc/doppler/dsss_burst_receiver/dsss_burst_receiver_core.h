@@ -651,8 +651,9 @@ void dp_dsss_burst_receiver_get_state(const dp_dsss_burst_receiver_state_t *stat
 /**
  * @brief Restore cross-call state from @p blob (replacing it).
  *
- * Clears the last push's events and LLRs.  @c frame_valid is not in the
- * blob and keeps its value.  A rejected outer envelope changes nothing,
+ * Clears the last push's events and LLRs, and @c frame_valid: it is not
+ * in the blob, and this instance's last verdict would otherwise sit beside
+ * read-backs restored from another stream (doppler#2642).  A rejected outer envelope changes nothing,
  * but this object's scalars are written before the capture's child blob
  * is checked, so a rejected child leaves them already restored.
  *

@@ -84,14 +84,17 @@ dp_cic_reset (dp_cic_state_t *state)
 }
 
 /* ── Serializable state — standard envelope (see dp_state.h) ─────────────────
- * Order: integ_re, integ_im, comb_re, comb_im (each CIC_N u64), then phase. */
+ * Order: R, integ_re, integ_im, comb_re, comb_im (each CIC_N u64), phase,
+ * clipped. R travels because reconfigure() changes it (doppler#2642); shift
+ * is derived from it. */
 
 size_t
 dp_cic_state_bytes (const dp_cic_state_t *state)
 {
   (void)state;
-  return sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
-         + sizeof (uint32_t) + sizeof (uint8_t);
+  return sizeof (dp_state_hdr_t) + sizeof (uint32_t)
+         + 4 * CIC_N * sizeof (uint64_t) + sizeof (uint32_t)
+         + sizeof (uint8_t);
 }
 
 void
@@ -101,6 +104,7 @@ dp_cic_get_state (const dp_cic_state_t *state, void *blob)
   dp_writer_t  w  = dp_writer_init (blob, dp_cic_state_bytes (state));
   dp_w_hdr (&w, CIC_STATE_MAGIC, CIC_STATE_VERSION,
             dp_cic_state_bytes (state));
+  dp_w_u32 (&w, state->R);
   dp_w_bytes (&w, state->integ_re, ab);
   dp_w_bytes (&w, state->integ_im, ab);
   dp_w_bytes (&w, state->comb_re, ab);
@@ -119,12 +123,21 @@ dp_cic_set_state (dp_cic_state_t *state, const void *blob)
   const size_t ab = CIC_N * sizeof (uint64_t);
   dp_reader_t  r  = dp_reader_init (blob, dp_cic_state_bytes (state));
   r.off           = sizeof (dp_state_hdr_t);
-  dp_r_bytes (&r, state->integ_re, ab);
-  dp_r_bytes (&r, state->integ_im, ab);
-  dp_r_bytes (&r, state->comb_re, ab);
-  dp_r_bytes (&r, state->comb_im, ab);
-  state->phase = dp_r_u32 (&r);
-  dp_r_bytes (&r, &state->clipped, sizeof state->clipped);
+  /* Decode whole into a temporary, check it, then commit: an R create()
+     refuses, or a phase a live counter at that R never holds, is refused
+     before anything is written. */
+  dp_cic_state_t t = *state;
+  t.R              = dp_r_u32 (&r);
+  dp_r_bytes (&r, t.integ_re, ab);
+  dp_r_bytes (&r, t.integ_im, ab);
+  dp_r_bytes (&r, t.comb_re, ab);
+  dp_r_bytes (&r, t.comb_im, ab);
+  t.phase = dp_r_u32 (&r);
+  dp_r_bytes (&r, &t.clipped, sizeof t.clipped);
+  if (!valid_R (t.R) || t.phase >= t.R)
+    return DP_ERR_INVALID;
+  t.shift = CIC_N * log2_pow2 (t.R);
+  *state  = t;
   return DP_OK;
 }
 

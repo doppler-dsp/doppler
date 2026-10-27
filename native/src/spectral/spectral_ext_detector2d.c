@@ -509,7 +509,10 @@ static PyMethodDef CorrDetector2DObj_methods[] = {
   { "reset", (PyCFunction)CorrDetector2DObj_reset, METH_NOARGS,
     "Reset the 2-D correlator, the carry, and last-corr flag. Discards\n"
     "any partial frame carried between pushes and zeroes the coherent\n"
-    "accumulator. The reference spectrum and FFT plans are preserved.\n"
+    "accumulator. The reference spectrum and FFT plans are preserved. The\n"
+    "last-dump fields (peak_row, peak_col, peak_mag, noise_est, test_stat)\n"
+    "read 0 until the next dump, so the state blob after a reset matches a\n"
+    "fresh object's (doppler#2642).\n"
     "\n"
     "Examples\n"
     "--------\n"

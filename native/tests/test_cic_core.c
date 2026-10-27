@@ -17,6 +17,7 @@
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifndef M_PI
@@ -315,8 +316,9 @@ main (void)
     size_t          nB  = dp_cic_decimate (r1, in, cut, outB, 64);
     size_t          sb  = dp_cic_state_bytes (r1);
     DP_CHECK (sb
-              == sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
-                     + sizeof (uint32_t) + sizeof (uint8_t));
+              == sizeof (dp_state_hdr_t) + sizeof (uint32_t)
+                     + 4 * CIC_N * sizeof (uint64_t) + sizeof (uint32_t)
+                     + sizeof (uint8_t));
     /* This block's own input runs to +-3, i.e. well past the +-1.0 bound —
        so the sticky flag must be up, and must survive the round trip.  A
        resumed stream that forgot it had clipped would answer wrongly. */
@@ -432,6 +434,69 @@ main (void)
 
     dp_cic_destroy (a);
     dp_cic_destroy (b);
+  }
+
+  /* R travels in the blob (doppler#2642): reconfigure() changes it, so by
+     #2022's rule its value must restore. A blob from R = 64 restored into
+     an R = 16 CIC used to be accepted at the R = 16 gain; it now restores
+     R = 64 (and the shift derived from it), and the continuation matches
+     the R = 64 source exactly. An R create() refuses, or a phase not below
+     R, is refused and the target's blob is byte-identical afterwards. */
+  {
+    const size_t    L = 1000, cut = 333;
+    float _Complex *in = malloc (L * sizeof (float _Complex));
+    for (size_t i = 0; i < L; i++)
+      in[i] = 0.3f * (float)((i % 5) - 2) + I * 0.2f * (float)((i % 3) - 1);
+    float _Complex ref[32], got[32];
+
+    dp_cic_state_t *src = dp_cic_create (64);
+    (void)dp_cic_decimate (src, in, cut, ref, 32);
+    size_t         sb   = dp_cic_state_bytes (src);
+    unsigned char *blob = malloc (sb);
+    dp_cic_get_state (src, blob);
+    size_t nref = dp_cic_decimate (src, in + cut, L - cut, ref, 32);
+
+    dp_cic_state_t *dst = dp_cic_create (16);
+    DP_CHECK (dp_cic_set_state (dst, blob) == DP_OK);
+    DP_CHECK (dst->R == 64 && dst->shift == src->shift);
+    size_t ngot = dp_cic_decimate (dst, in + cut, L - cut, got, 32);
+    DP_CHECK (nref == ngot && nref > 0);
+    DP_CHECK (memcmp (ref, got, nref * sizeof (float _Complex)) == 0);
+
+    /* Forged R and phase: the envelope passes, the payload check refuses. */
+    unsigned char *forged = malloc (sb), *before = malloc (sb),
+                  *after = malloc (sb);
+    dp_cic_state_t *t    = dp_cic_create (16);
+    dp_cic_get_state (t, before);
+    const uint32_t bad_r[] = { 0, 1, 3, 2 * CIC_R_MAX };
+    for (size_t k = 0; k < sizeof bad_r / sizeof bad_r[0]; k++)
+      {
+        memcpy (forged, blob, sb);
+        memcpy (forged + sizeof (dp_state_hdr_t), &bad_r[k],
+                sizeof (uint32_t));
+        DP_CHECK (
+            dp_state_validate (forged, sb, CIC_STATE_MAGIC, CIC_STATE_VERSION)
+            == DP_OK);
+        DP_CHECK (dp_cic_set_state (t, forged) == DP_ERR_INVALID);
+        dp_cic_get_state (t, after);
+        DP_CHECK (memcmp (before, after, sb) == 0);
+      }
+    memcpy (forged, blob, sb);
+    uint32_t phase = 64; /* == R: a live counter wraps at R - 1 */
+    memcpy (forged + sb - sizeof (uint8_t) - sizeof (uint32_t), &phase,
+            sizeof phase);
+    DP_CHECK (dp_cic_set_state (t, forged) == DP_ERR_INVALID);
+    dp_cic_get_state (t, after);
+    DP_CHECK (memcmp (before, after, sb) == 0);
+
+    free (forged);
+    free (before);
+    free (after);
+    free (blob);
+    free (in);
+    dp_cic_destroy (t);
+    dp_cic_destroy (src);
+    dp_cic_destroy (dst);
   }
 
   DP_TEST_END ("test_cic_core");

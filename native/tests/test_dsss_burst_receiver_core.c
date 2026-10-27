@@ -1227,6 +1227,13 @@ test_state_resumes_mid_burst (void)
   DP_CHECK (frame_ok (out));
   DP_CHECK (dp_dsss_burst_receiver_get_preamble_start (b) == AT);
 
+  /* frame_valid is this instance's last verdict and is not in the blob, so
+     a restore clears it rather than leave it beside read-backs from another
+     stream (doppler#2642). a has decoded nothing, so its blob carries none. */
+  DP_CHECK (dp_dsss_burst_receiver_get_frame_valid (b));
+  DP_CHECK (dp_dsss_burst_receiver_set_state (b, blob) == DP_OK);
+  DP_CHECK (!dp_dsss_burst_receiver_get_frame_valid (b));
+
   /* Envelope reject: clobber the magic and the restore must refuse, not
      reinterpret. Same length, so only the header can catch it. */
   blob[0] = (uint8_t)(blob[0] ^ 0xFFu);

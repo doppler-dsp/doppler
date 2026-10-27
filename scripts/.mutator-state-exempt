@@ -21,17 +21,14 @@
 #
 # key                                                   verdict           reason
 
-# -- LOST (17)
+# -- LOST (14)
 BurstCapture.configure_search_raw                       LOST              mid-stream it resets acq's position but not samples_fed, so a capture refuses its own later checkpoint (#2087)
 DDC.norm_freq                                           LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
 Ddcr.norm_freq                                          LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
 LO.norm_freq                                            LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
 MatchedDDC.norm_freq                                    LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
-MpskReceiver.norm_freq                                  LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
-MpskReceiverR.norm_freq                                 LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
 NCO.norm_freq                                           LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
 Specan.retune                                           LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
-CIC.reconfigure                                         LOST              family 2: the rate is neither packed nor a reject key (#2080)
 MatchedRateConverter.rate                               LOST              family 2: the rate is neither packed nor a reject key (#2080)
 RateConverter.rate                                      LOST              family 2: the rate is neither packed nor a reject key (#2080)
 Resampler.rate                                          LOST              family 2: the rate is neither packed nor a reject key (#2080)

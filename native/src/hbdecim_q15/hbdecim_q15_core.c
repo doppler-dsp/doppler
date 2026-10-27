@@ -301,6 +301,8 @@ dp_hbdecim_q15_reset (dp_hbdecim_q15_state_t *r)
   r->even_head   = 0;
   r->odd_head    = 0;
   r->has_pending = 0;
+  r->pending_I   = 0; /* in the blob: a held sample is state, a stale one */
+  r->pending_Q   = 0; /* not (doppler#2642, as hbdecim does)              */
   memset (r->even_I, 0, 2 * r->cap * sizeof (int16_t));
   memset (r->even_Q, 0, 2 * r->cap * sizeof (int16_t));
   memset (r->odd_I, 0, 2 * r->cap * sizeof (int16_t));
@@ -402,6 +404,8 @@ dp_hbdecim_q15_execute (dp_hbdecim_q15_state_t *r, const int16_t *in,
       out[2 * oi + 1] = rq;
       oi++;
       r->has_pending = 0;
+      r->pending_I   = 0; /* consumed: the blob carries no stale sample */
+      r->pending_Q   = 0;
     }
 
   /* Process complete (even, odd) input pairs. */

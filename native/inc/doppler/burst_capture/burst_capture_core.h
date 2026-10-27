@@ -120,10 +120,10 @@ extern "C" {
  */
 typedef struct
 {
-  uint64_t preamble_start; /**< Exact stream position of the preamble.     */
+  uint64_t preamble_start; /**< Refined stream position of the preamble.   */
   double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                 */
   double   doppler_res_hz; /**< Acquisition's native bin width, Hz.        */
-  double   cn0_dbhz_est;   /**< C/N0 lower bound from the hit, dB-Hz.      */
+  double   cn0_dbhz_est;   /**< C/N0 estimate from the hit, dB-Hz.         */
   double   doppler_rate_hz_s; /**< Refine's winning rate hypothesis, Hz/s:
                             the rate whose de-chirp made the whole
                             preamble's coherent sum largest at
@@ -170,7 +170,7 @@ typedef struct
 {
   uint64_t epoch;      /**< Stream-absolute code epoch of the hit.         */
   double   doppler_hz; /**< Signed coarse Doppler, folded, Hz.            */
-  double   cn0_dbhz;   /**< C/N0 lower bound from the hit, dB-Hz.         */
+  double   cn0_dbhz;   /**< C/N0 estimate from the hit, dB-Hz.         */
   double   test_stat;  /**< The CFAR gating statistic, peak over noise.   */
   double   peak_mag;   /**< Raw CFAR peak magnitude.                      */
 } burst_capture_detection_t;
@@ -190,7 +190,7 @@ typedef struct
   uint64_t anchor;     /**< Coarse code epoch from the hit (stream-absolute).*/
   uint64_t start;      /**< Refined preamble start; valid once `refined`.   */
   double   doppler_hz; /**< Signed coarse Doppler, Hz.                      */
-  double   cn0_dbhz;   /**< C/N0 lower bound from the hit, dB-Hz.           */
+  double   cn0_dbhz;   /**< C/N0 estimate from the hit, dB-Hz.           */
   double   peak_mag;   /**< The hit's RAW CFAR peak. Two detections naming
                             the same preamble keep the stronger, so a weak
                             hit that merely arrived first cannot own the
@@ -260,10 +260,10 @@ typedef struct
                              object can compute.                           */
 
   /* ── The event describing the most recent window emitted ────────────── */
-  uint64_t preamble_start; /**< Stream-absolute preamble start. Never late. */
+  uint64_t preamble_start; /**< Stream-absolute preamble start.             */
   double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                  */
   double   doppler_res_hz; /**< Width of that estimate.                     */
-  double   cn0_dbhz_est;   /**< C/N0 lower bound, dB-Hz (saturating).       */
+  double   cn0_dbhz_est;   /**< C/N0 estimate, dB-Hz (saturating).          */
   double   doppler_rate_hz_s; /**< Refine's winning rate hypothesis, Hz/s. */
 
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
@@ -759,9 +759,11 @@ size_t dp_burst_capture_detections_max_out (dp_burst_capture_state_t *state,
  *
  * @param state    Capture. Must be non-NULL.
  * @param n        Ignored (the binding's request size).
- * @param out      Destination rows; may be NULL to copy nothing.
+ * @param out      Destination rows; may be NULL to copy nothing (the
+ *                 count is still returned).
  * @param max_out  Capacity of @p out, in rows.
- * @return Rows copied: min(detections held, @p max_out).
+ * @return min(detections held, @p max_out): the rows copied, or with a
+ *         NULL @p out the rows that would have been.
  *
  * @code
  * >>> import numpy as np
@@ -795,9 +797,11 @@ size_t dp_burst_capture_events_max_out (dp_burst_capture_state_t *state, size_t 
  *
  * @param state    Capture. Must be non-NULL.
  * @param n        Ignored (the binding's request size).
- * @param out      Destination rows; may be NULL to copy nothing.
+ * @param out      Destination rows; may be NULL to copy nothing (the
+ *                 count is still returned).
  * @param max_out  Capacity of @p out, in rows.
- * @return Rows copied: min(windows of the last push, @p max_out).
+ * @return min(windows of the last push, @p max_out): the rows copied, or
+ *         with a NULL @p out the rows that would have been.
  *
  * @code
  * >>> import numpy as np
@@ -1059,7 +1063,11 @@ int dp_burst_capture_set_state (dp_burst_capture_state_t *state, const void *blo
 
 /**
  * @brief Stream-absolute sample index the most recent window's preamble
- *        starts at. Never late: refine is early-or-exact.
+ *        starts at.
+ *
+ * Never late is refine's design goal, not a guarantee: refine takes the
+ * strongest whole-period position over a range reaching both sides of the
+ * anchor, so at low C/N0 it can pick a wrong repetition, early or late.
  * @param state  Capture. Must be non-NULL.
  * @return The start sample; 0 before the first window and after reset().
  */
@@ -1076,8 +1084,10 @@ double dp_burst_capture_get_doppler_hz_est(const dp_burst_capture_state_t *state
 /**
  * @brief Acquisition's native Doppler bin width, Hz.
  *
- * Read from the engine, so it is valid from create on, before any burst;
- * dp_burst_capture_get_doppler_hz_est() is that value +/- half of this.
+ * Read from the engine, so it is valid from create on, before any burst.
+ * dp_burst_capture_get_doppler_hz_est() is the center of a bin this wide,
+ * so it places the true Doppler only to within half this width either
+ * side.
  *
  * @param state  Capture. Must be non-NULL.
  * @return Bin width, Hz.
@@ -1086,8 +1096,9 @@ double dp_burst_capture_get_doppler_res_hz(const dp_burst_capture_state_t *state
 /**
  * @brief Estimated C/N0 of the most recent window, dB-Hz.
  *
- * Backed out of the hit's test statistic, so it is a lower bound that
- * saturates at the code's autocorrelation-sidelobe floor at high C/N0.
+ * Backed out of the hit's test statistic. It tracks the true C/N0 while
+ * receiver noise dominates the CFAR noise estimate, and saturates at the
+ * code's autocorrelation-sidelobe floor once the true C/N0 is higher.
  *
  * @param state  Capture. Must be non-NULL.
  * @return C/N0 estimate, dB-Hz; 0 before the first window.

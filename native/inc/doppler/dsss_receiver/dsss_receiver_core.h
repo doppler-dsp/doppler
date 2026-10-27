@@ -398,8 +398,9 @@ extern "C"
    * @param n_noncoh      Non-coherent looks accumulated per grid cell
    *                      (1..256); more looks buys sensitivity at the cost
    *                      of dwell, replacing the auto-sized count.
-   * @return 0 on success, -1 on an invalid grid or a failed allocation
-   *         (the engine keeps its prior grid; see
+   * @return 0 on success, -1 on an invalid grid (including
+   *         @p n_noncoh > 1 on an engine with rate hypotheses) or a failed
+   *         allocation (the engine keeps its prior grid; see
    *         dp_acq_configure_search_raw()).
    * @code
    * >>> import numpy as np

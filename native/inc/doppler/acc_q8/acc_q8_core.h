@@ -32,16 +32,18 @@ extern "C" {
  * Allocate with dp_acc_q8_create().
  */
 typedef struct {
-    int32_t acc; /**< Running sum of every Q8 sample stepped in (wraps at
-                      int32 overflow); set by create()/set_acc(). */
+    int32_t acc; /**< Running sum of every Q8 sample stepped in and every
+                      madd() product; set by create()/set_acc(). Signed
+                      overflow is undefined (no wrap is promised), so the
+                      caller must keep the sum within int32. */
 } dp_acc_q8_state_t;
 
 /**
  * @brief Allocate and initialise an AccQ8 accumulator.
  * The accumulator starts at the supplied initial value and accepts Q8
  * (int8_t) samples via step(), steps(), or madd(). The 32-bit internal
- * register handles up to roughly 16 million max-magnitude samples before
- * wrap — sufficient for all standard DSP block sizes.
+ * register holds roughly 16 million max-magnitude samples; past int32 the
+ * signed overflow is undefined, so the caller must keep the sum in range.
  *
  * @param acc  Initial accumulator value (default: 0).
  * @return Heap-allocated state, or NULL on allocation failure.

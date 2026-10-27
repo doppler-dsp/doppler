@@ -390,7 +390,7 @@ extern "C"
    * @param s      State to initialise.  Must be non-NULL.
    * @param sps    Nominal samples per symbol.
    * @param bn     Loop noise bandwidth (normalised to the symbol rate).
-   * @param zeta   Damping factor (0.707 = critically damped).
+   * @param zeta   Damping factor (1.0 = critical; 0.707 usual).
    * @param order  Farrow interpolator order (0=linear, 1=parabolic, 2=cubic).
    * @param ted    Timing-error detector: SYMSYNC_TED_GARDNER (0, blind) or
    *               SYMSYNC_TED_DTTL (1, decision-directed; BPSK/QPSK only).
@@ -506,7 +506,7 @@ extern "C"
    *
    * @param state  Must be non-NULL.
    * @param bn     Loop noise bandwidth, normalised to the symbol rate (>= 0).
-   * @param zeta   Damping factor (0.707 = critically damped).
+   * @param zeta   Damping factor (1.0 = critical; 0.707 usual).
    * @code
    * >>> from doppler.track import SymbolSync
    * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)

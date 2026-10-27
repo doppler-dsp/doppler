@@ -323,9 +323,9 @@ dp_thread_yield (void)
   sched_yield ();
 }
 
-/** @brief Sleeps for at least @p us microseconds. For "let the other thread
- *  get there", never for timing. A signal can cut the sleep short, since
- *  nanosleep() is not restarted.
+/** @brief Sleeps for about @p us microseconds: at least that long unless a
+ *  signal cuts the sleep short, since nanosleep() is not restarted. For
+ *  "let the other thread get there", never for timing.
  *  @param us  Requested sleep, microseconds. */
 static inline void
 dp_thread_sleep_us (unsigned us)

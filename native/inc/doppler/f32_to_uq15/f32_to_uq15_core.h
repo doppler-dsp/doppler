@@ -63,7 +63,8 @@ extern "C" {
  */
 typedef struct {
     float   scale;   /**< Multiply factor applied before rounding and
-                          saturation (config, fixed at create; > 0). */
+                          saturation (config, > 0); set by create and
+                          replaced only by set_state(). */
     uint8_t clipped; /**< Sticky clip flag (running state): 1 once any
                           scaled sample fell outside -32768..32767,
                           else 0; cleared only by reset(). */
@@ -93,7 +94,7 @@ void dp_f32_to_uq15_destroy(dp_f32_to_uq15_state_t *state);
  * @brief Clear the sticky clip flag, starting a fresh saturation history.
  *
  * Zeroes @c clipped so a subsequent clipped query reflects only samples seen
- * after this call; the immutable @c scale is preserved. Call it at a buffer or
+ * after this call; @c scale is preserved. Call it at a buffer or
  * segment boundary so a saturation on one block does not leak into the next.
  *
  * @param state  Must be non-NULL.

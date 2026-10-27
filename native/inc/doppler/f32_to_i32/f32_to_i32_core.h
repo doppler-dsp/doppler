@@ -101,7 +101,7 @@ void dp_f32_to_i32_destroy(dp_f32_to_i32_state_t *state);
  * @brief Clear the sticky clip flag, starting a fresh saturation history.
  *
  * Zeroes @c clipped so a subsequent clipped query reflects only samples seen
- * after this call; the immutable @c scale is preserved. Call it at a buffer or
+ * after this call; @c scale is preserved. Call it at a buffer or
  * segment boundary so a saturation on one block does not leak into the next.
  *
  * @param state  Must be non-NULL.

@@ -19,7 +19,7 @@
  * the peaks clipping against a bound the average never approached.
  *
  * **So check @c clipped** — a sticky flag raised by any saturating component
- * and cleared only by dp_cic_reset(), following the same convention as the
+ * and cleared by dp_cic_reset(), following the same convention as the
  * quantizing `cvt` converters (adc, f32_to_uq15, ...).  It is free: the four
  * boundary comparisons run on every sample regardless, so recording that one
  * fired costs a register OR.  There is no reason to run a CIC without
@@ -126,7 +126,8 @@ typedef struct {
                                    `CIC_N * log2(R)`; derived from R. */
     uint8_t  clipped;         /**< Sticky: 1 once an input component
                                    exceeded +-2.0 (CIC_PAPR_HEADROOM);
-                                   cleared only by reset/reconfigure. */
+                                   cleared by reset/reconfigure, and
+                                   overwritten by set_state(). */
 } dp_cic_state_t;
 
 /**
@@ -382,7 +383,7 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
             ((float)(uint16_t)(im >> shift) - 32768.0f)
                 * (CIC_PAPR_HEADROOM / 32768.0f));
     }
-    state->clipped |= (uint8_t)clip;   /* sticky; cleared only by reset() */
+    state->clipped |= (uint8_t)clip;   /* sticky; cleared by reset() */
     return n_out;
 }
 

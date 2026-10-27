@@ -52,7 +52,8 @@ extern "C" {
 #endif
 
 /** Numerical guard added to the prompt power |P|^2 that divides the
- *  discriminator, so a zero prompt cannot divide by zero (not tunable). */
+ *  discriminator, so a zero prompt cannot divide by zero; also the floor
+ *  on the noise EMA that divides the lock statistic (not tunable). */
 #define DLL_EPS 1e-12
 
 /** The `segments > 1` output's level: the code periods its running mean of
@@ -393,7 +394,7 @@ dll_replica_word(const dp_dll_state_t *s, uint32_t w)
  * @param sps        Samples per chip.
  * @param init_chip  Seed code phase, chips.
  * @param bn         Loop noise bandwidth, normalised to the code-period rate.
- * @param zeta       Damping factor (0.707 = critically damped).
+ * @param zeta       Damping factor (1.0 = critical; 0.707 usual).
  * @param spacing    Early/late tap offset, chips (0.5 = half-chip).
  */
 void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
@@ -865,7 +866,7 @@ size_t dp_dll_steps(dp_dll_state_t *state, const float _Complex *x, size_t x_len
  *
  * @param state  DLL state.  Must be non-NULL.
  * @param bn     Loop noise bandwidth, normalised to the code-period rate.
- * @param zeta   Damping factor (0.707 = critically damped).
+ * @param zeta   Damping factor (1.0 = critical; 0.707 usual).
  * @return DP_OK; DP_ERR_INVALID, changing nothing, when (bn, zeta) is outside
  *         dp_loop_filter_params_ok() -- a NaN gave gains that never recover,
  *         and a negative bn with zeta >= 1 a zero denominator (doppler#2103).

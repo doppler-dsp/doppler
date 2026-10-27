@@ -142,6 +142,7 @@ typedef struct {
  * @param payload       Payload bits; may be empty.
  * @param payload_len   Its length in bits.
  * @param crc           Enum index; 0=none, 1=crc16 over the payload.
+ *                      From C, any non-zero value selects crc16.
  * @return Heap-allocated state, or NULL if the geometry is empty or an
  *         element is not a bit -- the frame is refused rather than
  *         half-honoured.
@@ -281,6 +282,7 @@ int dp_frame_crc_ok(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_b
  * @param payload       Payload bits; may be empty.
  * @param payload_len   Its length in bits.
  * @param crc           Enum index; 0=none, 1=crc16 over the payload.
+ *                      From C, any non-zero value selects crc16.
  *                      Ignored when all three fields are empty.
  * @return An unbuilt description, or NULL if an element is not a bit.
  *         Caller must call dp_frame_destroy() when done.

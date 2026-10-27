@@ -277,8 +277,14 @@ size_t dp_tlm_capture_count (const dp_tlm_capture_t *c);
  *
  * Memory mode only (@c path was NULL) — in file mode the file *is* the
  * capture and this returns NULL.  Owned by the capture and invalidated by
- * dp_tlm_capture_destroy(); NULL when nothing was captured, so use
- * dp_tlm_capture_count() to tell empty from absent.
+ * dp_tlm_capture_destroy(), and while the capture is open also by any
+ * boundary that appends (the store can be reallocated).  NULL when nothing
+ * has been accumulated yet.
+ *
+ * While open, drained records sit in a staging buffer until it is handed
+ * on, so this view can hold fewer than dp_tlm_capture_count() records; the
+ * two agree once dp_tlm_capture_close() has flushed the last stage.  Size
+ * the view with dp_tlm_capture_read_max_out(), not with count().
  *
  * The Python face binds the COPYING twin, dp_tlm_capture_read(), because a
  * borrowed pointer the capture can free is not something a binding may hand
@@ -288,8 +294,9 @@ size_t dp_tlm_capture_count (const dp_tlm_capture_t *c);
  * `__doc__` disagree (checked by scripts/check_doc_face_parity.py).
  *
  * @param c  The capture; NULL returns NULL.
- * @return Borrowed pointer to dp_tlm_capture_count() records, or NULL in
- *         file mode or when nothing has been accumulated.
+ * @return Borrowed pointer to dp_tlm_capture_read_max_out() records
+ *         (dp_tlm_capture_count() of them after close), or NULL in file
+ *         mode or when nothing has been accumulated.
  *
  * @code
  * >>> import numpy as np
@@ -371,6 +378,13 @@ size_t dp_tlm_capture_read (const dp_tlm_capture_t *c, size_t n,
  * @param c  The capture; NULL returns 0.
  * @return Records dropped between open and close.  Computed at close, so
  *         it reads 0 while the capture is still open.
+ *
+ * @warning Not yet trustworthy (doppler#2649): the context's drop counter
+ *          restarts when its ring is resized, and a capture can resize it
+ *          mid-capture when a probe registers late.  Drops before open
+ *          then make this wrap to about 2^64 (and close() fail falsely),
+ *          and drops before the resize are lost, so a capture with a hole
+ *          can read 0.
  */
 uint64_t dp_tlm_capture_dropped (const dp_tlm_capture_t *c);
 

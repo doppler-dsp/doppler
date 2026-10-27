@@ -52,6 +52,17 @@ else
     else
         dnf_opts=()
     fi
+    # A mirror that stops answering costs a per-connection timeout, not the
+    # leg (#2544). dnf aborts a transfer slower than minrate for `timeout`
+    # seconds; a listener that accepts and never answers costs dnf4 four of
+    # them (40 s here, 120 s at the default 30). skip_if_unavailable turns
+    # "no mirror answered" into a named skip ("Ignoring repositories: x"),
+    # and the install that needed it then fails at once, naming the package.
+    # Measured on 2026-10-26: these settings do NOT rescue a mirror set that
+    # is out of sync with its repomd; they make it fail fast and say why.
+    dnf_timeout=10
+    dnf_opts+=(--setopt=timeout="$dnf_timeout"
+               --setopt=skip_if_unavailable=True)
     install() { say "installing: $*"; dnf "${dnf_opts[@]}" install -y "$@"; }
     have() { rpm -q "$1" >/dev/null 2>&1; }
     toolchain=(gcc cmake make pkgconf-pkg-config)
@@ -73,6 +84,56 @@ fi
 for f in "${rt[0]}" "${dev[0]}" "${tools[0]}"; do
     [ -f "$f" ] || die "no package matching $f — run 'make package-linux'"
 done
+
+# ── 0: a dead mirror is dropped within its timeout (rpm, #2544) ──────────────
+# The settings above are only words until a stalled mirror meets them, so
+# meet one: a local listener that accepts and never answers, as the only
+# mirror of a throwaway repo. With both settings dnf skips it, rc 0, in
+# 4 x timeout; without `timeout` it takes 120 s, and without
+# skip_if_unavailable it exits 1. The listener needs Python: almalinux:8
+# carries platform-python, fedora's image has none, so the probe runs on the
+# dnf4 leg (dnf5 still refuses a misspelled --setopt name, rc 2; #2631).
+if [ "$fmt" = rpm ]; then
+    py="$(command -v python3 \
+          || command -v /usr/libexec/platform-python || true)"
+    if [ -n "$py" ]; then
+        portf="$(mktemp)"
+        "$py" -c '
+import socket
+s = socket.socket(); s.bind(("127.0.0.1", 0)); s.listen(64)
+print(s.getsockname()[1], flush=True)
+held = []
+while True:
+    held.append(s.accept()[0])  # hold it open; never answer
+' >"$portf" &
+        lpid=$!
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+            [ -s "$portf" ] && break; sleep 0.2
+        done
+        port="$(cat "$portf")"
+        [ -n "$port" ] || die "dead-mirror probe: the listener did not start"
+        bound=$((6 * dnf_timeout))
+        t0=$SECONDS
+        rc=0
+        dnf "${dnf_opts[@]}" --disablerepo='*' \
+            --repofrompath="deadprobe,http://127.0.0.1:$port/" makecache \
+            >"$portf.log" 2>&1 || rc=$?
+        took=$((SECONDS - t0))
+        kill "$lpid"
+        [ "$rc" -eq 0 ] || { tail -5 "$portf.log" >&2
+            die "dead-mirror probe: dnf exited $rc" \
+                "(skip_if_unavailable not in effect)"; }
+        grep -q 'Ignoring repositories: deadprobe' "$portf.log" \
+            || { cat "$portf.log" >&2
+                 die "dead-mirror probe: no named skip"; }
+        [ "$took" -lt "$bound" ] \
+            || die "dead-mirror probe: ${took}s to drop a dead mirror" \
+                   "(bound ${bound}s; timeout not in effect)"
+        say "dead mirror dropped in ${took}s (< ${bound}s) and skipped by name"
+    else
+        say "dead-mirror probe: no Python in this image, not run (dnf5 leg)"
+    fi
+fi
 
 # ── 1+2: runtime alone ───────────────────────────────────────────────────────
 install "${rt[0]}"

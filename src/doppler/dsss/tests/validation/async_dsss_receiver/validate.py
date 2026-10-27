@@ -13,9 +13,10 @@ EVM, dropout, false lock), `async_dsss_receiver_ber.c` (the error rate
 against the BPSK bound) and `async_dsss_receiver_loss.c` (where that
 loss goes, stage by stage). All three drive the shipped continuous-DSSS synth
 (`wfm_synth`) with the harness's own data bits, the shipped `awgn` sized
-from C/N0, the receiver in the SPEC configuration. This file parses their
-CSV blocks, characterises, reviews and asserts the limits through the same
-`Report` every other certified object uses -- the `conv` shape.
+from C/N0, the receiver in the specification configuration. This file
+parses their CSV blocks, characterises, reviews and asserts the limits
+through the same `Report` every other certified object uses -- the
+`conv` shape.
 
 **Two runs, two roles.** The limits are asserted on each harness's
 regression subset, `--check --emit`, re-run on every push (about 3 s and
@@ -323,7 +324,7 @@ def _plot(q: Rows) -> None:
     )
     ax.set_xlabel("Es/N0 (dB)")
     ax.set_ylabel("EVM (dB, own hard decisions)")
-    ax.set_title("BPSK EVM against Es/N0, SPEC operating point")
+    ax.set_title("BPSK EVM against Es/N0, specification operating point")
     ax.grid(alpha=0.3)
     ax.legend()
     fig.tight_layout()
@@ -365,7 +366,9 @@ def _plot_ber(rows: Rows) -> None:
     )
     ax.set_xlabel("Es/N0 (dB)")
     ax.set_ylabel("bit error rate")
-    ax.set_title("BPSK error rate against the bound, SPEC operating point")
+    ax.set_title(
+        "BPSK error rate against the bound, specification operating point"
+    )
     ax.grid(alpha=0.3, which="both")
     ax.legend()
     fig.tight_layout()
@@ -414,7 +417,8 @@ def section_object() -> None:
     )
     R.md()
     R.md(
-        "**Operating point (SPEC).** A 1,023-chip Gold code (CCSDS #365) at "
+        "**Operating point (the specification).** A 1,023-chip Gold code "
+        "(CCSDS #365) at "
         "3.069 Mcps, two samples a chip (6.138 MSa/s), asynchronous BPSK "
         "data at 2,700 sym/s. The searching flavor, at the binding's "
         "defaults except two: its design C/N0 is the true one, and its "
@@ -821,7 +825,8 @@ def review(sw: Blocks, bsw: Blocks) -> None:
         "`steps_max_out()` returns 0, which is not a bound: a call that "
         "completes a carried code period emits that whole period's symbols, "
         "so at more than one symbol per period an `out` sized to the call's "
-        "`x_len` drops symbols silently. At SPEC (0.9 symbols a period) it "
+        "`x_len` drops symbols silently. At the specification (0.9 symbols a "
+        "period) it "
         "never binds. Tracked as #2469.",
     )
     R.find(
@@ -858,7 +863,8 @@ def review(sw: Blocks, bsw: Blocks) -> None:
             "lock came up and symbol lock never did. "
         )
         + "`reacquire` recovers a missed hand-off by searching again; the "
-        "SPEC example locks every draw that way. The hand-off accuracy is "
+        "The specification example locks every draw that way. The hand-off "
+        "accuracy is "
         "#2409.",
     )
     R.find(
@@ -1058,7 +1064,8 @@ def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
         f"declared it {sum(int(r['declares']) for r in fl)} times, and a "
         f"signal that leaves drops it within {max(drops):.0f} ms (2.5).",
         "**Size `out` with care above one symbol a code period:** "
-        "`steps_max_out()` is not yet a bound (F1, #2469). At SPEC it "
+        "`steps_max_out()` is not yet a bound (F1, #2469). At the "
+        "specification it "
         "never binds.",
     ]
 

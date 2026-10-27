@@ -317,8 +317,9 @@ class _SynthEngine:
         WFM_SYNTH_SNR_CLEAN (100) disable AWGN. Default 100.0.
     snr_mode : Literal["auto", "fs", "ebno", "esno"], default "auto"
         What `snr` is referenced to: `fs` the full band, `ebno` Eb/N0, `esno`
-        Es/N0. `auto` is Es/N0 for bpsk/qpsk/dsss and full scale for the
-        others.
+        Es/N0. `auto` is Es/N0 for bpsk/qpsk and full scale for the others,
+        dsss included: its spreading factor is not known at create time, so the
+        composer refers a dsss SNR itself.
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
     seed : int, default 1
         PRNG seed shared by AWGN and the PN LFSR. Default 1.
@@ -3422,8 +3423,8 @@ def field_bits(spec: str) -> NDArray[np.uint8]:
     """
 
 def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
-    """Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32
-    taps).
+    """Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy real
+    float32 taps).
 
     The wfm-namespace alias of dp_wfm_rrc_taps(): fills out with
     `2*span*sps + 1` real taps, symmetric about the center tap and scaled

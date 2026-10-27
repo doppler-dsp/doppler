@@ -465,9 +465,10 @@ def design_lowpass(
     - 1) / 2` samples). The window shape comes from dp_kaiser_beta(), the
     FIR-design beta formula, not the window-sidelobe one. The ideal cutoff
     sits at the midpoint of the transition band, `(fpass + fstop) / 2`.
-    Taps are `2 fc sinc(2 fc m) w[m]` with `fc` in cycles/sample; they are
-    not renormalized afterwards, so the DC gain is close to, but not
-    exactly, 1.
+    Taps are `2 fc sinc(2 fc m) w[m]` with `fc` in cycles/sample, then
+    divided by their sum, so the DC gain is 1 to float precision (the
+    windowed sinc alone misses it by up to a few percent on a short
+    design).
 
     Parameters
     ----------

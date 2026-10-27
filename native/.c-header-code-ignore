@@ -69,7 +69,6 @@ doppler/ratesync/ratesync_core.h::dp_ratesync_loop_init
 doppler/Resampler/Resampler_core.h::dp_Resampler_create
 doppler/resamp/resamp_core.h::dp_resamp_create
 doppler/rs/rs_core.h::dp_rs_decode
-doppler/snr/snr_core.h::dp_snr_data_aided_db
 doppler/specan/specan_core.h::dp_specan_create
 doppler/stream/stream.h::dp_stream_interrupt
 doppler/stream/tlm_sink.h::dp_tlm_sink_open

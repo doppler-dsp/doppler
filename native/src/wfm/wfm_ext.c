@@ -846,8 +846,8 @@ static PyMethodDef wfm_module_methods[] = {
     "ValueError: LEN, the output length in bits, must be a number > 0\n" },
   { "rrc_taps", (PyCFunction)(void *)_bind_rrc_taps,
     METH_VARARGS | METH_KEYWORDS,
-    "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 "
-    "taps).\n"
+    "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy real "
+    "float32 taps).\n"
     "\n"
     "The wfm-namespace alias of dp_wfm_rrc_taps(): fills out with\n"
     "`2*span*sps + 1` real taps, symmetric about the center tap and scaled\n"

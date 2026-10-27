@@ -43,4 +43,15 @@ dp_design_lowpass (double fpass, double fstop, double atten_db, float *out)
       double m = i - m0;
       out[i]   = (float)(2.0 * fc * dp_sinc (2.0 * fc * m) * out[i]);
     }
+
+  /* Renormalize to unit DC gain. The windowed sinc's taps sum to 1 only
+   * up to the truncation and window error (off by ~3e-4 to ~4.5e-2 with
+   * the design), so divide by the sum: a lowpass designed here then
+   * passes DC at exactly the level it came in. The sum is taken in double
+   * so the scale is not itself a float rounding of the taps. */
+  double dc = 0.0;
+  for (int i = 0; i < n_taps; i++)
+    dc += (double)out[i];
+  for (int i = 0; i < n_taps; i++)
+    out[i] = (float)((double)out[i] / dc);
 }

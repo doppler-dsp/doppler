@@ -68,7 +68,7 @@ extern "C"
     double ki;    /**< integral gain (derived from bn, zeta, t).       */
     double integ; /**< integrator memory = running rate/freq estimate. */
     double bn;    /**< loop noise bandwidth, normalized cycles/sample.  */
-    double zeta;  /**< damping factor (0.707 = critically damped).     */
+    double zeta;  /**< damping factor (1.0 = critical; 0.707 usual).   */
     double t;     /**< update period in samples.                       */
   } dp_loop_filter_state_t;
 
@@ -252,14 +252,28 @@ extern "C"
    * Whole-struct POD snapshot (pointer-free); config fields restore identically
    * into an identically-built instance, the integrator memory resumes exactly.
    */
+  /** State-blob magic ("LPFL") checked by dp_loop_filter_set_state(). */
 #define LOOP_FILTER_STATE_MAGIC DP_FOURCC('L', 'P', 'F', 'L')
+  /** State-blob layout version; bumped whenever the struct layout changes. */
 #define LOOP_FILTER_STATE_VERSION 1u
 
-  /** @brief Serialized-state byte size. */
+  /** @brief Serialized-state byte size.
+   *  @param state Filter state (unused: the size is fixed).
+   *  @return sizeof(dp_state_hdr_t) + sizeof(dp_loop_filter_state_t). */
   size_t dp_loop_filter_state_bytes(const dp_loop_filter_state_t *state);
-  /** @brief Serialize the loop state into @p blob. */
+  /** @brief Serialize the loop state into @p blob.
+   *  Writes the whole struct: gains, integrator, bn, zeta and t.
+   *  @param state Filter state. Must be non-NULL.
+   *  @param blob  [out] At least dp_loop_filter_state_bytes() bytes. */
   void dp_loop_filter_get_state(const dp_loop_filter_state_t *state, void *blob);
-  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects.
+   *  Only the envelope (magic, version, endianness, size) is checked; the
+   *  payload is copied verbatim over the whole struct. It does NOT call
+   *  dp_loop_filter_state_ok(): a caller restoring an untrusted blob should
+   *  check the result with it.
+   *  @param state Filter state to overwrite. Must be non-NULL.
+   *  @param blob  [in] Blob from dp_loop_filter_get_state().
+   *  @return DP_OK, or DP_ERR_INVALID (and @p state is unchanged). */
   int dp_loop_filter_set_state(dp_loop_filter_state_t *state, const void *blob);
 
   /**

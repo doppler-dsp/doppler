@@ -106,7 +106,8 @@ extern "C"
     /* ── engine ── */
     dp_ppe_state_t   *ppe;  /**< feedforward (rate x freq) estimator.          */
     float _Complex *part; /**< preamble partials scratch (acq_reps*est_seg). */
-    size_t         n_part;
+    size_t         n_part; /**< length of @c part: acq_reps *
+                                est_segments, set by set_preamble().      */
 
     /* ── read-backs (after demod) ── */
     float *llr;   /**< The frame's soft bits, `mpsk_soft_demap`'s
@@ -386,6 +387,7 @@ extern "C"
    *
    * @param state  Demodulator handle.
    * @param n      Ignored — the count is the last demod()'s frame.
+   * @return @c frame_syms (fixed at create), or 0 if @p state is NULL.
    */
   size_t dp_burst_demod_llrs_max_out (dp_burst_demod_state_t *state, size_t n);
 
@@ -435,6 +437,7 @@ extern "C"
    *
    * @param state  Demodulator handle.
    * @param n      Ignored — the count is the last demod()'s frame.
+   * @return @c frame_syms (fixed at create), or 0 if @p state is NULL.
    */
   size_t dp_burst_demod_symbols_max_out (dp_burst_demod_state_t *state, size_t n);
 
@@ -465,7 +468,9 @@ extern "C"
   void dp_burst_demod_set_prior (dp_burst_demod_state_t *state, double f0_coarse,
                               size_t start);
 
-  /** @brief Max output bits = frame_syms (caller sizes the buffer). */
+  /** @brief Max output bits = frame_syms (caller sizes the buffer).
+   *  @param state Demodulator handle. Must be non-NULL.
+   *  @return @c frame_syms, the frame length in bits, fixed at create. */
   size_t dp_burst_demod_demod_max_out (dp_burst_demod_state_t *state);
 
   /**

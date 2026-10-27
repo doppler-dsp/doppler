@@ -4,7 +4,7 @@
  *
  * The `doppler.measure` objects (ToneMeasure, …) each own a window + FFT and
  * analyse a time-domain capture, returning one of these plain-C result bags by
- * out-parameter.  Every spectral metric integrates a component's power over its
+ * value.  Every spectral metric integrates a component's power over its
  * window MAIN LOBE (IEEE Std 1241) rather than reading a single peak bin, so the
  * reading is independent of where the tone falls between FFT bins.
  */
@@ -24,20 +24,26 @@ extern "C" {
  * that range — so window leakage never caps SFDR/SNR — while keeping the main
  * lobe (hence resolution bandwidth) as narrow as the data allows. */
 
-/* Internal zero-pad factor (nfft = next_pow_two(n * MEASURE_PAD)). */
+/** @brief Zero-pad factor every measurement object hands its PSD core:
+ *  nfft = next_pow_two(n * MEASURE_PAD), so a capture of n samples is
+ *  transformed at no less than twice its own length. */
 #define MEASURE_PAD 2u
 
-/* Sidelobe headroom below the ideal converter SNR: a B-bit ADC's spur/noise
- * floor sits at -(6.02*B+1.76) dBc, so target sidelobes this much deeper to be
- * sure window leakage stays under the floor being measured. */
+/** @brief Sidelobe headroom (dB) below the ideal converter SNR.
+ *
+ * A B-bit ADC's spur/noise floor sits at -(6.02*B+1.76) dBc, so
+ * measure_dr_from_bits() targets sidelobes this much deeper to be sure
+ * window leakage stays under the floor being measured. */
 #define MEASURE_DR_MARGIN_DB 12.0
 
-/* Dynamic-range target when neither `bits` nor an explicit override is given
- * (general DUT): deep enough for ~19-bit measurements. */
+/** @brief Dynamic-range target (dB) when neither `bits` nor an explicit
+ *  override is given (general DUT): deep enough for ~19-bit measurements.
+ *  The fallback of measure_resolve_dr(). */
 #define MEASURE_DR_DEFAULT_DB 120.0
 
-/* Extra main-lobe widths excluded past the first null when searching for spurs,
- * so a component's near-in sidelobes are never mistaken for a spur. */
+/** @brief Extra main-lobe widths excluded past the first null when searching
+ *  for spurs (or, in IMDMeasure, for the second tone), so a component's
+ *  near-in sidelobes are never mistaken for a spur. */
 #define MEASURE_SPUR_SIDELOBES 1.0
 
 /**
@@ -174,10 +180,29 @@ typedef struct {
 size_t dp_measure_min_samples(double fs, double target_rbw, size_t bits,
                            double dynamic_range_db, int complex_input);
 
-/** @brief Recommended zero-padded transform length: next_pow_two(n * max(pad,1)). */
+/**
+ * @brief Recommended zero-padded transform length:
+ *        next_pow_two(n * max(pad, 1)).
+ *
+ * The same rule the measurement objects apply (with pad = ::MEASURE_PAD),
+ * exposed so a caller can plan an FFT size before building an analyser.
+ *
+ * @param n    Capture length (samples).
+ * @param pad  Zero-pad factor; 0 is treated as 1.
+ * @return The smallest power of two >= n * pad (1 when n is 0).
+ */
 size_t dp_measure_rec_nfft(size_t n, size_t pad);
 
-/** @brief FFT processing gain in dB: 10*log10(nfft / 2). */
+/**
+ * @brief FFT processing gain in dB: 10*log10(nfft / 2).
+ *
+ * How far a single bin's noise sits below the total noise power for an
+ * nfft-point transform of a real capture.  No argument check: nfft = 0
+ * returns -inf.
+ *
+ * @param nfft  Transform length (bins).
+ * @return Processing gain (dB).
+ */
 double dp_measure_proc_gain(size_t nfft);
 
 /**
@@ -187,7 +212,15 @@ double dp_measure_proc_gain(size_t nfft);
  * that is coprime with N — an integer number of cycles in the capture (no
  * leakage) with J coprime to N (so quantisation-noise correlation is minimised).
  *
- * @return The coherent frequency (Hz), or 0 on bad args.
+ * J starts at round(f_target * N / fs), is clamped to [1, N-1], then moved
+ * by the smallest distance that makes it coprime with N; on a tie the higher
+ * J wins.
+ *
+ * @param fs        Sample rate (Hz, > 0).
+ * @param f_target  Desired test frequency (Hz).
+ * @param N         Capture length (samples, >= 2).
+ * @return The coherent frequency J * fs / N (Hz), or 0 if N < 2 or
+ *         fs <= 0.
  */
 double dp_coherent_freq(double fs, double f_target, size_t N);
 

@@ -41,7 +41,8 @@ extern "C" {
  * Allocate with dp_i32_to_f32_create().
  */
 typedef struct {
-    float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
+    float iscale; /**< Config: 1.0f / scale, set once by create so step is
+                       a single multiply. */
 } dp_i32_to_f32_state_t;
 
 /**

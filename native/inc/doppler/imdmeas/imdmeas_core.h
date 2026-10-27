@@ -24,12 +24,24 @@ extern "C" {
 
 /** @brief IMDMeasure state: owned window, FFT plan and one-sided power scratch. */
 typedef struct {
-    dp_psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
-    float         *pwr;     /* metric working buffer, one-sided power       */
-    double enbw;            /* window equivalent noise bandwidth (bins)     */
-    double beta;            /* auto-selected Kaiser shape (from DR target)   */
-    size_t lobe_bins;       /* main-lobe half-width L, for power integration*/
-    size_t spur_guard_bins; /* tone keep-out for the two-tone search (>= L) */
+    dp_psd_state_t *psd;     /**< Owned averaging PSD core (Kaiser window,
+                                  zero-padded FFT, mean trace); built at
+                                  create, reset by every analyze call. */
+    float         *pwr;     /**< Owned scratch of nfft floats: the one-sided
+                                 power analyze() reads, or the two-sided power
+                                 spectrum_dbfs() converts.  Overwritten per
+                                 call. */
+    double enbw;            /**< Window equivalent noise bandwidth (bins of
+                                 the unpadded n-point grid); set at create. */
+    double beta;            /**< Kaiser shape chosen at create from the
+                                 dynamic-range target (measure_resolve_dr). */
+    size_t lobe_bins;       /**< Main-lobe half-width L (bins of the padded
+                                 nfft grid): each tone/product's power is
+                                 summed over bins c-L..c+L.  Set at create. */
+    size_t spur_guard_bins; /**< Tone keep-out (bins, >= L) for the two-tone
+                                 search: the tones must sit more than this
+                                 far from DC and from each other.  Set at
+                                 create. */
     size_t n;               /**< Capture / frame length, samples.            */
     size_t nfft;            /**< Zero-padded transform length, bins.         */
     double fs;              /**< Sample rate, Hz.                            */
@@ -82,7 +94,20 @@ void dp_imdmeas_reset(dp_imdmeas_state_t *state);
 
 /**
  * @brief Two-tone IMD/TOI of a real capture (finds the two strongest tones).
- * @return the IMD metric record (by value; zeroed if no two tones are found).
+ *
+ * Averages the Kaiser-windowed power spectrum over floor(n_in / n) whole
+ * frames (a trailing partial frame is dropped), takes the two strongest
+ * bins more than spur_guard_bins from DC and from each other as f1 < f2,
+ * and integrates each tone and the IM products 2f1-f2, 2f2-f1 and f2-f1
+ * (folded into [0, fs/2]) over +/- lobe_bins.  `imd3_dbc` is the worse of
+ * the two third-order products; both IMD ratios are relative to the mean
+ * tone power.  TOI = P_tone + |IMD3|/2 and SOI = P_tone + |IMD2| (dBFS).
+ *
+ * @param state  The analyser.
+ * @param x      Real capture (float32), length @p n_in.
+ * @param n_in   Number of samples in @p x; at least n for a result.
+ * @return the IMD metric record (by value; zeroed if no two tones are found
+ *         or @p n_in < n).
  *
  * @code
  * >>> from doppler.measure import IMDMeasure
@@ -101,7 +126,11 @@ void dp_imdmeas_reset(dp_imdmeas_state_t *state);
  */
 imd_meas_t dp_imdmeas_analyze(dp_imdmeas_state_t *state, const float *x, size_t n_in);
 
-/** @brief Capacity (== nfft) of the spectrum_dbfs output buffer. */
+/**
+ * @brief Capacity (== nfft) of the spectrum_dbfs output buffer.
+ * @param state  The analyser.
+ * @return nfft, the zero-padded transform length (bins).
+ */
 size_t dp_imdmeas_spectrum_dbfs_max_out(dp_imdmeas_state_t *state);
 
 /**
@@ -113,11 +142,13 @@ size_t dp_imdmeas_spectrum_dbfs_max_out(dp_imdmeas_state_t *state);
  * products that analyze() integrates.
  *
  * @param state    The analyser.
- * @param x        Real time-domain capture (length @p x_len).
+ * @param x        Real time-domain capture (length @p x_len); averaged
+ *                 over its whole n-sample frames like analyze().
  * @param x_len    Number of input samples.
  * @param out      Destination buffer (length >= @p max_out).
  * @param max_out  Capacity of @p out (== nfft).
- * @return DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+ * @return Number of bins written to @p out: min(nfft, @p max_out), or 0
+ *         when @p x_len < n (no whole frame to transform).
  *
  * @code
  * >>> from doppler.measure import IMDMeasure

@@ -445,6 +445,7 @@ extern "C"
  * addition wrapped (carry out), 0 otherwise.  Branchless on x86/AArch64.
  */
 #if defined(__GNUC__) || defined(__clang__)
+/** @brief `*res = a + b` (uint32, wrapping); 1 if it carried out, else 0. */
 #define NCO_ADD_OVF(a, b, res)                                                \
   ((uint8_t)__builtin_add_overflow ((uint32_t)(a), (uint32_t)(b),             \
                                     (uint32_t *)(res)))
@@ -455,6 +456,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   *res = a + b;
   return (uint8_t)(*res < a);
 }
+/** @brief `*res = a + b` (uint32, wrapping); 1 if it carried out, else 0. */
 #define NCO_ADD_OVF(a, b, res) nco_add_ovf_ ((a), (b), (res))
 #endif
 
@@ -466,10 +468,18 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    */
   typedef struct
   {
-    uint32_t phase;     /* current accumulator value [0, 2^32)         */
-    uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
-    double   norm_freq; /* normalised frequency (cycles/sample)          */
-    uint32_t nmax;      /* wrap target for steps_u32_scaled; 0 = raw   */
+    uint32_t phase;     /**< Running state: phase accumulator in
+                             [0, 2^32), one full cycle = 2^32.  Zeroed by
+                             create/reset; the only field serialized. */
+    uint32_t phase_inc; /**< Config: per-sample advance,
+                             floor(frac(norm_freq) * 2^32); derived from
+                             norm_freq by create and set_norm_freq. */
+    double   norm_freq; /**< Config: frequency in cycles/sample, as given
+                             (unfolded); written by create and
+                             set_norm_freq. */
+    uint32_t nmax;      /**< Config: wrap target of the *_scaled
+                             steppers, output in [0, nmax); 0 = raw
+                             accumulator.  Set once by create. */
   } dp_nco_state_t;
 
   /**
@@ -712,7 +722,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    *                   Negative values fold correctly (−0.25 → 3×2^30).
    * @param nmax       Wrap target for dp_nco_steps_u32_scaled.
    *                   Pass 0 to return the raw 32-bit accumulator.
-   * @return Heap-allocated state, or NULL on allocation failure.
+   * @return Heap-allocated state, or NULL on allocation failure.  Free
+   *         with dp_nco_destroy().
    * @code
    * >>> from doppler.source import NCO
    * >>> nco = NCO(norm_freq=0.25, nmax=0)
@@ -722,7 +733,10 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    */
   dp_nco_state_t *dp_nco_create (double norm_freq, uint32_t nmax);
 
-  /** Free all resources.  May be NULL (no-op). */
+  /**
+   * @brief Free an NCO instance.
+   * @param state  State from dp_nco_create(); NULL is a no-op.
+   */
   void dp_nco_destroy (dp_nco_state_t *state);
 
   /**
@@ -730,6 +744,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * Sets phase to 0 so the next dp_nco_steps_u32 call starts from the
    * beginning of the cycle.  norm_freq, phase_inc, and nmax are
    * unchanged; the NCO is ready to generate samples again immediately.
+   *
+   * @param state  NCO state returned by dp_nco_create(); must be non-NULL.
    *
    * @code
    * >>> from doppler.source import NCO
@@ -751,14 +767,40 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * config restored by the constructor.  Envelope: [dp_state_hdr_t][u32
    * phase].
    */
+/** @brief Magic tag ('NCO_') in the NCO state-blob envelope header. */
 #define NCO_STATE_MAGIC DP_FOURCC ('N', 'C', 'O', '_')
+/** @brief NCO state-blob layout version; a mismatch is rejected. */
 #define NCO_STATE_VERSION 1u
 
-  /** @brief Serialized-state byte size. */
+  /**
+   * @brief Serialized-state byte size.
+   *
+   * Constant for every NCO: the dp_state_hdr_t envelope plus one uint32
+   * phase word.
+   *
+   * @param state  NCO state (not read; the size does not depend on it).
+   * @return Size in bytes of the blob dp_nco_get_state() writes.
+   */
   size_t dp_nco_state_bytes (const dp_nco_state_t *state);
-  /** @brief Serialize the phase accumulator into @p blob. */
+  /**
+   * @brief Serialize the phase accumulator into @p blob.
+   *
+   * Writes the envelope header then @c phase.  norm_freq, phase_inc and
+   * nmax are NOT included; the restoring instance keeps its own.
+   *
+   * @param state  NCO state to snapshot.
+   * @param[out] blob  Caller buffer of at least dp_nco_state_bytes() bytes.
+   */
   void dp_nco_get_state (const dp_nco_state_t *state, void *blob);
-  /** @brief Restore phase; DP_OK, or DP_ERR_INVALID if the envelope rejects.
+  /**
+   * @brief Restore the phase accumulator from a dp_nco_get_state() blob.
+   *
+   * Validates magic, version, endianness and size first; on rejection
+   * @p state is left untouched.  Only @c phase is restored.
+   *
+   * @param state  NCO state to overwrite.
+   * @param blob   Blob of dp_nco_state_bytes() bytes.
+   * @return DP_OK, or DP_ERR_INVALID if the envelope is rejected.
    */
   int dp_nco_set_state (dp_nco_state_t *state, const void *blob);
 
@@ -778,8 +820,22 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * >>> nco.phase_inc
    * 2147483648
    * @endcode
+   *
+   * @param state  NCO state.
+   * @return Frequency in cycles/sample exactly as last set (not folded
+   *         to [0, 1)); the create() value until first set.
    */
   double dp_nco_get_norm_freq (const dp_nco_state_t *state);
+  /**
+   * @brief Set the normalized frequency; recompute phase_inc.
+   *
+   * phase_inc = floor(frac(@p norm_freq) * 2^32); the phase accumulator
+   * is not touched, so the output stays phase-continuous.
+   *
+   * @param state      NCO state.
+   * @param norm_freq  Frequency in cycles/sample; any real value, only the
+   *                   fractional part sets the rate.
+   */
   void   dp_nco_set_norm_freq (dp_nco_state_t *state, double norm_freq);
 
   /**
@@ -797,8 +853,18 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * >>> nco.phase
    * 2147483648
    * @endcode
+   *
+   * @param state  NCO state.
+   * @return Accumulator value in [0, 2^32) (2^32 = one cycle); the phase
+   *         the next stepper call emits first.  0 after create/reset.
    */
   uint32_t dp_nco_get_phase (const dp_nco_state_t *state);
+  /**
+   * @brief Overwrite the phase accumulator.
+   * @param state  NCO state.
+   * @param phase  New accumulator value; 2^32 = one cycle, so 2^31 is a
+   *               half-cycle (pi rad) offset.
+   */
   void     dp_nco_set_phase (dp_nco_state_t *state, uint32_t phase);
 
   /**
@@ -813,6 +879,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * >>> nco.phase_inc
    * 1073741824
    * @endcode
+   *
+   * @param state  NCO state.
+   * @return Per-sample increment in phase-word units (2^32 = one cycle).
    */
   uint32_t dp_nco_get_phase_inc (const dp_nco_state_t *state);
 
@@ -829,6 +898,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * grows its buffer on demand.  Measured: all three faces return 70000
    * correct samples for a 70000-sample request.  Size an @c out= buffer
    * with this, or ignore it and let the binding allocate.
+   *
+   * @param state  NCO state (not read).
+   * @return 65536, for every instance.
    */
   size_t dp_nco_steps_u32_max_out (dp_nco_state_t *state);
 
@@ -837,7 +909,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * Each element is the phase value BEFORE the increment fires, so
    * `out[0]` is the phase at the moment of the call.  The accumulator
    * wraps silently at 2^32, giving the full-resolution integer ramp
-   * that the scaled and carry variants derive from.  Returns n.
+   * that the scaled and carry variants derive from.
    *
    * @param state  NCO state returned by dp_nco_create().
    * @param n      Number of samples to generate.
@@ -858,6 +930,15 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   size_t dp_nco_steps_u32 (dp_nco_state_t *state, size_t n, uint32_t *out,
                         size_t max_out);
 
+  /**
+   * @brief Pre-allocation hint for dp_nco_steps_u32_scaled().
+   *
+   * Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,
+   * not a per-call limit; the stepper clamps to its own @c max_out.
+   *
+   * @param state  NCO state (not read).
+   * @return 65536, for every instance.
+   */
   size_t dp_nco_steps_u32_scaled_max_out (dp_nco_state_t *state);
 
   /**
@@ -867,7 +948,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * to map the full accumulator range uniformly onto [0, nmax) without
    * a modulo operation.  When nmax == 0 falls back to the raw accumulator
    * (identical to dp_nco_steps_u32).  Useful for polyphase filter bank
-   * indexing and direct LUT addressing.  Returns n.
+   * indexing and direct LUT addressing.
    *
    * @param state  NCO state returned by dp_nco_create().
    * @param n      Number of samples to generate.
@@ -888,6 +969,15 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   size_t dp_nco_steps_u32_scaled (dp_nco_state_t *state, size_t n, uint32_t *out,
                                size_t max_out);
 
+  /**
+   * @brief Pre-allocation hint for dp_nco_steps_u32_ovf().
+   *
+   * Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,
+   * not a per-call limit; the stepper clamps to its own @c max_out.
+   *
+   * @param state  NCO state (not read).
+   * @return 65536, for every instance.
+   */
   size_t dp_nco_steps_u32_ovf_max_out (dp_nco_state_t *state);
 
   /**
@@ -897,7 +987,6 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * produced `out[i]`'s post-increment phase wrapped past 2^32, else 0.
    * The carry marks the exact boundary of one input period and is the
    * primitive for polyphase sample-clock and rational resampling engines.
-   * Returns n.
    *
    * @param state  NCO state returned by dp_nco_create().
    * @param n      Number of samples to generate.
@@ -922,6 +1011,15 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   size_t dp_nco_steps_u32_ovf (dp_nco_state_t *state, size_t n, uint32_t *out,
                             uint8_t *out1, size_t max_out);
 
+  /**
+   * @brief Pre-allocation hint for dp_nco_steps_u32_ctrl().
+   *
+   * Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,
+   * not a per-call limit; the stepper clamps to its own @c max_out.
+   *
+   * @param state  NCO state (not read).
+   * @return 65536, for every instance.
+   */
   size_t dp_nco_steps_u32_ctrl_max_out (dp_nco_state_t *state);
 
   /**
@@ -938,7 +1036,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * `lo_step_ctrl`/`dp_lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h), which does
    * this for the CF32 phasor output; this is the same control-port pattern
    * for NCO's raw phase output. With every `ctrl[i] == 0` this is
-   * bit-identical to dp_nco_steps_u32(). Returns ctrl_len.
+   * bit-identical to dp_nco_steps_u32().
    *
    * Python's `out=` keyword writes into a caller-supplied buffer instead
    * of allocating a fresh one.  This used to claim it was "essential for
@@ -987,6 +1085,15 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
                              size_t ctrl_len, uint32_t *out,
                              size_t max_out);
 
+  /**
+   * @brief Pre-allocation hint for dp_nco_steps_u32_scaled_ctrl().
+   *
+   * Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,
+   * not a per-call limit; the stepper clamps to its own @c max_out.
+   *
+   * @param state  NCO state (not read).
+   * @return 65536, for every instance.
+   */
   size_t dp_nco_steps_u32_scaled_ctrl_max_out (dp_nco_state_t *state);
 
   /**
@@ -999,7 +1106,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * a tracking loop can drive LUT-indexed output (nmax = table length)
    * exactly as it would raw phase output, without ever touching
    * phase_inc/norm_freq. With every `ctrl[i] == 0` this is bit-identical
-   * to dp_nco_steps_u32_scaled(). Returns ctrl_len.
+   * to dp_nco_steps_u32_scaled().
    *
    * @param state     NCO state returned by dp_nco_create().
    * @param ctrl      Per-sample normalised-frequency control offsets in
@@ -1030,6 +1137,15 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
                                     size_t ctrl_len, uint32_t *out,
                                     size_t max_out);
 
+  /**
+   * @brief Pre-allocation hint for dp_nco_steps_u32_ovf_ctrl().
+   *
+   * Same contract as dp_nco_steps_u32_max_out(): a starting buffer size,
+   * not a per-call limit; the stepper clamps to its own @c max_out.
+   *
+   * @param state  NCO state (not read).
+   * @return 65536, for every instance.
+   */
   size_t dp_nco_steps_u32_ovf_ctrl_max_out (dp_nco_state_t *state);
 
   /**
@@ -1049,7 +1165,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * backward one a borrow (one FEWER); see @ref nco_step_u32_ovf_ctrl
    * for why the sign cannot be recovered after the fold, nor taken from
    * `ctrl` alone. With every `ctrl[i] == 0` and `norm_freq` in [0, 1)
-   * this is bit-identical to dp_nco_steps_u32_ovf(). Returns ctrl_len.
+   * this is bit-identical to dp_nco_steps_u32_ovf().
    *
    * @param state     NCO state returned by dp_nco_create().
    * @param ctrl      Per-sample normalised-frequency control offsets in

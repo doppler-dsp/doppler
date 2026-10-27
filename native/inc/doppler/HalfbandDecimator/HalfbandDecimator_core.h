@@ -26,9 +26,15 @@ extern "C"
 {
 #endif
 
+  /** HalfbandDecimator state: an alias of hbdecim_state_t, so every
+   *  function here forwards to the dp_hbdecim_* leaf unchanged. */
   typedef hbdecim_state_t dp_HalfbandDecimator_state_t;
 
 /* Maximum output samples per call (pre-allocated by ext.c at init). */
+/** Output capacity reported by dp_HalfbandDecimator_execute_max_out().
+ *  The C execute takes the caller's real max_out, so this is not a limit
+ *  there; the Python binding allocates max(HBDECIM_MAX_OUT, len(x))
+ *  output samples per call. */
 #define HBDECIM_MAX_OUT 32768
 
   /* ------------------------------------------------------------------ */
@@ -43,11 +49,18 @@ extern "C"
    * and scipy or the built-in bank helper to design the prototype.
    * Output length is approximately x_len / 2 per execute() call.
    *
-   * @param h      Float32 FIR branch coefficients. Must be a symmetric
-   *               halfband prototype (antisymmetric even-indexed taps
-   *               zeroed).
-   * @param h_len  Number of coefficients in h.
-   * @return Non-NULL on success, NULL on invalid args or OOM.
+   * @param h      Float32 FIR branch coefficients (the branch of the
+   *               halfband prototype with more than one nonzero tap,
+   *               not the whole prototype). Must be symmetric,
+   *               h[k] == h[h_len-1-k]: only the first h_len/2 are read,
+   *               and for odd h_len the centre tap is ignored in favor
+   *               of the fixed 0.5 delay branch. Copied and scaled by
+   *               0.5; must be non-NULL.
+   * @param h_len  Number of coefficients in h (the FIR branch length
+   *               reported by num_taps). Must be > 0.
+   * @return A new state owned by the caller (free with
+   *         dp_HalfbandDecimator_destroy()); NULL if h is NULL, h_len
+   *         is 0, or allocation fails.
    *
    * @code
    * >>> from doppler.resample import HalfbandDecimator
@@ -62,14 +75,21 @@ extern "C"
   dp_HalfbandDecimator_state_t *dp_HalfbandDecimator_create (const float *h,
                                                        size_t h_len);
 
-  /** Free all resources.  NULL is a no-op. */
+  /**
+   * @brief Free the coefficients, delay lines and the state.
+   * @param state  State from dp_HalfbandDecimator_create(); NULL is a
+   *               no-op.
+   */
   void dp_HalfbandDecimator_destroy (dp_HalfbandDecimator_state_t *state);
 
   /**
    * @brief Zero all delay lines.  Coefficients and num_taps preserved.
    * Call between signal bursts to suppress transient ringing from prior
    * filter state. The next execute() after reset produces the same
-   * output as a freshly created decimator fed the same input.
+   * output as a freshly created decimator fed the same input. Any
+   * trailing sample held from an odd-length block is dropped too.
+   *
+   * @param state  State. Must be non-NULL.
    *
    * @code
    * >>> from doppler.resample import HalfbandDecimator
@@ -85,12 +105,33 @@ extern "C"
    */
   void dp_HalfbandDecimator_reset (dp_HalfbandDecimator_state_t *state);
 
-  /** @brief Serialized-state byte size (forwarded to the hbdecim leaf). */
+  /**
+   * @brief Serialized-state byte size (forwarded to the hbdecim leaf).
+   * @param state  State. Must be non-NULL.
+   * @return dp_hbdecim_state_bytes(state); depends on num_taps.
+   */
   size_t dp_HalfbandDecimator_state_bytes (const dp_HalfbandDecimator_state_t *state);
-  /** @brief Serialize the decimator's delay-line state into @p blob. */
+  /**
+   * @brief Serialize the decimator's delay-line state into @p blob.
+   *
+   * The blob is the hbdecim leaf's (HBDECIM_STATE_MAGIC envelope): both
+   * delay rings, their heads and any held trailing sample.
+   *
+   * @param state  State. Must be non-NULL. Not modified.
+   * @param blob   [out] Caller-owned buffer of at least
+   *               dp_HalfbandDecimator_state_bytes(state) bytes.
+   */
   void dp_HalfbandDecimator_get_state (const dp_HalfbandDecimator_state_t *state,
                                     void *blob);
-  /** @brief Restore state from @p blob; DP_OK, or DP_ERR_INVALID if rejected. */
+  /**
+   * @brief Restore state from @p blob; DP_OK, or DP_ERR_INVALID if rejected.
+   * @param state  State built with the same num_taps as the source;
+   *               unchanged on rejection.
+   * @param blob   Blob from dp_HalfbandDecimator_get_state() (or
+   *               dp_hbdecim_get_state()).
+   * @return DP_OK, or DP_ERR_INVALID if the envelope (magic, version,
+   *         endianness, size) rejects.
+   */
   int dp_HalfbandDecimator_set_state (dp_HalfbandDecimator_state_t *state,
                                    const void *blob);
 
@@ -98,25 +139,34 @@ extern "C"
   /* Execute                                                             */
   /* ------------------------------------------------------------------ */
 
-  /** Always returns HBDECIM_MAX_OUT. */
+  /**
+   * @brief Default output capacity, used by the binding to size buffers.
+   * @param state  State; ignored.
+   * @return Always HBDECIM_MAX_OUT (32768).
+   */
   size_t dp_HalfbandDecimator_execute_max_out (dp_HalfbandDecimator_state_t *state);
 
   /**
    * @brief Decimate x by 2 using the polyphase halfband FIR filter.
-   * Processes every second input sample through the FIR branch and
-   * passes the other branch through the all-pass (zero-delay) path.
-   * State persists between calls — contiguous blocks give identical
-   * output to one large block. Output length is floor(x_len / 2).
+   * Each (even, odd) input pair yields one output: one phase runs
+   * through the symmetric FIR branch and the other through a pure
+   * delay weighted 0.5. State persists between calls — an odd-length
+   * block holds its last sample for the next call, so contiguous
+   * blocks give identical output to one large block.
    *
    * @param state  Pointer to a valid dp_HalfbandDecimator_state_t.
-   * @param x      CF32 input array.  Length must be even for exact
-   *               half-rate output; odd lengths write floor(x_len/2).
+   * @param x      CF32 input array.  An odd length leaves its last
+   *               sample held for the next call.
    * @param x_len  Number of input samples.
-   * @param out    Output buffer; must hold at least floor(x_len/2) samples.
+   * @param out    [out] Output buffer; must hold at least
+   *               (x_len + 1) / 2 samples. Complete input pairs left
+   *               once it is full are discarded, not carried.
    * @param max_out Capacity of @p out in elements. Emission stops there, so
    *                the return value is the number actually written.
-   * @return       CF32 decimated output; length is
-   *               min(floor(x_len / 2), max_out).
+   * @return       Number of CF32 samples written to @p out:
+   *               min((x_len + held) / 2, max_out), where held is 1 if
+   *               a trailing sample was carried in from the previous
+   *               call. 0 if x_len or max_out is 0.
    *
    * @code
    * >>> from doppler.resample import HalfbandDecimator
@@ -142,6 +192,9 @@ extern "C"
    * The halfband decimator is structurally 2:1; this property exists
    * for API parity with Resampler and RateConverter.
    *
+   * @param state  State; ignored.
+   * @return Always 0.5 (output rate / input rate).
+   *
    * @code
    * >>> from doppler.resample import HalfbandDecimator
    * >>> import numpy as np
@@ -155,9 +208,13 @@ extern "C"
 
   /**
    * @brief Number of FIR branch taps as passed to create.
-   * The all-pass (even-phase) branch has no taps; only the odd-phase
-   * FIR branch has length num_taps. The total prototype length is
+   * The pure-delay branch has no taps; only the FIR branch has length
+   * num_taps (it runs on the even-indexed inputs when num_taps is even,
+   * the odd-indexed ones when it is odd). The total prototype length is
    * 2 * num_taps - 1.
+   *
+   * @param state  State. Must be non-NULL.
+   * @return The h_len passed to dp_HalfbandDecimator_create().
    *
    * @code
    * >>> from doppler.resample import HalfbandDecimator

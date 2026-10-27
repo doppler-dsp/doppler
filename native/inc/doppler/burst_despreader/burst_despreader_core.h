@@ -80,8 +80,11 @@ typedef struct
 /**
  * @brief Create a burst despreader instance.
  *
- * @param code  Data spreading code (0/1 chips), length @p code_len; copied.
- * @param code_len  Length of @p code in chips (>= sf).
+ * @param code  Data spreading code (0/1 chips), length @p code_len; the
+ *              first @p sf chips are copied (only bit 0 of each byte is
+ *              read: 0 -> +1, 1 -> -1).
+ * @param code_len  Length of @p code in chips (>= sf); chips past sf are
+ *              ignored.
  * @param sf  Spreading factor: chips integrated per prompt symbol
  *            (default: 1).
  * @param sps  Samples per chip (default: 2).
@@ -93,8 +96,9 @@ typedef struct
  * @param bn_code  Code (DLL) loop noise bandwidth, normalized to the
  *              symbol rate (default: 0.01).
  * @return Heap-allocated state, or NULL on allocation failure or an invalid
- *         argument: no code, code_len < sf, sf == 0, sps < 2, or a
- *         non-finite seed.
+ *         argument: no code, code_len < sf, sf == 0, sps < 2, a
+ *         non-finite seed, or a bandwidth outside the loop filter's
+ *         domain (dp_loop_filter_params_ok).
  * @note Caller must call dp_burst_despreader_destroy() when done.
  * @code
  * >>> import numpy as np
@@ -134,6 +138,9 @@ dp_burst_despreader_state_t *dp_burst_despreader_create(const uint8_t *code, siz
  * @param acq_code      Acquisition code (0/1), length acq_code_len; copied.
  * @param acq_code_len  Acquisition code length in chips.
  * @param acq_reps      Number of acq-code periods in the preamble.
+ *                      A NULL/empty @p acq_code or `acq_reps == 0` disables
+ *                      the preamble (payload-only), as does an allocation
+ *                      failure; any previous acq code is freed either way.
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstDespreader
@@ -207,7 +214,10 @@ void dp_burst_despreader_reset(dp_burst_despreader_state_t *state);
 
 
 /** @brief Upper bound on symbols `dp_burst_despreader_steps` can emit (0; the caller
- *  sizes the output buffer to the input length, which always suffices). */
+ *  sizes the output buffer to the input length, which always suffices).
+ *  @param state  Unused; may be any instance.
+ *  @return Always 0, meaning "size the output from the input length"
+ *          (one symbol per sf*sps >= 2 input samples, so x_len is ample). */
 size_t dp_burst_despreader_steps_max_out (dp_burst_despreader_state_t *state);
 
 /**
@@ -250,7 +260,9 @@ size_t dp_burst_despreader_steps (dp_burst_despreader_state_t *state, const floa
                          size_t x_len, float _Complex *out, size_t max_out);
 
 /** @brief Upper bound on bits `dp_burst_despreader_bits` can emit (0; see
- *  dp_burst_despreader_steps_max_out). */
+ *  dp_burst_despreader_steps_max_out).
+ *  @param state  Unused; may be any instance.
+ *  @return Always 0, meaning "size the output from the input length". */
 size_t dp_burst_despreader_bits_max_out (dp_burst_despreader_state_t *state);
 
 /**
@@ -290,31 +302,61 @@ size_t dp_burst_despreader_bits_max_out (dp_burst_despreader_state_t *state);
 size_t dp_burst_despreader_bits (dp_burst_despreader_state_t *state, const float _Complex *x,
                         size_t x_len, uint8_t *out, size_t max_out);
 
-/** @brief Carrier (Costas) loop noise bandwidth, normalized to the symbol rate. */
+/** @brief Carrier (Costas) loop noise bandwidth, normalized to the symbol
+ *  rate.
+ *  @param state  Must be non-NULL.
+ *  @return The carrier loop's Bn*T (create-time value, or the last value
+ *          accepted by dp_burst_despreader_set_bn_carrier()). */
 double dp_burst_despreader_get_bn_carrier (const dp_burst_despreader_state_t *state);
 /** @brief Set the carrier loop bandwidth (recomputes the loop gains).
+ *  @param state  Must be non-NULL.
+ *  @param val    New noise bandwidth, normalized to the symbol rate.
  *  @return DP_OK, or DP_ERR_INVALID with the bandwidth unchanged when @p val
  *          is outside the loop filter's domain (finite and >= 0;
  *          dp_loop_filter_params_ok). */
 int dp_burst_despreader_set_bn_carrier (dp_burst_despreader_state_t *state, double val);
-/** @brief Code (DLL) loop noise bandwidth, normalized to the symbol rate. */
+/** @brief Code (DLL) loop noise bandwidth, normalized to the symbol rate.
+ *  @param state  Must be non-NULL.
+ *  @return The code loop's Bn*T (create-time value, or the last value
+ *          accepted by dp_burst_despreader_set_bn_code()). */
 double dp_burst_despreader_get_bn_code (const dp_burst_despreader_state_t *state);
 /** @brief Set the code loop bandwidth (recomputes the loop gains).
+ *  @param state  Must be non-NULL.
+ *  @param val    New noise bandwidth, normalized to the symbol rate.
  *  @return DP_OK, or DP_ERR_INVALID with the bandwidth unchanged when @p val
  *          is outside the loop filter's domain (finite and >= 0;
  *          dp_loop_filter_params_ok). */
 int dp_burst_despreader_set_bn_code (dp_burst_despreader_state_t *state, double val);
-/** @brief Current carrier frequency estimate, cycles/sample. */
+/** @brief Current carrier frequency estimate, cycles/sample.
+ *  @param state  Must be non-NULL.
+ *  @return The tracked carrier frequency in cycles/sample; equals
+ *          `init_norm_freq` after create or reset, before any symbol has
+ *          updated the carrier loop. */
 double dp_burst_despreader_get_norm_freq (const dp_burst_despreader_state_t *state);
-/** @brief Override the carrier frequency estimate, cycles/sample (re-seed). */
+/** @brief Override the carrier frequency estimate, cycles/sample (re-seed).
+ *
+ *  Sets the NCO frequency and the carrier loop's integrator (scaled to the
+ *  data-code symbol period) so tracking continues from @p val.  The
+ *  create-time seed is not changed: dp_burst_despreader_reset() still
+ *  returns to `init_norm_freq`.  The value is not validated.
+ *
+ *  @param state  Must be non-NULL.
+ *  @param val    New carrier frequency, cycles/sample. */
 void dp_burst_despreader_set_norm_freq (dp_burst_despreader_state_t *state, double val);
-/** @brief Current tracked code phase within the symbol, chips. */
+/** @brief Current tracked code phase within the symbol, chips.
+ *  @param state  Must be non-NULL.
+ *  @return The prompt code position in chips, nominally in `[0, sf)`
+ *          (`[0, acq_sf)` during a set_acq preamble); `init_chip_phase`
+ *          after create or reset. */
 double dp_burst_despreader_get_code_phase (const dp_burst_despreader_state_t *state);
 /** @brief Lock indicator in `[0,1]`: the mean of |Re prompt|/|prompt| over
  *          every prompt of the burst (cumulative, not EMA — a one-shot
  *          burst gives each prompt equal weight instead of spending the
  *          whole burst warming a smoother up). ~1 when phase-locked;
- *          ~2/pi (0.637) with no carrier (|cos theta|, uniform theta). */
+ *          ~2/pi (0.637) with no carrier (|cos theta|, uniform theta).
+ *  @param state  Must be non-NULL.
+ *  @return The mean lock indicator over the payload prompts so far; 0.0
+ *          before the first payload prompt (and after reset). */
 double dp_burst_despreader_get_lock_metric (const dp_burst_despreader_state_t *state);
 /** @brief Post-despread SNR estimate over the burst, accumulate-then-ratio:
  *          (sum Re^2 - sum Im^2) / sum Im^2, clamped >= 0.  For BPSK the
@@ -325,7 +367,11 @@ double dp_burst_despreader_get_lock_metric (const dp_burst_despreader_state_t *s
  *          EFFECTIVE post-loop SNR: residual tracking-loop phase jitter
  *          rotates signal energy into Im, so the estimate sits below the
  *          AWGN-only value by the jitter term (converging as bn -> 0) —
- *          the quantity that actually predicts demodulation performance. */
+ *          the quantity that actually predicts demodulation performance.
+ *  @param state  Must be non-NULL.
+ *  @return Linear (not dB) per-component SNR estimate over the payload
+ *          prompts so far; 0.0 before the first payload prompt, after
+ *          reset, or when the quadrature sum is zero. */
 double dp_burst_despreader_get_snr_est (const dp_burst_despreader_state_t *state);
 
 /**
@@ -355,6 +401,10 @@ double dp_burst_despreader_get_snr_est (const dp_burst_despreader_state_t *state
  * produces. The example below therefore carries a noise floor, which is
  * also the only condition under which a lock statistic means anything.
  *
+ * @param state  Must be non-NULL.
+ * @return R as defined above; 0.0 when stat_n == 0 or the quadrature sum is
+ *         not positive.
+ *
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstDespreader
@@ -375,7 +425,10 @@ double dp_burst_despreader_get_snr_est (const dp_burst_despreader_state_t *state
  */
 double dp_burst_despreader_get_lock_stat (const dp_burst_despreader_state_t *state);
 
-/** @brief Number of prompts folded into the burst statistics so far. */
+/** @brief Number of prompts folded into the burst statistics so far.
+ *  @param state  Must be non-NULL.
+ *  @return Count of payload prompts (preamble prompts excluded) since create
+ *          or the last dp_burst_despreader_reset(). */
 size_t dp_burst_despreader_get_stat_n (const dp_burst_despreader_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * The struct (loop_filter children POD-embedded) and then the acq code. The
@@ -387,11 +440,31 @@ size_t dp_burst_despreader_get_stat_n (const dp_burst_despreader_state_t *state)
  * preamble fields no set_acq() call could leave; one whose loop gains are
  * not the ones its bn derives; and one holding a non-finite number, as an
  * object fed a NaN sample does (#2041). */
+/** @brief Blob magic for a BurstDespreader state blob ("BDSP"). */
 #define BURST_DESPREADER_STATE_MAGIC DP_FOURCC ('B','D','S','P')
+/** @brief Blob layout version for a BurstDespreader state blob. */
 #define BURST_DESPREADER_STATE_VERSION                                       \
   3u /* v3: the acq code travels; sizing keys checked first (#2041) */
+/** @brief Byte size of @p state's blob: envelope + the state struct + the
+ *  acq code (acq_sf bytes, 0 when no preamble is set).
+ *  @param state  Must be non-NULL.
+ *  @return Size in bytes; changes when dp_burst_despreader_set_acq() changes
+ *          the acq-code length. */
 size_t dp_burst_despreader_state_bytes (const dp_burst_despreader_state_t *state);
+/** @brief Serialize @p state (loops, NCO, code phase, accumulators, burst
+ *  statistics, bandwidths, preamble progress and acq code) into @p blob.
+ *  @param state  Must be non-NULL; not modified.
+ *  @param blob   [out] Caller-owned buffer of at least
+ *                dp_burst_despreader_state_bytes() bytes. */
 void dp_burst_despreader_get_state (const dp_burst_despreader_state_t *state, void *blob);
+/** @brief Restore @p state from @p blob, all or nothing.
+ *  @param state  Must be non-NULL; built with the same sf, sps and seeds,
+ *                and holding an acq code of the same length, as the
+ *                instance that wrote @p blob.  The data code itself is not
+ *                in the blob.
+ *  @param blob   Blob written by dp_burst_despreader_get_state().
+ *  @return DP_OK, or DP_ERR_INVALID (with @p state untouched) for a bad
+ *          envelope or any rejection listed above. */
 int dp_burst_despreader_set_state (dp_burst_despreader_state_t *state, const void *blob);
 
 #ifdef __cplusplus

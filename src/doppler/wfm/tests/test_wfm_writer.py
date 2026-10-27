@@ -618,3 +618,19 @@ def test_a_sigmf_sidecar_naming_an_unknown_datatype_is_refused(tmp_path):
         )
         with pytest.raises((ValueError, RuntimeError, OSError)):
             Reader(p)
+
+
+def test_clip_fraction_counts_the_components_quantised(tmp_path):
+    """#2651: a real type has one component per sample, and tracking enabled
+    mid-stream measures only what follows. Both used to read half."""
+    hot = np.full(64, 1.5 - 2.0j, dtype=np.complex64)
+    cool = np.full(64, 0.25 + 0.25j, dtype=np.complex64)
+    with Writer(tmp_path / "r.i16", fs=1e6, sample_type="i16") as w:
+        w.track_clipping()
+        w.write(hot)
+        assert w.clip_fraction == 1.0
+    with Writer(tmp_path / "c.ci16", fs=1e6, sample_type="ci16") as w:
+        w.write(cool)
+        w.track_clipping()
+        w.write(hot)
+        assert w.clip_fraction == 1.0

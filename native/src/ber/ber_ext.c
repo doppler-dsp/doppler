@@ -304,9 +304,9 @@ _bind_ber_lock_symbol (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *flags     = (const uint8_t *)PyArray_DATA (flags_arr);
   size_t         flags_len = (size_t)PyArray_SIZE (flags_arr);
-  int            _r = dp_ber_lock_symbol (flags, flags_len, sustain, min_frac);
+  int64_t        _r = dp_ber_lock_symbol (flags, flags_len, sustain, min_frac);
   Py_DECREF (flags_arr);
-  return PyLong_FromLong ((long)_r);
+  return PyLong_FromLongLong ((long long)_r);
 }
 
 static PyObject *
@@ -382,11 +382,11 @@ _bind_ber_settle_from (PyObject *self, PyObject *args, PyObject *kwds)
   (void)self;
   static char *_kwlist[]  = { "budget", "timing_lock", "carrier_lock", NULL };
   PyObject    *budget_obj = NULL;
-  unsigned long long budget_raw   = 0ULL;
-  int                timing_lock  = -1;
-  int                carrier_lock = -1;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|ii", _kwlist, &budget_obj,
-                                    &timing_lock, &carrier_lock))
+  unsigned long long budget_raw       = 0ULL;
+  long long          timing_lock_raw  = -1;
+  long long          carrier_lock_raw = -1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|LL", _kwlist, &budget_obj,
+                                    &timing_lock_raw, &carrier_lock_raw))
     return NULL;
   if (budget_obj != NULL)
     {
@@ -407,7 +407,9 @@ _bind_ber_settle_from (PyObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t budget = (size_t)budget_raw;
+  size_t  budget       = (size_t)budget_raw;
+  int64_t timing_lock  = (int64_t)timing_lock_raw;
+  int64_t carrier_lock = (int64_t)carrier_lock_raw;
   return PyLong_FromUnsignedLongLong ((unsigned long long)dp_ber_settle_from (
       budget, timing_lock, carrier_lock));
 }
@@ -462,7 +464,10 @@ static PyMethodDef ber_module_methods[] = {
     "m : int\n"
     "    Constellation order: 2, 4 or 8.\n"
     "esn0 : float\n"
-    "    Es/N0 as a LINEAR ratio (not dB), >= 0.\n"
+    "    Es/N0 as a LINEAR ratio (not dB), >= 0. A value <= 0 (no signal)\n"
+    "    gives the chance rate 0.5, as dp_ber_theory_ser() gives its own\n"
+    "    chance rate there; a negative ratio no longer reaches `sqrt` and\n"
+    "    returns NaN.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -654,8 +659,9 @@ static PyMethodDef ber_module_methods[] = {
     "-------\n"
     "int\n"
     "    The symbol index, or -1 for \"never locked\" — the honest answer,\n"
-    "    which forces the caller to say so rather than measure a "
-    "transient.\n" },
+    "    which forces the caller to say so rather than measure a transient.\n"
+    "    64-bit, so an index past 2^31 symbols is returned whole rather than\n"
+    "    truncated.\n" },
   { "ber_evm_db", (PyCFunction)(void *)_bind_ber_evm_db,
     METH_VARARGS | METH_KEYWORDS,
     "Self-referenced EVM (dB) over an EXPLICIT window [lo, hi): each symbol "

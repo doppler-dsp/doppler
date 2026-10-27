@@ -174,7 +174,10 @@ extern "C"
    *  exact in the high-Es/N0 limit where an error lands on a neighbour.
    *  NAN for an M outside {2, 4, 8}.
    *  @param m     Constellation order: 2, 4 or 8.
-   *  @param esn0  Es/N0 as a LINEAR ratio (not dB), >= 0.
+   *  @param esn0  Es/N0 as a LINEAR ratio (not dB), >= 0. A value <= 0
+   *               (no signal) gives the chance rate 0.5, as
+   *               dp_ber_theory_ser() gives its own chance rate there; a
+   *               negative ratio no longer reaches `sqrt` and returns NaN.
    *  @return The bit error rate, or NAN for an unsupported M. */
   double dp_ber_theory_ber (int m, double esn0);
 
@@ -298,9 +301,11 @@ extern "C"
    *                   in (0, 1]; a value <= 0 (or NaN) selects 0.9.
    * @return The symbol index, or -1 for "never locked" — the honest answer,
    *         which forces the caller to say so rather than measure a transient.
+   *         64-bit, so an index past 2^31 symbols is returned whole rather
+   *         than truncated.
    */
-  int dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
-                        double min_frac);
+  int64_t dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len,
+                              size_t sustain, double min_frac);
 
   /**
    * @brief Self-referenced EVM (dB) over an EXPLICIT window `[lo, hi)`.
@@ -362,7 +367,8 @@ extern "C"
    * @param carrier_lock dp_ber_lock_symbol() of the carrier flag, or -1.
    * @return             First symbol of the measurement window.
    */
-  size_t dp_ber_settle_from (size_t budget, int timing_lock, int carrier_lock);
+  size_t dp_ber_settle_from (size_t budget, int64_t timing_lock,
+                             int64_t carrier_lock);
 
   /**
    * @brief Exact confidence interval for a run stopped on an ERROR count.

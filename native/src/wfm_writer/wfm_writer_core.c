@@ -112,6 +112,7 @@ struct wfm_writer_state
   size_t   cap;
   float    peak;  /* running max |I|/|Q| (pre-clip); always tracked */
   uint64_t nclip; /* saturated I/Q components (only when `track`) */
+  uint64_t ntrk;  /* components quantised while `track`: clip denominator */
   int      satd;  /* any component saturated (always on, no opt-in) */
   int      track; /* count clips (opt-in); peak is always on */
   float    gain;  /* output gain (headroom); 1.0 = no-op */
@@ -215,8 +216,14 @@ quantise (dp_wfm_writer_state_t *w, int kind, float fs, float v)
      at a full scale of 2^(N-1) the extremes are asymmetric, so -1.0 and
      +1.0 have the same peak and only one of them saturates. */
   w->satd |= hit;
-  if (w->track && hit)
-    w->nclip++;
+  /* Counted per component actually quantised, and only while tracking: a
+     real (one-component) type has one per sample, not two, and a counter
+     enabled mid-stream must not divide by what it never looked at (#2651). */
+  if (w->track)
+    {
+      w->ntrk++;
+      w->nclip += (uint64_t)(hit != 0);
+    }
   return code;
 }
 
@@ -914,9 +921,9 @@ dp_wfm_writer_peak (const dp_wfm_writer_state_t *w)
 double
 dp_wfm_writer_clip_fraction (const dp_wfm_writer_state_t *w)
 {
-  if (!w || w->written == 0)
+  if (!w || w->ntrk == 0)
     return 0.0;
-  return (double)w->nclip / (double)(2 * w->written);
+  return (double)w->nclip / (double)w->ntrk;
 }
 
 /* SigMF "cf32_le"-style datatype string (a single-byte element has no endian

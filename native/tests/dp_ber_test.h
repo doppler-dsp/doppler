@@ -313,9 +313,9 @@ dp_ber_settle (double bn_timing, double bn_carrier,
      contributes 0. A -1 means the loop never locked, which is a different
      answer entirely -- distinguish the two here and let the core own the
      max policy. */
-  int t = lock_timing ? (int)dp_ber_lock_symbol (lock_timing, n, 200, 0.9) : 0;
-  int c
-      = lock_carrier ? (int)dp_ber_lock_symbol (lock_carrier, n, 200, 0.9) : 0;
+  int64_t t = lock_timing ? dp_ber_lock_symbol (lock_timing, n, 200, 0.9) : 0;
+  int64_t c
+      = lock_carrier ? dp_ber_lock_symbol (lock_carrier, n, 200, 0.9) : 0;
   if (ok)
     *ok = (t >= 0 && c >= 0);
   return dp_ber_settle_from (budget, t, c);

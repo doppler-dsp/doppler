@@ -3576,7 +3576,7 @@ type = "double"
 [[module.ber.functions]]
 name = "ber_lock_symbol"
 doc = "First symbol from which a verify-counted lock flag is SUSTAINED, or -1 for 'never locked'. Sustained means `sustain` consecutive symbols high AND at least `min_frac` of everything after that point high too: the run rejects a single lucky decision, the fraction rejects a detector that declares early then flaps. Dating the lock by the FINAL contiguous run instead is right with no noise and badly wrong with it -- one late dip once moved a reported lock from 415 to 2286 and left no measurement window at all. The -1 is deliberate: it forces the caller to say 'never locked' rather than quietly measure a transient."
-return_type = "int"
+return_type = "int64_t"
 
 [[module.ber.functions.params]]
 name = "flags"
@@ -3627,12 +3627,12 @@ type = "size_t"
 
 [[module.ber.functions.params]]
 name = "timing_lock"
-type = "int"
+type = "int64_t"
 default = "-1"
 
 [[module.ber.functions.params]]
 name = "carrier_lock"
-type = "int"
+type = "int64_t"
 default = "-1"
 [[enum]]
 name = "wfm_type"

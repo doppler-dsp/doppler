@@ -525,9 +525,10 @@ static PyMethodDef StreamSink_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Enable or disable the per-component clip counter.\n"
     "\n"
-    "Off by default; the peak is tracked regardless. Only clips seen while\n"
-    "tracking is on are counted, but every integer-path component sent since\n"
-    "open counts toward dp_wfm_stream_sink_clip_fraction()'s denominator.\n"
+    "Off by default; the peak is tracked regardless. Only components sent\n"
+    "while tracking is on are counted, in both the clips and the\n"
+    "dp_wfm_stream_sink_clip_fraction() denominator, so enabling it\n"
+    "mid-stream measures only what follows.\n"
     "\n"
     "Parameters\n"
     "----------\n"

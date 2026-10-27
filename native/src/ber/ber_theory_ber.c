@@ -18,6 +18,11 @@ dp_ber_theory_ber (int m, double esn0)
   /* No closed form for this M: NaN, never another M's rate (#1913). */
   if (bps == 0)
     return NAN;
+  /* No signal: a coin flip per bit, for every M -- the limit the formulas
+     below reach at esn0 = 0, and what ber_theory_ser() reports there. A
+     negative ratio would otherwise reach sqrt() and return NaN (#2651). */
+  if (esn0 <= 0.0)
+    return 0.5;
   if (m <= 4)
     return dp_ber_qfunc (sqrt (2.0 * esn0 / (double)bps));
   return dp_ber_theory_ser (m, esn0) / (double)bps;

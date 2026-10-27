@@ -37,9 +37,10 @@ struct wfm_stream_sink
   size_t    cap;     /* scratch capacity in bytes */
   float     peak;    /* running max |I|/|Q| on integer paths (pre-clip) */
   uint64_t  nclip;   /* saturated components (only when `track`) */
-  uint64_t  ntot;    /* integer components processed (fraction denominator) */
-  int       track;   /* count clips (opt-in); peak always on */
-  float     gain;    /* output gain (headroom); 1.0 = no-op (direct cf32) */
+  uint64_t  ntot;    /* integer components processed while `track` (the
+                        fraction's denominator: the same window as nclip) */
+  int   track;       /* count clips (opt-in); peak always on */
+  float gain;        /* output gain (headroom); 1.0 = no-op (direct cf32) */
 };
 
 /* Track the peak on the integer convert paths (called per sample).
@@ -95,9 +96,13 @@ quantise (wfm_stream_sink_t *s, int wtype, float qscale, float v)
         break;
       }
     }
-  s->ntot++;
-  if (s->track && hit)
-    s->nclip++;
+  /* Both counters run only while tracking, so enabling it mid-stream does
+     not divide its clips by components it never looked at (#2651). */
+  if (s->track)
+    {
+      s->ntot++;
+      s->nclip += (uint64_t)(hit != 0);
+    }
   return code;
 }
 

@@ -242,7 +242,9 @@ class BerMeter:
         that found it, so a measurement cannot be handed an alignment belonging
         to a different burst. Symbols covered by a marker occurrence are
         excluded, as are any whose truth index falls outside the installed
-        sequence; both land in `skipped`.
+        sequence; both land in `skipped`. Before any align(), or after one that
+        failed, it scores nothing, leaves the counters alone and returns 0,
+        rather than scoring at lag 0 and phase 0.
 
         Demodulates each symbol in the window under the alignment the last
         align() detected — its lag and absolute phase — and tallies symbol and
@@ -933,7 +935,10 @@ def ber_theory_ber(m: int, esn0: float) -> float:
     m : int
         Constellation order: 2, 4 or 8.
     esn0 : float
-        Es/N0 as a LINEAR ratio (not dB), >= 0.
+        Es/N0 as a LINEAR ratio (not dB), >= 0. A value <= 0 (no signal)
+        gives the chance rate 0.5, as dp_ber_theory_ser() gives its own
+        chance rate there; a negative ratio no longer reaches `sqrt` and
+        returns NaN.
 
     Returns
     -------
@@ -1132,6 +1137,8 @@ def ber_lock_symbol(
     int
         The symbol index, or -1 for "never locked" — the honest answer,
         which forces the caller to say so rather than measure a transient.
+        64-bit, so an index past 2^31 symbols is returned whole rather than
+        truncated.
     """
 
 def ber_evm_db(

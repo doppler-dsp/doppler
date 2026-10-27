@@ -258,9 +258,10 @@ double dp_wfm_writer_peak(const dp_wfm_writer_state_t *w);
 /** @brief Fraction (0..1) of I/Q components the integer quantizer
  *  saturated. Always 0 unless dp_wfm_writer_track_clipping() was enabled.
  *  @param w  The writer; NULL returns 0.0.
- *  @return Clipped components / (2 x samples written), 0.0 before any
- *          write. The denominator is 2 per sample for every wire type,
- *          including the one-component real types. */
+ *  @return Clipped components / components quantised while tracking was on
+ *          (one per sample for a real type, two for a complex one), 0.0
+ *          before any such write. Writes made with tracking off count in
+ *          neither, so enabling it mid-stream measures only what follows. */
 double dp_wfm_writer_clip_fraction(const dp_wfm_writer_state_t *w);
 
 /**

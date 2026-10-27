@@ -541,9 +541,12 @@ Writer_getprop_clipped (WriterObject *self, void *Py_UNUSED (closure))
 static PyGetSetDef Writer_getset[] = {
   { "clip_fraction", (getter)Writer_getprop_clip_fraction, NULL,
     "Fraction (0..1) of I/Q components that saturated. Always 0.0 unless "
-    "`track_clipping()` was enabled before writing -- the counter is the one "
-    "extra per-sample compare, so it is opt-in. `peak_dbfs` is always tracked "
-    "and is enough to tell you clipping happened; this tells you how much.\n",
+    "`track_clipping()` was enabled: only components quantised while it is on "
+    "count, in the clips and the denominator alike (one per sample for a real "
+    "type, two for a complex one), so enabling it mid-stream measures what "
+    "follows -- the counter is the one extra per-sample compare, so it is "
+    "opt-in. `peak_dbfs` is always tracked and is enough to tell you clipping "
+    "happened; this tells you how much.\n",
     NULL },
   { "peak_dbfs", (getter)Writer_getprop_peak_dbfs, NULL,
     "Largest per-axis magnitude written so far, in dBFS (full scale = 0 dBFS, "

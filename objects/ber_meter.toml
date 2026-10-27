@@ -113,7 +113,7 @@ doc = "True once target_errors have been counted. THE stop condition for a measu
 
 [[ber_meter.methods]]
 name = "score"
-doc = "Score rx[lo:hi] against the truth and accumulate; returns the symbols scored. Uses the supplied alignment VERBATIM -- no lag search, no rotation search, no minimisation of any kind over the answer. Uses the alignment align() last detected, together with the marker geometry that found it, so a measurement cannot be handed an alignment belonging to a different burst. Symbols covered by a marker occurrence are excluded, as are any whose truth index falls outside the installed sequence; both land in `skipped`."
+doc = "Score rx[lo:hi] against the truth and accumulate; returns the symbols scored. Uses the supplied alignment VERBATIM -- no lag search, no rotation search, no minimisation of any kind over the answer. Uses the alignment align() last detected, together with the marker geometry that found it, so a measurement cannot be handed an alignment belonging to a different burst. Symbols covered by a marker occurrence are excluded, as are any whose truth index falls outside the installed sequence; both land in `skipped`. Before any align(), or after one that failed, it scores nothing, leaves the counters alone and returns 0, rather than scoring at lag 0 and phase 0."
 arg_type = "void"
 return_type = "size_t"
 nogil = true

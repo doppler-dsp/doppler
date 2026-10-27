@@ -138,9 +138,10 @@ void dp_wfm_stream_sink_close(wfm_stream_sink_t *sink);
 /**
  * @brief Enable or disable the per-component clip counter.
  *
- * Off by default; the peak is tracked regardless. Only clips seen while
- * tracking is on are counted, but every integer-path component sent since
- * open counts toward dp_wfm_stream_sink_clip_fraction()'s denominator.
+ * Off by default; the peak is tracked regardless. Only components sent
+ * while tracking is on are counted, in both the clips and the
+ * dp_wfm_stream_sink_clip_fraction() denominator, so enabling it
+ * mid-stream measures only what follows.
  *
  * @param sink  Sink; NULL is a no-op.
  * @param on    Non-zero to count clips, 0 to stop counting.
@@ -177,7 +178,7 @@ double dp_wfm_stream_sink_peak(const wfm_stream_sink_t *sink);
  * @brief Fraction (0..1) of integer I/Q components that saturated.
  *
  * Clips counted while dp_wfm_stream_sink_track_clipping() is on, divided
- * by all integer-path I and Q components sent since open. The generated
+ * by the integer-path I and Q components sent while it was on. The generated
  * StreamSink handle binds peak/clip_fraction directly as per-field
  * getters (jm#320), so no stats-snapshot struct shim is needed.
  *

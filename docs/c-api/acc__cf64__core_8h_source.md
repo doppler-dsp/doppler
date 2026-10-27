@@ -23,7 +23,7 @@ extern "C"
 
   typedef struct
   {
-    double _Complex acc;
+    double _Complex acc; 
   } dp_acc_cf64_state_t;
 
   dp_acc_cf64_state_t *dp_acc_cf64_create (double _Complex acc);

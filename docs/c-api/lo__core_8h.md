@@ -66,21 +66,21 @@ _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._ [More...](#detailed
 | Type | Name |
 | ---: | :--- |
 |  [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* | [**dp\_lo\_create**](#function-dp_lo_create) (double norm\_freq) <br>_Create an LO instance. Allocates state, sets phase to 0, and derives phase\_inc from norm\_freq. Initialises the shared 65536-entry float LUT on the first call (single-threaded concern: call_ [_**dp\_lo\_create()**_](lo__core_8h.md#function-dp_lo_create) _before spawning threads that share LO instances)._ |
-|  void | [**dp\_lo\_destroy**](#function-dp_lo_destroy) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br> |
+|  void | [**dp\_lo\_destroy**](#function-dp_lo_destroy) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Free an LO made by_ [_**dp\_lo\_create()**_](lo__core_8h.md#function-dp_lo_create) _(not one set up by_[_**dp\_lo\_init()**_](lo__core_8h.md#function-dp_lo_init) _, which owns no heap memory)._ |
 |  double | [**dp\_lo\_get\_norm\_freq**](#function-dp_lo_get_norm_freq) (const [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Normalised frequency (read/write). Setting norm\_freq recomputes phase\_inc = floor(frac(v) × 2^32) and takes effect on the next dp\_lo\_steps call; phase is NOT reset._  |
 |  uint32\_t | [**dp\_lo\_get\_phase**](#function-dp_lo_get_phase) (const [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Current phase accumulator value (read/write). Returns the current integer phase in_ `[0, 2^32)` _. Writing overrides the accumulator directly for phase-coherent frequency switching._ |
 |  uint32\_t | [**dp\_lo\_get\_phase\_inc**](#function-dp_lo_get_phase_inc) (const [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Per-sample phase increment (read-only). Derived from norm\_freq as floor(frac(norm\_freq) × 2^32). A freq of 0.25 gives phase\_inc = 1073741824 (0x40000000)._  |
-|  void | [**dp\_lo\_get\_state**](#function-dp_lo_get_state) (const [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _mutable state into_`blob` _(&gt;= dp\_lo\_state\_bytes)._ |
+|  void | [**dp\_lo\_get\_state**](#function-dp_lo_get_state) (const [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _mutable state (the phase) into_`blob` _._ |
 |  void | [**dp\_lo\_init**](#function-dp_lo_init) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, double norm\_freq) <br>_Initialise an LO in place (no allocation)._  |
 |  void | [**dp\_lo\_reset**](#function-dp_lo_reset) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Zero the phase accumulator. Sets phase to 0 so the next dp\_lo\_steps call starts at angle 0 (1+0j). norm\_freq and phase\_inc are unchanged._  |
-|  void | [**dp\_lo\_set\_norm\_freq**](#function-dp_lo_set_norm_freq) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, double norm\_freq) <br> |
-|  void | [**dp\_lo\_set\_phase**](#function-dp_lo_set_phase) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, uint32\_t phase) <br> |
+|  void | [**dp\_lo\_set\_norm\_freq**](#function-dp_lo_set_norm_freq) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, double norm\_freq) <br>_Set the normalised frequency; phase is kept (see_ [_**dp\_lo\_get\_norm\_freq()**_](lo__core_8h.md#function-dp_lo_get_norm_freq) _)._ |
+|  void | [**dp\_lo\_set\_phase**](#function-dp_lo_set_phase) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, uint32\_t phase) <br>_Overwrite the phase accumulator (see_ [_**dp\_lo\_get\_phase()**_](lo__core_8h.md#function-dp_lo_get_phase) _)._ |
 |  int | [**dp\_lo\_set\_state**](#function-dp_lo_set_state) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, const void \* blob) <br>_Restore mutable state from_ `blob` _._ |
 |  size\_t | [**dp\_lo\_state\_bytes**](#function-dp_lo_state_bytes) (const [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Bytes_ [_**dp\_lo\_get\_state()**_](lo__core_8h.md#function-dp_lo_get_state) _writes for_`state` _(envelope + payload)._ |
 |  size\_t | [**dp\_lo\_steps**](#function-dp_lo_steps) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Generate n CF32 phasors at the current norm\_freq. Each sample is cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, giving a unit-magnitude complex sinusoid via the 65536-entry LUT. SFDR is ≥ 90 dBc at any frequency and ~96 dBc at a typical one — see the file header for why those are two different numbers. Returns n._  |
 |  size\_t | [**dp\_lo\_steps\_ctrl**](#function-dp_lo_steps_ctrl) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, const double \* ctrl, size\_t ctrl\_len, float \_Complex \* out, size\_t max\_out) <br>_Generate CF32 phasors with per-sample FM deviation. For each sample i,_ `ctrl[i]` _'s fractional part is converted to a delta phase-increment (delta = floor(frac(_`ctrl[i]` _) × 2^32)) that is added on top of the base phase\_inc for that one step only. The base norm\_freq and phase\_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping. Output length equals ctrl\_len. Returns ctrl\_len._ |
-|  size\_t | [**dp\_lo\_steps\_ctrl\_max\_out**](#function-dp_lo_steps_ctrl_max_out) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br> |
-|  size\_t | [**dp\_lo\_steps\_max\_out**](#function-dp_lo_steps_max_out) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Maximum samples per call (determines pre-allocated buffer size)._  |
+|  size\_t | [**dp\_lo\_steps\_ctrl\_max\_out**](#function-dp_lo_steps_ctrl_max_out) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Output buffer size the binding pre-allocates for_ [_**dp\_lo\_steps\_ctrl()**_](lo__core_8h.md#function-dp_lo_steps_ctrl) _; as_[_**dp\_lo\_steps\_max\_out()**_](lo__core_8h.md#function-dp_lo_steps_max_out) _._ |
+|  size\_t | [**dp\_lo\_steps\_max\_out**](#function-dp_lo_steps_max_out) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Output buffer size the binding pre-allocates for_ [_**dp\_lo\_steps()**_](lo__core_8h.md#function-dp_lo_steps) _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**lo\_step**](#function-lo_step) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state) <br>_Emit the current CF32 phasor, then advance the accumulator._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**lo\_step\_ctrl**](#function-lo_step_ctrl) ([**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* state, double ctrl) <br>_Emit the current CF32 phasor, then advance by phase\_inc + control._  |
 
@@ -235,6 +235,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 ### function dp\_lo\_destroy 
 
+_Free an LO made by_ [_**dp\_lo\_create()**_](lo__core_8h.md#function-dp_lo_create) _(not one set up by_[_**dp\_lo\_init()**_](lo__core_8h.md#function-dp_lo_init) _, which owns no heap memory)._
 ```C++
 void dp_lo_destroy (
     dp_lo_state_t * state
@@ -243,7 +244,14 @@ void dp_lo_destroy (
 
 
 
-Free all resources. May be NULL (no-op). 
+
+
+**Parameters:**
+
+
+* `state` LO to free; NULL is a no-op. 
+
+
 
 
         
@@ -273,7 +281,24 @@ double dp_lo_get_norm_freq (
 >>> lo.phase_inc
 2147483648
 ```
- 
+
+
+
+
+
+**Parameters:**
+
+
+* `state` LO state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The frequency last set, cycles/sample, exactly as passed (not folded into [0, 1)). 
+
+
+
 
 
         
@@ -303,7 +328,24 @@ uint32_t dp_lo_get_phase (
 >>> lo.phase
 1073741824
 ```
- 
+
+
+
+
+
+**Parameters:**
+
+
+* `state` LO state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+Accumulator value; 2^32 is one full cycle. 
+
+
+
 
 
         
@@ -330,7 +372,24 @@ uint32_t dp_lo_get_phase_inc (
 >>> lo.phase_inc
 1073741824
 ```
- 
+
+
+
+
+
+**Parameters:**
+
+
+* `state` LO state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+Per-sample phase advance; 2^32 is one full cycle. 
+
+
+
 
 
         
@@ -341,7 +400,7 @@ uint32_t dp_lo_get_phase_inc (
 
 ### function dp\_lo\_get\_state 
 
-_Serialize_ `state's` _mutable state into_`blob` _(&gt;= dp\_lo\_state\_bytes)._
+_Serialize_ `state's` _mutable state (the phase) into_`blob` _._
 ```C++
 void dp_lo_get_state (
     const dp_lo_state_t * state,
@@ -351,6 +410,18 @@ void dp_lo_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` LO state. Must be non-NULL. 
+* `blob` Destination; must hold [**dp\_lo\_state\_bytes()**](lo__core_8h.md#function-dp_lo_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -407,6 +478,13 @@ void dp_lo_reset (
 
 
 
+
+**Parameters:**
+
+
+* `state` LO state. Must be non-NULL.
+
+
 ```C++
 >>> from doppler.source import LO
 >>> lo = LO(0.25)
@@ -430,6 +508,7 @@ void dp_lo_reset (
 
 ### function dp\_lo\_set\_norm\_freq 
 
+_Set the normalised frequency; phase is kept (see_ [_**dp\_lo\_get\_norm\_freq()**_](lo__core_8h.md#function-dp_lo_get_norm_freq) _)._
 ```C++
 void dp_lo_set_norm_freq (
     dp_lo_state_t * state,
@@ -440,12 +519,25 @@ void dp_lo_set_norm_freq (
 
 
 
+
+**Parameters:**
+
+
+* `state` LO state. Must be non-NULL. 
+* `norm_freq` New frequency, cycles/sample; any real value, only the fractional part sets phase\_inc. 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_lo\_set\_phase 
 
+_Overwrite the phase accumulator (see_ [_**dp\_lo\_get\_phase()**_](lo__core_8h.md#function-dp_lo_get_phase) _)._
 ```C++
 void dp_lo_set_phase (
     dp_lo_state_t * state,
@@ -455,6 +547,18 @@ void dp_lo_set_phase (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` LO state. Must be non-NULL. 
+* `phase` New accumulator value; 2^32 is one full cycle, so 1073741824 is a quarter cycle (90 degrees). 
+
+
+
+
+        
 
 <hr>
 
@@ -471,6 +575,17 @@ int dp_lo_set_state (
 ```
 
 
+
+Only the phase is restored; phase\_inc and norm\_freq are left as they are on `state`.
+
+
+
+
+**Parameters:**
+
+
+* `state` LO state. Must be non-NULL. 
+* `blob` Blob from [**dp\_lo\_get\_state()**](lo__core_8h.md#function-dp_lo_get_state). 
 
 
 
@@ -499,6 +614,24 @@ size_t dp_lo_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` LO state (unused: the size is fixed). 
+
+
+
+**Returns:**
+
+sizeof(dp\_state\_hdr\_t) + 4. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -614,6 +747,7 @@ dtype('complex64')
 
 ### function dp\_lo\_steps\_ctrl\_max\_out 
 
+_Output buffer size the binding pre-allocates for_ [_**dp\_lo\_steps\_ctrl()**_](lo__core_8h.md#function-dp_lo_steps_ctrl) _; as_[_**dp\_lo\_steps\_max\_out()**_](lo__core_8h.md#function-dp_lo_steps_max_out) _._
 ```C++
 size_t dp_lo_steps_ctrl_max_out (
     dp_lo_state_t * state
@@ -623,13 +757,31 @@ size_t dp_lo_steps_ctrl_max_out (
 
 
 
+
+**Parameters:**
+
+
+* `state` Unused. 
+
+
+
+**Returns:**
+
+Always 65536. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_lo\_steps\_max\_out 
 
-_Maximum samples per call (determines pre-allocated buffer size)._ 
+_Output buffer size the binding pre-allocates for_ [_**dp\_lo\_steps()**_](lo__core_8h.md#function-dp_lo_steps) _._
 ```C++
 size_t dp_lo_steps_max_out (
     dp_lo_state_t * state
@@ -638,6 +790,27 @@ size_t dp_lo_steps_max_out (
 
 
 
+Not a ceiling on a call: [**dp\_lo\_steps()**](lo__core_8h.md#function-dp_lo_steps) clamps to the capacity it is given and the binding grows its buffer on demand.
+
+
+
+
+**Parameters:**
+
+
+* `state` Unused. 
+
+
+
+**Returns:**
+
+Always 65536. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -743,6 +916,10 @@ float _Complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
 
 
 
+Bits of phase that index the sine LUT (the top 16 of 32). 
+
+
+        
 
 <hr>
 
@@ -756,6 +933,10 @@ float _Complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
 
 
 
+Quarter-cycle LUT offset, 16384: index + LO\_LUT\_QTR reads cos. 
+
+
+        
 
 <hr>
 
@@ -769,6 +950,10 @@ float _Complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
 
 
 
+Number of sine-LUT entries, 2^LO\_LUT\_BITS = 65536. 
+
+
+        
 
 <hr>
 
@@ -782,6 +967,10 @@ float _Complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
 
 
 
+State-blob magic: FOURCC 'LO\_\_'. 
+
+
+        
 
 <hr>
 
@@ -795,6 +984,10 @@ float _Complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
 
 
 
+State-blob layout version. 
+
+
+        
 
 <hr>
 

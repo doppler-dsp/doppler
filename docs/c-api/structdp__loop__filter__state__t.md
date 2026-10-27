@@ -188,7 +188,7 @@ double dp_loop_filter_state_t::zeta;
 
 
 
-damping factor (0.707 = critically damped). 
+damping factor (1.0 = critical; 0.707 usual). 
  
 
 

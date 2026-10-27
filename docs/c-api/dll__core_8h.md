@@ -69,7 +69,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 | Type | Name |
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**dll\_accumulate**](#function-dll_accumulate) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, float \_Complex d) <br>_Per-sample early/prompt/late correlate + fixed-point code-phase advance._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_chip\_sign**](#function-dll_chip_sign) (uint8\_t c) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_chip\_sign**](#function-dll_chip_sign) (uint8\_t c) <br>_0/1 chip -&gt; +1/-1 BPSK sign._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_lock\_accumulate**](#function-dll_lock_accumulate) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, float \_Complex d) <br>_Per-sample offset (noise) tap for the always-on lock detector._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_replica\_word**](#function-dll_replica_word) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, uint32\_t w) <br>_Sub-chip code replica at one tap's phase word._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_steer**](#function-dll_steer) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double ep, double lp, double pp) <br>_The code discriminator, its filter and the NCO steer_  _the ONE steer both correlation paths call (doppler#1280)._ |
@@ -80,15 +80,15 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  void | [**dp\_dll\_configure\_lock\_raw**](#function-dp_dll_configure_lock_raw) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double up\_thresh, double down\_thresh, size\_t n\_looks, double alpha, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's raw geometry directly._  |
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**dp\_dll\_create**](#function-dp_dll_create) (const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_chip, double bn, double zeta, double spacing, size\_t segments) <br>_Create a code/timing delay-locked loop over a spreading code._  |
 |  void | [**dp\_dll\_destroy**](#function-dp_dll_destroy) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Destroy a DLL instance and release all memory (incl. the code copy)._  |
-|  double | [**dp\_dll\_get\_bn**](#function-dp_dll_get_bn) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
-|  double | [**dp\_dll\_get\_code\_phase**](#function-dp_dll_get_code_phase) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
-|  double | [**dp\_dll\_get\_code\_rate**](#function-dp_dll_get_code_rate) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
-|  double | [**dp\_dll\_get\_last\_error**](#function-dp_dll_get_last_error) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  double | [**dp\_dll\_get\_bn**](#function-dp_dll_get_bn) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Loop noise bandwidth currently in use._  |
+|  double | [**dp\_dll\_get\_code\_phase**](#function-dp_dll_get_code_phase) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Current prompt code phase._  |
+|  double | [**dp\_dll\_get\_code\_rate**](#function-dp_dll_get_code_rate) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The loop's own code rate, without the carrier rate aid._  |
+|  double | [**dp\_dll\_get\_last\_error**](#function-dp_dll_get_last_error) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Last discriminator output, the loop stress._  |
 |  double | [**dp\_dll\_get\_lock\_stat**](#function-dp_dll_get_lock_stat) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Last lock test statistic R (compare against the configured eta)._  |
 |  int | [**dp\_dll\_get\_locked**](#function-dp_dll_get_locked) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied (see dp\_dll\_configure\_lock)._  |
 |  double | [**dp\_dll\_get\_noise\_est**](#function-dp_dll_get_noise_est) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Current CFAR noise-power estimate E\|O\|^2 (offset-tap EMA)._  |
-|  size\_t | [**dp\_dll\_get\_segments**](#function-dp_dll_get_segments) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
-|  void | [**dp\_dll\_get\_state**](#function-dp_dll_get_state) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, void \* blob) <br> |
+|  size\_t | [**dp\_dll\_get\_segments**](#function-dp_dll_get_segments) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Partial correlations per code period._  |
+|  void | [**dp\_dll\_get\_state**](#function-dp_dll_get_state) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _._ |
 |  size\_t | [**dp\_dll\_get\_symbol\_window**](#function-dp_dll_get_symbol_window) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._ |
 |  void | [**dp\_dll\_hold\_here**](#function-dp_dll_hold_here) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Mark the point a coast returns to: this rate and this filter._  |
 |  void | [**dp\_dll\_init**](#function-dp_dll_init) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_chip, double bn, double zeta, double spacing) <br>_Initialise a DLL in place (no allocation); BORROWS_ `code` _._ |
@@ -105,9 +105,9 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  int | [**dp\_dll\_set\_state**](#function-dp_dll_set_state) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, const void \* blob) <br>_Restore from_ `blob` _._ |
 |  int | [**dp\_dll\_set\_symbol\_period**](#function-dp_dll_set_symbol_period) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double partials\_per\_symbol) <br>_Give the loop the data-symbol period, so the lock detector's looks and the code discriminator's windows are coherent over a symbol instead of a quarter-epoch partial._  |
 |  int | [**dp\_dll\_set\_telemetry**](#function-dp_dll_set_telemetry) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers five probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock —_ [_**dp\_dll\_get\_code\_rate()**_](dll__core_8h.md#function-dp_dll_get_code_rate) _, the loop's own rate, without the carrier aid; a held loop reports its held integrator's), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold), "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic) and "&lt;prefix&gt;.nco" (what the code NCO is commanded: the complete loop-filter output, the integrator, the proportional term and the carrier aid, as chips per nominal chip, at the NCO's resolution of one phase-increment step; a held loop's held command). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
-|  size\_t | [**dp\_dll\_state\_bytes**](#function-dp_dll_state_bytes) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_dll\_state\_bytes**](#function-dp_dll_state_bytes) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  size\_t | [**dp\_dll\_steps**](#function-dp_dll_steps) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
-|  size\_t | [**dp\_dll\_steps\_max\_out**](#function-dp_dll_steps_max_out) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_dll\_steps\_max\_out**](#function-dp_dll_steps_max_out) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_dll\_steps()**_](dll__core_8h.md#function-dp_dll_steps) _: always 0._ |
 |  int | [**dp\_dll\_symbol\_period\_ok**](#function-dp_dll_symbol_period_ok) (size\_t segments, double partials\_per\_symbol) <br>_Whether_ [_**dp\_dll\_set\_symbol\_period()**_](dll__core_8h.md#function-dp_dll_set_symbol_period) _takes_`partials_per_symbol` _as a period to turn the symbol aid ON._ |
 |  size\_t | [**dp\_dll\_take\_error**](#function-dp_dll_take_error) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double \* sum) <br>_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._  |
 |  double | [**dp\_dll\_take\_error\_mean**](#function-dp_dll_take_error_mean) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>[_**dp\_dll\_take\_error()**_](dll__core_8h.md#function-dp_dll_take_error) _as one number: the mean of the steers taken, or NaN when none were_ _the Python face of the primitive._ |
@@ -147,8 +147,8 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 | define  | [**DLL\_DISC\_CLAMP**](dll__core_8h.md#define-dll_disc_clamp)  `1.0`<br> |
 | define  | [**DLL\_EPS**](dll__core_8h.md#define-dll_eps)  `1e-12`<br> |
 | define  | [**DLL\_OUT\_LEVEL\_PERIODS**](dll__core_8h.md#define-dll_out_level_periods)  `32u`<br> |
-| define  | [**DLL\_STATE\_MAGIC**](dll__core_8h.md#define-dll_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','L','L',' ')`<br> |
-| define  | [**DLL\_STATE\_VERSION**](dll__core_8h.md#define-dll_state_version)  `/* multi line expression */`<br> |
+| define  | [**DLL\_STATE\_MAGIC**](dll__core_8h.md#define-dll_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','L','L',' ')`<br>_State-blob magic for the DLL (FourCC "DLL ")._  |
+| define  | [**DLL\_STATE\_VERSION**](dll__core_8h.md#define-dll_state_version)  `/* multi line expression */`<br>_DLL blob layout version; the trailing comment is its history._  |
 
 ## Detailed Description
 
@@ -221,6 +221,7 @@ Correlates the carrier-wiped sample `d` against the early, prompt and late code 
 
 ### function dll\_chip\_sign 
 
+_0/1 chip -&gt; +1/-1 BPSK sign._ 
 ```C++
 JM_FORCEINLINE float dll_chip_sign (
     uint8_t c
@@ -229,7 +230,21 @@ JM_FORCEINLINE float dll_chip_sign (
 
 
 
-0/1 chip -&gt; +1/-1 BPSK sign. 
+
+
+**Parameters:**
+
+
+* `c` Chip; only its LSB is read. 
+
+
+
+**Returns:**
+
++1.0f for an even `c` (chip 0), -1.0f for an odd one (chip 1). 
+
+
+
 
 
         
@@ -710,6 +725,7 @@ void dp_dll_destroy (
 
 ### function dp\_dll\_get\_bn 
 
+_Loop noise bandwidth currently in use._ 
 ```C++
 double dp_dll_get_bn (
     const dp_dll_state_t * state
@@ -719,12 +735,31 @@ double dp_dll_get_bn (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+bn, normalized to the code-period rate: the create() value or the last one [**dp\_dll\_configure()**](dll__core_8h.md#function-dp_dll_configure) / [**dp\_dll\_set\_bn()**](dll__core_8h.md#function-dp_dll_set_bn) accepted. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_dll\_get\_code\_phase 
 
+_Current prompt code phase._ 
 ```C++
 double dp_dll_get_code_phase (
     const dp_dll_state_t * state
@@ -734,12 +769,31 @@ double dp_dll_get_code_phase (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Phase in chips, from 0 up to code\_len (exclusive) once a sample has run (it is derived from the code NCO on every sample); exactly init\_chip, unfolded, after create/reset. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_dll\_get\_code\_rate 
 
+_The loop's own code rate, without the carrier rate aid._ 
 ```C++
 double dp_dll_get_code_rate (
     const dp_dll_state_t * state
@@ -748,6 +802,27 @@ double dp_dll_get_code_rate (
 
 
 
+1 + the loop-filter output (the integrator alone at segments == 1); the code runs at this plus the rate aid. Read before the NCO truncates its command to a whole phase step, so a settled reading can sit up to one step above the rate the loop carries. A held loop reports its held integrator's rate.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Chips advanced per nominal chip (~1.0); 1.0 after create/reset. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -755,6 +830,7 @@ double dp_dll_get_code_rate (
 
 ### function dp\_dll\_get\_last\_error 
 
+_Last discriminator output, the loop stress._ 
 ```C++
 double dp_dll_get_last_error (
     const dp_dll_state_t * state
@@ -763,6 +839,27 @@ double dp_dll_get_last_error (
 
 
 
+`0.5 * (|E|^2 - |L|^2) / (|P|^2 + DLL_EPS)`, clamped to +-DLL\_DISC\_CLAMP. Updated on every steer, including while coasting.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Dimensionless error from -1 to 1; 0 after create/reset. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -780,6 +877,24 @@ double dp_dll_get_lock_stat (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+R = sqrt(2 sum\|P\|^2 / E\|O\|^2) from the last completed group of n\_looks looks (dimensionless); 0 until the first group. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -795,6 +910,24 @@ int dp_dll_get_locked (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+1 when locked, 0 otherwise (0 after create/reset). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -812,12 +945,31 @@ double dp_dll_get_noise_est (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Noise power on the correlator's own scale (\|partial\|^2); 0 after create/reset and after a lock re-tune. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_dll\_get\_segments 
 
+_Partial correlations per code period._ 
 ```C++
 size_t dp_dll_get_segments (
     const dp_dll_state_t * state
@@ -827,12 +979,31 @@ size_t dp_dll_get_segments (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+segments, fixed at create (1 = full-period correlation). 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_dll\_get\_state 
 
+_Serialize the loop state into_ `blob` _._
 ```C++
 void dp_dll_get_state (
     const dp_dll_state_t * state,
@@ -842,6 +1013,21 @@ void dp_dll_get_state (
 
 
 
+The borrowed code, the buffer pointers and the telemetry attachment are zeroed in the snapshot; the buffers' contents are packed field-wise.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Caller-owned buffer of at least [**dp\_dll\_state\_bytes()**](dll__core_8h.md#function-dp_dll_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -864,6 +1050,13 @@ size_t dp_dll_get_symbol_window (
 
 
 * `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Window length L in partials, or 0 with the aid off. 
+
 
 
 
@@ -1076,6 +1269,18 @@ int dp_dll_params_ok (
 
 
 
+**Parameters:**
+
+
+* `code_len` Code length, chips per period; &gt;= 1. 
+* `init_chip` Initial prompt code phase, chips; any finite value. 
+* `bn` Loop noise bandwidth, normalized to the code-period rate. 
+* `zeta` Damping factor. 
+* `spacing` Early/late tap offset, chips; 0 &lt; spacing &lt; code\_len / 2. 
+* `segments` Partial correlations per code period; &gt;= 1. 
+
+
+
 **Returns:**
 
 1 inside the domain, 0 outside it (a NaN is outside). 
@@ -1151,9 +1356,17 @@ int dp_dll_set_bn (
 
 
 
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `val` New loop noise bandwidth, normalized to the code-period rate. 
+
+
+
 **Returns:**
 
-As [**dp\_dll\_configure()**](dll__core_8h.md#function-dp_dll_configure): DP\_ERR\_INVALID, changing nothing, outside the loop filter's domain. 
+As [**dp\_dll\_configure()**](dll__core_8h.md#function-dp_dll_configure): DP\_OK, or DP\_ERR\_INVALID, changing nothing, outside the loop filter's domain. 
 
 
 
@@ -1362,8 +1575,16 @@ int dp_dll_set_state (
 
 **Returns:**
 
-DP\_OK or DP\_ERR\_INVALID.
+DP\_OK or DP\_ERR\_INVALID. 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Blob from [**dp\_dll\_get\_state()**](dll__core_8h.md#function-dp_dll_get_state).
 
 The blob is decoded and checked whole before any of `state` is written, so a refusal changes nothing (doppler#2092). Refused: a wrong-object, wrong-version, wrong-size or foreign-endian envelope; a blob whose code length, samples per chip, segment count or symbol-aid geometry (on or off, its ring and hypotheses) is not this instance's; and running fields no live instance carries  a chunk index past the segments, a noise offset outside the code, a non-finite or negative noise guard, and on an aided instance a non-finite period, a window as long as its ring, a best hypothesis past its hypotheses or a last look past the partials counted. The code, the buffers and the telemetry attachment stay this instance's. 
 
@@ -1488,6 +1709,7 @@ True
 
 ### function dp\_dll\_state\_bytes 
 
+_Serialized-state byte size._ 
 ```C++
 size_t dp_dll_state_bytes (
     const dp_dll_state_t * state
@@ -1496,6 +1718,24 @@ size_t dp_dll_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Bytes: envelope + struct snapshot + the segments &gt; 1 and symbol-aid buffers this instance holds. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -1565,6 +1805,7 @@ dtype('complex64')
 
 ### function dp\_dll\_steps\_max\_out 
 
+_Output capacity hint for_ [_**dp\_dll\_steps()**_](dll__core_8h.md#function-dp_dll_steps) _: always 0._
 ```C++
 size_t dp_dll_steps_max_out (
     dp_dll_state_t * state
@@ -1573,6 +1814,27 @@ size_t dp_dll_steps_max_out (
 
 
 
+Emitted prompts never outnumber input samples, so size `out` to the input length.
+
+
+
+
+**Parameters:**
+
+
+* `state` Unused. 
+
+
+
+**Returns:**
+
+0 (no state-derived bound). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -1595,6 +1857,14 @@ int dp_dll_symbol_period_ok (
 
 This predicate covers the period alone. [**dp\_dll\_set\_symbol\_period()**](dll__core_8h.md#function-dp_dll_set_symbol_period) also refuses a bandwidth whose loop gains overflow at the period's interval (the bandwidth domain, checked at that interval and at t = 1), so a composer that must never see a mid-stream refusal checks the gains with [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) at `partials_per_symbol / segments` as well.
 
+
+
+
+**Parameters:**
+
+
+* `segments` The DLL's partial correlations per period; must be &gt; 1. 
+* `partials_per_symbol` Symbol period, in partials; 2 to 2^20. 
 
 
 
@@ -1781,6 +2051,10 @@ Its rings and hypotheses are allocated per period, so a period past this is refu
 
 
 
+Clamp on the discriminator output \|e\| before it reaches the loop filter. The old magnitude-domain discriminator (\|E\|-\|L\|)/(\|E\|+\|L\|) was always inherently bounded in `[-1, 1]` (\|E\|-\|L\| &lt;= \|E\|+\|L\| identically); the power-domain 0.5\*(Ep-Lp)/Pp form is NOT  a data transition landing badly enough to collapse the prompt power Pp near zero (the lookback failing to find a clean candidate that epoch, a real, reachable case, not a hypothetical one  observed directly while porting this design) can blow e up arbitrarily, injecting a huge phase nudge that cascades into a runaway. Clamping restores the old design's inherent safety property without changing behaviour in the overwhelming common case (\|e\| well under 1 at any reasonable lock). 
+
+
+        
 
 <hr>
 
@@ -1794,6 +2068,10 @@ Its rings and hypotheses are allocated per period, so a period past this is refu
 
 
 
+Numerical guard added to the prompt power \|P\|^2 that divides the discriminator, so a zero prompt cannot divide by zero (not tunable). 
+
+
+        
 
 <hr>
 
@@ -1807,6 +2085,14 @@ Its rings and hypotheses are allocated per period, so a period past this is refu
 
 
 
+The `segments > 1` output's level: the code periods its running mean of the look-back magnitude spans (doppler#2495). Each period's partials are divided by that slowly tracked level, so the output sits near unit amplitude at any input gain  the level every timing detector downstream assumes, which MpskReceiver's AGC, 20x slower than its own loops, cannot set from scratch  and never by the period's own magnitude, whose noise is the period's own. The number is a choice inside a band, both ends set by a measurement or a count:
+* slow enough: the current period enters the level with weight 1/N, and the in-phase error is compressed against the quadrature as that weight grows. Measured by test\_dll\_core.c's section 11 harness (a period SNR of 3 dB, 20,000 periods), the compression is -2.29 dB at N = 1 (the period's own magnitude, which cost the receiver 0.2 dB of error rate), -1.18 at 2, -0.54 at 4, -0.23 at 8, -0.08 at 16 and -0.01 at 32: about halving with each doubling. Holding it under 0.15 dB, about the counting noise of that measurement, needs N &gt;= 16.
+* fast enough: after a step in level the error decays as (1 - 1/N)^n, to 1% at n = ln 100 / -ln(1 - 1/N), about 4.6 N periods. Settling inside a third of the 185 ms data-free block (555 periods at the specification's (docs/design/async-dsss-receiver.md) 3.069 Mcps), and far ahead of MpskReceiver's AGC, needs N &lt;= 40. N = 32 is inside the band 16..40, a power of two; the 1% settle is then 146 periods, 49 ms at the specification. Until N periods have accrued the level is their plain mean, so the first output already carries a level, but not a slow one: the first period is divided by its own magnitude, and the current period weighs 1/n, so the compression the band bounds holds only once about 16 periods have accrued, 5 ms at the specification. 
+
+
+
+
+        
 
 <hr>
 
@@ -1814,6 +2100,7 @@ Its rings and hypotheses are allocated per period, so a period past this is refu
 
 ### define DLL\_STATE\_MAGIC 
 
+_State-blob magic for the DLL (FourCC "DLL ")._ 
 ```C++
 #define DLL_STATE_MAGIC `DP_FOURCC ('D','L','L',' ')`
 ```
@@ -1827,6 +2114,7 @@ Its rings and hypotheses are allocated per period, so a period past this is refu
 
 ### define DLL\_STATE\_VERSION 
 
+_DLL blob layout version; the trailing comment is its history._ 
 ```C++
 #define DLL_STATE_VERSION `/* multi line expression */`
 ```

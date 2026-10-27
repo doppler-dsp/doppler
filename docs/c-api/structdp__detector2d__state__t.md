@@ -229,6 +229,11 @@ float dp_detector2d_state_t::noise_est;
 
 
 
+Last dump: noise floor over the window. 
+ 
+
+
+        
 
 <hr>
 
@@ -278,6 +283,11 @@ det_noise_mode_t dp_detector2d_state_t::noise_mode;
 
 
 
+Noise aggregation, set at create(). 
+ 
+
+
+        
 
 <hr>
 
@@ -363,6 +373,11 @@ size_t dp_detector2d_state_t::peak_col;
 
 
 
+Last dump: peak column. 
+ 
+
+
+        
 
 <hr>
 
@@ -376,6 +391,11 @@ float dp_detector2d_state_t::peak_mag;
 
 
 
+Last dump: peak \|R\| (linear magnitude). 
+ 
+
+
+        
 
 <hr>
 
@@ -389,6 +409,11 @@ size_t dp_detector2d_state_t::peak_row;
 
 
 
+Last dump: peak row (0 before any dump). 
+ 
+
+
+        
 
 <hr>
 
@@ -438,6 +463,11 @@ float dp_detector2d_state_t::test_stat;
 
 
 
+Last dump: peak\_mag / noise\_est, or 0. 
+ 
+
+
+        
 
 <hr>
 

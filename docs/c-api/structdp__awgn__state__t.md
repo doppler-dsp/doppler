@@ -8,7 +8,7 @@
 
 
 
-
+_AWGN generator state (opaque to callers; use the API)._ [More...](#detailed-description)
 
 * `#include <awgn_core.h>`
 
@@ -83,6 +83,13 @@
 
 
 
+## Detailed Description
+
+
+All three fields are serialized by [**dp\_awgn\_get\_state()**](awgn__core_8h.md#function-dp_awgn_get_state). 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -96,6 +103,10 @@ float dp_awgn_state_t::amplitude;
 
 
 
+Per-component (I and Q) standard deviation; finite and &gt;= 0. Set by create and [**dp\_awgn\_set\_amplitude()**](awgn__core_8h.md#function-dp_awgn_set_amplitude). 
+
+
+        
 
 <hr>
 
@@ -109,6 +120,10 @@ uint64_t dp_awgn_state_t::s[4];
 
 
 
+xoshiro256++ running state; advanced by two words per generated sample. Never all zero. 
+
+
+        
 
 <hr>
 
@@ -122,6 +137,11 @@ uint64_t dp_awgn_state_t::seed;
 
 
 
+the seed [**dp\_awgn\_reset()**](awgn__core_8h.md#function-dp_awgn_reset) replays: create's, or the last reseed's or restored blob's 
+ 
+
+
+        
 
 <hr>
 

@@ -95,10 +95,10 @@ extern "C"
   /**
    * @brief Allocate and initialise a halfband 2:1 decimator.
    *
-   * The FIR branch must be symmetric (h[k] == h[N-1-k]): the filter
+   * The FIR branch must be symmetric (`h[k] == h[N-1-k]`): the filter
    * reads only the first N/2 coefficients and applies each to a mirrored
    * pair of delay-line samples.  For odd N the centre coefficient
-   * h[N/2] is not read; the half-weight delay branch takes its place.
+   * `h[N/2]` is not read; the half-weight delay branch takes its place.
    *
    * @param num_taps  Length N of the FIR branch (the row from
    *                  kaiser_prototype(phases=2) that has more than one
@@ -153,7 +153,7 @@ extern "C"
   /**
    * @brief Serialize @p r's mutable state into @p blob.
    * @param r     State.  Must be non-NULL.  Not modified.
-   * @param blob  [out] Caller-owned buffer of at least
+   * @param[out] blob  Caller-owned buffer of at least
    *              dp_hbdecim_state_bytes(r) bytes.
    */
   void dp_hbdecim_get_state (const hbdecim_state_t *r, void *blob);
@@ -186,7 +186,7 @@ extern "C"
    * @param r        Must be non-NULL.
    * @param in       Input CF32 samples.
    * @param num_in   Number of input samples.
-   * @param out      [out] Output buffer.
+   * @param[out] out      Output buffer.
    * @param max_out  Capacity of out in samples.
    * @return Number of output samples written:
    *         min((num_in + has_pending) / 2, max_out).

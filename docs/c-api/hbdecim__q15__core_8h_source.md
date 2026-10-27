@@ -21,31 +21,28 @@ extern "C" {
 #endif
 
 typedef struct {
-    size_t   num_taps;    /* FIR branch length supplied by caller          */
-    size_t   K;           /* symmetric pair count = num_taps / 2           */
-    size_t   K_pad;       /* K rounded up to multiple of 16 (SIMD align)   */
-    size_t   centre;      /* = num_taps / 2 (index of delay-branch tap)    */
-    int      fir_on_even; /* 1: FIR on even_dl; 0: FIR on odd_dl          */
-
+    size_t   num_taps;    
+    size_t   K;           
+    size_t   K_pad;       
+    size_t   centre;      
+    int      fir_on_even; 
     /* Q15 FIR branch coefficients, zero-padded to K_pad entries.
      * Scaled by 0.5 at create() to match the halfband polyphase identity.
      * Allocated with 32-byte alignment for AVX2 aligned loads.            */
-    int16_t *coeffs;
-
+    int16_t *coeffs;      
     /* Dual-write delay rings: even- and odd-indexed input samples split
      * into separate I and Q arrays for contiguous SIMD access.            */
-    int16_t *even_I;      /* [2 * cap]  */
-    int16_t *even_Q;      /* [2 * cap]  */
-    int16_t *odd_I;       /* [2 * cap]  */
-    int16_t *odd_Q;       /* [2 * cap]  */
-    size_t   cap;         /* next power-of-2 >= num_taps                   */
-    size_t   mask;        /* = cap - 1                                     */
-    size_t   even_head;
-    size_t   odd_head;
-
-    int      has_pending; /* 1 when a trailing even IQ pair is buffered    */
-    int16_t  pending_I;
-    int16_t  pending_Q;
+    int16_t *even_I;      
+    int16_t *even_Q;      
+    int16_t *odd_I;       
+    int16_t *odd_Q;       
+    size_t   cap;         
+    size_t   mask;        
+    size_t   even_head;   
+    size_t   odd_head;    
+    int      has_pending; 
+    int16_t  pending_I;   
+    int16_t  pending_Q;   
 } dp_hbdecim_q15_state_t;
 
 dp_hbdecim_q15_state_t *dp_hbdecim_q15_create(size_t num_taps, const float *h);

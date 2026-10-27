@@ -22,45 +22,40 @@ extern "C"
 
   typedef struct
   {
-    double rate;
-    size_t num_phases;
-    size_t num_taps;
-    unsigned log2_phases;
-    int upsample; /* 1 = rate >= 1.0, 0 = rate < 1.0 */
-
-    float *bank; /* num_phases × num_taps, row-major  */
-
+    double rate; 
+    size_t num_phases; 
+    size_t num_taps; 
+    unsigned log2_phases; 
+    int upsample; 
+    float *bank; 
     /* execute state */
-    uint32_t phase;
-    uint32_t phase_inc;
-
+    uint32_t phase; 
+    uint32_t phase_inc; 
     /* interpolator / execute_ctrl: dual-buffer delay line */
-    float _Complex *delay_buf; /* 2 × delay_cap elements         */
-    size_t delay_cap;
-    size_t delay_mask;
-    size_t delay_head;
-
+    float _Complex *delay_buf; 
+    size_t delay_cap; 
+    size_t delay_mask; 
+    size_t delay_head; 
     /* decimator transposed-form state (execute, rate < 1) */
-    float _Complex *decim_iad; /* integrate-and-dump: num_taps   */
-    float _Complex *decim_tfd; /* transposed delay line: num_taps-1 */
-
+    float _Complex *decim_iad; 
+    float _Complex *decim_tfd; 
     /* execute_ctrl state: the INTERPOLATOR's accumulator.  ctrl_phase is
        the position within the current input interval -- a uint32 fraction
        of one interval, which is exactly what a polyphase arm indexes.
        ctrl_debt is the whole intervals still owed before the next output
        may fire; it is non-zero only when the steered rate drops below
        unity, where one output spans more than one input. */
-    uint32_t ctrl_phase;
+    uint32_t ctrl_phase; 
     /* Inputs the accumulator has REQUESTED and not yet been given.  No
        sample enters the delay line without one of these: the push form
        holds the offered sample until a tick asks for it, exactly as the
        block form only ever loads inside its load branch. */
-    uint32_t ctrl_debt;
+    uint32_t ctrl_debt; 
     /* Inputs given WITHOUT a request, because max_out ended the call before
        a tick could ask.  The caller's sample has to go somewhere -- the API
        has no way to decline it -- so it is loaded and remembered here, and
        the next request is satisfied from it instead of from a new sample. */
-    uint32_t ctrl_ahead;
+    uint32_t ctrl_ahead; 
   } resamp_state_t;
 
   /* ------------------------------------------------------------------

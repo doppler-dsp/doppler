@@ -8,7 +8,7 @@
 
 
 
-_CarrierAcquisition state._ [More...](#detailed-description)
+_CarrierAcquisition state: owned PSD and detector children, scratch, config and the running detection result._ [More...](#detailed-description)
 
 * `#include <carrier_acq_core.h>`
 
@@ -206,6 +206,11 @@ size_t dp_carrier_acq_state_t::n_blocks;
 
 
 
+PSD blocks folded since create()/reset() (running count). 
+ 
+
+
+        
 
 <hr>
 
@@ -219,6 +224,11 @@ size_t dp_carrier_acq_state_t::nfft;
 
 
 
+PSD / template length, bins (config, from the PSD core at create()). 
+ 
+
+
+        
 
 <hr>
 
@@ -232,6 +242,11 @@ double dp_carrier_acq_state_t::pfa;
 
 
 
+Target per-test false-alarm probability (config); sets the CFAR ratio threshold. 
+ 
+
+
+        
 
 <hr>
 
@@ -299,6 +314,11 @@ bool dp_carrier_acq_state_t::ready;
 
 
 
+True once a detection has fired; steps() is then a no-op until reset(). 
+ 
+
+
+        
 
 <hr>
 
@@ -312,6 +332,11 @@ double dp_carrier_acq_state_t::residual_hz;
 
 
 
+Sub-bin-refined residual carrier offset, Hz, signed, within +/- sample\_rate\_hz/2; 0 until ready. 
+ 
+
+
+        
 
 <hr>
 
@@ -360,6 +385,11 @@ double dp_carrier_acq_state_t::sample_rate_hz;
 
 
 
+Input sample rate, Hz (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -373,6 +403,11 @@ bool dp_carrier_acq_state_t::sequential;
 
 
 
+Config: true tests after every block, false tests once at dwell\_target. 
+ 
+
+
+        
 
 <hr>
 

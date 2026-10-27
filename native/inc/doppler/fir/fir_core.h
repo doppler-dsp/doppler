@@ -54,7 +54,7 @@ extern "C"
      *  state, written by every execute/fir_step call and zeroed by
      *  dp_fir_reset(); NULL when num_taps == 1. */
     float _Complex *delay;
-    /** Workspace laid out [delay | input | zero pad]; allocated on the
+    /** Workspace laid out `[delay | input | zero pad]`; allocated on the
      *  first dp_fir_execute() and grown (never shrunk) as blocks grow. */
     float _Complex *scratch;
     /** Allocated length of @c scratch in complex samples (0 until the
@@ -181,14 +181,14 @@ extern "C"
   size_t dp_fir_state_bytes (const dp_fir_state_t *state);
   /** @brief Serialize @p state's delay line into @p blob.
    *  @param state Filter state. Must be non-NULL.
-   *  @param blob  [out] Destination of at least dp_fir_state_bytes(state)
+   *  @param[out] blob  Destination of at least dp_fir_state_bytes(state)
    *               bytes. */
   void dp_fir_get_state (const dp_fir_state_t *state, void *blob);
   /** @brief Restore the delay line from @p blob (same num_taps).
    *  The taps are not in the blob: restore into a filter built with the same
    *  taps, or the output continues with the new filter's response.
    *  @param state Filter state to overwrite. Must be non-NULL.
-   *  @param blob  [in] Blob from dp_fir_get_state() on a filter of the same
+   *  @param[in] blob  Blob from dp_fir_get_state() on a filter of the same
    *               length.
    *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects (wrong
    *          magic, version, endianness or size); @p state is then

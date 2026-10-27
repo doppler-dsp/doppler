@@ -415,6 +415,24 @@ size_t dp_burst_demod_demod_max_out (
 
 
 
+
+**Parameters:**
+
+
+* `state` Demodulator handle. Must be non-NULL. 
+
+
+
+**Returns:**
+
+`frame_syms`, the frame length in bits, fixed at create. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -529,6 +547,13 @@ size_t dp_burst_demod_llrs_max_out (
 
 * `state` Demodulator handle. 
 * `n` Ignored — the count is the last demod()'s frame. 
+
+
+
+**Returns:**
+
+`frame_syms` (fixed at create), or 0 if `state` is NULL. 
+
 
 
 
@@ -752,6 +777,13 @@ size_t dp_burst_demod_symbols_max_out (
 
 * `state` Demodulator handle. 
 * `n` Ignored — the count is the last demod()'s frame. 
+
+
+
+**Returns:**
+
+`frame_syms` (fixed at create), or 0 if `state` is NULL. 
+
 
 
 

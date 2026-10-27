@@ -76,22 +76,22 @@ _SymbolSync component API._ [More...](#detailed-description)
 |  int | [**dp\_symsync\_configure**](#function-dp_symsync_configure) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); preserve the timing estimate._  |
 |  int | [**dp\_symsync\_configure\_lock**](#function-dp_symsync_configure_lock) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, double rolloff, double esno\_min\_db, double pfa, double pd) <br>_Tune the always-on timing-lock detector to a target (pfa, pd) at a given link operating point._  |
 |  void | [**dp\_symsync\_configure\_lock\_raw**](#function-dp_symsync_configure_lock_raw) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, size\_t avgs, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's raw geometry directly._  |
-|  [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* | [**dp\_symsync\_create**](#function-dp_symsync_create) (size\_t sps, double bn, double zeta, int order, int ted) <br>_Create a symsync instance._  |
+|  [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* | [**dp\_symsync\_create**](#function-dp_symsync_create) (size\_t sps, double bn, double zeta, int order, int ted) <br>_Create a symbol-timing recovery loop on the heap._  |
 |  void | [**dp\_symsync\_destroy**](#function-dp_symsync_destroy) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Destroy a symsync instance and release all memory._  |
-|  double | [**dp\_symsync\_get\_bn**](#function-dp_symsync_get_bn) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br> |
+|  double | [**dp\_symsync\_get\_bn**](#function-dp_symsync_get_bn) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Loop noise bandwidth the timing loop is running._  |
 |  double | [**dp\_symsync\_get\_lock\_stat**](#function-dp_symsync_get_lock_stat) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Last block-averaged lock statistic: mean(2\*(\|on-time\|^2-\|mid\|^2)/(\|on-time\|^2+\|mid\|^2)) over the configured avgs looks; compare against the configured threshold (see dp\_symsync\_configure\_lock)._  |
 |  int | [**dp\_symsync\_get\_locked**](#function-dp_symsync_get_locked) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied._  |
-|  double | [**dp\_symsync\_get\_rate**](#function-dp_symsync_get_rate) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br> |
-|  void | [**dp\_symsync\_get\_state**](#function-dp_symsync_get_state) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, void \* blob) <br> |
-|  double | [**dp\_symsync\_get\_timing\_error**](#function-dp_symsync_get_timing_error) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br> |
+|  double | [**dp\_symsync\_get\_rate**](#function-dp_symsync_get_rate) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Samples per symbol the loop is currently tracking._  |
+|  void | [**dp\_symsync\_get\_state**](#function-dp_symsync_get_state) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, void \* blob) <br>_Snapshot the whole state struct into_ `blob` _, with the telemetry attachment zeroed._ |
+|  double | [**dp\_symsync\_get\_timing\_error**](#function-dp_symsync_get_timing_error) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Most recent timing-detector output._  |
 |  void | [**dp\_symsync\_init**](#function-dp_symsync_init) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* s, size\_t sps, double bn, double zeta, int order, int ted) <br>_Initialise a SymbolSync in place (no allocation)._  |
 |  void | [**dp\_symsync\_reset**](#function-dp_symsync_reset) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Re-seed the timing loop to its nominal rate and zero phase._  |
 |  int | [**dp\_symsync\_set\_bn**](#function-dp_symsync_set_bn) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_symsync\_configure()**_](symsync__core_8h.md#function-dp_symsync_configure) _'s refusal and status. As a writable property a refusal raises ValueError and the value stays put (doppler#1987)._ |
-|  int | [**dp\_symsync\_set\_state**](#function-dp_symsync_set_state) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, const void \* blob) <br> |
+|  int | [**dp\_symsync\_set\_state**](#function-dp_symsync_set_state) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, const void \* blob) <br>_Restore the state from a blob made by_ [_**dp\_symsync\_get\_state()**_](symsync__core_8h.md#function-dp_symsync_get_state) _, keeping this object's live telemetry attachment._ |
 |  int | [**dp\_symsync\_set\_telemetry**](#function-dp_symsync_set_telemetry) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers five probes, emitted once per recovered symbol and further thinned by decim: "&lt;prefix&gt;.e" (the normalised TED error — the loop stress), "&lt;prefix&gt;.freq" (the loop-filter control steering the timing NCO, fractional rate offset), "&lt;prefix&gt;.rate" (the smoothed tracked samples/symbol), "&lt;prefix&gt;.lock" (the last block-averaged lock\_signal, held between avgs-look updates) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
-|  size\_t | [**dp\_symsync\_state\_bytes**](#function-dp_symsync_state_bytes) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_symsync\_state\_bytes**](#function-dp_symsync_state_bytes) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Size in bytes of this object's state blob._  |
 |  size\_t | [**dp\_symsync\_steps**](#function-dp_symsync_steps) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Recover symbol timing from an oversampled cf32 baseband block._  |
-|  size\_t | [**dp\_symsync\_steps\_max\_out**](#function-dp_symsync_steps_max_out) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_symsync\_steps\_max\_out**](#function-dp_symsync_steps_max_out) ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* state) <br>_Minimum output capacity_ [_**dp\_symsync\_steps()**_](symsync__core_8h.md#function-dp_symsync_steps) _asks for beyond the input length._ |
 |  double | [**dp\_symsync\_ted\_slope**](#function-dp_symsync_ted_slope) (int ted, int pulse, double beta, size\_t span) <br>_The detector's OWN contribution to the loop gain:_ `|dS/dtau|` _at the lock point, for a unit-amplitude symbol stream._ |
 |  void | [**dp\_symsync\_tlm\_flush**](#function-dp_symsync_tlm_flush) (const [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) \* s) <br>_Emit the timing loop's telemetry records for the symbol just recovered._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dttl\_ted**](#function-dttl_ted) (float \_Complex mid, float \_Complex y, float \_Complex prev) <br>_Sign-sign DTTL: gate the transition sample by the hard-decision transition on each rail._  |
@@ -129,9 +129,9 @@ _SymbolSync component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**SYMSYNC\_LOCK\_EPS**](symsync__core_8h.md#define-symsync_lock_eps)  `1e-12`<br> |
-| define  | [**SYMSYNC\_STATE\_MAGIC**](symsync__core_8h.md#define-symsync_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S', 'Y', 'N', 'C')`<br> |
-| define  | [**SYMSYNC\_STATE\_VERSION**](symsync__core_8h.md#define-symsync_state_version)  `/* multi line expression */`<br> |
+| define  | [**SYMSYNC\_LOCK\_EPS**](symsync__core_8h.md#define-symsync_lock_eps)  `1e-12`<br>_Numerical guard added to the on-time + mid-symbol energy sum that normalizes the lock statistic, so a silent input cannot divide by zero (not tunable)._  |
+| define  | [**SYMSYNC\_STATE\_MAGIC**](symsync__core_8h.md#define-symsync_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S', 'Y', 'N', 'C')`<br>_State-blob magic ('SYNC'); set\_state() rejects any other._  |
+| define  | [**SYMSYNC\_STATE\_VERSION**](symsync__core_8h.md#define-symsync_state_version)  `/* multi line expression */`<br>_State-blob layout version; set\_state() rejects any other._  |
 
 ## Detailed Description
 
@@ -348,7 +348,7 @@ False
 
 ### function dp\_symsync\_create 
 
-_Create a symsync instance._ 
+_Create a symbol-timing recovery loop on the heap._ 
 ```C++
 dp_symsync_state_t * dp_symsync_create (
     size_t sps,
@@ -361,14 +361,17 @@ dp_symsync_state_t * dp_symsync_create (
 
 
 
+Validates (bn, zeta), allocates, then runs [**dp\_symsync\_init()**](symsync__core_8h.md#function-dp_symsync_init).
+
+
 
 
 **Parameters:**
 
 
-* `sps` sps (default: 4). 
-* `bn` bn (default: 0.01). 
-* `zeta` zeta (default: 0.707). 
+* `sps` Nominal input samples per symbol (default: 4). 
+* `bn` Loop noise bandwidth, normalized to the symbol rate (default: 0.01). 
+* `zeta` Loop damping factor (default: 0.707). 
 * `order` Enum index; 0=linear…2=cubic. 
 * `ted` Enum index; 0=gardner, 1=dttl (BPSK/QPSK only). 
 
@@ -376,7 +379,7 @@ dp_symsync_state_t * dp_symsync_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL when [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) refuses (bn, zeta) or allocation fails. 
 
 
 
@@ -424,6 +427,7 @@ void dp_symsync_destroy (
 
 ### function dp\_symsync\_get\_bn 
 
+_Loop noise bandwidth the timing loop is running._ 
 ```C++
 double dp_symsync_get_bn (
     const dp_symsync_state_t * state
@@ -432,6 +436,24 @@ double dp_symsync_get_bn (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+bn, normalized to the symbol rate: the create() value or the last one [**dp\_symsync\_configure()**](symsync__core_8h.md#function-dp_symsync_configure) / [**dp\_symsync\_set\_bn()**](symsync__core_8h.md#function-dp_symsync_set_bn) accepted. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -449,6 +471,24 @@ double dp_symsync_get_lock_stat (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The statistic, nominally between -2 and 2; 0.0 until the first full block of avgs symbols after create() or reset(). 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -465,12 +505,31 @@ int dp_symsync_get_locked (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+1 when locked, 0 otherwise (0 after create() and reset()). 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_symsync\_get\_rate 
 
+_Samples per symbol the loop is currently tracking._ 
 ```C++
 double dp_symsync_get_rate (
     const dp_symsync_state_t * state
@@ -480,12 +539,31 @@ double dp_symsync_get_rate (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+An exponential average (weight 0.02 per symbol) of the instantaneous strobe spacing, in input samples per symbol; equal to the nominal sps after create() or reset(). 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_symsync\_get\_state 
 
+_Snapshot the whole state struct into_ `blob` _, with the telemetry attachment zeroed._
 ```C++
 void dp_symsync_get_state (
     const dp_symsync_state_t * state,
@@ -496,12 +574,25 @@ void dp_symsync_get_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_symsync\_state\_bytes()**](symsync__core_8h.md#function-dp_symsync_state_bytes) bytes. 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_symsync\_get\_timing\_error 
 
+_Most recent timing-detector output._ 
 ```C++
 double dp_symsync_get_timing_error (
     const dp_symsync_state_t * state
@@ -510,6 +601,24 @@ double dp_symsync_get_timing_error (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The last TED error, normalized by the running symbol power (dimensionless); 0.0 after create() or reset(), before the first symbol. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -610,12 +719,32 @@ int dp_symsync_set_bn (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `val` New loop noise bandwidth, normalized to the symbol rate. 
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` (nothing changed) for a bn [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) refuses. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_symsync\_set\_state 
 
+_Restore the state from a blob made by_ [_**dp\_symsync\_get\_state()**_](symsync__core_8h.md#function-dp_symsync_get_state) _, keeping this object's live telemetry attachment._
 ```C++
 int dp_symsync_set_state (
     dp_symsync_state_t * state,
@@ -625,6 +754,25 @@ int dp_symsync_set_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Source blob of [**dp\_symsync\_state\_bytes()**](symsync__core_8h.md#function-dp_symsync_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's magic, version, endianness or size does not match. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -688,6 +836,7 @@ True
 
 ### function dp\_symsync\_state\_bytes 
 
+_Size in bytes of this object's state blob._ 
 ```C++
 size_t dp_symsync_state_bytes (
     const dp_symsync_state_t * state
@@ -696,6 +845,24 @@ size_t dp_symsync_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+`sizeof(dp_state_hdr_t) + sizeof(dp_symsync_state_t)`; constant. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -762,6 +929,7 @@ Number of recovered symbols written to `out`.
 
 ### function dp\_symsync\_steps\_max\_out 
 
+_Minimum output capacity_ [_**dp\_symsync\_steps()**_](symsync__core_8h.md#function-dp_symsync_steps) _asks for beyond the input length._
 ```C++
 size_t dp_symsync_steps_max_out (
     dp_symsync_state_t * state
@@ -770,6 +938,24 @@ size_t dp_symsync_steps_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Unused. 
+
+
+
+**Returns:**
+
+Always 0: at least one input sample per recovered symbol, so an `out` as long as the input always suffices. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -1060,6 +1246,7 @@ Passing a literal `ted` (SYMSYNC\_TED\_GARDNER / SYMSYNC\_TED\_DTTL) lets the fo
 
 ### define SYMSYNC\_LOCK\_EPS 
 
+_Numerical guard added to the on-time + mid-symbol energy sum that normalizes the lock statistic, so a silent input cannot divide by zero (not tunable)._ 
 ```C++
 #define SYMSYNC_LOCK_EPS `1e-12`
 ```
@@ -1073,6 +1260,7 @@ Passing a literal `ted` (SYMSYNC\_TED\_GARDNER / SYMSYNC\_TED\_DTTL) lets the fo
 
 ### define SYMSYNC\_STATE\_MAGIC 
 
+_State-blob magic ('SYNC'); set\_state() rejects any other._ 
 ```C++
 #define SYMSYNC_STATE_MAGIC `DP_FOURCC ('S', 'Y', 'N', 'C')`
 ```
@@ -1086,6 +1274,7 @@ Passing a literal `ted` (SYMSYNC\_TED\_GARDNER / SYMSYNC\_TED\_DTTL) lets the fo
 
 ### define SYMSYNC\_STATE\_VERSION 
 
+_State-blob layout version; set\_state() rejects any other._ 
 ```C++
 #define SYMSYNC_STATE_VERSION `/* multi line expression */`
 ```

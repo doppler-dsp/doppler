@@ -122,6 +122,10 @@ dp_acq_state_t* dp_dsss_receiver_state_t::acq;
 
 
 
+Owned continuous acquisition engine; fed while `tracking` is 0. 
+
+
+        
 
 <hr>
 
@@ -135,6 +139,10 @@ dp_costas_state_t dp_dsss_receiver_state_t::car;
 
 
 
+Pre-despread carrier loop  embedded by value, same pattern [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md)'s own `car` uses. Rebuilt alongside dll/rc/rx (create-time placeholder, every real hit, configure\_chain\_raw(), reset()). One update per code period (`tsamps` samples). 
+
+
+        
 
 <hr>
 
@@ -148,6 +156,11 @@ float _Complex* dp_dsss_receiver_state_t::car_carry_buf;
 
 
 
+Genuinely stateful: raw samples handed to steps() that didn't fill a whole code period yet, carried to the NEXT call so the carrier loop always wipes exact, complete periods regardless of how a caller chunks its input (this object's own "any block size, state
+carries across calls" contract). Capacity `tsamps`; only the first `car_carry_len` samples are valid. Must be serialized (see below) or a resumed instance silently loses its period alignment. 
+
+
+        
 
 <hr>
 
@@ -161,6 +174,10 @@ size_t dp_dsss_receiver_state_t::car_carry_len;
 
 
 
+Valid samples in `car_carry_buf`, 0..tsamps-1; running state. 
+
+
+        
 
 <hr>
 
@@ -174,6 +191,10 @@ float _Complex* dp_dsss_receiver_state_t::car_wiped_buf;
 
 
 
+Scratch, not state: sized `tsamps`, allocated once (never per steps() call  no allocation in the hot streaming path). 
+
+
+        
 
 <hr>
 
@@ -187,6 +208,10 @@ double dp_dsss_receiver_state_t::chip_rate;
 
 
 
+Chip rate, Hz; config. 
+
+
+        
 
 <hr>
 
@@ -217,6 +242,10 @@ uint8_t* dp_dsss_receiver_state_t::code;
 
 
 
+Own copy of the spreading code  [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous)/ [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create)'s own borrow-vs-copy semantics aren't part of either's public contract, so this object keeps a persistent copy rather than depend on being able to read it back out of a child, or on the caller's original buffer outliving construction. 
+
+
+        
 
 <hr>
 
@@ -230,6 +259,10 @@ size_t dp_dsss_receiver_state_t::code_len;
 
 
 
+Chips in `code` (spreading factor); config. 
+
+
+        
 
 <hr>
 
@@ -243,6 +276,10 @@ int dp_dsss_receiver_state_t::differential;
 
 
 
+Nonzero = differential demap; config. 
+
+
+        
 
 <hr>
 
@@ -256,6 +293,10 @@ dp_dll_state_t* dp_dsss_receiver_state_t::dll;
 
 
 
+Owned code loop (despreader); always allocated, rebuilt on each hit, reset() and configure\_chain\_raw(). 
+
+
+        
 
 <hr>
 
@@ -286,6 +327,10 @@ int dp_dsss_receiver_state_t::m;
 
 
 
+PSK order (2, 4 or 8); config. 
+
+
+        
 
 <hr>
 
@@ -299,7 +344,7 @@ int dp_dsss_receiver_state_t::n;
 
 
 
-MpskReceiver's own carrier-arm count. 
+MpskReceiver's terminal outputs per symbol (`m_out`). 
  
 
 
@@ -317,6 +362,10 @@ dp_RateConverter_state_t* dp_dsss_receiver_state_t::rc;
 
 
 
+Owned resampler from the Dll's partial rate to sps\*symbol\_rate; rebuilt with `dll`. 
+
+
+        
 
 <hr>
 
@@ -330,6 +379,10 @@ dp_mpsk_receiver_state_t* dp_dsss_receiver_state_t::rx;
 
 
 
+Owned demodulator at `sps` samples/symbol; rebuilt with `dll`. 
+
+
+        
 
 <hr>
 
@@ -361,6 +414,10 @@ size_t dp_dsss_receiver_state_t::spc;
 
 
 
+Samples per chip at the input; config. 
+
+
+        
 
 <hr>
 
@@ -392,6 +449,10 @@ double dp_dsss_receiver_state_t::symbol_rate;
 
 
 
+Data-symbol rate, Hz; config. 
+
+
+        
 
 <hr>
 

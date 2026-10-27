@@ -116,6 +116,11 @@ conv_code_t dp_viterbi_state_t::code;
 
 
 
+The code decoded; a copy taken at create. 
+ 
+
+
+        
 
 <hr>
 
@@ -147,6 +152,11 @@ size_t dp_viterbi_state_t::depth;
 
 
 
+Traceback depth, in information bits. 
+ 
+
+
+        
 
 <hr>
 
@@ -196,6 +206,11 @@ unsigned* dp_viterbi_state_t::inbit;
 
 
 
+per state: the input bit that enters it 
+ 
+
+
+        
 
 <hr>
 
@@ -209,6 +224,11 @@ uint32_t dp_viterbi_state_t::nstate;
 
 
 
+Trellis states, `2^(k-1)`. 
+ 
+
+
+        
 
 <hr>
 
@@ -222,6 +242,11 @@ unsigned* dp_viterbi_state_t::out0;
 
 
 
+per state: output word on the pred0 branch 
+ 
+
+
+        
 
 <hr>
 
@@ -235,6 +260,11 @@ unsigned* dp_viterbi_state_t::out1;
 
 
 
+per state: output word on the pred1 branch 
+ 
+
+
+        
 
 <hr>
 
@@ -284,6 +314,11 @@ uint32_t* dp_viterbi_state_t::pred0;
 
 
 
+per state: predecessor `(ns << 1) & mask` 
+ 
+
+
+        
 
 <hr>
 
@@ -297,6 +332,11 @@ uint32_t* dp_viterbi_state_t::pred1;
 
 
 
+per state: predecessor `pred0 | 1` 
+ 
+
+
+        
 
 <hr>
 

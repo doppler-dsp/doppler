@@ -304,6 +304,28 @@ DP_NODISCARD int dp_rep_send_cf32 (
 
 
 
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -323,6 +345,28 @@ DP_NODISCARD int dp_rep_send_cf64 (
 
 
 
+
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
+
+
+
+
+
+        
 
 <hr>
 
@@ -344,6 +388,28 @@ DP_NODISCARD int dp_rep_send_ci16 (
 
 
 
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -364,6 +430,28 @@ DP_NODISCARD int dp_rep_send_ci32 (
 
 
 
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -383,6 +471,28 @@ DP_NODISCARD int dp_rep_send_ci8 (
 
 
 
+
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
+
+
+
+
+
+        
 
 <hr>
 
@@ -608,6 +718,28 @@ DP_NODISCARD int dp_req_send_cf32 (
 
 
 
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -627,6 +759,28 @@ DP_NODISCARD int dp_req_send_cf64 (
 
 
 
+
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
+
+
+
+
+
+        
 
 <hr>
 
@@ -648,6 +802,28 @@ DP_NODISCARD int dp_req_send_ci16 (
 
 
 
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -668,6 +844,28 @@ DP_NODISCARD int dp_req_send_ci32 (
 
 
 
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -687,6 +885,28 @@ DP_NODISCARD int dp_req_send_ci8 (
 
 
 
+
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure; DP\_ERR\_TOO\_LARGE when the payload, num\_samples times the element size, would not fit the header's 32-bit payload\_bytes. The limit is checked before multiplying, so a count whose byte size wraps is refused, not sent.   
+
+
+
+
+
+        
 
 <hr>
 

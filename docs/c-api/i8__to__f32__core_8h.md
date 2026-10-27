@@ -141,13 +141,13 @@ Pre-computes `iscale` = 1.0f / `scale`.
 **Parameters:**
 
 
-* `scale` Denominator scale; 1/scale is applied to each sample (default: 128.0f). Use 128.0 to recover normalised floats from a signed 8-bit stream. 
+* `scale` Denominator scale; 1/scale is applied to each sample (default: 128.0f). Use 128.0 to recover normalised floats from a signed 8-bit stream. Must be &gt; 0. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL if `scale` &lt;= 0 or allocation fails. 
 
 
 
@@ -293,7 +293,7 @@ void dp_i8_to_f32_steps (
 
 
 
-Applies step() to every element. Accepts an optional pre-allocated output array; allocates a fresh one when `output` is NULL.
+Applies step() to every element. In C, `output` must be non-NULL; the Python binding allocates a fresh array when no `out=` is passed.
 
 
 

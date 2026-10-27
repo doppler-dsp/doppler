@@ -226,6 +226,11 @@ float dp_detector_state_t::noise_est;
 
 
 
+Last dump: aggregated noise \|R\|. 
+ 
+
+
+        
 
 <hr>
 
@@ -275,6 +280,11 @@ det_noise_mode_t dp_detector_state_t::noise_mode;
 
 
 
+Noise aggregation over bins noise\_lo..noise\_hi (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -324,6 +334,11 @@ size_t dp_detector_state_t::peak_lag;
 
 
 
+Last dump: argmax \|R\| lag index. Not cleared by reset (0 after create). 
+ 
+
+
+        
 
 <hr>
 
@@ -337,6 +352,10 @@ float dp_detector_state_t::peak_mag;
 
 
 
+Last dump: max \|R\| (linear magnitude). 
+
+
+        
 
 <hr>
 
@@ -386,6 +405,11 @@ float dp_detector_state_t::test_stat;
 
 
 
+Last dump: peak\_mag / noise\_est, or 0 when noise\_est is 0. 
+ 
+
+
+        
 
 <hr>
 

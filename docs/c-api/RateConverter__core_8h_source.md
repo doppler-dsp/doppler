@@ -53,7 +53,7 @@ typedef struct
   rc_stage_t     stage_types[RC_MAX_STAGES];  
   void          *stage_ptrs[RC_MAX_STAGES];   
   float _Complex *bufs[2];
-  size_t          buf_cap;
+  size_t          buf_cap; 
   /* Matched-filter configuration (RC_PULSE_NONE = plain Kaiser terminal
      bank, i.e. everything dp_RateConverter_create() builds).  Kept so
      dp_RateConverter_set_rate() can re-plan without losing the pulse. */

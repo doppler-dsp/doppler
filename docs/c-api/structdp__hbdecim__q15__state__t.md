@@ -8,7 +8,7 @@
 
 
 
-
+_HalfbandDecimatorQ15 state: Q15 FIR-branch coefficients, four dual-write int16 delay rings and a one-sample carry._ [More...](#detailed-description)
 
 * `#include <hbdecim_q15_core.h>`
 
@@ -97,6 +97,13 @@
 
 
 
+## Detailed Description
+
+
+Config fields are set by [**dp\_hbdecim\_q15\_create()**](hbdecim__q15__core_8h.md#function-dp_hbdecim_q15_create); the ring contents, heads and pending pair are running state. Allocate with [**dp\_hbdecim\_q15\_create()**](hbdecim__q15__core_8h.md#function-dp_hbdecim_q15_create). 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -110,6 +117,10 @@ size_t dp_hbdecim_q15_state_t::K;
 
 
 
+Symmetric pair count, num\_taps / 2 (config). 
+
+
+        
 
 <hr>
 
@@ -123,6 +134,11 @@ size_t dp_hbdecim_q15_state_t::K_pad;
 
 
 
+K rounded up to a multiple of 16 for AVX2 loads (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -136,6 +152,11 @@ size_t dp_hbdecim_q15_state_t::cap;
 
 
 
+Ring capacity: next power of 2 &gt;= num\_taps (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -149,6 +170,11 @@ size_t dp_hbdecim_q15_state_t::centre;
 
 
 
+num\_taps / 2: delay-branch tap index into its ring (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -162,6 +188,11 @@ int16_t* dp_hbdecim_q15_state_t::coeffs;
 
 
 
+Owned, 32-byte aligned, K\_pad Q15 taps: the first K of h scaled by 0.5, zero-padded. 
+ 
+
+
+        
 
 <hr>
 
@@ -175,6 +206,10 @@ int16_t* dp_hbdecim_q15_state_t::even_I;
 
 
 
+Owned ring, 2\*cap: I of even-index inputs. 
+
+
+        
 
 <hr>
 
@@ -188,6 +223,10 @@ int16_t* dp_hbdecim_q15_state_t::even_Q;
 
 
 
+Owned ring, 2\*cap: Q of even-index inputs. 
+
+
+        
 
 <hr>
 
@@ -201,6 +240,11 @@ size_t dp_hbdecim_q15_state_t::even_head;
 
 
 
+Newest-sample index in the even rings, [0, cap) (running state). 
+ 
+
+
+        
 
 <hr>
 
@@ -214,6 +258,11 @@ int dp_hbdecim_q15_state_t::fir_on_even;
 
 
 
+1 (num\_taps even): FIR branch runs on the even-indexed ring; 0: on the odd ring. 
+ 
+
+
+        
 
 <hr>
 
@@ -227,6 +276,11 @@ int dp_hbdecim_q15_state_t::has_pending;
 
 
 
+1 when a trailing even IQ pair is buffered for the next execute() (running state). 
+ 
+
+
+        
 
 <hr>
 
@@ -240,6 +294,11 @@ size_t dp_hbdecim_q15_state_t::mask;
 
 
 
+cap - 1, the ring index mask (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -253,6 +312,10 @@ size_t dp_hbdecim_q15_state_t::num_taps;
 
 
 
+FIR branch length from the caller (config). 
+
+
+        
 
 <hr>
 
@@ -266,6 +329,11 @@ int16_t* dp_hbdecim_q15_state_t::odd_I;
 
 
 
+Owned ring, 2\*cap: I of odd-index inputs. 
+ 
+
+
+        
 
 <hr>
 
@@ -279,6 +347,11 @@ int16_t* dp_hbdecim_q15_state_t::odd_Q;
 
 
 
+Owned ring, 2\*cap: Q of odd-index inputs. 
+ 
+
+
+        
 
 <hr>
 
@@ -292,6 +365,11 @@ size_t dp_hbdecim_q15_state_t::odd_head;
 
 
 
+Newest-sample index in the odd rings, [0, cap) (running state). 
+ 
+
+
+        
 
 <hr>
 
@@ -305,6 +383,10 @@ int16_t dp_hbdecim_q15_state_t::pending_I;
 
 
 
+I of the buffered pair; valid if has\_pending. 
+
+
+        
 
 <hr>
 
@@ -318,6 +400,10 @@ int16_t dp_hbdecim_q15_state_t::pending_Q;
 
 
 
+Q of the buffered pair; valid if has\_pending. 
+
+
+        
 
 <hr>
 

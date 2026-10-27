@@ -19,7 +19,7 @@ extern "C" {
 #endif
 
 typedef struct {
-    float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
+    float iscale; 
 } dp_i8_to_f32_state_t;
 
 dp_i8_to_f32_state_t *dp_i8_to_f32_create(float scale);

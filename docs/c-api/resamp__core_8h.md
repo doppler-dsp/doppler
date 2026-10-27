@@ -31,7 +31,7 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**resamp\_state\_t**](structresamp__state__t.md) <br> |
+| struct | [**resamp\_state\_t**](structresamp__state__t.md) <br>_Polyphase resampler state._  |
 
 
 
@@ -58,24 +58,24 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 
 | Type | Name |
 | ---: | :--- |
-|  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**dp\_resamp\_create**](#function-dp_resamp_create) (double rate) <br> |
-|  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**dp\_resamp\_create\_custom**](#function-dp_resamp_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br> |
+|  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**dp\_resamp\_create**](#function-dp_resamp_create) (double rate) <br>_Create a resampler with the built-in 4096x19 Kaiser bank (60 dB, 0.4/0.6 pass/stop)._  |
+|  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**dp\_resamp\_create\_custom**](#function-dp_resamp_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br>_Create a resampler over a user-supplied polyphase bank._  |
 |  double | [**dp\_resamp\_dc\_gain**](#function-dp_resamp_dc_gain) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The resampler's response to a constant input, from its own bank._  |
-|  void | [**dp\_resamp\_destroy**](#function-dp_resamp_destroy) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
+|  void | [**dp\_resamp\_destroy**](#function-dp_resamp_destroy) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Free the state, its bank and its delay lines._  |
 |  size\_t | [**dp\_resamp\_execute**](#function-dp_resamp_execute) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples (fixed rate)._  |
 |  size\_t | [**dp\_resamp\_execute\_ctrl**](#function-dp_resamp_execute_ctrl) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, const double \* ctrl, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviation._  |
 |  size\_t | [**dp\_resamp\_execute\_ctrl\_pos**](#function-dp_resamp_execute_ctrl_pos) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, const double \* ctrl, size\_t num\_in, float \_Complex \* out, double \* pos, size\_t max\_out) <br>[_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _, also reporting where each output sits on the input timeline._ |
 |  size\_t | [**dp\_resamp\_execute\_ctrl\_push**](#function-dp_resamp_execute_ctrl_push) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push one input at an instantaneous rate deviation; emit any outputs._  |
 |  double | [**dp\_resamp\_get\_ctrl\_acc**](#function-dp_resamp_get_ctrl_acc) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The control accumulator's fractional phase, in [0, 1)._  |
 |  double | [**dp\_resamp\_get\_delay**](#function-dp_resamp_get_delay) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Group delay of the interpolator, in INPUT samples._  |
-|  size\_t | [**dp\_resamp\_get\_num\_phases**](#function-dp_resamp_get_num_phases) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
-|  size\_t | [**dp\_resamp\_get\_num\_taps**](#function-dp_resamp_get_num_taps) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
-|  double | [**dp\_resamp\_get\_rate**](#function-dp_resamp_get_rate) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_resamp\_get\_num\_phases**](#function-dp_resamp_get_num_phases) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Polyphase arms in the bank._  |
+|  size\_t | [**dp\_resamp\_get\_num\_taps**](#function-dp_resamp_get_num_taps) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Taps per polyphase arm._  |
+|  double | [**dp\_resamp\_get\_rate**](#function-dp_resamp_get_rate) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Base output/input rate ratio._  |
 |  void | [**dp\_resamp\_get\_state**](#function-dp_resamp_get_state) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _mutable state into_`blob` _._ |
 |  size\_t | [**dp\_resamp\_interp\_fill**](#function-dp_resamp_interp_fill) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, float \_Complex \* out, size\_t max\_out) <br>_Emit exactly_ `max_out` _interpolated outputs, pulling inputs on overflow._ |
 |  size\_t | [**dp\_resamp\_interp\_inputs\_needed**](#function-dp_resamp_interp_inputs_needed) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state, size\_t max\_out) <br>_Input samples an interpolating fill of_ `max_out` _outputs consumes._ |
-|  void | [**dp\_resamp\_reset**](#function-dp_resamp_reset) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
-|  void | [**dp\_resamp\_set\_rate**](#function-dp_resamp_set_rate) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, double rate) <br> |
+|  void | [**dp\_resamp\_reset**](#function-dp_resamp_reset) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Zero the phase accumulators, the ctrl debt/ahead counters and every delay line. Rate and bank are preserved._  |
+|  void | [**dp\_resamp\_set\_rate**](#function-dp_resamp_set_rate) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, double rate) <br>_Update rate and recompute phase\_inc. Accumulator phase and delay line are preserved. Switching between interp and decim modes requires a new create() + destroy() pair: the call does flip the_ [_**dp\_resamp\_execute()**_](resamp__core_8h.md#function-dp_resamp_execute) _path when_`rate` _crosses 1, but the newly selected path's state is not primed. The rate is not validated._ |
 |  int | [**dp\_resamp\_set\_state**](#function-dp_resamp_set_state) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const void \* blob) <br>_Restore mutable state from_ `blob` _(same rate)._ |
 |  size\_t | [**dp\_resamp\_state\_bytes**](#function-dp_resamp_state_bytes) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Bytes_ [_**dp\_resamp\_get\_state()**_](resamp__core_8h.md#function-dp_resamp_get_state) _writes for_`state` _(envelope + payload)._ |
 
@@ -109,9 +109,9 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**RESAMP\_CTRL\_RATE\_MIN**](resamp__core_8h.md#define-resamp_ctrl_rate_min)  `1e-6`<br> |
-| define  | [**RESAMP\_STATE\_MAGIC**](resamp__core_8h.md#define-resamp_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'S', 'M', 'P')`<br> |
-| define  | [**RESAMP\_STATE\_VERSION**](resamp__core_8h.md#define-resamp_state_version)  `2u`<br> |
+| define  | [**RESAMP\_CTRL\_RATE\_MIN**](resamp__core_8h.md#define-resamp_ctrl_rate_min)  `1e-6`<br>_Floor on the composite rate_ `rate + ctrl` _in the ctrl paths._ |
+| define  | [**RESAMP\_STATE\_MAGIC**](resamp__core_8h.md#define-resamp_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'S', 'M', 'P')`<br>_State-blob magic for the resampler (FourCC "RSMP")._  |
+| define  | [**RESAMP\_STATE\_VERSION**](resamp__core_8h.md#define-resamp_state_version)  `2u`<br>_State-blob layout version (v2: uint32 ctrl phase + debt)._  |
 
 ## Detailed Description
 
@@ -137,7 +137,7 @@ This paragraph used to describe the other structure — "each input
 Phase accumulator (execute): upper log2(num\_phases) bits of the 32-bit NCO word index the polyphase bank — nearest-neighbor, no interpolation between branches.
 
 
-Default constructor builds a 4096-phase × 19-tap Kaiser bank (60 dB rejection, 0.4/0.6 pass/stop) at first call. Use [**dp\_resamp\_create\_custom()**](resamp__core_8h.md#function-dp_resamp_create_custom) to supply your own bank.
+Default constructor builds a 4096-phase × 19-tap Kaiser bank (60 dB rejection, 0.4/0.6 pass/stop) at create. Use [**dp\_resamp\_create\_custom()**](resamp__core_8h.md#function-dp_resamp_create_custom) to supply your own bank.
 
 
 Lifecycle: 
@@ -158,6 +158,7 @@ dp_resamp_destroy(r);
 
 ### function dp\_resamp\_create 
 
+_Create a resampler with the built-in 4096x19 Kaiser bank (60 dB, 0.4/0.6 pass/stop)._ 
 ```C++
 resamp_state_t * dp_resamp_create (
     double rate
@@ -166,7 +167,21 @@ resamp_state_t * dp_resamp_create (
 
 
 
-Built-in 4096×19 Kaiser bank (60 dB, 0.4/0.6 pass/stop). 
+
+
+**Parameters:**
+
+
+* `rate` Output/input rate ratio; &gt; 1 interpolates, &lt; 1 decimates. Should be &gt; 0; unlike [**dp\_resamp\_create\_custom()**](resamp__core_8h.md#function-dp_resamp_create_custom), this constructor does not check it. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL if allocation fails. Free with [**dp\_resamp\_destroy()**](resamp__core_8h.md#function-dp_resamp_destroy). 
+
+
+
 
 
         
@@ -177,6 +192,7 @@ Built-in 4096×19 Kaiser bank (60 dB, 0.4/0.6 pass/stop).
 
 ### function dp\_resamp\_create\_custom 
 
+_Create a resampler over a user-supplied polyphase bank._ 
 ```C++
 resamp_state_t * dp_resamp_create_custom (
     size_t num_phases,
@@ -188,7 +204,24 @@ resamp_state_t * dp_resamp_create_custom (
 
 
 
-User-supplied bank, shape num\_phases × num\_taps, row-major. num\_phases must be a power of two. 
+
+
+**Parameters:**
+
+
+* `num_phases` Arms in the bank; must be a power of two (not checked). 
+* `num_taps` Taps per arm. 
+* `bank` num\_phases x num\_taps floats, row-major (one row per arm); copied, so the caller keeps ownership. 
+* `rate` Output/input rate ratio, &gt; 0. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL if `num_phases` or `num_taps` is 0, `bank` is NULL, `rate` &lt;= 0, or allocation fails. 
+
+
+
 
 
         
@@ -248,6 +281,7 @@ dp_resamp_destroy (r);
 
 ### function dp\_resamp\_destroy 
 
+_Free the state, its bank and its delay lines._ 
 ```C++
 void dp_resamp_destroy (
     resamp_state_t * state
@@ -256,7 +290,14 @@ void dp_resamp_destroy (
 
 
 
-Free all resources. NULL is a no-op. 
+
+
+**Parameters:**
+
+
+* `state` May be NULL (no-op). 
+
+
 
 
         
@@ -486,7 +527,24 @@ A steady `mu` means the loop has settled on a sampling phase. A `mu` that slews 
 Reports the CONTROL accumulator, so it stays 0.0 for a caller driving this object through [**dp\_resamp\_execute()**](resamp__core_8h.md#function-dp_resamp_execute): the free-running phase is a separate accumulator with no accessor.
 
 
-Pinned by test\_resamp\_core.c §10 (the arm, read off the output at four rates), §11 (the wrap's unit, against the counting law) and §12. 
+Pinned by test\_resamp\_core.c §10 (the arm, read off the output at four rates), §11 (the wrap's unit, against the counting law) and §12.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+mu, from 0 up to (not including) 1: a fraction of one input interval; 0 after create/reset. 
+
+
+
 
 
         
@@ -537,6 +595,7 @@ The delay in input samples (`>= 1`).
 
 ### function dp\_resamp\_get\_num\_phases 
 
+_Polyphase arms in the bank._ 
 ```C++
 size_t dp_resamp_get_num_phases (
     const resamp_state_t * state
@@ -546,12 +605,31 @@ size_t dp_resamp_get_num_phases (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+num\_phases (4096 for the built-in bank). 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_resamp\_get\_num\_taps 
 
+_Taps per polyphase arm._ 
 ```C++
 size_t dp_resamp_get_num_taps (
     const resamp_state_t * state
@@ -561,12 +639,31 @@ size_t dp_resamp_get_num_taps (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+num\_taps (19 for the built-in bank). 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_resamp\_get\_rate 
 
+_Base output/input rate ratio._ 
 ```C++
 double dp_resamp_get_rate (
     const resamp_state_t * state
@@ -575,6 +672,24 @@ double dp_resamp_get_rate (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The create() rate, or the last [**dp\_resamp\_set\_rate()**](resamp__core_8h.md#function-dp_resamp_set_rate) value. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -592,6 +707,18 @@ void dp_resamp_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Caller-owned buffer of at least [**dp\_resamp\_state\_bytes()**](resamp__core_8h.md#function-dp_resamp_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -691,6 +818,7 @@ Inputs that call will consume.
 
 ### function dp\_resamp\_reset 
 
+_Zero the phase accumulators, the ctrl debt/ahead counters and every delay line. Rate and bank are preserved._ 
 ```C++
 void dp_resamp_reset (
     resamp_state_t * state
@@ -699,7 +827,14 @@ void dp_resamp_reset (
 
 
 
-Zero phase accumulator, ctrl accumulator, and delay line. Rate and bank are preserved. 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
 
 
         
@@ -710,6 +845,7 @@ Zero phase accumulator, ctrl accumulator, and delay line. Rate and bank are pres
 
 ### function dp\_resamp\_set\_rate 
 
+_Update rate and recompute phase\_inc. Accumulator phase and delay line are preserved. Switching between interp and decim modes requires a new create() + destroy() pair: the call does flip the_ [_**dp\_resamp\_execute()**_](resamp__core_8h.md#function-dp_resamp_execute) _path when_`rate` _crosses 1, but the newly selected path's state is not primed. The rate is not validated._
 ```C++
 void dp_resamp_set_rate (
     resamp_state_t * state,
@@ -719,7 +855,15 @@ void dp_resamp_set_rate (
 
 
 
-Update rate and recompute phase\_inc. Accumulator phase and delay line are preserved. Switching between interp and decim modes requires a new create() + destroy() pair. 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `rate` New output/input rate ratio, &gt; 0. 
+
+
 
 
         
@@ -739,6 +883,14 @@ int dp_resamp_set_state (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL; built with the same bank geometry. 
+* `blob` Blob from [**dp\_resamp\_get\_state()**](resamp__core_8h.md#function-dp_resamp_get_state). 
 
 
 
@@ -768,6 +920,24 @@ size_t dp_resamp_state_bytes (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Blob size in bytes; depends on num\_taps (via delay\_cap). 
+
+
+
+
+
+        
+
 <hr>
 ## Macro Definition Documentation
 
@@ -777,6 +947,7 @@ size_t dp_resamp_state_bytes (
 
 ### define RESAMP\_CTRL\_RATE\_MIN 
 
+_Floor on the composite rate_ `rate + ctrl` _in the ctrl paths._
 ```C++
 #define RESAMP_CTRL_RATE_MIN `1e-6`
 ```
@@ -790,6 +961,7 @@ size_t dp_resamp_state_bytes (
 
 ### define RESAMP\_STATE\_MAGIC 
 
+_State-blob magic for the resampler (FourCC "RSMP")._ 
 ```C++
 #define RESAMP_STATE_MAGIC `DP_FOURCC ('R', 'S', 'M', 'P')`
 ```
@@ -803,6 +975,7 @@ size_t dp_resamp_state_bytes (
 
 ### define RESAMP\_STATE\_VERSION 
 
+_State-blob layout version (v2: uint32 ctrl phase + debt)._ 
 ```C++
 #define RESAMP_STATE_VERSION `2u`
 ```

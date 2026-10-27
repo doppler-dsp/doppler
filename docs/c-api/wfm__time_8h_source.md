@@ -8,25 +8,7 @@
 
 
 ```C++
-/*
- * wfm_time.h — the one BLUE timecode <-> UNIX epoch conversion.
- *
- * A BLUE type-1000 header carries its capture time at byte 56 as a `double`
- * of seconds since the **J1950** epoch (1950-01-01T00:00:00Z), which is
- * 631152000 seconds before the UNIX epoch. Nothing in doppler converted it:
- * `wfm_reader_core.c` reads the field through and hands back the raw double,
- * so a caller wanting an absolute time had to know the offset itself — which
- * is how a magic 631152000 ends up pasted into three call sites.
- *
- * This is the feed into `dp_sample_clock_track()`. The sample clock already
- * owns the time base and the `t0 + n/fs` arithmetic (timing/timing_core.h);
- * all that was missing was a way to get a capture's own epoch into it. Only
- * the wfm family knows what J1950 is — telemetry consumes UNIX epochs and
- * must never learn.
- *
- * Header-only, like dp_crc16.h: wfm_reader and wfm_writer are separate
- * components and neither should grow a link-line dependency for an offset.
- */
+
 #ifndef WFM_TIME_H
 #define WFM_TIME_H
 

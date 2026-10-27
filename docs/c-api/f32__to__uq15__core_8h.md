@@ -62,10 +62,10 @@ _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._ [More...](#
 | ---: | :--- |
 |  [**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* | [**dp\_f32\_to\_uq15\_create**](#function-dp_f32_to_uq15_create) (float scale) <br>_Create a f32\_to\_uq15 instance._  |
 |  void | [**dp\_f32\_to\_uq15\_destroy**](#function-dp_f32_to_uq15_destroy) ([**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* state) <br>_Destroy a f32\_to\_uq15 instance and release all memory._  |
-|  void | [**dp\_f32\_to\_uq15\_get\_state**](#function-dp_f32_to_uq15_get_state) (const [**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_f32\_to\_uq15\_get\_state**](#function-dp_f32_to_uq15_get_state) (const [**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* state, void \* blob) <br>_Serialize the converter (scale and clip flag) into_ `blob` _._ |
 |  void | [**dp\_f32\_to\_uq15\_reset**](#function-dp_f32_to_uq15_reset) ([**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
-|  int | [**dp\_f32\_to\_uq15\_set\_state**](#function-dp_f32_to_uq15_set_state) ([**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_f32\_to\_uq15\_state\_bytes**](#function-dp_f32_to_uq15_state_bytes) (const [**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* state) <br> |
+|  int | [**dp\_f32\_to\_uq15\_set\_state**](#function-dp_f32_to_uq15_set_state) ([**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* state, const void \* blob) <br>_Restore the converter from a blob made by_ [_**dp\_f32\_to\_uq15\_get\_state()**_](f32__to__uq15__core_8h.md#function-dp_f32_to_uq15_get_state) _._ |
+|  size\_t | [**dp\_f32\_to\_uq15\_state\_bytes**](#function-dp_f32_to_uq15_state_bytes) (const [**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* state) <br>_Size in bytes of the blob_ [_**dp\_f32\_to\_uq15\_get\_state()**_](f32__to__uq15__core_8h.md#function-dp_f32_to_uq15_get_state) _writes._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint16\_t | [**dp\_f32\_to\_uq15\_step**](#function-dp_f32_to_uq15_step) ([**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* state, float x) <br>_Scale one float sample to an offset-binary UQ15 uint16 code._  |
 |  void | [**dp\_f32\_to\_uq15\_steps**](#function-dp_f32_to_uq15_steps) ([**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) \* state, const float \* input, uint16\_t \* output, size\_t n) <br>_Process a block of float samples to UQ15 uint16._  |
 
@@ -99,8 +99,8 @@ _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**F32\_TO\_UQ15\_STATE\_MAGIC**](f32__to__uq15__core_8h.md#define-f32_to_uq15_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F','U','1','5')`<br> |
-| define  | [**F32\_TO\_UQ15\_STATE\_VERSION**](f32__to__uq15__core_8h.md#define-f32_to_uq15_state_version)  `1u`<br> |
+| define  | [**F32\_TO\_UQ15\_STATE\_MAGIC**](f32__to__uq15__core_8h.md#define-f32_to_uq15_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F','U','1','5')`<br>_Blob magic ("FU15") that_ [_**dp\_f32\_to\_uq15\_set\_state()**_](f32__to__uq15__core_8h.md#function-dp_f32_to_uq15_set_state) _requires._ |
+| define  | [**F32\_TO\_UQ15\_STATE\_VERSION**](f32__to__uq15__core_8h.md#define-f32_to_uq15_state_version)  `1u`<br>_Blob layout version; a blob of any other version is rejected._  |
 
 ## Detailed Description
 
@@ -224,6 +224,7 @@ void dp_f32_to_uq15_destroy (
 
 ### function dp\_f32\_to\_uq15\_get\_state 
 
+_Serialize the converter (scale and clip flag) into_ `blob` _._
 ```C++
 void dp_f32_to_uq15_get_state (
     const dp_f32_to_uq15_state_t * state,
@@ -233,6 +234,18 @@ void dp_f32_to_uq15_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to snapshot; not modified. 
+* `blob` Caller buffer of at least [**dp\_f32\_to\_uq15\_state\_bytes()**](f32__to__uq15__core_8h.md#function-dp_f32_to_uq15_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -280,6 +293,7 @@ False
 
 ### function dp\_f32\_to\_uq15\_set\_state 
 
+_Restore the converter from a blob made by_ [_**dp\_f32\_to\_uq15\_get\_state()**_](f32__to__uq15__core_8h.md#function-dp_f32_to_uq15_get_state) _._
 ```C++
 int dp_f32_to_uq15_set_state (
     dp_f32_to_uq15_state_t * state,
@@ -289,6 +303,28 @@ int dp_f32_to_uq15_set_state (
 
 
 
+The whole struct is copied, so the blob's `scale` replaces the one this instance was created with.
+
+
+
+
+**Parameters:**
+
+
+* `state` Instance to overwrite. 
+* `blob` Blob to restore from; its envelope (magic, version, endianness, size) is validated before anything is copied. 
+
+
+
+**Returns:**
+
+DP\_OK on success; DP\_ERR\_INVALID if the envelope does not match, in which case `state` is left unchanged. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -296,6 +332,7 @@ int dp_f32_to_uq15_set_state (
 
 ### function dp\_f32\_to\_uq15\_state\_bytes 
 
+_Size in bytes of the blob_ [_**dp\_f32\_to\_uq15\_get\_state()**_](f32__to__uq15__core_8h.md#function-dp_f32_to_uq15_get_state) _writes._
 ```C++
 size_t dp_f32_to_uq15_state_bytes (
     const dp_f32_to_uq15_state_t * state
@@ -304,6 +341,24 @@ size_t dp_f32_to_uq15_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL (its contents do not affect the size). 
+
+
+
+**Returns:**
+
+sizeof(dp\_state\_hdr\_t) + sizeof(dp\_f32\_to\_uq15\_state\_t). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -371,7 +426,7 @@ void dp_f32_to_uq15_steps (
 
 
 
-Applies step() to every element. The `clipped` flag is updated cumulatively across the block. Accepts an optional pre-allocated output array; allocates a fresh one when `output` is NULL.
+Applies step() to every element. The `clipped` flag is updated cumulatively across the block. The C function writes into the caller's `output`, which must be non-NULL; the Python binding allocates a fresh array when no output array is passed.
 
 
 
@@ -406,6 +461,7 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 ### define F32\_TO\_UQ15\_STATE\_MAGIC 
 
+_Blob magic ("FU15") that_ [_**dp\_f32\_to\_uq15\_set\_state()**_](f32__to__uq15__core_8h.md#function-dp_f32_to_uq15_set_state) _requires._
 ```C++
 #define F32_TO_UQ15_STATE_MAGIC `DP_FOURCC ('F','U','1','5')`
 ```
@@ -419,6 +475,7 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 ### define F32\_TO\_UQ15\_STATE\_VERSION 
 
+_Blob layout version; a blob of any other version is rejected._ 
 ```C++
 #define F32_TO_UQ15_STATE_VERSION `1u`
 ```

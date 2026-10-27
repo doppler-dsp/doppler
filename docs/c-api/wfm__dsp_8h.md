@@ -100,7 +100,7 @@ _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._ [More...](#detail
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**M\_PI**](wfm__dsp_8h.md#define-m_pi)  `3.14159265358979323846`<br> |
+| define  | [**M\_PI**](wfm__dsp_8h.md#define-m_pi)  `3.14159265358979323846`<br>_pi, defined here only when &lt;math.h&gt; does not provide it._  |
 
 ## Detailed Description
 
@@ -260,10 +260,10 @@ void dp_wfm_dsss_spread (
 **Parameters:**
 
 
-* `syms` complex data symbols;
-* `n_sym` their count. 
-* `code` PN chip code (0/1), length `sf`;
-* `sf` spreading factor. 
+* `syms` complex data symbols. 
+* `n_sym` number of symbols in `syms`. 
+* `code` PN chip code (0/1), length `sf`. 
+* `sf` spreading factor, chips per symbol. 
 * `out` output chips, length `n_sym * sf`. 
 
 
@@ -567,6 +567,7 @@ static inline size_t wfm_rrc_ntaps (
 
 ### define M\_PI 
 
+_pi, defined here only when &lt;math.h&gt; does not provide it._ 
 ```C++
 #define M_PI `3.14159265358979323846`
 ```

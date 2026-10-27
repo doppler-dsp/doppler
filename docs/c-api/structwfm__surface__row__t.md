@@ -8,7 +8,7 @@
 
 
 
-
+[More...](#detailed-description)
 
 * `#include <wfm_surface.h>`
 
@@ -99,6 +99,13 @@
 
 
 
+## Detailed Description
+
+
+One field a face reads or writes by name: where it lives, what it holds, and how each face spells and bounds it. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -112,6 +119,10 @@ const char* const* wfm_surface_row_t::choices;
 
 
 
+WFM\_SV\_CHOICE: the names 
+
+
+        
 
 <hr>
 
@@ -125,6 +136,10 @@ const char* wfm_surface_row_t::cli;
 
 
 
+the flag; NULL = not on the CLI 
+
+
+        
 
 <hr>
 
@@ -138,6 +153,10 @@ int wfm_surface_row_t::has_when;
 
 
 
+written only when ... 
+
+
+        
 
 <hr>
 
@@ -151,6 +170,10 @@ size_t wfm_surface_row_t::hi_off;
 
 
 
+`<name>_hi`, if ranged 
+
+
+        
 
 <hr>
 
@@ -164,6 +187,10 @@ const char* wfm_surface_row_t::json;
 
 
 
+the scene/record key 
+
+
+        
 
 <hr>
 
@@ -177,6 +204,10 @@ int wfm_surface_row_t::json_bool;
 
 
 
+written as true/false 
+
+
+        
 
 <hr>
 
@@ -190,6 +221,10 @@ int wfm_surface_row_t::json_omit;
 
 
 
+not written at its default (or at 0) 
+
+
+        
 
 <hr>
 
@@ -203,6 +238,10 @@ int wfm_surface_row_t::json_required;
 
 
 
+absent/unknown: refuse 
+
+
+        
 
 <hr>
 
@@ -216,6 +255,10 @@ wfm_sv_kind_t wfm_surface_row_t::kind;
 
 
 
+the member's value kind 
+
+
+        
 
 <hr>
 
@@ -229,6 +272,10 @@ size_t wfm_surface_row_t::len_off;
 
 
 
+WFM\_SV\_SYMBOLS: the count 
+
+
+        
 
 <hr>
 
@@ -242,6 +289,10 @@ int wfm_surface_row_t::n_choices;
 
 
 
+entries in `choices` 
+
+
+        
 
 <hr>
 
@@ -255,6 +306,10 @@ const char* wfm_surface_row_t::name;
 
 
 
+the struct member 
+
+
+        
 
 <hr>
 
@@ -268,6 +323,10 @@ size_t wfm_surface_row_t::off;
 
 
 
+offsetof the member 
+
+
+        
 
 <hr>
 
@@ -281,6 +340,10 @@ wfm_surf_owner_t wfm_surface_row_t::owner;
 
 
 
+which struct `off` is into 
+
+
+        
 
 <hr>
 
@@ -294,6 +357,10 @@ unsigned wfm_surface_row_t::range_bit;
 
 
 
+WFM\_RANGE\_\*; 0 = not ranged 
+
+
+        
 
 <hr>
 
@@ -307,6 +374,10 @@ size_t wfm_surface_row_t::reps_off;
 
 
 
+WFM\_SV\_FIELD: where \*REPS goes; 0 = the field does not repeat 
+
+
+        
 
 <hr>
 
@@ -320,6 +391,10 @@ int wfm_surface_row_t::unit_interval;
 
 
 
+require 0 &lt; v &lt;= 1 
+
+
+        
 
 <hr>
 
@@ -333,6 +408,10 @@ int wfm_surface_row_t::when_row;
 
 
 
+... this row's choice ... 
+
+
+        
 
 <hr>
 
@@ -346,6 +425,10 @@ int wfm_surface_row_t::when_value;
 
 
 
+... is this index 
+
+
+        
 
 <hr>
 

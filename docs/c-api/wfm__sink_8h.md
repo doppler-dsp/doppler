@@ -58,15 +58,15 @@ _NATS PUB sink for generated IQ (Phase B)._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  int | [**dp\_wfm\_stream\_sink\_available**](#function-dp_wfm_stream_sink_available) (void) <br>_1 if the real stream sink (libdoppler\_stream) is linked, else 0 (the pure-C core links only the weak no-op stubs). wfmgen checks this before the_ `--output nats://` _path._ |
-|  double | [**dp\_wfm\_stream\_sink\_clip\_fraction**](#function-dp_wfm_stream_sink_clip_fraction) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
+|  double | [**dp\_wfm\_stream\_sink\_clip\_fraction**](#function-dp_wfm_stream_sink_clip_fraction) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Fraction (0..1) of integer I/Q components that saturated._  |
 |  void | [**dp\_wfm\_stream\_sink\_close**](#function-dp_wfm_stream_sink_close) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Close the sink and destroy the publisher._  |
 |  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_wfm\_stream\_sink\_drain**](#function-dp_wfm_stream_sink_drain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int timeout\_ms) <br>_Let everything already sent reach the server, then stop._  |
 |  [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* | [**dp\_wfm\_stream\_sink\_open**](#function-dp_wfm_stream_sink_open) (const char \* endpoint, int sample\_type) <br>_Open a stream sink (PUB) bound to a NATS subject._  |
-|  double | [**dp\_wfm\_stream\_sink\_peak**](#function-dp_wfm_stream_sink_peak) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br> |
+|  double | [**dp\_wfm\_stream\_sink\_peak**](#function-dp_wfm_stream_sink_peak) (const [**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Largest per-axis magnitude seen on an integer path._  |
 |  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_wfm\_stream\_sink\_send**](#function-dp_wfm_stream_sink_send) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, const float \_Complex \* iq, size\_t n, double fs, double fc) <br>_Convert a cf32 block to the wire type and publish it._  |
 |  [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard) int | [**dp\_wfm\_stream\_sink\_send\_eos**](#function-dp_wfm_stream_sink_send_eos) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink) <br>_Tell subscribers this stream has ended._  |
-|  void | [**dp\_wfm\_stream\_sink\_set\_gain**](#function-dp_wfm_stream_sink_set_gain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, double gain) <br> |
-|  void | [**dp\_wfm\_stream\_sink\_track\_clipping**](#function-dp_wfm_stream_sink_track_clipping) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int on) <br> |
+|  void | [**dp\_wfm\_stream\_sink\_set\_gain**](#function-dp_wfm_stream_sink_set_gain) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, double gain) <br>_Set the output gain applied to every sample before conversion._  |
+|  void | [**dp\_wfm\_stream\_sink\_track\_clipping**](#function-dp_wfm_stream_sink_track_clipping) ([**wfm\_stream\_sink\_t**](wfm__sink_8h.md#typedef-wfm_stream_sink_t) \* sink, int on) <br>_Enable or disable the per-component clip counter._  |
 
 
 
@@ -153,12 +153,24 @@ int dp_wfm_stream_sink_available (
 
 
 
+
+**Returns:**
+
+1 when the real sink is linked, 0 when only the stubs are. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_wfm\_stream\_sink\_clip\_fraction 
 
+_Fraction (0..1) of integer I/Q components that saturated._ 
 ```C++
 double dp_wfm_stream_sink_clip_fraction (
     const wfm_stream_sink_t * sink
@@ -167,7 +179,24 @@ double dp_wfm_stream_sink_clip_fraction (
 
 
 
-Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked. The generated StreamSink handle binds peak/clip\_fraction directly as per-field getters (jm#320), so no stats-snapshot struct shim is needed. 
+Clips counted while [**dp\_wfm\_stream\_sink\_track\_clipping()**](wfm__sink_8h.md#function-dp_wfm_stream_sink_track_clipping) is on, divided by all integer-path I and Q components sent since open. The generated StreamSink handle binds peak/clip\_fraction directly as per-field getters (jm#320), so no stats-snapshot struct shim is needed.
+
+
+
+
+**Parameters:**
+
+
+* `sink` Sink, or NULL. 
+
+
+
+**Returns:**
+
+The fraction; 0.0 for NULL, before any integer-path send, when tracking was never on, or in the stub build. 
+
+
+
 
 
         
@@ -294,6 +323,7 @@ Caller must [**dp\_wfm\_stream\_sink\_close()**](wfm__sink_8h.md#function-dp_wfm
 
 ### function dp\_wfm\_stream\_sink\_peak 
 
+_Largest per-axis magnitude seen on an integer path._ 
 ```C++
 double dp_wfm_stream_sink_peak (
     const wfm_stream_sink_t * sink
@@ -302,8 +332,23 @@ double dp_wfm_stream_sink_peak (
 
 
 
-Largest per-axis magnitude seen on an integer path (pre-clip, full-scale 1). 
-> 1.0 ⇒ clipped; peak\_dBFS = 20\*log10(peak). 
+Measured after the gain and before saturation, relative to full scale 1.0, over everything sent since open (ci32/ci16/ci8 only; cf32/cf64 do not update it). A value &gt; 1.0 means the stream clipped; peak\_dBFS = 20\*log10(peak).
+
+
+
+
+**Parameters:**
+
+
+* `sink` Sink, or NULL. 
+
+
+
+**Returns:**
+
+The peak, or 0.0 for NULL, before any integer-path send, or in the stub build. 
+
+
 
 
 
@@ -397,6 +442,7 @@ DP\_OK, or the stream layer's error.
 
 ### function dp\_wfm\_stream\_sink\_set\_gain 
 
+_Set the output gain applied to every sample before conversion._ 
 ```C++
 void dp_wfm_stream_sink_set_gain (
     wfm_stream_sink_t * sink,
@@ -406,7 +452,18 @@ void dp_wfm_stream_sink_set_gain (
 
 
 
-Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). gain 1.0 sends cf32 unscaled (the direct path). 
+Linear; default 1.0. For headroom H dB pass 10^(-H/20). The gain scales all wire types, cf32 included; at exactly 1.0 cf32 is sent unscaled (the direct, byte-identical path). The stub build ignores it.
+
+
+
+
+**Parameters:**
+
+
+* `sink` Sink; NULL is a no-op. 
+* `gain` Linear amplitude gain (stored as float). 
+
+
 
 
         
@@ -417,6 +474,7 @@ Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). 
 
 ### function dp\_wfm\_stream\_sink\_track\_clipping 
 
+_Enable or disable the per-component clip counter._ 
 ```C++
 void dp_wfm_stream_sink_track_clipping (
     wfm_stream_sink_t * sink,
@@ -426,7 +484,18 @@ void dp_wfm_stream_sink_track_clipping (
 
 
 
-Enable the per-component clip counter (off by default; peak always on). 
+Off by default; the peak is tracked regardless. Only clips seen while tracking is on are counted, but every integer-path component sent since open counts toward [**dp\_wfm\_stream\_sink\_clip\_fraction()**](wfm__sink_8h.md#function-dp_wfm_stream_sink_clip_fraction)'s denominator.
+
+
+
+
+**Parameters:**
+
+
+* `sink` Sink; NULL is a no-op. 
+* `on` Non-zero to count clips, 0 to stop counting. 
+
+
 
 
         

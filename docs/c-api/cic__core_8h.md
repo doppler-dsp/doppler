@@ -63,11 +63,11 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 |  double | [**dp\_cic\_dc\_gain**](#function-dp_cic_dc_gain) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_The filter's response to a constant input, from its own geometry._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**dp\_cic\_decimate**](#function-dp_cic_decimate) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
 |  size\_t | [**dp\_cic\_decimate\_max\_out**](#function-dp_cic_decimate_max_out) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
-|  void | [**dp\_cic\_destroy**](#function-dp_cic_destroy) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br> |
-|  void | [**dp\_cic\_get\_state**](#function-dp_cic_get_state) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, void \* blob) <br>_Serialize the integrator/comb/phase state into_ `blob` _._ |
+|  void | [**dp\_cic\_destroy**](#function-dp_cic_destroy) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Free the filter state._  |
+|  void | [**dp\_cic\_get\_state**](#function-dp_cic_get_state) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, void \* blob) <br>_Serialize the integrator/comb/phase state and_ `clipped` _into_`blob` _. R and shift are not written._ |
 |  void | [**dp\_cic\_reconfigure**](#function-dp_cic_reconfigure) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 2048]` _(_`CIC_R_MAX` _) — the state is left unchanged in that case._ |
-|  void | [**dp\_cic\_reset**](#function-dp_cic_reset) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state._  |
-|  int | [**dp\_cic\_set\_state**](#function-dp_cic_set_state) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const void \* blob) <br>_Restore the integrator/comb/phase state from_ `blob` _._ |
+|  void | [**dp\_cic\_reset**](#function-dp_cic_reset) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state. Also clears the sticky_ `clipped` _flag._ |
+|  int | [**dp\_cic\_set\_state**](#function-dp_cic_set_state) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const void \* blob) <br>_Restore the integrator/comb/phase state and_ `clipped` _from_`blob` _._ |
 |  size\_t | [**dp\_cic\_state\_bytes**](#function-dp_cic_state_bytes) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Bytes_ [_**dp\_cic\_get\_state()**_](cic__core_8h.md#function-dp_cic_get_state) _writes (envelope + payload)._ |
 
 
@@ -275,7 +275,7 @@ JM_FORCEINLINE  JM_HOT size_t dp_cic_decimate (
 
 **Returns:**
 
-CF32 output array; length is min(floor((phase + n\_in) / R), max\_out).
+Number of CF32 samples written to `out:` min(floor((phase + n\_in) / R), max\_out), where phase is the input count carried from the previous call.
 
 
 
@@ -309,7 +309,24 @@ size_t dp_cic_decimate_max_out (
 
 
 
-The Python extension allocates n\_in elements on the first call. Since n\_in &gt;= ceil(n\_in/R) = n\_out for all R &gt;= 1, the buffer is always large enough as long as block size stays consistent. 
+The Python extension allocates n\_in elements on the first call. Since n\_in &gt;= ceil(n\_in/R) = n\_out for all R &gt;= 1, the buffer is always large enough as long as block size stays consistent.
+
+
+
+
+**Parameters:**
+
+
+* `state` CIC state (unused). 
+
+
+
+**Returns:**
+
+Always 0, meaning "no fixed cap": size the output to the input length. 
+
+
+
 
 
         
@@ -320,6 +337,7 @@ The Python extension allocates n\_in elements on the first call. Since n\_in &gt
 
 ### function dp\_cic\_destroy 
 
+_Free the filter state._ 
 ```C++
 void dp_cic_destroy (
     dp_cic_state_t * state
@@ -328,7 +346,14 @@ void dp_cic_destroy (
 
 
 
-Free resources. NULL is a no-op. 
+
+
+**Parameters:**
+
+
+* `state` State from [**dp\_cic\_create()**](cic__core_8h.md#function-dp_cic_create); NULL is a no-op. 
+
+
 
 
         
@@ -339,7 +364,7 @@ Free resources. NULL is a no-op.
 
 ### function dp\_cic\_get\_state 
 
-_Serialize the integrator/comb/phase state into_ `blob` _._
+_Serialize the integrator/comb/phase state and_ `clipped` _into_`blob` _. R and shift are not written._
 ```C++
 void dp_cic_get_state (
     const dp_cic_state_t * state,
@@ -349,6 +374,18 @@ void dp_cic_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Pointer to a valid [**dp\_cic\_state\_t**](structdp__cic__state__t.md). 
+* `blob` Destination; at least [**dp\_cic\_state\_bytes()**](cic__core_8h.md#function-dp_cic_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -393,7 +430,7 @@ void dp_cic_reconfigure (
 
 ### function dp\_cic\_reset 
 
-_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state._ 
+_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state. Also clears the sticky_ `clipped` _flag._
 ```C++
 void dp_cic_reset (
     dp_cic_state_t * state
@@ -401,6 +438,13 @@ void dp_cic_reset (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Pointer to a valid [**dp\_cic\_state\_t**](structdp__cic__state__t.md).
 
 
 ```C++
@@ -421,7 +465,7 @@ void dp_cic_reset (
 
 ### function dp\_cic\_set\_state 
 
-_Restore the integrator/comb/phase state from_ `blob` _._
+_Restore the integrator/comb/phase state and_ `clipped` _from_`blob` _._
 ```C++
 int dp_cic_set_state (
     dp_cic_state_t * state,
@@ -430,6 +474,17 @@ int dp_cic_set_state (
 ```
 
 
+
+R and shift are kept from `state`, so restore into a CIC built with the same R as the writer; the blob does not record R and cannot detect a mismatch.
+
+
+
+
+**Parameters:**
+
+
+* `state` Pointer to a valid [**dp\_cic\_state\_t**](structdp__cic__state__t.md). 
+* `blob` A blob from [**dp\_cic\_get\_state()**](cic__core_8h.md#function-dp_cic_get_state). 
 
 
 
@@ -458,6 +513,24 @@ size_t dp_cic_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` CIC state (unused: the size is fixed). 
+
+
+
+**Returns:**
+
+`sizeof(dp_state_hdr_t) + 4 * CIC_N * 8 + 4 + 1` bytes, the same for every R. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -536,6 +609,10 @@ The 64-bit accumulator holds `65535 * R^CIC_N`. At R = 4096 that is `(2^16 - 1) 
 
 
 
+FourCC type tag ("CIC\_") stamped in a CIC state blob's header. 
+
+
+        
 
 <hr>
 
@@ -549,6 +626,10 @@ The 64-bit accumulator holds `65535 * R^CIC_N`. At R = 4096 that is `(2^16 - 1) 
 
 
 
+Layout version of the CIC state blob (2 added `clipped`). 
+
+
+        
 
 <hr>
 

@@ -30,7 +30,6 @@ typedef struct
   uint16_t flags; 
 } dp_tlm_rec_t;
 
-/* One record must fill exactly one ring slot (C99-portable assert). */
 typedef char dp_tlm_rec_fits_slot[sizeof (dp_tlm_rec_t)
                                           == 2 * sizeof (uint64_t)
                                       ? 1
@@ -57,8 +56,8 @@ typedef struct dp_tlm
 {
   dp_tlmr_t     *ring;    
   uint64_t       now;     
-  uint32_t       n_probes;
-  dp_tlm_probe_t probes[DP_TLM_MAX_PROBES];
+  uint32_t       n_probes; 
+  dp_tlm_probe_t probes[DP_TLM_MAX_PROBES]; 
   dp_tlm_capture_t *capture;
   int (*capture_drain) (dp_tlm_capture_t *);
 } dp_tlm_t;

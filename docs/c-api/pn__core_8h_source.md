@@ -22,13 +22,13 @@ extern "C" {
 enum { PN_GALOIS = 0, PN_FIBONACCI = 1 };
 
 typedef struct {
-    uint64_t poly;     /* Galois feedback polynomial (taps) */
-    uint64_t seed;     /* initial register state (for reset) */
-    uint64_t reg;      /* current LFSR register */
-    uint64_t mask;     /* (1 << length) - 1; all ones when length == 64 */
-    int kind;          /* PN_GALOIS or PN_FIBONACCI */
-    uint64_t fib_taps; /* Fibonacci feedback taps (canonical poly & mask) */
-    uint32_t topshift; /* length-1: position the Fibonacci feedback enters */
+    uint64_t poly;     
+    uint64_t seed;     
+    uint64_t reg;      
+    uint64_t mask;     
+    int kind;          
+    uint64_t fib_taps; 
+    uint32_t topshift; 
 } dp_pn_state_t;
 
 JM_FORCEINLINE uint64_t

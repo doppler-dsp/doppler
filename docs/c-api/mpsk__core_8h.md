@@ -61,11 +61,11 @@ _M-PSK constellation: Gray-coded map / demap for BPSK, QPSK, 8PSK._ [More...](#d
 |  void | [**dp\_mpsk\_diff\_map**](#function-dp_mpsk_diff_map) (const uint8\_t \* sym, size\_t sym\_len, float \_Complex \* out, int m) <br>_Differential M-PSK map: the label selects a phase INCREMENT._  |
 |  void | [**dp\_mpsk\_map**](#function-dp_mpsk_map) (const uint8\_t \* sym, size\_t sym\_len, float \_Complex \* out, int m) <br>_Map Gray-coded M-PSK labels to unit-amplitude constellation points._  |
 |  void | [**dp\_mpsk\_soft\_demap**](#function-dp_mpsk_soft_demap) (const float \_Complex \* x, size\_t x\_len, float \* llr, size\_t llr\_len, int m, float n0) <br>_Soft-demap M-PSK symbols to per-bit log-likelihood ratios._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**mpsk\_bps**](#function-mpsk_bps) (int m) <br>_Bits per M-PSK symbol = log2(M); M in {2,4,8} -&gt; {1,2,3}, else 0._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**mpsk\_bps**](#function-mpsk_bps) (int m) <br>_Bits per M-PSK symbol = log2(M)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**mpsk\_constellation**](#function-mpsk_constellation) (unsigned g, int m) <br>_Constellation point for Gray label_ `g` _(M-PSK), unit amplitude._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_gray\_decode**](#function-mpsk_gray_decode) (unsigned g) <br>_Gray code -&gt; binary index (inverse of mpsk\_gray\_encode)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_gray\_encode**](#function-mpsk_gray_encode) (unsigned k) <br>_Binary index -&gt; Gray code (k ^ k&gt;&gt;1)._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_phi0**](#function-mpsk_phi0) (int m) <br>_Constellation phase offset (radians): pi/4 for QPSK, else 0._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_phi0**](#function-mpsk_phi0) (int m) <br>_Constellation phase offset of the M-PSK alphabet._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_slice**](#function-mpsk_slice) (float \_Complex y, int m, float \_Complex \* ahat) <br>_Hard-decide_ `y` _to the nearest M-PSK point; return its Gray label._ |
 
 
@@ -98,7 +98,7 @@ _M-PSK constellation: Gray-coded map / demap for BPSK, QPSK, 8PSK._ [More...](#d
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**MPSK\_PI**](mpsk__core_8h.md#define-mpsk_pi)  `3.14159265358979323846`<br> |
+| define  | [**MPSK\_PI**](mpsk__core_8h.md#define-mpsk_pi)  `3.14159265358979323846`<br>_pi, in double precision, for the M-PSK phase arithmetic._  |
 
 ## Detailed Description
 
@@ -424,7 +424,7 @@ True
 
 ### function mpsk\_bps 
 
-_Bits per M-PSK symbol = log2(M); M in {2,4,8} -&gt; {1,2,3}, else 0._ 
+_Bits per M-PSK symbol = log2(M)._ 
 ```C++
 JM_FORCEINLINE int mpsk_bps (
     int m
@@ -433,6 +433,24 @@ JM_FORCEINLINE int mpsk_bps (
 
 
 
+
+
+**Parameters:**
+
+
+* `m` Modulation order M; 2, 4 or 8. 
+
+
+
+**Returns:**
+
+1, 2 or 3 for M = 2, 4, 8; 0 for any other `m` (unsupported). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -489,6 +507,24 @@ JM_FORCEINLINE unsigned mpsk_gray_decode (
 
 
 
+
+**Parameters:**
+
+
+* `g` Gray-coded label. 
+
+
+
+**Returns:**
+
+Binary index k with mpsk\_gray\_encode(k) == `g`. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -505,13 +541,31 @@ JM_FORCEINLINE unsigned mpsk_gray_encode (
 
 
 
+
+**Parameters:**
+
+
+* `k` Binary constellation index. 
+
+
+
+**Returns:**
+
+Gray code of `k`; adjacent indices differ in one bit. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function mpsk\_phi0 
 
-_Constellation phase offset (radians): pi/4 for QPSK, else 0._ 
+_Constellation phase offset of the M-PSK alphabet._ 
 ```C++
 JM_FORCEINLINE double mpsk_phi0 (
     int m
@@ -520,6 +574,24 @@ JM_FORCEINLINE double mpsk_phi0 (
 
 
 
+
+
+**Parameters:**
+
+
+* `m` Modulation order M. 
+
+
+
+**Returns:**
+
+pi/4 rad for M = 4 (QPSK points on the diagonals); 0 rad for every other `m`. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -571,6 +643,7 @@ Gray-coded label (0..M-1).
 
 ### define MPSK\_PI 
 
+_pi, in double precision, for the M-PSK phase arithmetic._ 
 ```C++
 #define MPSK_PI `3.14159265358979323846`
 ```

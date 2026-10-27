@@ -23,7 +23,7 @@ extern "C"
 
   typedef struct
   {
-    float acc;
+    float acc; 
   } dp_acc_f32_state_t;
 
   dp_acc_f32_state_t *dp_acc_f32_create (float acc);

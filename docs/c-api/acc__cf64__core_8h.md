@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](acc__cf64__core_8h_source.md)
 
-_AccCf64 component API._ [More...](#detailed-description)
+_AccCf64: a double-precision complex running-sum accumulator._ [More...](#detailed-description)
 
 * `#include "doppler/clib_common.h"`
 * `#include "doppler/jm_perf.h"`
@@ -32,7 +32,7 @@ _AccCf64 component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) <br>_AccCf64 state._  |
+| struct | [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) <br>_AccCf64 state: the single running complex sum._  |
 
 
 
@@ -65,13 +65,13 @@ _AccCf64 component API._ [More...](#detailed-description)
 |  double \_Complex | [**dp\_acc\_cf64\_dump**](#function-dp_acc_cf64_dump) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br>_Return the accumulated sum and atomically reset it to zero. This is the canonical "drain" primitive: read the period total, then start a fresh accumulation interval without a separate_ `reset` _call. Both real and imaginary parts are zeroed unconditionally._ |
 |  double \_Complex | [**dp\_acc\_cf64\_get**](#function-dp_acc_cf64_get) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br>_Return the current accumulated sum without resetting state. Identical to reading the_ `acc` _property directly; retained as an explicit method so call sites that need the value can be uniform with_`dump` _without a conditional._ |
 |  double \_Complex | [**dp\_acc\_cf64\_get\_acc**](#function-dp_acc_cf64_get_acc) (const [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br>_Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use_ `dp_acc_cf64_dump` _._ |
-|  void | [**dp\_acc\_cf64\_get\_state**](#function-dp_acc_cf64_get_state) (const [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_acc\_cf64\_get\_state**](#function-dp_acc_cf64_get_state) (const [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, void \* blob) <br>_Serialize the accumulator into_ `blob` _(envelope + whole struct)._ |
 |  void | [**dp\_acc\_cf64\_madd**](#function-dp_acc_cf64_madd) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, const double \_Complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate with complex signal and float weights:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. The signal array_`x` _is double-precision complex; the coefficient array_`h` _is single-precision float (widened to double before multiplication). The shorter of the two arrays limits iteration._ |
 |  void | [**dp\_acc\_cf64\_madd2d**](#function-dp_acc_cf64_madd2d) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, const double \_Complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate over a flat 2-D complex buffer:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. Combines_`add2d` _and_`madd` _semantics for 2-D data — a complex signal grid is weighted element-wise by a real coefficient buffer and folded into the running sum._ |
 |  void | [**dp\_acc\_cf64\_reset**](#function-dp_acc_cf64_reset) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br>_Zero the accumulator, restoring the same state as a fresh_ `AccCf64(0j)` _— regardless of the value supplied to_`dp_acc_cf64_create` _. Both the real and imaginary parts are set to 0.0. Subsequent_`get` _/_`dump` _calls return_`0j` _until new samples are processed._ |
 |  void | [**dp\_acc\_cf64\_set\_acc**](#function-dp_acc_cf64_set_acc) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, double \_Complex value) <br>_Overwrite the accumulator with a new complex value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _; subsequent_`step` _/_`steps` _samples accumulate on top of the seeded value._ |
-|  int | [**dp\_acc\_cf64\_set\_state**](#function-dp_acc_cf64_set_state) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_acc\_cf64\_state\_bytes**](#function-dp_acc_cf64_state_bytes) (const [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br> |
+|  int | [**dp\_acc\_cf64\_set\_state**](#function-dp_acc_cf64_set_state) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, const void \* blob) <br>_Restore the accumulator from a blob made by_ [_**dp\_acc\_cf64\_get\_state()**_](acc__cf64__core_8h.md#function-dp_acc_cf64_get_state) _._ |
+|  size\_t | [**dp\_acc\_cf64\_state\_bytes**](#function-dp_acc_cf64_state_bytes) (const [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state) <br>_Size in bytes of the blob_ [_**dp\_acc\_cf64\_get\_state()**_](acc__cf64__core_8h.md#function-dp_acc_cf64_get_state) _writes._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dp\_acc\_cf64\_step**](#function-dp_acc_cf64_step) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, double \_Complex x) <br>_Add one complex sample to the running sum (_ `acc += x` _). This is the hot-path entry for sample-by-sample processing. For block inputs prefer_`dp_acc_cf64_steps` _to amortise call overhead._ |
 |  void | [**dp\_acc\_cf64\_steps**](#function-dp_acc_cf64_steps) ([**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) \* state, const double \_Complex \* input, size\_t n) <br>_Add all samples in_ `input` _to the running sum. Equivalent to calling_`dp_acc_cf64_step` _for each element; iterates element-by-element over double-precision complex samples._ |
 
@@ -105,8 +105,8 @@ _AccCf64 component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**ACC\_CF64\_STATE\_MAGIC**](acc__cf64__core_8h.md#define-acc_cf64_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'C', 'C')`<br> |
-| define  | [**ACC\_CF64\_STATE\_VERSION**](acc__cf64__core_8h.md#define-acc_cf64_state_version)  `1u`<br> |
+| define  | [**ACC\_CF64\_STATE\_MAGIC**](acc__cf64__core_8h.md#define-acc_cf64_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'C', 'C')`<br>_Blob magic ("ACCC") that_ [_**dp\_acc\_cf64\_set\_state()**_](acc__cf64__core_8h.md#function-dp_acc_cf64_set_state) _requires._ |
+| define  | [**ACC\_CF64\_STATE\_VERSION**](acc__cf64__core_8h.md#define-acc_cf64_state_version)  `1u`<br>_Blob layout version; a blob of any other version is rejected._  |
 
 ## Detailed Description
 
@@ -237,6 +237,17 @@ void dp_acc_cf64_destroy (
 
 
 
+
+**Parameters:**
+
+
+* `state` Instance from [**dp\_acc\_cf64\_create()**](acc__cf64__core_8h.md#function-dp_acc_cf64_create), or NULL. 
+
+
+
+
+        
+
 <hr>
 
 
@@ -251,6 +262,13 @@ double _Complex dp_acc_cf64_dump (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
 
 
 
@@ -292,6 +310,13 @@ double _Complex dp_acc_cf64_get (
 
 
 
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
 **Returns:**
 
 Current value of `acc` (complex). 
@@ -328,6 +353,13 @@ double _Complex dp_acc_cf64_get_acc (
 
 
 
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
 **Returns:**
 
 Current value of `acc` (complex). 
@@ -354,6 +386,7 @@ Current value of `acc` (complex).
 
 ### function dp\_acc\_cf64\_get\_state 
 
+_Serialize the accumulator into_ `blob` _(envelope + whole struct)._
 ```C++
 void dp_acc_cf64_get_state (
     const dp_acc_cf64_state_t * state,
@@ -363,6 +396,18 @@ void dp_acc_cf64_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to snapshot; not modified. 
+* `blob` Caller buffer of at least [**dp\_acc\_cf64\_state\_bytes()**](acc__cf64__core_8h.md#function-dp_acc_cf64_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -472,6 +517,11 @@ void dp_acc_cf64_reset (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
 ```C++
 >>> from doppler.accumulator import AccCf64
 >>> obj = AccCf64(0j)
@@ -481,6 +531,8 @@ void dp_acc_cf64_reset (
 0j
 ```
  
+
+
 
 
         
@@ -529,6 +581,7 @@ void dp_acc_cf64_set_acc (
 
 ### function dp\_acc\_cf64\_set\_state 
 
+_Restore the accumulator from a blob made by_ [_**dp\_acc\_cf64\_get\_state()**_](acc__cf64__core_8h.md#function-dp_acc_cf64_get_state) _._
 ```C++
 int dp_acc_cf64_set_state (
     dp_acc_cf64_state_t * state,
@@ -539,12 +592,32 @@ int dp_acc_cf64_set_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Instance to overwrite. 
+* `blob` Blob to restore from; its envelope (magic, version, endianness, size) is validated before anything is copied. 
+
+
+
+**Returns:**
+
+DP\_OK on success; DP\_ERR\_INVALID if the envelope does not match, in which case `state` is left unchanged. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_acc\_cf64\_state\_bytes 
 
+_Size in bytes of the blob_ [_**dp\_acc\_cf64\_get\_state()**_](acc__cf64__core_8h.md#function-dp_acc_cf64_get_state) _writes._
 ```C++
 size_t dp_acc_cf64_state_bytes (
     const dp_acc_cf64_state_t * state
@@ -553,6 +626,24 @@ size_t dp_acc_cf64_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL (its contents do not affect the size). 
+
+
+
+**Returns:**
+
+sizeof(dp\_state\_hdr\_t) + sizeof(dp\_acc\_cf64\_state\_t). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -640,6 +731,7 @@ void dp_acc_cf64_steps (
 
 ### define ACC\_CF64\_STATE\_MAGIC 
 
+_Blob magic ("ACCC") that_ [_**dp\_acc\_cf64\_set\_state()**_](acc__cf64__core_8h.md#function-dp_acc_cf64_set_state) _requires._
 ```C++
 #define ACC_CF64_STATE_MAGIC `DP_FOURCC ('A', 'C', 'C', 'C')`
 ```
@@ -653,6 +745,7 @@ void dp_acc_cf64_steps (
 
 ### define ACC\_CF64\_STATE\_VERSION 
 
+_Blob layout version; a blob of any other version is rejected._ 
 ```C++
 #define ACC_CF64_STATE_VERSION `1u`
 ```

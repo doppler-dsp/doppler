@@ -56,10 +56,6 @@ enum {
 
 #define WFM_DSSS_ENDED 2u
 
-/* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
- * — a clean waveform shouldn't pay the noise cost). 100 dB SNR is the default
- * and is numerically clean anyway. Lower --snr to add noise. (type=noise always
- * generates AWGN regardless.) */
 #define WFM_SYNTH_SNR_CLEAN 100.0
 
 JM_FORCEINLINE int
@@ -94,58 +90,56 @@ typedef struct {
 } wfm_synth_refill_state_t;
 
 typedef struct {
-    int wtype;
-    int nsps;
-    int sym_pos;
-    float cur_re;
-    float cur_im;
-    double chirp_f0;
-    double chirp_fend;
-    double chirp_k;
-    double chirp_ph;
-    size_t chirp_n;
-    size_t chirp_span;
-    uint8_t * bits;
-    size_t n_bits;
-    size_t bit_idx;
-    int bit_mod;
-    float _Complex * symbols;
-    size_t n_symbols;
-    size_t sym_read_idx;
+    int wtype;   
+    int nsps;    
+    int sym_pos; 
+    float cur_re; 
+    float cur_im; 
+    double chirp_f0;   
+    double chirp_fend; 
+    double chirp_k;    
+    double chirp_ph;   
+    size_t chirp_n;    
+    size_t chirp_span; 
+    uint8_t * bits; 
+    size_t n_bits;  
+    size_t bit_idx; 
+    int bit_mod;    
+    float _Complex * symbols; 
+    size_t n_symbols;         
+    size_t sym_read_idx;      
     /* continuous asynchronous DSSS (type=dsss + symbol_rate > 0):
        chips_per_symbol == 0 means burst mode (the fields below are unused). */
-    double chips_per_symbol; /* config: chip_rate / symbol_rate (non-integer) */
-    uint8_t * code;          /* config: spreading code (0/1), owned          */
-    size_t n_code;           /* config: spreading code length in chips        */
-    int data_mode;           /* config: WFM_DSSS_DATA_{NONE,BITS,PRBS}        */
-    size_t code_only_symbols; /* config: pure-code symbols opening each frame  */
-    size_t frame_symbols;     /* config: frame length in symbols; 0 = no window */
-    uint64_t chip_n;         /* running: chips emitted so far                 */
-    uint64_t sym_idx;        /* running: current data-symbol index            */
-    uint64_t next_edge;      /* derived: first chip of symbol sym_idx + 1
-                                (dp_wfm_dsss_cont_edge); not serialized --
-                                set_state recomputes it from sym_idx       */
-    uint8_t cur_data;        /* running: data bit latched for this symbol      */
-    dp_fir_state_t * fir;       /* dense RRC FIR (non-power-of-two sps fallback)  */
+    double chips_per_symbol; 
+    uint8_t * code;          
+    size_t n_code;           
+    int data_mode;           
+    size_t code_only_symbols; 
+    size_t frame_symbols;     
+    uint64_t chip_n;         
+    uint64_t sym_idx;        
+    uint64_t next_edge;      
+    uint8_t cur_data;        
+    dp_fir_state_t * fir;    
     /* Polyphase RRC pulse shaper: a resamp interpolate-by-sps view over the
        RRC bank, replacing the dense fir (impulse-train + full FIR) with ~sps×
        fewer MACs. Built by dp_wfm_synth_set_rrc when sps is a power of two; the
        dense `fir` is used otherwise. Exactly one of fir/shaper is ever set. */
-    resamp_state_t * shaper;
-    uint8_t primed;          /* running: shaper's sps-sample latency primed     */
-    dp_lo_state_t * lo;
-    dp_awgn_state_t * awgn;
-    dp_pn_state_t * pn;
+    resamp_state_t * shaper; 
+    uint8_t primed;          
+    dp_lo_state_t * lo;      
+    dp_awgn_state_t * awgn;  
+    dp_pn_state_t * pn;      
     /* A frame source (dp_wfm_synth_set_refill): NULL sends `bits` once.
        Once it reports the end, `data_ended` latches and every symbol after is zero --
        silence, never a held symbol (a line on the air nobody sent). */
-    wfm_synth_refill_fn refill;
-    void *refill_user;
-    void (*refill_free)(void *);
+    wfm_synth_refill_fn refill; 
+    void *refill_user;          
+    void (*refill_free)(void *); 
     /* The refill's state triplet (dp_wfm_synth_set_refill_state); NULL: a
        refill with none, which refuses serialization. */
-    const wfm_synth_refill_state_t *refill_state;
-    uint8_t data_ended;
+    const wfm_synth_refill_state_t *refill_state; 
+    uint8_t data_ended; 
 } dp_wfm_synth_state_t;
 
 JM_FORCEINLINE int
@@ -513,14 +507,6 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
  * bits are config restored by create, but a PULLED frame is state: with a
  * refill the blob carries it and nests the refill's own sub-blob. */
 #define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
-/* v2: + continuous-DSSS chip/symbol clocks; v3: + data_ended, the pulled
-   frame and the refill's sub-blob (doppler#1681); v4: the embedded AWGN
-   blob is v2, which carries its seed and amplitude, so the synth blob grew
-   (#2084). A v3 blob is refused by its version (a clean one has the same
-   length, so the version alone refuses it; a noisy one is also refused by
-   its length). v5: + the DSSS window (code_only_symbols, frame_symbols),
-   dp_wfm_synth_set_dsss_window's value (#2022); a v4 blob is shorter, so
-   its length refuses it as well as its version. */
 #define WFM_SYNTH_STATE_VERSION 5u
 size_t dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *state);
 void dp_wfm_synth_get_state (const dp_wfm_synth_state_t *state, void *blob);

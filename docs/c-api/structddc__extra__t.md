@@ -8,7 +8,7 @@
 
 
 
-
+_DDC-specific blob header, written after the envelope and before the LO and RateConverter child blobs._ 
 
 * `#include <ddc_core.h>`
 

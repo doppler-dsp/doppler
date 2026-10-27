@@ -316,7 +316,7 @@ class HalfbandDecimator:
     h : NDArray[np.float32]
         Float32 FIR branch coefficients (the branch of the halfband prototype
         with more than one nonzero tap, not the whole prototype). Must be
-        symmetric, h[k] == h[h_len-1-k]: only the first h_len/2 are read, and
+        symmetric, `h[k] == h[h_len-1-k]`: only the first h_len/2 are read, and
         for odd h_len the centre tap is ignored in favor of the fixed 0.5 delay
         branch. Copied and scaled by 0.5; must be non-NULL.
 
@@ -351,9 +351,8 @@ class HalfbandDecimator:
             CF32 input array. An odd length leaves its last sample held for the
             next call.
         out : npt.NDArray[np.complex64] | None
-            [out] Output buffer; must hold at least (x_len + 1) / 2 samples.
-            Complete input pairs left once it is full are discarded, not
-            carried.
+            Output buffer; must hold at least (x_len + 1) / 2 samples. Complete
+            input pairs left once it is full are discarded, not carried.
 
         Returns
         -------

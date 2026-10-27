@@ -8,7 +8,7 @@
 
 
 
-
+_Synth state: one streaming waveform source._ [More...](#detailed-description)
 
 * `#include <wfm_synth_core.h>`
 
@@ -119,6 +119,13 @@
 
 
 
+## Detailed Description
+
+
+Allocate with [**dp\_wfm\_synth\_create()**](wfm__synth__core_8h.md#function-dp_wfm_synth_create), configure with the set\_\* calls, and release with [**dp\_wfm\_synth\_destroy()**](wfm__synth__core_8h.md#function-dp_wfm_synth_destroy). Fields are public for the inline kernels in this header; treat them as read-only and change them through the API. "config" fields are set by create() or a setter and survive [**dp\_wfm\_synth\_reset()**](wfm__synth__core_8h.md#function-dp_wfm_synth_reset); "running" fields are the stream position. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -132,6 +139,10 @@ dp_awgn_state_t* dp_wfm_synth_state_t::awgn;
 
 
 
+noise generator, owned; NULL for a clean synth (snr &gt;= WFM\_SYNTH\_SNR\_CLEAN) 
+
+
+        
 
 <hr>
 
@@ -145,6 +156,10 @@ size_t dp_wfm_synth_state_t::bit_idx;
 
 
 
+running: read cursor into `bits`; stops at n\_bits (never wraps) 
+
+
+        
 
 <hr>
 
@@ -158,6 +173,10 @@ int dp_wfm_synth_state_t::bit_mod;
 
 
 
+config: bits per symbol for the pattern: 0 = 0/1 amplitude line, 1 = BPSK, 2 = QPSK, 3 = 8PSK 
+
+
+        
 
 <hr>
 
@@ -171,6 +190,10 @@ uint8_t* dp_wfm_synth_state_t::bits;
 
 
 
+pattern buffer (0/1 per byte), owned: the bits pattern, a dsss burst's chips, or a continuous dsss payload; a refill rewrites it with each frame 
+
+
+        
 
 <hr>
 
@@ -184,6 +207,10 @@ uint64_t dp_wfm_synth_state_t::chip_n;
 
 
 
+running: chips emitted so far 
+
+
+        
 
 <hr>
 
@@ -197,6 +224,10 @@ double dp_wfm_synth_state_t::chips_per_symbol;
 
 
 
+config: chip\_rate / symbol\_rate (non-integer); 0 = burst mode 
+
+
+        
 
 <hr>
 
@@ -210,6 +241,10 @@ double dp_wfm_synth_state_t::chirp_f0;
 
 
 
+config: chirp start frequency, cycles/sample (`freq / fs`) 
+
+
+        
 
 <hr>
 
@@ -223,6 +258,10 @@ double dp_wfm_synth_state_t::chirp_fend;
 
 
 
+config: chirp end frequency, cycles/sample (`f_end / fs`) 
+
+
+        
 
 <hr>
 
@@ -236,6 +275,10 @@ double dp_wfm_synth_state_t::chirp_k;
 
 
 
+config: chirp slope, cycles/sample per sample; 0 until [**dp\_wfm\_synth\_set\_chirp\_span()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_chirp_span) pins it 
+
+
+        
 
 <hr>
 
@@ -249,6 +292,10 @@ size_t dp_wfm_synth_state_t::chirp_n;
 
 
 
+running: samples generated into the sweep; the frequency holds at the end once it reaches chirp\_span 
+
+
+        
 
 <hr>
 
@@ -262,6 +309,10 @@ double dp_wfm_synth_state_t::chirp_ph;
 
 
 
+running: chirp carrier phase, cycles, in [0, 1) 
+
+
+        
 
 <hr>
 
@@ -275,6 +326,10 @@ size_t dp_wfm_synth_state_t::chirp_span;
 
 
 
+config: sweep length in samples; 0 = not pinned (the chirp holds its start frequency) 
+
+
+        
 
 <hr>
 
@@ -288,6 +343,10 @@ uint8_t* dp_wfm_synth_state_t::code;
 
 
 
+config: spreading code (0/1), owned 
+
+
+        
 
 <hr>
 
@@ -301,6 +360,10 @@ size_t dp_wfm_synth_state_t::code_only_symbols;
 
 
 
+config: pure-code symbols opening each frame 
+
+
+        
 
 <hr>
 
@@ -314,6 +377,10 @@ uint8_t dp_wfm_synth_state_t::cur_data;
 
 
 
+running: data bit latched for this symbol (0/1), or WFM\_DSSS\_ENDED 
+
+
+        
 
 <hr>
 
@@ -327,6 +394,10 @@ float dp_wfm_synth_state_t::cur_im;
 
 
 
+running: imaginary (Q) part of the held symbol 
+
+
+        
 
 <hr>
 
@@ -340,6 +411,10 @@ float dp_wfm_synth_state_t::cur_re;
 
 
 
+running: real (I) part of the held symbol; 1.0 for tone/chirp, else 0.0 until the first latch 
+
+
+        
 
 <hr>
 
@@ -353,6 +428,10 @@ uint8_t dp_wfm_synth_state_t::data_ended;
 
 
 
+running: 1 once the data has ended (pattern spent with no refill, or the refill reported its end); output is silence from then on 
+
+
+        
 
 <hr>
 
@@ -366,6 +445,10 @@ int dp_wfm_synth_state_t::data_mode;
 
 
 
+config: WFM\_DSSS\_DATA\_{NONE,BITS,PRBS} 
+
+
+        
 
 <hr>
 
@@ -379,6 +462,10 @@ dp_fir_state_t* dp_wfm_synth_state_t::fir;
 
 
 
+dense RRC FIR (non-power-of-two sps fallback), owned; NULL = no shaping 
+
+
+        
 
 <hr>
 
@@ -392,6 +479,10 @@ size_t dp_wfm_synth_state_t::frame_symbols;
 
 
 
+config: frame length in symbols; 0 = no window 
+
+
+        
 
 <hr>
 
@@ -405,6 +496,10 @@ dp_lo_state_t* dp_wfm_synth_state_t::lo;
 
 
 
+carrier LO, owned; NULL at freq 0 and for noise/chirp 
+
+
+        
 
 <hr>
 
@@ -418,6 +513,10 @@ size_t dp_wfm_synth_state_t::n_bits;
 
 
 
+config: length of `bits` (one frame), in bits 
+
+
+        
 
 <hr>
 
@@ -431,6 +530,10 @@ size_t dp_wfm_synth_state_t::n_code;
 
 
 
+config: spreading code length in chips 
+
+
+        
 
 <hr>
 
@@ -444,6 +547,10 @@ size_t dp_wfm_synth_state_t::n_symbols;
 
 
 
+config: length of `symbols` 
+
+
+        
 
 <hr>
 
@@ -457,6 +564,10 @@ uint64_t dp_wfm_synth_state_t::next_edge;
 
 
 
+derived: first chip of symbol sym\_idx + 1 (dp\_wfm\_dsss\_cont\_edge); not serialized  set\_state recomputes it from sym\_idx 
+
+
+        
 
 <hr>
 
@@ -470,6 +581,10 @@ int dp_wfm_synth_state_t::nsps;
 
 
 
+config: samples per symbol (per chip for dsss), &gt;= 1 after create() (a smaller `sps` is clamped to 1) 
+
+
+        
 
 <hr>
 
@@ -483,6 +598,10 @@ dp_pn_state_t* dp_wfm_synth_state_t::pn;
 
 
 
+PN LFSR, owned: chips/data for pn, bpsk, qpsk, and the dsss PRBS data; else NULL 
+
+
+        
 
 <hr>
 
@@ -496,6 +615,10 @@ uint8_t dp_wfm_synth_state_t::primed;
 
 
 
+running: shaper's sps-sample latency primed 
+
+
+        
 
 <hr>
 
@@ -509,6 +632,10 @@ wfm_synth_refill_fn dp_wfm_synth_state_t::refill;
 
 
 
+frame source, or NULL 
+
+
+        
 
 <hr>
 
@@ -522,6 +649,10 @@ void(* dp_wfm_synth_state_t::refill_free) (void *);
 
 
 
+frees `refill_user` on detach or destroy, or NULL 
+
+
+        
 
 <hr>
 
@@ -535,6 +666,10 @@ const wfm_synth_refill_state_t* dp_wfm_synth_state_t::refill_state;
 
 
 
+the refill's state triplet, or NULL 
+
+
+        
 
 <hr>
 
@@ -548,6 +683,10 @@ void* dp_wfm_synth_state_t::refill_user;
 
 
 
+argument passed to `refill` 
+
+
+        
 
 <hr>
 
@@ -561,6 +700,10 @@ resamp_state_t* dp_wfm_synth_state_t::shaper;
 
 
 
+polyphase RRC shaper (power-of-two sps), owned; NULL when unused 
+
+
+        
 
 <hr>
 
@@ -574,6 +717,10 @@ uint64_t dp_wfm_synth_state_t::sym_idx;
 
 
 
+running: current data-symbol index 
+
+
+        
 
 <hr>
 
@@ -587,6 +734,10 @@ int dp_wfm_synth_state_t::sym_pos;
 
 
 
+running: sample index within the held symbol, 0..nsps-1; 0 means the next sample latches a new symbol (unused by the polyphase shaper path) 
+
+
+        
 
 <hr>
 
@@ -600,6 +751,10 @@ size_t dp_wfm_synth_state_t::sym_read_idx;
 
 
 
+running: read cursor into `symbols`; wraps (the stream cycles) 
+
+
+        
 
 <hr>
 
@@ -613,6 +768,10 @@ float _Complex* dp_wfm_synth_state_t::symbols;
 
 
 
+config: type=symbols stream, owned 
+
+
+        
 
 <hr>
 
@@ -626,6 +785,10 @@ int dp_wfm_synth_state_t::wtype;
 
 
 
+config: waveform type, a WFM\_SYNTH\_\* value 
+
+
+        
 
 <hr>
 

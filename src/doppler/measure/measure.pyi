@@ -921,9 +921,10 @@ class IMDMeasure:
         frames (a trailing partial frame is dropped), takes the two strongest
         bins more than spur_guard_bins from DC and from each other as f1 < f2,
         and integrates each tone and the IM products 2f1-f2, 2f2-f1 and f2-f1
-        (folded into [0, fs/2]) over +/- lobe_bins. `imd3_dbc` is the worse of
-        the two third-order products; both IMD ratios are relative to the mean
-        tone power. TOI = P_tone + |IMD3|/2 and SOI = P_tone + |IMD2| (dBFS).
+        (folded into `[0, fs/2]`) over +/- lobe_bins. `imd3_dbc` is the worse
+        of the two third-order products; both IMD ratios are relative to the
+        mean tone power. TOI = P_tone + |IMD3|/2 and SOI = P_tone + |IMD2|
+        (dBFS).
 
         Parameters
         ----------
@@ -1144,7 +1145,7 @@ def dp_coherent_freq(fs: float, f_target: float, N: int) -> float:
     capture (no leakage) with J coprime to N (so quantisation-noise
     correlation is minimised).
 
-    J starts at round(f_target * N / fs), is clamped to [1, N-1], then
+    J starts at round(f_target * N / fs), is clamped to `[1, N-1]`, then
     moved by the smallest distance that makes it coprime with N; on a tie
     the higher J wins.
 

@@ -8,7 +8,7 @@
 
 
 
-_I16U64ToF32 state._ [More...](#detailed-description)
+_I16U64ToF32 state: the precomputed reciprocal scale._ [More...](#detailed-description)
 
 * `#include <i16u64_to_f32_core.h>`
 
@@ -101,6 +101,11 @@ float dp_i16u64_to_f32_state_t::iscale;
 
 
 
+1.0f / scale, set at create(); the step is one multiply of the sign-extended low 16 bits. 
+ 
+
+
+        
 
 <hr>
 

@@ -35,8 +35,8 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 
 | Type | Name |
 | ---: | :--- |
-| typedef struct wfm\_writer\_state | [**dp\_wfm\_writer\_state\_t**](#typedef-dp_wfm_writer_state_t)  <br> |
-| enum  | [**wfm\_filetype\_t**](#enum-wfm_filetype_t)  <br> |
+| typedef struct wfm\_writer\_state | [**dp\_wfm\_writer\_state\_t**](#typedef-dp_wfm_writer_state_t)  <br>_Opaque writer handle (struct defined in wfm\_writer\_core.c)._  |
+| enum  | [**wfm\_filetype\_t**](#enum-wfm_filetype_t)  <br>_Output file type._  |
 
 
 
@@ -66,20 +66,20 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 |  char \* | [**dp\_wfm\_sigmf\_meta\_json\_ex**](#function-dp_wfm_sigmf_meta_json_ex) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, const char \* extra\_global\_json, const char \*const \* annotations, size\_t n\_ann) <br>[_**dp\_wfm\_sigmf\_meta\_json()**_](wfm__writer__core_8h.md#function-dp_wfm_sigmf_meta_json) _plus the two things a caller can add to it._ |
 |  int | [**dp\_wfm\_writer\_add\_keyword**](#function-dp_wfm_writer_add_keyword) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, const char \* tag, char type, const void \* value, size\_t count) <br>_Attach a BLUE extended-header keyword (a tag/value pair)._  |
 |  int | [**dp\_wfm\_writer\_annotate**](#function-dp_wfm_writer_annotate) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state, const [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* scene) <br>_Annotate the capture with a scene's sources: the SigMF sidecar close() writes gets one annotation per source per instance._  |
-|  double | [**dp\_wfm\_writer\_clip\_fraction**](#function-dp_wfm_writer_clip_fraction) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br> |
+|  double | [**dp\_wfm\_writer\_clip\_fraction**](#function-dp_wfm_writer_clip_fraction) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br>_Fraction (0..1) of I/Q components the integer quantizer saturated. Always 0 unless_ [_**dp\_wfm\_writer\_track\_clipping()**_](wfm__writer__core_8h.md#function-dp_wfm_writer_track_clipping) _was enabled._ |
 |  int | [**dp\_wfm\_writer\_close**](#function-dp_wfm_writer_close) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br>_Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._  |
 |  [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* | [**dp\_wfm\_writer\_create**](#function-dp_wfm_writer_create) (const char \* path, double fs, int file\_type, int sample\_type, int endian, double fc, size\_t total, double headroom, double t0, bool sidecar) <br>_Open a capture for writing._  |
 |  int | [**dp\_wfm\_writer\_destroy**](#function-dp_wfm_writer_destroy) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br>_Finalise and free — the object binding's fallible destructor._  |
 |  int | [**dp\_wfm\_writer\_flush**](#function-dp_wfm_writer_flush) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br>_Make written samples durable and observable, without finishing._  |
-|  double | [**dp\_wfm\_writer\_get\_clip\_fraction**](#function-dp_wfm_writer_get_clip_fraction) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br> |
-|  bool | [**dp\_wfm\_writer\_get\_clipped**](#function-dp_wfm_writer_get_clipped) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br> |
-|  double | [**dp\_wfm\_writer\_get\_peak\_dbfs**](#function-dp_wfm_writer_get_peak_dbfs) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br> |
+|  double | [**dp\_wfm\_writer\_get\_clip\_fraction**](#function-dp_wfm_writer_get_clip_fraction) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br>_Fraction (0..1) of I/Q components that saturated: the_ `clip_fraction` _property, identical to_[_**dp\_wfm\_writer\_clip\_fraction()**_](wfm__writer__core_8h.md#function-dp_wfm_writer_clip_fraction) _._ |
+|  bool | [**dp\_wfm\_writer\_get\_clipped**](#function-dp_wfm_writer_get_clipped) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br>_Whether the integer quantizer saturated any component: the_ `clipped` _property._ |
+|  double | [**dp\_wfm\_writer\_get\_peak\_dbfs**](#function-dp_wfm_writer_get_peak_dbfs) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state) <br>_Largest per-axis magnitude written so far, in dBFS: the_ `peak_dbfs` _property._ |
 |  [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* | [**dp\_wfm\_writer\_open**](#function-dp_wfm_writer_open) (FILE \* fp, [**wfm\_filetype\_t**](wfm__writer__core_8h.md#enum-wfm_filetype_t) ft, int sample\_type, int endian, double fs, double fc, size\_t total\_samples, double t0\_unix\_sec) <br>_Open a writer on an already-open stream._  |
-|  double | [**dp\_wfm\_writer\_peak**](#function-dp_wfm_writer_peak) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br> |
-|  void | [**dp\_wfm\_writer\_set\_gain**](#function-dp_wfm_writer_set_gain) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, double gain) <br> |
-|  void | [**dp\_wfm\_writer\_track\_clipping**](#function-dp_wfm_writer_track_clipping) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state, int on) <br> |
+|  double | [**dp\_wfm\_writer\_peak**](#function-dp_wfm_writer_peak) (const [**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w) <br>_Largest per-axis magnitude max(\|I\|,\|Q\|) written so far (pre-clip, after gain; full-scale 1.0). &gt; 1.0 ⇒ integer output clipped; peak\_dBFS = 20\*log10(peak)._  |
+|  void | [**dp\_wfm\_writer\_set\_gain**](#function-dp_wfm_writer_set_gain) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* w, double gain) <br>_Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). Stored as float; applies to later writes only._  |
+|  void | [**dp\_wfm\_writer\_track\_clipping**](#function-dp_wfm_writer_track_clipping) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state, int on) <br>_Enable the per-component clip_ _counter_ _(off by default; peak is always on). Only writes made after enabling are counted._ |
 |  size\_t | [**dp\_wfm\_writer\_write**](#function-dp_wfm_writer_write) ([**dp\_wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-dp_wfm_writer_state_t) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Convert and write a block of samples._  |
-|  int | [**dp\_write\_blue\_header**](#function-dp_write_blue_header) (const char \* path, double fs, int sample\_type, int endian, double fc, double data\_start, size\_t total, int detached, double t0) <br> |
+|  int | [**dp\_write\_blue\_header**](#function-dp_write_blue_header) (const char \* path, double fs, int sample\_type, int endian, double fc, double data\_start, size\_t total, int detached, double t0) <br>_Write a 512-byte BLUE type-1000 header to a file by path._  |
 
 
 
@@ -148,16 +148,13 @@ dp_wfm_writer_close(w);   // patches the BLUE data_size from the actual count
 
 ### typedef dp\_wfm\_writer\_state\_t 
 
+_Opaque writer handle (struct defined in wfm\_writer\_core.c)._ 
 ```C++
 typedef struct wfm_writer_state dp_wfm_writer_state_t;
 ```
 
 
 
-Opaque writer. 
-
-
-        
 
 <hr>
 
@@ -165,6 +162,7 @@ Opaque writer.
 
 ### enum wfm\_filetype\_t 
 
+_Output file type._ 
 ```C++
 enum wfm_filetype_t {
     WFM_FT_RAW = 0,
@@ -176,10 +174,6 @@ enum wfm_filetype_t {
 
 
 
-Output file type. 
-
-
-        
 
 <hr>
 ## Public Functions Documentation
@@ -440,6 +434,7 @@ DP\_OK, or DP\_ERR\_INVALID for a NULL argument, a BLUE writer (its header has n
 
 ### function dp\_wfm\_writer\_clip\_fraction 
 
+_Fraction (0..1) of I/Q components the integer quantizer saturated. Always 0 unless_ [_**dp\_wfm\_writer\_track\_clipping()**_](wfm__writer__core_8h.md#function-dp_wfm_writer_track_clipping) _was enabled._
 ```C++
 double dp_wfm_writer_clip_fraction (
     const dp_wfm_writer_state_t * w
@@ -448,7 +443,21 @@ double dp_wfm_writer_clip_fraction (
 
 
 
-Fraction (0..1) of I/Q components that saturated (\|v\| &gt; 1). Always 0 unless [**dp\_wfm\_writer\_track\_clipping()**](wfm__writer__core_8h.md#function-dp_wfm_writer_track_clipping) was enabled. 
+
+
+**Parameters:**
+
+
+* `w` The writer; NULL returns 0.0. 
+
+
+
+**Returns:**
+
+Clipped components / (2 x samples written), 0.0 before any write. The denominator is 2 per sample for every wire type, including the one-component real types. 
+
+
+
 
 
         
@@ -468,11 +477,21 @@ int dp_wfm_writer_close (
 
 
 
+A writer from [**dp\_wfm\_writer\_create()**](wfm__writer__core_8h.md#function-dp_wfm_writer_create) owns its FILE and closes it here, then writes its SigMF / SigMF-shaped sidecar if it has one. The writer is freed whatever the status.
+
+
+
+
+**Parameters:**
+
+
+* `w` The writer; NULL is a no-op returning 0. 
+
 
 
 **Returns:**
 
-0 on success, non-zero on a write/seek error. 
+0 on success, non-zero on a write/seek error (including any earlier failed write, or a failed sidecar). 
 
 
 
@@ -588,6 +607,13 @@ Identical to [**dp\_wfm\_writer\_close()**](wfm__writer__core_8h.md#function-dp_
 
 
 
+**Parameters:**
+
+
+* `state` The writer; NULL is a no-op returning 0. 
+
+
+
 **Returns:**
 
 0 on success, non-zero on a write/seek error during finalisation. 
@@ -617,6 +643,20 @@ Leaves the file on a sample boundary  write() emits whole samples, so a flush BE
 
 
 
+
+**Parameters:**
+
+
+* `state` The writer. 
+
+
+
+**Returns:**
+
+0 on success, -1 for a NULL writer, an earlier write error on the stream, or a failed fflush().
+
+
+
 ```C++
 >>> import pathlib, tempfile
 >>> import numpy as np
@@ -642,6 +682,7 @@ Leaves the file on a sample boundary  write() emits whole samples, so a flush BE
 
 ### function dp\_wfm\_writer\_get\_clip\_fraction 
 
+_Fraction (0..1) of I/Q components that saturated: the_ `clip_fraction` _property, identical to_[_**dp\_wfm\_writer\_clip\_fraction()**_](wfm__writer__core_8h.md#function-dp_wfm_writer_clip_fraction) _._
 ```C++
 double dp_wfm_writer_get_clip_fraction (
     const dp_wfm_writer_state_t * state
@@ -651,12 +692,31 @@ double dp_wfm_writer_get_clip_fraction (
 
 
 
+
+**Parameters:**
+
+
+* `state` The writer; NULL returns 0.0. 
+
+
+
+**Returns:**
+
+0.0 unless [**dp\_wfm\_writer\_track\_clipping()**](wfm__writer__core_8h.md#function-dp_wfm_writer_track_clipping) was enabled before writing. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_wfm\_writer\_get\_clipped 
 
+_Whether the integer quantizer saturated any component: the_ `clipped` _property._
 ```C++
 bool dp_wfm_writer_get_clipped (
     const dp_wfm_writer_state_t * state
@@ -665,6 +725,27 @@ bool dp_wfm_writer_get_clipped (
 
 
 
+Always tracked (no opt-in), and taken from the quantizer's own verdict rather than the peak, so -1.0 (exact on an integer type) does not count while +1.0 (one code past full scale) does. Always false for float wire types, which cannot clip.
+
+
+
+
+**Parameters:**
+
+
+* `state` The writer; NULL returns false. 
+
+
+
+**Returns:**
+
+true once any written component saturated. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -672,6 +753,7 @@ bool dp_wfm_writer_get_clipped (
 
 ### function dp\_wfm\_writer\_get\_peak\_dbfs 
 
+_Largest per-axis magnitude written so far, in dBFS: the_ `peak_dbfs` _property._
 ```C++
 double dp_wfm_writer_get_peak_dbfs (
     const dp_wfm_writer_state_t * state
@@ -680,6 +762,27 @@ double dp_wfm_writer_get_peak_dbfs (
 
 
 
+Full scale is 0 dBFS, so a value above 0 on an integer wire type means the capture clipped, and `ceil(peak_dbfs)` dB of headroom is the remedy.
+
+
+
+
+**Parameters:**
+
+
+* `state` The writer. 
+
+
+
+**Returns:**
+
+`20*log10( dp_wfm_writer_peak() )`, or -INFINITY before anything is written. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -735,6 +838,7 @@ Writer handle, or NULL on bad args / allocation. BLUE writes its 512-byte header
 
 ### function dp\_wfm\_writer\_peak 
 
+_Largest per-axis magnitude max(\|I\|,\|Q\|) written so far (pre-clip, after gain; full-scale 1.0). &gt; 1.0 ⇒ integer output clipped; peak\_dBFS = 20\*log10(peak)._ 
 ```C++
 double dp_wfm_writer_peak (
     const dp_wfm_writer_state_t * w
@@ -743,7 +847,21 @@ double dp_wfm_writer_peak (
 
 
 
-Largest per-axis magnitude max(\|I\|,\|Q\|) written so far (pre-clip, full-scale 1.0). &gt; 1.0 ⇒ integer output clipped; peak\_dBFS = 20\*log10(peak). 
+
+
+**Parameters:**
+
+
+* `w` The writer; NULL returns 0.0. 
+
+
+
+**Returns:**
+
+The peak, 0.0 before anything is written. 
+
+
+
 
 
         
@@ -754,6 +872,7 @@ Largest per-axis magnitude max(\|I\|,\|Q\|) written so far (pre-clip, full-scale
 
 ### function dp\_wfm\_writer\_set\_gain 
 
+_Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). Stored as float; applies to later writes only._ 
 ```C++
 void dp_wfm_writer_set_gain (
     dp_wfm_writer_state_t * w,
@@ -763,7 +882,15 @@ void dp_wfm_writer_set_gain (
 
 
 
-Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). 
+
+
+**Parameters:**
+
+
+* `w` The writer; NULL is a no-op. 
+* `gain` Linear amplitude scale applied before quantization. 
+
+
 
 
         
@@ -774,6 +901,7 @@ Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20).
 
 ### function dp\_wfm\_writer\_track\_clipping 
 
+_Enable the per-component clip_ _counter_ _(off by default; peak is always on). Only writes made after enabling are counted._
 ```C++
 void dp_wfm_writer_track_clipping (
     dp_wfm_writer_state_t * state,
@@ -783,7 +911,15 @@ void dp_wfm_writer_track_clipping (
 
 
 
-Enable the per-component clip _counter_ (off by default; peak is always on). 
+
+
+**Parameters:**
+
+
+* `state` The writer; NULL is a no-op. 
+* `on` Non-zero to count clipped components, 0 to stop. 
+
+
 
 
         
@@ -807,6 +943,15 @@ size_t dp_wfm_writer_write (
 
 Takes `complex64` at unit scale and emits it in the writer's wire type. Call as many times as you like; the capture is the concatenation.
 
+
+
+
+**Parameters:**
+
+
+* `state` The writer; NULL writes nothing and returns 0. 
+* `x` Samples at unit full scale (±1.0 per axis), times the gain set by [**dp\_wfm\_writer\_set\_gain()**](wfm__writer__core_8h.md#function-dp_wfm_writer_set_gain) / `headroom`. 
+* `x_len` Number of complex samples in `x`. 
 
 
 
@@ -843,6 +988,7 @@ the number of samples that actually landed — equal to what you passed on succe
 
 ### function dp\_write\_blue\_header 
 
+_Write a 512-byte BLUE type-1000 header to a file by path._ 
 ```C++
 int dp_write_blue_header (
     const char * path,
@@ -859,6 +1005,35 @@ int dp_write_blue_header (
 
 
 
+Opens `path` for writing (truncating it), writes the HCB through [**dp\_wfm\_blue\_write\_hcb()**](wfm__writer__core_8h.md#function-dp_wfm_blue_write_hcb), and closes it. The Python `write_blue_header` function raises when this returns non-zero.
+
+
+
+
+**Parameters:**
+
+
+* `path` Destination file; created or truncated. 
+* `fs` Sample rate (Hz) -&gt; `xdelta = 1/fs`; 0.0 writes `xdelta = 0` (rate unknown). 
+* `sample_type` Wire type (wavegen order; see the file header). 
+* `endian` 0 little, 1 big. 
+* `fc` Center frequency (Hz); non-zero adds a `FREQ` keyword in the HCB keyword area. 
+* `data_start` `data_start` field: 512 attached, 0 detached. 
+* `total` Complex-sample count -&gt; `data_size`. 
+* `detached` Non-zero sets the HCB `detached` flag. 
+* `t0` Capture start in UNIX seconds, or [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset) (0.0) to leave the timecode unset. 
+
+
+
+**Returns:**
+
+0 on success, -1 if the file cannot be opened, a write fails or the close fails. 
+
+
+
+
+
+        
 
 <hr>
 

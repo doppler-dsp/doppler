@@ -34,7 +34,7 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_fir\_state\_t**](structdp__fir__state__t.md) <br> |
+| struct | [**dp\_fir\_state\_t**](structdp__fir__state__t.md) <br>_Direct-form FIR filter state (opaque to callers; use the API)._  |
 
 
 
@@ -68,10 +68,10 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 |  size\_t | [**dp\_fir\_execute**](#function-dp_fir_execute) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out) <br>_Filter n\_in CF32 samples and write the results to out. Each output sample is the inner product of the tap vector with the current delay line. The delay line is updated with each input sample so state carries over across successive calls — process frames of any size without gaps or overlap. The scratch buffer is grown lazily on the first call and reused on subsequent calls of the same size._  |
 |  size\_t | [**dp\_fir\_execute\_max\_out**](#function-dp_fir_execute_max_out) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_Always 0_  _FIR is a 1:1 transform, not a bounded-capacity one._ |
 |  int | [**dp\_fir\_get\_is\_real**](#function-dp_fir_get_is_real) (const [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_True when the filter was created with real-valued tap coefficients. Real-tap filters (dp\_fir\_create\_real) use a cheaper inner loop: 1 FMA/tap versus the 2 FMA + lane permute required for complex multiplication. Use this flag to confirm which constructor path was used at runtime._  |
-|  size\_t | [**dp\_fir\_get\_num\_taps**](#function-dp_fir_get_num_taps) (const [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_Number of tap coefficients supplied at creation. This equals the filter group delay plus one, and determines the minimum input block length for which no latency is observable._  |
+|  size\_t | [**dp\_fir\_get\_num\_taps**](#function-dp_fir_get_num_taps) (const [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_Number of tap coefficients supplied at creation. The filter length M; the delay line holds M - 1 samples. For a linear-phase (symmetric) design the group delay is (M - 1) / 2 samples._  |
 |  void | [**dp\_fir\_get\_state**](#function-dp_fir_get_state) (const [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _delay line into_`blob` _._ |
 |  void | [**dp\_fir\_reset**](#function-dp_fir_reset) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_Zero the delay line; preserve taps and scratch capacity. After a reset the filter behaves identically to a freshly constructed instance of the same length, without paying the allocation cost again. Call this between unrelated signal segments to prevent inter-segment leakage through the delay line._  |
-|  int | [**dp\_fir\_set\_state**](#function-dp_fir_set_state) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state, const void \* blob) <br>_Restore the delay line from_ `blob` _(same num\_taps)._ |
+|  int | [**dp\_fir\_set\_state**](#function-dp_fir_set_state) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state, const void \* blob) <br>_Restore the delay line from_ `blob` _(same num\_taps). The taps are not in the blob: restore into a filter built with the same taps, or the output continues with the new filter's response._ |
 |  size\_t | [**dp\_fir\_state\_bytes**](#function-dp_fir_state_bytes) (const [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* state) <br>_Bytes_ [_**dp\_fir\_get\_state()**_](fir__core_8h.md#function-dp_fir_get_state) _writes for_`state` _(envelope + payload)._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**fir\_step**](#function-fir_step) ([**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* s, float \_Complex x) <br>_Single-sample direct-form FIR step (inline composition API)._  |
 
@@ -279,6 +279,11 @@ void dp_fir_destroy (
 
 
 
+
+**Parameters:**
+
+
+* `state` Filter state from [**dp\_fir\_create()**](fir__core_8h.md#function-dp_fir_create) or [**dp\_fir\_create\_real()**](fir__core_8h.md#function-dp_fir_create_real), or NULL. 
 ```C++
 >>> import numpy as np
 >>> from doppler.filter import FIR
@@ -289,6 +294,8 @@ void dp_fir_destroy (
 dtype('complex64')
 ```
  
+
+
 
 
         
@@ -325,7 +332,7 @@ size_t dp_fir_execute (
 
 **Returns:**
 
-Number of output samples written (always == n\_in). 
+Number of output samples written: n\_in on success; 0 if any pointer is NULL, n\_in is 0, or growing the scratch buffer fails (state is then unchanged). 
 ```C++
 >>> import numpy as np
 >>> from doppler.filter import FIR
@@ -363,7 +370,24 @@ size_t dp_fir_execute_max_out (
 
 
 
-[**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute) always writes exactly n\_in samples; there is no call-independent upper bound smaller than the input length for this function to report. An `out=` buffer must be sized to exactly `len(x)`, not to this function's return value. 
+[**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute) always writes exactly n\_in samples; there is no call-independent upper bound smaller than the input length for this function to report. An `out=` buffer must be sized to exactly `len(x)`, not to this function's return value.
+
+
+
+
+**Parameters:**
+
+
+* `state` Filter state (unused). 
+
+
+
+**Returns:**
+
+0, always. 
+
+
+
 
 
         
@@ -384,6 +408,17 @@ int dp_fir_get_is_real (
 
 
 
+
+**Parameters:**
+
+
+* `state` Filter state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+1 if built by [**dp\_fir\_create\_real()**](fir__core_8h.md#function-dp_fir_create_real), 0 if by [**dp\_fir\_create()**](fir__core_8h.md#function-dp_fir_create). 
 ```C++
 >>> import numpy as np
 >>> from doppler.filter import FIR
@@ -394,6 +429,9 @@ False
  
 
 
+
+
+
         
 
 <hr>
@@ -402,7 +440,7 @@ False
 
 ### function dp\_fir\_get\_num\_taps 
 
-_Number of tap coefficients supplied at creation. This equals the filter group delay plus one, and determines the minimum input block length for which no latency is observable._ 
+_Number of tap coefficients supplied at creation. The filter length M; the delay line holds M - 1 samples. For a linear-phase (symmetric) design the group delay is (M - 1) / 2 samples._ 
 ```C++
 size_t dp_fir_get_num_taps (
     const dp_fir_state_t * state
@@ -412,6 +450,17 @@ size_t dp_fir_get_num_taps (
 
 
 
+
+**Parameters:**
+
+
+* `state` Filter state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+Filter length in taps (&gt;= 1). 
 ```C++
 >>> import numpy as np
 >>> from doppler.filter import FIR
@@ -420,6 +469,9 @@ size_t dp_fir_get_num_taps (
 3
 ```
  
+
+
+
 
 
         
@@ -441,6 +493,18 @@ void dp_fir_get_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Filter state. Must be non-NULL. 
+* `blob` Destination of at least dp\_fir\_state\_bytes(state) bytes. 
+
+
+
+
+        
+
 <hr>
 
 
@@ -457,6 +521,11 @@ void dp_fir_reset (
 
 
 
+
+**Parameters:**
+
+
+* `state` Filter state. Must be non-NULL. 
 ```C++
 >>> import numpy as np
 >>> from doppler.filter import FIR
@@ -472,6 +541,8 @@ void dp_fir_reset (
  
 
 
+
+
         
 
 <hr>
@@ -480,7 +551,7 @@ void dp_fir_reset (
 
 ### function dp\_fir\_set\_state 
 
-_Restore the delay line from_ `blob` _(same num\_taps)._
+_Restore the delay line from_ `blob` _(same num\_taps). The taps are not in the blob: restore into a filter built with the same taps, or the output continues with the new filter's response._
 ```C++
 int dp_fir_set_state (
     dp_fir_state_t * state,
@@ -492,9 +563,17 @@ int dp_fir_set_state (
 
 
 
+**Parameters:**
+
+
+* `state` Filter state to overwrite. Must be non-NULL. 
+* `blob` Blob from [**dp\_fir\_get\_state()**](fir__core_8h.md#function-dp_fir_get_state) on a filter of the same length. 
+
+
+
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects (wrong magic, version, endianness or size); `state` is then unchanged. 
 
 
 
@@ -517,6 +596,24 @@ size_t dp_fir_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Filter state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+sizeof(dp\_state\_hdr\_t) + (num\_taps - 1) \* sizeof(float \_Complex); just the header when num\_taps == 1. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -579,6 +676,10 @@ The filtered output sample.
 
 
 
+State-blob magic ("FIR\_") checked by [**dp\_fir\_set\_state()**](fir__core_8h.md#function-dp_fir_set_state). 
+
+
+        
 
 <hr>
 
@@ -592,6 +693,10 @@ The filtered output sample.
 
 
 
+State-blob layout version; bumped whenever the payload changes. 
+
+
+        
 
 <hr>
 

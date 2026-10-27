@@ -146,7 +146,7 @@ dp_f32_to_i16u32_step(dp_f32_to_i16u32_state_t *state, float x)
  *
  * @param state   Must be non-NULL.
  * @param input   Input float32 array; must contain at least @p n elements.
- * @param output  [out] Output uint32 array; must be non-NULL and contain at
+ * @param[out] output  Output uint32 array; must be non-NULL and contain at
  *                least @p n elements.
  * @param n       Number of samples to process.
  *
@@ -185,7 +185,7 @@ size_t dp_f32_to_i16u32_state_bytes (const dp_f32_to_i16u32_state_t *state);
 /**
  * @brief Snapshot the whole state struct (scale and clipped) into @p blob.
  * @param state  State.  Must be non-NULL.  Not modified.
- * @param blob   [out] Caller-owned buffer of at least
+ * @param[out] blob   Caller-owned buffer of at least
  *               dp_f32_to_i16u32_state_bytes() bytes.
  */
 void dp_f32_to_i16u32_get_state (const dp_f32_to_i16u32_state_t *state, void *blob);

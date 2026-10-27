@@ -62,7 +62,7 @@ _Gold code component API._ [More...](#detailed-description)
 |  [**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* | [**dp\_gold\_create**](#function-dp_gold_create) (uint64\_t taps\_a, uint64\_t seed\_a, uint64\_t taps\_b, uint64\_t seed\_b, uint32\_t length) <br>_Allocate and initialise a CCSDS-style Gold code generator. Two independent Fibonacci LFSRs of the same_ `length` _free-run in lock-step; each output chip is the XOR of both registers' current top-bit (stage_`length` _, i.e. bit_`length-1` _). Both registers shift left one bit per chip: the new bit (parity of the tapped stages, read__before_ _the shift) enters at stage 1 (bit 0), and the old stage-_`length` _bit is discarded after being XORed into the output. The sequence period is_`2^length - 1` _for primitive_`taps_a` _/_`taps_b` _. With the CCSDS default polynomials the two m-sequences form a genuine "preferred pair" — their XOR family has a strict three-valued periodic autocorrelation/cross-correlation set_`{-1, -65, 63}` _— so varying_`seed_a` _(User dependent per the standard) walks the 2\*\*length-1 XOR members of the Gold-code family while Register B stays fixed._ |
 |  void | [**dp\_gold\_destroy**](#function-dp_gold_destroy) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state) <br>_Destroy a gold instance and release all memory. Idempotent when_ `state` _is NULL; safe to call at any point in the lifecycle. After return the pointer is dangling — do not dereference it._ |
 |  size\_t | [**dp\_gold\_generate**](#function-dp_gold_generate) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Generate_ `n` _chips into_`out` _and advance both LFSRs by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._ |
-|  size\_t | [**dp\_gold\_generate\_max\_out**](#function-dp_gold_generate_max_out) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_gold\_generate\_max\_out**](#function-dp_gold_generate_max_out) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_gold\_generate()**_](gold__core_8h.md#function-dp_gold_generate) _: always 0._ |
 |  void | [**dp\_gold\_get\_state**](#function-dp_gold_get_state) (const [**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state, void \* blob) <br>_Serialize both LFSR registers into_ `blob` _._ |
 |  void | [**dp\_gold\_reset**](#function-dp_gold_reset) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state) <br>_Reset Gold to its post-create state. Reloads both LFSR registers from their original seeds so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._  |
 |  int | [**dp\_gold\_set\_state**](#function-dp_gold_set_state) ([**dp\_gold\_state\_t**](structdp__gold__state__t.md) \* state, const void \* blob) <br>_Restore both registers; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
@@ -99,8 +99,8 @@ _Gold code component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**GOLD\_STATE\_MAGIC**](gold__core_8h.md#define-gold_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('G', 'O', 'L', 'D')`<br> |
-| define  | [**GOLD\_STATE\_VERSION**](gold__core_8h.md#define-gold_state_version)  `1u`<br> |
+| define  | [**GOLD\_STATE\_MAGIC**](gold__core_8h.md#define-gold_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('G', 'O', 'L', 'D')`<br>_State-blob magic tag for a Gold generator ("GOLD")._  |
+| define  | [**GOLD\_STATE\_VERSION**](gold__core_8h.md#define-gold_state_version)  `1u`<br>_State-blob layout version for a Gold generator._  |
 
 ## Detailed Description
 
@@ -273,6 +273,7 @@ min(n, max\_out) chips.
 
 ### function dp\_gold\_generate\_max\_out 
 
+_Output capacity hint for_ [_**dp\_gold\_generate()**_](gold__core_8h.md#function-dp_gold_generate) _: always 0._
 ```C++
 size_t dp_gold_generate_max_out (
     dp_gold_state_t * state
@@ -281,6 +282,27 @@ size_t dp_gold_generate_max_out (
 
 
 
+The chip count is the caller-requested `n` of [**dp\_gold\_generate()**](gold__core_8h.md#function-dp_gold_generate), so there is no fixed per-call maximum; size the output buffer to `n`.
+
+
+
+
+**Parameters:**
+
+
+* `state` Gold state (unused). 
+
+
+
+**Returns:**
+
+0, meaning "no fixed bound; the output length is n". 
+
+
+
+
+
+        
 
 <hr>
 
@@ -298,6 +320,18 @@ void dp_gold_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination buffer of at least [**dp\_gold\_state\_bytes()**](gold__core_8h.md#function-dp_gold_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -352,6 +386,28 @@ int dp_gold_set_state (
 
 
 
+Only the two running registers are restored; taps, seeds and length come from the target's own [**dp\_gold\_create()**](gold__core_8h.md#function-dp_gold_create) arguments, so create the target with the same configuration. The restored registers are taken as stored, without masking to length or a non-zero check.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Blob written by [**dp\_gold\_get\_state()**](gold__core_8h.md#function-dp_gold_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK on success, or DP\_ERR\_INVALID when the envelope (magic, version, endianness, size) does not match; the state is then left untouched. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -368,6 +424,24 @@ size_t dp_gold_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Gold state (unused: the size is the same for every instance). 
+
+
+
+**Returns:**
+
+Envelope header plus two uint64 registers, in bytes. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -412,6 +486,7 @@ Output chip: 0 or 1.
 
 ### define GOLD\_STATE\_MAGIC 
 
+_State-blob magic tag for a Gold generator ("GOLD")._ 
 ```C++
 #define GOLD_STATE_MAGIC `DP_FOURCC ('G', 'O', 'L', 'D')`
 ```
@@ -425,6 +500,7 @@ Output chip: 0 or 1.
 
 ### define GOLD\_STATE\_VERSION 
 
+_State-blob layout version for a Gold generator._ 
 ```C++
 #define GOLD_STATE_VERSION `1u`
 ```

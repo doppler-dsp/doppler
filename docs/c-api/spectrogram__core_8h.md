@@ -112,8 +112,8 @@ _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**SPECTROGRAM\_STATE\_MAGIC**](spectrogram__core_8h.md#define-spectrogram_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S', 'P', 'G', 'M')`<br>_State-blob magic ('SPGM') and layout version._  |
-| define  | [**SPECTROGRAM\_STATE\_VERSION**](spectrogram__core_8h.md#define-spectrogram_state_version)  `2u`<br> |
+| define  | [**SPECTROGRAM\_STATE\_MAGIC**](spectrogram__core_8h.md#define-spectrogram_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S', 'P', 'G', 'M')`<br>_State-blob magic ('SPGM')._  |
+| define  | [**SPECTROGRAM\_STATE\_VERSION**](spectrogram__core_8h.md#define-spectrogram_state_version)  `2u`<br>_State-blob layout version. v2: the blob carries the configuration (mode, nfft, hop, window, beta) so a restore refuses a blob whose rows would mean something else (#2102)._  |
 
 ## Detailed Description
 
@@ -174,6 +174,13 @@ Equal to its `n_in` unless `out` ran out of room; then the caller resumes at in 
 
 
 * `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Input samples consumed by the last push; 0 before any push. 
+
 
 
 
@@ -324,6 +331,13 @@ Sized by the object alone, since a flush owes at most one row. It is also the on
 
 
 
+**Returns:**
+
+Floats: nfft. 
+
+
+
+
 
         
 
@@ -380,6 +394,13 @@ What [**dp\_spectrogram\_flush()**](spectrogram__core_8h.md#function-dp_spectrog
 
 
 * `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Samples not yet covered by any written row; 0 when none. 
+
 
 
 
@@ -463,6 +484,13 @@ The capacity that makes a push take ALL of its input. Saturates at SIZE\_MAX rat
 
 
 
+**Returns:**
+
+Floats: rows\_for(`n_in`) \* nfft, or SIZE\_MAX on overflow. 
+
+
+
+
 
         
 
@@ -522,6 +550,13 @@ The carry plus `n_in` samples, cut into frames of nfft at the hop. A push with r
 
 * `s` Must be non-NULL. 
 * `n_in` Samples about to be pushed. 
+
+
+
+**Returns:**
+
+Rows (not floats) that push would complete. 
+
 
 
 
@@ -594,6 +629,13 @@ The blob is the configuration a row depends on  mode, nfft, hop, window and beta
 
 
 
+**Returns:**
+
+Blob size in bytes. 
+
+
+
+
 
         
 
@@ -606,7 +648,7 @@ The blob is the configuration a row depends on  mode, nfft, hop, window and beta
 
 ### define SPECTROGRAM\_STATE\_MAGIC 
 
-_State-blob magic ('SPGM') and layout version._ 
+_State-blob magic ('SPGM')._ 
 ```C++
 #define SPECTROGRAM_STATE_MAGIC `DP_FOURCC ('S', 'P', 'G', 'M')`
 ```
@@ -620,6 +662,7 @@ _State-blob magic ('SPGM') and layout version._
 
 ### define SPECTROGRAM\_STATE\_VERSION 
 
+_State-blob layout version. v2: the blob carries the configuration (mode, nfft, hop, window, beta) so a restore refuses a blob whose rows would mean something else (#2102)._ 
 ```C++
 #define SPECTROGRAM_STATE_VERSION `2u`
 ```

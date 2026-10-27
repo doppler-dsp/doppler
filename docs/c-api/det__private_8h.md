@@ -34,7 +34,7 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**det\_peak\_t**](structdet__peak__t.md) <br> |
+| struct | [**det\_peak\_t**](structdet__peak__t.md) <br>_One listed peak of a surface: its cell and value._  |
 
 
 ## Public Types

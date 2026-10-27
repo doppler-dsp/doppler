@@ -31,7 +31,7 @@ _Per-instance 2-D FFT using pocketfft directly._ [More...](#detailed-description
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) <br> |
+| struct | [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) <br>_2-D FFT engine state: two fixed ny x nx plans plus scratch._  |
 
 
 
@@ -61,13 +61,13 @@ _Per-instance 2-D FFT using pocketfft directly._ [More...](#detailed-description
 |  [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* | [**dp\_fft2d\_create**](#function-dp_fft2d_create) (size\_t ny, size\_t nx, int sign, int nthreads) <br>_Allocate a reusable 2-D FFT engine for a fixed ny×nx grid. Two pocketfft 2-D plans are built at construction time — one CF64, one CF32. All execute calls accept and return flat row-major arrays of length ny\*nx; the Python layer may reshape them with .reshape(ny, nx)._ `nthreads` _is accepted for API parity but ignored._ |
 |  void | [**dp\_fft2d\_destroy**](#function-dp_fft2d_destroy) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Destroy and free an fft2d instance._  |
 |  size\_t | [**dp\_fft2d\_execute\_cf32**](#function-dp_fft2d_execute_cf32) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Compute an out-of-place 2-D DFT on a single-precision complex grid. Single-precision variant of_ [_**dp\_fft2d\_execute\_cf64()**_](fft2d__core_8h.md#function-dp_fft2d_execute_cf64) _. Accepts and returns flat row-major CF32 arrays of length ny\*nx. Output is unnormalised;_`in` _and_`out` _must not alias._ |
-|  size\_t | [**dp\_fft2d\_execute\_cf32\_max\_out**](#function-dp_fft2d_execute_cf32_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Maximum output samples for CF32 execute (ny \* nx)._  |
+|  size\_t | [**dp\_fft2d\_execute\_cf32\_max\_out**](#function-dp_fft2d_execute_cf32_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Output capacity_ [_**dp\_fft2d\_execute\_cf32()**_](fft2d__core_8h.md#function-dp_fft2d_execute_cf32) _needs._ |
 |  size\_t | [**dp\_fft2d\_execute\_cf64**](#function-dp_fft2d_execute_cf64) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state, const double \_Complex \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Compute an out-of-place 2-D DFT on a double-precision complex grid._ `in` _is a flat row-major CF64 array of length ny\*nx. The output is written to the caller-supplied_`out` _buffer (also ny\*nx); the two must not alias. The transform is unnormalised._ |
-|  size\_t | [**dp\_fft2d\_execute\_cf64\_max\_out**](#function-dp_fft2d_execute_cf64_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Maximum output samples per execute call (ny \* nx)._  |
+|  size\_t | [**dp\_fft2d\_execute\_cf64\_max\_out**](#function-dp_fft2d_execute_cf64_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Output capacity_ [_**dp\_fft2d\_execute\_cf64()**_](fft2d__core_8h.md#function-dp_fft2d_execute_cf64) _needs._ |
 |  size\_t | [**dp\_fft2d\_execute\_inplace\_cf32**](#function-dp_fft2d_execute_inplace_cf32) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF32 2-D). Single-precision variant of_[_**dp\_fft2d\_execute\_inplace\_cf64()**_](fft2d__core_8h.md#function-dp_fft2d_execute_inplace_cf64) _. Copies ny\*nx CF32 samples then applies the CF32 2-D pocketfft plan to_`out` _._ |
-|  size\_t | [**dp\_fft2d\_execute\_inplace\_cf32\_max\_out**](#function-dp_fft2d_execute_inplace_cf32_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Maximum output samples for inplace CF32 execute (ny \* nx)._  |
+|  size\_t | [**dp\_fft2d\_execute\_inplace\_cf32\_max\_out**](#function-dp_fft2d_execute_inplace_cf32_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Output capacity_ [_**dp\_fft2d\_execute\_inplace\_cf32()**_](fft2d__core_8h.md#function-dp_fft2d_execute_inplace_cf32) _needs._ |
 |  size\_t | [**dp\_fft2d\_execute\_inplace\_cf64**](#function-dp_fft2d_execute_inplace_cf64) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state, const double \_Complex \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF64 2-D). The ny\*nx CF64 samples from_`in` _are first memcpy'd to_`out` _; the 2-D DFT is then applied to_`out` _in-place._`in` _is left unmodified. Useful when the caller owns_`out` _and wants to preserve_`in` _._ |
-|  size\_t | [**dp\_fft2d\_execute\_inplace\_cf64\_max\_out**](#function-dp_fft2d_execute_inplace_cf64_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Maximum output samples for inplace CF64 execute (ny \* nx)._  |
+|  size\_t | [**dp\_fft2d\_execute\_inplace\_cf64\_max\_out**](#function-dp_fft2d_execute_inplace_cf64_max_out) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_Output capacity_ [_**dp\_fft2d\_execute\_inplace\_cf64()**_](fft2d__core_8h.md#function-dp_fft2d_execute_inplace_cf64) _needs._ |
 |  void | [**dp\_fft2d\_reset**](#function-dp_fft2d_reset) ([**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* state) <br>_No-op reset (plans are immutable after creation)._  |
 
 
@@ -147,7 +147,7 @@ dp_fft2d_state_t * dp_fft2d_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on failure. 
+Heap-allocated state, or NULL if allocation or either plan build fails. Free with [**dp\_fft2d\_destroy()**](fft2d__core_8h.md#function-dp_fft2d_destroy). 
 ```C++
 >>> from doppler.spectral import FFT2D
 >>> import numpy as np
@@ -256,7 +256,7 @@ True
 
 ### function dp\_fft2d\_execute\_cf32\_max\_out 
 
-_Maximum output samples for CF32 execute (ny \* nx)._ 
+_Output capacity_ [_**dp\_fft2d\_execute\_cf32()**_](fft2d__core_8h.md#function-dp_fft2d_execute_cf32) _needs._
 ```C++
 size_t dp_fft2d_execute_cf32_max_out (
     dp_fft2d_state_t * state
@@ -265,6 +265,24 @@ size_t dp_fft2d_execute_cf32_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+ny \* nx samples. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -326,7 +344,7 @@ True
 
 ### function dp\_fft2d\_execute\_cf64\_max\_out 
 
-_Maximum output samples per execute call (ny \* nx)._ 
+_Output capacity_ [_**dp\_fft2d\_execute\_cf64()**_](fft2d__core_8h.md#function-dp_fft2d_execute_cf64) _needs._
 ```C++
 size_t dp_fft2d_execute_cf64_max_out (
     dp_fft2d_state_t * state
@@ -335,6 +353,24 @@ size_t dp_fft2d_execute_cf64_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+ny \* nx samples. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -394,7 +430,7 @@ True
 
 ### function dp\_fft2d\_execute\_inplace\_cf32\_max\_out 
 
-_Maximum output samples for inplace CF32 execute (ny \* nx)._ 
+_Output capacity_ [_**dp\_fft2d\_execute\_inplace\_cf32()**_](fft2d__core_8h.md#function-dp_fft2d_execute_inplace_cf32) _needs._
 ```C++
 size_t dp_fft2d_execute_inplace_cf32_max_out (
     dp_fft2d_state_t * state
@@ -403,6 +439,24 @@ size_t dp_fft2d_execute_inplace_cf32_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+ny \* nx samples. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -462,7 +516,7 @@ True
 
 ### function dp\_fft2d\_execute\_inplace\_cf64\_max\_out 
 
-_Maximum output samples for inplace CF64 execute (ny \* nx)._ 
+_Output capacity_ [_**dp\_fft2d\_execute\_inplace\_cf64()**_](fft2d__core_8h.md#function-dp_fft2d_execute_inplace_cf64) _needs._
 ```C++
 size_t dp_fft2d_execute_inplace_cf64_max_out (
     dp_fft2d_state_t * state
@@ -471,6 +525,24 @@ size_t dp_fft2d_execute_inplace_cf64_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+ny \* nx samples. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -487,6 +559,17 @@ void dp_fft2d_reset (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Unused; may be any value. 
+
+
+
+
+        
 
 <hr>
 

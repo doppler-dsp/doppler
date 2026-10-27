@@ -42,7 +42,7 @@ _Real-input Digital Down-Converter — halfband R2C + LO + cascade._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**ddcr\_extra\_t**](structddcr__extra__t.md) <br> |
+| struct | [**ddcr\_extra\_t**](structddcr__extra__t.md) <br>_DDCR-level payload that follows the state envelope: the one config value the blob layout depends on, checked on restore._  |
 | struct | [**ddcr\_state**](structddcr__state.md) <br>_DdcR state — the real-to-complex front end, an LO and a cascade._  |
 
 
@@ -82,7 +82,7 @@ _Real-input Digital Down-Converter — halfband R2C + LO + cascade._ [More...](#
 |  size\_t | [**dp\_ddcr\_execute\_ctrl**](#function-dp_ddcr_execute_ctrl) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, const float \* x, size\_t n\_in, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out) <br>_Process a real block, steering both control ports._  |
 |  size\_t | [**dp\_ddcr\_execute\_ctrl\_max\_out**](#function-dp_ddcr_execute_ctrl_max_out) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_As_ [_**dp\_ddcr\_execute\_max\_out()**_](ddcr__core_8h.md#function-dp_ddcr_execute_max_out) _, for the block control-port form._ |
 |  size\_t | [**dp\_ddcr\_execute\_ctrl\_push**](#function-dp_ddcr_execute_ctrl_push) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push ONE real input sample; emit whatever outputs it completes._  |
-|  size\_t | [**dp\_ddcr\_execute\_ctrl\_push\_max\_out**](#function-dp_ddcr_execute_ctrl_push_max_out) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Bound for ONE pushed input:_ `ceil(rate) + 1` _output periods. Non-zero because the push form has no input block to size from._ |
+|  size\_t | [**dp\_ddcr\_execute\_ctrl\_push\_max\_out**](#function-dp_ddcr_execute_ctrl_push_max_out) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Output-buffer size for ONE pushed input. Non-zero because the push form has no input block to size from._  |
 |  size\_t | [**dp\_ddcr\_execute\_ctrl\_push\_tap**](#function-dp_ddcr_execute_ctrl_push_tap) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo) <br>[_**dp\_ddcr\_execute\_ctrl\_push()**_](ddcr__core_8h.md#function-dp_ddcr_execute_ctrl_push) _that also hands back the post-LO sample._ |
 |  size\_t | [**dp\_ddcr\_execute\_ctrl\_push\_tap2**](#function-dp_ddcr_execute_ctrl_push_tap2) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, float x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**dp\_ddcr\_execute\_ctrl\_push\_tap()**_](ddcr__core_8h.md#function-dp_ddcr_execute_ctrl_push_tap) _, plus the MFR-INPUT tap._ |
 |  size\_t | [**dp\_ddcr\_execute\_max\_out**](#function-dp_ddcr_execute_max_out) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Upper bound on one execute call's output, or 0 to let the caller size it from the input block (a decimator never exceeds its input)._  |
@@ -92,7 +92,7 @@ _Real-input Digital Down-Converter — halfband R2C + LO + cascade._ [More...](#
 |  double | [**dp\_ddcr\_get\_norm\_freq**](#function-dp_ddcr_get_norm_freq) (const [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Return the current fine NCO normalised frequency at the intermediate rate (fs\_in/2, cycles/sample)._  |
 |  double | [**dp\_ddcr\_get\_rate**](#function-dp_ddcr_get_rate) (const [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Return the total configured rate (fs\_out / fs\_in, read-only). This is the end-to-end ratio from ADC input to CF32 output. Change it by destroying and recreating the DDCR._  |
 |  void | [**dp\_ddcr\_get\_state**](#function-dp_ddcr_get_state) (const [**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, void \* blob) <br>_Serialize_ `s's` _full-chain state into_`blob` _._ |
-|  void | [**dp\_ddcr\_reset**](#function-dp_ddcr_reset) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Zero halfband filter history, LO phase, and resampler history. After reset, the next execute call reproduces the output of the first call after create, enabling repeatable block-by-block tests._  |
+|  void | [**dp\_ddcr\_reset**](#function-dp_ddcr_reset) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s) <br>_Zero halfband filter history, LO phase, and resampler history. After reset, the next execute call reproduces the output of the first call after create, enabling repeatable block-by-block tests. The tuning (norm\_freq) and rate are kept; the CIC clip flag reported by_ [_**dp\_ddcr\_get\_clipped()**_](ddcr__core_8h.md#function-dp_ddcr_get_clipped) _is cleared with the cascade._ |
 |  size\_t | [**dp\_ddcr\_run**](#function-dp_ddcr_run) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, const void \* state\_in, void \* state\_out, const float \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Pure run: inject_ `state_in` _, process_`in` _, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config. Either state may be NULL (NULL in = use current; NULL out = discard)._`state_in` _/_`state_out` _may alias._ |
 |  void | [**dp\_ddcr\_set\_norm\_freq**](#function-dp_ddcr_set_norm_freq) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, double norm\_freq) <br>_Retune the fine NCO without resetting halfband or resampler history. Updates the LO phase increment only; state is preserved for seamless tuning across block boundaries._  |
 |  int | [**dp\_ddcr\_set\_state**](#function-dp_ddcr_set_state) ([**dp\_ddcr\_state\_t**](ddcr__core_8h.md#typedef-dp_ddcr_state_t) \* s, const void \* blob) <br>_Restore full-chain state from_ `blob` _into_`s` _._ |
@@ -129,8 +129,8 @@ _Real-input Digital Down-Converter — halfband R2C + LO + cascade._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DDCR\_STATE\_MAGIC**](ddcr__core_8h.md#define-ddcr_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D', 'D', 'C', 'R')`<br> |
-| define  | [**DDCR\_STATE\_VERSION**](ddcr__core_8h.md#define-ddcr_state_version)  `1u`<br> |
+| define  | [**DDCR\_STATE\_MAGIC**](ddcr__core_8h.md#define-ddcr_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D', 'D', 'C', 'R')`<br>_Magic tag ("DDCR") stamped in a DDCR state blob's envelope._  |
+| define  | [**DDCR\_STATE\_VERSION**](ddcr__core_8h.md#define-ddcr_state_version)  `1u`<br>_Layout version of the DDCR state blob; bumped on any change._  |
 
 ## Detailed Description
 
@@ -316,6 +316,13 @@ void dp_ddcr_destroy (
 
 
 
+
+**Parameters:**
+
+
+* `s` DDCR to free, or NULL. Invalid after the call.
+
+
 ```C++
 >>> from doppler.ddc import Ddcr
 >>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
@@ -345,6 +352,9 @@ size_t dp_ddcr_execute (
 
 
 
+Allocates two scratch buffers per call (about n\_in/2 complex samples each); if either allocation fails the call returns 0.
+
+
 
 
 **Parameters:**
@@ -360,7 +370,7 @@ size_t dp_ddcr_execute (
 
 **Returns:**
 
-Number of output samples written (C-only).
+Number of output samples written (C-only); 0 for n\_in == 0.
 
 
 
@@ -462,6 +472,24 @@ size_t dp_ddcr_execute_ctrl_max_out (
 
 
 
+
+**Parameters:**
+
+
+* `s` Unused. 
+
+
+
+**Returns:**
+
+Always 0: size `out` from the input block length. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -527,7 +555,7 @@ Number of outputs written (0, 1, or more).
 
 ### function dp\_ddcr\_execute\_ctrl\_push\_max\_out 
 
-_Bound for ONE pushed input:_ `ceil(rate) + 1` _output periods. Non-zero because the push form has no input block to size from._
+_Output-buffer size for ONE pushed input. Non-zero because the push form has no input block to size from._ 
 ```C++
 size_t dp_ddcr_execute_ctrl_push_max_out (
     dp_ddcr_state_t * s
@@ -536,6 +564,24 @@ size_t dp_ddcr_execute_ctrl_push_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+`(size_t)max(rate, 1) + 2` samples, which is 3 for every valid rate (&lt; 0.5). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -665,6 +711,24 @@ size_t dp_ddcr_execute_max_out (
 
 
 
+
+**Parameters:**
+
+
+* `s` Unused. 
+
+
+
+**Returns:**
+
+Always 0: size `out` from the input block length. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -681,6 +745,24 @@ double dp_ddcr_get_bank_sps (
 
 
 
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+[**dp\_RateConverter\_get\_bank\_sps()**](RateConverter__core_8h.md#function-dp_rateconverter_get_bank_sps) of the cascade. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -696,7 +778,24 @@ bool dp_ddcr_get_clipped (
 
 
 
-Forwarded from [**dp\_RateConverter\_get\_clipped()**](RateConverter__core_8h.md#function-dp_rateconverter_get_clipped); see [**dp\_ddc\_get\_clipped()**](ddc__core_8h.md#function-dp_ddc_get_clipped). The halfband R2C front end has unity passband gain and a real tone lands at amplitude 0.5 in the analytic output, so a full-scale ADC stream sits comfortably inside the CIC's bound — but a scaled-up input does not. 
+Forwarded from [**dp\_RateConverter\_get\_clipped()**](RateConverter__core_8h.md#function-dp_rateconverter_get_clipped); see [**dp\_ddc\_get\_clipped()**](ddc__core_8h.md#function-dp_ddc_get_clipped). The halfband R2C front end has unity passband gain and a real tone lands at amplitude 0.5 in the analytic output, so a full-scale ADC stream sits comfortably inside the CIC's bound — but a scaled-up input does not.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+true if any CIC stage has clipped since create or the last [**dp\_ddcr\_reset()**](ddcr__core_8h.md#function-dp_ddcr_reset); always false when the plan has no CIC. 
+
+
+
 
 
         
@@ -716,7 +815,24 @@ bool dp_ddcr_get_narrow_pulse (
 
 
 
-The real chain's copy of [**dp\_ddc\_get\_narrow\_pulse()**](ddc__core_8h.md#function-dp_ddc_get_narrow_pulse): true only for the matched flavor with `pulse = RC_PULSE_IANDD` and fewer than four output samples per symbol, where the one-symbol-wide rectangle's matched filter is a 2-3 tap sum. Construction also raises a UserWarning. 
+The real chain's copy of [**dp\_ddc\_get\_narrow\_pulse()**](ddc__core_8h.md#function-dp_ddc_get_narrow_pulse): true only for the matched flavor with `pulse = RC_PULSE_IANDD` and fewer than four output samples per symbol, where the one-symbol-wide rectangle's matched filter is a 2-3 tap sum. Construction also raises a UserWarning.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+true for a matched IANDD flavor with pulse\_sps &lt; 4, else false; fixed at construction. 
+
+
+
 
 
         
@@ -734,6 +850,20 @@ double dp_ddcr_get_norm_freq (
 ) 
 ```
 
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The LO's norm\_freq as last set by create or [**dp\_ddcr\_set\_norm\_freq()**](ddcr__core_8h.md#function-dp_ddcr_set_norm_freq); excludes any per-call freq\_ctrl.
 
 
 
@@ -761,6 +891,20 @@ double dp_ddcr_get_rate (
 ) 
 ```
 
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The rate passed to create, in (0, 0.5).
 
 
 
@@ -792,13 +936,25 @@ void dp_ddcr_get_state (
 
 
 
+
+**Parameters:**
+
+
+* `s` Must be non-NULL; not modified. 
+* `blob` Caller-owned buffer of at least dp\_ddcr\_state\_bytes(s) bytes. 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_ddcr\_reset 
 
-_Zero halfband filter history, LO phase, and resampler history. After reset, the next execute call reproduces the output of the first call after create, enabling repeatable block-by-block tests._ 
+_Zero halfband filter history, LO phase, and resampler history. After reset, the next execute call reproduces the output of the first call after create, enabling repeatable block-by-block tests. The tuning (norm\_freq) and rate are kept; the CIC clip flag reported by_ [_**dp\_ddcr\_get\_clipped()**_](ddcr__core_8h.md#function-dp_ddcr_get_clipped) _is cleared with the cascade._
 ```C++
 void dp_ddcr_reset (
     dp_ddcr_state_t * s
@@ -806,6 +962,13 @@ void dp_ddcr_reset (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL.
 
 
 ```C++
@@ -848,9 +1011,22 @@ size_t dp_ddcr_run (
 
 
 
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `state_in` Blob to restore before processing, or NULL to keep the current state. 
+* `state_out` Buffer of dp\_ddcr\_state\_bytes(s) bytes that receives the state after processing, or NULL. 
+* `in` Real float32 input block. 
+* `n_in` Number of input samples. 
+* `out` CF32 output buffer. 
+* `max_out` Capacity of `out` in samples. 
+
+
+
 **Returns:**
 
-Number of CF32 output samples written. 
+Number of CF32 output samples written; 0 (with nothing processed and `state_out` untouched) if `state_in` is rejected. 
 
 
 
@@ -910,6 +1086,17 @@ int dp_ddcr_set_state (
 ```
 
 
+
+Children are restored in chain order (halfband, LO, cascade), each validating its own sub-envelope; a child that rejects aborts the restore with DP\_ERR\_INVALID, leaving any earlier children already restored.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL; built with the same descriptor as the engine that produced `blob`. 
+* `blob` A blob from [**dp\_ddcr\_get\_state()**](ddcr__core_8h.md#function-dp_ddcr_get_state), of dp\_ddcr\_state\_bytes(s) bytes. 
 
 
 
@@ -982,6 +1169,24 @@ size_t dp_ddcr_state_bytes (
 
 
 
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Bytes the caller must provide to [**dp\_ddcr\_get\_state()**](ddcr__core_8h.md#function-dp_ddcr_get_state); fixed for a given (rate, pulse) configuration. 
+
+
+
+
+
+        
+
 <hr>
 ## Macro Definition Documentation
 
@@ -991,6 +1196,7 @@ size_t dp_ddcr_state_bytes (
 
 ### define DDCR\_STATE\_MAGIC 
 
+_Magic tag ("DDCR") stamped in a DDCR state blob's envelope._ 
 ```C++
 #define DDCR_STATE_MAGIC `DP_FOURCC ('D', 'D', 'C', 'R')`
 ```
@@ -1004,6 +1210,7 @@ size_t dp_ddcr_state_bytes (
 
 ### define DDCR\_STATE\_VERSION 
 
+_Layout version of the DDCR state blob; bumped on any change._ 
 ```C++
 #define DDCR_STATE_VERSION `1u`
 ```

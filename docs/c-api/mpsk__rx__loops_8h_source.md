@@ -118,7 +118,8 @@ extern "C"
 
 /* Default matched-filter bank arms — the timing resolution is 1/this of an
  * output period. What a composing C caller (the DSSS receivers) passes when it
- * has no reason to want anything else; the Python default matches. */
+ * has no reason to want anything else. It is NOT the MpskReceiver default:
+ * that is `num_phases = 0`, which derives MPSK_RX_NUM_PHASES_DEFAULT (64). */
 #define MPSK_RX_NUM_PHASES 1024u
 
 /* Default terminal outputs per symbol — where an I&D matched filter reaches
@@ -126,8 +127,8 @@ extern "C"
  * measurements). Same role as MPSK_RX_NUM_PHASES above: what a composing C
  * caller passes when it has no reason to want anything else, so the composed
  * receivers do not each carry their own copy of the number.
- * MUST match `default` on m_out in objects/mpsk_receiver{,_r}.toml, which is
- * what the Python binding uses. */
+ * The Python MpskReceiver default is `m_out = 0` (objects/mpsk_receiver.toml),
+ * which derives 8 at any `sps >= 8` via mpsk_rx_derive_m_out(). */
 #define MPSK_RX_M_OUT_DEFAULT 8
 
 /* ── Derived construction parameters (doppler#644, design/mpsk.md §8) ──────
@@ -373,8 +374,8 @@ mpsk_rx_derive_m_out (double cap, int strict)
 
 /* ── Serializable state — the loops alone (nested by every owner) ──────────
  * Envelope, the carrier/demapper running scalars, then the timing
- * loop's and the carrier loop filter's self-validating sub-blobs. The arm AGC
- * is running state too. Config is restored by the owner's create(). */
+ * loop's and the carrier loop filter's self-validating sub-blobs. Config is
+ * restored by the owner's create(). */
 #define MPSK_RX_LOOPS_STATE_MAGIC DP_FOURCC ('M', 'R', 'X', 'L')
 /* v3: `agc_seeded` became a COUNTER (the AGC seed averages
  * MPSK_RX_AGC_SEED_SAMPS samples instead of taking one), so the flags word

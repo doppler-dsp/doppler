@@ -8,7 +8,7 @@
 
 
 
-
+_Direct-form FIR filter state (opaque to callers; use the API)._ [More...](#detailed-description)
 
 * `#include <fir_core.h>`
 
@@ -86,6 +86,13 @@
 
 
 
+## Detailed Description
+
+
+Exactly one of `taps` / `rtaps` is non-NULL, chosen by the constructor. Config (taps, num\_taps) is fixed at create; the delay line is the only running state; the scratch buffer is a reusable workspace. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -99,6 +106,10 @@ float _Complex* dp_fir_state_t::delay;
 
 
 
+Delay line: the last num\_taps - 1 inputs, oldest first. Running state, written by every execute/fir\_step call and zeroed by [**dp\_fir\_reset()**](fir__core_8h.md#function-dp_fir_reset); NULL when num\_taps == 1. 
+
+
+        
 
 <hr>
 
@@ -112,6 +123,10 @@ size_t dp_fir_state_t::num_taps;
 
 
 
+Filter length in taps (&gt;= 1). Config, fixed at create. 
+
+
+        
 
 <hr>
 
@@ -125,6 +140,10 @@ float* dp_fir_state_t::rtaps;
 
 
 
+Real tap copy, num\_taps long; NULL for a complex-tap filter. Config, set by [**dp\_fir\_create\_real()**](fir__core_8h.md#function-dp_fir_create_real). 
+
+
+        
 
 <hr>
 
@@ -138,6 +157,10 @@ float _Complex* dp_fir_state_t::scratch;
 
 
 
+Workspace laid out `[delay | input | zero pad]`; allocated on the first [**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute) and grown (never shrunk) as blocks grow. 
+
+
+        
 
 <hr>
 
@@ -151,6 +174,10 @@ size_t dp_fir_state_t::scratch_cap;
 
 
 
+Allocated length of `scratch` in complex samples (0 until the first [**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute)). 
+
+
+        
 
 <hr>
 
@@ -164,6 +191,10 @@ float _Complex* dp_fir_state_t::taps;
 
 
 
+Complex tap copy, num\_taps long; NULL for a real-tap filter. Config, set by [**dp\_fir\_create()**](fir__core_8h.md#function-dp_fir_create). 
+
+
+        
 
 <hr>
 

@@ -8,7 +8,7 @@
 
 
 
-
+_Bounds-checked write cursor over a caller-owned state blob._ [More...](#detailed-description)
 
 * `#include <dp_state.h>`
 
@@ -84,6 +84,13 @@
 
 
 
+## Detailed Description
+
+
+Sticky-error model: a bounds overrun sets `err` and subsequent writes no-op, so call sites stay flat (check `w.err` once at the end if desired). Overrun cannot happen when the caller allocated obj\_state\_bytes() — it is a guard. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -97,6 +104,11 @@ uint8_t* dp_writer_t::buf;
 
 
 
+Start of the blob being written (not owned). 
+ 
+
+
+        
 
 <hr>
 
@@ -110,6 +122,10 @@ size_t dp_writer_t::cap;
 
 
 
+Blob capacity in bytes; writes past it are refused. 
+
+
+        
 
 <hr>
 
@@ -123,6 +139,11 @@ int dp_writer_t::err;
 
 
 
+Sticky: 1 after any overrun, then writes no-op. 
+ 
+
+
+        
 
 <hr>
 
@@ -136,6 +157,11 @@ size_t dp_writer_t::off;
 
 
 
+Bytes written so far; next write lands here. 
+ 
+
+
+        
 
 <hr>
 

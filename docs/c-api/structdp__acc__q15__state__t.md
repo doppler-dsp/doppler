@@ -8,7 +8,7 @@
 
 
 
-_AccQ15 state._ [More...](#detailed-description)
+_AccQ15 state: one 64-bit integer running sum._ [More...](#detailed-description)
 
 * `#include <acc_q15_core.h>`
 
@@ -101,6 +101,11 @@ int64_t dp_acc_q15_state_t::acc;
 
 
 
+Running 64-bit sum of Q15 samples / products (running state); seeded by create() or set\_acc(), zeroed by reset() and dump(). 
+ 
+
+
+        
 
 <hr>
 

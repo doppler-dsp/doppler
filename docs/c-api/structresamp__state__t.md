@@ -8,7 +8,7 @@
 
 
 
-
+_Polyphase resampler state._ [More...](#detailed-description)
 
 * `#include <resamp_core.h>`
 
@@ -97,6 +97,13 @@
 
 
 
+## Detailed Description
+
+
+Allocate with [**dp\_resamp\_create()**](resamp__core_8h.md#function-dp_resamp_create) or [**dp\_resamp\_create\_custom()**](resamp__core_8h.md#function-dp_resamp_create_custom); free with [**dp\_resamp\_destroy()**](resamp__core_8h.md#function-dp_resamp_destroy), which owns every pointer below. Config fields are set at create (rate and phase\_inc also by [**dp\_resamp\_set\_rate()**](resamp__core_8h.md#function-dp_resamp_set_rate)); the rest is running state. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -110,6 +117,10 @@ float* resamp_state_t::bank;
 
 
 
+Owned copy of the bank: num\_phases x num\_taps, row-major (one row per arm). 
+
+
+        
 
 <hr>
 
@@ -123,6 +134,10 @@ uint32_t resamp_state_t::ctrl_ahead;
 
 
 
+execute\_ctrl: inputs loaded ahead of any request (see above). 
+
+
+        
 
 <hr>
 
@@ -136,6 +151,10 @@ uint32_t resamp_state_t::ctrl_debt;
 
 
 
+execute\_ctrl: inputs requested and not yet given (whole intervals owed). 
+
+
+        
 
 <hr>
 
@@ -149,6 +168,10 @@ uint32_t resamp_state_t::ctrl_phase;
 
 
 
+execute\_ctrl phase: uint32 fraction of the current input interval; selects the arm. 
+
+
+        
 
 <hr>
 
@@ -162,6 +185,10 @@ float _Complex* resamp_state_t::decim_iad;
 
 
 
+Decimator integrate-and-dump registers, num\_taps elements. 
+
+
+        
 
 <hr>
 
@@ -175,6 +202,10 @@ float _Complex* resamp_state_t::decim_tfd;
 
 
 
+Decimator transposed delay line, num\_taps - 1 elements (1 allocated when num\_taps == 1). 
+
+
+        
 
 <hr>
 
@@ -188,6 +219,10 @@ float _Complex* resamp_state_t::delay_buf;
 
 
 
+Mirrored delay line, 2 x delay\_cap elements, so num\_taps reads are contiguous. 
+
+
+        
 
 <hr>
 
@@ -201,6 +236,10 @@ size_t resamp_state_t::delay_cap;
 
 
 
+Delay-line length: num\_taps rounded up to a power of two. 
+
+
+        
 
 <hr>
 
@@ -214,6 +253,10 @@ size_t resamp_state_t::delay_head;
 
 
 
+Delay-line write position, &lt; delay\_cap. 
+
+
+        
 
 <hr>
 
@@ -227,6 +270,10 @@ size_t resamp_state_t::delay_mask;
 
 
 
+delay\_cap - 1, the index wrap mask. 
+
+
+        
 
 <hr>
 
@@ -240,6 +287,10 @@ unsigned resamp_state_t::log2_phases;
 
 
 
+log2(num\_phases), rounded up: the bits of the phase word that select an arm. 
+
+
+        
 
 <hr>
 
@@ -253,6 +304,10 @@ size_t resamp_state_t::num_phases;
 
 
 
+Polyphase arms in the bank (power of two). 
+
+
+        
 
 <hr>
 
@@ -266,6 +321,10 @@ size_t resamp_state_t::num_taps;
 
 
 
+Taps per arm. 
+
+
+        
 
 <hr>
 
@@ -279,6 +338,10 @@ uint32_t resamp_state_t::phase;
 
 
 
+[**dp\_resamp\_execute()**](resamp__core_8h.md#function-dp_resamp_execute) phase accumulator (32-bit fraction of one interval). 
+
+
+        
 
 <hr>
 
@@ -292,6 +355,10 @@ uint32_t resamp_state_t::phase_inc;
 
 
 
+[**dp\_resamp\_execute()**](resamp__core_8h.md#function-dp_resamp_execute) step per tick: 2^32/rate interpolating, 2^32\*rate decimating, modulo 2^32 (0 at rate 1). 
+
+
+        
 
 <hr>
 
@@ -305,6 +372,10 @@ double resamp_state_t::rate;
 
 
 
+Output/input rate ratio (&gt; 1 interpolates). 
+
+
+        
 
 <hr>
 
@@ -318,6 +389,10 @@ int resamp_state_t::upsample;
 
 
 
+1 = rate &gt;= 1.0 (interpolator path), 0 = rate &lt; 1.0 (decimator path) for [**dp\_resamp\_execute()**](resamp__core_8h.md#function-dp_resamp_execute). 
+
+
+        
 
 <hr>
 

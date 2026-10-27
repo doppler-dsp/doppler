@@ -105,7 +105,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  void | [**dp\_ratesync\_loop\_tlm\_flush**](#function-dp_ratesync_loop_tlm_flush) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Emit the timing loop's telemetry for the symbol just recovered._  |
 |  int | [**dp\_ratesync\_m\_ok**](#function-dp_ratesync_m_ok) (size\_t m) <br>_The domain of_ `m` _, the terminal outputs per symbol: even, and_`2 <= m <= RATESYNC_MAX_M` _._ |
 |  void | [**dp\_ratesync\_reset**](#function-dp_ratesync_reset) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Reset to the post-create state: the cascade, the loop integrator, the lock detector, the strobe ring and the prime countdown._  |
-|  void | [**dp\_ratesync\_set\_bn**](#function-dp_ratesync_set_bn) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, double val) <br> |
+|  void | [**dp\_ratesync\_set\_bn**](#function-dp_ratesync_set_bn) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, double val) <br>_Retune bn at the current zeta, through_ [_**dp\_ratesync\_configure()**_](ratesync__core_8h.md#function-dp_ratesync_configure) _._ |
 |  int | [**dp\_ratesync\_set\_state**](#function-dp_ratesync_set_state) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, const void \* blob) <br>_Restore mutable state from_ `blob` _into an identically built instance._ |
 |  int | [**dp\_ratesync\_set\_telemetry**](#function-dp_ratesync_set_telemetry) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the probes._  |
 |  size\_t | [**dp\_ratesync\_state\_bytes**](#function-dp_ratesync_state_bytes) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Bytes_ [_**dp\_ratesync\_get\_state()**_](ratesync__core_8h.md#function-dp_ratesync_get_state) _writes (envelope + payload + child)._ |
@@ -146,12 +146,12 @@ length is already a safe bound" — with_ `sps >= m >= 2` _a block can never yie
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**RATESYNC\_LOCK\_EPS**](ratesync__core_8h.md#define-ratesync_lock_eps)  `1e-12`<br> |
-| define  | [**RATESYNC\_LOOP\_STATE\_MAGIC**](ratesync__core_8h.md#define-ratesync_loop_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'S', 'L', 'P')`<br> |
-| define  | [**RATESYNC\_LOOP\_STATE\_VERSION**](ratesync__core_8h.md#define-ratesync_loop_state_version)  `/* multi line expression */`<br> |
+| define  | [**RATESYNC\_LOCK\_EPS**](ratesync__core_8h.md#define-ratesync_lock_eps)  `1e-12`<br>_Numerical guard on the on-time+mid energy sum feeding the lock statistic (not tunable) — mirrors SYMSYNC\_LOCK\_EPS._  |
+| define  | [**RATESYNC\_LOOP\_STATE\_MAGIC**](ratesync__core_8h.md#define-ratesync_loop_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'S', 'L', 'P')`<br>_State-blob magic for the timing loop (FourCC "RSLP")._  |
+| define  | [**RATESYNC\_LOOP\_STATE\_VERSION**](ratesync__core_8h.md#define-ratesync_loop_state_version)  `/* multi line expression */`<br>_Timing-loop blob layout version._  |
 | define  | [**RATESYNC\_MAX\_M**](ratesync__core_8h.md#define-ratesync_max_m)  `8`<br> |
-| define  | [**RATESYNC\_STATE\_MAGIC**](ratesync__core_8h.md#define-ratesync_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'A', 'T', 'S')`<br> |
-| define  | [**RATESYNC\_STATE\_VERSION**](ratesync__core_8h.md#define-ratesync_state_version)  `2u /\* v2: running state moved into the loop \*/`<br> |
+| define  | [**RATESYNC\_STATE\_MAGIC**](ratesync__core_8h.md#define-ratesync_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'A', 'T', 'S')`<br>_State-blob magic for RateSync (FourCC "RATS")._  |
+| define  | [**RATESYNC\_STATE\_VERSION**](ratesync__core_8h.md#define-ratesync_state_version)  `2u /\* v2: running state moved into the loop \*/`<br>_RateSync blob layout version._  |
 
 ## Detailed Description
 
@@ -286,7 +286,9 @@ Only the PI coefficients change; the integrator, and therefore the tracked rate 
 
 * `state` Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalised to the symbol rate. 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (0.707 = critically damped).
+
+A (`bn`, `zeta`) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) is ignored silently: nothing changes and no status is returned. 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import RateSync
@@ -304,8 +306,6 @@ True
 True
 ```
  
-
-
 
 
         
@@ -486,6 +486,24 @@ double dp_ratesync_get_bn (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+bn: the create() value or the last one configure() accepted. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -501,6 +519,24 @@ int dp_ratesync_get_clipped (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+1 if the CIC has clipped since the last reset, else 0. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -518,6 +554,24 @@ double dp_ratesync_get_ctrl (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Rate deviation added to the terminal stage's rate (same units as that rate); 0 after create/reset. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -534,6 +588,20 @@ double dp_ratesync_get_lock_stat (
 
 
 This, not an error-vector magnitude, is the honest lock indicator: a single cycle slip during acquisition drags a windowed EVM by 20 dB while the eye stays wide open at +0.75. Judge lock here. 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Mean lock\_signal over the last completed block of avgs looks; 0.0 until the first block completes. 
+
+
+
 
 
         
@@ -554,6 +622,24 @@ int dp_ratesync_get_locked (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+1 when locked, 0 otherwise (0 after create/reset). 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -569,6 +655,24 @@ double dp_ratesync_get_rate (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Samples per symbol, sps / (1 + loop integrator), clamped to 0.5 sps to 1.5 sps; the nominal sps after create/reset. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -587,6 +691,18 @@ void dp_ratesync_get_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Caller-owned buffer of at least [**dp\_ratesync\_state\_bytes()**](ratesync__core_8h.md#function-dp_ratesync_state_bytes) bytes. 
+
+
+
+
+        
+
 <hr>
 
 
@@ -602,6 +718,24 @@ double dp_ratesync_get_timing_error (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The detector output scaled by its own slope (dimensionless); 0 before the first steered symbol. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -652,6 +786,22 @@ void dp_ratesync_loop_configure (
 
 
 
+A (`bn`, `zeta`) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) is ignored silently: nothing changes and no status is returned.
+
+
+
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+* `bn` Loop noise bandwidth, normalized to the symbol rate. 
+* `zeta` Damping factor. 
+
+
+
+
+        
 
 <hr>
 
@@ -674,6 +824,22 @@ void dp_ratesync_loop_configure_lock_raw (
 
 
 
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+* `avgs` Looks per decision; clamped &gt;= 1. 
+* `up_thresh` Declare threshold on lock\_stat. 
+* `down_thresh` Drop threshold; &lt;= up\_thresh for hysteresis. 
+* `n_up` Consecutive above-threshold decisions to declare. 
+* `n_down` Consecutive below-threshold decisions to drop. 
+
+
+
+
+        
+
 <hr>
 
 
@@ -690,6 +856,18 @@ void dp_ratesync_loop_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+* `blob` Caller-owned buffer of at least [**dp\_ratesync\_loop\_state\_bytes()**](ratesync__core_8h.md#function-dp_ratesync_loop_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -805,6 +983,17 @@ int dp_ratesync_loop_set_state (
 
 
 
+Config is not in the blob: restore into a loop built with the same geometry. A refusal changes nothing.
+
+
+
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+* `blob` Blob from [**dp\_ratesync\_loop\_get\_state()**](ratesync__core_8h.md#function-dp_ratesync_loop_get_state). 
+
 
 
 **Returns:**
@@ -836,6 +1025,27 @@ int dp_ratesync_loop_set_telemetry (
 
 
 
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+* `tlm` Telemetry context to attach (borrowed), or NULL. 
+* `prefix` Probe-name prefix; NULL means "sync". 
+* `decim` Emit every decim-th symbol. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the prefix is too long or the probe table cannot take all six (nothing is attached). 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -851,6 +1061,24 @@ size_t dp_ratesync_loop_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `l` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Blob size in bytes. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -970,6 +1198,7 @@ True
 
 ### function dp\_ratesync\_set\_bn 
 
+_Retune bn at the current zeta, through_ [_**dp\_ratesync\_configure()**_](ratesync__core_8h.md#function-dp_ratesync_configure) _._
 ```C++
 void dp_ratesync_set_bn (
     dp_ratesync_state_t * state,
@@ -979,6 +1208,21 @@ void dp_ratesync_set_bn (
 
 
 
+An out-of-domain value is ignored silently (no status, no error), so [**dp\_ratesync\_get\_bn()**](ratesync__core_8h.md#function-dp_ratesync_get_bn) keeps reporting the bandwidth in use.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `val` New loop noise bandwidth, normalized to the symbol rate. 
+
+
+
+
+        
 
 <hr>
 
@@ -995,6 +1239,14 @@ int dp_ratesync_set_state (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Blob from [**dp\_ratesync\_get\_state()**](ratesync__core_8h.md#function-dp_ratesync_get_state). 
 
 
 
@@ -1082,6 +1334,24 @@ size_t dp_ratesync_state_bytes (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Blob size in bytes: envelope + RateConverter blob + loop blob. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -1157,6 +1427,24 @@ size_t dp_ratesync_steps_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Unused. 
+
+
+
+**Returns:**
+
+0. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -1300,6 +1588,7 @@ Passing a literal `ted` lets the force-inlined body constant-fold the detector b
 
 ### define RATESYNC\_LOCK\_EPS 
 
+_Numerical guard on the on-time+mid energy sum feeding the lock statistic (not tunable) — mirrors SYMSYNC\_LOCK\_EPS._ 
 ```C++
 #define RATESYNC_LOCK_EPS `1e-12`
 ```
@@ -1313,6 +1602,7 @@ Passing a literal `ted` lets the force-inlined body constant-fold the detector b
 
 ### define RATESYNC\_LOOP\_STATE\_MAGIC 
 
+_State-blob magic for the timing loop (FourCC "RSLP")._ 
 ```C++
 #define RATESYNC_LOOP_STATE_MAGIC `DP_FOURCC ('R', 'S', 'L', 'P')`
 ```
@@ -1326,6 +1616,7 @@ Passing a literal `ted` lets the force-inlined body constant-fold the detector b
 
 ### define RATESYNC\_LOOP\_STATE\_VERSION 
 
+_Timing-loop blob layout version._ 
 ```C++
 #define RATESYNC_LOOP_STATE_VERSION `/* multi line expression */`
 ```
@@ -1356,6 +1647,7 @@ Largest supported outputs-per-symbol (bounds the strobe ring in-struct).
 
 ### define RATESYNC\_STATE\_MAGIC 
 
+_State-blob magic for RateSync (FourCC "RATS")._ 
 ```C++
 #define RATESYNC_STATE_MAGIC `DP_FOURCC ('R', 'A', 'T', 'S')`
 ```
@@ -1369,6 +1661,7 @@ Largest supported outputs-per-symbol (bounds the strobe ring in-struct).
 
 ### define RATESYNC\_STATE\_VERSION 
 
+_RateSync blob layout version._ 
 ```C++
 #define RATESYNC_STATE_VERSION `2u /* v2: running state moved into the loop */`
 ```

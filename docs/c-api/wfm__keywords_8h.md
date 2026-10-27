@@ -166,6 +166,19 @@ The keywords of Midas BLUE 1.1 3.4.2 have defined value formats  `ACQDATE` is `Y
 This is ADVISORY. 3.4.2 leaves the effect of these keywords to the consuming system, so nothing here refuses to write one; the check exists so a caller can find out before committing a capture.
 
 
+Checked tags: `ACQDATE` (type `A`, 6 chars `YY.DDD` or 8 digits `YYYYMMDD`), `ACQTIME` (type `A`, 8 chars `HH:MM:SS`, digits only around the colons; ranges such as hour &lt;= 23 are not checked), `COMMENT` and `TIMELINE` (must be type `A`), and `SUBREC_DEF`, `SUBREC_DESCRIP`, `T4INDEX` (always -1: doppler writes type 1000 only).
+
+
+
+
+**Parameters:**
+
+
+* `tag` NUL-terminated keyword tag; must be non-NULL. 
+* `type` BLUE type code of the value, e.g. A for ASCII. 
+* `value` Value bytes; read as characters when the tag is `ACQDATE` or `ACQTIME` and `type` is A. 
+* `count` Element count (characters for type A). 
+
 
 
 **Returns:**
@@ -243,7 +256,24 @@ size_t dp_wfm_kw_elem_size (
 
 
 
-Table 6's KW-legal set: `B` 1, `I` 2, `L` 4, `X` 8, `F` 4, `D` 8, `A` 1 (a variable-length string in keyword context — the eight-character implication of `A` does not apply here). `T` is a deprecated alias for a 32-bit integer and decodes as 4. `O` (offset byte), `P` (packed bits) and `N` (4-bit) are explicitly not permitted in keywords; `S` is reserved. 
+Table 6's KW-legal set: `B` 1, `I` 2, `L` 4, `X` 8, `F` 4, `D` 8, `A` 1 (a variable-length string in keyword context — the eight-character implication of `A` does not apply here). `T` is a deprecated alias for a 32-bit integer and decodes as 4. `O` (offset byte), `P` (packed bits) and `N` (4-bit) are explicitly not permitted in keywords; `S` is reserved.
+
+
+
+
+**Parameters:**
+
+
+* `type` BLUE type code character, e.g. D for a 64-bit float. 
+
+
+
+**Returns:**
+
+Bytes per element (1, 2, 4 or 8), or 0 for any code not legal in a keyword (including O, P, N, S and unknown characters). 
+
+
+
 
 
         

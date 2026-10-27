@@ -101,6 +101,11 @@ double dp_nprmeas_state_t::beta;
 
 
 
+Kaiser beta auto-selected at create() so sidelobes sit below the dynamic-range target. 
+ 
+
+
+        
 
 <hr>
 
@@ -114,6 +119,11 @@ double dp_nprmeas_state_t::enbw;
 
 
 
+Window equivalent noise bandwidth, bins (copied from the PSD core at create()). 
+ 
+
+
+        
 
 <hr>
 
@@ -181,6 +191,10 @@ dp_psd_state_t* dp_nprmeas_state_t::psd;
 
 
 
+Owned averaging PSD core (Kaiser window, FFT plan, segment average); also holds the dBFS reference. Set at create(). 
+
+
+        
 
 <hr>
 
@@ -194,6 +208,11 @@ float* dp_nprmeas_state_t::pwr;
 
 
 
+Owned scratch, nfft floats: one-sided power spectrum (first nfft/2 + 1 used), rewritten by every analyze(). 
+ 
+
+
+        
 
 <hr>
 
@@ -207,6 +226,11 @@ size_t dp_nprmeas_state_t::spur_guard_bins;
 
 
 
+Minimum notch keep-out, bins: main lobe plus sidelobe skirt of the window. A smaller guard\_hz is raised to this. 
+ 
+
+
+        
 
 <hr>
 

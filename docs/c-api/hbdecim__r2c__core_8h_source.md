@@ -38,7 +38,7 @@ extern "C"
 
   /* ── Serializable state (reusable elastic-resume convention) ──────────────
    * Mutable per-stream state only — the even/odd delay rings, their write
-   * heads, the pending odd sample, and the output parity.  Coefficients and
+   * heads, the pending even sample, and the output parity.  Coefficients and
    * sizes are config (rebuilt from num_taps on the resumed instance).  Size is
    * derived from even_cap, so a same-num_taps instance round-trips exactly. */
 

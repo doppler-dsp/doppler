@@ -76,12 +76,12 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 |  [**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* | [**dp\_specan\_create**](#function-dp_specan_create) (double fs, double span, double rbw, double src\_center, double center, double offset\_db, double full\_scale, size\_t bits, size\_t navg) <br>_Create a natural-parameter spectrum analyzer._  |
 |  void | [**dp\_specan\_destroy**](#function-dp_specan_destroy) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br>_Destroy a Specan instance and release all memory._  |
 |  size\_t | [**dp\_specan\_execute**](#function-dp_specan_execute) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_Mix, decimate, average and return one display spectrum, or nothing._  |
-|  size\_t | [**dp\_specan\_execute\_max\_out**](#function-dp_specan_execute_max_out) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_specan\_execute()**_](specan__core_8h.md#function-dp_specan_execute) _; equals disp\_n._ |
-|  void | [**dp\_specan\_get\_state**](#function-dp_specan_get_state) (const [**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, void \* blob) <br> |
+|  size\_t | [**dp\_specan\_execute\_max\_out**](#function-dp_specan_execute_max_out) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br>_Output capacity_ [_**dp\_specan\_execute()**_](specan__core_8h.md#function-dp_specan_execute) _needs: the display length._ |
+|  void | [**dp\_specan\_get\_state**](#function-dp_specan_get_state) (const [**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, void \* blob) <br>_Serialize the Ddc, PSD and pending decimated samples into_ `blob` _._ |
 |  void | [**dp\_specan\_reset**](#function-dp_specan_reset) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br>_Drop pending samples and the running average; LO/filter history zero._  |
 |  void | [**dp\_specan\_retune**](#function-dp_specan_retune) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, double center) <br>_Retune the display center without rebuilding the chain._  |
-|  int | [**dp\_specan\_set\_state**](#function-dp_specan_set_state) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_specan\_state\_bytes**](#function-dp_specan_state_bytes) (const [**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br> |
+|  int | [**dp\_specan\_set\_state**](#function-dp_specan_set_state) ([**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state, const void \* blob) <br>_Restore an analyzer from a blob made by_ [_**dp\_specan\_get\_state()**_](specan__core_8h.md#function-dp_specan_get_state) _._ |
+|  size\_t | [**dp\_specan\_state\_bytes**](#function-dp_specan_state_bytes) (const [**dp\_specan\_state\_t**](structdp__specan__state__t.md) \* state) <br>_Size in bytes of this analyzer's state blob._  |
 
 
 
@@ -113,8 +113,8 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**SPECAN\_STATE\_MAGIC**](specan__core_8h.md#define-specan_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S','P','A','N')`<br> |
-| define  | [**SPECAN\_STATE\_VERSION**](specan__core_8h.md#define-specan_state_version)  `1u`<br> |
+| define  | [**SPECAN\_STATE\_MAGIC**](specan__core_8h.md#define-specan_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S','P','A','N')`<br>_State-blob magic ('SPAN'); set\_state() rejects any other._  |
+| define  | [**SPECAN\_STATE\_VERSION**](specan__core_8h.md#define-specan_state_version)  `1u`<br>_State-blob layout version; set\_state() rejects any other._  |
 
 ## Detailed Description
 
@@ -291,7 +291,7 @@ size_t dp_specan_execute (
 
 
 
-Feeds `x` through the Ddc, buffers the decimated output, and once `n·navg` decimated samples are available windows + FFTs + averages them into a fresh frame, crops the central ±span/2 band and writes it in dB (+ ref\_db). Returns 0 (writing nothing) until a frame is ready — the binding maps that to Python `None`.
+Feeds `x` through the Ddc, buffers the decimated output, and once `n·navg` decimated samples are available windows + FFTs + averages them into a fresh frame, crops the central ±span/2 band and writes it in dBFS (+ offset\_db). When more than one frame's worth is pending, only the newest complete window is averaged and older samples are dropped, so a display that cannot keep up shows the latest frame. Returns 0 (writing nothing) until a frame is ready — the binding maps that to Python `None`.
 
 
 
@@ -309,7 +309,7 @@ Feeds `x` through the Ddc, buffers the decimated output, and once `n·navg` deci
 
 **Returns:**
 
-Display bins written (disp\_n), or 0 if no frame is ready yet.
+Display bins written (min(disp\_n, `max_out`)), or 0 if no frame is ready yet.
 
 
 
@@ -334,7 +334,7 @@ True
 
 ### function dp\_specan\_execute\_max\_out 
 
-_Output capacity hint for_ [_**dp\_specan\_execute()**_](specan__core_8h.md#function-dp_specan_execute) _; equals disp\_n._
+_Output capacity_ [_**dp\_specan\_execute()**_](specan__core_8h.md#function-dp_specan_execute) _needs: the display length._
 ```C++
 size_t dp_specan_execute_max_out (
     dp_specan_state_t * state
@@ -344,12 +344,31 @@ size_t dp_specan_execute_max_out (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+[**dp\_specan\_state\_t::disp\_n**](structdp__specan__state__t.md#variable-disp_n), fixed at create(). 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_specan\_get\_state 
 
+_Serialize the Ddc, PSD and pending decimated samples into_ `blob` _._
 ```C++
 void dp_specan_get_state (
     const dp_specan_state_t * state,
@@ -359,6 +378,21 @@ void dp_specan_get_state (
 
 
 
+The pending buffer is zero-padded to n\*navg samples so the blob size is a fixed function of the configuration. The display center itself is not stored (see scripts/.mutator-state-exempt, #2079).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_specan\_state\_bytes()**](specan__core_8h.md#function-dp_specan_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -425,6 +459,7 @@ Updates the Ddc LO phase increment (seamless across blocks — no resampler or w
 
 ### function dp\_specan\_set\_state 
 
+_Restore an analyzer from a blob made by_ [_**dp\_specan\_get\_state()**_](specan__core_8h.md#function-dp_specan_get_state) _._
 ```C++
 int dp_specan_set_state (
     dp_specan_state_t * state,
@@ -435,12 +470,32 @@ int dp_specan_set_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL, created with the same configuration. 
+* `blob` Source blob of [**dp\_specan\_state\_bytes()**](specan__core_8h.md#function-dp_specan_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` for a header mismatch (state untouched), a bad child blob, or a pending count above n\*navg. The last two are detected after the children are read, so the Ddc/PSD may already be partly restored when they are refused. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_specan\_state\_bytes 
 
+_Size in bytes of this analyzer's state blob._ 
 ```C++
 size_t dp_specan_state_bytes (
     const dp_specan_state_t * state
@@ -449,6 +504,24 @@ size_t dp_specan_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Header + the Ddc and PSD child blobs + a u64 pending count + n\*navg complex floats (the pending buffer at its fixed capacity). 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -459,6 +532,7 @@ size_t dp_specan_state_bytes (
 
 ### define SPECAN\_STATE\_MAGIC 
 
+_State-blob magic ('SPAN'); set\_state() rejects any other._ 
 ```C++
 #define SPECAN_STATE_MAGIC `DP_FOURCC ('S','P','A','N')`
 ```
@@ -472,6 +546,7 @@ size_t dp_specan_state_bytes (
 
 ### define SPECAN\_STATE\_VERSION 
 
+_State-blob layout version; set\_state() rejects any other._ 
 ```C++
 #define SPECAN_STATE_VERSION `1u`
 ```

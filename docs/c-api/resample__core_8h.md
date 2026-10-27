@@ -194,8 +194,8 @@ int dp_kaiser_num_taps (
 
 * `num_phases` Number of polyphase branches (power of two). A value below 1 is not a bank; the function returns 0. 
 * `atten` Desired stopband attenuation in dB. 
-* `pb` Normalised passband edge (0 &lt; pb &lt; sb &lt; 1). 
-* `sb` Normalised stopband edge. 
+* `pb` Passband edge in cycles per sample at the branch (input) rate, so Nyquist is 0.5 (0 &lt; pb &lt; sb &lt; 1). 
+* `sb` Stopband edge, same units as `pb`. 
 
 
 

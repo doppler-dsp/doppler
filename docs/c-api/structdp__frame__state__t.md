@@ -161,6 +161,10 @@ size_t dp_frame_state_t::nbits;
 
 
 
+Bits in one frame as transmitted: the assembled frame's length for [**dp\_frame\_create()**](frame__core_8h.md#function-dp_frame_create), and the last emitting stage's output length (`out_bits`) after [**dp\_frame\_build()**](frame__core_8h.md#function-dp_frame_build). 0 until a description is built, or if building fails. 
+
+
+        
 
 <hr>
 
@@ -225,6 +229,10 @@ int dp_frame_state_t::rx_ok;
 
 
 
+Of those checks, how many came out good; `rx_ok == rx_units` is the verdict. 0 after a refused call. 
+
+
+        
 
 <hr>
 
@@ -238,6 +246,10 @@ int dp_frame_state_t::rx_symbols;
 
 
 
+Symbol errors the last [**dp\_frame\_deframe()**](frame__core_8h.md#function-dp_frame_deframe) repaired, summed over its stages: margin being spent, which a CRC alone cannot show. 
+
+
+        
 
 <hr>
 
@@ -251,6 +263,10 @@ int dp_frame_state_t::rx_units;
 
 
 
+Checks the last [**dp\_frame\_deframe()**](frame__core_8h.md#function-dp_frame_deframe) performed, summed over every stage it reversed: one per CRC, one per outer-code codeword. 0 after a refused call. 
+
+
+        
 
 <hr>
 

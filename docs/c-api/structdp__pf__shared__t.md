@@ -8,7 +8,7 @@
 
 
 
-
+_One parallel-for run: the range, the work, and the shared cursor._ [More...](#detailed-description)
 
 * `#include <dp_parallel.h>`
 
@@ -84,6 +84,13 @@
 
 
 
+## Detailed Description
+
+
+Shared by every worker of a dp\_parallel\_for() or dp\_pool\_run() call; workers claim indices by fetch-add on `next`. Internal: callers never build one. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -97,6 +104,11 @@ void(* dp_pf_shared_t::body) (size_t, void *);
 
 
 
+per-index work, [**body(i, ctx)**](structdp__pf__shared__t.md#variable-body) 
+ 
+
+
+        
 
 <hr>
 
@@ -110,6 +122,11 @@ void* dp_pf_shared_t::ctx;
 
 
 
+shared read-only context, passed through to every [**body()**](structdp__pf__shared__t.md#variable-body) call 
+ 
+
+
+        
 
 <hr>
 
@@ -123,6 +140,11 @@ size_t dp_pf_shared_t::n;
 
 
 
+index count: work covers [0, n) 
+ 
+
+
+        
 
 <hr>
 
@@ -136,6 +158,11 @@ atomic_size_t dp_pf_shared_t::next;
 
 
 
+lock-free work cursor (fetch-add): the next unclaimed index 
+ 
+
+
+        
 
 <hr>
 

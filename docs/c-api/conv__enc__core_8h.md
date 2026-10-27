@@ -167,6 +167,24 @@ const conv_code_t * dp_conv_enc_code (
 
 
 
+
+**Parameters:**
+
+
+* `s` The encoder; must be non-NULL. 
+
+
+
+**Returns:**
+
+Pointer to the code stored inside `s` (generators, constraint length, output inversion mask). Borrowed: valid until [**dp\_conv\_enc\_destroy()**](conv__enc__core_8h.md#function-dp_conv_enc_destroy); never freed by the caller. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -513,7 +531,24 @@ size_t dp_conv_enc_state_bytes (
 
 
 
-A constant for this object, unlike the decoder's, whose ring is sized from the configuration. 
+A constant for this object, unlike the decoder's, whose ring is sized from the configuration.
+
+
+
+
+**Parameters:**
+
+
+* `s` The encoder; must be non-NULL. 
+
+
+
+**Returns:**
+
+Blob size in bytes. 
+
+
+
 
 
         

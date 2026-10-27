@@ -8,27 +8,7 @@
 
 
 ```C++
-/*
- * timing_core.h — sample-clock pacing + timestamping.
- *
- * A ``dp_sample_clock_t`` models an ideal sample clock running at ``fs`` Hz.
- * It does two things off one shared, drift-free timeline anchored when the
- * clock is created or reset:
- *
- *   - PACE a producer so each block leaves at its real-time deadline
- *     ``epoch + n/fs`` — mimicking a hardware sample clock feeding a DAC.
- *   - STAMP a block with the ideal wall-clock time of its samples
- *     (``epoch_real + n/fs``), for reproducible capture metadata.
- *
- * Because both derive from the cumulative sample count ``n`` against a fixed
- * epoch — not from summed per-block sleeps — the schedule is drift-free: an
- * over- or under-sleep on one block is corrected on the next. The residual
- * error is per-block jitter bounded by the OS scheduler, which averages out.
- *
- * Pacing is POSIX only (``clock_gettime`` + an absolute-deadline sleep); the
- * build guards this translation unit out on Windows, mirroring the stream
- * sink.
- */
+
 #ifndef DP_TIMING_CORE_H
 #define DP_TIMING_CORE_H
 
@@ -74,11 +54,6 @@ extern "C"
 
   void dp_sample_clock_resync (dp_sample_clock_t *c);
 
-  /* A stats snapshot for the generated `SampleClock` handle (jm
-   * kind="handle"): the decoded-getter face wants one call that fills an
-   * out-struct, so this copies the (public) clock struct out. The handle
-   * constructs init-in-place via dp_sample_clock_init above (jm#320
-   * `init_fn`); jm owns that malloc/free. */
   void dp_sample_clock_stats (const dp_sample_clock_t *c,
                               dp_sample_clock_t       *out);
 

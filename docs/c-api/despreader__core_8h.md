@@ -69,31 +69,31 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**dp\_despreader\_bits**](#function-dp_despreader_bits) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Despread a CF32 block and bit-sync the prompts into hard data bits._  |
-|  size\_t | [**dp\_despreader\_bits\_max\_out**](#function-dp_despreader_bits_max_out) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_despreader\_bits\_max\_out**](#function-dp_despreader_bits_max_out) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_No fixed cap on bits() output (at most one bit per code period, so never more bits than input samples)._  |
 |  void | [**dp\_despreader\_configure\_carrier\_lock**](#function-dp_despreader_configure_carrier_lock) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the embedded carrier loop's lock detector directly._  |
 |  int | [**dp\_despreader\_configure\_code\_lock**](#function-dp_despreader_configure_code_lock) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double pfa, size\_t n\_looks, double ref\_snr\_db) <br>_Re-tune the embedded code loop's lock detector._  |
 |  [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* | [**dp\_despreader\_create**](#function-dp_despreader_create) (const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Create a continuous DSSS despreader (COPIES_ `code` _)._ |
 |  void | [**dp\_despreader\_destroy**](#function-dp_despreader_destroy) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Destroy a despreader and release all memory._  |
-|  size\_t | [**dp\_despreader\_get\_bit\_phase**](#function-dp_despreader_get_bit_phase) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br> |
-|  double | [**dp\_despreader\_get\_bn\_carrier**](#function-dp_despreader_get_bn_carrier) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br> |
-|  double | [**dp\_despreader\_get\_bn\_code**](#function-dp_despreader_get_bn_code) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_despreader\_get\_bit\_phase**](#function-dp_despreader_get_bit_phase) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_The detected data-bit boundary, in code periods._  |
+|  double | [**dp\_despreader\_get\_bn\_carrier**](#function-dp_despreader_get_bn_carrier) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Carrier loop noise bandwidth, normalized to the code-period (symbol) rate._  |
+|  double | [**dp\_despreader\_get\_bn\_code**](#function-dp_despreader_get_bn_code) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Code loop noise bandwidth, normalized to the code-period rate._  |
 |  int | [**dp\_despreader\_get\_carrier\_locked**](#function-dp_despreader_get_carrier_locked) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Carrier lock decision (1 = locked): the embedded Costas loop's verify-counted detector on its lock-metric EMA (see dp\_costas\_configure\_lock)._  |
 |  int | [**dp\_despreader\_get\_code\_locked**](#function-dp_despreader_get_code_locked) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Code lock decision (1 = locked): the embedded DLL's verify-counted CFAR detector (see dp\_dll\_configure\_lock); live in composition — the despreader runs the same always-on detector dp\_dll\_steps does._  |
-|  double | [**dp\_despreader\_get\_code\_phase**](#function-dp_despreader_get_code_phase) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br> |
+|  double | [**dp\_despreader\_get\_code\_phase**](#function-dp_despreader_get_code_phase) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_The code loop's current prompt code phase, chips._  |
 |  double | [**dp\_despreader\_get\_code\_rate**](#function-dp_despreader_get_code_rate) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Chips the embedded DLL advances per nominal chip: ~1.0, and its departure from 1 is the code-rate (clock) offset being tracked._  |
 |  double | [**dp\_despreader\_get\_lock\_metric**](#function-dp_despreader_get_lock_metric) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_The embedded Costas loop's lock statistic: the EMA of \|Re P\|/\|P\| over the prompt correlations, 1 when locked._ `carrier_locked` _is the de-chattered decision made on it._ |
-|  double | [**dp\_despreader\_get\_norm\_freq**](#function-dp_despreader_get_norm_freq) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br> |
-|  void | [**dp\_despreader\_get\_state**](#function-dp_despreader_get_state) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, void \* blob) <br> |
+|  double | [**dp\_despreader\_get\_norm\_freq**](#function-dp_despreader_get_norm_freq) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_The carrier loop's tracked frequency, cycles/sample._  |
+|  void | [**dp\_despreader\_get\_state**](#function-dp_despreader_get_state) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, void \* blob) <br>_Serialize both loops and the running bit-sync state into_ `blob` _. The code copy and telemetry attachment do not travel._ |
 |  void | [**dp\_despreader\_init**](#function-dp_despreader_init) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* ch, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Initialise a despreader in place; BORROWS_ `code` _._ |
 |  void | [**dp\_despreader\_reset**](#function-dp_despreader_reset) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Re-seed both loops to the create-time frequency/phase; keep config._  |
-|  int | [**dp\_despreader\_set\_bn\_carrier**](#function-dp_despreader_set_bn_carrier) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br> |
-|  int | [**dp\_despreader\_set\_bn\_code**](#function-dp_despreader_set_bn_code) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br> |
-|  void | [**dp\_despreader\_set\_norm\_freq**](#function-dp_despreader_set_norm_freq) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br> |
-|  int | [**dp\_despreader\_set\_state**](#function-dp_despreader_set_state) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, const void \* blob) <br> |
+|  int | [**dp\_despreader\_set\_bn\_carrier**](#function-dp_despreader_set_bn_carrier) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br>_Retune the carrier loop bandwidth, keeping zeta (_ [_**dp\_costas\_set\_bn()**_](costas__core_8h.md#function-dp_costas_set_bn) _)._ |
+|  int | [**dp\_despreader\_set\_bn\_code**](#function-dp_despreader_set_bn_code) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br>_Retune the code loop bandwidth, keeping zeta (_ [_**dp\_dll\_set\_bn()**_](dll__core_8h.md#function-dp_dll_set_bn) _)._ |
+|  void | [**dp\_despreader\_set\_norm\_freq**](#function-dp_despreader_set_norm_freq) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br>_Re-seed the carrier NCO at_ `val` _(_[_**dp\_costas\_set\_norm\_freq()**_](costas__core_8h.md#function-dp_costas_set_norm_freq) _)._ |
+|  int | [**dp\_despreader\_set\_state**](#function-dp_despreader_set_state) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, const void \* blob) <br>_Restore state written by_ [_**dp\_despreader\_get\_state()**_](despreader__core_8h.md#function-dp_despreader_get_state) _._ |
 |  int | [**dp\_despreader\_set\_telemetry**](#function-dp_despreader_set_telemetry) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" / ".nco" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" / ".nco" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1; ".freq" / ".rate" the filters' integrators and ".nco" their complete commands, see_ [_**dp\_costas\_set\_telemetry()**_](costas__core_8h.md#function-dp_costas_set_telemetry) _and_[_**dp\_dll\_set\_telemetry()**_](dll__core_8h.md#function-dp_dll_set_telemetry) _) — ten probes, all thinned by_`decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
-|  size\_t | [**dp\_despreader\_state\_bytes**](#function-dp_despreader_state_bytes) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_despreader\_state\_bytes**](#function-dp_despreader_state_bytes) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Byte size of the state blob._  |
 |  size\_t | [**dp\_despreader\_steps**](#function-dp_despreader_steps) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Track carrier and code and despread a CF32 block, one prompt symbol per code period._  |
-|  size\_t | [**dp\_despreader\_steps\_max\_out**](#function-dp_despreader_steps_max_out) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_despreader\_steps\_max\_out**](#function-dp_despreader_steps_max_out) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_No fixed cap on steps() output (one prompt per code period, so never more prompts than input samples)._  |
 
 
 
@@ -173,7 +173,7 @@ size_t dp_despreader_bits (
 
 
 
-The same tracking kernel as [**dp\_despreader\_steps()**](despreader__core_8h.md#function-dp_despreader_steps), followed by bit synchronisation: the per-period prompts are coherently summed across each detected bit boundary (a data bit spans `periods_per_bit` code periods) and one hard 0/1 bit is emitted per data bit. The bit boundary is estimated on-line from the prompt sign-flip histogram, so the phase is a BPSK ambiguity — a globally inverted decision stream is equally correct.
+The same tracking kernel as [**dp\_despreader\_steps()**](despreader__core_8h.md#function-dp_despreader_steps), followed by bit synchronisation: the per-period prompts are coherently summed across each detected bit boundary (a data bit spans `periods_per_bit` code periods) and one hard 0/1 bit is emitted per data bit. The bit boundary is estimated on-line from the prompt sign-flip histogram, so the phase is a BPSK ambiguity — a globally inverted decision stream is equally correct. A bit is 1 when its summed Re(prompt) is &gt;= 0, else 0. The first (partial) bit after create or reset is not emitted; with periods\_per\_bit == 1 every prompt yields one bit.
 
 
 
@@ -222,6 +222,7 @@ Number of data bits written into `out`.
 
 ### function dp\_despreader\_bits\_max\_out 
 
+_No fixed cap on bits() output (at most one bit per code period, so never more bits than input samples)._ 
 ```C++
 size_t dp_despreader_bits_max_out (
     dp_despreader_state_t * state
@@ -230,6 +231,24 @@ size_t dp_despreader_bits_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Despreader state (unused). 
+
+
+
+**Returns:**
+
+Always 0, meaning "no fixed capacity": size the output to the input length. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -375,7 +394,7 @@ A complete tracking despreader for a continuous DSSS-BPSK stream: it composes a 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL if `code` is NULL, the code loop's arguments fail [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok), the carrier loop's (`bn_carrier`, `zeta`) fail [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), or on allocation failure. 
 
 
 
@@ -440,6 +459,7 @@ void dp_despreader_destroy (
 
 ### function dp\_despreader\_get\_bit\_phase 
 
+_The detected data-bit boundary, in code periods._ 
 ```C++
 size_t dp_despreader_get_bit_phase (
     const dp_despreader_state_t * state
@@ -448,6 +468,27 @@ size_t dp_despreader_get_bit_phase (
 
 
 
+The argmax of the prompt sign-flip histogram: bits() starts a bit when `epoch_count % periods_per_bit` equals this. Always 0 when periods\_per\_bit is 1, and 0 before any flip has been seen.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Bit phase in `[0, periods_per_bit)`. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -455,6 +496,7 @@ size_t dp_despreader_get_bit_phase (
 
 ### function dp\_despreader\_get\_bn\_carrier 
 
+_Carrier loop noise bandwidth, normalized to the code-period (symbol) rate._ 
 ```C++
 double dp_despreader_get_bn_carrier (
     const dp_despreader_state_t * state
@@ -464,12 +506,31 @@ double dp_despreader_get_bn_carrier (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The bandwidth the Costas loop runs at. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_despreader\_get\_bn\_code 
 
+_Code loop noise bandwidth, normalized to the code-period rate._ 
 ```C++
 double dp_despreader_get_bn_code (
     const dp_despreader_state_t * state
@@ -478,6 +539,24 @@ double dp_despreader_get_bn_code (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The bandwidth the DLL runs at. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -495,6 +574,24 @@ int dp_despreader_get_carrier_locked (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+1 when the carrier is declared locked, else 0. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -511,12 +608,31 @@ int dp_despreader_get_code_locked (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+1 when the code is declared locked, else 0. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_despreader\_get\_code\_phase 
 
+_The code loop's current prompt code phase, chips._ 
 ```C++
 double dp_despreader_get_code_phase (
     const dp_despreader_state_t * state
@@ -525,6 +641,24 @@ double dp_despreader_get_code_phase (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The embedded DLL's prompt position within the code period, in chips (derived from its code NCO on every sample). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -542,6 +676,24 @@ double dp_despreader_get_code_rate (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The code loop's rate, chips per nominal chip. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -558,12 +710,31 @@ double dp_despreader_get_lock_metric (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The lock-metric EMA, between 0 and 1. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_despreader\_get\_norm\_freq 
 
+_The carrier loop's tracked frequency, cycles/sample._ 
 ```C++
 double dp_despreader_get_norm_freq (
     const dp_despreader_state_t * state
@@ -572,6 +743,27 @@ double dp_despreader_get_norm_freq (
 
 
 
+The Costas loop-filter integrator's frequency (the NCO's frequency word), without the per-symbol proportional phase nudge. Equals `init_norm_freq` before the first code period completes.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Carrier frequency estimate, cycles/sample. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -579,6 +771,7 @@ double dp_despreader_get_norm_freq (
 
 ### function dp\_despreader\_get\_state 
 
+_Serialize both loops and the running bit-sync state into_ `blob` _. The code copy and telemetry attachment do not travel._
 ```C++
 void dp_despreader_get_state (
     const dp_despreader_state_t * state,
@@ -588,6 +781,18 @@ void dp_despreader_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_despreader\_state\_bytes()**](despreader__core_8h.md#function-dp_despreader_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -696,6 +901,7 @@ True
 
 ### function dp\_despreader\_set\_bn\_carrier 
 
+_Retune the carrier loop bandwidth, keeping zeta (_ [_**dp\_costas\_set\_bn()**_](costas__core_8h.md#function-dp_costas_set_bn) _)._
 ```C++
 int dp_despreader_set_bn_carrier (
     dp_despreader_state_t * state,
@@ -704,6 +910,14 @@ int dp_despreader_set_bn_carrier (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `val` New bandwidth, normalized to the code-period rate. 
 
 
 
@@ -723,6 +937,7 @@ DP\_OK; DP\_ERR\_INVALID, changing nothing, outside the loop filter's domain ([*
 
 ### function dp\_despreader\_set\_bn\_code 
 
+_Retune the code loop bandwidth, keeping zeta (_ [_**dp\_dll\_set\_bn()**_](dll__core_8h.md#function-dp_dll_set_bn) _)._
 ```C++
 int dp_despreader_set_bn_code (
     dp_despreader_state_t * state,
@@ -731,6 +946,14 @@ int dp_despreader_set_bn_code (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `val` New bandwidth, normalized to the code-period rate. 
 
 
 
@@ -750,6 +973,7 @@ DP\_OK; DP\_ERR\_INVALID, changing nothing, outside the loop filter's domain ([*
 
 ### function dp\_despreader\_set\_norm\_freq 
 
+_Re-seed the carrier NCO at_ `val` _(_[_**dp\_costas\_set\_norm\_freq()**_](costas__core_8h.md#function-dp_costas_set_norm_freq) _)._
 ```C++
 void dp_despreader_set_norm_freq (
     dp_despreader_state_t * state,
@@ -759,6 +983,21 @@ void dp_despreader_set_norm_freq (
 
 
 
+Clears the carrier loop filter and makes `val` the new seed, so a later [**dp\_despreader\_reset()**](despreader__core_8h.md#function-dp_despreader_reset) returns to `val` rather than to the create-time frequency. The code loop is untouched.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `val` New carrier frequency, cycles/sample. 
+
+
+
+
+        
 
 <hr>
 
@@ -766,6 +1005,7 @@ void dp_despreader_set_norm_freq (
 
 ### function dp\_despreader\_set\_state 
 
+_Restore state written by_ [_**dp\_despreader\_get\_state()**_](despreader__core_8h.md#function-dp_despreader_get_state) _._
 ```C++
 int dp_despreader_set_state (
     dp_despreader_state_t * state,
@@ -775,6 +1015,25 @@ int dp_despreader_set_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL; built with the same code and periods\_per\_bit as the writer. 
+* `blob` Source blob of [**dp\_despreader\_state\_bytes()**](despreader__core_8h.md#function-dp_despreader_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the envelope or a child blob is rejected. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -843,6 +1102,7 @@ True
 
 ### function dp\_despreader\_state\_bytes 
 
+_Byte size of the state blob._ 
 ```C++
 size_t dp_despreader_state_bytes (
     const dp_despreader_state_t * state
@@ -851,6 +1111,27 @@ size_t dp_despreader_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Header + the Costas and DLL child blobs + the bit-sync histogram (periods\_per\_bit entries when periods\_per\_bit &gt; 1)
+* the bit-sync scalars. 
+
+
+
+
+
+
+
+        
 
 <hr>
 
@@ -921,6 +1202,7 @@ Number of prompt symbols written into `out`.
 
 ### function dp\_despreader\_steps\_max\_out 
 
+_No fixed cap on steps() output (one prompt per code period, so never more prompts than input samples)._ 
 ```C++
 size_t dp_despreader_steps_max_out (
     dp_despreader_state_t * state
@@ -929,6 +1211,24 @@ size_t dp_despreader_steps_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Despreader state (unused). 
+
+
+
+**Returns:**
+
+Always 0, meaning "no fixed capacity": size the output to the input length. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -945,6 +1245,10 @@ size_t dp_despreader_steps_max_out (
 
 
 
+FourCC type tag ("DSPR") stamped in a despreader state blob. 
+
+
+        
 
 <hr>
 
@@ -958,6 +1262,10 @@ size_t dp_despreader_steps_max_out (
 
 
 
+Layout version of the despreader state blob; a mismatch is rejected. 
+
+
+        
 
 <hr>
 

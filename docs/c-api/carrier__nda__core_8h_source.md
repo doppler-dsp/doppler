@@ -27,9 +27,7 @@ extern "C"
 {
 #endif
 
-/* Numerical guard on the arm-sample magnitude (not tunable). */
 #define CARRIER_NDA_EPS 1e-12
-/* rad/sample -> cycles/sample for the NCO control port (replaces /(2*pi)). */
 #define CARRIER_NDA_INV_2PI 0.15915494309189535 /* 1 / (2*pi) */
 /* ── The lock statistic, and where its threshold comes from ──────────────
  *
@@ -86,12 +84,7 @@ extern "C"
  * therefore the floor under n_up. See `docs/design/lock-detect.md` section 3,
  * which owns this failure mode across every detector in the tree.
  */
-/* EMA smoothing for the lock metric: alpha = det_ema_alpha(0.0, 15.9), giving
- * N_eff = (2-alpha)/alpha = 39 effective looks (>= the 30-look floor). */
 #define CARRIER_NDA_LOCK_ALPHA 0.05
-/* Analytic H0 sd of the limited lock statistic AFTER the EMA above:
- * sqrt(Var_look * alpha/(2-alpha)) with Var_look = 1/2 exactly, for every M.
- * A threshold of `eta * this` has per-look Pfa = Q(eta). */
 #define CARRIER_NDA_LOCK_NORM_SD 0.11322770341445956
 
   typedef struct

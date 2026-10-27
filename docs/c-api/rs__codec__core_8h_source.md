@@ -21,7 +21,7 @@ extern "C" {
 
 typedef struct
 {
-  rs_t rs;
+  rs_t rs; 
   /*<<property_struct_fields>>*/
 } dp_rs_codec_state_t;
 

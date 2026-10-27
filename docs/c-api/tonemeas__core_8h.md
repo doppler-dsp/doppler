@@ -70,7 +70,7 @@ _ToneMeasure — single-tone ADC/converter spectral measurement._ [More...](#det
 |  void | [**dp\_tonemeas\_destroy**](#function-dp_tonemeas_destroy) ([**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md) \* state) <br>_Destroy a ToneMeasure analyser._  |
 |  void | [**dp\_tonemeas\_reset**](#function-dp_tonemeas_reset) ([**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md) \* state) <br>_Reset the analyser (a no-op: it holds no state between calls)._  |
 |  size\_t | [**dp\_tonemeas\_spectrum\_dbfs**](#function-dp_tonemeas_spectrum_dbfs) ([**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_DC-centred dBFS magnitude spectrum of a real capture (length nfft)._  |
-|  size\_t | [**dp\_tonemeas\_spectrum\_dbfs\_max\_out**](#function-dp_tonemeas_spectrum_dbfs_max_out) ([**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
+|  size\_t | [**dp\_tonemeas\_spectrum\_dbfs\_max\_out**](#function-dp_tonemeas_spectrum_dbfs_max_out) ([**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md) \* state) <br>_Capacity of the_ [_**dp\_tonemeas\_spectrum\_dbfs()**_](tonemeas__core_8h.md#function-dp_tonemeas_spectrum_dbfs) _output buffer._ |
 |  [**time\_stats\_t**](structtime__stats__t.md) | [**dp\_tonemeas\_time\_stats**](#function-dp_tonemeas_time_stats) ([**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Time-domain statistics of a real capture._  |
 
 
@@ -138,11 +138,23 @@ tone_meas_t dp_tonemeas_analyze (
 
 
 
+The capture is cut into floor(`n_in` / n) non-overlapping frames of n samples (a trailing partial frame is ignored); their windowed power spectra are averaged and folded one-sided over `[0, fs/2]`. 0 dBFS is a sine of peak amplitude full\_scale. The fundamental is the strongest bin outside the DC guard; frequencies are in Hz.
+
+
+
+
+**Parameters:**
+
+
+* `state` The analyser. Its scratch is overwritten. 
+* `x` Real time-domain capture, `n_in` samples. 
+* `n_in` Number of samples in `x`; at least n for a result. 
+
 
 
 **Returns:**
 
-the metric record (by value).
+The metric record (by value). All fields are zero when `n_in` holds no full frame of n samples.
 
 
 
@@ -179,6 +191,25 @@ tone_meas_t dp_tonemeas_analyze_complex (
 ) 
 ```
 
+
+
+As [**dp\_tonemeas\_analyze()**](tonemeas__core_8h.md#function-dp_tonemeas_analyze), but over the DC-centred two-sided band `[-fs/2, fs/2)`: harmonics wrap rather than reflect, frequencies may be negative, and 0 dBFS is a complex exponential of amplitude full\_scale.
+
+
+
+
+**Parameters:**
+
+
+* `state` The analyser. Its scratch is overwritten. 
+* `x` Complex baseband capture, `n_in` samples. 
+* `n_in` Number of samples in `x`; at least n for a result. 
+
+
+
+**Returns:**
+
+The metric record (by value). All fields are zero when `n_in` holds no full frame of n samples.
 
 
 
@@ -348,13 +379,13 @@ The windowed, zero-padded magnitude spectrum behind the metrics, laid out DC-cen
 * `x` Real time-domain capture (length `x_len`). 
 * `x_len` Number of input samples. 
 * `out` Destination buffer (length &gt;= `max_out`). 
-* `max_out` Capacity of `out` (== nfft). 
+* `max_out` Capacity of `out` (== nfft); output is truncated to it. 
 
 
 
 **Returns:**
 
-DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+Number of values written, `min(nfft, max_out)`, or 0 when `x_len` holds no full frame of n samples; from Python, the DC-centred dBFS magnitude spectrum, one value per FFT bin.
 
 
 
@@ -380,7 +411,7 @@ DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
 
 ### function dp\_tonemeas\_spectrum\_dbfs\_max\_out 
 
-_Capacity (== nfft) of the spectrum\_dbfs output buffer._ 
+_Capacity of the_ [_**dp\_tonemeas\_spectrum\_dbfs()**_](tonemeas__core_8h.md#function-dp_tonemeas_spectrum_dbfs) _output buffer._
 ```C++
 size_t dp_tonemeas_spectrum_dbfs_max_out (
     dp_tonemeas_state_t * state
@@ -389,6 +420,24 @@ size_t dp_tonemeas_spectrum_dbfs_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` The analyser. 
+
+
+
+**Returns:**
+
+nfft, the zero-padded transform length (bins). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -405,6 +454,25 @@ time_stats_t dp_tonemeas_time_stats (
 ) 
 ```
 
+
+
+Uses every sample of `x` (no framing). `rms` includes DC; `peak` and the crest factor are AC-coupled (the mean is removed first), and `papr_db` equals `crest_db`. `fs_util_pct` is the largest \|x\| as a percentage of the 0-dBFS amplitude. Crest is 0 dB for a constant or empty capture.
+
+
+
+
+**Parameters:**
+
+
+* `state` The analyser (only its full-scale reference is read). 
+* `x` Real capture, `n_in` samples. 
+* `n_in` Number of samples in `x`; 0 gives an all-zero record. 
+
+
+
+**Returns:**
+
+The statistics record (by value).
 
 
 

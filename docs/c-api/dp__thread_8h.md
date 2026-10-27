@@ -36,9 +36,9 @@ _The threading primitives doppler uses, with one platform split._ [More...](#det
 
 | Type | Name |
 | ---: | :--- |
-| typedef pthread\_cond\_t | [**dp\_cond\_t**](#typedef-dp_cond_t)  <br> |
-| typedef pthread\_mutex\_t | [**dp\_mutex\_t**](#typedef-dp_mutex_t)  <br> |
-| typedef pthread\_t | [**dp\_thread\_t**](#typedef-dp_thread_t)  <br> |
+| typedef pthread\_cond\_t | [**dp\_cond\_t**](#typedef-dp_cond_t)  <br>_A condition variable, waited on with a dp\_mutex\_t held._  |
+| typedef pthread\_mutex\_t | [**dp\_mutex\_t**](#typedef-dp_mutex_t)  <br>_A non-recursive mutex (a default pthread\_mutex\_t on POSIX)._  |
+| typedef pthread\_t | [**dp\_thread\_t**](#typedef-dp_thread_t)  <br>_A joinable thread handle (a pthread\_t on POSIX)._  |
 
 
 
@@ -65,20 +65,20 @@ _The threading primitives doppler uses, with one platform split._ [More...](#det
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_cond\_broadcast**](#function-dp_cond_broadcast) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c) <br> |
-|  void | [**dp\_cond\_destroy**](#function-dp_cond_destroy) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c) <br> |
-|  void | [**dp\_cond\_init**](#function-dp_cond_init) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c) <br> |
-|  void | [**dp\_cond\_signal**](#function-dp_cond_signal) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c) <br> |
-|  void | [**dp\_cond\_wait**](#function-dp_cond_wait) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c, [**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br> |
+|  void | [**dp\_cond\_broadcast**](#function-dp_cond_broadcast) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c) <br>_Wakes every thread waiting on_ `c` _._ |
+|  void | [**dp\_cond\_destroy**](#function-dp_cond_destroy) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c) <br>_Releases_ `c` _(a no-op on Windows); no thread may be waiting._ |
+|  void | [**dp\_cond\_init**](#function-dp_cond_init) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c) <br>_Initializes_ `c` _with no waiters._ |
+|  void | [**dp\_cond\_signal**](#function-dp_cond_signal) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c) <br>_Wakes at most one thread waiting on_ `c` _._ |
+|  void | [**dp\_cond\_wait**](#function-dp_cond_wait) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c, [**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br>_Atomically unlocks_ `m` _and waits on_`c` _, relocking_`m` _before returning. No timeout. Wakeups may be spurious, so wait in a loop that re-checks the predicate._ |
 |  int | [**dp\_cpu\_count**](#function-dp_cpu_count) (void) <br>_Online processor count, or 1 if it cannot be determined._  |
-|  void | [**dp\_mutex\_destroy**](#function-dp_mutex_destroy) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br> |
-|  void | [**dp\_mutex\_init**](#function-dp_mutex_init) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br> |
-|  void | [**dp\_mutex\_lock**](#function-dp_mutex_lock) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br> |
-|  void | [**dp\_mutex\_unlock**](#function-dp_mutex_unlock) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br> |
+|  void | [**dp\_mutex\_destroy**](#function-dp_mutex_destroy) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br>_Releases_ `m` _(a no-op on Windows)._`m` _must be unlocked._ |
+|  void | [**dp\_mutex\_init**](#function-dp_mutex_init) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br>_Initializes_ `m` _, unlocked._ |
+|  void | [**dp\_mutex\_lock**](#function-dp_mutex_lock) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br>_Locks_ `m` _, blocking until it is free. Not recursive: locking a mutex this thread already holds deadlocks or is undefined._ |
+|  void | [**dp\_mutex\_unlock**](#function-dp_mutex_unlock) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br>_Unlocks_ `m` _, which this thread must hold._ |
 |  int | [**dp\_thread\_create**](#function-dp_thread_create) ([**dp\_thread\_t**](dp__thread_8h.md#typedef-dp_thread_t) \* t, void \*(\*)(void \*) fn, void \* arg) <br>_Starts_ `fn` _on a new thread. Returns 0 on success._ |
 |  int | [**dp\_thread\_join**](#function-dp_thread_join) ([**dp\_thread\_t**](dp__thread_8h.md#typedef-dp_thread_t) t) <br>_Waits for_ `t` _to finish and releases it. Returns 0 on success, as pthread\_join does, so a caller that asserted the join can still._ |
 |  void | [**dp\_thread\_sleep\_us**](#function-dp_thread_sleep_us) (unsigned us) <br>_Sleeps for at least_ `us` _microseconds. For "let the other thread
-get there", never for timing._ |
+get there", never for timing. A signal can cut the sleep short, since nanosleep() is not restarted._ |
 |  void | [**dp\_thread\_yield**](#function-dp_thread_yield) (void) <br>_Gives up the rest of this thread's time slice._  |
 
 
@@ -159,6 +159,7 @@ Neither `SRWLOCK` nor `CONDITION_VARIABLE` has a destructor, so the destroy call
 
 ### typedef dp\_cond\_t 
 
+_A condition variable, waited on with a dp\_mutex\_t held._ 
 ```C++
 typedef pthread_cond_t dp_cond_t;
 ```
@@ -172,6 +173,7 @@ typedef pthread_cond_t dp_cond_t;
 
 ### typedef dp\_mutex\_t 
 
+_A non-recursive mutex (a default pthread\_mutex\_t on POSIX)._ 
 ```C++
 typedef pthread_mutex_t dp_mutex_t;
 ```
@@ -185,6 +187,7 @@ typedef pthread_mutex_t dp_mutex_t;
 
 ### typedef dp\_thread\_t 
 
+_A joinable thread handle (a pthread\_t on POSIX)._ 
 ```C++
 typedef pthread_t dp_thread_t;
 ```
@@ -200,6 +203,7 @@ typedef pthread_t dp_thread_t;
 
 ### function dp\_cond\_broadcast 
 
+_Wakes every thread waiting on_ `c` _._
 ```C++
 static inline void dp_cond_broadcast (
     dp_cond_t * c
@@ -209,12 +213,24 @@ static inline void dp_cond_broadcast (
 
 
 
+
+**Parameters:**
+
+
+* `c` Condition variable from dp\_cond\_init(). 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_cond\_destroy 
 
+_Releases_ `c` _(a no-op on Windows); no thread may be waiting._
 ```C++
 static inline void dp_cond_destroy (
     dp_cond_t * c
@@ -224,12 +240,24 @@ static inline void dp_cond_destroy (
 
 
 
+
+**Parameters:**
+
+
+* `c` Condition variable from dp\_cond\_init(). 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_cond\_init 
 
+_Initializes_ `c` _with no waiters._
 ```C++
 static inline void dp_cond_init (
     dp_cond_t * c
@@ -239,12 +267,24 @@ static inline void dp_cond_init (
 
 
 
+
+**Parameters:**
+
+
+* `c` Storage for the condition variable. 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_cond\_signal 
 
+_Wakes at most one thread waiting on_ `c` _._
 ```C++
 static inline void dp_cond_signal (
     dp_cond_t * c
@@ -254,12 +294,24 @@ static inline void dp_cond_signal (
 
 
 
+
+**Parameters:**
+
+
+* `c` Condition variable from dp\_cond\_init(). 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_cond\_wait 
 
+_Atomically unlocks_ `m` _and waits on_`c` _, relocking_`m` _before returning. No timeout. Wakeups may be spurious, so wait in a loop that re-checks the predicate._
 ```C++
 static inline void dp_cond_wait (
     dp_cond_t * c,
@@ -269,6 +321,18 @@ static inline void dp_cond_wait (
 
 
 
+
+
+**Parameters:**
+
+
+* `c` Condition variable to wait on. 
+* `m` Mutex the caller holds. 
+
+
+
+
+        
 
 <hr>
 
@@ -286,12 +350,24 @@ static inline int dp_cpu_count (
 
 
 
+
+**Returns:**
+
+Number of online logical processors, always &gt;= 1. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_mutex\_destroy 
 
+_Releases_ `m` _(a no-op on Windows)._`m` _must be unlocked._
 ```C++
 static inline void dp_mutex_destroy (
     dp_mutex_t * m
@@ -301,12 +377,24 @@ static inline void dp_mutex_destroy (
 
 
 
+
+**Parameters:**
+
+
+* `m` Mutex from dp\_mutex\_init(). 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_mutex\_init 
 
+_Initializes_ `m` _, unlocked._
 ```C++
 static inline void dp_mutex_init (
     dp_mutex_t * m
@@ -316,12 +404,24 @@ static inline void dp_mutex_init (
 
 
 
+
+**Parameters:**
+
+
+* `m` Storage for the mutex. 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_mutex\_lock 
 
+_Locks_ `m` _, blocking until it is free. Not recursive: locking a mutex this thread already holds deadlocks or is undefined._
 ```C++
 static inline void dp_mutex_lock (
     dp_mutex_t * m
@@ -331,12 +431,24 @@ static inline void dp_mutex_lock (
 
 
 
+
+**Parameters:**
+
+
+* `m` Mutex from dp\_mutex\_init(). 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_mutex\_unlock 
 
+_Unlocks_ `m` _, which this thread must hold._
 ```C++
 static inline void dp_mutex_unlock (
     dp_mutex_t * m
@@ -345,6 +457,17 @@ static inline void dp_mutex_unlock (
 
 
 
+
+
+**Parameters:**
+
+
+* `m` Mutex from dp\_mutex\_init(). 
+
+
+
+
+        
 
 <hr>
 
@@ -364,6 +487,26 @@ static inline int dp_thread_create (
 
 
 
+
+**Parameters:**
+
+
+* `t` Handle of the new thread; join it with dp\_thread\_join(). 
+* `fn` Entry point, declared with [**DP\_THREAD\_FN**](dp__thread_8h.md#define-dp_thread_fn). 
+* `arg` Passed to `fn` unchanged. 
+
+
+
+**Returns:**
+
+0 on success, else pthread\_create()'s error number. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -380,6 +523,24 @@ static inline int dp_thread_join (
 
 
 
+
+**Parameters:**
+
+
+* `t` Thread from dp\_thread\_create(); not usable afterward. 
+
+
+
+**Returns:**
+
+0 on success, else pthread\_join()'s error number. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -387,7 +548,7 @@ static inline int dp_thread_join (
 ### function dp\_thread\_sleep\_us 
 
 _Sleeps for at least_ `us` _microseconds. For "let the other thread
-get there", never for timing._
+get there", never for timing. A signal can cut the sleep short, since nanosleep() is not restarted._
 ```C++
 static inline void dp_thread_sleep_us (
     unsigned us
@@ -396,6 +557,17 @@ static inline void dp_thread_sleep_us (
 
 
 
+
+
+**Parameters:**
+
+
+* `us` Requested sleep, microseconds. 
+
+
+
+
+        
 
 <hr>
 

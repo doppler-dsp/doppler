@@ -146,6 +146,10 @@ uint32_t dp_tlm::n_probes;
 
 
 
+Registered probes; ids 0..n\_probes-1. 
+
+
+        
 
 <hr>
 
@@ -176,6 +180,10 @@ dp_tlm_probe_t dp_tlm::probes[DP_TLM_MAX_PROBES];
 
 
 
+Probe registry, indexed by probe id. 
+
+
+        
 
 <hr>
 

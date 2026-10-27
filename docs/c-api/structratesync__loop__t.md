@@ -436,6 +436,10 @@ size_t ratesync_loop_t::ring_n;
 
 
 
+valid entries in the ring (saturates at m/2 + 1); 0 after reset. 
+
+
+        
 
 <hr>
 

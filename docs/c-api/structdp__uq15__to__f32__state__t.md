@@ -101,6 +101,10 @@ float dp_uq15_to_f32_state_t::iscale;
 
 
 
+1.0f / scale, set once by create(); never changes. 
+
+
+        
 
 <hr>
 

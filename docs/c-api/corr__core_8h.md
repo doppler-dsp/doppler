@@ -63,11 +63,11 @@ _1-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 |  void | [**dp\_corr\_destroy**](#function-dp_corr_destroy) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state) <br>_Destroy and free a corr instance._  |
 |  size\_t | [**dp\_corr\_execute**](#function-dp_corr_execute) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Correlate one frame and optionally dump the coherent accumulator. Runs: forward FFT → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, inverse FFT → normalise (÷ n). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. On the_`dwell-th` _call_`out` _is written, the accumulator is zeroed, and the counter resets; the function returns n\_out. All other calls return 0 and leave_`out` _unmodified. In Python, a dump returns an ndarray and a no-dump returns None._ |
 |  size\_t | [**dp\_corr\_execute\_max\_out**](#function-dp_corr_execute_max_out) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state) <br>_Maximum output samples per execute call (== n\_out)._  |
-|  void | [**dp\_corr\_get\_state**](#function-dp_corr_get_state) (const [**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_corr\_get\_state**](#function-dp_corr_get_state) (const [**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, void \* blob) <br>_Serialize the running state (frame count + accumulator)._  |
 |  void | [**dp\_corr\_reset**](#function-dp_corr_reset) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without tearing down the FFT plans. Does NOT recompute ref\_spec; use_ [_**dp\_corr\_set\_ref()**_](corr__core_8h.md#function-dp_corr_set_ref) _to replace the reference._ |
 |  void | [**dp\_corr\_set\_ref**](#function-dp_corr_set_ref) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference signal and recompute conj(FFT(ref))._  |
-|  int | [**dp\_corr\_set\_state**](#function-dp_corr_set_state) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_corr\_state\_bytes**](#function-dp_corr_state_bytes) (const [**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state) <br> |
+|  int | [**dp\_corr\_set\_state**](#function-dp_corr_set_state) ([**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state, const void \* blob) <br>_Restore running state from a blob made by_ [_**dp\_corr\_get\_state()**_](corr__core_8h.md#function-dp_corr_get_state) _._ |
+|  size\_t | [**dp\_corr\_state\_bytes**](#function-dp_corr_state_bytes) (const [**dp\_corr\_state\_t**](structdp__corr__state__t.md) \* state) <br>_Size in bytes of this correlator's serialized state blob._  |
 
 
 
@@ -99,8 +99,8 @@ _1-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**CORR\_STATE\_MAGIC**](corr__core_8h.md#define-corr_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C','O','R','R')`<br> |
-| define  | [**CORR\_STATE\_VERSION**](corr__core_8h.md#define-corr_state_version)  `1u`<br> |
+| define  | [**CORR\_STATE\_MAGIC**](corr__core_8h.md#define-corr_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C','O','R','R')`<br>_State-blob magic tag for a correlator ("CORR")._  |
+| define  | [**CORR\_STATE\_VERSION**](corr__core_8h.md#define-corr_state_version)  `1u`<br>_State-blob layout version for a correlator._  |
 
 ## Detailed Description
 
@@ -283,6 +283,27 @@ size_t dp_corr_execute_max_out (
 
 
 
+Size an output buffer with this before calling [**dp\_corr\_execute()**](corr__core_8h.md#function-dp_corr_execute).
+
+
+
+
+**Parameters:**
+
+
+* `state` Allocated correlator (non-NULL). 
+
+
+
+**Returns:**
+
+The configured output length n\_out in samples: the reference length n for the native path, or the zero-padded length passed to [**dp\_corr\_create()**](corr__core_8h.md#function-dp_corr_create). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -290,6 +311,7 @@ size_t dp_corr_execute_max_out (
 
 ### function dp\_corr\_get\_state 
 
+_Serialize the running state (frame count + accumulator)._ 
 ```C++
 void dp_corr_get_state (
     const dp_corr_state_t * state,
@@ -299,6 +321,18 @@ void dp_corr_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Allocated correlator (non-NULL). 
+* `blob` Destination buffer of at least [**dp\_corr\_state\_bytes()**](corr__core_8h.md#function-dp_corr_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -314,6 +348,13 @@ void dp_corr_reset (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Allocated correlator (non-NULL).
 
 
 ```C++
@@ -371,6 +412,7 @@ Also resets the accumulator and counter (as if [**dp\_corr\_reset()**](corr__cor
 
 ### function dp\_corr\_set\_state 
 
+_Restore running state from a blob made by_ [_**dp\_corr\_get\_state()**_](corr__core_8h.md#function-dp_corr_get_state) _._
 ```C++
 int dp_corr_set_state (
     dp_corr_state_t * state,
@@ -380,6 +422,28 @@ int dp_corr_set_state (
 
 
 
+The target must have been created with the same reference length n (the size check rejects any other); the reference itself is not restored, so build the target from the same reference. The frame count is restored as stored and is not checked against the target's dwell.
+
+
+
+
+**Parameters:**
+
+
+* `state` Allocated correlator (non-NULL). 
+* `blob` Blob of [**dp\_corr\_state\_bytes()**](corr__core_8h.md#function-dp_corr_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK on success, or DP\_ERR\_INVALID when the envelope (magic, version, endianness, size) does not match; the state is then left untouched. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -387,6 +451,7 @@ int dp_corr_set_state (
 
 ### function dp\_corr\_state\_bytes 
 
+_Size in bytes of this correlator's serialized state blob._ 
 ```C++
 size_t dp_corr_state_bytes (
     const dp_corr_state_t * state
@@ -395,6 +460,27 @@ size_t dp_corr_state_bytes (
 
 
 
+The blob is the [**dp\_state.h**](dp__state_8h.md) envelope header, the frame count (uint64), and the n-sample CF32 product-spectrum accumulator. The FFT plans and ref\_spec are config and are not stored.
+
+
+
+
+**Parameters:**
+
+
+* `state` Allocated correlator (non-NULL). 
+
+
+
+**Returns:**
+
+Blob size in bytes; depends only on n. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -405,6 +491,7 @@ size_t dp_corr_state_bytes (
 
 ### define CORR\_STATE\_MAGIC 
 
+_State-blob magic tag for a correlator ("CORR")._ 
 ```C++
 #define CORR_STATE_MAGIC `DP_FOURCC ('C','O','R','R')`
 ```
@@ -418,6 +505,7 @@ size_t dp_corr_state_bytes (
 
 ### define CORR\_STATE\_VERSION 
 
+_State-blob layout version for a correlator._ 
 ```C++
 #define CORR_STATE_VERSION `1u`
 ```

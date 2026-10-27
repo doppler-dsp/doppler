@@ -20,7 +20,7 @@ extern "C" {
 #endif
 
 typedef struct {
-    int64_t acc;
+    int64_t acc; 
 } dp_acc_q15_state_t;
 
 dp_acc_q15_state_t *dp_acc_q15_create(int64_t acc);

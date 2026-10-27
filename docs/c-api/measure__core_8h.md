@@ -63,7 +63,7 @@ _Measure module — shared result structs and module-level helpers._ [More...](#
 |  double | [**dp\_coherent\_freq**](#function-dp_coherent_freq) (double fs, double f\_target, size\_t N) <br>_Nearest leakage-free coherent test frequency._  |
 |  size\_t | [**dp\_measure\_min\_samples**](#function-dp_measure_min_samples) (double fs, double target\_rbw, size\_t bits, double dynamic\_range\_db, int complex\_input) <br>_Samples needed to reach a target resolution bandwidth._  |
 |  double | [**dp\_measure\_proc\_gain**](#function-dp_measure_proc_gain) (size\_t nfft) <br>_FFT processing gain in dB: 10\*log10(nfft / 2)._  |
-|  size\_t | [**dp\_measure\_rec\_nfft**](#function-dp_measure_rec_nfft) (size\_t n, size\_t pad) <br>_Recommended zero-padded transform length: next\_pow\_two(n \* max(pad,1))._  |
+|  size\_t | [**dp\_measure\_rec\_nfft**](#function-dp_measure_rec_nfft) (size\_t n, size\_t pad) <br>_Recommended zero-padded transform length: next\_pow\_two(n \* max(pad, 1))._  |
 
 
 ## Public Static Functions
@@ -101,15 +101,15 @@ _Measure module — shared result structs and module-level helpers._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**MEASURE\_DR\_DEFAULT\_DB**](measure__core_8h.md#define-measure_dr_default_db)  `120.0`<br> |
-| define  | [**MEASURE\_DR\_MARGIN\_DB**](measure__core_8h.md#define-measure_dr_margin_db)  `12.0`<br> |
-| define  | [**MEASURE\_PAD**](measure__core_8h.md#define-measure_pad)  `2u`<br> |
-| define  | [**MEASURE\_SPUR\_SIDELOBES**](measure__core_8h.md#define-measure_spur_sidelobes)  `1.0`<br> |
+| define  | [**MEASURE\_DR\_DEFAULT\_DB**](measure__core_8h.md#define-measure_dr_default_db)  `120.0`<br>_Dynamic-range target (dB) when neither_ `bits` _nor an explicit override is given (general DUT): deep enough for ~19-bit measurements. The fallback of measure\_resolve\_dr()._ |
+| define  | [**MEASURE\_DR\_MARGIN\_DB**](measure__core_8h.md#define-measure_dr_margin_db)  `12.0`<br>_Sidelobe headroom (dB) below the ideal converter SNR._  |
+| define  | [**MEASURE\_PAD**](measure__core_8h.md#define-measure_pad)  `2u`<br>_Zero-pad factor every measurement object hands its PSD core: nfft = next\_pow\_two(n \* MEASURE\_PAD), so a capture of n samples is transformed at no less than twice its own length._  |
+| define  | [**MEASURE\_SPUR\_SIDELOBES**](measure__core_8h.md#define-measure_spur_sidelobes)  `1.0`<br>_Extra main-lobe widths excluded past the first null when searching for spurs (or, in IMDMeasure, for the second tone), so a component's near-in sidelobes are never mistaken for a spur._  |
 
 ## Detailed Description
 
 
-The `doppler.measure` objects (ToneMeasure, …) each own a window + FFT and analyse a time-domain capture, returning one of these plain-C result bags by out-parameter. Every spectral metric integrates a component's power over its window MAIN LOBE (IEEE Std 1241) rather than reading a single peak bin, so the reading is independent of where the tone falls between FFT bins. 
+The `doppler.measure` objects (ToneMeasure, …) each own a window + FFT and analyse a time-domain capture, returning one of these plain-C result bags by value. Every spectral metric integrates a component's power over its window MAIN LOBE (IEEE Std 1241) rather than reading a single peak bin, so the reading is independent of where the tone falls between FFT bins. 
 
 
     
@@ -134,11 +134,23 @@ double dp_coherent_freq (
 Snaps `f_target` to `J * fs / N` where J is the nearest integer cycle count that is coprime with N — an integer number of cycles in the capture (no leakage) with J coprime to N (so quantisation-noise correlation is minimised).
 
 
+J starts at round(f\_target \* N / fs), is clamped to `[1, N-1]`, then moved by the smallest distance that makes it coprime with N; on a tie the higher J wins.
+
+
+
+
+**Parameters:**
+
+
+* `fs` Sample rate (Hz, &gt; 0). 
+* `f_target` Desired test frequency (Hz). 
+* `N` Capture length (samples, &gt;= 2). 
+
 
 
 **Returns:**
 
-The coherent frequency (Hz), or 0 on bad args. 
+The coherent frequency J \* fs / N (Hz), or 0 if N &lt; 2 or fs &lt;= 0. 
 
 
 
@@ -206,6 +218,27 @@ double dp_measure_proc_gain (
 
 
 
+How far a single bin's noise sits below the total noise power for an nfft-point transform of a real capture. No argument check: nfft = 0 returns -inf.
+
+
+
+
+**Parameters:**
+
+
+* `nfft` Transform length (bins). 
+
+
+
+**Returns:**
+
+Processing gain (dB). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -213,7 +246,7 @@ double dp_measure_proc_gain (
 
 ### function dp\_measure\_rec\_nfft 
 
-_Recommended zero-padded transform length: next\_pow\_two(n \* max(pad,1))._ 
+_Recommended zero-padded transform length: next\_pow\_two(n \* max(pad, 1))._ 
 ```C++
 size_t dp_measure_rec_nfft (
     size_t n,
@@ -223,6 +256,28 @@ size_t dp_measure_rec_nfft (
 
 
 
+The same rule the measurement objects apply (with pad = [**MEASURE\_PAD**](measure__core_8h.md#define-measure_pad)), exposed so a caller can plan an FFT size before building an analyser.
+
+
+
+
+**Parameters:**
+
+
+* `n` Capture length (samples). 
+* `pad` Zero-pad factor; 0 is treated as 1. 
+
+
+
+**Returns:**
+
+The smallest power of two &gt;= n \* pad (1 when n is 0). 
+
+
+
+
+
+        
 
 <hr>
 ## Public Static Functions Documentation
@@ -308,6 +363,7 @@ Dynamic-range / sidelobe-attenuation target in dB.
 
 ### define MEASURE\_DR\_DEFAULT\_DB 
 
+_Dynamic-range target (dB) when neither_ `bits` _nor an explicit override is given (general DUT): deep enough for ~19-bit measurements. The fallback of measure\_resolve\_dr()._
 ```C++
 #define MEASURE_DR_DEFAULT_DB `120.0`
 ```
@@ -321,12 +377,17 @@ Dynamic-range / sidelobe-attenuation target in dB.
 
 ### define MEASURE\_DR\_MARGIN\_DB 
 
+_Sidelobe headroom (dB) below the ideal converter SNR._ 
 ```C++
 #define MEASURE_DR_MARGIN_DB `12.0`
 ```
 
 
 
+A B-bit ADC's spur/noise floor sits at -(6.02\*B+1.76) dBc, so measure\_dr\_from\_bits() targets sidelobes this much deeper to be sure window leakage stays under the floor being measured. 
+
+
+        
 
 <hr>
 
@@ -334,6 +395,7 @@ Dynamic-range / sidelobe-attenuation target in dB.
 
 ### define MEASURE\_PAD 
 
+_Zero-pad factor every measurement object hands its PSD core: nfft = next\_pow\_two(n \* MEASURE\_PAD), so a capture of n samples is transformed at no less than twice its own length._ 
 ```C++
 #define MEASURE_PAD `2u`
 ```
@@ -347,6 +409,7 @@ Dynamic-range / sidelobe-attenuation target in dB.
 
 ### define MEASURE\_SPUR\_SIDELOBES 
 
+_Extra main-lobe widths excluded past the first null when searching for spurs (or, in IMDMeasure, for the second tone), so a component's near-in sidelobes are never mistaken for a spur._ 
 ```C++
 #define MEASURE_SPUR_SIDELOBES `1.0`
 ```

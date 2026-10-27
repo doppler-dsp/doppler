@@ -69,7 +69,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const char | [**dp\_wfm\_why\_dsss\_frame\_no\_data\_code**](#variable-dp_wfm_why_dsss_frame_no_data_code)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives a dsss source missing a code (doppler#1696): a burst whose frame has no data\_code to spread it, a burst with neither a preamble nor a frame, and a continuous stream with no data\_code. Exported so a test or a face can hold a refusal to its reason by identity._ |
 |  const char | [**dp\_wfm\_why\_pn\_poly**](#variable-dp_wfm_why_pn_poly)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for a_`pn_poly` _wider than its register_ _exported so a face that knows the values (the wfmgen CLI) can name them beside it, by identity rather than by matching text._ |
 |  const char | [**dp\_wfm\_why\_retired\_bits**](#variable-dp_wfm_why_retired_bits)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_bits` _set: Python's retired_`bits=` _(and_`payload=` _,_`pattern=` _), named once. The CLI's and a scene's RETIRED tables say the same in their own spelling (doppler#1718)._ |
-|  const char | [**dp\_wfm\_why\_retired\_crc**](#variable-dp_wfm_why_retired_crc)  <br> |
+|  const char | [**dp\_wfm\_why\_retired\_crc**](#variable-dp_wfm_why_retired_crc)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_sync` _and_`retired_crc` _set._ |
 |  const char | [**dp\_wfm\_why\_retired\_sync**](#variable-dp_wfm_why_retired_sync)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_sync` _and_`retired_crc` _set._ |
 
 
@@ -99,10 +99,10 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  size\_t | [**dp\_wfm\_compose\_draws**](#function-dp_wfm_compose_draws) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_draw\_t**](structwfm__draw__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline AND its drawn source values._  |
 |  size\_t | [**dp\_wfm\_compose\_execute**](#function-dp_wfm_compose_execute) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, float \_Complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
 |  size\_t | [**dp\_wfm\_compose\_execute\_rate**](#function-dp_wfm_compose_execute_rate) ([**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* state, float \_Complex \* out, size\_t max, double \* fs) <br>_Emit up to_ `max` _samples, all at ONE sample rate, and say which._ |
-|  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file**](#function-dp_wfm_compose_from_file) (const char \* path) <br> |
+|  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file**](#function-dp_wfm_compose_from_file) (const char \* path) <br>_Build a composer from a JSON spec file._  |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_file\_why**](#function-dp_wfm_compose_from_file_why) (const char \* path, const char \*\* why) <br>[_**dp\_wfm\_compose\_from\_file**_](wfm__compose_8h.md#function-dp_wfm_compose_from_file) _, able to say why a scene was refused._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json**](#function-dp_wfm_compose_from_json) (const char \* json) <br>_Build a composer from a JSON spec string (for_  _from-file)._ |
-|  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_at**](#function-dp_wfm_compose_from_json_at) (const char \* json, const char \* base, const char \*\* why) <br>_Build a composer from a JSON spec file._  |
+|  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_at**](#function-dp_wfm_compose_from_json_at) (const char \* json, const char \* base, const char \*\* why) <br>[_**dp\_wfm\_compose\_from\_json\_why()**_](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why) _, reading a scene that lives in_`base` _._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_data**](#function-dp_wfm_compose_from_json_data) (const char \* json, const char \* base, const char \* data\_file, const char \*\* why) <br>[_**dp\_wfm\_compose\_from\_json\_at()**_](wfm__compose_8h.md#function-dp_wfm_compose_from_json_at) _, replaying a record by its data._ |
 |  [**dp\_wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-dp_wfm_compose_state_t) \* | [**dp\_wfm\_compose\_from\_json\_why**](#function-dp_wfm_compose_from_json_why) (const char \* json, const char \*\* why) <br>_The same, but able to say why a FRAME was refused._  |
 |  [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* | [**dp\_wfm\_compose\_persist\_channel**](#function-dp_wfm_compose_persist_channel) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double doppler, double doppler\_rate, [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \*\* slot) <br>_The PERSIST channel for one (segment, source) slot, created on first use, or NULL when the source does not persist._  |
@@ -532,12 +532,17 @@ const char dp_wfm_why_retired_bits[];
 
 ### variable dp\_wfm\_why\_retired\_crc 
 
+_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_sync` _and_`retired_crc` _set._
 ```C++
 const char dp_wfm_why_retired_crc[];
 ```
 
 
 
+One sentence each, naming `frame=`; the CLI and a scene say the same in their own spelling. Exposed so a test can pin the wording once.   
+
+
+        
 
 <hr>
 
@@ -600,9 +605,27 @@ A source with `doppler == 0 && doppler_rate == 0` gets no channel and `dp_wfm_re
 
 
 
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` Segment sample rate, Hz. 
+* `on_len` Segment on-time in samples (as [**dp\_wfm\_compose\_build\_synth()**](wfm__compose_8h.md#function-dp_wfm_compose_build_synth)). 
+* `freq` Drawn carrier / sweep-start frequency, Hz. 
+* `snr` Drawn SNR, dB. 
+* `f_end` Drawn chirp end frequency, Hz. 
+* `doppler` Drawn clock Doppler, ppm. 
+* `doppler_rate` Drawn Doppler rate, ppm/s. 
+* `epoch` Composer repeat epoch. 
+* `seed_advance` A [**wfm\_seed\_advance\_t**](wfm__compose_8h.md#enum-wfm_seed_advance_t). 
+* `instance` The segment's `repeats` instance, 0-based. 
+* `borrow` A scene-owned PERSIST channel, or NULL. 
+
+
+
 **Returns:**
 
-A heap renderer (caller [**dp\_wfm\_render\_destroy()**](wfm__compose_8h.md#function-dp_wfm_render_destroy)s it), or NULL. 
+A heap renderer (caller [**dp\_wfm\_render\_destroy()**](wfm__compose_8h.md#function-dp_wfm_render_destroy)s it), or NULL when the synth does not build (as [**dp\_wfm\_compose\_build\_synth()**](wfm__compose_8h.md#function-dp_wfm_compose_build_synth)) or the channel cannot be created. 
 
 
 
@@ -638,9 +661,24 @@ THE single synth-construction path (create + chirp-span pin + bits/symbols/RRC a
 
 
 
+**Parameters:**
+
+
+* `src` The source (resolved: [**dp\_wfm\_resolve\_noise()**](wfm__compose_8h.md#function-dp_wfm_resolve_noise) applied). 
+* `fs` Segment sample rate, Hz. 
+* `on_len` Segment on-time in samples; a chirp sweeps over it unless the source declares its own `span`. 
+* `freq` Drawn carrier / sweep-start frequency, Hz. 
+* `snr` Drawn SNR, dB, in the source's own `snr_mode`. 
+* `f_end` Drawn chirp end frequency, Hz. 
+* `epoch` Composer repeat epoch (0 = first pass). 
+* `seed_advance` A [**wfm\_seed\_advance\_t**](wfm__compose_8h.md#enum-wfm_seed_advance_t): ALL adds `epoch` to the whole seed; NOISE reseeds only the AWGN with seed + epoch. 
+* `instance` The segment's `repeats` instance, 0-based. 
+
+
+
 **Returns:**
 
-A heap synth (caller [**dp\_wfm\_synth\_destroy()**](wfm__synth__core_8h.md#function-dp_wfm_synth_destroy)s it), or NULL on failure. 
+A heap synth (caller [**dp\_wfm\_synth\_destroy()**](wfm__synth__core_8h.md#function-dp_wfm_synth_destroy)s it), or NULL on failure  allocation, or a frame / dsss geometry that does not build. 
 
 
 
@@ -840,6 +878,18 @@ size_t dp_wfm_compose_execute (
 
 
 
+Segments run back to back, each as delay + on-time + trailing gap per `repeats` instance; a segment whose synth fails to build renders as its gaps only. Segments with different `fs` are concatenated without a rate marker: use [**dp\_wfm\_compose\_execute\_rate()**](wfm__compose_8h.md#function-dp_wfm_compose_execute_rate) to learn each block's rate.
+
+
+
+
+**Parameters:**
+
+
+* `state` The composer. 
+* `out` Destination for up to `max` complex samples. 
+* `max` Capacity of `out`, in samples. 
+
 
 
 **Returns:**
@@ -922,6 +972,7 @@ samples written; 0 when the scene has finished.
 
 ### function dp\_wfm\_compose\_from\_file 
 
+_Build a composer from a JSON spec file._ 
 ```C++
 dp_wfm_compose_state_t * dp_wfm_compose_from_file (
     const char * path
@@ -930,6 +981,27 @@ dp_wfm_compose_state_t * dp_wfm_compose_from_file (
 
 
 
+[**dp\_wfm\_compose\_from\_file\_why**](wfm__compose_8h.md#function-dp_wfm_compose_from_file_why) with no reason channel. A relative `data_from_file` in the scene resolves against the scene file's own directory.
+
+
+
+
+**Parameters:**
+
+
+* `path` The spec file. 
+
+
+
+**Returns:**
+
+Composer state (caller [**dp\_wfm\_compose\_destroy()**](wfm__compose_8h.md#function-dp_wfm_compose_destroy)s it), or NULL on read/parse error or a refused scene. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -947,7 +1019,7 @@ dp_wfm_compose_state_t * dp_wfm_compose_from_file_why (
 
 
 
-Reads `path` and hands its text to [**dp\_wfm\_compose\_from\_json\_why**](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why), so the reason is that function's: a retired key or a refused frame, named. A file that cannot be read gives NULL and leaves `why` NULL.
+Reads `path` and hands its text to [**dp\_wfm\_compose\_from\_json\_at**](wfm__compose_8h.md#function-dp_wfm_compose_from_json_at) with the file's directory as the base, so the reason is that function's: a retired key or a refused frame, named. A file that cannot be opened gives NULL and leaves `why` untouched.
 
 
 
@@ -985,11 +1057,21 @@ dp_wfm_compose_state_t * dp_wfm_compose_from_json (
 
 
 
+[**dp\_wfm\_compose\_from\_json\_why()**](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why) with no reason channel. A relative `data_from_file` resolves against the caller's working directory.
+
+
+
+
+**Parameters:**
+
+
+* `json` The spec text, NUL-terminated (docs/schema/wfmgen.schema.json). 
+
 
 
 **Returns:**
 
-Composer state, or NULL on parse error / bad type / no segments. 
+Composer state (caller [**dp\_wfm\_compose\_destroy()**](wfm__compose_8h.md#function-dp_wfm_compose_destroy)s it), or NULL on parse error / bad type / no segments / a refused scene. 
 
 
 
@@ -1003,7 +1085,7 @@ Composer state, or NULL on parse error / bad type / no segments.
 
 ### function dp\_wfm\_compose\_from\_json\_at 
 
-_Build a composer from a JSON spec file._ 
+[_**dp\_wfm\_compose\_from\_json\_why()**_](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why) _, reading a scene that lives in_`base` _._
 ```C++
 dp_wfm_compose_state_t * dp_wfm_compose_from_json_at (
     const char * json,
@@ -1012,16 +1094,6 @@ dp_wfm_compose_state_t * dp_wfm_compose_from_json_at (
 ) 
 ```
 
-
-
-
-
-**Returns:**
-
-Composer state, or NULL on read/parse error.
-
-
-[**dp\_wfm\_compose\_from\_json\_why()**](wfm__compose_8h.md#function-dp_wfm_compose_from_json_why), reading a scene that lives in `base`.
 
 
 A source's relative `"data_from_file"` is the scene's: it resolves against `base`, the directory the scene was read from, so a scene and its data move together and replay from anywhere. NULL (as from\_json\_why passes) leaves a relative path relative to the caller's working directory.
@@ -1140,7 +1212,7 @@ dp_wfm_compose_state_t * dp_wfm_compose_from_json_why (
 A spec is the interface most likely to be hand-written, and a NULL return is the one answer that cannot teach anything. This runs [**dp\_wfm\_source\_frame\_error**](wfm__compose_8h.md#function-dp_wfm_source_frame_error) over every parsed source before handing them to the composer — which asks the same question and would refuse either way — so the reason survives the boundary as a sentence instead of a pointer.
 
 
-Only the frame rule reports this way. A parse error or a bad type is still a bare NULL, because those are cJSON's to describe and duplicating its diagnostics here would be a second opinion about the same text.
+Beyond the frame rule, every [**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error) rule reports this way, as do the reader's own refusals: an unknown or retired key, a source with no known `"type"`, a Field that does not parse, an `"fs"` at the top level instead of per segment. Text that is not JSON at all, or has no non-empty `"segments"` array, is still a bare NULL: those are cJSON's to describe, and duplicating its diagnostics here would be a second opinion about the same text.
 
 
 
@@ -1149,7 +1221,7 @@ Only the frame rule reports this way. A parse error or a bad type is still a bar
 
 
 * `json` the spec. 
-* `why` optional; receives a STATIC message when a source's frame is refused, or NULL in every other case (including success). Passing NULL makes this exactly [**dp\_wfm\_compose\_from\_json**](wfm__compose_8h.md#function-dp_wfm_compose_from_json). 
+* `why` optional; set to NULL first, then to the reason when the scene is refused. Most reasons are static; one naming the caller's text (an unknown key) is formatted into a thread-local buffer, valid until this thread reads another scene. Never freed by the caller. Passing NULL makes this exactly [**dp\_wfm\_compose\_from\_json**](wfm__compose_8h.md#function-dp_wfm_compose_from_json). 
 
 
 
@@ -1199,6 +1271,13 @@ channel": the composer and the Plan both call it, so they cannot disagree. NULL 
 
 
 
+**Returns:**
+
+The slot's channel (created on first use with this instance's geometry, and owned by the slot's holder, not the caller), or NULL as above or when creation fails. 
+
+
+
+
 
         
 
@@ -1223,6 +1302,13 @@ The composer is the SSOT for it: `--from-file` sets it from the spec and the fla
 
 
 * `state` Compose state (may be NULL → `WFM_SEED_ADVANCE_NONE`). 
+
+
+
+**Returns:**
+
+The mode, a [**wfm\_seed\_advance\_t**](wfm__compose_8h.md#enum-wfm_seed_advance_t) value; `WFM_SEED_ADVANCE_NONE` until [**dp\_wfm\_compose\_set\_seed\_advance()**](wfm__compose_8h.md#function-dp_wfm_compose_set_seed_advance) sets another. 
+
 
 
 
@@ -1285,7 +1371,18 @@ void dp_wfm_compose_set_data_pacing (
 
 
 
-Applied to the synths already built  create builds the first segment's, before this can be called  and to every synth built from here on, so a data stream with nothing yet sends an idle frame of fill rather than waiting (dp\_wfm\_data\_frame, the one rule). The default, WFM\_DATA\_UNPACED, waits. 
+Applied to the synths already built  create builds the first segment's, before this can be called  and to every synth built from here on, so a data stream with nothing yet sends an idle frame of fill rather than waiting (dp\_wfm\_data\_frame, the one rule). The default, WFM\_DATA\_UNPACED, waits.
+
+
+
+
+**Parameters:**
+
+
+* `state` The composer; NULL is a no-op. 
+* `pacing` WFM\_DATA\_PACED or WFM\_DATA\_UNPACED. 
+
+
 
 
         
@@ -1483,6 +1580,16 @@ void dp_wfm_frame_free (
 ```
 
 
+
+Also frees a copy from [**dp\_wfm\_frame\_copy()**](wfm__compose_8h.md#function-dp_wfm_frame_copy). It frees every field's `bits` and then `d` itself, so never pass a description the caller filled in its own storage ([**dp\_wfm\_frame\_fixed()**](wfm__frame_8h.md#function-dp_wfm_frame_fixed)).
+
+
+
+
+**Parameters:**
+
+
+* `d` The description, or NULL.
 
 
 ```C++
@@ -1691,6 +1798,20 @@ void dp_wfm_render_destroy (
 
 
 
+A borrowed PERSIST channel is not freed: its owner frees it.
+
+
+
+
+**Parameters:**
+
+
+* `r` The renderer, or NULL. 
+
+
+
+
+        
 
 <hr>
 
@@ -1762,7 +1883,22 @@ void dp_wfm_render_noise_steps (
 
 
 
-What a gap renders (gh-409). The channel runs here too, and deliberately: an emitter does not stop moving because its burst ended, so a pass is continuous and during a gap the thing propagating is the noise floor. Skip the channel over gaps and `doppler_rate` across a multi-burst scene quietly means "rate per unit of ON time" instead of per second. 
+What a gap renders (gh-409). The channel runs here too, and deliberately: an emitter does not stop moving because its burst ended, so a pass is continuous and during a gap the thing propagating is the noise floor. Skip the channel over gaps and `doppler_rate` across a multi-burst scene quietly means "rate per unit of ON time" instead of per second.
+
+
+With an input timeline set ([**dp\_wfm\_render\_set\_input\_timeline()**](wfm__compose_8h.md#function-dp_wfm_render_set_input_timeline)) the timeline, not this call, decides which input samples are noise-only.
+
+
+
+
+**Parameters:**
+
+
+* `r` Renderer; not NULL. 
+* `dst` Receives `n` samples. 
+* `n` Samples to produce. 
+
+
 
 
         
@@ -1821,6 +1957,22 @@ void dp_wfm_render_steps (
 
 
 
+With no channel this is [**dp\_wfm\_synth\_steps()**](wfm__synth__core_8h.md#function-dp_wfm_synth_steps). With one, the channel's leftover output (the holdover) is drained first and the input is refilled as needed, following the input timeline when one is set ([**dp\_wfm\_render\_set\_input\_timeline()**](wfm__compose_8h.md#function-dp_wfm_render_set_input_timeline)).
+
+
+
+
+**Parameters:**
+
+
+* `r` Renderer from [**dp\_wfm\_compose\_build\_render()**](wfm__compose_8h.md#function-dp_wfm_compose_build_render) or [**dp\_wfm\_render\_from\_feed()**](wfm__compose_8h.md#function-dp_wfm_render_from_feed); not NULL. 
+* `dst` Receives `n` samples. 
+* `n` Samples to produce. 
+
+
+
+
+        
 
 <hr>
 
@@ -1843,6 +1995,17 @@ No-op for 1-source segments (keeps the bundled-synth path byte-identical). For a
 
 `dp_wfm_compose_create()` calls this on its private copy, so every face (CLI, JSON, Python) resolves identically.
 
+
+A source counts as snr-bearing when its `snr` is below the clean threshold (100 dB). A non-anchor source's `snr` is turned into a `level` of floor + snr dB, and every signal source's `snr` is then set clean so its own synth adds no AWGN. A segment whose sources are all clean, with no explicit noise source, is left alone. On a -1 return the segments may already be partly rewritten.
+
+
+
+
+**Parameters:**
+
+
+* `segs` Segment array, rewritten in place. 
+* `n` Number of segments in `segs`. 
 
 
 
@@ -1887,6 +2050,19 @@ Every source's [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm
 
 [**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create) refuses exactly these, and [**dp\_wfm\_compose\_create\_why()**](wfm__compose_8h.md#function-dp_wfm_compose_create_why) says which; a face calls this to say why.
 
+
+The first fault found wins: sources are checked in segment order, and the count rule runs only after every source has passed.
+
+
+
+
+**Parameters:**
+
+
+* `segs` The segments, as the caller gave them (unresolved). 
+* `n_segs` Number of segments in `segs`. 
+* `repeat` Non-zero when the scene loops (as for [**dp\_wfm\_compose\_create()**](wfm__compose_8h.md#function-dp_wfm_compose_create)). 
+* `continuous` Non-zero when the scene never finishes. 
 
 
 
@@ -2311,7 +2487,27 @@ if (dp_wfm_source_data_frames (&src) != 3) // 40 bits in 16-bit frames
 if (dp_wfm_source_data_samples (&src, 1e6, 3) != 3 * 16 * 4) // bpsk
   return 1;
 ```
- 
+
+
+
+A carried `frame` with no data source (`data` / `data_from_file`), on a type that can carry a frame, counts as one frame, sent once.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source; NULL gives 0. 
+
+
+
+**Returns:**
+
+frames (bits, for continuous dsss); 0 for a stream, a source with no data, or a frame with no non-empty data field. 
+
+
+
 
 
         
@@ -2331,7 +2527,24 @@ int dp_wfm_source_data_is_stream (
 
 
 
-A stream has no length up front and no end to repeat, so a scene refuses it with `repeat`, `continuous` or `repeats > 1`, Plan refuses it, and a segment carrying one runs until it ends ([**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error)). 
+A stream has no length up front and no end to repeat, so a scene refuses it with `repeat`, `continuous` or `repeats > 1`, Plan refuses it, and a segment carrying one runs until it ends ([**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error)).
+
+
+
+
+**Parameters:**
+
+
+* `src` The source; NULL reads as not a stream. 
+
+
+
+**Returns:**
+
+1 when `data_from_file` is exactly `"-"`, else 0. 
+
+
+
 
 
         
@@ -2372,6 +2585,13 @@ The one length a run with a data source is measured in: a finite run is this ove
 * `src` the source. 
 * `fs` the segment's sample rate (only continuous dsss reads it). 
 * `frames` frames (data bits, for continuous dsss) sent. 
+
+
+
+**Returns:**
+
+samples, in the segment's sample clock; 0 for a NULL source, a source with no data source and no carried frame, a frame that does not lay out, or a continuous dsss source under one chip per symbol. 
+
 
 
 
@@ -2575,12 +2795,22 @@ int dp_wfm_source_has_frame (
 A carried description, a preamble or a data source is what says "framed".
 
 
+Lengths are tested, never pointers: a carried `frame`, an `acq_code` with non-zero length AND `acq_reps`, a non-empty `data`, or a `data_from_file`.
+
+
 
 
 **Parameters:**
 
 
 * `src` The source; NULL reads as unframed. 
+
+
+
+**Returns:**
+
+1 when the source is framed, 0 otherwise (including NULL). 
+
 
 
 
@@ -2738,7 +2968,24 @@ double dp_wfm_spec_headroom (
 
 
 
-Lets `--from-file` reproduce a recorded `--headroom`; the value is a writer gain, so it lives outside the composer state. 
+Lets `--from-file` reproduce a recorded `--headroom`; the value is a writer gain, so it lives outside the composer state.
+
+
+
+
+**Parameters:**
+
+
+* `json` The spec text, NUL-terminated. 
+
+
+
+**Returns:**
+
+The `headroom` value in dB; 0.0 when the key is absent or the text does not parse as JSON. 
+
+
+
 
 
         
@@ -2798,6 +3045,18 @@ char * dp_wfm_spec_to_json (
 
 `seed_advance` is a parameter rather than something read from `segs` because it is a property of the whole stream, like `repeat`/`continuous`. Omitting it is what made a recorded run replay a DIFFERENT waveform (doppler#978): the key was parsed and never written, so the round-trip silently fell back to NONE and every loop after the first came out identical.
 
+
+
+
+**Parameters:**
+
+
+* `segs` The segments to write (typically [**dp\_wfm\_compose\_segments()**](wfm__compose_8h.md#function-dp_wfm_compose_segments) of a live composer). 
+* `n_segs` Number of segments. 
+* `repeat` Written as the top-level boolean `repeat`. 
+* `continuous` Written as the top-level boolean `continuous`. 
+* `seed_advance` A [**wfm\_seed\_advance\_t**](wfm__compose_8h.md#enum-wfm_seed_advance_t); written as `"noise"` / `"all"`, omitted at NONE or an out-of-range value. 
+* `headroom` Output backoff in dB; omitted when exactly 0. 
 
 
 
@@ -2888,6 +3147,24 @@ const wfm_data_src_t * dp_wfm_synth_data_source (
 
 
 
+
+**Parameters:**
+
+
+* `syn` The synth; NULL gives NULL. 
+
+
+
+**Returns:**
+
+The source, still owned by the synth (valid until it is destroyed), or NULL when the synth has no data source attached. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -2904,8 +3181,16 @@ void dp_wfm_synth_set_data_pacing (
 
 
 
-A synth attached by [**dp\_wfm\_source\_attach\_frame()**](wfm__compose_8h.md#function-dp_wfm_source_attach_frame) pulls UNPACED  it waits for its data, as `cat` does. A paced caller (the composer under `--realtime`) sets this after the build, so a source with nothing yet sends an idle frame instead (dp\_wfm\_data\_frame, the one rule). A synth with no data source ignores it.
+A synth attached by [**dp\_wfm\_source\_attach\_frame()**](wfm__compose_8h.md#function-dp_wfm_source_attach_frame) pulls UNPACED  it waits for its data, as `cat` does. A paced caller (the composer under `--realtime`) sets this after the build, so a source with nothing yet sends an idle frame instead (dp\_wfm\_data\_frame, the one rule). A synth with no data source ignores it, and so does a NULL `syn`.
 
+
+
+
+**Parameters:**
+
+
+* `syn` The synth; NULL, or one with no data source, is a no-op. 
+* `pacing` WFM\_DATA\_PACED to send idle frames while the source has nothing, WFM\_DATA\_UNPACED to wait for it.
 
 
 ```C++

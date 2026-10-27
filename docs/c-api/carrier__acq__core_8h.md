@@ -39,7 +39,7 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) <br>_CarrierAcquisition state._  |
+| struct | [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) <br>_CarrierAcquisition state: owned PSD and detector children, scratch, config and the running detection result._  |
 
 
 
@@ -66,12 +66,12 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**dp\_carrier\_acq\_create**](#function-dp_carrier_acq_create) (double sample\_rate\_hz, double symbol\_rate\_hz, double resolution\_hz, size\_t zero\_pad, int window, float beta, const float \* psd\_template, size\_t psd\_template\_len, double pfa, double pd, double design\_snr, bool sequential, size\_t max\_n\_blocks) <br>_Create a carrier\_acq instance._  |
+|  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**dp\_carrier\_acq\_create**](#function-dp_carrier_acq_create) (double sample\_rate\_hz, double symbol\_rate\_hz, double resolution\_hz, size\_t zero\_pad, int window, float beta, const float \* psd\_template, size\_t psd\_template\_len, double pfa, double pd, double design\_snr, bool sequential, size\_t max\_n\_blocks) <br>_Create a PSD-template carrier acquisition (residual-carrier detector and estimator)._  |
 |  void | [**dp\_carrier\_acq\_destroy**](#function-dp_carrier_acq_destroy) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state) <br>_Destroy a carrier\_acq instance and release all memory._  |
-|  void | [**dp\_carrier\_acq\_get\_state**](#function-dp_carrier_acq_get_state) (const [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_carrier\_acq\_get\_state**](#function-dp_carrier_acq_get_state) (const [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, void \* blob) <br>_Serialize the running state into a caller-owned blob._  |
 |  void | [**dp\_carrier\_acq\_reset**](#function-dp_carrier_acq_reset) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state) <br>_Reset to the post-create state: discard the running PSD average and detection state; n\_blocks/ready/residual\_hz return to their initial values. Config (psd/detector/dwell\_target) is untouched._  |
-|  int | [**dp\_carrier\_acq\_set\_state**](#function-dp_carrier_acq_set_state) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_carrier\_acq\_state\_bytes**](#function-dp_carrier_acq_state_bytes) (const [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state) <br> |
+|  int | [**dp\_carrier\_acq\_set\_state**](#function-dp_carrier_acq_set_state) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, const void \* blob) <br>_Restore the running state from a_ [_**dp\_carrier\_acq\_get\_state()**_](carrier__acq__core_8h.md#function-dp_carrier_acq_get_state) _blob._ |
+|  size\_t | [**dp\_carrier\_acq\_state\_bytes**](#function-dp_carrier_acq_state_bytes) (const [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state) <br>_Size of this instance's serialized state blob._  |
 |  void | [**dp\_carrier\_acq\_steps**](#function-dp_carrier_acq_steps) ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Fold raw complex samples into the running PSD average and test for a detection. Accepts any chunk size across repeated calls_  _a partial trailing block is carried to the next call. A no-op once ready is true or the give-up cap (max\_n\_blocks in sequential mode, dwell\_target otherwise) has been reached._ |
 
 
@@ -104,8 +104,8 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**CARRIER\_ACQ\_STATE\_MAGIC**](carrier__acq__core_8h.md#define-carrier_acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('C', 'A', 'Q', 'R')`<br> |
-| define  | [**CARRIER\_ACQ\_STATE\_VERSION**](carrier__acq__core_8h.md#define-carrier_acq_state_version)  `1u`<br> |
+| define  | [**CARRIER\_ACQ\_STATE\_MAGIC**](carrier__acq__core_8h.md#define-carrier_acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('C', 'A', 'Q', 'R')`<br>_State-blob magic ("CAQR"); set\_state() rejects any other._  |
+| define  | [**CARRIER\_ACQ\_STATE\_VERSION**](carrier__acq__core_8h.md#define-carrier_acq_state_version)  `1u`<br>_State-blob layout version; bumped when the payload changes._  |
 
 ## Detailed Description
 
@@ -155,7 +155,7 @@ dp_carrier_acq_destroy(ca);
 
 ### function dp\_carrier\_acq\_create 
 
-_Create a carrier\_acq instance._ 
+_Create a PSD-template carrier acquisition (residual-carrier detector and estimator)._ 
 ```C++
 dp_carrier_acq_state_t * dp_carrier_acq_create (
     double sample_rate_hz,
@@ -269,6 +269,7 @@ void dp_carrier_acq_destroy (
 
 ### function dp\_carrier\_acq\_get\_state 
 
+_Serialize the running state into a caller-owned blob._ 
 ```C++
 void dp_carrier_acq_get_state (
     const dp_carrier_acq_state_t * state,
@@ -278,6 +279,18 @@ void dp_carrier_acq_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to snapshot (non-NULL). 
+* `blob` Destination of at least [**dp\_carrier\_acq\_state\_bytes()**](carrier__acq__core_8h.md#function-dp_carrier_acq_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -329,6 +342,7 @@ True
 
 ### function dp\_carrier\_acq\_set\_state 
 
+_Restore the running state from a_ [_**dp\_carrier\_acq\_get\_state()**_](carrier__acq__core_8h.md#function-dp_carrier_acq_get_state) _blob._
 ```C++
 int dp_carrier_acq_set_state (
     dp_carrier_acq_state_t * state,
@@ -338,6 +352,28 @@ int dp_carrier_acq_set_state (
 
 
 
+The instance must have been created with the same configuration as the one that produced the blob (see the block comment above).
+
+
+
+
+**Parameters:**
+
+
+* `state` Instance to overwrite (non-NULL). 
+* `blob` Blob of [**dp\_carrier\_acq\_state\_bytes()**](carrier__acq__core_8h.md#function-dp_carrier_acq_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK on success; DP\_ERR\_INVALID when the envelope does not match, nfft / dwell\_target / max\_n\_blocks differ from this instance, carry\_len &gt;= psd-&gt;k.n, residual\_hz is NaN or beyond +/- sample\_rate\_hz/2, or a child blob is rejected. A child rejection can leave the psd child already restored. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -345,6 +381,7 @@ int dp_carrier_acq_set_state (
 
 ### function dp\_carrier\_acq\_state\_bytes 
 
+_Size of this instance's serialized state blob._ 
 ```C++
 size_t dp_carrier_acq_state_bytes (
     const dp_carrier_acq_state_t * state
@@ -353,6 +390,24 @@ size_t dp_carrier_acq_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to size (non-NULL). 
+
+
+
+**Returns:**
+
+Bytes: envelope + own running fields + the psd and detector child blobs + a fixed carry region of psd-&gt;k.n samples. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -413,6 +468,7 @@ True
 
 ### define CARRIER\_ACQ\_STATE\_MAGIC 
 
+_State-blob magic ("CAQR"); set\_state() rejects any other._ 
 ```C++
 #define CARRIER_ACQ_STATE_MAGIC `DP_FOURCC ('C', 'A', 'Q', 'R')`
 ```
@@ -426,6 +482,7 @@ True
 
 ### define CARRIER\_ACQ\_STATE\_VERSION 
 
+_State-blob layout version; bumped when the payload changes._ 
 ```C++
 #define CARRIER_ACQ_STATE_VERSION `1u`
 ```

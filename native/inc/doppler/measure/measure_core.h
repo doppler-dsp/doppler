@@ -212,7 +212,7 @@ double dp_measure_proc_gain(size_t nfft);
  * that is coprime with N — an integer number of cycles in the capture (no
  * leakage) with J coprime to N (so quantisation-noise correlation is minimised).
  *
- * J starts at round(f_target * N / fs), is clamped to [1, N-1], then moved
+ * J starts at round(f_target * N / fs), is clamped to `[1, N-1]`, then moved
  * by the smallest distance that makes it coprime with N; on a tie the higher
  * J wins.
  *

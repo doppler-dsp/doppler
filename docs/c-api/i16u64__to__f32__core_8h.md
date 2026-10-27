@@ -31,7 +31,7 @@ _Q15-in-uint64 to float converter._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) <br>_I16U64ToF32 state._  |
+| struct | [**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) <br>_I16U64ToF32 state: the precomputed reciprocal scale._  |
 
 
 
@@ -58,7 +58,7 @@ _Q15-in-uint64 to float converter._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) \* | [**dp\_i16u64\_to\_f32\_create**](#function-dp_i16u64_to_f32_create) (float scale) <br>_Create a i16u64\_to\_f32 instance._  |
+|  [**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) \* | [**dp\_i16u64\_to\_f32\_create**](#function-dp_i16u64_to_f32_create) (float scale) <br>_Create an I16U64ToF32 converter (Q15-in-uint64 to float)._  |
 |  void | [**dp\_i16u64\_to\_f32\_destroy**](#function-dp_i16u64_to_f32_destroy) ([**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) \* state) <br>_Destroy a i16u64\_to\_f32 instance and release all memory._  |
 |  void | [**dp\_i16u64\_to\_f32\_reset**](#function-dp_i16u64_to_f32_reset) ([**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**dp\_i16u64\_to\_f32\_step**](#function-dp_i16u64_to_f32_step) (const [**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) \* state, uint64\_t x) <br>_Unpack a Q15 code from a uint64's low 16 bits to a normalised float._  |
@@ -130,7 +130,7 @@ Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
 
 ### function dp\_i16u64\_to\_f32\_create 
 
-_Create a i16u64\_to\_f32 instance._ 
+_Create an I16U64ToF32 converter (Q15-in-uint64 to float)._ 
 ```C++
 dp_i16u64_to_f32_state_t * dp_i16u64_to_f32_create (
     float scale
@@ -147,13 +147,13 @@ Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single multiply
 **Parameters:**
 
 
-* `scale` Denominator scale; 1/scale is applied after sign-extension (default: 32768.0f). Use 32768.0 to match F32ToI16U64 at its default scale. 
+* `scale` Denominator scale; 1/scale is applied after sign-extension (default: 32768.0f). Use 32768.0 to match F32ToI16U64 at its default scale. Must be &gt; 0. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL when `scale` &lt;= 0 or the allocation fails. 
 
 
 

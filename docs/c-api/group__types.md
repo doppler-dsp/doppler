@@ -166,6 +166,10 @@ typedef struct dp_ctx dp_pull_t;
 
 
 
+Pull socket ([**dp\_pull\_create()**](group__pipeline.md#function-dp_pull_create)). 
+
+
+        
 
 <hr>
 
@@ -179,6 +183,10 @@ typedef struct dp_ctx dp_push_t;
 
 
 
+Push socket ([**dp\_push\_create()**](group__pipeline.md#function-dp_push_create)). 
+
+
+        
 
 <hr>
 
@@ -192,6 +200,11 @@ typedef struct dp_ctx dp_rep_t;
 
 
 
+Replier ([**dp\_rep\_create()**](group__reqrep.md#function-dp_rep_create)). 
+ 
+
+
+        
 
 <hr>
 
@@ -205,6 +218,11 @@ typedef struct dp_ctx dp_req_t;
 
 
 
+Requester ([**dp\_req\_create()**](group__reqrep.md#function-dp_req_create)). 
+ 
+
+
+        
 
 <hr>
 
@@ -218,6 +236,11 @@ typedef struct dp_ctx dp_sub_t;
 
 
 
+Subscriber ([**dp\_sub\_create()**](group__pubsub.md#function-dp_sub_create)). 
+ 
+
+
+        
 
 <hr>
 

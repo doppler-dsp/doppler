@@ -112,6 +112,11 @@ double dp_agc_state_t::alpha;
 
 
 
+Power-detector EMA coefficient in (0, 1] (config, writable). 
+ 
+
+
+        
 
 <hr>
 
@@ -125,6 +130,11 @@ double dp_agc_state_t::clip_db;
 
 
 
+Output square-clip level, dB: each of I and Q is limited to +/- 10^(clip\_db/20) (config, writable; default AGC\_CLIP\_DB\_DEFAULT). 
+ 
+
+
+        
 
 <hr>
 
@@ -138,6 +148,11 @@ float dp_agc_state_t::clip_lin;
 
 
 
+Cached 10^(clip\_db/20), refreshed at each period boundary and at create/reset. 
+ 
+
+
+        
 
 <hr>
 
@@ -169,6 +184,11 @@ double dp_agc_state_t::g_last;
 
 
 
+Linear gain applied to the latest sample, held across the update period (running state; 1.0 at create/reset). 
+ 
+
+
+        
 
 <hr>
 
@@ -182,6 +202,11 @@ double dp_agc_state_t::gain_db;
 
 
 
+Loop-filter integrator: commanded gain, dB (running state; 0 at create/reset). 
+ 
+
+
+        
 
 <hr>
 
@@ -195,6 +220,11 @@ size_t dp_agc_state_t::gain_phase;
 
 
 
+[**dp\_agc\_step()**](agc__core_8h.md#function-dp_agc_step) position in the update period, [0, gain\_update\_period) (running state). 
+ 
+
+
+        
 
 <hr>
 
@@ -208,6 +238,10 @@ size_t dp_agc_state_t::gain_update_period;
 
 
 
+[**dp\_agc\_step()**](agc__core_8h.md#function-dp_agc_step) control-update period, samples (config, &gt;= 1): the detector + gain-apply run every sample, but the loop-filter command (the exp10/log10 work) refreshes once per this many samples — a zero-order hold on the gain that amortises the transcendentals on a sample-rate hot loop. 1 (default) is the exact per-sample loop; &gt;1 trades gain-update latency for speed (keep well below 1/(4\*loop\_bw)). The same shape as decim's `4*decim*loop_bw <= 0.05`, but only decim's is measured — this one is a zero-order hold on a different quantity. 
+
+
+        
 
 <hr>
 
@@ -221,6 +255,10 @@ double dp_agc_state_t::loop_bw;
 
 
 
+Loop noise bandwidth, cycles/sample (config, writable); filter time constant 1/(4\*loop\_bw). 
+
+
+        
 
 <hr>
 
@@ -234,6 +272,10 @@ double dp_agc_state_t::p_avg;
 
 
 
+Power-detector EMA of OUTPUT power, linear (running state; seeded to 10^(ref\_db/10) at create/reset). Anything setting this by hand must use the REFERENCE power, not a measured input power: the loop filter's error is (ref\_db - 10log10(p\_avg)), so seeding it with an input measurement hands the loop an error equal to the whole gain and it integrates it. Measured on this object at loop\_bw 0.002 / alpha 0.01, a 4x-hot input drove the gain a further 13.4 dB past its correct value before recovering (+2.4 dB at 0.25x). [**dp\_agc\_create()**](agc__core_8h.md#function-dp_agc_create)/dp\_agc\_reset() already do the right thing; this note is for anyone tempted to shortcut them. 
+
+
+        
 
 <hr>
 
@@ -247,6 +289,11 @@ double dp_agc_state_t::ref_db;
 
 
 
+Target output power, dB (config, writable). 
+ 
+
+
+        
 
 <hr>
 
@@ -260,6 +307,11 @@ agc_tlm_t dp_agc_state_t::tlm;
 
 
 
+Live telemetry attachment; zeroed in state blobs and kept across set\_state. 
+ 
+
+
+        
 
 <hr>
 

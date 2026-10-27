@@ -141,7 +141,7 @@ Copies `table` internally; the caller's own array can be freed or modified after
 
 * `table` Complex table, one period, length `table_len`. 
 * `table_len` Number of elements in `table` (&gt; 0). 
-* `method` 0 = floor, 1 = nearest, 2 = linear. 
+* `method` 0 = floor, 1 = nearest, 2 = linear. Not validated: any other value behaves as linear. 
 
 
 
@@ -273,6 +273,24 @@ size_t dp_interp_table_execute_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Table state (unused). 
+
+
+
+**Returns:**
+
+Always 0, meaning "no fixed capacity": size the output to the input length instead. 
+
+
+
+
+
+        
 
 <hr>
 

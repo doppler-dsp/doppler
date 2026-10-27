@@ -87,21 +87,21 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  void | [**dp\_dsss\_burst\_receiver\_destroy**](#function-dp_dsss_burst_receiver_destroy) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Destroy a dsss\_burst\_receiver instance and release all memory._  |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_events**](#function-dp_dsss_burst_receiver_events) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, size\_t n, [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_events\_max\_out**](#function-dp_dsss_burst_receiver_events_max_out) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Max records events() writes: one per burst the last push() returned._  |
-|  double | [**dp\_dsss\_burst\_receiver\_get\_cn0\_dbhz\_est**](#function-dp_dsss_burst_receiver_get_cn0_dbhz_est) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  double | [**dp\_dsss\_burst\_receiver\_get\_demod\_cn0\_dbhz**](#function-dp_dsss_burst_receiver_get_demod_cn0_dbhz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  double | [**dp\_dsss\_burst\_receiver\_get\_demod\_timing\_chips**](#function-dp_dsss_burst_receiver_get_demod_timing_chips) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  double | [**dp\_dsss\_burst\_receiver\_get\_doppler\_hz\_est**](#function-dp_dsss_burst_receiver_get_doppler_hz_est) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  double | [**dp\_dsss\_burst\_receiver\_get\_doppler\_res\_hz**](#function-dp_dsss_burst_receiver_get_doppler_res_hz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
+|  double | [**dp\_dsss\_burst\_receiver\_get\_cn0\_dbhz\_est**](#function-dp_dsss_burst_receiver_get_cn0_dbhz_est) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Acquisition's C/N0 lower bound for the most recent burst._  |
+|  double | [**dp\_dsss\_burst\_receiver\_get\_demod\_cn0\_dbhz**](#function-dp_dsss_burst_receiver_get_demod_cn0_dbhz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_The demodulator's C/N0 for the most recent burst._  |
+|  double | [**dp\_dsss\_burst\_receiver\_get\_demod\_timing\_chips**](#function-dp_dsss_burst_receiver_get_demod_timing_chips) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Burst-start error the demodulator measured, most recent burst._  |
+|  double | [**dp\_dsss\_burst\_receiver\_get\_doppler\_hz\_est**](#function-dp_dsss_burst_receiver_get_doppler_hz_est) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Signed coarse Doppler of the most recent burst, from acquisition._  |
+|  double | [**dp\_dsss\_burst\_receiver\_get\_doppler\_res\_hz**](#function-dp_dsss_burst_receiver_get_doppler_res_hz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Width of the coarse Doppler estimate (acquisition's bin), Hz._  |
 |  uint64\_t | [**dp\_dsss\_burst\_receiver\_get\_dropped**](#function-dp_dsss_burst_receiver_get_dropped) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Samples of look-back the capture discarded while a queued burst still needed them_  _never refused input, which push() does not do. A LOST BURST, not a statistic_ _a lifetime count that survives reset()._ |
-|  double | [**dp\_dsss\_burst\_receiver\_get\_est\_freq\_hz**](#function-dp_dsss_burst_receiver_get_est_freq_hz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  double | [**dp\_dsss\_burst\_receiver\_get\_est\_rate\_hz**](#function-dp_dsss_burst_receiver_get_est_rate_hz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  bool | [**dp\_dsss\_burst\_receiver\_get\_frame\_valid**](#function-dp_dsss_burst_receiver_get_frame_valid) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  size\_t | [**dp\_dsss\_burst\_receiver\_get\_min\_gap**](#function-dp_dsss_burst_receiver_get_min_gap) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  uint64\_t | [**dp\_dsss\_burst\_receiver\_get\_n\_bursts**](#function-dp_dsss_burst_receiver_get_n_bursts) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  size\_t | [**dp\_dsss\_burst\_receiver\_get\_pending**](#function-dp_dsss_burst_receiver_get_pending) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  uint64\_t | [**dp\_dsss\_burst\_receiver\_get\_preamble\_start**](#function-dp_dsss_burst_receiver_get_preamble_start) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  size\_t | [**dp\_dsss\_burst\_receiver\_get\_refine\_span**](#function-dp_dsss_burst_receiver_get_refine_span) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
-|  size\_t | [**dp\_dsss\_burst\_receiver\_get\_retain\_span**](#function-dp_dsss_burst_receiver_get_retain_span) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br> |
+|  double | [**dp\_dsss\_burst\_receiver\_get\_est\_freq\_hz**](#function-dp_dsss_burst_receiver_get_est_freq_hz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_The demodulator's residual-frequency estimate, most recent burst._  |
+|  double | [**dp\_dsss\_burst\_receiver\_get\_est\_rate\_hz**](#function-dp_dsss_burst_receiver_get_est_rate_hz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_The demodulator's Doppler-rate estimate, most recent burst._  |
+|  bool | [**dp\_dsss\_burst\_receiver\_get\_frame\_valid**](#function-dp_dsss_burst_receiver_get_frame_valid) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Whether the most recent burst's frame passed its CRC._  |
+|  size\_t | [**dp\_dsss\_burst\_receiver\_get\_min\_gap**](#function-dp_dsss_burst_receiver_get_min_gap) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Dead air a caller must leave BETWEEN bursts, edge to edge._  |
+|  uint64\_t | [**dp\_dsss\_burst\_receiver\_get\_n\_bursts**](#function-dp_dsss_burst_receiver_get_n_bursts) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Bursts demodulated over this receiver's lifetime._  |
+|  size\_t | [**dp\_dsss\_burst\_receiver\_get\_pending**](#function-dp_dsss_burst_receiver_get_pending) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Detections the capture holds whose burst has not yet completed._  |
+|  uint64\_t | [**dp\_dsss\_burst\_receiver\_get\_preamble\_start**](#function-dp_dsss_burst_receiver_get_preamble_start) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Stream-absolute preamble start of the most recent burst, samples._  |
+|  size\_t | [**dp\_dsss\_burst\_receiver\_get\_refine\_span**](#function-dp_dsss_burst_receiver_get_refine_span) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Candidate preamble offsets the refine stage searches._  |
+|  size\_t | [**dp\_dsss\_burst\_receiver\_get\_retain\_span**](#function-dp_dsss_burst_receiver_get_retain_span) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Look-back that must stay reachable: refine span + one burst._  |
 |  void | [**dp\_dsss\_burst\_receiver\_get\_state**](#function-dp_dsss_burst_receiver_get_state) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dp\_dsss\_burst\_receiver\_state\_bytes()**_](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_state_bytes) _long)._ |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_llrs**](#function-dp_dsss_burst_receiver_llrs) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_The SOFT bits of every burst the last push() returned._  |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_llrs\_max\_out**](#function-dp_dsss_burst_receiver_llrs_max_out) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, size\_t n) <br>_Max LLRs llrs() writes: frame bits x the bursts the last push returned._  |
@@ -142,7 +142,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 | Type | Name |
 | ---: | :--- |
 | define  | [**DSSS\_BURST\_RECEIVER\_STATE\_MAGIC**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('D', 'B', 'R', 'X')`<br>_Per-object envelope tag: "DBRX" (DsssBurstReceiver)._  |
-| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `7u`<br> |
+| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `7u`<br>_Layout version of the DsssBurstReceiver state blob._  |
 
 ## Detailed Description
 
@@ -523,6 +523,7 @@ The number of bursts the most recent push() completed.
 
 ### function dp\_dsss\_burst\_receiver\_get\_cn0\_dbhz\_est 
 
+_Acquisition's C/N0 lower bound for the most recent burst._ 
 ```C++
 double dp_dsss_burst_receiver_get_cn0_dbhz_est (
     const dp_dsss_burst_receiver_state_t * state
@@ -531,6 +532,27 @@ double dp_dsss_burst_receiver_get_cn0_dbhz_est (
 
 
 
+A saturating lower bound from the detection hit, not a measurement on the decoded symbols; compare [**dp\_dsss\_burst\_receiver\_get\_demod\_cn0\_dbhz()**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_get_demod_cn0_dbhz).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+C/N0, dB-Hz. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -538,6 +560,7 @@ double dp_dsss_burst_receiver_get_cn0_dbhz_est (
 
 ### function dp\_dsss\_burst\_receiver\_get\_demod\_cn0\_dbhz 
 
+_The demodulator's C/N0 for the most recent burst._ 
 ```C++
 double dp_dsss_burst_receiver_get_demod_cn0_dbhz (
     const dp_dsss_burst_receiver_state_t * state
@@ -546,6 +569,27 @@ double dp_dsss_burst_receiver_get_demod_cn0_dbhz (
 
 
 
+Measured on the decoded symbols, referred to the channel and corrected for the sub-chip start error (see the `demod_cn0_dbhz` field).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+C/N0, dB-Hz. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -553,6 +597,7 @@ double dp_dsss_burst_receiver_get_demod_cn0_dbhz (
 
 ### function dp\_dsss\_burst\_receiver\_get\_demod\_timing\_chips 
 
+_Burst-start error the demodulator measured, most recent burst._ 
 ```C++
 double dp_dsss_burst_receiver_get_demod_timing_chips (
     const dp_dsss_burst_receiver_state_t * state
@@ -562,12 +607,31 @@ double dp_dsss_burst_receiver_get_demod_timing_chips (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Signed start error, chips (the sub-sample remainder after whole samples were removed). 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_dsss\_burst\_receiver\_get\_doppler\_hz\_est 
 
+_Signed coarse Doppler of the most recent burst, from acquisition._ 
 ```C++
 double dp_dsss_burst_receiver_get_doppler_hz_est (
     const dp_dsss_burst_receiver_state_t * state
@@ -577,12 +641,31 @@ double dp_dsss_burst_receiver_get_doppler_hz_est (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Doppler estimate, Hz. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_dsss\_burst\_receiver\_get\_doppler\_res\_hz 
 
+_Width of the coarse Doppler estimate (acquisition's bin), Hz._ 
 ```C++
 double dp_dsss_burst_receiver_get_doppler_res_hz (
     const dp_dsss_burst_receiver_state_t * state
@@ -591,6 +674,24 @@ double dp_dsss_burst_receiver_get_doppler_res_hz (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Doppler resolution, Hz. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -608,12 +709,31 @@ uint64_t dp_dsss_burst_receiver_get_dropped (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Dropped samples, lifetime; forwarded from the embedded capture. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_dsss\_burst\_receiver\_get\_est\_freq\_hz 
 
+_The demodulator's residual-frequency estimate, most recent burst._ 
 ```C++
 double dp_dsss_burst_receiver_get_est_freq_hz (
     const dp_dsss_burst_receiver_state_t * state
@@ -623,12 +743,31 @@ double dp_dsss_burst_receiver_get_est_freq_hz (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Residual frequency, Hz. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_dsss\_burst\_receiver\_get\_est\_rate\_hz 
 
+_The demodulator's Doppler-rate estimate, most recent burst._ 
 ```C++
 double dp_dsss_burst_receiver_get_est_rate_hz (
     const dp_dsss_burst_receiver_state_t * state
@@ -638,12 +777,31 @@ double dp_dsss_burst_receiver_get_est_rate_hz (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Doppler rate, Hz/s. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_dsss\_burst\_receiver\_get\_frame\_valid 
 
+_Whether the most recent burst's frame passed its CRC._ 
 ```C++
 bool dp_dsss_burst_receiver_get_frame_valid (
     const dp_dsss_burst_receiver_state_t * state
@@ -652,6 +810,27 @@ bool dp_dsss_burst_receiver_get_frame_valid (
 
 
 
+Always false for a frame description with no CRC stage. Cleared by reset(); not serialized.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+true if the last demodulated frame checked. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -659,6 +838,7 @@ bool dp_dsss_burst_receiver_get_frame_valid (
 
 ### function dp\_dsss\_burst\_receiver\_get\_min\_gap 
 
+_Dead air a caller must leave BETWEEN bursts, edge to edge._ 
 ```C++
 size_t dp_dsss_burst_receiver_get_min_gap (
     const dp_dsss_burst_receiver_state_t * state
@@ -667,6 +847,27 @@ size_t dp_dsss_burst_receiver_get_min_gap (
 
 
 
+Derived by the embedded capture from the geometry (see [**dp\_burst\_capture\_state\_t::min\_gap**](structdp__burst__capture__state__t.md#variable-min_gap)); 0 is a real answer.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Minimum gap, samples. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -674,6 +875,7 @@ size_t dp_dsss_burst_receiver_get_min_gap (
 
 ### function dp\_dsss\_burst\_receiver\_get\_n\_bursts 
 
+_Bursts demodulated over this receiver's lifetime._ 
 ```C++
 uint64_t dp_dsss_burst_receiver_get_n_bursts (
     const dp_dsss_burst_receiver_state_t * state
@@ -682,6 +884,27 @@ uint64_t dp_dsss_burst_receiver_get_n_bursts (
 
 
 
+Survives reset() (set\_state() restores it). Differs from the capture's count of windows emitted by any window the demodulator refused.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Lifetime burst count. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -689,6 +912,7 @@ uint64_t dp_dsss_burst_receiver_get_n_bursts (
 
 ### function dp\_dsss\_burst\_receiver\_get\_pending 
 
+_Detections the capture holds whose burst has not yet completed._ 
 ```C++
 size_t dp_dsss_burst_receiver_get_pending (
     const dp_dsss_burst_receiver_state_t * state
@@ -697,6 +921,27 @@ size_t dp_dsss_burst_receiver_get_pending (
 
 
 
+A queued burst is emitted by the push() that delivers its last sample plus the trailing context (retain\_span).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Queued detections, forwarded from the embedded capture. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -704,6 +949,7 @@ size_t dp_dsss_burst_receiver_get_pending (
 
 ### function dp\_dsss\_burst\_receiver\_get\_preamble\_start 
 
+_Stream-absolute preamble start of the most recent burst, samples._ 
 ```C++
 uint64_t dp_dsss_burst_receiver_get_preamble_start (
     const dp_dsss_burst_receiver_state_t * state
@@ -712,6 +958,27 @@ uint64_t dp_dsss_burst_receiver_get_preamble_start (
 
 
 
+The scalar read-backs below all describe the LAST burst demodulated; events() has one record per burst of the last push(). Each reads 0 after create and reset().
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Sample index of the preamble, counted from the first sample pushed since create or reset(). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -719,6 +986,7 @@ uint64_t dp_dsss_burst_receiver_get_preamble_start (
 
 ### function dp\_dsss\_burst\_receiver\_get\_refine\_span 
 
+_Candidate preamble offsets the refine stage searches._ 
 ```C++
 size_t dp_dsss_burst_receiver_get_refine_span (
     const dp_dsss_burst_receiver_state_t * state
@@ -727,6 +995,27 @@ size_t dp_dsss_burst_receiver_get_refine_span (
 
 
 
+Bounds start-to-start separation of two bursts the claim rule keeps apart; it is not the gap between them (see get\_min\_gap()).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Refine span, samples. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -734,6 +1023,7 @@ size_t dp_dsss_burst_receiver_get_refine_span (
 
 ### function dp\_dsss\_burst\_receiver\_get\_retain\_span 
 
+_Look-back that must stay reachable: refine span + one burst._ 
 ```C++
 size_t dp_dsss_burst_receiver_get_retain_span (
     const dp_dsss_burst_receiver_state_t * state
@@ -742,6 +1032,27 @@ size_t dp_dsss_burst_receiver_get_retain_span (
 
 
 
+Also the minimum trailing context: a burst closer than this to the end of what has been pushed is not emitted until more samples arrive.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Retain span, samples. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -759,6 +1070,21 @@ void dp_dsss_burst_receiver_get_state (
 
 
 
+Carries n\_bursts and the last burst's read-backs, then the capture's nested blob (look-back, detection queue, acquisition). Not carried: the codes and geometry (create() restores them), the last push's events/LLRs, and `frame_valid`.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Caller-owned buffer. 
+
+
+
+
+        
 
 <hr>
 
@@ -847,6 +1173,13 @@ size_t dp_dsss_burst_receiver_llrs_max_out (
 
 * `state` Receiver handle. 
 * `n` Ignored, as in llrs(). 
+
+
+
+**Returns:**
+
+LLRs the last push() produced (`bursts * frame_syms`); 0 after create, reset() or set\_state(). 
+
 
 
 
@@ -1018,6 +1351,17 @@ int dp_dsss_burst_receiver_set_state (
 
 
 
+Clears the last push's events and LLRs. `frame_valid` is not in the blob and keeps its value. A rejected outer envelope changes nothing, but this object's scalars are written before the capture's child blob is checked, so a rejected child leaves them already restored.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL; built with the same configuration as the blob's source. 
+* `blob` A blob produced by [**dp\_dsss\_burst\_receiver\_get\_state()**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_get_state). 
+
 
 
 **Returns:**
@@ -1045,6 +1389,27 @@ size_t dp_dsss_burst_receiver_state_bytes (
 
 
 
+A pure function of configuration, so a blob restores into any instance built the same way.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Envelope + 2 uint64 + 7 doubles + the capture's blob size. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -1069,6 +1434,7 @@ _Per-object envelope tag: "DBRX" (DsssBurstReceiver)._
 
 ### define DSSS\_BURST\_RECEIVER\_STATE\_VERSION 
 
+_Layout version of the DsssBurstReceiver state blob._ 
 ```C++
 #define DSSS_BURST_RECEIVER_STATE_VERSION `7u`
 ```

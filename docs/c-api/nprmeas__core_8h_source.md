@@ -23,11 +23,11 @@ extern "C" {
 #endif
 
 typedef struct {
-    dp_psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg) */
-    float         *pwr;     /* metric working buffer, one-sided power     */
-    double enbw;            /* window equivalent noise bandwidth (bins)   */
-    double beta;            /* auto-selected Kaiser shape (from DR target) */
-    size_t spur_guard_bins; /* min notch keep-out (bins) from window skirt */
+    dp_psd_state_t *psd;     
+    float         *pwr;     
+    double enbw;            
+    double beta;            
+    size_t spur_guard_bins; 
     size_t n;               
     size_t nfft;            
     double fs;              

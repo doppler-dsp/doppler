@@ -32,7 +32,7 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**det\_peak\_t**](structdet__peak__t.md) <br> |
+| struct | [**det\_peak\_t**](structdet__peak__t.md) <br>_One listed peak of a surface: its cell and value._  |
 | struct | [**det\_result2d\_t**](structdet__result2d__t.md) <br>_Detection event returned by_ [_**dp\_detector2d\_push()**_](detector2d__core_8h.md#function-dp_detector2d_push) _._ |
 | struct | [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) <br>_2-D signal detector state._  |
 
@@ -41,7 +41,7 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**det\_noise\_mode\_t**](#enum-det_noise_mode_t)  <br> |
+| enum  | [**det\_noise\_mode\_t**](#enum-det_noise_mode_t)  <br>_How the noise floor is aggregated from the correlation magnitudes over the flat bins noise\_lo to noise\_hi, inclusive (as in_ [_**detector\_core.h**_](detector__core_8h.md) _)._ |
 
 
 
@@ -69,13 +69,13 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 |  size\_t | [**dp\_detector2d\_consumed**](#function-dp_detector2d_consumed) (const [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_detector2d\_push()**_](detector2d__core_8h.md#function-dp_detector2d_push) _took._ |
 |  [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* | [**dp\_detector2d\_create**](#function-dp_detector2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**dp\_detector\_create()**_](detector__core_8h.md#function-dp_detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx, cut from the stream by the ring's framer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._ |
 |  void | [**dp\_detector2d\_destroy**](#function-dp_detector2d_destroy) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br>_Destroy and free._  |
-|  void | [**dp\_detector2d\_get\_state**](#function-dp_detector2d_get_state) (const [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_detector2d\_get\_state**](#function-dp_detector2d_get_state) (const [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, void \* blob) <br>_Serialize the correlator, carry and last-dump result into_ `blob` _._ |
 |  size\_t | [**dp\_detector2d\_push**](#function-dp_detector2d_push) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**det\_result2d\_t**](structdet__result2d__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the 2-D detector. The same pipeline as_ [_**dp\_detector\_push()**_](detector__core_8h.md#function-dp_detector_push) _, except that frames are ny\*nx complex samples and each detection event carries (row, col) for the peak location instead of a single lag index. In Python the result is always a list of (row, col, peak\_mag, noise\_est, test\_stat) tuples._ |
 |  void | [**dp\_detector2d\_reset**](#function-dp_detector2d_reset) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br>_Reset the 2-D correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator. The reference spectrum and FFT plans are preserved._  |
 |  int | [**dp\_detector2d\_set\_ref**](#function-dp_detector2d_set_ref) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference image and recompute its spectrum._  |
-|  int | [**dp\_detector2d\_set\_state**](#function-dp_detector2d_set_state) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const void \* blob) <br> |
+|  int | [**dp\_detector2d\_set\_state**](#function-dp_detector2d_set_state) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, const void \* blob) <br>_Restore a detector from a blob made by_ [_**dp\_detector2d\_get\_state()**_](detector2d__core_8h.md#function-dp_detector2d_get_state) _._ |
 |  void | [**dp\_detector2d\_set\_threshold**](#function-dp_detector2d_set_threshold) ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state, float threshold) <br>_Change threshold without rebuilding._  |
-|  size\_t | [**dp\_detector2d\_state\_bytes**](#function-dp_detector2d_state_bytes) (const [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_detector2d\_state\_bytes**](#function-dp_detector2d_state_bytes) (const [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) \* state) <br>_Size in bytes of this detector's state blob._  |
 
 
 
@@ -107,10 +107,10 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DETECTOR2D\_STATE\_MAGIC**](detector2d__core_8h.md#define-detector2d_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','E','T','2')`<br> |
-| define  | [**DETECTOR2D\_STATE\_VERSION**](detector2d__core_8h.md#define-detector2d_state_version)  `2u`<br> |
-| define  | [**DET\_NOISE\_MODE\_T\_DEFINED**](detector2d__core_8h.md#define-det_noise_mode_t_defined)  <br> |
-| define  | [**DET\_PEAK\_T\_DEFINED**](detector2d__core_8h.md#define-det_peak_t_defined)  <br>_One listed peak of a surface: a cell and its value, in the surface's own units (a magnitude on a coherent surface, a power on a non-coherent one). What det\_peak\_list() (_ [_**det\_private.h**_](det__private_8h.md) _) returns, and what the acquisition engine keeps per dwell._ |
+| define  | [**DETECTOR2D\_STATE\_MAGIC**](detector2d__core_8h.md#define-detector2d_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','E','T','2')`<br>_State-blob magic ('DET2'); set\_state() rejects any other._  |
+| define  | [**DETECTOR2D\_STATE\_VERSION**](detector2d__core_8h.md#define-detector2d_state_version)  `2u`<br>_State-blob layout version (2; version-1 blobs are refused)._  |
+| define  | [**DET\_NOISE\_MODE\_T\_DEFINED**](detector2d__core_8h.md#define-det_noise_mode_t_defined)  <br>_Include guard: det\_noise\_mode\_t is defined once across the detector headers that share it._  |
+| define  | [**DET\_PEAK\_T\_DEFINED**](detector2d__core_8h.md#define-det_peak_t_defined)  <br>_Include guard:_ [_**det\_peak\_t**_](structdet__peak__t.md) _is defined once across headers._ |
 
 ## Detailed Description
 
@@ -152,6 +152,7 @@ dp_detector2d_destroy(det);
 
 ### enum det\_noise\_mode\_t 
 
+_How the noise floor is aggregated from the correlation magnitudes over the flat bins noise\_lo to noise\_hi, inclusive (as in_ [_**detector\_core.h**_](detector__core_8h.md) _)._
 ```C++
 enum det_noise_mode_t {
     DET_NOISE_MEAN = 0,
@@ -190,6 +191,13 @@ Equal to its `n_in` unless `result` filled up; then the caller resumes at in + c
 
 
 * `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Samples of the last push's input consumed (including any kept as the carry). 
+
 
 
 
@@ -238,7 +246,7 @@ dp_detector2d_state_t * dp_detector2d_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL when [**dp\_corr2d\_create()**](corr2d__core_8h.md#function-dp_corr2d_create) refuses the arguments (e.g. `dwell` 0) or allocation fails. 
 ```C++
 >>> from doppler.spectral import CorrDetector2D
 >>> import numpy as np
@@ -289,6 +297,7 @@ void dp_detector2d_destroy (
 
 ### function dp\_detector2d\_get\_state 
 
+_Serialize the correlator, carry and last-dump result into_ `blob` _._
 ```C++
 void dp_detector2d_get_state (
     const dp_detector2d_state_t * state,
@@ -298,6 +307,18 @@ void dp_detector2d_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_detector2d\_state\_bytes()**](detector2d__core_8h.md#function-dp_detector2d_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -374,6 +395,13 @@ void dp_detector2d_reset (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL.
+
+
 ```C++
 >>> from doppler.spectral import CorrDetector2D
 >>> import numpy as np
@@ -435,6 +463,7 @@ Always resets (the carry, corr2d accumulator, last-dump bookkeeping), even if th
 
 ### function dp\_detector2d\_set\_state 
 
+_Restore a detector from a blob made by_ [_**dp\_detector2d\_get\_state()**_](detector2d__core_8h.md#function-dp_detector2d_get_state) _._
 ```C++
 int dp_detector2d_set_state (
     dp_detector2d_state_t * state,
@@ -444,6 +473,28 @@ int dp_detector2d_set_state (
 
 
 
+Clears the last-surface flag (out\_buf is not in the blob) and the consumed count.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL, created with the same configuration. 
+* `blob` Source blob of [**dp\_detector2d\_state\_bytes()**](detector2d__core_8h.md#function-dp_detector2d_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` for a header or child-blob mismatch (a child refused after the corr2d child was read leaves that child restored). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -480,6 +531,7 @@ void dp_detector2d_set_threshold (
 
 ### function dp\_detector2d\_state\_bytes 
 
+_Size in bytes of this detector's state blob._ 
 ```C++
 size_t dp_detector2d_state_bytes (
     const dp_detector2d_state_t * state
@@ -488,6 +540,24 @@ size_t dp_detector2d_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Header + corr2d and framer child blobs + 2 u64 + 3 f32. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -498,6 +568,7 @@ size_t dp_detector2d_state_bytes (
 
 ### define DETECTOR2D\_STATE\_MAGIC 
 
+_State-blob magic ('DET2'); set\_state() rejects any other._ 
 ```C++
 #define DETECTOR2D_STATE_MAGIC `DP_FOURCC ('D','E','T','2')`
 ```
@@ -511,6 +582,7 @@ size_t dp_detector2d_state_bytes (
 
 ### define DETECTOR2D\_STATE\_VERSION 
 
+_State-blob layout version (2; version-1 blobs are refused)._ 
 ```C++
 #define DETECTOR2D_STATE_VERSION `2u`
 ```
@@ -524,6 +596,7 @@ size_t dp_detector2d_state_bytes (
 
 ### define DET\_NOISE\_MODE\_T\_DEFINED 
 
+_Include guard: det\_noise\_mode\_t is defined once across the detector headers that share it._ 
 ```C++
 #define DET_NOISE_MODE_T_DEFINED 
 ```
@@ -537,7 +610,7 @@ size_t dp_detector2d_state_bytes (
 
 ### define DET\_PEAK\_T\_DEFINED 
 
-_One listed peak of a surface: a cell and its value, in the surface's own units (a magnitude on a coherent surface, a power on a non-coherent one). What det\_peak\_list() (_ [_**det\_private.h**_](det__private_8h.md) _) returns, and what the acquisition engine keeps per dwell._
+_Include guard:_ [_**det\_peak\_t**_](structdet__peak__t.md) _is defined once across headers._
 ```C++
 #define DET_PEAK_T_DEFINED 
 ```

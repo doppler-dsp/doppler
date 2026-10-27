@@ -112,6 +112,11 @@ double dp_tonemeas_state_t::beta;
 
 
 
+Kaiser shape auto-selected at create() from the dynamic-range target. 
+ 
+
+
+        
 
 <hr>
 
@@ -125,6 +130,11 @@ size_t dp_tonemeas_state_t::dc_guard;
 
 
 
+Extra bins excluded beyond L around DC, from create(). 
+ 
+
+
+        
 
 <hr>
 
@@ -156,6 +166,11 @@ unsigned char* dp_tonemeas_state_t::excl;
 
 
 
+Owned DC/fundamental/harmonic exclusion mask scratch, length nfft. 
+ 
+
+
+        
 
 <hr>
 
@@ -223,6 +238,11 @@ size_t dp_tonemeas_state_t::n_harm;
 
 
 
+Harmonics tracked (k = 2..n\_harm). 
+ 
+
+
+        
 
 <hr>
 
@@ -254,6 +274,11 @@ dp_psd_state_t* dp_tonemeas_state_t::psd;
 
 
 
+Owned averaging PSD core (window, FFT, frame mean, 0-dBFS reference). 
+ 
+
+
+        
 
 <hr>
 
@@ -267,6 +292,11 @@ float* dp_tonemeas_state_t::pwr;
 
 
 
+Owned power-spectrum scratch, length nfft; overwritten by every call. 
+ 
+
+
+        
 
 <hr>
 
@@ -280,6 +310,11 @@ size_t dp_tonemeas_state_t::spur_guard_bins;
 
 
 
+Fundamental keep-out half-width for the worst-spur search, bins (&gt;= L). 
+ 
+
+
+        
 
 <hr>
 

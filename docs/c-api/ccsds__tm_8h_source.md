@@ -45,9 +45,9 @@ extern "C"
 
   typedef struct
   {
-    uint32_t reg;
-    uint32_t taps;
-    unsigned stages;
+    uint32_t reg;    
+    uint32_t taps;   
+    unsigned stages; 
   } ccsds_tm_rand_state_t;
 
   int dp_ccsds_tm_rand_init (ccsds_tm_rand_state_t *s,

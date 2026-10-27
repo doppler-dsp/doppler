@@ -43,41 +43,10 @@ extern "C"
 {
 #endif
 
-  /* The pre-despread Costas's loop bandwidth (not a constructor parameter).
-   * The refine stage's frozen carrier never calls costas_update(), so its
-   * own bn/zeta are irrelevant -- only its tsamps and init_norm_freq matter.
-   *
-   * 0.04 is set by pull-in and dynamics, not jitter: the refined seed
-   * leaves a residual the loop must pull in, and tracking the specification's 500 Hz/s
-   * ramp with a per-period Type-II loop needs the bandwidth to keep the
-   * velocity lag (~ramp/omega_n^2) small. It rides the ramp with a clean
-   * despread constellation; about 0.03 is the least that works. The phase
-   * detector is |P|-normalized, so this is the true noise bandwidth, and
-   * the ~5 dB Es/N0 floor is still met.
-   *
-   * The pull-in range is measured: native/validation/costas_pullin.c sweeps
-   * it in multiples of the `bn/m` bound (`m = 2`, the squaring
-   * discriminator), its spot check on every push (CI's sweep job, `make
-   * test-sweep`). At bn = 0.04 over a 2046-sample code period the bound is
-   * 9.775e-6 cycles/sample, 60 Hz at the specification's 6.138 MHz front end; the loop
-   * acquires 100% inside it on both signs, is reliable to 2x and dead by 4x.
-   * The receiver's hand-off residual was measured at -54..+375 Hz, routinely
-   * 2-6x the bound (doppler#982): check the hand-off against the bound
-   * before widening bn.
-   *
-   * No FLL: the cross-product frequency discriminator is far too noisy on
-   * this loop's data-modulated input, and the squaring phase discriminator
-   * is immune to the transitions, so the plain PLL tracks the coupled
-   * Doppler. The FLL is not exposed at all. */
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
 #define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(chip_rate, code_len)                  \
   (ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))
-  /* The Dll's bn, per epoch whatever the steer rate (the symbol-period aid
-   * steers once per symbol and keeps bn per epoch): DsssReceiver's value,
-   * narrower than dp_dll_create()'s default 0.01 for noise immunity at the
-   * low-Es/N0 floor. */
 #define ASYNC_DSSS_RX_DLL_BN 0.002
-  /* The tracking Dll's early-late spacing, chips. */
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
   /* The damping of both Dlls this receiver builds, the tracker and the
    * refine collector, and the collector's early-late spacing, chips. Named
@@ -120,11 +89,6 @@ extern "C"
 #define ASYNC_DSSS_RX_LOCK_N_UP 30u
 #define ASYNC_DSSS_RX_LOCK_N_DOWN 15u
 
-/* The state machine's values (`state` below, also the first byte of a
- * serialized blob's extra record). Searching -> refining -> tracking, and
- * seed() puts a searching receiver at refining; lost is reached from tracking by the release rule and left
- * only by reset(). With reacquire the release skips lost and goes straight
- * back to searching. */
 /* SSOT: enum=async_dsss_rx_state */
 typedef enum
 {
@@ -134,7 +98,7 @@ typedef enum
   /* 3 was the deleted cell mode's idle. The values are persisted (a blob,
      a telemetry capture), so it stays reserved: no state reaches it, and a
      blob that names it is refused. */
-  ASYNC_DSSS_RX_RESERVED = 3,
+  ASYNC_DSSS_RX_RESERVED = 3, 
   ASYNC_DSSS_RX_LOST     = 4, 
 } async_dsss_rx_state_t;
 
@@ -144,10 +108,10 @@ typedef enum
     /* Refine stage: a frozen-carrier collection Dll feeding
      * CarrierAcquisition via a RateConverter. Rebuilt on every real
      * acquisition hit and on reset(); otherwise untouched. */
-    dp_costas_state_t         car_frozen;
-    dp_dll_state_t           *refine_dll;
-    dp_RateConverter_state_t *refine_rc;
-    dp_carrier_acq_state_t   *ca;
+    dp_costas_state_t         car_frozen; 
+    dp_dll_state_t           *refine_dll; 
+    dp_RateConverter_state_t *refine_rc;  
+    dp_carrier_acq_state_t   *ca;         
     size_t refine_segments; 
     uint64_t refine_samples_fed; 
     uint64_t refine_periods;     
@@ -155,65 +119,61 @@ typedef enum
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled
      * output (capacity refine_segments*refine_rc->rate + margin). */
-    float _Complex *refine_dll_out_buf;
-    size_t         refine_dll_out_cap;
-    float _Complex *refine_rc_out_buf;
-    size_t         refine_rc_out_cap;
-
+    float _Complex *refine_dll_out_buf; 
+    size_t         refine_dll_out_cap;  
+    float _Complex *refine_rc_out_buf;  
+    size_t         refine_rc_out_cap;   
     /* Track stage: DsssReceiver's own composition. dp_costas_init()'s tsamps is
      * one whole code period, and the pre-despread carrier loop updates once
      * per period from a non-data-aided (squaring) combine of that period's
      * coherent-I&D partials (see adr_track_period() in the .c file). */
-    dp_costas_state_t         car;
-    dp_dll_state_t           *dll;
-    dp_RateConverter_state_t *rc;
-    dp_mpsk_receiver_state_t *rx;
+    dp_costas_state_t         car; 
+    dp_dll_state_t           *dll; 
+    dp_RateConverter_state_t *rc;  
+    dp_mpsk_receiver_state_t *rx;  
     /* Scratch, not state -- sized at every track-chain (re)build and never
      * in the steps() hot path (#1192, docs/design/async-dsss-receiver.md
      * §11.5): the live
      * Dll's partials for ONE code period, then rc's resampled output for
      * it. The chain runs a period at a time, so both are fixed by tsamps
      * and rc->rate; they only ever grow. */
-    float _Complex *track_dll_out_buf;
-    size_t         track_dll_out_cap;
-    float _Complex *track_rc_out_buf;
-    size_t         track_rc_out_cap;
-
+    float _Complex *track_dll_out_buf; 
+    size_t         track_dll_out_cap;  
+    float _Complex *track_rc_out_buf;  
+    size_t         track_rc_out_cap;   
     /* Shared carrier-wipe scratch/carry -- refine and track stages never
      * run concurrently and both wipe in whole `tsamps`-sample periods, so
      * one buffer set serves either. */
     size_t         tsamps; 
-    float _Complex *car_wiped_buf;
-    float _Complex *car_carry_buf;
-    size_t         car_carry_len;
-
+    float _Complex *car_wiped_buf; 
+    float _Complex *car_carry_buf; 
+    size_t         car_carry_len;  
     /* Own copy of the spreading code (same rationale as DsssReceiver's
      * own copy -- neither dp_acq_create_continuous() nor dp_dll_create()'s
      * borrow-vs-copy semantics are part of their public contract). */
-    uint8_t *code;
-    size_t   code_len;
-
+    uint8_t *code;     
+    size_t   code_len; 
     /* Config carried across every chain rebuild. */
-    size_t spc;
-    int    m;
-    int    differential;
+    size_t spc;          
+    int    m;            
+    int    differential; 
     size_t segments; 
     size_t sps;      
     int    n;        
-    double chip_rate;
-    double symbol_rate;
+    double chip_rate;    
+    double symbol_rate;  
     double cn0_dbhz; 
     double pfa;      
     double pd;       
     /* Refine-stage tuning, fixed at construction (see each on
      * dp_async_dsss_receiver_create()). */
-    double refine_max_error_db;
-    size_t refine_samples_per_symbol;
-    double refine_design_margin_db;
-    size_t refine_n_fft;
-    size_t refine_zero_pad;
-    bool   refine_sequential;
-    size_t refine_max_n_blocks;
+    double refine_max_error_db;       
+    size_t refine_samples_per_symbol; 
+    double refine_design_margin_db;   
+    size_t refine_n_fft;              
+    size_t refine_zero_pad;           
+    bool   refine_sequential;         
+    size_t refine_max_n_blocks;       
     size_t refine_min_blocks; 
     double carrier_freq_hz; 
     int state; 
@@ -242,12 +202,11 @@ typedef enum
      * I^2+Q^2; lock_metric = lock_num/lock_den = cos(2*phi); sym_lockdet is
      * the hysteretic up/down declare. Reset when the track chain is (re)built
      * (fresh lock per pass). */
-    double          lock_num;
-    double          lock_den;
-    double          lock_metric;
+    double          lock_num;   
+    double          lock_den;   
+    double          lock_metric; 
     double          lock_alpha; 
-    dp_lockdet_state_t sym_lockdet;
-
+    dp_lockdet_state_t sym_lockdet; 
     /* Telemetry: the attach REQUEST, kept because every seed destroys and
      * rebuilds the tracking chain -- the loops it holds are re-attached
      * from here (dp_async_dsss_receiver_set_telemetry). Borrowed, and never
@@ -400,22 +359,22 @@ typedef enum
 
   typedef struct
   {
-    uint8_t  state;
+    uint8_t  state;        
     uint8_t  had_lock;     
     uint8_t  car_coasting; 
     uint8_t  _pad[5]; 
-    double   seed_chip_phase;
-    double   seed_doppler_hz_est;
-    double   doppler_hz_est;
-    double   cn0_dbhz_est;
-    uint64_t segments;
-    uint64_t sps;
-    uint64_t n;
-    uint64_t refine_segments;
-    uint64_t refine_samples_fed;
-    uint64_t car_carry_len;
-    uint64_t state_samples;
-    uint64_t both_down_samples;
+    double   seed_chip_phase;     
+    double   seed_doppler_hz_est; 
+    double   doppler_hz_est;      
+    double   cn0_dbhz_est;        
+    uint64_t segments;        
+    uint64_t sps;             
+    uint64_t n;               
+    uint64_t refine_segments; 
+    uint64_t refine_samples_fed; 
+    uint64_t car_carry_len;   
+    uint64_t state_samples;   
+    uint64_t both_down_samples; 
     double   lock_num;  
     double   lock_den;  
     double   lock_metric;         

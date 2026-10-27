@@ -58,7 +58,7 @@ _UQ15 (offset-binary uint16) to float converter._ [More...](#detailed-descriptio
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) \* | [**dp\_uq15\_to\_f32\_create**](#function-dp_uq15_to_f32_create) (float scale) <br>_Create a uq15\_to\_f32 instance._  |
+|  [**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) \* | [**dp\_uq15\_to\_f32\_create**](#function-dp_uq15_to_f32_create) (float scale) <br>_Create an offset-binary uint16 (UQ15) to float32 converter._  |
 |  void | [**dp\_uq15\_to\_f32\_destroy**](#function-dp_uq15_to_f32_destroy) ([**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) \* state) <br>_Destroy a uq15\_to\_f32 instance and release all memory._  |
 |  void | [**dp\_uq15\_to\_f32\_reset**](#function-dp_uq15_to_f32_reset) ([**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**dp\_uq15\_to\_f32\_step**](#function-dp_uq15_to_f32_step) (const [**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) \* state, uint16\_t x) <br>_Decode one offset-binary UQ15 uint16 code to a normalised float._  |
@@ -134,7 +134,7 @@ Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
 
 ### function dp\_uq15\_to\_f32\_create 
 
-_Create a uq15\_to\_f32 instance._ 
+_Create an offset-binary uint16 (UQ15) to float32 converter._ 
 ```C++
 dp_uq15_to_f32_state_t * dp_uq15_to_f32_create (
     float scale

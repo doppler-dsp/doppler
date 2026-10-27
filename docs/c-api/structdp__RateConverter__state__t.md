@@ -265,6 +265,10 @@ size_t dp_RateConverter_state_t::buf_cap;
 
 
 
+capacity of each bufs[] entry, samples; 0 until the first execute, then grown to the largest n\_in seen (never shrinks) 
+
+
+        
 
 <hr>
 

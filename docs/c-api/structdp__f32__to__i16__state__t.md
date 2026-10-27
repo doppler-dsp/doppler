@@ -105,6 +105,10 @@ uint8_t dp_f32_to_i16_state_t::clipped;
 
 
 
+Sticky: 1 once any sample has saturated, else 0. Written by step/steps; cleared by reset. 
+
+
+        
 
 <hr>
 
@@ -118,6 +122,10 @@ float dp_f32_to_i16_state_t::scale;
 
 
 
+Multiply factor applied before rounding and saturation; set at create, never changed. 
+
+
+        
 
 <hr>
 

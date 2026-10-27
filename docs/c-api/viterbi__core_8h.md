@@ -253,7 +253,25 @@ size_t dp_node_sync_scored_symbols (
 
 
 
-The head of a window is skipped: the decoder starts from its own all-zero prior, which is wrong whenever the window opens mid-capture, and the comparison encoder starts from a zero register while the transmitter's was mid-stream. A caller reading `errors / symbols` as a channel symbol error rate wants this denominator rather than the window length. 
+The head of a window is skipped: the decoder starts from its own all-zero prior, which is wrong whenever the window opens mid-capture, and the comparison encoder starts from a zero register while the transmitter's was mid-stream. A caller reading `errors / symbols` as a channel symbol error rate wants this denominator rather than the window length.
+
+
+
+
+**Parameters:**
+
+
+* `v` The decoder that will score (its code and depth are read). 
+* `n_llr` Window length in symbols. 
+
+
+
+**Returns:**
+
+`(bits decoded - depth) * n` for the whole-branch part of the window, or 0 when the window decodes no more than `depth` bits. 
+
+
+
 
 
         
@@ -273,6 +291,24 @@ const conv_code_t * dp_viterbi_code (
 
 
 
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Pointer to the decoder's own copy; valid until `s` is destroyed. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -317,15 +353,15 @@ dtype('uint8')
 
 * `poly` Generator polynomials, one per output. The array IS the code; `poly_len` gives `n`. 
 * `poly_len` Number of polynomials, 1 to `CONV_N_MAX`. 
-* `k` k (default: 7). 
-* `invert` invert (default: 0). 
-* `depth` depth (default: 35). 
+* `k` Constraint length, 2 to `CONV_K_MAX` (default: 7); every polynomial must fit in `k` bits and be non-zero. 
+* `invert` Bitmask over outputs: bit `j` set means output `j` is transmitted inverted (default: 0; CCSDS sets bit 1). 
+* `depth` Traceback depth in information bits, &gt;= 1 (default: 35). 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL for an invalid code (see [**dp\_conv\_code\_valid()**](conv__core_8h.md#function-dp_conv_code_valid)), `depth` 0, or allocation failure. 
 
 
 
@@ -495,6 +531,24 @@ size_t dp_viterbi_depth (
 
 
 
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The depth given at create. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -538,7 +592,18 @@ void dp_viterbi_get_state (
 
 
 
-The ring travels in its stored order with the cursor beside it rather than rotated into a canonical one — the rotation would cost a pass and buy nothing, since only [**dp\_viterbi\_set\_state**](viterbi__core_8h.md#function-dp_viterbi_set_state) reads it back. 
+The ring travels in its stored order with the cursor beside it rather than rotated into a canonical one — the rotation would cost a pass and buy nothing, since only [**dp\_viterbi\_set\_state**](viterbi__core_8h.md#function-dp_viterbi_set_state) reads it back.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `blob` Destination of [**dp\_viterbi\_state\_bytes()**](viterbi__core_8h.md#function-dp_viterbi_state_bytes) bytes. 
+
+
 
 
         
@@ -600,6 +665,14 @@ The code and the depth are configuration, restored by [**dp\_viterbi\_create**](
 
 
 
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+* `blob` Source blob from [**dp\_viterbi\_get\_state()**](viterbi__core_8h.md#function-dp_viterbi_get_state). 
+
+
+
 **Returns:**
 
 `DP_OK`, or `DP_ERR_INVALID` if the envelope, the code, the depth, or the ring cursor does not match this decoder — in which case `s` is untouched. 
@@ -625,7 +698,24 @@ size_t dp_viterbi_state_bytes (
 
 
 
-Depends on the configuration (`2^(k-1)` metrics and a `depth x 2^(k-1)` ring), so it is not a constant across decoders. 
+Depends on the configuration (`2^(k-1)` metrics and a `depth x 2^(k-1)` ring), so it is not a constant across decoders.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The blob size in bytes. 
+
+
+
 
 
         

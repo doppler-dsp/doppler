@@ -47,10 +47,6 @@ extern "C"
 #define ASYNC_DSSS_POOL_NO_RECEIVER (-1)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC   DP_FOURCC ('A', 'D', 'P', 'L')
-/* v4, not 3: 'ADPL' v3 was the cell-receiver pool this one replaced
- * (v0.48.0 - v0.73.0), and v0.74.0 shipped this pool as v2. Each version
- * of a magic names one layout, so this pool steps past every number the
- * magic has carried (#2569; scripts/check_state_versions.py). */
 #define ASYNC_DSSS_POOL_STATE_VERSION 4u
 
 #define ASYNC_DSSS_POOL_GHOST_WINDOW_S 0.2
@@ -68,7 +64,7 @@ extern "C"
     size_t sym_extra; 
     size_t         *n_sym;   
     const float _Complex *feed_x; 
-    size_t                feed_n;
+    size_t                feed_n; 
     size_t   period;             
     float _Complex *carry;       
     size_t          carry_len;   

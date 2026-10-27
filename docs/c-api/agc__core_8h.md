@@ -69,15 +69,15 @@ _Log-domain automatic gain control (AGC)._ [More...](#detailed-description)
 |  [**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* | [**dp\_agc\_create**](#function-dp_agc_create) (double ref\_db, double loop\_bw, double alpha) <br>_Construct a log-domain feedback AGC and return its heap state. The loop integrator starts at 0 dB (unity gain) and the power detector_ `p_avg` _is pre-seeded to_`10^` _(ref\_db/10) linear, so the first block of on-target samples produces no transient. Three parameters tune the closed-loop behaviour:_`ref_db` _sets the target,_`loop_bw` _sets the convergence speed, and_`alpha` _sets the detector smoothing._ |
 |  void | [**dp\_agc\_destroy**](#function-dp_agc_destroy) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state) <br>_Destroy an AGC instance and release all memory. Frees the heap-allocated_ `dp_agc_state_t` _. Safe to call with_`NULL` _. After this call the pointer is invalid; set it to_`NULL` _. The Python binding calls this automatically when the object is garbage- collected or when used as a context manager (_`with` _AGC() as agc:)._ |
 |  double | [**dp\_agc\_get\_applied\_gain\_db**](#function-dp_agc_get_applied_gain_db) (const [**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state) <br>_Return the gain (in dB) actually applied to the most recent sample. Computes_ `20*log10` _(g\_last), where_`g_last` _is the linear multiplier that was used on the most recently processed sample. This differs from_`gain_db` _(the loop integrator's current command) because the loop filter advances the command one step ahead after each sample: immediately after_[_**dp\_agc\_step()**_](agc__core_8h.md#function-dp_agc_step) __`gain_db` _already reflects the updated command while_`applied_gain_db` _still reflects what the signal actually saw. At loop convergence the two values are numerically equal. At create/reset both are 0.0 dB (unity)._ |
-|  void | [**dp\_agc\_get\_state**](#function-dp_agc_get_state) (const [**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, void \* blob) <br> |
-|  void | [**dp\_agc\_reset**](#function-dp_agc_reset) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state) <br>_Reset the AGC loop state to its post-create condition. Sets_ `gain_db` _back to 0 dB (unity), clears_`g_last` _, and re-seeds the power-detector EMA_`p_avg` _from the current_`ref_db` _so that the first post-reset block produces no transient. All configuration fields (_`ref_db` _,_`loop_bw` _,_`alpha` _,_`decim` _,_`clip_db` _) are left untouched. Use this to process a new, independent signal segment without re-allocating._ |
-|  int | [**dp\_agc\_set\_state**](#function-dp_agc_set_state) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, const void \* blob) <br> |
+|  void | [**dp\_agc\_get\_state**](#function-dp_agc_get_state) (const [**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, void \* blob) <br>_Serialize config and loop memory into a caller-owned blob; the telemetry attachment is written as zeros._  |
+|  void | [**dp\_agc\_reset**](#function-dp_agc_reset) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state) <br>_Reset the AGC loop state to its post-create condition. Sets_ `gain_db` _back to 0 dB,_`g_last` _to 1.0 (unity), restarts the update period, refreshes_`clip_lin` _, and re-seeds the power-detector EMA_`p_avg` _from the current_`ref_db` _so that the first post-reset block produces no transient. All configuration fields (_`ref_db` _,_`loop_bw` _,_`alpha` _,_`decim` _,_`clip_db` _) are left untouched. Use this to process a new, independent signal segment without re-allocating._ |
+|  int | [**dp\_agc\_set\_state**](#function-dp_agc_set_state) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, const void \* blob) <br>_Restore config and loop memory from a_ [_**dp\_agc\_get\_state()**_](agc__core_8h.md#function-dp_agc_get_state) _blob, keeping this instance's own telemetry attachment._ |
 |  int | [**dp\_agc\_set\_telemetry**](#function-dp_agc_set_telemetry) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the AGC's probes on it. Registers two probes, both recorded once per gain-update event and further thinned by decim:_  |
 |  size\_t | [**dp\_agc\_settling\_samples**](#function-dp_agc_settling_samples) (double loop\_bw, double alpha, double gain\_err\_db, double tol\_db) <br>_How many samples this loop needs to settle — the design query._  |
-|  size\_t | [**dp\_agc\_state\_bytes**](#function-dp_agc_state_bytes) (const [**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_agc\_state\_bytes**](#function-dp_agc_state_bytes) (const [**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state) <br>_Size of this instance's serialized state blob._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_agc\_step**](#function-dp_agc_step) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, float \_Complex x) <br>_Process one complex sample through the per-sample AGC loop. Applies the current gain, measures the output power via the EMA detector, advances the loop-filter integrator, then square-clips the returned sample to_ `clip_db` _. The clip is applied after the detector update, so clipping never disturbs convergence. With the default_`gain_update_period` _== 1 this is the exact per-sample reference path; with_`gain_update_period` _P &gt; 1 the detector and gain-apply still run every sample but the loop-filter command (and the exp10/log10 it needs) refreshes once per P samples — a zero-order hold on the gain that amortises the transcendentals on a sample-rate hot loop, the streaming analogue of_[_**dp\_agc\_steps()**_](agc__core_8h.md#function-dp_agc_steps) _' decimation._[_**dp\_agc\_steps()**_](agc__core_8h.md#function-dp_agc_steps) _is the faster block equivalent; neither is bit-identical to the P == 1 loop once decimated, but both converge to the same steady state._ |
 |  void | [**dp\_agc\_steps**](#function-dp_agc_steps) ([**dp\_agc\_state\_t**](structdp__agc__state__t.md) \* state, const float \_Complex \* input, float \_Complex \* output, size\_t n) <br>_Process a block of complex samples through the decimated AGC loop. Splits the input into chunks of_ `decim` _samples. Within each chunk the gain is linearly interpolated from the previous chunk's end value to the new loop-filter output (a first-order hold) so there is no inter-chunk gain staircase. The detector and loop filter run once per chunk on the chunk's mean power — O(n/decim) control-loop work versus O(n) for_[_**dp\_agc\_step()**_](agc__core_8h.md#function-dp_agc_step) _. The output array may alias the input (in-place)._ |
-|  size\_t | [**dp\_settling\_samples**](#function-dp_settling_samples) (double loop\_bw, double alpha, double gain\_err\_db, double tol\_db) <br> |
+|  size\_t | [**dp\_settling\_samples**](#function-dp_settling_samples) (double loop\_bw, double alpha, double gain\_err\_db, double tol\_db) <br>_Python-face name of_ [_**dp\_agc\_settling\_samples()**_](agc__core_8h.md#function-dp_agc_settling_samples) _: samples the AGC loop needs to settle (a one-call delegating shim)._ |
 
 
 
@@ -113,8 +113,8 @@ _Log-domain automatic gain control (AGC)._ [More...](#detailed-description)
 | define  | [**AGC\_DECIM\_DEFAULT**](agc__core_8h.md#define-agc_decim_default)  `8`<br>_Default envelope decimation factor (_ [_**dp\_agc\_state\_t::decim**_](structdp__agc__state__t.md#variable-decim) _)._ |
 | define  | [**AGC\_POWER\_CEIL**](agc__core_8h.md#define-agc_power_ceil)  `2.3158417847463238e77`<br>_Power ceiling for the detector, in linear units._  |
 | define  | [**AGC\_POWER\_FLOOR**](agc__core_8h.md#define-agc_power_floor)  `1e-30`<br>_Power floor for the detector, in linear units._  |
-| define  | [**AGC\_STATE\_MAGIC**](agc__core_8h.md#define-agc_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'G', 'C', ' ')`<br> |
-| define  | [**AGC\_STATE\_VERSION**](agc__core_8h.md#define-agc_state_version)  `3u /\* v3: telemetry attachment (zeroed in blob) \*/`<br> |
+| define  | [**AGC\_STATE\_MAGIC**](agc__core_8h.md#define-agc_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'G', 'C', ' ')`<br>_State-blob magic ("AGC "); set\_state() rejects any other._  |
+| define  | [**AGC\_STATE\_VERSION**](agc__core_8h.md#define-agc_state_version)  `3u /\* v3: telemetry attachment (zeroed in blob) \*/`<br>_State-blob layout version (3: adds the zeroed telemetry slot)._  |
 
 ## Detailed Description
 
@@ -259,7 +259,24 @@ Routes through 2^z = 2^floor(z) \* 2^frac with z = v\*log2(10): the integer part
 `z` is saturated into the range the exponent field can hold before it is used. Without that, assembling ``((int64\_t)zi + 1023) &lt;&lt; 52 overflows into the SIGN bit for `|v|` past ~308, and the function returns a **negative** result where the true answer is `+inf` or 0 — measured, `agc_exp10_(309)` gave `-3.09e-308` and `agc_exp10_`(-320) gave `-3.23e+296`. A gain function that returns a negative gain does not merely lose precision, it inverts the signal. Past the rails this now saturates at `2^±1023` instead.
 
 
-NaN takes the LOW rail, and the direction is the same one [**AGC\_POWER\_CEIL**](agc__core_8h.md#define-agc_power_ceil) uses: when the input is unknown, attenuate. A gain saturated low is silence; a gain saturated high rails everything downstream of it. 
+NaN takes the LOW rail, and the direction is the same one [**AGC\_POWER\_CEIL**](agc__core_8h.md#define-agc_power_ceil) uses: when the input is unknown, attenuate. A gain saturated low is silence; a gain saturated high rails everything downstream of it.
+
+
+
+
+**Parameters:**
+
+
+* `v` Exponent (any double, NaN included). 
+
+
+
+**Returns:**
+
+Approximately 10^v; never negative and always finite. The low rail (z &lt;= -1023, and NaN) assembles a zero exponent field, so it returns exactly 0.0; the high rail stays below 2^1024. 
+
+
+
 
 
         
@@ -290,7 +307,24 @@ Splits p = m \* 2^e via the IEEE-754 fields, takes log2(m) from the atanh series
 `p` is saturated into `[AGC_POWER_FLOOR, AGC_POWER_CEIL]` first. The bit-field split has no notion of a special value: handed a NaN it reads the exponent as an ordinary 1024 and returns a perfectly plausible `+308`, where libm's `log10` returns NaN. Measured on the unguarded version, that fabricated level was what turned a stalled AGC into a runaway one — the loop believed it was seeing `+3084` dB and drove the gain the other way, forever. A wrong answer that looks like a right one is worse than an infinity.
 
 
-The floor is why silence reads as about `-300` dB rather than `-INF`, so that promise is now structural rather than something each caller has to remember to add. 
+The floor is why silence reads as about `-300` dB rather than `-INF`, so that promise is now structural rather than something each caller has to remember to add.
+
+
+
+
+**Parameters:**
+
+
+* `p` Linear power (any double); NaN is treated as AGC\_POWER\_CEIL. 
+
+
+
+**Returns:**
+
+Approximately log10 of `p` after saturation into `[AGC_POWER_FLOOR, AGC_POWER_CEIL]`; always finite. 
+
+
+
 
 
         
@@ -310,7 +344,24 @@ JM_FORCEINLINE double agc_power_ (
 
 
 
-The power detector EMA, the dB loop filter and `agc_log10_` all work in double across the AGC's full (dB) dynamic range, so the squaring promotes the float components once. Defined here so [**dp\_agc\_step()**](agc__core_8h.md#function-dp_agc_step) — and any composing sample loop that accumulates AGC input power — measures power identically. 
+The power detector EMA, the dB loop filter and `agc_log10_` all work in double across the AGC's full (dB) dynamic range, so the squaring promotes the float components once. Defined here so [**dp\_agc\_step()**](agc__core_8h.md#function-dp_agc_step) — and any composing sample loop that accumulates AGC input power — measures power identically.
+
+
+
+
+**Parameters:**
+
+
+* `y` Complex sample (cf32). 
+
+
+
+**Returns:**
+
+\|y\|^2 = re^2 + im^2, computed in double. 
+
+
+
 
 
         
@@ -418,6 +469,13 @@ double dp_agc_get_applied_gain_db (
 
 
 
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
 **Returns:**
 
 Applied gain in dB; 0.0 at create / reset. 
@@ -446,6 +504,7 @@ Applied gain in dB; 0.0 at create / reset.
 
 ### function dp\_agc\_get\_state 
 
+_Serialize config and loop memory into a caller-owned blob; the telemetry attachment is written as zeros._ 
 ```C++
 void dp_agc_get_state (
     const dp_agc_state_t * state,
@@ -456,13 +515,25 @@ void dp_agc_get_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Instance to snapshot (non-NULL). 
+* `blob` Destination of at least [**dp\_agc\_state\_bytes()**](agc__core_8h.md#function-dp_agc_state_bytes) bytes. 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_agc\_reset 
 
-_Reset the AGC loop state to its post-create condition. Sets_ `gain_db` _back to 0 dB (unity), clears_`g_last` _, and re-seeds the power-detector EMA_`p_avg` _from the current_`ref_db` _so that the first post-reset block produces no transient. All configuration fields (_`ref_db` _,_`loop_bw` _,_`alpha` _,_`decim` _,_`clip_db` _) are left untouched. Use this to process a new, independent signal segment without re-allocating._
+_Reset the AGC loop state to its post-create condition. Sets_ `gain_db` _back to 0 dB,_`g_last` _to 1.0 (unity), restarts the update period, refreshes_`clip_lin` _, and re-seeds the power-detector EMA_`p_avg` _from the current_`ref_db` _so that the first post-reset block produces no transient. All configuration fields (_`ref_db` _,_`loop_bw` _,_`alpha` _,_`decim` _,_`clip_db` _) are left untouched. Use this to process a new, independent signal segment without re-allocating._
 ```C++
 void dp_agc_reset (
     dp_agc_state_t * state
@@ -501,6 +572,7 @@ void dp_agc_reset (
 
 ### function dp\_agc\_set\_state 
 
+_Restore config and loop memory from a_ [_**dp\_agc\_get\_state()**_](agc__core_8h.md#function-dp_agc_get_state) _blob, keeping this instance's own telemetry attachment._
 ```C++
 int dp_agc_set_state (
     dp_agc_state_t * state,
@@ -510,6 +582,25 @@ int dp_agc_set_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to overwrite (non-NULL). 
+* `blob` Blob of [**dp\_agc\_state\_bytes()**](agc__core_8h.md#function-dp_agc_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK on success; DP\_ERR\_INVALID (state untouched) when the magic, version, endianness or size does not match. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -661,6 +752,7 @@ Samples to settle (&gt;= 1), or 0 if the arguments are invalid or the loop does 
 
 ### function dp\_agc\_state\_bytes 
 
+_Size of this instance's serialized state blob._ 
 ```C++
 size_t dp_agc_state_bytes (
     const dp_agc_state_t * state
@@ -669,6 +761,24 @@ size_t dp_agc_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to size (non-NULL). 
+
+
+
+**Returns:**
+
+Bytes: the [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) envelope plus the whole state struct. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -774,6 +884,7 @@ void dp_agc_steps (
 
 ### function dp\_settling\_samples 
 
+_Python-face name of_ [_**dp\_agc\_settling\_samples()**_](agc__core_8h.md#function-dp_agc_settling_samples) _: samples the AGC loop needs to settle (a one-call delegating shim)._
 ```C++
 size_t dp_settling_samples (
     double loop_bw,
@@ -785,6 +896,27 @@ size_t dp_settling_samples (
 
 
 
+
+
+**Parameters:**
+
+
+* `loop_bw` Loop noise bandwidth, cycles/sample. 
+* `alpha` Detector EMA coefficient, (0, 1]. 
+* `gain_err_db` Starting gain error, dB; POSITIVE for a quiet input (the slow direction). 
+* `tol_db` Settled means within this many dB of the target. 
+
+
+
+**Returns:**
+
+Samples to settle (&gt;= 1), or 0 if the arguments are invalid or the loop does not settle within a bounded search. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -893,6 +1025,7 @@ the reference power at create/reset", which is true of the seed and says nothing
 
 ### define AGC\_STATE\_MAGIC 
 
+_State-blob magic ("AGC "); set\_state() rejects any other._ 
 ```C++
 #define AGC_STATE_MAGIC `DP_FOURCC ('A', 'G', 'C', ' ')`
 ```
@@ -906,6 +1039,7 @@ the reference power at create/reset", which is true of the seed and says nothing
 
 ### define AGC\_STATE\_VERSION 
 
+_State-blob layout version (3: adds the zeroed telemetry slot)._ 
 ```C++
 #define AGC_STATE_VERSION `3u /* v3: telemetry attachment (zeroed in blob) */`
 ```

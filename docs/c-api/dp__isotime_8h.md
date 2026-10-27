@@ -59,7 +59,7 @@ _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for nam
 | Type | Name |
 | ---: | :--- |
 |  int64\_t | [**dp\_isotime\_days\_from\_civil\_**](#function-dp_isotime_days_from_civil_) (int64\_t y, unsigned m, unsigned d) <br>_Days since 1970-01-01 for a proleptic-Gregorian civil date._  |
-|  int | [**dp\_isotime\_digits\_**](#function-dp_isotime_digits_) (const char \*\* p, int n, int \* out) <br>_Reads_ `n` _decimal digits, advancing_`p` _. 0 on success._ |
+|  int | [**dp\_isotime\_digits\_**](#function-dp_isotime_digits_) (const char \*\* p, int n, int \* out) <br>_Reads_ `n` _decimal digits, advancing_`p` _._ |
 |  int | [**dp\_isotime\_format**](#function-dp_isotime_format) (char \* buf, size\_t cap, int64\_t sec, uint32\_t nsec, unsigned frac) <br> |
 |  int | [**dp\_isotime\_format\_as**](#function-dp_isotime_format_as) (char \* buf, size\_t cap, int64\_t sec, uint32\_t nsec, unsigned frac, int style) <br> |
 |  int | [**dp\_isotime\_now**](#function-dp_isotime_now) (char \* buf, size\_t cap, unsigned frac) <br> |
@@ -147,7 +147,26 @@ static inline int64_t dp_isotime_days_from_civil_ (
 
 
 
-Howard Hinnant's `days_from_civil`, which is exact for every date and needs no timezone database. Written out rather than reached through `timegm`: that function is neither C nor POSIX, and the one thing this parser must never do is consult the ambient `TZ`. 
+Howard Hinnant's `days_from_civil`, which is exact for every date and needs no timezone database. Written out rather than reached through `timegm`: that function is neither C nor POSIX, and the one thing this parser must never do is consult the ambient `TZ`.
+
+
+
+
+**Parameters:**
+
+
+* `y` Year (proleptic Gregorian; may be zero or negative). 
+* `m` Month, 1..12. 
+* `d` Day of month, 1..31 (not checked against the month's length; an overflowing day rolls into the next month). 
+
+
+
+**Returns:**
+
+Days since 1970-01-01 (negative before it). 
+
+
+
 
 
         
@@ -158,7 +177,7 @@ Howard Hinnant's `days_from_civil`, which is exact for every date and needs no t
 
 ### function dp\_isotime\_digits\_ 
 
-_Reads_ `n` _decimal digits, advancing_`p` _. 0 on success._
+_Reads_ `n` _decimal digits, advancing_`p` _._
 ```C++
 static inline int dp_isotime_digits_ (
     const char ** p,
@@ -169,6 +188,26 @@ static inline int dp_isotime_digits_ (
 
 
 
+
+
+**Parameters:**
+
+
+* `p` In/out cursor; advanced past the digits only on success. 
+* `n` Number of digits to read (no sign, no whitespace). 
+* `out` Receives the decimal value on success. 
+
+
+
+**Returns:**
+
+0 on success, -1 if any of the `n` characters is not a digit. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -255,7 +294,7 @@ Format one instant as a UTC timestamp in either separator style.
 
 **Returns:**
 
-Characters written (excluding the NUL), or -1 if `frac` is not one of the four, `style` is neither, `nsec` is out of range, `buf` is too small, or the instant is not representable as a UTC calendar time. 
+Characters written (excluding the NUL), or -1 if `buf` is NULL, `frac` is not one of the four, `style` is neither, `nsec` is out of range, `buf` is too small, or the instant is not representable as a UTC calendar time. 
 
 
 
@@ -282,7 +321,7 @@ static inline int dp_isotime_now (
 Format the current wall clock, the way a capture filename wants it.
 
 
-Reads `CLOCK_REALTIME` directly: no `PATH` lookup, no subprocess, and the nanoseconds arrive already split from the seconds.
+Reads `CLOCK_REALTIME` directly (`timespec_get(TIME_UTC)` on Windows): no `PATH` lookup, no subprocess, and the nanoseconds arrive already split from the seconds.
 
 
 
@@ -323,7 +362,7 @@ static inline int dp_isotime_parse (
 
 
 
-Accepts both spellings this file writes — extended (`2026-08-05T04:15:30.123456Z`) and basic (`20260805T041530Z`) — with an optional fraction of one to nine digits, and either `Z` or an explicit `+hh:mm` / `-hhmm` offset, which is applied.
+Accepts both spellings this file writes — extended (`2026-08-05T04:15:30.123456Z`) and basic (`20260805T041530Z`) — with an optional fraction (`.` or `,`, one or more digits; digits past the ninth are truncated), and either `Z` or an explicit `+hh:mm` / `-hhmm` / `+hh` offset, which is applied. The day is range-checked only to 1..31, not against the month, so `02-31` rolls into March.
 
 
 **A timestamp with NO zone is REFUSED.** It is the one input where guessing costs hours rather than nothing: read as UTC, a local-time stamp dates a capture wrong and looks authoritative doing it. A caller that cannot parse a start time has ways to say so (the reader reports WFM\_T0\_NONE); a caller holding a wrong one does not.
@@ -380,6 +419,14 @@ Howard Hinnant's `civil_from_days`  the inverse of the `dp_isotime_days_from_civ
 
 
 
+**Parameters:**
+
+
+* `sec` Seconds since the UNIX epoch (UTC); may be negative. 
+* `out` Receives the broken-down UTC time (`tm_isdst` = 0). 
+
+
+
 **Returns:**
 
 0, or -1 when the year does not fit `tm_year`. 
@@ -404,6 +451,10 @@ static inline int dp_isotime_wall (
 
 
 
+Read `CLOCK_REALTIME` into `ts`; 0 on success, -1 on failure. 
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -471,6 +522,10 @@ Bytes needed for the longest form (nanoseconds) plus the NUL.
 
 
 
+Three fractional digits: milliseconds (`-m`), truncated. 
+
+
+        
 
 <hr>
 
@@ -484,6 +539,10 @@ Bytes needed for the longest form (nanoseconds) plus the NUL.
 
 
 
+Nine fractional digits: nanoseconds (`-n`), the full resolution. 
+
+
+        
 
 <hr>
 
@@ -497,7 +556,7 @@ Bytes needed for the longest form (nanoseconds) plus the NUL.
 
 
 
-Fractional digits `iso-8601-basic` offers: none, `-m`, `-u`, `-n`. 
+Fractional digits `iso-8601-basic` offers: none, `-m`, `-u`, `-n`. This one is none: whole seconds, no fraction field. 
 
 
         
@@ -514,6 +573,10 @@ Fractional digits `iso-8601-basic` offers: none, `-m`, `-u`, `-n`.
 
 
 
+Six fractional digits: microseconds (`-u`), truncated. 
+
+
+        
 
 <hr>
 

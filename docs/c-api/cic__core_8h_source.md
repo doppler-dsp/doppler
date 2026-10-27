@@ -25,14 +25,14 @@ extern "C" {
 #define CIC_R_MAX 2048u
 
 typedef struct {
-    uint64_t integ_re[CIC_N]; /* integrator accumulators, real path    */
-    uint64_t integ_im[CIC_N]; /* integrator accumulators, imag path    */
-    uint64_t comb_re[CIC_N];  /* previous comb input per stage, real   */
-    uint64_t comb_im[CIC_N];  /* previous comb input per stage, imag   */
-    uint32_t R;               /* decimation ratio (power of two)       */
-    uint32_t phase;           /* input sample counter 0..R-1           */
-    uint32_t shift;           /* CIC_N * log2(R) — right-shift to norm */
-    uint8_t  clipped;         /* sticky: input exceeded +-2.0          */
+    uint64_t integ_re[CIC_N]; 
+    uint64_t integ_im[CIC_N]; 
+    uint64_t comb_re[CIC_N];  
+    uint64_t comb_im[CIC_N];  
+    uint32_t R;               
+    uint32_t phase;           
+    uint32_t shift;           
+    uint8_t  clipped;         
 } dp_cic_state_t;
 
 dp_cic_state_t *dp_cic_create(uint32_t R);

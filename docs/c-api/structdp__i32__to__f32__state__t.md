@@ -101,6 +101,10 @@ float dp_i32_to_f32_state_t::iscale;
 
 
 
+Config: 1.0f / scale, set once by create so step is a single multiply. 
+
+
+        
 
 <hr>
 

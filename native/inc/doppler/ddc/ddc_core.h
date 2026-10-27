@@ -584,7 +584,7 @@ size_t dp_ddc_execute_max_out(dp_ddc_state_t *state, size_t x_len);
   size_t dp_ddc_state_bytes (const dp_ddc_state_t *state);
   /** @brief Serialize @p state's LO + RateConverter state into @p blob.
    *  @param state  Must be non-NULL; not modified.
-   *  @param blob   [out] Caller-owned buffer of at least
+   *  @param[out] blob   Caller-owned buffer of at least
    *                dp_ddc_state_bytes() bytes. */
   void dp_ddc_get_state (const dp_ddc_state_t *state, void *blob);
   /** @brief Restore LO + RateConverter state from @p blob.
@@ -603,11 +603,11 @@ size_t dp_ddc_execute_max_out(dp_ddc_state_t *state, size_t x_len);
    *  @param state      Must be non-NULL; the working instance.
    *  @param state_in   Blob to restore first, or NULL to keep the current
    *                    state.
-   *  @param state_out  [out] Buffer of dp_ddc_state_bytes() bytes that
+   *  @param[out] state_out  Buffer of dp_ddc_state_bytes() bytes that
    *                    receives the post-run state, or NULL to discard it.
    *  @param in         CF32 input block.
    *  @param n_in       Number of input samples.
-   *  @param out        [out] CF32 output buffer.
+   *  @param[out] out        CF32 output buffer.
    *  @param max_out    Capacity of @p out in samples.
    *  @return Number of output samples written; 0 (and nothing run) when
    *          @p state_in is rejected by dp_ddc_set_state(). */

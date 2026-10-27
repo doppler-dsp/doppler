@@ -32,7 +32,7 @@ typedef struct
 {
   uint8_t *marker; 
   /*<<property_struct_fields>>*/
-  size_t nbits;
+  size_t nbits; 
 } dp_syncword_state_t;
 
 dp_syncword_state_t *dp_syncword_create (const uint8_t *marker, size_t marker_len);

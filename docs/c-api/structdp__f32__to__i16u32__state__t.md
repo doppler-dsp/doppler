@@ -105,6 +105,10 @@ uint8_t dp_f32_to_i16u32_state_t::clipped;
 
 
 
+Sticky: 1 once any sample has been saturated, 0 otherwise; written by step/steps, cleared by reset (running state) 
+
+
+        
 
 <hr>
 
@@ -118,6 +122,10 @@ float dp_f32_to_i16u32_state_t::scale;
 
 
 
+Multiply factor applied before saturation; set by create (&gt; 0) and never changed after 
+
+
+        
 
 <hr>
 

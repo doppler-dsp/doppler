@@ -50,7 +50,7 @@ extern "C"
   /**
    * @brief Allocate a real-to-complex halfband decimator.
    *
-   * The coefficients are copied and stored as h[k] * (-1)^k * 0.5 (the
+   * The coefficients are copied and stored as `h[k] * (-1)^k * 0.5` (the
    * fs/4 modulation baked into the taps).  As in hbdecim_core.h, only
    * the first num_taps/2 are read, so the branch must be symmetric.
    *
@@ -107,7 +107,7 @@ extern "C"
    * @param r        Must be non-NULL.
    * @param in       Real input samples.
    * @param num_in   Number of input samples.
-   * @param out      [out] CF32 output buffer.
+   * @param[out] out      CF32 output buffer.
    * @param max_out  Capacity of @p out in samples.
    * @return Number of output samples written:
    *         min((num_in + held) / 2, max_out), where held is 1 when a
@@ -139,7 +139,7 @@ extern "C"
   /**
    * @brief Serialize @p r's mutable state into @p blob.
    * @param r     State.  Must be non-NULL.  Not modified.
-   * @param blob  [out] Caller-owned buffer of at least
+   * @param[out] blob  Caller-owned buffer of at least
    *              dp_hbdecim_r2c_state_bytes(r) bytes.
    */
   void dp_hbdecim_r2c_get_state (const hbdecim_r2c_state_t *r, void *blob);

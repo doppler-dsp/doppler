@@ -20,9 +20,6 @@ extern "C"
 {
 #endif
 
-  /* Maximum window length. The delay ring is a fixed in-struct array so the
-   * state stays pointer-free POD (embed-by-value + whole-struct
-   * serialization); a longer window is rejected at create/init time. */
 #define BOXCAR_MAX_LEN 64
 
   typedef struct

@@ -7,7 +7,7 @@ Here is a list of all files with brief descriptions:
 * **dir** [**native**](dir_3dbb10954ed03e2c7eb007b10aa2d80b.md)     
     * **dir** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md)     
         * **dir** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md)     
-            * **file** [**clib\_common.h**](clib__common_8h.md)     
+            * **file** [**clib\_common.h**](clib__common_8h.md) _Common C99 types and performance macros for doppler._     
             * **file** [**doppler.h**](doppler_8h.md) 
             * **file** [**dp\_complex.h**](dp__complex_8h.md) _The complex-math surface, routed so it survives Windows._ 
             * **file** [**dp\_crc16.h**](dp__crc16_8h.md) _CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._     
@@ -15,13 +15,13 @@ Here is a list of all files with brief descriptions:
             * **file** [**dp\_hash64.h**](dp__hash64_8h.md) _FNV-1a 64 over bytes, incrementally: the one content hash in doppler._     
             * **file** [**dp\_interleave.h**](dp__interleave_8h.md) _Block interleaving — the permutation, and nothing else._     
             * **file** [**dp\_interrupt.h**](dp__interrupt_8h.md) _Asking a blocking wait to stop, whatever it is waiting on._     
-            * **file** [**dp\_interrupt\_pyadopt.h**](dp__interrupt__pyadopt_8h.md)     
+            * **file** [**dp\_interrupt\_pyadopt.h**](dp__interrupt__pyadopt_8h.md) _The process-global interrupt rendezvous, for a hand-written (_ `no_generate` _) CPython binding._    
             * **file** [**dp\_isotime.h**](dp__isotime_8h.md) _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for names doppler writes,_**extended** _for the wire formats that mandate it._    
             * **file** [**dp\_once.h**](dp__once_8h.md) _Run a function exactly once, however many threads ask at once._     
-            * **file** [**dp\_parallel.h**](dp__parallel_8h.md)     
+            * **file** [**dp\_parallel.h**](dp__parallel_8h.md) _A minimal bounded parallel-for over an index range, and a persistent pool with the same contract._     
             * **file** [**dp\_simd.h**](dp__simd_8h.md) _doppler's own composite SIMD reductions, layered over_ `jm_simd.h` _._    
-            * **file** [**dp\_state.h**](dp__state_8h.md)     
-            * **file** [**dp\_state\_pyhelp.h**](dp__state__pyhelp_8h.md)     
+            * **file** [**dp\_state.h**](dp__state_8h.md) _The standard state_ **bytes interface** _for doppler._    
+            * **file** [**dp\_state\_pyhelp.h**](dp__state__pyhelp_8h.md) _The state bytes interface for hand-written (no\_generate) CPython bindings._     
             * **file** [**dp\_syncword.h**](dp__syncword_8h.md) _Finding a known bit pattern in an unpacked bit stream — the sync word search, and the arithmetic for choosing its threshold._     
             * **file** [**dp\_thread.h**](dp__thread_8h.md) _The threading primitives doppler uses, with one platform split._     
             * **file** [**jm\_perf.h**](jm__perf_8h.md)     
@@ -33,9 +33,9 @@ Here is a list of all files with brief descriptions:
             * **dir** [**Resampler**](dir_9b0990bb8296ade48d8f038050fb64f1.md)     
                 * **file** [**Resampler\_core.h**](Resampler__core_8h.md) _Continuously-variable polyphase resampler, CF32 IQ._     
             * **dir** [**acc\_cf64**](dir_d950eea1844c6f23a7b4df3cf640e9a2.md)     
-                * **file** [**acc\_cf64\_core.h**](acc__cf64__core_8h.md) _AccCf64 component API._     
+                * **file** [**acc\_cf64\_core.h**](acc__cf64__core_8h.md) _AccCf64: a double-precision complex running-sum accumulator._     
             * **dir** [**acc\_f32**](dir_c19b9e056cbdf00f39bf52805b44beb0.md)     
-                * **file** [**acc\_f32\_core.h**](acc__f32__core_8h.md) _AccF32 component API._     
+                * **file** [**acc\_f32\_core.h**](acc__f32__core_8h.md) _AccF32: single-precision scalar running-sum accumulator._     
             * **dir** [**acc\_q15**](dir_2344cd9a4aadb833503124e5257faf5b.md)     
                 * **file** [**acc\_q15\_core.h**](acc__q15__core_8h.md) _AccQ15 — a running 64-bit integer accumulator for Q15 (int16\_t) samples. Internally sums each sample into a 64-bit accumulator, which prevents overflow even for very long block lengths. Use get() to read the running total non-destructively, or dump() to read-and-reset in one call._     
             * **dir** [**acc\_q8**](dir_ea0f50795da7b2248dba00cbaac7e694.md)     
@@ -113,7 +113,7 @@ Here is a list of all files with brief descriptions:
             * **dir** [**ddcr**](dir_18bb1adfae8df578c1da0090bbf10ccf.md)     
                 * **file** [**ddcr\_core.h**](ddcr__core_8h.md) _Real-input Digital Down-Converter — halfband R2C + LO + cascade._     
             * **dir** [**delay**](dir_e9520af345bba2408e131802acc7e37b.md)     
-                * **file** [**delay\_core.h**](delay__core_8h.md) _Delay component API._     
+                * **file** [**delay\_core.h**](delay__core_8h.md) _Complex-double (cf64) delay line on a mirrored power-of-two ring._     
             * **dir** [**despreader**](dir_0568e7ebbbbb935946ff07943e2ec07c.md)     
                 * **file** [**despreader\_core.h**](despreader__core_8h.md) _Continuous DSSS despreader — Costas carrier loop + DLL code loop._     
             * **dir** [**detection**](dir_c7528e0bd68524c48f260a564c045102.md)     
@@ -130,7 +130,7 @@ Here is a list of all files with brief descriptions:
             * **dir** [**dp\_event\_log**](dir_3dd394e4a68853f038b67a354736a79d.md)     
                 * **file** [**dp\_event\_log\_core.h**](dp__event__log__core_8h.md) _A run's events as SigMF annotations: appended live, finalized at close._     
             * **dir** [**dp\_interrupt\_guard**](dir_069c076bf5cb5bab676dd02f8ef44735.md)     
-                * **file** [**dp\_interrupt\_guard\_core.h**](dp__interrupt__guard__core_8h.md)     
+                * **file** [**dp\_interrupt\_guard\_core.h**](dp__interrupt__guard__core_8h.md) _The object face of the interrupt facility._     
                 * **file** [**dp\_interrupt\_guard\_procglobal.h**](dp__interrupt__guard__procglobal_8h.md)     
             * **dir** [**dp\_tlm**](dir_6b0129a28aff69bb09c5c8857f722994.md)     
                 * **file** [**dp\_tlm\_core.h**](dp__tlm__core_8h.md) _Lightweight scalar telemetry taps for running DSP objects._     
@@ -257,7 +257,7 @@ Here is a list of all files with brief descriptions:
             * **dir** [**telemetry**](dir_d30f8ea704930bef6ef378fb8c932c43.md)     
                 * **file** [**telemetry\_core.h**](telemetry__core_8h.md) _Telemetry module — public C API._ 
             * **dir** [**timing**](dir_f312c7d1315f2596c2b71ef05d5d7b2b.md)     
-                * **file** [**timing\_core.h**](timing__core_8h.md)     
+                * **file** [**timing\_core.h**](timing__core_8h.md) _Sample-clock pacing + timestamping._     
             * **dir** [**tonemeas**](dir_e0665d68cb2c2ff7feb28506d37a8bd1.md)     
                 * **file** [**tonemeas\_core.h**](tonemeas__core_8h.md) _ToneMeasure — single-tone ADC/converter spectral measurement._     
             * **dir** [**track**](dir_f98cb3fb09d38460dfcf46a77aa842c0.md)     
@@ -274,17 +274,17 @@ Here is a list of all files with brief descriptions:
                 * **file** [**wfm\_compose.h**](wfm__compose_8h.md) _Multi-segment waveform composer (Phase B)._     
                 * **file** [**wfm\_core.h**](wfm__core_8h.md) _Wfmgen module — public C API._     
                 * **file** [**wfm\_data.h**](wfm__data_8h.md) _A frame's data source: where a_ `data:LEN` _payload's bits come from._    
-                * **file** [**wfm\_defaults.h**](wfm__defaults_8h.md)     
+                * **file** [**wfm\_defaults.h**](wfm__defaults_8h.md) _The non-zero field defaults of_ [_**wfm\_source\_t**_](structwfm__source__t.md) _and_[_**wfm\_segment\_t**_](structwfm__segment__t.md) _, as designated initializers._    
                 * **file** [**wfm\_dsp.h**](wfm__dsp_8h.md) _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._     
                 * **file** [**wfm\_frame.h**](wfm__frame_8h.md) _A frame's BIT layout, described once and read from both ends._     
                 * **file** [**wfm\_keywords.h**](wfm__keywords_8h.md) _BLUE extended-header keywords — the X-Midas binary tag/value codec._     
-                * **file** [**wfm\_names.h**](wfm__names_8h.md)     
+                * **file** [**wfm\_names.h**](wfm__names_8h.md) _The one C home for the waveform enum name tables._     
                 * **file** [**wfm\_path.h**](wfm__path_8h.md) _Sibling-path construction shared by the wfm reader and writer._     
-                * **file** [**wfm\_plan.h**](wfm__plan_8h.md)     
+                * **file** [**wfm\_plan.h**](wfm__plan_8h.md) _"Prepare once, materialize many" stimulus engine._     
                 * **file** [**wfm\_sink.h**](wfm__sink_8h.md) _NATS PUB sink for generated IQ (Phase B)._     
-                * **file** [**wfm\_surface.h**](wfm__surface_8h.md)     
-                * **file** [**wfm\_time.h**](wfm__time_8h.md)     
-                * **file** [**wfmgen.h**](wfmgen_8h.md)     
+                * **file** [**wfm\_surface.h**](wfm__surface_8h.md) _The wfm field surface table: every source and segment field a non-Python face reads or writes by name._     
+                * **file** [**wfm\_time.h**](wfm__time_8h.md) _The one BLUE timecode &lt;-&gt; UNIX epoch conversion._     
+                * **file** [**wfmgen.h**](wfmgen_8h.md) _The wfmgen composer CLI, exposed as a plain callable._     
             * **dir** [**wfm\_compose**](dir_6d794a7fa9423fe9f7b14be42b83e035.md)     
                 * **file** [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md)     
             * **dir** [**wfm\_reader**](dir_f352698a51aeb04a6ff33c180c5d8d41.md)     

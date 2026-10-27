@@ -163,10 +163,29 @@ ber_interval_t dp_ber_confidence (
 
 
 
-Both quantiles come from doppler's own inverse regularized incomplete gamma rather than a second copy of one: `det_threshold_noncoherent(q, r)` returns the `b` with `marcum_q(r, 0, b) = q`, and `marcum_q(r, 0, b) = Q(r, b^2/2)`, so `chi2_q(2r)/2 = 0.5 * det_threshold_noncoherent(1-q, r)^2`. At `r = 1` that reduces to the closed form and the interval is `[-ln(1-a/2)/N, -ln(a/2)/N]` — no normal approximation anywhere, so it stays honest at the small error counts where a Wald interval is worst.
+Both quantiles come from doppler's own inverse regularized incomplete gamma rather than a second copy of one: `det_threshold_noncoherent(q, r)` returns the `b` with `marcum_q(r, 0, b) = q`, and `marcum_q(r, 0, b) = Q(r, b^2/2)`, so `chi2_q(2r)/2 = 0.5 * det_threshold_noncoherent(1-q, r)^2`. At `r = 1` that reduces to the closed form and the interval is `[-ln(1-a/2)/N, -ln(a/2)/N]` — no normal approximation anywhere, so it stays honest at the small error counts where a Wald interval is worst. Verified bit-identical to SciPy's `chi2.ppf` at r = 1, 2, 20, 200 and 1000.
 
 
-With `r = 0` there is no point estimate, but the exact one-sided upper limit `-ln(alpha)/N` still holds and is returned — the honest way to report "no errors in N symbols". 
+With `r = 0` there is no point estimate, but the exact one-sided upper limit `-ln(alpha)/N` still holds and is returned — the honest way to report "no errors in N symbols".
+
+
+
+
+**Parameters:**
+
+
+* `errors` Errors counted, r. 
+* `symbols` Trials counted, N (symbols, or bits for a BER). 
+* `conf` Two-sided confidence level in (0, 1); anything else selects [**BER\_CONF**](ber__core_8h.md#define-ber_conf) (0.99). 
+
+
+
+**Returns:**
+
+The interval. `p_hat` is `(r-1)/(N-1)` for r &gt;= 2 and the naive `r/N` at r = 1; at r = 0 it is 0 with `lo` 0 and `hi` the one-sided limit; with N = 0 it is NAN, `lo` 0 and `hi`/`rel` infinite. `rel` is `1/sqrt(r)` (infinite at r = 0). 
+
+
+
 
 
         
@@ -192,6 +211,14 @@ How an implementation loss is quoted honestly: convert the MEASURED rate to the 
 
 Bisects [**dp\_ber\_theory\_ser()**](ber__core_8h.md#function-dp_ber_theory_ser), which is monotone decreasing, over -10 to 40 dB. The endpoints are in-bracket: a rate equal to the bound at either end returns that end.
 
+
+
+
+**Parameters:**
+
+
+* `m` Constellation order: 2, 4 or 8. 
+* `ser` Measured symbol error rate, in (0, 1). 
 
 
 
@@ -232,6 +259,17 @@ Scores each symbol against the stream's OWN hard decision, with the constellatio
 
 The window is EXPLICIT because BER and EVM must be measured on the SAME one. A convenience "back half" default silently scores a different window than the error rate did, and the two eventually disagree in a way that reads as a receiver defect rather than the harness bug it is.
 
+
+
+
+**Parameters:**
+
+
+* `rx` Symbol-rate complex samples (matched-filter output). NULL gives 0.0. 
+* `rx_len` Number of samples in `rx`. 
+* `lo` First symbol of the window (inclusive). 
+* `hi` One past the last symbol; clamped to `rx_len`. 
+* `m` Constellation order the stream carries (2, 4, 8, ...). 
 
 
 
@@ -311,6 +349,13 @@ The FLOOR of a self-referenced EVM: what a completely destroyed constant-modulus
 
 
 
+**Parameters:**
+
+
+* `m` Constellation order; any M &gt;= 2. 
+
+
+
 **Returns:**
 
 The floor in dB, or NAN for M &lt; 2, which is no constellation. 
@@ -344,6 +389,16 @@ int dp_ber_lock_symbol (
 
 
 
+**Parameters:**
+
+
+* `flags` Per-symbol lock flags, nonzero = locked; NULL gives -1. 
+* `flags_len` Number of entries in `flags`. 
+* `sustain` Consecutive locked symbols required; 0 selects 200. 
+* `min_frac` Fraction of the remaining record that must be locked, in (0, 1]; a value &lt;= 0 (or NaN) selects 0.9. 
+
+
+
 **Returns:**
 
 The symbol index, or -1 for "never locked" — the honest answer, which forces the caller to say so rather than measure a transient. 
@@ -369,6 +424,24 @@ double dp_ber_qfunc (
 
 
 
+
+
+**Parameters:**
+
+
+* `x` Threshold in standard deviations; any real value. 
+
+
+
+**Returns:**
+
+`0.5 * erfc(x / sqrt(2))`, between 0 and 1. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -436,7 +509,25 @@ size_t dp_ber_settle_syms (
 `2 * (5/bn_timing + 5/bn_carrier)`. Three factors, and skipping any of them produces a confident wrong number: 5/Bn per loop is the standard second-order settling time (in symbols, because both `bn` are normalised to the SYMBOL rate); the two budgets ADD because the loops are CASCADED (the carrier discriminator reads the on-time strobe, so it cannot converge until timing has); and the sum DOUBLES for joint tracking, where each loop sees the other's transient as a disturbance.
 
 
-This is a floor, not the answer — take the max of it and every lock indicator the receiver publishes, plus the handover instant again if one is enabled. Pass a loop's `bn` as 0 if it is not running. 
+This is a floor, not the answer — take the max of it and every lock indicator the receiver publishes, plus the handover instant again if one is enabled. Pass a loop's `bn` as 0 if it is not running.
+
+
+
+
+**Parameters:**
+
+
+* `bn_timing` Timing-loop noise bandwidth, normalized to the symbol rate; &lt;= 0 drops that loop's term. 
+* `bn_carrier` Carrier-loop noise bandwidth, normalized to the symbol rate; &lt;= 0 drops that loop's term. 
+
+
+
+**Returns:**
+
+The budget in symbols, truncated to an integer; 0 when neither loop runs. 
+
+
+
 
 
         
@@ -457,6 +548,25 @@ double dp_ber_theory_ber (
 
 
 
+
+
+**Parameters:**
+
+
+* `m` Constellation order: 2, 4 or 8. 
+* `esn0` Es/N0 as a LINEAR ratio (not dB), &gt;= 0. 
+
+
+
+**Returns:**
+
+The bit error rate, or NAN for an unsupported M. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -479,6 +589,14 @@ double dp_ber_theory_ser (
 
 **This is a COHERENT bound.** A differentially-decoded rate is ~2x it, because a differential decision fails when either of its two symbols is wrong (measured 1.88-2.11 across M and both receiver paths). Pairing a differential measurement with this curve invents a factor of two of "implementation loss".
 
+
+
+
+**Parameters:**
+
+
+* `m` Constellation order: 2, 4 or 8. 
+* `esn0` Matched-filter Es/N0 as a LINEAR ratio (not dB). At or below 0 the chance rate is returned: 0.5 for BPSK, `1 - 1/M` otherwise. 
 
 
 

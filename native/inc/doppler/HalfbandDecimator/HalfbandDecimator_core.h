@@ -52,7 +52,7 @@ extern "C"
    * @param h      Float32 FIR branch coefficients (the branch of the
    *               halfband prototype with more than one nonzero tap,
    *               not the whole prototype). Must be symmetric,
-   *               h[k] == h[h_len-1-k]: only the first h_len/2 are read,
+   *               `h[k] == h[h_len-1-k]`: only the first h_len/2 are read,
    *               and for odd h_len the centre tap is ignored in favor
    *               of the fixed 0.5 delay branch. Copied and scaled by
    *               0.5; must be non-NULL.
@@ -118,7 +118,7 @@ extern "C"
    * delay rings, their heads and any held trailing sample.
    *
    * @param state  State. Must be non-NULL. Not modified.
-   * @param blob   [out] Caller-owned buffer of at least
+   * @param[out] blob   Caller-owned buffer of at least
    *               dp_HalfbandDecimator_state_bytes(state) bytes.
    */
   void dp_HalfbandDecimator_get_state (const dp_HalfbandDecimator_state_t *state,
@@ -158,7 +158,7 @@ extern "C"
    * @param x      CF32 input array.  An odd length leaves its last
    *               sample held for the next call.
    * @param x_len  Number of input samples.
-   * @param out    [out] Output buffer; must hold at least
+   * @param[out] out    Output buffer; must hold at least
    *               (x_len + 1) / 2 samples. Complete input pairs left
    *               once it is full are discarded, not carried.
    * @param max_out Capacity of @p out in elements. Emission stops there, so

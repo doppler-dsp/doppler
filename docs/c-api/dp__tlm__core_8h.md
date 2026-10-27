@@ -72,12 +72,12 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 | ---: | :--- |
 |  size\_t | [**dp\_tlm\_avail**](#function-dp_tlm_avail) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Records currently readable, without consuming them._  |
 |  size\_t | [**dp\_tlm\_block\_bound**](#function-dp_tlm_block_bound) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, size\_t block\_samples) <br>_Records this context can emit while processing_ `block_samples` _inputs — the number that makes drops preventable._ |
-|  size\_t | [**dp\_tlm\_capacity**](#function-dp_tlm_capacity) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Authoritative ring capacity in records (post page rounding)._  |
+|  size\_t | [**dp\_tlm\_capacity**](#function-dp_tlm_capacity) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Ring capacity in records._  |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**dp\_tlm\_create**](#function-dp_tlm_create) (size\_t ring\_records) <br>_Creates a telemetry context with a ring of_ `ring_records` _slots._ |
 |  void | [**dp\_tlm\_demux**](#function-dp_tlm_demux) (const [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) \* recs, size\_t n, float \*const \* values, uint64\_t \*const \* index, const size\_t \* caps, size\_t nbuf) <br>_Splits_ `recs` _into per-probe value (and sample-index) buffers._ |
 |  void | [**dp\_tlm\_demux\_counts**](#function-dp_tlm_demux_counts) (const [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) \* recs, size\_t n, size\_t \* counts, size\_t ncounts) <br>_Counts each probe's records in_ `recs` _, in ONE pass._ |
-|  void | [**dp\_tlm\_destroy**](#function-dp_tlm_destroy) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Destroys a context. NULL-safe. Detach all objects first._  |
-|  uint64\_t | [**dp\_tlm\_dropped**](#function-dp_tlm_dropped) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Total records dropped on ring overrun (monotonic)._  |
+|  void | [**dp\_tlm\_destroy**](#function-dp_tlm_destroy) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Destroys a context and its ring. NULL-safe._  |
+|  uint64\_t | [**dp\_tlm\_dropped**](#function-dp_tlm_dropped) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Total records dropped on ring overrun._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**dp\_tlm\_emit**](#function-dp_tlm_emit) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, int32\_t id, double v) <br>_Records one scalar for probe_ `id` _. The hot-path primitive._ |
 |  int | [**dp\_tlm\_emit\_checked**](#function-dp_tlm_emit_checked) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, int32\_t id, double v) <br>_Validating_ [_**dp\_tlm\_emit()**_](dp__tlm__core_8h.md#function-dp_tlm_emit) _: refuses an id the registry never issued._ |
 |  uint64\_t | [**dp\_tlm\_emitted**](#function-dp_tlm_emitted) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, int id) <br>_Records written for probe_ `id` _(post-decimation, post-drop)._ |
@@ -224,6 +224,10 @@ typedef char dp_tlm_rec_fits_slot[sizeof(dp_tlm_rec_t)==2 *sizeof(uint64_t) ? 1 
 
 
 
+Compile-time check that one [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) fills exactly one 16-byte ring slot (a C99-portable static assert: a negative array size fails the build). Never used as a type. 
+
+
+        
 
 <hr>
 
@@ -284,7 +288,24 @@ size_t dp_tlm_avail (
 
 
 
-The consumer-side head/tail snapshot. Safe to call from the consumer thread while the producer runs: the true count can only GROW after the snapshot, so the value is a lower bound and never over-reports. 
+The consumer-side head/tail snapshot. Safe to call from the consumer thread while the producer runs: the true count can only GROW after the snapshot, so the value is a lower bound and never over-reports.
+
+
+
+
+**Parameters:**
+
+
+* `t` Context; NULL returns 0. 
+
+
+
+**Returns:**
+
+Records waiting to be read. 
+
+
+
 
 
         
@@ -313,6 +334,14 @@ Size a ring to this and drain it to empty every block and the ring cannot overfl
 
 
 
+**Parameters:**
+
+
+* `t` Context. 
+* `block_samples` Input samples processed between two drains. 
+
+
+
 **Returns:**
 
 The bound, or 0 for a NULL context / zero block / no probes. Saturates at SIZE\_MAX rather than wrapping. 
@@ -329,7 +358,7 @@ The bound, or 0 for a NULL context / zero block / no probes. Saturates at SIZE\_
 
 ### function dp\_tlm\_capacity 
 
-_Authoritative ring capacity in records (post page rounding)._ 
+_Ring capacity in records._ 
 ```C++
 size_t dp_tlm_capacity (
     const dp_tlm_t * t
@@ -338,6 +367,24 @@ size_t dp_tlm_capacity (
 
 
 
+
+
+**Parameters:**
+
+
+* `t` Context; NULL returns 0. 
+
+
+
+**Returns:**
+
+Exactly the size the ring was created (or last resized) with; the page rounding applies to the mapping, not this number. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -480,7 +527,7 @@ dp_tlm_demux_counts (recs, 3, counts, 2);
 
 ### function dp\_tlm\_destroy 
 
-_Destroys a context. NULL-safe. Detach all objects first._ 
+_Destroys a context and its ring. NULL-safe._ 
 ```C++
 void dp_tlm_destroy (
     dp_tlm_t * t
@@ -489,6 +536,20 @@ void dp_tlm_destroy (
 
 
 
+Detach every object (and close any capture) first: attached objects keep a borrowed pointer to `t`.
+
+
+
+
+**Parameters:**
+
+
+* `t` Context from [**dp\_tlm\_create()**](dp__tlm__core_8h.md#function-dp_tlm_create), or NULL. 
+
+
+
+
+        
 
 <hr>
 
@@ -496,7 +557,7 @@ void dp_tlm_destroy (
 
 ### function dp\_tlm\_dropped 
 
-_Total records dropped on ring overrun (monotonic)._ 
+_Total records dropped on ring overrun._ 
 ```C++
 uint64_t dp_tlm_dropped (
     const dp_tlm_t * t
@@ -505,6 +566,27 @@ uint64_t dp_tlm_dropped (
 
 
 
+Monotonic for the life of a ring; [**dp\_tlm\_resize()**](dp__tlm__core_8h.md#function-dp_tlm_resize) replaces the ring and so restarts the count from 0.
+
+
+
+
+**Parameters:**
+
+
+* `t` Context; NULL returns 0. 
+
+
+
+**Returns:**
+
+Records refused by a full ring since the ring was created. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -806,6 +888,24 @@ size_t dp_tlm_probe_count (
 
 
 
+
+**Parameters:**
+
+
+* `t` Context; NULL returns 0. 
+
+
+
+**Returns:**
+
+Probes registered so far (at most DP\_TLM\_MAX\_PROBES). 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -869,7 +969,25 @@ int dp_tlm_probe_id_at (
 
 
 
-Exists so a `{name: id}` mapping can be built from the plain-C triple (dp\_tlm\_probe\_count, dp\_tlm\_probe\_name, this) without the caller needing to know that the identity holds. 
+Exists so a `{name: id}` mapping can be built from the plain-C triple (dp\_tlm\_probe\_count, dp\_tlm\_probe\_name, this) without the caller needing to know that the identity holds.
+
+
+
+
+**Parameters:**
+
+
+* `t` Context. 
+* `i` Registry slot, 0 .. [**dp\_tlm\_probe\_count()**](dp__tlm__core_8h.md#function-dp_tlm_probe_count) - 1. 
+
+
+
+**Returns:**
+
+`i`, or [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) for a NULL context or an unused slot. 
+
+
+
 
 
         
@@ -890,6 +1008,25 @@ const char * dp_tlm_probe_name (
 
 
 
+
+
+**Parameters:**
+
+
+* `t` Context; NULL returns NULL. 
+* `id` Probe id, 0 .. [**dp\_tlm\_probe\_count()**](dp__tlm__core_8h.md#function-dp_tlm_probe_count) - 1. 
+
+
+
+**Returns:**
+
+The registered name, owned by the context and valid while it lives; NULL for a NULL context or an unregistered id. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -967,7 +1104,24 @@ size_t dp_tlm_read_max_out (
 
 
 
-Simply the available count: a caller sizing a destination cannot know the request will be smaller, and jm's generated binding allocates this much, reads, then resizes to what actually came back. 
+Simply the available count: a caller sizing a destination cannot know the request will be smaller, and jm's generated binding allocates this much, reads, then resizes to what actually came back.
+
+
+
+
+**Parameters:**
+
+
+* `t` Context; NULL returns 0. 
+
+
+
+**Returns:**
+
+[**dp\_tlm\_avail()**](dp__tlm__core_8h.md#function-dp_tlm_avail): records readable now. 
+
+
+
 
 
         
@@ -997,6 +1151,17 @@ The new ring holds exactly `records`. A no-op returning [**DP\_OK**](clib__commo
 
 **Destroys whatever the ring holds** and is unsynchronised with the producer. Legal only where the producer is quiescent AND the ring has been drained — i.e. a block boundary. [**dp\_tlm\_capture\_block()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_block) is the only caller that needs it; call it yourself only if you own the same guarantee.
 
+
+The overrun counter lives in the ring, so a resize that replaces the ring also restarts [**dp\_tlm\_dropped()**](dp__tlm__core_8h.md#function-dp_tlm_dropped) from 0.
+
+
+
+
+**Parameters:**
+
+
+* `t` Context. 
+* `records` Minimum capacity wanted, in records. 
 
 
 

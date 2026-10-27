@@ -31,7 +31,7 @@ _Per-instance 1-D FFT using pocketfft directly._ [More...](#detailed-description
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_fft\_state\_t**](structdp__fft__state__t.md) <br> |
+| struct | [**dp\_fft\_state\_t**](structdp__fft__state__t.md) <br>_FFT engine state: two fixed-length pocketfft plans (CF64, CF32) plus a lazily allocated truncation scratch._  |
 
 
 
@@ -61,18 +61,18 @@ _Per-instance 1-D FFT using pocketfft directly._ [More...](#detailed-description
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**dp\_fft\_create**](#function-dp_fft_create) (size\_t n, int sign, int nthreads) <br>_Allocate a reusable 1-D FFT engine for a fixed length and sign. Two pocketfft plans are created at construction time — one for CF64 and one for CF32 — so execute calls carry no plan-setup overhead. The same instance may be called repeatedly for independent input vectors of the same length._ `nthreads` _is accepted for API parity but is ignored; pocketfft plans are single-threaded._ |
 |  void | [**dp\_fft\_destroy**](#function-dp_fft_destroy) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Destroy and free an fft instance._  |
 |  size\_t | [**dp\_fft\_execute\_cf32**](#function-dp_fft_execute_cf32) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Compute an out-of-place 1-D DFT on a single-precision complex input. Identical to_ [_**dp\_fft\_execute\_cf64()**_](fft__core_8h.md#function-dp_fft_execute_cf64) _but operates on float \_Complex (CF32) buffers, halving memory bandwidth relative to the double-precision variant. Output is unnormalised;_`in` _and_`out` _must not alias._ |
-|  size\_t | [**dp\_fft\_execute\_cf32\_max\_out**](#function-dp_fft_execute_cf32_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Maximum output samples for CF32 execute (always == n)._  |
+|  size\_t | [**dp\_fft\_execute\_cf32\_max\_out**](#function-dp_fft_execute_cf32_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Output capacity for_ [_**dp\_fft\_execute\_cf32()**_](fft__core_8h.md#function-dp_fft_execute_cf32) _._ |
 |  size\_t | [**dp\_fft\_execute\_cf64**](#function-dp_fft_execute_cf64) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state, const double \_Complex \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Compute an out-of-place 1-D DFT on a double-precision complex input. The output is written to a fresh caller-supplied buffer;_ `in` _and_`out` _must not alias. The transform is unnormalised: the inverse DFT (sign=+1) does NOT divide by n. Both buffers must be exactly state-&gt;n elements long._ |
-|  size\_t | [**dp\_fft\_execute\_cf64\_max\_out**](#function-dp_fft_execute_cf64_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Maximum output samples per execute call (always == n)._  |
+|  size\_t | [**dp\_fft\_execute\_cf64\_max\_out**](#function-dp_fft_execute_cf64_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Output capacity for_ [_**dp\_fft\_execute\_cf64()**_](fft__core_8h.md#function-dp_fft_execute_cf64) _._ |
 |  size\_t | [**dp\_fft\_execute\_ci16**](#function-dp_fft_execute_ci16) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state, const int16\_t \* in, size\_t n\_in, float \_Complex \* out) <br>_Compute an out-of-place 1-D DFT directly on integer IQ (ci16)._ `in` _is interleaved int16 I/Q (2 ints per complex sample, length 2\*n); the result is float \_Complex (CF32). The int-&gt;float scale (v/32768, full-scale ±1.0, matching the cvt module) is folded into the transform's input read, so this is a single fused pass — faster than a separate i16\_to\_f32 conversion followed by_[_**dp\_fft\_execute\_cf32()**_](fft__core_8h.md#function-dp_fft_execute_cf32) _. Output is unnormalised._ |
-|  size\_t | [**dp\_fft\_execute\_ci16\_max\_out**](#function-dp_fft_execute_ci16_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Maximum output samples for the ci16 execute (always == n)._  |
+|  size\_t | [**dp\_fft\_execute\_ci16\_max\_out**](#function-dp_fft_execute_ci16_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Output capacity for_ [_**dp\_fft\_execute\_ci16()**_](fft__core_8h.md#function-dp_fft_execute_ci16) _._ |
 |  size\_t | [**dp\_fft\_execute\_ci8**](#function-dp_fft_execute_ci8) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state, const int8\_t \* in, size\_t n\_in, float \_Complex \* out) <br>_Compute an out-of-place 1-D DFT directly on integer IQ (ci8). As_ [_**dp\_fft\_execute\_ci16()**_](fft__core_8h.md#function-dp_fft_execute_ci16) _but_`in` _is interleaved int8 I/Q (scale v/128)._ |
-|  size\_t | [**dp\_fft\_execute\_ci8\_max\_out**](#function-dp_fft_execute_ci8_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Maximum output samples for the ci8 execute (always == n)._  |
+|  size\_t | [**dp\_fft\_execute\_ci8\_max\_out**](#function-dp_fft_execute_ci8_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Output capacity for_ [_**dp\_fft\_execute\_ci8()**_](fft__core_8h.md#function-dp_fft_execute_ci8) _._ |
 |  size\_t | [**dp\_fft\_execute\_inplace\_cf32**](#function-dp_fft_execute_inplace_cf32) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF32). Single-precision variant of_[_**dp\_fft\_execute\_inplace\_cf64()**_](fft__core_8h.md#function-dp_fft_execute_inplace_cf64) _. Copies state-&gt;n CF32 samples from_`in` _to_`out` _, then transforms_`out` _with the CF32 pocketfft plan._`in` _is left unmodified._ |
-|  size\_t | [**dp\_fft\_execute\_inplace\_cf32\_max\_out**](#function-dp_fft_execute_inplace_cf32_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Maximum output samples for inplace CF32 (always == n)._  |
+|  size\_t | [**dp\_fft\_execute\_inplace\_cf32\_max\_out**](#function-dp_fft_execute_inplace_cf32_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Output capacity for_ [_**dp\_fft\_execute\_inplace\_cf32()**_](fft__core_8h.md#function-dp_fft_execute_inplace_cf32) _._ |
 |  size\_t | [**dp\_fft\_execute\_inplace\_cf64**](#function-dp_fft_execute_inplace_cf64) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state, const double \_Complex \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache. Semantically identical to_[_**dp\_fft\_execute\_cf64()**_](fft__core_8h.md#function-dp_fft_execute_cf64) _for separate_`in` _/_`out` _pointers; use this variant when the caller already owns_`out` _and wants the result there without a second allocation._ |
-|  size\_t | [**dp\_fft\_execute\_inplace\_cf64\_max\_out**](#function-dp_fft_execute_inplace_cf64_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Maximum output samples for inplace CF64 (always == n)._  |
-|  void | [**dp\_fft\_reset**](#function-dp_fft_reset) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_No-op reset (plans are immutable after creation)._  |
+|  size\_t | [**dp\_fft\_execute\_inplace\_cf64\_max\_out**](#function-dp_fft_execute_inplace_cf64_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Output capacity for_ [_**dp\_fft\_execute\_inplace\_cf64()**_](fft__core_8h.md#function-dp_fft_execute_inplace_cf64) _._ |
+|  void | [**dp\_fft\_reset**](#function-dp_fft_reset) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_No-op reset: an FFT keeps no running state between calls._  |
 |  size\_t | [**dp\_fft\_smooth\_floor**](#function-dp_fft_smooth_floor) (size\_t n) <br>_The largest 7-smooth length at most_ `n:` _the longest transform no longer than_`n` _whose only prime factors are 2, 3, 5 and 7._ |
 
 
@@ -150,7 +150,7 @@ dp_fft_state_t * dp_fft_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL when `n` is 0 or an allocation fails. `sign` is not validated. 
 ```C++
 >>> from doppler.spectral import FFT
 >>> import numpy as np
@@ -253,7 +253,7 @@ min(state-&gt;n, max\_out) bins. If `n_in` is not the required length the call i
 
 ### function dp\_fft\_execute\_cf32\_max\_out 
 
-_Maximum output samples for CF32 execute (always == n)._ 
+_Output capacity for_ [_**dp\_fft\_execute\_cf32()**_](fft__core_8h.md#function-dp_fft_execute_cf32) _._
 ```C++
 size_t dp_fft_execute_cf32_max_out (
     dp_fft_state_t * state
@@ -262,6 +262,24 @@ size_t dp_fft_execute_cf32_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Allocated FFT engine (non-NULL). 
+
+
+
+**Returns:**
+
+state-&gt;n, the number of bins one call writes. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -320,7 +338,7 @@ min(state-&gt;n, max\_out) bins. If `n_in` is not the required length the call i
 
 ### function dp\_fft\_execute\_cf64\_max\_out 
 
-_Maximum output samples per execute call (always == n)._ 
+_Output capacity for_ [_**dp\_fft\_execute\_cf64()**_](fft__core_8h.md#function-dp_fft_execute_cf64) _._
 ```C++
 size_t dp_fft_execute_cf64_max_out (
     dp_fft_state_t * state
@@ -329,6 +347,24 @@ size_t dp_fft_execute_cf64_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Allocated FFT engine (non-NULL). 
+
+
+
+**Returns:**
+
+state-&gt;n, the number of bins one call writes. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -385,7 +421,7 @@ n (number of complex samples written). If `n_in` is not the required length the 
 
 ### function dp\_fft\_execute\_ci16\_max\_out 
 
-_Maximum output samples for the ci16 execute (always == n)._ 
+_Output capacity for_ [_**dp\_fft\_execute\_ci16()**_](fft__core_8h.md#function-dp_fft_execute_ci16) _._
 ```C++
 size_t dp_fft_execute_ci16_max_out (
     dp_fft_state_t * state
@@ -394,6 +430,24 @@ size_t dp_fft_execute_ci16_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Allocated FFT engine (non-NULL). 
+
+
+
+**Returns:**
+
+state-&gt;n, the number of bins one call writes. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -450,7 +504,7 @@ n (number of complex samples written). If `n_in` is not the required length the 
 
 ### function dp\_fft\_execute\_ci8\_max\_out 
 
-_Maximum output samples for the ci8 execute (always == n)._ 
+_Output capacity for_ [_**dp\_fft\_execute\_ci8()**_](fft__core_8h.md#function-dp_fft_execute_ci8) _._
 ```C++
 size_t dp_fft_execute_ci8_max_out (
     dp_fft_state_t * state
@@ -459,6 +513,24 @@ size_t dp_fft_execute_ci8_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Allocated FFT engine (non-NULL). 
+
+
+
+**Returns:**
+
+state-&gt;n, the number of bins one call writes. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -517,7 +589,7 @@ min(state-&gt;n, max\_out) bins. If `n_in` is not the required length the call i
 
 ### function dp\_fft\_execute\_inplace\_cf32\_max\_out 
 
-_Maximum output samples for inplace CF32 (always == n)._ 
+_Output capacity for_ [_**dp\_fft\_execute\_inplace\_cf32()**_](fft__core_8h.md#function-dp_fft_execute_inplace_cf32) _._
 ```C++
 size_t dp_fft_execute_inplace_cf32_max_out (
     dp_fft_state_t * state
@@ -526,6 +598,24 @@ size_t dp_fft_execute_inplace_cf32_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Allocated FFT engine (non-NULL). 
+
+
+
+**Returns:**
+
+state-&gt;n, the number of bins one call writes. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -584,7 +674,7 @@ min(state-&gt;n, max\_out) bins. If `n_in` is not the required length the call i
 
 ### function dp\_fft\_execute\_inplace\_cf64\_max\_out 
 
-_Maximum output samples for inplace CF64 (always == n)._ 
+_Output capacity for_ [_**dp\_fft\_execute\_inplace\_cf64()**_](fft__core_8h.md#function-dp_fft_execute_inplace_cf64) _._
 ```C++
 size_t dp_fft_execute_inplace_cf64_max_out (
     dp_fft_state_t * state
@@ -594,13 +684,31 @@ size_t dp_fft_execute_inplace_cf64_max_out (
 
 
 
+
+**Parameters:**
+
+
+* `state` Allocated FFT engine (non-NULL). 
+
+
+
+**Returns:**
+
+state-&gt;n, the number of bins one call writes. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_fft\_reset 
 
-_No-op reset (plans are immutable after creation)._ 
+_No-op reset: an FFT keeps no running state between calls._ 
 ```C++
 void dp_fft_reset (
     dp_fft_state_t * state
@@ -609,6 +717,17 @@ void dp_fft_reset (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` FFT engine (unused). 
+
+
+
+
+        
 
 <hr>
 

@@ -23,12 +23,12 @@ extern "C" {
 #endif
 
 typedef struct {
-    dp_psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
-    float         *pwr;     /* metric working buffer, one-sided power       */
-    double enbw;            /* window equivalent noise bandwidth (bins)     */
-    double beta;            /* auto-selected Kaiser shape (from DR target)   */
-    size_t lobe_bins;       /* main-lobe half-width L, for power integration*/
-    size_t spur_guard_bins; /* tone keep-out for the two-tone search (>= L) */
+    dp_psd_state_t *psd;     
+    float         *pwr;     
+    double enbw;            
+    double beta;            
+    size_t lobe_bins;       
+    size_t spur_guard_bins; 
     size_t n;               
     size_t nfft;            
     double fs;              

@@ -24,7 +24,7 @@ extern "C"
 
   typedef struct
   {
-    dp_acq_state_t *engine;
+    dp_acq_state_t *engine; 
     uint8_t underpowered;
   } dp_burst_acq_state_t;
 

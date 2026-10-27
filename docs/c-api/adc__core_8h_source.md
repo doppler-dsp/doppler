@@ -21,14 +21,14 @@ extern "C" {
 #endif
 
 typedef struct {
-    double   scale;     /* 2^(bits-1) * 10^(-dbfs/20) */
-    int64_t  clip_max;  /* 2^(bits-1) - 1              */
-    int64_t  clip_min;  /* -2^(bits-1)                 */
-    int      bits;      /* ADC resolution, 1..64        */
-    float    dbfs;      /* full-scale reference level   */
-    int      dithering; /* 0 = off; non-zero = TPDF     */
-    uint8_t  clipped;   /* sticky saturation flag       */
-    uint32_t rng;       /* xorshift32 PRNG state        */
+    double   scale;     
+    int64_t  clip_max;  
+    int64_t  clip_min;  
+    int      bits;      
+    float    dbfs;      
+    int      dithering; 
+    uint8_t  clipped;   
+    uint32_t rng;       
 } dp_adc_state_t;
 
 dp_adc_state_t *dp_adc_create(int bits, float dbfs, int dithering);

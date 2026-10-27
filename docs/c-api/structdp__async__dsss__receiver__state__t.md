@@ -233,6 +233,11 @@ dp_carrier_acq_state_t* dp_async_dsss_receiver_state_t::ca;
 
 
 
+Owned CarrierAcquisition refining the Doppler. 
+ 
+
+
+        
 
 <hr>
 
@@ -246,6 +251,11 @@ dp_costas_state_t dp_async_dsss_receiver_state_t::car;
 
 
 
+Track stage: pre-despread carrier loop (loop 1), by value. 
+ 
+
+
+        
 
 <hr>
 
@@ -259,6 +269,10 @@ float _Complex* dp_async_dsss_receiver_state_t::car_carry_buf;
 
 
 
+Owned carry of input not yet a whole period, tsamps capacity. 
+
+
+        
 
 <hr>
 
@@ -272,6 +286,11 @@ size_t dp_async_dsss_receiver_state_t::car_carry_len;
 
 
 
+Running: live samples in the carry, 0..tsamps-1. 
+ 
+
+
+        
 
 <hr>
 
@@ -302,6 +321,10 @@ dp_costas_state_t dp_async_dsss_receiver_state_t::car_frozen;
 
 
 
+Refine-stage carrier wipe, frozen at the seed's coarse Doppler (never updated). 
+
+
+        
 
 <hr>
 
@@ -333,6 +356,11 @@ float _Complex* dp_async_dsss_receiver_state_t::car_wiped_buf;
 
 
 
+Owned scratch: one carrier-wiped period, tsamps samples. 
+ 
+
+
+        
 
 <hr>
 
@@ -363,6 +391,11 @@ double dp_async_dsss_receiver_state_t::chip_rate;
 
 
 
+Chip rate, Hz (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -411,6 +444,10 @@ uint8_t* dp_async_dsss_receiver_state_t::code;
 
 
 
+Owned copy of the spreading code, 0/1 chips. 
+
+
+        
 
 <hr>
 
@@ -424,6 +461,11 @@ size_t dp_async_dsss_receiver_state_t::code_len;
 
 
 
+Chips in `code`. 
+ 
+
+
+        
 
 <hr>
 
@@ -455,6 +497,11 @@ int dp_async_dsss_receiver_state_t::differential;
 
 
 
+MpskReceiver's differential demap flag (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -468,6 +515,11 @@ dp_dll_state_t* dp_async_dsss_receiver_state_t::dll;
 
 
 
+Owned live tracking Dll. 
+ 
+
+
+        
 
 <hr>
 
@@ -570,6 +622,11 @@ double dp_async_dsss_receiver_state_t::lock_den;
 
 
 
+Running EMA of I^2 + Q^2. 
+ 
+
+
+        
 
 <hr>
 
@@ -583,6 +640,10 @@ double dp_async_dsss_receiver_state_t::lock_metric;
 
 
 
+lock\_num / lock\_den, cos(2\*phi). 
+
+
+        
 
 <hr>
 
@@ -596,6 +657,11 @@ double dp_async_dsss_receiver_state_t::lock_num;
 
 
 
+Running EMA of I^2 - Q^2. 
+ 
+
+
+        
 
 <hr>
 
@@ -644,6 +710,11 @@ int dp_async_dsss_receiver_state_t::m;
 
 
 
+PSK order, 2/4/8 (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -747,6 +818,11 @@ dp_RateConverter_state_t* dp_async_dsss_receiver_state_t::rc;
 
 
 
+Owned resampler to the demodulator's sps\*symbol\_rate. 
+ 
+
+
+        
 
 <hr>
 
@@ -777,6 +853,11 @@ double dp_async_dsss_receiver_state_t::refine_design_margin_db;
 
 
 
+Derating of cn0\_dbhz into CarrierAcquisition's design\_snr, dB. 
+ 
+
+
+        
 
 <hr>
 
@@ -790,6 +871,11 @@ dp_dll_state_t* dp_async_dsss_receiver_state_t::refine_dll;
 
 
 
+Owned refine-stage collection Dll. 
+ 
+
+
+        
 
 <hr>
 
@@ -803,6 +889,11 @@ float _Complex* dp_async_dsss_receiver_state_t::refine_dll_out_buf;
 
 
 
+Owned scratch: refine\_dll's partials. 
+ 
+
+
+        
 
 <hr>
 
@@ -816,6 +907,10 @@ size_t dp_async_dsss_receiver_state_t::refine_dll_out_cap;
 
 
 
+Capacity of refine\_dll\_out\_buf, samples. 
+
+
+        
 
 <hr>
 
@@ -829,6 +924,11 @@ double dp_async_dsss_receiver_state_t::refine_max_error_db;
 
 
 
+Max async-lookback correlation loss sizing refine\_segments, dB. 
+ 
+
+
+        
 
 <hr>
 
@@ -842,6 +942,11 @@ size_t dp_async_dsss_receiver_state_t::refine_max_n_blocks;
 
 
 
+Cap on the refine dwell, blocks. 
+ 
+
+
+        
 
 <hr>
 
@@ -872,6 +977,11 @@ size_t dp_async_dsss_receiver_state_t::refine_n_fft;
 
 
 
+CarrierAcquisition's block size. 
+ 
+
+
+        
 
 <hr>
 
@@ -902,6 +1012,11 @@ dp_RateConverter_state_t* dp_async_dsss_receiver_state_t::refine_rc;
 
 
 
+Owned resampler to CarrierAcquisition's rate. 
+ 
+
+
+        
 
 <hr>
 
@@ -915,6 +1030,11 @@ float _Complex* dp_async_dsss_receiver_state_t::refine_rc_out_buf;
 
 
 
+Owned scratch: refine\_rc's resampled output. 
+ 
+
+
+        
 
 <hr>
 
@@ -928,6 +1048,10 @@ size_t dp_async_dsss_receiver_state_t::refine_rc_out_cap;
 
 
 
+Capacity of refine\_rc\_out\_buf, samples. 
+
+
+        
 
 <hr>
 
@@ -958,6 +1082,11 @@ size_t dp_async_dsss_receiver_state_t::refine_samples_per_symbol;
 
 
 
+CarrierAcquisition's rate, in samples per symbol. 
+ 
+
+
+        
 
 <hr>
 
@@ -988,6 +1117,11 @@ bool dp_async_dsss_receiver_state_t::refine_sequential;
 
 
 
+CarrierAcquisition's sequential mode. 
+ 
+
+
+        
 
 <hr>
 
@@ -1001,6 +1135,11 @@ size_t dp_async_dsss_receiver_state_t::refine_zero_pad;
 
 
 
+CarrierAcquisition's zero pad. 
+ 
+
+
+        
 
 <hr>
 
@@ -1032,6 +1171,11 @@ dp_mpsk_receiver_state_t* dp_async_dsss_receiver_state_t::rx;
 
 
 
+Owned post-despread demodulator (loop 2). 
+ 
+
+
+        
 
 <hr>
 
@@ -1116,6 +1260,11 @@ size_t dp_async_dsss_receiver_state_t::spc;
 
 
 
+Samples per chip (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -1183,6 +1332,11 @@ dp_lockdet_state_t dp_async_dsss_receiver_state_t::sym_lockdet;
 
 
 
+Hysteretic symbol-lock declare over lock\_metric. 
+ 
+
+
+        
 
 <hr>
 
@@ -1196,6 +1350,11 @@ double dp_async_dsss_receiver_state_t::symbol_rate;
 
 
 
+Data-symbol rate, Hz (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -1351,6 +1510,11 @@ float _Complex* dp_async_dsss_receiver_state_t::track_dll_out_buf;
 
 
 
+Owned scratch: the live Dll's partials for one period. 
+ 
+
+
+        
 
 <hr>
 
@@ -1364,6 +1528,10 @@ size_t dp_async_dsss_receiver_state_t::track_dll_out_cap;
 
 
 
+Capacity of track\_dll\_out\_buf, samples. 
+
+
+        
 
 <hr>
 
@@ -1377,6 +1545,11 @@ float _Complex* dp_async_dsss_receiver_state_t::track_rc_out_buf;
 
 
 
+Owned scratch: rc's output for one period. 
+ 
+
+
+        
 
 <hr>
 
@@ -1390,6 +1563,11 @@ size_t dp_async_dsss_receiver_state_t::track_rc_out_cap;
 
 
 
+Capacity of track\_rc\_out\_buf, samples. 
+ 
+
+
+        
 
 <hr>
 

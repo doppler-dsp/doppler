@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](dp__state_8h_source.md)
 
-
+_The standard state_ **bytes interface** _for doppler._[More...](#detailed-description)
 
 * `#include "doppler/clib_common.h"`
 
@@ -30,9 +30,9 @@
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_reader\_t**](structdp__reader__t.md) <br> |
+| struct | [**dp\_reader\_t**](structdp__reader__t.md) <br>_Bounds-checked read cursor over a state blob; the mirror of_ [_**dp\_writer\_t**_](structdp__writer__t.md) _with the same sticky-error model (an overrun sets_`err` _, and later reads leave their destination untouched)._ |
 | struct | [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) <br>_Common 16-byte envelope at the head of every state blob._  |
-| struct | [**dp\_writer\_t**](structdp__writer__t.md) <br> |
+| struct | [**dp\_writer\_t**](structdp__writer__t.md) <br>_Bounds-checked write cursor over a caller-owned state blob._  |
 
 
 
@@ -119,6 +119,34 @@
 | define  | [**DP\_STATE\_ENDIAN**](dp__state_8h.md#define-dp_state_endian)  `1u /\* little-endian (x86-64, arm64 — doppler targets) \*/`<br> |
 | define  | [**DP\_W\_CHILD**](dp__state_8h.md#define-dp_w_child) (w, pfx, child\_ptr) `/* multi line expression */`<br> |
 
+## Detailed Description
+
+
+Serialization is module-specific (only `lo` knows it holds a phase, only `fir` knows it holds a delay line); the _bytes interface_ around it is not. This header owns that universal layer, once, for every serializable object:
+
+
+
+* a self-describing envelope (`dp_state_hdr_t`: magic / version / endian / size) that prefixes every state blob,
+* writer / reader cursors that turn hand-packing into a few bounds-checked calls,
+* `dp_state_validate()` — the one check every `set_state` opens with, so a wrong-object / wrong-config / foreign-endian blob is rejected, never silently reinterpreted, and
+* `DP_DEFINE_RUN()` — the identical `obj_run` pure-transducer wrapper.
+
+
+
+
+The per-object ABI (the contract jm's `serializable` binding and the Rust FFI call) stays:
+
+
+size\_t obj\_state\_bytes(const obj\_state\_t \*); void obj\_get\_state (const obj\_state\_t \*, void \*blob); int obj\_set\_state (obj\_state\_t \*, const void \*blob); // DP\_OK / -err
+
+
+Blob layout, every object: `[  dp_state_hdr_t ] [ module payload ]` Compositions embed children as self-contained sub-blobs (each carries its own header): `[ hdr ] [ extra? ] [ child blob ]`... with state\_bytes = sizeof(hdr) + sizeof(extra) + Σ child\_state\_bytes.
+
+
+Blobs are native-endian POD for same-machine / same-arch resume (thread, process, pod). The endian byte is stamped and rejected on mismatch; there is deliberately no cross-endian byte-swap. 
+
+
+    
 ## Public Static Functions Documentation
 
 
@@ -136,6 +164,10 @@ static inline void dp_r_bytes (
 
 
 
+Copy `n` bytes into `dst`; on overrun copy nothing and set err. 
+
+
+        
 
 <hr>
 
@@ -153,6 +185,10 @@ static inline void dp_r_cf32 (
 
 
 
+Read `n` complex float samples into `p`. 
+
+
+        
 
 <hr>
 
@@ -170,6 +206,10 @@ static inline void dp_r_f32 (
 
 
 
+Read `n` float samples into `p`. 
+
+
+        
 
 <hr>
 
@@ -185,6 +225,10 @@ static inline double dp_r_f64 (
 
 
 
+Read a native double (0.0 on overrun). 
+
+
+        
 
 <hr>
 
@@ -220,6 +264,10 @@ static inline uint32_t dp_r_u32 (
 
 
 
+Read a native-endian uint32\_t (0 on overrun). 
+
+
+        
 
 <hr>
 
@@ -235,6 +283,10 @@ static inline uint64_t dp_r_u64 (
 
 
 
+Read a native-endian uint64\_t (0 on overrun). 
+
+
+        
 
 <hr>
 
@@ -251,6 +303,10 @@ static inline dp_reader_t dp_reader_init (
 
 
 
+Start a reader at offset 0 over `blob` of `cap` bytes. 
+
+
+        
 
 <hr>
 
@@ -270,14 +326,24 @@ static inline int dp_state_validate (
 
 
 
-Every obj\_set\_state opens with this. `expect_bytes` is the receiving object's obj\_state\_bytes() — a blob from a different object (magic), format (version), endianness, or config/size (bytes) is rejected rather than reinterpreted.
+Every obj\_set\_state opens with this. `expect_bytes` is the receiving object's obj\_state\_bytes() — a blob from a different object (magic), format (version), endianness, or config/size (bytes) is rejected rather than reinterpreted. Only the header is inspected: the caller must already know `blob` holds at least sizeof(dp\_state\_hdr\_t) readable bytes.
 
+
+
+
+**Parameters:**
+
+
+* `blob` Blob to check; its first bytes are the header. 
+* `expect_bytes` The receiving object's obj\_state\_bytes(). 
+* `magic` The receiving object's FourCC tag. 
+* `version` The receiving object's blob format version. 
 
 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID on any mismatch. 
+DP\_OK, or DP\_ERR\_INVALID on any mismatch (or when `expect_bytes` is smaller than the header). 
 
 
 
@@ -301,6 +367,10 @@ static inline void dp_w_bytes (
 
 
 
+Copy `n` bytes from `src`; on overrun write nothing and set err. 
+
+
+        
 
 <hr>
 
@@ -318,6 +388,10 @@ static inline void dp_w_cf32 (
 
 
 
+Write `n` complex float samples. 
+
+
+        
 
 <hr>
 
@@ -335,6 +409,10 @@ static inline void dp_w_f32 (
 
 
 
+Write `n` float samples. 
+
+
+        
 
 <hr>
 
@@ -351,6 +429,10 @@ static inline void dp_w_f64 (
 
 
 
+Write a native double. 
+
+
+        
 
 <hr>
 
@@ -409,6 +491,10 @@ static inline void dp_w_u32 (
 
 
 
+Write a native-endian uint32\_t. 
+
+
+        
 
 <hr>
 
@@ -425,6 +511,10 @@ static inline void dp_w_u64 (
 
 
 
+Write a native-endian uint64\_t. 
+
+
+        
 
 <hr>
 
@@ -461,6 +551,10 @@ static inline dp_writer_t dp_writer_init (
 
 
 
+Start a writer at offset 0 over `blob` of `cap` bytes. 
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -553,31 +647,7 @@ max_out)`: restore `state_in` (or keep current), call `<pfx>_execute`, then expo
 
 
 
-[**dp\_state.h**](dp__state_8h.md) — the standard state **bytes interface** for doppler.
-
-
-Serialization is module-specific (only `lo` knows it holds a phase, only `fir` knows it holds a delay line); the _bytes interface_ around it is not. This header owns that universal layer, once, for every serializable object:
-
-
-
-* a self-describing envelope (`dp_state_hdr_t`: magic / version / endian / size) that prefixes every state blob,
-* writer / reader cursors that turn hand-packing into a few bounds-checked calls,
-* `dp_state_validate()` — the one check every `set_state` opens with, so a wrong-object / wrong-config / foreign-endian blob is rejected, never silently reinterpreted, and
-* `DP_DEFINE_RUN()` — the identical `obj_run` pure-transducer wrapper.
-
-
-
-
-The per-object ABI (the contract jm's `serializable` binding and the Rust FFI call) stays:
-
-
-size\_t obj\_state\_bytes(const obj\_state\_t \*); void obj\_get\_state (const obj\_state\_t \*, void \*blob); int obj\_set\_state (obj\_state\_t \*, const void \*blob); // DP\_OK / -err
-
-
-Blob layout, every object: `[  dp_state_hdr_t ] [ module payload ]` Compositions embed children as self-contained sub-blobs (each carries its own header): `[ hdr ] [ extra? ] [ child blob ]`... with state\_bytes = sizeof(hdr) + sizeof(extra) + Σ child\_state\_bytes.
-
-
-Blobs are native-endian POD for same-machine / same-arch resume (thread, process, pod). The endian byte is stamped and rejected on mismatch; there is deliberately no cross-endian byte-swap. 
+FourCC type tag, e.g. DP\_FOURCC('A','C','Q','R'). Stored little-end-first so the bytes read as "ACQR" in a hex dump on a little-endian host. 
 
 
         
@@ -598,6 +668,10 @@ Blobs are native-endian POD for same-machine / same-arch resume (thread, process
 
 
 
+Open a hand-written get\_state: declare writer `_w` and stamp the header. 
+
+
+        
 
 <hr>
 
@@ -615,6 +689,13 @@ Blobs are native-endian POD for same-machine / same-arch resume (thread, process
 
 
 
+Restore a child from the next nested sub-blob at reader `r`.
+
+
+Nest a child's self-contained sub-blob. A composition's state\_bytes sums `<child>_state_bytes(child_ptr)`; its get/set then writes/reads each child as a nested envelope. `child_ptr` may be a pointer member or the address of an embedded-by-value member (`&s->lf`). DP\_R\_CHILD returns DP\_ERR\_INVALID from the enclosing set\_state if the child rejects, so the whole restore is atomic-by-validation. 
+
+
+        
 
 <hr>
 
@@ -632,6 +713,16 @@ Blobs are native-endian POD for same-machine / same-arch resume (thread, process
 
 
 
+Open a hand-written set\_state: validate, then declare reader `_r` past the header (returns the validation error from the enclosing function).
+
+
+For a hand-written triplet that packs a subset of fields: the running state and every mutator's value, while create() restores the config no mutator reaches (docs/design/state-serialization.md, "What goes in the blob", #2022). Use inside `<obj>_get_state(s, blob)` / `<obj>_set_state(s, blob)` (those exact param names): open, then pack/unpack the running fields via `&_w` / `&_r`, and `return DP_OK;` from set.
+
+
+void foo\_get\_state (const foo\_state\_t \*s, void \*blob) { DP\_GET\_OPEN (FOO\_MAGIC, FOO\_VERSION, foo\_state\_bytes (s)); dp\_w\_f64 (&\_w, s-&gt;gain); } int foo\_set\_state (foo\_state\_t \*s, const void \*blob) { DP\_SET\_OPEN (FOO\_MAGIC, FOO\_VERSION, foo\_state\_bytes (s)); s-&gt;gain = dp\_r\_f64 (&\_r); return DP\_OK; } 
+
+
+        
 
 <hr>
 
@@ -645,6 +736,10 @@ Blobs are native-endian POD for same-machine / same-arch resume (thread, process
 
 
 
+Host byte-order tag stamped in every blob: 1 = little, 2 = big. 
+
+
+        
 
 <hr>
 
@@ -662,6 +757,10 @@ Blobs are native-endian POD for same-machine / same-arch resume (thread, process
 
 
 
+Write a child's state as a nested sub-blob at writer `w`. 
+
+
+        
 
 <hr>
 

@@ -24,8 +24,8 @@ typedef enum {
 } u8_to_f32_mode_t;
 
 typedef struct {
-    int   mode;   /* u8_to_f32_mode_t, validated at create */
-    float iscale; /* 1/127.5, pre-computed for the midpoint multiply */
+    int   mode;   
+    float iscale; 
 } dp_u8_to_f32_state_t;
 
 dp_u8_to_f32_state_t *dp_u8_to_f32_create(int mode);

@@ -8,7 +8,7 @@
 
 
 
-
+_Bounds-checked read cursor over a state blob; the mirror of_ [_**dp\_writer\_t**_](structdp__writer__t.md) _with the same sticky-error model (an overrun sets_`err` _, and later reads leave their destination untouched)._
 
 * `#include <dp_state.h>`
 
@@ -97,6 +97,11 @@ const uint8_t* dp_reader_t::buf;
 
 
 
+Start of the blob being read (not owned). 
+ 
+
+
+        
 
 <hr>
 
@@ -110,6 +115,11 @@ size_t dp_reader_t::cap;
 
 
 
+Blob size in bytes; reads past it refused. 
+ 
+
+
+        
 
 <hr>
 
@@ -123,6 +133,10 @@ int dp_reader_t::err;
 
 
 
+Sticky: 1 after any overrun, then reads no-op. 
+
+
+        
 
 <hr>
 
@@ -136,6 +150,10 @@ size_t dp_reader_t::off;
 
 
 
+Bytes consumed so far; next read starts here. 
+
+
+        
 
 <hr>
 

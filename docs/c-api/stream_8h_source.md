@@ -86,12 +86,11 @@ extern "C"
   typedef struct dp_msg dp_msg_t;
 
   typedef struct dp_ctx dp_pub_t;
-  typedef struct dp_ctx dp_sub_t;
-  typedef struct dp_ctx dp_push_t;
-  typedef struct dp_ctx dp_pull_t;
-  typedef struct dp_ctx dp_req_t;
-  typedef struct dp_ctx dp_rep_t;
-
+  typedef struct dp_ctx dp_sub_t;  
+  typedef struct dp_ctx dp_push_t; 
+  typedef struct dp_ctx dp_pull_t; 
+  typedef struct dp_ctx dp_req_t;  
+  typedef struct dp_ctx dp_rep_t;  
 
   /* -------------------------------------------------------------------------
    * Error codes

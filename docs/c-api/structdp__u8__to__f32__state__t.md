@@ -102,6 +102,10 @@ float dp_u8_to_f32_state_t::iscale;
 
 
 
+`1/127.5f`, set at create for the midpoint multiply (unused in shift mode). 
+
+
+        
 
 <hr>
 
@@ -115,6 +119,10 @@ int dp_u8_to_f32_state_t::mode;
 
 
 
+Mapping, a u8\_to\_f32\_mode\_t value; set and validated at create, never changed. 
+
+
+        
 
 <hr>
 

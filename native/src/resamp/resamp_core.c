@@ -1,5 +1,6 @@
 #include "doppler/resamp/resamp_core.h"
 #include "doppler/nco/nco_core.h"
+#include "doppler/resample/resample_core.h"
 #include <math.h>
 #include <string.h>
 
@@ -25,16 +26,6 @@ resamp_bessel_i0 (double x)
   return sum;
 }
 
-static double
-resamp_kaiser_beta (double atten)
-{
-  if (atten > 50.0)
-    return 0.1102 * (atten - 8.7);
-  if (atten >= 21.0)
-    return 0.5842 * pow (atten - 21.0, 0.4) + 0.07886 * (atten - 21.0);
-  return 0.0;
-}
-
 static unsigned
 resamp_log2_u (size_t v)
 {
@@ -53,7 +44,7 @@ static float *
 resamp_build_bank (size_t num_phases, size_t num_taps, double atten, double pb,
                    double sb)
 {
-  double beta  = resamp_kaiser_beta (atten);
+  double beta  = dp_kaiser_beta_eval (atten);
   double pb_ph = pb / (double)num_phases;
   double sb_ph = sb / (double)num_phases;
   double wc    = 2.0 * M_PI * (pb_ph + (sb_ph - pb_ph) * 0.5);
@@ -95,19 +86,6 @@ resamp_build_bank (size_t num_phases, size_t num_taps, double atten, double pb,
 
   free (g);
   return bank;
-}
-
-/* Compute taps-per-phase from Kaiser spec. */
-static size_t
-resamp_kaiser_num_taps (size_t num_phases, double atten, double pb, double sb)
-{
-  double pb_ph = pb / (double)num_phases;
-  double sb_ph = sb / (double)num_phases;
-  size_t proto
-      = (size_t)(1.0 + (atten - 8.0) / 2.285 / (2.0 * M_PI * (sb_ph - pb_ph)));
-  size_t halflen = proto / 2;
-  size_t htaps   = 2 * halflen + 1;
-  return htaps / num_phases + 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -245,7 +223,9 @@ dp_resamp_create (double rate)
   static const double PB         = 0.4;
   static const double SB         = 0.6;
 
-  size_t num_taps = resamp_kaiser_num_taps (NUM_PHASES, ATTEN, PB, SB);
+  /* The library's one Kaiser sizing rule and beta, header-inline in
+     resample_core.h, not a private copy of each (doppler#2652). */
+  size_t num_taps = dp_kaiser_num_taps_eval (NUM_PHASES, ATTEN, PB, SB);
   float *bank     = resamp_build_bank (NUM_PHASES, num_taps, ATTEN, PB, SB);
   if (!bank)
     return NULL;

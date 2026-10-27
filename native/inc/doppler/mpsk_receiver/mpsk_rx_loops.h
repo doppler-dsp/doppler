@@ -89,11 +89,6 @@ extern "C"
     MPSK_RX_PULSE_RRC   = RC_PULSE_RRC    /**< root-raised cosine.       */
   };
 
-/* Numerical guard on the symbol magnitude in the decision discriminator. */
-/** Magnitude guard for a decision-directed discriminator. No code in the
- *  tree reads it now that the decision-directed handover is gone. */
-#define MPSK_RX_EPS 1e-12
-
 /* THE RECEIVER HAS EXACTLY ONE AGC, and it is the front-end cascade's
  * (dp_RateConverter_enable_agc). One, not none and not one per detector: it
  * levels the SIGNAL PATH, and both loops run on that path, so it sits inside

@@ -225,7 +225,25 @@ static PyMethodDef agc_module_methods[] = {
     "so there is no fitted curve to go stale. gain_err_db is POSITIVE for a "
     "quiet input, which is the slow direction and the one to budget for. "
     "Returns 0 rather than a plausible guess when the arguments are invalid. "
-    "Design-time only: it allocates and iterates.\n" },
+    "Design-time only: it allocates and iterates.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "loop_bw : float\n"
+    "    Loop noise bandwidth, cycles/sample.\n"
+    "alpha : float\n"
+    "    Detector EMA coefficient, (0, 1].\n"
+    "gain_err_db : float\n"
+    "    Starting gain error, dB; POSITIVE for a quiet input (the slow\n"
+    "    direction).\n"
+    "tol_db : float\n"
+    "    Settled means within this many dB of the target.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Samples to settle (>= 1), or 0 if the arguments are invalid or the\n"
+    "    loop does not settle within a bounded search.\n" },
   { NULL, NULL, 0, NULL }
 };
 

@@ -314,7 +314,7 @@ static PyTypeObject UQ15ToF32ObjType = {
   .tp_dealloc                             = (destructor)UQ15ToF32Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a uq15_to_f32 instance.\n"
+  = "Create an offset-binary uint16 (UQ15) to float32 converter.\n"
     "\n"
     "Parameters\n"
     "----------\n"

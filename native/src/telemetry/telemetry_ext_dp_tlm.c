@@ -749,7 +749,7 @@ static PyMethodDef TelemetryObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    dp_tlm_avail(): records readable now.\n" },
   { "probe", (PyCFunction)(void *)TelemetryObj_probe,
     METH_VARARGS | METH_KEYWORDS,
     "probe(name, decim) -> int\n"

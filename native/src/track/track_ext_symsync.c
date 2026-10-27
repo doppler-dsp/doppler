@@ -658,7 +658,7 @@ SymbolSync_getprop_locked (SymbolSyncObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef SymbolSync_getset[] = {
   { "bn", (getter)SymbolSync_getprop_bn, (setter)SymbolSync_setprop_bn,
-    "loop noise bandwidth (retained).\n"
+    "Loop noise bandwidth the timing loop is running.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -669,8 +669,9 @@ static PyGetSetDef SymbolSync_getset[] = {
     "    gains come out finite)``, with the return code appended.\n",
     NULL },
   { "timing_error", (getter)SymbolSync_getprop_timing_error, NULL,
-    "Timing error.\n", NULL },
-  { "rate", (getter)SymbolSync_getprop_rate, NULL, "Rate.\n", NULL },
+    "Most recent timing-detector output.\n", NULL },
+  { "rate", (getter)SymbolSync_getprop_rate, NULL,
+    "Samples per symbol the loop is currently tracking.\n", NULL },
   { "lock_stat", (getter)SymbolSync_getprop_lock_stat, NULL,
     "Last block-averaged lock statistic: "
     "mean(2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2)) over "
@@ -780,18 +781,14 @@ static PyMethodDef SymbolSyncObj_methods[] = {
   { "steps_max_out", (PyCFunction)SymbolSyncObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps() can return in the current state.\n"
-    "\n"
-    "Size an `out=` buffer with this before calling steps(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on steps_max_out()\n"
-    "replaces this text.\n"
+    "Minimum output capacity dp_symsync_steps() asks for beyond the input\n"
+    "length.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    Always 0: at least one input sample per recovered symbol, so an out\n"
+    "    as long as the input always suffices.\n" },
   { "set_telemetry", (PyCFunction)(void *)SymbolSyncObj_set_telemetry,
     METH_VARARGS | METH_KEYWORDS,
     "set_telemetry(tlm, prefix, decim) -> None\n"
@@ -1110,16 +1107,17 @@ static PyTypeObject SymbolSyncObjType = {
   .tp_dealloc                             = (destructor)SymbolSyncObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "SymbolSync component.\n"
+  = "Create a symbol-timing recovery loop on the heap.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "sps : int, default 4\n"
-    "    sps constructor parameter.\n"
+    "    Nominal input samples per symbol (default: 4).\n"
     "bn : float, default 0.01\n"
-    "    bn constructor parameter.\n"
+    "    Loop noise bandwidth, normalized to the symbol rate (default: "
+    "0.01).\n"
     "zeta : float, default 0.707\n"
-    "    zeta constructor parameter.\n"
+    "    Loop damping factor (default: 0.707).\n"
     "order : Literal[\"linear\", \"parabolic\", \"cubic\"], default "
     "\"cubic\"\n"
     "    The polynomial order of the Farrow interpolator.\n"

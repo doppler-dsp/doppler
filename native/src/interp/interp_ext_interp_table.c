@@ -386,7 +386,9 @@ static PyMethodDef InterpolatedTableObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always 0, meaning \"no fixed capacity\": size the output to the "
+    "input\n"
+    "    length instead.\n" },
   { "destroy", (PyCFunction)InterpolatedTableObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

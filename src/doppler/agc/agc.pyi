@@ -51,11 +51,12 @@ class AGC:
     ) -> None: ...
     def reset(self) -> None:
         """Reset the AGC loop state to its post-create condition. Sets gain_db
-        back to 0 dB (unity), clears g_last, and re-seeds the power-detector
-        EMA p_avg from the current ref_db so that the first post-reset block
-        produces no transient. All configuration fields (ref_db, loop_bw,
-        alpha, decim, clip_db) are left untouched. Use this to process a new,
-        independent signal segment without re-allocating.
+        back to 0 dB, g_last to 1.0 (unity), restarts the update period,
+        refreshes clip_lin, and re-seeds the power-detector EMA p_avg from the
+        current ref_db so that the first post-reset block produces no
+        transient. All configuration fields (ref_db, loop_bw, alpha, decim,
+        clip_db) are left untouched. Use this to process a new, independent
+        signal segment without re-allocating.
 
         Examples
         --------
@@ -281,7 +282,9 @@ class AGC:
 
     @property
     def gain_db(self) -> float:
-        """Gain db."""
+        """Loop-filter integrator: commanded gain, dB (running state; 0 at
+        create/reset).
+        """
 
     @property
     def applied_gain_db(self) -> float:
@@ -298,17 +301,19 @@ class AGC:
 
     @property
     def ref_db(self) -> float:
-        """Ref db."""
+        """Target output power, dB (config, writable)."""
     @ref_db.setter
     def ref_db(self, value: float) -> None: ...
     @property
     def loop_bw(self) -> float:
-        """Loop bw."""
+        """Loop noise bandwidth, cycles/sample (config, writable); filter time
+        constant 1/(4*loop_bw).
+        """
     @loop_bw.setter
     def loop_bw(self, value: float) -> None: ...
     @property
     def alpha(self) -> float:
-        """Alpha."""
+        """Power-detector EMA coefficient in (0, 1] (config, writable)."""
     @alpha.setter
     def alpha(self, value: float) -> None: ...
     @property
@@ -320,12 +325,22 @@ class AGC:
     def decim(self, value: int) -> None: ...
     @property
     def clip_db(self) -> float:
-        """Clip db."""
+        """Output square-clip level, dB: each of I and Q is limited to +/-
+        10^(clip_db/20) (config, writable; default AGC_CLIP_DB_DEFAULT).
+        """
     @clip_db.setter
     def clip_db(self, value: float) -> None: ...
     @property
     def gain_update_period(self) -> int:
-        """Gain update period."""
+        """dp_agc_step() control-update period, samples (config, >= 1): the
+        detector + gain-apply run every sample, but the loop-filter command
+        (the exp10/log10 work) refreshes once per this many samples — a
+        zero-order hold on the gain that amortises the transcendentals on a
+        sample-rate hot loop. 1 (default) is the exact per-sample loop; >1
+        trades gain-update latency for speed (keep well below 1/(4*loop_bw)).
+        The same shape as decim's `4*decim*loop_bw <= 0.05`, but only decim's
+        is measured — this one is a zero-order hold on a different quantity.
+        """
     @gain_update_period.setter
     def gain_update_period(self, value: int) -> None: ...
     def destroy(self) -> None:
@@ -392,4 +407,22 @@ def settling_samples(
     is the slow direction and the one to budget for. Returns 0 rather than a
     plausible guess when the arguments are invalid. Design-time only: it
     allocates and iterates.
+
+    Parameters
+    ----------
+    loop_bw : float
+        Loop noise bandwidth, cycles/sample.
+    alpha : float
+        Detector EMA coefficient, (0, 1].
+    gain_err_db : float
+        Starting gain error, dB; POSITIVE for a quiet input (the slow
+        direction).
+    tol_db : float
+        Settled means within this many dB of the target.
+
+    Returns
+    -------
+    int
+        Samples to settle (>= 1), or 0 if the arguments are invalid or the
+        loop does not settle within a bounded search.
     """

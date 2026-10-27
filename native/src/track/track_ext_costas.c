@@ -607,7 +607,7 @@ Costas_setprop_bn_fll (CostasObject *self, PyObject *value,
 
 static PyGetSetDef Costas_getset[] = {
   { "bn", (getter)Costas_getprop_bn, (setter)Costas_setprop_bn,
-    "PLL loop noise bandwidth (retained).\n"
+    "PLL loop noise bandwidth currently in use.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -618,18 +618,19 @@ static PyGetSetDef Costas_getset[] = {
     "    gains come out finite)``, with the return code appended.\n",
     NULL },
   { "norm_freq", (getter)Costas_getprop_norm_freq,
-    (setter)Costas_setprop_norm_freq, "Norm freq.\n", NULL },
+    (setter)Costas_setprop_norm_freq,
+    "Tracked carrier frequency: the NCO frequency register.\n", NULL },
   { "lock_metric", (getter)Costas_getprop_lock_metric, NULL,
-    "EMA of |Re P|/|P| (1 = locked).\n", NULL },
+    "Lock-metric EMA: |Re P|/|P| smoothed by COSTAS_LOCK_ALPHA.\n", NULL },
   { "locked", (getter)Costas_getprop_locked, NULL,
     "Current carrier lock decision: True after the verify count of "
     "consecutive above-threshold symbols, False again after the drop count of "
     "consecutive below-threshold ones (see configure_lock).\n",
     NULL },
   { "last_error", (getter)Costas_getprop_last_error, NULL,
-    "last PLL discriminator (loop stress).\n", NULL },
+    "Last PLL discriminator output, the loop stress.\n", NULL },
   { "bn_fll", (getter)Costas_getprop_bn_fll, (setter)Costas_setprop_bn_fll,
-    "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
+    "FLL-assist bandwidth.\n", NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -732,18 +733,15 @@ static PyMethodDef CostasObj_methods[] = {
   { "steps_max_out", (PyCFunction)CostasObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps() can return in the current state.\n"
+    "Output capacity hint for dp_costas_steps(): always 0.\n"
     "\n"
-    "Size an `out=` buffer with this before calling steps(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on steps_max_out()\n"
-    "replaces this text.\n"
+    "The output is one prompt per tsamps inputs, so it never exceeds the\n"
+    "input length; size out to the input length (or input / tsamps).\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    0 (no state-derived bound).\n" },
   { "set_telemetry", (PyCFunction)(void *)CostasObj_set_telemetry,
     METH_VARARGS | METH_KEYWORDS,
     "set_telemetry(tlm, prefix, decim) -> None\n"

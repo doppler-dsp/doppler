@@ -346,9 +346,9 @@ FIR_getprop_is_real (FIRObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef FIR_getset[]
     = { { "num_taps", (getter)FIR_getprop_num_taps, NULL,
-          "Number of tap coefficients supplied at creation. This equals the "
-          "filter group delay plus one, and determines the minimum input "
-          "block length for which no latency is observable.\n",
+          "Number of tap coefficients supplied at creation. The filter length "
+          "M; the delay line holds M - 1 samples. For a linear-phase "
+          "(symmetric) design the group delay is (M - 1) / 2 samples.\n",
           NULL },
         { "is_real", (getter)FIR_getprop_is_real, NULL,
           "True when the filter was created with real-valued tap "
@@ -431,7 +431,9 @@ static PyMethodDef FIRObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    Number of output samples written (always == n_in).\n"
+    "    Number of output samples written: n_in on success; 0 if any pointer\n"
+    "    is NULL, n_in is 0, or growing the scratch buffer fails (state is\n"
+    "    then unchanged).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -460,7 +462,7 @@ static PyMethodDef FIRObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    0, always.\n" },
   { "state_bytes", (PyCFunction)FIRObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

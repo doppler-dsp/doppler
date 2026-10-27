@@ -493,35 +493,51 @@ AGC_setprop_gain_update_period (AGCObject *self, PyObject *value,
   return 0;
 }
 
-static PyGetSetDef AGC_getset[]
-    = { { "gain_db", (getter)AGC_getprop_gain_db, NULL, "Gain db.\n", NULL },
-        { "applied_gain_db", (getter)AGC_getprop_applied_gain_db, NULL,
-          "Return the gain (in dB) actually applied to the most recent "
-          "sample. Computes 20*log10(g_last), where g_last is the linear "
-          "multiplier that was used on the most recently processed sample.  "
-          "This differs from gain_db (the loop integrator's current command) "
-          "because the loop filter advances the command one step ahead after "
-          "each sample: immediately after dp_agc_step() gain_db already "
-          "reflects the updated command while applied_gain_db still reflects "
-          "what the signal actually saw.  At loop convergence the two values "
-          "are numerically equal.  At create/reset both are 0.0 dB (unity).\n",
-          NULL },
-        { "ref_db", (getter)AGC_getprop_ref_db, (setter)AGC_setprop_ref_db,
-          "Ref db.\n", NULL },
-        { "loop_bw", (getter)AGC_getprop_loop_bw, (setter)AGC_setprop_loop_bw,
-          "Loop bw.\n", NULL },
-        { "alpha", (getter)AGC_getprop_alpha, (setter)AGC_setprop_alpha,
-          "Alpha.\n", NULL },
-        { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim,
-          "Envelope decimation: the detector and loop filter run once per "
-          "chunk of this many samples, >= 1 (typically 8, 16 or 32).\n",
-          NULL },
-        { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db,
-          "Clip db.\n", NULL },
-        { "gain_update_period", (getter)AGC_getprop_gain_update_period,
-          (setter)AGC_setprop_gain_update_period, "Gain update period.\n",
-          NULL },
-        { NULL, NULL, NULL, NULL, NULL } };
+static PyGetSetDef AGC_getset[] = {
+  { "gain_db", (getter)AGC_getprop_gain_db, NULL,
+    "Loop-filter integrator: commanded gain, dB (running state; 0 at "
+    "create/reset).\n",
+    NULL },
+  { "applied_gain_db", (getter)AGC_getprop_applied_gain_db, NULL,
+    "Return the gain (in dB) actually applied to the most recent sample. "
+    "Computes 20*log10(g_last), where g_last is the linear multiplier that "
+    "was used on the most recently processed sample.  This differs from "
+    "gain_db (the loop integrator's current command) because the loop filter "
+    "advances the command one step ahead after each sample: immediately after "
+    "dp_agc_step() gain_db already reflects the updated command while "
+    "applied_gain_db still reflects what the signal actually saw.  At loop "
+    "convergence the two values are numerically equal.  At create/reset both "
+    "are 0.0 dB (unity).\n",
+    NULL },
+  { "ref_db", (getter)AGC_getprop_ref_db, (setter)AGC_setprop_ref_db,
+    "Target output power, dB (config, writable).\n", NULL },
+  { "loop_bw", (getter)AGC_getprop_loop_bw, (setter)AGC_setprop_loop_bw,
+    "Loop noise bandwidth, cycles/sample (config, writable); filter time "
+    "constant 1/(4*loop_bw).\n",
+    NULL },
+  { "alpha", (getter)AGC_getprop_alpha, (setter)AGC_setprop_alpha,
+    "Power-detector EMA coefficient in (0, 1] (config, writable).\n", NULL },
+  { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim,
+    "Envelope decimation: the detector and loop filter run once per chunk of "
+    "this many samples, >= 1 (typically 8, 16 or 32).\n",
+    NULL },
+  { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db,
+    "Output square-clip level, dB: each of I and Q is limited to +/- "
+    "10^(clip_db/20) (config, writable; default AGC_CLIP_DB_DEFAULT).\n",
+    NULL },
+  { "gain_update_period", (getter)AGC_getprop_gain_update_period,
+    (setter)AGC_setprop_gain_update_period,
+    "dp_agc_step() control-update period, samples (config, >= 1): the "
+    "detector + gain-apply run every sample, but the loop-filter command (the "
+    "exp10/log10 work) refreshes once per this many samples — a zero-order "
+    "hold on the gain that amortises the transcendentals on a sample-rate hot "
+    "loop.  1 (default) is the exact per-sample loop; >1 trades gain-update "
+    "latency for speed (keep well below 1/(4*loop_bw)).  The same shape as "
+    "decim's `4*decim*loop_bw <= 0.05`, but only decim's is measured — this "
+    "one is a zero-order hold on a different quantity.\n",
+    NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
 
 static PyObject *
 AGCObj_destroy (AGCObject *self, PyObject *Py_UNUSED (ignored))
@@ -556,11 +572,12 @@ AGCObj_exit (AGCObject *self, PyObject *args)
 static PyMethodDef AGCObj_methods[] = {
   { "reset", (PyCFunction)AGCObj_reset, METH_NOARGS,
     "Reset the AGC loop state to its post-create condition. Sets gain_db\n"
-    "back to 0 dB (unity), clears g_last, and re-seeds the power-detector\n"
-    "EMA p_avg from the current ref_db so that the first post-reset block\n"
-    "produces no transient. All configuration fields (ref_db, loop_bw,\n"
-    "alpha, decim, clip_db) are left untouched. Use this to process a new,\n"
-    "independent signal segment without re-allocating.\n"
+    "back to 0 dB, g_last to 1.0 (unity), restarts the update period,\n"
+    "refreshes clip_lin, and re-seeds the power-detector EMA p_avg from the\n"
+    "current ref_db so that the first post-reset block produces no\n"
+    "transient. All configuration fields (ref_db, loop_bw, alpha, decim,\n"
+    "clip_db) are left untouched. Use this to process a new, independent\n"
+    "signal segment without re-allocating.\n"
     "\n"
     "Examples\n"
     "--------\n"

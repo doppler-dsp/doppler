@@ -56,7 +56,8 @@ class DDC:
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written (C-only).
+            Number of output samples written (C-only); 0 when x_len is 0 or the
+            temporary mix buffer cannot be allocated.
 
         Examples
         --------
@@ -133,7 +134,8 @@ class DDC:
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written.
+            Number of output samples written; 0 when x_len is 0 or the
+            temporary mix buffer cannot be allocated.
 
         Examples
         --------
@@ -151,23 +153,21 @@ class DDC:
         """
 
     def execute_ctrl_max_out(self, x_len: int, /) -> int:
-        """Largest number of samples execute_ctrl() can return for x_len
-        inputs.
+        """Maximum output samples one execute_ctrl() of x_len inputs can
+        produce.
 
-        Size an `out=` buffer with this before calling execute_ctrl(), or use
-        it to allocate one up front. The bound is this object's own: what it
-        depends on is a property of the algorithm, so a header block on
-        execute_ctrl_max_out() replaces this text.
+        Same bound as dp_ddc_execute_max_out(): the binding sizes its output
+        buffer from it and resizes down to the actual count.
 
         Parameters
         ----------
         x_len : int
-            Number of input samples execute_ctrl() will be given.
+            Number of input samples the matching call sees.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            x_len.
         """
 
     def execute_ctrl_push(
@@ -221,18 +221,15 @@ class DDC:
         """
 
     def execute_ctrl_push_max_out(self) -> int:
-        """Largest number of samples execute_ctrl_push() can return in the
-        current state.
+        """Output-buffer capacity for one execute_ctrl_push() call.
 
-        Size an `out=` buffer with this before calling execute_ctrl_push(), or
-        use it to allocate one up front. The bound is this object's own: what
-        it depends on is a property of the algorithm, so a header block on
-        execute_ctrl_push_max_out() replaces this text.
+        A single input completes at most `ceil(rate) + 1` output periods; the
+        binding has no input block to size from, so it uses this fixed bound.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            `(size_t)max(rate, 1.0) + 2` samples.
         """
 
     def reset(self) -> None:
@@ -446,7 +443,8 @@ class MatchedDDC:
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written (C-only).
+            Number of output samples written (C-only); 0 when x_len is 0 or the
+            temporary mix buffer cannot be allocated.
 
         Examples
         --------
@@ -523,7 +521,8 @@ class MatchedDDC:
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written.
+            Number of output samples written; 0 when x_len is 0 or the
+            temporary mix buffer cannot be allocated.
 
         Examples
         --------
@@ -541,23 +540,21 @@ class MatchedDDC:
         """
 
     def execute_ctrl_max_out(self, x_len: int, /) -> int:
-        """Largest number of samples execute_ctrl() can return for x_len
-        inputs.
+        """Maximum output samples one execute_ctrl() of x_len inputs can
+        produce.
 
-        Size an `out=` buffer with this before calling execute_ctrl(), or use
-        it to allocate one up front. The bound is this object's own: what it
-        depends on is a property of the algorithm, so a header block on
-        execute_ctrl_max_out() replaces this text.
+        Same bound as dp_ddc_execute_max_out(): the binding sizes its output
+        buffer from it and resizes down to the actual count.
 
         Parameters
         ----------
         x_len : int
-            Number of input samples execute_ctrl() will be given.
+            Number of input samples the matching call sees.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            x_len.
         """
 
     def execute_ctrl_push(
@@ -611,18 +608,15 @@ class MatchedDDC:
         """
 
     def execute_ctrl_push_max_out(self) -> int:
-        """Largest number of samples execute_ctrl_push() can return in the
-        current state.
+        """Output-buffer capacity for one execute_ctrl_push() call.
 
-        Size an `out=` buffer with this before calling execute_ctrl_push(), or
-        use it to allocate one up front. The bound is this object's own: what
-        it depends on is a property of the algorithm, so a header block on
-        execute_ctrl_push_max_out() replaces this text.
+        A single input completes at most `ceil(rate) + 1` output periods; the
+        binding has no input block to size from, so it uses this fixed bound.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            `(size_t)max(rate, 1.0) + 2` samples.
         """
 
     def reset(self) -> None:
@@ -813,6 +807,9 @@ class Ddcr:
     ) -> NDArray[np.complex64]:
         """Down-convert a block of real float32 samples to CF32 baseband.
 
+        Allocates two scratch buffers per call (about n_in/2 complex samples
+        each); if either allocation fails the call returns 0.
+
         Parameters
         ----------
         x : npt.NDArray[np.float32]
@@ -823,7 +820,7 @@ class Ddcr:
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written (C-only).
+            Number of output samples written (C-only); 0 for n_in == 0.
 
         Examples
         --------
@@ -850,7 +847,7 @@ class Ddcr:
         Returns
         -------
         int
-            Output.
+            Always 0: size out from the input block length.
         """
 
     def execute_ctrl(
@@ -906,7 +903,7 @@ class Ddcr:
         Returns
         -------
         int
-            Output.
+            Always 0: size out from the input block length.
         """
 
     def execute_ctrl_push(
@@ -955,13 +952,14 @@ class Ddcr:
         """
 
     def execute_ctrl_push_max_out(self) -> int:
-        """Bound for ONE pushed input: `ceil(rate) + 1` output periods.
-        Non-zero because the push form has no input block to size from.
+        """Output-buffer size for ONE pushed input. Non-zero because the push
+        form has no input block to size from.
 
         Returns
         -------
         int
-            Output.
+            `(size_t)max(rate, 1) + 2` samples, which is 3 for every valid rate
+            (< 0.5).
         """
 
     def reset(self) -> None:
@@ -1176,6 +1174,9 @@ class MatchedDdcr:
     ) -> NDArray[np.complex64]:
         """Down-convert a block of real float32 samples to CF32 baseband.
 
+        Allocates two scratch buffers per call (about n_in/2 complex samples
+        each); if either allocation fails the call returns 0.
+
         Parameters
         ----------
         x : npt.NDArray[np.float32]
@@ -1186,7 +1187,7 @@ class MatchedDdcr:
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written (C-only).
+            Number of output samples written (C-only); 0 for n_in == 0.
 
         Examples
         --------
@@ -1213,7 +1214,7 @@ class MatchedDdcr:
         Returns
         -------
         int
-            Output.
+            Always 0: size out from the input block length.
         """
 
     def execute_ctrl(
@@ -1269,7 +1270,7 @@ class MatchedDdcr:
         Returns
         -------
         int
-            Output.
+            Always 0: size out from the input block length.
         """
 
     def execute_ctrl_push(
@@ -1318,13 +1319,14 @@ class MatchedDdcr:
         """
 
     def execute_ctrl_push_max_out(self) -> int:
-        """Bound for ONE pushed input: `ceil(rate) + 1` output periods.
-        Non-zero because the push form has no input block to size from.
+        """Output-buffer size for ONE pushed input. Non-zero because the push
+        form has no input block to size from.
 
         Returns
         -------
         int
-            Output.
+            `(size_t)max(rate, 1) + 2` samples, which is 3 for every valid rate
+            (< 0.5).
         """
 
     def reset(self) -> None:

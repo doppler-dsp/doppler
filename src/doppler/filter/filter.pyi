@@ -78,7 +78,9 @@ class FIR:
         Returns
         -------
         NDArray[np.complex64]
-            Number of output samples written (always == n_in).
+            Number of output samples written: n_in on success; 0 if any pointer
+            is NULL, n_in is 0, or growing the scratch buffer fails (state is
+            then unchanged).
 
         Examples
         --------
@@ -108,7 +110,7 @@ class FIR:
         Returns
         -------
         int
-            Output.
+            0, always.
         """
 
     def state_bytes(self) -> int:
@@ -170,9 +172,9 @@ class FIR:
 
     @property
     def num_taps(self) -> int:
-        """Number of tap coefficients supplied at creation. This equals the
-        filter group delay plus one, and determines the minimum input block
-        length for which no latency is observable.
+        """Number of tap coefficients supplied at creation. The filter length
+        M; the delay line holds M - 1 samples. For a linear-phase (symmetric)
+        design the group delay is (M - 1) / 2 samples.
         """
 
     @property
@@ -455,4 +457,30 @@ def design_lowpass(
 ) -> NDArray[np.float32]:
     """Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps
     (Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps).
+
+    The tap count is chosen automatically from the band edges and the
+    attenuation with the Kaiser FIR-length formula, `n =
+    dp_kaiser_num_taps(1, atten_db, fpass / 2, fstop / 2) | 1` (always odd,
+    so the filter is type-I linear phase with an integer group delay of `(n
+    - 1) / 2` samples). The window shape comes from dp_kaiser_beta(), the
+    FIR-design beta formula, not the window-sidelobe one. The ideal cutoff
+    sits at the midpoint of the transition band, `(fpass + fstop) / 2`.
+    Taps are `2 fc sinc(2 fc m) w[m]` with `fc` in cycles/sample; they are
+    not renormalized afterwards, so the DC gain is close to, but not
+    exactly, 1.
+
+    Parameters
+    ----------
+    fpass : float
+        Passband edge, Nyquist-normalized (1.0 == fs/2), `0 < fpass <
+        fstop`.
+    fstop : float
+        Stopband edge, Nyquist-normalized (1.0 == fs/2).
+    atten_db : float
+        Target stopband attenuation in dB (positive).
+
+    Returns
+    -------
+    NDArray[np.float32]
+        Output.
     """

@@ -427,7 +427,9 @@ static PyMethodDef HalfbandDecimatorQ15Obj_methods[] = {
     "-------\n"
     "NDArray[np.int16]\n"
     "    min(available, max_out) COMPLEX samples -- twice that many int16_t\n"
-    "    values.\n"
+    "    values; 0 when n_in or max_out is 0. When max_out stops the loop\n"
+    "    early, only the next unconsumed input pair is buffered as pending;\n"
+    "    any further input in this call is dropped.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -455,7 +457,7 @@ static PyMethodDef HalfbandDecimatorQ15Obj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always 0 (no fixed bound; size the output from n_in).\n" },
   { "reset", (PyCFunction)HalfbandDecimatorQ15Obj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
@@ -592,7 +594,8 @@ static PyTypeObject HalfbandDecimatorQ15ObjType = {
     "----------\n"
     "h : NDArray[np.float32]\n"
     "    Float FIR branch coefficients of length num_taps. Must be symmetric\n"
-    "    (`h[k]` == `h[num_taps-1-k]`).\n"
+    "    (`h[k]` == `h[num_taps-1-k]`): only the first num_taps/2 are read,\n"
+    "    scaled by 0.5 and saturated to Q15.\n"
     "\n"
     "Examples\n"
     "--------\n"

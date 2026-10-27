@@ -228,13 +228,39 @@ _bind_design_lowpass (PyObject *self, PyObject *args, PyObject *kwds)
 /* Module                                                    */
 /* ======================================================== */
 
-static PyMethodDef filter_module_methods[]
-    = { { "design_lowpass", (PyCFunction)(void *)_bind_design_lowpass,
-          METH_VARARGS | METH_KEYWORDS,
-          "Kaiser-windowed-sinc lowpass FIR taps, auto-sized by "
-          "kaiser_num_taps (Nyquist-normalised fpass/fstop band edges, "
-          "unit-DC-gain float32 taps).\n" },
-        { NULL, NULL, 0, NULL } };
+static PyMethodDef filter_module_methods[] = {
+  { "design_lowpass", (PyCFunction)(void *)_bind_design_lowpass,
+    METH_VARARGS | METH_KEYWORDS,
+    "Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps "
+    "(Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps).\n"
+    "\n"
+    "The tap count is chosen automatically from the band edges and the\n"
+    "attenuation with the Kaiser FIR-length formula, `n =\n"
+    "dp_kaiser_num_taps(1, atten_db, fpass / 2, fstop / 2) | 1` (always odd,\n"
+    "so the filter is type-I linear phase with an integer group delay of `(n\n"
+    "- 1) / 2` samples). The window shape comes from dp_kaiser_beta(), the\n"
+    "FIR-design beta formula, not the window-sidelobe one. The ideal cutoff\n"
+    "sits at the midpoint of the transition band, `(fpass + fstop) / 2`.\n"
+    "Taps are `2 fc sinc(2 fc m) w[m]` with `fc` in cycles/sample; they are\n"
+    "not renormalized afterwards, so the DC gain is close to, but not\n"
+    "exactly, 1.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "fpass : float\n"
+    "    Passband edge, Nyquist-normalized (1.0 == fs/2), `0 < fpass <\n"
+    "    fstop`.\n"
+    "fstop : float\n"
+    "    Stopband edge, Nyquist-normalized (1.0 == fs/2).\n"
+    "atten_db : float\n"
+    "    Target stopband attenuation in dB (positive).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.float32]\n"
+    "    Output.\n" },
+  { NULL, NULL, 0, NULL }
+};
 
 static PyModuleDef filter_moduledef = {
   PyModuleDef_HEAD_INIT,

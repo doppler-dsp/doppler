@@ -926,9 +926,10 @@ Despreader_setprop_bn_code (DespreaderObject *self, PyObject *value,
 
 static PyGetSetDef Despreader_getset[] = {
   { "norm_freq", (getter)Despreader_getprop_norm_freq,
-    (setter)Despreader_setprop_norm_freq, "Norm freq.\n", NULL },
-  { "code_phase", (getter)Despreader_getprop_code_phase, NULL, "Code phase.\n",
-    NULL },
+    (setter)Despreader_setprop_norm_freq,
+    "The carrier loop's tracked frequency, cycles/sample.\n", NULL },
+  { "code_phase", (getter)Despreader_getprop_code_phase, NULL,
+    "The code loop's current prompt code phase, chips.\n", NULL },
   { "code_rate", (getter)Despreader_getprop_code_rate, NULL,
     "Chips the embedded DLL advances per nominal chip: ~1.0, and its "
     "departure from 1 is the code-rate (clock) offset being tracked.\n",
@@ -949,10 +950,11 @@ static PyGetSetDef Despreader_getset[] = {
     "despreader runs the same always-on detector Dll.steps does.\n",
     NULL },
   { "bit_phase", (getter)Despreader_getprop_bit_phase, NULL,
-    "detected bit boundary (argmax flip_hist).\n", NULL },
+    "The detected data-bit boundary, in code periods.\n", NULL },
   { "bn_carrier", (getter)Despreader_getprop_bn_carrier,
     (setter)Despreader_setprop_bn_carrier,
-    "Bn carrier.\n"
+    "Carrier loop noise bandwidth, normalized to the code-period (symbol)\n"
+    "rate.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -965,7 +967,7 @@ static PyGetSetDef Despreader_getset[] = {
     NULL },
   { "bn_code", (getter)Despreader_getprop_bn_code,
     (setter)Despreader_setprop_bn_code,
-    "Bn code.\n"
+    "Code loop noise bandwidth, normalized to the code-period rate.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1077,18 +1079,15 @@ static PyMethodDef DespreaderObj_methods[] = {
   { "steps_max_out", (PyCFunction)DespreaderObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps() can return in the current state.\n"
-    "\n"
-    "Size an `out=` buffer with this before calling steps(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on steps_max_out()\n"
-    "replaces this text.\n"
+    "No fixed cap on steps() output (one prompt per code period, so never\n"
+    "more prompts than input samples).\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    Always 0, meaning \"no fixed capacity\": size the output to the "
+    "input\n"
+    "    length.\n" },
   { "bits", (PyCFunction)(void *)DespreaderObj_bits,
     METH_VARARGS | METH_KEYWORDS,
     "bits(x, out) -> ndarray\n"
@@ -1104,7 +1103,9 @@ static PyMethodDef DespreaderObj_methods[] = {
     "periods) and one hard 0/1 bit is emitted per data bit. The bit boundary\n"
     "is estimated on-line from the prompt sign-flip histogram, so the phase\n"
     "is a BPSK ambiguity — a globally inverted decision stream is equally\n"
-    "correct.\n"
+    "correct. A bit is 1 when its summed Re(prompt) is >= 0, else 0. The\n"
+    "first (partial) bit after create or reset is not emitted; with\n"
+    "periods_per_bit == 1 every prompt yields one bit.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1137,18 +1138,15 @@ static PyMethodDef DespreaderObj_methods[] = {
   { "bits_max_out", (PyCFunction)DespreaderObj_bits_max_out, METH_NOARGS,
     "bits_max_out() -> int\n"
     "\n"
-    "Largest number of samples bits() can return in the current state.\n"
-    "\n"
-    "Size an `out=` buffer with this before calling bits(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on bits_max_out()\n"
-    "replaces this text.\n"
+    "No fixed cap on bits() output (at most one bit per code period, so\n"
+    "never more bits than input samples).\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    Always 0, meaning \"no fixed capacity\": size the output to the "
+    "input\n"
+    "    length.\n" },
   { "set_telemetry", (PyCFunction)(void *)DespreaderObj_set_telemetry,
     METH_VARARGS | METH_KEYWORDS,
     "set_telemetry(tlm, prefix, decim) -> None\n"

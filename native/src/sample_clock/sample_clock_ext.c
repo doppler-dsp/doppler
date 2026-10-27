@@ -576,12 +576,16 @@ static PyMethodDef SampleClock_methods[] = {
     "Parameters\n"
     "----------\n"
     "count : int\n"
-    "    Input.\n"
+    "    Samples in the block being paced; ``n`` grows by this much before\n"
+    "    the deadline is computed.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "float\n"
-    "    Output.\n" },
+    "    Seconds from now to the deadline, read before any sleep. A deadline\n"
+    "    reached exactly (slack 0) also counts as an underrun. The sleep\n"
+    "    itself returns early if dp_interrupted() is set, so it may sleep\n"
+    "    less than a positive slack.\n" },
   { "stamp", (PyCFunction)SampleClock_stamp, METH_VARARGS,
     "Ideal wall-clock timestamp (ns since the UNIX epoch) of the next\n"
     "sample to be produced — sample index ``n``. Call it before pace() to\n"
@@ -591,7 +595,8 @@ static PyMethodDef SampleClock_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    ``epoch_real_ns`` plus ``n/fs`` seconds, in ns, rounded to the\n"
+    "    nearest ns.\n" },
   { "stamp_at", (PyCFunction)(void (*) (void))SampleClock_stamp_at,
     METH_VARARGS | METH_KEYWORDS,
     "Ideal wall-clock timestamp (ns since the UNIX epoch) of an ARBITRARY\n"
@@ -605,12 +610,13 @@ static PyMethodDef SampleClock_methods[] = {
     "Parameters\n"
     "----------\n"
     "n : int\n"
-    "    Input.\n"
+    "    Sample index, counted on the clock's current timeline.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    ``epoch_real_ns`` plus ``n/fs`` seconds, in ns, rounded to the\n"
+    "    nearest ns.\n" },
   { "track", (PyCFunction)(void (*) (void))SampleClock_track,
     METH_VARARGS | METH_KEYWORDS,
     "Reconcile c's epoch_real_ns against one OBSERVED (timestamp, sample\n"
@@ -633,14 +639,19 @@ static PyMethodDef SampleClock_methods[] = {
     "reconciled observations as literal replay-safe state — always resync\n"
     "from an ARRIVING message, not a cached one.\n"
     "\n"
+    "An accepted observation, whether or not it re-anchors, also moves ``n``\n"
+    "to n_at_observation.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "observed_timestamp_ns : int\n"
-    "    Input.\n"
+    "    Wall-clock time, ns since the UNIX epoch, the sender stamped on\n"
+    "    sample n_at_observation.\n"
     "n_at_observation : int\n"
-    "    Input.\n"
+    "    Sample index that timestamp belongs to.\n"
     "tolerance_ns : int\n"
-    "    Input.\n"
+    "    Largest predicted-vs-observed gap, ns, accepted without\n"
+    "    re-anchoring.\n"
     "\n"
     "Returns\n"
     "-------\n"

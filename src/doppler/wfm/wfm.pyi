@@ -171,18 +171,15 @@ class PN:
         """
 
     def generate_max_out(self) -> int:
-        """Largest number of samples generate() can return in the current
-        state.
+        """Output capacity hint for dp_pn_generate(): always 0.
 
-        Size an `out=` buffer with this before calling generate(), or use it to
-        allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on
-        generate_max_out() replaces this text.
+        The chip count is the caller's n, not a function of the state, so there
+        is no state-derived bound; size out to n.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            0.
         """
 
     def state_bytes(self) -> int:
@@ -326,11 +323,11 @@ class _SynthEngine:
     seed : int, default 1
         PRNG seed shared by AWGN and the PN LFSR. Default 1.
     sps : int, default 8
-        Samples per symbol for modulated types (BPSK, QPSK, PN). Ignored for
-        tone/noise. Default 8.
+        Samples per symbol for modulated types (BPSK, QPSK, PN; per chip for
+        dsss). Ignored for tone/noise. Values < 1 are clamped to 1. Default 8.
     pn_length : int, default 7
-        LFSR register length (1..64); period = 2^pn_length - 1. Default 7
-        (period 127).
+        LFSR register length; period = 2^pn_length - 1. With pn_poly 0 it must
+        be 2..64 (the MLS table's range). Default 7 (period 127).
     pn_poly : int, default 0
         Galois tap polynomial for the LFSR. 0 means "look up the canonical MLS
         polynomial for pn_length" from the wfm_synth_mls_poly table. Default 0.
@@ -375,6 +372,12 @@ class _SynthEngine:
         """Reset Synth to its post-create state. Resets the LO phase
         accumulator, AWGN internal state, and PN LFSR register to their initial
         values so the output sequence is perfectly reproducible from sample 0.
+        Also rewinds the bit/symbol cursors, the chirp phase and the
+        continuous-DSSS clocks, and clears the shaper's delay line.
+        Configuration (patterns, codes, window, RRC taps, chirp span) is kept.
+        With a refill attached the data-ended latch is NOT cleared and the
+        rewound cursor replays the frame in the buffer (the last one pulled),
+        since a pulled source cannot rewind what it consumed.
 
         Examples
         --------
@@ -410,10 +413,15 @@ class _SynthEngine:
         """
 
     def steps(self, n: int = 1) -> NDArray[np.complex64]:
-        """Generate a block of output samples. Calls dp_wfm_synth_step() in a
-        tight loop, writing each cf32 sample into ``output``. The Python
-        binding returns a freshly allocated NumPy complex64 array; ownership is
-        transferred to the caller.
+        """Generate a block of output samples. Produces the same stream as n
+        calls of dp_wfm_synth_step(), writing each cf32 sample into ``output``,
+        but batched: the LO, AWGN and PN are generated a chunk at a time and
+        the symbol map, carrier mix and noise add are separate passes. Because
+        the mix and the add round separately, the result can differ from step()
+        by an ULP under -ffast-math on FMA targets (arm64, QPSK); drive one
+        path where byte-for-byte agreement matters. The Python binding returns
+        a freshly allocated NumPy complex64 array; ownership is transferred to
+        the caller.
 
         Parameters
         ----------
@@ -738,18 +746,21 @@ class _SynthEngine:
         """
     def get_wtype(self) -> int:
         """Return the active waveform type discriminant. Maps to the
-        WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to
-        inspect which synthesis path is active at runtime.
+        WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp,
+        6=bits, 7=symbols, 8=dsss. Use this to inspect which synthesis path is
+        active at runtime.
 
         Returns
         -------
         int
-            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
+            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS), the
+            create-time `type` unless overridden.
         """
 
     def set_wtype(self, value: int, /) -> None:
         """Override the waveform type discriminant in-place. Changing wtype
-        does not reinitialise sub-objects; use with care.
+        does not reinitialise sub-objects (no PN, LO, AWGN or pattern is
+        created or freed, and the value is not validated); use with care.
 
         Parameters
         ----------
@@ -758,20 +769,24 @@ class _SynthEngine:
         """
 
     def get_nsps(self) -> int:
-        """Return the samples-per-symbol count. For modulated types (BPSK,
-        QPSK, PN) each symbol is held for nsps consecutive output samples. For
-        tone/noise this field is present but unused by the synthesis path.
+        """Return the samples-per-symbol count. For symbol types (PN, BPSK,
+        QPSK, bits, symbols, dsss chips) each symbol is held for nsps
+        consecutive output samples. For tone/noise/chirp this field is present
+        but unused by the synthesis path.
 
         Returns
         -------
         int
-            Samples per symbol (nsps >= 1).
+            Samples per symbol: the create-time `sps` clamped to >= 1, or
+            whatever dp_wfm_synth_set_nsps() last stored.
         """
 
     def set_nsps(self, value: int, /) -> None:
         """Override the samples-per-symbol count in-place. Does not flush the
         symbol-position counter (sym_pos); set sym_pos=0 as well when changing
-        sps mid-stream.
+        sps mid-stream. Not validated, and does not rebuild an attached RRC
+        shaper (whose taps and polyphase split were fixed for the nsps at
+        dp_wfm_synth_set_rrc() time) or rescale the noise.
 
         Parameters
         ----------
@@ -781,19 +796,22 @@ class _SynthEngine:
 
     def get_sym_pos(self) -> int:
         """Return the current position within the current symbol (0..nsps-1).
-        Reaches nsps and wraps to 0 each time a new symbol is consumed from the
-        PN LFSR. Useful for frame alignment: sym_pos==0 on a step boundary
-        means the very next sample begins a fresh symbol.
+        Reaches nsps and wraps to 0 each time a new symbol is latched from the
+        active source (PN LFSR, bit pattern, symbol stream or DSSS chip).
+        Useful for frame alignment: sym_pos==0 on a step boundary means the
+        very next sample begins a fresh symbol. Not advanced on the
+        polyphase-shaper path (power-of-two sps with RRC), nor for
+        tone/noise/chirp.
 
         Returns
         -------
         int
-            Symbol position counter (0 <= sym_pos < nsps).
+            Symbol position counter (0 <= sym_pos < nsps); 0 after create.
         """
 
     def set_sym_pos(self, value: int, /) -> None:
         """Override the symbol-position counter in-place. Injecting 0 forces
-        the next dp_wfm_synth_step() to latch a new PN chip; any other value
+        the next dp_wfm_synth_step() to latch a new symbol; any other value
         fast-forwards into the middle of the current symbol hold.
 
         Parameters
@@ -806,8 +824,9 @@ class _SynthEngine:
         """Return the real part of the current held symbol. For modulated types
         this is the I component latched at the last symbol boundary (±1 for
         BPSK/PN, ±1/√2 for QPSK). For tone the synthesiser initialises cur_re
-        to 1.0 so that the held symbol is a clean unit-power carrier; for noise
-        it is 0.0 (noise has no held symbol).
+        to 1.0 so that the held symbol is a clean unit-power carrier (chirp
+        too); for noise it is 0.0 (noise has no held symbol), as it is for
+        every symbol type before its first latch.
 
         Returns
         -------
@@ -1013,18 +1032,15 @@ class Gold:
         """
 
     def generate_max_out(self) -> int:
-        """Largest number of samples generate() can return in the current
-        state.
+        """Output capacity hint for dp_gold_generate(): always 0.
 
-        Size an `out=` buffer with this before calling generate(), or use it to
-        allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on
-        generate_max_out() replaces this text.
+        The chip count is the caller-requested n of dp_gold_generate(), so
+        there is no fixed per-call maximum; size the output buffer to n.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            0, meaning "no fixed bound; the output length is n".
         """
 
     def state_bytes(self) -> int:
@@ -1233,7 +1249,9 @@ class Frame:
         Returns
         -------
         int
-            Output.
+            `n * nbits`, the output capacity in bits (one per byte) that
+            dp_frame_bits() needs; 0 for a NULL state or an unbuilt
+            description.
         """
 
     def crc_ok(
@@ -1517,7 +1535,9 @@ class Frame:
         Returns
         -------
         int
-            Output.
+            The new field's index, or -1 on NULL state, a built frame, a zero
+            bits, a full description (`WFM_FRAME_MAX_FIELDS`) or a name another
+            field already carries.
 
         Raises
         ------
@@ -2073,7 +2093,11 @@ class Frame:
 
     @property
     def nbits(self) -> int:
-        """Nbits."""
+        """Bits in one frame as transmitted: the assembled frame's length for
+        dp_frame_create(), and the last emitting stage's output length
+        (`out_bits`) after dp_frame_build(). 0 until a description is built, or
+        if building fails.
+        """
 
     @property
     def _capsule(self) -> Any:
@@ -2240,7 +2264,9 @@ class FrameDesc:
         Returns
         -------
         int
-            Output.
+            `n * nbits`, the output capacity in bits (one per byte) that
+            dp_frame_bits() needs; 0 for a NULL state or an unbuilt
+            description.
         """
 
     def crc_ok(
@@ -2524,7 +2550,9 @@ class FrameDesc:
         Returns
         -------
         int
-            Output.
+            The new field's index, or -1 on NULL state, a built frame, a zero
+            bits, a full description (`WFM_FRAME_MAX_FIELDS`) or a name another
+            field already carries.
 
         Raises
         ------
@@ -3080,7 +3108,11 @@ class FrameDesc:
 
     @property
     def nbits(self) -> int:
-        """Nbits."""
+        """Bits in one frame as transmitted: the assembled frame's length for
+        dp_frame_create(), and the last emitting stage's output length
+        (`out_bits`) after dp_frame_build(). 0 until a description is built, or
+        if building fails.
+        """
 
     @property
     def _capsule(self) -> Any:
@@ -3298,6 +3330,26 @@ def rrc_h(t: npt.NDArray[np.float64], beta: float) -> NDArray[np.float64]:
     integer sample grid — a non-integer samples-per-symbol or a fractional
     timing offset has no grid to sample. `rrc_taps` remains the right call for
     filter taps.
+
+    Evaluates the header-inline wfm_rrc_h() at each `t[i]`: the
+    unnormalized RRC impulse response (peak `1 - beta + 4*beta/pi` at t =
+    0), with the t = 0 and t = +-1/(4*beta) singularities replaced by their
+    closed-form limits. Use it when the pulse is needed off the integer
+    sample grid; dp_rrc_taps() remains the call for filter taps. If beta is
+    outside 0 to 1 (or NaN) the output is zeroed instead; no error is
+    raised.
+
+    Parameters
+    ----------
+    t : npt.NDArray[np.float64]
+        Times in symbol periods, relative to the pulse center.
+    beta : float
+        Roll-off factor, 0 to 1.
+
+    Returns
+    -------
+    NDArray[np.float64]
+        Output.
     """
 
 def rc_h(t: npt.NDArray[np.float64], beta: float) -> NDArray[np.float64]:
@@ -3306,6 +3358,25 @@ def rc_h(t: npt.NDArray[np.float64], beta: float) -> NDArray[np.float64]:
     so this is what models the matched-filter OUTPUT directly — a
     timing-detector S-curve reference, or a receiver test with its front end
     collapsed away.
+
+    Evaluates the header-inline wfm_rc_h() at each `t[i]`: the full raised
+    cosine, normalized to g(0) = 1 and zero at every nonzero integer t,
+    i.e. the matched-filter output a TX/RX RRC pair delivers at timing
+    offset t. The t = +-1/(2*beta) singularity uses its closed-form limit.
+    If beta is outside 0 to 1 (or NaN) the output is zeroed instead; no
+    error is raised.
+
+    Parameters
+    ----------
+    t : npt.NDArray[np.float64]
+        Times in symbol periods, relative to the pulse center.
+    beta : float
+        Roll-off factor, 0 to 1.
+
+    Returns
+    -------
+    NDArray[np.float64]
+        Output.
     """
 
 def field_bits(spec: str) -> NDArray[np.uint8]:
@@ -3353,6 +3424,26 @@ def field_bits(spec: str) -> NDArray[np.uint8]:
 def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
     """Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32
     taps).
+
+    The wfm-namespace alias of dp_wfm_rrc_taps(): fills out with
+    `2*span*sps + 1` real taps, symmetric about the center tap and scaled
+    so the sum of squares is 1 (cascading TX and RX gives a Nyquist raised
+    cosine). If sps or span is below 1 the filter is refused and the
+    `2*span*sps + 1` output slots are zeroed instead; no error is raised.
+
+    Parameters
+    ----------
+    beta : float
+        Roll-off factor, 0 to 1.
+    sps : int
+        Samples per symbol (>= 1).
+    span : int
+        One-sided filter span in symbols (>= 1).
+
+    Returns
+    -------
+    NDArray[np.float32]
+        Output.
     """
 
 def _sweep_ends(
@@ -3364,12 +3455,31 @@ def _sweep_ends(
 ) -> NDArray[np.float64]:
     """Start and end frequency of the chirp that sweeps about a center.
 
-    A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has
-    instantaneous frequency ``f_mid + rate*u`` Hz at sample ``i``,
-    ``u = (i - center)/fs`` seconds, so it multiplies a block by
-    ``exp(j*2*pi*(f_mid*u + rate*u**2/2))`` up to one constant phase. This is
-    the single copy of that arithmetic (``dp_wfm_synth_sweep_ends``);
-    ``doppler.wfm.rotate`` takes it from here.
+    A chirp from `f0` to `f_end` pinned over `n` samples has instantaneous
+    frequency `f_mid + rate*u` Hz at sample `i`, `u = (i - center)/fs`
+    seconds, so it multiplies a block by `exp(j*2*pi*(f_mid*u +
+    rate*u**2/2))` up to one constant phase. This is the single copy of
+    that arithmetic (dp_wfm_synth_sweep_ends()); `doppler.wfm.rotate` takes
+    it from here. Private: bound as `doppler.wfm._sweep_ends`. Pure
+    arithmetic: no state, nothing allocated.
+
+    Parameters
+    ----------
+    fs : float
+        Sample rate, Hz (> 0).
+    f_mid : float
+        Frequency at the center, Hz.
+    rate : float
+        Sweep rate, Hz per second.
+    n : int
+        Samples the sweep spans.
+    center : float
+        Sample index of the sweep's center (need not be an integer).
+
+    Returns
+    -------
+    NDArray[np.float64]
+        Output.
 
     Examples
     --------
@@ -3387,4 +3497,25 @@ def dsss_spread(
 ) -> NDArray[np.complex64]:
     """Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf
     chips.
+
+    The wfm-namespace alias of dp_wfm_dsss_spread(): `out[i*sf + j] =
+    syms[i] * (code[j] ? -1 : +1)`, so each symbol is repeated over sf
+    chips with a per-chip sign flip. Only the first sf chips of code are
+    used. If sf < 1 or code_len < sf the spread is refused and the output
+    is zeroed instead (`syms_len * sf` slots, none when sf < 1); no error
+    is raised.
+
+    Parameters
+    ----------
+    syms : npt.NDArray[np.complex64]
+        Complex data symbols.
+    code : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
+        Chip code, one chip per byte, 0 or 1.
+    sf : int
+        Spreading factor, chips per symbol (>= 1).
+
+    Returns
+    -------
+    NDArray[np.complex64]
+        Output.
     """

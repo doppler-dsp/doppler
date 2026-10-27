@@ -2719,8 +2719,8 @@ static PyGetSetDef Synth_getset[] = {
     "with data_from_file.\n",
     NULL },
   { "data_len", (getter)Synth_get_data_len, (setter)Synth_set_data_len,
-    "Bits of the data source per frame: the data:LEN of the common frame "
-    "[preamble x reps | sync | data:LEN | crc]. 0 takes a finite source "
+    "Bits of the data source per frame: the data:LEN field of the common "
+    "frame (preamble x reps, sync, data:LEN, crc). 0 takes a finite source "
     "whole, as one frame. A carried frame names its own data field, and this "
     "is then 0 or that field's LEN. Continuous dsss has no frame, and refuses "
     "it.\n",
@@ -3335,9 +3335,9 @@ static PyTypeObject SynthType = {
       "frame);\n"
       "    not with data_from_file.\n"
       "data_len : int, default 0\n"
-      "    Bits of the data source per frame: the data:LEN of the common "
-      "frame\n"
-      "    [preamble x reps | sync | data:LEN | crc]. 0 takes a finite "
+      "    Bits of the data source per frame: the data:LEN field of the "
+      "common\n"
+      "    frame (preamble x reps, sync, data:LEN, crc). 0 takes a finite "
       "source\n"
       "    whole, as one frame. A carried frame names its own data field, and "
       "this\n"
@@ -5230,8 +5230,8 @@ static PyGetSetDef Segment_getset[] = {
     "with data_from_file.\n",
     NULL },
   { "data_len", (getter)Segment_flat_data_len, NULL,
-    "Bits of the data source per frame: the data:LEN of the common frame "
-    "[preamble x reps | sync | data:LEN | crc]. 0 takes a finite source "
+    "Bits of the data source per frame: the data:LEN field of the common "
+    "frame (preamble x reps, sync, data:LEN, crc). 0 takes a finite source "
     "whole, as one frame. A carried frame names its own data field, and this "
     "is then 0 or that field's LEN. Continuous dsss has no frame, and refuses "
     "it.\n",
@@ -5574,9 +5574,9 @@ static PyTypeObject SegmentType = {
       "frame);\n"
       "    not with data_from_file.\n"
       "data_len : int, default 0\n"
-      "    Bits of the data source per frame: the data:LEN of the common "
-      "frame\n"
-      "    [preamble x reps | sync | data:LEN | crc]. 0 takes a finite "
+      "    Bits of the data source per frame: the data:LEN field of the "
+      "common\n"
+      "    frame (preamble x reps, sync, data:LEN, crc). 0 takes a finite "
       "source\n"
       "    whole, as one frame. A carried frame names its own data field, and "
       "this\n"

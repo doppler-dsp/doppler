@@ -597,18 +597,23 @@ CarrierNda_getprop_sps (CarrierNdaObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef CarrierNda_getset[] = {
   { "norm_freq", (getter)CarrierNda_getprop_norm_freq,
-    (setter)CarrierNda_setprop_norm_freq, "Norm freq.\n", NULL },
+    (setter)CarrierNda_setprop_norm_freq,
+    "Tracked carrier frequency: the NCO centre plus the loop's integrated "
+    "correction (integrator only, smoothed).\n",
+    NULL },
   { "lock", (getter)CarrierNda_getprop_lock, NULL,
-    "EMA of the lock signal (1 = locked).\n", NULL },
+    "Lock-signal EMA: Re((z/|z|)^M) smoothed per sample by "
+    "CARRIER_NDA_LOCK_ALPHA.\n",
+    NULL },
   { "locked", (getter)CarrierNda_getprop_locked, NULL,
     "Current lock decision: True after the verify count of consecutive "
     "above-threshold samples, False again after the drop count of consecutive "
     "below-threshold ones (see configure_lock).\n",
     NULL },
   { "last_error", (getter)CarrierNda_getprop_last_error, NULL,
-    "last phase discriminator (loop stress).\n", NULL },
+    "Last phase error from the M-th-power discriminator.\n", NULL },
   { "bn", (getter)CarrierNda_getprop_bn, (setter)CarrierNda_setprop_bn,
-    "PLL loop noise bandwidth (retained).\n"
+    "Loop noise bandwidth currently in use.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -619,11 +624,11 @@ static PyGetSetDef CarrierNda_getset[] = {
     "    gains come out finite)``, with the return code appended.\n",
     NULL },
   { "m", (getter)CarrierNda_getprop_m, NULL,
-    "constellation order M (2, 4, 8).\n", NULL },
+    "Constellation order the discriminator strips.\n", NULL },
   { "n", (getter)CarrierNda_getprop_n, NULL,
-    "sets the MA window (= a 1/n-symbol box).\n", NULL },
-  { "sps", (getter)CarrierNda_getprop_sps, NULL, "samples per symbol.\n",
-    NULL },
+    "Arm-window divisor: the moving average spans sps / n samples.\n", NULL },
+  { "sps", (getter)CarrierNda_getprop_sps, NULL,
+    "Samples per symbol the arm window is sized from.\n", NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -731,18 +736,14 @@ static PyMethodDef CarrierNdaObj_methods[] = {
   { "steps_max_out", (PyCFunction)CarrierNdaObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps() can return in the current state.\n"
+    "Output capacity hint for dp_carrier_nda_steps(): always 0.\n"
     "\n"
-    "Size an `out=` buffer with this before calling steps(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on steps_max_out()\n"
-    "replaces this text.\n"
+    "The output is one sample per input, so size out to the input length.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    0 (no state-derived bound).\n" },
   { "set_telemetry", (PyCFunction)(void *)CarrierNdaObj_set_telemetry,
     METH_VARARGS | METH_KEYWORDS,
     "set_telemetry(tlm, prefix, decim) -> None\n"

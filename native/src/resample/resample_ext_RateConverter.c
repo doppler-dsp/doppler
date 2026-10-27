@@ -884,7 +884,7 @@ static PyMethodDef RateConverterObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Output capacity in samples.\n" },
   { "execute_ctrl", (PyCFunction)(void *)RateConverterObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl(x, ctrl, out) -> ndarray\n"
@@ -936,12 +936,16 @@ static PyMethodDef RateConverterObj_methods[] = {
     METH_NOARGS,
     "execute_ctrl_max_out() -> int\n"
     "\n"
-    "As dp_RateConverter_execute_max_out(), for the block control form.\n"
+    "Output-capacity hint for the block control form.\n"
+    "\n"
+    "Unlike dp_RateConverter_execute_max_out() this always returns 0, which\n"
+    "tells the binding to size the output buffer from the input block\n"
+    "instead.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    0.\n" },
   { "execute_ctrl_push",
     (PyCFunction)(void *)RateConverterObj_execute_ctrl_push,
     METH_VARARGS | METH_KEYWORDS,
@@ -991,13 +995,16 @@ static PyMethodDef RateConverterObj_methods[] = {
     (PyCFunction)RateConverterObj_execute_ctrl_push_max_out, METH_NOARGS,
     "execute_ctrl_push_max_out() -> int\n"
     "\n"
-    "Bound for ONE pushed input: `ceil(rate) + 1` output periods.\n"
-    "Non-zero because the push form has no input block to size from.\n"
+    "Output bound for ONE pushed input.\n"
+    "\n"
+    "Computed as `(size_t)max(rate, 1.0) + 2`, which is at least `ceil(rate)\n"
+    "+ 1`. Non-zero because the push form has no input block to size from.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Output capacity, in samples, for one\n"
+    "    dp_RateConverter_execute_ctrl_push() call.\n" },
   { "reset", (PyCFunction)RateConverterObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
@@ -1005,6 +1012,9 @@ static PyMethodDef RateConverterObj_methods[] = {
     "types are preserved. Processing from a reset state produces the same\n"
     "output as a freshly created converter fed the same input. Use between\n"
     "signal bursts to suppress transient artefacts from prior filter memory.\n"
+    "An enabled AGC is reset too (back to unity gain with its detector at\n"
+    "the reference), and the clip flag read by\n"
+    "dp_RateConverter_get_clipped() is cleared with the CIC stages.\n"
     "\n"
     "Examples\n"
     "--------\n"

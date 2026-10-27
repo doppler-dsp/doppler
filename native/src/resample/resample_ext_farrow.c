@@ -346,7 +346,7 @@ Farrow_getprop_group_delay (FarrowObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef Farrow_getset[]
     = { { "group_delay", (getter)Farrow_getprop_group_delay, NULL,
-          "Group delay.\n", NULL },
+          "Group delay of the interpolator, in samples.\n", NULL },
         { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
@@ -428,8 +428,9 @@ static PyMethodDef FarrowObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    CF32 output array, same length as x, each sample delayed by\n"
-    "    `group_delay - mu`.\n"
+    "    Number of samples written to out, `min(x_len, max_out)`; from\n"
+    "    Python, the CF32 output array (same length as x), each sample\n"
+    "    delayed by `group_delay - mu`.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -443,18 +444,15 @@ static PyMethodDef FarrowObj_methods[] = {
   { "delay_max_out", (PyCFunction)FarrowObj_delay_max_out, METH_NOARGS,
     "delay_max_out() -> int\n"
     "\n"
-    "Largest number of samples delay() can return in the current state.\n"
+    "Output capacity hint for dp_farrow_delay().\n"
     "\n"
-    "Size an `out=` buffer with this before calling delay(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on delay_max_out()\n"
-    "replaces this text.\n"
+    "delay() emits exactly one output per input sample, so the caller sizes\n"
+    "out to the input length; this returns the \"caller sizes it\" sentinel.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    Always 0.\n" },
   { "reset", (PyCFunction)FarrowObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

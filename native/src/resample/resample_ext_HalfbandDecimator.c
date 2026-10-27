@@ -351,18 +351,20 @@ HalfbandDecimator_getprop_num_taps (HalfbandDecimatorObject *self,
       (unsigned long long)dp_HalfbandDecimator_get_num_taps (self->handle));
 }
 
-static PyGetSetDef HalfbandDecimator_getset[]
-    = { { "rate", (getter)HalfbandDecimator_getprop_rate, NULL,
-          "Fixed decimation rate — always 0.5. The halfband decimator is "
-          "structurally 2:1; this property exists for API parity with "
-          "Resampler and RateConverter.\n",
-          NULL },
-        { "num_taps", (getter)HalfbandDecimator_getprop_num_taps, NULL,
-          "Number of FIR branch taps as passed to create. The all-pass "
-          "(even-phase) branch has no taps; only the odd-phase FIR branch has "
-          "length num_taps. The total prototype length is 2 * num_taps - 1.\n",
-          NULL },
-        { NULL, NULL, NULL, NULL, NULL } };
+static PyGetSetDef HalfbandDecimator_getset[] = {
+  { "rate", (getter)HalfbandDecimator_getprop_rate, NULL,
+    "Fixed decimation rate — always 0.5. The halfband decimator is "
+    "structurally 2:1; this property exists for API parity with Resampler and "
+    "RateConverter.\n",
+    NULL },
+  { "num_taps", (getter)HalfbandDecimator_getprop_num_taps, NULL,
+    "Number of FIR branch taps as passed to create. The pure-delay branch has "
+    "no taps; only the FIR branch has length num_taps (it runs on the "
+    "even-indexed inputs when num_taps is even, the odd-indexed ones when it "
+    "is odd). The total prototype length is 2 * num_taps - 1.\n",
+    NULL },
+  { NULL, NULL, NULL, NULL, NULL }
+};
 
 static PyObject *
 HalfbandDecimatorObj_destroy (HalfbandDecimatorObject *self,
@@ -402,24 +404,29 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "execute(x, out) -> ndarray\n"
     "\n"
-    "Decimate x by 2 using the polyphase halfband FIR filter. Processes\n"
-    "every second input sample through the FIR branch and passes the other\n"
-    "branch through the all-pass (zero-delay) path. State persists between\n"
-    "calls — contiguous blocks give identical output to one large block.\n"
-    "Output length is floor(x_len / 2).\n"
+    "Decimate x by 2 using the polyphase halfband FIR filter. Each (even,\n"
+    "odd) input pair yields one output: one phase runs through the symmetric\n"
+    "FIR branch and the other through a pure delay weighted 0.5. State\n"
+    "persists between calls — an odd-length block holds its last sample for\n"
+    "the next call, so contiguous blocks give identical output to one large\n"
+    "block.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.complex64]\n"
-    "    CF32 input array. Length must be even for exact half-rate output;\n"
-    "    odd lengths write floor(x_len/2).\n"
+    "    CF32 input array. An odd length leaves its last sample held for the\n"
+    "    next call.\n"
     "out : npt.NDArray[np.complex64] | None\n"
-    "    Output buffer; must hold at least floor(x_len/2) samples.\n"
+    "    [out] Output buffer; must hold at least (x_len + 1) / 2 samples.\n"
+    "    Complete input pairs left once it is full are discarded, not\n"
+    "    carried.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    CF32 decimated output; length is min(floor(x_len / 2), max_out).\n"
+    "    Number of CF32 samples written to out: min((x_len + held) / 2,\n"
+    "    max_out), where held is 1 if a trailing sample was carried in from\n"
+    "    the previous call. 0 if x_len or max_out is 0.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -435,19 +442,20 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     METH_NOARGS,
     "execute_max_out() -> int\n"
     "\n"
-    "Always returns HBDECIM_MAX_OUT.\n"
+    "Default output capacity, used by the binding to size buffers.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always HBDECIM_MAX_OUT (32768).\n" },
   { "reset", (PyCFunction)HalfbandDecimatorObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
     "Zero all delay lines. Coefficients and num_taps preserved. Call\n"
     "between signal bursts to suppress transient ringing from prior filter\n"
     "state. The next execute() after reset produces the same output as a\n"
-    "freshly created decimator fed the same input.\n"
+    "freshly created decimator fed the same input. Any trailing sample held\n"
+    "from an odd-length block is dropped too.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -572,9 +580,14 @@ static PyTypeObject HalfbandDecimatorObjType = {
     "Parameters\n"
     "----------\n"
     "h : NDArray[np.float32]\n"
-    "    Float32 FIR branch coefficients. Must be a symmetric halfband "
+    "    Float32 FIR branch coefficients (the branch of the halfband "
     "prototype\n"
-    "    (antisymmetric even-indexed taps zeroed).\n"
+    "    with more than one nonzero tap, not the whole prototype). Must be\n"
+    "    symmetric, h[k] == h[h_len-1-k]: only the first h_len/2 are read, "
+    "and\n"
+    "    for odd h_len the centre tap is ignored in favor of the fixed 0.5 "
+    "delay\n"
+    "    branch. Copied and scaled by 0.5; must be non-NULL.\n"
     "\n"
     "Examples\n"
     "--------\n"

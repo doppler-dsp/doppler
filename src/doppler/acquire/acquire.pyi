@@ -7,7 +7,8 @@ from numpy.typing import NDArray
 
 @final
 class CarrierAcquisition:
-    """Create a carrier_acq instance.
+    """Create a PSD-template carrier acquisition (residual-carrier detector and
+    estimator).
 
     Parameters
     ----------
@@ -2039,12 +2040,12 @@ class BurstCapture:
         Parameters
         ----------
         x_len : int
-            Input.
+            Samples the next push() will be given.
 
         Returns
         -------
         int
-            Output.
+            `(x_len/burst_len + 1 + queue capacity) * burst_len` samples.
         """
 
     def detections(
@@ -2075,14 +2076,12 @@ class BurstCapture:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : npt.NDArray[Any] | None
-            Optional pre-allocated output buffer. When given, the result is
-            written into it and the returned array is a view of exactly the
-            samples produced; when omitted, a fresh array is allocated.
+            Destination rows; may be NULL to copy nothing.
 
         Returns
         -------
         NDArray[Any]
-            Output.
+            Rows copied: min(detections held, max_out).
 
         Examples
         --------
@@ -2104,12 +2103,12 @@ class BurstCapture:
         Parameters
         ----------
         n : int
-            Input.
+            Ignored: the count is the last push's, not a request.
 
         Returns
         -------
         int
-            Output.
+            Rows detections() can copy out now (0 before any push).
         """
 
     def events(
@@ -2131,14 +2130,12 @@ class BurstCapture:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : npt.NDArray[Any] | None
-            Optional pre-allocated output buffer. When given, the result is
-            written into it and the returned array is a view of exactly the
-            samples produced; when omitted, a fresh array is allocated.
+            Destination rows; may be NULL to copy nothing.
 
         Returns
         -------
         NDArray[Any]
-            Output.
+            Rows copied: min(windows of the last push, max_out).
 
         Examples
         --------
@@ -2159,12 +2156,12 @@ class BurstCapture:
         Parameters
         ----------
         n : int
-            Input.
+            Ignored: the count is the last push's, not a request.
 
         Returns
         -------
         int
-            Output.
+            Event rows events() can copy out now: one per window returned.
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
@@ -2185,9 +2182,10 @@ class BurstCapture:
         Parameters
         ----------
         doppler_bins : int
-            Input.
+            Coherent depth to pin (see dp_burst_acq_configure_search_raw()).
         n_noncoh : int
-            Input.
+            Non-coherent looks to pin; `n_noncoh * doppler_bins` must not
+            exceed the refine reach.
 
         Raises
         ------
@@ -2237,7 +2235,7 @@ class BurstCapture:
         Parameters
         ----------
         i : int
-            Input.
+            Window index from the last push().
 
         Raises
         ------
@@ -2268,8 +2266,8 @@ class BurstCapture:
 
         Resets the embedded acquisition, rewinds the history ring, clears every
         queued detection and every read-back. Construction parameters are
-        untouched; `dropped` deliberately survives, because a lost burst stays
-        lost.
+        untouched; `dropped` and `n_bursts` deliberately survive, because a
+        lost burst stays lost and a lifetime count is a lifetime count.
 
         Examples
         --------
@@ -2793,12 +2791,12 @@ class PersistentBurstCapture:
         Parameters
         ----------
         x_len : int
-            Input.
+            Samples the next push() will be given.
 
         Returns
         -------
         int
-            Output.
+            `(x_len/burst_len + 1 + queue capacity) * burst_len` samples.
         """
 
     def detections(
@@ -2829,14 +2827,12 @@ class PersistentBurstCapture:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : npt.NDArray[Any] | None
-            Optional pre-allocated output buffer. When given, the result is
-            written into it and the returned array is a view of exactly the
-            samples produced; when omitted, a fresh array is allocated.
+            Destination rows; may be NULL to copy nothing.
 
         Returns
         -------
         NDArray[Any]
-            Output.
+            Rows copied: min(detections held, max_out).
 
         Examples
         --------
@@ -2858,12 +2854,12 @@ class PersistentBurstCapture:
         Parameters
         ----------
         n : int
-            Input.
+            Ignored: the count is the last push's, not a request.
 
         Returns
         -------
         int
-            Output.
+            Rows detections() can copy out now (0 before any push).
         """
 
     def events(
@@ -2885,14 +2881,12 @@ class PersistentBurstCapture:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : npt.NDArray[Any] | None
-            Optional pre-allocated output buffer. When given, the result is
-            written into it and the returned array is a view of exactly the
-            samples produced; when omitted, a fresh array is allocated.
+            Destination rows; may be NULL to copy nothing.
 
         Returns
         -------
         NDArray[Any]
-            Output.
+            Rows copied: min(windows of the last push, max_out).
 
         Examples
         --------
@@ -2913,12 +2907,12 @@ class PersistentBurstCapture:
         Parameters
         ----------
         n : int
-            Input.
+            Ignored: the count is the last push's, not a request.
 
         Returns
         -------
         int
-            Output.
+            Event rows events() can copy out now: one per window returned.
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
@@ -2939,9 +2933,10 @@ class PersistentBurstCapture:
         Parameters
         ----------
         doppler_bins : int
-            Input.
+            Coherent depth to pin (see dp_burst_acq_configure_search_raw()).
         n_noncoh : int
-            Input.
+            Non-coherent looks to pin; `n_noncoh * doppler_bins` must not
+            exceed the refine reach.
 
         Raises
         ------
@@ -2991,7 +2986,7 @@ class PersistentBurstCapture:
         Parameters
         ----------
         i : int
-            Input.
+            Window index from the last push().
 
         Raises
         ------
@@ -3022,8 +3017,8 @@ class PersistentBurstCapture:
 
         Resets the embedded acquisition, rewinds the history ring, clears every
         queued detection and every read-back. Construction parameters are
-        untouched; `dropped` deliberately survives, because a lost burst stays
-        lost.
+        untouched; `dropped` and `n_bursts` deliberately survive, because a
+        lost burst stays lost and a lifetime count is a lifetime count.
 
         Examples
         --------

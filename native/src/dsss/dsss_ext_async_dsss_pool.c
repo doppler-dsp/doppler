@@ -1116,7 +1116,8 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    The largest per-receiver symbol count from the last push(); 0\n"
+    "    before the first push and after reset() or set_state().\n" },
   { "reset", (PyCFunction)AsyncDsssPoolObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

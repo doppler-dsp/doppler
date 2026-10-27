@@ -483,7 +483,7 @@ static PyMethodDef AWGNObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    65536, always.\n" },
   { "reseed", (PyCFunction)(void *)AWGNObj_reseed,
     METH_VARARGS | METH_KEYWORDS,
     "reseed(seed) -> None\n"

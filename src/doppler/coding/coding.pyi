@@ -229,11 +229,13 @@ class Viterbi:
         Generator polynomials, one per output. The array IS the code;
         `poly_len` gives `n`.
     k : int, default 7
-        k (default: 7).
+        Constraint length, 2 to `CONV_K_MAX` (default: 7); every polynomial
+        must fit in k bits and be non-zero.
     invert : int, default 0
-        invert (default: 0).
+        Bitmask over outputs: bit j set means output j is transmitted inverted
+        (default: 0; CCSDS sets bit 1).
     depth : int, default 35
-        depth (default: 35).
+        Traceback depth in information bits, >= 1 (default: 35).
 
     Raises
     ------
@@ -561,12 +563,12 @@ class ReedSolomon:
         Parameters
         ----------
         n_in : int
-            Input.
+            Ignored: a codeword is `n` symbols whatever it encodes.
 
         Returns
         -------
         int
-            Output.
+            `n` symbols.
         """
 
     def decode(self, codeword: npt.NDArray[np.uint8]) -> int:
@@ -660,12 +662,12 @@ class ReedSolomon:
         Parameters
         ----------
         n_in : int
-            Input.
+            Ignored: the syndrome count does not depend on it.
 
         Returns
         -------
         int
-            Output.
+            `nroots` symbols.
         """
 
     def codeword_ok(

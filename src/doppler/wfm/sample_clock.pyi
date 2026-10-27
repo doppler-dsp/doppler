@@ -27,12 +27,16 @@ class SampleClock:
         Parameters
         ----------
         count : int
-            Input.
+            Samples in the block being paced; ``n`` grows by this much before
+            the deadline is computed.
 
         Returns
         -------
         float
-            Output.
+            Seconds from now to the deadline, read before any sleep. A deadline
+            reached exactly (slack 0) also counts as an underrun. The sleep
+            itself returns early if dp_interrupted() is set, so it may sleep
+            less than a positive slack.
         """
     def stamp(self) -> int:
         """Ideal wall-clock timestamp (ns since the UNIX epoch) of the next
@@ -43,7 +47,8 @@ class SampleClock:
         Returns
         -------
         int
-            Output.
+            ``epoch_real_ns`` plus ``n/fs`` seconds, in ns, rounded to the
+            nearest ns.
         """
     def stamp_at(self, n: int) -> int:
         """Ideal wall-clock timestamp (ns since the UNIX epoch) of an ARBITRARY
@@ -57,12 +62,13 @@ class SampleClock:
         Parameters
         ----------
         n : int
-            Input.
+            Sample index, counted on the clock's current timeline.
 
         Returns
         -------
         int
-            Output.
+            ``epoch_real_ns`` plus ``n/fs`` seconds, in ns, rounded to the
+            nearest ns.
         """
     def track(
         self,
@@ -90,14 +96,19 @@ class SampleClock:
         reconciled observations as literal replay-safe state — always resync
         from an ARRIVING message, not a cached one.
 
+        An accepted observation, whether or not it re-anchors, also moves ``n``
+        to n_at_observation.
+
         Parameters
         ----------
         observed_timestamp_ns : int
-            Input.
+            Wall-clock time, ns since the UNIX epoch, the sender stamped on
+            sample n_at_observation.
         n_at_observation : int
-            Input.
+            Sample index that timestamp belongs to.
         tolerance_ns : int
-            Input.
+            Largest predicted-vs-observed gap, ns, accepted without
+            re-anchoring.
 
         Returns
         -------

@@ -529,10 +529,14 @@ static PyMethodDef CorrObj_methods[] = {
     "\n"
     "Maximum output samples per execute call (== n_out).\n"
     "\n"
+    "Size an output buffer with this before calling dp_corr_execute().\n"
+    "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    The configured output length n_out in samples: the reference length\n"
+    "    n for the native path, or the zero-padded length passed to\n"
+    "    dp_corr_create().\n" },
   { "state_bytes", (PyCFunction)CorrObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

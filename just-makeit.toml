@@ -1085,22 +1085,6 @@ type = "int"
 
 [[module.wfm.functions]]
 name = "_sweep_ends"
-doc = """Start and end frequency of the chirp that sweeps about a center.
-
-A chirp from ``f0`` to ``f_end`` pinned over ``n`` samples has
-instantaneous frequency ``f_mid + rate*u`` Hz at sample ``i``,
-``u = (i - center)/fs`` seconds, so it multiplies a block by
-``exp(j*2*pi*(f_mid*u + rate*u**2/2))`` up to one constant phase. This is
-the single copy of that arithmetic (``dp_wfm_synth_sweep_ends``);
-``doppler.wfm.rotate`` takes it from here.
-
-Examples
---------
->>> from doppler.wfm import _sweep_ends
->>> f0, f_end = _sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
->>> round(float(f0), 6), round(float(f_end), 6)
-(-0.04995, 0.05015)
-"""
 out_type = "double"
 variable_output = true
 out_size = "2"

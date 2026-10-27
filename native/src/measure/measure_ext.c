@@ -397,30 +397,37 @@ static PyMethodDef measure_module_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Recommended zero-padded transform length: next_pow_two(n * pad).\n"
     "\n"
+    "The same rule the measurement objects apply (with pad = ::MEASURE_PAD),\n"
+    "exposed so a caller can plan an FFT size before building an analyser.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "n : int\n"
-    "    Input.\n"
+    "    Capture length (samples).\n"
     "pad : int\n"
-    "    Input.\n"
+    "    Zero-pad factor; 0 is treated as 1.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    The smallest power of two >= n * pad (1 when n is 0).\n" },
   { "measure_proc_gain", (PyCFunction)(void *)_bind_measure_proc_gain,
     METH_VARARGS | METH_KEYWORDS,
     "FFT processing gain in dB: 10*log10(nfft / 2).\n"
     "\n"
+    "How far a single bin's noise sits below the total noise power for an\n"
+    "nfft-point transform of a real capture. No argument check: nfft = 0\n"
+    "returns -inf.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "nfft : int\n"
-    "    Input.\n"
+    "    Transform length (bins).\n"
     "\n"
     "Returns\n"
     "-------\n"
     "float\n"
-    "    Output.\n" },
+    "    Processing gain (dB).\n" },
   { "dp_coherent_freq", (PyCFunction)(void *)_bind_dp_coherent_freq,
     METH_VARARGS | METH_KEYWORDS,
     "Nearest leakage-free coherent test frequency (J cycles, J coprime N).\n"
@@ -430,19 +437,24 @@ static PyMethodDef measure_module_methods[] = {
     "capture (no leakage) with J coprime to N (so quantisation-noise\n"
     "correlation is minimised).\n"
     "\n"
+    "J starts at round(f_target * N / fs), is clamped to [1, N-1], then\n"
+    "moved by the smallest distance that makes it coprime with N; on a tie\n"
+    "the higher J wins.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "fs : float\n"
-    "    Input.\n"
+    "    Sample rate (Hz, > 0).\n"
     "f_target : float\n"
-    "    Input.\n"
+    "    Desired test frequency (Hz).\n"
     "N : int\n"
-    "    Input.\n"
+    "    Capture length (samples, >= 2).\n"
     "\n"
     "Returns\n"
     "-------\n"
     "float\n"
-    "    The coherent frequency (Hz), or 0 on bad args.\n" },
+    "    The coherent frequency J * fs / N (Hz), or 0 if N < 2 or fs <= "
+    "0.\n" },
   { NULL, NULL, 0, NULL }
 };
 

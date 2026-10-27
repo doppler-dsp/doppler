@@ -100,7 +100,8 @@ class InterpolatedTable:
         Returns
         -------
         int
-            Output.
+            Always 0, meaning "no fixed capacity": size the output to the input
+            length instead.
         """
 
     @property

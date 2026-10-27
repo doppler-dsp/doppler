@@ -60,10 +60,16 @@ class Plan:
         to `out`. An `"snr"` key on a Plan whose scene carries no noise is
         refused (see dp_wfm_plan_check_snr()).
 
+        Keys are read leniently: overrides that do not parse as JSON render the
+        baseline, a `gains`/`phases`/`enable` array whose length is not
+        dp_wfm_plan_n_sources() (or, for `gains`/`phases`, that holds a
+        non-number) is ignored, and a non-numeric `snr`/`seed` is ignored. An
+        `enable` entry is on when it is `true` or a non-zero number.
+
         Parameters
         ----------
         overrides_json : str
-            Input.
+            NUL-terminated override object, or NULL / "" for the baseline.
 
         Returns
         -------
@@ -83,9 +89,11 @@ class Plan:
         Parameters
         ----------
         snr : float
-            Input.
+            SNR override, dB, in the units of the scene's own snr_mode; a
+            segment whose noise floor was set explicitly keeps that floor.
         seed : int
-            Input.
+            Noise (and ranged-gap) seed override. Only its low 32 bits are
+            used: the seeds it replaces are 32-bit.
 
         Returns
         -------
@@ -127,7 +135,8 @@ class Plan:
         Returns
         -------
         int
-            Output.
+            Capacity in samples that `out` must hold for render()/at(); 0 for a
+            NULL Plan.
         """
     def n_sources(self) -> int:
         """Number of cached signal sources across every segment (excludes noise
@@ -136,7 +145,7 @@ class Plan:
         Returns
         -------
         int
-            Output.
+            Source count; 0 for a NULL Plan.
         """
     def anchor_seed(self) -> int:
         """The noise seed that reproduces a full compose.
@@ -152,7 +161,8 @@ class Plan:
         Returns
         -------
         int
-            Output.
+            The first noisy segment's noise seed; 0 for a NULL Plan or a scene
+            with no noisy segment.
         """
     def save(self) -> bytes:
         """Serialize a Plan into blob (dp_wfm_plan_save_bytes(p) bytes).
@@ -166,7 +176,7 @@ class Plan:
         Returns
         -------
         bytes
-            Output.
+            Bytes written; 0 (nothing written) if p or blob is NULL.
         """
     def dump(self, path: str | os.PathLike) -> None:
         """Save a Plan to a file (dp_wfm_plan_save() bytes at path).
@@ -174,7 +184,7 @@ class Plan:
         Parameters
         ----------
         path : str | os.PathLike
-            Input.
+            File to create or truncate.
 
         Raises
         ------

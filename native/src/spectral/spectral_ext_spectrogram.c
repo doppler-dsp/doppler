@@ -987,7 +987,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Floats: rows_for(n_in) * nfft, or SIZE_MAX on overflow.\n" },
   { "flush", (PyCFunction)(void *)SpectrogramObj_flush,
     METH_VARARGS | METH_KEYWORDS,
     "flush(out) -> ndarray | None\n"
@@ -1065,7 +1065,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Floats: nfft.\n" },
   { "rows_for", (PyCFunction)(void *)SpectrogramObj_rows_for,
     METH_VARARGS | METH_KEYWORDS,
     "rows_for(n_in) -> int\n"
@@ -1092,7 +1092,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n"
+    "    Rows (not floats) that push would complete.\n"
     "\n"
     "Examples\n"
     "--------\n"

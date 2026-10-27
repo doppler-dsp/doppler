@@ -45,7 +45,7 @@ class FFT:
         nthreads: int = 1,
     ) -> None: ...
     def reset(self) -> None:
-        """No-op reset (plans are immutable after creation).
+        """No-op reset: an FFT keeps no running state between calls.
         """
 
     def execute_cf64(
@@ -85,12 +85,12 @@ class FFT:
         """
 
     def execute_cf64_max_out(self) -> int:
-        """Maximum output samples per execute call (always == n).
+        """Output capacity for dp_fft_execute_cf64().
 
         Returns
         -------
         int
-            Output.
+            state->n, the number of bins one call writes.
         """
 
     def execute_cf32(
@@ -130,12 +130,12 @@ class FFT:
         """
 
     def execute_cf32_max_out(self) -> int:
-        """Maximum output samples for CF32 execute (always == n).
+        """Output capacity for dp_fft_execute_cf32().
 
         Returns
         -------
         int
-            Output.
+            state->n, the number of bins one call writes.
         """
 
     def execute_inplace_cf64(
@@ -175,12 +175,12 @@ class FFT:
         """
 
     def execute_inplace_cf64_max_out(self) -> int:
-        """Maximum output samples for inplace CF64 (always == n).
+        """Output capacity for dp_fft_execute_inplace_cf64().
 
         Returns
         -------
         int
-            Output.
+            state->n, the number of bins one call writes.
         """
 
     def execute_inplace_cf32(
@@ -219,12 +219,12 @@ class FFT:
         """
 
     def execute_inplace_cf32_max_out(self) -> int:
-        """Maximum output samples for inplace CF32 (always == n).
+        """Output capacity for dp_fft_execute_inplace_cf32().
 
         Returns
         -------
         int
-            Output.
+            state->n, the number of bins one call writes.
         """
 
     def execute_ci16(self, iq: NDArray[np.int16]) -> NDArray[np.complex64]:
@@ -420,12 +420,12 @@ class FFT2D:
         """
 
     def execute_cf64_max_out(self) -> int:
-        """Maximum output samples per execute call (ny * nx).
+        """Output capacity dp_fft2d_execute_cf64() needs.
 
         Returns
         -------
         int
-            Output.
+            ny * nx samples.
         """
 
     def execute_cf32(
@@ -474,12 +474,12 @@ class FFT2D:
         """
 
     def execute_cf32_max_out(self) -> int:
-        """Maximum output samples for CF32 execute (ny * nx).
+        """Output capacity dp_fft2d_execute_cf32() needs.
 
         Returns
         -------
         int
-            Output.
+            ny * nx samples.
         """
 
     def execute_inplace_cf64(
@@ -526,12 +526,12 @@ class FFT2D:
         """
 
     def execute_inplace_cf64_max_out(self) -> int:
-        """Maximum output samples for inplace CF64 execute (ny * nx).
+        """Output capacity dp_fft2d_execute_inplace_cf64() needs.
 
         Returns
         -------
         int
-            Output.
+            ny * nx samples.
         """
 
     def execute_inplace_cf32(
@@ -577,12 +577,12 @@ class FFT2D:
         """
 
     def execute_inplace_cf32_max_out(self) -> int:
-        """Maximum output samples for inplace CF32 execute (ny * nx).
+        """Output capacity dp_fft2d_execute_inplace_cf32() needs.
 
         Returns
         -------
         int
-            Output.
+            ny * nx samples.
         """
 
     @property
@@ -763,10 +763,14 @@ class Corr:
     def execute_max_out(self) -> int:
         """Maximum output samples per execute call (== n_out).
 
+        Size an output buffer with this before calling dp_corr_execute().
+
         Returns
         -------
         int
-            Output.
+            The configured output length n_out in samples: the reference length
+            n for the native path, or the zero-padded length passed to
+            dp_corr_create().
         """
 
     def state_bytes(self) -> int:
@@ -987,16 +991,16 @@ class Corr2D:
         x : npt.NDArray[np.complex64]
             Input.
         out : npt.NDArray[np.complex64] | None
-            Output buffer for the correlation map (CF32, length ny*nx); written
-            only on a dump call.
+            Output buffer for the correlation map (CF32, length n_out:
+            ny_out*nx_out, or ny with col_out); written only on a dump call.
 
         Returns
         -------
         NDArray[np.complex64] | None
-            ny*nx on a dump (or max_out if smaller), 0 otherwise If n_in is not
-            the required length the call is REFUSED with nothing read, written
-            or counted: SIZE_MAX in C, ValueError in Python (#1925). (None in
-            Python). None when the C call writes no output.
+            n_out on a dump (or max_out if smaller), 0 otherwise (None in
+            Python). If n_in is not the required length the call is REFUSED
+            with nothing read, written or counted: SIZE_MAX in C, ValueError in
+            Python (#1925). None when the C call writes no output.
 
         Raises
         ------
@@ -1021,13 +1025,13 @@ class Corr2D:
 
     def execute_max_out(self) -> int:
         """Maximum output samples per execute call (dp_corr2d_state_t::n_out --
-        ny*nx_out normally, or ny when a single dp_corr2d_state_t::col_out was
-        selected).
+        ny_out*nx_out normally, or ny when a single dp_corr2d_state_t::col_out
+        was selected).
 
         Returns
         -------
         int
-            Output.
+            n_out, fixed at create().
         """
 
     def state_bytes(self) -> int:
@@ -1221,7 +1225,9 @@ class CorrDetector:
         """Reset the correlator, the carry, and last-corr flag. Discards any
         partial frame carried between pushes and zeroes the coherent
         accumulator. Equivalent to starting fresh from the same reference
-        without rebuilding any internal object.
+        without rebuilding any internal object, except that the last-dump
+        fields (peak_lag, peak_mag, noise_est, test_stat) keep their values
+        until the next dump. dp_detector_consumed() reads 0 afterwards.
 
         Examples
         --------
@@ -1857,12 +1863,12 @@ class PSD:
         """
 
     def psd_db_max_out(self) -> int:
-        """Output capacity hint for psd_db(); equals nfft.
+        """Output capacity hint for dp_psd_psd_db().
 
         Returns
         -------
         int
-            Output.
+            nfft.
         """
 
     def psd_dbhz(
@@ -1875,14 +1881,13 @@ class PSD:
         Parameters
         ----------
         out : npt.NDArray[np.float32] | None
-            Optional pre-allocated output buffer. When given, the result is
-            written into it and the returned array is a view of exactly the
-            samples produced; when omitted, a fresh array is allocated.
+            Destination, at least nfft float32 elements.
 
         Returns
         -------
         NDArray[np.float32] | None
-            Output. None when the C call writes no output.
+            min(nfft, max_out), or 0 if empty. None when the C call writes no
+            output.
 
         Examples
         --------
@@ -1897,12 +1902,12 @@ class PSD:
         """
 
     def psd_dbhz_max_out(self) -> int:
-        """Output capacity hint for psd_dbhz(); equals nfft.
+        """Output capacity hint for dp_psd_psd_dbhz().
 
         Returns
         -------
         int
-            Output.
+            nfft.
         """
 
     def power_twosided(
@@ -1925,12 +1930,12 @@ class PSD:
         """
 
     def power_twosided_max_out(self) -> int:
-        """Output capacity hint for dp_psd_power_twosided(); equals nfft.
+        """Output capacity hint for dp_psd_power_twosided().
 
         Returns
         -------
         int
-            Output.
+            nfft, the zero-padded transform length.
         """
 
     def power_onesided(
@@ -1953,12 +1958,12 @@ class PSD:
         """
 
     def power_onesided_max_out(self) -> int:
-        """Output capacity hint for dp_psd_power_onesided(); equals nfft/2+1.
+        """Output capacity hint for dp_psd_power_onesided().
 
         Returns
         -------
         int
-            Output.
+            nfft/2 + 1.
         """
 
     def band_power(
@@ -1997,12 +2002,15 @@ class PSD:
         """
 
     def band_power_max_out(self) -> int:
-        """Output capacity hint for band_power(); 0 (binding sizes from bands).
+        """Output capacity hint for dp_psd_band_power().
+
+        The output length depends on the bands argument, which this cannot see,
+        so the binding sizes the buffer from the bands itself.
 
         Returns
         -------
         int
-            Output.
+            Always 0 (the "caller sizes it" sentinel).
         """
 
     def total_band_power(self, bands: npt.NDArray[np.float64]) -> float:
@@ -2054,6 +2062,9 @@ class PSD:
 
     def noise_floor(self) -> float:
         """Median of the averaged dB trace (noise-floor estimate).
+
+        Fills the object's internal dB scratch (the psd_db() trace over all
+        nfft bins) and takes its median.
 
         Returns
         -------
@@ -2375,7 +2386,7 @@ class Spectrogram:
         Returns
         -------
         int
-            Output.
+            Floats: rows_for(n_in) * nfft, or SIZE_MAX on overflow.
         """
 
     def flush(
@@ -2443,7 +2454,7 @@ class Spectrogram:
         Returns
         -------
         int
-            Output.
+            Floats: nfft.
         """
 
     def rows_for(self, n_in: int) -> int:
@@ -2469,7 +2480,7 @@ class Spectrogram:
         Returns
         -------
         int
-            Output.
+            Rows (not floats) that push would complete.
         """
 
     def reset(self) -> None:
@@ -2927,4 +2938,21 @@ def obw_from_power(
     """
 
 def noise_floor_db(db: npt.NDArray[np.float32]) -> float:
-    """Noise floor db."""
+    """Robust noise-floor estimate: the median of a dB spectrum.
+
+    Tones and spurs occupy few bins and sit well above the median, so the
+    median tracks the noise pedestal rather than the signal. The median is
+    taken on a sorted heap copy; db is not modified. For an even length it
+    is the mean of the two middle values.
+
+    Parameters
+    ----------
+    db : npt.NDArray[np.float32]
+        Spectrum in dB (any reference: dBFS, dBc, ...).
+
+    Returns
+    -------
+    float
+        Median of db, in the same dB units; 0.0 when db_len is 0 or the
+        scratch copy cannot be allocated.
+    """

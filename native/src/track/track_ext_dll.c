@@ -851,7 +851,7 @@ Dll_getprop_noise_est (DllObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef Dll_getset[] = {
   { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn,
-    "loop noise bandwidth (retained).\n"
+    "Loop noise bandwidth currently in use.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -861,20 +861,14 @@ static PyGetSetDef Dll_getset[] = {
     "    filter's domain (need bn >= 0, finite, whose loop gains come out\n"
     "    finite)``, with the return code appended.\n",
     NULL },
-  { "code_phase", (getter)Dll_getprop_code_phase, NULL, "Code phase.\n",
-    NULL },
+  { "code_phase", (getter)Dll_getprop_code_phase, NULL,
+    "Current prompt code phase.\n", NULL },
   { "code_rate", (getter)Dll_getprop_code_rate, NULL,
-    "the loop's own rate, chips per nominal chip (~1.0): 1 + the loop filter "
-    "output (its integrator alone at segments == 1), without the rate aid, so "
-    "the code runs at code_rate + rate_aid. It is read before the NCO "
-    "truncates its command to a whole phase step of sf*sps/2^32 chips per "
-    "chip, so a settled reading sits up to one step above the rate the loop "
-    "carries.\n",
-    NULL },
+    "The loop's own code rate, without the carrier rate aid.\n", NULL },
   { "last_error", (getter)Dll_getprop_last_error, NULL,
-    "last discriminator output (loop stress).\n", NULL },
+    "Last discriminator output, the loop stress.\n", NULL },
   { "segments", (getter)Dll_getprop_segments, NULL,
-    "partial correlations per epoch (1 = full).\n", NULL },
+    "Partial correlations per code period.\n", NULL },
   { "symbol_window", (getter)Dll_getprop_symbol_window, NULL,
     "The lock detector's coherent window in partials when set_symbol_period "
     "is on (0 = off) -- size n_looks from it.\n",
@@ -1024,18 +1018,15 @@ static PyMethodDef DllObj_methods[] = {
   { "steps_max_out", (PyCFunction)DllObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n"
     "\n"
-    "Largest number of samples steps() can return in the current state.\n"
+    "Output capacity hint for dp_dll_steps(): always 0.\n"
     "\n"
-    "Size an `out=` buffer with this before calling steps(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on steps_max_out()\n"
-    "replaces this text.\n"
+    "Emitted prompts never outnumber input samples, so size out to the input\n"
+    "length.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    0 (no state-derived bound).\n" },
   { "set_telemetry", (PyCFunction)(void *)DllObj_set_telemetry,
     METH_VARARGS | METH_KEYWORDS,
     "set_telemetry(tlm, prefix, decim) -> None\n"

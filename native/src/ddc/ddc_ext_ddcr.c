@@ -806,6 +806,9 @@ static PyMethodDef DdcrObj_methods[] = {
     "\n"
     "Down-convert a block of real float32 samples to CF32 baseband.\n"
     "\n"
+    "Allocates two scratch buffers per call (about n_in/2 complex samples\n"
+    "each); if either allocation fails the call returns 0.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.float32]\n"
@@ -816,7 +819,7 @@ static PyMethodDef DdcrObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    Number of output samples written (C-only).\n"
+    "    Number of output samples written (C-only); 0 for n_in == 0.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -842,7 +845,7 @@ static PyMethodDef DdcrObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always 0: size out from the input block length.\n" },
   { "execute_ctrl", (PyCFunction)(void *)DdcrObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl(x, rate_ctrl, freq_ctrl, out) -> ndarray\n"
@@ -893,7 +896,7 @@ static PyMethodDef DdcrObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always 0: size out from the input block length.\n" },
   { "execute_ctrl_push", (PyCFunction)(void *)DdcrObj_execute_ctrl_push,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl_push(x, rate_ctrl, freq_ctrl, out) -> ndarray\n"
@@ -937,13 +940,14 @@ static PyMethodDef DdcrObj_methods[] = {
     (PyCFunction)DdcrObj_execute_ctrl_push_max_out, METH_NOARGS,
     "execute_ctrl_push_max_out() -> int\n"
     "\n"
-    "Bound for ONE pushed input: `ceil(rate) + 1` output periods.\n"
-    "Non-zero because the push form has no input block to size from.\n"
+    "Output-buffer size for ONE pushed input. Non-zero because the push\n"
+    "form has no input block to size from.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    `(size_t)max(rate, 1) + 2` samples, which is 3 for every valid rate\n"
+    "    (< 0.5).\n" },
   { "reset", (PyCFunction)DdcrObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

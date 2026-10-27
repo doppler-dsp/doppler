@@ -134,7 +134,8 @@ class AccQ15:
         a : npt.NDArray[np.int16]
             First input array (int16_t).
         b : npt.NDArray[np.int16]
-            Second input array (int16_t), same length as a.
+            Second input array (int16_t); only the first min(a_len, b_len)
+            elements of either array are used.
 
         Examples
         --------
@@ -213,7 +214,7 @@ class AccQ15:
         Returns
         -------
         int
-            Output.
+            Current accumulator value (int64_t).
 
         Examples
         --------
@@ -509,7 +510,7 @@ class AccQ8:
         Returns
         -------
         int
-            Output.
+            Current accumulator value; the create() value before any step.
 
         Examples
         --------

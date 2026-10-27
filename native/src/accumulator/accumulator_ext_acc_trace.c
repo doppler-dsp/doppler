@@ -551,8 +551,8 @@ static PyMethodDef AccTraceObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.float32] | None\n"
-    "    min(n, max_out) samples, or 0 if empty. None when the C call writes\n"
-    "    no output.\n"
+    "    min(trace length, max_out) samples written, or 0 before the first\n"
+    "    frame (or after reset()). None when the C call writes no output.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -568,12 +568,12 @@ static PyMethodDef AccTraceObj_methods[] = {
   { "value_max_out", (PyCFunction)AccTraceObj_value_max_out, METH_NOARGS,
     "value_max_out() -> int\n"
     "\n"
-    "Output capacity hint for value(); equals the trace length n.\n"
+    "Output capacity value() needs: the trace length n.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    The trace length n (bins) given to create(); constant.\n" },
   { "state_bytes", (PyCFunction)AccTraceObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

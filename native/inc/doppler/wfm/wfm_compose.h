@@ -296,14 +296,12 @@ typedef struct {
        reps | data]`, which `dp_wfm_frame_fixed()` builds from acq_code and
        the data source; a sync word or a CRC is a field or a stage of a
        description, never a flat field.
-
        A C caller's description is borrowed, exactly as `wfm_seq_t` is
        borrowed elsewhere here, so it must outlive the source. The composer
        and a Python source hold their own copy (`dp_wfm_frame_copy()`), so
        a later change to the FrameDesc does not reach them. On the Python
        face `frame=` is an input: read it back from the composer's JSON
        (its getter is jm's, pending removal: doppler#1694).
-
        KERNELS stay in C by design. A description names a stage's KIND; the
        code that runs it is a `wfm_frame_ops_t` entry, and a caller adding a
        genuinely new transform (convolutional interleaving, say) writes that

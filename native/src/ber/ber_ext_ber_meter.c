@@ -330,7 +330,8 @@ BerMeterObj_score (BerMeterObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyStructSequence_Field BerMeterObj_ser_fields[] = {
-  { "p_hat", "Unbiased point estimate `(r-1)/(N-1)`." },
+  { "p_hat", "Point estimate: unbiased `(r-1)/(N-1)` for r >= 2, `r/N` at r = "
+             "1, 0 at r = 0, NAN when N = 0." },
   { "lo", "Lower confidence limit." },
   { "hi", "Upper confidence limit." },
   { "rel", "Relative standard error `1/sqrt(r)`." },
@@ -382,7 +383,8 @@ BerMeterObj_ser (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyStructSequence_Field BerMeterObj_ber_fields[] = {
-  { "p_hat", "Unbiased point estimate `(r-1)/(N-1)`." },
+  { "p_hat", "Point estimate: unbiased `(r-1)/(N-1)` for r >= 2, `r/N` at r = "
+             "1, 0 at r = 0, NAN when N = 0." },
   { "lo", "Lower confidence limit." },
   { "hi", "Upper confidence limit." },
   { "rel", "Relative standard error `1/sqrt(r)`." },
@@ -434,7 +436,8 @@ BerMeterObj_ber (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyStructSequence_Field BerMeterObj_interval_fields[] = {
-  { "p_hat", "Unbiased point estimate `(r-1)/(N-1)`." },
+  { "p_hat", "Point estimate: unbiased `(r-1)/(N-1)` for r >= 2, `r/N` at r = "
+             "1, 0 at r = 0, NAN when N = 0." },
   { "lo", "Lower confidence limit." },
   { "hi", "Upper confidence limit." },
   { "rel", "Relative standard error `1/sqrt(r)`." },

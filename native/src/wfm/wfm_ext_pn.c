@@ -421,19 +421,15 @@ static PyMethodDef PNObj_methods[] = {
   { "generate_max_out", (PyCFunction)PNObj_generate_max_out, METH_NOARGS,
     "generate_max_out() -> int\n"
     "\n"
-    "Largest number of samples generate() can return in the current\n"
-    "state.\n"
+    "Output capacity hint for dp_pn_generate(): always 0.\n"
     "\n"
-    "Size an `out=` buffer with this before calling generate(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on\n"
-    "generate_max_out() replaces this text.\n"
+    "The chip count is the caller's n, not a function of the state, so there\n"
+    "is no state-derived bound; size out to n.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    0.\n" },
   { "state_bytes", (PyCFunction)PNObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

@@ -552,7 +552,9 @@ static PyTypeObject CarrierAcquisitionObjType = {
   .tp_dealloc   = (destructor)CarrierAcquisitionObj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a carrier_acq instance.\n"
+  = "Create a PSD-template carrier acquisition (residual-carrier detector "
+    "and\n"
+    "estimator).\n"
     "\n"
     "Parameters\n"
     "----------\n"

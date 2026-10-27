@@ -1529,12 +1529,12 @@ static PyMethodDef PSDObj_methods[] = {
   { "psd_db_max_out", (PyCFunction)PSDObj_psd_db_max_out, METH_NOARGS,
     "psd_db_max_out() -> int\n"
     "\n"
-    "Output capacity hint for psd_db(); equals nfft.\n"
+    "Output capacity hint for dp_psd_psd_db().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    nfft.\n" },
   { "psd_dbhz", (PyCFunction)(void *)PSDObj_psd_dbhz,
     METH_VARARGS | METH_KEYWORDS,
     "psd_dbhz(out) -> ndarray | None\n"
@@ -1544,14 +1544,13 @@ static PyMethodDef PSDObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "out : npt.NDArray[np.float32] | None\n"
-    "    Optional pre-allocated output buffer. When given, the result is\n"
-    "    written into it and the returned array is a view of exactly the\n"
-    "    samples produced; when omitted, a fresh array is allocated.\n"
+    "    Destination, at least nfft float32 elements.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "NDArray[np.float32] | None\n"
-    "    Output. None when the C call writes no output.\n"
+    "    min(nfft, max_out), or 0 if empty. None when the C call writes no\n"
+    "    output.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1565,12 +1564,12 @@ static PyMethodDef PSDObj_methods[] = {
   { "psd_dbhz_max_out", (PyCFunction)PSDObj_psd_dbhz_max_out, METH_NOARGS,
     "psd_dbhz_max_out() -> int\n"
     "\n"
-    "Output capacity hint for psd_dbhz(); equals nfft.\n"
+    "Output capacity hint for dp_psd_psd_dbhz().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    nfft.\n" },
   { "power_twosided", (PyCFunction)(void *)PSDObj_power_twosided,
     METH_VARARGS | METH_KEYWORDS,
     "power_twosided(out) -> ndarray | None\n"
@@ -1602,12 +1601,12 @@ static PyMethodDef PSDObj_methods[] = {
     METH_NOARGS,
     "power_twosided_max_out() -> int\n"
     "\n"
-    "Output capacity hint for dp_psd_power_twosided(); equals nfft.\n"
+    "Output capacity hint for dp_psd_power_twosided().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    nfft, the zero-padded transform length.\n" },
   { "power_onesided", (PyCFunction)(void *)PSDObj_power_onesided,
     METH_VARARGS | METH_KEYWORDS,
     "power_onesided(out) -> ndarray | None\n"
@@ -1639,12 +1638,12 @@ static PyMethodDef PSDObj_methods[] = {
     METH_NOARGS,
     "power_onesided_max_out() -> int\n"
     "\n"
-    "Output capacity hint for dp_psd_power_onesided(); equals nfft/2+1.\n"
+    "Output capacity hint for dp_psd_power_onesided().\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    nfft/2 + 1.\n" },
   { "band_power", (PyCFunction)(void *)PSDObj_band_power,
     METH_VARARGS | METH_KEYWORDS,
     "band_power(bands, out) -> ndarray | None\n"
@@ -1679,12 +1678,15 @@ static PyMethodDef PSDObj_methods[] = {
   { "band_power_max_out", (PyCFunction)PSDObj_band_power_max_out, METH_NOARGS,
     "band_power_max_out() -> int\n"
     "\n"
-    "Output capacity hint for band_power(); 0 (binding sizes from bands).\n"
+    "Output capacity hint for dp_psd_band_power().\n"
+    "\n"
+    "The output length depends on the bands argument, which this cannot see,\n"
+    "so the binding sizes the buffer from the bands itself.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    Always 0 (the \"caller sizes it\" sentinel).\n" },
   { "total_band_power", (PyCFunction)(void *)PSDObj_total_band_power,
     METH_VARARGS | METH_KEYWORDS,
     "total_band_power(bands) -> float\n"
@@ -1746,6 +1748,9 @@ static PyMethodDef PSDObj_methods[] = {
     "noise_floor() -> float\n"
     "\n"
     "Median of the averaged dB trace (noise-floor estimate).\n"
+    "\n"
+    "Fills the object's internal dB scratch (the psd_db() trace over all\n"
+    "nfft bins) and takes its median.\n"
     "\n"
     "Returns\n"
     "-------\n"

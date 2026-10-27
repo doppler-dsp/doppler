@@ -340,7 +340,7 @@ static PyGetSetDef LoopFilter_getset[]
         { "bn", (getter)LoopFilter_getprop_bn, NULL,
           "loop noise bandwidth, normalized cycles/sample.\n", NULL },
         { "zeta", (getter)LoopFilter_getprop_zeta, NULL,
-          "damping factor (0.707 = critically damped).\n", NULL },
+          "damping factor (1.0 = critical; 0.707 usual).\n", NULL },
         { "t", (getter)LoopFilter_getprop_t, NULL,
           "update period in samples.\n", NULL },
         { NULL, NULL, NULL, NULL, NULL } };

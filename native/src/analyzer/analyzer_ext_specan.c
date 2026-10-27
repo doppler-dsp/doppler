@@ -573,9 +573,12 @@ static PyMethodDef SpecanObj_methods[] = {
     "\n"
     "Feeds x through the Ddc, buffers the decimated output, and once\n"
     "`n·navg` decimated samples are available windows + FFTs + averages them\n"
-    "into a fresh frame, crops the central ±span/2 band and writes it in dB\n"
-    "(+ ref_db). Returns 0 (writing nothing) until a frame is ready — the\n"
-    "binding maps that to Python ``None``.\n"
+    "into a fresh frame, crops the central ±span/2 band and writes it in\n"
+    "dBFS (+ offset_db). When more than one frame's worth is pending, only\n"
+    "the newest complete window is averaged and older samples are dropped,\n"
+    "so a display that cannot keep up shows the latest frame. Returns 0\n"
+    "(writing nothing) until a frame is ready — the binding maps that to\n"
+    "Python ``None``.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -587,8 +590,8 @@ static PyMethodDef SpecanObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.float32] | None\n"
-    "    Display bins written (disp_n), or 0 if no frame is ready yet. None\n"
-    "    when the C call writes no output.\n"
+    "    Display bins written (min(disp_n, max_out)), or 0 if no frame is\n"
+    "    ready yet. None when the C call writes no output.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -603,12 +606,12 @@ static PyMethodDef SpecanObj_methods[] = {
   { "execute_max_out", (PyCFunction)SpecanObj_execute_max_out, METH_NOARGS,
     "execute_max_out() -> int\n"
     "\n"
-    "Output capacity hint for dp_specan_execute(); equals disp_n.\n"
+    "Output capacity dp_specan_execute() needs: the display length.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Output.\n" },
+    "    dp_specan_state_t::disp_n, fixed at create().\n" },
   { "retune", (PyCFunction)(void *)SpecanObj_retune,
     METH_VARARGS | METH_KEYWORDS,
     "retune(center) -> None\n"

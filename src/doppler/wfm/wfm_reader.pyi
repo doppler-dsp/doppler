@@ -42,7 +42,6 @@ class Reader:
         One of ``"auto"``, ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``,
         ``"ci8"``, ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
 
-        - ``"auto"`` — the caller said nothing.
         - ``"cf32"`` — interleaved float32 I/Q.
         - ``"cf64"`` — interleaved float64 I/Q.
         - ``"ci32"`` — interleaved int32 I/Q.
@@ -133,7 +132,8 @@ class Reader:
         Returns
         -------
         NDArray[np.complex64]
-            Output.
+            samples written to out, at most min(n, max_out); 0 at the end of
+            the capture (or when n or max_out is 0).
 
         Examples
         --------
@@ -170,12 +170,12 @@ class Reader:
         Parameters
         ----------
         n : int
-            Input.
+            the requested sample count.
 
         Returns
         -------
         int
-            Output.
+            n.
         """
 
     def read_follow(
@@ -202,6 +202,13 @@ class Reader:
         unbounded budgets the call does not come back for "not yet";
         ::dp_wfm_reader_get_ending says which way it ended.
 
+        Polls the file once per interrupt slice. Data already on disk is
+        returned before any stop is honored. Only whole samples are consumed,
+        so a writer flushing mid-sample cannot desynchronize the stream. For a
+        BLUE capture the end is the writer patching `data_size` at close; raw,
+        CSV and SigMF carry no end marker, so only a stop or a bounded budget
+        ends their wait.
+
         Parameters
         ----------
         count : int
@@ -209,14 +216,14 @@ class Reader:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : npt.NDArray[np.complex64] | None
-            Optional pre-allocated output buffer. When given, the result is
-            written into it and the returned array is a view of exactly the
-            samples produced; when omitted, a fresh array is allocated.
+            destination, at least max_out samples.
 
         Returns
         -------
         NDArray[np.complex64]
-            Output.
+            samples written (at most min(n, max_out)), or 0 when the capture
+            ended -- then ::dp_wfm_reader_get_ending says why. Also 0, with
+            ending ::WFM_FOLLOW_NONE, if n or max_out is 0.
 
         Examples
         --------
@@ -240,22 +247,21 @@ class Reader:
         """
 
     def read_follow_max_out(self, n: int, /) -> int:
-        """Largest number of samples read_follow() can return for n inputs.
+        """Output capacity for one ::dp_wfm_reader_read_follow of n.
 
-        Size an `out=` buffer with this before calling read_follow(), or use it
-        to allocate one up front. The bound is this object's own: what it
-        depends on is a property of the algorithm, so a header block on
-        read_follow_max_out() replaces this text.
+        Returns the caller's ask, NOT what is available now: the binding sizes
+        the output before the blocking read starts, so "available now" would
+        hand the wait a zero-length buffer.
 
         Parameters
         ----------
         n : int
-            Number of input samples read_follow() will be given.
+            the requested sample count.
 
         Returns
         -------
         int
-            Upper bound on the output length; the actual call may return fewer.
+            n.
         """
 
     def seek(self, index: int) -> None:

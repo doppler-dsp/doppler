@@ -452,19 +452,15 @@ static PyMethodDef GoldObj_methods[] = {
   { "generate_max_out", (PyCFunction)GoldObj_generate_max_out, METH_NOARGS,
     "generate_max_out() -> int\n"
     "\n"
-    "Largest number of samples generate() can return in the current\n"
-    "state.\n"
+    "Output capacity hint for dp_gold_generate(): always 0.\n"
     "\n"
-    "Size an `out=` buffer with this before calling generate(), or use it to\n"
-    "allocate one up front. The bound is this object's own: what it depends\n"
-    "on is a property of the algorithm, so a header block on\n"
-    "generate_max_out() replaces this text.\n"
+    "The chip count is the caller-requested n of dp_gold_generate(), so\n"
+    "there is no fixed per-call maximum; size the output buffer to n.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Upper bound on the output length; the actual call may return "
-    "fewer.\n" },
+    "    0, meaning \"no fixed bound; the output length is n\".\n" },
   { "state_bytes", (PyCFunction)GoldObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

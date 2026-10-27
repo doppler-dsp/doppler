@@ -173,6 +173,11 @@ dp_tlm_resize (dp_tlm_t *t, size_t records)
   dp_tlmr_t *fresh = dp_tlmr_create (records);
   if (!fresh)
     return DP_ERR_INVALID; /* old ring still intact and still attached */
+  /* The drop count is the context's, not the ring's: carry it over, or a
+     resize restarts dp_tlm_dropped() at 0 and a capture that latched the
+     count at open reports a wrapped 2^64 or hides the drops before the
+     resize (#2649). The fresh ring is not shared yet, so a plain store. */
+  fresh->dropped = DP_LOAD_RLX (&t->ring->dropped);
   dp_tlmr_destroy (t->ring);
   t->ring = fresh;
   return DP_OK;

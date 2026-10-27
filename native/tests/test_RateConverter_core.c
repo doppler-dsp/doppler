@@ -53,6 +53,106 @@ test_invalid_rate (void)
 {
   DP_CHECK (dp_RateConverter_create (0.0, 0) == NULL);
   DP_CHECK (dp_RateConverter_create (-1.0, 0) == NULL);
+  /* NaN passed `rate <= 0.0` and reached `(int)round(NaN)` in the planner
+     (doppler#2640); an infinite rate is no ratio either. */
+  DP_CHECK (dp_RateConverter_create (NAN, 0) == NULL);
+  DP_CHECK (dp_RateConverter_create (INFINITY, 0) == NULL);
+  DP_CHECK (dp_RateConverter_create_matched (INFINITY, 0, RC_PULSE_RRC, 0.35,
+                                             8, 2.0, 1024)
+            == NULL);
+}
+
+/* A refused set_rate leaves the converter exactly as it was: same rate, same
+   cascade, same filter memory, so the stream continues as if the call never
+   happened (doppler#2640). The comparison is against an untouched twin fed
+   the same input, bit for bit, and against the serialized state. */
+static void
+test_set_rate_refusal_changes_nothing (void)
+{
+  enum
+  {
+    N = 512
+  };
+  float _Complex *in = malloc (N * sizeof (float _Complex));
+  float _Complex *ya = malloc (N * sizeof (float _Complex));
+  float _Complex *yb = malloc (N * sizeof (float _Complex));
+  DP_CHECK (in && ya && yb);
+  for (int k = 0; k < N; k++)
+    in[k] = CMPLXF ((float)cos (0.05 * k), (float)sin (0.03 * k));
+
+  dp_RateConverter_state_t *a = dp_RateConverter_create (0.3, 1);
+  dp_RateConverter_state_t *b = dp_RateConverter_create (0.3, 1);
+  DP_CHECK (a && b);
+  dp_RateConverter_execute (a, in, N, ya, N);
+  dp_RateConverter_execute (b, in, N, yb, N);
+
+  size_t nbytes = dp_RateConverter_state_bytes (a);
+  char  *snap   = malloc (nbytes);
+  char  *now    = malloc (nbytes);
+  DP_CHECK (snap && now);
+  dp_RateConverter_get_state (a, snap);
+  int   ns0    = a->n_stages;
+  void *stage0 = a->stage_ptrs[0];
+
+  const double bad[] = { 0.0, -2.0, NAN, INFINITY };
+  for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+    {
+      dp_RateConverter_set_rate (a, bad[i]);
+      DP_CHECK (dp_RateConverter_get_rate (a) == 0.3);
+      DP_CHECK (a->n_stages == ns0 && a->stage_ptrs[0] == stage0);
+      DP_CHECK (dp_RateConverter_state_bytes (a) == nbytes);
+    }
+  dp_RateConverter_get_state (a, now);
+  DP_CHECK (memcmp (snap, now, nbytes) == 0);
+
+  size_t na = dp_RateConverter_execute (a, in, N, ya, N);
+  size_t nb = dp_RateConverter_execute (b, in, N, yb, N);
+  DP_CHECK (na == nb && na > 0);
+  DP_CHECK (memcmp (ya, yb, na * sizeof (float _Complex)) == 0);
+
+  /* A good rate still re-plans, and an enabled AGC survives it. */
+  dp_RateConverter_set_rate (a, 2.0);
+  DP_CHECK (dp_RateConverter_get_rate (a) == 2.0 && a->n_stages == 1);
+
+  dp_RateConverter_state_t *m = dp_RateConverter_create_matched (
+      0.5, 0, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
+  DP_CHECK (m != NULL);
+  if (m)
+    {
+      DP_CHECK (dp_RateConverter_enable_agc (m, 0.01, 0.05) == DP_OK);
+      DP_CHECK (m->agc != NULL);
+      dp_RateConverter_set_rate (m, NAN);
+      DP_CHECK (m->agc != NULL && dp_RateConverter_get_rate (m) == 0.5);
+      dp_RateConverter_set_rate (m, 0.25);
+      DP_CHECK (m->agc != NULL && dp_RateConverter_get_rate (m) == 0.25);
+      dp_RateConverter_destroy (m);
+    }
+
+  free (snap);
+  free (now);
+  dp_RateConverter_destroy (a);
+  dp_RateConverter_destroy (b);
+  free (in);
+  free (ya);
+  free (yb);
+}
+
+/* bank_shape_value() read the last stage as a Resampler without asking
+   whether there was one; a C caller is not bounded by num_bank_shape the way
+   the generated loop is (doppler#2640). A cascade ending in an integer
+   decimator has no bank, and the answer is 0. */
+static void
+test_bank_shape_value_without_a_bank (void)
+{
+  dp_RateConverter_state_t *rc = dp_RateConverter_create (0.25, 0);
+  DP_CHECK (rc != NULL);
+  if (!rc)
+    return;
+  DP_CHECK (rc->stage_types[rc->n_stages - 1] == RC_STAGE_HB);
+  DP_CHECK (dp_RateConverter_num_bank_shape (rc) == 0);
+  DP_CHECK (dp_RateConverter_bank_shape_value (rc, 0) == 0);
+  DP_CHECK (dp_RateConverter_bank_shape_value (rc, 1) == 0);
+  dp_RateConverter_destroy (rc);
 }
 
 /* ------------------------------------------------------------------ */
@@ -231,7 +331,7 @@ test_set_rate (void)
   size_t n2 = dp_RateConverter_execute (rc, in, N, out, N);
   DP_CHECK (n2 == N / 4);
 
-  /* rate <= 0 silently ignored */
+  /* A rate outside dp_resamp_rate_ok() is refused, not ignored. */
   dp_RateConverter_set_rate (rc, 0.0);
   DP_CHECK (_near (dp_RateConverter_get_rate (rc), 0.25, 1e-9));
 
@@ -1612,6 +1712,8 @@ int
 main (void)
 {
   test_invalid_rate ();
+  test_set_rate_refusal_changes_nothing ();
+  test_bank_shape_value_without_a_bank ();
   test_capped_cic_still_delivers_the_requested_rate ();
   test_cic_ratio_is_capped_at_both_layers ();
   test_stage_labels ();

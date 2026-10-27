@@ -150,12 +150,14 @@ typedef struct
  * Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which
  * improves passband flatness at the cost of one extra FIR stage.
  *
- * @param rate       Output-to-input sample rate ratio. Any positive float.
+ * @param rate       Output-to-input sample rate ratio: finite and > 0
+ *                   (dp_resamp_rate_ok()).
  * @param compensate Non-zero to append a CIC passband-droop compensating
  *                   FIR after any CIC stage.
  * @return Non-NULL on success, owned by the caller and released with
- *         dp_RateConverter_destroy(); NULL if rate <= 0, if no cascade can
- *         be planned for @p rate, or on OOM.
+ *         dp_RateConverter_destroy(); NULL if @p rate is outside
+ *         dp_resamp_rate_ok() (NaN included), if no cascade can be planned
+ *         for @p rate, or on OOM.
  *
  * @code
  * >>> from doppler.resample import RateConverter
@@ -205,7 +207,8 @@ dp_RateConverter_state_t *dp_RateConverter_create (double rate, int compensate);
  * see the file header.  The clip is silent, and it costs 25 dB of the EVM
  * quoted above for reasons that have nothing to do with the matched filter.
  *
- * @param rate       Output-to-input sample rate ratio (any positive float).
+ * @param rate       Output-to-input sample rate ratio (finite and > 0,
+ *                   dp_resamp_rate_ok()).
  *                   Rate-agnostic: this object never learns about symbols —
  *                   a caller wanting `m` samples per symbol asks for
  *                   `rate = m/sps`.
@@ -266,9 +269,9 @@ bool dp_RateConverter_get_narrow_pulse (const dp_RateConverter_state_t *s);
  * @brief Number of planned cascade stages (backs the `stages` property).
  *
  * @param s  Pointer to a valid dp_RateConverter_state_t.
- * @return Active stage count, 1 to RC_MAX_STAGES for a successfully built
- *         cascade; 0 only after a dp_RateConverter_set_rate() whose rebuild
- *         failed (see that function).
+ * @return Active stage count, 1 to RC_MAX_STAGES. A failed
+ *         dp_RateConverter_set_rate() leaves the old cascade in place, so it
+ *         is never 0 on a live converter.
  */
 size_t dp_RateConverter_num_stages (const dp_RateConverter_state_t *s);
 
@@ -329,13 +332,15 @@ size_t dp_RateConverter_num_bank_shape (const dp_RateConverter_state_t *s);
 /**
  * @brief Element @p i of the bank shape: 0 -> num_phases, 1 -> num_taps.
  *
- * Only valid when dp_RateConverter_num_bank_shape() returns 2: the terminal
- * stage is read as a Resampler without checking its type.
+ * Meaningful only when dp_RateConverter_num_bank_shape() returns 2; when it
+ * returns 0 (the cascade ends in an integer decimator) there is no bank and
+ * this returns 0 rather than reading a stage that is not a Resampler.
  *
  * @param s  Pointer to a valid dp_RateConverter_state_t.
  * @param i  0 for the number of polyphase arms, any other value for the
  *           number of taps per arm.
- * @return The requested dimension of the terminal bank.
+ * @return The requested dimension of the terminal bank, or 0 when there is
+ *         none.
  */
 size_t dp_RateConverter_bank_shape_value (const dp_RateConverter_state_t *s,
                                        size_t i);
@@ -770,8 +775,8 @@ double dp_RateConverter_get_bank_sps (const dp_RateConverter_state_t *s);
  * @brief Get / set the output-to-input sample rate ratio.
  * The setter rebuilds the entire cascade (new stage selection, new
  * sub-objects) and resets all filter memories — equivalent to
- * destroying and recreating with the new rate. Setting rate <= 0 is
- * silently ignored.
+ * destroying and recreating with the new rate. A rate that is not finite
+ * and > 0 is refused and leaves the converter as it was.
  *
  * @code
  * >>> from doppler.resample import RateConverter
@@ -790,13 +795,23 @@ double dp_RateConverter_get_rate (const dp_RateConverter_state_t *s);
 
 /**
  * @brief Change the rate; rebuilds the cascade and resets all filter state.
- * Silently ignores rate <= 0. A matched cascade keeps its pulse and an
- * enabled AGC survives (its reference is re-derived for the new terminal
- * bank). If building the new stages fails (OOM) the converter is left with
- * zero stages and the new rate; there is no error return.
+ * A matched cascade keeps its pulse and an enabled AGC survives (its
+ * reference is re-derived for the new terminal bank). The change is all or
+ * nothing: the new cascade (and AGC) is built first and committed only once
+ * it exists, so a refused rate or a failed rebuild leaves the converter
+ * exactly as it was -- same rate, same stages, same filter memory.
+ *
+ * The call returns nothing, so a caller that must know whether it took
+ * reads dp_RateConverter_get_rate() back. It becomes an `int` status,
+ * raised as ValueError from Python (`error = "ValueError"` on the property),
+ * once just-makeit#2406 is fixed: today a refusing property setter is
+ * documented under a synthetic C name on the MatchedRateConverter view,
+ * which the doc-face-parity gate rejects.
  *
  * @param s     Pointer to a valid dp_RateConverter_state_t.
- * @param rate  New output/input rate ratio.
+ * @param rate  New output/input rate ratio: finite and > 0
+ *              (dp_resamp_rate_ok()). Any other value, a rate no cascade
+ *              can be planned for, or a failed rebuild changes nothing.
  */
 void dp_RateConverter_set_rate (dp_RateConverter_state_t *s, double rate);
 
@@ -834,7 +849,8 @@ int dp_RateConverter_stage_label (dp_RateConverter_state_t *s, int i,
  * @param n_in       Number of input samples.
  * @param out        Output buffer.
  * @param max_out    Output buffer capacity in samples.
- * @return Number of output samples written; 0 only if OOM or n_in == 0.
+ * @return Number of output samples written; 0 if @p rate is outside
+ *         dp_resamp_rate_ok(), on OOM, or if n_in == 0.
  */
 size_t dp_RateConverter_convert (double rate, int compensate,
                               const float _Complex *in, size_t n_in,

@@ -89,10 +89,10 @@ dp_Resampler_get_rate (const dp_Resampler_state_t *state)
   return dp_resamp_get_rate (state);
 }
 
-void
+int
 dp_Resampler_set_rate (dp_Resampler_state_t *state, double rate)
 {
-  dp_resamp_set_rate (state, rate);
+  return dp_resamp_set_rate (state, rate);
 }
 
 double

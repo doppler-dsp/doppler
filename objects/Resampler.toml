@@ -7,11 +7,16 @@ no_step = "true"
 serializable = "true"
 depends_on = ["resamp"]
 fragment = "generated"
+# A NULL create means a parameter was out of range, not OOM (gh-482).
+create_error = "ValueError"
+create_error_message = "Resampler: invalid parameter (need rate finite and > 0; a bank of num_phases a power of two, num_taps >= 1)"
 
 [[Resampler.init_params]]
 name = "rate"
 type = "double"
-default = "0.0"
+# 1.0, not 0.0: a rate must be finite and > 0 (dp_resamp_rate_ok), so a
+# bare Resampler() is the unity-rate one, as RateConverter's is (#2640).
+default = "1.0"
 
 [[Resampler.init_params]]
 name = "bank"
@@ -59,6 +64,10 @@ return_type = "void"
 name = "rate"
 type = "double"
 writable = true
+# The C setter refuses and keeps the rate; jm raises on its non-zero
+# return (doppler#2640).
+error = "ValueError"
+error_message = "Resampler: rate must be finite and > 0"
 
 [[Resampler.properties]]
 name = "ctrl_acc"

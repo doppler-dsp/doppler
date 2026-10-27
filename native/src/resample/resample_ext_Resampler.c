@@ -42,7 +42,7 @@ static int
 ResamplerObj_init (ResamplerObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[] = { "rate", "bank", NULL };
-  double       rate     = 0.0;
+  double       rate     = 1.0;
   PyObject    *bank_obj = NULL;
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dO", kwlist, &rate,
@@ -74,7 +74,10 @@ ResamplerObj_init (ResamplerObject *self, PyObject *args, PyObject *kwds)
     }
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_Resampler_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "Resampler: invalid parameter (need rate finite and > "
+                       "0; a bank of num_phases a power of two, num_taps >= "
+                       "1)");
       return -1;
     }
   return 0;
@@ -562,7 +565,13 @@ Resampler_setprop_rate (ResamplerObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_Resampler_set_rate (self->handle, v);
+  int _rc = dp_Resampler_set_rate (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "Resampler: rate must be finite and > 0", (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -610,13 +619,22 @@ Resampler_getprop_delay (ResamplerObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef Resampler_getset[] = {
   { "rate", (getter)Resampler_getprop_rate, (setter)Resampler_setprop_rate,
-    "Get / set the output-to-input sample rate ratio. The setter recomputes "
-    "the phase increment immediately; the delay line and phase accumulator "
-    "are preserved so in-stream rate changes are glitch-free. Crossing 1.0 "
-    "also switches the engine between its interpolation and decimation modes "
-    "(the doctest below goes 0.5 -> 1.5). Each mode keeps its own filter "
-    "memory, so the first outputs after a crossing are built from that mode's "
-    "last (or still-zero) history: a transient, not an error.\n",
+    "Get / set the output-to-input sample rate ratio. The setter\n"
+    "recomputes the phase increment immediately. On the same side of 1.0 the\n"
+    "delay line and phase accumulator are preserved, so in-stream rate\n"
+    "changes are glitch-free. Crossing 1.0 switches the engine between its\n"
+    "interpolation and decimation modes (the doctest below goes 0.5 -> 1.5);\n"
+    "the mode taking over was never advanced, so the crossing resets the\n"
+    "state as reset() does, and the output from there on is what a fresh\n"
+    "Resampler at the new rate gives. A rate that is not finite and > 0\n"
+    "raises ValueError and leaves the rate as it was.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_Resampler_set_rate`` refuses the value by\n"
+    "    returning non-zero. The exception message is ``Resampler: rate must\n"
+    "    be finite and > 0``, with the return code appended.\n",
     NULL },
   { "ctrl_acc", (getter)Resampler_getprop_ctrl_acc, NULL,
     "The control accumulator's fractional phase, in [0, 1).\n", NULL },
@@ -887,16 +905,23 @@ static PyTypeObject ResamplerObjType = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "rate : float, default 0.0\n"
-    "    Output-to-input sample rate ratio (any positive float). Values >= "
-    "1.0\n"
-    "    interpolate; values < 1.0 decimate. Not validated here: a rate <= 0 "
-    "is\n"
-    "    not refused.\n"
+    "rate : float, default 1.0\n"
+    "    Output-to-input sample rate ratio: finite and > 0\n"
+    "    (dp_resamp_rate_ok()). Values >= 1.0 interpolate; values < 1.0\n"
+    "    decimate. From Python it defaults to 1.0.\n"
     "bank : NDArray[np.float32] or None\n"
     "    Optional polyphase bank: a 2-D float32 array of shape (num_phases,\n"
     "    num_taps), num_phases a power of two. Omit for the built-in 4096x19\n"
     "    Kaiser bank.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``Resampler: "
+    "invalid\n"
+    "    parameter (need rate finite and > 0; a bank of num_phases a power "
+    "of\n"
+    "    two, num_taps >= 1)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

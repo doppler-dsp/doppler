@@ -83,6 +83,14 @@ return_type = "void"
 name = "rate"
 type = "double"
 writable = true
+# The C setter refuses and leaves the converter unchanged (doppler#2640),
+# but returns void for now, so a refused assignment is ignored rather than
+# raised. An int return needs `error = "ValueError"` here (jm requires it),
+# and on the MatchedRateConverter view jm 0.112.0 names the setter in the
+# stub's Raises section as the synthetic
+# `dp_RateConverter__view_matchedrateconverter_set_rate` while the runtime
+# names `dp_RateConverter_set_rate`, so the doc-face-parity gate fails
+# (just-makeit#2406). Flip both once jm renders the real setter on a view.
 
 [[RateConverter.properties]]
 name = "clipped"

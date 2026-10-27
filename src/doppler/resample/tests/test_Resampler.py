@@ -74,6 +74,35 @@ class TestConstruction:
         rs = Resampler(0.5)
         assert rs.rate == 0.5
 
+    def test_default_rate_is_unity(self):
+        # The default was 0.0, which built an all-zero resampler (#2640).
+        r = Resampler()
+        assert r.rate == 1.0
+        assert np.any(r.execute(_ones(64)) != 0)
+
+    @pytest.mark.parametrize("bad", [0.0, -1.0, float("nan"), float("inf")])
+    def test_invalid_rate_refused(self, bad):
+        with pytest.raises(ValueError, match="rate"):
+            Resampler(bad)
+        r = Resampler(0.5)
+        with pytest.raises(ValueError, match="rate"):
+            r.rate = bad
+        assert r.rate == 0.5
+
+    def test_non_power_of_two_bank_refused(self):
+        # 48 arms: the branch select would read arms 48-63 past the bank.
+        bank = np.ones((48, 4), dtype=np.float32)
+        with pytest.raises(ValueError, match="power of two"):
+            Resampler(0.37, bank=bank)
+
+    @pytest.mark.parametrize("r0,r1", [(0.5, 2.0), (0.7, 1.0), (2.0, 0.5)])
+    def test_rate_crossing_one_is_a_fresh_resampler(self, r0, r1):
+        x = _ramp(300)
+        r = Resampler(r0)
+        r.execute(x)
+        r.rate = r1
+        np.testing.assert_array_equal(r.execute(x), Resampler(r1).execute(x))
+
 
 # ------------------------------------------------------------------ #
 # Unity-rate pass-through                                             #

@@ -1356,6 +1356,7 @@ dp_resamp_get_rate function
 dp_resamp_get_state function
 dp_resamp_interp_fill function
 dp_resamp_interp_inputs_needed function
+dp_resamp_rate_ok function
 dp_resamp_reset function
 dp_resamp_set_rate function
 dp_resamp_set_state function

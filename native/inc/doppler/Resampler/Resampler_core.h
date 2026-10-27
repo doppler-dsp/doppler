@@ -47,11 +47,12 @@ extern "C"
    * pass rate < 1.0 to decimate (downsample). For a custom bank use
    * dp_Resampler_create_custom() instead (from Python, pass bank=).
    *
-   * @param rate  Output-to-input sample rate ratio (any positive float).
-   *              Values >= 1.0 interpolate; values < 1.0 decimate.
-   *              Not validated here: a rate <= 0 is not refused.
+   * @param rate  Output-to-input sample rate ratio: finite and > 0
+   *              (dp_resamp_rate_ok()). Values >= 1.0 interpolate; values
+   *              < 1.0 decimate. From Python it defaults to 1.0.
    * @return Non-NULL on success, owned by the caller and released with
-   *         dp_Resampler_destroy(); NULL on OOM.
+   *         dp_Resampler_destroy(); NULL if @p rate is outside
+   *         dp_resamp_rate_ok(), or on OOM.
    *
    * @code
    * >>> from doppler.resample import Resampler
@@ -70,14 +71,17 @@ extern "C"
    *
    * The bank is copied, so the caller keeps ownership of @p bank.
    *
-   * @param num_phases  Number of polyphase branches; must be a power of two
-   *                    (the caller's responsibility: only zero is refused).
+   * @param num_phases  Number of polyphase branches; a power of two (any
+   *                    other count is refused, since the branch select would
+   *                    read past the bank).
    * @param num_taps    Taps per branch; > 0.
    * @param bank        Row-major float32 array, shape num_phases × num_taps.
-   * @param rate        Initial output-to-input sample rate ratio; > 0.
+   * @param rate        Initial output-to-input sample rate ratio; finite
+   *                    and > 0 (dp_resamp_rate_ok()).
    * @return Non-NULL on success, owned by the caller and released with
-   *         dp_Resampler_destroy(); NULL if @p num_phases or @p num_taps is
-   *         0, @p bank is NULL, @p rate <= 0, or on OOM.
+   *         dp_Resampler_destroy(); NULL if @p num_phases is 0 or not a
+   *         power of two, @p num_taps is 0, @p bank is NULL, @p rate is
+   *         outside dp_resamp_rate_ok(), or on OOM.
    */
   dp_Resampler_state_t *dp_Resampler_create_custom (size_t num_phases,
                                               size_t num_taps,
@@ -233,13 +237,14 @@ extern "C"
 
   /**
    * @brief Get / set the output-to-input sample rate ratio.
-   * The setter recomputes the phase increment immediately; the delay
-   * line and phase accumulator are preserved so in-stream rate changes
-   * are glitch-free. Crossing 1.0 also switches the engine between its
-   * interpolation and decimation modes (the doctest below goes 0.5 ->
-   * 1.5). Each mode keeps its own filter memory, so the first outputs
-   * after a crossing are built from that mode's last (or still-zero)
-   * history: a transient, not an error.
+   * The setter recomputes the phase increment immediately. On the same
+   * side of 1.0 the delay line and phase accumulator are preserved, so
+   * in-stream rate changes are glitch-free. Crossing 1.0 switches the
+   * engine between its interpolation and decimation modes (the doctest
+   * below goes 0.5 -> 1.5); the mode taking over was never advanced, so
+   * the crossing resets the state as reset() does, and the output from
+   * there on is what a fresh Resampler at the new rate gives. A rate that
+   * is not finite and > 0 raises ValueError and leaves the rate as it was.
    *
    * @code
    * >>> from doppler.resample import Resampler
@@ -260,9 +265,11 @@ extern "C"
    *        dp_Resampler_get_rate() for the mid-stream semantics).
    *
    * @param state  Pointer to a valid dp_Resampler_state_t.
-   * @param rate   New ratio; should be > 0 (not validated).
+   * @param rate   New ratio; finite and > 0 (dp_resamp_rate_ok()).
+   * @return DP_OK, or DP_ERR_INVALID if @p rate is refused (nothing
+   *         changes).
    */
-  void dp_Resampler_set_rate (dp_Resampler_state_t *state, double rate);
+  int dp_Resampler_set_rate (dp_Resampler_state_t *state, double rate);
 
   /**
    * @brief The control accumulator's fractional phase, in [0, 1).

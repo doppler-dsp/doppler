@@ -16,7 +16,10 @@
  *   §11 One wrap of `mu` buys one INPUT interval, not one output period
  *   §12 `mu` is steady at an exact rate, slewing at a rate error
  *   §13 dp_resamp_dc_gain is the bank's own gain, computed, on both paths
- *   §14 dp_resamp_destroy(NULL) is a no-op; create_custom rejects
+ *   §14 dp_resamp_destroy(NULL) is a no-op; create_custom rejects;
+ *       every rate entry point refuses a non-finite or non-positive rate
+ *   §14b a num_phases that is not a power of two is refused
+ *   §14c a set_rate that crosses 1 equals a fresh create at the new rate
  *   §15 set_rate preserves the accumulator and the delay line
  *   §16 reset zeroes every accumulator and every delay buffer
  *   §17 The bank's advertised 60 dB stopband and 0.4/0.6 cutoffs
@@ -837,6 +840,152 @@ lifecycle_rejects (void)
     ok = 0; /* rate == 0       */
   if (dp_resamp_create_custom (2, 2, ok_bank, -1.0) != NULL)
     ok = 0; /* rate < 0        */
+  if (dp_resamp_create_custom (2, 2, ok_bank, NAN) != NULL)
+    ok = 0; /* rate NaN: `rate <= 0` let it through (doppler#2640) */
+  if (dp_resamp_create_custom (2, 2, ok_bank, INFINITY) != NULL)
+    ok = 0; /* rate infinite   */
+
+  /* The built-in constructor checked nothing at all (doppler#2640). */
+  const double bad[] = { 0.0, -1.0, -0.5, NAN, INFINITY, -INFINITY };
+  for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+    {
+      if (dp_resamp_rate_ok (bad[i]))
+        ok = 0;
+      resamp_state_t *r = dp_resamp_create (bad[i]);
+      if (r)
+        {
+          DP_TEST_ERR ("  §14 dp_resamp_create(%g) accepted\n", bad[i]);
+          dp_resamp_destroy (r);
+          ok = 0;
+        }
+    }
+  if (!dp_resamp_rate_ok (1e-3) || !dp_resamp_rate_ok (1.0)
+      || !dp_resamp_rate_ok (37.5))
+    ok = 0;
+
+  /* set_rate refuses the same values, and changes nothing when it does. */
+  resamp_state_t *r = dp_resamp_create (0.75);
+  if (!r)
+    return 0;
+  uint32_t inc = r->phase_inc;
+  for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+    if (dp_resamp_set_rate (r, bad[i]) != DP_ERR_INVALID
+        || dp_resamp_get_rate (r) != 0.75 || r->phase_inc != inc
+        || r->upsample != 0)
+      {
+        DP_TEST_ERR ("  §14 dp_resamp_set_rate(%g) accepted\n", bad[i]);
+        ok = 0;
+      }
+  if (dp_resamp_set_rate (r, 0.5) != DP_OK || dp_resamp_get_rate (r) != 0.5)
+    ok = 0;
+  dp_resamp_destroy (r);
+  return ok;
+}
+
+/* ── §14b — a phase count that is not a power of two is refused ──────────
+ *
+ * get_branch() takes the arm from the top log2(num_phases) bits of the
+ * phase word, rounded UP: 48 phases use 6 bits and reach arm 63, so arms
+ * 48-63 read bank[48 * num_taps ...] past a 48-arm allocation -- a heap
+ * out-of-bounds read on the interpolator, the decimator and the push path
+ * (doppler#2640). The refusal is the fix. If one is ever accepted again the
+ * object is driven through all three paths anyway, so an ASan build reports
+ * the read instead of this test merely counting a non-NULL. */
+static int
+non_power_of_two_phases_refused (void)
+{
+  const size_t counts[] = { 3, 5, 6, 12, 48, 100, 4095 };
+  int          ok       = 1;
+  for (size_t c = 0; c < sizeof counts / sizeof counts[0]; c++)
+    {
+      size_t P    = counts[c];
+      float *bank = calloc (P * 2, sizeof (float));
+      if (!bank)
+        return 0;
+      resamp_state_t *r = dp_resamp_create_custom (P, 2, bank, 0.37);
+      free (bank);
+      if (!r)
+        continue;
+      DP_TEST_ERR ("  §14b num_phases=%zu accepted\n", P);
+      ok = 0;
+      float _Complex x[256], y[512];
+      for (int k = 0; k < 256; k++)
+        x[k] = CMPLXF (1.0f, 0.0f);
+      dp_resamp_execute (r, x, 256, y, 512); /* decimator  */
+      for (int k = 0; k < 256; k++)
+        dp_resamp_execute_ctrl_push (r, x[k], 0.0, y, 512); /* push */
+      dp_resamp_set_rate (r, 1.37);
+      dp_resamp_execute (r, x, 256, y, 512); /* interpolator */
+      dp_resamp_destroy (r);
+    }
+  /* Every power of two, 1 included, is still accepted. */
+  for (size_t P = 1; P <= 4096; P <<= 1)
+    {
+      float *bank = calloc (P * 2, sizeof (float));
+      if (!bank)
+        return 0;
+      resamp_state_t *r = dp_resamp_create_custom (P, 2, bank, 0.37);
+      free (bank);
+      if (!r)
+        {
+          DP_TEST_ERR ("  §14b num_phases=%zu refused\n", P);
+          ok = 0;
+        }
+      dp_resamp_destroy (r);
+    }
+  return ok;
+}
+
+/* ── §14c — a set_rate that crosses 1 is a fresh create at the new rate ──
+ *
+ * Crossing 1 hands dp_resamp_execute() to the other path. That path's state
+ * was never advanced by the old one, and the phase word meant a different
+ * step, so the header promises the crossing starts it as a fresh create
+ * would. Measured both ways, bit for bit, after enough history that a stale
+ * delay line or accumulator would show (doppler#2640). */
+static int
+crossing_set_rate_is_a_fresh_create (void)
+{
+  enum
+  {
+    NX = 300,
+    NY = 1024
+  };
+  static float _Complex x[NX], y_a[NY], y_b[NY], scratch[NY];
+  for (int k = 0; k < NX; k++)
+    x[k] = CMPLXF ((float)cos (0.031 * k), (float)sin (0.017 * k));
+
+  const double pairs[][2]
+      = { { 0.5, 2.0 }, { 2.0, 0.5 }, { 0.7, 1.0 }, { 1.0, 0.3 } };
+  int ok = 1;
+  for (size_t i = 0; i < sizeof pairs / sizeof pairs[0]; i++)
+    {
+      resamp_state_t *a = dp_resamp_create (pairs[i][0]);
+      resamp_state_t *b = dp_resamp_create (pairs[i][1]);
+      if (!a || !b)
+        return 0;
+      /* History on the old path, then on the ctrl port, then cross. */
+      dp_resamp_execute (a, x, NX, scratch, NY);
+      for (int k = 0; k < 17; k++)
+        dp_resamp_execute_ctrl_push (a, x[k], 0.01, scratch, NY);
+      if (dp_resamp_set_rate (a, pairs[i][1]) != DP_OK)
+        ok = 0;
+      size_t na = dp_resamp_execute (a, x, NX, y_a, NY);
+      size_t nb = dp_resamp_execute (b, x, NX, y_b, NY);
+      int    eq = na == nb && na > 0;
+      for (size_t k = 0; eq && k < na; k++)
+        eq = crealf (y_a[k]) == crealf (y_b[k])
+             && cimagf (y_a[k]) == cimagf (y_b[k]);
+      if (!eq)
+        {
+          DP_TEST_ERR ("  §14c %.2f -> %.2f: %zu vs %zu outputs, not a "
+                       "fresh create\n",
+                       pairs[i][0], pairs[i][1], na, nb);
+          ok = 0;
+        }
+      dp_resamp_destroy (a);
+      dp_resamp_destroy (b);
+    }
   return ok;
 }
 
@@ -1623,6 +1772,8 @@ main (void)
 
   /* ── §14 — destroy(NULL) is a no-op; create_custom rejects ──────────── */
   DP_CHECK (lifecycle_rejects ());
+  DP_CHECK (non_power_of_two_phases_refused ());
+  DP_CHECK (crossing_set_rate_is_a_fresh_create ());
 
   /* ── §15 / §16 — the two promises the old literals could not see ────── */
   DP_CHECK (set_rate_preserves_state ());

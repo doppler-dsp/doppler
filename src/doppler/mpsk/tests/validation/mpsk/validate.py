@@ -59,7 +59,8 @@ M_ALL = (2, 4, 8)
 #: (4, 8, 12) dB and BPSK at 12 dB collected ZERO errors in 200k symbols —
 #: which then read as a 100% deviation from theory, i.e. a defect. Each
 #: grid below is chosen so its deepest cell still collects a few hundred
-#: Each cell is sized by its error count, not its symbol count: a fixed
+#: errors, and MIN_ERRORS asserts that rather than trusting it. Each cell is
+#: sized by its error count, not its symbol count: a fixed
 #: symbol count gives a deep cell (QPSK at 10 dB, ~1.6e-3) only ~300 errors,
 #: and a penalty ratio on 300 errors has a band of ±0.6x. `cell_symbols`
 #: aims each cell at TARGET_ERRORS coherent errors, clamped to

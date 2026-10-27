@@ -53,6 +53,7 @@ extern "C" {
 /* ── Noise aggregation mode ─────────────────────────────────────────────── */
 
 /**
+ * @enum det_noise_mode_t
  * @brief Selects how noise power is estimated from the correlation magnitude
  *        vector over bins &#91;noise_lo, noise_hi&#93;.
  *
@@ -60,6 +61,7 @@ extern "C" {
  * all bins in the range are zero) yields test_stat = 0.
  */
 #ifndef DET_NOISE_MODE_T_DEFINED
+/** @brief Guard: det_noise_mode_t is defined (shared with detector2d). */
 #define DET_NOISE_MODE_T_DEFINED
 typedef enum
 {
@@ -105,13 +107,16 @@ typedef struct
   size_t ring_cap;          /**< Ring buffer capacity in complex samples.   */
   size_t noise_lo;          /**< Noise bin range lower bound (inclusive).   */
   size_t noise_hi;          /**< Noise bin range upper bound (inclusive).   */
-  det_noise_mode_t noise_mode;
+  det_noise_mode_t noise_mode; /**< Noise aggregation over bins
+                                     noise_lo..noise_hi (config).       */
   float threshold;          /**< 0 = always fire; >0 = gate on test_stat.  */
   /* Last dump results — updated on every dump regardless of threshold. */
-  size_t peak_lag;
-  float peak_mag;
-  float noise_est;
-  float test_stat;
+  size_t peak_lag;          /**< Last dump: argmax |R| lag index.  Not
+                                 cleared by reset (0 after create).   */
+  float peak_mag;           /**< Last dump: max |R| (linear magnitude). */
+  float noise_est;          /**< Last dump: aggregated noise |R|.       */
+  float test_stat;          /**< Last dump: peak_mag / noise_est, or 0
+                                 when noise_est is 0.                  */
   int _last_corr_valid;     /**< 1 once a dump has filled out_buf; 0
                                  after create, reset and set_state.     */
   size_t consumed;          /**< Input samples the last push took.          */
@@ -162,7 +167,11 @@ void dp_detector_destroy (dp_detector_state_t *state);
  * @brief Reset the correlator, the carry, and last-corr flag.
  * Discards any partial frame carried between pushes and zeroes the coherent
  * accumulator.  Equivalent to starting fresh from the same reference without
- * rebuilding any internal object.
+ * rebuilding any internal object, except that the last-dump fields
+ * (peak_lag, peak_mag, noise_est, test_stat) keep their values until the
+ * next dump.  dp_detector_consumed() reads 0 afterwards.
+ *
+ * @param state  Must be non-NULL.
  *
  * @code
  * >>> from doppler.spectral import CorrDetector
@@ -261,6 +270,7 @@ size_t dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
  * at in + consumed. 0 after create, reset and set_state.
  *
  * @param state  Must be non-NULL.
+ * @return Input samples (CF32) taken by the last push.
  */
 size_t dp_detector_consumed (const dp_detector_state_t *state);
 
@@ -271,10 +281,39 @@ size_t dp_detector_consumed (const dp_detector_state_t *state);
  * peak_mag, noise_est and test_stat (f32).  Version 1 carried the ring's
  * raw contents zero-padded to ring_cap and a last_corr flag; out_buf was
  * never in the blob, so last_corr is None after set_state. */
+/** @brief Envelope magic ("DET1") identifying a detector state blob. */
 #define DETECTOR_STATE_MAGIC DP_FOURCC ('D','E','T','1')
+/** @brief Layout version of the detector state blob (see above). */
 #define DETECTOR_STATE_VERSION 2u
+/**
+ * @brief Size in bytes of the blob dp_detector_get_state() writes.
+ * @param state  Must be non-NULL.
+ * @return Envelope + corr child + framer child + 8 + 3 * 4 bytes; fixed
+ *         for a given configuration.
+ */
 size_t dp_detector_state_bytes (const dp_detector_state_t *state);
+/**
+ * @brief Serialize the correlator, the carry and the last-dump fields.
+ * @param state  Must be non-NULL.
+ * @param[out] blob  Caller-owned buffer of at least
+ *                   dp_detector_state_bytes() bytes.
+ */
 void dp_detector_get_state (const dp_detector_state_t *state, void *blob);
+/**
+ * @brief Restore the correlator, the carry and the last-dump fields.
+ *
+ * Afterwards the last correlation surface is unavailable (it is not in
+ * the blob) and dp_detector_consumed() reads 0.  A rejected outer envelope
+ * leaves @p state unchanged; the nested children are restored in order
+ * (corr, then framer), so a rejected framer child leaves the correlator
+ * already restored.
+ *
+ * @param state  Must be non-NULL; built with the same configuration as
+ *               the blob's source.
+ * @param blob   A blob produced by dp_detector_get_state().
+ * @return DP_OK, or DP_ERR_INVALID if the envelope or a child blob does
+ *         not match.
+ */
 int dp_detector_set_state (dp_detector_state_t *state, const void *blob);
 
 #ifdef __cplusplus

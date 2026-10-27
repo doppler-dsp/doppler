@@ -396,7 +396,11 @@ void dp_psd_frame_db(dp_psd_kernel_t *k, const float _Complex *x,
  */
 void dp_psd_accumulate_real(dp_psd_state_t *state, const float *x, size_t x_len);
 
-/** @brief Output capacity hint for dp_psd_power_twosided(); equals nfft. */
+/**
+ * @brief Output capacity hint for dp_psd_power_twosided().
+ * @param state  Must be non-NULL.
+ * @return nfft, the zero-padded transform length.
+ */
 size_t dp_psd_power_twosided_max_out(dp_psd_state_t *state);
 
 /**
@@ -415,7 +419,11 @@ size_t dp_psd_power_twosided_max_out(dp_psd_state_t *state);
 size_t dp_psd_power_twosided(dp_psd_state_t *state, float *out,
                              size_t max_out);
 
-/** @brief Output capacity hint for dp_psd_power_onesided(); equals nfft/2+1. */
+/**
+ * @brief Output capacity hint for dp_psd_power_onesided().
+ * @param state  Must be non-NULL.
+ * @return nfft/2 + 1.
+ */
 size_t dp_psd_power_onesided_max_out(dp_psd_state_t *state);
 
 /**
@@ -434,7 +442,11 @@ size_t dp_psd_power_onesided_max_out(dp_psd_state_t *state);
 size_t dp_psd_power_onesided(dp_psd_state_t *state, float *out,
                              size_t max_out);
 
-/** @brief Output capacity hint for psd_db(); equals nfft. */
+/**
+ * @brief Output capacity hint for dp_psd_psd_db().
+ * @param state  Must be non-NULL.
+ * @return nfft.
+ */
 size_t dp_psd_psd_db_max_out(dp_psd_state_t *state);
 
 /**
@@ -451,7 +463,11 @@ size_t dp_psd_psd_db_max_out(dp_psd_state_t *state);
  */
 size_t dp_psd_psd_db(dp_psd_state_t *state, float *out, size_t max_out);
 
-/** @brief Output capacity hint for psd_dbhz(); equals nfft. */
+/**
+ * @brief Output capacity hint for dp_psd_psd_dbhz().
+ * @param state  Must be non-NULL.
+ * @return nfft.
+ */
 size_t dp_psd_psd_dbhz_max_out(dp_psd_state_t *state);
 
 /**
@@ -459,6 +475,12 @@ size_t dp_psd_psd_dbhz_max_out(dp_psd_state_t *state);
  * Normalised by ``fs * sum(w^2)`` (ENBW-aware), the standard one-sided-free PSD
  * scaling.  Differs from psd_db() by the constant ``10*log10(cg^2/(fs*s2))``.
  * Returns 0 (Python None) before any frame is accumulated.
+ *
+ * @param state  Must be non-NULL.
+ * @param out    Destination, at least nfft float32 elements.
+ * @param max_out Capacity of @p out in elements. Emission stops there, so the
+ *               return value is the number actually written.
+ * @return min(nfft, max_out), or 0 if empty.
  *
  * @code
  * >>> import numpy as np
@@ -472,7 +494,15 @@ size_t dp_psd_psd_dbhz_max_out(dp_psd_state_t *state);
  */
 size_t dp_psd_psd_dbhz(dp_psd_state_t *state, float *out, size_t max_out);
 
-/** @brief Output capacity hint for band_power(); 0 (binding sizes from bands). */
+/**
+ * @brief Output capacity hint for dp_psd_band_power().
+ *
+ * The output length depends on the bands argument, which this cannot see,
+ * so the binding sizes the buffer from the bands itself.
+ *
+ * @param state  Unused; may be any value.
+ * @return Always 0 (the "caller sizes it" sentinel).
+ */
 size_t dp_psd_band_power_max_out(dp_psd_state_t *state);
 
 /**
@@ -544,6 +574,11 @@ double dp_psd_occupied_bw(dp_psd_state_t *state, double fraction);
 
 /**
  * @brief Noise-floor estimate: median of the averaged dB spectrum.
+ *
+ * Fills the object's internal dB scratch (the psd_db() trace over all
+ * nfft bins) and takes its median.
+ *
+ * @param state  Must be non-NULL.
  * @return Median dB level (0 if empty).
  */
 double dp_psd_noise_floor(dp_psd_state_t *state);
@@ -570,10 +605,36 @@ double dp_psd_sfdr(dp_psd_state_t *state, float min_db);
  * depends on the config only. hop is a reject key: a blob of another hop is
  * refused, since the carried frame means something different at another hop.
  * Window, plan, scratch, n, nfft and hop are config, rebuilt by create. */
+/** @brief Envelope magic ("PSD ") identifying a PSD state blob. */
 #define PSD_STATE_MAGIC DP_FOURCC ('P','S','D',' ')
+/** @brief Layout version of the PSD state blob. */
 #define PSD_STATE_VERSION 2u
+/**
+ * @brief Size in bytes of the blob dp_psd_get_state() writes.
+ * @param state  Must be non-NULL.
+ * @return Envelope + the averager's and the framer's blob sizes; fixed for
+ *         a given configuration.
+ */
 size_t dp_psd_state_bytes (const dp_psd_state_t *state);
+/**
+ * @brief Serialize the power average and the carried partial frame.
+ * @param state  Must be non-NULL.
+ * @param[out] blob  Caller-owned buffer of at least dp_psd_state_bytes()
+ *                   bytes.
+ */
 void dp_psd_get_state (const dp_psd_state_t *state, void *blob);
+/**
+ * @brief Restore the power average and the carried partial frame.
+ *
+ * The framer snapshot (including its hop) is checked before anything is
+ * written, so a blob of another hop changes nothing.
+ *
+ * @param state  Must be non-NULL; built with the same configuration as the
+ *               blob's source.
+ * @param blob   A blob produced by dp_psd_get_state().
+ * @return DP_OK, or DP_ERR_INVALID if the envelope or a child blob is
+ *         rejected.
+ */
 int dp_psd_set_state (dp_psd_state_t *state, const void *blob);
 
 #ifdef __cplusplus

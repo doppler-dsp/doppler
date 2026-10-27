@@ -75,6 +75,7 @@ extern "C" {
 
 /** @brief State-blob magic ('DPCH') and layout version. */
 #define DOPPLER_CHANNEL_STATE_MAGIC DP_FOURCC('D', 'P', 'C', 'H')
+/** @brief State-blob layout version (2 added the profile's last d). */
 #define DOPPLER_CHANNEL_STATE_VERSION 2u
 
 /**
@@ -96,23 +97,27 @@ extern "C" {
  * Allocate with dp_doppler_channel_create().
  */
 typedef struct {
-    double fs;                 /* receive sample rate, Hz                  */
-    double carrier_hz;         /* RF carrier fc, Hz — drives the offset    */
-    double doppler_ppm;        /* d0, ppm of nominal                       */
-    double doppler_rate_ppm_s; /* d-dot, ppm/s                             */
+    double fs;                 /**< receive sample rate, Hz (config)       */
+    double carrier_hz;         /**< RF carrier fc, Hz — drives the offset
+                                    (config; 0 = clocks only)            */
+    double doppler_ppm;        /**< d0, ppm of nominal (config)            */
+    double doppler_rate_ppm_s; /**< d-dot, ppm/s (config)                  */
 
-    resamp_state_t *rs; /* the dilation — never hand-rolled here     */
+    resamp_state_t *rs; /**< owned resampler doing the dilation — never
+                             hand-rolled here                      */
 
     /* Two separate clocks, on purpose. The resampler's per-sample rate
        deviation is indexed by INPUT sample; the carrier phase is a function of
        receive time, which is the OUTPUT sample index. They differ by the
        dilation itself, so conflating them would fold a second copy of the
        Doppler into the carrier. */
-    uint64_t n_in;  /* input samples consumed                    */
-    uint64_t n_out; /* output samples produced                   */
+    uint64_t n_in;  /**< running: input samples consumed           */
+    uint64_t n_out; /**< running: output samples produced          */
 
-    double *ctrl;         /* per-sample rate deviation scratch         */
-    size_t ctrl_cap;
+    double *ctrl;         /**< owned per-sample rate deviation scratch
+                               (not state)                          */
+    size_t ctrl_cap;      /**< length of @c ctrl, samples
+                               (DOPPLER_CHANNEL_MAX_BLOCK)           */
 
     /* Profile mode (dp_doppler_channel_execute_profile). The carrier needs no
        state of its own there: it is read off the resampler's position (see
@@ -120,11 +125,14 @@ typedef struct {
        clocks already carry. What a profile does leave behind is the most
        recent instantaneous d, the one thing the closed form can no longer
        report -- hence these two, and the layout version. */
-    double  prof_d;   /* most recent instantaneous d (dimensionless) */
-    uint8_t profiled; /* a profile has driven this stream            */
+    double  prof_d;   /**< running: most recent instantaneous d from a
+                           profile (dimensionless, not ppm)         */
+    uint8_t profiled; /**< running: set by any execute_profile() call;
+                           cleared by a non-empty execute() or reset */
 
-    double *pos;      /* per-output input position scratch (not state) */
-    size_t  pos_cap;
+    double *pos;      /**< owned per-output input position scratch
+                           (not state); grown on demand          */
+    size_t  pos_cap;  /**< length of @c pos, samples              */
 } dp_doppler_channel_state_t;
 
 /**
@@ -236,12 +244,19 @@ void dp_doppler_channel_destroy(dp_doppler_channel_state_t *state);
  */
 void dp_doppler_channel_reset(dp_doppler_channel_state_t *state);
 
-/** @brief Bytes dp_doppler_channel_get_state() writes (envelope + payload). */
+/**
+ * @brief Bytes dp_doppler_channel_get_state() writes (envelope + payload).
+ * @param state  Must be non-NULL.
+ * @return Envelope + 3 uint64 + 1 double + the resampler's blob size.
+ */
 size_t dp_doppler_channel_state_bytes(const dp_doppler_channel_state_t *state);
 
 /** @brief Serialize the running state: both sample clocks, the profile's last
  *         `d` and whether a profile has driven the stream, then the
- *         resampler's. */
+ *         resampler's.
+ *  @param state  Must be non-NULL.
+ *  @param[out] blob  Caller-owned buffer of at least
+ *                    dp_doppler_channel_state_bytes() bytes. */
 void dp_doppler_channel_get_state(const dp_doppler_channel_state_t *state, void *blob);
 
 /**
@@ -250,6 +265,9 @@ void dp_doppler_channel_get_state(const dp_doppler_channel_state_t *state, void 
  * A refused blob leaves the channel unchanged: the channel's own fields are
  * decoded first and written only once the resampler has accepted its part
  * (doppler#2104).
+ * @param state  Must be non-NULL; built with the same configuration as the
+ *               blob's source (configuration is not in the blob).
+ * @param blob   A blob produced by dp_doppler_channel_get_state().
  * @return DP_OK, or DP_ERR_INVALID if the envelope or a child blob is rejected.
  */
 int dp_doppler_channel_set_state(dp_doppler_channel_state_t *state, const void *blob);
@@ -258,7 +276,12 @@ int dp_doppler_channel_set_state(dp_doppler_channel_state_t *state, const void *
  * @brief Upper bound on the output of one execute() call.
  *
  * Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see that
- * macro for why the bound cannot depend on the actual input length.
+ * macro for why the bound cannot depend on the actual input length.  The
+ * bound uses the smallest time-base scale over the next block, so with a
+ * ramp it changes from call to call; re-query it before each call.
+ *
+ * @param state  Must be non-NULL.
+ * @return `DOPPLER_CHANNEL_MAX_BLOCK / min(1+d) + 2` samples.
  */
 size_t dp_doppler_channel_execute_max_out(dp_doppler_channel_state_t *state);
 
@@ -387,10 +410,23 @@ size_t dp_doppler_channel_execute_profile_max_out(dp_doppler_channel_state_t *st
  */
 int64_t dp_doppler_channel_execute_profile(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, const double *ppm, size_t ppm_len, float _Complex *out, size_t max_out);
 
-/** @brief Receive time in seconds produced so far (`n_out/fs`). */
+/**
+ * @brief Receive time in seconds produced so far (`n_out/fs`).
+ * @param state  Must be non-NULL.
+ * @return Seconds of output produced since create or reset.
+ */
 double dp_doppler_channel_get_elapsed_s(const dp_doppler_channel_state_t *state);
 
-/** @brief Instantaneous carrier offset `fc*d(t)` in Hz at `elapsed_s`. */
+/**
+ * @brief Instantaneous carrier offset `fc*d(t)` in Hz at `elapsed_s`.
+ *
+ * For a stream driven by the closed form, `d(t) = (doppler_ppm +
+ * doppler_rate_ppm_s * elapsed_s) * 1e-6`.  After a profile call it is
+ * the last profile sample's d instead.  0 whenever carrier_hz is 0.
+ *
+ * @param state  Must be non-NULL.
+ * @return Carrier offset, Hz.
+ */
 double dp_doppler_channel_get_offset_hz(const dp_doppler_channel_state_t *state);
 
 /**
@@ -407,6 +443,9 @@ double dp_doppler_channel_get_offset_hz(const dp_doppler_channel_state_t *state)
  * >>> DopplerChannel(fs=1e6).delay_samples
  * 10.5
  * @endcode
+ *
+ * @param state  Must be non-NULL.
+ * @return Group delay, samples (10.5 for the built-in bank).
  */
 double dp_doppler_channel_get_delay_samples(const dp_doppler_channel_state_t *state);
 #ifdef __cplusplus

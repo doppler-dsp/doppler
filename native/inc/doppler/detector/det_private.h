@@ -135,11 +135,12 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
    detector includes neither, so define it here under the same guard. */
 #ifndef DET_PEAK_T_DEFINED
 #define DET_PEAK_T_DEFINED
+/** @brief One listed peak of a surface: its cell and value. */
 typedef struct
 {
-  size_t row;
-  size_t col;
-  float  value;
+  size_t row;   /**< surface row                                    */
+  size_t col;   /**< surface column                                 */
+  float  value; /**< the cell's value                               */
 } det_peak_t;
 #endif
 

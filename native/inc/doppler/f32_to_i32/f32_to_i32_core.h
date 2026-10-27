@@ -67,8 +67,12 @@ extern "C" {
  * reset().
  */
 typedef struct {
-    float   scale;   /* multiply factor applied before saturation */
-    uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
+    float   scale;   /**< Multiply factor applied before rounding and
+                          saturation (config, set by create(); > 0;
+                          default 2^31 = 2147483648.0). */
+    uint8_t clipped; /**< Sticky saturation flag (running state): 1 once
+                          any sample has saturated, 0 otherwise; written
+                          by step()/steps(), cleared by reset(). */
 } dp_f32_to_i32_state_t;
 
 /**
@@ -164,8 +168,9 @@ dp_f32_to_i32_step(dp_f32_to_i32_state_t *state, float x)
  *
  * Applies step() to every element.  The @c clipped flag is updated
  * cumulatively across the block — a single saturating sample raises it
- * for the entire call.  Accepts an optional pre-allocated output array;
- * allocates a fresh one when @p output is NULL.
+ * for the entire call.  In C, @p output must be a caller-owned array of
+ * at least @p n elements (NULL is not accepted).  From Python it is the
+ * optional `out=` array; the binding allocates a fresh one when omitted.
  *
  * @param state   Must be non-NULL.
  * @param input   Input float32 array; must contain at least @p n elements.
@@ -190,10 +195,33 @@ void dp_f32_to_i32_steps(
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the sticky clip flag resumes exactly into an
  * identically-built instance. */
+/** @brief Envelope magic ("F232") identifying an F32ToI32 state blob. */
 #define F32_TO_I32_STATE_MAGIC DP_FOURCC ('F','2','3','2')
+/** @brief Layout version of the F32ToI32 state blob. */
 #define F32_TO_I32_STATE_VERSION 1u
+/**
+ * @brief Size in bytes of the blob dp_f32_to_i32_get_state() writes.
+ * @param state  Must be non-NULL (the size does not depend on it).
+ * @return `sizeof(dp_state_hdr_t) + sizeof(dp_f32_to_i32_state_t)`.
+ */
 size_t dp_f32_to_i32_state_bytes (const dp_f32_to_i32_state_t *state);
+/**
+ * @brief Serialize the whole state struct (scale and clipped) into @p blob.
+ * @param state  Must be non-NULL.
+ * @param[out] blob  Caller-owned buffer of at least
+ *                   dp_f32_to_i32_state_bytes() bytes.
+ */
 void dp_f32_to_i32_get_state (const dp_f32_to_i32_state_t *state, void *blob);
+/**
+ * @brief Restore the whole state struct (scale and clipped) from @p blob.
+ *
+ * The envelope is validated first; on rejection @p state is unchanged.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   A blob produced by dp_f32_to_i32_get_state().
+ * @return DP_OK, or DP_ERR_INVALID if the magic, version, endianness or
+ *         size in the envelope does not match.
+ */
 int dp_f32_to_i32_set_state (dp_f32_to_i32_state_t *state, const void *blob);
 
 #ifdef __cplusplus

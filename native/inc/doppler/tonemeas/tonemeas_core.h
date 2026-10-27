@@ -45,18 +45,24 @@ extern "C" {
  * sidelobes are never reported as a spur.
  */
 typedef struct {
-    dp_psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
-    float         *pwr;     /* metric working buffer, length nfft          */
-    unsigned char *excl;    /* DC/fundamental/harmonic exclusion mask      */
+    dp_psd_state_t *psd;     /**< Owned averaging PSD core (window, FFT,
+                                  frame mean, 0-dBFS reference).         */
+    float         *pwr;     /**< Owned power-spectrum scratch, length
+                                 nfft; overwritten by every call.      */
+    unsigned char *excl;    /**< Owned DC/fundamental/harmonic exclusion
+                                 mask scratch, length nfft.            */
     double enbw;            /**< Window equivalent noise bandwidth, bins.    */
-    double beta;            /* auto-selected Kaiser shape (from DR target)  */
+    double beta;            /**< Kaiser shape auto-selected at create()
+                                 from the dynamic-range target.        */
     size_t lobe_bins;       /**< Window main-lobe half-width L, bins.        */
-    size_t spur_guard_bins; /* fundamental keep-out for spur search (>= L)  */
+    size_t spur_guard_bins; /**< Fundamental keep-out half-width for the
+                                 worst-spur search, bins (>= L).       */
     size_t n;               /**< Capture / frame length, samples.            */
     size_t nfft;            /**< Zero-padded transform length, bins.         */
-    size_t n_harm;          /* harmonics tracked (k = 2..n_harm)           */
+    size_t n_harm;          /**< Harmonics tracked (k = 2..n_harm).     */
     double fs;              /**< Sample rate, Hz.                            */
-    size_t dc_guard;        /* extra bins excluded beyond L around DC      */
+    size_t dc_guard;        /**< Extra bins excluded beyond L around
+                                 DC, from create().                    */
 } dp_tonemeas_state_t;
 
 /**
@@ -113,7 +119,18 @@ void dp_tonemeas_reset(dp_tonemeas_state_t *state);
 
 /**
  * @brief Analyse a real capture into the single-tone metric bag.
- * @return the metric record (by value).
+ *
+ * The capture is cut into floor(@p n_in / n) non-overlapping frames of n
+ * samples (a trailing partial frame is ignored); their windowed power
+ * spectra are averaged and folded one-sided over `[0, fs/2]`.  0 dBFS is a
+ * sine of peak amplitude full_scale.  The fundamental is the strongest bin
+ * outside the DC guard; frequencies are in Hz.
+ *
+ * @param state  The analyser.  Its scratch is overwritten.
+ * @param x      Real time-domain capture, @p n_in samples.
+ * @param n_in   Number of samples in @p x; at least n for a result.
+ * @return The metric record (by value).  All fields are zero when @p n_in
+ *         holds no full frame of n samples.
  *
  * @code
  * >>> from doppler.measure import ToneMeasure
@@ -136,6 +153,16 @@ tone_meas_t dp_tonemeas_analyze(dp_tonemeas_state_t *state, const float *x,
 /**
  * @brief Analyse a complex baseband capture (two-sided spectrum).
  *
+ * As dp_tonemeas_analyze(), but over the DC-centred two-sided band
+ * `[-fs/2, fs/2)`: harmonics wrap rather than reflect, frequencies may be
+ * negative, and 0 dBFS is a complex exponential of amplitude full_scale.
+ *
+ * @param state  The analyser.  Its scratch is overwritten.
+ * @param x      Complex baseband capture, @p n_in samples.
+ * @param n_in   Number of samples in @p x; at least n for a result.
+ * @return The metric record (by value).  All fields are zero when @p n_in
+ *         holds no full frame of n samples.
+ *
  * @code
  * >>> from doppler.measure import ToneMeasure
  * >>> import numpy as np
@@ -153,6 +180,17 @@ tone_meas_t dp_tonemeas_analyze_complex(dp_tonemeas_state_t *state,
 /**
  * @brief Time-domain statistics of a real capture.
  *
+ * Uses every sample of @p x (no framing).  `rms` includes DC; `peak` and
+ * the crest factor are AC-coupled (the mean is removed first), and
+ * `papr_db` equals `crest_db`.  `fs_util_pct` is the largest |x| as a
+ * percentage of the 0-dBFS amplitude.  Crest is 0 dB for a constant or
+ * empty capture.
+ *
+ * @param state  The analyser (only its full-scale reference is read).
+ * @param x      Real capture, @p n_in samples.
+ * @param n_in   Number of samples in @p x; 0 gives an all-zero record.
+ * @return The statistics record (by value).
+ *
  * @code
  * >>> from doppler.measure import ToneMeasure
  * >>> import numpy as np
@@ -167,7 +205,12 @@ tone_meas_t dp_tonemeas_analyze_complex(dp_tonemeas_state_t *state,
 time_stats_t dp_tonemeas_time_stats(dp_tonemeas_state_t *state, const float *x,
                                  size_t n_in);
 
-/** @brief Capacity (== nfft) of the spectrum_dbfs output buffer. */
+/**
+ * @brief Capacity of the dp_tonemeas_spectrum_dbfs() output buffer.
+ *
+ * @param state  The analyser.
+ * @return nfft, the zero-padded transform length (bins).
+ */
 size_t dp_tonemeas_spectrum_dbfs_max_out(dp_tonemeas_state_t *state);
 
 /**
@@ -182,8 +225,10 @@ size_t dp_tonemeas_spectrum_dbfs_max_out(dp_tonemeas_state_t *state);
  * @param x        Real time-domain capture (length @p x_len).
  * @param x_len    Number of input samples.
  * @param out      Destination buffer (length >= @p max_out).
- * @param max_out  Capacity of @p out (== nfft).
- * @return DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+ * @param max_out  Capacity of @p out (== nfft); output is truncated to it.
+ * @return Number of values written, `min(nfft, max_out)`, or 0 when
+ *         @p x_len holds no full frame of n samples; from Python, the
+ *         DC-centred dBFS magnitude spectrum, one value per FFT bin.
  *
  * @code
  * >>> from doppler.measure import ToneMeasure

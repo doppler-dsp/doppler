@@ -637,8 +637,26 @@ _test_accessor_coverage (void)
   DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 10, 10) == -1);
   DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 8, -2) == -1);
   DP_CHECK (rx->segments == 4 && rx->sps == 8 && rx->n == 4);
-
   dp_dsss_receiver_destroy (rx);
+
+  /* create's derived n is one configure_chain_raw accepts (doppler#2650).
+     create picks 2*floor(sps/2) capped at 8 -- 2 at sps 3, 4 at 5, 8 at 10,
+     none of which divides sps -- and the old divisor check refused the
+     receiver's own grid when re-applied. One rule now serves both. */
+  static const size_t odd_sps[] = { 3, 5, 10 };
+  for (size_t k = 0; k < sizeof odd_sps / sizeof *odd_sps; k++)
+    {
+      dp_dsss_receiver_state_t *r
+          = dp_dsss_receiver_create (CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0,
+                                     1e-2, 0.9, 500.0, 4, odd_sps[k], 0);
+      DP_REQUIRE (r != NULL);
+      const int n = dp_dsss_receiver_get_n (r);
+      DP_CHECK ((size_t)n == mpsk_rx_derive_m_out ((double)odd_sps[k], 0));
+      DP_CHECK (dp_dsss_receiver_configure_chain_raw (r, 4, odd_sps[k], n)
+                == 0);
+      DP_CHECK (dp_dsss_receiver_get_n (r) == n);
+      dp_dsss_receiver_destroy (r);
+    }
   return 0;
 }
 

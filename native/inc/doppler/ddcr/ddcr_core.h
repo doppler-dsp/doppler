@@ -86,6 +86,11 @@ extern "C"
     /** As dp_ddc_state_t::narrow_pulse — a rectangular pulse too narrow to be
      *  worth much, surfaced by the binding as a construction UserWarning. */
     bool narrow_pulse;
+    /** Scratch, not state: the halfband output and the mixed block, grown
+     *  on demand to the largest block seen and kept, so a warm execute()
+     *  allocates nothing (doppler#2650). Freed in dp_ddcr_destroy(). */
+    float _Complex *scratch;
+    size_t          scratch_cap; /**< Capacity of `scratch`, samples. */
   } dp_ddcr_state_t;
 
   /**
@@ -330,9 +335,10 @@ extern "C"
    * frequency f_c has amplitude 0.5 in the baseband output (one-sided
    * spectrum), consistent with analytic signal theory.
    *
-   * Allocates one scratch buffer per call (about n_in complex samples),
-   * before any input is consumed; if the allocation fails the call returns
-   * 0 having consumed nothing, so the same block may be retried.
+   * Uses a scratch buffer kept in the state (about n_in complex samples),
+   * grown before any input is consumed when a block is larger than any
+   * before it; if that growth fails the call returns 0 having consumed
+   * nothing, so the same block may be retried.
    *
    * @param s        Must be non-NULL.
    * @param in       Real float32 input block.

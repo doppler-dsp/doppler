@@ -263,6 +263,36 @@ mpsk_rx_derive_m_out (double cap, int strict)
   return (h >= 4.0) ? 8u : (size_t)(2.0 * h);
 }
 
+/**
+ * @brief Is @p m_out a terminal-output count a chain bounded by @p cap can
+ *        be built with? The validity rule mpsk_rx_derive_m_out() derives
+ *        inside, ONE home for both.
+ *
+ * Inside dp_ratesync_m_ok() (even, 2..8) and within the caller's rate
+ * bound, inclusive or strict exactly as mpsk_rx_derive_m_out() reads it, so
+ * every count the derivation returns passes and a count it could not have
+ * returned for a larger `cap` still passes when it fits. It is NOT a
+ * divisibility rule: `m_out` need not divide `sps`. MpskReceiver's create
+ * asks it, and so do both DSSS receivers' configure_chain_raw(), so a
+ * receiver's own derived `n` is always one its configure accepts (#2650;
+ * the divisor check they carried was a survivor of the retired NDA-arm
+ * `n`).
+ *
+ * @param cap    Upper bound from the caller's constraint: `sps` for the
+ *               complex twin, `sps/2` for the real one.
+ * @param m_out  Candidate terminal outputs per symbol.
+ * @param strict Non-zero when the bound is strict (`m_out < cap`), the real
+ *               twin's case.
+ * @return 1 when @p m_out is valid, else 0 (a NaN @p cap is refused).
+ */
+JM_FORCEINLINE int
+mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
+{
+  if (!dp_ratesync_m_ok (m_out))
+    return 0;
+  return strict ? cap > (double)m_out : cap >= (double)m_out;
+}
+
 /** @brief Loop damping, derived: `1/sqrt(2)`, underdamped (1.0 is critical).
  *
  * A constant, not a computation — nothing in this receiver moves the optimal

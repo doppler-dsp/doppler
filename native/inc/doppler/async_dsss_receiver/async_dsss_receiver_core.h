@@ -1374,8 +1374,10 @@ typedef enum
    * @param sps       MpskReceiver samples per symbol (the resample target),
    *                  >= 2.
    * @param n         MpskReceiver's terminal outputs per symbol (`m_out`):
-   *                  inside dp_ratesync_m_ok() (even, 2..8), and dividing
-   *                  @p sps.
+   *                  inside dp_ratesync_m_ok() (even, 2..8) and at most
+   *                  @p sps -- mpsk_rx_m_out_ok(), the rule create()'s own
+   *                  derived `n` satisfies, so get_n() always re-applies
+   *                  (doppler#2650). It need not divide @p sps.
    * @return 0 on success, -1 on a grid refused as above.
    * @code
    * >>> import numpy as np

@@ -256,11 +256,11 @@ extern "C"
   /** @brief Opaque streaming socket handle returned by all create functions.
    */
   typedef struct dp_ctx dp_pub_t;
-  typedef struct dp_ctx dp_sub_t;
-  typedef struct dp_ctx dp_push_t;
-  typedef struct dp_ctx dp_pull_t;
-  typedef struct dp_ctx dp_req_t;
-  typedef struct dp_ctx dp_rep_t;
+  typedef struct dp_ctx dp_sub_t;  /**< Subscriber (dp_sub_create()).  */
+  typedef struct dp_ctx dp_push_t; /**< Push socket (dp_push_create()). */
+  typedef struct dp_ctx dp_pull_t; /**< Pull socket (dp_pull_create()). */
+  typedef struct dp_ctx dp_req_t;  /**< Requester (dp_req_create()).    */
+  typedef struct dp_ctx dp_rep_t;  /**< Replier (dp_rep_create()).      */
 
   /** @} */ /* end group types */
 
@@ -866,53 +866,63 @@ extern "C"
 
   /* -- Signal-frame send/recv (data plane) ------------------------------ */
 
-  /** @brief Send CI32 signal frame as a request. */
+  /** @brief Send CI32 signal frame as a request.
+   *  @copydetails dp_pub_send_ci32 */
   DP_NODISCARD
   int dp_req_send_ci32 (dp_req_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  /** @brief Send CF64 signal frame as a request. */
+  /** @brief Send CF64 signal frame as a request.
+   *  @copydetails dp_pub_send_ci32 */
   DP_NODISCARD
   int dp_req_send_cf64 (
       dp_req_t *ctx, const double _Complex *samples, size_t num_samples,
       double sample_rate,
-      double center_freq); /** @brief Send CI8 signal frame as a request. */
+      double center_freq); /** @brief Send CI8 signal frame as a request.
+   *  @copydetails dp_pub_send_ci32 */
   DP_NODISCARD
   int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
-  /** @brief Send CI16 signal frame as a request. */
+  /** @brief Send CI16 signal frame as a request.
+   *  @copydetails dp_pub_send_ci32 */
   DP_NODISCARD
   int dp_req_send_ci16 (dp_req_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  /** @brief Send CF32 signal frame as a request. */
+  /** @brief Send CF32 signal frame as a request.
+   *  @copydetails dp_pub_send_ci32 */
   DP_NODISCARD
   int dp_req_send_cf32 (dp_req_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
-  /** @brief Send CI32 signal frame as a reply. */
+  /** @brief Send CI32 signal frame as a reply.
+   *  @copydetails dp_pub_send_ci32 */
   DP_NODISCARD
   int dp_rep_send_ci32 (dp_rep_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  /** @brief Send CF64 signal frame as a reply. */
+  /** @brief Send CF64 signal frame as a reply.
+   *  @copydetails dp_pub_send_ci32 */
   DP_NODISCARD
   int dp_rep_send_cf64 (
       dp_rep_t *ctx, const double _Complex *samples, size_t num_samples,
       double sample_rate,
-      double center_freq); /** @brief Send CI8 signal frame as a reply. */
+      double center_freq); /** @brief Send CI8 signal frame as a reply.
+   *  @copydetails dp_pub_send_ci32 */
   DP_NODISCARD
   int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
-  /** @brief Send CI16 signal frame as a reply. */
+  /** @brief Send CI16 signal frame as a reply.
+   *  @copydetails dp_pub_send_ci32 */
   DP_NODISCARD
   int dp_rep_send_ci16 (dp_rep_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  /** @brief Send CF32 signal frame as a reply. */
+  /** @brief Send CF32 signal frame as a reply.
+   *  @copydetails dp_pub_send_ci32 */
   DP_NODISCARD
   int dp_rep_send_cf32 (dp_rep_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
@@ -1022,6 +1032,8 @@ extern "C"
    * Four characters, not NUL-terminated. Derived at run time rather than
    * compiled in, so a big-endian build tags its frames honestly instead of
    * inheriting a constant nobody revisited.
+   *
+   * @return Pointer to a static 4-byte tag; never NULL, never freed.
    */
   const char *dp_host_rep (void);
 

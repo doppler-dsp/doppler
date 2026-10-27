@@ -54,7 +54,7 @@
 extern "C" {
 #endif
 
-/** Output file type. */
+/** @brief Output file type. */
 typedef enum {
     WFM_FT_RAW = 0,  /**< interleaved I/Q, no header. */
     WFM_FT_CSV = 1,  /**< text, one complex sample per line. */
@@ -62,7 +62,7 @@ typedef enum {
     WFM_FT_SIGMF = 3 /**< samples as raw; metadata via dp_wfm_sigmf_meta_json(). */
 } wfm_filetype_t;
 
-/** Opaque writer. */
+/** @brief Opaque writer handle (struct defined in wfm_writer_core.c). */
 typedef struct wfm_writer_state dp_wfm_writer_state_t;
 
 
@@ -99,6 +99,10 @@ dp_wfm_writer_state_t *dp_wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sampl
  * Takes `complex64` at unit scale and emits it in the writer's wire type.
  * Call as many times as you like; the capture is the concatenation.
  *
+ * @param state  The writer; NULL writes nothing and returns 0.
+ * @param x      Samples at unit full scale (±1.0 per axis), times the gain
+ *               set by dp_wfm_writer_set_gain() / `headroom`.
+ * @param x_len  Number of complex samples in @p x.
  * @return the number of samples that actually landed — equal to what you
  *         passed on success, fewer if the write was short (a full disk, a
  *         quota). A short return is the per-block signal; close() reports the
@@ -186,7 +190,14 @@ int dp_wfm_writer_annotate(dp_wfm_writer_state_t *state, const dp_wfm_compose_st
  * @brief Flush, patch the BLUE data_size from the actual count (if seekable),
  *        write any attached extended-header keywords, and free the writer
  *        (does not close the FILE*).
- * @return 0 on success, non-zero on a write/seek error.
+ *
+ * A writer from dp_wfm_writer_create() owns its FILE and closes it here,
+ * then writes its SigMF / SigMF-shaped sidecar if it has one.  The writer
+ * is freed whatever the status.
+ *
+ * @param w  The writer; NULL is a no-op returning 0.
+ * @return 0 on success, non-zero on a write/seek error (including any
+ *         earlier failed write, or a failed sidecar).
  */
 int dp_wfm_writer_close(dp_wfm_writer_state_t *w);
 
@@ -198,6 +209,7 @@ int dp_wfm_writer_close(dp_wfm_writer_state_t *w);
  * finaliser's status reaches the caller and out of a `with` block. C callers
  * may use either name.
  *
+ * @param state  The writer; NULL is a no-op returning 0.
  * @return 0 on success, non-zero on a write/seek error during finalisation.
  */
 int dp_wfm_writer_destroy(dp_wfm_writer_state_t *state);
@@ -211,7 +223,12 @@ int dp_wfm_writer_destroy(dp_wfm_writer_state_t *state);
  * dp_wfm_writer_track_clipping(); off, clip_fraction() returns 0. Float types
  * (cf32/cf64) never clip but still report a peak. Call after writing. */
 
-/** Enable the per-component clip *counter* (off by default; peak is always on). */
+/**
+ * @brief Enable the per-component clip *counter* (off by default; peak is
+ *        always on).  Only writes made after enabling are counted.
+ * @param state  The writer; NULL is a no-op.
+ * @param on     Non-zero to count clipped components, 0 to stop.
+ */
 void dp_wfm_writer_track_clipping(dp_wfm_writer_state_t *state, int on);
 
 /* ── headroom ──────────────────────────────────────────────────────────────
@@ -223,15 +240,27 @@ void dp_wfm_writer_track_clipping(dp_wfm_writer_state_t *state, int on);
  * Floats scale too (they just never clip); peak/clip tracking sees the scaled
  * values. */
 
-/** Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). */
+/**
+ * @brief Set the output gain (linear; default 1.0). For headroom H dB pass
+ *        10^(−H/20).  Stored as float; applies to later writes only.
+ * @param w     The writer; NULL is a no-op.
+ * @param gain  Linear amplitude scale applied before quantization.
+ */
 void dp_wfm_writer_set_gain(dp_wfm_writer_state_t *w, double gain);
 
-/** Largest per-axis magnitude max(|I|,|Q|) written so far (pre-clip, full-scale
- *  1.0). > 1.0 ⇒ integer output clipped; peak_dBFS = 20*log10(peak). */
+/** @brief Largest per-axis magnitude max(|I|,|Q|) written so far (pre-clip,
+ *  after gain; full-scale 1.0). > 1.0 ⇒ integer output clipped;
+ *  peak_dBFS = 20*log10(peak).
+ *  @param w  The writer; NULL returns 0.0.
+ *  @return The peak, 0.0 before anything is written. */
 double dp_wfm_writer_peak(const dp_wfm_writer_state_t *w);
 
-/** Fraction (0..1) of I/Q components that saturated (|v| > 1). Always 0 unless
- *  dp_wfm_writer_track_clipping() was enabled. */
+/** @brief Fraction (0..1) of I/Q components the integer quantizer
+ *  saturated. Always 0 unless dp_wfm_writer_track_clipping() was enabled.
+ *  @param w  The writer; NULL returns 0.0.
+ *  @return Clipped components / (2 x samples written), 0.0 before any
+ *          write. The denominator is 2 per sample for every wire type,
+ *          including the one-component real types. */
 double dp_wfm_writer_clip_fraction(const dp_wfm_writer_state_t *w);
 
 /**
@@ -445,9 +474,61 @@ char *dp_wfm_sigmf_meta_json_ex(int sample_type, int endian, double fs, double f
    reset() binding and no call site. A writer has nothing coherent to reset --
    the samples are on disk and the written count drives the BLUE data_size patch
    -- so the method is absent rather than a no-op or a raise. */
+/**
+ * @brief Fraction (0..1) of I/Q components that saturated: the `clip_fraction`
+ *        property, identical to dp_wfm_writer_clip_fraction().
+ * @param state  The writer; NULL returns 0.0.
+ * @return 0.0 unless dp_wfm_writer_track_clipping() was enabled before
+ *         writing.
+ */
 double dp_wfm_writer_get_clip_fraction(const dp_wfm_writer_state_t *state);
+/**
+ * @brief Largest per-axis magnitude written so far, in dBFS: the
+ *        `peak_dbfs` property.
+ *
+ * Full scale is 0 dBFS, so a value above 0 on an integer wire type means
+ * the capture clipped, and `ceil(peak_dbfs)` dB of headroom is the remedy.
+ *
+ * @param state  The writer.
+ * @return `20*log10(dp_wfm_writer_peak())`, or -INFINITY before anything
+ *         is written.
+ */
 double dp_wfm_writer_get_peak_dbfs(const dp_wfm_writer_state_t *state);
+/**
+ * @brief Whether the integer quantizer saturated any component: the
+ *        `clipped` property.
+ *
+ * Always tracked (no opt-in), and taken from the quantizer's own verdict
+ * rather than the peak, so -1.0 (exact on an integer type) does not count
+ * while +1.0 (one code past full scale) does.  Always false for float wire
+ * types, which cannot clip.
+ *
+ * @param state  The writer; NULL returns false.
+ * @return true once any written component saturated.
+ */
 bool dp_wfm_writer_get_clipped(const dp_wfm_writer_state_t *state);
+/**
+ * @brief Write a 512-byte BLUE type-1000 header to a file by path.
+ *
+ * Opens @p path for writing (truncating it), writes the HCB through
+ * dp_wfm_blue_write_hcb(), and closes it.  The Python `write_blue_header`
+ * function raises when this returns non-zero.
+ *
+ * @param path         Destination file; created or truncated.
+ * @param fs           Sample rate (Hz) -> `xdelta = 1/fs`; 0.0 writes
+ *                     `xdelta = 0` (rate unknown).
+ * @param sample_type  Wire type (wavegen order; see the file header).
+ * @param endian       0 little, 1 big.
+ * @param fc           Center frequency (Hz); non-zero adds a `FREQ`
+ *                     keyword in the HCB keyword area.
+ * @param data_start   `data_start` field: 512 attached, 0 detached.
+ * @param total        Complex-sample count -> `data_size`.
+ * @param detached     Non-zero sets the HCB `detached` flag.
+ * @param t0           Capture start in UNIX seconds, or
+ *                     ::WFM_TIMECODE_UNSET (0.0) to leave the timecode unset.
+ * @return 0 on success, -1 if the file cannot be opened, a write fails or
+ *         the close fails.
+ */
 int dp_write_blue_header(const char *path, double fs, int sample_type, int endian, double fc, double data_start, size_t total, int detached, double t0);
 /**
  * @brief Make written samples durable and observable, without finishing.
@@ -456,6 +537,10 @@ int dp_write_blue_header(const char *path, double fs, int sample_type, int endia
  * a flush BETWEEN write calls is what lets a follower read the capture
  * without meeting a partial one. Raises `OSError` if this or any earlier
  * write failed; a capture is not complete until close().
+ *
+ * @param state  The writer.
+ * @return 0 on success, -1 for a NULL writer, an earlier write error on the
+ *         stream, or a failed fflush().
  *
  * @code
  * >>> import pathlib, tempfile

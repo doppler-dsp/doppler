@@ -32,7 +32,8 @@ extern "C" {
  * Allocate with dp_acc_q8_create().
  */
 typedef struct {
-    int32_t acc;
+    int32_t acc; /**< Running sum of every Q8 sample stepped in (wraps at
+                      int32 overflow); set by create()/set_acc(). */
 } dp_acc_q8_state_t;
 
 /**
@@ -138,6 +139,7 @@ void dp_acc_q8_steps(
  * Permits repeated snapshots of the running sum mid-stream.
  *
  * @param state  Must be non-NULL.
+ * @return Current accumulator value; the create() value before any step.
  *
  * @code
  * >>> from doppler.arith import AccQ8
@@ -235,10 +237,29 @@ void dp_acc_q8_madd(dp_acc_q8_state_t *state, const int8_t *a, size_t a_len, con
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the running 32-bit accumulator resumes exactly into an
  * identically-built instance. */
+/** @brief State-blob magic ('ACC8'); set_state() rejects any other. */
 #define ACC_Q8_STATE_MAGIC DP_FOURCC ('A', 'C', 'C', '8')
+/** @brief State-blob layout version; set_state() rejects any other. */
 #define ACC_Q8_STATE_VERSION 1u
+/**
+ * @brief Size in bytes of this object's state blob.
+ * @param state  Must be non-NULL.
+ * @return `sizeof(dp_state_hdr_t) + sizeof(dp_acc_q8_state_t)`; constant.
+ */
 size_t dp_acc_q8_state_bytes (const dp_acc_q8_state_t *state);
+/**
+ * @brief Serialize the accumulator into @p blob (header + struct snapshot).
+ * @param state  Must be non-NULL.
+ * @param blob   Destination; at least dp_acc_q8_state_bytes() bytes.
+ */
 void   dp_acc_q8_get_state (const dp_acc_q8_state_t *state, void *blob);
+/**
+ * @brief Restore the accumulator from a blob made by dp_acc_q8_get_state().
+ * @param state  Must be non-NULL.
+ * @param blob   Source blob of dp_acc_q8_state_bytes() bytes.
+ * @return `DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's
+ *         magic, version, endianness or size does not match.
+ */
 int    dp_acc_q8_set_state (dp_acc_q8_state_t *state, const void *blob);
 
 #ifdef __cplusplus

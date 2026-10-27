@@ -75,7 +75,8 @@ extern "C"
   int dp_tlm_sink_pump (dp_tlm_sink_t *sink, dp_tlm_t *tlm);
 
   /** @brief Total records published since open. @param sink Must be
-   *  non-NULL. */
+   *  non-NULL.
+   *  @return Records successfully published (lost records excluded). */
   uint64_t dp_tlm_sink_sent (const dp_tlm_sink_t *sink);
 
   /**

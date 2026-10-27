@@ -44,11 +44,11 @@ extern "C" {
  * Allocate with dp_uq15_to_f32_create().
  */
 typedef struct {
-    float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
+    float iscale; /**< 1.0f / scale, set once by create(); never changes. */
 } dp_uq15_to_f32_state_t;
 
 /**
- * @brief Create a uq15_to_f32 instance.
+ * @brief Create an offset-binary uint16 (UQ15) to float32 converter.
  *
  * Pre-computes @c iscale = 1.0f / @p scale so the hot step path is a
  * single subtract and multiply.

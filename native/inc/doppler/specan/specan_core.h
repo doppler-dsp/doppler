@@ -164,7 +164,11 @@ extern "C"
    */
   void dp_specan_reset (dp_specan_state_t *state);
 
-  /** @brief Output capacity hint for dp_specan_execute(); equals disp_n. */
+  /**
+   * @brief Output capacity dp_specan_execute() needs: the display length.
+   * @param state  Must be non-NULL.
+   * @return dp_specan_state_t::disp_n, fixed at create().
+   */
   size_t dp_specan_execute_max_out (dp_specan_state_t *state);
 
   /**
@@ -172,8 +176,11 @@ extern "C"
    *
    * Feeds @p x through the Ddc, buffers the decimated output, and once
    * `n·navg` decimated samples are available windows + FFTs + averages them
-   * into a fresh frame, crops the central ±span/2 band and writes it in dB (+
-   * ref_db). Returns 0 (writing nothing) until a frame is ready — the binding
+   * into a fresh frame, crops the central ±span/2 band and writes it in dBFS
+   * (+ offset_db). When more than one frame's worth is pending, only the
+   * newest complete window is averaged and older samples are dropped, so a
+   * display that cannot keep up shows the latest frame. Returns 0 (writing
+   * nothing) until a frame is ready — the binding
    * maps that to Python ``None``.
    *
    * @param state    Must be non-NULL.
@@ -181,7 +188,8 @@ extern "C"
    * @param x_len    Number of input samples (C-only).
    * @param out      Display-spectrum buffer, dB (C-only).
    * @param max_out  Capacity of @p out (C-only); >= disp_n is sufficient.
-   * @return Display bins written (disp_n), or 0 if no frame is ready yet.
+   * @return Display bins written (min(disp_n, @p max_out)), or 0 if no frame
+   *         is ready yet.
    *
    * @code
    * >>> from doppler.analyzer import Specan
@@ -214,10 +222,37 @@ extern "C"
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * ddc + psd children + the pending decimated samples (sized to n*navg);
  * display/rate config restored by create. */
+/** @brief State-blob magic ('SPAN'); set_state() rejects any other. */
 #define SPECAN_STATE_MAGIC DP_FOURCC ('S','P','A','N')
+/** @brief State-blob layout version; set_state() rejects any other. */
 #define SPECAN_STATE_VERSION 1u
+/**
+ * @brief Size in bytes of this analyzer's state blob.
+ * @param state  Must be non-NULL.
+ * @return Header + the Ddc and PSD child blobs + a u64 pending count + n*navg
+ *         complex floats (the pending buffer at its fixed capacity).
+ */
 size_t dp_specan_state_bytes (const dp_specan_state_t *state);
+/**
+ * @brief Serialize the Ddc, PSD and pending decimated samples into @p blob.
+ *
+ * The pending buffer is zero-padded to n*navg samples so the blob size is a
+ * fixed function of the configuration.  The display center itself is not
+ * stored (see scripts/.mutator-state-exempt, #2079).
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Destination; at least dp_specan_state_bytes() bytes.
+ */
 void dp_specan_get_state (const dp_specan_state_t *state, void *blob);
+/**
+ * @brief Restore an analyzer from a blob made by dp_specan_get_state().
+ * @param state  Must be non-NULL, created with the same configuration.
+ * @param blob   Source blob of dp_specan_state_bytes() bytes.
+ * @return `DP_OK`, or `DP_ERR_INVALID` for a header mismatch (state
+ *         untouched), a bad child blob, or a pending count above n*navg.
+ *         The last two are detected after the children are read, so the
+ *         Ddc/PSD may already be partly restored when they are refused.
+ */
 int dp_specan_set_state (dp_specan_state_t *state, const void *blob);
 
 #ifdef __cplusplus

@@ -44,9 +44,9 @@ extern "C" {
  */
 typedef struct
 {
-  conv_code_t code;
-  size_t      depth;
-  uint32_t    nstate;
+  conv_code_t code;   /**< The code decoded; a copy taken at create.  */
+  size_t      depth;  /**< Traceback depth, in information bits.       */
+  uint32_t    nstate; /**< Trellis states, `2^(k-1)`.                  */
 
   float   *pm;   /**< path metric per state                              */
   float   *pm2;  /**< the next step's, swapped rather than copied        */
@@ -57,11 +57,11 @@ typedef struct
   /* Derived once: for each state, its two predecessors and their output
      words. The butterfly -- predecessors (ns << 1) & mask and | 1, both on
      the same input bit ns >> (k-2) -- holds for every k. */
-  uint32_t *pred0;
-  uint32_t *pred1;
-  unsigned *out0;
-  unsigned *out1;
-  unsigned *inbit;
+  uint32_t *pred0; /**< per state: predecessor `(ns << 1) & mask`     */
+  uint32_t *pred1; /**< per state: predecessor `pred0 | 1`             */
+  unsigned *out0;  /**< per state: output word on the pred0 branch      */
+  unsigned *out1;  /**< per state: output word on the pred1 branch      */
+  unsigned *inbit; /**< per state: the input bit that enters it         */
 /*<<property_struct_fields>>*/
 } dp_viterbi_state_t;
 
@@ -89,10 +89,13 @@ typedef struct
  * @param poly      Generator polynomials, one per output. The array IS the
  *                  code; `poly_len` gives `n`.
  * @param poly_len  Number of polynomials, 1 to `CONV_N_MAX`.
- * @param k  k (default: 7).
- * @param invert  invert (default: 0).
- * @param depth  depth (default: 35).
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @param k         Constraint length, 2 to `CONV_K_MAX` (default: 7); every
+ *                  polynomial must fit in @p k bits and be non-zero.
+ * @param invert    Bitmask over outputs: bit @c j set means output @c j is
+ *                  transmitted inverted (default: 0; CCSDS sets bit 1).
+ * @param depth     Traceback depth in information bits, >= 1 (default: 35).
+ * @return Heap-allocated state, or NULL for an invalid code (see
+ *         dp_conv_code_valid()), @p depth 0, or allocation failure.
  * @note Caller must call dp_viterbi_destroy() when done.
  */
 dp_viterbi_state_t *dp_viterbi_create(const uint32_t *poly, size_t poly_len, uint32_t k, uint32_t invert, size_t depth);
@@ -206,10 +209,18 @@ size_t dp_viterbi_decode(dp_viterbi_state_t *state, const float *in, size_t n_in
  */
 dp_viterbi_state_t *dp_viterbi_create_code (const conv_code_t *c, size_t depth);
 
-/** @brief The code this decoder was built for. */
+/**
+ * @brief The code this decoder was built for.
+ * @param s  Must be non-NULL.
+ * @return Pointer to the decoder's own copy; valid until @p s is destroyed.
+ */
 const conv_code_t *dp_viterbi_code (const dp_viterbi_state_t *s);
 
-/** @brief Its traceback depth, in input bits. */
+/**
+ * @brief Its traceback depth, in input bits.
+ * @param s  Must be non-NULL.
+ * @return The depth given at create.
+ */
 size_t dp_viterbi_depth (const dp_viterbi_state_t *s);
 
 /* ── node synchronization ────────────────────────────────────────────── */
@@ -291,6 +302,11 @@ size_t dp_node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr
  * transmitter's was mid-stream. A caller reading `errors / symbols` as a
  * channel symbol error rate wants this denominator rather than the window
  * length.
+ *
+ * @param v      The decoder that will score (its code and depth are read).
+ * @param n_llr  Window length in symbols.
+ * @return `(bits decoded - depth) * n` for the whole-branch part of the
+ *         window, or 0 when the window decodes no more than `depth` bits.
  */
 size_t dp_node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr);
 
@@ -349,6 +365,9 @@ int dp_node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
  *
  * Depends on the configuration (`2^(k-1)` metrics and a
  * `depth x 2^(k-1)` ring), so it is not a constant across decoders.
+ *
+ * @param s  Must be non-NULL.
+ * @return   The blob size in bytes.
  */
 size_t dp_viterbi_state_bytes (const dp_viterbi_state_t *s);
 
@@ -359,6 +378,9 @@ size_t dp_viterbi_state_bytes (const dp_viterbi_state_t *s);
  * The ring travels in its stored order with the cursor beside it rather
  * than rotated into a canonical one — the rotation would cost a pass and
  * buy nothing, since only @ref dp_viterbi_set_state reads it back.
+ *
+ * @param s     Must be non-NULL.
+ * @param blob  Destination of dp_viterbi_state_bytes() bytes.
  */
 void dp_viterbi_get_state (const dp_viterbi_state_t *s, void *blob);
 
@@ -373,6 +395,8 @@ void dp_viterbi_get_state (const dp_viterbi_state_t *s, void *blob);
  * reinterpreting one as the other yields a decoder that is confidently
  * wrong rather than one that refuses.
  *
+ * @param s     Must be non-NULL.
+ * @param blob  Source blob from dp_viterbi_get_state().
  * @return @c DP_OK, or @c DP_ERR_INVALID if the envelope, the code, the
  *         depth, or the ring cursor does not match this decoder — in which
  *         case @p s is untouched.

@@ -34,7 +34,7 @@ create_fn = "dp_RateConverter_create_matched"
 init_params = [
   { name = "rate", type = "double", default = "1.0" },
   { name = "compensate", type = "int", default = "1" },
-  { name = "pulse", type = "string_enum:iandd,rrc", default = "rrc" },
+  { name = "pulse", type = "string_enum:iandd,rrc", default = "rrc", doc = "The matched-filter pulse. For no matched filter, use the plain RateConverter." },
   { name = "beta", type = "double", default = "0.35" },
   { name = "span", type = "size_t", default = "8" },
   { name = "pulse_sps", type = "double", default = "2.0" },

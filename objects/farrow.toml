@@ -12,6 +12,7 @@ fragment = "generated"
 name = "order"
 type = "string_enum:linear,parabolic,cubic"
 default = "cubic"
+doc = "The polynomial order of the Farrow interpolator."
 
 [[farrow.methods]]
 name = "delay"

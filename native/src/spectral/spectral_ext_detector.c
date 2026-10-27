@@ -648,6 +648,8 @@ static PyTypeObject CorrDetectorObjType = {
     "    clamps to n - 1, so the default sentinel selects the full window.\n"
     "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
     "\"mean\"\n"
+    "    How the noise bins are aggregated into the noise floor the\n"
+    "    peak-to-noise statistic divides by.\n"
     "    One of ``\"mean\"``, ``\"median\"``, ``\"min\"``, ``\"max\"``.\n"
     "threshold : float, default 0.0\n"
     "    Test-stat gate; 0.0 = always emit.\n"

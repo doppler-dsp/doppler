@@ -1462,6 +1462,7 @@ static PyTypeObject MpskReceiverRObjType = {
     "    (NDA arm dumps per symbol): the cascade's own outputs now feed the\n"
     "    carrier discriminator, so there is no separate arm to size.\n"
     "pulse : Literal[\"iandd\", \"rrc\"], default \"iandd\"\n"
+    "    The matched-filter shape.\n"
     "    One of ``\"iandd\"``, ``\"rrc\"``.\n"
     "rrc_beta : float, default 0.35\n"
     "    As dp_mpsk_receiver_create().\n"

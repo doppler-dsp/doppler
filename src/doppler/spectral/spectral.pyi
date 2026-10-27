@@ -1187,6 +1187,8 @@ class CorrDetector:
         Upper noise bin index (inclusive, < n). A value at or beyond the window
         clamps to n - 1, so the default sentinel selects the full window.
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
+        How the noise bins are aggregated into the noise floor the
+        peak-to-noise statistic divides by.
         One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     threshold : float, default 0.0
         Test-stat gate; 0.0 = always emit.
@@ -1448,6 +1450,8 @@ class CorrDetector2D:
         the window clamps to ny*nx - 1, so the default sentinel selects the
         full window.
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
+        How the noise bins are aggregated into the noise floor the
+        peak-to-noise statistic divides by.
         One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     threshold : float, default 0.0
         Test-stat gate; 0.0 = always emit.
@@ -1733,6 +1737,8 @@ class PSD:
         definition of the dBFS reference); 0 = use full_scale directly. At most
         64.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
+        How successive traces are reduced: the running mean, an exponential
+        average, or a max or min hold.
         One of ``"mean"``, ``"exp"``, ``"maxhold"``, ``"minhold"``.
 
         - ``"mean"`` — Linear running mean of all frames.

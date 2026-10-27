@@ -80,6 +80,7 @@ default = "0.9"
 name = "noise_mode"
 type = "string_enum:mean,median,min,max"
 default = "mean"
+doc = 'The CFAR reference: the statistic the noise floor is estimated with, which the detection threshold scales.'
 
 # Hz/s; caps the coherent depth at f_epoch/sqrt(2*rate) (doppler#1482).
 # 0 = no bound. Appended last, so no positional call moves.

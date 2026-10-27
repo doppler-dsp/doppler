@@ -37,6 +37,7 @@ default = "0.707"
 name = "order"
 type = "string_enum:linear,parabolic,cubic"
 default = "cubic"
+doc = "The polynomial order of the Farrow interpolator."
 
 [[symsync.init_params]]
 name = "ted"

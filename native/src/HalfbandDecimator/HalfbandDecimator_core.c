@@ -46,10 +46,13 @@ dp_HalfbandDecimator_set_state (dp_HalfbandDecimator_state_t *state,
 }
 
 size_t
-dp_HalfbandDecimator_execute_max_out (dp_HalfbandDecimator_state_t *state)
+dp_HalfbandDecimator_execute_max_out (dp_HalfbandDecimator_state_t *state,
+                                      size_t                        x_len)
 {
+  /* One output per input pair, plus at most one sample held from the last
+     call: (x_len + held) / 2 <= (x_len + 1) / 2. */
   (void)state;
-  return HBDECIM_MAX_OUT;
+  return (x_len + 1) / 2;
 }
 
 size_t

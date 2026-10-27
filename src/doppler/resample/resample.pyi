@@ -390,13 +390,26 @@ class HalfbandDecimator:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Default output capacity, used by the binding to size buffers.
+    def execute_max_out(self, x_len: int, /) -> int:
+        """The most outputs one dp_HalfbandDecimator_execute() call over x_len
+        inputs can write: `(x_len + 1) / 2`.
+
+        A 2:1 decimator emits one output per input pair, and at most one sample
+        is held over from the previous call, so `(x_len + held) / 2` never
+        exceeds this. It is a true per-call bound, which is what lets the
+        binding accept an `out=` of `len(x) // 2 + 1` and allocate no more than
+        that when it sizes the output itself (doppler#2644; this used to return
+        a fixed 32768, which the binding then demanded of every `out=`).
+
+        Parameters
+        ----------
+        x_len : int
+            Number of inputs the call will be given.
 
         Returns
         -------
         int
-            Always HBDECIM_MAX_OUT (32768).
+            `(x_len + 1) / 2`; 0 for an empty call.
         """
 
     def reset(self) -> None:

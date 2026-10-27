@@ -1048,6 +1048,8 @@ static size_t
 execute (dp_wfm_compose_state_t *state, float _Complex *out, size_t max,
          double *fs)
 {
+  if (!state) /* NULL-safe like the file's other entry points (#2647) */
+    return 0;
   size_t i    = 0;
   double rate = 0.0; /* the rate of the samples written so far */
   while (i < max)
@@ -1173,6 +1175,16 @@ const wfm_segment_t *
 dp_wfm_compose_segments (const dp_wfm_compose_state_t *state, size_t *n_out,
                          int *repeat, int *continuous)
 {
+  if (!state) /* no composer: no segments, flags cleared (#2647) */
+    {
+      if (n_out)
+        *n_out = 0;
+      if (repeat)
+        *repeat = 0;
+      if (continuous)
+        *continuous = 0;
+      return NULL;
+    }
   keep_truth (state);
   if (n_out)
     *n_out = state->n_segs;

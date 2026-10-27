@@ -2884,13 +2884,33 @@ dp_acq_set_telemetry (dp_acq_state_t *state, dp_tlm_t *tlm, const char *prefix,
   for (size_t i = 0; i < 10; i++) /* all names before any registration */
     if (dp_tlm_name_join (name[i], p, suffix[i]) != DP_OK)
       return DP_ERR_INVALID; /* overlong prefix: nothing registered */
+  /* Whole or nothing (#2647). The dry run registers every name on a
+     scratch context, which refuses a bad decim the way the caller's would,
+     and then asks whether the caller's table has room for the names it
+     lacks; only then does anything register there. The ids land in a
+     temporary and commit together with ctx, so a refusal leaves the
+     previous attachment exactly as it was -- not ctx on one context with
+     some ids from another. */
+  dp_tlm_t *scratch = dp_tlm_create (1);
+  if (!scratch)
+    return DP_ERR_MEMORY;
+  int fits = 1;
+  for (size_t i = 0; i < 10 && fits; i++)
+    fits = dp_tlm_probe (scratch, name[i], decim) >= 0;
+  fits = fits && dp_tlm_has_room_for (tlm, scratch);
+  dp_tlm_destroy (scratch);
+  if (!fits)
+    return DP_ERR_INVALID; /* bad decim or a full table: nothing registered */
+  int32_t got[10];
   for (size_t i = 0; i < 10; i++)
     {
       int id = dp_tlm_probe (tlm, name[i], decim);
-      if (id < 0)
-        return DP_ERR_INVALID; /* table full: fails whole */
-      *ids[i] = id;
+      if (id < 0) /* cannot happen after the dry run; refuse, never half */
+        return DP_ERR_INVALID;
+      got[i] = id;
     }
+  for (size_t i = 0; i < 10; i++)
+    *ids[i] = got[i];
   state->tlm.ctx = tlm; /* set last: the emit site gates on ctx */
   return DP_OK;
 }

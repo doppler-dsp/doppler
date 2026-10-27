@@ -139,8 +139,12 @@ dp_burst_despreader_state_t *dp_burst_despreader_create(const uint8_t *code, siz
  * @param acq_code_len  Acquisition code length in chips.
  * @param acq_reps      Number of acq-code periods in the preamble.
  *                      A NULL/empty @p acq_code or `acq_reps == 0` disables
- *                      the preamble (payload-only), as does an allocation
- *                      failure; any previous acq code is freed either way.
+ *                      the preamble (payload-only) and frees any previous
+ *                      acq code.
+ * @return DP_OK, the preamble set (or, for the disabling arguments above,
+ *         cleared); DP_ERR_MEMORY when the copy of @p acq_code cannot be
+ *         allocated, in which case nothing changes: the previous preamble,
+ *         or its absence, stands. Python raises ValueError on the failure.
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstDespreader
@@ -165,7 +169,7 @@ dp_burst_despreader_state_t *dp_burst_despreader_create(const uint8_t *code, siz
  *
  * @endcode
  */
-void dp_burst_despreader_set_acq(dp_burst_despreader_state_t *state, const uint8_t *acq_code,
+int dp_burst_despreader_set_acq(dp_burst_despreader_state_t *state, const uint8_t *acq_code,
                         size_t acq_code_len, size_t acq_reps);
 
 /**

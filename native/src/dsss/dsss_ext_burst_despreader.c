@@ -564,8 +564,17 @@ BurstDespreaderObj_set_acq (BurstDespreaderObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  dp_burst_despreader_set_acq (self->handle, acq_code, acq_code_len, acq_reps);
+  int _rc = dp_burst_despreader_set_acq (self->handle, acq_code, acq_code_len,
+                                         acq_reps);
   Py_DECREF (acq_code_arr);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "set_acq: the acquisition code could not be allocated; "
+                    "the previous preamble stands",
+                    (long long)_rc);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -1038,8 +1047,15 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "    Acquisition code (0/1), length acq_code_len; copied.\n"
     "acq_reps : int\n"
     "    Number of acq-code periods in the preamble. A NULL/empty acq_code\n"
-    "    or `acq_reps == 0` disables the preamble (payload-only), as does an\n"
-    "    allocation failure; any previous acq code is freed either way.\n"
+    "    or `acq_reps == 0` disables the preamble (payload-only) and frees\n"
+    "    any previous acq code.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_acq: the acquisition code could not be allocated; the\n"
+    "    previous preamble stands``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"

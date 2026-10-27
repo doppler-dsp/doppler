@@ -7,7 +7,6 @@
 #include "doppler/util/util_core.h"
 
 #include <math.h>
-#include <stdlib.h>
 
 /* <<IMPLEMENT: design_lowpass>> */
 void
@@ -28,8 +27,12 @@ dp_design_lowpass (double fpass, double fstop, double atten_db, float *out)
    * need the /2 conversion below before being passed in. */
   int n_taps  = dp_kaiser_num_taps (1, atten_db, fpass / 2.0, fstop / 2.0) | 1;
   double beta = dp_kaiser_beta (atten_db);
-  float *w    = malloc ((size_t)n_taps * sizeof *w);
-  dp_kaiser_window (w, (size_t)n_taps, (float)beta);
+  /* The window is built in place in out[], which the caller sized for
+   * exactly n_taps, and each tap then scales its own window value: no
+   * scratch buffer, so nothing to allocate and no allocation to fail
+   * (#2647). The product is the one the old scratch copy gave, bit for
+   * bit: the window value was a float either way. */
+  dp_kaiser_window (out, (size_t)n_taps, (float)beta);
 
   /* Same Nyquist-normalised -> cycles/sample conversion for the cutoff
    * (midpoint of fpass/2 and fstop/2). */
@@ -38,7 +41,6 @@ dp_design_lowpass (double fpass, double fstop, double atten_db, float *out)
   for (int i = 0; i < n_taps; i++)
     {
       double m = i - m0;
-      out[i]   = (float)(2.0 * fc * dp_sinc (2.0 * fc * m) * w[i]);
+      out[i]   = (float)(2.0 * fc * dp_sinc (2.0 * fc * m) * out[i]);
     }
-  free (w);
 }

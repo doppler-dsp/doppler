@@ -1512,7 +1512,7 @@ int dp_wfm_compose_seed_advance(const dp_wfm_compose_state_t *state);
  * gaps only. Segments with different `fs` are concatenated without a rate
  * marker: use dp_wfm_compose_execute_rate() to learn each block's rate.
  *
- * @param state  The composer.
+ * @param state  The composer; NULL writes nothing and returns 0.
  * @param out    Destination for up to @p max complex samples.
  * @param max    Capacity of @p out, in samples.
  * @return Number of samples written: < `max` (or 0) signals the sequence
@@ -1549,7 +1549,7 @@ size_t dp_wfm_compose_execute(
  * return ok ? 0 : 1;
  * @endcode
  *
- * @param state the composer.
+ * @param state the composer; NULL writes nothing and returns 0.
  * @param out   destination, `max` samples.
  * @param max   capacity of @p out.
  * @param fs    receives the rate of the samples written (left untouched
@@ -1604,12 +1604,13 @@ void dp_wfm_compose_destroy(dp_wfm_compose_state_t *state);
  * Each source's `data_sent` holds what its data source has sent so far in
  * the latest instance, brought up to date by this call, so a record or a
  * SigMF sidecar written after a run carries the run's truth.
- * @param state      the composer.
- * @param n_out      receives the segment count.
+ * @param state      the composer; NULL returns NULL with a count of 0 and
+ *                   both flags 0.
+ * @param n_out      receives the segment count (may be NULL).
  * @param repeat     receives the repeat flag (may be NULL).
  * @param continuous receives the continuous flag (may be NULL).
  * @return Pointer to the internal segments (owned by the composer; valid until
- *         dp_wfm_compose_destroy).
+ *         dp_wfm_compose_destroy), or NULL for a NULL @p state.
  */
 const wfm_segment_t *dp_wfm_compose_segments(const dp_wfm_compose_state_t *state,
                                           size_t *n_out, int *repeat,

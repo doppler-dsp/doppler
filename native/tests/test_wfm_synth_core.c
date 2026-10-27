@@ -87,6 +87,10 @@ main (void)
   if (!obj)
     return 1;
 
+  /* destroy(NULL) is a no-op, as across the library (#2647); it used to
+     dereference state->fir first and crash. */
+  dp_wfm_synth_destroy (NULL);
+
   /* step: verify it runs without crashing */
   (void)dp_wfm_synth_step (obj);
 

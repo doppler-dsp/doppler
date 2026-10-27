@@ -418,6 +418,8 @@ dp_wfm_synth_set_symbols (dp_wfm_synth_state_t *state,
 void
 dp_wfm_synth_destroy (dp_wfm_synth_state_t *state)
 {
+  if (!state)
+    return; /* destroy(NULL) is a no-op, as across the library (#2647) */
   if (state->fir)
     dp_fir_destroy (state->fir);
   if (state->shaper)

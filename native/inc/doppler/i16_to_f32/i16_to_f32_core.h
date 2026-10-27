@@ -45,14 +45,14 @@ typedef struct {
  * @brief Create a signed int16 to float32 converter.
  *
  * Pre-computes @c iscale = 1.0f / @p scale so the hot step path is a
- * single multiply.  @p scale must be > 0; zero or a negative value is
- * refused (NULL).
+ * single multiply.  @p scale must be positive and finite; zero, a negative
+ * value, NaN or an infinity is refused (NULL).
  *
  * @param scale  Denominator scale; 1/scale is applied to each sample
  *               (default: 32768.0f).  Use 32768.0 to recover normalised
  *               `[-1, +1]` floats from a Q15 int16 stream.
- * @return Heap-allocated state, or NULL when @p scale <= 0 or allocation
- *         fails.
+ * @return Heap-allocated state, or NULL when @p scale is not positive and
+ *         finite, or allocation fails.
  * @note Caller must call dp_i16_to_f32_destroy() when done.
  */
 dp_i16_to_f32_state_t *dp_i16_to_f32_create(float scale);

@@ -53,9 +53,9 @@ typedef struct {
  *
  * @param scale  Denominator scale; 1/scale is applied to each sample
  *               (default: 128.0f).  Use 128.0 to recover normalised floats
- *               from a signed 8-bit stream.  Must be > 0.
- * @return Heap-allocated state, or NULL if @p scale <= 0 or allocation
- *         fails.
+ *               from a signed 8-bit stream.  Must be positive and finite.
+ * @return Heap-allocated state, or NULL if @p scale is not positive and
+ *         finite, or allocation fails.
  * @note Caller must call dp_i8_to_f32_destroy() when done.
  */
 dp_i8_to_f32_state_t *dp_i8_to_f32_create(float scale);

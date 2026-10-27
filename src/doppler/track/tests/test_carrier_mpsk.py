@@ -195,3 +195,9 @@ def test_steps_out_undersized_raises():
             np.zeros(TSAMPS * 4, dtype=np.complex64),
             out=np.zeros(1, dtype=np.complex64),
         )
+
+
+def test_create_refuses_zero_tsamps() -> None:
+    """#2645: a zero-sample symbol is refused; C used to run it as 1."""
+    with pytest.raises(ValueError, match="tsamps >= 1"):
+        CarrierMpsk(tsamps=0)

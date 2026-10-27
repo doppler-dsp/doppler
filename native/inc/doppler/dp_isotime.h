@@ -106,6 +106,37 @@ extern "C"
 #define DP_ISOTIME_EXTENDED 1
 
   /**
+   * @brief Whether @p y is a leap year in the proleptic Gregorian calendar.
+   *
+   * Divisible by 4, except centuries, except centuries divisible by 400.
+   * A remainder of zero is sign-agnostic in C, so this is the Gregorian
+   * rule for zero and negative years too.
+   *
+   * @param y  Year (may be zero or negative).
+   * @return 1 for a leap year, else 0.
+   */
+  static inline int
+  dp_isotime_is_leap_ (int64_t y)
+  {
+    return (y % 4 == 0) && (y % 100 != 0 || y % 400 == 0);
+  }
+
+  /**
+   * @brief Number of days in month @p m of year @p y (28..31).
+   *
+   * @param y  Year (proleptic Gregorian), for February's leap day.
+   * @param m  Month, 1..12.
+   * @return Days in that month.
+   */
+  static inline int
+  dp_isotime_days_in_month_ (int64_t y, int m)
+  {
+    static const int days[12]
+        = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    return days[m - 1] + (m == 2 && dp_isotime_is_leap_ (y));
+  }
+
+  /**
    * @brief Break a UTC instant into a fully-populated `struct tm`, by
    *        arithmetic rather than by gmtime.
    *
@@ -154,9 +185,7 @@ extern "C"
 
     static const int cum[12]
         = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
-    /* A remainder of zero is sign-agnostic in C, so this is the Gregorian
-       rule for negative years too. */
-    const int leap = (y % 4 == 0) && (y % 100 != 0 || y % 400 == 0);
+    const int leap = dp_isotime_is_leap_ (y);
 
     memset (out, 0, sizeof *out);
     out->tm_year  = (int) (y - 1900);
@@ -320,8 +349,8 @@ extern "C"
    *
    * @param y  Year (proleptic Gregorian; may be zero or negative).
    * @param m  Month, 1..12.
-   * @param d  Day of month, 1..31 (not checked against the month's
-   *           length; an overflowing day rolls into the next month).
+   * @param d  Day of month, 1..31 (not checked here against the month's
+   *           length; dp_isotime_parse() checks it before calling).
    * @return Days since 1970-01-01 (negative before it).
    */
   static inline int64_t
@@ -343,8 +372,9 @@ extern "C"
    * (`2026-08-05T04:15:30.123456Z`) and basic (`20260805T041530Z`) — with an
    * optional fraction (`.` or `,`, one or more digits; digits past the
    * ninth are truncated), and either `Z` or an explicit `+hh:mm` / `-hhmm`
-   * / `+hh` offset, which is applied.  The day is range-checked only to
-   * 1..31, not against the month, so `02-31` rolls into March.
+   * / `+hh` offset, which is applied.  The day is checked against its
+   * month's length, leap years included, so `2026-02-31`, `04-31` and
+   * `2025-02-29` are refused rather than rolled into the next month.
    *
    * **A timestamp with NO zone is REFUSED.**  It is the one input where
    * guessing costs hours rather than nothing: read as UTC, a local-time
@@ -409,7 +439,8 @@ extern "C"
     /* A leap second is spelled :60 and is a real instant on the wire; every
        other field is range-checked so a transposed one cannot slide through
        as a plausible date. */
-    if (Mo < 1 || Mo > 12 || D < 1 || D > 31 || h > 23 || mi > 59 || se > 60)
+    if (Mo < 1 || Mo > 12 || D < 1 || D > dp_isotime_days_in_month_ (Y, Mo)
+        || h > 23 || mi > 59 || se > 60)
       return -1;
 
     uint32_t frac = 0;

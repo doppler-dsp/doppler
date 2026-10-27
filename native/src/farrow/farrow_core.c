@@ -5,6 +5,11 @@
 dp_farrow_state_t *
 dp_farrow_create (int order)
 {
+  /* farrow_eval() reads any order but linear/parabolic as cubic, so an
+     unknown order would interpolate silently as one it did not name. */
+  if (order != FARROW_LINEAR && order != FARROW_PARABOLIC
+      && order != FARROW_CUBIC)
+    return NULL;
   dp_farrow_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;

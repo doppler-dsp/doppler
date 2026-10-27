@@ -26,5 +26,12 @@ main (void)
   dp_i32_to_f32_reset (obj);
 
   dp_i32_to_f32_destroy (obj);
+  /* #2645: a NaN or infinite scale is refused like zero and a negative
+     one; `scale <= 0` alone let both through. */
+  DP_CHECK (dp_i32_to_f32_create (NAN) == NULL);
+  DP_CHECK (dp_i32_to_f32_create (INFINITY) == NULL);
+  DP_CHECK (dp_i32_to_f32_create (-INFINITY) == NULL);
+  DP_CHECK (dp_i32_to_f32_create (-1.0f) == NULL);
+
   DP_TEST_END ("test_i32_to_f32_core");
 }

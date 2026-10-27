@@ -1123,18 +1123,20 @@ def measure_proc_gain(nfft: int) -> float:
     """FFT processing gain in dB: 10*log10(nfft / 2).
 
     How far a single bin's noise sits below the total noise power for an
-    nfft-point transform of a real capture. No argument check: nfft = 0
-    returns -inf.
+    nfft-point transform of a real capture. A transform shorter than two
+    bins has no gain to report (nfft = 1 would read -3 dB and nfft = 0
+    -inf), so it is refused with NaN, which no caller can mistake for a
+    gain.
 
     Parameters
     ----------
     nfft : int
-        Transform length (bins).
+        Transform length (bins), at least 2.
 
     Returns
     -------
     float
-        Processing gain (dB).
+        Processing gain (dB), or NaN when nfft < 2.
     """
 
 def dp_coherent_freq(fs: float, f_target: float, N: int) -> float:

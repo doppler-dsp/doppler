@@ -197,11 +197,13 @@ size_t dp_measure_rec_nfft(size_t n, size_t pad);
  * @brief FFT processing gain in dB: 10*log10(nfft / 2).
  *
  * How far a single bin's noise sits below the total noise power for an
- * nfft-point transform of a real capture.  No argument check: nfft = 0
- * returns -inf.
+ * nfft-point transform of a real capture.  A transform shorter than two
+ * bins has no gain to report (nfft = 1 would read -3 dB and nfft = 0
+ * -inf), so it is refused with NaN, which no caller can mistake for a
+ * gain.
  *
- * @param nfft  Transform length (bins).
- * @return Processing gain (dB).
+ * @param nfft  Transform length (bins), at least 2.
+ * @return Processing gain (dB), or NaN when @p nfft < 2.
  */
 double dp_measure_proc_gain(size_t nfft);
 

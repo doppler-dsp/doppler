@@ -190,3 +190,12 @@ def test_capture_planning_helpers():
     j = round(f / fsr * N)
     assert gcd(j, N) == 1
     assert abs(f - 10e6) < fsr / N  # within one bin of the target
+
+
+def test_proc_gain_refuses_a_transform_shorter_than_two() -> None:
+    """#2645: nfft < 2 has no gain; it used to read -inf and -3 dB."""
+    from doppler.measure import measure_proc_gain
+
+    assert np.isnan(measure_proc_gain(0))
+    assert np.isnan(measure_proc_gain(1))
+    assert measure_proc_gain(2) == 0.0

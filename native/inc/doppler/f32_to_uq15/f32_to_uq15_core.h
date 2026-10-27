@@ -78,7 +78,7 @@ typedef struct {
  * @param scale  Multiply factor applied before quantisation and saturation
  *               (default: 32768.0f).  Use 32768.0 to convert normalised
  *               `[-1, +1]` floats to the full UQ15 range `[0, 65535]`.
- *               Must be > 0; returns NULL otherwise.
+ *               Must be positive and finite; NULL otherwise.
  * @return Heap-allocated state, or NULL on invalid args or allocation failure.
  * @note Caller must call dp_f32_to_uq15_destroy() when done.
  */
@@ -121,6 +121,9 @@ void dp_f32_to_uq15_reset(dp_f32_to_uq15_state_t *state);
  * value saturated before clamping. Suits DAC and file formats that store only
  * unsigned integers.
  *
+ * A NaN input counts as clipped: it latches @c clipped and returns the
+ * negative full-scale code, 0 (offset-binary -32768).
+ *
  * @param state  Must be non-NULL.
  * @param x      Input sample, normally a normalised float in `[-1, +1]`.
  * @return Offset-binary uint16 in `[0, 65535]`: -1.0 -> 0, 0.0 -> 32768,
@@ -141,7 +144,9 @@ dp_f32_to_uq15_step(dp_f32_to_uq15_state_t *state, float x)
 {
     float s = state->scale * x;
     /* Detect saturation before clamping; set sticky flag. */
-    state->clipped |= (uint8_t)(s > 32767.0f || s < -32768.0f);
+    /* Written as "not inside" so a NaN, which fails every comparison,
+     * latches the flag too (fmaxf then maps it to the lower bound). */
+    state->clipped |= (uint8_t)!(s <= 32767.0f && s >= -32768.0f);
     s = fmaxf(s, -32768.0f);
     s = fminf(s,  32767.0f);
     int16_t v = (int16_t)lroundf(s);

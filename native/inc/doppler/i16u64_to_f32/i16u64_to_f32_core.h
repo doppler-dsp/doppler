@@ -56,9 +56,9 @@ typedef struct {
  *
  * @param scale  Denominator scale; 1/scale is applied after sign-extension
  *               (default: 32768.0f).  Use 32768.0 to match F32ToI16U64 at
- *               its default scale.  Must be > 0.
- * @return Heap-allocated state, or NULL when @p scale <= 0 or the
- *         allocation fails.
+ *               its default scale.  Must be positive and finite.
+ * @return Heap-allocated state, or NULL when @p scale is not positive
+ *         and finite, or the allocation fails.
  * @note Caller must call dp_i16u64_to_f32_destroy() when done.
  */
 dp_i16u64_to_f32_state_t *dp_i16u64_to_f32_create(float scale);

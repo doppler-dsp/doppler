@@ -78,7 +78,8 @@ typedef struct {
  * @param s      State to initialise (e.g. embedded by value).  Must be
  *               non-NULL.
  * @param order  FARROW_LINEAR, FARROW_PARABOLIC or FARROW_CUBIC.  Not
- *               validated: any other value is evaluated as cubic by
+ *               validated here (dp_farrow_create() is the checked
+ *               door): any other value is evaluated as cubic by
  *               farrow_eval().
  */
 JM_FORCEINLINE void
@@ -139,12 +140,11 @@ farrow_eval (const dp_farrow_state_t *s, float mu)
 
 /**
  * @brief Create a Farrow interpolator.
- * @param order  0 = linear, 1 = parabolic, 2 = cubic.  Not validated in
- *               C: any other value is evaluated as cubic.  Python takes
- *               the string "linear", "parabolic" or "cubic" (default
- *               "cubic").
- * @return Heap-allocated state with a zeroed delay line, or NULL on
- *         allocation failure.
+ * @param order  0 = linear, 1 = parabolic, 2 = cubic; any other value is
+ *               refused.  Python takes the string "linear", "parabolic"
+ *               or "cubic" (default "cubic").
+ * @return Heap-allocated state with a zeroed delay line, or NULL on an
+ *         unknown @p order or allocation failure.
  * @note Caller must call dp_farrow_destroy() when done.
  */
 dp_farrow_state_t *dp_farrow_create(int order);

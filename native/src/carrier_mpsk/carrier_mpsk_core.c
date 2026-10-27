@@ -42,6 +42,10 @@ dp_carrier_mpsk_create (double bn, double zeta, double init_norm_freq,
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL; /* only BPSK / QPSK / 8PSK */
+  /* A symbol of zero samples has no integrate-and-dump period; init()
+     would quietly run it as 1, a loop the caller did not ask for. */
+  if (tsamps == 0)
+    return NULL;
   /* The loop filter's own domain, refused before allocating: a NaN or an
      overflowing bandwidth gave gains that never recover (doppler#2112). */
   if (!dp_loop_filter_params_ok (bn, zeta, 1.0))

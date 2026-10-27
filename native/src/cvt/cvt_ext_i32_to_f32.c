@@ -49,8 +49,8 @@ I32ToF32Obj_init (I32ToF32Object *self, PyObject *args, PyObject *kwds)
   self->handle = dp_i32_to_f32_create (scale);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_i32_to_f32_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "I32ToF32: scale must be positive and finite");
       return -1;
     }
   return 0;
@@ -324,6 +324,13 @@ static PyTypeObject I32ToF32ObjType = {
     "    2147483648.0f). Use 2^31 to recover normalised floats from a "
     "full-range\n"
     "    int32 stream.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``I32ToF32: scale "
+    "must\n"
+    "    be positive and finite``.\n"
     "\n"
     "Examples\n"
     "--------\n"

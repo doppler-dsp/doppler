@@ -127,5 +127,20 @@ main (void)
     dp_interp_table_destroy (obj);
   }
 
+  /* #2645: an unknown method is refused; execute() would have read it as
+     linear and interpolated silently. */
+  {
+    const double _Complex t[3] = { 0.0, 1.0, 2.0 };
+    DP_CHECK (dp_interp_table_create (t, 3, 3) == NULL);
+    DP_CHECK (dp_interp_table_create (t, 3, 7) == NULL);
+    DP_CHECK (dp_interp_table_create (t, 3, -1) == NULL);
+    for (int m = 0; m <= 2; m++)
+      {
+        dp_interp_table_state_t *ok = dp_interp_table_create (t, 3, m);
+        DP_CHECK (ok != NULL);
+        dp_interp_table_destroy (ok);
+      }
+  }
+
   DP_TEST_END ("test_interp_table_core");
 }

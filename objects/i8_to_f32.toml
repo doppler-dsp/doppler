@@ -5,6 +5,8 @@ mutable = "false"
 no_state = "true"
 no_step = "false"
 class_name = "I8ToF32"
+create_error = "ValueError"
+create_error_message = "I8ToF32: scale must be positive and finite"
 fragment = "generated"
 
 [[i8_to_f32.init_params]]

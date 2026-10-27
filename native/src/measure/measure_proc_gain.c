@@ -8,5 +8,7 @@
 double
 dp_measure_proc_gain (size_t nfft)
 {
+  if (nfft < 2)
+    return NAN; /* no transform that short: refused, not a gain */
   return 10.0 * log10 ((double)nfft / 2.0);
 }

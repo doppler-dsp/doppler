@@ -537,3 +537,40 @@ class TestUQ15Roundtrip:
         q15_err = np.abs(x - I16ToF32().steps(F32ToI16().steps(x)))
         uq15_err = np.abs(x - UQ15ToF32().steps(F32ToUQ15().steps(x)))
         np.testing.assert_array_almost_equal(uq15_err, q15_err, decimal=5)
+
+
+# #2645: every converter's create() refuses a scale that is not positive and
+# finite (a bare `scale <= 0` let NaN and +inf through), and a NaN sample
+# latches the float-to-int converters' clip flag.
+_SCALED = [
+    "F32ToI8",
+    "F32ToI16",
+    "F32ToI16U32",
+    "F32ToI16U64",
+    "F32ToI32",
+    "F32ToUQ15",
+    "I8ToF32",
+    "I16ToF32",
+    "I16U32ToF32",
+    "I16U64ToF32",
+    "I32ToF32",
+    "UQ15ToF32",
+]
+
+
+@pytest.mark.parametrize("name", _SCALED)
+@pytest.mark.parametrize("scale", [float("nan"), float("inf"), -1.0, 0.0])
+def test_scale_must_be_positive_and_finite(name: str, scale: float) -> None:
+    import doppler.cvt as cvt
+
+    with pytest.raises(ValueError, match="positive and finite"):
+        getattr(cvt, name)(scale=scale)
+
+
+@pytest.mark.parametrize("name", [n for n in _SCALED if n.startswith("F32")])
+def test_nan_sample_latches_clipped(name: str) -> None:
+    import doppler.cvt as cvt
+
+    c = getattr(cvt, name)()
+    c.step(float("nan"))
+    assert c.clipped

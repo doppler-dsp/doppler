@@ -1360,23 +1360,22 @@ dp_wfm_plan_anchor_seed (const wfm_plan_t *p)
   return 0;
 }
 
-/* Read an optional per-source double array (gains/phases) from the override
- * object into `dst` (length n_sig). Returns 1 if the key was present and had
- * the right length (dst filled), 0 otherwise (dst untouched → use defaults).
- */
+/* Copy a per-source double array (gains/phases) out of an override object
+ * that overrides_why() has already accepted: when the key is present it is
+ * an array of n numbers. Returns 1 if the key was present (dst filled), 0 if
+ * it was absent (dst untouched -> use defaults). */
 static int
 read_dbl_array (const cJSON *root, const char *key, double *dst, size_t n)
 {
   const cJSON *a = cJSON_GetObjectItemCaseSensitive (root, key);
-  if (!cJSON_IsArray (a) || (size_t)cJSON_GetArraySize (a) != n)
+  if (!a)
     return 0;
   size_t       i = 0;
   const cJSON *e;
   cJSON_ArrayForEach (e, a)
   {
-    if (!cJSON_IsNumber (e))
-      return 0;
-    dst[i++] = e->valuedouble;
+    if (i < n)
+      dst[i++] = e->valuedouble;
   }
   return 1;
 }
@@ -1391,39 +1390,149 @@ dp_wfm_plan_check_snr (const wfm_plan_t *p)
   return DP_ERR_INVALID;
 }
 
+/* Whether a per-source array override holds n entries, each accepted by
+ * `ok`: NULL when it does (or the key is absent), else the reason. */
+static const char *
+array_why (const cJSON *root, const char *key, size_t n,
+           cJSON_bool (*ok) (const cJSON *), const char *wrong_len,
+           const char *wrong_entry)
+{
+  const cJSON *a = cJSON_GetObjectItemCaseSensitive (root, key);
+  if (!a)
+    return NULL;
+  if (!cJSON_IsArray (a) || (size_t)cJSON_GetArraySize (a) != n)
+    return wrong_len;
+  const cJSON *e;
+  cJSON_ArrayForEach (e, a)
+  {
+    if (!ok (e))
+      return wrong_entry;
+  }
+  return NULL;
+}
+
+/* A gains/phases entry: a number. */
+static cJSON_bool
+is_number_entry (const cJSON *e)
+{
+  return cJSON_IsNumber (e);
+}
+
+/* An enable entry: a bool, or a number (non-zero = on). */
+static cJSON_bool
+is_enable_entry (const cJSON *e)
+{
+  return cJSON_IsBool (e) || cJSON_IsNumber (e);
+}
+
+/* The one decision behind render() and dp_wfm_plan_check_overrides(): does
+ * this parsed override object say only things the Plan can do? NULL when
+ * it does, else the reason (a static string). Every key that is present is
+ * checked; a key the Plan does not know is refused, so a typo (`"gain"`)
+ * cannot read as the baseline. */
+static const char *
+overrides_why (const wfm_plan_t *p, const cJSON *root)
+{
+  if (!cJSON_IsObject (root))
+    return DP_WFM_PLAN_WHY_NOT_OBJECT;
+  const cJSON *k;
+  cJSON_ArrayForEach (k, root)
+  {
+    const char *nm = k->string;
+    if (strcmp (nm, "gains") != 0 && strcmp (nm, "phases") != 0
+        && strcmp (nm, "enable") != 0 && strcmp (nm, "snr") != 0
+        && strcmp (nm, "seed") != 0)
+      return DP_WFM_PLAN_WHY_UNKNOWN_KEY;
+  }
+  const char *why;
+  if ((why = array_why (root, "gains", p->n_sig, is_number_entry,
+                        DP_WFM_PLAN_WHY_ARRAY_LEN, DP_WFM_PLAN_WHY_NUMBER)))
+    return why;
+  if ((why = array_why (root, "phases", p->n_sig, is_number_entry,
+                        DP_WFM_PLAN_WHY_ARRAY_LEN, DP_WFM_PLAN_WHY_NUMBER)))
+    return why;
+  if ((why = array_why (root, "enable", p->n_sig, is_enable_entry,
+                        DP_WFM_PLAN_WHY_ARRAY_LEN, DP_WFM_PLAN_WHY_ENABLE)))
+    return why;
+  const cJSON *s = cJSON_GetObjectItemCaseSensitive (root, "snr");
+  if (s)
+    {
+      if (!cJSON_IsNumber (s))
+        return DP_WFM_PLAN_WHY_SNR;
+      if (dp_wfm_plan_check_snr (p) != DP_OK)
+        return DP_WFM_PLAN_WHY_NO_NOISE;
+    }
+  const cJSON *sd = cJSON_GetObjectItemCaseSensitive (root, "seed");
+  if (sd)
+    {
+      /* Every seed a Plan feeds is 32-bit: a larger one would be cut to its
+         low 32 bits, so two seeds differing only above bit 31 would draw
+         the same realization. A fraction or a negative has no seed at all. */
+      double v = cJSON_IsNumber (sd) ? sd->valuedouble : -1.0;
+      if (!(v >= 0.0 && v <= (double)UINT32_MAX && v == floor (v)))
+        return DP_WFM_PLAN_WHY_SEED;
+    }
+  return NULL;
+}
+
+int
+dp_wfm_plan_check_overrides_why (const wfm_plan_t *p,
+                                 const char *overrides_json, const char **why)
+{
+  const char *r = NULL;
+  if (!p)
+    r = DP_WFM_PLAN_WHY_NULL;
+  else if (overrides_json && *overrides_json)
+    {
+      cJSON *root = cJSON_Parse (overrides_json);
+      r = root ? overrides_why (p, root) : DP_WFM_PLAN_WHY_NOT_OBJECT;
+      cJSON_Delete (root);
+    }
+  if (why)
+    *why = r;
+  return r ? DP_ERR_INVALID : DP_OK;
+}
+
+int
+dp_wfm_plan_check_overrides (const wfm_plan_t *p, const char *overrides_json)
+{
+  return dp_wfm_plan_check_overrides_why (p, overrides_json, NULL);
+}
+
 size_t
 dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
                     float _Complex *out)
 {
   if (!p)
     return 0;
-  double   snr = 0.0, seed_d = 0.0;
+  double   snr       = 0.0;
   int      snr_given = 0, seed_given = 0;
   uint64_t seed = 0;
 
   double *gains = NULL, *phases = NULL;
   int    *enable = NULL;
-  cJSON  *root   = (overrides_json && *overrides_json)
-                       ? cJSON_Parse (overrides_json)
-                       : NULL;
-  if (root)
+  cJSON  *root   = NULL;
+  if (overrides_json && *overrides_json)
     {
-      const cJSON *s = cJSON_GetObjectItemCaseSensitive (root, "snr");
-      if (cJSON_IsNumber (s))
+      root = cJSON_Parse (overrides_json);
+      /* Refused before anything is drawn: an override the Plan cannot honour
+         renders nothing rather than the baseline it would otherwise fall
+         back to, which a caller could not tell from success. */
+      if (!root || overrides_why (p, root))
         {
-          if (dp_wfm_plan_check_snr (p) != DP_OK)
-            {
-              cJSON_Delete (root);
-              return 0; /* nothing for the snr to move: refused */
-            }
+          cJSON_Delete (root);
+          return 0;
+        }
+      const cJSON *s = cJSON_GetObjectItemCaseSensitive (root, "snr");
+      if (s)
+        {
           snr       = s->valuedouble;
           snr_given = 1;
         }
       const cJSON *sd = cJSON_GetObjectItemCaseSensitive (root, "seed");
-      if (cJSON_IsNumber (sd))
+      if (sd)
         {
-          seed_d     = sd->valuedouble;
-          seed       = (uint64_t)seed_d;
+          seed       = (uint64_t)sd->valuedouble;
           seed_given = 1;
         }
       double *gbuf = malloc (p->n_sig * sizeof *gbuf);
@@ -1437,7 +1546,7 @@ dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
       else
         free (pbuf);
       const cJSON *en = cJSON_GetObjectItemCaseSensitive (root, "enable");
-      if (cJSON_IsArray (en) && (size_t)cJSON_GetArraySize (en) == p->n_sig)
+      if (en)
         {
           int *ebuf = malloc (p->n_sig * sizeof *ebuf);
           if (ebuf)
@@ -1457,8 +1566,7 @@ dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
   free (gains);
   free (phases);
   free (enable);
-  if (root)
-    cJSON_Delete (root);
+  cJSON_Delete (root);
   return n;
 }
 
@@ -1468,6 +1576,8 @@ dp_wfm_plan_at (const wfm_plan_t *p, double snr, uint64_t seed,
 {
   if (dp_wfm_plan_check_snr (p) != DP_OK)
     return 0; /* nothing for the snr to move: refused */
+  if (seed > UINT32_MAX)
+    return 0; /* every seed it feeds is 32-bit: refused, not truncated */
   return materialize (p, NULL, NULL, NULL, snr, 1, seed, 1, out);
 }
 

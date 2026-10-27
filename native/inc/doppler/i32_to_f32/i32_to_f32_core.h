@@ -48,13 +48,14 @@ typedef struct {
 /**
  * @brief Create a i32_to_f32 instance.
  *
- * Pre-computes @c iscale = 1.0f / @p scale.  Any non-zero finite float is a
- * valid scale.
+ * Pre-computes @c iscale = 1.0f / @p scale.  Any positive, finite float is a
+ * valid scale; zero, a negative value, NaN or an infinity is refused.
  *
  * @param scale  Denominator scale; 1/scale is applied to each sample
  *               (default: 2147483648.0f).  Use 2^31 to recover normalised
  *               floats from a full-range int32 stream.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL if @p scale is not positive and
+ *         finite, or on allocation failure.
  * @note Caller must call dp_i32_to_f32_destroy() when done.
  */
 dp_i32_to_f32_state_t *dp_i32_to_f32_create(float scale);

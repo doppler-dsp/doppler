@@ -72,14 +72,16 @@ typedef struct {
  * @brief Create a f32_to_i8 instance.
  *
  * Allocates state and stores @p scale.  The @c clipped flag is initialised
- * to 0.  Returns NULL for a non-positive scale, which is the only failure a
- * caller can cause; the allocation itself aborts on exhaustion (dp_xcalloc)
- * rather than handing back an unwind path no test can reach.
+ * to 0.  Returns NULL for a scale that is not positive and finite, which
+ * is the only failure a caller can cause; the allocation itself aborts on
+ * exhaustion (dp_xcalloc) rather than handing back an unwind path no test
+ * can reach.
  *
  * @param scale  Multiply factor applied before rounding and saturation
  *               (default: 128.0f).  Use 128.0 to convert a normalised
  *               `[-1, +1]` signal to the full 8-bit range.
- * @return Heap-allocated state, or NULL if @p scale is not positive.
+ * @return Heap-allocated state, or NULL if @p scale is not positive and
+ *         finite (zero, negative, NaN or infinite).
  * @note Caller must call dp_f32_to_i8_destroy() when done.
  */
 dp_f32_to_i8_state_t *dp_f32_to_i8_create(float scale);
@@ -121,6 +123,9 @@ void dp_f32_to_i8_reset(dp_f32_to_i8_state_t *state);
  * though it would round to 127). At the default scale of 128 a normalised
  * `[-1, +1]` input maps to the full 8-bit code range.
  *
+ * A NaN input counts as clipped: it latches @c clipped and returns the
+ * negative full-scale code, -128.
+ *
  * @param state  Instance to update (clip flag); must be non-NULL.
  * @param x      Input sample, normally a normalised float in `[-1, +1]`.
  * @return Saturated int8 code in `[-128, 127]`.
@@ -142,7 +147,9 @@ dp_f32_to_i8_step(dp_f32_to_i8_state_t *state, float x)
 {
     float s = state->scale * x;
     /* Detect saturation before clamping; set sticky flag. */
-    state->clipped |= (uint8_t)(s > 127.0f || s < -128.0f);
+    /* Written as "not inside" so a NaN, which fails every comparison,
+     * latches the flag too (fmaxf then maps it to the lower bound). */
+    state->clipped |= (uint8_t)!(s <= 127.0f && s >= -128.0f);
     s = fmaxf(s, -128.0f);
     s = fminf(s,  127.0f);
     return (int8_t)lroundf(s);

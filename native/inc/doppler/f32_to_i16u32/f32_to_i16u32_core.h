@@ -66,9 +66,9 @@ typedef struct {
  * @param scale  Multiply factor applied before quantisation and saturation
  *               (default: 32768.0f).  Use 32768.0 to convert normalised
  *               `[-1, +1]` samples to Q15 packed into a uint32.  Must be
- *               > 0.
- * @return Heap-allocated state, or NULL if @p scale <= 0 or allocation
- *         fails.
+ *               positive and finite.
+ * @return Heap-allocated state, or NULL if @p scale is not positive and
+ *         finite, or allocation fails.
  * @note Caller must call dp_f32_to_i16u32_destroy() when done.
  */
 dp_f32_to_i16u32_state_t *dp_f32_to_i16u32_create(float scale);
@@ -110,6 +110,9 @@ void dp_f32_to_i16u32_reset(dp_f32_to_i16u32_state_t *state);
  * flag on saturation. A NaN input maps to 0x8000 (-32768) without
  * setting @c clipped.
  *
+ * A NaN input counts as clipped: it latches @c clipped and returns the
+ * negative full-scale code, -32768 (0x8000).
+ *
  * @param state  Must be non-NULL.
  * @param x      Input sample, normally a normalised float in `[-1, +1]`.
  * @return Q15 code in the low 16 bits of a uint32; e.g. -32768 -> 0x8000.
@@ -129,7 +132,9 @@ dp_f32_to_i16u32_step(dp_f32_to_i16u32_state_t *state, float x)
 {
     float s = state->scale * x;
     /* Detect saturation before clamping; set sticky flag. */
-    state->clipped |= (uint8_t)(s > 32767.0f || s < -32768.0f);
+    /* Written as "not inside" so a NaN, which fails every comparison,
+     * latches the flag too (fmaxf then maps it to the lower bound). */
+    state->clipped |= (uint8_t)!(s <= 32767.0f && s >= -32768.0f);
     s = fmaxf(s, -32768.0f);
     s = fminf(s,  32767.0f);
     int16_t v = (int16_t)lroundf(s);

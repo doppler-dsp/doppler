@@ -49,8 +49,8 @@ I16U64ToF32Obj_init (I16U64ToF32Object *self, PyObject *args, PyObject *kwds)
   self->handle = dp_i16u64_to_f32_create (scale);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_i16u64_to_f32_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "I16U64ToF32: scale must be positive and finite");
       return -1;
     }
   return 0;
@@ -335,7 +335,14 @@ static PyTypeObject I16U64ToF32ObjType = {
                 "(default:\n"
                 "    32768.0f). Use 32768.0 to match F32ToI16U64 at its default "
                 "scale. Must\n"
-                "    be > 0.\n"
+                "    be positive and finite.\n"
+                "\n"
+                "Raises\n"
+                "------\n"
+                "ValueError\n"
+                "    If construction fails. The exception message is "
+                "``I16U64ToF32: scale\n"
+                "    must be positive and finite``.\n"
                 "\n"
                 "Examples\n"
                 "--------\n"

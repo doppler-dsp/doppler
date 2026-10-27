@@ -5,6 +5,8 @@ mutable = "false"
 no_state = "true"
 no_step = "false"
 class_name = "F32ToI8"
+create_error = "ValueError"
+create_error_message = "F32ToI8: scale must be positive and finite"
 serializable = "true"
 fragment = "generated"
 

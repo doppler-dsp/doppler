@@ -416,18 +416,20 @@ static PyMethodDef measure_module_methods[] = {
     "FFT processing gain in dB: 10*log10(nfft / 2).\n"
     "\n"
     "How far a single bin's noise sits below the total noise power for an\n"
-    "nfft-point transform of a real capture. No argument check: nfft = 0\n"
-    "returns -inf.\n"
+    "nfft-point transform of a real capture. A transform shorter than two\n"
+    "bins has no gain to report (nfft = 1 would read -3 dB and nfft = 0\n"
+    "-inf), so it is refused with NaN, which no caller can mistake for a\n"
+    "gain.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "nfft : int\n"
-    "    Transform length (bins).\n"
+    "    Transform length (bins), at least 2.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "float\n"
-    "    Processing gain (dB).\n" },
+    "    Processing gain (dB), or NaN when nfft < 2.\n" },
   { "dp_coherent_freq", (PyCFunction)(void *)_bind_dp_coherent_freq,
     METH_VARARGS | METH_KEYWORDS,
     "Nearest leakage-free coherent test frequency (J cycles, J coprime N).\n"

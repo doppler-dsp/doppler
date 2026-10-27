@@ -41,8 +41,8 @@ extern "C"
   {
     double _Complex *table;  /**< owned copy, length n                    */
     size_t          n;      /**< table length (one period)               */
-    int             method; /**< 0=floor, 1=nearest, 2=linear (any other
-                                 value also evaluates as linear) */
+    int             method; /**< 0=floor, 1=nearest, 2=linear (create()
+                                 refuses any other value) */
   } dp_interp_table_state_t;
 
   /**
@@ -53,10 +53,10 @@ extern "C"
    *
    * @param table      Complex table, one period, length @p table_len.
    * @param table_len  Number of elements in @p table (> 0).
-   * @param method     0 = floor, 1 = nearest, 2 = linear. Not validated:
-   *                   any other value behaves as linear.
-   * @return Heap-allocated state, or NULL on allocation failure or
-   *         table_len == 0.
+   * @param method     0 = floor, 1 = nearest, 2 = linear; any other value
+   *                   is refused.
+   * @return Heap-allocated state, or NULL on allocation failure,
+   *         table_len == 0, or a @p method outside 0..2.
    * @note Caller must call dp_interp_table_destroy() when done.
    * @code
    * >>> from doppler.interp import InterpolatedTable

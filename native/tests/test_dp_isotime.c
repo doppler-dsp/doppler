@@ -335,6 +335,18 @@ test_parse_rejects (void)
   DP_CHECK (dp_isotime_parse ("2026-08-05", &sec, &nsec) != 0);
   DP_CHECK (dp_isotime_parse ("2026-13-05T00:00:00Z", &sec, &nsec) != 0);
   DP_CHECK (dp_isotime_parse ("2026-08-32T00:00:00Z", &sec, &nsec) != 0);
+  /* #2645: the day is checked against ITS month, leap years included;
+     these used to roll into the next month and parse as another date. */
+  DP_CHECK (dp_isotime_parse ("2026-02-31T00:00:00Z", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-04-31T00:00:00Z", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2025-02-29T00:00:00Z", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("1900-02-29T00:00:00Z", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("20250229T000000Z", &sec, &nsec) != 0);
+  /* ...and the last real day of each still parses. */
+  DP_CHECK (dp_isotime_parse ("2024-02-29T00:00:00Z", &sec, &nsec) == 0);
+  DP_CHECK (dp_isotime_parse ("2000-02-29T00:00:00Z", &sec, &nsec) == 0);
+  DP_CHECK (dp_isotime_parse ("2026-04-30T00:00:00Z", &sec, &nsec) == 0);
+  DP_CHECK (dp_isotime_parse ("2026-12-31T00:00:00Z", &sec, &nsec) == 0);
   DP_CHECK (dp_isotime_parse ("2026-08-05T24:00:00Z", &sec, &nsec) != 0);
   DP_CHECK (dp_isotime_parse ("2026-08-05T00:60:00Z", &sec, &nsec) != 0);
   DP_CHECK (dp_isotime_parse ("2026-08-05T00:00:61Z", &sec, &nsec) != 0);

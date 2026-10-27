@@ -194,6 +194,62 @@ extern "C"
    */
   int dp_wfm_plan_check_snr (const wfm_plan_t *p);
 
+  /** @brief Why an override is refused: the text is not a JSON object. */
+#define DP_WFM_PLAN_WHY_NOT_OBJECT "overrides must be a JSON object"
+  /** @brief Why an override is refused: it names a key the Plan does not
+   * know (a typo would otherwise render the baseline). */
+#define DP_WFM_PLAN_WHY_UNKNOWN_KEY                                           \
+  "overrides take only the keys gains, phases, enable, snr and seed"
+  /** @brief Why an override is refused: a per-source array has the wrong
+   * length (or is not an array). */
+#define DP_WFM_PLAN_WHY_ARRAY_LEN                                             \
+  "gains, phases and enable must each be an array of n_sources entries"
+  /** @brief Why an override is refused: a gains/phases entry is not a
+   * number. */
+#define DP_WFM_PLAN_WHY_NUMBER "every gains and phases entry must be a number"
+  /** @brief Why an override is refused: an enable entry is neither a bool
+   * nor a number. */
+#define DP_WFM_PLAN_WHY_ENABLE "every enable entry must be a bool or a number"
+  /** @brief Why an override is refused: `snr` is not a number. */
+#define DP_WFM_PLAN_WHY_SNR "snr must be a number (dB)"
+  /** @brief Why an override is refused: `seed` is not an integer in
+   * `0..2^32-1` (every seed a Plan feeds is 32-bit). */
+#define DP_WFM_PLAN_WHY_SEED "seed must be an integer in 0..4294967295"
+  /** @brief Why an override is refused: there is no Plan. */
+#define DP_WFM_PLAN_WHY_NULL "no Plan"
+
+  /**
+   * @brief Whether dp_wfm_plan_render() can honour @p overrides_json, and if
+   *        not, why.
+   *
+   * The one rule render() applies before it draws anything (see its doc for
+   * the keys). NULL or "" is the baseline and is accepted. An `snr` on a
+   * Plan whose scene carries no noise is refused for the reason
+   * DP_WFM_PLAN_WHY_NO_NOISE.
+   *
+   * @param p               The Plan; NULL is refused (DP_WFM_PLAN_WHY_NULL).
+   * @param overrides_json  NUL-terminated override object, or NULL / "".
+   * @param[out] why        When non-NULL, receives NULL on success or one of
+   *                        the static DP_WFM_PLAN_WHY_* strings.
+   * @return 0 (DP_OK) when render() would honour every key; DP_ERR_INVALID
+   *         (-4) when it would refuse.
+   */
+  int dp_wfm_plan_check_overrides_why (const wfm_plan_t *p,
+                                       const char *overrides_json,
+                                       const char **why);
+
+  /**
+   * @brief dp_wfm_plan_check_overrides_why() without the reason.
+   *
+   * The status-only face, for a binding that raises a fixed message.
+   *
+   * @param p               The Plan.
+   * @param overrides_json  NUL-terminated override object, or NULL / "".
+   * @return 0 (DP_OK), or DP_ERR_INVALID (-4) when render() would refuse.
+   */
+  int dp_wfm_plan_check_overrides (const wfm_plan_t *p,
+                                   const char *overrides_json);
+
   /**
    * @brief General render: apply a JSON override spec, return a cf32 array.
    *
@@ -205,11 +261,14 @@ extern "C"
    * `dp_wfm_plan_len(p)` samples to `out`. An `"snr"` key on a Plan whose
    * scene carries no noise is refused (see dp_wfm_plan_check_snr()).
    *
-   * Keys are read leniently: overrides that do not parse as JSON render
-   * the baseline, a `gains`/`phases`/`enable` array whose length is not
-   * dp_wfm_plan_n_sources() (or, for `gains`/`phases`, that holds a
-   * non-number) is ignored, and a non-numeric `snr`/`seed` is ignored.
-   * An `enable` entry is on when it is `true` or a non-zero number.
+   * Overrides the Plan cannot honour are refused, never read as the
+   * baseline: text that is not a JSON object, a key other than the five
+   * above, a `gains`/`phases`/`enable` array whose length is not
+   * dp_wfm_plan_n_sources(), a `gains`/`phases` entry that is not a number,
+   * an `enable` entry that is neither a bool nor a number, a non-numeric
+   * `snr`, and a `seed` that is not an integer in `0..2^32-1`. The rule is
+   * dp_wfm_plan_check_overrides_why(), which names the reason. An `enable`
+   * entry is on when it is `true` or a non-zero number.
    *
    * @param p               The Plan; NULL renders nothing and returns 0.
    * @param overrides_json  NUL-terminated override object, or NULL / ""
@@ -217,7 +276,8 @@ extern "C"
    * @param[out] out        Receives the samples; must hold
    *                        dp_wfm_plan_len(p) of them.
    * @return Samples actually written for this draw (<= dp_wfm_plan_len(p)),
-   *         or 0 when refused, with `out` untouched.
+   *         or 0 when refused (a NULL Plan, an override
+   *         dp_wfm_plan_check_overrides() refuses), with `out` untouched.
    */
   size_t dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
                           float _Complex *out);
@@ -237,12 +297,16 @@ extern "C"
    *                  lone source, else the source sharing the noise
    *                  source's seed. A segment whose noise floor was set
    *                  explicitly keeps that floor.
-   * @param seed      Noise (and ranged-gap) seed override. Only its low
-   *                  32 bits are used: the seeds it replaces are 32-bit.
+   * @param seed      Noise (and ranged-gap) seed override, `0..2^32-1`:
+   *                  the seeds it replaces are 32-bit, so a larger one is
+   *                  refused rather than cut to its low 32 bits (which
+   *                  would make seeds differing only above bit 31 draw the
+   *                  same realization).
    * @param[out] out  Receives the samples; must hold dp_wfm_plan_len(p)
    *                  of them.
    * @return Samples actually written for this draw (<= dp_wfm_plan_len(p)),
-   *         or 0 when refused, with `out` untouched.
+   *         or 0 when refused (no noise floor, or @p seed above 2^32-1),
+   *         with `out` untouched.
    */
   size_t dp_wfm_plan_at (const wfm_plan_t *p, double snr, uint64_t seed,
                       float _Complex *out);

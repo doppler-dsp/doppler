@@ -126,6 +126,32 @@ def test_enable_all_on_is_baseline_all_off_drops_signal() -> None:
     assert not np.array_equal(plan.render(enable=[False, False]), base)
 
 
+def test_overrides_the_plan_cannot_honour_raise() -> None:
+    """#2645: a wrong-length per-source array or an out-of-range seed raises.
+
+    Both used to render the baseline silently (a typo read as success), and a
+    seed above 2**32 - 1 drew the realization of its low 32 bits.
+    """
+    plan = prepare(_scene())
+    for bad in (
+        {"gains": [0.0]},
+        {"phases": [0.0, 0.0, 0.0]},
+        {"enable": [True]},
+        {"seed": 2**32},
+        {"seed": -1},
+    ):
+        with pytest.raises(ValueError, match="overrides refused"):
+            plan.render(**bad)
+    # The raw handle refuses an unknown key too, the typo case.
+    with pytest.raises(ValueError, match="overrides refused"):
+        plan._h.check_overrides('{"gain": [0.0, -6.0]}')
+    with pytest.raises(OverflowError):
+        plan.at(6.0, 42 + 2**32)
+    # The edges still render.
+    assert len(plan.at(6.0, 2**32 - 1)) == len(plan)
+    assert len(plan.render(seed=2**32 - 1)) == len(plan)
+
+
 def test_render_is_deterministic() -> None:
     plan = prepare(_scene())
     np.testing.assert_array_equal(plan.at(6.0, 42), plan.at(6.0, 42))

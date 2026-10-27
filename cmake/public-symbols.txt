@@ -1626,6 +1626,8 @@ dp_wfm_kw_entry_size function
 dp_wfm_parse_u64 function
 dp_wfm_plan_anchor_seed function
 dp_wfm_plan_at function
+dp_wfm_plan_check_overrides function
+dp_wfm_plan_check_overrides_why function
 dp_wfm_plan_check_snr function
 dp_wfm_plan_destroy function
 dp_wfm_plan_dump function

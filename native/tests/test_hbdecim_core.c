@@ -365,5 +365,38 @@ main (void)
   test_state_roundtrip ();
   test_blob_carries_no_stale_pending ();
 
+  /* A short out drops nothing (doppler#2643): every call stops at a pair
+     boundary, consumed() says how much it took, and re-offering the rest
+     gives output identical to one whole call. Capacities cycle through 0
+     (which used to lose the whole block), 1, 2 and 3; the input is odd
+     so a held sample crosses calls too. */
+  {
+    enum
+    {
+      L = 101
+    };
+    float _Complex in[L], ref[L], got[L];
+    for (size_t i = 0; i < L; i++)
+      in[i]
+          = (float)cos (0.37 * (double)i) + I * (float)sin (0.11 * (double)i);
+    hbdecim_state_t *a    = dp_hbdecim_create (N_TAPS, H4_FIR);
+    size_t           nref = dp_hbdecim_execute (a, in, L, ref, L);
+    DP_CHECK (dp_hbdecim_consumed (a) == L);
+    hbdecim_state_t *b   = dp_hbdecim_create (N_TAPS, H4_FIR);
+    size_t           off = 0, ngot = 0, k = 0, calls = 0;
+    while (off < L && calls++ < 4 * L)
+      {
+        size_t cap = (k++) % 4;
+        ngot += dp_hbdecim_execute (b, in + off, L - off, got + ngot, cap);
+        DP_CHECK (dp_hbdecim_consumed (b) <= L - off);
+        off += dp_hbdecim_consumed (b);
+      }
+    DP_CHECK (off == L);
+    DP_CHECK (ngot == nref);
+    DP_CHECK (memcmp (ref, got, nref * sizeof *ref) == 0);
+    dp_hbdecim_destroy (a);
+    dp_hbdecim_destroy (b);
+  }
+
   DP_TEST_END ("test_hbdecim_core");
 }

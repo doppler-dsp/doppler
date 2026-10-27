@@ -52,6 +52,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* The plain resampler as a chunk-invariance subject (dp_chunk_inv.h). */
 static void *
@@ -1907,6 +1908,51 @@ main (void)
   DP_CHECK (inputs_needed_is_exact (2.5));
   DP_CHECK (inputs_needed_is_exact (3.7));
   DP_CHECK (inputs_needed_is_exact (7.3));
+
+  /* The ctrl block forms report what they took (doppler#2643): they stop
+     offering input once out is full, and re-offering in + consumed gives
+     output identical to one whole call. The rate is above 1, so out fills
+     with ticks still owed before a sample: the block form declines that
+     sample rather than load it ahead, which used to emit those ticks one
+     sample late. */
+  {
+    enum
+    {
+      L   = 400,
+      CAP = 1024
+    };
+    float _Complex in[L], ref[CAP], got[CAP];
+    double ctrl[L], pos[CAP];
+    for (size_t i = 0; i < L; i++)
+      {
+        in[i]   = (float)cos (0.21 * (double)i)
+                  + I * (float)sin (0.05 * (double)i);
+        ctrl[i] = 0.05 * sin (0.01 * (double)i);
+      }
+    resamp_state_t *a    = dp_resamp_create (1.37);
+    size_t          nref = dp_resamp_execute_ctrl (a, in, ctrl, L, ref, CAP);
+    DP_CHECK (dp_resamp_ctrl_consumed (a) == L);
+    for (int form = 0; form < 2; form++)
+      {
+        resamp_state_t *b   = dp_resamp_create (1.37);
+        size_t          off = 0, ngot = 0, k = 0, calls = 0;
+        while (off < L && calls++ < 4 * L)
+          {
+            size_t cap = 1 + (k++) % 5;
+            ngot += form ? dp_resamp_execute_ctrl_pos (b, in + off, ctrl + off,
+                                                       L - off, got + ngot,
+                                                       pos, cap)
+                         : dp_resamp_execute_ctrl (b, in + off, ctrl + off,
+                                                   L - off, got + ngot, cap);
+            off += dp_resamp_ctrl_consumed (b);
+          }
+        DP_CHECK (off == L);
+        DP_CHECK (ngot == nref);
+        DP_CHECK (memcmp (ref, got, nref * sizeof *ref) == 0);
+        dp_resamp_destroy (b);
+      }
+    dp_resamp_destroy (a);
+  }
 
   DP_TEST_END ("test_resamp_core");
 }

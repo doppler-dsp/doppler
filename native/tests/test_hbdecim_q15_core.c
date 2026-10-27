@@ -159,5 +159,36 @@ main (void)
     dp_hbdecim_q15_destroy (c);
   }
 
+  /* A short out drops nothing (doppler#2643): every call stops at a pair
+     boundary, consumed() says how much it took, and re-offering the rest
+     gives output identical to one whole call. Capacities cycle through 0,
+     1, 2 and 3 over an odd-length input. */
+  {
+    enum
+    {
+      L = 101
+    };
+    int16_t in[2 * L], ref[2 * L], got[2 * L];
+    for (size_t i = 0; i < 2 * L; i++)
+      in[i] = (int16_t)(8000.0 * cos (0.37 * (double)i));
+    dp_hbdecim_q15_state_t *a    = dp_hbdecim_q15_create (25, H25_stub);
+    size_t                  nref = dp_hbdecim_q15_execute (a, in, L, ref, L);
+    DP_CHECK (dp_hbdecim_q15_consumed (a) == L);
+    dp_hbdecim_q15_state_t *b   = dp_hbdecim_q15_create (25, H25_stub);
+    size_t                  off = 0, ngot = 0, k = 0, calls = 0;
+    while (off < L && calls++ < 4 * L)
+      {
+        size_t cap = (k++) % 4;
+        ngot += dp_hbdecim_q15_execute (b, in + 2 * off, L - off,
+                                        got + 2 * ngot, cap);
+        off += dp_hbdecim_q15_consumed (b);
+      }
+    DP_CHECK (off == L);
+    DP_CHECK (ngot == nref);
+    DP_CHECK (memcmp (ref, got, 2 * nref * sizeof *ref) == 0);
+    dp_hbdecim_q15_destroy (a);
+    dp_hbdecim_q15_destroy (b);
+  }
+
   DP_TEST_END ("test_hbdecim_q15_core");
 }

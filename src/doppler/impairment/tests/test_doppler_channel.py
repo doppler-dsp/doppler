@@ -462,3 +462,17 @@ def test_scalar_execute_hands_offset_hz_back_to_the_closed_form() -> None:
     ch.execute(_dc(n))
     # The closed form at the stream's own receive time, not the profile's.
     assert ch.offset_hz == pytest.approx(+50e3, abs=1.0)
+
+
+def test_empty_profile_call_changes_nothing():
+    """An empty execute_profile leaves offset_hz on the ramp (#2643).
+
+    It used to mark the stream profiled with no sample behind it, so a
+    fresh channel then reported carrier_hz * 0 instead of its create-time
+    Doppler.
+    """
+    ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9, doppler_ppm=20.0)
+    before = ch.offset_hz
+    y = ch.execute_profile(np.zeros(0, np.complex64), np.zeros(0))
+    assert len(y) == 0
+    assert ch.offset_hz == before == pytest.approx(50000.0)

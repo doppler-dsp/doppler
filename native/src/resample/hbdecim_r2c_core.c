@@ -43,9 +43,10 @@ struct hbdecim_r2c_state
   float *odd_buf;
   size_t odd_head;
 
-  int   has_pending;
-  float pending;
-  int   parity;
+  int    has_pending;
+  float  pending;
+  int    parity;
+  size_t consumed; /* input the last execute took; per-call, not state */
 };
 
 static inline void
@@ -169,7 +170,8 @@ dp_hbdecim_r2c_reset (hbdecim_r2c_state_t *r)
   r->has_pending = 0;
   r->pending     = 0; /* in the blob: a held sample is state, a stale one
                          not (doppler#2642, as hbdecim does) */
-  r->parity = 0;
+  r->parity   = 0;
+  r->consumed = 0;
   memset (r->even_buf, 0, 2 * r->even_cap * sizeof (float));
   memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (float));
 }
@@ -217,6 +219,7 @@ dp_hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob)
   dp_r_bytes (&rd, &r->parity, sizeof (int));
   dp_r_f32 (&rd, r->even_buf, 2 * r->even_cap);
   dp_r_f32 (&rd, r->odd_buf, 2 * r->even_cap);
+  r->consumed = 0; /* per-call, not state */
   return DP_OK;
 }
 
@@ -234,10 +237,17 @@ dp_hbdecim_r2c_get_num_taps (const hbdecim_r2c_state_t *r)
 }
 
 size_t
+dp_hbdecim_r2c_consumed (const hbdecim_r2c_state_t *r)
+{
+  return r->consumed;
+}
+
+size_t
 dp_hbdecim_r2c_execute (hbdecim_r2c_state_t *r, const float *in, size_t num_in,
                         float _Complex *out, size_t max_out)
 {
-  if (!num_in || !max_out)
+  r->consumed = 0;
+  if (!num_in)
     return 0;
 
   size_t oi = 0, xi = 0;
@@ -261,11 +271,18 @@ dp_hbdecim_r2c_execute (hbdecim_r2c_state_t *r, const float *in, size_t num_in,
       r->parity ^= 1;
     }
 
-  if (xi < num_in)
+  /* Hold a trailing even sample only when it is the LAST input: with the
+     output full and pairs still waiting, stop at the pair boundary instead,
+     so nothing is dropped and the caller resumes at in + consumed
+     (doppler#2643). A later pair would otherwise be skipped, and the held
+     sample paired with unrelated input. */
+  if (xi + 1 == num_in && !r->has_pending)
     {
       r->pending     = in[xi];
       r->has_pending = 1;
+      xi++;
     }
 
+  r->consumed = xi;
   return oi;
 }

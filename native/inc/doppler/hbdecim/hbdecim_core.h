@@ -90,6 +90,9 @@ extern "C"
                                  state) */
     float _Complex pending; /**< The held even sample; 0 when none is
                                  held (running state) */
+    size_t consumed; /**< Input samples the last execute took; per-call,
+                          not in the blob (0 after create, reset and
+                          set_state) */
   } hbdecim_state_t;
 
   /**
@@ -179,10 +182,13 @@ extern "C"
    * next call.
    *
    * Output-buffer sizing: allocate at least (num_in + 1) / 2 samples.
-   * Emission stops once @p max_out samples are written. The first
-   * unconsumed sample is then held as pending and every sample after it
-   * is dropped (doppler#2643), so size @p out for the whole block.  If
-   * num_in or max_out is 0 the call returns 0 and consumes nothing.
+   * A shorter @p out drops nothing: the call stops at the pair boundary
+   * after the last output it has room for, and dp_hbdecim_consumed()
+   * says how much input it took, so the caller offers in + consumed
+   * again and the outputs resume exactly as one whole call gives
+   * (doppler#2643).  A trailing sample is held only when it is the last
+   * input; with @p max_out 0 the call writes nothing and takes at most
+   * that one sample.
    *
    * @param r        Must be non-NULL.
    * @param in       Input CF32 samples.
@@ -194,6 +200,17 @@ extern "C"
    */
   size_t dp_hbdecim_execute (hbdecim_state_t *r, const float _Complex *in,
                           size_t num_in, float _Complex *out, size_t max_out);
+
+  /**
+   * @brief Input samples the last dp_hbdecim_execute() took.
+   *
+   * Equal to its @p num_in unless @p out filled first; then the caller
+   * resumes at in + consumed.  0 after create, reset and set_state.
+   *
+   * @param r  Must be non-NULL.
+   * @return Input samples taken by the last execute.
+   */
+  size_t dp_hbdecim_consumed (const hbdecim_state_t *r);
 
   /**
    * @brief Output-to-input sample-rate ratio (fixed by design).

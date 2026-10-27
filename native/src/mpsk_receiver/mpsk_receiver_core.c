@@ -628,10 +628,13 @@ dp_mpsk_receiver_steps_real (dp_mpsk_receiver_state_t *state, const float *x,
 }
 
 size_t
-dp_mpsk_receiver_bits_max_out (dp_mpsk_receiver_state_t *state)
+dp_mpsk_receiver_bits_max_out (dp_mpsk_receiver_state_t *state, size_t x_len)
 {
-  (void)state;
-  return 0; /* one bit per symbol, and symbols <= inputs */
+  /* At most one symbol per input sample (mpsk_rx_step_at yields at most one
+     per call), and log2(M) bits per symbol. The old "0, size to the input"
+     was one bit per symbol, which 8PSK at sps below 3 outruns, and the
+     excess bits were dropped silently (doppler#2643). */
+  return x_len * (size_t)mpsk_bps (state->l.m);
 }
 
 size_t

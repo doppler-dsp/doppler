@@ -41,6 +41,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define NSYM 6000
 #define SPS 8.0
@@ -2259,6 +2260,44 @@ main (void)
       free (lid);
       free (lou);
     }
+  }
+
+  /* bits_max_out is a real bound (doppler#2643): 8PSK at sps = 2 yields
+     about 1.5 bits per input sample, which the old bound (the input length)
+     truncated silently. Sized from bits_max_out, bits() returns 3 bits for
+     every symbol an identical twin's steps() returns. */
+  {
+    enum
+    {
+      L = 4000
+    };
+    float _Complex *x = malloc (L * sizeof *x);
+    for (size_t i = 0; i < L; i++)
+      {
+        double ph = 2.0 * M_PI * (double)((i / 2 * 5) % 8) / 8.0;
+        x[i]      = (float)cos (ph) + I * (float)sin (ph);
+      }
+    dp_mpsk_receiver_state_t *a
+        = dp_mpsk_receiver_create (8, 2.0, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                                   0.01, 0.707, 0.01, 0.0, 0.0, 0, 0u, 1, 0.0);
+    dp_mpsk_receiver_state_t *b
+        = dp_mpsk_receiver_create (8, 2.0, 0u, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                                   0.01, 0.707, 0.01, 0.0, 0.0, 0, 0u, 1, 0.0);
+    DP_REQUIRE (a != NULL && b != NULL);
+    float _Complex *sym  = malloc (L * sizeof *sym);
+    size_t          nsym = dp_mpsk_receiver_steps (a, x, L, sym, L);
+    size_t          cap  = dp_mpsk_receiver_bits_max_out (b, L);
+    DP_CHECK (cap == 3u * L);
+    uint8_t *bits  = malloc (cap);
+    size_t   nbits = dp_mpsk_receiver_bits (b, x, L, bits, cap);
+    DP_CHECK (nsym > L / 3); /* past the old input-length bound in bits */
+    DP_CHECK (nbits == 3u * nsym);
+    DP_CHECK (nbits > L);
+    free (bits);
+    free (sym);
+    free (x);
+    dp_mpsk_receiver_destroy (a);
+    dp_mpsk_receiver_destroy (b);
   }
 
   DP_TEST_END ("test_mpsk_receiver_core");

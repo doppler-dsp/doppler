@@ -671,19 +671,19 @@ extern "C"
                               float _Complex *out, size_t max_out);
 
   /**
-   * @brief Output-capacity hint for the generated binding's bits().
+   * @brief Output capacity bits() needs for an @p x_len-sample block.
    *
-   * Always returns 0, which the binding reads as "the input length is a safe
-   * bound": a block yields at most
-   * `x_len / sps` symbols of log2(M) bits each. That bound is <= the
-   * input length except for M = 8 at an `sps` below 3, where the
-   * input-length buffer can be too small and the excess bits are
-   * dropped (never overrun: writes stop at @p max_out).
+   * A block yields at most one symbol per input sample, of log2(M) bits
+   * each, so `x_len * log2(M)` bits always fit.  The bound used to be the
+   * input length alone, which 8PSK at an `sps` below 3 outruns; the bits
+   * past it were dropped silently (doppler#2643).
    *
-   * @param state  Receiver state (unused).
-   * @return 0.
+   * @param state  Receiver state; its M sets the bits per symbol.
+   * @param x_len  Input samples in the block.
+   * @return `x_len * log2(M)`.
    */
-  size_t dp_mpsk_receiver_bits_max_out (dp_mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_bits_max_out (dp_mpsk_receiver_state_t *state,
+                                        size_t x_len);
   /**
    * @brief Demodulate a cf32 block and emit hard Gray-coded bits.
    *

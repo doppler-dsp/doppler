@@ -98,6 +98,8 @@ typedef struct {
                                for the next execute() (running state).    */
     int16_t  pending_I;   /**< I of the buffered pair; valid if has_pending. */
     int16_t  pending_Q;   /**< Q of the buffered pair; valid if has_pending. */
+    size_t   consumed;    /**< Complex input samples the last execute took;
+                               per-call, not in the blob.                  */
 } dp_hbdecim_q15_state_t;
 
 /**
@@ -188,9 +190,11 @@ void dp_hbdecim_q15_reset(dp_hbdecim_q15_state_t *r);
  *                a value in int16 units would let it write 2x the buffer.
  * @return        min(available, max_out) COMPLEX samples -- twice that
  *                many int16_t values; 0 when @p n_in or @p max_out is 0.
- *                When @p max_out stops the loop early, only the next
- *                unconsumed input pair is buffered as pending; any
- *                further input in this call is dropped.
+ *                When @p max_out stops the loop early, the call stops at
+ *                the pair boundary and drops nothing:
+ *                dp_hbdecim_q15_consumed() says how much input it took,
+ *                and offering the rest again resumes exactly
+ *                (doppler#2643).
  * @code
  * >>> import numpy as np
  * >>> from doppler.resample import HalfbandDecimatorQ15
@@ -209,6 +213,18 @@ void dp_hbdecim_q15_reset(dp_hbdecim_q15_state_t *r);
 size_t dp_hbdecim_q15_execute(dp_hbdecim_q15_state_t *r,
                            const int16_t *in, size_t n_in,
                            int16_t *out, size_t max_out);
+
+/**
+ * @brief Complex input samples the last dp_hbdecim_q15_execute() took.
+ *
+ * Equal to its @p n_in unless @p out filled first; then the caller
+ * resumes at in + 2 * consumed int16 elements.  0 after create, reset and
+ * set_state.
+ *
+ * @param r  Must be non-NULL.
+ * @return Complex input samples taken by the last execute.
+ */
+size_t dp_hbdecim_q15_consumed(const dp_hbdecim_q15_state_t *r);
 
 /**
  * @brief Maximum output samples for a given input length.

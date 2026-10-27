@@ -99,11 +99,14 @@ extern "C"
    * One complex output per (even, odd) input pair, counting a sample
    * held from the previous call as the first of the block.  A sample
    * left unpaired at the end is held for the next call, so contiguous
-   * blocks give the same output as one large block.  Emission stops
-   * once @p max_out samples are written; the first unconsumed sample is
-   * then held and every sample after it is dropped (doppler#2643), so
-   * size @p out for the whole block: (num_in + 1) / 2 samples.  If
-   * num_in or max_out is 0 the call returns 0 and consumes nothing.
+   * blocks give the same output as one large block.  Size @p out for
+   * the whole block, (num_in + 1) / 2 samples.  A shorter @p out drops
+   * nothing: the call stops at the pair boundary after the last output it
+   * has room for, and dp_hbdecim_r2c_consumed() says how much input it
+   * took, so the caller offers in + consumed again and the outputs resume
+   * exactly as one whole call gives (doppler#2643).  A trailing sample is
+   * held only when it is the last input; with @p max_out 0 the call
+   * writes nothing and takes at most that one sample.
    *
    * @param r        Must be non-NULL.
    * @param in       Real input samples.
@@ -117,6 +120,17 @@ extern "C"
   size_t dp_hbdecim_r2c_execute (hbdecim_r2c_state_t *r, const float *in,
                               size_t num_in, float _Complex *out,
                               size_t max_out);
+
+  /**
+   * @brief Input samples the last dp_hbdecim_r2c_execute() took.
+   *
+   * Equal to its @p num_in unless @p out filled first; then the caller
+   * resumes at in + consumed.  0 after create, reset and set_state.
+   *
+   * @param r  Must be non-NULL.
+   * @return Input samples taken by the last execute.
+   */
+  size_t dp_hbdecim_r2c_consumed (const hbdecim_r2c_state_t *r);
 
   /* ── Serializable state (reusable elastic-resume convention) ──────────────
    * Mutable per-stream state only — the even/odd delay rings, their write

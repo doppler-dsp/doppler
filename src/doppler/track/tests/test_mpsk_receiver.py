@@ -486,3 +486,22 @@ def test_an_infinite_loop_parameter_is_refused_and_named(change):
     MpskReceiver(**{"m": 2, "sps": 8.0})
     with pytest.raises(ValueError, match="bn >= 0 and zeta > 0 both finite"):
         MpskReceiver(**{"m": 2, "sps": 8.0}, **change)
+
+
+def test_8psk_at_sps_2_returns_every_bit():
+    """bits() returns 3 bits for every symbol, past len(x) (#2643).
+
+    8PSK at sps=2 yields about 1.5 bits per input sample. bits_max_out used
+    to answer 0 ("size to the input"), so the binding's buffer held len(x)
+    bits and the rest were dropped silently.
+    """
+    n = 4000
+    idx = (np.arange(n) // 2 * 5) % 8
+    x = np.exp(2j * np.pi * idx / 8).astype(np.complex64)
+    kw = {"m": 8, "sps": 2.0, "pulse": "iandd"}
+    nsym = len(MpskReceiver(**kw).steps(x))
+    rx = MpskReceiver(**kw)
+    assert rx.bits_max_out(n) == 3 * n
+    bits = rx.bits(x)
+    assert nsym > n // 3
+    assert len(bits) == 3 * nsym > n

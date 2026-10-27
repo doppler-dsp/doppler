@@ -85,9 +85,9 @@ extern "C"
     size_t odd_head; /**< Index of the newest sample in odd_buf (running
                           state) */
 
-    int has_pending;        /**< 1 when the trailing even sample of an
-                                 odd-length block is held for the next
-                                 execute call, else 0 (running state) */
+    int has_pending;        /**< 1 when an unpaired sample is held for
+                                 the next execute call, else 0 (running
+                                 state) */
     float _Complex pending; /**< The held even sample; 0 when none is
                                  held (running state) */
   } hbdecim_state_t;
@@ -173,15 +173,16 @@ extern "C"
   /**
    * @brief Decimate a block of CF32 samples by 2.
    *
-   * Processes input pairs (even, odd); one output per pair.  If num_in
-   * is odd, the trailing even sample is buffered and consumed on the
+   * Processes input pairs (even, odd); one output per pair, counting a
+   * sample held from the previous call as the first of the block.  A
+   * sample left unpaired at the end is buffered and consumed on the
    * next call.
    *
    * Output-buffer sizing: allocate at least (num_in + 1) / 2 samples.
-   * Emission stops once @p max_out samples are written; complete input
-   * pairs left over at that point are discarded (only one trailing
-   * sample is carried), so size @p out for the whole block.  If num_in
-   * or max_out is 0 the call returns 0 and consumes nothing.
+   * Emission stops once @p max_out samples are written. The first
+   * unconsumed sample is then held as pending and every sample after it
+   * is dropped (doppler#2643), so size @p out for the whole block.  If
+   * num_in or max_out is 0 the call returns 0 and consumes nothing.
    *
    * @param r        Must be non-NULL.
    * @param in       Input CF32 samples.

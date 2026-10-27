@@ -87,7 +87,7 @@ extern "C"
    * Call between signal bursts to suppress transient ringing from prior
    * filter state. The next execute() after reset produces the same
    * output as a freshly created decimator fed the same input. Any
-   * trailing sample held from an odd-length block is dropped too.
+   * sample held for the next call is dropped too.
    *
    * @param state  State. Must be non-NULL.
    *
@@ -150,17 +150,19 @@ extern "C"
    * @brief Decimate x by 2 using the polyphase halfband FIR filter.
    * Each (even, odd) input pair yields one output: one phase runs
    * through the symmetric FIR branch and the other through a pure
-   * delay weighted 0.5. State persists between calls — an odd-length
-   * block holds its last sample for the next call, so contiguous
-   * blocks give identical output to one large block.
+   * delay weighted 0.5. State persists between calls: a sample left
+   * unpaired at the end of a block (counting one held from the previous
+   * call) is held for the next, so contiguous blocks give identical
+   * output to one large block.
    *
    * @param state  Pointer to a valid dp_HalfbandDecimator_state_t.
-   * @param x      CF32 input array.  An odd length leaves its last
-   *               sample held for the next call.
+   * @param x      CF32 input array.  A sample left unpaired at the end
+   *               is held for the next call.
    * @param x_len  Number of input samples.
    * @param[out] out    Output buffer; must hold at least
-   *               (x_len + 1) / 2 samples. Complete input pairs left
-   *               once it is full are discarded, not carried.
+   *               (x_len + 1) / 2 samples. If it fills first, the
+   *               first unconsumed sample is held and every sample
+   *               after it is dropped (doppler#2643).
    * @param max_out Capacity of @p out in elements. Emission stops there, so
    *                the return value is the number actually written.
    * @return       Number of CF32 samples written to @p out:

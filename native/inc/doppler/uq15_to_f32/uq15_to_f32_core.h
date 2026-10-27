@@ -122,8 +122,9 @@ dp_uq15_to_f32_step(const dp_uq15_to_f32_state_t *state, uint16_t x)
  * @brief Process a block of UQ15 samples to float32.
  *
  * Applies step() to every element.  State is not mutated (no clipped flag).
- * Accepts an optional pre-allocated output array; allocates a fresh one when
- * @p output is NULL.
+ * In C, @p output must be a caller-owned array of at least @p n elements
+ * (NULL is not accepted).  From Python it is the optional `out=` array;
+ * the binding allocates a fresh one when omitted.
  *
  * @param state   Must be non-NULL.
  * @param input   Input uint16 offset-binary array; must contain at least

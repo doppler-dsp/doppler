@@ -4099,11 +4099,16 @@ changelog-check: ## A branch changing code must add a changelog entry
 # re-enter it with the pinned doxygen on PATH. Writes NOTHING into the tree:
 # the container mounts the repo read-only, so the generated XML/HTML and the
 # log go to a scratch dir. A gate that mutates the tree it checks is a bug.
+# Each pass reads doxygen's exit status as well as its log: a doxygen that
+# dies (a crash, an OOM kill) writes no warnings, and silence is not a pass.
 doxygen-warn-gate: ## The doxygen warning gate proper (re-entered in Docker)
 	@out=$$(mktemp -d); \
 	{ cat Doxyfile; \
 	  echo "OUTPUT_DIRECTORY=$$out"; \
-	  echo "WARN_LOGFILE="; } | doxygen - > $$out/stdout.log 2>&1; \
+	  echo "WARN_LOGFILE="; } | doxygen - > $$out/stdout.log 2>&1 \
+	  || { cat $$out/stdout.log; \
+	       echo "doxygen-check: doxygen exited non-zero — FAIL"; \
+	       rm -rf $$out; exit 1; }; \
 	n=$$(grep -c 'warning:' $$out/stdout.log || true); \
 	if [ "$$n" != "0" ]; then \
 	  grep 'warning:' $$out/stdout.log; \
@@ -4113,7 +4118,10 @@ doxygen-warn-gate: ## The doxygen warning gate proper (re-entered in Docker)
 	  printf '%s\n' $(DOXYGEN_COVERAGE_OVERRIDES); \
 	  echo "EXCLUDE_PATTERNS += $(DOXYGEN_COVERAGE_EXCLUDE)"; \
 	  echo "OUTPUT_DIRECTORY=$$out/coverage"; \
-	  echo "WARN_LOGFILE="; } | doxygen - > $$out/coverage.log 2>&1; \
+	  echo "WARN_LOGFILE="; } | doxygen - > $$out/coverage.log 2>&1 \
+	  || { cat $$out/coverage.log; \
+	       echo "doxygen-check: doxygen exited non-zero in the coverage pass — FAIL"; \
+	       rm -rf $$out; exit 1; }; \
 	n=$$(grep -c 'warning:' $$out/coverage.log || true); \
 	if [ "$$n" != "0" ]; then \
 	  grep 'warning:' $$out/coverage.log; \

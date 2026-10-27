@@ -8,7 +8,7 @@
 
 
 
-
+[More...](#detailed-description)
 
 * `#include <wfm_surface.h>`
 
@@ -85,6 +85,13 @@
 
 
 
+## Detailed Description
+
+
+One pair of rows no face may take together. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -93,11 +100,15 @@
 ### variable a 
 
 ```C++
-int wfm_surface_exclusive_t::a;
+wfm_surface_exclusive_t::a;
 ```
 
 
 
+First row of the pair: WFM\_SURFACE\_&lt;owner&gt;\_&lt;name&gt;. 
+
+
+        
 
 <hr>
 
@@ -111,6 +122,10 @@ int wfm_surface_exclusive_t::b;
 
 
 
+second row: WFM\_SURFACE\_&lt;owner&gt;\_&lt;name&gt; 
+
+
+        
 
 <hr>
 
@@ -124,6 +139,10 @@ const char* wfm_surface_exclusive_t::cli_why;
 
 
 
+CLI refusal; NULL: not both flags 
+
+
+        
 
 <hr>
 
@@ -137,6 +156,10 @@ const char* wfm_surface_exclusive_t::json_why;
 
 
 
+scene refusal; NULL: not both keys 
+
+
+        
 
 <hr>
 
@@ -150,6 +173,10 @@ const char* wfm_surface_exclusive_t::obj_why;
 
 
 
+object refusal; NULL: not both set 
+
+
+        
 
 <hr>
 

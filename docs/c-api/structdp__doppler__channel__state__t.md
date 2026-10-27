@@ -113,6 +113,11 @@ double dp_doppler_channel_state_t::carrier_hz;
 
 
 
+RF carrier fc, Hz — drives the offset (config; 0 = clocks only) 
+ 
+
+
+        
 
 <hr>
 
@@ -126,6 +131,11 @@ double* dp_doppler_channel_state_t::ctrl;
 
 
 
+owned per-sample rate deviation scratch (not state) 
+ 
+
+
+        
 
 <hr>
 
@@ -139,6 +149,11 @@ size_t dp_doppler_channel_state_t::ctrl_cap;
 
 
 
+length of `ctrl`, samples (DOPPLER\_CHANNEL\_MAX\_BLOCK) 
+ 
+
+
+        
 
 <hr>
 
@@ -152,6 +167,11 @@ double dp_doppler_channel_state_t::doppler_ppm;
 
 
 
+d0, ppm of nominal (config) 
+ 
+
+
+        
 
 <hr>
 
@@ -165,6 +185,11 @@ double dp_doppler_channel_state_t::doppler_rate_ppm_s;
 
 
 
+d-dot, ppm/s (config) 
+ 
+
+
+        
 
 <hr>
 
@@ -178,6 +203,11 @@ double dp_doppler_channel_state_t::fs;
 
 
 
+receive sample rate, Hz (config) 
+ 
+
+
+        
 
 <hr>
 
@@ -191,6 +221,11 @@ uint64_t dp_doppler_channel_state_t::n_in;
 
 
 
+running: input samples consumed 
+ 
+
+
+        
 
 <hr>
 
@@ -204,6 +239,11 @@ uint64_t dp_doppler_channel_state_t::n_out;
 
 
 
+running: output samples produced 
+ 
+
+
+        
 
 <hr>
 
@@ -217,6 +257,11 @@ double* dp_doppler_channel_state_t::pos;
 
 
 
+owned per-output input position scratch (not state); grown on demand 
+ 
+
+
+        
 
 <hr>
 
@@ -230,6 +275,11 @@ size_t dp_doppler_channel_state_t::pos_cap;
 
 
 
+length of `pos`, samples 
+ 
+
+
+        
 
 <hr>
 
@@ -243,6 +293,11 @@ double dp_doppler_channel_state_t::prof_d;
 
 
 
+running: most recent instantaneous d from a profile (dimensionless, not ppm) 
+ 
+
+
+        
 
 <hr>
 
@@ -256,6 +311,10 @@ uint8_t dp_doppler_channel_state_t::profiled;
 
 
 
+running: set by any execute\_profile() call; cleared by a non-empty execute() or reset 
+
+
+        
 
 <hr>
 
@@ -269,6 +328,11 @@ resamp_state_t* dp_doppler_channel_state_t::rs;
 
 
 
+owned resampler doing the dilation — never hand-rolled here 
+ 
+
+
+        
 
 <hr>
 

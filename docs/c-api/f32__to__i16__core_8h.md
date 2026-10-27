@@ -62,10 +62,10 @@ _Scale-and-saturate float-to-int16 converter._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* | [**dp\_f32\_to\_i16\_create**](#function-dp_f32_to_i16_create) (float scale) <br>_Create a f32\_to\_i16 instance._  |
 |  void | [**dp\_f32\_to\_i16\_destroy**](#function-dp_f32_to_i16_destroy) ([**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* state) <br>_Destroy a f32\_to\_i16 instance and release all memory._  |
-|  void | [**dp\_f32\_to\_i16\_get\_state**](#function-dp_f32_to_i16_get_state) (const [**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_f32\_to\_i16\_get\_state**](#function-dp_f32_to_i16_get_state) (const [**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* state, void \* blob) <br>_Serialize the state (scale and sticky clip flag) into_ `blob` _._ |
 |  void | [**dp\_f32\_to\_i16\_reset**](#function-dp_f32_to_i16_reset) ([**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
-|  int | [**dp\_f32\_to\_i16\_set\_state**](#function-dp_f32_to_i16_set_state) ([**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_f32\_to\_i16\_state\_bytes**](#function-dp_f32_to_i16_state_bytes) (const [**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* state) <br> |
+|  int | [**dp\_f32\_to\_i16\_set\_state**](#function-dp_f32_to_i16_set_state) ([**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* state, const void \* blob) <br>_Restore state from a blob written by_ [_**dp\_f32\_to\_i16\_get\_state()**_](f32__to__i16__core_8h.md#function-dp_f32_to_i16_get_state) _._ |
+|  size\_t | [**dp\_f32\_to\_i16\_state\_bytes**](#function-dp_f32_to_i16_state_bytes) (const [**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int16\_t | [**dp\_f32\_to\_i16\_step**](#function-dp_f32_to_i16_step) ([**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* state, float x) <br>_Scale one float sample by_ `scale` _, round, and saturate to int16._ |
 |  void | [**dp\_f32\_to\_i16\_steps**](#function-dp_f32_to_i16_steps) ([**dp\_f32\_to\_i16\_state\_t**](structdp__f32__to__i16__state__t.md) \* state, const float \* input, int16\_t \* output, size\_t n) <br>_Process a block of float samples to int16._  |
 
@@ -153,7 +153,7 @@ dp_f32_to_i16_state_t * dp_f32_to_i16_create (
 
 
 
-Allocates state and stores `scale`. The `clipped` flag is initialised to 0. Returns NULL only on malloc failure; no parameter validation is performed (any finite float is a valid scale).
+Allocates state and stores `scale`. The `clipped` flag is initialised to 0. The only validation is that `scale` must be positive.
 
 
 
@@ -167,7 +167,7 @@ Allocates state and stores `scale`. The `clipped` flag is initialised to 0. Retu
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL if `scale` &lt;= 0 or on allocation failure. 
 
 
 
@@ -215,6 +215,7 @@ void dp_f32_to_i16_destroy (
 
 ### function dp\_f32\_to\_i16\_get\_state 
 
+_Serialize the state (scale and sticky clip flag) into_ `blob` _._
 ```C++
 void dp_f32_to_i16_get_state (
     const dp_f32_to_i16_state_t * state,
@@ -224,6 +225,18 @@ void dp_f32_to_i16_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_f32\_to\_i16\_state\_bytes()**](f32__to__i16__core_8h.md#function-dp_f32_to_i16_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -271,6 +284,7 @@ False
 
 ### function dp\_f32\_to\_i16\_set\_state 
 
+_Restore state from a blob written by_ [_**dp\_f32\_to\_i16\_get\_state()**_](f32__to__i16__core_8h.md#function-dp_f32_to_i16_get_state) _._
 ```C++
 int dp_f32_to_i16_set_state (
     dp_f32_to_i16_state_t * state,
@@ -280,6 +294,28 @@ int dp_f32_to_i16_set_state (
 
 
 
+Replaces the whole struct, including `scale`; nothing changes if the envelope is rejected.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Source blob of [**dp\_f32\_to\_i16\_state\_bytes()**](f32__to__i16__core_8h.md#function-dp_f32_to_i16_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the envelope (magic, version, endianness, size) does not match. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -287,6 +323,7 @@ int dp_f32_to_i16_set_state (
 
 ### function dp\_f32\_to\_i16\_state\_bytes 
 
+_Serialized-state byte size._ 
 ```C++
 size_t dp_f32_to_i16_state_bytes (
     const dp_f32_to_i16_state_t * state
@@ -295,6 +332,24 @@ size_t dp_f32_to_i16_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Converter state (unused: the size is fixed). 
+
+
+
+**Returns:**
+
+`sizeof(dp_state_hdr_t) + sizeof(dp_f32_to_i16_state_t)`. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -364,7 +419,7 @@ void dp_f32_to_i16_steps (
 
 
 
-Applies step() to every element. The `clipped` flag is updated cumulatively across the block — a single saturating sample raises it for the entire call. Accepts an optional pre-allocated output array; allocates a fresh one when `output` is NULL.
+Applies step() to every element. The `clipped` flag is updated cumulatively across the block — a single saturating sample raises it for the entire call. The C function writes into the caller's `output` and never allocates; the Python binding allocates a fresh array when no `out=` buffer is passed.
 
 
 
@@ -405,6 +460,10 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 
 
+FourCC type tag ("F216") stamped in an F32ToI16 state blob's header. 
+
+
+        
 
 <hr>
 
@@ -418,6 +477,10 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 
 
+Layout version of the F32ToI16 state blob; a mismatch is rejected. 
+
+
+        
 
 <hr>
 

@@ -121,6 +121,10 @@ unsigned wfm_frame_rx_t::n_stages;
 
 
 
+Entries of `stage` in use: the description's stage count. 
+
+
+        
 
 <hr>
 
@@ -134,6 +138,10 @@ wfm_frame_stage_rx_t wfm_frame_rx_t::stage[WFM_FRAME_MAX_STAGES];
 
 
 
+One result per stage, indexed as the description's `stage`. 
+
+
+        
 
 <hr>
 

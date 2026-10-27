@@ -58,7 +58,7 @@ _int16-to-float converter with configurable inverse scale._ [More...](#detailed-
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_i16\_to\_f32\_state\_t**](structdp__i16__to__f32__state__t.md) \* | [**dp\_i16\_to\_f32\_create**](#function-dp_i16_to_f32_create) (float scale) <br>_Create a i16\_to\_f32 instance._  |
+|  [**dp\_i16\_to\_f32\_state\_t**](structdp__i16__to__f32__state__t.md) \* | [**dp\_i16\_to\_f32\_create**](#function-dp_i16_to_f32_create) (float scale) <br>_Create a signed int16 to float32 converter._  |
 |  void | [**dp\_i16\_to\_f32\_destroy**](#function-dp_i16_to_f32_destroy) ([**dp\_i16\_to\_f32\_state\_t**](structdp__i16__to__f32__state__t.md) \* state) <br>_Destroy a i16\_to\_f32 instance and release all memory._  |
 |  void | [**dp\_i16\_to\_f32\_reset**](#function-dp_i16_to_f32_reset) ([**dp\_i16\_to\_f32\_state\_t**](structdp__i16__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**dp\_i16\_to\_f32\_step**](#function-dp_i16_to_f32_step) (const [**dp\_i16\_to\_f32\_state\_t**](structdp__i16__to__f32__state__t.md) \* state, int16\_t x) <br>_Convert one signed int16 sample to a normalised float via_ `1/scale` _._ |
@@ -124,7 +124,7 @@ Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
 
 ### function dp\_i16\_to\_f32\_create 
 
-_Create a i16\_to\_f32 instance._ 
+_Create a signed int16 to float32 converter._ 
 ```C++
 dp_i16_to_f32_state_t * dp_i16_to_f32_create (
     float scale
@@ -133,7 +133,7 @@ dp_i16_to_f32_state_t * dp_i16_to_f32_create (
 
 
 
-Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single multiply. Any non-zero finite float is a valid scale value.
+Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single multiply. `scale` must be &gt; 0; zero or a negative value is refused (NULL).
 
 
 
@@ -147,7 +147,7 @@ Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single multiply
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL when `scale` &lt;= 0 or allocation fails. 
 
 
 

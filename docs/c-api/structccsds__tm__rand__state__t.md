@@ -103,6 +103,10 @@ uint32_t ccsds_tm_rand_state_t::reg;
 
 
 
+shift register, low `stages` bits; the top stage is the next bit emitted. Running state 
+
+
+        
 
 <hr>
 
@@ -116,6 +120,11 @@ unsigned ccsds_tm_rand_state_t::stages;
 
 
 
+register width in bits, copied likewise 
+ 
+
+
+        
 
 <hr>
 
@@ -129,6 +138,11 @@ uint32_t ccsds_tm_rand_state_t::taps;
 
 
 
+feedback mask, copied from the randomiser 
+ 
+
+
+        
 
 <hr>
 

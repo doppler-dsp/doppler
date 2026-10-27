@@ -8,7 +8,7 @@
 
 
 
-
+_PN state._ [More...](#detailed-description)
 
 * `#include <pn_core.h>`
 
@@ -87,6 +87,13 @@
 
 
 
+## Detailed Description
+
+
+Allocate with [**dp\_pn\_create()**](pn__core_8h.md#function-dp_pn_create). Every field except `reg` is config set by create() and never changed; `reg` is the running register. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -100,6 +107,10 @@ uint64_t dp_pn_state_t::fib_taps;
 
 
 
+Fibonacci feedback taps (canonical polynomial derived from `poly`, masked); 0 for Galois. 
+
+
+        
 
 <hr>
 
@@ -113,6 +124,10 @@ int dp_pn_state_t::kind;
 
 
 
+PN\_GALOIS or PN\_FIBONACCI; any other lfsr argument to create() becomes PN\_GALOIS. 
+
+
+        
 
 <hr>
 
@@ -126,6 +141,10 @@ uint64_t dp_pn_state_t::mask;
 
 
 
+(1 &lt;&lt; length) - 1; all ones when length == 64. 
+
+
+        
 
 <hr>
 
@@ -139,6 +158,10 @@ uint64_t dp_pn_state_t::poly;
 
 
 
+Galois feedback tap mask, masked to the register (right-shift convention). 
+
+
+        
 
 <hr>
 
@@ -152,6 +175,10 @@ uint64_t dp_pn_state_t::reg;
 
 
 
+Current LFSR register (running state); its LSB is the next chip. The only serialized field. 
+
+
+        
 
 <hr>
 
@@ -165,6 +192,10 @@ uint64_t dp_pn_state_t::seed;
 
 
 
+Initial register value, masked to the register; reloaded by reset(). Never zero. 
+
+
+        
 
 <hr>
 
@@ -178,6 +209,10 @@ uint32_t dp_pn_state_t::topshift;
 
 
 
+length - 1: the bit the Fibonacci feedback enters at. 
+
+
+        
 
 <hr>
 

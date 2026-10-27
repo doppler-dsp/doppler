@@ -8,7 +8,7 @@
 
 
 
-
+_State of a CF32 halfband 2:1 decimator._ [More...](#detailed-description)
 
 * `#include <hbdecim_core.h>`
 
@@ -92,6 +92,13 @@
 
 
 
+## Detailed Description
+
+
+Allocate with [**dp\_hbdecim\_create()**](hbdecim__core_8h.md#function-dp_hbdecim_create) and free with [**dp\_hbdecim\_destroy()**](hbdecim__core_8h.md#function-dp_hbdecim_destroy). The layout is public because [**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md) aliases it, but callers should treat every field as read-only: the config fields are set once by create, and the running fields are owned by execute, reset and set\_state. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -105,6 +112,10 @@ size_t hbdecim_state_t::centre;
 
 
 
+num\_taps / 2 (integer division): the delay-line index the half-weight delay branch reads (config) 
+
+
+        
 
 <hr>
 
@@ -118,6 +129,10 @@ float _Complex* hbdecim_state_t::even_buf;
 
 
 
+Owned even-sample ring of 2\*even\_cap samples; each push writes index head and head+even\_cap, so even\_cap samples from head are always contiguous (running state) 
+
+
+        
 
 <hr>
 
@@ -131,6 +146,10 @@ size_t hbdecim_state_t::even_cap;
 
 
 
+Ring length: the smallest power of two &gt;= num\_taps (config; shared by both rings) 
+
+
+        
 
 <hr>
 
@@ -144,6 +163,10 @@ size_t hbdecim_state_t::even_head;
 
 
 
+Index of the newest sample in even\_buf; moves down by one per push (running state) 
+
+
+        
 
 <hr>
 
@@ -157,6 +180,10 @@ size_t hbdecim_state_t::even_mask;
 
 
 
+even\_cap - 1, the wrap mask for both rings (config) 
+
+
+        
 
 <hr>
 
@@ -170,6 +197,10 @@ int hbdecim_state_t::fir_on_even;
 
 
 
+1 if N is even (FIR runs on the even-sample line), 0 if N is odd (FIR on the odd line) (config) 
+
+
+        
 
 <hr>
 
@@ -183,6 +214,10 @@ float* hbdecim_state_t::h;
 
 
 
+Owned copy of the N FIR coefficients, each scaled by 0.5 (polyphase normalization); only the first N/2 are read, the branch being symmetric (config) 
+
+
+        
 
 <hr>
 
@@ -196,6 +231,10 @@ int hbdecim_state_t::has_pending;
 
 
 
+1 when the trailing even sample of an odd-length block is held for the next execute call, else 0 (running state) 
+
+
+        
 
 <hr>
 
@@ -209,6 +248,10 @@ size_t hbdecim_state_t::num_taps;
 
 
 
+FIR branch length N, as passed to create (config) 
+
+
+        
 
 <hr>
 
@@ -222,6 +265,10 @@ float _Complex* hbdecim_state_t::odd_buf;
 
 
 
+Owned odd-sample ring of 2\*even\_cap samples, dual-write like even\_buf (running state) 
+
+
+        
 
 <hr>
 
@@ -235,6 +282,10 @@ size_t hbdecim_state_t::odd_head;
 
 
 
+Index of the newest sample in odd\_buf (running state) 
+
+
+        
 
 <hr>
 
@@ -248,6 +299,10 @@ float _Complex hbdecim_state_t::pending;
 
 
 
+The held even sample; 0 when none is held (running state) 
+
+
+        
 
 <hr>
 

@@ -66,7 +66,7 @@ _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-descriptio
 |  void | [**dp\_nprmeas\_destroy**](#function-dp_nprmeas_destroy) ([**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* state) <br>_Destroy an NPRMeasure analyser._  |
 |  void | [**dp\_nprmeas\_reset**](#function-dp_nprmeas_reset) ([**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* state) <br>_Reset the analyser (a no-op: each analyze() call is independent)._  |
 |  size\_t | [**dp\_nprmeas\_spectrum\_dbfs**](#function-dp_nprmeas_spectrum_dbfs) ([**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft)._  |
-|  size\_t | [**dp\_nprmeas\_spectrum\_dbfs\_max\_out**](#function-dp_nprmeas_spectrum_dbfs_max_out) ([**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
+|  size\_t | [**dp\_nprmeas\_spectrum\_dbfs\_max\_out**](#function-dp_nprmeas_spectrum_dbfs_max_out) ([**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) \* state) <br>_Capacity of the spectrum\_dbfs() output buffer._  |
 
 
 
@@ -146,7 +146,7 @@ npr_meas_t dp_nprmeas_analyze (
 
 **Returns:**
 
-the NPR metric record (by value).
+The NPR metric record (by value): npr\_db, in-band and notch PSD in dBFS, the bin counts averaged, and rbw\_hz. All fields are 0 when `n_in` holds no full analysis frame.
 
 
 
@@ -318,7 +318,7 @@ The same windowed, zero-padded PSD the NPR metrics are read off, laid out DC-cen
 
 **Returns:**
 
-DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+Number of DC-centred dBFS values written to `out:` nfft (clipped to `max_out`), or 0 when the capture holds no full frame. The Python binding returns those values as an array.
 
 
 
@@ -344,7 +344,7 @@ DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
 
 ### function dp\_nprmeas\_spectrum\_dbfs\_max\_out 
 
-_Capacity (== nfft) of the spectrum\_dbfs output buffer._ 
+_Capacity of the spectrum\_dbfs() output buffer._ 
 ```C++
 size_t dp_nprmeas_spectrum_dbfs_max_out (
     dp_nprmeas_state_t * state
@@ -353,6 +353,24 @@ size_t dp_nprmeas_spectrum_dbfs_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` The analyser (non-NULL). 
+
+
+
+**Returns:**
+
+nfft, the number of floats spectrum\_dbfs() writes. 
+
+
+
+
+
+        
 
 <hr>
 

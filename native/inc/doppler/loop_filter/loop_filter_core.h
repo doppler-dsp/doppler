@@ -264,7 +264,7 @@ extern "C"
   /** @brief Serialize the loop state into @p blob.
    *  Writes the whole struct: gains, integrator, bn, zeta and t.
    *  @param state Filter state. Must be non-NULL.
-   *  @param blob  [out] At least dp_loop_filter_state_bytes() bytes. */
+   *  @param[out] blob  At least dp_loop_filter_state_bytes() bytes. */
   void dp_loop_filter_get_state(const dp_loop_filter_state_t *state, void *blob);
   /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects.
    *  Only the envelope (magic, version, endianness, size) is checked; the
@@ -272,7 +272,7 @@ extern "C"
    *  dp_loop_filter_state_ok(): a caller restoring an untrusted blob should
    *  check the result with it.
    *  @param state Filter state to overwrite. Must be non-NULL.
-   *  @param blob  [in] Blob from dp_loop_filter_get_state().
+   *  @param[in] blob  Blob from dp_loop_filter_get_state().
    *  @return DP_OK, or DP_ERR_INVALID (and @p state is unchanged). */
   int dp_loop_filter_set_state(dp_loop_filter_state_t *state, const void *blob);
 

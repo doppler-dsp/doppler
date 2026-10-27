@@ -32,7 +32,7 @@ _AccQ15 — a running 64-bit integer accumulator for Q15 (int16\_t) samples. Int
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) <br>_AccQ15 state._  |
+| struct | [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) <br>_AccQ15 state: one 64-bit integer running sum._  |
 
 
 
@@ -64,12 +64,12 @@ _AccQ15 — a running 64-bit integer accumulator for Q15 (int16\_t) samples. Int
 |  int64\_t | [**dp\_acc\_q15\_dump**](#function-dp_acc_q15_dump) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br>_Return the accumulated value and atomically reset it to zero. Ideal for block-based processing where each block hands off its sum and then starts fresh, avoiding a separate reset() call._  |
 |  int64\_t | [**dp\_acc\_q15\_get**](#function-dp_acc_q15_get) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br>_Return the current accumulated value without resetting it. Identical to reading the acc field directly; exists as a named method so the Python binding can expose it consistently with dump()._  |
 |  int64\_t | [**dp\_acc\_q15\_get\_acc**](#function-dp_acc_q15_get_acc) (const [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br>_Read the current accumulator value without modifying it. Use this when you need to snapshot the running total mid-stream and continue accumulating afterward._  |
-|  void | [**dp\_acc\_q15\_get\_state**](#function-dp_acc_q15_get_state) (const [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_acc\_q15\_get\_state**](#function-dp_acc_q15_get_state) (const [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, void \* blob) <br>_Serialize the running sum into a caller-owned blob._  |
 |  void | [**dp\_acc\_q15\_madd**](#function-dp_acc_q15_madd) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, const int16\_t \* a, size\_t a\_len, const int16\_t \* b, size\_t b\_len) <br>_Multiply-accumulate over the shorter of the two arrays. Computes acc += sum(_ `a[i]` _\*_`b[i]` _), using SIMD (AVX2 when available) to process multiple products per cycle, making this efficient for FIR filter energy computation and dot-product accumulation across blocks._ |
 |  void | [**dp\_acc\_q15\_reset**](#function-dp_acc_q15_reset) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br>_Reset the accumulator to zero, mirroring the post-create state. Does not re-initialise to the constructor's acc value — always resets to zero, matching the default initial state for a clean sweep._  |
 |  void | [**dp\_acc\_q15\_set\_acc**](#function-dp_acc_q15_set_acc) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, int64\_t val) <br>_Overwrite the accumulator with a new value. Useful for setting a bias before a new accumulation window, or for restoring a previously checkpointed value._  |
-|  int | [**dp\_acc\_q15\_set\_state**](#function-dp_acc_q15_set_state) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_acc\_q15\_state\_bytes**](#function-dp_acc_q15_state_bytes) (const [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br> |
+|  int | [**dp\_acc\_q15\_set\_state**](#function-dp_acc_q15_set_state) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, const void \* blob) <br>_Restore the running sum from a_ [_**dp\_acc\_q15\_get\_state()**_](acc__q15__core_8h.md#function-dp_acc_q15_get_state) _blob._ |
+|  size\_t | [**dp\_acc\_q15\_state\_bytes**](#function-dp_acc_q15_state_bytes) (const [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state) <br>_Size of this instance's serialized state blob._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dp\_acc\_q15\_step**](#function-dp_acc_q15_step) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, int16\_t x) <br>_Accumulate one Q15 sample into the running total. The sample is sign-extended to 64 bits before addition, ensuring that negative samples subtract correctly from the accumulator without wrap._  |
 |  void | [**dp\_acc\_q15\_steps**](#function-dp_acc_q15_steps) ([**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) \* state, const int16\_t \* input, size\_t n) <br>_Accumulate a contiguous block of Q15 samples. Equivalent to calling step() n times but faster for large arrays because the loop can be auto-vectorised by the compiler._  |
 
@@ -103,8 +103,8 @@ _AccQ15 — a running 64-bit integer accumulator for Q15 (int16\_t) samples. Int
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**ACC\_Q15\_STATE\_MAGIC**](acc__q15__core_8h.md#define-acc_q15_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', '1', '5')`<br> |
-| define  | [**ACC\_Q15\_STATE\_VERSION**](acc__q15__core_8h.md#define-acc_q15_state_version)  `1u`<br> |
+| define  | [**ACC\_Q15\_STATE\_MAGIC**](acc__q15__core_8h.md#define-acc_q15_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', '1', '5')`<br>_State-blob magic ("AC15"); set\_state() rejects any other._  |
+| define  | [**ACC\_Q15\_STATE\_VERSION**](acc__q15__core_8h.md#define-acc_q15_state_version)  `1u`<br>_State-blob layout version; bumped when the payload changes._  |
 
 ## Detailed Description
 
@@ -313,7 +313,14 @@ int64_t dp_acc_q15_get_acc (
 **Parameters:**
 
 
-* `state` Must be non-NULL.
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Current accumulator value (int64\_t).
+
 
 
 ```C++
@@ -337,6 +344,7 @@ int64_t dp_acc_q15_get_acc (
 
 ### function dp\_acc\_q15\_get\_state 
 
+_Serialize the running sum into a caller-owned blob._ 
 ```C++
 void dp_acc_q15_get_state (
     const dp_acc_q15_state_t * state,
@@ -346,6 +354,18 @@ void dp_acc_q15_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to snapshot (non-NULL). 
+* `blob` Destination of at least [**dp\_acc\_q15\_state\_bytes()**](acc__q15__core_8h.md#function-dp_acc_q15_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -374,7 +394,7 @@ void dp_acc_q15_madd (
 * `state` Must be non-NULL. 
 * `a` First input array (int16\_t). 
 * `a_len` Number of elements in a. 
-* `b` Second input array (int16\_t), same length as a. 
+* `b` Second input array (int16\_t); only the first min(a\_len, b\_len) elements of either array are used. 
 * `b_len` Number of elements in b.
 
 
@@ -472,6 +492,7 @@ void dp_acc_q15_set_acc (
 
 ### function dp\_acc\_q15\_set\_state 
 
+_Restore the running sum from a_ [_**dp\_acc\_q15\_get\_state()**_](acc__q15__core_8h.md#function-dp_acc_q15_get_state) _blob._
 ```C++
 int dp_acc_q15_set_state (
     dp_acc_q15_state_t * state,
@@ -482,12 +503,32 @@ int dp_acc_q15_set_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Instance to overwrite (non-NULL). 
+* `blob` Blob of [**dp\_acc\_q15\_state\_bytes()**](acc__q15__core_8h.md#function-dp_acc_q15_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK on success; DP\_ERR\_INVALID (state untouched) when the magic, version, endianness or size does not match. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_acc\_q15\_state\_bytes 
 
+_Size of this instance's serialized state blob._ 
 ```C++
 size_t dp_acc_q15_state_bytes (
     const dp_acc_q15_state_t * state
@@ -496,6 +537,24 @@ size_t dp_acc_q15_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to size (non-NULL). 
+
+
+
+**Returns:**
+
+Bytes: the [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) envelope plus the whole state struct. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -584,6 +643,7 @@ void dp_acc_q15_steps (
 
 ### define ACC\_Q15\_STATE\_MAGIC 
 
+_State-blob magic ("AC15"); set\_state() rejects any other._ 
 ```C++
 #define ACC_Q15_STATE_MAGIC `DP_FOURCC ('A', 'C', '1', '5')`
 ```
@@ -597,6 +657,7 @@ void dp_acc_q15_steps (
 
 ### define ACC\_Q15\_STATE\_VERSION 
 
+_State-blob layout version; bumped when the payload changes._ 
 ```C++
 #define ACC_Q15_STATE_VERSION `1u`
 ```

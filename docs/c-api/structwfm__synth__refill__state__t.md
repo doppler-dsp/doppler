@@ -104,6 +104,10 @@ void(* wfm_synth_refill_state_t::get_state) (const void *user, void *blob);
 
 
 
+Write the source's position into `blob`, which holds exactly [**state\_bytes(user)**](structwfm__synth__refill__state__t.md#variable-state_bytes) bytes. 
+
+
+        
 
 <hr>
 
@@ -117,6 +121,10 @@ const char *(* wfm_synth_refill_state_t::refusal) (const void *user);
 
 
 
+A static sentence saying why [**state\_bytes()**](structwfm__synth__refill__state__t.md#variable-state_bytes) returned 0; may be NULL (the synth then gives a generic reason). 
+
+
+        
 
 <hr>
 
@@ -130,6 +138,10 @@ int(* wfm_synth_refill_state_t::set_state) (void *user, const void *blob);
 
 
 
+Restore the source's position from `blob`; DP\_OK on success, any other value rejects the blob (the synth then returns DP\_ERR\_INVALID and keeps its frame). 
+
+
+        
 
 <hr>
 
@@ -143,6 +155,10 @@ size_t(* wfm_synth_refill_state_t::state_bytes) (const void *user);
 
 
 
+Bytes the source's position serializes to (envelope included), or 0 to refuse serialization. 
+
+
+        
 
 <hr>
 

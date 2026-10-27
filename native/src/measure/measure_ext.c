@@ -437,7 +437,7 @@ static PyMethodDef measure_module_methods[] = {
     "capture (no leakage) with J coprime to N (so quantisation-noise\n"
     "correlation is minimised).\n"
     "\n"
-    "J starts at round(f_target * N / fs), is clamped to [1, N-1], then\n"
+    "J starts at round(f_target * N / fs), is clamped to `[1, N-1]`, then\n"
     "moved by the smallest distance that makes it coprime with N; on a tie\n"
     "the higher J wins.\n"
     "\n"

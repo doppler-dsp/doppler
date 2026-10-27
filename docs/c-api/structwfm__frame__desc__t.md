@@ -113,6 +113,10 @@ wfm_field_t wfm_frame_desc_t::field[WFM_FRAME_MAX_FIELDS];
 
 
 
+The fields in wire order; entries `[0, n_fields)` are in use. 
+
+
+        
 
 <hr>
 
@@ -126,6 +130,10 @@ unsigned wfm_frame_desc_t::n_fields;
 
 
 
+Fields in use, 0 to [**WFM\_FRAME\_MAX\_FIELDS**](wfm__frame_8h.md#define-wfm_frame_max_fields); written by [**dp\_wfm\_frame\_add\_field**](wfm__frame_8h.md#function-dp_wfm_frame_add_field) and [**dp\_wfm\_frame\_add\_derived**](wfm__frame_8h.md#function-dp_wfm_frame_add_derived). 
+
+
+        
 
 <hr>
 
@@ -139,6 +147,10 @@ unsigned wfm_frame_desc_t::n_stages;
 
 
 
+Stages in use, 0 to [**WFM\_FRAME\_MAX\_STAGES**](wfm__frame_8h.md#define-wfm_frame_max_stages); written by [**dp\_wfm\_frame\_add\_stage**](wfm__frame_8h.md#function-dp_wfm_frame_add_stage) and [**dp\_wfm\_frame\_add\_stage\_at**](wfm__frame_8h.md#function-dp_wfm_frame_add_stage_at). 
+
+
+        
 
 <hr>
 
@@ -152,6 +164,10 @@ wfm_stage_t wfm_frame_desc_t::stage[WFM_FRAME_MAX_STAGES];
 
 
 
+The stages in application order; entries `[0, n_stages)` are in use. 
+
+
+        
 
 <hr>
 

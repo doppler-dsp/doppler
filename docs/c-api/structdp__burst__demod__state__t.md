@@ -461,6 +461,11 @@ size_t dp_burst_demod_state_t::n_part;
 
 
 
+length of `part:` acq\_reps \* est\_segments, set by set\_preamble(). 
+ 
+
+
+        
 
 <hr>
 

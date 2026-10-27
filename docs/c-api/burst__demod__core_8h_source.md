@@ -51,8 +51,7 @@ extern "C"
     /* ── engine ── */
     dp_ppe_state_t   *ppe;  
     float _Complex *part; 
-    size_t         n_part;
-
+    size_t         n_part; 
     /* ── read-backs (after demod) ── */
     float *llr;   
     size_t n_llr; 

@@ -62,10 +62,10 @@ _Scale-and-saturate float-to-int32 converter._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* | [**dp\_f32\_to\_i32\_create**](#function-dp_f32_to_i32_create) (float scale) <br>_Create a f32\_to\_i32 instance._  |
 |  void | [**dp\_f32\_to\_i32\_destroy**](#function-dp_f32_to_i32_destroy) ([**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* state) <br>_Destroy a f32\_to\_i32 instance and release all memory._  |
-|  void | [**dp\_f32\_to\_i32\_get\_state**](#function-dp_f32_to_i32_get_state) (const [**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_f32\_to\_i32\_get\_state**](#function-dp_f32_to_i32_get_state) (const [**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* state, void \* blob) <br>_Serialize the whole state struct (scale and clipped) into_ `blob` _._ |
 |  void | [**dp\_f32\_to\_i32\_reset**](#function-dp_f32_to_i32_reset) ([**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
-|  int | [**dp\_f32\_to\_i32\_set\_state**](#function-dp_f32_to_i32_set_state) ([**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_f32\_to\_i32\_state\_bytes**](#function-dp_f32_to_i32_state_bytes) (const [**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* state) <br> |
+|  int | [**dp\_f32\_to\_i32\_set\_state**](#function-dp_f32_to_i32_set_state) ([**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* state, const void \* blob) <br>_Restore the whole state struct (scale and clipped) from_ `blob` _._ |
+|  size\_t | [**dp\_f32\_to\_i32\_state\_bytes**](#function-dp_f32_to_i32_state_bytes) (const [**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* state) <br>_Size in bytes of the blob_ [_**dp\_f32\_to\_i32\_get\_state()**_](f32__to__i32__core_8h.md#function-dp_f32_to_i32_get_state) _writes._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int32\_t | [**dp\_f32\_to\_i32\_step**](#function-dp_f32_to_i32_step) ([**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* state, float x) <br>_Scale one float sample by_ `scale` _, round, and saturate to int32._ |
 |  void | [**dp\_f32\_to\_i32\_steps**](#function-dp_f32_to_i32_steps) ([**dp\_f32\_to\_i32\_state\_t**](structdp__f32__to__i32__state__t.md) \* state, const float \* input, int32\_t \* output, size\_t n) <br>_Process a block of float samples to int32._  |
 
@@ -99,8 +99,8 @@ _Scale-and-saturate float-to-int32 converter._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**F32\_TO\_I32\_STATE\_MAGIC**](f32__to__i32__core_8h.md#define-f32_to_i32_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F','2','3','2')`<br> |
-| define  | [**F32\_TO\_I32\_STATE\_VERSION**](f32__to__i32__core_8h.md#define-f32_to_i32_state_version)  `1u`<br> |
+| define  | [**F32\_TO\_I32\_STATE\_MAGIC**](f32__to__i32__core_8h.md#define-f32_to_i32_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F','2','3','2')`<br>_Envelope magic ("F232") identifying an F32ToI32 state blob._  |
+| define  | [**F32\_TO\_I32\_STATE\_VERSION**](f32__to__i32__core_8h.md#define-f32_to_i32_state_version)  `1u`<br>_Layout version of the F32ToI32 state blob._  |
 
 ## Detailed Description
 
@@ -221,6 +221,7 @@ void dp_f32_to_i32_destroy (
 
 ### function dp\_f32\_to\_i32\_get\_state 
 
+_Serialize the whole state struct (scale and clipped) into_ `blob` _._
 ```C++
 void dp_f32_to_i32_get_state (
     const dp_f32_to_i32_state_t * state,
@@ -230,6 +231,18 @@ void dp_f32_to_i32_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Caller-owned buffer of at least [**dp\_f32\_to\_i32\_state\_bytes()**](f32__to__i32__core_8h.md#function-dp_f32_to_i32_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -277,6 +290,7 @@ False
 
 ### function dp\_f32\_to\_i32\_set\_state 
 
+_Restore the whole state struct (scale and clipped) from_ `blob` _._
 ```C++
 int dp_f32_to_i32_set_state (
     dp_f32_to_i32_state_t * state,
@@ -286,6 +300,28 @@ int dp_f32_to_i32_set_state (
 
 
 
+The envelope is validated first; on rejection `state` is unchanged.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` A blob produced by [**dp\_f32\_to\_i32\_get\_state()**](f32__to__i32__core_8h.md#function-dp_f32_to_i32_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the magic, version, endianness or size in the envelope does not match. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -293,6 +329,7 @@ int dp_f32_to_i32_set_state (
 
 ### function dp\_f32\_to\_i32\_state\_bytes 
 
+_Size in bytes of the blob_ [_**dp\_f32\_to\_i32\_get\_state()**_](f32__to__i32__core_8h.md#function-dp_f32_to_i32_get_state) _writes._
 ```C++
 size_t dp_f32_to_i32_state_bytes (
     const dp_f32_to_i32_state_t * state
@@ -301,6 +338,24 @@ size_t dp_f32_to_i32_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL (the size does not depend on it). 
+
+
+
+**Returns:**
+
+`sizeof(dp_state_hdr_t) + sizeof(dp_f32_to_i32_state_t)`. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -373,7 +428,7 @@ void dp_f32_to_i32_steps (
 
 
 
-Applies step() to every element. The `clipped` flag is updated cumulatively across the block — a single saturating sample raises it for the entire call. Accepts an optional pre-allocated output array; allocates a fresh one when `output` is NULL.
+Applies step() to every element. The `clipped` flag is updated cumulatively across the block — a single saturating sample raises it for the entire call. In C, `output` must be a caller-owned array of at least `n` elements (NULL is not accepted). From Python it is the optional `out=` array; the binding allocates a fresh one when omitted.
 
 
 
@@ -408,6 +463,7 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 ### define F32\_TO\_I32\_STATE\_MAGIC 
 
+_Envelope magic ("F232") identifying an F32ToI32 state blob._ 
 ```C++
 #define F32_TO_I32_STATE_MAGIC `DP_FOURCC ('F','2','3','2')`
 ```
@@ -421,6 +477,7 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 ### define F32\_TO\_I32\_STATE\_VERSION 
 
+_Layout version of the F32ToI32 state blob._ 
 ```C++
 #define F32_TO_I32_STATE_VERSION `1u`
 ```

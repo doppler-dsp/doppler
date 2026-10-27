@@ -23,9 +23,7 @@
 extern "C" {
 #endif
 
-/* Numerical guard on the prompt magnitude in the discriminator (not tunable). */
 #define CARRIER_MPSK_EPS 1e-12f
-/* EMA smoothing for the decision-aligned lock metric (status diagnostic). */
 #define CARRIER_MPSK_LOCK_ALPHA 0.1
 
 typedef struct {

@@ -517,6 +517,20 @@ A burst of up to this many consecutive units on the wire touches each codeword a
 
 
 
+
+**Parameters:**
+
+
+* `state` The interleaver; NULL returns 0. 
+
+
+
+**Returns:**
+
+The interleaving depth `rows`, in units (0 for NULL).
+
+
+
 ```C++
 >>> from doppler.coding import Interleaver
 >>> Interleaver(rows=5, cols=51, unit_bits=8).burst_len
@@ -543,6 +557,20 @@ size_t dp_interleaver_get_separation (
 
 
 The other half of the link budget: what [**dp\_interleaver\_get\_burst\_len**](interleaver__core_8h.md#function-dp_interleaver_get_burst_len) spreads a burst ACROSS.
+
+
+
+
+**Parameters:**
+
+
+* `state` The interleaver; NULL returns 0. 
+
+
+
+**Returns:**
+
+The block span `cols`, in units (0 for NULL).
 
 
 

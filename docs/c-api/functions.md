@@ -379,7 +379,7 @@
 * **dp\_awgn\_set\_amplitude** ([**awgn\_core.h**](awgn__core_8h.md))
 * **dp\_awgn\_set\_state** ([**awgn\_core.h**](awgn__core_8h.md))
 * **dp\_awgn\_state\_bytes** ([**awgn\_core.h**](awgn__core_8h.md))
-* **dp\_ber\_confidence** ([**ber\_core.h**](ber__core_8h.md), [**ber\_meter\_core.h**](ber__meter__core_8h.md))
+* **dp\_ber\_confidence** ([**ber\_core.h**](ber__core_8h.md))
 * **dp\_ber\_esn0\_db\_for\_ser** ([**ber\_core.h**](ber__core_8h.md))
 * **dp\_ber\_evm\_db** ([**ber\_core.h**](ber__core_8h.md))
 * **dp\_ber\_evm\_ideal\_db** ([**ber\_core.h**](ber__core_8h.md))

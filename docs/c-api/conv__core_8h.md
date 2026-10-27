@@ -164,6 +164,29 @@ JM_FORCEINLINE uint32_t conv_next_state (
 
 
 
+Shifts `bit` in at the high stage (bit `k-2` of the result) and drops the oldest input from bit 0.
+
+
+
+
+**Parameters:**
+
+
+* `c` The code (only `k` is read). 
+* `state` Current trellis state: the `k-1` previous input bits. 
+* `bit` The new input bit; only bit 0 is used. 
+
+
+
+**Returns:**
+
+The next state, in `[0, 2^(k-1))`. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -180,6 +203,24 @@ JM_FORCEINLINE uint32_t conv_states (
 
 
 
+
+
+**Parameters:**
+
+
+* `c` The code; `k` must already be valid (see [**dp\_conv\_code\_valid()**](conv__core_8h.md#function-dp_conv_code_valid)), it is not checked here. 
+
+
+
+**Returns:**
+
+`1 << (k-1)`. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -230,6 +271,17 @@ void dp_conv_enc_init (
 
 
 
+
+
+**Parameters:**
+
+
+* `s` Encoder state to clear. Must be non-NULL. 
+
+
+
+
+        
 
 <hr>
 

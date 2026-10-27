@@ -32,7 +32,7 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) <br> |
+| struct | [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) <br>_AWGN generator state (opaque to callers; use the API)._  |
 
 
 
@@ -63,7 +63,7 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 |  float | [**dp\_awgn\_amplitude\_for\_snr**](#function-dp_awgn_amplitude_for_snr) (float snr\_db, float signal\_power) <br>_The_ `amplitude` _that puts a signal at a target SNR._ |
 |  int | [**dp\_awgn\_amplitude\_ok**](#function-dp_awgn_amplitude_ok) (float amplitude) <br>_The amplitude domain: finite and ≥ 0._  |
 |  [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* | [**dp\_awgn\_create**](#function-dp_awgn_create) (uint64\_t seed, float amplitude) <br>_Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG via SplitMix64. The seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._ |
-|  void | [**dp\_awgn\_destroy**](#function-dp_awgn_destroy) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br> |
+|  void | [**dp\_awgn\_destroy**](#function-dp_awgn_destroy) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Free the generator. NULL is a no-op._  |
 |  size\_t | [**dp\_awgn\_generate**](#function-dp_awgn_generate) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude²._ |
 |  size\_t | [**dp\_awgn\_generate\_max\_out**](#function-dp_awgn_generate_max_out) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Conservative upper bound on generate() output size._  |
 |  float | [**dp\_awgn\_get\_amplitude**](#function-dp_awgn_get_amplitude) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Return the current amplitude (per-component std dev)._  |
@@ -71,7 +71,7 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 |  void | [**dp\_awgn\_reseed**](#function-dp_awgn_reseed) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, uint64\_t seed) <br>_Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling_ [_**dp\_awgn\_destroy()**_](awgn__core_8h.md#function-dp_awgn_destroy) _and dp\_awgn\_create(seed, amplitude) but reuses the existing allocation. amplitude is unchanged._ |
 |  void | [**dp\_awgn\_reset**](#function-dp_awgn_reset) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Reset RNG to the current seed. The current seed is the one create took, or the last one_ [_**dp\_awgn\_reseed()**_](awgn__core_8h.md#function-dp_awgn_reseed) _or a restored blob set. Re-runs the SplitMix64 seeding procedure with it, so the next_[_**dp\_awgn\_generate()**_](awgn__core_8h.md#function-dp_awgn_generate) _call produces exactly the same samples as the first call after that seed was set. amplitude is not changed._ |
 |  int | [**dp\_awgn\_set\_amplitude**](#function-dp_awgn_set_amplitude) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, float val) <br>_Set amplitude without disturbing RNG state._  |
-|  int | [**dp\_awgn\_set\_state**](#function-dp_awgn_set_state) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, const void \* blob) <br>_Restore the RNG state, seed and amplitude; DP\_OK, or DP\_ERR\_INVALID if rejected (and nothing changes)._  |
+|  int | [**dp\_awgn\_set\_state**](#function-dp_awgn_set_state) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, const void \* blob) <br>_Restore the RNG state, seed and amplitude; DP\_OK, or DP\_ERR\_INVALID if rejected (and nothing changes). Rejected: a bad envelope (magic, version, endianness, size), an amplitude outside_ [_**dp\_awgn\_amplitude\_ok()**_](awgn__core_8h.md#function-dp_awgn_amplitude_ok) _, or an all-zero RNG state._ |
 |  size\_t | [**dp\_awgn\_state\_bytes**](#function-dp_awgn_state_bytes) (const [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Serialized-state byte size._  |
 
 
@@ -123,7 +123,7 @@ RNG: xoshiro256++ — four 64-bit state words, seeded via SplitMix64 from the us
 Transform: Box-Muller. Each call to dp\_awgn\_generate () consumes two 64-bit RNG outputs per complex output sample:
 
 
-u1 ∈ (0, 1] (top 24 bits of first 64-bit word, +1 offset, /2^24) u2 ∈ [0, 1) (top 24 bits of second 64-bit word, /2^24) r = amplitude \* sqrt(−2 · ln u1) θ = 2π · u2 out = r·cos θ + j·r·sin θ
+u1 ∈ (0, 1] (top 24 bits of first 64-bit word, +1 offset, /2^24) idx ∈ `[0, 65535]` (top 16 bits of second 64-bit word) r = amplitude \* sqrt(−2 · ln u1) θ = 2π · idx / 65536 (65536-entry sin/cos table, SFDR ≈ 96 dBc) out = r·cos θ + j·r·sin θ
 
 
 
@@ -328,6 +328,7 @@ Heap-allocated state, or NULL on allocation failure or an amplitude outside [**d
 
 ### function dp\_awgn\_destroy 
 
+_Free the generator. NULL is a no-op._ 
 ```C++
 void dp_awgn_destroy (
     dp_awgn_state_t * state
@@ -336,7 +337,14 @@ void dp_awgn_destroy (
 
 
 
-Free all resources. NULL is a no-op. 
+
+
+**Parameters:**
+
+
+* `state` Generator from [**dp\_awgn\_create()**](awgn__core_8h.md#function-dp_awgn_create), or NULL. 
+
+
 
 
         
@@ -411,7 +419,24 @@ size_t dp_awgn_generate_max_out (
 
 
 
-Returns 65536. The Python extension uses this for the initial buffer allocation; the buffer grows on demand if n &gt; 65536. 
+Returns 65536. The Python extension uses this for the initial buffer allocation; the buffer grows on demand if n &gt; 65536.
+
+
+
+
+**Parameters:**
+
+
+* `state` Generator state (unused). 
+
+
+
+**Returns:**
+
+65536, always. 
+
+
+
 
 
         
@@ -432,6 +457,17 @@ float dp_awgn_get_amplitude (
 
 
 Assigning an invalid value (NaN, infinite or negative) raises ValueError, and the amplitude keeps its old value (doppler#1987). 
+
+**Parameters:**
+
+
+* `state` Generator state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+Per-component standard deviation (linear, in the units of the output samples). 
 ```C++
 >>> from doppler.source import AWGN
 >>> gen = AWGN(seed=0, amplitude=1.0)
@@ -442,6 +478,9 @@ Assigning an invalid value (NaN, infinite or negative) raises ValueError, and th
 2.0
 ```
  
+
+
+
 
 
         
@@ -462,6 +501,18 @@ void dp_awgn_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Generator state. Must be non-NULL. 
+* `blob` At least [**dp\_awgn\_state\_bytes()**](awgn__core_8h.md#function-dp_awgn_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -520,6 +571,11 @@ void dp_awgn_reset (
 
 
 
+
+**Parameters:**
+
+
+* `state` Generator state. Must be non-NULL. 
 ```C++
 >>> import numpy as np
 >>> from doppler.source import AWGN
@@ -531,6 +587,8 @@ void dp_awgn_reset (
 True
 ```
  
+
+
 
 
         
@@ -556,6 +614,14 @@ An `val` outside [**dp\_awgn\_amplitude\_ok()**](awgn__core_8h.md#function-dp_aw
 
 
 
+**Parameters:**
+
+
+* `state` Generator state. Must be non-NULL. 
+* `val` New per-component standard deviation; finite and &gt;= 0. 
+
+
+
 **Returns:**
 
 DP\_OK, or DP\_ERR\_INVALID for a value outside the domain (nothing changes). 
@@ -572,7 +638,7 @@ DP\_OK, or DP\_ERR\_INVALID for a value outside the domain (nothing changes).
 
 ### function dp\_awgn\_set\_state 
 
-_Restore the RNG state, seed and amplitude; DP\_OK, or DP\_ERR\_INVALID if rejected (and nothing changes)._ 
+_Restore the RNG state, seed and amplitude; DP\_OK, or DP\_ERR\_INVALID if rejected (and nothing changes). Rejected: a bad envelope (magic, version, endianness, size), an amplitude outside_ [_**dp\_awgn\_amplitude\_ok()**_](awgn__core_8h.md#function-dp_awgn_amplitude_ok) _, or an all-zero RNG state._
 ```C++
 int dp_awgn_set_state (
     dp_awgn_state_t * state,
@@ -582,6 +648,25 @@ int dp_awgn_set_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Generator state to overwrite. Must be non-NULL. 
+* `blob` Blob from [**dp\_awgn\_get\_state()**](awgn__core_8h.md#function-dp_awgn_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -599,6 +684,24 @@ size_t dp_awgn_state_bytes (
 
 
 
+
+**Parameters:**
+
+
+* `state` Generator state (unused: the size is fixed). 
+
+
+
+**Returns:**
+
+sizeof(dp\_state\_hdr\_t) + 44 bytes (five u64 words and one f32), the same for every generator. 
+
+
+
+
+
+        
+
 <hr>
 ## Macro Definition Documentation
 
@@ -614,6 +717,10 @@ size_t dp_awgn_state_bytes (
 
 
 
+State-blob magic ("AWGN") checked by [**dp\_awgn\_set\_state()**](awgn__core_8h.md#function-dp_awgn_set_state). 
+
+
+        
 
 <hr>
 
@@ -627,6 +734,10 @@ size_t dp_awgn_state_bytes (
 
 
 
+State-blob layout version (2 since #2084). 
+
+
+        
 
 <hr>
 

@@ -71,31 +71,31 @@ _PSD — averaging power-spectral-density estimator (Welch's method), its per-fr
 |  void | [**dp\_psd\_accumulate**](#function-dp_psd_accumulate) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Window, FFT and fold complex baseband frames into the average. Folds every frame the stream completes: frame k covers stream samples k\*hop through k\*hop + n - 1 (hop = n unless_ [_**dp\_psd\_create\_hop()**_](psd__core_8h.md#function-dp_psd_create_hop) _said otherwise). A trailing partial frame is carried to the next call, not dropped: the framer holds it. A single call of whole frames at hop = n averages what dp\_psd\_accumulate always has._ |
 |  void | [**dp\_psd\_accumulate\_real**](#function-dp_psd_accumulate_real) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const float \* x, size\_t x\_len) <br>_Window, zero-pad, FFT and fold real frames into the average. The real-input counterpart to_ [_**dp\_psd\_accumulate()**_](psd__core_8h.md#function-dp_psd_accumulate) _: each length-n frame is windowed, zero-padded to nfft, transformed and folded as a DC-centred two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins carry equal power). Read the one-sided fold with_[_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _._ |
 |  size\_t | [**dp\_psd\_band\_power**](#function-dp_psd_band_power) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const double \* bands, size\_t bands\_len, float \* out, size\_t max\_out) <br>_Integrated power per band in dB._ `bands` _is a flat array of_`[lo0, hi0, lo1, hi1, ...]` _band edges in Hz; the output holds one dB value per band (n\_bands = bands\_len / 2). Edges are clamped to the analysed span; a band fully outside the span integrates to the dB floor. Returns 0 (Python None) when there is nothing to report: before any frame is accumulated, or when_`bands` _holds no complete lo/hi pair._ |
-|  size\_t | [**dp\_psd\_band\_power\_max\_out**](#function-dp_psd_band_power_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for band\_power(); 0 (binding sizes from bands)._  |
+|  size\_t | [**dp\_psd\_band\_power\_max\_out**](#function-dp_psd_band_power_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_psd\_band\_power()**_](psd__core_8h.md#function-dp_psd_band_power) _._ |
 |  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create**](#function-dp_psd_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha) <br>_Create an averaging PSD estimator._  |
 |  [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* | [**dp\_psd\_create\_hop**](#function-dp_psd_create_hop) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha, size\_t hop) <br>_Create an averaging PSD estimator whose frames are spaced by a hop._  |
 |  void | [**dp\_psd\_destroy**](#function-dp_psd_destroy) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Destroy a PSD instance and release all memory._  |
 |  void | [**dp\_psd\_frame\_db**](#function-dp_psd_frame_db) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k, const float \_Complex \* x, float \* out) <br>_One frame in dBFS, against the estimator's own reference._  |
 |  void | [**dp\_psd\_frame\_linear**](#function-dp_psd_frame_linear) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k, const float \_Complex \* x, float \* out) <br>_One frame in linear full-scale^2 units, against the estimator's own reference._  |
 |  void | [**dp\_psd\_frame\_power**](#function-dp_psd_frame_power) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k, const float \_Complex \* x, float \* pwr) <br>_One frame's DC-centred two-sided power: window, zero-pad, FFT, \|X\|^2._  |
-|  void | [**dp\_psd\_get\_state**](#function-dp_psd_get_state) (const [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_psd\_get\_state**](#function-dp_psd_get_state) (const [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, void \* blob) <br>_Serialize the power average and the carried partial frame._  |
 |  void | [**dp\_psd\_kernel\_free**](#function-dp_psd_kernel_free) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k) <br>_Release what_ [_**dp\_psd\_kernel\_init()**_](psd__core_8h.md#function-dp_psd_kernel_init) _allocated, and zero the kernel._ |
 |  int | [**dp\_psd\_kernel\_init**](#function-dp_psd_kernel_init) ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) \* k, size\_t n, int window, float beta, size\_t pad, double full\_scale) <br>_Fill a kernel: the window, its gains, the scratch and the plan._  |
 |  double | [**dp\_psd\_noise\_floor**](#function-dp_psd_noise_floor) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Noise-floor estimate: median of the averaged dB spectrum._  |
 |  double | [**dp\_psd\_occupied\_bw**](#function-dp_psd_occupied_bw) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, double fraction) <br>_Occupied bandwidth in Hz holding_ `fraction` _of the total power._ |
 |  size\_t | [**dp\_psd\_power\_onesided**](#function-dp_psd_power_onesided) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float \* out, size\_t max\_out) <br>_Averaged linear power, one-sided (length nfft/2 + 1). Folds the DC-centred two-sided estimate onto_ `[0, fs/2]` _: the DC and Nyquist bins are kept as-is, every interior bin is the sum of its +k and -k halves (so a real-input tone reads 2\*avg\|_`X[k]` _\|^2 / cg^2 there). Coherent-gain normalised; full\_scale is NOT applied. Returns 0 before any accumulate._ |
-|  size\_t | [**dp\_psd\_power\_onesided\_max\_out**](#function-dp_psd_power_onesided_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _; equals nfft/2+1._ |
+|  size\_t | [**dp\_psd\_power\_onesided\_max\_out**](#function-dp_psd_power_onesided_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _._ |
 |  size\_t | [**dp\_psd\_power\_twosided**](#function-dp_psd_power_twosided) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float \* out, size\_t max\_out) <br>_Averaged linear power, DC-centred two-sided (length nfft). Coherent-gain normalised (_ `out[k]` _= avg\|_`X[k]` _\|^2 / cg^2); full\_scale is NOT applied (callers that want a dBFS reference divide by full\_scale^2). This is the raw spectral estimate the measurement kernels integrate over. Returns 0 (and writes nothing) before any frame is accumulated._ |
-|  size\_t | [**dp\_psd\_power\_twosided\_max\_out**](#function-dp_psd_power_twosided_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_psd\_power\_twosided()**_](psd__core_8h.md#function-dp_psd_power_twosided) _; equals nfft._ |
+|  size\_t | [**dp\_psd\_power\_twosided\_max\_out**](#function-dp_psd_power_twosided_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_psd\_power\_twosided()**_](psd__core_8h.md#function-dp_psd_power_twosided) _._ |
 |  size\_t | [**dp\_psd\_psd\_db**](#function-dp_psd_psd_db) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float \* out, size\_t max\_out) <br>_Averaged power spectrum in dB, DC-centred. Normalised by window coherent gain so a full-scale tone reads its true power (a unit-amplitude tone peaks near 0 dB). Returns 0 (Python None) before any frame is accumulated._  |
-|  size\_t | [**dp\_psd\_psd\_db\_max\_out**](#function-dp_psd_psd_db_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for psd\_db(); equals nfft._  |
+|  size\_t | [**dp\_psd\_psd\_db\_max\_out**](#function-dp_psd_psd_db_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_psd\_psd\_db()**_](psd__core_8h.md#function-dp_psd_psd_db) _._ |
 |  size\_t | [**dp\_psd\_psd\_dbhz**](#function-dp_psd_psd_dbhz) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float \* out, size\_t max\_out) <br>_Averaged power spectral density in dB/Hz, DC-centred. Normalised by_ `fs * sum(w^2)` _(ENBW-aware), the standard one-sided-free PSD scaling. Differs from psd\_db() by the constant_`10*log10(cg^2/(fs*s2))` _. Returns 0 (Python None) before any frame is accumulated._ |
-|  size\_t | [**dp\_psd\_psd\_dbhz\_max\_out**](#function-dp_psd_psd_dbhz_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for psd\_dbhz(); equals nfft._  |
+|  size\_t | [**dp\_psd\_psd\_dbhz\_max\_out**](#function-dp_psd_psd_dbhz_max_out) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_psd\_psd\_dbhz()**_](psd__core_8h.md#function-dp_psd_psd_dbhz) _._ |
 |  void | [**dp\_psd\_reset**](#function-dp_psd_reset) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Discard the running average and any carried partial frame; the next accumulate re-seeds the average and starts the stream again._  |
-|  int | [**dp\_psd\_set\_state**](#function-dp_psd_set_state) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const void \* blob) <br> |
+|  int | [**dp\_psd\_set\_state**](#function-dp_psd_set_state) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const void \* blob) <br>_Restore the power average and the carried partial frame._  |
 |  double | [**dp\_psd\_sfdr**](#function-dp_psd_sfdr) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, float min\_db) <br>_Spurious-free dynamic range in dB from the two strongest peaks._  |
 |  double | [**dp\_psd\_snr**](#function-dp_psd_snr) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, double lo\_hz, double hi\_hz) <br>_In-band SNR in dB: peak level in_ `[lo_hz, hi_hz]` _minus the noise floor._ |
-|  size\_t | [**dp\_psd\_state\_bytes**](#function-dp_psd_state_bytes) (const [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_psd\_state\_bytes**](#function-dp_psd_state_bytes) (const [**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state) <br>_Size in bytes of the blob_ [_**dp\_psd\_get\_state()**_](psd__core_8h.md#function-dp_psd_get_state) _writes._ |
 |  double | [**dp\_psd\_total\_band\_power**](#function-dp_psd_total_band_power) ([**dp\_psd\_state\_t**](structdp__psd__state__t.md) \* state, const double \* bands, size\_t bands\_len) <br>_Total integrated power across all bands in dB._  |
 
 
@@ -128,8 +128,8 @@ _PSD — averaging power-spectral-density estimator (Welch's method), its per-fr
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**PSD\_STATE\_MAGIC**](psd__core_8h.md#define-psd_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('P','S','D',' ')`<br> |
-| define  | [**PSD\_STATE\_VERSION**](psd__core_8h.md#define-psd_state_version)  `2u`<br> |
+| define  | [**PSD\_STATE\_MAGIC**](psd__core_8h.md#define-psd_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('P','S','D',' ')`<br>_Envelope magic ("PSD ") identifying a PSD state blob._  |
+| define  | [**PSD\_STATE\_VERSION**](psd__core_8h.md#define-psd_state_version)  `2u`<br>_Layout version of the PSD state blob._  |
 
 ## Detailed Description
 
@@ -327,7 +327,7 @@ The number of bands written, min(n\_bands, max\_out); 0 (Python None) when there
 
 ### function dp\_psd\_band\_power\_max\_out 
 
-_Output capacity hint for band\_power(); 0 (binding sizes from bands)._ 
+_Output capacity hint for_ [_**dp\_psd\_band\_power()**_](psd__core_8h.md#function-dp_psd_band_power) _._
 ```C++
 size_t dp_psd_band_power_max_out (
     dp_psd_state_t * state
@@ -336,6 +336,27 @@ size_t dp_psd_band_power_max_out (
 
 
 
+The output length depends on the bands argument, which this cannot see, so the binding sizes the buffer from the bands itself.
+
+
+
+
+**Parameters:**
+
+
+* `state` Unused; may be any value. 
+
+
+
+**Returns:**
+
+Always 0 (the "caller sizes it" sentinel). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -639,6 +660,7 @@ The per-frame kernel [**dp\_psd\_accumulate()**](psd__core_8h.md#function-dp_psd
 
 ### function dp\_psd\_get\_state 
 
+_Serialize the power average and the carried partial frame._ 
 ```C++
 void dp_psd_get_state (
     const dp_psd_state_t * state,
@@ -648,6 +670,18 @@ void dp_psd_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Caller-owned buffer of at least [**dp\_psd\_state\_bytes()**](psd__core_8h.md#function-dp_psd_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -737,6 +771,16 @@ double dp_psd_noise_floor (
 ```
 
 
+
+Fills the object's internal dB scratch (the psd\_db() trace over all nfft bins) and takes its median.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
 
 
 
@@ -844,7 +888,7 @@ min(nfft/2 + 1, max\_out), or 0 if empty.
 
 ### function dp\_psd\_power\_onesided\_max\_out 
 
-_Output capacity hint for_ [_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _; equals nfft/2+1._
+_Output capacity hint for_ [_**dp\_psd\_power\_onesided()**_](psd__core_8h.md#function-dp_psd_power_onesided) _._
 ```C++
 size_t dp_psd_power_onesided_max_out (
     dp_psd_state_t * state
@@ -853,6 +897,24 @@ size_t dp_psd_power_onesided_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+nfft/2 + 1. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -898,7 +960,7 @@ min(nfft, max\_out), or 0 if empty.
 
 ### function dp\_psd\_power\_twosided\_max\_out 
 
-_Output capacity hint for_ [_**dp\_psd\_power\_twosided()**_](psd__core_8h.md#function-dp_psd_power_twosided) _; equals nfft._
+_Output capacity hint for_ [_**dp\_psd\_power\_twosided()**_](psd__core_8h.md#function-dp_psd_power_twosided) _._
 ```C++
 size_t dp_psd_power_twosided_max_out (
     dp_psd_state_t * state
@@ -907,6 +969,24 @@ size_t dp_psd_power_twosided_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+nfft, the zero-padded transform length. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -952,7 +1032,7 @@ min(nfft, max\_out), or 0 if empty.
 
 ### function dp\_psd\_psd\_db\_max\_out 
 
-_Output capacity hint for psd\_db(); equals nfft._ 
+_Output capacity hint for_ [_**dp\_psd\_psd\_db()**_](psd__core_8h.md#function-dp_psd_psd_db) _._
 ```C++
 size_t dp_psd_psd_db_max_out (
     dp_psd_state_t * state
@@ -961,6 +1041,24 @@ size_t dp_psd_psd_db_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+nfft. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -977,6 +1075,22 @@ size_t dp_psd_psd_dbhz (
 ) 
 ```
 
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Destination, at least nfft float32 elements. 
+* `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
+
+
+
+**Returns:**
+
+min(nfft, max\_out), or 0 if empty.
 
 
 
@@ -1000,7 +1114,7 @@ True
 
 ### function dp\_psd\_psd\_dbhz\_max\_out 
 
-_Output capacity hint for psd\_dbhz(); equals nfft._ 
+_Output capacity hint for_ [_**dp\_psd\_psd\_dbhz()**_](psd__core_8h.md#function-dp_psd_psd_dbhz) _._
 ```C++
 size_t dp_psd_psd_dbhz_max_out (
     dp_psd_state_t * state
@@ -1009,6 +1123,24 @@ size_t dp_psd_psd_dbhz_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+nfft. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -1043,6 +1175,7 @@ void dp_psd_reset (
 
 ### function dp\_psd\_set\_state 
 
+_Restore the power average and the carried partial frame._ 
 ```C++
 int dp_psd_set_state (
     dp_psd_state_t * state,
@@ -1052,6 +1185,28 @@ int dp_psd_set_state (
 
 
 
+The framer snapshot (including its hop) is checked before anything is written, so a blob of another hop changes nothing.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL; built with the same configuration as the blob's source. 
+* `blob` A blob produced by [**dp\_psd\_get\_state()**](psd__core_8h.md#function-dp_psd_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the envelope or a child blob is rejected. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -1133,6 +1288,7 @@ SNR in dB (0 if empty).
 
 ### function dp\_psd\_state\_bytes 
 
+_Size in bytes of the blob_ [_**dp\_psd\_get\_state()**_](psd__core_8h.md#function-dp_psd_get_state) _writes._
 ```C++
 size_t dp_psd_state_bytes (
     const dp_psd_state_t * state
@@ -1141,6 +1297,24 @@ size_t dp_psd_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Envelope + the averager's and the framer's blob sizes; fixed for a given configuration. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -1189,6 +1363,7 @@ Total band power in dB (dB floor if empty).
 
 ### define PSD\_STATE\_MAGIC 
 
+_Envelope magic ("PSD ") identifying a PSD state blob._ 
 ```C++
 #define PSD_STATE_MAGIC `DP_FOURCC ('P','S','D',' ')`
 ```
@@ -1202,6 +1377,7 @@ Total band power in dB (dB floor if empty).
 
 ### define PSD\_STATE\_VERSION 
 
+_Layout version of the PSD state blob._ 
 ```C++
 #define PSD_STATE_VERSION `2u`
 ```

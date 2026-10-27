@@ -21,13 +21,11 @@ extern "C" {
 #endif
 
 enum {
-    FARROW_LINEAR = 0,
-    FARROW_PARABOLIC = 1,
-    FARROW_CUBIC = 2,
+    FARROW_LINEAR = 0,    
+    FARROW_PARABOLIC = 1, 
+    FARROW_CUBIC = 2,     
 };
 
-/* All orders interpolate between tap d[1] and d[2]; d[3] is the newest sample,
- * so the interpolation point lags the newest input by FARROW_GROUP_DELAY. */
 #define FARROW_GROUP_DELAY 2u
 
 typedef struct {

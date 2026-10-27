@@ -154,6 +154,10 @@ unsigned wfm_frame_desc_layout_t::n_fields;
 
 
 
+Entries of `field_off` and `field_bits` in use: the description's field count. 
+
+
+        
 
 <hr>
 
@@ -167,6 +171,10 @@ unsigned wfm_frame_desc_layout_t::n_stages;
 
 
 
+Entries of `stage` in use: the description's stage count. 
+
+
+        
 
 <hr>
 

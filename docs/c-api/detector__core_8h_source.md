@@ -57,13 +57,13 @@ typedef struct
   size_t ring_cap;          
   size_t noise_lo;          
   size_t noise_hi;          
-  det_noise_mode_t noise_mode;
+  det_noise_mode_t noise_mode; 
   float threshold;          
   /* Last dump results — updated on every dump regardless of threshold. */
-  size_t peak_lag;
-  float peak_mag;
-  float noise_est;
-  float test_stat;
+  size_t peak_lag;          
+  float peak_mag;           
+  float noise_est;          
+  float test_stat;          
   int _last_corr_valid;     
   size_t consumed;          
 } dp_detector_state_t;

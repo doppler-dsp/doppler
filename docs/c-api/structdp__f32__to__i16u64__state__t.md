@@ -105,6 +105,10 @@ uint8_t dp_f32_to_i16u64_state_t::clipped;
 
 
 
+Sticky saturation flag: 1 once any sample has been clamped, else 0; written by step(), cleared only by reset(). 
+
+
+        
 
 <hr>
 
@@ -118,6 +122,10 @@ float dp_f32_to_i16u64_state_t::scale;
 
 
 
+Multiply factor applied before saturation; set once by create() (&gt; 0), never changed after. 
+
+
+        
 
 <hr>
 

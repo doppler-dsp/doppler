@@ -33,8 +33,6 @@ extern "C"
     SYMSYNC_TED_DTTL    = 1  
   };
 
-/* Numerical guard on the on-time+mid-symbol energy sum feeding the lock
- * statistic (not tunable). */
 #define SYMSYNC_LOCK_EPS 1e-12
 
   typedef struct

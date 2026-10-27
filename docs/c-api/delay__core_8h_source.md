@@ -22,11 +22,11 @@ extern "C"
 
   typedef struct
   {
-    double _Complex *buf; /* 2*capacity elements; second half mirrors first */
-    size_t head;          /* write pointer; decrements mod capacity */
-    size_t mask;          /* capacity - 1 (power-of-two bitmask) */
-    size_t num_taps;      /* window length requested at construction */
-    size_t capacity;      /* smallest power-of-two >= num_taps */
+    double _Complex *buf; 
+    size_t head;          
+    size_t mask;          
+    size_t num_taps;      
+    size_t capacity;      
   } dp_delay_state_t;
 
 dp_delay_state_t *dp_delay_create(size_t num_taps);

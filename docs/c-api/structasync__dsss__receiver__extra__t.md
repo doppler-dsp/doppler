@@ -8,7 +8,7 @@
 
 
 
-
+_The receiver's own fields in its state blob, after the envelope and before the children._ [More...](#detailed-description)
 
 * `#include <async_dsss_receiver_core.h>`
 
@@ -108,6 +108,13 @@
 
 
 
+## Detailed Description
+
+
+Written whole by [**dp\_async\_dsss\_receiver\_get\_state()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_state); every field mirrors the [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) field of the same name. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -156,6 +163,11 @@ uint64_t async_dsss_receiver_extra_t::both_down_samples;
 
 
 
+The release clock, samples. 
+ 
+
+
+        
 
 <hr>
 
@@ -169,6 +181,11 @@ uint64_t async_dsss_receiver_extra_t::car_carry_len;
 
 
 
+Live carry samples, &lt; tsamps. 
+ 
+
+
+        
 
 <hr>
 
@@ -200,6 +217,11 @@ double async_dsss_receiver_extra_t::cn0_dbhz_est;
 
 
 
+The seed's C/N0, dB-Hz. 
+ 
+
+
+        
 
 <hr>
 
@@ -213,6 +235,11 @@ double async_dsss_receiver_extra_t::doppler_hz_est;
 
 
 
+Seed or refined Doppler, Hz. 
+ 
+
+
+        
 
 <hr>
 
@@ -313,6 +340,10 @@ uint64_t async_dsss_receiver_extra_t::n;
 
 
 
+Layout key: must match the receiver. 
+
+
+        
 
 <hr>
 
@@ -379,6 +410,10 @@ uint64_t async_dsss_receiver_extra_t::refine_samples_fed;
 
 
 
+Raw samples fed to the refine chain. 
+
+
+        
 
 <hr>
 
@@ -392,6 +427,10 @@ uint64_t async_dsss_receiver_extra_t::refine_segments;
 
 
 
+Layout key: must match the receiver. 
+
+
+        
 
 <hr>
 
@@ -440,6 +479,11 @@ double async_dsss_receiver_extra_t::seed_chip_phase;
 
 
 
+The seed's chip phase, chips. 
+ 
+
+
+        
 
 <hr>
 
@@ -453,6 +497,11 @@ double async_dsss_receiver_extra_t::seed_doppler_hz_est;
 
 
 
+The seed's Doppler, Hz. 
+ 
+
+
+        
 
 <hr>
 
@@ -466,6 +515,10 @@ uint64_t async_dsss_receiver_extra_t::segments;
 
 
 
+Layout key: must match the receiver. 
+
+
+        
 
 <hr>
 
@@ -479,6 +532,10 @@ uint64_t async_dsss_receiver_extra_t::sps;
 
 
 
+Layout key: must match the receiver. 
+
+
+        
 
 <hr>
 
@@ -492,6 +549,11 @@ uint8_t async_dsss_receiver_extra_t::state;
 
 
 
+async\_dsss\_rx\_state\_t value. 
+ 
+
+
+        
 
 <hr>
 
@@ -505,6 +567,10 @@ uint64_t async_dsss_receiver_extra_t::state_samples;
 
 
 
+Samples since the state was entered. 
+
+
+        
 
 <hr>
 

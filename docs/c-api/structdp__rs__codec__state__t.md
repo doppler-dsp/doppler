@@ -104,6 +104,10 @@ rs_t dp_rs_codec_state_t::rs;
 
 
 
+The code parameters and GF/generator tables, built and validated by [**dp\_rs\_codec\_create()**](rs__codec__core_8h.md#function-dp_rs_codec_create); read-only after. 
+
+
+        
 
 <hr>
 

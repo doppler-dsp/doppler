@@ -22,7 +22,6 @@ extern "C"
 
   typedef resamp_state_t dp_Resampler_state_t;
 
-/* Maximum output samples per call (pre-allocated by ext.c at init). */
 #define RESAMPLER_MAX_OUT 65536
 
   /* ------------------------------------------------------------------ */

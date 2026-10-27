@@ -28,35 +28,30 @@ extern "C" {
 #define DOPPLER_CHANNEL_MAX_BLOCK 65536u
 
 typedef struct {
-    double fs;                 /* receive sample rate, Hz                  */
-    double carrier_hz;         /* RF carrier fc, Hz — drives the offset    */
-    double doppler_ppm;        /* d0, ppm of nominal                       */
-    double doppler_rate_ppm_s; /* d-dot, ppm/s                             */
-
-    resamp_state_t *rs; /* the dilation — never hand-rolled here     */
-
+    double fs;                 
+    double carrier_hz;         
+    double doppler_ppm;        
+    double doppler_rate_ppm_s; 
+    resamp_state_t *rs; 
     /* Two separate clocks, on purpose. The resampler's per-sample rate
        deviation is indexed by INPUT sample; the carrier phase is a function of
        receive time, which is the OUTPUT sample index. They differ by the
        dilation itself, so conflating them would fold a second copy of the
        Doppler into the carrier. */
-    uint64_t n_in;  /* input samples consumed                    */
-    uint64_t n_out; /* output samples produced                   */
-
-    double *ctrl;         /* per-sample rate deviation scratch         */
-    size_t ctrl_cap;
-
+    uint64_t n_in;  
+    uint64_t n_out; 
+    double *ctrl;         
+    size_t ctrl_cap;      
     /* Profile mode (dp_doppler_channel_execute_profile). The carrier needs no
        state of its own there: it is read off the resampler's position (see
        dp_resamp_execute_ctrl_pos), which the resampler blob and the two
        clocks already carry. What a profile does leave behind is the most
        recent instantaneous d, the one thing the closed form can no longer
        report -- hence these two, and the layout version. */
-    double  prof_d;   /* most recent instantaneous d (dimensionless) */
-    uint8_t profiled; /* a profile has driven this stream            */
-
-    double *pos;      /* per-output input position scratch (not state) */
-    size_t  pos_cap;
+    double  prof_d;   
+    uint8_t profiled; 
+    double *pos;      
+    size_t  pos_cap;  
 } dp_doppler_channel_state_t;
 
 static inline double

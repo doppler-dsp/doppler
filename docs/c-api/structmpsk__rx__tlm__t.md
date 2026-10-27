@@ -8,7 +8,7 @@
 
 
 
-_Telemetry attachment for the receiver's own two probes; the timing and carrier probes ride their own sub-attachments._ 
+_Telemetry attachment for the receiver's own seven probes._ [More...](#detailed-description)
 
 * `#include <mpsk_rx_loops.h>`
 
@@ -88,6 +88,13 @@ _Telemetry attachment for the receiver's own two probes; the timing and carrier 
 
 
 
+## Detailed Description
+
+
+The lock EMA, four carrier-loop probes and the recovered symbol's I and Q; the timing loop's probes ride its own attachment inside [**ratesync\_loop\_t**](structratesync__loop__t.md). Probe ids are valid only while `ctx` is non-NULL. 
+
+
+    
 ## Public Attributes Documentation
 
 

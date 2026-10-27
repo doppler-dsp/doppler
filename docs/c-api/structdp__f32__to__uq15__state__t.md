@@ -105,6 +105,10 @@ uint8_t dp_f32_to_uq15_state_t::clipped;
 
 
 
+Sticky clip flag (running state): 1 once any scaled sample fell outside -32768..32767, else 0; cleared only by reset(). 
+
+
+        
 
 <hr>
 
@@ -118,6 +122,10 @@ float dp_f32_to_uq15_state_t::scale;
 
 
 
+Multiply factor applied before rounding and saturation (config, fixed at create; &gt; 0). 
+
+
+        
 
 <hr>
 

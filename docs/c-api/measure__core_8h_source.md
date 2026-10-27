@@ -25,20 +25,12 @@ extern "C" {
  * that range — so window leakage never caps SFDR/SNR — while keeping the main
  * lobe (hence resolution bandwidth) as narrow as the data allows. */
 
-/* Internal zero-pad factor (nfft = next_pow_two(n * MEASURE_PAD)). */
 #define MEASURE_PAD 2u
 
-/* Sidelobe headroom below the ideal converter SNR: a B-bit ADC's spur/noise
- * floor sits at -(6.02*B+1.76) dBc, so target sidelobes this much deeper to be
- * sure window leakage stays under the floor being measured. */
 #define MEASURE_DR_MARGIN_DB 12.0
 
-/* Dynamic-range target when neither `bits` nor an explicit override is given
- * (general DUT): deep enough for ~19-bit measurements. */
 #define MEASURE_DR_DEFAULT_DB 120.0
 
-/* Extra main-lobe widths excluded past the first null when searching for spurs,
- * so a component's near-in sidelobes are never mistaken for a spur. */
 #define MEASURE_SPUR_SIDELOBES 1.0
 
 static inline double

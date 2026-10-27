@@ -32,14 +32,14 @@ _PN component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_pn\_state\_t**](structdp__pn__state__t.md) <br> |
+| struct | [**dp\_pn\_state\_t**](structdp__pn__state__t.md) <br>_PN state._  |
 
 
 ## Public Types
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**pn\_\_core\_8h\_1abc6126af1d45847bc59afa0aa3216b04**](#enum-pn__core_8h_1abc6126af1d45847bc59afa0aa3216b04)  <br>_PN state._  |
+| enum  | [**pn\_\_core\_8h\_1abc6126af1d45847bc59afa0aa3216b04**](#enum-pn__core_8h_1abc6126af1d45847bc59afa0aa3216b04)  <br> |
 
 
 
@@ -68,10 +68,10 @@ _PN component API._ [More...](#detailed-description)
 |  [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* | [**dp\_pn\_create\_mls**](#function-dp_pn_create_mls) (uint64\_t poly, uint64\_t seed, uint32\_t length, int lfsr) <br>_Allocate and initialise a maximal-length-sequence LFSR. The register is seeded from_ `seed` _and will produce a pseudo-random binary sequence with period 2^length - 1 for any primitive_`poly` _. Both Galois and Fibonacci realizations share the same primitive polynomial and therefore the same period; they differ only in chip ordering/phase. Leave_`poly` _at 0 and the maximal-length polynomial for_`length` _is used, so_`PN(seed=1, length=7)` _is the 127-chip m-sequence._ |
 |  void | [**dp\_pn\_destroy**](#function-dp_pn_destroy) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Destroy a pn instance and release all memory. Idempotent when_ `state` _is NULL; safe to call at any point in the lifecycle. After return the pointer is dangling — do not dereference it._ |
 |  size\_t | [**dp\_pn\_generate**](#function-dp_pn_generate) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Generate_ `n` _chips into_`out` _and advance the LFSR by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one MLS period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._ |
-|  size\_t | [**dp\_pn\_generate\_max\_out**](#function-dp_pn_generate_max_out) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_pn\_generate\_max\_out**](#function-dp_pn_generate_max_out) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_pn\_generate()**_](pn__core_8h.md#function-dp_pn_generate) _: always 0._ |
 |  void | [**dp\_pn\_get\_state**](#function-dp_pn_get_state) (const [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state, void \* blob) <br>_Serialize the LFSR register into_ `blob` _._ |
 |  void | [**dp\_pn\_reset**](#function-dp_pn_reset) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Reset PN to its post-create state. Reloads the LFSR register from the original seed so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._  |
-|  int | [**dp\_pn\_set\_state**](#function-dp_pn_set_state) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state, const void \* blob) <br>_Restore the register; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
+|  int | [**dp\_pn\_set\_state**](#function-dp_pn_set_state) ([**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state, const void \* blob) <br>_Restore the register from a_ [_**dp\_pn\_get\_state()**_](pn__core_8h.md#function-dp_pn_get_state) _blob._ |
 |  size\_t | [**dp\_pn\_state\_bytes**](#function-dp_pn_state_bytes) (const [**dp\_pn\_state\_t**](structdp__pn__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**pn\_fits\_register**](#function-pn_fits_register) (uint64\_t v, uint32\_t n) <br>_Non-zero when_ `v` _fits a register of_`n` _bits: no bit at or above bit_`n` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**pn\_mls\_poly**](#function-pn_mls_poly) (uint32\_t n) <br>_Maximal-length-sequence (MLS) primitive polynomial for a register of length_ `n` _, in this module's right-shift Galois convention._ |
@@ -108,8 +108,8 @@ _PN component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**PN\_STATE\_MAGIC**](pn__core_8h.md#define-pn_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('P', 'N', '\_', '\_')`<br> |
-| define  | [**PN\_STATE\_VERSION**](pn__core_8h.md#define-pn_state_version)  `1u`<br> |
+| define  | [**PN\_STATE\_MAGIC**](pn__core_8h.md#define-pn_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('P', 'N', '\_', '\_')`<br>_State-blob magic for PN (FourCC "PN\_\_")._  |
+| define  | [**PN\_STATE\_VERSION**](pn__core_8h.md#define-pn_state_version)  `1u`<br>_State-blob layout version for PN._  |
 
 ## Detailed Description
 
@@ -134,7 +134,6 @@ dp_pn_destroy(obj);
 
 ### enum pn\_\_core\_8h\_1abc6126af1d45847bc59afa0aa3216b04 
 
-_PN state._ 
 ```C++
 enum pn__core_8h_1abc6126af1d45847bc59afa0aa3216b04 {
     PN_GALOIS = 0,
@@ -144,7 +143,7 @@ enum pn__core_8h_1abc6126af1d45847bc59afa0aa3216b04 {
 
 
 
-Allocate with [**dp\_pn\_create()**](pn__core_8h.md#function-dp_pn_create). LFSR realization: Galois (internal XOR) or Fibonacci (external XOR). 
+LFSR realization: Galois (internal XOR) or Fibonacci (external XOR). 
 
 
         
@@ -177,13 +176,13 @@ dp_pn_state_t * dp_pn_create (
 * `poly` Galois feedback tap polynomial (right-shift convention). The LSB is the tap at position 0 (always 1 for a primitive poly); bit k=1 means tap at position k. Default 96 (0x60) is primitive for length=7, giving period 127. The Fibonacci taps are derived automatically so you only supply one value. 
 * `seed` Initial LFSR register state; must be non-zero WITHIN the register, `seed & pn_register_mask (length)`  the all-zero state is a fixed point, and a seed that masks to it (128 on 7 bits) is refused like 0. Default 1. 
 * `length` Register width in bits, 1..64. The sequence period is 2^length - 1 for a primitive polynomial. Default 7. 
-* `lfsr` Realization: PN\_GALOIS (0, default) or PN\_FIBONACCI (1). 
+* `lfsr` Realization: PN\_GALOIS (0, default) or PN\_FIBONACCI (1). Any other value selects PN\_GALOIS. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL if `length` is outside 1..64, the masked `seed` is zero, or allocation fails. 
 
 
 
@@ -358,6 +357,7 @@ min(n, max\_out) chips.
 
 ### function dp\_pn\_generate\_max\_out 
 
+_Output capacity hint for_ [_**dp\_pn\_generate()**_](pn__core_8h.md#function-dp_pn_generate) _: always 0._
 ```C++
 size_t dp_pn_generate_max_out (
     dp_pn_state_t * state
@@ -366,6 +366,27 @@ size_t dp_pn_generate_max_out (
 
 
 
+The chip count is the caller's `n`, not a function of the state, so there is no state-derived bound; size `out` to `n`.
+
+
+
+
+**Parameters:**
+
+
+* `state` Unused. 
+
+
+
+**Returns:**
+
+0. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -383,6 +404,18 @@ void dp_pn_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Caller-owned buffer of at least [**dp\_pn\_state\_bytes()**](pn__core_8h.md#function-dp_pn_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -427,7 +460,7 @@ True
 
 ### function dp\_pn\_set\_state 
 
-_Restore the register; DP\_OK, or DP\_ERR\_INVALID if rejected._ 
+_Restore the register from a_ [_**dp\_pn\_get\_state()**_](pn__core_8h.md#function-dp_pn_get_state) _blob._
 ```C++
 int dp_pn_set_state (
     dp_pn_state_t * state,
@@ -437,6 +470,28 @@ int dp_pn_set_state (
 
 
 
+Only the envelope is checked; the poly, length and realization are the receiving instance's own, so restore into an identically built PN.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Blob from [**dp\_pn\_get\_state()**](pn__core_8h.md#function-dp_pn_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID on a magic, version, endian or size mismatch (`state` untouched). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -453,6 +508,24 @@ size_t dp_pn_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL (its contents do not affect the size). 
+
+
+
+**Returns:**
+
+Bytes: the [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) envelope plus one uint64 register. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -479,7 +552,25 @@ pn_fits_register (0x12, 5);   // 1: x^5 + x^2 + 1's taps, inside 5 bits
 pn_fits_register (0x40, 5);   // 0: bit 6, above the register
 pn_fits_register (~0ull, 64); // 1: a 64-bit register holds every value
 ```
- 
+
+
+
+
+
+**Parameters:**
+
+
+* `v` Poly, tap set or seed to test. 
+* `n` Register length in bits; 64 or more accepts every value. 
+
+
+
+**Returns:**
+
+1 when `v` has no bit at or above bit `n`, else 0. 
+
+
+
 
 
         
@@ -505,7 +596,24 @@ The table lives here because the convention is pn's: `poly` is [**dp\_pn\_create
 **A zero `poly` is not a polynomial.** [**dp\_pn\_create()**](pn__core_8h.md#function-dp_pn_create) takes the mask verbatim, so `poly = 0` is a register with no feedback: it shifts out the seed and then emits zeros forever. Every caller that lets a user say "default" therefore resolves it as `poly ? poly : pn_mls_poly (n)`  wfm\_synth's create does, wfm\_frame's PN sequence kind does, and [**dp\_pn\_create\_mls()**](pn__core_8h.md#function-dp_pn_create_mls) is that resolution as a constructor (the `PN` binding calls it). A caller that forgets gets a constant field that still looks like a field.
 
 
-Returns 0 for lengths outside 2..64 (caller errors). Generated from verified primitive polynomials (period 2^n-1); the n=2..16 values are unchanged. 
+Returns 0 for lengths outside 2..64 (caller errors). Generated from verified primitive polynomials (period 2^n-1); the n=2..16 values are unchanged.
+
+
+
+
+**Parameters:**
+
+
+* `n` Register length in bits. 
+
+
+
+**Returns:**
+
+Galois tap mask giving period 2^n - 1, or 0 when `n` is outside 2..64. 
+
+
+
 
 
         
@@ -525,7 +633,24 @@ JM_FORCEINLINE uint64_t pn_register_mask (
 
 
 
-A seed is refused when `(seed & pn_register_mask (n)) == 0`, not when `seed == 0`: 128 on a 7-bit register is non-zero and masks to the all-zero register, the fixed point the rule exists to keep out (doppler#1640). A wide seed that masks to non-zero  129 to 1  is fine, and documented. 
+A seed is refused when `(seed & pn_register_mask (n)) == 0`, not when `seed == 0`: 128 on a 7-bit register is non-zero and masks to the all-zero register, the fixed point the rule exists to keep out (doppler#1640). A wide seed that masks to non-zero  129 to 1  is fine, and documented.
+
+
+
+
+**Parameters:**
+
+
+* `n` Register length in bits. 
+
+
+
+**Returns:**
+
+`(1 << n) - 1`, or all ones when `n` &gt;= 64. 
+
+
+
 
 
         
@@ -573,6 +698,7 @@ Output chip: 0 or 1 (register LSB before the shift).
 
 ### define PN\_STATE\_MAGIC 
 
+_State-blob magic for PN (FourCC "PN\_\_")._ 
 ```C++
 #define PN_STATE_MAGIC `DP_FOURCC ('P', 'N', '_', '_')`
 ```
@@ -586,6 +712,7 @@ Output chip: 0 or 1 (register LSB before the shift).
 
 ### define PN\_STATE\_VERSION 
 
+_State-blob layout version for PN._ 
 ```C++
 #define PN_STATE_VERSION `1u`
 ```

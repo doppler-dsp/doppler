@@ -62,10 +62,10 @@ _Scale-and-saturate float to Q15-in-uint32 converter._ [More...](#detailed-descr
 | ---: | :--- |
 |  [**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* | [**dp\_f32\_to\_i16u32\_create**](#function-dp_f32_to_i16u32_create) (float scale) <br>_Create a f32\_to\_i16u32 instance._  |
 |  void | [**dp\_f32\_to\_i16u32\_destroy**](#function-dp_f32_to_i16u32_destroy) ([**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* state) <br>_Destroy a f32\_to\_i16u32 instance and release all memory._  |
-|  void | [**dp\_f32\_to\_i16u32\_get\_state**](#function-dp_f32_to_i16u32_get_state) (const [**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_f32\_to\_i16u32\_get\_state**](#function-dp_f32_to_i16u32_get_state) (const [**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* state, void \* blob) <br>_Snapshot the whole state struct (scale and clipped) into_ `blob` _._ |
 |  void | [**dp\_f32\_to\_i16u32\_reset**](#function-dp_f32_to_i16u32_reset) ([**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
-|  int | [**dp\_f32\_to\_i16u32\_set\_state**](#function-dp_f32_to_i16u32_set_state) ([**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_f32\_to\_i16u32\_state\_bytes**](#function-dp_f32_to_i16u32_state_bytes) (const [**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* state) <br> |
+|  int | [**dp\_f32\_to\_i16u32\_set\_state**](#function-dp_f32_to_i16u32_set_state) ([**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* state, const void \* blob) <br>_Restore the whole state struct from_ `blob` _._ |
+|  size\_t | [**dp\_f32\_to\_i16u32\_state\_bytes**](#function-dp_f32_to_i16u32_state_bytes) (const [**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* state) <br>_Bytes_ [_**dp\_f32\_to\_i16u32\_get\_state()**_](f32__to__i16u32__core_8h.md#function-dp_f32_to_i16u32_get_state) _writes (envelope + payload)._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint32\_t | [**dp\_f32\_to\_i16u32\_step**](#function-dp_f32_to_i16u32_step) ([**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* state, float x) <br>_Scale one float sample to a saturated Q15 code packed in a uint32._  |
 |  void | [**dp\_f32\_to\_i16u32\_steps**](#function-dp_f32_to_i16u32_steps) ([**dp\_f32\_to\_i16u32\_state\_t**](structdp__f32__to__i16u32__state__t.md) \* state, const float \* input, uint32\_t \* output, size\_t n) <br>_Process a block of float samples to Q15-in-uint32._  |
 
@@ -160,13 +160,13 @@ Stores `scale` and initialises the sticky `clipped` flag to 0.
 **Parameters:**
 
 
-* `scale` Multiply factor applied before quantisation and saturation (default: 32768.0f). Use 32768.0 to convert normalised `[-1, +1]` samples to Q15 packed into a uint32. 
+* `scale` Multiply factor applied before quantisation and saturation (default: 32768.0f). Use 32768.0 to convert normalised `[-1, +1]` samples to Q15 packed into a uint32. Must be &gt; 0. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL if `scale` &lt;= 0 or allocation fails. 
 
 
 
@@ -214,6 +214,7 @@ void dp_f32_to_i16u32_destroy (
 
 ### function dp\_f32\_to\_i16u32\_get\_state 
 
+_Snapshot the whole state struct (scale and clipped) into_ `blob` _._
 ```C++
 void dp_f32_to_i16u32_get_state (
     const dp_f32_to_i16u32_state_t * state,
@@ -223,6 +224,18 @@ void dp_f32_to_i16u32_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` State. Must be non-NULL. Not modified. 
+* `blob` Caller-owned buffer of at least [**dp\_f32\_to\_i16u32\_state\_bytes()**](f32__to__i16u32__core_8h.md#function-dp_f32_to_i16u32_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -270,6 +283,7 @@ False
 
 ### function dp\_f32\_to\_i16u32\_set\_state 
 
+_Restore the whole state struct from_ `blob` _._
 ```C++
 int dp_f32_to_i16u32_set_state (
     dp_f32_to_i16u32_state_t * state,
@@ -279,6 +293,28 @@ int dp_f32_to_i16u32_set_state (
 
 
 
+The envelope (magic, version, endianness, size) is validated first; on success both `scale` and `clipped` are overwritten from the blob, so the instance takes the source's scale too.
+
+
+
+
+**Parameters:**
+
+
+* `state` State. Must be non-NULL; unchanged on rejection. 
+* `blob` Blob from [**dp\_f32\_to\_i16u32\_get\_state()**](f32__to__i16u32__core_8h.md#function-dp_f32_to_i16u32_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the envelope rejects. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -286,6 +322,7 @@ int dp_f32_to_i16u32_set_state (
 
 ### function dp\_f32\_to\_i16u32\_state\_bytes 
 
+_Bytes_ [_**dp\_f32\_to\_i16u32\_get\_state()**_](f32__to__i16u32__core_8h.md#function-dp_f32_to_i16u32_get_state) _writes (envelope + payload)._
 ```C++
 size_t dp_f32_to_i16u32_state_bytes (
     const dp_f32_to_i16u32_state_t * state
@@ -294,6 +331,24 @@ size_t dp_f32_to_i16u32_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` State; not read (the size is fixed). 
+
+
+
+**Returns:**
+
+sizeof(dp\_state\_hdr\_t) + sizeof(dp\_f32\_to\_i16u32\_state\_t). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -311,7 +366,7 @@ JM_FORCEINLINE  JM_HOT uint32_t dp_f32_to_i16u32_step (
 
 
 
-Computes `round(x * scale)`, saturates to `[-32768, 32767]`, then zero-extends the 16-bit two's-complement pattern into the lower 16 bits of a uint32 (upper 16 bits are always zero). Latches the sticky `clipped` flag on saturation.
+Computes `round(x * scale)`, saturates to `[-32768, 32767]`, then zero-extends the 16-bit two's-complement pattern into the lower 16 bits of a uint32 (upper 16 bits are always zero). Latches the sticky `clipped` flag on saturation. A NaN input maps to 0x8000 (-32768) without setting `clipped`.
 
 
 
@@ -361,7 +416,7 @@ void dp_f32_to_i16u32_steps (
 
 
 
-Applies step() to every element. The `clipped` flag is updated cumulatively across the block. Accepts an optional pre-allocated output array; allocates a fresh one when `output` is NULL.
+Applies step() to every element. The `clipped` flag is updated cumulatively across the block. In C the caller supplies `output`; the Python binding accepts an optional pre-allocated `out` array and allocates a fresh one when it is omitted.
 
 
 
@@ -371,7 +426,7 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 * `state` Must be non-NULL. 
 * `input` Input float32 array; must contain at least `n` elements. 
-* `output` Output uint32 array; must contain at least `n` elements. 
+* `output` Output uint32 array; must be non-NULL and contain at least `n` elements. 
 * `n` Number of samples to process.
 
 
@@ -402,6 +457,10 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 
 
+Envelope magic ("FU32") that tags an f32\_to\_i16u32 state blob. 
+
+
+        
 
 <hr>
 
@@ -415,6 +474,10 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 
 
+Payload layout version of an f32\_to\_i16u32 state blob. 
+
+
+        
 
 <hr>
 

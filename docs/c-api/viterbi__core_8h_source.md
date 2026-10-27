@@ -21,10 +21,9 @@ extern "C" {
 
 typedef struct
 {
-  conv_code_t code;
-  size_t      depth;
-  uint32_t    nstate;
-
+  conv_code_t code;   
+  size_t      depth;  
+  uint32_t    nstate; 
   float   *pm;   
   float   *pm2;  
   uint8_t *dec;  
@@ -33,11 +32,11 @@ typedef struct
   /* Derived once: for each state, its two predecessors and their output
      words. The butterfly -- predecessors (ns << 1) & mask and | 1, both on
      the same input bit ns >> (k-2) -- holds for every k. */
-  uint32_t *pred0;
-  uint32_t *pred1;
-  unsigned *out0;
-  unsigned *out1;
-  unsigned *inbit;
+  uint32_t *pred0; 
+  uint32_t *pred1; 
+  unsigned *out0;  
+  unsigned *out1;  
+  unsigned *inbit; 
 /*<<property_struct_fields>>*/
 } dp_viterbi_state_t;
 

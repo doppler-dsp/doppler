@@ -292,7 +292,7 @@ extern "C"
    *
    * @param p  Linear power (any double); NaN is treated as AGC_POWER_CEIL.
    * @return Approximately log10 of @p p after saturation into
-   *         [AGC_POWER_FLOOR, AGC_POWER_CEIL]; always finite.
+   *         `[AGC_POWER_FLOOR, AGC_POWER_CEIL]`; always finite.
    */
   JM_FORCEINLINE double
   agc_log10_ (double p)

@@ -67,7 +67,7 @@ _Portable lock detector — level + time hysteresis over any scalar lock metric,
 |  void | [**dp\_lockdet\_get\_state**](#function-dp_lockdet_get_state) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, void \* blob) <br>_Serialize the detector state into_ `blob` _._ |
 |  void | [**dp\_lockdet\_init**](#function-dp_lockdet_init) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Initialise a lock detector in place (no allocation)._  |
 |  void | [**dp\_lockdet\_reset**](#function-dp_lockdet_reset) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state) <br>_Drop the lock and clear the verify counter; keep the config. Returns the detector to the unlocked state with an empty verify run, as if freshly constructed with the same thresholds. Call it at a segment boundary so a decision made on one capture does not leak into an unrelated next one._  |
-|  int | [**dp\_lockdet\_set\_state**](#function-dp_lockdet_set_state) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
+|  int | [**dp\_lockdet\_set\_state**](#function-dp_lockdet_set_state) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, const void \* blob) <br>_Restore a state written by_ [_**dp\_lockdet\_get\_state()**_](lockdet__core_8h.md#function-dp_lockdet_get_state) _._ |
 |  size\_t | [**dp\_lockdet\_state\_bytes**](#function-dp_lockdet_state_bytes) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**dp\_lockdet\_step**](#function-dp_lockdet_step) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, double x) <br>_Feed one look of the lock metric; return the current decision._  |
 |  void | [**dp\_lockdet\_steps**](#function-dp_lockdet_steps) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, const double \* x, int \* out, size\_t n) <br>_Run a block of lock-metric looks through the detector. Applies_ [_**dp\_lockdet\_step()**_](lockdet__core_8h.md#function-dp_lockdet_step) _to each look in turn, so the decision flag and the in-flight verify run carry across the block exactly as they would look by look — a signal can be processed in frames of any size with no seam._ |
@@ -102,8 +102,8 @@ _Portable lock detector — level + time hysteresis over any scalar lock metric,
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**LOCKDET\_STATE\_MAGIC**](lockdet__core_8h.md#define-lockdet_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('L', 'K', 'D', 'T')`<br> |
-| define  | [**LOCKDET\_STATE\_VERSION**](lockdet__core_8h.md#define-lockdet_state_version)  `1u`<br> |
+| define  | [**LOCKDET\_STATE\_MAGIC**](lockdet__core_8h.md#define-lockdet_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('L', 'K', 'D', 'T')`<br>_State-blob magic for the lock detector (FourCC "LKDT")._  |
+| define  | [**LOCKDET\_STATE\_VERSION**](lockdet__core_8h.md#define-lockdet_state_version)  `1u`<br>_State-blob layout version for the lock detector._  |
 
 ## Detailed Description
 
@@ -276,6 +276,21 @@ void dp_lockdet_get_state (
 
 
 
+A whole-struct snapshot: thresholds, run lengths, the verify-run counter and the lock flag.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Caller-owned buffer of at least [**dp\_lockdet\_state\_bytes()**](lockdet__core_8h.md#function-dp_lockdet_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -358,7 +373,7 @@ False
 
 ### function dp\_lockdet\_set\_state 
 
-_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._ 
+_Restore a state written by_ [_**dp\_lockdet\_get\_state()**_](lockdet__core_8h.md#function-dp_lockdet_get_state) _._
 ```C++
 int dp_lockdet_set_state (
     dp_lockdet_state_t * state,
@@ -368,6 +383,28 @@ int dp_lockdet_set_state (
 
 
 
+The envelope is validated first; on rejection `state` is untouched. Being a whole-struct snapshot, it also restores the sender's thresholds and run lengths.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Blob from [**dp\_lockdet\_get\_state()**](lockdet__core_8h.md#function-dp_lockdet_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID on a magic, version, endian or size mismatch. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -384,6 +421,24 @@ size_t dp_lockdet_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL (its contents do not affect the size). 
+
+
+
+**Returns:**
+
+Bytes: the [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) envelope plus the whole struct. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -489,6 +544,7 @@ void dp_lockdet_steps (
 
 ### define LOCKDET\_STATE\_MAGIC 
 
+_State-blob magic for the lock detector (FourCC "LKDT")._ 
 ```C++
 #define LOCKDET_STATE_MAGIC `DP_FOURCC ('L', 'K', 'D', 'T')`
 ```
@@ -502,6 +558,7 @@ void dp_lockdet_steps (
 
 ### define LOCKDET\_STATE\_VERSION 
 
+_State-blob layout version for the lock detector._ 
 ```C++
 #define LOCKDET_STATE_VERSION `1u`
 ```

@@ -96,6 +96,10 @@ dp_tlm_t* agc_tlm_t::ctx;
 
 
 
+Borrowed telemetry context; NULL = detached. 
+
+
+        
 
 <hr>
 
@@ -109,6 +113,11 @@ int32_t agc_tlm_t::id_gain;
 
 
 
+Probe id of "&lt;prefix&gt;.gain\_db", from a successful [**dp\_agc\_set\_telemetry()**](agc__core_8h.md#function-dp_agc_set_telemetry). 
+ 
+
+
+        
 
 <hr>
 
@@ -122,6 +131,11 @@ int32_t agc_tlm_t::id_level;
 
 
 
+Probe id of "&lt;prefix&gt;.level\_db", from the same attach. 
+ 
+
+
+        
 
 <hr>
 

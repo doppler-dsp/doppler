@@ -108,6 +108,10 @@ uint32_t dp_gold_state_t::length;
 
 
 
+Register width in bits, 1..64; CCSDS uses 10 
+
+
+        
 
 <hr>
 
@@ -121,6 +125,10 @@ uint64_t dp_gold_state_t::mask;
 
 
 
+(1 &lt;&lt; length) - 1; all ones when length == 64 
+
+
+        
 
 <hr>
 
@@ -134,6 +142,10 @@ uint64_t dp_gold_state_t::reg_a;
 
 
 
+Register A contents (running; bit k = stage k+1) 
+
+
+        
 
 <hr>
 
@@ -147,6 +159,10 @@ uint64_t dp_gold_state_t::reg_b;
 
 
 
+Register B contents (running; bit k = stage k+1) 
+
+
+        
 
 <hr>
 
@@ -160,6 +176,10 @@ uint64_t dp_gold_state_t::seed_a;
 
 
 
+Register A initial value, reloaded by reset 
+
+
+        
 
 <hr>
 
@@ -173,6 +193,10 @@ uint64_t dp_gold_state_t::seed_b;
 
 
 
+Register B initial value; fixed by CCSDS 
+
+
+        
 
 <hr>
 
@@ -186,6 +210,10 @@ uint64_t dp_gold_state_t::taps_a;
 
 
 
+Register A feedback-tap mask, masked (config) 
+
+
+        
 
 <hr>
 
@@ -199,6 +227,10 @@ uint64_t dp_gold_state_t::taps_b;
 
 
 
+Register B feedback-tap mask, masked (config) 
+
+
+        
 
 <hr>
 

@@ -101,6 +101,10 @@ float dp_i16u32_to_f32_state_t::iscale;
 
 
 
+1.0f / scale, pre-computed by create() so step() is a single multiply (config; never changes). 
+
+
+        
 
 <hr>
 

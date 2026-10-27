@@ -211,22 +211,22 @@ extern "C"
     uint64_t surface_at; 
     uint64_t dwells;     
     acq_surface_sink_fn sink; 
-    void    *sink_ctx;
+    void    *sink_ctx;   
     uint32_t sink_decim; 
     size_t   n_held;     
     float    peak_conc;  
     /* Last-dump bookkeeping (for inspection): the strongest pick. */
-    size_t peak_row;
-    size_t peak_col;
-    float  peak_mag;
-    float  noise_est;
-    float  test_stat;
+    size_t peak_row;  
+    size_t peak_col;  
+    float  peak_mag;  
+    float  noise_est; 
+    float  test_stat; 
   } dp_acq_state_t;
 
   typedef struct
   {
     uint16_t has_nc; 
-    uint16_t _pad;
+    uint16_t _pad;             
     uint32_t n_noncoh;         
     uint64_t n;                
     uint64_t samples_consumed; 
@@ -235,13 +235,10 @@ extern "C"
     uint32_t n_twins;      
     uint32_t blk_epoch; 
     uint32_t rate_hyps; 
-    uint32_t _pad2;
+    uint32_t _pad2;     
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-/* v5: the carry is the framer's snapshot (fewer than frame_n samples)
-   instead of the ring's raw contents, zero-padded to ring_cap.
-   v6: acq_extra_t carries the rate-hypothesis count. */
 #define ACQ_STATE_VERSION 6u
 
 #define ACQ_MAX_PEAKS 64u

@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 typedef struct {
-    float   scale;   /* multiply factor applied before saturation */
-    uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
+    float   scale;   
+    uint8_t clipped; 
 } dp_f32_to_i16u32_state_t;
 
 dp_f32_to_i16u32_state_t *dp_f32_to_i16u32_create(float scale);

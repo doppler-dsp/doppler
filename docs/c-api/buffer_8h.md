@@ -110,15 +110,15 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 | define  | [**DECLARE\_DP\_BUFFER**](buffer_8h.md#define-declare_dp_buffer) (name, type) <br>_Generates a type-specific circular buffer implementation._  |
 | define  | [**DECLARE\_DP\_BUFFER\_FRAMES**](buffer_8h.md#define-declare_dp_buffer_frames) (name, type, elem) <br>_Declares the framed face of the_ `name` _ring: any chunk in, fixed (and optionally overlapping) frames out._ |
 | define  | [**DECLARE\_DP\_BUFFER\_VIEW**](buffer_8h.md#define-declare_dp_buffer_view) (name, type, elem) `/* multi line expression */`<br>_Declares the element-typed face of the_ `name` _ring._ |
-| define  | [**DP\_ALIGN**](buffer_8h.md#define-dp_align) (n) `\_\_attribute\_\_ ((aligned (n)))`<br> |
-| define  | [**DP\_ASSERT\_2X**](buffer_8h.md#define-dp_assert_2x) (tag, elem, type) `typedef char dp\_assert\_2x\_##tag[sizeof (elem) == 2 \* sizeof (type) ? 1 : -1]`<br> |
-| define  | [**DP\_ASSERT\_PWR2**](buffer_8h.md#define-dp_assert_pwr2) (n) `typedef char dp\_assert\_pwr2\_##n[((n) & ((n) - 1)) == 0 ? 1 : -1]`<br> |
-| define  | [**DP\_BUFFER\_UNUSED**](buffer_8h.md#define-dp_buffer_unused)  <br> |
+| define  | [**DP\_ALIGN**](buffer_8h.md#define-dp_align) (n) `\_\_attribute\_\_ ((aligned (n)))`<br>_Align the following declaration to_ `n` _bytes (GNU attribute)._ |
+| define  | [**DP\_ASSERT\_2X**](buffer_8h.md#define-dp_assert_2x) (tag, elem, type) `typedef char dp\_assert\_2x\_##tag[sizeof (elem) == 2 \* sizeof (type) ? 1 : -1]`<br>_Compile-time check that one_ `elem` _spans exactly two_`type` _scalars; pre-C11 form, a typedef_`dp_assert_2x_<tag>` _whose array size goes negative on failure._ |
+| define  | [**DP\_ASSERT\_PWR2**](buffer_8h.md#define-dp_assert_pwr2) (n) `typedef char dp\_assert\_pwr2\_##n[((n) & ((n) - 1)) == 0 ? 1 : -1]`<br>_Compile-time check that the constant_ `n` _is a power of two; pre-C11 form (a negative-size array typedef named after_`n` _)._ |
+| define  | [**DP\_BUFFER\_UNUSED**](buffer_8h.md#define-dp_buffer_unused)  <br>_Marks a stamped static function as possibly unused; empty on compilers without_ `__attribute__((unused))` _._ |
 | define  | [**DP\_CACHELINE**](buffer_8h.md#define-dp_cacheline)  `64`<br>_Standard x86-64 cache-line size (64 bytes)._  |
 | define  | [**DP\_FRAMER\_STATE\_MAGIC**](buffer_8h.md#define-dp_framer_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F', 'R', 'M', 'R')`<br>_FourCC of a framer snapshot (see dp\_&lt;name&gt;\_framer\_state\_bytes)._  |
 | define  | [**DP\_FRAMER\_STATE\_VERSION**](buffer_8h.md#define-dp_framer_state_version)  `1u`<br>_Layout version of a framer snapshot._  |
 | define  | [**DP\_FRAMER\_STATE\_WRITTEN\_OFFSET**](buffer_8h.md#define-dp_framer_state_written_offset) (sample\_t, frame\_n) `/* multi line expression */`<br>_Byte offset of the_ `written` _counter in a framer snapshot._ |
-| define  | [**DP\_SPIN\_HINT**](buffer_8h.md#define-dp_spin_hint) () `((void)0)`<br> |
+| define  | [**DP\_SPIN\_HINT**](buffer_8h.md#define-dp_spin_hint) () `((void)0)`<br>_CPU pause hint for a spin-wait loop; a no-op on this target._  |
 
 ## Detailed Description
 
@@ -508,6 +508,7 @@ dp_f32_destroy (ab);
 
 ### define DP\_ALIGN 
 
+_Align the following declaration to_ `n` _bytes (GNU attribute)._
 ```C++
 #define DP_ALIGN (
     n
@@ -523,6 +524,7 @@ dp_f32_destroy (ab);
 
 ### define DP\_ASSERT\_2X 
 
+_Compile-time check that one_ `elem` _spans exactly two_`type` _scalars; pre-C11 form, a typedef_`dp_assert_2x_<tag>` _whose array size goes negative on failure._
 ```C++
 #define DP_ASSERT_2X (
     tag,
@@ -540,6 +542,7 @@ dp_f32_destroy (ab);
 
 ### define DP\_ASSERT\_PWR2 
 
+_Compile-time check that the constant_ `n` _is a power of two; pre-C11 form (a negative-size array typedef named after_`n` _)._
 ```C++
 #define DP_ASSERT_PWR2 (
     n
@@ -555,6 +558,7 @@ dp_f32_destroy (ab);
 
 ### define DP\_BUFFER\_UNUSED 
 
+_Marks a stamped static function as possibly unused; empty on compilers without_ `__attribute__((unused))` _._
 ```C++
 #define DP_BUFFER_UNUSED 
 ```
@@ -642,6 +646,7 @@ The layout is `[hdr][live][sizeof sample][frame_n - 1 samples]` then the counter
 
 ### define DP\_SPIN\_HINT 
 
+_CPU pause hint for a spin-wait loop; a no-op on this target._ 
 ```C++
 #define DP_SPIN_HINT (
     

@@ -248,7 +248,7 @@ int wfm_reader_info_t::sample_type;
 
 
 
-Element type only  0 f32, 1 f64, 2 i32, 3 i16, 4 i8. How many components make a sample is `mode`, never this: the two are independent axes and the BLUE format field spells them as two separate characters for the same reason. 
+The [**wfm\_reader\_stype\_t**](wfm__reader__core_8h.md#enum-wfm_reader_stype_t) index of the wire type, 0..9: element type plus 5 for a scalar (one-component) capture  0 cf32 .. 4 ci8, 5 f32 .. 9 i8. The same combined index [**dp\_wfm\_reader\_create**](wfm__reader__core_8h.md#function-dp_wfm_reader_create) takes as a hint and [**dp\_wfm\_reader\_get\_sample\_type**](wfm__reader__core_8h.md#function-dp_wfm_reader_get_sample_type) returns; `mode` repeats the component count on its own. 
 
 
         

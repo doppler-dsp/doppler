@@ -126,11 +126,15 @@ RS / INTERLEAVE: interleaving depth
 ### variable emit\_den 
 
 ```C++
-unsigned wfm_stage_t::emit_den;
+wfm_stage_t::emit_den;
 ```
 
 
 
+Denominator of an emitting stage's output ratio: the stage emits `n * emit_num / emit_den` bits for an `n`-bit frame. Read only when `emit_num` is non-zero. 
+
+
+        
 
 <hr>
 

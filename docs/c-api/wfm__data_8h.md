@@ -281,7 +281,27 @@ wfm_data_src_t * dp_wfm_data_create_fd (
 
 
 
-What [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) does for a path, over an fd the caller already holds: a regular file is finite and its length comes from `fstat`; anything else (a pipe, a terminal, a socket) is a stream and needs `fill`. The source never closes `fd`. 
+What [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) does for a path, over an fd the caller already holds: a regular file is finite and its length comes from `fstat`; anything else (a pipe, a terminal, a socket) is a stream and needs `fill`. The source never closes `fd`.
+
+
+
+
+**Parameters:**
+
+
+* `fd` an open, readable file descriptor; the caller keeps ownership and closes it after [**dp\_wfm\_data\_destroy**](wfm__data_8h.md#function-dp_wfm_data_destroy). A negative `fd`, or one `fstat` fails on, is refused. 
+* `len` bits per frame, `LEN` of the frame's `data:LEN`; &gt; 0. 
+* `fill` a Field whose bits pad the last frame and fill an idle one, or NULL for none. A stream over `fd` needs one unless `len` is 1. 
+* `why` optional; receives a STATIC sentence naming the cause of a refusal, untouched on success. 
+
+
+
+**Returns:**
+
+the source, owned by the caller and freed with [**dp\_wfm\_data\_destroy**](wfm__data_8h.md#function-dp_wfm_data_destroy); or NULL: `len` of 0, a fill outside the grammar, an unreadable `fd`, an empty regular file, a regular file that does not divide into `LEN`-bit frames with no fill, or a stream with no fill and a `LEN` above 1. 
+
+
+
 
 
         
@@ -317,7 +337,14 @@ What [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) do
 * `path` a file, or `-` for stdin; NULL with `data`. 
 * `len` bits per frame; &gt; 0. 
 * `fill` the fill sequence, or NULL / `len == 0` for none. 
-* `why` optional; receives a STATIC reason for a refusal.
+* `why` optional; receives a STATIC reason for a refusal. 
+
+
+
+**Returns:**
+
+the source, owned by the caller and freed with [**dp\_wfm\_data\_destroy**](wfm__data_8h.md#function-dp_wfm_data_destroy), or NULL on any refusal [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) names (both or neither of `data` and `path`, a zero `len`, a sequence that renders no bits, ...).
+
 
 
 ```C++
@@ -355,6 +382,17 @@ void dp_wfm_data_destroy (
 
 
 
+
+
+**Parameters:**
+
+
+* `s` the source, or NULL. A descriptor handed to [**dp\_wfm\_data\_create\_fd**](wfm__data_8h.md#function-dp_wfm_data_create_fd) stays open; stdin is never closed. 
+
+
+
+
+        
 
 <hr>
 
@@ -435,6 +473,17 @@ wfm_data_status_t dp_wfm_data_frame (
 
 
 
+**Parameters:**
+
+
+* `s` the source. 
+* `pacing` WFM\_DATA\_PACED asks with a timeout of 0 and turns _nothing yet_ into an idle frame; WFM\_DATA\_UNPACED waits (timeout -1). 
+* `reps` the field's repetitions; 0 means one. 
+* `out` receives `LEN * reps` bits, one per byte. 
+* `max_out` capacity of `out` in bits. 
+
+
+
 **Returns:**
 
 WFM\_DATA\_FRAME, WFM\_DATA\_IDLE (paced only), WFM\_DATA\_END or WFM\_DATA\_ERROR.
@@ -477,6 +526,18 @@ void dp_wfm_data_get_state (
 
 
 
+
+**Parameters:**
+
+
+* `s` the source. 
+* `blob` receives the blob; at least [**dp\_wfm\_data\_state\_bytes**](wfm__data_8h.md#function-dp_wfm_data_state_bytes) bytes, untouched when that is 0. 
+
+
+
+
+        
+
 <hr>
 
 
@@ -497,6 +558,16 @@ wfm_data_status_t dp_wfm_data_idle (
 
 What a paced caller sends when [**dp\_wfm\_data\_next**](wfm__data_8h.md#function-dp_wfm_data_next) says WFM\_DATA\_NOT\_YET, so the carrier and the frame timing never break. It consumes no source bits (a partial chunk already read waits for the next data frame) and is counted in `idle_frames`.
 
+
+
+
+**Parameters:**
+
+
+* `s` the source. 
+* `reps` the field's repetitions; 0 means one. 
+* `out` receives `LEN * reps` fill bits, one per byte, the fill tiled from its first bit. 
+* `max_out` capacity of `out` in bits. 
 
 
 
@@ -528,6 +599,14 @@ uint64_t dp_wfm_data_length_bits (
 
 What a caller needs before the first sample: how many `LEN`-bit frames a finite source makes, `ceil(bits / LEN)`, and  when [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) refuses a source that leaves a remainder with no fill  the numbers to state that remainder in. Exactly one of `data` and `path`, as [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) takes them.
 
+
+
+
+**Parameters:**
+
+
+* `data` a Field, as [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) takes it; NULL when `path` is given. 
+* `path` a file; NULL when `data` is given. `-` (stdin) is a stream and gives 0. 
 
 
 
@@ -612,6 +691,14 @@ The receiving source must be the same kind over the same length in the same `LEN
 
 
 
+**Parameters:**
+
+
+* `s` the receiving source, built with the same config as the one the blob came from. 
+* `blob` a blob from [**dp\_wfm\_data\_get\_state**](wfm__data_8h.md#function-dp_wfm_data_get_state). 
+
+
+
 **Returns:**
 
 DP\_OK, or DP\_ERR\_INVALID: a bad envelope, another kind, size or `LEN`, a pipe, a position past the end, or a prefix whose hash differs.
@@ -656,7 +743,24 @@ size_t dp_wfm_data_state_bytes (
 
 
 
-The blob carries only what RUNS  the counts, the end latch, and the position: a Field's cursor, `pn:0`'s register (a nested `dp_pn` blob), or a file's residue and running hash. The bits, the fill and `LEN` are config, rebuilt by the create that built the receiving source. 
+The blob carries only what RUNS  the counts, the end latch, and the position: a Field's cursor, `pn:0`'s register (a nested `dp_pn` blob), or a file's residue and running hash. The bits, the fill and `LEN` are config, rebuilt by the create that built the receiving source.
+
+
+
+
+**Parameters:**
+
+
+* `s` the source; NULL gives 0. 
+
+
+
+**Returns:**
+
+the blob size in bytes, fixed by the source's config (the same for every call on one source), or 0 for a pipe or NULL. 
+
+
+
 
 
         
@@ -678,6 +782,13 @@ const char * dp_wfm_data_state_refusal (
 
 A pipe (stdin, a FIFO, a socket) is the one source that cannot resume: the octets it has delivered are gone, so a blob could only restart it from wherever the pipe is now  different data under the same frame count. It is refused at BOTH ends: [**dp\_wfm\_data\_state\_bytes**](wfm__data_8h.md#function-dp_wfm_data_state_bytes) is 0, so a checkpoint fails when it is taken rather than on the pod that relies on it, and [**dp\_wfm\_data\_set\_state**](wfm__data_8h.md#function-dp_wfm_data_set_state) is `DP_ERR_INVALID`.
 
+
+
+
+**Parameters:**
+
+
+* `s` the source; NULL gives NULL. 
 
 
 
@@ -707,6 +818,18 @@ void dp_wfm_data_stats (
 
 
 
+
+
+**Parameters:**
+
+
+* `s` the source; NULL writes an all-zero `out`. 
+* `out` receives a copy of the counts ([**wfm\_data\_stats\_t**](structwfm__data__stats__t.md)); a NULL `out` is a no-op. 
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation

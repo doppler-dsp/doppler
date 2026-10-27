@@ -8,25 +8,7 @@
 
 
 ```C++
-/* dp_parallel.h — a minimal bounded parallel-for over an index range, and a
- * persistent pool with the same contract.
- *
- * doppler is single-threaded C by default; this is the one place that fans a
- * genuinely independent, CPU-bound workload across cores (the per-source
- * signal build in wfm_plan's prepare(); the searcher's roll per thread). The contract is deliberately narrow:
- * run body(i, ctx) for every i in [0, n), possibly concurrently, and return
- * only once all n have completed. body MUST be free of cross-i data races — it
- * may read shared read-only state through ctx and must write only to per-i
- * outputs (a distinct slot per i). Given that, the observable result is
- * bit-identical to the plain serial loop no matter how the work is scheduled.
- *
- * Portability: POSIX threads on the two supported platforms (linux, macos).
- * Every path to *not* running parallel — a single online core, n <= 1, a
- * forced-serial caller, or a malloc/thread-create failure — degrades to
- * running the whole range on the calling thread, so the function always does
- * all the work. Header-only (static) so the sole caller pulls it in with no
- * separate translation unit; link Threads::Threads on that target.
- */
+
 #ifndef DP_PARALLEL_H
 #define DP_PARALLEL_H
 
@@ -38,15 +20,12 @@
 
 typedef struct
 {
-  size_t n;                      /* index count: work covers [0, n)         */
-  void (*body) (size_t, void *); /* per-index work                          */
-  void *ctx;                     /* shared read-only context, passed through */
-  atomic_size_t next;            /* lock-free work cursor (fetch-add)        */
+  size_t n;                      
+  void (*body) (size_t, void *); 
+  void *ctx;                     
+  atomic_size_t next;            
 } dp_pf_shared_t;
 
-/* A worker drains indices off the shared cursor until the range is exhausted.
- * fetch-add is the whole synchronization story: each index is handed to
- * exactly one worker, so there is no contention on the outputs. */
 DP_THREAD_FN (dp_pf_worker, arg)
 {
   dp_pf_shared_t *s = (dp_pf_shared_t *)arg;
@@ -56,12 +35,6 @@ DP_THREAD_FN (dp_pf_worker, arg)
   DP_THREAD_RETURN;
 }
 
-/* Run body(i, ctx) for every i in [0, n) across up to max_threads workers.
- * max_threads <= 0 auto-selects the online core count; 1 forces serial. The
- * calling thread is itself a worker, so total concurrency is max_threads
- * (max_threads - 1 helpers spawned + the caller draining alongside them).
- * Whenever helpers cannot be spawned the caller alone drains the full range,
- * so the range is always completed. */
 static inline void
 dp_parallel_for (size_t n, void (*body) (size_t, void *), void *ctx,
                  int max_threads)
@@ -132,15 +105,15 @@ dp_parallel_for (size_t n, void (*body) (size_t, void *), void *ctx,
  * pool (dp_pool_threads() says how big), never a broken one. */
 typedef struct
 {
-  dp_mutex_t mu;
-  dp_cond_t  wake; /* helpers wait here between runs           */
-  dp_cond_t  done; /* the caller waits here for the run's end  */
-  dp_thread_t      *th;
-  int             helpers; /* helper threads actually running        */
-  int             stop;
-  unsigned long   gen;  /* bumped per run; helpers wake on a change */
-  int             busy; /* helpers still draining the current run   */
-  dp_pf_shared_t  work;
+  dp_mutex_t mu;   
+  dp_cond_t  wake; 
+  dp_cond_t  done; 
+  dp_thread_t      *th; 
+  int             helpers; 
+  int             stop;    
+  unsigned long   gen;  
+  int             busy; 
+  dp_pf_shared_t  work; 
 } dp_pool_t;
 
 DP_THREAD_FN (dp_pool_worker, arg)
@@ -167,9 +140,6 @@ DP_THREAD_FN (dp_pool_worker, arg)
     }
 }
 
-/* Create a pool of max_threads workers (the caller counts as one):
- * max_threads <= 0 auto-selects the online core count; 1 creates no helper.
- * Never NULL: the pool's own allocations are fixed-size and abort on OOM. */
 static inline dp_pool_t *
 dp_pool_create (int max_threads)
 {
@@ -198,15 +168,12 @@ dp_pool_create (int max_threads)
   return p;
 }
 
-/* Workers the pool runs work on, the caller included: helpers + 1. */
 static inline int
 dp_pool_threads (const dp_pool_t *p)
 {
   return p ? p->helpers + 1 : 1;
 }
 
-/* Run body(i, ctx) for every i in [0, n) across the pool's threads; returns
- * once all n have completed. dp_parallel_for()'s contract exactly. */
 static inline void
 dp_pool_run (dp_pool_t *p, size_t n, void (*body) (size_t, void *),
              void *ctx)
@@ -235,7 +202,6 @@ dp_pool_run (dp_pool_t *p, size_t n, void (*body) (size_t, void *),
   dp_mutex_unlock (&p->mu);
 }
 
-/* Stop and join the helpers, free the pool. NULL is a no-op. */
 static inline void
 dp_pool_destroy (dp_pool_t *p)
 {

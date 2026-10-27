@@ -300,7 +300,17 @@ const char * dp_host_rep (
 
 
 
-Four characters, not NUL-terminated. Derived at run time rather than compiled in, so a big-endian build tags its frames honestly instead of inheriting a constant nobody revisited. 
+Four characters, not NUL-terminated. Derived at run time rather than compiled in, so a big-endian build tags its frames honestly instead of inheriting a constant nobody revisited.
+
+
+
+
+**Returns:**
+
+Pointer to a static 4-byte tag; never NULL, never freed. 
+
+
+
 
 
         

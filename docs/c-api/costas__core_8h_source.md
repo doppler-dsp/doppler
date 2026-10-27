@@ -25,9 +25,7 @@
 extern "C" {
 #endif
 
-/* Numerical guard on the prompt magnitude in the discriminator (not tunable). */
 #define COSTAS_EPS 1e-12f
-/* EMA smoothing for the |Re P|/|P| lock metric (status diagnostic). */
 #define COSTAS_LOCK_ALPHA 0.1
 
 typedef struct {

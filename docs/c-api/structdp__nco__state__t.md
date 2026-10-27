@@ -104,6 +104,10 @@ uint32_t dp_nco_state_t::nmax;
 
 
 
+Config: wrap target of the \*\_scaled steppers, output in [0, nmax); 0 = raw accumulator. Set once by create. 
+
+
+        
 
 <hr>
 
@@ -117,6 +121,10 @@ double dp_nco_state_t::norm_freq;
 
 
 
+Config: frequency in cycles/sample, as given (unfolded); written by create and set\_norm\_freq. 
+
+
+        
 
 <hr>
 
@@ -130,6 +138,10 @@ uint32_t dp_nco_state_t::phase;
 
 
 
+Running state: phase accumulator in [0, 2^32), one full cycle = 2^32. Zeroed by create/reset; the only field serialized. 
+
+
+        
 
 <hr>
 
@@ -143,6 +155,10 @@ uint32_t dp_nco_state_t::phase_inc;
 
 
 
+Config: per-sample advance, floor(frac(norm\_freq) \* 2^32); derived from norm\_freq by create and set\_norm\_freq. 
+
+
+        
 
 <hr>
 

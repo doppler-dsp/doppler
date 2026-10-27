@@ -8,14 +8,7 @@
 
 
 ```C++
-/* dp_interrupt_guard_core.h — the object face of the interrupt facility.
- *
- * The flag itself lives in dp_interrupt.h, a root header three modules
- * include. This is the component that binds it: a scoped handle whose
- * create arms and whose destroy restores exactly what it armed.
- *
- * See docs/design/io-termination.md.
- */
+
 #ifndef DP_INTERRUPT_GUARD_CORE_H
 #define DP_INTERRUPT_GUARD_CORE_H
 
@@ -31,10 +24,6 @@ extern "C"
 
   typedef struct dp_interrupt_guard dp_interrupt_guard_t;
 
-  /* jm derives a component's state type as <comp>_state_t, and doppler's
-     public spelling is dp_interrupt_guard_t. One alias bridges them until
-     just-makeit#797 lands `state_type`; dp_tlm_core.h carries the same
-     line for the same reason. */
   typedef dp_interrupt_guard_t dp_interrupt_guard_state_t;
 
   dp_interrupt_guard_t *dp_interrupt_guard_create (const int32_t *signals,

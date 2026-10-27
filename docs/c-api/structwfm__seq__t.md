@@ -129,6 +129,10 @@ wfm_seq_kind_t wfm_seq_t::kind;
 
 
 
+Which generator produces the bits ([**wfm\_seq\_kind\_t**](wfm__frame_8h.md#enum-wfm_seq_kind_t)); decides which of the members below are read. 
+
+
+        
 
 <hr>
 
@@ -226,11 +230,15 @@ uint64_t wfm_seq_t::seed;
 ### variable seed\_a 
 
 ```C++
-uint64_t wfm_seq_t::seed_a;
+wfm_seq_t::seed_a;
 ```
 
 
 
+GOLD only: register A's seed; 0 selects 1, since an all-zero register is a fixed point. 
+
+
+        
 
 <hr>
 
@@ -239,11 +247,15 @@ uint64_t wfm_seq_t::seed_a;
 ### variable seed\_b 
 
 ```C++
-uint64_t wfm_seq_t::seed_b;
+wfm_seq_t::seed_b;
 ```
 
 
 
+GOLD only: register B's seed; 0 selects 1, as for `seed_a`. 
+
+
+        
 
 <hr>
 
@@ -257,6 +269,10 @@ uint64_t wfm_seq_t::taps_a;
 
 
 
+GOLD only: feedback taps of register A, a `reg_bits` wide mask. 
+
+
+        
 
 <hr>
 
@@ -265,11 +281,15 @@ uint64_t wfm_seq_t::taps_a;
 ### variable taps\_b 
 
 ```C++
-uint64_t wfm_seq_t::taps_b;
+wfm_seq_t::taps_b;
 ```
 
 
 
+GOLD only: feedback taps of register B, a `reg_bits` wide mask. 
+
+
+        
 
 <hr>
 

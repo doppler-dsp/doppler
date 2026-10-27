@@ -23,9 +23,9 @@ extern "C"
 
   typedef struct
   {
-    uint32_t phase;     /* current accumulator value [0, 2^32)          */
-    uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
-    double norm_freq;   /* normalised frequency (cycles/sample)           */
+    uint32_t phase;     
+    uint32_t phase_inc; 
+    double norm_freq;   
   } dp_lo_state_t;
 
 /* ---- Inline composition API (C-only; not exposed as Python methods) ----

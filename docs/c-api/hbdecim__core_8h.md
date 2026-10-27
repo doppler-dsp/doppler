@@ -31,7 +31,7 @@ _Halfband 2:1 decimator for CF32 IQ samples._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**hbdecim\_state\_t**](structhbdecim__state__t.md) <br> |
+| struct | [**hbdecim\_state\_t**](structhbdecim__state__t.md) <br>_State of a CF32 halfband 2:1 decimator._  |
 
 
 
@@ -60,12 +60,12 @@ _Halfband 2:1 decimator for CF32 IQ samples._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* | [**dp\_hbdecim\_create**](#function-dp_hbdecim_create) (size\_t num\_taps, const float \* h) <br>_Allocate and initialise a halfband 2:1 decimator._  |
 |  double | [**dp\_hbdecim\_dc\_gain**](#function-dp_hbdecim_dc_gain) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_The filter's response to a constant input, from its own taps._  |
-|  void | [**dp\_hbdecim\_destroy**](#function-dp_hbdecim_destroy) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
+|  void | [**dp\_hbdecim\_destroy**](#function-dp_hbdecim_destroy) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_Free the coefficient copy, both delay lines and the state._  |
 |  size\_t | [**dp\_hbdecim\_execute**](#function-dp_hbdecim_execute) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples by 2._  |
-|  size\_t | [**dp\_hbdecim\_get\_num\_taps**](#function-dp_hbdecim_get_num_taps) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
-|  double | [**dp\_hbdecim\_get\_rate**](#function-dp_hbdecim_get_rate) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
+|  size\_t | [**dp\_hbdecim\_get\_num\_taps**](#function-dp_hbdecim_get_num_taps) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_FIR branch length N._  |
+|  double | [**dp\_hbdecim\_get\_rate**](#function-dp_hbdecim_get_rate) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_Output-to-input sample-rate ratio (fixed by design)._  |
 |  void | [**dp\_hbdecim\_get\_state**](#function-dp_hbdecim_get_state) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, void \* blob) <br>_Serialize_ `r's` _mutable state into_`blob` _._ |
-|  void | [**dp\_hbdecim\_reset**](#function-dp_hbdecim_reset) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
+|  void | [**dp\_hbdecim\_reset**](#function-dp_hbdecim_reset) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_Zero both delay lines and drop any pending sample._  |
 |  int | [**dp\_hbdecim\_set\_state**](#function-dp_hbdecim_set_state) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, const void \* blob) <br>_Restore mutable state from_ `blob` _(same num\_taps)._ |
 |  size\_t | [**dp\_hbdecim\_state\_bytes**](#function-dp_hbdecim_state_bytes) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_Bytes_ [_**dp\_hbdecim\_get\_state()**_](hbdecim__core_8h.md#function-dp_hbdecim_get_state) _writes for_`r` _(envelope + payload)._ |
 
@@ -105,7 +105,7 @@ _Halfband 2:1 decimator for CF32 IQ samples._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Lifted from dp\_hbdecim\_cf32\_t (c/src/hbdecim.c). Only the cf32 variant is ported; dp\_hbdecim\_r2cf32 (real-input D2) is a separate object and a separate session.
+Lifted from dp\_hbdecim\_cf32\_t (c/src/hbdecim.c). Only the cf32 variant lives here; the real-input sibling (Architecture D2) is [**hbdecim\_r2c\_core.h**](hbdecim__r2c__core_8h.md), and the jm-bound Python face is [**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md) (doppler.resample.HalfbandDecimator).
 
 
 Algorithm: two dual-write circular delay lines hold even-indexed and odd-indexed input samples separately. Per output sample:
@@ -149,19 +149,22 @@ hbdecim_state_t * dp_hbdecim_create (
 
 
 
+The FIR branch must be symmetric (`h[k] == h[N-1-k]`): the filter reads only the first N/2 coefficients and applies each to a mirrored pair of delay-line samples. For odd N the centre coefficient `h[N/2]` is not read; the half-weight delay branch takes its place.
+
+
 
 
 **Parameters:**
 
 
-* `num_taps` Length of the FIR branch (the row from kaiser\_prototype(phases=2) that has more than one significant coefficient). 
-* `h` FIR coefficients, length num\_taps (float32). Copied internally and scaled by 0.5. 
+* `num_taps` Length N of the FIR branch (the row from kaiser\_prototype(phases=2) that has more than one significant coefficient). Must be &gt; 0. 
+* `h` FIR coefficients, length num\_taps (float32). Copied internally and scaled by 0.5, so the caller keeps ownership. Must be non-NULL. 
 
 
 
 **Returns:**
 
-Non-NULL on success, NULL on invalid args or OOM. 
+A new state owned by the caller (free with [**dp\_hbdecim\_destroy()**](hbdecim__core_8h.md#function-dp_hbdecim_destroy)), with zeroed delay lines and no pending sample; NULL if num\_taps is 0, h is NULL, or allocation fails. 
 
 
 
@@ -218,6 +221,7 @@ dp_hbdecim_destroy (d);
 
 ### function dp\_hbdecim\_destroy 
 
+_Free the coefficient copy, both delay lines and the state._ 
 ```C++
 void dp_hbdecim_destroy (
     hbdecim_state_t * r
@@ -226,7 +230,14 @@ void dp_hbdecim_destroy (
 
 
 
-Free all resources. NULL is a no-op. 
+
+
+**Parameters:**
+
+
+* `r` State from [**dp\_hbdecim\_create()**](hbdecim__core_8h.md#function-dp_hbdecim_create); NULL is a no-op. 
+
+
 
 
         
@@ -253,7 +264,7 @@ size_t dp_hbdecim_execute (
 Processes input pairs (even, odd); one output per pair. If num\_in is odd, the trailing even sample is buffered and consumed on the next call.
 
 
-Output-buffer sizing: allocate at least (num\_in + 1) / 2 samples.
+Output-buffer sizing: allocate at least (num\_in + 1) / 2 samples. Emission stops once `max_out` samples are written; complete input pairs left over at that point are discarded (only one trailing sample is carried), so size `out` for the whole block. If num\_in or max\_out is 0 the call returns 0 and consumes nothing.
 
 
 
@@ -271,7 +282,7 @@ Output-buffer sizing: allocate at least (num\_in + 1) / 2 samples.
 
 **Returns:**
 
-Number of output samples written. 
+Number of output samples written: min((num\_in + has\_pending) / 2, max\_out). 
 
 
 
@@ -285,6 +296,7 @@ Number of output samples written.
 
 ### function dp\_hbdecim\_get\_num\_taps 
 
+_FIR branch length N._ 
 ```C++
 size_t dp_hbdecim_get_num_taps (
     const hbdecim_state_t * r
@@ -293,7 +305,21 @@ size_t dp_hbdecim_get_num_taps (
 
 
 
-Returns the FIR branch length passed to dp\_hbdecim\_create. 
+
+
+**Parameters:**
+
+
+* `r` State. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The num\_taps passed to [**dp\_hbdecim\_create()**](hbdecim__core_8h.md#function-dp_hbdecim_create). 
+
+
+
 
 
         
@@ -304,6 +330,7 @@ Returns the FIR branch length passed to dp\_hbdecim\_create.
 
 ### function dp\_hbdecim\_get\_rate 
 
+_Output-to-input sample-rate ratio (fixed by design)._ 
 ```C++
 double dp_hbdecim_get_rate (
     const hbdecim_state_t * r
@@ -312,7 +339,21 @@ double dp_hbdecim_get_rate (
 
 
 
-Always returns 0.5 (rate is fixed by design). 
+
+
+**Parameters:**
+
+
+* `r` State; ignored. 
+
+
+
+**Returns:**
+
+Always 0.5. 
+
+
+
 
 
         
@@ -334,12 +375,25 @@ void dp_hbdecim_get_state (
 
 
 
+
+**Parameters:**
+
+
+* `r` State. Must be non-NULL. Not modified. 
+* `blob` Caller-owned buffer of at least dp\_hbdecim\_state\_bytes(r) bytes. 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_hbdecim\_reset 
 
+_Zero both delay lines and drop any pending sample._ 
 ```C++
 void dp_hbdecim_reset (
     hbdecim_state_t * r
@@ -348,7 +402,17 @@ void dp_hbdecim_reset (
 
 
 
-Zero both delay lines and clear the pending-sample flag. num\_taps and coefficients are preserved. 
+num\_taps and coefficients are preserved; the next execute behaves as on a freshly created decimator.
+
+
+
+
+**Parameters:**
+
+
+* `r` State. Must be non-NULL. 
+
+
 
 
         
@@ -368,6 +432,17 @@ int dp_hbdecim_set_state (
 ```
 
 
+
+The envelope (magic, version, endianness, size) is validated before anything is written; on rejection `r` is unchanged. Coefficients are not in the blob and are kept from create.
+
+
+
+
+**Parameters:**
+
+
+* `r` State built with the same num\_taps as the source. 
+* `blob` Blob from [**dp\_hbdecim\_get\_state()**](hbdecim__core_8h.md#function-dp_hbdecim_get_state). 
 
 
 
@@ -396,6 +471,27 @@ size_t dp_hbdecim_state_bytes (
 
 
 
+The size depends on num\_taps (through the ring length even\_cap), so a blob only fits an instance built with the same num\_taps.
+
+
+
+
+**Parameters:**
+
+
+* `r` State. Must be non-NULL. 
+
+
+
+**Returns:**
+
+Blob size in bytes: header, both ring heads, the pending flag and sample, and both dual-write rings. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -412,6 +508,10 @@ size_t dp_hbdecim_state_bytes (
 
 
 
+Envelope magic ("HBDC") that tags an hbdecim state blob. 
+
+
+        
 
 <hr>
 
@@ -425,6 +525,10 @@ size_t dp_hbdecim_state_bytes (
 
 
 
+Payload layout version of an hbdecim state blob. 
+
+
+        
 
 <hr>
 

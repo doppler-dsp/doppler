@@ -86,42 +86,25 @@ extern "C"
 
   typedef struct
   {
-    dp_tlm_t *ctx;      /* NULL = detached                    */
-    int32_t   id_gain;  /* probe ids from a successful attach  */
-    int32_t   id_level; /* (fills what used to be _pad)        */
+    dp_tlm_t *ctx;      
+    int32_t   id_gain;  
+    int32_t   id_level; 
   } agc_tlm_t;
 
   typedef struct
   {
-    double ref_db;  /* target output power, dB                        */
-    double loop_bw; /* loop noise bandwidth, cycles/sample             */
-    double alpha;   /* power-detector EMA coefficient, (0, 1]          */
+    double ref_db;  
+    double loop_bw; 
+    double alpha;   
     size_t decim;   
-    double clip_db; /* output square-clip level, dB (per component)    */
-    /* dp_agc_step() control-update period: the detector + gain-apply run
-     * every sample, but the loop-filter command (the exp10/log10 work)
-     * refreshes once per this many samples — a zero-order hold on the
-     * gain that amortises the transcendentals on a sample-rate hot loop.
-     * 1 (default) is the exact per-sample loop; >1 trades gain-update
-     * latency for speed (keep well below 1/(4*loop_bw)).  The same shape
-     * as decim's `4*decim*loop_bw <= 0.05`, but only decim's is measured —
-     * this one is a zero-order hold on a different quantity. */
+    double clip_db; 
     size_t gain_update_period;
-    double gain_db; /* loop-filter integrator: current gain, dB        */
-    /* Power-detector EMA of OUTPUT power, linear. Anything setting this by
-       hand must use the REFERENCE power, not a measured input power: the loop
-       filter's error is (ref_db - 10log10(p_avg)), so seeding it with an
-       input measurement hands the loop an error equal to the whole gain and
-       it integrates it. Measured on this object at loop_bw 0.002 / alpha
-       0.01, a 4x-hot input drove the gain a further 13.4 dB past its correct
-       value before recovering (+2.4 dB at 0.25x). dp_agc_create()/dp_agc_reset()
-       already do the right thing; this note is for anyone tempted to
-       shortcut them. */
+    double gain_db; 
     double p_avg;
-    double g_last;  /* current linear gain held across the period      */
-    size_t gain_phase; /* dp_agc_step() position in the update period     */
-    float  clip_lin;   /* cached 10^(clip_db/20), refreshed per period */
-    agc_tlm_t tlm; /* live telemetry attachment; zeroed in blobs        */
+    double g_last;  
+    size_t gain_phase; 
+    float  clip_lin;   
+    agc_tlm_t tlm; 
   } dp_agc_state_t;
 
 dp_agc_state_t *dp_agc_create(double ref_db, double loop_bw, double alpha);

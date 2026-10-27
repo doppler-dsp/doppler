@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](delay__core_8h_source.md)
 
-_Delay component API._ [More...](#detailed-description)
+_Complex-double (cf64) delay line on a mirrored power-of-two ring._ [More...](#detailed-description)
 
 * `#include "doppler/clib_common.h"`
 * `#include "doppler/jm_perf.h"`
@@ -61,15 +61,15 @@ _Delay component API._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* | [**dp\_delay\_create**](#function-dp_delay_create) (size\_t num\_taps) <br>_Create a dual-buffer circular delay line of length num\_taps. The internal capacity is rounded up to the next power of two so that modular indexing reduces to a single bitwise AND. Any window of num\_taps consecutive samples is always contiguous in the backing store; no wrap-around copy is ever needed._  |
 |  void | [**dp\_delay\_destroy**](#function-dp_delay_destroy) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state) <br>_Destroy a delay instance and release all memory. Frees the internal dual buffer and the state struct itself. Safe to call with a NULL pointer (no-op). After this call the pointer must not be used; the Python binding raises RuntimeError on any subsequent method call._  |
-|  void | [**dp\_delay\_get\_state**](#function-dp_delay_get_state) (const [**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_delay\_get\_state**](#function-dp_delay_get_state) (const [**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, void \* blob) <br>_Serialize the ring and head into a caller-owned blob._  |
 |  size\_t | [**dp\_delay\_ptr**](#function-dp_delay_ptr) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, size\_t n, double \_Complex \* out, size\_t max\_out) <br>_Snapshot the n most recent samples. Copies at most min(n, num\_taps) samples starting from_ `buf[head]` _into out. Because the dual-buffer layout guarantees contiguity, this is a single memcpy of up to num\_taps elements; no wrap-around logic is needed. The Python binding returns an independent NumPy array per call, so an earlier snapshot is never overwritten by a later one; pass_`out=` _to fill a caller-owned buffer instead of allocating._ |
 |  size\_t | [**dp\_delay\_ptr\_max\_out**](#function-dp_delay_ptr_max_out) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, size\_t n) <br>_Maximum samples_ [_**dp\_delay\_ptr()**_](delay__core_8h.md#function-dp_delay_ptr) _writes for a request of n. Returns min(n, num\_taps) — the tight per-call bound (gh-607)._ |
 |  void | [**dp\_delay\_push**](#function-dp_delay_push) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, double \_Complex x) <br>_Advance the write pointer and insert a new sample. The head pointer decrements (mod capacity) before the write so that_ `buf[head]` _always holds the most recent sample. The same value is simultaneously written at_`buf[head + capacity]` _to keep the mirror half in sync; this ensures any num\_taps-length window starting at head is contiguous without an extra copy._ |
 |  size\_t | [**dp\_delay\_push\_ptr**](#function-dp_delay_push_ptr) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, double \_Complex x, double \_Complex \* out, size\_t max\_out) <br>_Atomically push a sample and snapshot the current window. Equivalent to calling_ [_**dp\_delay\_push()**_](delay__core_8h.md#function-dp_delay_push) _then dp\_delay\_ptr(num\_taps), but avoids the overhead of a second function call. Always writes exactly num\_taps samples to out. The Python binding returns an independent NumPy array per call; pass_`out=` _to reuse one buffer across pushes._ |
 |  size\_t | [**dp\_delay\_push\_ptr\_max\_out**](#function-dp_delay_push_ptr_max_out) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state) <br>_Return the maximum output capacity for_ [_**dp\_delay\_push\_ptr()**_](delay__core_8h.md#function-dp_delay_push_ptr) _. Returns num\_taps; the Python binding sizes each call's output array with it, and checks a caller's_`out=` _buffer against it._ |
 |  void | [**dp\_delay\_reset**](#function-dp_delay_reset) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state) <br>_Reset the delay line to its post-create state. Zeroes the entire dual buffer and resets the write pointer to 0, discarding all previously pushed samples. The num\_taps and capacity are preserved; only the sample history is cleared._  |
-|  int | [**dp\_delay\_set\_state**](#function-dp_delay_set_state) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_delay\_state\_bytes**](#function-dp_delay_state_bytes) (const [**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state) <br> |
+|  int | [**dp\_delay\_set\_state**](#function-dp_delay_set_state) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, const void \* blob) <br>_Restore the ring and head from a_ [_**dp\_delay\_get\_state()**_](delay__core_8h.md#function-dp_delay_get_state) _blob._ |
+|  size\_t | [**dp\_delay\_state\_bytes**](#function-dp_delay_state_bytes) (const [**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state) <br>_Size of this instance's serialized state blob._  |
 |  void | [**dp\_delay\_write**](#function-dp_delay_write) ([**dp\_delay\_state\_t**](structdp__delay__state__t.md) \* state, double \_Complex x) <br>_Alias for_ [_**dp\_delay\_push()**_](delay__core_8h.md#function-dp_delay_push) _; insert a sample without reading back. Provided for API symmetry with write-then-read patterns where the caller wants to decouple sample ingestion from window inspection. Internally delegates to_[_**dp\_delay\_push()**_](delay__core_8h.md#function-dp_delay_push) _with no additional overhead._ |
 
 
@@ -102,8 +102,8 @@ _Delay component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DELAY\_STATE\_MAGIC**](delay__core_8h.md#define-delay_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','L','A','Y')`<br> |
-| define  | [**DELAY\_STATE\_VERSION**](delay__core_8h.md#define-delay_state_version)  `1u`<br> |
+| define  | [**DELAY\_STATE\_MAGIC**](delay__core_8h.md#define-delay_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','L','A','Y')`<br>_State-blob magic ("DLAY"); set\_state() rejects any other._  |
+| define  | [**DELAY\_STATE\_VERSION**](delay__core_8h.md#define-delay_state_version)  `1u`<br>_State-blob layout version; bumped when the payload changes._  |
 
 ## Detailed Description
 
@@ -210,6 +210,7 @@ destroyed
 
 ### function dp\_delay\_get\_state 
 
+_Serialize the ring and head into a caller-owned blob._ 
 ```C++
 void dp_delay_get_state (
     const dp_delay_state_t * state,
@@ -219,6 +220,18 @@ void dp_delay_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to snapshot (non-NULL). 
+* `blob` Destination of at least [**dp\_delay\_state\_bytes()**](delay__core_8h.md#function-dp_delay_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -476,6 +489,7 @@ void dp_delay_reset (
 
 ### function dp\_delay\_set\_state 
 
+_Restore the ring and head from a_ [_**dp\_delay\_get\_state()**_](delay__core_8h.md#function-dp_delay_get_state) _blob._
 ```C++
 int dp_delay_set_state (
     dp_delay_state_t * state,
@@ -485,6 +499,28 @@ int dp_delay_set_state (
 
 
 
+The instance must have the same capacity as the one that produced the blob (the size check enforces this). The restored head is not range- checked against capacity.
+
+
+
+
+**Parameters:**
+
+
+* `state` Instance to overwrite (non-NULL). 
+* `blob` Blob of [**dp\_delay\_state\_bytes()**](delay__core_8h.md#function-dp_delay_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK on success; DP\_ERR\_INVALID (state untouched) when the magic, version, endianness or size does not match. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -492,6 +528,7 @@ int dp_delay_set_state (
 
 ### function dp\_delay\_state\_bytes 
 
+_Size of this instance's serialized state blob._ 
 ```C++
 size_t dp_delay_state_bytes (
     const dp_delay_state_t * state
@@ -500,6 +537,24 @@ size_t dp_delay_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to size (non-NULL). 
+
+
+
+**Returns:**
+
+Bytes: envelope + 8-byte head + the full 2\*capacity ring. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -547,6 +602,7 @@ void dp_delay_write (
 
 ### define DELAY\_STATE\_MAGIC 
 
+_State-blob magic ("DLAY"); set\_state() rejects any other._ 
 ```C++
 #define DELAY_STATE_MAGIC `DP_FOURCC ('D','L','A','Y')`
 ```
@@ -560,6 +616,7 @@ void dp_delay_write (
 
 ### define DELAY\_STATE\_VERSION 
 
+_State-blob layout version; bumped when the payload changes._ 
 ```C++
 #define DELAY_STATE_VERSION `1u`
 ```

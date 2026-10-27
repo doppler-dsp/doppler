@@ -26,18 +26,18 @@ extern "C" {
 #endif
 
 typedef struct {
-    dp_psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
-    float         *pwr;     /* metric working buffer, length nfft          */
-    unsigned char *excl;    /* DC/fundamental/harmonic exclusion mask      */
+    dp_psd_state_t *psd;     
+    float         *pwr;     
+    unsigned char *excl;    
     double enbw;            
-    double beta;            /* auto-selected Kaiser shape (from DR target)  */
+    double beta;            
     size_t lobe_bins;       
-    size_t spur_guard_bins; /* fundamental keep-out for spur search (>= L)  */
+    size_t spur_guard_bins; 
     size_t n;               
     size_t nfft;            
-    size_t n_harm;          /* harmonics tracked (k = 2..n_harm)           */
+    size_t n_harm;          
     double fs;              
-    size_t dc_guard;        /* extra bins excluded beyond L around DC      */
+    size_t dc_guard;        
 } dp_tonemeas_state_t;
 
 dp_tonemeas_state_t *dp_tonemeas_create(size_t n, double fs, size_t n_harmonics,

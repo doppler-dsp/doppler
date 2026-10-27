@@ -43,7 +43,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 | Type | Name |
 | ---: | :--- |
 | struct | [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) <br>_The receiver's loops: timing, carrier, demapper._  |
-| struct | [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) <br>_Telemetry attachment for the receiver's own two probes; the timing and carrier probes ride their own sub-attachments._  |
+| struct | [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) <br>_Telemetry attachment for the receiver's own seven probes._  |
 
 
 ## Public Types
@@ -86,7 +86,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  int | [**dp\_mpsk\_rx\_set\_telemetry**](#function-dp_mpsk_rx_set_telemetry) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) telemetry across both loops; see_ [_**dp\_mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry) _, which forwards here._ |
 |  int | [**dp\_mpsk\_rx\_symbol\_to\_bits**](#function-dp_mpsk_rx_symbol_to_bits) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y, uint8\_t \* bits) <br>_Slice one recovered symbol to its log2(M) hard bits (LSB-first)._  |
 |  void | [**dp\_mpsk\_rx\_tlm\_flush**](#function-dp_mpsk_rx_tlm_flush) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y) <br>_Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_agc\_bn**](#function-mpsk_rx_agc_bn) (double bn\_carrier, double bn\_timing, double ratio) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_agc\_bn**](#function-mpsk_rx_agc_bn) (double bn\_carrier, double bn\_timing, double ratio) <br>_Front-end AGC loop bandwidth:_ `ratio` _times the slower loop._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**mpsk\_rx\_derive\_m\_out**](#function-mpsk_rx_derive_m_out) (double cap, int strict) <br>_Terminal outputs per symbol, derived: the largest even count in 2..8 the caller's own rate constraint allows._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex z) <br>_Run the NDA discriminator on one on-time strobe._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_fold**](#function-mpsk_rx_fold) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const float \_Complex \* ys, size\_t n, float \_Complex \* y\_out, int ted) <br>_Fold one front end's burst of outputs into both loops._  |
@@ -217,7 +217,17 @@ void dp_mpsk_rx_config_carrier (
 
 
 
-Called once, by [**dp\_mpsk\_rx\_loops\_init()**](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_loops_init). Designs the loop filter from `bn_carrier` (normalized to the symbol rate) and `zeta` at [**mpsk\_rx\_updates\_per\_symbol()**](mpsk__rx__loops_8h.md#function-mpsk_rx_updates_per_symbol) updates per symbol, and sets `freq_scale`, which turns the filter's phase command into cycles per LO sample. 
+Called once, by [**dp\_mpsk\_rx\_loops\_init()**](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_loops_init). Designs the loop filter from `bn_carrier` (normalized to the symbol rate) and `zeta` at [**mpsk\_rx\_updates\_per\_symbol()**](mpsk__rx__loops_8h.md#function-mpsk_rx_updates_per_symbol) updates per symbol, and sets `freq_scale`, which turns the filter's phase command into cycles per LO sample.
+
+
+
+
+**Parameters:**
+
+
+* `l` Loops whose `bn_carrier`, `zeta` and `lo_sps` are already set. Must be non-NULL. 
+
+
 
 
         
@@ -237,6 +247,24 @@ double dp_mpsk_rx_freq_est (
 
 
 
+The carrier loop filter's integrator scaled by `freq_scale`; the proportional term is excluded. Positive means the carrier sits above the centre the LO is tuned to. 0.0 after init and reset. 
+
+**Parameters:**
+
+
+* `l` Loops. Must be non-NULL. 
+
+
+
+**Returns:**
+
+Tracked offset, cycles/sample at the LO's rate. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -254,6 +282,18 @@ void dp_mpsk_rx_loops_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `l` Loops. Must be non-NULL. 
+* `blob` Destination, at least [**dp\_mpsk\_rx\_loops\_state\_bytes()**](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_loops_state_bytes) bytes, caller-owned. 
+
+
+
+
+        
 
 <hr>
 
@@ -347,11 +387,19 @@ int dp_mpsk_rx_loops_set_state (
 
 
 
+Validates the outer envelope, restores the timing-loop child, then the carrier loop-filter child, and only then commits the loops' own scalars. 
+
+**Parameters:**
+
+
+* `l` Loops. Must be non-NULL. 
+* `blob` Source blob from [**dp\_mpsk\_rx\_loops\_get\_state()**](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_loops_get_state). 
+
 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if any envelope rejects. 
+DP\_OK, or DP\_ERR\_INVALID if any envelope rejects. A rejection by the carrier loop-filter child leaves the timing loop already restored. 
 
 
 
@@ -375,6 +423,24 @@ size_t dp_mpsk_rx_loops_state_bytes (
 
 
 
+
+**Parameters:**
+
+
+* `l` Loops. Must be non-NULL. 
+
+
+
+**Returns:**
+
+Envelope + running scalars + timing-loop child + carrier loop-filter child, in bytes. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -391,6 +457,18 @@ void dp_mpsk_rx_set_freq_est (
 
 
 
+Rewrites the loop filter's integrator to `val / freq_scale` (0 when `freq_scale` is not positive) and the applied command to `-val`. 
+
+**Parameters:**
+
+
+* `l` Loops. Must be non-NULL. 
+* `val` New offset, cycles/sample at the LO's rate. 
+
+
+
+
+        
 
 <hr>
 
@@ -410,6 +488,27 @@ int dp_mpsk_rx_set_telemetry (
 
 
 
+Registers seven probes under `prefix` and the timing loop's under "&lt;prefix&gt;.sync". Every name is built before anything registers. 
+
+**Parameters:**
+
+
+* `l` Loops. Must be non-NULL. 
+* `tlm` Telemetry context (borrowed; must outlive the attachment), or NULL to detach both loops. 
+* `prefix` Probe-name prefix; NULL means "rx". 
+* `decim` Emit every decim-th symbol; &gt;= 1. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when a name is too long or the probe table is full (nothing is left attached). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -428,11 +527,20 @@ int dp_mpsk_rx_symbol_to_bits (
 
 
 
+Coherent mode emits the slicer's Gray label. Differential mode emits the Gray code of the index difference from the previous symbol (the first symbol after reset is differenced against index 0) and updates `prev_idx`. 
+
+**Parameters:**
+
+
+* `l` Loops. Must be non-NULL; `prev_idx` is updated in differential mode. 
+* `y` Recovered (rotated) symbol, as emitted by [**mpsk\_rx\_take\_output()**](mpsk__rx__loops_8h.md#function-mpsk_rx_take_output). 
+* `bits` Receives log2(M) bytes, each 0 or 1, LSB first; room for 3 is always enough. 
+
 
 
 **Returns:**
 
-The bit count written to `bits`. 
+The bit count written to `bits:` 1, 2 or 3. 
 
 
 
@@ -457,12 +565,25 @@ void dp_mpsk_rx_tlm_flush (
 
 
 
+
+**Parameters:**
+
+
+* `l` Loops with a live attachment (`l->tlm.ctx` non-NULL). 
+* `y` The symbol just recovered, emitted as "&lt;prefix&gt;.sym.i/.q". 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function mpsk\_rx\_agc\_bn 
 
+_Front-end AGC loop bandwidth:_ `ratio` _times the slower loop._
 ```C++
 JM_FORCEINLINE double mpsk_rx_agc_bn (
     double bn_carrier,
@@ -473,6 +594,29 @@ JM_FORCEINLINE double mpsk_rx_agc_bn (
 
 
 
+The one place the AGC bandwidth is computed. It is sized against `min(bn_carrier, bn_timing)` because the AGC sits inside both loops. A zero loop bandwidth yields 0, which the cascade's enable\_agc declines, leaving the receiver un-levelled.
+
+
+
+
+**Parameters:**
+
+
+* `bn_carrier` Carrier loop noise bandwidth, normalized to the symbol rate. 
+* `bn_timing` Timing loop noise bandwidth, normalized to the symbol rate. 
+* `ratio` `bn_agc_ratio`, in (0, 1). 
+
+
+
+**Returns:**
+
+`ratio * min(bn_carrier, bn_timing)`, in the same units as the loop bandwidths. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -613,7 +757,18 @@ JM_FORCEINLINE  JM_HOT void mpsk_rx_steer (
 
 
 
-**The negation is load-bearing.** A DDC mixes with its LO directly (`x * lo_step_ctrl(...)`), where carrier\_nda's older loop mixed with the conjugate (`x * conjf(lo_step_ctrl(...))`), so the same physical de-rotation is the opposite sign on this port. Without it the loop is positive feedback and the M-th-power S-curve's stable and unstable equilibria swap: the receiver locks _hard_ onto the half-way grid, timing and symbol count look perfect, and the only tell is the carrier lock metric sitting at a steady **negative** value (-0.48 for QPSK, where +0.62 is a real lock) while every symbol lands on a decision boundary. 
+**The negation is load-bearing.** A DDC mixes with its LO directly (`x * lo_step_ctrl(...)`), where carrier\_nda's older loop mixed with the conjugate (`x * conjf(lo_step_ctrl(...))`), so the same physical de-rotation is the opposite sign on this port. Without it the loop is positive feedback and the M-th-power S-curve's stable and unstable equilibria swap: the receiver locks _hard_ onto the half-way grid, timing and symbol count look perfect, and the only tell is the carrier lock metric sitting at a steady **negative** value (-0.48 for QPSK, where +0.62 is a real lock) while every symbol lands on a decision boundary.
+
+
+
+
+**Parameters:**
+
+
+* `l` Loops. Must be non-NULL. Writes `car_error` and `freq_ctrl`. 
+* `pe` Carrier phase error from the discriminator, radians. 
+
+
 
 
         
@@ -676,7 +831,24 @@ JM_FORCEINLINE double mpsk_rx_updates_per_symbol (
 
 
 
-Always 1: the discriminator reads the on-time strobe, one output per symbol. It is the loop filter's update rate, which [**dp\_mpsk\_rx\_config\_carrier()**](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_config_carrier) sizes the filter against. 
+Always 1: the discriminator reads the on-time strobe, one output per symbol. It is the loop filter's update rate, which [**dp\_mpsk\_rx\_config\_carrier()**](mpsk__rx__loops_8h.md#function-dp_mpsk_rx_config_carrier) sizes the filter against.
+
+
+
+
+**Parameters:**
+
+
+* `l` Loops (unused). 
+
+
+
+**Returns:**
+
+1.0 carrier-loop updates per symbol. 
+
+
+
 
 
         
@@ -696,6 +868,10 @@ Always 1: the discriminator reads the on-time strobe, one output per symbol. It 
 
 
 
+Power-detector EMA coefficient of the front-end AGC (dimensionless, per AGC update). 
+
+
+        
 
 <hr>
 
@@ -709,6 +885,10 @@ Always 1: the discriminator reads the on-time strobe, one output per symbol. It 
 
 
 
+Default AGC-to-slowest-loop bandwidth ratio (0.05, i.e. 20x slower); what `bn_agc_ratio = 0` derives to. 
+
+
+        
 
 <hr>
 
@@ -736,6 +916,10 @@ _AGC bandwidth ratio, derived: 20x slower than the slowest loop it feeds. The RA
 
 
 
+Magnitude guard for a decision-directed discriminator. No code in the tree reads it now that the decision-directed handover is gone. 
+
+
+        
 
 <hr>
 
@@ -749,6 +933,10 @@ _AGC bandwidth ratio, derived: 20x slower than the slowest loop it feeds. The RA
 
 
 
+Carrier lock drop threshold as a fraction of the declare threshold. 
+
+
+        
 
 <hr>
 
@@ -762,6 +950,10 @@ _AGC bandwidth ratio, derived: 20x slower than the slowest loop it feeds. The RA
 
 
 
+Consecutive below-drop-threshold symbols that withdraw carrier lock. 
+
+
+        
 
 <hr>
 
@@ -775,6 +967,10 @@ _AGC bandwidth ratio, derived: 20x slower than the slowest loop it feeds. The RA
 
 
 
+Consecutive above-threshold symbols that declare carrier lock. 
+
+
+        
 
 <hr>
 
@@ -837,6 +1033,10 @@ doppler#835 carries the measurement and the options; nothing here has changed be
 
 
 
+State-blob envelope magic for the loops ("MRXL"). 
+
+
+        
 
 <hr>
 
@@ -850,6 +1050,10 @@ doppler#835 carries the measurement and the options; nothing here has changed be
 
 
 
+State-blob layout version for the loops. 
+
+
+        
 
 <hr>
 
@@ -863,6 +1067,10 @@ doppler#835 carries the measurement and the options; nothing here has changed be
 
 
 
+Terminal outputs per symbol a composing C caller uses by default: 8. 
+
+
+        
 
 <hr>
 
@@ -876,6 +1084,10 @@ doppler#835 carries the measurement and the options; nothing here has changed be
 
 
 
+Bank arms the composed C callers (async DSSS receiver, tests, validation harnesses) pass explicitly: 1024. 
+
+
+        
 
 <hr>
 

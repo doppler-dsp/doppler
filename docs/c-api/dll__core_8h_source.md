@@ -27,49 +27,10 @@
 extern "C" {
 #endif
 
-/* Numerical guard on the early+late envelope sum (not tunable). */
 #define DLL_EPS 1e-12
 
-/* The `segments > 1` output's level: the code periods its running mean of
- * the look-back magnitude spans (doppler#2495). Each period's partials are
- * divided by that slowly tracked level, so the output sits near unit
- * amplitude at any input gain -- the level every timing detector
- * downstream assumes, which MpskReceiver's AGC, 20x slower than its own
- * loops, cannot set from scratch -- and never by the period's own
- * magnitude, whose noise is the period's own. The number is a choice
- * inside a band, both ends set by a measurement or a count:
- *   - slow enough: the current period enters the level with weight 1/N,
- *     and the in-phase error is compressed against the quadrature as that
- *     weight grows. Measured by test_dll_core.c's section 11 harness (a
- *     period SNR of 3 dB, 20,000 periods), the compression is -2.29 dB at
- *     N = 1 (the period's own magnitude, which cost the receiver 0.2 dB of
- *     error rate), -1.18 at 2, -0.54 at 4, -0.23 at 8, -0.08 at 16 and
- *     -0.01 at 32: about halving with each doubling. Holding it under
- *     0.15 dB, about the counting noise of that measurement, needs
- *     N >= 16.
- *   - fast enough: after a step in level the error decays as (1 - 1/N)^n,
- *     to 1% at n = ln 100 / -ln(1 - 1/N), about 4.6 N periods. Settling
- *     inside a third of the 185 ms data-free block (555 periods at the specification's (docs/design/async-dsss-receiver.md)
- *     3.069 Mcps), and far ahead of MpskReceiver's AGC, needs N <= 40.
- * N = 32 is inside the band 16..40, a power of two; the 1% settle is then
- * 146 periods, 49 ms at the specification. Until N periods have accrued the level is
- * their plain mean, so the first output already carries a level, but not
- * a slow one: the first period is divided by its own magnitude, and the
- * current period weighs 1/n, so the compression the band bounds holds
- * only once about 16 periods have accrued, 5 ms at the specification. */
 #define DLL_OUT_LEVEL_PERIODS 32u
 
-/* Clamp on the discriminator output |e| before it reaches the loop filter.
- * The old magnitude-domain discriminator (|E|-|L|)/(|E|+|L|) was always
- * inherently bounded in [-1, 1] (|E|-|L| <= |E|+|L| identically); the
- * power-domain 0.5*(Ep-Lp)/Pp form is NOT -- a data transition landing
- * badly enough to collapse the prompt power Pp near zero (the lookback
- * failing to find a clean candidate that epoch, a real, reachable case,
- * not a hypothetical one -- observed directly while porting this design)
- * can blow e up arbitrarily, injecting a huge phase nudge that cascades
- * into a runaway. Clamping restores the old design's inherent safety
- * property without changing behaviour in the overwhelming common case
- * (|e| well under 1 at any reasonable lock). */
 #define DLL_DISC_CLAMP 1.0
 
 typedef struct {

@@ -41,7 +41,7 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**ddc\_extra\_t**](structddc__extra__t.md) <br> |
+| struct | [**ddc\_extra\_t**](structddc__extra__t.md) <br>_DDC-specific blob header, written after the envelope and before the LO and RateConverter child blobs._  |
 | struct | [**ddc\_state**](structddc__state.md) <br>_Ddc state — an LO and the cascade it feeds._  |
 
 
@@ -79,9 +79,9 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 |  void | [**dp\_ddc\_destroy**](#function-dp_ddc_destroy) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state) <br>_Free all resources held by a DDC instance. Releases the RateConverter and LO substructures, then the struct itself. Passing NULL is a no-op._  |
 |  size\_t | [**dp\_ddc\_execute**](#function-dp_ddc_execute) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Mix and resample a block of CF32 samples. Multiplies each input sample by the current LO phasor (advancing the NCO phase per sample), then feeds the mixed block into the RateConverter. The resampler maintains history across calls, so arbitrary block sizes produce contiguous output with no edge artefacts. Output length ≈ x\_len \* rate (varies by ±1 due to polyphase indexing)._  |
 |  size\_t | [**dp\_ddc\_execute\_ctrl**](#function-dp_ddc_execute_ctrl) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, const float \_Complex \* x, size\_t x\_len, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out) <br>_Mix and resample a block, steering both control ports._  |
-|  size\_t | [**dp\_ddc\_execute\_ctrl\_max\_out**](#function-dp_ddc_execute_ctrl_max_out) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, size\_t x\_len) <br> |
+|  size\_t | [**dp\_ddc\_execute\_ctrl\_max\_out**](#function-dp_ddc_execute_ctrl_max_out) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, size\_t x\_len) <br>_Maximum output samples one execute\_ctrl() of x\_len inputs can produce._  |
 |  size\_t | [**dp\_ddc\_execute\_ctrl\_push**](#function-dp_ddc_execute_ctrl_push) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, float \_Complex x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push ONE input sample; emit whatever outputs it completes._  |
-|  size\_t | [**dp\_ddc\_execute\_ctrl\_push\_max\_out**](#function-dp_ddc_execute_ctrl_push_max_out) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state) <br> |
+|  size\_t | [**dp\_ddc\_execute\_ctrl\_push\_max\_out**](#function-dp_ddc_execute_ctrl_push_max_out) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state) <br>_Output-buffer capacity for one execute\_ctrl\_push() call._  |
 |  size\_t | [**dp\_ddc\_execute\_ctrl\_push\_tap**](#function-dp_ddc_execute_ctrl_push_tap) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, float \_Complex x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo) <br>[_**dp\_ddc\_execute\_ctrl\_push()**_](ddc__core_8h.md#function-dp_ddc_execute_ctrl_push) _that also hands back the post-LO sample._ |
 |  size\_t | [**dp\_ddc\_execute\_ctrl\_push\_tap2**](#function-dp_ddc_execute_ctrl_push_tap2) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, float \_Complex x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**dp\_ddc\_execute\_ctrl\_push\_tap()**_](ddc__core_8h.md#function-dp_ddc_execute_ctrl_push_tap) _, plus the PRE-TERMINAL tap._ |
 |  size\_t | [**dp\_ddc\_execute\_max\_out**](#function-dp_ddc_execute_max_out) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, size\_t x\_len) <br>_Maximum output samples one execute() of x\_len inputs can produce._  |
@@ -91,7 +91,7 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 |  double | [**dp\_ddc\_get\_norm\_freq**](#function-dp_ddc_get_norm_freq) (const [**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state) <br>_Return the current LO normalised frequency (cycles/sample)._  |
 |  double | [**dp\_ddc\_get\_rate**](#function-dp_ddc_get_rate) (const [**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state) <br>_Return the configured output/input rate ratio (read-only). The rate is fixed at create time; change it by destroying and recreating the DDC with the new value._  |
 |  void | [**dp\_ddc\_get\_state**](#function-dp_ddc_get_state) (const [**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, void \* blob) <br>_Serialize_ `state's` _LO + RateConverter state into_`blob` _._ |
-|  void | [**dp\_ddc\_reset**](#function-dp_ddc_reset) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state) <br>_Zero LO phase and resampler history. After reset, the next execute call produces the same output as the first execute after create — useful for reproducible block-by-block processing or looped test fixtures._  |
+|  void | [**dp\_ddc\_reset**](#function-dp_ddc_reset) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state) <br>_Zero LO phase and resampler history. After reset, the next execute call produces the same output as the first execute after create — useful for reproducible block-by-block processing or looped test fixtures. Also clears the cascade's sticky CIC clip flag (see_ [_**dp\_ddc\_get\_clipped()**_](ddc__core_8h.md#function-dp_ddc_get_clipped) _). The configured norm\_freq and rate are kept._ |
 |  size\_t | [**dp\_ddc\_run**](#function-dp_ddc_run) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, const void \* state\_in, void \* state\_out, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Pure run:_ `(state_in, input) -> (state_out, output)` _; either blob may be NULL (NULL in = current; NULL out = discard)._ |
 |  void | [**dp\_ddc\_set\_norm\_freq**](#function-dp_ddc_set_norm_freq) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, double val) <br>_Retune the LO without resetting phase or resampler history. Updates the NCO phase increment atomically so the carrier shift changes seamlessly across block boundaries. The resampler history and LO phase accumulator are left intact, avoiding the transient that a full reset would cause._  |
 |  int | [**dp\_ddc\_set\_state**](#function-dp_ddc_set_state) ([**dp\_ddc\_state\_t**](ddc__core_8h.md#typedef-dp_ddc_state_t) \* state, const void \* blob) <br>_Restore LO + RateConverter state from_ `blob` _._ |
@@ -128,8 +128,8 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DDC\_STATE\_MAGIC**](ddc__core_8h.md#define-ddc_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D', 'D', 'C', '\_')`<br> |
-| define  | [**DDC\_STATE\_VERSION**](ddc__core_8h.md#define-ddc_state_version)  `1u`<br> |
+| define  | [**DDC\_STATE\_MAGIC**](ddc__core_8h.md#define-ddc_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D', 'D', 'C', '\_')`<br>_Blob magic for a DDC state blob ("DDC\_")._  |
+| define  | [**DDC\_STATE\_VERSION**](ddc__core_8h.md#define-ddc_state_version)  `1u`<br>_Blob layout version for a DDC state blob._  |
 
 ## Detailed Description
 
@@ -264,7 +264,7 @@ dp_ddc_state_t * dp_ddc_create (
 
 **Returns:**
 
-Non-NULL on success, NULL on OOM or invalid args.
+A heap-allocated state owned by the caller (free it with [**dp\_ddc\_destroy()**](ddc__core_8h.md#function-dp_ddc_destroy)), or NULL when `rate <= 0`, when the RateConverter cannot plan the rate, or on OOM.
 
 
 
@@ -325,7 +325,7 @@ Droop compensation is not a parameter because it is unconditional here: the fold
 
 **Returns:**
 
-Non-NULL on success, NULL on a bad parameter or OOM.
+A heap-allocated state owned by the caller (free it with [**dp\_ddc\_destroy()**](ddc__core_8h.md#function-dp_ddc_destroy)), or NULL on a bad parameter (`rate <= 0`, `pulse == RC_PULSE_NONE`, or anything [**dp\_RateConverter\_create\_matched()**](RateConverter__core_8h.md#function-dp_rateconverter_create_matched) rejects) or on OOM.
 
 
 
@@ -354,6 +354,13 @@ void dp_ddc_destroy (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` DDC to free, or NULL. Invalid after this call.
 
 
 ```C++
@@ -400,7 +407,7 @@ size_t dp_ddc_execute (
 
 **Returns:**
 
-Number of output samples written (C-only).
+Number of output samples written (C-only); 0 when `x_len` is 0 or the temporary mix buffer cannot be allocated.
 
 
 
@@ -467,7 +474,7 @@ Feeding a stream through [**dp\_ddc\_execute\_ctrl\_push()**](ddc__core_8h.md#fu
 
 **Returns:**
 
-Number of output samples written.
+Number of output samples written; 0 when `x_len` is 0 or the temporary mix buffer cannot be allocated.
 
 
 
@@ -494,6 +501,7 @@ Number of output samples written.
 
 ### function dp\_ddc\_execute\_ctrl\_max\_out 
 
+_Maximum output samples one execute\_ctrl() of x\_len inputs can produce._ 
 ```C++
 size_t dp_ddc_execute_ctrl_max_out (
     dp_ddc_state_t * state,
@@ -503,6 +511,28 @@ size_t dp_ddc_execute_ctrl_max_out (
 
 
 
+Same bound as [**dp\_ddc\_execute\_max\_out()**](ddc__core_8h.md#function-dp_ddc_execute_max_out): the binding sizes its output buffer from it and resizes down to the actual count.
+
+
+
+
+**Parameters:**
+
+
+* `state` Unused; may be any instance. 
+* `x_len` Number of input samples the matching call sees. 
+
+
+
+**Returns:**
+
+x\_len. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -573,6 +603,7 @@ Number of outputs written (0, 1, or more).
 
 ### function dp\_ddc\_execute\_ctrl\_push\_max\_out 
 
+_Output-buffer capacity for one execute\_ctrl\_push() call._ 
 ```C++
 size_t dp_ddc_execute_ctrl_push_max_out (
     dp_ddc_state_t * state
@@ -581,6 +612,27 @@ size_t dp_ddc_execute_ctrl_push_max_out (
 
 
 
+A single input completes at most `ceil(rate) + 1` output periods; the binding has no input block to size from, so it uses this fixed bound.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+`(size_t)max(rate, 1.0) + 2` samples. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -766,6 +818,27 @@ double dp_ddc_get_bank_sps (
 
 
 
+Forwarded from [**dp\_RateConverter\_get\_bank\_sps()**](RateConverter__core_8h.md#function-dp_rateconverter_get_bank_sps): the symbol period on the terminal stage's input grid, `pulse_sps / terminal_stage_rate`, fixed at construction. This is the rate of the `pre_out` tap of [**dp\_ddc\_execute\_ctrl\_push\_tap2()**](ddc__core_8h.md#function-dp_ddc_execute_ctrl_push_tap2).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Samples per symbol at the pre-terminal node for the matched flavor; 0.0 for the plain flavor, which has no pulse. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -782,7 +855,24 @@ bool dp_ddc_get_clipped (
 
 
 
-Forwarded from [**dp\_RateConverter\_get\_clipped()**](RateConverter__core_8h.md#function-dp_rateconverter_get_clipped): a CIC bounds its input to `|Re|, |Im| <= 2.0` (`CIC_PAPR_HEADROOM`, 6 dB above unity — see [**cic\_core.h**](cic__core_8h.md)) and clips silently past it — the output stays finite and plausible, merely distorted, at a cost of ~25 dB of EVM that no downstream metric attributes to the front end. Sticky until [**dp\_ddc\_reset()**](ddc__core_8h.md#function-dp_ddc_reset); always false for a plan with no CIC stage, which is the honest answer since those plans are scale-free. 
+Forwarded from [**dp\_RateConverter\_get\_clipped()**](RateConverter__core_8h.md#function-dp_rateconverter_get_clipped): a CIC bounds its input to `|Re|, |Im| <= 2.0` (`CIC_PAPR_HEADROOM`, 6 dB above unity — see [**cic\_core.h**](cic__core_8h.md)) and clips silently past it — the output stays finite and plausible, merely distorted, at a cost of ~25 dB of EVM that no downstream metric attributes to the front end. Sticky until [**dp\_ddc\_reset()**](ddc__core_8h.md#function-dp_ddc_reset); always false for a plan with no CIC stage, which is the honest answer since those plans are scale-free.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+true if any CIC input sample has been clipped since create or the last [**dp\_ddc\_reset()**](ddc__core_8h.md#function-dp_ddc_reset); false otherwise. 
+
+
+
 
 
         
@@ -802,7 +892,24 @@ bool dp_ddc_get_narrow_pulse (
 
 
 
-True only for the matched flavor built with `pulse = RC_PULSE_IANDD` and fewer than four output samples per symbol: the rectangle is exactly one symbol wide, so its matched filter is a 2-3 tap sum there. It works, it just barely opens the eye — measured on the timing loop this feeds, a lock statistic of -0.34 at two samples per symbol against +0.95 at four. The RRC spans many symbols and is never affected. Construction also raises a UserWarning, so this is the pull half of the same diagnostic. 
+True only for the matched flavor built with `pulse = RC_PULSE_IANDD` and fewer than four output samples per symbol: the rectangle is exactly one symbol wide, so its matched filter is a 2-3 tap sum there. It works, it just barely opens the eye — measured on the timing loop this feeds, a lock statistic of -0.34 at two samples per symbol against +0.95 at four. The RRC spans many symbols and is never affected. Construction also raises a UserWarning, so this is the pull half of the same diagnostic.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+true when the matched flavor has `pulse == RC_PULSE_IANDD` and `pulse_sps < 4`; false otherwise (always false for the plain flavor). Fixed at construction. 
+
+
+
 
 
         
@@ -820,6 +927,20 @@ double dp_ddc_get_norm_freq (
 ) 
 ```
 
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The LO centre frequency in cycles/sample at the input rate, as last set by create or [**dp\_ddc\_set\_norm\_freq()**](ddc__core_8h.md#function-dp_ddc_set_norm_freq). Per-call `freq_ctrl` deviations are never folded in.
 
 
 
@@ -847,6 +968,20 @@ double dp_ddc_get_rate (
 ) 
 ```
 
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The output/input sample-rate ratio passed at create time.
 
 
 
@@ -878,13 +1013,25 @@ void dp_ddc_get_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL; not modified. 
+* `blob` Caller-owned buffer of at least [**dp\_ddc\_state\_bytes()**](ddc__core_8h.md#function-dp_ddc_state_bytes) bytes. 
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_ddc\_reset 
 
-_Zero LO phase and resampler history. After reset, the next execute call produces the same output as the first execute after create — useful for reproducible block-by-block processing or looped test fixtures._ 
+_Zero LO phase and resampler history. After reset, the next execute call produces the same output as the first execute after create — useful for reproducible block-by-block processing or looped test fixtures. Also clears the cascade's sticky CIC clip flag (see_ [_**dp\_ddc\_get\_clipped()**_](ddc__core_8h.md#function-dp_ddc_get_clipped) _). The configured norm\_freq and rate are kept._
 ```C++
 void dp_ddc_reset (
     dp_ddc_state_t * state
@@ -892,6 +1039,13 @@ void dp_ddc_reset (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL.
 
 
 ```C++
@@ -931,6 +1085,33 @@ size_t dp_ddc_run (
 
 
 
+Restores `state_in` into `state` (when non-NULL), runs [**dp\_ddc\_execute()**](ddc__core_8h.md#function-dp_ddc_execute), then exports the resulting state to `state_out` (when non-NULL).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL; the working instance. 
+* `state_in` Blob to restore first, or NULL to keep the current state. 
+* `state_out` Buffer of [**dp\_ddc\_state\_bytes()**](ddc__core_8h.md#function-dp_ddc_state_bytes) bytes that receives the post-run state, or NULL to discard it. 
+* `in` CF32 input block. 
+* `n_in` Number of input samples. 
+* `out` CF32 output buffer. 
+* `max_out` Capacity of `out` in samples. 
+
+
+
+**Returns:**
+
+Number of output samples written; 0 (and nothing run) when `state_in` is rejected by [**dp\_ddc\_set\_state()**](ddc__core_8h.md#function-dp_ddc_set_state). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -984,6 +1165,14 @@ int dp_ddc_set_state (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL; built with the same rate (and the same flavor/pulse) as the instance that wrote `blob`. 
+* `blob` Blob written by [**dp\_ddc\_get\_state()**](ddc__core_8h.md#function-dp_ddc_get_state). 
 
 
 
@@ -1056,6 +1245,24 @@ size_t dp_ddc_state_bytes (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Size in bytes of the buffer [**dp\_ddc\_get\_state()**](ddc__core_8h.md#function-dp_ddc_get_state) writes and [**dp\_ddc\_set\_state()**](ddc__core_8h.md#function-dp_ddc_set_state) expects; fixed for a given construction. 
+
+
+
+
+
+        
+
 <hr>
 ## Macro Definition Documentation
 
@@ -1065,6 +1272,7 @@ size_t dp_ddc_state_bytes (
 
 ### define DDC\_STATE\_MAGIC 
 
+_Blob magic for a DDC state blob ("DDC\_")._ 
 ```C++
 #define DDC_STATE_MAGIC `DP_FOURCC ('D', 'D', 'C', '_')`
 ```
@@ -1078,6 +1286,7 @@ size_t dp_ddc_state_bytes (
 
 ### define DDC\_STATE\_VERSION 
 
+_Blob layout version for a DDC state blob._ 
 ```C++
 #define DDC_STATE_VERSION `1u`
 ```

@@ -8,7 +8,7 @@
 
 
 
-
+_2-D FFT engine state: two fixed ny x nx plans plus scratch._ [More...](#detailed-description)
 
 * `#include <fft2d_core.h>`
 
@@ -86,6 +86,13 @@
 
 
 
+## Detailed Description
+
+
+Every field is set by [**dp\_fft2d\_create()**](fft2d__core_8h.md#function-dp_fft2d_create) and immutable afterward, except the lazily allocated `work_trunc`. Allocate with [**dp\_fft2d\_create()**](fft2d__core_8h.md#function-dp_fft2d_create); free with [**dp\_fft2d\_destroy()**](fft2d__core_8h.md#function-dp_fft2d_destroy). 
+
+
+    
 ## Public Attributes Documentation
 
 

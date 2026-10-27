@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](dp__interrupt__guard__core_8h_source.md)
 
-
+_The object face of the interrupt facility._ [More...](#detailed-description)
 
 * `#include "doppler/dp_interrupt.h"`
 * `#include <stddef.h>`
@@ -94,6 +94,16 @@
 
 
 
+## Detailed Description
+
+
+The flag itself lives in [**dp\_interrupt.h**](dp__interrupt_8h.md), a root header three modules include. This is the component that binds it: a scoped handle whose create arms and whose destroy restores exactly what it armed.
+
+
+See docs/design/io-termination.md. 
+
+
+    
 ## Public Types Documentation
 
 
@@ -107,6 +117,10 @@ typedef dp_interrupt_guard_t dp_interrupt_guard_state_t;
 
 
 
+jm derives a component's state type as `<comp>_state_t`, and doppler's public spelling is dp\_interrupt\_guard\_t. One alias bridges them until just-makeit#797 lands `state_type`; [**dp\_tlm\_core.h**](dp__tlm__core_8h.md) carries the same line for the same reason. 
+
+
+        
 
 <hr>
 

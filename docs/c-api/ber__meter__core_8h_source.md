@@ -12,7 +12,8 @@
 #ifndef DP_BER_METER_CORE_H
 #define DP_BER_METER_CORE_H
 
-#include "doppler/ber/ber_core.h" /* the records and the free functions */
+#include "doppler/ber/ber_core.h" /* the records, dp_ber_confidence() and the
+                                      other free functions */
 #include "doppler/clib_common.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/dp_state.h"
@@ -58,9 +59,10 @@ extern "C"
                                 size_t t0, size_t n_marker, size_t period,
                                 int lag_span, double pfa);
 
-  ber_interval_t dp_ber_confidence (size_t errors, size_t symbols, double conf);
-
   /* ── the meter ────────────────────────────────────────────────────────── */
+
+  /* Error counters accumulated across as many bursts as it takes. */
+
 
   dp_ber_meter_state_t *dp_ber_meter_create (int m, size_t target_errors,
                                        double conf);

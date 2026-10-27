@@ -261,7 +261,14 @@ A field with a declared length and no source: a CRC trailer, a block of check sy
 
 * `state` the frame. 
 * `name` the field's name, or NULL for anonymous. 
-* `bits` its length, which its stage decides and the caller states.
+* `bits` its length, which its stage decides and the caller states. 
+
+
+
+**Returns:**
+
+The new field's index, or -1 on NULL `state`, a built frame, a zero `bits`, a full description (`WFM_FRAME_MAX_FIELDS`) or a name another field already carries.
+
 
 
 ```C++
@@ -551,6 +558,13 @@ size_t dp_frame_bits_max_out (
 
 * `state` The frame. 
 * `n` Frame repetitions. 
+
+
+
+**Returns:**
+
+`n * nbits`, the output capacity in bits (one per byte) that [**dp\_frame\_bits()**](frame__core_8h.md#function-dp_frame_bits) needs; 0 for a NULL `state` or an unbuilt description. 
+
 
 
 
@@ -861,9 +875,22 @@ Read either one through [**dp\_frame\_field\_index**](frame__core_8h.md#function
 
 
 
+**Parameters:**
+
+
+* `preamble` Preamble bits, one per element, each 0 or 1; may be empty. 
+* `preamble_len` Its length in bits. 
+* `sync` Sync-word bits; may be empty. 
+* `sync_len` Its length in bits. 
+* `payload` Payload bits; may be empty. 
+* `payload_len` Its length in bits. 
+* `crc` Enum index; 0=none, 1=crc16 over the payload. Ignored when all three fields are empty. 
+
+
+
 **Returns:**
 
-An unbuilt description, or NULL if an element is not a bit.
+An unbuilt description, or NULL if an element is not a bit. Caller must call [**dp\_frame\_destroy()**](frame__core_8h.md#function-dp_frame_destroy) when done.
 
 
 

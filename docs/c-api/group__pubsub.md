@@ -277,7 +277,7 @@ DP_NODISCARD int dp_pub_send_cf32 (
 
 
 * `ctx` Publisher context. 
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
 * `num_samples` Number of complex samples. 
 * `sample_rate` Sample rate in Hz. 
 * `center_freq` Centre frequency in Hz. 
@@ -319,7 +319,7 @@ DP_NODISCARD int dp_pub_send_cf64 (
 
 
 * `ctx` Publisher context. 
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
 * `num_samples` Number of complex samples. 
 * `sample_rate` Sample rate in Hz. 
 * `center_freq` Centre frequency in Hz. 
@@ -361,7 +361,7 @@ DP_NODISCARD int dp_pub_send_ci16 (
 
 
 * `ctx` Publisher context. 
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
 * `num_samples` Number of complex samples. 
 * `sample_rate` Sample rate in Hz. 
 * `center_freq` Centre frequency in Hz. 
@@ -403,7 +403,7 @@ DP_NODISCARD int dp_pub_send_ci32 (
 
 
 * `ctx` Publisher context. 
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
 * `num_samples` Number of complex samples. 
 * `sample_rate` Sample rate in Hz. 
 * `center_freq` Centre frequency in Hz. 
@@ -445,7 +445,7 @@ DP_NODISCARD int dp_pub_send_ci8 (
 
 
 * `ctx` Publisher context. 
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
 * `num_samples` Number of complex samples. 
 * `sample_rate` Sample rate in Hz. 
 * `center_freq` Centre frequency in Hz. 

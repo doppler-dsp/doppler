@@ -38,18 +38,18 @@ typedef struct {
     size_t         carry_len;  
     /* Config, fixed at construction (restored by create(), not the
      * blob -- validated against the blob's own copy in set_state). */
-    double sample_rate_hz;
-    double pfa;
-    bool   sequential;
+    double sample_rate_hz; 
+    double pfa;   
+    bool   sequential; 
     double s_t;   
     double s_t2;  
     /* Public (property-backed) running/result fields. */
-    bool   ready;
-    double residual_hz;
-    size_t n_blocks;
+    bool   ready;       
+    double residual_hz; 
+    size_t n_blocks;    
     size_t dwell_target;  
     size_t max_n_blocks;  
-    size_t nfft;
+    size_t nfft;          
 } dp_carrier_acq_state_t;
 
 dp_carrier_acq_state_t *dp_carrier_acq_create(

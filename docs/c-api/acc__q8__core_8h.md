@@ -64,12 +64,12 @@ _AccQ8 — a running 32-bit integer accumulator for Q8 (int8\_t) samples. Intern
 |  int32\_t | [**dp\_acc\_q8\_dump**](#function-dp_acc_q8_dump) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state) <br>_Return the accumulated value and atomically reset it to zero. Avoids the need for a separate reset() call when processing a stream of non-overlapping blocks._  |
 |  int32\_t | [**dp\_acc\_q8\_get**](#function-dp_acc_q8_get) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state) <br>_Return the current accumulated value without resetting it. Mirrors get\_acc() but exposed under the name used consistently across all Acc-family objects in the Python API._  |
 |  int32\_t | [**dp\_acc\_q8\_get\_acc**](#function-dp_acc_q8_get_acc) (const [**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state) <br>_Read the current accumulator value without modifying it. Permits repeated snapshots of the running sum mid-stream._  |
-|  void | [**dp\_acc\_q8\_get\_state**](#function-dp_acc_q8_get_state) (const [**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_acc\_q8\_get\_state**](#function-dp_acc_q8_get_state) (const [**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state, void \* blob) <br>_Serialize the accumulator into_ `blob` _(header + struct snapshot)._ |
 |  void | [**dp\_acc\_q8\_madd**](#function-dp_acc_q8_madd) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state, const int8\_t \* a, size\_t a\_len, const int8\_t \* b, size\_t b\_len) <br>_Multiply-accumulate over the shorter of the two arrays. Computes acc += sum(_ `a[i]` _\*_`b[i]` _), widening int8\_t inputs to int32\_t before accumulation to prevent intermediate overflow._ |
 |  void | [**dp\_acc\_q8\_reset**](#function-dp_acc_q8_reset) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state) <br>_Reset the accumulator to zero, mirroring the post-create state. Always resets to zero regardless of the original constructor value, so it is safe to call at the start of any new accumulation window._  |
 |  void | [**dp\_acc\_q8\_set\_acc**](#function-dp_acc_q8_set_acc) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state, int32\_t val) <br>_Overwrite the accumulator with a new value. Useful for applying a bias before a new accumulation window, or for restoring a checkpointed accumulator state._  |
-|  int | [**dp\_acc\_q8\_set\_state**](#function-dp_acc_q8_set_state) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_acc\_q8\_state\_bytes**](#function-dp_acc_q8_state_bytes) (const [**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state) <br> |
+|  int | [**dp\_acc\_q8\_set\_state**](#function-dp_acc_q8_set_state) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state, const void \* blob) <br>_Restore the accumulator from a blob made by_ [_**dp\_acc\_q8\_get\_state()**_](acc__q8__core_8h.md#function-dp_acc_q8_get_state) _._ |
+|  size\_t | [**dp\_acc\_q8\_state\_bytes**](#function-dp_acc_q8_state_bytes) (const [**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state) <br>_Size in bytes of this object's state blob._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dp\_acc\_q8\_step**](#function-dp_acc_q8_step) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state, int8\_t x) <br>_Accumulate one Q8 sample into the running total. The sample is sign-extended to 32 bits before addition so negative samples correctly subtract from the accumulator._  |
 |  void | [**dp\_acc\_q8\_steps**](#function-dp_acc_q8_steps) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state, const int8\_t \* input, size\_t n) <br>_Accumulate a contiguous block of Q8 samples. Equivalent to calling step() n times; the single loop is more amenable to auto-vectorisation than repeated method calls._  |
 
@@ -103,8 +103,8 @@ _AccQ8 — a running 32-bit integer accumulator for Q8 (int8\_t) samples. Intern
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**ACC\_Q8\_STATE\_MAGIC**](acc__q8__core_8h.md#define-acc_q8_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'C', '8')`<br> |
-| define  | [**ACC\_Q8\_STATE\_VERSION**](acc__q8__core_8h.md#define-acc_q8_state_version)  `1u`<br> |
+| define  | [**ACC\_Q8\_STATE\_MAGIC**](acc__q8__core_8h.md#define-acc_q8_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'C', '8')`<br>_State-blob magic ('ACC8'); set\_state() rejects any other._  |
+| define  | [**ACC\_Q8\_STATE\_VERSION**](acc__q8__core_8h.md#define-acc_q8_state_version)  `1u`<br>_State-blob layout version; set\_state() rejects any other._  |
 
 ## Detailed Description
 
@@ -313,7 +313,14 @@ int32_t dp_acc_q8_get_acc (
 **Parameters:**
 
 
-* `state` Must be non-NULL.
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Current accumulator value; the create() value before any step.
+
 
 
 ```C++
@@ -334,6 +341,7 @@ int32_t dp_acc_q8_get_acc (
 
 ### function dp\_acc\_q8\_get\_state 
 
+_Serialize the accumulator into_ `blob` _(header + struct snapshot)._
 ```C++
 void dp_acc_q8_get_state (
     const dp_acc_q8_state_t * state,
@@ -343,6 +351,18 @@ void dp_acc_q8_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_acc\_q8\_state\_bytes()**](acc__q8__core_8h.md#function-dp_acc_q8_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -469,6 +489,7 @@ void dp_acc_q8_set_acc (
 
 ### function dp\_acc\_q8\_set\_state 
 
+_Restore the accumulator from a blob made by_ [_**dp\_acc\_q8\_get\_state()**_](acc__q8__core_8h.md#function-dp_acc_q8_get_state) _._
 ```C++
 int dp_acc_q8_set_state (
     dp_acc_q8_state_t * state,
@@ -479,12 +500,32 @@ int dp_acc_q8_set_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Source blob of [**dp\_acc\_q8\_state\_bytes()**](acc__q8__core_8h.md#function-dp_acc_q8_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's magic, version, endianness or size does not match. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_acc\_q8\_state\_bytes 
 
+_Size in bytes of this object's state blob._ 
 ```C++
 size_t dp_acc_q8_state_bytes (
     const dp_acc_q8_state_t * state
@@ -493,6 +534,24 @@ size_t dp_acc_q8_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+`sizeof(dp_state_hdr_t) + sizeof(dp_acc_q8_state_t)`; constant. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -581,6 +640,7 @@ void dp_acc_q8_steps (
 
 ### define ACC\_Q8\_STATE\_MAGIC 
 
+_State-blob magic ('ACC8'); set\_state() rejects any other._ 
 ```C++
 #define ACC_Q8_STATE_MAGIC `DP_FOURCC ('A', 'C', 'C', '8')`
 ```
@@ -594,6 +654,7 @@ void dp_acc_q8_steps (
 
 ### define ACC\_Q8\_STATE\_VERSION 
 
+_State-blob layout version; set\_state() rejects any other._ 
 ```C++
 #define ACC_Q8_STATE_VERSION `1u`
 ```

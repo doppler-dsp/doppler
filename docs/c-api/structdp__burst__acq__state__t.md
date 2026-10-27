@@ -102,6 +102,10 @@ dp_acq_state_t* dp_burst_acq_state_t::engine;
 
 
 
+The wrapped acquisition engine; owned, freed by [**dp\_burst\_acq\_destroy()**](burst__acq__core_8h.md#function-dp_burst_acq_destroy). 
+
+
+        
 
 <hr>
 

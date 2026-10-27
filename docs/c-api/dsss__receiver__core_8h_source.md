@@ -34,51 +34,28 @@ extern "C"
 
   typedef struct
   {
-    dp_acq_state_t           *acq;
-    dp_dll_state_t           *dll;
-    dp_RateConverter_state_t *rc;
-    dp_mpsk_receiver_state_t *rx;
-
-    /* Pre-despread carrier loop -- embedded by value, same pattern
-     * dp_despreader_state_t's own `car` uses. Rebuilt alongside dll/rc/rx
-     * (create-time placeholder, every real hit, configure_chain_raw(),
-     * reset()). One update per code period (`tsamps` samples). */
+    dp_acq_state_t           *acq; 
+    dp_dll_state_t           *dll; 
+    dp_RateConverter_state_t *rc;  
+    dp_mpsk_receiver_state_t *rx;  
     dp_costas_state_t car;
     size_t         tsamps; 
-    /* Scratch, not state: sized `tsamps`, allocated once (never per
-     * steps() call -- no allocation in the hot streaming path). */
     float _Complex *car_wiped_buf;
-    /* Genuinely stateful: raw samples handed to steps() that didn't fill
-     * a whole code period yet, carried to the NEXT call so the carrier
-     * loop always wipes exact, complete periods regardless of how a
-     * caller chunks its input (this object's own "any block size, state
-     * carries across calls" contract). Capacity `tsamps`; only the first
-     * `car_carry_len` samples are valid. Must be serialized (see below)
-     * or a resumed instance silently loses its period alignment. */
     float _Complex *car_carry_buf;
-    size_t         car_carry_len;
-
-    /* Own copy of the spreading code -- dp_acq_create_continuous()/
-     * dp_dll_create()'s own borrow-vs-copy semantics aren't part of either's
-     * public contract,
-     * so this object keeps a persistent copy rather than depend on being
-     * able to read it back out of a child, or on the caller's original
-     * buffer outliving construction. */
+    size_t         car_carry_len; 
     uint8_t *code;
-    size_t   code_len;
-
+    size_t   code_len; 
     /* Config carried across a dll/rc/rx rebuild (create-time or
      * configure_chain_raw()) — everything dp_mpsk_receiver_create() and
      * dp_dll_create() need that isn't re-derived from the acquisition hit. */
-    size_t spc;
-    int    m;
-    int    differential;
+    size_t spc;          
+    int    m;            
+    int    differential; 
     size_t segments; 
     size_t sps;      
     int    n;        
-    double chip_rate;
-    double symbol_rate;
-
+    double chip_rate;   
+    double symbol_rate; 
     int      tracking; 
     double   doppler_hz_est; 
     double   cn0_dbhz_est;   
@@ -146,14 +123,14 @@ extern "C"
 
   typedef struct
   {
-    uint8_t  tracking;
-    uint8_t  _pad[7];
-    double   doppler_hz_est;
-    double   cn0_dbhz_est;
-    uint64_t segments;
-    uint64_t sps;
-    uint64_t n;
-    uint64_t car_carry_len;
+    uint8_t  tracking;       
+    uint8_t  _pad[7];        
+    double   doppler_hz_est; 
+    double   cn0_dbhz_est;   
+    uint64_t segments;       
+    uint64_t sps;            
+    uint64_t n;              
+    uint64_t car_carry_len;  
   } dsss_receiver_extra_t;
 
 #define DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('D', 'S', 'R', 'X')

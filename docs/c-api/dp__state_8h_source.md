@@ -14,8 +14,6 @@
 
 #include "doppler/clib_common.h" /* DP_OK, DP_ERR_INVALID, fixed-width ints, memcpy */
 
-/* FourCC type tag, e.g. DP_FOURCC('A','C','Q','R'). Stored little-end-first so
- * the bytes read as "ACQR" in a hex dump on a little-endian host. */
 #define DP_FOURCC(a, b, c, d)                                                 \
   ((uint32_t) ((uint32_t) (uint8_t) (a) | ((uint32_t) (uint8_t) (b) << 8)     \
                | ((uint32_t) (uint8_t) (c) << 16)                             \
@@ -37,16 +35,13 @@ typedef struct
   uint32_t _pad;    
 } dp_state_hdr_t;
 
-/* ── writer cursor ──────────────────────────────────────────────────────────
- * Sticky-error model: a bounds overrun sets `err` and subsequent writes no-op,
- * so call sites stay flat (check `w.err` once at the end if desired). Overrun
- * cannot happen when the caller allocated obj_state_bytes() — it is a guard. */
+/* ── writer cursor ────────────────────────────────────────────────────── */
 typedef struct
 {
-  uint8_t *buf;
-  size_t   cap;
-  size_t   off;
-  int      err;
+  uint8_t *buf; 
+  size_t   cap; 
+  size_t   off; 
+  int      err; 
 } dp_writer_t;
 
 static inline dp_writer_t
@@ -125,10 +120,10 @@ dp_w_hdr (dp_writer_t *w, uint32_t magic, uint16_t version, size_t total)
 /* ── reader cursor ──────────────────────────────────────────────────────── */
 typedef struct
 {
-  const uint8_t *buf;
-  size_t         cap;
-  size_t         off;
-  int            err;
+  const uint8_t *buf; 
+  size_t         cap; 
+  size_t         off; 
+  int            err; 
 } dp_reader_t;
 
 static inline dp_reader_t
@@ -274,21 +269,7 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
     return DP_OK;                                                             \
   }
 
-/* ── field-wise scaffolding ──────────────────────────────────────────────────
- * For a hand-written triplet that packs a subset of fields: the running state
- * and every mutator's value, while create() restores the config no mutator
- * reaches (docs/design/state-serialization.md, "What goes in the blob",
- * #2022).  Use inside `<obj>_get_state(s, blob)` /
- * `<obj>_set_state(s, blob)` (those exact param names): open, then pack/unpack
- * the running fields via `&_w` / `&_r`, and `return DP_OK;` from set.
- *
- *   void foo_get_state (const foo_state_t *s, void *blob)
- *   { DP_GET_OPEN (FOO_MAGIC, FOO_VERSION, foo_state_bytes (s));
- *     dp_w_f64 (&_w, s->gain); }
- *   int  foo_set_state (foo_state_t *s, const void *blob)
- *   { DP_SET_OPEN (FOO_MAGIC, FOO_VERSION, foo_state_bytes (s));
- *     s->gain = dp_r_f64 (&_r); return DP_OK; }
- */
+/* ── field-wise scaffolding ─────────────────────────────────────────────── */
 #define DP_GET_OPEN(MAGIC, VERSION, BYTES)                                     \
   dp_writer_t _w = dp_writer_init (blob, (BYTES));                             \
   dp_w_hdr (&_w, (MAGIC), (VERSION), (BYTES))
@@ -300,12 +281,7 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
   dp_reader_t _r = dp_reader_init (blob, (BYTES));                             \
   _r.off = sizeof (dp_state_hdr_t)
 
-/* ── composition: nest a child's self-contained sub-blob ─────────────────────
- * A composition's state_bytes sums `<child>_state_bytes(child_ptr)`; its
- * get/set then writes/reads each child as a nested envelope.  `child_ptr` may be
- * a pointer member or the address of an embedded-by-value member (`&s->lf`).
- * DP_R_CHILD returns DP_ERR_INVALID from the enclosing set_state if the child
- * rejects, so the whole restore is atomic-by-validation. */
+/* ── composition ───────────────────────────────────────────────────────── */
 #define DP_W_CHILD(w, pfx, child_ptr)                                          \
   do                                                                           \
     {                                                                          \

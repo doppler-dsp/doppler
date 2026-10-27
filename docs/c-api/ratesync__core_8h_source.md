@@ -48,8 +48,6 @@ extern "C"
 
 #define RATESYNC_MAX_M 8
 
-/* Numerical guard on the on-time+mid energy sum feeding the lock statistic
- * (not tunable) — mirrors SYMSYNC_LOCK_EPS. */
 #define RATESYNC_LOCK_EPS 1e-12
 
   typedef struct
@@ -85,7 +83,7 @@ extern "C"
     size_t prime_left; 
     size_t out_count;  
     float _Complex ring[RATESYNC_MAX_M / 2 + 1];
-    size_t        ring_n;
+    size_t        ring_n; 
     float _Complex prev_on; 
     /* ── lock detector (always on): tumbling-window block average ───── */
     double lock_sum;      

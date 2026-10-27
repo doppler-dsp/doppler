@@ -26,8 +26,6 @@ extern "C"
 #endif
 
 #define SPECTROGRAM_STATE_MAGIC DP_FOURCC ('S', 'P', 'G', 'M')
-/* v2: the blob carries the configuration (mode, nfft, hop, window, beta) so a
- * restore refuses a blob whose rows would mean something else (#2102). */
 #define SPECTROGRAM_STATE_VERSION 2u
 
 /* The row units. The Python face binds "power" and "db" to these constants

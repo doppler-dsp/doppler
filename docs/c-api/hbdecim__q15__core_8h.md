@@ -32,7 +32,7 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) <br> |
+| struct | [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) <br>_HalfbandDecimatorQ15 state: Q15 FIR-branch coefficients, four dual-write int16 delay rings and a one-sample carry._  |
 
 
 
@@ -65,10 +65,10 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 |  size\_t | [**dp\_hbdecim\_q15\_execute\_max\_out**](#function-dp_hbdecim_q15_execute_max_out) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_Maximum output samples for a given input length._  |
 |  size\_t | [**dp\_hbdecim\_q15\_get\_num\_taps**](#function-dp_hbdecim_q15_get_num_taps) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_FIR branch length as supplied to the constructor. This is the count of non-zero symmetric taps in the FIR branch, not the full sparse halfband prototype length. Useful for introspection when chaining multiple stages with programmatically computed filter banks._  |
 |  double | [**dp\_hbdecim\_q15\_get\_rate**](#function-dp_hbdecim_q15_get_rate) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_The sample-rate reduction factor; always 0.5 for 2:1 decimation. Exposed as a read-only property so pipelines can query the rate of each stage programmatically without hard-coding the 2:1 assumption._  |
-|  void | [**dp\_hbdecim\_q15\_get\_state**](#function-dp_hbdecim_q15_get_state) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_hbdecim\_q15\_get\_state**](#function-dp_hbdecim_q15_get_state) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* state, void \* blob) <br>_Serialize rings, heads and the pending pair into a blob._  |
 |  void | [**dp\_hbdecim\_q15\_reset**](#function-dp_hbdecim_q15_reset) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_Zero all delay rings and clear the pending-sample flag. After a reset the decimator behaves identically to a freshly constructed instance: the four dual-write delay rings are zeroed and has\_pending is cleared, so no partial IQ pair carries over. Call this between unrelated signal segments to prevent inter-segment leakage._  |
-|  int | [**dp\_hbdecim\_q15\_set\_state**](#function-dp_hbdecim_q15_set_state) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_hbdecim\_q15\_state\_bytes**](#function-dp_hbdecim_q15_state_bytes) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* state) <br> |
+|  int | [**dp\_hbdecim\_q15\_set\_state**](#function-dp_hbdecim_q15_set_state) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* state, const void \* blob) <br>_Restore rings, heads and the pending pair from a blob._  |
+|  size\_t | [**dp\_hbdecim\_q15\_state\_bytes**](#function-dp_hbdecim_q15_state_bytes) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* state) <br>_Size of this instance's serialized state blob._  |
 
 
 
@@ -100,8 +100,8 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**HBDECIM\_Q15\_STATE\_MAGIC**](hbdecim__q15__core_8h.md#define-hbdecim_q15_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('H','B','1','5')`<br> |
-| define  | [**HBDECIM\_Q15\_STATE\_VERSION**](hbdecim__q15__core_8h.md#define-hbdecim_q15_state_version)  `1u`<br> |
+| define  | [**HBDECIM\_Q15\_STATE\_MAGIC**](hbdecim__q15__core_8h.md#define-hbdecim_q15_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('H','B','1','5')`<br>_State-blob magic ("HB15"); set\_state() rejects any other._  |
+| define  | [**HBDECIM\_Q15\_STATE\_VERSION**](hbdecim__q15__core_8h.md#define-hbdecim_q15_state_version)  `1u`<br>_State-blob layout version; bumped when the payload changes._  |
 
 ## Detailed Description
 
@@ -119,7 +119,7 @@ The halfband filter has the polyphase property: one branch is a pure delay (ever
 The symmetric-fold optimisation halves the number of multiplications: instead of computing Sum `h[k]`\*`x[n-k]` for all k, the filter computes Sum `h[k]`\*(`x[n-k]` + `x[n-(N-1-k)]`) for k = 0..N/2-1, exploiting `h[k]` = `h[N-1-k]`. The center tap is a single unconditional right-shift (x0.5, baked in as the polyphase rate identity).
 
 
-On AVX2 the inner loop uses \_mm256\_madd\_epi16 to multiply 16 int16\_t coefficient values against 16 int16\_t folded delay-line samples in a single instruction, accumulating into 8 int32\_t lanes. I and Q run as two independent madd chains on the same coefficient vector — free ILP on any superscalar core. The fold uses saturating add (\_mm256\_adds\_epi16) which clips at +-32767; for signals at or below -1 dBFS the saturation never fires. The int32\_t accumulator is reduced to int64\_t before the final round-and-shift to Q15 output.
+On AVX2 the inner loop uses \_mm256\_madd\_epi16 to multiply 16 int16\_t coefficient values against 16 int16\_t delay-line samples in a single instruction, accumulating into 8 int32\_t lanes. The fold is never formed as an int16\_t (that would overflow above -6 dBFS): each 16-sample block is multiplied twice, once against the left slice and once against the reversed right slice, and the two products are summed in int32\_t. I and Q run as two independent madd chains on the same coefficient vector. The int32\_t lanes are reduced to int64\_t before the final round-and-shift to Q15 output, which saturates to the int16\_t range.
 
 
 
@@ -171,13 +171,13 @@ dp_hbdecim_q15_state_t * dp_hbdecim_q15_create (
 
 
 * `num_taps` Number of FIR branch coefficients in h (&gt;= 1). 
-* `h` Float FIR branch coefficients of length num\_taps. Must be symmetric (`h[k]` == `h[num_taps-1-k]`). 
+* `h` Float FIR branch coefficients of length num\_taps. Must be symmetric (`h[k]` == `h[num_taps-1-k]`): only the first num\_taps/2 are read, scaled by 0.5 and saturated to Q15. 
 
 
 
 **Returns:**
 
-HalfbandDecimatorQ15 instance. 
+Heap-allocated state, or NULL when `num_taps` is 0, `h` is NULL, or an allocation fails. 
 ```C++
 >>> import numpy as np
 >>> from doppler.resample import HalfbandDecimatorQ15
@@ -212,6 +212,11 @@ void dp_hbdecim_q15_destroy (
 
 
 
+
+**Parameters:**
+
+
+* `r` Decimator state, or NULL. 
 ```C++
 >>> import numpy as np
 >>> from doppler.resample import HalfbandDecimatorQ15
@@ -224,6 +229,8 @@ void dp_hbdecim_q15_destroy (
 dtype('int16')
 ```
  
+
+
 
 
         
@@ -262,7 +269,7 @@ size_t dp_hbdecim_q15_execute (
 
 **Returns:**
 
-min(available, max\_out) COMPLEX samples  twice that many int16\_t values. 
+min(available, max\_out) COMPLEX samples  twice that many int16\_t values; 0 when `n_in` or `max_out` is 0. When `max_out` stops the loop early, only the next unconsumed input pair is buffered as pending; any further input in this call is dropped. 
 ```C++
 >>> import numpy as np
 >>> from doppler.resample import HalfbandDecimatorQ15
@@ -300,7 +307,24 @@ size_t dp_hbdecim_q15_execute_max_out (
 
 
 
-Returns 0 to trigger the lazy-alloc path in the Python glue: the output buffer is sized to n\_in on first call (always sufficient for 2:1). 
+Returns 0 to trigger the lazy-alloc path in the Python glue: the output buffer is sized to n\_in on first call (always sufficient for 2:1).
+
+
+
+
+**Parameters:**
+
+
+* `r` Decimator state (unused). 
+
+
+
+**Returns:**
+
+Always 0 (no fixed bound; size the output from n\_in). 
+
+
+
 
 
         
@@ -321,6 +345,17 @@ size_t dp_hbdecim_q15_get_num_taps (
 
 
 
+
+**Parameters:**
+
+
+* `r` Decimator state (non-NULL). 
+
+
+
+**Returns:**
+
+num\_taps as passed to [**dp\_hbdecim\_q15\_create()**](hbdecim__q15__core_8h.md#function-dp_hbdecim_q15_create). 
 ```C++
 >>> import numpy as np
 >>> from doppler.resample import HalfbandDecimatorQ15
@@ -329,6 +364,9 @@ size_t dp_hbdecim_q15_get_num_taps (
 3
 ```
  
+
+
+
 
 
         
@@ -349,6 +387,17 @@ double dp_hbdecim_q15_get_rate (
 
 
 
+
+**Parameters:**
+
+
+* `r` Decimator state (unused). 
+
+
+
+**Returns:**
+
+0.5 (output rate / input rate). 
 ```C++
 >>> import numpy as np
 >>> from doppler.resample import HalfbandDecimatorQ15
@@ -359,6 +408,9 @@ double dp_hbdecim_q15_get_rate (
  
 
 
+
+
+
         
 
 <hr>
@@ -367,6 +419,7 @@ double dp_hbdecim_q15_get_rate (
 
 ### function dp\_hbdecim\_q15\_get\_state 
 
+_Serialize rings, heads and the pending pair into a blob._ 
 ```C++
 void dp_hbdecim_q15_get_state (
     const dp_hbdecim_q15_state_t * state,
@@ -376,6 +429,18 @@ void dp_hbdecim_q15_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to snapshot (non-NULL). 
+* `blob` Destination of at least [**dp\_hbdecim\_q15\_state\_bytes()**](hbdecim__q15__core_8h.md#function-dp_hbdecim_q15_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -393,6 +458,11 @@ void dp_hbdecim_q15_reset (
 
 
 
+
+**Parameters:**
+
+
+* `r` Decimator state (non-NULL). 
 ```C++
 >>> import numpy as np
 >>> from doppler.resample import HalfbandDecimatorQ15
@@ -408,6 +478,8 @@ void dp_hbdecim_q15_reset (
  
 
 
+
+
         
 
 <hr>
@@ -416,6 +488,7 @@ void dp_hbdecim_q15_reset (
 
 ### function dp\_hbdecim\_q15\_set\_state 
 
+_Restore rings, heads and the pending pair from a blob._ 
 ```C++
 int dp_hbdecim_q15_set_state (
     dp_hbdecim_q15_state_t * state,
@@ -425,6 +498,28 @@ int dp_hbdecim_q15_set_state (
 
 
 
+The instance must have been created with the same num\_taps (the size check enforces the ring capacity, not the coefficients). The restored heads are not range-checked against cap.
+
+
+
+
+**Parameters:**
+
+
+* `state` Instance to overwrite (non-NULL). 
+* `blob` Blob of [**dp\_hbdecim\_q15\_state\_bytes()**](hbdecim__q15__core_8h.md#function-dp_hbdecim_q15_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK on success; DP\_ERR\_INVALID (state untouched) when the magic, version, endianness or size does not match. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -432,6 +527,7 @@ int dp_hbdecim_q15_set_state (
 
 ### function dp\_hbdecim\_q15\_state\_bytes 
 
+_Size of this instance's serialized state blob._ 
 ```C++
 size_t dp_hbdecim_q15_state_bytes (
     const dp_hbdecim_q15_state_t * state
@@ -440,6 +536,24 @@ size_t dp_hbdecim_q15_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to size (non-NULL). 
+
+
+
+**Returns:**
+
+Bytes: envelope + two heads + pending flag and pair + the four 2\*cap rings. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -450,6 +564,7 @@ size_t dp_hbdecim_q15_state_bytes (
 
 ### define HBDECIM\_Q15\_STATE\_MAGIC 
 
+_State-blob magic ("HB15"); set\_state() rejects any other._ 
 ```C++
 #define HBDECIM_Q15_STATE_MAGIC `DP_FOURCC ('H','B','1','5')`
 ```
@@ -463,6 +578,7 @@ size_t dp_hbdecim_q15_state_bytes (
 
 ### define HBDECIM\_Q15\_STATE\_VERSION 
 
+_State-blob layout version; bumped when the payload changes._ 
 ```C++
 #define HBDECIM_Q15_STATE_VERSION `1u`
 ```

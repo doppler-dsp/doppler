@@ -8,7 +8,7 @@
 
 
 
-
+_Receiver-level payload that follows the state envelope: the routing flag, cached hit estimates, the grid (layout key) and the carrier-carry depth._ 
 
 * `#include <dsss_receiver_core.h>`
 
@@ -101,6 +101,10 @@ uint8_t dsss_receiver_extra_t::_pad[7];
 
 
 
+Explicit padding to 8-byte alignment. 
+
+
+        
 
 <hr>
 
@@ -114,6 +118,10 @@ uint64_t dsss_receiver_extra_t::car_carry_len;
 
 
 
+Valid carry samples, &lt; tsamps. 
+
+
+        
 
 <hr>
 
@@ -127,6 +135,10 @@ double dsss_receiver_extra_t::cn0_dbhz_est;
 
 
 
+Cached hit C/N0 estimate, dB-Hz. 
+
+
+        
 
 <hr>
 
@@ -140,6 +152,10 @@ double dsss_receiver_extra_t::doppler_hz_est;
 
 
 
+Cached hit Doppler estimate, Hz. 
+
+
+        
 
 <hr>
 
@@ -153,6 +169,10 @@ uint64_t dsss_receiver_extra_t::n;
 
 
 
+Layout key; must match the live engine. 
+
+
+        
 
 <hr>
 
@@ -166,6 +186,10 @@ uint64_t dsss_receiver_extra_t::segments;
 
 
 
+Layout key; must match the live engine. 
+
+
+        
 
 <hr>
 
@@ -179,6 +203,10 @@ uint64_t dsss_receiver_extra_t::sps;
 
 
 
+Layout key; must match the live engine. 
+
+
+        
 
 <hr>
 
@@ -192,6 +220,10 @@ uint8_t dsss_receiver_extra_t::tracking;
 
 
 
+0 searching, 1 tracking. 
+
+
+        
 
 <hr>
 

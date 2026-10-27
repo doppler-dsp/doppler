@@ -8,7 +8,7 @@
 
 
 
-
+_A persistent worker pool for repeated parallel-for runs._ [More...](#detailed-description)
 
 * `#include <dp_parallel.h>`
 
@@ -89,6 +89,13 @@
 
 
 
+## Detailed Description
+
+
+Create with dp\_pool\_create(), run with dp\_pool\_run(), free with dp\_pool\_destroy(). All fields are internal. 
+
+
+    
 ## Public Attributes Documentation
 
 
@@ -102,6 +109,11 @@ int dp_pool_t::busy;
 
 
 
+helpers still draining the current run 
+ 
+
+
+        
 
 <hr>
 
@@ -115,6 +127,11 @@ dp_cond_t dp_pool_t::done;
 
 
 
+the caller waits here for the run's end 
+ 
+
+
+        
 
 <hr>
 
@@ -128,6 +145,10 @@ unsigned long dp_pool_t::gen;
 
 
 
+bumped per run; helpers wake on a change 
+
+
+        
 
 <hr>
 
@@ -141,6 +162,11 @@ int dp_pool_t::helpers;
 
 
 
+helper threads actually running 
+ 
+
+
+        
 
 <hr>
 
@@ -154,6 +180,10 @@ dp_mutex_t dp_pool_t::mu;
 
 
 
+guards every field below except work.next 
+
+
+        
 
 <hr>
 
@@ -167,6 +197,10 @@ int dp_pool_t::stop;
 
 
 
+set by dp\_pool\_destroy(): helpers exit 
+
+
+        
 
 <hr>
 
@@ -180,6 +214,10 @@ dp_thread_t* dp_pool_t::th;
 
 
 
+helper thread handles (max\_threads - 1 slots; the first `helpers` are live) 
+
+
+        
 
 <hr>
 
@@ -193,6 +231,11 @@ dp_cond_t dp_pool_t::wake;
 
 
 
+helpers wait here between runs 
+ 
+
+
+        
 
 <hr>
 
@@ -206,6 +249,10 @@ dp_pf_shared_t dp_pool_t::work;
 
 
 
+the current run's range, body and cursor 
+
+
+        
 
 <hr>
 

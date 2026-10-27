@@ -104,10 +104,10 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
 
   typedef struct
   {
-    uint32_t phase;     /* current accumulator value [0, 2^32)         */
-    uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
-    double   norm_freq; /* normalised frequency (cycles/sample)          */
-    uint32_t nmax;      /* wrap target for steps_u32_scaled; 0 = raw   */
+    uint32_t phase;     
+    uint32_t phase_inc; 
+    double   norm_freq; 
+    uint32_t nmax;      
   } dp_nco_state_t;
 
   JM_FORCEINLINE uint32_t

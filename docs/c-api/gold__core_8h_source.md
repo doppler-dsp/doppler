@@ -20,14 +20,14 @@ extern "C" {
 #endif
 
 typedef struct {
-    uint64_t reg_a;   /* Register A: current LFSR register */
-    uint64_t reg_b;   /* Register B: current LFSR register */
-    uint64_t taps_a;  /* Register A: fixed feedback-tap mask (bit k = stage k+1) */
-    uint64_t taps_b;  /* Register B: fixed feedback-tap mask (bit k = stage k+1) */
-    uint64_t seed_a;  /* Register A: initial value (for reset); user-dependent */
-    uint64_t seed_b;  /* Register B: initial value (for reset); fixed by CCSDS */
-    uint64_t mask;    /* (1 << length) - 1; all ones when length == 64 */
-    uint32_t length;  /* register width in bits (stage count); CCSDS uses 10 */
+    uint64_t reg_a;   
+    uint64_t reg_b;   
+    uint64_t taps_a;  
+    uint64_t taps_b;  
+    uint64_t seed_a;  
+    uint64_t seed_b;  
+    uint64_t mask;    
+    uint32_t length;  
 } dp_gold_state_t;
 
 dp_gold_state_t *dp_gold_create(uint64_t taps_a, uint64_t seed_a, uint64_t taps_b,

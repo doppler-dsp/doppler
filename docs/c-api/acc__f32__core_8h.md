@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](acc__f32__core_8h_source.md)
 
-_AccF32 component API._ [More...](#detailed-description)
+_AccF32: single-precision scalar running-sum accumulator._ [More...](#detailed-description)
 
 * `#include "doppler/clib_common.h"`
 * `#include "doppler/jm_perf.h"`
@@ -32,7 +32,7 @@ _AccF32 component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) <br>_AccF32 state._  |
+| struct | [**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) <br>_AccF32 state: one float running sum._  |
 
 
 
@@ -65,13 +65,13 @@ _AccF32 component API._ [More...](#detailed-description)
 |  float | [**dp\_acc\_f32\_dump**](#function-dp_acc_f32_dump) ([**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state) <br>_Return the accumulated sum and atomically reset it to zero. This is the canonical "drain" primitive: read the period total, then start a fresh accumulation interval without a separate_ `reset` _call. The zero-reset is unconditional and always writes 0.0f._ |
 |  float | [**dp\_acc\_f32\_get**](#function-dp_acc_f32_get) ([**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state) <br>_Return the current accumulated sum without resetting state. Identical to reading the_ `acc` _property directly; retained as an explicit method so call sites that need the value can be uniform with_`dump` _without a conditional._ |
 |  float | [**dp\_acc\_f32\_get\_acc**](#function-dp_acc_f32_get_acc) (const [**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state) <br>_Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use_ `dp_acc_f32_dump` _._ |
-|  void | [**dp\_acc\_f32\_get\_state**](#function-dp_acc_f32_get_state) (const [**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_acc\_f32\_get\_state**](#function-dp_acc_f32_get_state) (const [**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state, void \* blob) <br>_Serialize the running sum into a caller-owned blob._  |
 |  void | [**dp\_acc\_f32\_madd**](#function-dp_acc_f32_madd) ([**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state, const float \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. The shorter of the two arrays limits the iteration count; no out-of-bounds access occurs. Typical use: apply a short FIR weight vector to one block of signal samples and fold the result into a running total._ |
 |  void | [**dp\_acc\_f32\_madd2d**](#function-dp_acc_f32_madd2d) ([**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state, const float \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate over a flat 2-D buffer:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. Combines_`add2d` _and_`madd` _semantics — a 2-D signal array is weighted element-wise by a coefficient buffer and the scalar total is folded into the running sum._ |
 |  void | [**dp\_acc\_f32\_reset**](#function-dp_acc_f32_reset) ([**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state) <br>_Zero the accumulator, restoring the same state as a fresh_ `AccF32(0.0)` _— regardless of the value supplied to_`dp_acc_f32_create` _. Subsequent_`get` _/_`dump` _calls return_`0.0` _until new samples are processed._ |
 |  void | [**dp\_acc\_f32\_set\_acc**](#function-dp_acc_f32_set_acc) ([**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state, float value) <br>_Overwrite the accumulator with a new value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _; subsequent_`step` _/_`steps` _samples accumulate on top of the seeded value._ |
-|  int | [**dp\_acc\_f32\_set\_state**](#function-dp_acc_f32_set_state) ([**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_acc\_f32\_state\_bytes**](#function-dp_acc_f32_state_bytes) (const [**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state) <br> |
+|  int | [**dp\_acc\_f32\_set\_state**](#function-dp_acc_f32_set_state) ([**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state, const void \* blob) <br>_Restore the running sum from a_ [_**dp\_acc\_f32\_get\_state()**_](acc__f32__core_8h.md#function-dp_acc_f32_get_state) _blob._ |
+|  size\_t | [**dp\_acc\_f32\_state\_bytes**](#function-dp_acc_f32_state_bytes) (const [**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state) <br>_Size of this instance's serialized state blob._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dp\_acc\_f32\_step**](#function-dp_acc_f32_step) ([**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state, float x) <br>_Add one sample to the running sum (_ `acc += x` _). This is the hot-path entry point for sample-by-sample processing. For block inputs prefer_`dp_acc_f32_steps` _to amortise call overhead and allow auto-vectorisation._ |
 |  void | [**dp\_acc\_f32\_steps**](#function-dp_acc_f32_steps) ([**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) \* state, const float \* input, size\_t n) <br>_Add all samples in_ `input` _to the running sum. Equivalent to calling_`dp_acc_f32_step` _for each element, but SIMD-vectorised on platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses JM\_RESTRICT so the compiler can assume no aliasing between_`state` _and_`input` _._ |
 
@@ -105,8 +105,8 @@ _AccF32 component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**ACC\_F32\_STATE\_MAGIC**](acc__f32__core_8h.md#define-acc_f32_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'C', 'F')`<br> |
-| define  | [**ACC\_F32\_STATE\_VERSION**](acc__f32__core_8h.md#define-acc_f32_state_version)  `1u`<br> |
+| define  | [**ACC\_F32\_STATE\_MAGIC**](acc__f32__core_8h.md#define-acc_f32_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'C', 'F')`<br>_State-blob magic ("ACCF"); set\_state() rejects any other._  |
+| define  | [**ACC\_F32\_STATE\_VERSION**](acc__f32__core_8h.md#define-acc_f32_state_version)  `1u`<br>_State-blob layout version; bumped when the payload changes._  |
 
 ## Detailed Description
 
@@ -237,6 +237,17 @@ void dp_acc_f32_destroy (
 
 
 
+
+**Parameters:**
+
+
+* `state` Instance to free, or NULL. 
+
+
+
+
+        
+
 <hr>
 
 
@@ -251,6 +262,13 @@ float dp_acc_f32_dump (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
 
 
 
@@ -292,6 +310,13 @@ float dp_acc_f32_get (
 
 
 
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
 **Returns:**
 
 Current value of `acc` (float). 
@@ -328,6 +353,13 @@ float dp_acc_f32_get_acc (
 
 
 
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
 **Returns:**
 
 Current value of `acc` (float). 
@@ -354,6 +386,7 @@ Current value of `acc` (float).
 
 ### function dp\_acc\_f32\_get\_state 
 
+_Serialize the running sum into a caller-owned blob._ 
 ```C++
 void dp_acc_f32_get_state (
     const dp_acc_f32_state_t * state,
@@ -363,6 +396,18 @@ void dp_acc_f32_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to snapshot (non-NULL). 
+* `blob` Destination of at least [**dp\_acc\_f32\_state\_bytes()**](acc__f32__core_8h.md#function-dp_acc_f32_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -472,6 +517,11 @@ void dp_acc_f32_reset (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
 ```C++
 >>> from doppler.accumulator import AccF32
 >>> obj = AccF32(0.0)
@@ -481,6 +531,8 @@ void dp_acc_f32_reset (
 0.0
 ```
  
+
+
 
 
         
@@ -529,6 +581,7 @@ void dp_acc_f32_set_acc (
 
 ### function dp\_acc\_f32\_set\_state 
 
+_Restore the running sum from a_ [_**dp\_acc\_f32\_get\_state()**_](acc__f32__core_8h.md#function-dp_acc_f32_get_state) _blob._
 ```C++
 int dp_acc_f32_set_state (
     dp_acc_f32_state_t * state,
@@ -539,12 +592,32 @@ int dp_acc_f32_set_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Instance to overwrite (non-NULL). 
+* `blob` Blob of [**dp\_acc\_f32\_state\_bytes()**](acc__f32__core_8h.md#function-dp_acc_f32_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK on success; DP\_ERR\_INVALID (state untouched) when the magic, version, endianness or size does not match. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_acc\_f32\_state\_bytes 
 
+_Size of this instance's serialized state blob._ 
 ```C++
 size_t dp_acc_f32_state_bytes (
     const dp_acc_f32_state_t * state
@@ -553,6 +626,24 @@ size_t dp_acc_f32_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to size (non-NULL). 
+
+
+
+**Returns:**
+
+Bytes: the [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) envelope plus the whole state struct. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -640,6 +731,7 @@ void dp_acc_f32_steps (
 
 ### define ACC\_F32\_STATE\_MAGIC 
 
+_State-blob magic ("ACCF"); set\_state() rejects any other._ 
 ```C++
 #define ACC_F32_STATE_MAGIC `DP_FOURCC ('A', 'C', 'C', 'F')`
 ```
@@ -653,6 +745,7 @@ void dp_acc_f32_steps (
 
 ### define ACC\_F32\_STATE\_VERSION 
 
+_State-blob layout version; bumped when the payload changes._ 
 ```C++
 #define ACC_F32_STATE_VERSION `1u`
 ```

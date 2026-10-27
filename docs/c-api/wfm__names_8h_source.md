@@ -8,25 +8,7 @@
 
 
 ```C++
-/*
- * wfm_names.h — the one C home for the waveform enum name tables.
- *
- * One definition per enum: the [[enum]] manifest order IS the C int,
- * append-only. Each table carries an `SSOT:` annotation naming the
- * `[[enum]]` in just-makeit.toml that owns its contents, the `N_*` macro
- * that sizes it, and the C enum that pins its indices where one exists.
- * `make lint-wfm-enum-tables` reads those annotations and holds all four to
- * each other, so the single-source-of-truth claim is a gate rather than a
- * comment. A table added here without an annotation FAILS that gate.
- *
- * These existed as per-file copies until the wfm_writer one silently fell
- * behind (8 entries, no "dsss"; a `< 7` label guard that also dropped
- * "symbols"), and wfmgen.c and wfm_json.c kept twelve and seven more
- * (doppler#760) — one of which, the `--data` source list, had already drifted
- * into the reverse order. That is the rot this header ends: list order IS the
- * enum value, so a copy that drifts maps a flag to the wrong waveform rather
- * than failing.
- */
+
 #ifndef WFM_NAMES_H
 #define WFM_NAMES_H
 

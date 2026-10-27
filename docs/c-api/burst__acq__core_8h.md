@@ -64,12 +64,12 @@ _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._ [More...
 |  size\_t | [**dp\_burst\_acq\_consumed**](#function-dp_burst_acq_consumed) (const [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_burst\_acq\_push()**_](burst__acq__core_8h.md#function-dp_burst_acq_push) _took: the embedded engine's_[_**dp\_acq\_consumed()**_](acq__core_8h.md#function-dp_acq_consumed) _, per call (not the cumulative_[_**acq\_result\_t::samples\_consumed**_](structacq__result__t.md#variable-samples_consumed) _)._ |
 |  [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* | [**dp\_burst\_acq\_create**](#function-dp_burst_acq_create) (const float \_Complex \* preamble, size\_t preamble\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate, size\_t rate\_hypotheses) <br>_Create a burst-mode acquisition engine for any repeated preamble, given as its samples (forwards to_ [_**dp\_acq\_create\_burst()**_](acq__core_8h.md#function-dp_acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
 |  void | [**dp\_burst\_acq\_destroy**](#function-dp_burst_acq_destroy) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state) <br>_Destroy and free an instance._  |
-|  void | [**dp\_burst\_acq\_get\_state**](#function-dp_burst_acq_get_state) (const [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_burst\_acq\_get\_state**](#function-dp_burst_acq_get_state) (const [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, void \* blob) <br>_Serialize the engine's cross-call state (_ [_**dp\_acq\_get\_state()**_](acq__core_8h.md#function-dp_acq_get_state) _)._ |
 |  size\_t | [**dp\_burst\_acq\_push**](#function-dp_burst_acq_push) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
 |  void | [**dp\_burst\_acq\_reset**](#function-dp_burst_acq_reset) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state) <br>_Drain the input ring and reset the coherent accumulator._  |
 |  int | [**dp\_burst\_acq\_set\_max\_peaks**](#function-dp_burst_acq_set_max_peaks) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
-|  int | [**dp\_burst\_acq\_set\_state**](#function-dp_burst_acq_set_state) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_burst\_acq\_state\_bytes**](#function-dp_burst_acq_state_bytes) (const [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state) <br> |
+|  int | [**dp\_burst\_acq\_set\_state**](#function-dp_burst_acq_set_state) ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state, const void \* blob) <br>_Restore the engine's cross-call state (_ [_**dp\_acq\_set\_state()**_](acq__core_8h.md#function-dp_acq_set_state) _)._ |
+|  size\_t | [**dp\_burst\_acq\_state\_bytes**](#function-dp_burst_acq_state_bytes) (const [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* state) <br>_Byte size of the state blob:_ [_**dp\_acq\_state\_bytes()**_](acq__core_8h.md#function-dp_acq_state_bytes) _of the engine._ |
 
 
 
@@ -200,6 +200,13 @@ size_t dp_burst_acq_consumed (
 
 
 * `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Samples taken from the last push's input; resume the stream at `x + consumed`. 0 after create, reset, a regrid and set\_state. 
+
 
 
 
@@ -339,6 +346,7 @@ void dp_burst_acq_destroy (
 
 ### function dp\_burst\_acq\_get\_state 
 
+_Serialize the engine's cross-call state (_ [_**dp\_acq\_get\_state()**_](acq__core_8h.md#function-dp_acq_get_state) _)._
 ```C++
 void dp_burst_acq_get_state (
     const dp_burst_acq_state_t * state,
@@ -348,6 +356,21 @@ void dp_burst_acq_get_state (
 
 
 
+Call between pushes.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_burst\_acq\_state\_bytes()**](burst__acq__core_8h.md#function-dp_burst_acq_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -514,6 +537,7 @@ Forwards to [**dp\_acq\_set\_max\_peaks()**](acq__core_8h.md#function-dp_acq_set
 
 ### function dp\_burst\_acq\_set\_state 
 
+_Restore the engine's cross-call state (_ [_**dp\_acq\_set\_state()**_](acq__core_8h.md#function-dp_acq_set_state) _)._
 ```C++
 int dp_burst_acq_set_state (
     dp_burst_acq_state_t * state,
@@ -524,12 +548,32 @@ int dp_burst_acq_set_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL; built with the same preamble and grid as the instance that wrote `blob`. 
+* `blob` A blob from [**dp\_burst\_acq\_get\_state()**](burst__acq__core_8h.md#function-dp_burst_acq_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the envelope or the engine's geometry does not match; a refused blob changes nothing. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_burst\_acq\_state\_bytes 
 
+_Byte size of the state blob:_ [_**dp\_acq\_state\_bytes()**_](acq__core_8h.md#function-dp_acq_state_bytes) _of the engine._
 ```C++
 size_t dp_burst_acq_state_bytes (
     const dp_burst_acq_state_t * state
@@ -538,6 +582,24 @@ size_t dp_burst_acq_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Blob size in bytes; depends on the engine's grid and configuration, so query it per instance. 
+
+
+
+
+
+        
 
 <hr>
 

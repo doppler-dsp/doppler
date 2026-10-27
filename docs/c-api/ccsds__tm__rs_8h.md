@@ -230,7 +230,24 @@ uint8_t dp_ccsds_tm_rs_conv_to_dual (
 
 
 
-4.3.9.3, first equation: `[z0..z7] = [u7..u0] T`. The returned byte holds `z0` in its most significant bit, because 4.3.9.2 fixes `z0` as the first bit transmitted and this codebase writes MSB-first. 
+4.3.9.3, first equation: `[z0..z7] = [u7..u0] T`. The returned byte holds `z0` in its most significant bit, because 4.3.9.2 fixes `z0` as the first bit transmitted and this codebase writes MSB-first.
+
+
+
+
+**Parameters:**
+
+
+* `u` A symbol in the conventional basis, `u7` in the most significant bit; all 256 values are valid. 
+
+
+
+**Returns:**
+
+The same field element in the dual basis, `z0` in the most significant bit. 
+
+
+
 
 
         
@@ -331,7 +348,24 @@ uint8_t dp_ccsds_tm_rs_dual_to_conv (
 
 
 
-4.3.9.3, second equation, and the test holds it to that matrix as printed. Exact inverse of [**dp\_ccsds\_tm\_rs\_conv\_to\_dual**](ccsds__tm__rs_8h.md#function-dp_ccsds_tm_rs_conv_to_dual) across all 256 values — but note that inversion ALONE catches only a single mis-transcribed bit, never a wrong pair consistent with itself. The two checks that separate those are described at the top of this file. 
+4.3.9.3, second equation, and the test holds it to that matrix as printed. Exact inverse of [**dp\_ccsds\_tm\_rs\_conv\_to\_dual**](ccsds__tm__rs_8h.md#function-dp_ccsds_tm_rs_conv_to_dual) across all 256 values — but note that inversion ALONE catches only a single mis-transcribed bit, never a wrong pair consistent with itself. The two checks that separate those are described at the top of this file.
+
+
+
+
+**Parameters:**
+
+
+* `z` A symbol in the dual basis, `z0` in the most significant bit (first transmitted); all 256 values are valid. 
+
+
+
+**Returns:**
+
+The same field element in the conventional basis, `u7` in the most significant bit. 
+
+
+
 
 
         

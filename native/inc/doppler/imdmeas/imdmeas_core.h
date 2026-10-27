@@ -99,7 +99,7 @@ void dp_imdmeas_reset(dp_imdmeas_state_t *state);
  * frames (a trailing partial frame is dropped), takes the two strongest
  * bins more than spur_guard_bins from DC and from each other as f1 < f2,
  * and integrates each tone and the IM products 2f1-f2, 2f2-f1 and f2-f1
- * (folded into [0, fs/2]) over +/- lobe_bins.  `imd3_dbc` is the worse of
+ * (folded into `[0, fs/2]`) over +/- lobe_bins.  `imd3_dbc` is the worse of
  * the two third-order products; both IMD ratios are relative to the mean
  * tone power.  TOI = P_tone + |IMD3|/2 and SOI = P_tone + |IMD2| (dBFS).
  *

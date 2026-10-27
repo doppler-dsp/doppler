@@ -343,6 +343,24 @@ size_t dp_async_dsss_pool_get_coherent_bins (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+D, read from receiver 0. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -360,6 +378,18 @@ void dp_async_dsss_pool_get_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_async\_dsss\_pool\_state\_bytes()**](async__dsss__pool__core_8h.md#function-dp_async_dsss_pool_state_bytes) bytes. 
+
+
+
+
+        
+
 <hr>
 
 
@@ -375,6 +405,24 @@ int dp_async_dsss_pool_get_threads (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The effective worker count, &gt;= 1. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -568,6 +616,25 @@ int dp_async_dsss_pool_set_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL; built with the same code, receiver count and geometry as the writer. 
+* `blob` A blob from [**dp\_async\_dsss\_pool\_get\_state()**](async__dsss__pool__core_8h.md#function-dp_async_dsss_pool_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID as above. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -697,6 +764,24 @@ size_t dp_async_dsss_pool_state_bytes (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The blob size in bytes; it depends on the receiver count, the code period and each receiver's own state size. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -820,6 +905,24 @@ size_t dp_async_dsss_pool_symbols_max_out (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The largest per-receiver symbol count from the last push(); 0 before the first push and after reset() or set\_state(). 
+
+
+
+
+
+        
+
 <hr>
 ## Macro Definition Documentation
 
@@ -937,6 +1040,10 @@ Most receivers a pool runs: one rank per peak a dwell reports ([**ASYNC\_DSSS\_R
 
 
 
+FourCC type tag ("ADPL") stamped in a pool state blob's header. 
+
+
+        
 
 <hr>
 
@@ -950,6 +1057,10 @@ Most receivers a pool runs: one rank per peak a dwell reports ([**ASYNC\_DSSS\_R
 
 
 
+Layout version of the pool state blob; a mismatch is rejected. v4, not 3: 'ADPL' v3 was the cell-receiver pool this one replaced (v0.48.0 - v0.73.0), and v0.74.0 shipped this pool as v2. Each version of a magic names one layout, so this pool steps past every number the magic has carried (#2569; scripts/check\_state\_versions.py). 
+
+
+        
 
 <hr>
 

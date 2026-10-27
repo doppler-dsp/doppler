@@ -108,6 +108,10 @@ double _Complex* dp_delay_state_t::buf;
 
 
 
+Owned ring, 2\*capacity elements; the second half mirrors the first (running state). 
+
+
+        
 
 <hr>
 
@@ -121,6 +125,11 @@ size_t dp_delay_state_t::capacity;
 
 
 
+Smallest power of two &gt;= num\_taps (1 when num\_taps is 0), samples (config). 
+ 
+
+
+        
 
 <hr>
 
@@ -134,6 +143,11 @@ size_t dp_delay_state_t::head;
 
 
 
+Index of the newest sample, in [0, capacity); decremented mod capacity on every write (running state). 
+ 
+
+
+        
 
 <hr>
 
@@ -147,6 +161,11 @@ size_t dp_delay_state_t::mask;
 
 
 
+capacity - 1, the power-of-two index mask (config, set at create()). 
+ 
+
+
+        
 
 <hr>
 
@@ -160,6 +179,11 @@ size_t dp_delay_state_t::num_taps;
 
 
 
+Window length requested at create(), samples (config). 
+ 
+
+
+        
 
 <hr>
 

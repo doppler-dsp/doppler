@@ -8,7 +8,7 @@
 
 
 
-
+_One listed peak of a surface: its cell and value._ [More...](#detailed-description)
 
 * `#include <det_private.h>`
 
@@ -83,6 +83,13 @@
 
 
 
+## Detailed Description
+
+
+One listed peak of a surface: a cell and its value, in the surface's own units (a magnitude on a coherent surface, a power on a non-coherent one). What det\_peak\_list() ([**det\_private.h**](det__private_8h.md)) returns, and what the acquisition engine keeps per dwell. 
+
+
+    
 ## Public Attributes Documentation
 
 

@@ -103,6 +103,11 @@ double dp_lo_state_t::norm_freq;
 
 
 
+config: frequency as set, cycles/sample (stored unfolded, e.g. 1.25 stays 1.25) 
+ 
+
+
+        
 
 <hr>
 
@@ -116,6 +121,11 @@ uint32_t dp_lo_state_t::phase;
 
 
 
+running state: accumulator, [0, 2^32) = one cycle; 0 after create/init/reset 
+ 
+
+
+        
 
 <hr>
 
@@ -129,6 +139,11 @@ uint32_t dp_lo_state_t::phase_inc;
 
 
 
+config: advance per sample, floor(frac(norm\_freq) \* 2^32) 
+ 
+
+
+        
 
 <hr>
 

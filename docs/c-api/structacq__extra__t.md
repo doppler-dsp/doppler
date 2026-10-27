@@ -117,6 +117,11 @@ uint16_t acq_extra_t::_pad;
 
 
 
+Alignment padding; written as 0. 
+ 
+
+
+        
 
 <hr>
 
@@ -130,6 +135,11 @@ uint32_t acq_extra_t::_pad2;
 
 
 
+Alignment padding; written as 0. 
+ 
+
+
+        
 
 <hr>
 

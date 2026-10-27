@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](clib__common_8h_source.md)
 
-
+_Common C99 types and performance macros for doppler._ [More...](#detailed-description)
 
 * `#include "doppler/dp_complex.h"`
 * `#include <stddef.h>`
@@ -115,6 +115,13 @@
 | define  | [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard)  <br>_Marks a function whose status must not be dropped._  |
 | define  | [**DP\_OK**](clib__common_8h.md#define-dp_ok)  `0`<br> |
 
+## Detailed Description
+
+
+The header every component includes first: the C99 standard headers and the complex-math surface ([**dp\_complex.h**](dp__complex_8h.md)), the doppler-wide DP\_OK / DP\_ERR\_\* return codes, DP\_NODISCARD, the jm performance annotations ([**jm\_perf.h**](jm__perf_8h.md)), the abort-on-OOM allocators for trusted internal allocations, and a few inline numeric helpers shared library-wide (FFT bin frequencies, a sign-safe fmod, a reentrant lgamma). 
+
+
+    
 ## Public Functions Documentation
 
 
@@ -388,7 +395,18 @@ A grow-on-demand scratch buffer is the shape that wants it: the new size scales 
 
 
 
-[**clib\_common.h**](clib__common_8h.md) — common C99 types and performance macros for doppler. 
+CMPLXF is C11 but missing on MinGW/ucrt64. \_\_builtin\_complex is the GCC-portable way to construct a complex value without relying on \_Complex\_I (which can propagate NaN in some implementations). Defined only where the C library does not already provide it.
+
+
+
+
+**Parameters:**
+
+
+* `r` Real part, converted to float. 
+* `i` Imaginary part, converted to float. 
+
+
 
 
         

@@ -66,7 +66,7 @@ _Boxcar (rectangular) moving-average filter — cf32, fixed window._ [More...](#
 |  void | [**dp\_boxcar\_init**](#function-dp_boxcar_init) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, size\_t len, double gain) <br>_Initialise a boxcar in place (no allocation)._  |
 |  void | [**dp\_boxcar\_reset**](#function-dp_boxcar_reset) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s) <br>_Clear the window (zero the ring and the running sum); keep the configured length and gain._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**dp\_boxcar\_set\_gain**](#function-dp_boxcar_set_gain) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, double gain) <br>_Set the output gain; refresh the cached scale._  |
-|  int | [**dp\_boxcar\_set\_state**](#function-dp_boxcar_set_state) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
+|  int | [**dp\_boxcar\_set\_state**](#function-dp_boxcar_set_state) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, const void \* blob) <br>_Restore state from a blob written by_ [_**dp\_boxcar\_get\_state()**_](boxcar__core_8h.md#function-dp_boxcar_get_state) _._ |
 |  size\_t | [**dp\_boxcar\_state\_bytes**](#function-dp_boxcar_state_bytes) (const [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_boxcar\_step**](#function-dp_boxcar_step) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, float \_Complex x) <br>_Slide the window by one sample; return the gained moving average._  |
 |  void | [**dp\_boxcar\_steps**](#function-dp_boxcar_steps) ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) \* s, const float \_Complex \* x, float \_Complex \* out, size\_t n) <br>_Filter a block: write the gained moving average of each sample._  |
@@ -161,7 +161,7 @@ dp_boxcar_state_t * dp_boxcar_create (
 
 **Returns:**
 
-Heap state, or NULL on invalid length / allocation failure. 
+Heap state, or NULL when `len` is 0 or above BOXCAR\_MAX\_LEN, or on allocation failure. 
 
 
 
@@ -219,6 +219,24 @@ JM_FORCEINLINE double dp_boxcar_get_gain (
 
 
 
+
+**Parameters:**
+
+
+* `s` Boxcar state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The gain last set by [**dp\_boxcar\_init()**](boxcar__core_8h.md#function-dp_boxcar_init), [**dp\_boxcar\_create()**](boxcar__core_8h.md#function-dp_boxcar_create) or [**dp\_boxcar\_set\_gain()**](boxcar__core_8h.md#function-dp_boxcar_set_gain) (a linear multiplier on the window mean). 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -235,6 +253,21 @@ void dp_boxcar_get_state (
 
 
 
+Writes the envelope header and a whole-struct snapshot (window length, gain, ring, running sum and write index).
+
+
+
+
+**Parameters:**
+
+
+* `s` Boxcar state. Must be non-NULL. 
+* `blob` Destination; at least [**dp\_boxcar\_state\_bytes()**](boxcar__core_8h.md#function-dp_boxcar_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -259,7 +292,7 @@ void dp_boxcar_init (
 
 
 * `s` State to initialise. Must be non-NULL. 
-* `len` Window length; clamped to `[1, BOXCAR_MAX_LEN]`. 
+* `len` Window length in samples; clamped to `[1, BOXCAR_MAX_LEN]` (0 becomes 1). 
 * `gain` Output gain (folded into the averaging scale). 
 
 
@@ -342,7 +375,7 @@ JM_FORCEINLINE void dp_boxcar_set_gain (
 
 ### function dp\_boxcar\_set\_state 
 
-_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._ 
+_Restore state from a blob written by_ [_**dp\_boxcar\_get\_state()**_](boxcar__core_8h.md#function-dp_boxcar_get_state) _._
 ```C++
 int dp_boxcar_set_state (
     dp_boxcar_state_t * s,
@@ -352,6 +385,28 @@ int dp_boxcar_set_state (
 
 
 
+The whole struct, including the configured length and gain, is replaced by the snapshot; nothing is changed if the envelope is rejected.
+
+
+
+
+**Parameters:**
+
+
+* `s` Boxcar state to overwrite. Must be non-NULL. 
+* `blob` Source blob of [**dp\_boxcar\_state\_bytes()**](boxcar__core_8h.md#function-dp_boxcar_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the envelope (magic, version, endianness, size) does not match. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -368,6 +423,24 @@ size_t dp_boxcar_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `s` Boxcar state (unused: the size is fixed). 
+
+
+
+**Returns:**
+
+`sizeof(dp_state_hdr_t) + sizeof(dp_boxcar_state_t)`; the same for every instance. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -475,6 +548,10 @@ Applies [**dp\_boxcar\_step()**](boxcar__core_8h.md#function-dp_boxcar_step) to 
 
 
 
+Maximum window length in samples (64). The delay ring is a fixed in-struct array so the state stays pointer-free POD (embed-by-value + whole-struct serialization). [**dp\_boxcar\_create()**](boxcar__core_8h.md#function-dp_boxcar_create) rejects a longer window (returns NULL); [**dp\_boxcar\_init()**](boxcar__core_8h.md#function-dp_boxcar_init) clamps it to this value. 
+
+
+        
 
 <hr>
 
@@ -488,6 +565,10 @@ Applies [**dp\_boxcar\_step()**](boxcar__core_8h.md#function-dp_boxcar_step) to 
 
 
 
+FourCC type tag ("BOXC") stamped in a boxcar state blob's header. 
+
+
+        
 
 <hr>
 
@@ -501,6 +582,10 @@ Applies [**dp\_boxcar\_step()**](boxcar__core_8h.md#function-dp_boxcar_step) to 
 
 
 
+Layout version of the boxcar state blob; a mismatch is rejected. 
+
+
+        
 
 <hr>
 

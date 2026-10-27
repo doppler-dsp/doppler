@@ -67,13 +67,13 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 |  void | [**dp\_acc\_trace\_accumulate**](#function-dp_acc_trace_accumulate) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, const float \* p, size\_t p\_len) <br>_Fold one length-n frame into the running trace. Frames shorter than_ `n` _are ignored; if_`p_len` _exceeds_`n` _only the first_`n` _samples are used. The first accumulated frame seeds the trace directly (every mode), so a single frame followed by value() returns that frame unchanged._ |
 |  [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* | [**dp\_acc\_trace\_create**](#function-dp_acc_trace_create) (size\_t n, int mode, double alpha) <br>_Create a length-_ `n` _trace accumulator._ |
 |  void | [**dp\_acc\_trace\_destroy**](#function-dp_acc_trace_destroy) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Destroy an AccTrace instance and release all memory._  |
-|  void | [**dp\_acc\_trace\_get\_state**](#function-dp_acc_trace_get_state) (const [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_acc\_trace\_get\_state**](#function-dp_acc_trace_get_state) (const [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, void \* blob) <br>_Serialize mode, count, alpha and the running trace into_ `blob` _._ |
 |  void | [**dp\_acc\_trace\_reset**](#function-dp_acc_trace_reset) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Discard the running trace; the next accumulate re-seeds it. The mode, alpha, and length are preserved._  |
 |  int | [**dp\_acc\_trace\_set\_alpha**](#function-dp_acc_trace_set_alpha) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, double alpha) <br>_Set the EMA smoothing factor, under_ [_**dp\_acc\_trace\_create()**_](acc__trace__core_8h.md#function-dp_acc_trace_create) _'s rule._ |
-|  int | [**dp\_acc\_trace\_set\_state**](#function-dp_acc_trace_set_state) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_acc\_trace\_state\_bytes**](#function-dp_acc_trace_state_bytes) (const [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br> |
+|  int | [**dp\_acc\_trace\_set\_state**](#function-dp_acc_trace_set_state) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, const void \* blob) <br>_Restore a trace from a blob made by_ [_**dp\_acc\_trace\_get\_state()**_](acc__trace__core_8h.md#function-dp_acc_trace_get_state) _._ |
+|  size\_t | [**dp\_acc\_trace\_state\_bytes**](#function-dp_acc_trace_state_bytes) (const [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Size in bytes of this trace's state blob._  |
 |  size\_t | [**dp\_acc\_trace\_value**](#function-dp_acc_trace_value) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Return the current reduced trace, one value per bin. Copies the full length-n trace out to the caller and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._ |
-|  size\_t | [**dp\_acc\_trace\_value\_max\_out**](#function-dp_acc_trace_value_max_out) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Output capacity hint for value(); equals the trace length n._  |
+|  size\_t | [**dp\_acc\_trace\_value\_max\_out**](#function-dp_acc_trace_value_max_out) ([**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) \* state) <br>_Output capacity value() needs: the trace length n._  |
 
 
 
@@ -105,8 +105,8 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**ACC\_TRACE\_STATE\_MAGIC**](acc__trace__core_8h.md#define-acc_trace_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A','T','R','C')`<br> |
-| define  | [**ACC\_TRACE\_STATE\_VERSION**](acc__trace__core_8h.md#define-acc_trace_state_version)  `2u`<br> |
+| define  | [**ACC\_TRACE\_STATE\_MAGIC**](acc__trace__core_8h.md#define-acc_trace_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A','T','R','C')`<br>_State-blob magic ('ATRC'); set\_state() rejects any other._  |
+| define  | [**ACC\_TRACE\_STATE\_VERSION**](acc__trace__core_8h.md#define-acc_trace_state_version)  `2u`<br>_State-blob layout version (2: carries mode and alpha)._  |
 
 ## Detailed Description
 
@@ -275,6 +275,7 @@ void dp_acc_trace_destroy (
 
 ### function dp\_acc\_trace\_get\_state 
 
+_Serialize mode, count, alpha and the running trace into_ `blob` _._
 ```C++
 void dp_acc_trace_get_state (
     const dp_acc_trace_state_t * state,
@@ -284,6 +285,18 @@ void dp_acc_trace_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_acc\_trace\_state\_bytes()**](acc__trace__core_8h.md#function-dp_acc_trace_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -367,6 +380,7 @@ DP\_OK, or DP\_ERR\_INVALID when refused (state unchanged).
 
 ### function dp\_acc\_trace\_set\_state 
 
+_Restore a trace from a blob made by_ [_**dp\_acc\_trace\_get\_state()**_](acc__trace__core_8h.md#function-dp_acc_trace_get_state) _._
 ```C++
 int dp_acc_trace_set_state (
     dp_acc_trace_state_t * state,
@@ -377,12 +391,32 @@ int dp_acc_trace_set_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL, created with the same n. 
+* `blob` Source blob of [**dp\_acc\_trace\_state\_bytes()**](acc__trace__core_8h.md#function-dp_acc_trace_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` (state untouched) for a header mismatch, a blob from another mode, or an alpha the setter would refuse. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_acc\_trace\_state\_bytes 
 
+_Size in bytes of this trace's state blob._ 
 ```C++
 size_t dp_acc_trace_state_bytes (
     const dp_acc_trace_state_t * state
@@ -391,6 +425,24 @@ size_t dp_acc_trace_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Header + mode (u32) + count (u64) + alpha (f64) + n doubles. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -424,7 +476,7 @@ size_t dp_acc_trace_value (
 
 **Returns:**
 
-min(n, max\_out) samples, or 0 if empty.
+min(trace length, `max_out`) samples written, or 0 before the first frame (or after reset()).
 
 
 
@@ -450,7 +502,7 @@ True
 
 ### function dp\_acc\_trace\_value\_max\_out 
 
-_Output capacity hint for value(); equals the trace length n._ 
+_Output capacity value() needs: the trace length n._ 
 ```C++
 size_t dp_acc_trace_value_max_out (
     dp_acc_trace_state_t * state
@@ -459,6 +511,24 @@ size_t dp_acc_trace_value_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The trace length n (bins) given to create(); constant. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -469,6 +539,7 @@ size_t dp_acc_trace_value_max_out (
 
 ### define ACC\_TRACE\_STATE\_MAGIC 
 
+_State-blob magic ('ATRC'); set\_state() rejects any other._ 
 ```C++
 #define ACC_TRACE_STATE_MAGIC `DP_FOURCC ('A','T','R','C')`
 ```
@@ -482,6 +553,7 @@ size_t dp_acc_trace_value_max_out (
 
 ### define ACC\_TRACE\_STATE\_VERSION 
 
+_State-blob layout version (2: carries mode and alpha)._ 
 ```C++
 #define ACC_TRACE_STATE_VERSION `2u`
 ```

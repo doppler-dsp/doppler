@@ -74,7 +74,7 @@ extern "C"
   /* SSOT: enum=reader_stype */
   typedef enum
   {
-    WFM_READER_STYPE_AUTO = -1, 
+    WFM_READER_STYPE_AUTO = -1,
     WFM_READER_STYPE_CF32 = 0,  
     WFM_READER_STYPE_CF64,      
     WFM_READER_STYPE_CI32,      

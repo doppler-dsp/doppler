@@ -211,6 +211,13 @@ Usually reached through dp\_tlm\_set\_now() rather than called directly.
 
 
 
+**Parameters:**
+
+
+* `c` The capture. 
+
+
+
 **Returns:**
 
 [**DP\_OK**](clib__common_8h.md#define-dp_ok), [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) on NULL / a closed capture, [**DP\_ERR\_MEMORY**](clib__common_8h.md#define-dp_err_memory) if a buffer could not grow, or [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send) if the writer failed.
@@ -253,6 +260,13 @@ int dp_tlm_capture_close (
 
 Sweeps the tail the last block left behind, drains the staging buffers, joins the writer thread, closes the file and writes `<path>-meta`. Idempotent: a second call is a no-op returning the first call's verdict.
 
+
+
+
+**Parameters:**
+
+
+* `c` The capture; NULL returns [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid). 
 
 
 
@@ -309,7 +323,24 @@ dp_tlm_t * dp_tlm_capture_context (
 A capture's records carry probe _ids_; turning those back into names needs the registry, which lives on the context. Exposing the borrow is what lets a consumer name what it captured without being handed the context separately and having to keep the two associated by hand.
 
 
-Borrowed, not owned: the context outlives the capture by construction (it is what the capture was opened on), and destroying the capture does not touch it. 
+Borrowed, not owned: the context outlives the capture by construction (it is what the capture was opened on), and destroying the capture does not touch it.
+
+
+
+
+**Parameters:**
+
+
+* `c` The capture; NULL returns NULL. 
+
+
+
+**Returns:**
+
+The context passed to open, borrowed. 
+
+
+
 
 
         
@@ -329,6 +360,27 @@ size_t dp_tlm_capture_count (
 
 
 
+Counts what has been drained from the ring, so a record emitted since the last boundary is not included until the next boundary (or close).
+
+
+
+
+**Parameters:**
+
+
+* `c` The capture; NULL returns 0. 
+
+
+
+**Returns:**
+
+Records drained so far. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -350,9 +402,16 @@ Returns the close verdict rather than discarding it. That is the whole point: a 
 
 
 
+**Parameters:**
+
+
+* `c` The capture, freed on return; NULL is a no-op. 
+
+
+
 **Returns:**
 
-[**dp\_tlm\_capture\_close()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_close)'s result, or [**DP\_OK**](clib__common_8h.md#define-dp_ok) for a NULL or already-closed capture (nothing was left to go wrong). 
+[**dp\_tlm\_capture\_close()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_close)'s result: for a capture already closed, the verdict that close returned; [**DP\_OK**](clib__common_8h.md#define-dp_ok) for NULL. 
 
 
 
@@ -375,7 +434,24 @@ uint64_t dp_tlm_capture_dropped (
 
 
 
-Latched against the context's monotonic counter at open, so it reports this capture rather than the context's lifetime. Non-zero means a hole; see [**dp\_tlm\_capture\_close()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_close). 
+Latched against the context's monotonic counter at open, so it reports this capture rather than the context's lifetime. Non-zero means a hole; see [**dp\_tlm\_capture\_close()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_close).
+
+
+
+
+**Parameters:**
+
+
+* `c` The capture; NULL returns 0. 
+
+
+
+**Returns:**
+
+Records dropped between open and close. Computed at close, so it reads 0 while the capture is still open. 
+
+
+
 
 
         
@@ -586,7 +662,24 @@ size_t dp_tlm_capture_read_max_out (
 
 
 
-The accumulated count: a caller sizing a destination cannot know its own request will be smaller, and the generated binding allocates this much, reads, then resizes to what actually came back. 
+The accumulated count: a caller sizing a destination cannot know its own request will be smaller, and the generated binding allocates this much, reads, then resizes to what actually came back.
+
+
+
+
+**Parameters:**
+
+
+* `c` The capture; NULL returns 0. 
+
+
+
+**Returns:**
+
+Records accumulated in memory; always 0 for a file capture. 
+
+
+
 
 
         
@@ -610,6 +703,20 @@ Memory mode only (`path` was NULL) — in file mode the file _is_ the capture an
 
 
 The Python face binds the COPYING twin, [**dp\_tlm\_capture\_read()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_read), because a borrowed pointer the capture can free is not something a binding may hand out. This example is duplicated there deliberately: jm derives a method's docstring from the `<component>_<method>` symbol while `fn` chooses the one it calls, so the two must carry the same text or the .pyi and the runtime `__doc__` disagree (checked by scripts/check\_doc\_face\_parity.py).
+
+
+
+
+**Parameters:**
+
+
+* `c` The capture; NULL returns NULL. 
+
+
+
+**Returns:**
+
+Borrowed pointer to [**dp\_tlm\_capture\_count()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_count) records, or NULL in file mode or when nothing has been accumulated.
 
 
 

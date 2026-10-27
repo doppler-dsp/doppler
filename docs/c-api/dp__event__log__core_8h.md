@@ -226,7 +226,7 @@ Writes one JSON object on one line and flushes it, so a reader tailing the file 
 
 **Returns:**
 
-[**DP\_OK**](clib__common_8h.md#define-dp_ok), [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) on NULL, a closed log, or an event that renders to [**DP\_EVENT\_LOG\_LINE\_MAX**](dp__event__log__core_8h.md#define-dp_event_log_line_max) bytes or more, or [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send) if the line could not be written.
+[**DP\_OK**](clib__common_8h.md#define-dp_ok), [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) on NULL, a closed log, or an event that renders to [**DP\_EVENT\_LOG\_LINE\_MAX**](dp__event__log__core_8h.md#define-dp_event_log_line_max) bytes or more, [**DP\_ERR\_MEMORY**](clib__common_8h.md#define-dp_err_memory) if the JSON line could not be built, or [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send) if the line could not be written (also recorded as the sticky error that [**dp\_event\_log\_close()**](dp__event__log__core_8h.md#function-dp_event_log_close) reports).
 
 
 
@@ -300,6 +300,27 @@ size_t dp_event_log_count (
 
 
 
+Counts only the [**dp\_event\_log\_append()**](dp__event__log__core_8h.md#function-dp_event_log_append) calls that returned [**DP\_OK**](clib__common_8h.md#define-dp_ok); a refused or failed append does not advance it. Starts at 0 on open and is not reset by [**dp\_event\_log\_close()**](dp__event__log__core_8h.md#function-dp_event_log_close) or [**dp\_event\_log\_finalize()**](dp__event__log__core_8h.md#function-dp_event_log_finalize).
+
+
+
+
+**Parameters:**
+
+
+* `log` The log, or NULL. 
+
+
+
+**Returns:**
+
+Number of events written to the flat file; 0 for a NULL `log`. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -537,7 +558,7 @@ Truncates, like [**dp\_tlm\_capture\_open()**](dp__tlm__capture__core_8h.md#func
 
 **Returns:**
 
-New log, or NULL on a NULL/empty `path`, an unopenable `path`, or allocation failure.
+New log, owned by the caller and released with [**dp\_event\_log\_destroy()**](dp__event__log__core_8h.md#function-dp_event_log_destroy); or NULL on a NULL/empty `path` or a `path` that cannot be opened for writing. Allocation failure aborts the process (the library-wide dp\_xmalloc convention) rather than returning NULL.
 
 
 

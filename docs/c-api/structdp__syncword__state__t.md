@@ -123,6 +123,10 @@ size_t dp_syncword_state_t::nbits;
 
 
 
+marker length in bits (config, set at create) 
+
+
+        
 
 <hr>
 

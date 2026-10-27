@@ -119,6 +119,11 @@ size_t wfm_draw_t::delay;
 
 
 
+leading gap length (samples) 
+ 
+
+
+        
 
 <hr>
 
@@ -132,6 +137,11 @@ double wfm_draw_t::doppler;
 
 
 
+DRAWN clock Doppler, ppm 
+ 
+
+
+        
 
 <hr>
 
@@ -145,6 +155,11 @@ double wfm_draw_t::doppler_rate;
 
 
 
+DRAWN Doppler rate, ppm/s 
+ 
+
+
+        
 
 <hr>
 
@@ -158,6 +173,11 @@ double wfm_draw_t::f_end;
 
 
 
+DRAWN sweep-end offset, Hz (chirp) 
+ 
+
+
+        
 
 <hr>
 
@@ -171,6 +191,11 @@ double wfm_draw_t::freq;
 
 
 
+DRAWN carrier / sweep-start offset, Hz 
+ 
+
+
+        
 
 <hr>
 
@@ -184,6 +209,11 @@ size_t wfm_draw_t::instance;
 
 
 
+repeats instance, 0-based 
+ 
+
+
+        
 
 <hr>
 
@@ -197,6 +227,11 @@ double wfm_draw_t::level;
 
 
 
+DRAWN level, dB 
+ 
+
+
+        
 
 <hr>
 
@@ -210,6 +245,11 @@ size_t wfm_draw_t::off;
 
 
 
+trailing gap length (samples) 
+ 
+
+
+        
 
 <hr>
 
@@ -223,6 +263,11 @@ size_t wfm_draw_t::on;
 
 
 
+on-time length (samples) 
+ 
+
+
+        
 
 <hr>
 
@@ -236,6 +281,11 @@ size_t wfm_draw_t::seg;
 
 
 
+segment index in the spec 
+ 
+
+
+        
 
 <hr>
 
@@ -249,6 +299,11 @@ double wfm_draw_t::snr;
 
 
 
+DRAWN SNR, dB, in the source's own snr\_mode 
+ 
+
+
+        
 
 <hr>
 
@@ -262,6 +317,11 @@ size_t wfm_draw_t::src;
 
 
 
+source index within the segment 
+ 
+
+
+        
 
 <hr>
 
@@ -275,6 +335,11 @@ size_t wfm_draw_t::start;
 
 
 
+absolute sample index where the instance begins 
+ 
+
+
+        
 
 <hr>
 

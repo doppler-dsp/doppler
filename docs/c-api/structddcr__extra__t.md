@@ -8,7 +8,7 @@
 
 
 
-
+_DDCR-level payload that follows the state envelope: the one config value the blob layout depends on, checked on restore._ 
 
 * `#include <ddcr_core.h>`
 

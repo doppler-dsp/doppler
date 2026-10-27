@@ -86,7 +86,7 @@ extern "C" {
 
 /** Clamp on the discriminator output |e| before it reaches the loop filter.
  * The old magnitude-domain discriminator (|E|-|L|)/(|E|+|L|) was always
- * inherently bounded in [-1, 1] (|E|-|L| <= |E|+|L| identically); the
+ * inherently bounded in `[-1, 1]` (|E|-|L| <= |E|+|L| identically); the
  * power-domain 0.5*(Ep-Lp)/Pp form is NOT -- a data transition landing
  * badly enough to collapse the prompt power Pp near zero (the lookback
  * failing to find a clean candidate that epoch, a real, reachable case,

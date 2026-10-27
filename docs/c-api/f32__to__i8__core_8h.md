@@ -62,10 +62,10 @@ _Scale-and-saturate float-to-int8 converter._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* | [**dp\_f32\_to\_i8\_create**](#function-dp_f32_to_i8_create) (float scale) <br>_Create a f32\_to\_i8 instance._  |
 |  void | [**dp\_f32\_to\_i8\_destroy**](#function-dp_f32_to_i8_destroy) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state) <br>_Destroy a f32\_to\_i8 instance and release all memory._  |
-|  void | [**dp\_f32\_to\_i8\_get\_state**](#function-dp_f32_to_i8_get_state) (const [**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_f32\_to\_i8\_get\_state**](#function-dp_f32_to_i8_get_state) (const [**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state, void \* blob) <br>_Serialize the full state (scale and sticky clip flag)._  |
 |  void | [**dp\_f32\_to\_i8\_reset**](#function-dp_f32_to_i8_reset) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
-|  int | [**dp\_f32\_to\_i8\_set\_state**](#function-dp_f32_to_i8_set_state) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_f32\_to\_i8\_state\_bytes**](#function-dp_f32_to_i8_state_bytes) (const [**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state) <br> |
+|  int | [**dp\_f32\_to\_i8\_set\_state**](#function-dp_f32_to_i8_set_state) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state, const void \* blob) <br>_Restore a state blob written by_ [_**dp\_f32\_to\_i8\_get\_state()**_](f32__to__i8__core_8h.md#function-dp_f32_to_i8_get_state) _._ |
+|  size\_t | [**dp\_f32\_to\_i8\_state\_bytes**](#function-dp_f32_to_i8_state_bytes) (const [**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state) <br>_Size in bytes of this instance's serialized state blob._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int8\_t | [**dp\_f32\_to\_i8\_step**](#function-dp_f32_to_i8_step) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state, float x) <br>_Scale one float sample by_ `scale` _, round, and saturate to int8._ |
 |  void | [**dp\_f32\_to\_i8\_steps**](#function-dp_f32_to_i8_steps) ([**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) \* state, const float \* input, int8\_t \* output, size\_t n) <br>_Process a block of float samples to int8._  |
 
@@ -205,7 +205,7 @@ void dp_f32_to_i8_destroy (
 **Parameters:**
 
 
-* `state` May be NULL. 
+* `state` Instance from [**dp\_f32\_to\_i8\_create()**](f32__to__i8__core_8h.md#function-dp_f32_to_i8_create); may be NULL (no-op). 
 
 
 
@@ -218,6 +218,7 @@ void dp_f32_to_i8_destroy (
 
 ### function dp\_f32\_to\_i8\_get\_state 
 
+_Serialize the full state (scale and sticky clip flag)._ 
 ```C++
 void dp_f32_to_i8_get_state (
     const dp_f32_to_i8_state_t * state,
@@ -227,6 +228,18 @@ void dp_f32_to_i8_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Instance to snapshot; non-NULL. 
+* `blob` Destination of at least [**dp\_f32\_to\_i8\_state\_bytes()**](f32__to__i8__core_8h.md#function-dp_f32_to_i8_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -274,6 +287,7 @@ False
 
 ### function dp\_f32\_to\_i8\_set\_state 
 
+_Restore a state blob written by_ [_**dp\_f32\_to\_i8\_get\_state()**_](f32__to__i8__core_8h.md#function-dp_f32_to_i8_get_state) _._
 ```C++
 int dp_f32_to_i8_set_state (
     dp_f32_to_i8_state_t * state,
@@ -283,6 +297,28 @@ int dp_f32_to_i8_set_state (
 
 
 
+Validates the envelope (magic, version, endianness, size) first and leaves `state` untouched on rejection. On success the whole struct, `scale` included, is overwritten.
+
+
+
+
+**Parameters:**
+
+
+* `state` Instance to overwrite; non-NULL. 
+* `blob` Blob of [**dp\_f32\_to\_i8\_state\_bytes()**](f32__to__i8__core_8h.md#function-dp_f32_to_i8_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the envelope does not match. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -290,6 +326,7 @@ int dp_f32_to_i8_set_state (
 
 ### function dp\_f32\_to\_i8\_state\_bytes 
 
+_Size in bytes of this instance's serialized state blob._ 
 ```C++
 size_t dp_f32_to_i8_state_bytes (
     const dp_f32_to_i8_state_t * state
@@ -298,6 +335,27 @@ size_t dp_f32_to_i8_state_bytes (
 
 
 
+A fixed size: the 16-byte [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) envelope plus sizeof(dp\_f32\_to\_i8\_state\_t) (the whole struct is snapshotted).
+
+
+
+
+**Parameters:**
+
+
+* `state` Instance to size; not dereferenced. 
+
+
+
+**Returns:**
+
+Blob size in bytes; allocate this much for [**dp\_f32\_to\_i8\_get\_state()**](f32__to__i8__core_8h.md#function-dp_f32_to_i8_get_state). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -315,7 +373,7 @@ JM_FORCEINLINE  JM_HOT int8_t dp_f32_to_i8_step (
 
 
 
-Computes `round(x * scale)`, clamps to the int8 range `[-128, 127]`, and latches the sticky `clipped` flag if the scaled value fell outside that range before clamping. At the default scale of 128 a normalised `[-1, +1]` input maps to the full 8-bit code range.
+Computes `round(x * scale)`, clamps to the int8 range `[-128, 127]`, and latches the sticky `clipped` flag if the scaled value fell outside that range before clamping (and before rounding, so 127.3 latches it even though it would round to 127). At the default scale of 128 a normalised `[-1, +1]` input maps to the full 8-bit code range.
 
 
 
@@ -323,7 +381,7 @@ Computes `round(x * scale)`, clamps to the int8 range `[-128, 127]`, and latches
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Instance to update (clip flag); must be non-NULL. 
 * `x` Input sample, normally a normalised float in `[-1, +1]`. 
 
 
@@ -367,7 +425,7 @@ void dp_f32_to_i8_steps (
 
 
 
-Applies step() to every element. The `clipped` flag is updated cumulatively across the block — a single saturating sample raises it for the entire call. Accepts an optional pre-allocated output array; allocates a fresh one when `output` is NULL.
+Applies step() to every element. The `clipped` flag is updated cumulatively across the block — a single saturating sample raises it for the entire call. The C function writes into `output` and never allocates; the Python binding allocates the output array when its optional `out` is omitted.
 
 
 
@@ -375,10 +433,10 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Instance to update (clip flag); must be non-NULL. 
 * `input` Input float32 array; must contain at least `n` elements. 
-* `output` Output int8 array; must contain at least `n` elements. 
-* `n` Number of samples to process.
+* `output` Output int8 array; must hold at least `n` elements and must be non-NULL. 
+* `n` Number of samples to process (0 is a no-op).
 
 
 ```C++
@@ -408,6 +466,10 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 
 
+FourCC type tag ("F2\_8") stamped in every F32ToI8 state blob. 
+
+
+        
 
 <hr>
 
@@ -421,6 +483,10 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 
 
 
+F32ToI8 state blob format version; another version is rejected. 
+
+
+        
 
 <hr>
 

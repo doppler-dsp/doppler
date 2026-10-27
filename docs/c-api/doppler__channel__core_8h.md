@@ -114,7 +114,7 @@ _Clock Doppler as a propagation impairment: dilate the time base and shift the c
 | ---: | :--- |
 | define  | [**DOPPLER\_CHANNEL\_MAX\_BLOCK**](doppler__channel__core_8h.md#define-doppler_channel_max_block)  `65536u`<br>_Largest input block one_ `dp_doppler_channel_execute()` _call accepts._ |
 | define  | [**DOPPLER\_CHANNEL\_STATE\_MAGIC**](doppler__channel__core_8h.md#define-doppler_channel_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('D', 'P', 'C', 'H')`<br>_State-blob magic ('DPCH') and layout version._  |
-| define  | [**DOPPLER\_CHANNEL\_STATE\_VERSION**](doppler__channel__core_8h.md#define-doppler_channel_state_version)  `2u`<br> |
+| define  | [**DOPPLER\_CHANNEL\_STATE\_VERSION**](doppler__channel__core_8h.md#define-doppler_channel_state_version)  `2u`<br>_State-blob layout version (2 added the profile's last d)._  |
 
 ## Detailed Description
 
@@ -311,7 +311,24 @@ size_t dp_doppler_channel_execute_max_out (
 
 
 
-Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see that macro for why the bound cannot depend on the actual input length. 
+Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see that macro for why the bound cannot depend on the actual input length. The bound uses the smallest time-base scale over the next block, so with a ramp it changes from call to call; re-query it before each call.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+`DOPPLER_CHANNEL_MAX_BLOCK / min(1+d) + 2` samples. 
+
+
+
 
 
         
@@ -464,7 +481,24 @@ Constant, and in addition to the dilation: output `k` at receive time `t = k/fs`
 >>> DopplerChannel(fs=1e6).delay_samples
 10.5
 ```
- 
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Group delay, samples (10.5 for the built-in bank). 
+
+
+
 
 
         
@@ -485,6 +519,24 @@ double dp_doppler_channel_get_elapsed_s (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Seconds of output produced since create or reset. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -500,6 +552,27 @@ double dp_doppler_channel_get_offset_hz (
 
 
 
+For a stream driven by the closed form, `d(t) = (doppler_ppm + doppler_rate_ppm_s * elapsed_s) * 1e-6`. After a profile call it is the last profile sample's d instead. 0 whenever carrier\_hz is 0.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Carrier offset, Hz. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -517,6 +590,18 @@ void dp_doppler_channel_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Caller-owned buffer of at least [**dp\_doppler\_channel\_state\_bytes()**](doppler__channel__core_8h.md#function-dp_doppler_channel_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -578,6 +663,14 @@ int dp_doppler_channel_set_state (
 
 A refused blob leaves the channel unchanged: the channel's own fields are decoded first and written only once the resampler has accepted its part (doppler#2104). 
 
+**Parameters:**
+
+
+* `state` Must be non-NULL; built with the same configuration as the blob's source (configuration is not in the blob). 
+* `blob` A blob produced by [**dp\_doppler\_channel\_get\_state()**](doppler__channel__core_8h.md#function-dp_doppler_channel_get_state). 
+
+
+
 **Returns:**
 
 DP\_OK, or DP\_ERR\_INVALID if the envelope or a child blob is rejected. 
@@ -603,6 +696,24 @@ size_t dp_doppler_channel_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Envelope + 3 uint64 + 1 double + the resampler's blob size. 
+
+
+
+
+
+        
 
 <hr>
 ## Public Static Functions Documentation
@@ -773,6 +884,7 @@ _State-blob magic ('DPCH') and layout version._
 
 ### define DOPPLER\_CHANNEL\_STATE\_VERSION 
 
+_State-blob layout version (2 added the profile's last d)._ 
 ```C++
 #define DOPPLER_CHANNEL_STATE_VERSION `2u`
 ```

@@ -110,9 +110,9 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
 #define DET_PEAK_T_DEFINED
 typedef struct
 {
-  size_t row;
-  size_t col;
-  float  value;
+  size_t row;   
+  size_t col;   
+  float  value; 
 } det_peak_t;
 #endif
 

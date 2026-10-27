@@ -105,6 +105,10 @@ uint8_t dp_f32_to_i32_state_t::clipped;
 
 
 
+Sticky saturation flag (running state): 1 once any sample has saturated, 0 otherwise; written by step()/steps(), cleared by reset(). 
+
+
+        
 
 <hr>
 
@@ -118,6 +122,10 @@ float dp_f32_to_i32_state_t::scale;
 
 
 
+Multiply factor applied before rounding and saturation (config, set by create(); &gt; 0; default 2^31 = 2147483648.0). 
+
+
+        
 
 <hr>
 

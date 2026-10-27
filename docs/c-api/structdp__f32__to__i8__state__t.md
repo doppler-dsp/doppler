@@ -105,6 +105,10 @@ uint8_t dp_f32_to_i8_state_t::clipped;
 
 
 
+Sticky flag: 1 once any scaled sample fell outside `[-128, 127]`, 0 otherwise. Running state, set by step()/steps(), cleared by reset(). 
+
+
+        
 
 <hr>
 
@@ -118,6 +122,10 @@ float dp_f32_to_i8_state_t::scale;
 
 
 
+Multiply factor applied before rounding and saturation (codes per unit input). Config, set by create(). 
+
+
+        
 
 <hr>
 

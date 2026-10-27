@@ -8,7 +8,7 @@
 
 
 
-_AccF32 state._ [More...](#detailed-description)
+_AccF32 state: one float running sum._ [More...](#detailed-description)
 
 * `#include <acc_f32_core.h>`
 
@@ -101,6 +101,11 @@ float dp_acc_f32_state_t::acc;
 
 
 
+Running sum (running state); seeded by create() or set\_acc(), zeroed by reset() and dump(). 
+ 
+
+
+        
 
 <hr>
 

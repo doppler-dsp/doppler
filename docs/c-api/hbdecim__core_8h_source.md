@@ -22,25 +22,22 @@ extern "C"
 
   typedef struct
   {
-    size_t num_taps; /* FIR branch length                         */
-    size_t centre;   /* = num_taps / 2                            */
-    int fir_on_even; /* 1 if N even, 0 if N odd                   */
-    float *h;        /* FIR coeffs × 0.5 (polyphase normalisation) */
-
+    size_t num_taps; 
+    size_t centre;   
+    int fir_on_even; 
+    float *h;        
     /* Even delay line: stores x[2m], x[2m-2], ...
      * Dual-write ring: 2 × even_cap elements.                       */
-    float _Complex *even_buf;
-    size_t even_cap;
-    size_t even_mask;
-    size_t even_head;
-
+    float _Complex *even_buf; 
+    size_t even_cap;  
+    size_t even_mask; 
+    size_t even_head; 
     /* Odd delay line: stores x[2m+1], x[2m-1], ...
      * Shares even_cap and even_mask with even_buf.                  */
-    float _Complex *odd_buf;
-    size_t odd_head;
-
-    int has_pending;        /* 1 when a trailing even sample is held */
-    float _Complex pending; /* the held even sample                  */
+    float _Complex *odd_buf; 
+    size_t odd_head; 
+    int has_pending;        
+    float _Complex pending; 
   } hbdecim_state_t;
 
   hbdecim_state_t *dp_hbdecim_create (size_t num_taps, const float *h);

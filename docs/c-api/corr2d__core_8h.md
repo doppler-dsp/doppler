@@ -63,12 +63,12 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 |  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**dp\_corr2d\_create**](#function-dp_corr2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out, int col\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**dp\_corr\_create()**_](corr__core_8h.md#function-dp_corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
 |  void | [**dp\_corr2d\_destroy**](#function-dp_corr2d_destroy) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Destroy and free a corr2d instance._  |
 |  size\_t | [**dp\_corr2d\_execute**](#function-dp_corr2d_execute) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._ |
-|  size\_t | [**dp\_corr2d\_execute\_max\_out**](#function-dp_corr2d_execute_max_out) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (_ [_**dp\_corr2d\_state\_t::n\_out**_](structdp__corr2d__state__t.md#variable-n_out) __ _ny\*nx\_out normally, or ny when a single_[_**dp\_corr2d\_state\_t::col\_out**_](structdp__corr2d__state__t.md#variable-col_out) _was selected)._ |
-|  void | [**dp\_corr2d\_get\_state**](#function-dp_corr2d_get_state) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, void \* blob) <br> |
+|  size\_t | [**dp\_corr2d\_execute\_max\_out**](#function-dp_corr2d_execute_max_out) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (_ [_**dp\_corr2d\_state\_t::n\_out**_](structdp__corr2d__state__t.md#variable-n_out) __ _ny\_out\*nx\_out normally, or ny when a single_[_**dp\_corr2d\_state\_t::col\_out**_](structdp__corr2d__state__t.md#variable-col_out) _was selected)._ |
+|  void | [**dp\_corr2d\_get\_state**](#function-dp_corr2d_get_state) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, void \* blob) <br>_Serialize the frame count and spectrum accumulator into_ `blob` _._ |
 |  void | [**dp\_corr2d\_reset**](#function-dp_corr2d_reset) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._  |
 |  int | [**dp\_corr2d\_set\_ref**](#function-dp_corr2d_set_ref) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
-|  int | [**dp\_corr2d\_set\_state**](#function-dp_corr2d_set_state) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const void \* blob) <br> |
-|  size\_t | [**dp\_corr2d\_state\_bytes**](#function-dp_corr2d_state_bytes) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br> |
+|  int | [**dp\_corr2d\_set\_state**](#function-dp_corr2d_set_state) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const void \* blob) <br>_Restore a mid-dwell correlator from_ [_**dp\_corr2d\_get\_state()**_](corr2d__core_8h.md#function-dp_corr2d_get_state) _'s blob._ |
+|  size\_t | [**dp\_corr2d\_state\_bytes**](#function-dp_corr2d_state_bytes) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Size in bytes of this correlator's state blob._  |
 
 
 
@@ -100,8 +100,8 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**CORR2D\_STATE\_MAGIC**](corr2d__core_8h.md#define-corr2d_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C','R','2','D')`<br> |
-| define  | [**CORR2D\_STATE\_VERSION**](corr2d__core_8h.md#define-corr2d_state_version)  `1u`<br> |
+| define  | [**CORR2D\_STATE\_MAGIC**](corr2d__core_8h.md#define-corr2d_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C','R','2','D')`<br>_State-blob magic ('CR2D'); set\_state() rejects any other._  |
+| define  | [**CORR2D\_STATE\_VERSION**](corr2d__core_8h.md#define-corr2d_state_version)  `1u`<br>_State-blob layout version; set\_state() rejects any other._  |
 
 ## Detailed Description
 
@@ -245,14 +245,14 @@ size_t dp_corr2d_execute (
 * `state` Allocated 2-D correlator (non-NULL). 
 * `in` Input frame, flat row-major CF32, length ny\*nx. 
 * `n_in` Number of input samples; must equal ny\*nx; else REFUSED. 
-* `out` Output buffer for the correlation map (CF32, length ny\*nx); written only on a dump call. 
+* `out` Output buffer for the correlation map (CF32, length n\_out: ny\_out\*nx\_out, or ny with `col_out`); written only on a dump call. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
 
 
 **Returns:**
 
-ny\*nx on a dump (or max\_out if smaller), 0 otherwise If `n_in` is not the required length the call is REFUSED with nothing read, written or counted: SIZE\_MAX in C, ValueError in Python (#1925). (None in Python). 
+n\_out on a dump (or `max_out` if smaller), 0 otherwise (None in Python). If `n_in` is not the required length the call is REFUSED with nothing read, written or counted: SIZE\_MAX in C, ValueError in Python (#1925). 
 ```C++
 >>> from doppler.spectral import Corr2D
 >>> import numpy as np
@@ -278,7 +278,7 @@ True
 
 ### function dp\_corr2d\_execute\_max\_out 
 
-_Maximum output samples per execute call (_ [_**dp\_corr2d\_state\_t::n\_out**_](structdp__corr2d__state__t.md#variable-n_out) __ _ny\*nx\_out normally, or ny when a single_[_**dp\_corr2d\_state\_t::col\_out**_](structdp__corr2d__state__t.md#variable-col_out) _was selected)._
+_Maximum output samples per execute call (_ [_**dp\_corr2d\_state\_t::n\_out**_](structdp__corr2d__state__t.md#variable-n_out) __ _ny\_out\*nx\_out normally, or ny when a single_[_**dp\_corr2d\_state\_t::col\_out**_](structdp__corr2d__state__t.md#variable-col_out) _was selected)._
 ```C++
 size_t dp_corr2d_execute_max_out (
     dp_corr2d_state_t * state
@@ -288,12 +288,31 @@ size_t dp_corr2d_execute_max_out (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+n\_out, fixed at create(). 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_corr2d\_get\_state 
 
+_Serialize the frame count and spectrum accumulator into_ `blob` _._
 ```C++
 void dp_corr2d_get_state (
     const dp_corr2d_state_t * state,
@@ -303,6 +322,18 @@ void dp_corr2d_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_corr2d\_state\_bytes()**](corr2d__core_8h.md#function-dp_corr2d_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -318,6 +349,13 @@ void dp_corr2d_reset (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL.
 
 
 ```C++
@@ -382,6 +420,7 @@ Also resets accumulator and counter on success. The object's fast-path mode (see
 
 ### function dp\_corr2d\_set\_state 
 
+_Restore a mid-dwell correlator from_ [_**dp\_corr2d\_get\_state()**_](corr2d__core_8h.md#function-dp_corr2d_get_state) _'s blob._
 ```C++
 int dp_corr2d_set_state (
     dp_corr2d_state_t * state,
@@ -392,12 +431,32 @@ int dp_corr2d_set_state (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL, created with the same (ny, nx) and reference (the reference is not in the blob). 
+* `blob` Source blob of [**dp\_corr2d\_state\_bytes()**](corr2d__core_8h.md#function-dp_corr2d_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+`DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's magic, version, endianness or size does not match. 
+
+
+
+
+
+        
+
 <hr>
 
 
 
 ### function dp\_corr2d\_state\_bytes 
 
+_Size in bytes of this correlator's state blob._ 
 ```C++
 size_t dp_corr2d_state_bytes (
     const dp_corr2d_state_t * state
@@ -406,6 +465,24 @@ size_t dp_corr2d_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Header + frame count (u64) + ny\*nx complex-float accumulator. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -416,6 +493,7 @@ size_t dp_corr2d_state_bytes (
 
 ### define CORR2D\_STATE\_MAGIC 
 
+_State-blob magic ('CR2D'); set\_state() rejects any other._ 
 ```C++
 #define CORR2D_STATE_MAGIC `DP_FOURCC ('C','R','2','D')`
 ```
@@ -429,6 +507,7 @@ size_t dp_corr2d_state_bytes (
 
 ### define CORR2D\_STATE\_VERSION 
 
+_State-blob layout version; set\_state() rejects any other._ 
 ```C++
 #define CORR2D_STATE_VERSION `1u`
 ```

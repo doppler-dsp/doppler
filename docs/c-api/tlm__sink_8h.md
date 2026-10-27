@@ -309,6 +309,13 @@ uint64_t dp_tlm_sink_sent (
 
 
 
+**Returns:**
+
+Records successfully published (lost records excluded). 
+
+
+
+
 
         
 

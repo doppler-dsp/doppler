@@ -196,6 +196,10 @@ size_t dp_async_dsss_pool_state_t::feed_n;
 
 
 
+Samples in feed\_x: one code period while push() steps. 
+
+
+        
 
 <hr>
 

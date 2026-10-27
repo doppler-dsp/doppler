@@ -73,7 +73,7 @@ _Frame outcomes accumulated across a record: FER, and sync detection._ [More...]
 |  void | [**dp\_frame\_meter\_get\_state**](#function-dp_frame_meter_get_state) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state, void \* blob) <br>_Serialize the running counters into_ `blob` _._ |
 |  size\_t | [**dp\_frame\_meter\_get\_sync\_detected**](#function-dp_frame_meter_get_sync_detected) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Frames whose sync word was detected._  |
 |  void | [**dp\_frame\_meter\_reset**](#function-dp_frame_meter_reset) ([**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Clear every counter; the configuration is untouched._  |
-|  int | [**dp\_frame\_meter\_set\_state**](#function-dp_frame_meter_set_state) ([**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state, const void \* blob) <br>_Restore; DP\_OK, or DP\_ERR\_INVALID if the blob is rejected._  |
+|  int | [**dp\_frame\_meter\_set\_state**](#function-dp_frame_meter_set_state) ([**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state, const void \* blob) <br>_Restore the four running counters from_ `blob` _._ |
 |  size\_t | [**dp\_frame\_meter\_state\_bytes**](#function-dp_frame_meter_state_bytes) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**ber\_interval\_t**](structber__interval__t.md) | [**dp\_frame\_meter\_sync\_miss**](#function-dp_frame_meter_sync_miss) (const [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) \* state) <br>_Sync MISS rate with its exact interval._  |
 
@@ -107,8 +107,8 @@ _Frame outcomes accumulated across a record: FER, and sync detection._ [More...]
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**FRAME\_METER\_STATE\_MAGIC**](frame__meter__core_8h.md#define-frame_meter_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F', 'R', 'M', 'M')`<br> |
-| define  | [**FRAME\_METER\_STATE\_VERSION**](frame__meter__core_8h.md#define-frame_meter_state_version)  `1u`<br> |
+| define  | [**FRAME\_METER\_STATE\_MAGIC**](frame__meter__core_8h.md#define-frame_meter_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F', 'R', 'M', 'M')`<br>_Envelope magic ("FRMM") identifying a FrameMeter state blob._  |
+| define  | [**FRAME\_METER\_STATE\_VERSION**](frame__meter__core_8h.md#define-frame_meter_state_version)  `1u`<br>_Layout version of the FrameMeter state blob._  |
 
 ## Detailed Description
 
@@ -217,7 +217,7 @@ dp_frame_meter_state_t * dp_frame_meter_create (
 
 **Returns:**
 
-the meter, or NULL if `conf` is outside (0, 1). 
+the meter (caller frees with [**dp\_frame\_meter\_destroy()**](frame__meter__core_8h.md#function-dp_frame_meter_destroy)), or NULL if `conf` is negative or &gt;= 1, or on allocation failure. 
 
 
 
@@ -240,6 +240,17 @@ void dp_frame_meter_destroy (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` the meter; may be NULL. 
+
+
+
+
+        
 
 <hr>
 
@@ -306,6 +317,24 @@ size_t dp_frame_meter_get_crc_passed (
 
 
 
+
+**Parameters:**
+
+
+* `state` the meter; must be non-NULL. 
+
+
+
+**Returns:**
+
+count of detected frames with `crc` &gt; 0. A detected frame with no CRC (`crc` &lt; 0) is delivered but not counted here. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -321,7 +350,24 @@ int dp_frame_meter_get_enough (
 
 
 
-The stopping condition, so a caller loops records until the measurement has the precision it asked for rather than until a frame count someone guessed. 
+The stopping condition, so a caller loops records until the measurement has the precision it asked for rather than until a frame count someone guessed.
+
+
+
+
+**Parameters:**
+
+
+* `state` the meter; must be non-NULL. 
+
+
+
+**Returns:**
+
+1 when errors &gt;= target\_errors, else 0. 
+
+
+
 
 
         
@@ -342,6 +388,24 @@ size_t dp_frame_meter_get_errors (
 
 
 
+
+**Parameters:**
+
+
+* `state` the meter; must be non-NULL. 
+
+
+
+**Returns:**
+
+frame-error count, the numerator of [**dp\_frame\_meter\_fer()**](frame__meter__core_8h.md#function-dp_frame_meter_fer). 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -357,6 +421,24 @@ size_t dp_frame_meter_get_frames (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` the meter; must be non-NULL. 
+
+
+
+**Returns:**
+
+every [**dp\_frame\_meter\_add()**](frame__meter__core_8h.md#function-dp_frame_meter_add) call since create/reset. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -374,6 +456,21 @@ void dp_frame_meter_get_state (
 
 
 
+Only frames, sync\_detected, crc\_passed and errors travel; the target and confidence are restored by create(), not carried.
+
+
+
+
+**Parameters:**
+
+
+* `state` the meter; must be non-NULL. 
+* `blob` caller-owned buffer of at least [**dp\_frame\_meter\_state\_bytes()**](frame__meter__core_8h.md#function-dp_frame_meter_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -390,6 +487,24 @@ size_t dp_frame_meter_get_sync_detected (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` the meter; must be non-NULL. 
+
+
+
+**Returns:**
+
+count of adds with a non-zero `sync_ok`. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -438,7 +553,7 @@ The target and the confidence level are what the caller asked for, so resetting 
 
 ### function dp\_frame\_meter\_set\_state 
 
-_Restore; DP\_OK, or DP\_ERR\_INVALID if the blob is rejected._ 
+_Restore the four running counters from_ `blob` _._
 ```C++
 int dp_frame_meter_set_state (
     dp_frame_meter_state_t * state,
@@ -448,6 +563,25 @@ int dp_frame_meter_set_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` the meter; must be non-NULL. Its configuration is kept. 
+* `blob` a blob produced by [**dp\_frame\_meter\_get\_state()**](frame__meter__core_8h.md#function-dp_frame_meter_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the blob is rejected (state then unchanged). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -464,6 +598,24 @@ size_t dp_frame_meter_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` the meter (the size does not depend on it). 
+
+
+
+**Returns:**
+
+envelope + four uint64 counters. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -524,6 +676,7 @@ the miss rate with its exact interval.
 
 ### define FRAME\_METER\_STATE\_MAGIC 
 
+_Envelope magic ("FRMM") identifying a FrameMeter state blob._ 
 ```C++
 #define FRAME_METER_STATE_MAGIC `DP_FOURCC ('F', 'R', 'M', 'M')`
 ```
@@ -537,6 +690,7 @@ the miss rate with its exact interval.
 
 ### define FRAME\_METER\_STATE\_VERSION 
 
+_Layout version of the FrameMeter state blob._ 
 ```C++
 #define FRAME_METER_STATE_VERSION `1u`
 ```

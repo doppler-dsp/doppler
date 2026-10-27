@@ -123,11 +123,23 @@ imd_meas_t dp_imdmeas_analyze (
 
 
 
+Averages the Kaiser-windowed power spectrum over floor(n\_in / n) whole frames (a trailing partial frame is dropped), takes the two strongest bins more than spur\_guard\_bins from DC and from each other as f1 &lt; f2, and integrates each tone and the IM products 2f1-f2, 2f2-f1 and f2-f1 (folded into `[0, fs/2]`) over +/- lobe\_bins. `imd3_dbc` is the worse of the two third-order products; both IMD ratios are relative to the mean tone power. TOI = P\_tone + \|IMD3\|/2 and SOI = P\_tone + \|IMD2\| (dBFS).
+
+
+
+
+**Parameters:**
+
+
+* `state` The analyser. 
+* `x` Real capture (float32), length `n_in`. 
+* `n_in` Number of samples in `x`; at least n for a result. 
+
 
 
 **Returns:**
 
-the IMD metric record (by value; zeroed if no two tones are found).
+the IMD metric record (by value; zeroed if no two tones are found or `n_in` &lt; n).
 
 
 
@@ -287,7 +299,7 @@ The same windowed, zero-padded PSD the IMD metrics are read off, laid out DC-cen
 
 
 * `state` The analyser. 
-* `x` Real time-domain capture (length `x_len`). 
+* `x` Real time-domain capture (length `x_len`); averaged over its whole n-sample frames like analyze(). 
 * `x_len` Number of input samples. 
 * `out` Destination buffer (length &gt;= `max_out`). 
 * `max_out` Capacity of `out` (== nfft). 
@@ -296,7 +308,7 @@ The same windowed, zero-padded PSD the IMD metrics are read off, laid out DC-cen
 
 **Returns:**
 
-DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+Number of bins written to `out:` min(nfft, `max_out`), or 0 when `x_len` &lt; n (no whole frame to transform).
 
 
 
@@ -332,6 +344,24 @@ size_t dp_imdmeas_spectrum_dbfs_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` The analyser. 
+
+
+
+**Returns:**
+
+nfft, the zero-padded transform length (bins). 
+
+
+
+
+
+        
 
 <hr>
 

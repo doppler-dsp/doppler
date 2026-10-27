@@ -912,6 +912,11 @@ float dp_acq_state_t::noise_est;
 
 
 
+the dwell's CFAR noise reference, same units as peak\_mag 
+ 
+
+
+        
 
 <hr>
 
@@ -1084,6 +1089,11 @@ size_t dp_acq_state_t::peak_col;
 
 
 
+... and its code-phase column 
+ 
+
+
+        
 
 <hr>
 
@@ -1115,6 +1125,11 @@ float dp_acq_state_t::peak_mag;
 
 
 
+... and its amplitude (linear; the sqrt of the summed power when n\_noncoh &gt; 1) 
+ 
+
+
+        
 
 <hr>
 
@@ -1146,6 +1161,11 @@ size_t dp_acq_state_t::peak_row;
 
 
 
+last decided dwell's strongest pick: its native Doppler row 
+ 
+
+
+        
 
 <hr>
 
@@ -1497,6 +1517,11 @@ void* dp_acq_state_t::sink_ctx;
 
 
 
+caller's opaque pointer, passed to sink 
+ 
+
+
+        
 
 <hr>
 
@@ -1634,6 +1659,11 @@ float dp_acq_state_t::test_stat;
 
 
 
+the dwell's gating statistic, compared with [**dp\_acq\_gate\_stat()**](acq__core_8h.md#function-dp_acq_gate_stat); 0 if noise\_est is 0 
+ 
+
+
+        
 
 <hr>
 

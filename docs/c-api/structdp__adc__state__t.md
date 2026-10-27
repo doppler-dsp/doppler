@@ -111,6 +111,10 @@ int dp_adc_state_t::bits;
 
 
 
+ADC resolution in bits, 1..64. Config. 
+
+
+        
 
 <hr>
 
@@ -124,6 +128,10 @@ int64_t dp_adc_state_t::clip_max;
 
 
 
+Largest output code, 2^(bits-1) - 1 (INT64\_MAX when bits = 64). Config. 
+
+
+        
 
 <hr>
 
@@ -137,6 +145,10 @@ int64_t dp_adc_state_t::clip_min;
 
 
 
+Smallest output code, -2^(bits-1) (INT64\_MIN when bits = 64). Config. 
+
+
+        
 
 <hr>
 
@@ -150,6 +162,10 @@ uint8_t dp_adc_state_t::clipped;
 
 
 
+Sticky saturation flag: 1 once any sample saturated, 0 otherwise. Running state, set by step()/steps(), cleared by reset(). 
+
+
+        
 
 <hr>
 
@@ -163,6 +179,10 @@ float dp_adc_state_t::dbfs;
 
 
 
+Full-scale reference level in dBFS, as passed to create(). Config; informational once `scale` is derived. 
+
+
+        
 
 <hr>
 
@@ -176,6 +196,10 @@ int dp_adc_state_t::dithering;
 
 
 
+0 = no dither; positive = TPDF dither before rounding. Config. 
+
+
+        
 
 <hr>
 
@@ -189,6 +213,10 @@ uint32_t dp_adc_state_t::rng;
 
 
 
+xorshift32 dither PRNG state. Running state; seeded to a fixed constant by create() and reset(), advanced only when dithering. 
+
+
+        
 
 <hr>
 
@@ -202,6 +230,10 @@ double dp_adc_state_t::scale;
 
 
 
+Input-to-code gain, 2^(bits-1) \* 10^(-dbfs/20) (codes per unit input). Config, set by create(). 
+
+
+        
 
 <hr>
 

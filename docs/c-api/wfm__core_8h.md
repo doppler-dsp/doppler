@@ -53,16 +53,16 @@ _Wfmgen module — public C API._
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_\_sweep\_ends**](#function-dp__sweep_ends) (double fs, double f\_mid, double rate, size\_t n, double center, double \* out) <br> |
+|  void | [**dp\_\_sweep\_ends**](#function-dp__sweep_ends) (double fs, double f\_mid, double rate, size\_t n, double center, double \* out) <br>_Start and end frequency of the chirp that sweeps about a center._  |
 |  void | [**dp\_bpsk\_map**](#function-dp_bpsk_map) (const uint8\_t \* bits, size\_t bits\_len, float \_Complex \* out) <br>_Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 -&gt; +1 + 0j, 1 -&gt; -1 + 0j. Output is unit-power (each symbol has magnitude 1). The imaginary component is always zero. Typically used before a carrier multiply and noise addition to build a BPSK burst without the full Synth engine._  |
 |  uint16\_t | [**dp\_crc16**](#function-dp_crc16) (const uint8\_t \* bits, size\_t bits\_len) <br>_CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream, MSB-first. The one frame CRC doppler's DSSS burst convention uses: the_ `dsss` _waveform appends it over the payload bits on transmit and_`BurstDemod` _validates it as_`frame_valid` _on receive (both call the same C kernel,_[_**dp\_crc16.h**_](dp__crc16_8h.md) _). Each input byte carries one bit (0/1) in its LSB — an unpacked bit array, not a packed byte-stream CRC. Transmit the result MSB-first._ |
-|  void | [**dp\_dsss\_spread**](#function-dp_dsss_spread) (const float \_Complex \* syms, size\_t syms\_len, const uint8\_t \* code, size\_t code\_len, int sf, float \_Complex \* out) <br> |
+|  void | [**dp\_dsss\_spread**](#function-dp_dsss_spread) (const float \_Complex \* syms, size\_t syms\_len, const uint8\_t \* code, size\_t code\_len, int sf, float \_Complex \* out) <br>_Direct-sequence spread symbols by a binary chip code._  |
 |  size\_t | [**dp\_field\_bits**](#function-dp_field_bits) (const char \* spec, uint8\_t \* out, const char \*\* why) <br>_A Field's bits from its text form_  _the one door from text to the bits every frame object takes._ |
 |  uint64\_t | [**dp\_mls\_poly**](#function-dp_mls_poly) (uint32\_t n) <br>_Maximal-length-sequence primitive polynomial for a length-_ `n` _LFSR. Returns the tap mask (in the same bit convention the synth/PN engine uses for_`pn_poly = 0` _) that drives an_`n-stage` _Fibonacci LFSR through its full 2^n - 1 state period. Thin public alias over the synth engine's MLS table; valid for_`n` _in 2..64 and returns 0 otherwise._ |
 |  void | [**dp\_qpsk\_map**](#function-dp_qpsk_map) (const uint8\_t \* syms, size\_t syms\_len, float \_Complex \* out) <br>_Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32). Gray coding: adjacent indices differ in exactly one bit, minimising BER at low SNR. Bit 0 (LSB) controls I, bit 1 controls Q: I = (1 - 2\*b\_i) / sqrt(2), Q = (1 - 2\*b\_q) / sqrt(2). Output is unit-power (\|sym\| = 1.0 exactly). The four constellation points lie at the cardinal diagonals of the IQ plane._  |
-|  void | [**dp\_rc\_h**](#function-dp_rc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
-|  void | [**dp\_rrc\_h**](#function-dp_rrc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
-|  void | [**dp\_rrc\_taps**](#function-dp_rrc_taps) (double beta, int sps, int span, float \* out) <br> |
+|  void | [**dp\_rc\_h**](#function-dp_rc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br>_Analytic raised-cosine (matched RRC pair) pulse at arbitrary times._  |
+|  void | [**dp\_rrc\_h**](#function-dp_rrc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br>_Analytic root-raised-cosine pulse at arbitrary times._  |
+|  void | [**dp\_rrc\_taps**](#function-dp_rrc_taps) (double beta, int sps, int span, float \* out) <br>_Unit-energy root-raised-cosine pulse-shaping taps._  |
 |  float | [**dp\_wfm\_awgn\_amplitude**](#function-dp_wfm_awgn_amplitude) (float snr\_db, float signal\_power) <br>_Compute the per-component AWGN amplitude for a target SNR. The AWGN engine uses equal-power I and Q noise: complex noise power is 2 \* amplitude². This function inverts that relationship for a given_ `signal_power` _and_`snr_db` _(measured over the full sample-rate bandwidth): amplitude = sqrt(signal\_power / (2 \* 10^(snr\_db / 10))). Pass the result directly to_`dp_awgn_create` _to get the exact noise level that corresponds to the requested SNR._ |
 |  float | [**dp\_wfm\_ebno\_to\_snr\_db**](#function-dp_wfm_ebno_to_snr_db) (float ebno\_db, int bits\_per\_symbol, float samples\_per\_symbol) <br>_Convert Eb/No (dB) to SNR (dB) over the full sample-rate band. Digital communication systems are typically specified in Eb/No; doppler uses an fs-band SNR internally. The conversion is: SNR\_fs = Eb/No + 10 log10(bits\_per\_symbol) - 10 log10(samples\_per\_symbol) For BPSK (bits\_per\_symbol=1, sps=8) at Eb/No=10 dB this gives ~0.97 dB. For QPSK (bits\_per\_symbol=2, sps=8) at Eb/No=10 dB this gives ~3.98 dB._  |
 
@@ -100,6 +100,7 @@ _Wfmgen module — public C API._
 
 ### function dp\_\_sweep\_ends 
 
+_Start and end frequency of the chirp that sweeps about a center._ 
 ```C++
 void dp__sweep_ends (
     double fs,
@@ -113,6 +114,32 @@ void dp__sweep_ends (
 
 
 
+A chirp from `f0` to `f_end` pinned over `n` samples has instantaneous frequency `f_mid + rate*u` Hz at sample `i`, `u = (i - center)/fs` seconds, so it multiplies a block by `exp(j*2*pi*(f_mid*u + rate*u**2/2))` up to one constant phase. This is the single copy of that arithmetic ([**dp\_wfm\_synth\_sweep\_ends()**](wfm__synth__core_8h.md#function-dp_wfm_synth_sweep_ends)); `doppler.wfm.rotate` takes it from here. Private: bound as `doppler.wfm._sweep_ends`. Pure arithmetic: no state, nothing allocated.
+
+
+
+
+**Parameters:**
+
+
+* `fs` Sample rate, Hz (&gt; 0). 
+* `f_mid` Frequency at the center, Hz. 
+* `rate` Sweep rate, Hz per second. 
+* `n` Samples the sweep spans. 
+* `center` Sample index of the sweep's center (need not be an integer). 
+* `out` Two doubles: `out[0]` = start frequency f0 (Hz), `out[1]` = end frequency f\_end (Hz).
+
+
+```C++
+>>> from doppler.wfm import _sweep_ends
+>>> f0, f_end = _sweep_ends(1.0, 0.0, 1e-4, 1001, 500.0)
+>>> round(float(f0), 6), round(float(f_end), 6)
+(-0.04995, 0.05015)
+```
+ 
+
+
+        
 
 <hr>
 
@@ -203,6 +230,7 @@ The 16-bit CRC.
 
 ### function dp\_dsss\_spread 
 
+_Direct-sequence spread symbols by a binary chip code._ 
 ```C++
 void dp_dsss_spread (
     const float _Complex * syms,
@@ -216,6 +244,25 @@ void dp_dsss_spread (
 
 
 
+The wfm-namespace alias of [**dp\_wfm\_dsss\_spread()**](wfm__dsp_8h.md#function-dp_wfm_dsss_spread): `out[i*sf + j] = syms[i] * (code[j] ? -1 : +1)`, so each symbol is repeated over `sf` chips with a per-chip sign flip. Only the first `sf` chips of `code` are used. If `sf` &lt; 1 or `code_len` &lt; `sf` the spread is refused and the output is zeroed instead (`syms_len * sf` slots, none when `sf` &lt; 1); no error is raised.
+
+
+
+
+**Parameters:**
+
+
+* `syms` Complex data symbols. 
+* `syms_len` Number of symbols in `syms`. 
+* `code` Chip code, one chip per byte, 0 or 1. 
+* `code_len` Number of chips in `code` (must be &gt;= `sf`). 
+* `sf` Spreading factor, chips per symbol (&gt;= 1). 
+* `out` `syms_len * sf` chips. 
+
+
+
+
+        
 
 <hr>
 
@@ -360,6 +407,7 @@ void dp_qpsk_map (
 
 ### function dp\_rc\_h 
 
+_Analytic raised-cosine (matched RRC pair) pulse at arbitrary times._ 
 ```C++
 void dp_rc_h (
     const double * t,
@@ -371,6 +419,23 @@ void dp_rc_h (
 
 
 
+Evaluates the header-inline wfm\_rc\_h() at each `t[i]`: the full raised cosine, normalized to g(0) = 1 and zero at every nonzero integer t, i.e. the matched-filter output a TX/RX RRC pair delivers at timing offset t. The t = +-1/(2\*beta) singularity uses its closed-form limit. If `beta` is outside 0 to 1 (or NaN) the output is zeroed instead; no error is raised.
+
+
+
+
+**Parameters:**
+
+
+* `t` Times in symbol periods, relative to the pulse center. 
+* `t_len` Number of entries in `t` (and in `out`). 
+* `out` `t_len` values, `out[i] = g(t[i])`. 
+* `beta` Roll-off factor, 0 to 1. 
+
+
+
+
+        
 
 <hr>
 
@@ -378,6 +443,7 @@ void dp_rc_h (
 
 ### function dp\_rrc\_h 
 
+_Analytic root-raised-cosine pulse at arbitrary times._ 
 ```C++
 void dp_rrc_h (
     const double * t,
@@ -389,6 +455,23 @@ void dp_rrc_h (
 
 
 
+Evaluates the header-inline wfm\_rrc\_h() at each `t[i]`: the unnormalized RRC impulse response (peak `1 - beta + 4*beta/pi` at t = 0), with the t = 0 and t = +-1/(4\*beta) singularities replaced by their closed-form limits. Use it when the pulse is needed off the integer sample grid; [**dp\_rrc\_taps()**](wfm__core_8h.md#function-dp_rrc_taps) remains the call for filter taps. If `beta` is outside 0 to 1 (or NaN) the output is zeroed instead; no error is raised.
+
+
+
+
+**Parameters:**
+
+
+* `t` Times in symbol periods, relative to the pulse center. 
+* `t_len` Number of entries in `t` (and in `out`). 
+* `out` `t_len` values, `out[i] = h(t[i])`. 
+* `beta` Roll-off factor, 0 to 1. 
+
+
+
+
+        
 
 <hr>
 
@@ -396,6 +479,7 @@ void dp_rrc_h (
 
 ### function dp\_rrc\_taps 
 
+_Unit-energy root-raised-cosine pulse-shaping taps._ 
 ```C++
 void dp_rrc_taps (
     double beta,
@@ -407,6 +491,23 @@ void dp_rrc_taps (
 
 
 
+The wfm-namespace alias of [**dp\_wfm\_rrc\_taps()**](wfm__dsp_8h.md#function-dp_wfm_rrc_taps): fills `out` with `2*span*sps + 1` real taps, symmetric about the center tap and scaled so the sum of squares is 1 (cascading TX and RX gives a Nyquist raised cosine). If `sps` or `span` is below 1 the filter is refused and the `2*span*sps + 1` output slots are zeroed instead; no error is raised.
+
+
+
+
+**Parameters:**
+
+
+* `beta` Roll-off factor, 0 to 1. 
+* `sps` Samples per symbol (&gt;= 1). 
+* `span` One-sided filter span in symbols (&gt;= 1). 
+* `out` `2*span*sps + 1` floats. 
+
+
+
+
+        
 
 <hr>
 

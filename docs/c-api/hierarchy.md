@@ -11,7 +11,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**acq\_shape\_t**](structacq__shape__t.md) _What the engine knows about the SHAPE of the repeated preamble, beyond its samples (doppler#1470)._ 
 * **struct** [**acq\_tlm\_t**](structacq__tlm__t.md) _Telemetry attachment: a borrowed context + this engine's probe ids (design §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_acq\_set\_state()**_](acq__core_8h.md#function-dp_acq_set_state) _like the borrowed code._
 * **struct** [**agc\_tlm\_t**](structagc__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM); telemetry is observation, not DSP state that migrates._ 
-* **struct** [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md) 
+* **struct** [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md) _The receiver's own fields in its state blob, after the envelope and before the children._ 
 * **struct** [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) _One consistent picture of what the receiver is doing, by value._ 
 * **struct** [**ber\_align\_t**](structber__align__t.md) _Where the recovered stream sits against truth, and how sure._ 
 * **struct** [**ber\_interval\_t**](structber__interval__t.md) _A rate with its exact interval. Assert on_ `lo` _, never on_`p_hat` _._
@@ -29,18 +29,18 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**conv\_code\_t**](structconv__code__t.md) _A rate-1/n convolutional code._ 
 * **struct** [**conv\_enc\_t**](structconv__enc__t.md) _Encoder state: the shift register, and nothing else._ 
 * **struct** [**costas\_tlm\_t**](structcostas__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch per symbol. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._ 
-* **struct** [**ddc\_extra\_t**](structddc__extra__t.md) 
+* **struct** [**ddc\_extra\_t**](structddc__extra__t.md) _DDC-specific blob header, written after the envelope and before the LO and RateConverter child blobs._ 
 * **struct** [**ddc\_state**](structddc__state.md) _Ddc state — an LO and the cascade it feeds._ 
-* **struct** [**ddcr\_extra\_t**](structddcr__extra__t.md) 
+* **struct** [**ddcr\_extra\_t**](structddcr__extra__t.md) _DDCR-level payload that follows the state envelope: the one config value the blob layout depends on, checked on restore._ 
 * **struct** [**ddcr\_state**](structddcr__state.md) _DdcR state — the real-to-complex front end, an LO and a cascade._ 
-* **struct** [**det\_peak\_t**](structdet__peak__t.md) 
+* **struct** [**det\_peak\_t**](structdet__peak__t.md) _One listed peak of a surface: its cell and value._ 
 * **struct** [**det\_result2d\_t**](structdet__result2d__t.md) _Detection event returned by_ [_**dp\_detector2d\_push()**_](detector2d__core_8h.md#function-dp_detector2d_push) _._
 * **struct** [**det\_result\_t**](structdet__result__t.md) _Detection event returned by_ [_**dp\_detector\_push()**_](detector__core_8h.md#function-dp_detector_push) _._
 * **struct** [**dll\_tlm\_t**](structdll__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch per code epoch. Zeroed in state blobs and preserved across set\_state (the hand-written triplet treats it like the borrowed_ `code` _)._
 * **struct** [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) _Cascade state_  _owns all sub-stage C objects._
-* **struct** [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) _AccCf64 state._ 
-* **struct** [**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) _AccF32 state._ 
-* **struct** [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) _AccQ15 state._ 
+* **struct** [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) _AccCf64 state: the single running complex sum._ 
+* **struct** [**dp\_acc\_f32\_state\_t**](structdp__acc__f32__state__t.md) _AccF32 state: one float running sum._ 
+* **struct** [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) _AccQ15 state: one 64-bit integer running sum._ 
 * **struct** [**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) _AccQ8 state._ 
 * **struct** [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) _AccTrace state. Allocate with_ [_**dp\_acc\_trace\_create()**_](acc__trace__core_8h.md#function-dp_acc_trace_create) _._
 * **struct** [**dp\_acq\_state\_t**](structdp__acq__state__t.md) _Streaming acquisition-engine state._ 
@@ -48,14 +48,14 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_agc\_state\_t**](structdp__agc__state__t.md) _AGC state._ 
 * **struct** [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) _AsyncDsssPool state._ 
 * **struct** [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) _Composed receiver state._ 
-* **struct** [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) 
+* **struct** [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) _AWGN generator state (opaque to callers; use the API)._ 
 * **struct** [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) _BerMeter state._ 
 * **struct** [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) _Boxcar moving-average state (cf32)._ 
 * **struct** [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) _BurstAcquisition state: a pure wrapper around one shared_ [_**dp\_acq\_state\_t**_](structdp__acq__state__t.md) _engine._
 * **struct** [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) _BurstCapture state._ 
 * **struct** [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) _BurstDemod state. Allocate with_ [_**dp\_burst\_demod\_create\_desc()**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _._
 * **struct** [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) _BurstDespreader state._ 
-* **struct** [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) _CarrierAcquisition state._ 
+* **struct** [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) _CarrierAcquisition state: owned PSD and detector children, scratch, config and the running detection result._ 
 * **struct** [**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) _M-PSK carrier loop state._ 
 * **struct** [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) _NDA M-th-power carrier loop state._ 
 * **struct** [**dp\_chunk\_t**](structdp__chunk__t.md) _Reassembly geometry, present only when_ [_**DP\_FLAG\_CHUNKED**_](group__wire.md#define-dp_flag_chunked) _._
@@ -79,17 +79,17 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_f32\_to\_i8\_state\_t**](structdp__f32__to__i8__state__t.md) _F32ToI8 state._ 
 * **struct** [**dp\_f32\_to\_uq15\_state\_t**](structdp__f32__to__uq15__state__t.md) _F32ToUQ15 state._ 
 * **struct** [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md) _Farrow interpolator state (4-tap delay line + order)._ 
-* **struct** [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) 
-* **struct** [**dp\_fft\_state\_t**](structdp__fft__state__t.md) 
-* **struct** [**dp\_fir\_state\_t**](structdp__fir__state__t.md) 
+* **struct** [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) _2-D FFT engine state: two fixed ny x nx plans plus scratch._ 
+* **struct** [**dp\_fft\_state\_t**](structdp__fft__state__t.md) _FFT engine state: two fixed-length pocketfft plans (CF64, CF32) plus a lazily allocated truncation scratch._ 
+* **struct** [**dp\_fir\_state\_t**](structdp__fir__state__t.md) _Direct-form FIR filter state (opaque to callers; use the API)._ 
 * **struct** [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md) _Frame-outcome accumulator. Allocate with_ [_**dp\_frame\_meter\_create()**_](frame__meter__core_8h.md#function-dp_frame_meter_create) _._
 * **struct** [**dp\_frame\_state\_t**](structdp__frame__state__t.md) _Frame state._ 
 * **struct** [**dp\_gold\_state\_t**](structdp__gold__state__t.md) _Gold state._ 
-* **struct** [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) 
+* **struct** [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) _HalfbandDecimatorQ15 state: Q15 FIR-branch coefficients, four dual-write int16 delay rings and a one-sample carry._ 
 * **struct** [**dp\_header\_t**](structdp__header__t.md) _Frame metadata carried in every stream message._ 
 * **struct** [**dp\_i16\_to\_f32\_state\_t**](structdp__i16__to__f32__state__t.md) _I16ToF32 state._ 
 * **struct** [**dp\_i16u32\_to\_f32\_state\_t**](structdp__i16u32__to__f32__state__t.md) _I16U32ToF32 state._ 
-* **struct** [**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) _I16U64ToF32 state._ 
+* **struct** [**dp\_i16u64\_to\_f32\_state\_t**](structdp__i16u64__to__f32__state__t.md) _I16U64ToF32 state: the precomputed reciprocal scale._ 
 * **struct** [**dp\_i32\_to\_f32\_state\_t**](structdp__i32__to__f32__state__t.md) _I32ToF32 state._ 
 * **struct** [**dp\_i8\_to\_f32\_state\_t**](structdp__i8__to__f32__state__t.md) _I8ToF32 state._ 
 * **struct** [**dp\_imdmeas\_state\_t**](structdp__imdmeas__state__t.md) _IMDMeasure state: owned window, FFT plan and one-sided power scratch._ 
@@ -104,14 +104,14 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) _NPRMeasure state: owned window, FFT plan and one-sided power scratch._ 
 * **struct** [**dp\_once\_t**](structdp__once__t.md) _The state of one one-time build; start it at_ [_**DP\_ONCE\_INIT**_](dp__once_8h.md#define-dp_once_init) _._
 * **struct** [**dp\_peak\_t**](structdp__peak__t.md) _One spectral peak returned by_ [_**dp\_find\_peaks\_f32()**_](spectral__core_8h.md#function-dp_find_peaks_f32) _._
-* **struct** [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md) 
-* **struct** [**dp\_pn\_state\_t**](structdp__pn__state__t.md) 
-* **struct** [**dp\_pool\_t**](structdp__pool__t.md) 
+* **struct** [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md) _One parallel-for run: the range, the work, and the shared cursor._ 
+* **struct** [**dp\_pn\_state\_t**](structdp__pn__state__t.md) _PN state._ 
+* **struct** [**dp\_pool\_t**](structdp__pool__t.md) _A persistent worker pool for repeated parallel-for runs._ 
 * **struct** [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md) _PolynomialPhaseEstimator state (FFT plan + rate grid + scratch)._ 
 * **struct** [**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) _PSD's per-frame kernel: one frame of n samples in, nfft DC-centred power bins out, and their reading against the full-scale reference._ 
 * **struct** [**dp\_psd\_state\_t**](structdp__psd__state__t.md) _PSD state. Allocate with_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _._
 * **struct** [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) _RateSync state: a matched-filter cascade and the timing loop._ 
-* **struct** [**dp\_reader\_t**](structdp__reader__t.md) 
+* **struct** [**dp\_reader\_t**](structdp__reader__t.md) _Bounds-checked read cursor over a state blob; the mirror of_ [_**dp\_writer\_t**_](structdp__writer__t.md) _with the same sticky-error model (an overrun sets_`err` _, and later reads leave their destination untouched)._
 * **struct** [**dp\_reasm\_stats\_t**](structdp__reasm__stats__t.md) _What reassembling chunked frames has lost on a receiving context._ 
 * **struct** [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md) _A code and the tables derived from it._ 
 * **struct** [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) 
@@ -129,21 +129,21 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_u8\_to\_f32\_state\_t**](structdp__u8__to__f32__state__t.md) _U8ToF32 state._ 
 * **struct** [**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) _UQ15ToF32 state._ 
 * **struct** [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) _A streaming maximum-likelihood (Viterbi) decoder._ 
-* **struct** [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) 
-* **struct** [**dp\_writer\_t**](structdp__writer__t.md) 
+* **struct** [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) _Synth state: one streaming waveform source._ 
+* **struct** [**dp\_writer\_t**](structdp__writer__t.md) _Bounds-checked write cursor over a caller-owned state blob._ 
 * **struct** [**dsss\_br\_event\_t**](structdsss__br__event__t.md) _One completed burst's event, as_ `events()` _hands it back._
-* **struct** [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md) 
+* **struct** [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md) _Receiver-level payload that follows the state envelope: the routing flag, cached hit estimates, the grid (layout key) and the carrier-carry depth._ 
 * **struct** [**frame\_check\_t**](structframe__check__t.md) _What_ [_**dp\_frame\_check**_](frame__core_8h.md#function-dp_frame_check) _found, summed across the stages it reversed._
-* **struct** [**hbdecim\_state\_t**](structhbdecim__state__t.md) 
+* **struct** [**hbdecim\_state\_t**](structhbdecim__state__t.md) _State of a CF32 halfband 2:1 decimator._ 
 * **struct** [**imd\_meas\_t**](structimd__meas__t.md) _Two-tone intermodulation result (IMD2/IMD3/TOI)._ 
 * **struct** [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) _The receiver's loops: timing, carrier, demapper._ 
-* **struct** [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) _Telemetry attachment for the receiver's own two probes; the timing and carrier probes ride their own sub-attachments._ 
+* **struct** [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) _Telemetry attachment for the receiver's own seven probes._ 
 * **struct** [**node\_sync\_t**](structnode__sync__t.md) _What one alignment hypothesis scored, and what the runner-up did._ 
 * **struct** [**npr\_meas\_t**](structnpr__meas__t.md) _Noise Power Ratio (notched-noise loading) result._ 
 * **struct** [**ppe\_result\_t**](structppe__result__t.md) _Polynomial-phase estimate (one search)._ 
 * **struct** [**ratesync\_loop\_t**](structratesync__loop__t.md) _The symbol-timing loop, independent of what feeds it._ 
 * **struct** [**ratesync\_tlm\_t**](structratesync__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then one predicted-not-taken branch per recovered symbol._ 
-* **struct** [**resamp\_state\_t**](structresamp__state__t.md) 
+* **struct** [**resamp\_state\_t**](structresamp__state__t.md) _Polyphase resampler state._ 
 * **struct** [**rs\_code\_t**](structrs__code__t.md) _A Reed-Solomon code over_ `GF(2^J)` _._
 * **struct** [**rs\_t**](structrs__t.md) _A code plus the tables derived from it._ 
 * **struct** [**symsync\_tlm\_t**](structsymsync__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch per recovered symbol. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._ 

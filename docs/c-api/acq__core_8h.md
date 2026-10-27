@@ -424,6 +424,14 @@ Every coupled stage divides a Doppler by the carrier: the hand-off's dilation, a
 
 
 
+**Parameters:**
+
+
+* `carrier_freq_hz` Candidate carrier, Hz; 0 means uncoupled. 
+* `sample_rate_hz` Sample rate of the stream, Hz. 
+
+
+
 **Returns:**
 
 1 if the carrier is taken, 0 otherwise (a NaN is not). 
@@ -614,6 +622,13 @@ Per call: equal to its `n_in` unless the push stopped  `result` full, or too few
 
 
 * `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Samples the last push took from its input. 
+
 
 
 
@@ -846,7 +861,21 @@ double dp_acq_dsl_db (
 
 
 
-What it predicts: one emitter's peak list carries peaks up to this far below its own, more than a mainlobe from its own lag, in the tiles it is not in  and they stay there dwell after dwell, being the code's, not the noise's. A list consumer that skips the strongest peak (a rank, an exclusion) must not take one for a second emitter. It is at least [**dp\_acq\_psl\_db()**](acq__core_8h.md#function-dp_acq_psl_db), which is its zero-offset case, and equals it on a single-tile grid searched at one Doppler. -16.95 dB for the receivers' Gold-1023 search at two samples a chip over +-5 kHz (five 3 kHz tiles), against a -23.9 dB psl. Configuration, not state: fixed at construction, kept by a grid pinned later, and not serialized.
+What it predicts: one emitter's peak list carries peaks up to this far below its own, more than a mainlobe from its own lag, in the tiles it is not in  and they stay there dwell after dwell, being the code's, not the noise's. A list consumer that skips the strongest peak (a rank, an exclusion) must not take one for a second emitter. It is at least [**dp\_acq\_psl\_db()**](acq__core_8h.md#function-dp_acq_psl_db), which is its zero-offset case, and equals it on a single-tile grid searched at one Doppler. -16.95 dB for the receivers' Gold-1023 search at two samples a chip over +-5 kHz (five 3 kHz tiles), against a -23.9 dB psl. Configuration, not state: fixed at construction, kept by a grid pinned later, and not serialized. Computed on the first call and cached in `state` (hence non-const).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Doppler-offset sidelobe level in dB, or -INFINITY when there is none.
 
 
 
@@ -891,6 +920,24 @@ double dp_acq_gate_stat (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The gate, in [**acq\_result\_t::test\_stat**](structacq__result__t.md#variable-test_stat) units. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -907,6 +954,18 @@ void dp_acq_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Destination; at least [**dp\_acq\_state\_bytes()**](acq__core_8h.md#function-dp_acq_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -956,6 +1015,13 @@ if (before != 0 || after != 300)
 
 
 
+**Returns:**
+
+Samples taken since create, reset, a regrid or a restore: those framed plus the carry still pending. 
+
+
+
+
 
         
 
@@ -975,6 +1041,20 @@ double dp_acq_psl_db (
 
 
 What it predicts: a detection's sidelobes sit this far below it, at delays outside the peak zone  where the peak list's exclusion does not reach. So a burst that clears the threshold by more than `-psl_db` also lists its own sidelobe as a second peak (with `max_peaks > 1`), and a strong burst's sidelobe can mask a weak one there. A code's is its periodic floor, 20\*log10(1/31) = -29.8 dB for a 31-chip m-sequence; a perfect sequence (Zadoff-Chu, a Frank-type chirp) has none and reads -INFINITY. Configuration, not state: it is fixed at construction and not serialized.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Peak sidelobe level in dB (&lt;= 0), or -INFINITY.
 
 
 
@@ -1096,6 +1176,13 @@ size_t dp_acq_rate_hypotheses_for (
 
 
 
+**Returns:**
+
+The hypothesis count; 1 when `span` is not positive and finite, `f_epoch` is not positive and finite, or `depth` is 0. 
+
+
+
+
 
         
 
@@ -1116,7 +1203,26 @@ double dp_acq_rate_hypothesis (
 
 
 
-The engine's grid, exported so a composing object searches the SAME rates and not a restatement of them (dp\_burst\_capture's refine). 
+The engine's grid, exported so a composing object searches the SAME rates and not a restatement of them (dp\_burst\_capture's refine).
+
+
+
+
+**Parameters:**
+
+
+* `span` Half-width of the rate search, Hz/s. 
+* `n` Number of hypotheses on the grid. 
+* `h` Hypothesis index, 0 .. n - 1 (not range-checked). 
+
+
+
+**Returns:**
+
+The rate of hypothesis `h`, Hz/s. 
+
+
+
 
 
         
@@ -1137,7 +1243,25 @@ double _Complex dp_acq_rate_phasor (
 
 
 
-What the engine multiplies a block's slow-time axis by, and what refine multiplies its per-period correlations by: one definition of the centring and the sign. 
+What the engine multiplies a block's slow-time axis by, and what refine multiplies its per-period correlations by: one definition of the centring and the sign.
+
+
+
+
+**Parameters:**
+
+
+* `rate` Doppler rate hypothesis, Hz/s. 
+* `t` Time from the block's middle, seconds. 
+
+
+
+**Returns:**
+
+`exp(-j*pi*rate*t^2)`, unit magnitude. 
+
+
+
 
 
         
@@ -1209,7 +1333,23 @@ size_t dp_acq_run (
 
 
 
-The run is one [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push), so it stops where a push stops: once `result` is full, or before a frame that ends a dwell when fewer than min(max\_peaks, `max_results`) slots are left. It may then leave part of `in` untaken. dp\_acq\_consumed(`state`) says how much it took; the caller calls again with `state_out` as the next `state_in` and the rest, in + consumed, and the two runs together equal one over the whole input. 
+The run is one [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push), so it stops where a push stops: once `result` is full, or before a frame that ends a dwell when fewer than min(max\_peaks, `max_results`) slots are left. It may then leave part of `in` untaken. dp\_acq\_consumed(`state`) says how much it took; the caller calls again with `state_out` as the next `state_in` and the rest, in + consumed, and the two runs together equal one over the whole input. A refused `state_in` runs nothing and returns 0, with [**dp\_acq\_consumed()**](acq__core_8h.md#function-dp_acq_consumed) reading 0.
+
+
+
+
+**Parameters:**
+
+
+* `state` Engine (config + scratch); its running state is replaced by `state_in`, or reset when that is NULL. 
+* `state_in` Blob from [**dp\_acq\_get\_state()**](acq__core_8h.md#function-dp_acq_get_state), or NULL for fresh. 
+* `state_out` Destination blob ([**dp\_acq\_state\_bytes()**](acq__core_8h.md#function-dp_acq_state_bytes) bytes), or NULL to discard. 
+* `in` Input cf32 samples. 
+* `n_in` Number of input samples. 
+* `result` Output hits. 
+* `max_results` Capacity of `result`. 
+
+
 
 **Returns:**
 
@@ -1348,6 +1488,14 @@ int dp_acq_set_state (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Engine built from the same descriptor as the writer. 
+* `blob` A blob from [**dp\_acq\_get\_state()**](acq__core_8h.md#function-dp_acq_get_state). 
 
 
 
@@ -1527,6 +1675,24 @@ size_t dp_acq_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The blob size in bytes; it depends on the engine's geometry, so query it per instance. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -1919,6 +2085,10 @@ Most Doppler-rate hypotheses an engine searches. Each one costs a full slow-time
 
 
 
+FourCC type tag ("ACQR") stamped in an acquisition state blob. 
+
+
+        
 
 <hr>
 
@@ -1932,6 +2102,10 @@ Most Doppler-rate hypotheses an engine searches. Each one costs a full slow-time
 
 
 
+Layout version of the acquisition state blob; a mismatch is rejected. v5: the carry is the framer's snapshot (fewer than frame\_n samples) instead of the ring's raw contents, zero-padded to ring\_cap. v6: [**acq\_extra\_t**](structacq__extra__t.md) carries the rate-hypothesis count. 
+
+
+        
 
 <hr>
 

@@ -26,10 +26,10 @@ extern "C"
 
   typedef struct
   {
-    float _Complex *taps;    /* complex taps  (NULL for real-tap filter)   */
-    float *rtaps;           /* real taps     (NULL for complex-tap filter) */
-    float _Complex *delay;   /* delay line, length num_taps - 1            */
-    float _Complex *scratch; /* [delay | input] workspace, grown on demand  */
+    float _Complex *taps;
+    float *rtaps;
+    float _Complex *delay;
+    float _Complex *scratch;
     size_t scratch_cap;
     size_t num_taps;
   } dp_fir_state_t;

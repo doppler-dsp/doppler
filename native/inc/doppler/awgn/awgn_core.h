@@ -15,7 +15,7 @@
  * 64-bit RNG outputs per complex output sample:
  *
  *   u1 ∈ (0, 1]  (top 24 bits of first 64-bit word, +1 offset, /2^24)
- *   idx ∈ [0, 65535]  (top 16 bits of second 64-bit word)
+ *   idx ∈ `[0, 65535]`  (top 16 bits of second 64-bit word)
  *   r     = amplitude * sqrt(−2 · ln u1)
  *   θ     = 2π · idx / 65536  (65536-entry sin/cos table, SFDR ≈ 96 dBc)
  *   out   = r·cos θ  +  j·r·sin θ
@@ -124,14 +124,14 @@ extern "C"
   size_t dp_awgn_state_bytes (const dp_awgn_state_t *state);
   /** @brief Serialize the RNG state, seed and amplitude into @p blob.
    *  @param state Generator state. Must be non-NULL.
-   *  @param blob  [out] At least dp_awgn_state_bytes() bytes. */
+   *  @param[out] blob  At least dp_awgn_state_bytes() bytes. */
   void dp_awgn_get_state (const dp_awgn_state_t *state, void *blob);
   /** @brief Restore the RNG state, seed and amplitude; DP_OK, or
    *  DP_ERR_INVALID if rejected (and nothing changes).
    *  Rejected: a bad envelope (magic, version, endianness, size), an
    *  amplitude outside dp_awgn_amplitude_ok(), or an all-zero RNG state.
    *  @param state Generator state to overwrite. Must be non-NULL.
-   *  @param blob  [in] Blob from dp_awgn_get_state().
+   *  @param[in] blob  Blob from dp_awgn_get_state().
    *  @return DP_OK, or DP_ERR_INVALID. */
   int dp_awgn_set_state (dp_awgn_state_t *state, const void *blob);
 

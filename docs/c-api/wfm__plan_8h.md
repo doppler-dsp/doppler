@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](wfm__plan_8h_source.md)
 
-
+_"Prepare once, materialize many" stimulus engine._ [More...](#detailed-description)
 
 * `#include "doppler/dp_complex.h"`
 * `#include <stddef.h>`
@@ -105,6 +105,28 @@
 | ---: | :--- |
 | define  | [**DP\_WFM\_PLAN\_WHY\_NO\_NOISE**](wfm__plan_8h.md#define-dp_wfm_plan_why_no_noise)  `/* multi line expression */`<br>_Why a Plan refuses an_ `snr` _: its scene carries no noise._ |
 
+## Detailed Description
+
+
+A composed scene is a sequence of segments, each a linear form  ([**dp\_wfm\_resolve\_noise()**](wfm__compose_8h.md#function-dp_wfm_resolve_noise) cleans every signal source and appends one WFM\_SYNTH\_NOISE source at the shared floor, for a multi-source segment; a lone source carrying its own real SNR keeps it — its AWGN is baked into its own synth, "bundled"). The expensive DSP — LFSR spread, RRC convolution, transcendental LO — lives entirely in the signal terms, which are INVARIANT across a parameter sweep and across a segment's `repeats` instances (only the AWGN, and any ranged gap length, vary per instance). So a Plan renders each segment's signal ON-time ONCE (via the composer's own dp\_wfm\_compose\_build\_synth, so a cached render is byte-identical to a full compose), caches it, and then re-materializes any variation as a cheap re-weighted sum per segment/instance plus a regenerated noise synth spanning that instance's delay+on+off:  \| noise(off) ]
+
+
+v1 axes (all bit-exact vs a full compose): per-source gain/level, phase, enable/disable, global SNR/noise-floor and Monte-Carlo noise-seed — applied uniformly across every segment/instance that carries noise. Clock Doppler is served too, by a different mechanism: the cache holds the signal BEFORE the channel, and the channel is run at render time over it (see [**dp\_wfm\_plan\_prepare()**](wfm__plan_8h.md#function-dp_wfm_plan_prepare)). Multipath delay is a staged follow-up.
+
+
+Scope: any number of finite segments (no continuous/repeat scene — that has no fixed capacity); each segment may declare `repeats` (bounded instancing, AWGN fresh per instance, signal fixed) and ranged `off_samples`/`delay_samples` (redrawn per instance at materialize time, via the same deterministic hash the streaming composer uses). Still out of scope: a ranged on-time (`num_samples`) — it would invalidate the fixed-length signal cache — and any ranged per-source field (freq/snr/level/f\_end) — redrawing a source's frequency or SNR would invalidate its cached render, defeating the "expensive DSP once" guarantee this exists to provide.
+
+
+`dp_wfm_plan_len()` is a WORST-CASE capacity (every ranged gap at its `hi` bound): `render()`/`at()` write up to that many samples but return the ACTUAL length of that specific draw — trailing samples beyond the return value are zero padding. A `seed` override drives both the noise realization AND (for a scene with a ranged gap/delay) the gap/delay redraw; the "no-override reproduces wfm\_compose to the bit" guarantee is scoped to `render()` with no `"seed"` key (or `NULL`/`"{}"` overrides) — each segment then draws from its own baked default seed (its first source's `seed` field), same as a plain compose. `at()`'s `seed` is always an explicit override (parallel to its always-explicit `snr`), so it does not carry that baseline guarantee for a ranged-gap scene.
+
+
+`gains`/`phases`/`enable` override arrays are flat and segment-major (segment 0's sources in scene order, then segment 1's, ...) — length `dp_wfm_plan_n_sources()`.
+
+
+The Plan is a re-creatable derived cache, not evolving state. The cheapest, most portable persistence is therefore the spec JSON (Composer.to\_json()) plus a rebuild — KB, and always tracks the current DSP. [**dp\_wfm\_plan\_save()**](wfm__plan_8h.md#function-dp_wfm_plan_save) / [**dp\_wfm\_plan\_restore()**](wfm__plan_8h.md#function-dp_wfm_plan_restore) are the OPTIONAL fast-path alternative: they serialize the cached sample buffers alongside the embedded spec so a restore SKIPS the expensive DSP (build\_synth) that dominates prepare(). This is a versioned performance cache, NOT the [**dp\_state.h**](dp__state_8h.md) elastic-state contract — it is gated by a build-time DSP fingerprint (wfm\_plan\_dsp\_hash.h), and on any mismatch (different DSP build, or a spec/buffer inconsistency) restore transparently REBUILDS from the embedded spec rather than reinterpreting stale bytes. So a restore is never silently wrong: worst case it is as slow as prepare(); best case (matching build) it is a memcpy. Prefer save/restore only when the DSP cost is high and the spec-rebuild is undesirable (e.g. fanning one prepared Plan across many workers); otherwise persist the spec and rebuild. 
+
+
+    
 ## Public Types Documentation
 
 
@@ -140,7 +162,24 @@ uint64_t dp_wfm_plan_anchor_seed (
 
 
 
-The first noisy segment's default seed (its first source's `seed` field). Passing this as `dp_wfm_plan_at`'s seed (with the scene's base SNR) yields the byte-identical output of `wfm_compose` for a single-segment scene; for a multi-segment scene each segment still draws from its own default seed unless overridden. Varying the seed draws independent Monte-Carlo noise (and, for a ranged-gap scene, timing) realizations. 
+The first noisy segment's default seed (its first source's `seed` field). Passing this as `dp_wfm_plan_at`'s seed (with the scene's base SNR) yields the byte-identical output of `wfm_compose` for a single-segment scene; for a multi-segment scene each segment still draws from its own default seed unless overridden. Varying the seed draws independent Monte-Carlo noise (and, for a ranged-gap scene, timing) realizations.
+
+
+
+
+**Parameters:**
+
+
+* `p` The Plan, or NULL. 
+
+
+
+**Returns:**
+
+The first noisy segment's noise seed; 0 for a NULL Plan or a scene with no noisy segment. 
+
+
+
 
 
         
@@ -165,6 +204,16 @@ size_t dp_wfm_plan_at (
 
 `out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance; writes up to `dp_wfm_plan_len(p)` samples. Equivalent to `render` with only `{"snr":snr,"seed":seed}` — `seed` is always an explicit override here, and so is `snr`: on a Plan whose scene carries no noise it is refused (see [**dp\_wfm\_plan\_check\_snr()**](wfm__plan_8h.md#function-dp_wfm_plan_check_snr)).
 
+
+
+
+**Parameters:**
+
+
+* `p` The Plan. 
+* `snr` SNR override, dB, in the units of the scene's own snr\_mode; a segment whose noise floor was set explicitly keeps that floor. 
+* `seed` Noise (and ranged-gap) seed override. Only its low 32 bits are used: the seeds it replaces are 32-bit. 
+* `out` Receives the samples; must hold dp\_wfm\_plan\_len(p) of them. 
 
 
 
@@ -212,6 +261,13 @@ ValueError: this scene carries no noise, so the Plan has no noise floor for snr 
 
 
 
+**Parameters:**
+
+
+* `p` The Plan; NULL is refused like a noiseless scene. 
+
+
+
 **Returns:**
 
 0 (DP\_OK) when some segment carries noise; DP\_ERR\_INVALID (-4) when none does, for the reason DP\_WFM\_PLAN\_WHY\_NO\_NOISE. 
@@ -238,6 +294,17 @@ void dp_wfm_plan_destroy (
 
 
 
+
+**Parameters:**
+
+
+* `p` The Plan, or NULL. 
+
+
+
+
+        
+
 <hr>
 
 
@@ -256,9 +323,17 @@ int dp_wfm_plan_dump (
 
 
 
+**Parameters:**
+
+
+* `p` The Plan. 
+* `path` File to create or truncate. 
+
+
+
 **Returns:**
 
-0 on success, non-zero on an open/write error. 
+0 on success; -1 on a NULL argument, an allocation failure, or an open/write/close error. 
 
 
 
@@ -282,6 +357,24 @@ size_t dp_wfm_plan_len (
 
 
 
+
+**Parameters:**
+
+
+* `p` The Plan, or NULL. 
+
+
+
+**Returns:**
+
+Capacity in samples that `out` must hold for render()/at(); 0 for a NULL Plan. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -299,6 +392,13 @@ wfm_plan_t * dp_wfm_plan_load (
 
 Same fingerprint semantics as [**dp\_wfm\_plan\_restore()**](wfm__plan_8h.md#function-dp_wfm_plan_restore): a matching build loads the cached buffers, a mismatch rebuilds from the embedded spec.
 
+
+
+
+**Parameters:**
+
+
+* `path` File written by [**dp\_wfm\_plan\_dump()**](wfm__plan_8h.md#function-dp_wfm_plan_dump). 
 
 
 
@@ -327,6 +427,24 @@ size_t dp_wfm_plan_n_sources (
 
 
 
+
+
+**Parameters:**
+
+
+* `p` The Plan, or NULL. 
+
+
+
+**Returns:**
+
+Source count; 0 for a NULL Plan. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -390,6 +508,18 @@ size_t dp_wfm_plan_render (
 
 `overrides_json` is a small JSON object, all keys optional: `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB, "seed":u}` (`gains`/`phases`/`enable` are per-source, flat and segment-major, length = [**dp\_wfm\_plan\_n\_sources()**](wfm__plan_8h.md#function-dp_wfm_plan_n_sources)). An empty object (or NULL) renders the baseline — bit-identical to `Composer(scene).compose()`. Writes up to `dp_wfm_plan_len(p)` samples to `out`. An `"snr"` key on a Plan whose scene carries no noise is refused (see [**dp\_wfm\_plan\_check\_snr()**](wfm__plan_8h.md#function-dp_wfm_plan_check_snr)).
 
+
+Keys are read leniently: overrides that do not parse as JSON render the baseline, a `gains`/`phases`/`enable` array whose length is not [**dp\_wfm\_plan\_n\_sources()**](wfm__plan_8h.md#function-dp_wfm_plan_n_sources) (or, for `gains`/`phases`, that holds a non-number) is ignored, and a non-numeric `snr`/`seed` is ignored. An `enable` entry is on when it is `true` or a non-zero number.
+
+
+
+
+**Parameters:**
+
+
+* `p` The Plan; NULL renders nothing and returns 0. 
+* `overrides_json` NUL-terminated override object, or NULL / "" for the baseline. 
+* `out` Receives the samples; must hold dp\_wfm\_plan\_len(p) of them. 
 
 
 
@@ -458,7 +588,25 @@ size_t dp_wfm_plan_save (
 
 
 
-Native-endian. The blob embeds the spec JSON, so a restore is self-contained. Returns the number of bytes written (== dp\_wfm\_plan\_save\_bytes(p)) — the actual-length contract a variable-output binding needs, so `save() -> bytes` generates with no hand-written glue. 
+Native-endian. The blob embeds the spec JSON, so a restore is self-contained. Returns the number of bytes written (== dp\_wfm\_plan\_save\_bytes(p)) — the actual-length contract a variable-output binding needs, so `save() -> bytes` generates with no hand-written glue.
+
+
+
+
+**Parameters:**
+
+
+* `p` The Plan. 
+* `blob` Receives the blob; must hold dp\_wfm\_plan\_save\_bytes(p) bytes. 
+
+
+
+**Returns:**
+
+Bytes written; 0 (nothing written) if `p` or `blob` is NULL. 
+
+
+
 
 
         
@@ -478,7 +626,24 @@ size_t dp_wfm_plan_save_bytes (
 
 
 
-The number of bytes [**dp\_wfm\_plan\_save()**](wfm__plan_8h.md#function-dp_wfm_plan_save) writes: a small envelope with the DSP fingerprint, the embedded spec JSON, and every cached signal buffer. Dominated by the buffers (Σ per-source num\_samples · 8 bytes) — multi-MB for a large scene, which is exactly why the spec-rebuild path is the default. 
+The number of bytes [**dp\_wfm\_plan\_save()**](wfm__plan_8h.md#function-dp_wfm_plan_save) writes: a small envelope with the DSP fingerprint, the embedded spec JSON, and every cached signal buffer. Dominated by the buffers (Σ per-source num\_samples · 8 bytes) — multi-MB for a large scene, which is exactly why the spec-rebuild path is the default.
+
+
+
+
+**Parameters:**
+
+
+* `p` The Plan, or NULL. 
+
+
+
+**Returns:**
+
+Blob size in bytes; 0 for a NULL Plan. 
+
+
+
 
 
         

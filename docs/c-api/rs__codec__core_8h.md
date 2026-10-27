@@ -432,6 +432,25 @@ size_t dp_rs_codec_encode_max_out (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `n_in` Ignored: a codeword is `n` symbols whatever it encodes. 
+
+
+
+**Returns:**
+
+`n` symbols. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -504,6 +523,24 @@ size_t dp_rs_codec_get_e (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+`E`, in symbols. 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -519,6 +556,24 @@ size_t dp_rs_codec_get_k (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+`k`, in symbols. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -536,6 +591,24 @@ size_t dp_rs_codec_get_n (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+`n`, in symbols (255 for J = 8). 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -552,6 +625,24 @@ size_t dp_rs_codec_get_nroots (
 
 
 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+`nroots`, as passed to [**dp\_rs\_codec\_create()**](rs__codec__core_8h.md#function-dp_rs_codec_create). 
+
+
+
+
+
+        
+
 <hr>
 
 
@@ -567,6 +658,24 @@ size_t dp_rs_codec_get_symbol_bits (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+`J`, 2..8, as passed to [**dp\_rs\_codec\_create()**](rs__codec__core_8h.md#function-dp_rs_codec_create). 
+
+
+
+
+
+        
 
 <hr>
 
@@ -641,6 +750,25 @@ size_t dp_rs_codec_syndromes_max_out (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `n_in` Ignored: the syndrome count does not depend on it. 
+
+
+
+**Returns:**
+
+`nroots` symbols. 
+
+
+
+
+
+        
 
 <hr>
 

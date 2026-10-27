@@ -23,10 +23,9 @@ extern "C"
 
   typedef struct
   {
-    uint64_t s[4];      /* xoshiro256++ scalar state             */
-    uint64_t seed;      /* the seed dp_awgn_reset() replays: create's,
-                           or the last reseed's or restored blob's     */
-    float    amplitude;
+    uint64_t s[4];      
+    uint64_t seed;      
+    float    amplitude; 
   } dp_awgn_state_t;
 
   dp_awgn_state_t *dp_awgn_create (uint64_t seed, float amplitude);

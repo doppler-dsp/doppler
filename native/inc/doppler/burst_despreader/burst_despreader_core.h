@@ -454,7 +454,7 @@ size_t dp_burst_despreader_state_bytes (const dp_burst_despreader_state_t *state
 /** @brief Serialize @p state (loops, NCO, code phase, accumulators, burst
  *  statistics, bandwidths, preamble progress and acq code) into @p blob.
  *  @param state  Must be non-NULL; not modified.
- *  @param blob   [out] Caller-owned buffer of at least
+ *  @param[out] blob   Caller-owned buffer of at least
  *                dp_burst_despreader_state_bytes() bytes. */
 void dp_burst_despreader_get_state (const dp_burst_despreader_state_t *state, void *blob);
 /** @brief Restore @p state from @p blob, all or nothing.

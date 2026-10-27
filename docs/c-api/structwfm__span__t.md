@@ -106,6 +106,10 @@ size_t wfm_span_t::delay;
 
 
 
+leading gap length (samples) 
+
+
+        
 
 <hr>
 
@@ -119,6 +123,10 @@ size_t wfm_span_t::instance;
 
 
 
+repeats instance, 0-based 
+
+
+        
 
 <hr>
 
@@ -132,6 +140,10 @@ size_t wfm_span_t::off;
 
 
 
+trailing gap length (samples) 
+
+
+        
 
 <hr>
 
@@ -145,6 +157,10 @@ size_t wfm_span_t::on;
 
 
 
+on-time length (samples) 
+
+
+        
 
 <hr>
 
@@ -158,6 +174,10 @@ size_t wfm_span_t::seg;
 
 
 
+segment index in the spec 
+
+
+        
 
 <hr>
 
@@ -171,6 +191,10 @@ size_t wfm_span_t::start;
 
 
 
+absolute sample index where the instance begins 
+
+
+        
 
 <hr>
 

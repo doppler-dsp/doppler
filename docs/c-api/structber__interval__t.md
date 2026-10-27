@@ -179,7 +179,7 @@ double ber_interval_t::p_hat;
 
 
 
-Unbiased point estimate `(r-1)/(N-1)`. 
+Point estimate: unbiased `(r-1)/(N-1)` for r &gt;= 2, `r/N` at r = 1, 0 at r = 0, NAN when N = 0. 
  
 
 

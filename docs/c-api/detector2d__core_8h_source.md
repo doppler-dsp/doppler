@@ -26,10 +26,10 @@ extern "C" {
 #define DET_NOISE_MODE_T_DEFINED
 typedef enum
 {
-  DET_NOISE_MEAN = 0,
-  DET_NOISE_MEDIAN = 1,
-  DET_NOISE_MIN = 2,
-  DET_NOISE_MAX = 3,
+  DET_NOISE_MEAN = 0,   
+  DET_NOISE_MEDIAN = 1, 
+  DET_NOISE_MIN = 2,    
+  DET_NOISE_MAX = 3,    
 } det_noise_mode_t;
 #endif /* DET_NOISE_MODE_T_DEFINED */
 
@@ -70,14 +70,14 @@ typedef struct
   size_t ring_cap;          
   size_t noise_lo;          
   size_t noise_hi;          
-  det_noise_mode_t noise_mode;
+  det_noise_mode_t noise_mode; 
   float threshold;          
   /* Last dump results — updated on every dump regardless of threshold. */
-  size_t peak_row;
-  size_t peak_col;
-  float peak_mag;
-  float noise_est;
-  float test_stat;
+  size_t peak_row;          
+  size_t peak_col;          
+  float peak_mag;           
+  float noise_est;          
+  float test_stat;          
   int _last_corr_valid;     
   size_t consumed;          
 } dp_detector2d_state_t;

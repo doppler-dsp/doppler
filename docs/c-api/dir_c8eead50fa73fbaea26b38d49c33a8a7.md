@@ -21,7 +21,7 @@
 
 | Type | Name |
 | ---: | :--- |
-| file | [**clib\_common.h**](clib__common_8h.md) <br> |
+| file | [**clib\_common.h**](clib__common_8h.md) <br>_Common C99 types and performance macros for doppler._  |
 | file | [**doppler.h**](doppler_8h.md) <br> |
 | file | [**dp\_complex.h**](dp__complex_8h.md) <br>_The complex-math surface, routed so it survives Windows._  |
 | file | [**dp\_crc16.h**](dp__crc16_8h.md) <br>_CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._  |
@@ -29,13 +29,13 @@
 | file | [**dp\_hash64.h**](dp__hash64_8h.md) <br>_FNV-1a 64 over bytes, incrementally: the one content hash in doppler._  |
 | file | [**dp\_interleave.h**](dp__interleave_8h.md) <br>_Block interleaving — the permutation, and nothing else._  |
 | file | [**dp\_interrupt.h**](dp__interrupt_8h.md) <br>_Asking a blocking wait to stop, whatever it is waiting on._  |
-| file | [**dp\_interrupt\_pyadopt.h**](dp__interrupt__pyadopt_8h.md) <br> |
+| file | [**dp\_interrupt\_pyadopt.h**](dp__interrupt__pyadopt_8h.md) <br>_The process-global interrupt rendezvous, for a hand-written (_ `no_generate` _) CPython binding._ |
 | file | [**dp\_isotime.h**](dp__isotime_8h.md) <br>_ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for names doppler writes,_**extended** _for the wire formats that mandate it._ |
 | file | [**dp\_once.h**](dp__once_8h.md) <br>_Run a function exactly once, however many threads ask at once._  |
-| file | [**dp\_parallel.h**](dp__parallel_8h.md) <br> |
+| file | [**dp\_parallel.h**](dp__parallel_8h.md) <br>_A minimal bounded parallel-for over an index range, and a persistent pool with the same contract._  |
 | file | [**dp\_simd.h**](dp__simd_8h.md) <br>_doppler's own composite SIMD reductions, layered over_ `jm_simd.h` _._ |
-| file | [**dp\_state.h**](dp__state_8h.md) <br> |
-| file | [**dp\_state\_pyhelp.h**](dp__state__pyhelp_8h.md) <br> |
+| file | [**dp\_state.h**](dp__state_8h.md) <br>_The standard state_ **bytes interface** _for doppler._ |
+| file | [**dp\_state\_pyhelp.h**](dp__state__pyhelp_8h.md) <br>_The state bytes interface for hand-written (no\_generate) CPython bindings._  |
 | file | [**dp\_syncword.h**](dp__syncword_8h.md) <br>_Finding a known bit pattern in an unpacked bit stream — the sync word search, and the arithmetic for choosing its threshold._  |
 | file | [**dp\_thread.h**](dp__thread_8h.md) <br>_The threading primitives doppler uses, with one platform split._  |
 | file | [**jm\_perf.h**](jm__perf_8h.md) <br> |

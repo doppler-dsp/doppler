@@ -40,7 +40,7 @@ _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, a
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**det\_noise\_mode\_t**](#enum-det_noise_mode_t)  <br> |
+| enum  | [**det\_noise\_mode\_t**](#enum-det_noise_mode_t)  <br>_Selects how noise power is estimated from the correlation magnitude vector over bins &#91;noise\_lo, noise\_hi&#93;._  |
 
 
 
@@ -68,13 +68,13 @@ _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, a
 |  size\_t | [**dp\_detector\_consumed**](#function-dp_detector_consumed) (const [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_detector\_push()**_](detector__core_8h.md#function-dp_detector_push) _took._ |
 |  [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* | [**dp\_detector\_create**](#function-dp_detector_create) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**dp\_corr\_state\_t**_](structdp__corr__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow\_two(max(n, 512)) complex samples._ |
 |  void | [**dp\_detector\_destroy**](#function-dp_detector_destroy) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Destroy and free a detector instance._  |
-|  void | [**dp\_detector\_get\_state**](#function-dp_detector_get_state) (const [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, void \* blob) <br> |
+|  void | [**dp\_detector\_get\_state**](#function-dp_detector_get_state) (const [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, void \* blob) <br>_Serialize the correlator, the carry and the last-dump fields._  |
 |  size\_t | [**dp\_detector\_push**](#function-dp_detector_push) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**det\_result\_t**](structdet__result__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the detector pipeline. Takes the input in order, runs each complete n-sample frame through the correlator, and on every int-dump computes the test statistic peak\_mag / noise\_est. Detections that pass the threshold are appended to the Python return list as (lag, peak\_mag, noise\_est, test\_stat) tuples. In Python the result is always a list, even when empty._  |
-|  void | [**dp\_detector\_reset**](#function-dp_detector_reset) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Reset the correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object._  |
+|  void | [**dp\_detector\_reset**](#function-dp_detector_reset) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Reset the correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object, except that the last-dump fields (peak\_lag, peak\_mag, noise\_est, test\_stat) keep their values until the next dump._ [_**dp\_detector\_consumed()**_](detector__core_8h.md#function-dp_detector_consumed) _reads 0 afterwards._ |
 |  void | [**dp\_detector\_set\_ref**](#function-dp_detector_set_ref) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference signal and recompute conj(FFT(ref))._  |
-|  int | [**dp\_detector\_set\_state**](#function-dp_detector_set_state) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const void \* blob) <br> |
+|  int | [**dp\_detector\_set\_state**](#function-dp_detector_set_state) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const void \* blob) <br>_Restore the correlator, the carry and the last-dump fields._  |
 |  void | [**dp\_detector\_set\_threshold**](#function-dp_detector_set_threshold) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, float threshold) <br>_Change the threshold without rebuilding the object._  |
-|  size\_t | [**dp\_detector\_state\_bytes**](#function-dp_detector_state_bytes) (const [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br> |
+|  size\_t | [**dp\_detector\_state\_bytes**](#function-dp_detector_state_bytes) (const [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Size in bytes of the blob_ [_**dp\_detector\_get\_state()**_](detector__core_8h.md#function-dp_detector_get_state) _writes._ |
 
 
 
@@ -106,9 +106,9 @@ _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, a
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DETECTOR\_STATE\_MAGIC**](detector__core_8h.md#define-detector_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','E','T','1')`<br> |
-| define  | [**DETECTOR\_STATE\_VERSION**](detector__core_8h.md#define-detector_state_version)  `2u`<br> |
-| define  | [**DET\_NOISE\_MODE\_T\_DEFINED**](detector__core_8h.md#define-det_noise_mode_t_defined)  <br>_Selects how noise power is estimated from the correlation magnitude vector over bins &#91;noise\_lo, noise\_hi&#93;._  |
+| define  | [**DETECTOR\_STATE\_MAGIC**](detector__core_8h.md#define-detector_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','E','T','1')`<br>_Envelope magic ("DET1") identifying a detector state blob._  |
+| define  | [**DETECTOR\_STATE\_VERSION**](detector__core_8h.md#define-detector_state_version)  `2u`<br>_Layout version of the detector state blob (see above)._  |
+| define  | [**DET\_NOISE\_MODE\_T\_DEFINED**](detector__core_8h.md#define-det_noise_mode_t_defined)  <br>_Guard: det\_noise\_mode\_t is defined (shared with detector2d)._  |
 
 ## Detailed Description
 
@@ -155,6 +155,7 @@ dp_detector_destroy(det);
 
 ### enum det\_noise\_mode\_t 
 
+_Selects how noise power is estimated from the correlation magnitude vector over bins &#91;noise\_lo, noise\_hi&#93;._ 
 ```C++
 enum det_noise_mode_t {
     DET_NOISE_MEAN = 0,
@@ -166,6 +167,10 @@ enum det_noise_mode_t {
 
 
 
+The test statistic is peak\_mag / noise\_est. A zero noise\_est (e.g., when all bins in the range are zero) yields test\_stat = 0. 
+
+
+        
 
 <hr>
 ## Public Functions Documentation
@@ -193,6 +198,13 @@ Equal to its `n_in` unless `result` filled up; then the caller resumes at in + c
 
 
 * `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Input samples (CF32) taken by the last push. 
+
 
 
 
@@ -290,6 +302,7 @@ void dp_detector_destroy (
 
 ### function dp\_detector\_get\_state 
 
+_Serialize the correlator, the carry and the last-dump fields._ 
 ```C++
 void dp_detector_get_state (
     const dp_detector_state_t * state,
@@ -299,6 +312,18 @@ void dp_detector_get_state (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Caller-owned buffer of at least [**dp\_detector\_state\_bytes()**](detector__core_8h.md#function-dp_detector_state_bytes) bytes. 
+
+
+
+
+        
 
 <hr>
 
@@ -365,7 +390,7 @@ Number of [**det\_result\_t**](structdet__result__t.md) entries written to `resu
 
 ### function dp\_detector\_reset 
 
-_Reset the correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object._ 
+_Reset the correlator, the carry, and last-corr flag. Discards any partial frame carried between pushes and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object, except that the last-dump fields (peak\_lag, peak\_mag, noise\_est, test\_stat) keep their values until the next dump._ [_**dp\_detector\_consumed()**_](detector__core_8h.md#function-dp_detector_consumed) _reads 0 afterwards._
 ```C++
 void dp_detector_reset (
     dp_detector_state_t * state
@@ -373,6 +398,13 @@ void dp_detector_reset (
 ```
 
 
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL.
 
 
 ```C++
@@ -429,6 +461,7 @@ Also resets (see [**dp\_detector\_reset()**](detector__core_8h.md#function-dp_de
 
 ### function dp\_detector\_set\_state 
 
+_Restore the correlator, the carry and the last-dump fields._ 
 ```C++
 int dp_detector_set_state (
     dp_detector_state_t * state,
@@ -438,6 +471,28 @@ int dp_detector_set_state (
 
 
 
+Afterwards the last correlation surface is unavailable (it is not in the blob) and [**dp\_detector\_consumed()**](detector__core_8h.md#function-dp_detector_consumed) reads 0. A rejected outer envelope leaves `state` unchanged; the nested children are restored in order (corr, then framer), so a rejected framer child leaves the correlator already restored.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL; built with the same configuration as the blob's source. 
+* `blob` A blob produced by [**dp\_detector\_get\_state()**](detector__core_8h.md#function-dp_detector_get_state). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the envelope or a child blob does not match. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -474,6 +529,7 @@ void dp_detector_set_threshold (
 
 ### function dp\_detector\_state\_bytes 
 
+_Size in bytes of the blob_ [_**dp\_detector\_get\_state()**_](detector__core_8h.md#function-dp_detector_get_state) _writes._
 ```C++
 size_t dp_detector_state_bytes (
     const dp_detector_state_t * state
@@ -482,6 +538,24 @@ size_t dp_detector_state_bytes (
 
 
 
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Envelope + corr child + framer child + 8 + 3 \* 4 bytes; fixed for a given configuration. 
+
+
+
+
+
+        
 
 <hr>
 ## Macro Definition Documentation
@@ -492,6 +566,7 @@ size_t dp_detector_state_bytes (
 
 ### define DETECTOR\_STATE\_MAGIC 
 
+_Envelope magic ("DET1") identifying a detector state blob._ 
 ```C++
 #define DETECTOR_STATE_MAGIC `DP_FOURCC ('D','E','T','1')`
 ```
@@ -505,6 +580,7 @@ size_t dp_detector_state_bytes (
 
 ### define DETECTOR\_STATE\_VERSION 
 
+_Layout version of the detector state blob (see above)._ 
 ```C++
 #define DETECTOR_STATE_VERSION `2u`
 ```
@@ -518,17 +594,13 @@ size_t dp_detector_state_bytes (
 
 ### define DET\_NOISE\_MODE\_T\_DEFINED 
 
-_Selects how noise power is estimated from the correlation magnitude vector over bins &#91;noise\_lo, noise\_hi&#93;._ 
+_Guard: det\_noise\_mode\_t is defined (shared with detector2d)._ 
 ```C++
 #define DET_NOISE_MODE_T_DEFINED 
 ```
 
 
 
-The test statistic is peak\_mag / noise\_est. A zero noise\_est (e.g., when all bins in the range are zero) yields test\_stat = 0. 
-
-
-        
 
 <hr>
 

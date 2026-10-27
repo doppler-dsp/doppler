@@ -49,7 +49,8 @@ F32ToI8Obj_init (F32ToI8Object *self, PyObject *args, PyObject *kwds)
   self->handle = dp_f32_to_i8_create (scale);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_f32_to_i8_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "F32ToI8: scale must be positive and finite");
       return -1;
     }
   return 0;
@@ -285,6 +286,9 @@ static PyMethodDef F32ToI8Obj_methods[] = {
     "though it would round to 127). At the default scale of 128 a normalised\n"
     "`[-1, +1]` input maps to the full 8-bit code range.\n"
     "\n"
+    "A NaN input counts as clipped: it latches clipped and returns the\n"
+    "negative full-scale code, -128.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "x : float\n"
@@ -440,6 +444,13 @@ static PyTypeObject F32ToI8ObjType = {
     "    Multiply factor applied before rounding and saturation (default:\n"
     "    128.0f). Use 128.0 to convert a normalised `[-1, +1]` signal to the\n"
     "    full 8-bit range.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``F32ToI8: scale "
+    "must\n"
+    "    be positive and finite``.\n"
     "\n"
     "Examples\n"
     "--------\n"

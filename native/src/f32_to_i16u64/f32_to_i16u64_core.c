@@ -3,7 +3,7 @@
 dp_f32_to_i16u64_state_t *
 dp_f32_to_i16u64_create (float scale)
 {
-  if (scale <= 0.0f)
+  if (!dp_positive_finite (scale))
     return NULL;
   dp_f32_to_i16u64_state_t *state = calloc (1, sizeof (*state));
   if (!state)

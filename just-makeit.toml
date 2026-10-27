@@ -351,9 +351,12 @@ nogil = true
 [[module.wfm_plan.methods.args]]
 name = "snr"
 type = "double"
+# uint32_t, not the C signature's uint64_t: every seed a Plan feeds is 32-bit
+# and dp_wfm_plan_at() refuses a larger one (#2645), so the binding refuses it
+# at the parse (OverflowError) instead of returning an empty draw.
 [[module.wfm_plan.methods.args]]
 name = "seed"
-type = "uint64_t"
+type = "uint32_t"
 
 # #1695: a scene with no noise has no floor for an snr to move. at() and a
 # render "snr" return 0 in C; this is the face that says why, raised before
@@ -365,6 +368,20 @@ fn = "dp_wfm_plan_check_snr"
 returns = "int"
 error = "ValueError"
 error_message = "this scene carries no noise, so the Plan has no noise floor for snr to move: give a source a finite snr (below 100 dB) and an snr_mode"
+
+# #2645: an override render() cannot honour (unknown key, a per-source array
+# of the wrong length, a non-number entry, a seed outside 0..2^32-1) renders
+# nothing in C. This is the face that raises, before the draw; the C
+# dp_wfm_plan_check_overrides_why() names the specific reason.
+[[module.wfm_plan.methods]]
+name = "check_overrides"
+fn = "dp_wfm_plan_check_overrides"
+returns = "int"
+error = "ValueError"
+error_message = "overrides refused: only the keys gains, phases, enable (each an array of n_sources numbers; enable may hold bools), snr (a number) and seed (an integer in 0..4294967295)"
+[[module.wfm_plan.methods.args]]
+name = "overrides_json"
+type = "string"
 
 # Scalar introspection (no-arg → scalar): the Python wrapper reads anchor_seed
 # for render()'s default seed and n_sources to size override arrays.

@@ -49,8 +49,8 @@ UQ15ToF32Obj_init (UQ15ToF32Object *self, PyObject *args, PyObject *kwds)
   self->handle = dp_uq15_to_f32_create (scale);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_uq15_to_f32_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "UQ15ToF32: scale must be positive and finite");
       return -1;
     }
   return 0;
@@ -322,8 +322,15 @@ static PyTypeObject UQ15ToF32ObjType = {
     "scale : float, default 32768.0\n"
     "    Denominator applied after offset-binary bias removal (default:\n"
     "    32768.0f). Use 32768.0 to recover normalised `[-1, +1]` floats from\n"
-    "    UQ15 data written by F32ToUQ15. Must be > 0; returns NULL "
-    "otherwise.\n"
+    "    UQ15 data written by F32ToUQ15. Must be positive and finite; NULL\n"
+    "    otherwise.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``UQ15ToF32: scale "
+    "must\n"
+    "    be positive and finite``.\n"
     "\n"
     "Examples\n"
     "--------\n"

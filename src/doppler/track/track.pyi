@@ -2587,7 +2587,7 @@ class CarrierMpsk:
     init_norm_freq : float, default 0.0
         Seed carrier frequency, cycles/sample (default 0.0).
     tsamps : int, default 64
-        Samples per symbol (default 64).
+        Samples per symbol (default 64); 0 is refused.
     bn_fll : float, default 0.0
         FLL-assist bandwidth (default 0.0 = pure PLL).
     m : int, default 4
@@ -2597,8 +2597,8 @@ class CarrierMpsk:
     ------
     ValueError
         If construction fails. The exception message is ``CarrierMpsk: invalid
-        parameter (need m in {2,4,8}, and bn >= 0 and zeta > 0, both finite,
-        whose loop gains come out finite)``.
+        parameter (need m in {2,4,8}, tsamps >= 1, and bn >= 0 and zeta > 0,
+        both finite, whose loop gains come out finite)``.
 
     Examples
     --------

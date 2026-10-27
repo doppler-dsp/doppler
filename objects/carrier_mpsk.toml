@@ -6,7 +6,7 @@ no_state = "true"
 no_step = "true"
 class_name = "CarrierMpsk"
 create_error = "ValueError"
-create_error_message = "CarrierMpsk: invalid parameter (need m in {2,4,8}, and bn >= 0 and zeta > 0, both finite, whose loop gains come out finite)"
+create_error_message = "CarrierMpsk: invalid parameter (need m in {2,4,8}, tsamps >= 1, and bn >= 0 and zeta > 0, both finite, whose loop gains come out finite)"
 serializable = "true"
 depends_on = [
   { name = "lo", link = true },

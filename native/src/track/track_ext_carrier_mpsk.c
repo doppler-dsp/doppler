@@ -82,8 +82,8 @@ CarrierMpskObj_init (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
     {
       PyErr_SetString (PyExc_ValueError,
                        "CarrierMpsk: invalid parameter (need m in {2,4,8}, "
-                       "and bn >= 0 and zeta > 0, both finite, whose loop "
-                       "gains come out finite)");
+                       "tsamps >= 1, and bn >= 0 and zeta > 0, both finite, "
+                       "whose loop gains come out finite)");
       return -1;
     }
   return 0;
@@ -832,7 +832,7 @@ static PyTypeObject CarrierMpskObjType = {
                 "init_norm_freq : float, default 0.0\n"
                 "    Seed carrier frequency, cycles/sample (default 0.0).\n"
                 "tsamps : int, default 64\n"
-                "    Samples per symbol (default 64).\n"
+                "    Samples per symbol (default 64); 0 is refused.\n"
                 "bn_fll : float, default 0.0\n"
                 "    FLL-assist bandwidth (default 0.0 = pure PLL).\n"
                 "m : int, default 4\n"
@@ -843,9 +843,9 @@ static PyTypeObject CarrierMpskObjType = {
                 "ValueError\n"
                 "    If construction fails. The exception message is "
                 "``CarrierMpsk: invalid\n"
-                "    parameter (need m in {2,4,8}, and bn >= 0 and zeta > 0, both "
-                "finite,\n"
-                "    whose loop gains come out finite)``.\n"
+                "    parameter (need m in {2,4,8}, tsamps >= 1, and bn >= 0 and "
+                "zeta > 0,\n"
+                "    both finite, whose loop gains come out finite)``.\n"
                 "\n"
                 "Examples\n"
                 "--------\n"

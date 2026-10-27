@@ -283,31 +283,18 @@ Plan_render (PlanObject *self, PyObject *args)
 static PyObject *
 Plan_at (PlanObject *self, PyObject *args)
 {
-  double             snr      = 0.0;
-  PyObject          *seed_obj = NULL;
-  unsigned long long seed_raw = 0ULL;
-  if (!PyArg_ParseTuple (args, "dO", &snr, &seed_obj))
+  double    snr      = 0.0;
+  long long seed_raw = 0LL;
+  if (!PyArg_ParseTuple (args, "dL", &snr, &seed_raw))
     return NULL;
-  if (seed_obj != NULL)
+  if (seed_raw < 0 || seed_raw > (long long)UINT32_MAX)
     {
-      PyObject *_ix = PyNumber_Index (seed_obj);
-      if (_ix == NULL)
-        {
-          return NULL;
-        }
-      seed_raw = PyLong_AsUnsignedLongLong (_ix);
-      if ((seed_raw == (unsigned long long)-1 && PyErr_Occurred ())
-          || seed_raw > (unsigned long long)UINT64_MAX)
-        {
-          PyErr_Format (PyExc_OverflowError,
-                        "seed: %S is out of range for uint64_t [0, %llu]", _ix,
-                        (unsigned long long)UINT64_MAX);
-          Py_DECREF (_ix);
-          return NULL;
-        }
-      Py_DECREF (_ix);
+      PyErr_Format (PyExc_OverflowError,
+                    "seed: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)seed_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
     }
-  uint64_t seed = (uint64_t)seed_raw;
+  uint32_t seed = (uint32_t)seed_raw;
   if (self->closed)
     {
       PyErr_SetString (PyExc_RuntimeError, "Plan is closed");
@@ -360,6 +347,33 @@ Plan_check_snr (PlanObject *self, PyObject *args)
                     "this scene carries no noise, so the Plan has no noise "
                     "floor for snr to move: give a source a finite snr "
                     "(below 100 dB) and an snr_mode",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+Plan_check_overrides (PlanObject *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[]       = { "overrides_json", NULL };
+  const char  *overrides_json = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "s", kwlist, &overrides_json))
+    return NULL;
+  if (self->closed)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "Plan is closed");
+      return NULL;
+    }
+  int _rc;
+  _rc = dp_wfm_plan_check_overrides (self->h, overrides_json);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "overrides refused: only the keys gains, phases, enable "
+                    "(each an array of n_sources numbers; enable may hold "
+                    "bools), snr (a number) and seed (an integer in "
+                    "0..4294967295)",
                     (long long)_rc);
       return NULL;
     }
@@ -522,11 +536,14 @@ static PyMethodDef Plan_methods[] = {
     "to `out`. An `\"snr\"` key on a Plan whose scene carries no noise is\n"
     "refused (see dp_wfm_plan_check_snr()).\n"
     "\n"
-    "Keys are read leniently: overrides that do not parse as JSON render the\n"
-    "baseline, a `gains`/`phases`/`enable` array whose length is not\n"
-    "dp_wfm_plan_n_sources() (or, for `gains`/`phases`, that holds a\n"
-    "non-number) is ignored, and a non-numeric `snr`/`seed` is ignored. An\n"
-    "`enable` entry is on when it is `true` or a non-zero number.\n"
+    "Overrides the Plan cannot honour are refused, never read as the\n"
+    "baseline: text that is not a JSON object, a key other than the five\n"
+    "above, a `gains`/`phases`/`enable` array whose length is not\n"
+    "dp_wfm_plan_n_sources(), a `gains`/`phases` entry that is not a number,\n"
+    "an `enable` entry that is neither a bool nor a number, a non-numeric\n"
+    "`snr`, and a `seed` that is not an integer in `0..2^32-1`. The rule is\n"
+    "dp_wfm_plan_check_overrides_why(), which names the reason. An `enable`\n"
+    "entry is on when it is `true` or a non-zero number.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -537,7 +554,8 @@ static PyMethodDef Plan_methods[] = {
     "-------\n"
     "NDArray[Any]\n"
     "    Samples actually written for this draw (<= dp_wfm_plan_len(p)), or\n"
-    "    0 when refused, with `out` untouched.\n" },
+    "    0 when refused (a NULL Plan, an override\n"
+    "    dp_wfm_plan_check_overrides() refuses), with `out` untouched.\n" },
   { "at", (PyCFunction)Plan_at, METH_VARARGS,
     "Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).\n"
     "\n"
@@ -556,14 +574,17 @@ static PyMethodDef Plan_methods[] = {
     "    sharing the noise source's seed. A segment whose noise floor was\n"
     "    set explicitly keeps that floor.\n"
     "seed : int\n"
-    "    Noise (and ranged-gap) seed override. Only its low 32 bits are\n"
-    "    used: the seeds it replaces are 32-bit.\n"
+    "    Noise (and ranged-gap) seed override, `0..2^32-1`: the seeds it\n"
+    "    replaces are 32-bit, so a larger one is refused rather than cut to\n"
+    "    its low 32 bits (which would make seeds differing only above bit 31\n"
+    "    draw the same realization).\n"
     "\n"
     "Returns\n"
     "-------\n"
     "NDArray[Any]\n"
     "    Samples actually written for this draw (<= dp_wfm_plan_len(p)), or\n"
-    "    0 when refused, with `out` untouched.\n" },
+    "    0 when refused (no noise floor, or seed above 2^32-1), with `out`\n"
+    "    untouched.\n" },
   { "check_snr", (PyCFunction)Plan_check_snr, METH_VARARGS,
     "Whether an `snr` can be applied to this Plan.\n"
     "\n"
@@ -592,6 +613,25 @@ static PyMethodDef Plan_methods[] = {
     ">>> len(prepare(Composer(type=\"tone\", num_samples=64, "
     "snr=10.0)).at(6.0))\n"
     "64\n" },
+  { "check_overrides", (PyCFunction)(void (*) (void))Plan_check_overrides,
+    METH_VARARGS | METH_KEYWORDS,
+    "dp_wfm_plan_check_overrides_why() without the reason.\n"
+    "\n"
+    "The status-only face, for a binding that raises a fixed message.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "overrides_json : str\n"
+    "    NUL-terminated override object, or NULL / \"\".\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``overrides refused: only the keys gains, phases, enable (each an\n"
+    "    array of n_sources numbers; enable may hold bools), snr (a number)\n"
+    "    and seed (an integer in 0..4294967295)``, with the return code\n"
+    "    appended (gh-869).\n" },
   { "length", (PyCFunction)Plan_length, METH_VARARGS,
     "Worst-case materialized length in samples (every ranged gap at its\n"
     "`hi` bound) — the jm binding's out_len_fn / allocation capacity.\n"

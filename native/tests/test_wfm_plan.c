@@ -675,6 +675,68 @@ main (void)
   DP_REQUIRE_MSG (dp_wfm_plan_at (p, 6.0, 99, got) == L, "at seed 99");
   DP_REQUIRE_MSG (any_diff (ref, got), "SEED: a new seed draws new noise");
 
+  /* ── #2645: a seed above 2^32-1 is refused, not cut to its low bits ──
+   * (42 + 2^32 used to draw exactly seed 42's realization). */
+  DP_REQUIRE_MSG (dp_wfm_plan_at (p, 6.0, 42ull + (1ull << 32), got) == 0,
+                  "at refuses a 33-bit seed");
+  DP_REQUIRE_MSG (dp_wfm_plan_at (p, 6.0, UINT32_MAX, got) == L,
+                  "at takes the largest 32-bit seed");
+
+  /* ── #2645: an override render() cannot honour is refused with a reason,
+   * never rendered as the baseline. Each row names the reason it gets. ── */
+  {
+    static const struct
+    {
+      const char *json, *why;
+    } bad[] = {
+      { "} not json {", DP_WFM_PLAN_WHY_NOT_OBJECT },
+      { "[1, 2]", DP_WFM_PLAN_WHY_NOT_OBJECT },
+      { "{\"gain\":[0.0,-6.0]}", DP_WFM_PLAN_WHY_UNKNOWN_KEY },
+      { "{\"gains\":[0.0]}", DP_WFM_PLAN_WHY_ARRAY_LEN },
+      { "{\"gains\":-6.0}", DP_WFM_PLAN_WHY_ARRAY_LEN },
+      { "{\"phases\":[0.0,0.0,0.0]}", DP_WFM_PLAN_WHY_ARRAY_LEN },
+      { "{\"enable\":[true]}", DP_WFM_PLAN_WHY_ARRAY_LEN },
+      { "{\"gains\":[0.0,\"x\"]}", DP_WFM_PLAN_WHY_NUMBER },
+      { "{\"phases\":[null,0.0]}", DP_WFM_PLAN_WHY_NUMBER },
+      { "{\"enable\":[true,\"on\"]}", DP_WFM_PLAN_WHY_ENABLE },
+      { "{\"snr\":\"6\"}", DP_WFM_PLAN_WHY_SNR },
+      { "{\"seed\":\"7\"}", DP_WFM_PLAN_WHY_SEED },
+      { "{\"seed\":-1}", DP_WFM_PLAN_WHY_SEED },
+      { "{\"seed\":2.5}", DP_WFM_PLAN_WHY_SEED },
+      { "{\"seed\":4294967296}", DP_WFM_PLAN_WHY_SEED },
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+      {
+        const char *why = NULL;
+        DP_REQUIRE_MSG (dp_wfm_plan_check_overrides_why (p, bad[i].json, &why)
+                            == DP_ERR_INVALID,
+                        bad[i].json);
+        DP_REQUIRE_MSG (why && strcmp (why, bad[i].why) == 0, bad[i].json);
+        DP_REQUIRE_MSG (dp_wfm_plan_check_overrides (p, bad[i].json)
+                            == DP_ERR_INVALID,
+                        bad[i].json);
+        DP_REQUIRE_MSG (dp_wfm_plan_render (p, bad[i].json, got) == 0,
+                        bad[i].json);
+      }
+    /* What render() accepts, the check accepts, why left NULL. */
+    static const char *good[]
+        = { "", "{}",
+            "{\"gains\":[0.0,-6.0],\"phases\":[0,0],\"enable\":[1,false]}",
+            "{\"snr\":6.0,\"seed\":4294967295}" };
+    for (size_t i = 0; i < sizeof good / sizeof good[0]; i++)
+      {
+        const char *why = "unset";
+        DP_REQUIRE_MSG (dp_wfm_plan_check_overrides_why (p, good[i], &why)
+                            == DP_OK,
+                        good[i]);
+        DP_REQUIRE_MSG (why == NULL, good[i]);
+        DP_REQUIRE_MSG (dp_wfm_plan_render (p, good[i], got) == L, good[i]);
+      }
+    DP_REQUIRE_MSG (dp_wfm_plan_check_overrides_why (NULL, "{}", NULL)
+                        == DP_ERR_INVALID,
+                    "a NULL Plan is refused");
+  }
+
   /* ── rejects: out-of-scope specs prepare to NULL ── */
   DP_REQUIRE_MSG (dp_wfm_plan_prepare (NULL) == NULL, "reject NULL");
   DP_REQUIRE_MSG (dp_wfm_plan_prepare ("} not json {") == NULL,

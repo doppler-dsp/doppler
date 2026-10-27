@@ -49,8 +49,8 @@ I16ToF32Obj_init (I16ToF32Object *self, PyObject *args, PyObject *kwds)
   self->handle = dp_i16_to_f32_create (scale);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_i16_to_f32_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "I16ToF32: scale must be positive and finite");
       return -1;
     }
   return 0;
@@ -324,6 +324,13 @@ static PyTypeObject I16ToF32ObjType = {
     "    32768.0f). Use 32768.0 to recover normalised `[-1, +1]` floats from "
     "a\n"
     "    Q15 int16 stream.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``I16ToF32: scale "
+    "must\n"
+    "    be positive and finite``.\n"
     "\n"
     "Examples\n"
     "--------\n"

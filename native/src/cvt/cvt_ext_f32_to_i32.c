@@ -49,8 +49,8 @@ F32ToI32Obj_init (F32ToI32Object *self, PyObject *args, PyObject *kwds)
   self->handle = dp_f32_to_i32_create (scale);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_f32_to_i32_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "F32ToI32: scale must be positive and finite");
       return -1;
     }
   return 0;
@@ -293,6 +293,9 @@ static PyMethodDef F32ToI32Obj_methods[] = {
     "bits; the double is there to make the CLAMP exact, not to invent\n"
     "significance.\n"
     "\n"
+    "A NaN input counts as clipped: it latches clipped and returns the\n"
+    "negative full-scale code, -2147483648.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "x : float\n"
@@ -449,6 +452,13 @@ static PyTypeObject F32ToI32ObjType = {
     "    2147483648.0f). Use 2^31 to convert a normalised `[-1, +1]` signal "
     "to\n"
     "    the full 32-bit range.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``F32ToI32: scale "
+    "must\n"
+    "    be positive and finite``.\n"
     "\n"
     "Examples\n"
     "--------\n"

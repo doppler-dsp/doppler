@@ -49,8 +49,8 @@ F32ToUQ15Obj_init (F32ToUQ15Object *self, PyObject *args, PyObject *kwds)
   self->handle = dp_f32_to_uq15_create (scale);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_f32_to_uq15_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "F32ToUQ15: scale must be positive and finite");
       return -1;
     }
   return 0;
@@ -286,6 +286,9 @@ static PyMethodDef F32ToUQ15Obj_methods[] = {
     "value saturated before clamping. Suits DAC and file formats that store\n"
     "only unsigned integers.\n"
     "\n"
+    "A NaN input counts as clipped: it latches clipped and returns the\n"
+    "negative full-scale code, 0 (offset-binary -32768).\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "x : float\n"
@@ -441,7 +444,15 @@ static PyTypeObject F32ToUQ15ObjType = {
     "(default:\n"
     "    32768.0f). Use 32768.0 to convert normalised `[-1, +1]` floats to "
     "the\n"
-    "    full UQ15 range `[0, 65535]`. Must be > 0; returns NULL otherwise.\n"
+    "    full UQ15 range `[0, 65535]`. Must be positive and finite; NULL\n"
+    "    otherwise.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``F32ToUQ15: scale "
+    "must\n"
+    "    be positive and finite``.\n"
     "\n"
     "Examples\n"
     "--------\n"

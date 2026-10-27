@@ -60,11 +60,14 @@ class Plan:
         to `out`. An `"snr"` key on a Plan whose scene carries no noise is
         refused (see dp_wfm_plan_check_snr()).
 
-        Keys are read leniently: overrides that do not parse as JSON render the
-        baseline, a `gains`/`phases`/`enable` array whose length is not
-        dp_wfm_plan_n_sources() (or, for `gains`/`phases`, that holds a
-        non-number) is ignored, and a non-numeric `snr`/`seed` is ignored. An
-        `enable` entry is on when it is `true` or a non-zero number.
+        Overrides the Plan cannot honour are refused, never read as the
+        baseline: text that is not a JSON object, a key other than the five
+        above, a `gains`/`phases`/`enable` array whose length is not
+        dp_wfm_plan_n_sources(), a `gains`/`phases` entry that is not a number,
+        an `enable` entry that is neither a bool nor a number, a non-numeric
+        `snr`, and a `seed` that is not an integer in `0..2^32-1`. The rule is
+        dp_wfm_plan_check_overrides_why(), which names the reason. An `enable`
+        entry is on when it is `true` or a non-zero number.
 
         Parameters
         ----------
@@ -75,7 +78,8 @@ class Plan:
         -------
         NDArray[Any]
             Samples actually written for this draw (<= dp_wfm_plan_len(p)), or
-            0 when refused, with `out` untouched.
+            0 when refused (a NULL Plan, an override
+            dp_wfm_plan_check_overrides() refuses), with `out` untouched.
         """
     def at(self, snr: float, seed: int, /) -> NDArray[Any]:
         """Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).
@@ -94,14 +98,17 @@ class Plan:
             sharing the noise source's seed. A segment whose noise floor was
             set explicitly keeps that floor.
         seed : int
-            Noise (and ranged-gap) seed override. Only its low 32 bits are
-            used: the seeds it replaces are 32-bit.
+            Noise (and ranged-gap) seed override, `0..2^32-1`: the seeds it
+            replaces are 32-bit, so a larger one is refused rather than cut to
+            its low 32 bits (which would make seeds differing only above bit 31
+            draw the same realization).
 
         Returns
         -------
         NDArray[Any]
             Samples actually written for this draw (<= dp_wfm_plan_len(p)), or
-            0 when refused, with `out` untouched.
+            0 when refused (no noise floor, or seed above 2^32-1), with `out`
+            untouched.
         """
     def check_snr(self) -> None:
         """Whether an `snr` can be applied to this Plan.
@@ -129,6 +136,25 @@ class Plan:
         >>> len(prepare(Composer(type="tone", num_samples=64, snr=10.0)).at(6.0))
         64
 
+        """
+    def check_overrides(self, overrides_json: str) -> None:
+        """dp_wfm_plan_check_overrides_why() without the reason.
+
+        The status-only face, for a binding that raises a fixed message.
+
+        Parameters
+        ----------
+        overrides_json : str
+            NUL-terminated override object, or NULL / "".
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``overrides refused: only the keys gains, phases, enable (each an
+            array of n_sources numbers; enable may hold bools), snr (a number)
+            and seed (an integer in 0..4294967295)``, with the return code
+            appended (gh-869).
         """
     def length(self) -> int:
         """Worst-case materialized length in samples (every ranged gap at its

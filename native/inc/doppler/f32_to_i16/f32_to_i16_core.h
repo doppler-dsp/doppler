@@ -64,13 +64,13 @@ typedef struct {
  * @brief Create a f32_to_i16 instance.
  *
  * Allocates state and stores @p scale.  The @c clipped flag is initialised
- * to 0.  The only validation is that @p scale must be positive.
+ * to 0.  The only validation is that @p scale must be positive and finite.
  *
  * @param scale  Multiply factor applied before rounding and saturation
  *               (default: 32768.0f).  Use 32768.0 to convert a normalised
  *               `[-1, +1]` signal to full Q15 range.
- * @return Heap-allocated state, or NULL if @p scale <= 0 or on allocation
- *         failure.
+ * @return Heap-allocated state, or NULL if @p scale is not positive and
+ *         finite, or on allocation failure.
  * @note Caller must call dp_f32_to_i16_destroy() when done.
  */
 dp_f32_to_i16_state_t *dp_f32_to_i16_create(float scale);
@@ -111,6 +111,9 @@ void dp_f32_to_i16_reset(dp_f32_to_i16_state_t *state);
  * range before clamping. At the default scale of 32768 a normalised `[-1, +1]`
  * input maps to the full Q15 code range.
  *
+ * A NaN input counts as clipped: it latches @c clipped and returns the
+ * negative full-scale code, -32768.
+ *
  * @param state  Must be non-NULL.
  * @param x      Input sample, normally a normalised float in `[-1, +1]`.
  * @return Saturated int16 code in `[-32768, 32767]`.
@@ -132,7 +135,9 @@ dp_f32_to_i16_step(dp_f32_to_i16_state_t *state, float x)
 {
     float s = state->scale * x;
     /* Detect saturation before clamping; set sticky flag. */
-    state->clipped |= (uint8_t)(s > 32767.0f || s < -32768.0f);
+    /* Written as "not inside" so a NaN, which fails every comparison,
+     * latches the flag too (fmaxf then maps it to the lower bound). */
+    state->clipped |= (uint8_t)!(s <= 32767.0f && s >= -32768.0f);
     s = fmaxf(s, -32768.0f);
     s = fminf(s,  32767.0f);
     return (int16_t)lroundf(s);

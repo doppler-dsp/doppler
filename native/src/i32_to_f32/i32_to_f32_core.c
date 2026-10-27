@@ -3,7 +3,7 @@
 dp_i32_to_f32_state_t *
 dp_i32_to_f32_create (float scale)
 {
-  if (scale <= 0.0f)
+  if (!dp_positive_finite (scale))
     return NULL;
   dp_i32_to_f32_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)

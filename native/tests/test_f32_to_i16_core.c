@@ -85,5 +85,23 @@ main (void)
     dp_f32_to_i16_destroy (b);
   }
 
+  /* #2645: a NaN or infinite scale is refused like zero and a negative
+     one; `scale <= 0` alone let both through. */
+  DP_CHECK (dp_f32_to_i16_create (NAN) == NULL);
+  DP_CHECK (dp_f32_to_i16_create (INFINITY) == NULL);
+  DP_CHECK (dp_f32_to_i16_create (-INFINITY) == NULL);
+  DP_CHECK (dp_f32_to_i16_create (-1.0f) == NULL);
+
+  /* #2645: a NaN sample fails both clip comparisons; it must still latch
+     the flag, and it leaves as the negative full-scale code. */
+  {
+    dp_f32_to_i16_state_t *nc = dp_f32_to_i16_create (32768.0f);
+    DP_REQUIRE (nc != NULL);
+    int16_t ny = dp_f32_to_i16_step (nc, NAN);
+    DP_CHECK (nc->clipped == 1);
+    DP_CHECK (ny == (int16_t)(-32768));
+    dp_f32_to_i16_destroy (nc);
+  }
+
   DP_TEST_END ("test_f32_to_i16_core");
 }

@@ -5,6 +5,8 @@ mutable = "false"
 no_state = "true"
 no_step = "false"
 class_name = "I16ToF32"
+create_error = "ValueError"
+create_error_message = "I16ToF32: scale must be positive and finite"
 fragment = "generated"
 
 [[i16_to_f32.init_params]]

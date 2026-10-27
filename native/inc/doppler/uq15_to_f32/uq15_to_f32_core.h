@@ -56,7 +56,7 @@ typedef struct {
  * @param scale  Denominator applied after offset-binary bias removal
  *               (default: 32768.0f).  Use 32768.0 to recover normalised
  *               `[-1, +1]` floats from UQ15 data written by F32ToUQ15.
- *               Must be > 0; returns NULL otherwise.
+ *               Must be positive and finite; NULL otherwise.
  * @return Heap-allocated state, or NULL on invalid args or allocation failure.
  * @note Caller must call dp_uq15_to_f32_destroy() when done.
  */

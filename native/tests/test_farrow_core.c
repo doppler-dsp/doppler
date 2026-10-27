@@ -151,5 +151,15 @@ main (void)
     dp_farrow_destroy (b);
   }
 
+  /* #2645: an unknown order is refused; farrow_eval() would have run it
+     as cubic, an order the caller did not name. */
+  DP_CHECK (dp_farrow_create (3) == NULL);
+  DP_CHECK (dp_farrow_create (-1) == NULL);
+  {
+    dp_farrow_state_t *lin = dp_farrow_create (FARROW_LINEAR);
+    DP_CHECK (lin != NULL);
+    dp_farrow_destroy (lin);
+  }
+
   DP_TEST_END ("test_farrow_core");
 }

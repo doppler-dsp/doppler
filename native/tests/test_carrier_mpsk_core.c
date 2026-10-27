@@ -373,5 +373,8 @@ main (void)
       }
   }
 
+  /* #2645: a zero-sample symbol is refused; init() used to run it as 1. */
+  DP_CHECK (dp_carrier_mpsk_create (0.05, 0.707, 0.0, 0, 0.0, 4) == NULL);
+
   DP_TEST_END ("test_carrier_mpsk_core");
 }

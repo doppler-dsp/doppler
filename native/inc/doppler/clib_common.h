@@ -141,6 +141,25 @@ dp_xrealloc (void *p, size_t n)
 }
 
 /**
+ * @brief Whether @p x is a positive, finite number.
+ *
+ * The domain of a scale or gain that a constructor stores and later
+ * divides by or multiplies with: zero, a negative, NaN and either infinity
+ * are all refused. Spelled once here so every converter's create() refuses
+ * the same set; `x <= 0` alone lets NaN through (every comparison with NaN
+ * is false) and lets +inf through, which then maps every input to a full
+ * scale or to zero.
+ *
+ * @param x  The value to test.
+ * @return 1 when `0 < x < inf`, else 0.
+ */
+static inline int
+dp_positive_finite (double x)
+{
+  return isfinite (x) && x > 0.0;
+}
+
+/**
  * @brief `numpy.fft.fftfreq(n)[bin] * n` — the SIGNED index of an FFT bin.
  *
  * `0 = DC`, ascending positive to `(n-1)/2`, then wrapping negative, so an

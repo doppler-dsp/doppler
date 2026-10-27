@@ -100,6 +100,10 @@ main (void)
   /* ── measure_proc_gain: 10*log10(nfft / 2) ──────────────────────── */
   {
     DP_CHECK (fabs (dp_measure_proc_gain (2) - 0.0) < 1e-9);
+    /* #2645: a transform shorter than two bins has no gain; it used to
+       read -inf (nfft = 0) and -3 dB (nfft = 1). */
+    DP_CHECK (isnan (dp_measure_proc_gain (0)));
+    DP_CHECK (isnan (dp_measure_proc_gain (1)));
     DP_CHECK (fabs (dp_measure_proc_gain (2048) - 10.0 * log10 (1024.0))
               < 1e-9);
 

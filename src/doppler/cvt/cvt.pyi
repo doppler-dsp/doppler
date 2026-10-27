@@ -15,6 +15,12 @@ class F32ToI8:
         128.0f). Use 128.0 to convert a normalised `[-1, +1]` signal to the
         full 8-bit range.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``F32ToI8: scale must
+        be positive and finite``.
+
     Examples
     --------
     Create with defaults:
@@ -52,6 +58,9 @@ class F32ToI8:
         range before clamping (and before rounding, so 127.3 latches it even
         though it would round to 127). At the default scale of 128 a normalised
         `[-1, +1]` input maps to the full 8-bit code range.
+
+        A NaN input counts as clipped: it latches clipped and returns the
+        negative full-scale code, -128.
 
         Parameters
         ----------
@@ -228,6 +237,12 @@ class F32ToI16:
         32768.0f). Use 32768.0 to convert a normalised `[-1, +1]` signal to
         full Q15 range.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``F32ToI16: scale must
+        be positive and finite``.
+
     Examples
     --------
     Create with defaults:
@@ -264,6 +279,9 @@ class F32ToI16:
         and latches the sticky clipped flag if the scaled value fell outside
         that range before clamping. At the default scale of 32768 a normalised
         `[-1, +1]` input maps to the full Q15 code range.
+
+        A NaN input counts as clipped: it latches clipped and returns the
+        negative full-scale code, -32768.
 
         Parameters
         ----------
@@ -440,6 +458,12 @@ class F32ToI32:
         2147483648.0f). Use 2^31 to convert a normalised `[-1, +1]` signal to
         the full 32-bit range.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``F32ToI32: scale must
+        be positive and finite``.
+
     Examples
     --------
     Create with defaults:
@@ -484,6 +508,9 @@ class F32ToI32:
         overflows. The float32 input still bounds the useful precision at 24
         bits; the double is there to make the CLAMP exact, not to invent
         significance.
+
+        A NaN input counts as clipped: it latches clipped and returns the
+        negative full-scale code, -2147483648.
 
         Parameters
         ----------
@@ -658,7 +685,13 @@ class I8ToF32:
     scale : float, default 128.0
         Denominator scale; 1/scale is applied to each sample (default: 128.0f).
         Use 128.0 to recover normalised floats from a signed 8-bit stream. Must
-        be > 0.
+        be positive and finite.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``I8ToF32: scale must
+        be positive and finite``.
 
     Examples
     --------
@@ -950,6 +983,12 @@ class I16ToF32:
         32768.0f). Use 32768.0 to recover normalised `[-1, +1]` floats from a
         Q15 int16 stream.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``I16ToF32: scale must
+        be positive and finite``.
+
     Examples
     --------
     Create with defaults:
@@ -1096,6 +1135,12 @@ class I32ToF32:
         2147483648.0f). Use 2^31 to recover normalised floats from a full-range
         int32 stream.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``I32ToF32: scale must
+        be positive and finite``.
+
     Examples
     --------
     Create with defaults:
@@ -1240,7 +1285,13 @@ class F32ToI16U32:
     scale : float, default 32768.0
         Multiply factor applied before quantisation and saturation (default:
         32768.0f). Use 32768.0 to convert normalised `[-1, +1]` samples to Q15
-        packed into a uint32. Must be > 0.
+        packed into a uint32. Must be positive and finite.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``F32ToI16U32: scale
+        must be positive and finite``.
 
     Examples
     --------
@@ -1279,6 +1330,9 @@ class F32ToI16U32:
         of a uint32 (upper 16 bits are always zero). Latches the sticky clipped
         flag on saturation. A NaN input maps to 0x8000 (-32768) without setting
         clipped.
+
+        A NaN input counts as clipped: it latches clipped and returns the
+        negative full-scale code, -32768 (0x8000).
 
         Parameters
         ----------
@@ -1450,7 +1504,13 @@ class F32ToI16U64:
     scale : float, default 32768.0
         Multiply factor applied before quantisation and saturation (default:
         32768.0f). Use 32768.0 to convert normalised `[-1, +1]` samples to Q15
-        packed into the low 16 bits of a uint64. Must be > 0.
+        packed into the low 16 bits of a uint64. Must be positive and finite.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``F32ToI16U64: scale
+        must be positive and finite``.
 
     Examples
     --------
@@ -1488,6 +1548,9 @@ class F32ToI16U64:
         zero-extends the 16-bit two's-complement pattern into the lower 16 bits
         of a uint64 (upper 48 bits are always zero — headroom for the NCO phase
         accumulator). Latches the sticky clipped flag on saturation.
+
+        A NaN input counts as clipped: it latches clipped and returns the
+        negative full-scale code, -32768 (0x8000).
 
         Parameters
         ----------
@@ -1658,7 +1721,13 @@ class I16U32ToF32:
     scale : float, default 32768.0
         Denominator scale; 1/scale is applied after sign-extension (default:
         32768.0f). Use 32768.0 to match F32ToI16U32 at its default scale. Must
-        be > 0.
+        be positive and finite.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``I16U32ToF32: scale
+        must be positive and finite``.
 
     Examples
     --------
@@ -1803,7 +1872,13 @@ class I16U64ToF32:
     scale : float, default 32768.0
         Denominator scale; 1/scale is applied after sign-extension (default:
         32768.0f). Use 32768.0 to match F32ToI16U64 at its default scale. Must
-        be > 0.
+        be positive and finite.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``I16U64ToF32: scale
+        must be positive and finite``.
 
     Examples
     --------
@@ -1948,7 +2023,14 @@ class F32ToUQ15:
     scale : float, default 32768.0
         Multiply factor applied before quantisation and saturation (default:
         32768.0f). Use 32768.0 to convert normalised `[-1, +1]` floats to the
-        full UQ15 range `[0, 65535]`. Must be > 0; returns NULL otherwise.
+        full UQ15 range `[0, 65535]`. Must be positive and finite; NULL
+        otherwise.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``F32ToUQ15: scale must
+        be positive and finite``.
 
     Examples
     --------
@@ -1987,6 +2069,9 @@ class F32ToUQ15:
         unsigned uint16 range. Latches the sticky clipped flag if the scaled
         value saturated before clamping. Suits DAC and file formats that store
         only unsigned integers.
+
+        A NaN input counts as clipped: it latches clipped and returns the
+        negative full-scale code, 0 (offset-binary -32768).
 
         Parameters
         ----------
@@ -2159,7 +2244,14 @@ class UQ15ToF32:
     scale : float, default 32768.0
         Denominator applied after offset-binary bias removal (default:
         32768.0f). Use 32768.0 to recover normalised `[-1, +1]` floats from
-        UQ15 data written by F32ToUQ15. Must be > 0; returns NULL otherwise.
+        UQ15 data written by F32ToUQ15. Must be positive and finite; NULL
+        otherwise.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``UQ15ToF32: scale must
+        be positive and finite``.
 
     Examples
     --------

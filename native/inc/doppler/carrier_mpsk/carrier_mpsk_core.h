@@ -177,12 +177,12 @@ carrier_mpsk_update(dp_carrier_mpsk_state_t *s, float _Complex P)
  * @param bn              Loop noise bandwidth (default 0.05).
  * @param zeta            Damping factor (default 0.707).
  * @param init_norm_freq  Seed carrier frequency, cycles/sample (default 0.0).
- * @param tsamps          Samples per symbol (default 64).
+ * @param tsamps          Samples per symbol (default 64); 0 is refused.
  * @param bn_fll          FLL-assist bandwidth (default 0.0 = pure PLL).
  * @param m               Constellation order M, 2/4/8 (default 4 = QPSK).
  * @return Heap-allocated state, or NULL if @p m is not 2, 4 or 8, if
- *         (bn, zeta) fails dp_loop_filter_params_ok(), or on allocation
- *         failure.
+ *         @p tsamps is 0, if (bn, zeta) fails dp_loop_filter_params_ok(),
+ *         or on allocation failure.
  * @note Caller must call dp_carrier_mpsk_destroy() when done.
  */
 dp_carrier_mpsk_state_t *dp_carrier_mpsk_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll, int m);

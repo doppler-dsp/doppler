@@ -258,7 +258,14 @@ class Plan:
             has no floor to move, and ``snr`` raises ``ValueError``.
         seed : int, optional
             Noise seed for this realization (defaults to the scene's, i.e. the
-            value that reproduces a full compose).
+            value that reproduces a full compose), in ``0 .. 2**32 - 1``.
+
+        Raises
+        ------
+        ValueError
+            When ``gains``/``phases``/``enable`` is not :attr:`n_sources`
+            long, or ``seed`` is outside ``0 .. 2**32 - 1``: the C render
+            refuses rather than falling back to the baseline.
 
         Returns
         -------
@@ -277,7 +284,9 @@ class Plan:
             ov["snr"] = float(snr)
         if seed is not None:
             ov["seed"] = int(seed)
-        return self._h.render(_json.dumps(ov) if ov else "{}")
+        js = _json.dumps(ov) if ov else "{}"
+        self._h.check_overrides(js)  # refuses what render() cannot honour
+        return self._h.render(js)
 
     def at(self, snr: float, seed: int | None = None) -> NDArray[np.complex64]:
         """Scalar fast path: render at one ``(snr, seed)`` (no JSON parse).
@@ -286,7 +295,8 @@ class Plan:
         :attr:`anchor_seed` (which reproduces a full compose at the scene's
         base SNR). A scene with no noisy source has no floor for ``snr`` to
         move, so it raises ``ValueError`` rather than returning the clean
-        signal at every SNR.
+        signal at every SNR. ``seed`` is 32-bit (``0 .. 2**32 - 1``); a larger
+        one raises ``OverflowError`` rather than being cut to its low bits.
         """
         self._h.check_snr()  # refuses a scene with no noise floor
         return self._h.at(

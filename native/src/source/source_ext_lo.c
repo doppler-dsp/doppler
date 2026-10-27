@@ -112,7 +112,13 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_lo_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
@@ -120,6 +126,12 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out
@@ -150,6 +162,11 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_lo_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -169,7 +186,13 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = dp_lo_steps (self->handle, (size_t)n, _d0, _cap);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_lo_steps (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -250,7 +273,14 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (ctrl_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_lo_steps_ctrl_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
                             ? _omax
@@ -261,6 +291,13 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (ctrl_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (ctrl_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out
@@ -293,6 +330,12 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (ctrl_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = dp_lo_steps_ctrl_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -314,6 +357,13 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (ctrl_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out = dp_lo_steps_ctrl (self->handle, ctrl, ctrl_len, _d0, _cap);
   Py_DECREF (ctrl_arr);
   if ((size_t)(n_out) > (size_t)(_cap))

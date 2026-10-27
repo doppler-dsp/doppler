@@ -76,12 +76,12 @@ type = "path"
 name = "sample_type"
 type = "enum:reader_stype"
 default = "auto"
-
+doc = 'The wire sample type, used only as a HINT for the headerless file types (raw, CSV); BLUE and SigMF carry their own and ignore it. A real type is the only way to say that a headerless file carries one component per sample rather than interleaved I/Q. `auto`, the default, names no type: a headerless capture takes its type, byte order and rate from the `<path>.sigmf-meta` sidecar the writer of this library leaves beside it, falling back to cf32/le when there is none. A named type still wins over the sidecar, so a stale one can be overridden. A wrong hint does not fail, and the trailing-bytes count is NOT the way to notice it.'
 [[wfm_reader.init_params]]
 name = "endian"
 type = "enum:endian"
 default = "le"
-
+doc = 'Byte order, likewise a hint that only headerless raw uses.'
 # arg_type="void" + variable_output is the generator shape: read(n) -> ndarray.
 # (`out_type` is a jm *function* feature; on a method it renders `-> complex`.)
 [[wfm_reader.methods]]

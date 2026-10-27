@@ -191,7 +191,13 @@ CorrDetectorObj_push (CorrDetectorObject *self, PyObject *args)
     }
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
   det_result_t results[1024];
-  size_t       n_out = dp_detector_push (
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_detector_push (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), n_in,
       results, 1024);
   Py_DECREF (in_arr);
@@ -642,7 +648,7 @@ static PyTypeObject CorrDetectorObjType = {
     "    clamps to n - 1, so the default sentinel selects the full window.\n"
     "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
     "\"mean\"\n"
-    "    Noise aggregation: \"mean\", \"median\", \"min\", or \"max\".\n"
+    "    One of ``\"mean\"``, ``\"median\"``, ``\"min\"``, ``\"max\"``.\n"
     "threshold : float, default 0.0\n"
     "    Test-stat gate; 0.0 = always emit.\n"
     "nthreads : int, default 1\n"

@@ -125,7 +125,13 @@ F32BufferObj_write (F32BufferObject *self, PyObject *args, PyObject *kwds)
   PyArrayObject        *x_arr = (PyArrayObject *)x_obj;
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  bool                  y     = dp_f32_write_view (self->handle, x, x_len);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  bool y = dp_f32_write_view (self->handle, x, x_len);
   Py_DECREF (x_arr);
   return PyBool_FromLong ((long)(y));
 }
@@ -169,7 +175,13 @@ F32BufferObj_write_some (F32BufferObject *self, PyObject *args, PyObject *kwds)
   PyArrayObject        *x_arr = (PyArrayObject *)x_obj;
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  size_t                y = dp_f32_write_some_view (self->handle, x, x_len);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t y = dp_f32_write_some_view (self->handle, x, x_len);
   Py_DECREF (x_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -207,6 +219,11 @@ F32BufferObj_wait (F32BufferObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   size_t n = (size_t)n_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -300,7 +317,12 @@ F32BufferObj_peek (F32BufferObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t          n  = (size_t)n_raw;
+  size_t n = (size_t)n_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   float _Complex *_p = dp_f32_peek_view (self->handle, n);
   if (!_p)
     {
@@ -398,7 +420,12 @@ F32BufferObj_consume (F32BufferObject *self, PyObject *args, PyObject *kwds)
         }
     }
   self->_jm_borrowed = 0;
-  int _rc            = dp_f32_consume (self->handle, n);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_f32_consume (self->handle, n);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -418,6 +445,11 @@ F32BufferObj_close (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_f32_close (self->handle);
   Py_RETURN_NONE;
 }
@@ -431,6 +463,11 @@ F32BufferObj_reset (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   self->_jm_borrowed = 0;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_f32_reset (self->handle);
   Py_RETURN_NONE;
 }

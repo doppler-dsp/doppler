@@ -218,7 +218,14 @@ RateSyncObj_steps (RateSyncObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_ratesync_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -229,6 +236,13 @@ RateSyncObj_steps (RateSyncObject *self, PyObject *args, PyObject *kwds)
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -269,6 +283,12 @@ RateSyncObj_steps (RateSyncObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_ratesync_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -290,6 +310,13 @@ RateSyncObj_steps (RateSyncObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -351,7 +378,17 @@ RateSyncObj_set_telemetry (RateSyncObject *self, PyObject *args,
           Py_DECREF (tlm_cap);
           tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
           if (!tlm_cap)
-            return NULL;
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
         }
       tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
                                               "doppler.telemetry.dp_tlm");
@@ -367,7 +404,12 @@ RateSyncObj_set_telemetry (RateSyncObject *self, PyObject *args,
       return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc = dp_ratesync_set_telemetry (self->handle, tlm, prefix, decim);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_ratesync_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
@@ -396,6 +438,11 @@ RateSyncObj_configure (RateSyncObject *self, PyObject *args, PyObject *kwds)
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_ratesync_configure (self->handle, bn, zeta);
   Py_RETURN_NONE;
 }
@@ -458,6 +505,11 @@ RateSyncObj_configure_lock_raw (RateSyncObject *self, PyObject *args,
       return NULL;
     }
   uint32_t n_down = (uint32_t)n_down_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_ratesync_configure_lock_raw (self->handle, avgs, up_thresh, down_thresh,
                                   n_up, n_down);
   Py_RETURN_NONE;
@@ -466,6 +518,11 @@ RateSyncObj_configure_lock_raw (RateSyncObject *self, PyObject *args,
 static PyObject *
 RateSyncObj_reset (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -1027,6 +1084,7 @@ static PyTypeObject RateSyncObjType = {
     "    The rectangle needs far fewer taps, so an NRZ link's matched filter "
     "is\n"
     "    cheaper.\n"
+    "    One of ``\"iandd\"``, ``\"rrc\"``.\n"
     "beta : float, default 0.35\n"
     "    RRC roll-off in `[0, 1]` (ignored for the rectangle).\n"
     "span : int, default 8\n"
@@ -1066,6 +1124,7 @@ static PyTypeObject RateSyncObjType = {
     "    lower self-noise near lock but degrades faster at low SNR. "
     "BPSK/QPSK\n"
     "    only -- invalid for 8PSK/QAM).\n"
+    "    One of ``\"gardner\"``, ``\"dttl\"``.\n"
     "\n"
     "Raises\n"
     "------\n"

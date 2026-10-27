@@ -167,6 +167,11 @@ LoopFilterObj_configure (LoopFilterObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd", _kwlist, &bn, &zeta,
                                     &t))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_loop_filter_configure (self->handle, bn, zeta, t);
   if (_rc != 0)
     {
@@ -180,6 +185,11 @@ LoopFilterObj_configure (LoopFilterObject *self, PyObject *args,
 static PyObject *
 LoopFilterObj_reset (LoopFilterObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");

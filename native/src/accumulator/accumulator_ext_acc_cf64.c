@@ -144,6 +144,11 @@ AccCf64_get (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   double _Complex y = dp_acc_cf64_get (self->handle);
   return PyComplex_FromDoubles (creal (y), cimag (y));
 }
@@ -151,6 +156,11 @@ AccCf64_get (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
 static PyObject *
 AccCf64_dump (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -190,6 +200,13 @@ AccCf64_madd (AccCf64Object *self, PyObject *args, PyObject *kwds)
     }
   const float *h     = (const float *)PyArray_DATA (h_arr);
   size_t       h_len = (size_t)PyArray_SIZE (h_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (h_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_cf64_madd (self->handle, x, x_len, h, h_len);
   Py_DECREF (x_arr);
   Py_DECREF (h_arr);
@@ -216,6 +233,12 @@ AccCf64_add2d (AccCf64Object *self, PyObject *args, PyObject *kwds)
     }
   const double _Complex *x     = (const double _Complex *)PyArray_DATA (x_arr);
   size_t                 x_len = (size_t)PyArray_SIZE (x_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_cf64_add2d (self->handle, x, x_len);
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
@@ -251,6 +274,13 @@ AccCf64_madd2d (AccCf64Object *self, PyObject *args, PyObject *kwds)
     }
   const float *h     = (const float *)PyArray_DATA (h_arr);
   size_t       h_len = (size_t)PyArray_SIZE (h_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (h_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_cf64_madd2d (self->handle, x, x_len, h, h_len);
   Py_DECREF (x_arr);
   Py_DECREF (h_arr);

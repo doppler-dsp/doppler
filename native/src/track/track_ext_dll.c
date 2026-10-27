@@ -180,7 +180,14 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_dll_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -191,6 +198,13 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -230,6 +244,12 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_dll_steps_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -251,6 +271,13 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -311,7 +338,17 @@ DllObj_set_telemetry (DllObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (tlm_cap);
           tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
           if (!tlm_cap)
-            return NULL;
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
         }
       tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
                                               "doppler.telemetry.dp_tlm");
@@ -327,7 +364,12 @@ DllObj_set_telemetry (DllObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = dp_dll_set_telemetry (self->handle, tlm, prefix, decim);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_dll_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
@@ -356,6 +398,11 @@ DllObj_configure (DllObject *self, PyObject *args, PyObject *kwds)
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_dll_configure (self->handle, bn, zeta);
   if (_rc != 0)
     {
@@ -378,6 +425,11 @@ DllObj_set_rate_aid (DllObject *self, PyObject *args, PyObject *kwds)
   double       rate_aid  = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &rate_aid))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_dll_set_rate_aid (self->handle, rate_aid);
   Py_RETURN_NONE;
 }
@@ -385,6 +437,11 @@ DllObj_set_rate_aid (DllObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 DllObj_take_error_mean (DllObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -406,6 +463,11 @@ DllObj_set_code_phase (DllObject *self, PyObject *args, PyObject *kwds)
   double       chips     = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &chips))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_dll_set_code_phase (self->handle, chips);
   Py_RETURN_NONE;
 }
@@ -423,6 +485,11 @@ DllObj_set_symbol_period (DllObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist,
                                     &partials_per_symbol))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_dll_set_symbol_period (self->handle, partials_per_symbol);
   if (_rc != 0)
     {
@@ -464,7 +531,12 @@ DllObj_set_lock_verify (DllObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t n_down = (uint32_t)n_down_raw;
-  int      _rc    = dp_dll_set_lock_verify (self->handle, n_up, n_down);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_dll_set_lock_verify (self->handle, n_up, n_down);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_lock_verify failed",
@@ -510,7 +582,12 @@ DllObj_configure_lock (DllObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (_ix);
     }
   size_t n_looks = (size_t)n_looks_raw;
-  int    _rc = dp_dll_configure_lock (self->handle, pfa, n_looks, ref_snr_db);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_dll_configure_lock (self->handle, pfa, n_looks, ref_snr_db);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure_lock failed",
@@ -578,6 +655,11 @@ DllObj_configure_lock_raw (DllObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t n_down = (uint32_t)n_down_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_dll_configure_lock_raw (self->handle, up_thresh, down_thresh, n_looks,
                              alpha, n_up, n_down);
   Py_RETURN_NONE;
@@ -586,6 +668,11 @@ DllObj_configure_lock_raw (DllObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 DllObj_reset (DllObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");

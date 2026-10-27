@@ -179,7 +179,13 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_pn_generate_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
@@ -187,6 +193,12 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_pn_generate (self->handle, (size_t)n,
@@ -216,6 +228,11 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_pn_generate_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -234,8 +251,14 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = dp_pn_generate (self->handle, (size_t)n, _d0, _cap);
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_pn_generate (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -540,7 +563,7 @@ static PyTypeObject PNObjType = {
     "for\n"
     "    a primitive polynomial.\n"
     "lfsr : Literal[\"galois\", \"fibonacci\"], default \"galois\"\n"
-    "    Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).\n"
+    "    One of ``\"galois\"``, ``\"fibonacci\"``.\n"
     "\n"
     "Examples\n"
     "--------\n"

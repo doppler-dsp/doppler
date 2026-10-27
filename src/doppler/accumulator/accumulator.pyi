@@ -750,7 +750,7 @@ class AccTrace:
         Trace length in bins. Must be > 0, with n doubles a byte count a size_t
         holds; returns NULL otherwise.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
-        Reduction mode: "mean", "exp", "maxhold" or "minhold".
+        One of ``"mean"``, ``"exp"``, ``"maxhold"``, ``"minhold"``.
 
         - ``"mean"`` — Linear running mean of all frames.
         - ``"exp"`` — Exponential moving average (alpha).

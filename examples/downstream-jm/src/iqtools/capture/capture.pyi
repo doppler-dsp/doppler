@@ -188,9 +188,9 @@ class RawCapture:
     path : str | os.PathLike
         path constructor parameter (required).
     sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8"], default "ci16"
-        sample_type constructor parameter.
+        One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``.
     endian : Literal["le", "be"], default "le"
-        endian constructor parameter.
+        One of ``"le"``, ``"be"``.
     fs : float, default 1.0
         fs constructor parameter.
     fc : float, default 0.0

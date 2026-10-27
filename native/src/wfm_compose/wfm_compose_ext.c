@@ -621,6 +621,263 @@ _coerce_dp_wfm_source_crc_refuse_text (uint8_t **dst, size_t *n_dst,
 }
 
 static int
+Synth_replace_symbols (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t = self->src;
+  _t.symbols      = NULL;
+  _t.n_symbols    = 0;
+  if (!_attach_symbols (&_t, value))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free (_t.symbols);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free (self->src.symbols);
+  self->src.symbols   = _t.symbols;
+  self->src.n_symbols = _t.n_symbols;
+  return 1;
+}
+
+static int
+Synth_replace_acq_code (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t  = self->src;
+  _t.acq_code.bits = NULL;
+  _t.acq_code.len  = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.acq_code.bits,
+                                               &_t.acq_code.len, value))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free ((void *)_t.acq_code.bits);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free ((void *)self->src.acq_code.bits);
+  self->src.acq_code.bits = _t.acq_code.bits;
+  self->src.acq_code.len  = _t.acq_code.len;
+  return 1;
+}
+
+static int
+Synth_replace_data_code (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t   = self->src;
+  _t.data_code.bits = NULL;
+  _t.data_code.len  = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.data_code.bits,
+                                               &_t.data_code.len, value))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free ((void *)_t.data_code.bits);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free ((void *)self->src.data_code.bits);
+  self->src.data_code.bits = _t.data_code.bits;
+  self->src.data_code.len  = _t.data_code.len;
+  return 1;
+}
+
+static int
+Synth_replace_sync (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t      = self->src;
+  _t.retired_sync.bits = NULL;
+  _t.retired_sync.len  = 0;
+  if (!_coerce_dp_wfm_source_sync_refuse_text (
+          (uint8_t **)&_t.retired_sync.bits, &_t.retired_sync.len, value))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free ((void *)_t.retired_sync.bits);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free ((void *)self->src.retired_sync.bits);
+  self->src.retired_sync.bits = _t.retired_sync.bits;
+  self->src.retired_sync.len  = _t.retired_sync.len;
+  return 1;
+}
+
+static int
+Synth_replace_crc (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t     = self->src;
+  _t.retired_crc.bits = NULL;
+  _t.retired_crc.len  = 0;
+  if (!_coerce_dp_wfm_source_crc_refuse_text ((uint8_t **)&_t.retired_crc.bits,
+                                              &_t.retired_crc.len, value))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free ((void *)_t.retired_crc.bits);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free ((void *)self->src.retired_crc.bits);
+  self->src.retired_crc.bits = _t.retired_crc.bits;
+  self->src.retired_crc.len  = _t.retired_crc.len;
+  return 1;
+}
+
+static int
+Synth_replace_frame (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t = self->src;
+  _t.frame        = NULL;
+  if (!_attach_frame (&_t, value))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      dp_wfm_frame_free ((wfm_frame_desc_t *)_t.frame);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
+  self->src.frame = _t.frame;
+  return 1;
+}
+
+static int
+Synth_replace_bits (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t      = self->src;
+  _t.retired_bits.bits = NULL;
+  _t.retired_bits.len  = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_t.retired_bits.bits, &_t.retired_bits.len, value))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free ((void *)_t.retired_bits.bits);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free ((void *)self->src.retired_bits.bits);
+  self->src.retired_bits.bits = _t.retired_bits.bits;
+  self->src.retired_bits.len  = _t.retired_bits.len;
+  return 1;
+}
+
+static int
+Synth_replace_data (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t = self->src;
+  _t.data.bits    = NULL;
+  _t.data.len     = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.data.bits,
+                                               &_t.data.len, value))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free ((void *)_t.data.bits);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free ((void *)self->src.data.bits);
+  self->src.data.bits = _t.data.bits;
+  self->src.data.len  = _t.data.len;
+  return 1;
+}
+
+static int
+Synth_replace_fill (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t = self->src;
+  _t.fill.bits    = NULL;
+  _t.fill.len     = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.fill.bits,
+                                               &_t.fill.len, value))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free ((void *)_t.fill.bits);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free ((void *)self->src.fill.bits);
+  self->src.fill.bits = _t.fill.bits;
+  self->src.fill.len  = _t.fill.len;
+  return 1;
+}
+
+static int
 Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]              = { "type",
@@ -1157,11 +1414,9 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   }
   self->src.rrc_beta = rrc_beta;
   self->src.rrc_span = rrc_span;
-  if (!_attach_symbols (&self->src, symbols))
+  if (!Synth_replace_symbols (self, symbols))
     return -1;
-  if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&self->src.acq_code.bits, &self->src.acq_code.len,
-          acq_code))
+  if (!Synth_replace_acq_code (self, acq_code))
     return -1;
   if (acq_reps_obj != NULL)
     {
@@ -1184,28 +1439,19 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     }
   size_t acq_reps    = (size_t)acq_reps_raw;
   self->src.acq_reps = acq_reps;
-  if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&self->src.data_code.bits, &self->src.data_code.len,
-          data_code))
+  if (!Synth_replace_data_code (self, data_code))
     return -1;
-  if (!_coerce_dp_wfm_source_sync_refuse_text (
-          (uint8_t **)&self->src.retired_sync.bits,
-          &self->src.retired_sync.len, sync))
+  if (!Synth_replace_sync (self, sync))
     return -1;
-  if (!_coerce_dp_wfm_source_crc_refuse_text (
-          (uint8_t **)&self->src.retired_crc.bits, &self->src.retired_crc.len,
-          crc))
+  if (!Synth_replace_crc (self, crc))
     return -1;
   self->src.symbol_rate    = symbol_rate;
   self->src.dsss_code_only = dsss_code_only;
-  if (!_attach_frame (&self->src, frame))
+  if (!Synth_replace_frame (self, frame))
     return -1;
-  if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&self->src.retired_bits.bits,
-          &self->src.retired_bits.len, bits))
+  if (!Synth_replace_bits (self, bits))
     return -1;
-  if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&self->src.data.bits, &self->src.data.len, data))
+  if (!Synth_replace_data (self, data))
     return -1;
   if (data_len_obj != NULL)
     {
@@ -1228,8 +1474,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     }
   size_t data_len    = (size_t)data_len_raw;
   self->src.data_len = data_len;
-  if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&self->src.fill.bits, &self->src.fill.len, fill))
+  if (!Synth_replace_fill (self, fill))
     return -1;
   if (code_only_symbols_obj != NULL)
     {
@@ -1946,7 +2191,7 @@ static int
 Synth_set_symbols (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_symbols (&self->src, value) ? 0 : -1;
+  return Synth_replace_symbols (self, value) ? 0 : -1;
 }
 static PyObject *
 Synth_get_acq_code (SynthObject *self, void *closure)
@@ -1961,11 +2206,7 @@ static int
 Synth_set_acq_code (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _coerce_dp_wfm_source_bits_refuse_text (
-             (uint8_t **)&self->src.acq_code.bits, &self->src.acq_code.len,
-             value)
-             ? 0
-             : -1;
+  return Synth_replace_acq_code (self, value) ? 0 : -1;
 }
 static PyObject *
 Synth_get_acq_reps (SynthObject *self, void *closure)
@@ -2013,11 +2254,7 @@ static int
 Synth_set_data_code (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _coerce_dp_wfm_source_bits_refuse_text (
-             (uint8_t **)&self->src.data_code.bits, &self->src.data_code.len,
-             value)
-             ? 0
-             : -1;
+  return Synth_replace_data_code (self, value) ? 0 : -1;
 }
 static PyObject *
 Synth_get_sync (SynthObject *self, void *closure)
@@ -2033,11 +2270,7 @@ static int
 Synth_set_sync (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _coerce_dp_wfm_source_sync_refuse_text (
-             (uint8_t **)&self->src.retired_sync.bits,
-             &self->src.retired_sync.len, value)
-             ? 0
-             : -1;
+  return Synth_replace_sync (self, value) ? 0 : -1;
 }
 static PyObject *
 Synth_get_crc (SynthObject *self, void *closure)
@@ -2052,11 +2285,7 @@ static int
 Synth_set_crc (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _coerce_dp_wfm_source_crc_refuse_text (
-             (uint8_t **)&self->src.retired_crc.bits,
-             &self->src.retired_crc.len, value)
-             ? 0
-             : -1;
+  return Synth_replace_crc (self, value) ? 0 : -1;
 }
 static PyObject *
 Synth_get_symbol_rate (SynthObject *self, void *closure)
@@ -2111,7 +2340,7 @@ static int
 Synth_set_frame (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _attach_frame (&self->src, value) ? 0 : -1;
+  return Synth_replace_frame (self, value) ? 0 : -1;
 }
 static PyObject *
 Synth_get_bits (SynthObject *self, void *closure)
@@ -2127,11 +2356,7 @@ static int
 Synth_set_bits (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _coerce_dp_wfm_source_bits_refuse_text (
-             (uint8_t **)&self->src.retired_bits.bits,
-             &self->src.retired_bits.len, value)
-             ? 0
-             : -1;
+  return Synth_replace_bits (self, value) ? 0 : -1;
 }
 static PyObject *
 Synth_get_data (SynthObject *self, void *closure)
@@ -2146,10 +2371,7 @@ static int
 Synth_set_data (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _coerce_dp_wfm_source_bits_refuse_text (
-             (uint8_t **)&self->src.data.bits, &self->src.data.len, value)
-             ? 0
-             : -1;
+  return Synth_replace_data (self, value) ? 0 : -1;
 }
 static PyObject *
 Synth_get_data_len (SynthObject *self, void *closure)
@@ -2197,10 +2419,7 @@ static int
 Synth_set_fill (SynthObject *self, PyObject *value, void *closure)
 {
   (void)closure;
-  return _coerce_dp_wfm_source_bits_refuse_text (
-             (uint8_t **)&self->src.fill.bits, &self->src.fill.len, value)
-             ? 0
-             : -1;
+  return Synth_replace_fill (self, value) ? 0 : -1;
 }
 static PyObject *
 Synth_get_code_only_symbols (SynthObject *self, void *closure)

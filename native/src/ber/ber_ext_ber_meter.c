@@ -115,7 +115,13 @@ BerMeterObj_set_truth (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *truth     = (const uint8_t *)PyArray_DATA (truth_arr);
   size_t         truth_len = (size_t)PyArray_SIZE (truth_arr);
-  int            _rc = dp_ber_meter_set_truth (self->handle, truth, truth_len);
+  if (!self->handle)
+    {
+      Py_DECREF (truth_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_ber_meter_set_truth (self->handle, truth, truth_len);
   Py_DECREF (truth_arr);
   if (_rc != 0)
     {
@@ -217,6 +223,12 @@ BerMeterObj_align (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
   size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (rx_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -297,6 +309,12 @@ BerMeterObj_score (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
   size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (rx_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -341,6 +359,11 @@ BerMeterObj_ser (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
       BerMeterObj_ser_type = PyStructSequence_NewType (&BerMeterObj_ser_desc);
       if (!BerMeterObj_ser_type)
         return NULL;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
   ber_interval_t _r = dp_ber_meter_ser (self->handle);
   PyObject      *_o = PyStructSequence_New (BerMeterObj_ser_type);
@@ -388,6 +411,11 @@ BerMeterObj_ber (BerMeterObject *self, PyObject *Py_UNUSED (ignored))
       BerMeterObj_ber_type = PyStructSequence_NewType (&BerMeterObj_ber_desc);
       if (!BerMeterObj_ber_type)
         return NULL;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
   ber_interval_t _r = dp_ber_meter_ber (self->handle);
   PyObject      *_o = PyStructSequence_New (BerMeterObj_ber_type);
@@ -486,6 +514,11 @@ BerMeterObj_interval (BerMeterObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
   ber_interval_t _r = dp_ber_meter_interval (self->handle, errors, symbols);
   PyObject      *_o = PyStructSequence_New (BerMeterObj_interval_type);

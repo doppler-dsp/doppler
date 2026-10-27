@@ -554,8 +554,7 @@ static PyTypeObject StreamSinkType = {
       "endpoint : int\n"
       "    Endpoint, e.g. \"nats://127.0.0.1:4222/iq\".\n"
       "sample_type : str, default ``\"cf32\"``\n"
-      "    Wire type (wavegen order): 0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8.\n"
-      "    Integer types use full-scale ±1.0.\n"
+      "    The wire type. The integer types use full-scale +/-1.0.\n"
       "    One of ``\"cf32\"``, ``\"cf64\"``, ``\"ci32\"``, ``\"ci16\"``, "
       "``\"ci8\"``,\n"
       "    ``\"f32\"``, ``\"f64\"``, ``\"i32\"``, ``\"i16\"``, ``\"i8\"``.\n"),

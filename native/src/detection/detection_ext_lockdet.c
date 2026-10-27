@@ -200,6 +200,11 @@ LockDetObj_configure (LockDetObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t n_down = (uint32_t)n_down_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_lockdet_configure (self->handle, up_thresh, down_thresh, n_up, n_down);
   Py_RETURN_NONE;
 }
@@ -207,6 +212,11 @@ LockDetObj_configure (LockDetObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 LockDetObj_reset (LockDetObject *self, PyObject *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");

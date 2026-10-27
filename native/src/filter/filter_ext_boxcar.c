@@ -180,6 +180,11 @@ MovingAverageObj_reset (MovingAverageObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_boxcar_reset (self->handle);
   Py_RETURN_NONE;
 }

@@ -129,6 +129,12 @@ SyncFinderObj_find (SyncFinderObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
     }
+  if (!self->handle)
+    {
+      Py_DECREF (bits_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -173,7 +179,12 @@ SyncFinderObj_pfa (SyncFinderObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t max_errors = (uint32_t)max_errors_raw;
-  double   y          = dp_syncword_pfa (self->handle, max_errors);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  double y = dp_syncword_pfa (self->handle, max_errors);
   return PyFloat_FromDouble (y);
 }
 
@@ -213,7 +224,12 @@ SyncFinderObj_max_errors_for (SyncFinderObject *self, PyObject *args,
       Py_DECREF (_ix);
     }
   size_t window_bits = (size_t)window_bits_raw;
-  int    y = dp_syncword_max_errors_for (self->handle, window_bits, pfa);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int y = dp_syncword_max_errors_for (self->handle, window_bits, pfa);
   return PyLong_FromLong ((long)y);
 }
 static PyObject *

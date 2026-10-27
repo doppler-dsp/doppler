@@ -224,6 +224,12 @@ BurstDemodObj_set_preamble (BurstDemodObject *self, PyObject *args,
     }
   const uint8_t *acq_code     = (const uint8_t *)PyArray_DATA (acq_code_arr);
   size_t         acq_code_len = (size_t)PyArray_SIZE (acq_code_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (acq_code_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_burst_demod_set_preamble (self->handle, acq_code, acq_code_len, reps);
   Py_DECREF (acq_code_arr);
   Py_RETURN_NONE;
@@ -278,7 +284,13 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_burst_demod_llrs_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
@@ -286,6 +298,12 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_burst_demod_llrs (
@@ -316,6 +334,11 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_burst_demod_llrs_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -333,7 +356,13 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out = dp_burst_demod_llrs (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -408,7 +437,13 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax = dp_burst_demod_symbols_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
@@ -416,6 +451,12 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _min_cap);
           Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       size_t n_out = dp_burst_demod_symbols (
@@ -447,6 +488,11 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)n;
   size_t _cap  = dp_burst_demod_symbols_max_out (self->handle, (size_t)n);
   (void)_need;
@@ -465,6 +511,12 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t n_out = dp_burst_demod_symbols (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)(n_out) > (size_t)(_cap))
     {
@@ -527,6 +579,11 @@ BurstDemodObj_set_prior (BurstDemodObject *self, PyObject *args,
       Py_DECREF (_ix);
     }
   size_t start = (size_t)start_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_burst_demod_set_prior (self->handle, f0_coarse, start);
   Py_RETURN_NONE;
 }
@@ -588,7 +645,14 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_burst_demod_demod_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
@@ -599,6 +663,13 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
                         _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
       /* nogil: GIL released across the pure-C kernel. Two calls on
@@ -639,6 +710,12 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
         }
       return _oview;
     }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   size_t _cap  = dp_burst_demod_demod_max_out (self->handle);
   if (!_cap || _cap < _need)
@@ -660,6 +737,13 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */

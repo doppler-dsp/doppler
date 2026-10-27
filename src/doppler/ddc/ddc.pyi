@@ -389,6 +389,7 @@ class MatchedDDC:
         outputs per symbol asks for `rate = m/sps`; the cascade never learns
         about symbols.
     pulse : Literal["iandd", "rrc"], default "rrc"
+        The matched-filter pulse. For no matched filter, use the plain DDC.
         One of ``"iandd"``, ``"rrc"``.
     beta : float, default 0.35
         RRC roll-off in `[0, 1]` (ignored for the rectangle).
@@ -1131,6 +1132,7 @@ class MatchedDdcr:
     rate : float, default 0.25
         Total output/input rate; must be in (0, 0.5).
     pulse : Literal["iandd", "rrc"], default "rrc"
+        The matched-filter pulse. For no matched filter, use the plain Ddcr.
         One of ``"iandd"``, ``"rrc"``.
     beta : float, default 0.35
         RRC roll-off in `[0, 1]` (ignored for the rectangle).

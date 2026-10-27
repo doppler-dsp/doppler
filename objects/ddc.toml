@@ -35,7 +35,7 @@ create_fn = "dp_ddc_create_matched"
 init_params = [
   { name = "norm_freq", type = "double", default = "0.0" },
   { name = "rate", type = "double", default = "0.25" },
-  { name = "pulse", type = "string_enum:iandd,rrc", default = "rrc" },
+  { name = "pulse", type = "string_enum:iandd,rrc", default = "rrc", doc = "The matched-filter pulse. For no matched filter, use the plain DDC." },
   { name = "beta", type = "double", default = "0.35" },
   { name = "span", type = "size_t", default = "8" },
   { name = "pulse_sps", type = "double", default = "2.0" },

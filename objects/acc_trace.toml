@@ -26,6 +26,7 @@ default = "1024"
 name = "mode"
 type = "enum:acc_trace_mode"
 default = "mean"
+doc = 'How successive traces are reduced: the running mean, an exponential average, or a max or min hold.'
 
 [[acc_trace.init_params]]
 name = "alpha"

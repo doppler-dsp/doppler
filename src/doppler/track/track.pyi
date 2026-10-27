@@ -1635,6 +1635,7 @@ class SymbolSync:
     zeta : float, default 0.707
         zeta constructor parameter.
     order : Literal["linear", "parabolic", "cubic"], default "cubic"
+        The polynomial order of the Farrow interpolator.
         One of ``"linear"``, ``"parabolic"``, ``"cubic"``.
     ted : Literal["gardner", "dttl"], default "gardner"
         Timing-error detector: "gardner" (blind, works for any constellation)
@@ -3377,6 +3378,7 @@ class MpskReceiver:
         outputs now feed the carrier discriminator, so there is no separate arm
         to size.
     pulse : Literal["iandd", "rrc"], default "iandd"
+        The matched-filter shape.
         One of ``"iandd"``, ``"rrc"``.
     rrc_beta : float, default 0.35
         RRC roll-off in `[0, 1]` (default 0.35; RRC only).
@@ -4633,6 +4635,7 @@ class MpskReceiverR:
         (NDA arm dumps per symbol): the cascade's own outputs now feed the
         carrier discriminator, so there is no separate arm to size.
     pulse : Literal["iandd", "rrc"], default "iandd"
+        The matched-filter shape.
         One of ``"iandd"``, ``"rrc"``.
     rrc_beta : float, default 0.35
         As dp_mpsk_receiver_create().

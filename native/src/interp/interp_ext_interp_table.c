@@ -431,25 +431,28 @@ static PyTypeObject InterpolatedTableObjType = {
   .tp_basicsize                           = sizeof (InterpolatedTableObject),
   .tp_dealloc = (destructor)InterpolatedTableObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create an InterpolatedTable instance.\n"
-                "\n"
-                "Parameters\n"
-                "----------\n"
-                "table : NDArray[np.complex128]\n"
-                "    Complex table, one period, length table_len.\n"
-                "method : Literal[\"floor\", \"nearest\", \"linear\"], default "
-                "\"linear\"\n"
-                "    One of ``\"floor\"``, ``\"nearest\"``, ``\"linear\"``.\n"
-                "\n"
-                "Examples\n"
-                "--------\n"
-                ">>> from doppler.interp import InterpolatedTable\n"
-                ">>> import numpy as np\n"
-                ">>> t = InterpolatedTable(\n"
-                "...     np.array([0.0, 1.0, 2.0], dtype=np.complex128),\n"
-                "...     method=\"linear\")\n"
-                ">>> t.n\n"
-                "3\n",
+  .tp_doc
+  = "Create an InterpolatedTable instance.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "table : NDArray[np.complex128]\n"
+    "    Complex table, one period, length table_len.\n"
+    "method : Literal[\"floor\", \"nearest\", \"linear\"], default "
+    "\"linear\"\n"
+    "    How a lookup between table points resolves: the point below, the\n"
+    "    nearest point, or linear interpolation.\n"
+    "    One of ``\"floor\"``, ``\"nearest\"``, ``\"linear\"``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.interp import InterpolatedTable\n"
+    ">>> import numpy as np\n"
+    ">>> t = InterpolatedTable(\n"
+    "...     np.array([0.0, 1.0, 2.0], dtype=np.complex128),\n"
+    "...     method=\"linear\")\n"
+    ">>> t.n\n"
+    "3\n",
   .tp_methods = InterpolatedTableObj_methods,
   .tp_getset  = InterpolatedTable_getset,
   .tp_new     = InterpolatedTableObj_new,

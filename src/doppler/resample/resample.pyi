@@ -1141,6 +1141,8 @@ class MatchedRateConverter:
         Non-zero to correct CIC passband droop (folded into the bank here, not
         appended as a stage).
     pulse : Literal["iandd", "rrc"], default "rrc"
+        The matched-filter pulse. For no matched filter, use the plain
+        RateConverter.
         One of ``"iandd"``, ``"rrc"``.
     beta : float, default 0.35
         RRC roll-off in `[0, 1]` (ignored for the rectangle).
@@ -1535,6 +1537,7 @@ class Farrow:
     Parameters
     ----------
     order : Literal["linear", "parabolic", "cubic"], default "cubic"
+        The polynomial order of the Farrow interpolator.
         One of ``"linear"``, ``"parabolic"``, ``"cubic"``.
 
     Examples

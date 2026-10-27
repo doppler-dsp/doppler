@@ -106,6 +106,7 @@ default = "0.9"
 name = "noise_mode"
 type = "string_enum:mean,median,min,max"
 default = "mean"
+doc = 'The CFAR reference: the statistic the noise floor is estimated with, which the detection threshold scales.'
 
 # Hz/s; caps the acquisition's coherent depth at f_epoch/sqrt(2*rate)
 # (doppler#1482, #1490). 0 = no bound. Appended last, so no positional call
@@ -150,7 +151,7 @@ init_params = [
   { name = "doppler_uncertainty", type = "double", default = "0.0" },
   { name = "pfa", type = "double", default = "1e-3" },
   { name = "pd", type = "double", default = "0.9" },
-  { name = "noise_mode", type = "string_enum:mean,median,min,max", default = "mean" },
+  { name = "noise_mode", type = "string_enum:mean,median,min,max", default = "mean", doc = "The CFAR reference: the statistic the noise floor is estimated with, which the detection threshold scales." },
   { name = "doppler_rate", type = "double", default = "0.0" },
   { name = "rate_hypotheses", type = "size_t", default = "1" },
 ]

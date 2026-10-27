@@ -15,6 +15,7 @@ type = "double _Complex[]"
 name = "method"
 type = "enum:interp_method"
 default = "linear"
+doc = 'How a lookup between table points resolves: the point below, the nearest point, or linear interpolation.'
 
 [[interp_table.methods]]
 name = "execute"

@@ -750,6 +750,8 @@ class AccTrace:
         Trace length in bins. Must be > 0, with n doubles a byte count a size_t
         holds; returns NULL otherwise.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
+        How successive traces are reduced: the running mean, an exponential
+        average, or a max or min hold.
         One of ``"mean"``, ``"exp"``, ``"maxhold"``, ``"minhold"``.
 
         - ``"mean"`` — Linear running mean of all frames.

@@ -95,8 +95,15 @@ typedef struct {
         fact as a failed check, and an FER conflating them would score every
         unprotected frame as an error. */
     int rx_checked;
+    /** Checks the last dp_frame_deframe() performed, summed over every
+        stage it reversed: one per CRC, one per outer-code codeword. 0
+        after a refused call. */
     int rx_units;
+    /** Of those checks, how many came out good; `rx_ok == rx_units` is
+        the verdict. 0 after a refused call. */
     int rx_ok;
+    /** Symbol errors the last dp_frame_deframe() repaired, summed over
+        its stages: margin being spent, which a CRC alone cannot show. */
     int rx_symbols;
     /** Owned copies of every literal field; NULL for a generated kind. */
     uint8_t *own[WFM_FRAME_MAX_FIELDS];
@@ -114,6 +121,10 @@ typedef struct {
         none. */
     int built;
 /*<<property_struct_fields>>*/
+  /** Bits in one frame as transmitted: the assembled frame's length for
+      dp_frame_create(), and the last emitting stage's output length
+      (`out_bits`) after dp_frame_build(). 0 until a description is built,
+      or if building fails. */
   size_t nbits;
 } dp_frame_state_t;
 
@@ -164,6 +175,9 @@ void dp_frame_destroy(dp_frame_state_t *state);
  *
  * @param state  The frame.
  * @param n      Frame repetitions.
+ * @return `n * nbits`, the output capacity in bits (one per byte) that
+ *         dp_frame_bits() needs; 0 for a NULL @p state or an unbuilt
+ *         description.
  */
 size_t dp_frame_bits_max_out(dp_frame_state_t *state, size_t n);
 
@@ -259,7 +273,17 @@ int dp_frame_crc_ok(dp_frame_state_t *state, const uint8_t *rx_bits, size_t rx_b
  * Read either one through @ref dp_frame_field_index and the indexed
  * accessors beside it, @ref dp_frame_field_off and its siblings.
  *
+ * @param preamble      Preamble bits, one per element, each 0 or 1; may be
+ *                      empty.
+ * @param preamble_len  Its length in bits.
+ * @param sync          Sync-word bits; may be empty.
+ * @param sync_len      Its length in bits.
+ * @param payload       Payload bits; may be empty.
+ * @param payload_len   Its length in bits.
+ * @param crc           Enum index; 0=none, 1=crc16 over the payload.
+ *                      Ignored when all three fields are empty.
  * @return An unbuilt description, or NULL if an element is not a bit.
+ *         Caller must call dp_frame_destroy() when done.
  *
  * @code
  * >>> import numpy as np
@@ -495,6 +519,9 @@ int dp_frame_name_field(dp_frame_state_t *state, uint32_t index, const char *nam
  * @param state  the frame.
  * @param name   the field's name, or NULL for anonymous.
  * @param bits   its length, which its stage decides and the caller states.
+ * @return The new field's index, or -1 on NULL @p state, a built frame, a
+ *         zero @p bits, a full description (`WFM_FRAME_MAX_FIELDS`) or a
+ *         name another field already carries.
  *
  * @code
  * >>> import numpy as np

@@ -44,7 +44,8 @@ extern "C"
    */
   typedef struct
   {
-    dp_acq_state_t *engine;
+    dp_acq_state_t *engine; /**< The wrapped acquisition engine; owned,
+                                 freed by dp_burst_acq_destroy(). */
     /** The engine's `underpowered` at construction -- a field of THIS
         struct because a declared jm warning's condition must be one; it is
         what raises the under-powered UserWarning after __init__. */
@@ -223,6 +224,8 @@ extern "C"
    *        acq_result_t::samples_consumed).
    *
    * @param state  Must be non-NULL.
+   * @return Samples taken from the last push's input; resume the stream at
+   *         `x + consumed`. 0 after create, reset, a regrid and set_state.
    */
   size_t dp_burst_acq_consumed (const dp_burst_acq_state_t *state);
 
@@ -293,8 +296,30 @@ extern "C"
    * triplet (the serialized bytes ARE the shared dp_acq_state_t's own state;
    * no separate format needed). */
 
+  /**
+   * @brief Byte size of the state blob: dp_acq_state_bytes() of the engine.
+   * @param state  Must be non-NULL.
+   * @return Blob size in bytes; depends on the engine's grid and
+   *         configuration, so query it per instance.
+   */
   size_t dp_burst_acq_state_bytes (const dp_burst_acq_state_t *state);
+  /**
+   * @brief Serialize the engine's cross-call state (dp_acq_get_state()).
+   *
+   * Call between pushes.
+   *
+   * @param state  Must be non-NULL.
+   * @param blob   Destination; at least dp_burst_acq_state_bytes() bytes.
+   */
   void   dp_burst_acq_get_state (const dp_burst_acq_state_t *state, void *blob);
+  /**
+   * @brief Restore the engine's cross-call state (dp_acq_set_state()).
+   * @param state  Must be non-NULL; built with the same preamble and grid
+   *               as the instance that wrote @p blob.
+   * @param blob   A blob from dp_burst_acq_get_state().
+   * @return DP_OK, or DP_ERR_INVALID if the envelope or the engine's
+   *         geometry does not match; a refused blob changes nothing.
+   */
   int    dp_burst_acq_set_state (dp_burst_acq_state_t *state, const void *blob);
 
 #ifdef __cplusplus

@@ -53,21 +53,23 @@ extern "C" {
  * scaled value falls outside `[-32768, 32767]`; cleared only by reset().
  */
 typedef struct {
-    float   scale;   /* multiply factor applied before saturation */
-    uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
+    float   scale;   /**< Multiply factor applied before rounding and
+                          saturation; set at create, never changed. */
+    uint8_t clipped; /**< Sticky: 1 once any sample has saturated, else 0.
+                          Written by step/steps; cleared by reset. */
 } dp_f32_to_i16_state_t;
 
 /**
  * @brief Create a f32_to_i16 instance.
  *
  * Allocates state and stores @p scale.  The @c clipped flag is initialised
- * to 0.  Returns NULL only on malloc failure; no parameter validation is
- * performed (any finite float is a valid scale).
+ * to 0.  The only validation is that @p scale must be positive.
  *
  * @param scale  Multiply factor applied before rounding and saturation
  *               (default: 32768.0f).  Use 32768.0 to convert a normalised
  *               `[-1, +1]` signal to full Q15 range.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL if @p scale <= 0 or on allocation
+ *         failure.
  * @note Caller must call dp_f32_to_i16_destroy() when done.
  */
 dp_f32_to_i16_state_t *dp_f32_to_i16_create(float scale);
@@ -140,8 +142,9 @@ dp_f32_to_i16_step(dp_f32_to_i16_state_t *state, float x)
  *
  * Applies step() to every element.  The @c clipped flag is updated
  * cumulatively across the block — a single saturating sample raises it
- * for the entire call.  Accepts an optional pre-allocated output array;
- * allocates a fresh one when @p output is NULL.
+ * for the entire call.  The C function writes into the caller's @p output
+ * and never allocates; the Python binding allocates a fresh array when no
+ * `out=` buffer is passed.
  *
  * @param state   Must be non-NULL.
  * @param input   Input float32 array; must contain at least @p n elements.
@@ -170,10 +173,33 @@ void dp_f32_to_i16_steps(
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the sticky clip flag resumes exactly into an
  * identically-built instance. */
+/** FourCC type tag ("F216") stamped in an F32ToI16 state blob's header. */
 #define F32_TO_I16_STATE_MAGIC DP_FOURCC ('F','2','1','6')
+/** Layout version of the F32ToI16 state blob; a mismatch is rejected. */
 #define F32_TO_I16_STATE_VERSION 1u
+/**
+ * @brief Serialized-state byte size.
+ * @param state  Converter state (unused: the size is fixed).
+ * @return `sizeof(dp_state_hdr_t) + sizeof(dp_f32_to_i16_state_t)`.
+ */
 size_t dp_f32_to_i16_state_bytes (const dp_f32_to_i16_state_t *state);
+/**
+ * @brief Serialize the state (scale and sticky clip flag) into @p blob.
+ * @param state  Must be non-NULL.
+ * @param blob   Destination; at least dp_f32_to_i16_state_bytes() bytes.
+ */
 void dp_f32_to_i16_get_state (const dp_f32_to_i16_state_t *state, void *blob);
+/**
+ * @brief Restore state from a blob written by dp_f32_to_i16_get_state().
+ *
+ * Replaces the whole struct, including @c scale; nothing changes if the
+ * envelope is rejected.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Source blob of dp_f32_to_i16_state_bytes() bytes.
+ * @return DP_OK, or DP_ERR_INVALID if the envelope (magic, version,
+ *         endianness, size) does not match.
+ */
 int dp_f32_to_i16_set_state (dp_f32_to_i16_state_t *state, const void *blob);
 
 #ifdef __cplusplus

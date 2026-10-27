@@ -141,8 +141,10 @@ extern "C"
    *  receiver. */
 #define ASYNC_DSSS_POOL_NO_RECEIVER (-1)
 
+  /** FourCC type tag ("ADPL") stamped in a pool state blob's header. */
 #define ASYNC_DSSS_POOL_STATE_MAGIC   DP_FOURCC ('A', 'D', 'P', 'L')
-/* v4, not 3: 'ADPL' v3 was the cell-receiver pool this one replaced
+/** Layout version of the pool state blob; a mismatch is rejected.
+ * v4, not 3: 'ADPL' v3 was the cell-receiver pool this one replaced
  * (v0.48.0 - v0.73.0), and v0.74.0 shipped this pool as v2. Each version
  * of a magic names one layout, so this pool steps past every number the
  * magic has carried (#2569; scripts/check_state_versions.py). */
@@ -177,7 +179,8 @@ extern "C"
                            input's own (dp_async_dsss_receiver_steps()). */
     size_t         *n_sym;   /**< Symbols each receiver emitted, last push. */
     const float _Complex *feed_x; /**< The block push() is stepping.    */
-    size_t                feed_n;
+    size_t                feed_n; /**< Samples in feed_x: one code
+                                         period while push() steps. */
     size_t   period;             /**< Samples a code period: the controller
                                       runs every period of `samples`.   */
     float _Complex *carry;       /**< The pushed samples past the last whole
@@ -309,7 +312,10 @@ extern "C"
   void dp_async_dsss_pool_reset (dp_async_dsss_pool_state_t *state);
 
   /** @brief Bytes in the blob dp_async_dsss_pool_get_state() writes: the
-   *  envelope, the pool's own fields, and every receiver's own blob. */
+   *  envelope, the pool's own fields, and every receiver's own blob.
+   *  @param state  Must be non-NULL.
+   *  @return The blob size in bytes; it depends on the receiver count,
+   *          the code period and each receiver's own state size. */
   size_t
   dp_async_dsss_pool_state_bytes (const dp_async_dsss_pool_state_t *state);
 
@@ -319,7 +325,10 @@ extern "C"
    *  carriers and code-lock flags over its window), and each receiver's
    *  state, which carries the
    *  exclusions and rank the controller gave it. The last push's symbols
-   *  do not travel. */
+   *  do not travel.
+   *  @param state  Must be non-NULL.
+   *  @param blob   Destination; at least
+   *                dp_async_dsss_pool_state_bytes() bytes. */
   void dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *state,
                                      void                             *blob);
 
@@ -329,17 +338,25 @@ extern "C"
    *  past the window, a flag other than 0 or 1, a nonzero entry outside a
    *  ring's span, or a history on a receiver not tracking), or a receiver
    *  blob its receiver refuses; a
-   *  refusal leaves the pool and every receiver as they were. */
+   *  refusal leaves the pool and every receiver as they were.
+   *  @param state  Must be non-NULL; built with the same code, receiver
+   *                count and geometry as the writer.
+   *  @param blob   A blob from dp_async_dsss_pool_get_state().
+   *  @return DP_OK, or DP_ERR_INVALID as above. */
   int dp_async_dsss_pool_set_state (dp_async_dsss_pool_state_t *state,
                                     const void                 *blob);
 
   /** @brief Workers push() steps the receivers on, the calling thread
    *  included: what set_threads() asked for, at most n_receivers, and
-   *  the online cores for 0. */
+   *  the online cores for 0.
+   *  @param state  Must be non-NULL.
+   *  @return The effective worker count, >= 1. */
   int dp_async_dsss_pool_get_threads (const dp_async_dsss_pool_state_t *state);
 
   /** @brief The receivers' slow-time depth D, epochs per coherent block
-   *  (dp_async_dsss_receiver_get_coherent_bins()); alike for all. */
+   *  (dp_async_dsss_receiver_get_coherent_bins()); alike for all.
+   *  @param state  Must be non-NULL.
+   *  @return D, read from receiver 0. */
   size_t
   dp_async_dsss_pool_get_coherent_bins (const dp_async_dsss_pool_state_t *state);
 
@@ -405,7 +422,10 @@ extern "C"
                              size_t                            receiver);
 
   /** @brief The most symbols symbols() can return: the largest count any
-   *  receiver emitted during the last push(). */
+   *  receiver emitted during the last push().
+   *  @param state  Must be non-NULL.
+   *  @return The largest per-receiver symbol count from the last push();
+   *          0 before the first push and after reset() or set_state(). */
   size_t
   dp_async_dsss_pool_symbols_max_out (const dp_async_dsss_pool_state_t *state);
 

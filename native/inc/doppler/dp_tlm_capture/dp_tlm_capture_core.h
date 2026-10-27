@@ -195,6 +195,7 @@ dp_tlm_capture_t *dp_tlm_capture_open_memory (dp_tlm_t *t,
  *
  * Usually reached through dp_tlm_set_now() rather than called directly.
  *
+ * @param c  The capture.
  * @return ::DP_OK, ::DP_ERR_INVALID on NULL / a closed capture, ::DP_ERR_MEMORY
  *         if a buffer could not grow, or ::DP_ERR_SEND if the writer failed.
  *
@@ -223,6 +224,7 @@ int dp_tlm_capture_block (dp_tlm_capture_t *c);
  * joins the writer thread, closes the file and writes `<path>-meta`.
  * Idempotent: a second call is a no-op returning the first call's verdict.
  *
+ * @param c  The capture; NULL returns ::DP_ERR_INVALID.
  * @return ::DP_OK when the capture is provably complete.  **::DP_ERR_INVALID
  *         when records were dropped** — the invariant makes that impossible,
  *         so a non-zero count means the contract was broken (a step longer
@@ -259,7 +261,15 @@ int dp_tlm_capture_block (dp_tlm_capture_t *c);
  */
 int dp_tlm_capture_close (dp_tlm_capture_t *c);
 
-/** @brief Records captured so far, across memory and file alike. */
+/**
+ * @brief Records captured so far, across memory and file alike.
+ *
+ * Counts what has been drained from the ring, so a record emitted since
+ * the last boundary is not included until the next boundary (or close).
+ *
+ * @param c  The capture; NULL returns 0.
+ * @return Records drained so far.
+ */
 size_t dp_tlm_capture_count (const dp_tlm_capture_t *c);
 
 /**
@@ -276,6 +286,10 @@ size_t dp_tlm_capture_count (const dp_tlm_capture_t *c);
  * docstring from the `<component>_<method>` symbol while `fn` chooses the one
  * it calls, so the two must carry the same text or the .pyi and the runtime
  * `__doc__` disagree (checked by scripts/check_doc_face_parity.py).
+ *
+ * @param c  The capture; NULL returns NULL.
+ * @return Borrowed pointer to dp_tlm_capture_count() records, or NULL in
+ *         file mode or when nothing has been accumulated.
  *
  * @code
  * >>> import numpy as np
@@ -303,6 +317,9 @@ const dp_tlm_rec_t *dp_tlm_capture_records (const dp_tlm_capture_t *c);
  * The accumulated count: a caller sizing a destination cannot know its own
  * request will be smaller, and the generated binding allocates this much,
  * reads, then resizes to what actually came back.
+ *
+ * @param c  The capture; NULL returns 0.
+ * @return Records accumulated in memory; always 0 for a file capture.
  */
 size_t dp_tlm_capture_read_max_out (const dp_tlm_capture_t *c);
 
@@ -350,6 +367,10 @@ size_t dp_tlm_capture_read (const dp_tlm_capture_t *c, size_t n,
  * Latched against the context's monotonic counter at open, so it reports this
  * capture rather than the context's lifetime.  Non-zero means a hole; see
  * dp_tlm_capture_close().
+ *
+ * @param c  The capture; NULL returns 0.
+ * @return Records dropped between open and close.  Computed at close, so
+ *         it reads 0 while the capture is still open.
  */
 uint64_t dp_tlm_capture_dropped (const dp_tlm_capture_t *c);
 
@@ -364,6 +385,9 @@ uint64_t dp_tlm_capture_dropped (const dp_tlm_capture_t *c);
  * Borrowed, not owned: the context outlives the capture by construction (it
  * is what the capture was opened on), and destroying the capture does not
  * touch it.
+ *
+ * @param c  The capture; NULL returns NULL.
+ * @return The context passed to open, borrowed.
  */
 dp_tlm_t *dp_tlm_capture_context (const dp_tlm_capture_t *c);
 
@@ -376,8 +400,9 @@ dp_tlm_t *dp_tlm_capture_context (const dp_tlm_capture_t *c);
  * dp_tlm_capture_close()'s reason for existing.  The state is released
  * whatever the verdict says — this never leaks on the error path.
  *
- * @return dp_tlm_capture_close()'s result, or ::DP_OK for a NULL or
- *         already-closed capture (nothing was left to go wrong).
+ * @param c  The capture, freed on return; NULL is a no-op.
+ * @return dp_tlm_capture_close()'s result: for a capture already closed,
+ *         the verdict that close returned; ::DP_OK for NULL.
  */
 int dp_tlm_capture_destroy (dp_tlm_capture_t *c);
 

@@ -655,7 +655,10 @@ dp_burst_capture_state_t *dp_burst_capture_create_backed (
     double doppler_uncertainty, double pfa, double pd, int noise_mode,
     double doppler_rate, size_t rate_hypotheses);
 
-/** @brief Release a capture and everything it owns. NULL-safe. */
+/**
+ * @brief Release a capture and everything it owns. NULL-safe.
+ * @param state  Capture from either create, or NULL.
+ */
 void dp_burst_capture_destroy (dp_burst_capture_state_t *state);
 
 /**
@@ -663,8 +666,10 @@ void dp_burst_capture_destroy (dp_burst_capture_state_t *state);
  *
  * Resets the embedded acquisition, rewinds the history ring, clears every
  * queued detection and every read-back. Construction parameters are
- * untouched; `dropped` deliberately survives, because a lost burst stays
- * lost.
+ * untouched; `dropped` and `n_bursts` deliberately survive, because a lost
+ * burst stays lost and a lifetime count is a lifetime count.
+ *
+ * @param state  Capture. Must be non-NULL.
  *
  * @code
  * >>> import numpy as np
@@ -686,6 +691,10 @@ void dp_burst_capture_reset (dp_burst_capture_state_t *state);
  *
  * Distinct bursts cannot overlap, so `x_len` samples complete at most
  * `x_len/burst_len + 1` of them, plus whatever is already queued.
+ *
+ * @param state  Capture. Must be non-NULL.
+ * @param x_len  Samples the next push() will be given.
+ * @return `(x_len/burst_len + 1 + queue capacity) * burst_len` samples.
  */
 size_t dp_burst_capture_push_max_out (dp_burst_capture_state_t *state,
                                    size_t x_len);
@@ -731,7 +740,12 @@ size_t dp_burst_capture_push (dp_burst_capture_state_t *state,
                            const float _Complex *x, size_t x_len,
                            float _Complex *out, size_t max_out);
 
-/** @brief Raw detections available from the last push(). @p n is ignored. */
+/**
+ * @brief Raw detections available from the last push(). @p n is ignored.
+ * @param state  Capture. Must be non-NULL.
+ * @param n      Ignored: the count is the last push's, not a request.
+ * @return Rows detections() can copy out now (0 before any push).
+ */
 size_t dp_burst_capture_detections_max_out (dp_burst_capture_state_t *state,
                                          size_t n);
 
@@ -742,6 +756,12 @@ size_t dp_burst_capture_detections_max_out (dp_burst_capture_state_t *state,
  * preamble, and a row can be a false alarm. That is the point -- this is what
  * acquisition FOUND, and `events()` is what survived. Valid until the next
  * push(), reset() or set_state().
+ *
+ * @param state    Capture. Must be non-NULL.
+ * @param n        Ignored (the binding's request size).
+ * @param out      Destination rows; may be NULL to copy nothing.
+ * @param max_out  Capacity of @p out, in rows.
+ * @return Rows copied: min(detections held, @p max_out).
  *
  * @code
  * >>> import numpy as np
@@ -759,7 +779,12 @@ size_t dp_burst_capture_detections (dp_burst_capture_state_t *state, size_t n,
                                  burst_capture_detection_t *out,
                                  size_t max_out);
 
-/** @brief Records available from the last push(). @p n is ignored. */
+/**
+ * @brief Records available from the last push(). @p n is ignored.
+ * @param state  Capture. Must be non-NULL.
+ * @param n      Ignored: the count is the last push's, not a request.
+ * @return Event rows events() can copy out now: one per window returned.
+ */
 size_t dp_burst_capture_events_max_out (dp_burst_capture_state_t *state, size_t n);
 
 /**
@@ -767,6 +792,12 @@ size_t dp_burst_capture_events_max_out (dp_burst_capture_state_t *state, size_t 
  *
  * Row `i` describes the window at `i*burst_len`. Valid until the next
  * push(), reset() or set_state().
+ *
+ * @param state    Capture. Must be non-NULL.
+ * @param n        Ignored (the binding's request size).
+ * @param out      Destination rows; may be NULL to copy nothing.
+ * @param max_out  Capacity of @p out, in rows.
+ * @return Rows copied: min(windows of the last push, @p max_out).
  *
  * @code
  * >>> import numpy as np
@@ -788,6 +819,9 @@ size_t dp_burst_capture_events (dp_burst_capture_state_t *state, size_t n,
  * The C consumer's face, and the reason a composing object pays no second
  * copy: dp_burst_capture_window() borrows straight out of the scratch that
  * push() filled.
+ *
+ * @param state  Capture. Must be non-NULL.
+ * @return Number of windows (and events) the last push() completed.
  */
 size_t dp_burst_capture_ready (const dp_burst_capture_state_t *state);
 
@@ -796,11 +830,21 @@ size_t dp_burst_capture_ready (const dp_burst_capture_state_t *state);
  *
  * Contiguous, `burst_len` samples, valid until the next push(), reset() or
  * set_state(). The caller must not free it.
+ *
+ * @param state  Capture. Must be non-NULL.
+ * @param i      Window index, 0 .. dp_burst_capture_ready() - 1.
+ * @return Borrowed pointer to the window's samples, or NULL.
  */
 const float _Complex *dp_burst_capture_window (const dp_burst_capture_state_t *state,
                                            size_t i);
 
-/** @brief Borrow event @p i of the last push(), or NULL if out of range. */
+/**
+ * @brief Borrow event @p i of the last push(), or NULL if out of range.
+ * @param state  Capture. Must be non-NULL.
+ * @param i      Event index, 0 .. dp_burst_capture_ready() - 1.
+ * @return Borrowed record, valid until the next push(), reset() or
+ *         set_state(); NULL when @p i is out of range.
+ */
 const burst_capture_event_t *
 dp_burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i);
 
@@ -824,6 +868,8 @@ dp_burst_capture_event_at (const dp_burst_capture_state_t *state, size_t i);
  *
  * Must be called BEFORE the next push(): `i` indexes THIS push's windows.
  *
+ * @param state  Capture. Must be non-NULL.
+ * @param i      Window index from the last push().
  * @return DP_OK, or DP_ERR_INVALID if @p i is not a window of the last push().
  *
  * @code
@@ -854,6 +900,11 @@ int dp_burst_capture_release (dp_burst_capture_state_t *state, size_t i);
  * of preamble, so `n_noncoh = 1` is the grid a capture wants and the sizer
  * now always picks (doppler#1181).
  *
+ * @param state         Capture. Must be non-NULL.
+ * @param doppler_bins  Coherent depth to pin (see
+ *                      dp_burst_acq_configure_search_raw()).
+ * @param n_noncoh      Non-coherent looks to pin; `n_noncoh *
+ *                      doppler_bins` must not exceed the refine reach.
  * @return DP_OK, or DP_ERR_INVALID if this object or the engine refused the
  *         grid.
  *
@@ -883,17 +934,28 @@ int dp_burst_capture_configure_search_raw (dp_burst_capture_state_t *state,
  * the parameters above, and `configure_search_raw()` is the one call that
  * moves them. */
 
-/** @brief Dead air a caller must leave between bursts, edge to edge. */
+/** @brief Dead air a caller must leave between bursts, edge to edge.
+ *  @param state  Capture. Must be non-NULL.
+ *  @return The minimum gap in samples, fixed at create. */
 size_t dp_burst_capture_get_min_gap (const dp_burst_capture_state_t *state);
 
-/** @brief Coherent detection gate; in force when `n_noncoh == 1`. */
+/** @brief Coherent detection gate; in force when `n_noncoh == 1`.
+ *  @param state  Capture. Must be non-NULL.
+ *  @return The engine's raw per-cell Rayleigh amplitude threshold. */
 double dp_burst_capture_get_eta (const dp_burst_capture_state_t *state);
 /** @brief Non-coherent gate; in force only when `n_noncoh > 1`, which a
- *  burst search never chooses (it reads 0 unless a pin sets looks). */
+ *  burst search never chooses (it reads 0 unless a pin sets looks).
+ *  @param state  Capture. Must be non-NULL.
+ *  @return The engine's non-coherent CFAR threshold, or 0. */
 double dp_burst_capture_get_eta_nc (const dp_burst_capture_state_t *state);
-/** @brief Correlation kept, worst case, by a burst landing between bins. */
+/** @brief Correlation kept, worst case, by a burst landing between bins.
+ *  @param state  Capture. Must be non-NULL.
+ *  @return The engine's straddle_loss: an amplitude derating factor
+ *          (linear; 20*log10 of it is the loss in dB). */
 double dp_burst_capture_get_straddle_loss (const dp_burst_capture_state_t *state);
-/** @brief Detection probability of one dwell wholly inside the preamble. */
+/** @brief Detection probability of one dwell wholly inside the preamble.
+ *  @param state  Capture. Must be non-NULL.
+ *  @return Predicted Pd, 0 to 1; NAN when no design C/N0 was given. */
 double dp_burst_capture_get_pd_predicted (const dp_burst_capture_state_t *state);
 /** @brief Detection probability of one burst: any dwell its preamble spans,
  *         at a uniform alignment (doppler#1498). What `underpowered` reads.
@@ -904,36 +966,64 @@ double dp_burst_capture_get_pd_predicted (const dp_burst_capture_state_t *state)
  * `pd`): its loss against the engine is refine naming the wrong repetition,
  * about 2% of trials (native/validation/capture_dwell_pd.c; validation
  * report §2.8). Until doppler#1519 it also lost a code phase along the ZC
- * delay-Doppler ridge and fell 0.026 short at 0.9. */
+ * delay-Doppler ridge and fell 0.026 short at 0.9.
+ *
+ * @param state  Capture. Must be non-NULL.
+ * @return Predicted per-burst Pd, 0 to 1; NAN with no design C/N0 or
+ *         with n_noncoh > 1. */
 double dp_burst_capture_get_pd_burst (const dp_burst_capture_state_t *state);
 /** @brief The preamble's peak sidelobe level, dB: dp_acq_psl_db() of the
  *         engine. A burst clearing the threshold by more than `-psl_db`
  *         also detects its own sidelobe, outside the peak zone; -INFINITY
- *         for a perfect sequence. */
+ *         for a perfect sequence.
+ *  @param state  Capture. Must be non-NULL.
+ *  @return Peak sidelobe level in dB, or -INFINITY. */
 double dp_burst_capture_get_psl_db (const dp_burst_capture_state_t *state);
 /** @brief Doppler rate (Hz/s) the coherent depth is bounded against; 0 is
- *         no bound. */
+ *         no bound.
+ *  @param state  Capture. Must be non-NULL.
+ *  @return The declared Doppler rate, Hz/s. */
 double dp_burst_capture_get_doppler_rate (const dp_burst_capture_state_t *state);
 /** @brief Doppler-rate hypotheses searched; 1 is none -- `doppler_rate` then
- *         only caps the coherent depth. */
+ *         only caps the coherent depth.
+ *  @param state  Capture. Must be non-NULL.
+ *  @return Rate hypotheses on the acquisition grid (>= 1). */
 size_t dp_burst_capture_get_rate_hypotheses (
     const dp_burst_capture_state_t *state);
 /** @brief Doppler hypotheses searched: the coherent depth, or the window-tile
- *         count past the native span -- acq_grid_bins() (doppler#1512). */
+ *         count past the native span -- acq_grid_bins() (doppler#1512).
+ *  @param state  Capture. Must be non-NULL.
+ *  @return Doppler hypotheses on the grid. */
 size_t dp_burst_capture_get_doppler_bins (const dp_burst_capture_state_t *state);
-/** @brief Non-coherent looks combined per decision. */
+/** @brief Non-coherent looks combined per decision.
+ *  @param state  Capture. Must be non-NULL.
+ *  @return The engine's n_noncoh (1 unless pinned). */
 size_t dp_burst_capture_get_n_noncoh (const dp_burst_capture_state_t *state);
-/** @brief Code-phase hypotheses per Doppler row. */
+/** @brief Code-phase hypotheses per Doppler row.
+ *  @param state  Capture. Must be non-NULL.
+ *  @return The engine's code_bins, in samples. */
 size_t dp_burst_capture_get_code_bins (const dp_burst_capture_state_t *state);
-/** @brief Unambiguous Doppler half-range, Hz (+/- this). */
+/** @brief Unambiguous Doppler half-range, Hz (+/- this).
+ *  @param state  Capture. Must be non-NULL.
+ *  @return The engine's native Doppler half-range, Hz. */
 double dp_burst_capture_get_doppler_span_hz (const dp_burst_capture_state_t *state);
 
-/** @brief Bytes one blob occupies: a pure function of CONFIGURATION. */
+/** @brief Bytes one blob occupies: a pure function of CONFIGURATION.
+ *  @param state  Capture. Must be non-NULL.
+ *  @return Blob size in bytes. Differs between a backed capture (no
+ *          look-back samples) and an in-RAM one; changes only with
+ *          configure_search_raw(). */
 size_t dp_burst_capture_state_bytes (const dp_burst_capture_state_t *state);
-/** @brief Serialize into @p blob, which must be state_bytes() long. */
+/** @brief Serialize into @p blob, which must be state_bytes() long.
+ *  @param state  Capture. Must be non-NULL.
+ *  @param blob   Destination of dp_burst_capture_state_bytes() bytes. */
 void dp_burst_capture_get_state (const dp_burst_capture_state_t *state, void *blob);
 /**
- * @brief Restore from @p blob. @return DP_OK or DP_ERR_INVALID.
+ * @brief Restore from @p blob.
+ *
+ * @param state  Capture of the same configuration and flavor as the writer.
+ * @param blob   A blob from dp_burst_capture_get_state().
+ * @return DP_OK or DP_ERR_INVALID.
  *
  * A refusal writes nothing of the capture: every check runs before any of it
  * is written. The acquisition child is restored to check where it stands,
@@ -967,13 +1057,75 @@ void dp_burst_capture_get_state (const dp_burst_capture_state_t *state, void *bl
  */
 int dp_burst_capture_set_state (dp_burst_capture_state_t *state, const void *blob);
 
+/**
+ * @brief Stream-absolute sample index the most recent window's preamble
+ *        starts at. Never late: refine is early-or-exact.
+ * @param state  Capture. Must be non-NULL.
+ * @return The start sample; 0 before the first window and after reset().
+ */
 uint64_t dp_burst_capture_get_preamble_start(const dp_burst_capture_state_t *state);
+/**
+ * @brief Signed coarse Doppler estimate of the most recent window, Hz.
+ *
+ * Acquisition's bin, folded by the fftfreq convention.
+ *
+ * @param state  Capture. Must be non-NULL.
+ * @return Doppler estimate in Hz; 0 before the first window.
+ */
 double dp_burst_capture_get_doppler_hz_est(const dp_burst_capture_state_t *state);
+/**
+ * @brief Acquisition's native Doppler bin width, Hz.
+ *
+ * Read from the engine, so it is valid from create on, before any burst;
+ * dp_burst_capture_get_doppler_hz_est() is that value +/- half of this.
+ *
+ * @param state  Capture. Must be non-NULL.
+ * @return Bin width, Hz.
+ */
 double dp_burst_capture_get_doppler_res_hz(const dp_burst_capture_state_t *state);
+/**
+ * @brief Estimated C/N0 of the most recent window, dB-Hz.
+ *
+ * Backed out of the hit's test statistic, so it is a lower bound that
+ * saturates at the code's autocorrelation-sidelobe floor at high C/N0.
+ *
+ * @param state  Capture. Must be non-NULL.
+ * @return C/N0 estimate, dB-Hz; 0 before the first window.
+ */
 double dp_burst_capture_get_cn0_dbhz_est(const dp_burst_capture_state_t *state);
+/**
+ * @brief Refine's winning Doppler-rate hypothesis for the most recent
+ *        window, Hz/s.
+ * @param state  Capture. Must be non-NULL.
+ * @return The rate, Hz/s; 0 without a declared rate or before the first
+ *         window.
+ */
 double dp_burst_capture_get_doppler_rate_hz_s(const dp_burst_capture_state_t *state);
+/**
+ * @brief Detections held because their burst window has not fully arrived.
+ *
+ * Non-zero means stopping now discards a burst that would have been
+ * captured. Detections shadowed by an emitted window are not counted.
+ *
+ * @param state  Capture. Must be non-NULL.
+ * @return Queued, unshadowed detections.
+ */
 size_t dp_burst_capture_get_pending(const dp_burst_capture_state_t *state);
+/**
+ * @brief Samples of look-back discarded while a queued detection still
+ *        needed them, lifetime.
+ *
+ * 0 on a live stream; non-zero means a lost burst. Survives reset().
+ *
+ * @param state  Capture. Must be non-NULL.
+ * @return Dropped samples since create.
+ */
 uint64_t dp_burst_capture_get_dropped(const dp_burst_capture_state_t *state);
+/**
+ * @brief Windows emitted, lifetime. Survives reset().
+ * @param state  Capture. Must be non-NULL.
+ * @return Windows emitted since create (or as restored by set_state()).
+ */
 uint64_t dp_burst_capture_get_n_bursts(const dp_burst_capture_state_t *state);
 #ifdef __cplusplus
 }

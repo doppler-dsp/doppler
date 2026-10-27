@@ -17,6 +17,7 @@
 #include <math.h>
 
 #ifndef M_PI
+/** @brief pi, defined here only when <math.h> does not provide it. */
 #define M_PI 3.14159265358979323846
 #endif
 
@@ -201,8 +202,10 @@ void dp_wfm_rrc_polyphase_bank(double beta, int sps, int span, float *bank);
  * across `sf` chips, sign-flipped per code chip. Output length is `n_sym*sf`.
  * Works for BPSK (real syms) and QPSK (complex syms).
  *
- * @param syms   complex data symbols; @param n_sym their count.
- * @param code   PN chip code (0/1), length `sf`; @param sf spreading factor.
+ * @param syms   complex data symbols.
+ * @param n_sym  number of symbols in @p syms.
+ * @param code   PN chip code (0/1), length `sf`.
+ * @param sf     spreading factor, chips per symbol.
  * @param out    output chips, length `n_sym * sf`.
  */
 void dp_wfm_dsss_spread(const float _Complex *syms, size_t n_sym,

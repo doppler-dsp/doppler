@@ -54,8 +54,11 @@
 #include <process.h>
 #include <windows.h>
 
+/** @brief A non-recursive mutex (an SRWLOCK on Windows). */
 typedef SRWLOCK            dp_mutex_t;
+/** @brief A condition variable, waited on with a dp_mutex_t held. */
 typedef CONDITION_VARIABLE dp_cond_t;
+/** @brief A joinable thread handle (from _beginthreadex on Windows). */
 typedef HANDLE             dp_thread_t;
 
 /** @brief Declares a thread entry point portably.
@@ -65,54 +68,81 @@ typedef HANDLE             dp_thread_t;
 /** @brief Returns from a #DP_THREAD_FN body. */
 #define DP_THREAD_RETURN return 0
 
+/** @brief Initializes @p m, unlocked.
+ *  @param m  Storage for the mutex. */
 static inline void
 dp_mutex_init (dp_mutex_t *m)
 {
   InitializeSRWLock (m);
 }
+/** @brief Releases @p m (a no-op on Windows). @p m must be unlocked.
+ *  @param m  Mutex from dp_mutex_init(). */
 static inline void
 dp_mutex_destroy (dp_mutex_t *m)
 {
   (void)m; /* an SRWLOCK owns nothing to release */
 }
+/** @brief Locks @p m, blocking until it is free. Not recursive: locking
+ *  a mutex this thread already holds deadlocks or is undefined.
+ *  @param m  Mutex from dp_mutex_init(). */
 static inline void
 dp_mutex_lock (dp_mutex_t *m)
 {
   AcquireSRWLockExclusive (m);
 }
+/** @brief Unlocks @p m, which this thread must hold.
+ *  @param m  Mutex from dp_mutex_init(). */
 static inline void
 dp_mutex_unlock (dp_mutex_t *m)
 {
   ReleaseSRWLockExclusive (m);
 }
 
+/** @brief Initializes @p c with no waiters.
+ *  @param c  Storage for the condition variable. */
 static inline void
 dp_cond_init (dp_cond_t *c)
 {
   InitializeConditionVariable (c);
 }
+/** @brief Releases @p c (a no-op on Windows); no thread may be waiting.
+ *  @param c  Condition variable from dp_cond_init(). */
 static inline void
 dp_cond_destroy (dp_cond_t *c)
 {
   (void)c; /* likewise */
 }
+/** @brief Atomically unlocks @p m and waits on @p c, relocking @p m
+ *  before returning. No timeout. Wakeups may be spurious, so wait in a
+ *  loop that re-checks the predicate.
+ *  @param c  Condition variable to wait on.
+ *  @param m  Mutex the caller holds. */
 static inline void
 dp_cond_wait (dp_cond_t *c, dp_mutex_t *m)
 {
   SleepConditionVariableSRW (c, m, INFINITE, 0);
 }
+/** @brief Wakes at most one thread waiting on @p c.
+ *  @param c  Condition variable from dp_cond_init(). */
 static inline void
 dp_cond_signal (dp_cond_t *c)
 {
   WakeConditionVariable (c);
 }
+/** @brief Wakes every thread waiting on @p c.
+ *  @param c  Condition variable from dp_cond_init(). */
 static inline void
 dp_cond_broadcast (dp_cond_t *c)
 {
   WakeAllConditionVariable (c);
 }
 
-/** @brief Starts @p fn on a new thread. Returns 0 on success. */
+/** @brief Starts @p fn on a new thread. Returns 0 on success.
+ *  @param[out] t    Handle of the new thread; join it with
+ *              dp_thread_join().
+ *  @param fn   Entry point, declared with #DP_THREAD_FN.
+ *  @param arg  Passed to @p fn unchanged.
+ *  @return 0 on success, -1 if the thread could not be started. */
 static inline int
 dp_thread_create (dp_thread_t *t, unsigned (__stdcall *fn) (void *), void *arg)
 {
@@ -124,7 +154,9 @@ dp_thread_create (dp_thread_t *t, unsigned (__stdcall *fn) (void *), void *arg)
 }
 
 /** @brief Waits for @p t to finish and releases it. Returns 0 on success,
- *  as pthread_join does, so a caller that asserted the join can still. */
+ *  as pthread_join does, so a caller that asserted the join can still.
+ *  @param t  Thread from dp_thread_create(); not usable afterward.
+ *  @return 0 on success, -1 if the wait or the handle close failed. */
 static inline int
 dp_thread_join (dp_thread_t t)
 {
@@ -133,7 +165,8 @@ dp_thread_join (dp_thread_t t)
   return (waited == WAIT_OBJECT_0 && closed) ? 0 : -1;
 }
 
-/** @brief Online processor count, or 1 if it cannot be determined. */
+/** @brief Online processor count, or 1 if it cannot be determined.
+ *  @return Number of online logical processors, always >= 1. */
 static inline int
 dp_cpu_count (void)
 {
@@ -154,7 +187,8 @@ dp_thread_yield (void)
  *  honours the system timer, 15.6 ms by default. So this rounds up to one
  *  millisecond and may well take a tick. Use it for "let the other thread
  *  get there", never for timing -- timing_core's waitable timer is the
- *  precise sleep. */
+ *  precise sleep.
+ *  @param us  Minimum sleep, microseconds. */
 static inline void
 dp_thread_sleep_us (unsigned us)
 {
@@ -168,8 +202,11 @@ dp_thread_sleep_us (unsigned us)
 #include <time.h>
 #include <unistd.h>
 
+/** @brief A non-recursive mutex (a default pthread_mutex_t on POSIX). */
 typedef pthread_mutex_t dp_mutex_t;
+/** @brief A condition variable, waited on with a dp_mutex_t held. */
 typedef pthread_cond_t  dp_cond_t;
+/** @brief A joinable thread handle (a pthread_t on POSIX). */
 typedef pthread_t       dp_thread_t;
 
 /** @brief Declares a thread entry point portably.
@@ -179,54 +216,81 @@ typedef pthread_t       dp_thread_t;
 /** @brief Returns from a #DP_THREAD_FN body. */
 #define DP_THREAD_RETURN return NULL
 
+/** @brief Initializes @p m, unlocked.
+ *  @param m  Storage for the mutex. */
 static inline void
 dp_mutex_init (dp_mutex_t *m)
 {
   pthread_mutex_init (m, NULL);
 }
+/** @brief Releases @p m (a no-op on Windows). @p m must be unlocked.
+ *  @param m  Mutex from dp_mutex_init(). */
 static inline void
 dp_mutex_destroy (dp_mutex_t *m)
 {
   pthread_mutex_destroy (m);
 }
+/** @brief Locks @p m, blocking until it is free. Not recursive: locking
+ *  a mutex this thread already holds deadlocks or is undefined.
+ *  @param m  Mutex from dp_mutex_init(). */
 static inline void
 dp_mutex_lock (dp_mutex_t *m)
 {
   pthread_mutex_lock (m);
 }
+/** @brief Unlocks @p m, which this thread must hold.
+ *  @param m  Mutex from dp_mutex_init(). */
 static inline void
 dp_mutex_unlock (dp_mutex_t *m)
 {
   pthread_mutex_unlock (m);
 }
 
+/** @brief Initializes @p c with no waiters.
+ *  @param c  Storage for the condition variable. */
 static inline void
 dp_cond_init (dp_cond_t *c)
 {
   pthread_cond_init (c, NULL);
 }
+/** @brief Releases @p c (a no-op on Windows); no thread may be waiting.
+ *  @param c  Condition variable from dp_cond_init(). */
 static inline void
 dp_cond_destroy (dp_cond_t *c)
 {
   pthread_cond_destroy (c);
 }
+/** @brief Atomically unlocks @p m and waits on @p c, relocking @p m
+ *  before returning. No timeout. Wakeups may be spurious, so wait in a
+ *  loop that re-checks the predicate.
+ *  @param c  Condition variable to wait on.
+ *  @param m  Mutex the caller holds. */
 static inline void
 dp_cond_wait (dp_cond_t *c, dp_mutex_t *m)
 {
   pthread_cond_wait (c, m);
 }
+/** @brief Wakes at most one thread waiting on @p c.
+ *  @param c  Condition variable from dp_cond_init(). */
 static inline void
 dp_cond_signal (dp_cond_t *c)
 {
   pthread_cond_signal (c);
 }
+/** @brief Wakes every thread waiting on @p c.
+ *  @param c  Condition variable from dp_cond_init(). */
 static inline void
 dp_cond_broadcast (dp_cond_t *c)
 {
   pthread_cond_broadcast (c);
 }
 
-/** @brief Starts @p fn on a new thread. Returns 0 on success. */
+/** @brief Starts @p fn on a new thread. Returns 0 on success.
+ *  @param[out] t    Handle of the new thread; join it with
+ *              dp_thread_join().
+ *  @param fn   Entry point, declared with #DP_THREAD_FN.
+ *  @param arg  Passed to @p fn unchanged.
+ *  @return 0 on success, else pthread_create()'s error number. */
 static inline int
 dp_thread_create (dp_thread_t *t, void *(*fn) (void *), void *arg)
 {
@@ -234,14 +298,17 @@ dp_thread_create (dp_thread_t *t, void *(*fn) (void *), void *arg)
 }
 
 /** @brief Waits for @p t to finish and releases it. Returns 0 on success,
- *  as pthread_join does, so a caller that asserted the join can still. */
+ *  as pthread_join does, so a caller that asserted the join can still.
+ *  @param t  Thread from dp_thread_create(); not usable afterward.
+ *  @return 0 on success, else pthread_join()'s error number. */
 static inline int
 dp_thread_join (dp_thread_t t)
 {
   return pthread_join (t, NULL);
 }
 
-/** @brief Online processor count, or 1 if it cannot be determined. */
+/** @brief Online processor count, or 1 if it cannot be determined.
+ *  @return Number of online logical processors, always >= 1. */
 static inline int
 dp_cpu_count (void)
 {
@@ -257,7 +324,9 @@ dp_thread_yield (void)
 }
 
 /** @brief Sleeps for at least @p us microseconds. For "let the other thread
- *  get there", never for timing. */
+ *  get there", never for timing. A signal can cut the sleep short, since
+ *  nanosleep() is not restarted.
+ *  @param us  Requested sleep, microseconds. */
 static inline void
 dp_thread_sleep_us (unsigned us)
 {

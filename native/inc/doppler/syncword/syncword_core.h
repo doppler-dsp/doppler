@@ -87,7 +87,7 @@ typedef struct
 {
   uint8_t *marker; /**< the pattern, unpacked, one bit per byte    */
   /*<<property_struct_fields>>*/
-  size_t nbits;
+  size_t nbits; /**< marker length in bits (config, set at create) */
 } dp_syncword_state_t;
 
 /**

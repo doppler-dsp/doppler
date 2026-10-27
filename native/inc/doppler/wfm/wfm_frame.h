@@ -74,6 +74,8 @@ extern "C"
    */
   typedef struct
   {
+    /** Which generator produces the bits (@ref wfm_seq_kind_t); decides
+        which of the members below are read. */
     wfm_seq_kind_t kind;
     size_t         len; /**< output bits; 0 means the field is absent      */
 
@@ -90,7 +92,15 @@ extern "C"
     int      lfsr;     /**< PN_GALOIS (0) or PN_FIBONACCI (1)              */
 
     /* GOLD: dp_gold_create (taps_a, seed_a, taps_b, seed_b, reg_bits) */
+    /** GOLD only: feedback taps of register A, a @p reg_bits wide mask. */
     uint64_t taps_a, seed_a, taps_b, seed_b;
+    /** @var wfm_seq_t::seed_a
+        GOLD only: register A's seed; 0 selects 1, since an all-zero
+        register is a fixed point. */
+    /** @var wfm_seq_t::taps_b
+        GOLD only: feedback taps of register B, a @p reg_bits wide mask. */
+    /** @var wfm_seq_t::seed_b
+        GOLD only: register B's seed; 0 selects 1, as for @c seed_a. */
   } wfm_seq_t;
 
   /** @brief Bytes a field's name may use, NUL included. */
@@ -267,6 +277,10 @@ extern "C"
         in place is what a partial cover is FOR; that stage sets
         `emit_num = 0` and an @c in_unit kernel. */
     unsigned emit_num, emit_den;
+    /** @var wfm_stage_t::emit_den
+        Denominator of an emitting stage's output ratio: the stage emits
+        `n * emit_num / emit_den` bits for an `n`-bit frame. Read only when
+        @c emit_num is non-zero. */
   } wfm_stage_t;
 
   /**
@@ -287,9 +301,16 @@ extern "C"
    */
   typedef struct
   {
+    /** The fields in wire order; entries `[0, n_fields)` are in use. */
     wfm_field_t field[WFM_FRAME_MAX_FIELDS];
+    /** Fields in use, 0 to @ref WFM_FRAME_MAX_FIELDS; written by
+        @ref dp_wfm_frame_add_field and @ref dp_wfm_frame_add_derived. */
     unsigned    n_fields;
+    /** The stages in application order; entries `[0, n_stages)` are in
+        use. */
     wfm_stage_t stage[WFM_FRAME_MAX_STAGES];
+    /** Stages in use, 0 to @ref WFM_FRAME_MAX_STAGES; written by
+        @ref dp_wfm_frame_add_stage and @ref dp_wfm_frame_add_stage_at. */
     unsigned    n_stages;
   } wfm_frame_desc_t;
 
@@ -298,9 +319,12 @@ extern "C"
   {
     size_t   field_off[WFM_FRAME_MAX_FIELDS];  /**< bit offset per field  */
     size_t   field_bits[WFM_FRAME_MAX_FIELDS]; /**< bits per field        */
+    /** Entries of @p field_off and @p field_bits in use: the description's
+        field count. */
     unsigned n_fields;
 
     wfm_frame_span_t stage[WFM_FRAME_MAX_STAGES]; /**< what each stage covers   */
+    /** Entries of @p stage in use: the description's stage count. */
     unsigned   n_stages;
 
     size_t frame_bits; /**< the assembled frame, every field end to end   */
@@ -338,7 +362,9 @@ extern "C"
    */
   typedef struct
   {
+    /** One result per stage, indexed as the description's @c stage. */
     wfm_frame_stage_rx_t stage[WFM_FRAME_MAX_STAGES];
+    /** Entries of @p stage in use: the description's stage count. */
     unsigned             n_stages;
     unsigned             checked; /**< stages actually reversed here       */
   } wfm_frame_rx_t;

@@ -168,7 +168,15 @@ def member_docs(text: str, struct: str) -> dict[str, dict]:
                 continue  # the previous member's trailing comment
             form = "above"
         close = text.index("*/", start) + 2
-        doc = " ".join(text[start + 2 : close - 2].split())
+        body = text[start + 2 : close - 2]
+        # A Doxygen marker is not part of the doc: `/**<` (trailing) or
+        # `/**` (above) carries the same words as `/*`, so exactly one
+        # leading `*<` or `*` is dropped before the words are joined.
+        if body.startswith("*<"):
+            body = body[2:]
+        elif body.startswith("*"):
+            body = body[1:]
+        doc = " ".join(body.split())
         col = start - (text.rindex("\n", 0, start) + 1)
         out[name] = {
             "doc": doc,
@@ -1004,28 +1012,32 @@ def render_surface() -> str:
         "                     the generic readers and writers skip it */",
         "} wfm_sv_kind_t;",
         "",
+        "/** One field a face reads or writes by name: where it lives, what",
+        "    it holds, and how each face spells and bounds it. */",
         "typedef struct",
         "{",
-        "  const char        *name;  /* the struct member */",
-        "  const char        *cli;   /* the flag; NULL = not on the CLI */",
-        "  wfm_surf_owner_t   owner;",
-        "  wfm_sv_kind_t      kind;",
-        "  size_t             off;       /* offsetof the member */",
-        "  unsigned           range_bit; /* WFM_RANGE_*; 0 = not ranged */",
-        "  size_t             hi_off;    /* `<name>_hi`, if ranged */",
-        "  size_t             len_off;   /* WFM_SV_SYMBOLS: the count */",
-        "  size_t             reps_off;  /* WFM_SV_FIELD: where *REPS goes;",
-        "                                    0 = the field does not repeat */",
-        "  const char *const *choices;   /* WFM_SV_CHOICE: the names */",
-        "  int                n_choices;",
-        "  int                unit_interval; /* require 0 < v <= 1 */",
-        "  const char        *json;          /* the scene/record key */",
-        "  int                json_required; /* absent/unknown: refuse */",
-        "  int                json_omit;     /* not written at its default */",
-        "  int                json_bool;     /* written as true/false */",
-        "  int                has_when;      /* written only when ... */",
-        "  int                when_row;      /* ... this row's choice ... */",
-        "  int                when_value;    /* ... is this index */",
+        "  const char        *name;  /**< the struct member */",
+        "  const char        *cli;   /**< the flag; NULL = not on the CLI */",
+        "  wfm_surf_owner_t   owner; /**< which struct `off` is into */",
+        "  wfm_sv_kind_t      kind;  /**< the member's value kind */",
+        "  size_t             off;       /**< offsetof the member */",
+        "  unsigned           range_bit; /**< WFM_RANGE_*; 0 = not ranged */",
+        "  size_t             hi_off;    /**< `<name>_hi`, if ranged */",
+        "  size_t             len_off;   /**< WFM_SV_SYMBOLS: the count */",
+        "  size_t             reps_off;  /**< WFM_SV_FIELD: where *REPS",
+        "                                     goes; 0 = the field does not",
+        "                                     repeat */",
+        "  const char *const *choices;   /**< WFM_SV_CHOICE: the names */",
+        "  int                n_choices; /**< entries in `choices` */",
+        "  int                unit_interval; /**< require 0 < v <= 1 */",
+        "  const char        *json;          /**< the scene/record key */",
+        "  int                json_required; /**< absent/unknown: refuse */",
+        "  int                json_omit;     /**< not written at its",
+        "                                         default (or at 0) */",
+        "  int                json_bool;     /**< written as true/false */",
+        "  int                has_when;      /**< written only when ... */",
+        "  int                when_row;    /**< ... this row's choice ... */",
+        "  int                when_value;    /**< ... is this index */",
         "} wfm_surface_row_t;",
         "",
         "/* A row's index: WFM_SURFACE_<owner>_<name>. */",
@@ -1182,13 +1194,16 @@ def render_exclusive(rows: list[dict]) -> list[str]:
         "   face that can be given both: the CLI (both flags), a scene (both",
         "   keys), the object (both members set). NULL: that face cannot",
         "   carry one of the two, so it has nothing to refuse. */",
+        "/** One pair of rows no face may take together. */",
         "typedef struct",
         "{",
-        "  int         a, b; /* WFM_SURFACE_<owner>_<name> */",
-        "  const char *cli_why;",
-        "  const char *json_why;",
-        "  const char *obj_why;",
+        "  int         a, b; /**< second row: WFM_SURFACE_<owner>_<name> */",
+        "  const char *cli_why;  /**< CLI refusal; NULL: not both flags */",
+        "  const char *json_why; /**< scene refusal; NULL: not both keys */",
+        "  const char *obj_why;  /**< object refusal; NULL: not both set */",
         "} wfm_surface_exclusive_t;",
+        "/** @var wfm_surface_exclusive_t::a",
+        "    First row of the pair: WFM_SURFACE_<owner>_<name>. */",
         "",
     ]
     excl = exclusions(rows)

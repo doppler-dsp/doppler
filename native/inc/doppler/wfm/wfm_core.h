@@ -142,9 +142,72 @@ uint64_t dp_mls_poly(uint32_t n);
  * @endcode
  */
 uint16_t dp_crc16(const uint8_t *bits, size_t bits_len);
+/**
+ * @brief Unit-energy root-raised-cosine pulse-shaping taps.
+ *
+ * The wfm-namespace alias of dp_wfm_rrc_taps(): fills @p out with
+ * `2*span*sps + 1` real taps, symmetric about the center tap and scaled so
+ * the sum of squares is 1 (cascading TX and RX gives a Nyquist raised
+ * cosine). If @p sps or @p span is below 1 the filter is refused and the
+ * `2*span*sps + 1` output slots are zeroed instead; no error is raised.
+ *
+ * @param beta  Roll-off factor, 0 to 1.
+ * @param sps   Samples per symbol (>= 1).
+ * @param span  One-sided filter span in symbols (>= 1).
+ * @param[out] out   `2*span*sps + 1` floats.
+ */
 void dp_rrc_taps(double beta, int sps, int span, float *out);
+/**
+ * @brief Direct-sequence spread symbols by a binary chip code.
+ *
+ * The wfm-namespace alias of dp_wfm_dsss_spread():
+ * `out[i*sf + j] = syms[i] * (code[j] ? -1 : +1)`, so each symbol is
+ * repeated over @p sf chips with a per-chip sign flip. Only the first @p sf
+ * chips of @p code are used. If @p sf < 1 or @p code_len < @p sf the spread
+ * is refused and the output is zeroed instead (`syms_len * sf` slots, none
+ * when @p sf < 1); no error is raised.
+ *
+ * @param syms      Complex data symbols.
+ * @param syms_len  Number of symbols in @p syms.
+ * @param code      Chip code, one chip per byte, 0 or 1.
+ * @param code_len  Number of chips in @p code (must be >= @p sf).
+ * @param sf        Spreading factor, chips per symbol (>= 1).
+ * @param[out] out       `syms_len * sf` chips.
+ */
 void dp_dsss_spread(const float _Complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float _Complex *out);
+/**
+ * @brief Analytic root-raised-cosine pulse at arbitrary times.
+ *
+ * Evaluates the header-inline wfm_rrc_h() at each `t[i]`: the
+ * unnormalized RRC impulse response (peak `1 - beta + 4*beta/pi` at
+ * t = 0), with the t = 0 and t = +-1/(4*beta) singularities replaced by
+ * their closed-form limits. Use it when the pulse is needed off the integer
+ * sample grid; dp_rrc_taps() remains the call for filter taps. If @p beta
+ * is outside 0 to 1 (or NaN) the output is zeroed instead; no error is
+ * raised.
+ *
+ * @param t      Times in symbol periods, relative to the pulse center.
+ * @param t_len  Number of entries in @p t (and in @p out).
+ * @param[out] out    `t_len` values, `out[i] = h(t[i])`.
+ * @param beta   Roll-off factor, 0 to 1.
+ */
 void dp_rrc_h(const double *t, size_t t_len, double *out, double beta);
+/**
+ * @brief Analytic raised-cosine (matched RRC pair) pulse at arbitrary
+ *        times.
+ *
+ * Evaluates the header-inline wfm_rc_h() at each `t[i]`: the full raised
+ * cosine, normalized to g(0) = 1 and zero at every nonzero integer t, i.e.
+ * the matched-filter output a TX/RX RRC pair delivers at timing offset t.
+ * The t = +-1/(2*beta) singularity uses its closed-form limit. If @p beta
+ * is outside 0 to 1 (or NaN) the output is zeroed instead; no error is
+ * raised.
+ *
+ * @param t      Times in symbol periods, relative to the pulse center.
+ * @param t_len  Number of entries in @p t (and in @p out).
+ * @param[out] out    `t_len` values, `out[i] = g(t[i])`.
+ * @param beta   Roll-off factor, 0 to 1.
+ */
 void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
 /**
  * @brief A Field's bits from its text form -- the one door from text to the
@@ -182,6 +245,23 @@ void dp_rc_h(const double *t, size_t t_len, double *out, double beta);
  * @endcode
  */
 size_t dp_field_bits(const char * spec, uint8_t *out, const char **why);
+/**
+ * @brief Start and end frequency of the chirp that sweeps about a center
+ *        (private; bound as `doppler.wfm._sweep_ends`).
+ *
+ * Thin wrapper over dp_wfm_synth_sweep_ends(), the one home of the
+ * chirp-centering arithmetic, returning both ends in a two-element array.
+ * Pure arithmetic: no state, nothing allocated.
+ *
+ * @param fs      Sample rate, Hz (> 0).
+ * @param f_mid   Frequency at the center, Hz.
+ * @param rate    Sweep rate, Hz per second.
+ * @param n       Samples the sweep spans.
+ * @param center  Sample index of the sweep's center (need not be an
+ *                integer).
+ * @param[out] out     Two doubles: `out[0]` = start frequency f0 (Hz),
+ *                `out[1]` = end frequency f_end (Hz).
+ */
 void dp__sweep_ends(double fs, double f_mid, double rate, size_t n, double center, double *out);
 #ifdef __cplusplus
 }

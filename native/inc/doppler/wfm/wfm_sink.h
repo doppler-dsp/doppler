@@ -50,7 +50,8 @@ typedef struct wfm_stream_sink wfm_stream_sink_t;
 
 /** @brief 1 if the real stream sink (libdoppler_stream) is linked, else 0
  *  (the pure-C core links only the weak no-op stubs). wfmgen checks this
- *  before the `--output nats://` path. */
+ *  before the `--output nats://` path.
+ *  @return 1 when the real sink is linked, 0 when only the stubs are. */
 int dp_wfm_stream_sink_available(void);
 
 /**
@@ -134,20 +135,56 @@ void dp_wfm_stream_sink_close(wfm_stream_sink_t *sink);
  * paths, where saturation can occur; the per-component fraction is opt-in). The
  * cf32 path is left untouched — it never clips and is the streaming hot path. */
 
-/** Enable the per-component clip counter (off by default; peak always on). */
+/**
+ * @brief Enable or disable the per-component clip counter.
+ *
+ * Off by default; the peak is tracked regardless. Only clips seen while
+ * tracking is on are counted, but every integer-path component sent since
+ * open counts toward dp_wfm_stream_sink_clip_fraction()'s denominator.
+ *
+ * @param sink  Sink; NULL is a no-op.
+ * @param on    Non-zero to count clips, 0 to stop counting.
+ */
 void dp_wfm_stream_sink_track_clipping(wfm_stream_sink_t *sink, int on);
 
-/** Set the output gain (linear; default 1.0). For headroom H dB pass
- *  10^(−H/20). gain 1.0 sends cf32 unscaled (the direct path). */
+/**
+ * @brief Set the output gain applied to every sample before conversion.
+ *
+ * Linear; default 1.0. For headroom H dB pass 10^(-H/20). The gain scales
+ * all wire types, cf32 included; at exactly 1.0 cf32 is sent unscaled (the
+ * direct, byte-identical path). The stub build ignores it.
+ *
+ * @param sink  Sink; NULL is a no-op.
+ * @param gain  Linear amplitude gain (stored as float).
+ */
 void dp_wfm_stream_sink_set_gain(wfm_stream_sink_t *sink, double gain);
 
-/** Largest per-axis magnitude seen on an integer path (pre-clip, full-scale 1).
- *  > 1.0 ⇒ clipped; peak_dBFS = 20*log10(peak). */
+/**
+ * @brief Largest per-axis magnitude seen on an integer path.
+ *
+ * Measured after the gain and before saturation, relative to full scale
+ * 1.0, over everything sent since open (ci32/ci16/ci8 only; cf32/cf64 do
+ * not update it). A value > 1.0 means the stream clipped;
+ * peak_dBFS = 20*log10(peak).
+ *
+ * @param sink  Sink, or NULL.
+ * @return The peak, or 0.0 for NULL, before any integer-path send, or in
+ *         the stub build.
+ */
 double dp_wfm_stream_sink_peak(const wfm_stream_sink_t *sink);
 
-/** Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked.
- *  The generated StreamSink handle binds peak/clip_fraction directly as per-field
- *  getters (jm#320), so no stats-snapshot struct shim is needed. */
+/**
+ * @brief Fraction (0..1) of integer I/Q components that saturated.
+ *
+ * Clips counted while dp_wfm_stream_sink_track_clipping() is on, divided
+ * by all integer-path I and Q components sent since open. The generated
+ * StreamSink handle binds peak/clip_fraction directly as per-field
+ * getters (jm#320), so no stats-snapshot struct shim is needed.
+ *
+ * @param sink  Sink, or NULL.
+ * @return The fraction; 0.0 for NULL, before any integer-path send, when
+ *         tracking was never on, or in the stub build.
+ */
 double dp_wfm_stream_sink_clip_fraction(const wfm_stream_sink_t *sink);
 
 #ifdef __cplusplus

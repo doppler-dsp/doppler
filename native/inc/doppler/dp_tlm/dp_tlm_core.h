@@ -84,7 +84,9 @@ typedef struct
   uint16_t flags; /**< Reserved; 0.                                  */
 } dp_tlm_rec_t;
 
-/* One record must fill exactly one ring slot (C99-portable assert). */
+/** Compile-time check that one ::dp_tlm_rec_t fills exactly one 16-byte
+ *  ring slot (a C99-portable static assert: a negative array size fails
+ *  the build). Never used as a type. */
 typedef char dp_tlm_rec_fits_slot[sizeof (dp_tlm_rec_t)
                                           == 2 * sizeof (uint64_t)
                                       ? 1
@@ -149,8 +151,9 @@ typedef struct dp_tlm
 {
   dp_tlmr_t     *ring;    /**< Lock-free SPSC record ring.              */
   uint64_t       now;     /**< Caller-stamped sample index for records. */
-  uint32_t       n_probes;
-  dp_tlm_probe_t probes[DP_TLM_MAX_PROBES];
+  uint32_t       n_probes; /**< Registered probes; ids 0..n_probes-1. */
+  dp_tlm_probe_t probes[DP_TLM_MAX_PROBES]; /**< Probe registry, indexed
+                                                 by probe id. */
   /** Open capture that dp_tlm_set_now() drains through; NULL when none. */
   dp_tlm_capture_t *capture;
   /**
@@ -189,7 +192,14 @@ typedef dp_tlm_t dp_tlm_state_t;
  */
 dp_tlm_t *dp_tlm_create (size_t ring_records);
 
-/** @brief Destroys a context.  NULL-safe.  Detach all objects first. */
+/**
+ * @brief Destroys a context and its ring.  NULL-safe.
+ *
+ * Detach every object (and close any capture) first: attached objects
+ * keep a borrowed pointer to @p t.
+ *
+ * @param t  Context from dp_tlm_create(), or NULL.
+ */
 void dp_tlm_destroy (dp_tlm_t *t);
 
 /**
@@ -352,13 +362,28 @@ int dp_tlm_emit_checked (dp_tlm_t *t, int32_t id, double v);
  */
 int dp_tlm_set_decim (dp_tlm_t *t, const char *name, uint32_t decim);
 
-/** @brief Probe name for @p id, or NULL if out of range. */
+/**
+ * @brief Probe name for @p id, or NULL if out of range.
+ * @param t   Context; NULL returns NULL.
+ * @param id  Probe id, 0 .. dp_tlm_probe_count() - 1.
+ * @return The registered name, owned by the context and valid while it
+ *         lives; NULL for a NULL context or an unregistered id.
+ */
 const char *dp_tlm_probe_name (const dp_tlm_t *t, int id);
 
-/** @brief Number of registered probes. */
+/**
+ * @brief Number of registered probes.
+ * @param t  Context; NULL returns 0.
+ * @return Probes registered so far (at most DP_TLM_MAX_PROBES).
+ */
 size_t dp_tlm_probe_count (const dp_tlm_t *t);
 
-/** @brief Authoritative ring capacity in records (post page rounding). */
+/**
+ * @brief Ring capacity in records.
+ * @param t  Context; NULL returns 0.
+ * @return Exactly the size the ring was created (or last resized) with;
+ *         the page rounding applies to the mapping, not this number.
+ */
 size_t dp_tlm_capacity (const dp_tlm_t *t);
 
 /**
@@ -367,6 +392,10 @@ size_t dp_tlm_capacity (const dp_tlm_t *t);
  * Exists so a `{name: id}` mapping can be built from the plain-C triple
  * (dp_tlm_probe_count, dp_tlm_probe_name, this) without the caller needing
  * to know that the identity holds.
+ *
+ * @param t  Context.
+ * @param i  Registry slot, 0 .. dp_tlm_probe_count() - 1.
+ * @return @p i, or ::DP_ERR_INVALID for a NULL context or an unused slot.
  */
 int dp_tlm_probe_id_at (const dp_tlm_t *t, size_t i);
 
@@ -424,6 +453,8 @@ dp_tlm_has_room_for (const dp_tlm_t *t, const dp_tlm_t *want)
  * probes raises the bound, which is why a capture re-checks it at each
  * boundary.
  *
+ * @param t              Context.
+ * @param block_samples  Input samples processed between two drains.
  * @return The bound, or 0 for a NULL context / zero block / no probes.
  *         Saturates at SIZE_MAX rather than wrapping.
  */
@@ -435,6 +466,9 @@ size_t dp_tlm_block_bound (const dp_tlm_t *t, size_t block_samples);
  * The consumer-side head/tail snapshot.  Safe to call from the consumer
  * thread while the producer runs: the true count can only GROW after the
  * snapshot, so the value is a lower bound and never over-reports.
+ *
+ * @param t  Context; NULL returns 0.
+ * @return Records waiting to be read.
  */
 size_t dp_tlm_avail (const dp_tlm_t *t);
 
@@ -450,6 +484,11 @@ size_t dp_tlm_avail (const dp_tlm_t *t);
  * been drained — i.e. a block boundary.  dp_tlm_capture_block() is the only
  * caller that needs it; call it yourself only if you own the same guarantee.
  *
+ * The overrun counter lives in the ring, so a resize that replaces the
+ * ring also restarts dp_tlm_dropped() from 0.
+ *
+ * @param t        Context.
+ * @param records  Minimum capacity wanted, in records.
  * @return ::DP_OK, or ::DP_ERR_INVALID on NULL / allocation failure (in
  *         which case the existing ring is left intact).
  */
@@ -496,6 +535,9 @@ dp_tlm_stats_t dp_tlm_stats (const dp_tlm_t *t);
  * Simply the available count: a caller sizing a destination cannot know the
  * request will be smaller, and jm's generated binding allocates this much,
  * reads, then resizes to what actually came back.
+ *
+ * @param t  Context; NULL returns 0.
+ * @return dp_tlm_avail(): records readable now.
  */
 size_t dp_tlm_read_max_out (dp_tlm_t *t);
 
@@ -601,7 +643,15 @@ void dp_tlm_demux_counts (const dp_tlm_rec_t *recs, size_t n, size_t *counts,
 void dp_tlm_demux (const dp_tlm_rec_t *recs, size_t n, float *const *values,
                    uint64_t *const *index, const size_t *caps, size_t nbuf);
 
-/** @brief Total records dropped on ring overrun (monotonic). */
+/**
+ * @brief Total records dropped on ring overrun.
+ *
+ * Monotonic for the life of a ring; dp_tlm_resize() replaces the ring and
+ * so restarts the count from 0.
+ *
+ * @param t  Context; NULL returns 0.
+ * @return Records refused by a full ring since the ring was created.
+ */
 uint64_t dp_tlm_dropped (const dp_tlm_t *t);
 
 /**

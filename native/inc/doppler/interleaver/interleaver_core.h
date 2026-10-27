@@ -321,6 +321,9 @@ extern "C"
    * codeword at most once, so an outer code correcting @c t units per
    * codeword survives a burst of @c t times this.
    *
+   * @param state  The interleaver; NULL returns 0.
+   * @return The interleaving depth @c rows, in units (0 for NULL).
+   *
    * @code
    * >>> from doppler.coding import Interleaver
    * >>> Interleaver(rows=5, cols=51, unit_bits=8).burst_len
@@ -335,6 +338,9 @@ extern "C"
    *
    * The other half of the link budget: what @ref dp_interleaver_get_burst_len
    * spreads a burst ACROSS.
+   *
+   * @param state  The interleaver; NULL returns 0.
+   * @return The block span @c cols, in units (0 for NULL).
    *
    * @code
    * >>> from doppler.coding import Interleaver

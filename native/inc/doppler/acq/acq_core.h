@@ -626,16 +626,20 @@ extern "C"
     uint64_t surface_at; /**< samples_consumed of that dwell; 0 = none      */
     uint64_t dwells;     /**< dwells decided since create/reset             */
     acq_surface_sink_fn sink; /**< NULL = none                              */
-    void    *sink_ctx;
+    void    *sink_ctx;   /**< caller's opaque pointer, passed to sink      */
     uint32_t sink_decim; /**< the sink sees every sink_decim-th dwell       */
     size_t   n_held;     /**< the last dwell's picks held as twins (§7.1)  */
     float    peak_conc;  /**< the strongest pick's column concentration     */
     /* Last-dump bookkeeping (for inspection): the strongest pick. */
-    size_t peak_row;
-    size_t peak_col;
-    float  peak_mag;
-    float  noise_est;
-    float  test_stat;
+    size_t peak_row;  /**< last decided dwell's strongest pick: its
+                           native Doppler row                         */
+    size_t peak_col;  /**< ... and its code-phase column              */
+    float  peak_mag;  /**< ... and its amplitude (linear; the sqrt of
+                           the summed power when n_noncoh > 1)        */
+    float  noise_est; /**< the dwell's CFAR noise reference, same
+                           units as peak_mag                          */
+    float  test_stat; /**< the dwell's gating statistic, compared with
+                           dp_acq_gate_stat(); 0 if noise_est is 0    */
   } dp_acq_state_t;
 
   /**
@@ -659,7 +663,7 @@ extern "C"
   typedef struct
   {
     uint16_t has_nc; /**< 1 if `nc_surface[n]` follows the samples.     */
-    uint16_t _pad;
+    uint16_t _pad;             /**< Alignment padding; written as 0.      */
     uint32_t n_noncoh;         /**< Non-coherent looks (consistency).     */
     uint64_t n;                /**< Frame size; must equal engine's n.    */
     uint64_t samples_consumed; /**< Stream offset framed so far.          */
@@ -670,11 +674,13 @@ extern "C"
     uint32_t rate_hyps; /**< v6: rate hypotheses searched; must equal the
                              engine's -- it sizes the search and changes
                              what a surface means.                       */
-    uint32_t _pad2;
+    uint32_t _pad2;     /**< Alignment padding; written as 0.          */
   } acq_extra_t;
 
+/** FourCC type tag ("ACQR") stamped in an acquisition state blob. */
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-/* v5: the carry is the framer's snapshot (fewer than frame_n samples)
+/** Layout version of the acquisition state blob; a mismatch is rejected.
+   v5: the carry is the framer's snapshot (fewer than frame_n samples)
    instead of the ring's raw contents, zero-padded to ring_cap.
    v6: acq_extra_t carries the rate-hypothesis count. */
 #define ACQ_STATE_VERSION 6u
@@ -978,6 +984,11 @@ extern "C"
    *
    * The engine's grid, exported so a composing object searches the SAME
    * rates and not a restatement of them (dp_burst_capture's refine).
+   *
+   * @param span  Half-width of the rate search, Hz/s.
+   * @param n     Number of hypotheses on the grid.
+   * @param h     Hypothesis index, 0 .. n - 1 (not range-checked).
+   * @return The rate of hypothesis @p h, Hz/s.
    */
   double dp_acq_rate_hypothesis (double span, size_t n, size_t h);
 
@@ -988,6 +999,10 @@ extern "C"
    * What the engine multiplies a block's slow-time axis by, and what refine
    * multiplies its per-period correlations by: one definition of the centring
    * and the sign.
+   *
+   * @param rate  Doppler rate hypothesis, Hz/s.
+   * @param t     Time from the block's middle, seconds.
+   * @return `exp(-j*pi*rate*t^2)`, unit magnitude.
    */
   double _Complex dp_acq_rate_phasor (double rate, double t);
 
@@ -1001,6 +1016,9 @@ extern "C"
    * @param f_epoch  Epoch rate, Hz (`fs/n` for a burst engine).
    * @param span     Rate span, Hz/s (>= 0).
    * @param depth    Block depth in epochs (>= 1).
+   * @return The hypothesis count; 1 when @p span is not positive and
+   *         finite, @p f_epoch is not positive and finite, or @p depth
+   *         is 0.
    */
   size_t dp_acq_rate_hypotheses_for (double f_epoch, double span,
                                      size_t depth);
@@ -1182,6 +1200,8 @@ extern "C"
    * from it (doppler#2103). The one rule for every site that takes the
    * divisor: dp_acq_set_carrier_freq_hz() and the DSSS receivers' creates.
    *
+   * @param carrier_freq_hz  Candidate carrier, Hz; 0 means uncoupled.
+   * @param sample_rate_hz   Sample rate of the stream, Hz.
    * @return 1 if the carrier is taken, 0 otherwise (a NaN is not).
    */
   int dp_acq_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz);
@@ -1688,6 +1708,7 @@ extern "C"
    * double-feed the stream.  0 after create, reset, a regrid and set_state.
    *
    * @param state  Must be non-NULL.
+   * @return Samples the last push took from its input.
    */
   size_t dp_acq_consumed (const dp_acq_state_t *state);
 
@@ -1723,6 +1744,8 @@ extern "C"
    * @endcode
    *
    * @param state  Must be non-NULL.
+   * @return Samples taken since create, reset, a regrid or a restore:
+   *         those framed plus the carry still pending.
    */
   uint64_t dp_acq_position (const dp_acq_state_t *state);
 
@@ -1808,6 +1831,9 @@ extern "C"
    * chirp) has none and reads -INFINITY. Configuration, not state: it is
    * fixed at construction and not serialized.
    *
+   * @param state  Must be non-NULL.
+   * @return Peak sidelobe level in dB (<= 0), or -INFINITY.
+   *
    * @code
    * >>> import numpy as np
    * >>> from doppler.acquire import BurstAcquisition
@@ -1847,6 +1873,11 @@ extern "C"
    * receivers' Gold-1023 search at two samples a chip over +-5 kHz (five
    * 3 kHz tiles), against a -23.9 dB psl. Configuration, not state: fixed
    * at construction, kept by a grid pinned later, and not serialized.
+   * Computed on the first call and cached in @p state (hence non-const).
+   *
+   * @param state  Must be non-NULL.
+   * @return Doppler-offset sidelobe level in dB, or -INFINITY when there
+   *         is none.
    *
    * @code
    * #include "doppler/acq/acq_core.h"
@@ -1880,6 +1911,9 @@ extern "C"
    *        the cell's amplitude, so a list consumer can compare a peak's
    *        excess over another's against it in the same units.
    *        Configuration: fixed by the thresholds the grid was sized with.
+   *
+   * @param state  Must be non-NULL.
+   * @return The gate, in acq_result_t::test_stat units.
    */
   double dp_acq_gate_stat (const dp_acq_state_t *state);
 
@@ -1941,18 +1975,26 @@ extern "C"
   /** @brief Byte size of @p state's blob: the envelope and the engine's
    *         position, the framer's snapshot of the carry, the non-coherent
    *         sum (n_noncoh > 1), the last dwell's twins, and a tiled
-   *         block's epochs. */
+   *         block's epochs.
+   *  @param state  Must be non-NULL.
+   *  @return The blob size in bytes; it depends on the engine's geometry,
+   *          so query it per instance. */
   size_t dp_acq_state_bytes (const dp_acq_state_t *state);
 
   /**
    * @brief Serialize @p state's cross-call state into @p blob (caller-owned,
    *        dp_acq_state_bytes() long).  Call between pushes (no partial dump
    * pending).
+   *
+   * @param state  Must be non-NULL.
+   * @param blob   Destination; at least dp_acq_state_bytes() bytes.
    */
   void dp_acq_get_state (const dp_acq_state_t *state, void *blob);
 
   /**
    * @brief Restore cross-call state from @p blob into @p state (replacing it).
+   * @param state  Engine built from the same descriptor as the writer.
+   * @param blob   A blob from dp_acq_get_state().
    * @return DP_OK, or DP_ERR_INVALID if the blob's envelope or its
    *         n/n_noncoh/max_peaks disagree with @p state (rebuild the engine
    *         from the matching descriptor first), or its carry is not
@@ -1974,7 +2016,18 @@ extern "C"
    * of @p in untaken.  dp_acq_consumed(@p state) says how much it took;
    * the caller calls again with @p state_out as the next @p state_in and
    * the rest, in + consumed, and the two runs together equal one over the
-   * whole input.
+   * whole input. A refused @p state_in runs nothing and returns 0, with
+   * dp_acq_consumed() reading 0.
+   *
+   * @param state        Engine (config + scratch); its running state is
+   *                     replaced by @p state_in, or reset when that is NULL.
+   * @param state_in     Blob from dp_acq_get_state(), or NULL for fresh.
+   * @param state_out    Destination blob (dp_acq_state_bytes() bytes), or
+   *                     NULL to discard.
+   * @param in           Input cf32 samples.
+   * @param n_in         Number of input samples.
+   * @param result       Output hits.
+   * @param max_results  Capacity of @p result.
    * @return Number of events written (0 … max_results).
    */
   size_t dp_acq_run (dp_acq_state_t *state, const void *state_in, void *state_out,

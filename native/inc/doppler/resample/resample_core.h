@@ -44,8 +44,9 @@ double dp_kaiser_beta(double atten);
  * @param num_phases  Number of polyphase branches (power of two). A value
  *                    below 1 is not a bank; the function returns 0.
  * @param atten       Desired stopband attenuation in dB.
- * @param pb          Normalised passband edge (0 < pb < sb < 1).
- * @param sb          Normalised stopband edge.
+ * @param pb          Passband edge in cycles per sample at the branch
+ *                    (input) rate, so Nyquist is 0.5 (0 < pb < sb < 1).
+ * @param sb          Stopband edge, same units as @p pb.
  * @return            Taps per polyphase branch (>= 1).
  *
  * @code

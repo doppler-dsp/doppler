@@ -87,8 +87,10 @@ typedef enum {
  * Allocate with dp_u8_to_f32_create().
  */
 typedef struct {
-    int   mode;   /* u8_to_f32_mode_t, validated at create */
-    float iscale; /* 1/127.5, pre-computed for the midpoint multiply */
+    int   mode;   /**< Mapping, a u8_to_f32_mode_t value; set and
+                       validated at create, never changed. */
+    float iscale; /**< `1/127.5f`, set at create for the midpoint
+                       multiply (unused in shift mode). */
 } dp_u8_to_f32_state_t;
 
 /**

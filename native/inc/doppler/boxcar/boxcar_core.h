@@ -45,9 +45,10 @@ extern "C"
 {
 #endif
 
-  /* Maximum window length. The delay ring is a fixed in-struct array so the
-   * state stays pointer-free POD (embed-by-value + whole-struct
-   * serialization); a longer window is rejected at create/init time. */
+  /** Maximum window length in samples (64). The delay ring is a fixed
+   * in-struct array so the state stays pointer-free POD (embed-by-value +
+   * whole-struct serialization). dp_boxcar_create() rejects a longer window
+   * (returns NULL); dp_boxcar_init() clamps it to this value. */
 #define BOXCAR_MAX_LEN 64
 
   /**
@@ -108,7 +109,12 @@ extern "C"
     s->scale = (float)(gain * s->inv_len);
   }
 
-  /** @brief Current output gain. */
+  /**
+   * @brief Current output gain.
+   * @param s  Boxcar state. Must be non-NULL.
+   * @return The gain last set by dp_boxcar_init(), dp_boxcar_create() or
+   *         dp_boxcar_set_gain() (a linear multiplier on the window mean).
+   */
   JM_FORCEINLINE double
   dp_boxcar_get_gain (const dp_boxcar_state_t *s)
   {
@@ -118,7 +124,8 @@ extern "C"
   /**
    * @brief Initialise a boxcar in place (no allocation).
    * @param s     State to initialise. Must be non-NULL.
-   * @param len   Window length; clamped to `[1, BOXCAR_MAX_LEN]`.
+   * @param len   Window length in samples; clamped to
+   *              `[1, BOXCAR_MAX_LEN]` (0 becomes 1).
    * @param gain  Output gain (folded into the averaging scale).
    */
   void dp_boxcar_init (dp_boxcar_state_t *s, size_t len, double gain);
@@ -127,7 +134,8 @@ extern "C"
    * @brief Create a boxcar instance.
    * @param len   Window length (1 .. BOXCAR_MAX_LEN; default 4).
    * @param gain  Output gain (default 1.0).
-   * @return Heap state, or NULL on invalid length / allocation failure.
+   * @return Heap state, or NULL when @p len is 0 or above BOXCAR_MAX_LEN,
+   *         or on allocation failure.
    * @note Caller must call dp_boxcar_destroy() when done.
    */
   dp_boxcar_state_t *dp_boxcar_create (size_t len, double gain);
@@ -188,14 +196,38 @@ extern "C"
   /* ── Serializable state (standard bytes interface; see dp_state.h)
    * ────────── Pointer-free POD struct, so a whole-struct snapshot resumes
    * exactly. */
+/** FourCC type tag ("BOXC") stamped in a boxcar state blob's header. */
 #define BOXCAR_STATE_MAGIC DP_FOURCC ('B', 'O', 'X', 'C')
+/** Layout version of the boxcar state blob; a mismatch is rejected. */
 #define BOXCAR_STATE_VERSION 1u
 
-  /** @brief Serialized-state byte size. */
+  /**
+   * @brief Serialized-state byte size.
+   * @param s  Boxcar state (unused: the size is fixed).
+   * @return `sizeof(dp_state_hdr_t) + sizeof(dp_boxcar_state_t)`; the same
+   *         for every instance.
+   */
   size_t dp_boxcar_state_bytes (const dp_boxcar_state_t *s);
-  /** @brief Serialize the full state into @p blob. */
+  /**
+   * @brief Serialize the full state into @p blob.
+   *
+   * Writes the envelope header and a whole-struct snapshot (window length,
+   * gain, ring, running sum and write index).
+   *
+   * @param s     Boxcar state. Must be non-NULL.
+   * @param blob  Destination; at least dp_boxcar_state_bytes() bytes.
+   */
   void dp_boxcar_get_state (const dp_boxcar_state_t *s, void *blob);
-  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects.
+  /**
+   * @brief Restore state from a blob written by dp_boxcar_get_state().
+   *
+   * The whole struct, including the configured length and gain, is replaced
+   * by the snapshot; nothing is changed if the envelope is rejected.
+   *
+   * @param s     Boxcar state to overwrite. Must be non-NULL.
+   * @param blob  Source blob of dp_boxcar_state_bytes() bytes.
+   * @return DP_OK, or DP_ERR_INVALID if the envelope (magic, version,
+   *         endianness, size) does not match.
    */
   int dp_boxcar_set_state (dp_boxcar_state_t *s, const void *blob);
 

@@ -38,7 +38,7 @@ class Reader:
         `<path>.sigmf-meta` sidecar the writer of this library leaves beside
         it, falling back to cf32/le when there is none. A named type still wins
         over the sidecar, so a stale one can be overridden. A wrong hint does
-        not fail, and the trailing-bytes count is NOT the way to notice it.
+        not fail, and `trailing_bytes` is NOT the way to notice it.
         One of ``"auto"``, ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``,
         ``"ci8"``, ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
 

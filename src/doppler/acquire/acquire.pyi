@@ -327,6 +327,8 @@ class Acquisition:
     pd : float, default 0.9
         Target detection probability (0,1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
+        The CFAR reference: the statistic the noise floor is estimated with,
+        which the detection threshold scales.
         One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     code_only_epochs : int, default 1
         Whole code-only epochs a waveform's code-only window holds at any chip
@@ -1336,6 +1338,8 @@ class BurstAcquisition:
     pd : float, default 0.9
         Target detection probability (0,1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
+        The CFAR reference: the statistic the noise floor is estimated with,
+        which the detection threshold scales.
         One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     doppler_rate : float, default 0.0
         Doppler rate in Hz/s (>= 0) that caps the coherent depth at
@@ -1876,6 +1880,8 @@ class BurstCapture:
     pd : float, default 0.9
         Target detection probability, in (0, 1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
+        The CFAR reference: the statistic the noise floor is estimated with,
+        which the detection threshold scales.
         One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     doppler_rate : float, default 0.0
         Doppler rate, Hz/s (>= 0), that caps the acquisition's coherent depth
@@ -2652,6 +2658,8 @@ class PersistentBurstCapture:
     pd : float, default 0.9
         Target detection probability, in (0, 1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
+        The CFAR reference: the statistic the noise floor is estimated with,
+        which the detection threshold scales.
         One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     doppler_rate : float, default 0.0
         Doppler rate, Hz/s (>= 0), that caps the acquisition's coherent depth

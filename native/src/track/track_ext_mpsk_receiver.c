@@ -1440,6 +1440,7 @@ static PyTypeObject MpskReceiverObjType = {
     "arm\n"
     "    to size.\n"
     "pulse : Literal[\"iandd\", \"rrc\"], default \"iandd\"\n"
+    "    The matched-filter shape.\n"
     "    One of ``\"iandd\"``, ``\"rrc\"``.\n"
     "rrc_beta : float, default 0.35\n"
     "    RRC roll-off in `[0, 1]` (default 0.35; RRC only).\n"

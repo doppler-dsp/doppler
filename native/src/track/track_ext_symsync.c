@@ -1122,6 +1122,7 @@ static PyTypeObject SymbolSyncObjType = {
     "    zeta constructor parameter.\n"
     "order : Literal[\"linear\", \"parabolic\", \"cubic\"], default "
     "\"cubic\"\n"
+    "    The polynomial order of the Farrow interpolator.\n"
     "    One of ``\"linear\"``, ``\"parabolic\"``, ``\"cubic\"``.\n"
     "ted : Literal[\"gardner\", \"dttl\"], default \"gardner\"\n"
     "    Timing-error detector: \"gardner\" (blind, works for any "

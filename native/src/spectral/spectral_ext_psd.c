@@ -1942,6 +1942,8 @@ static PyTypeObject PSDObjType = {
     "    64.\n"
     "mode : Literal[\"mean\", \"exp\", \"maxhold\", \"minhold\"], default "
     "\"mean\"\n"
+    "    How successive traces are reduced: the running mean, an exponential\n"
+    "    average, or a max or min hold.\n"
     "    One of ``\"mean\"``, ``\"exp\"``, ``\"maxhold\"``, ``\"minhold\"``.\n"
     "\n"
     "    - ``\"mean\"`` — Linear running mean of all frames.\n"

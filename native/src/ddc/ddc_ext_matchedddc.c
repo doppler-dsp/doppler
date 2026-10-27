@@ -1198,6 +1198,7 @@ static PyTypeObject MatchedDDCObjType = {
     "learns\n"
     "    about symbols.\n"
     "pulse : Literal[\"iandd\", \"rrc\"], default \"rrc\"\n"
+    "    The matched-filter pulse. For no matched filter, use the plain DDC.\n"
     "    One of ``\"iandd\"``, ``\"rrc\"``.\n"
     "beta : float, default 0.35\n"
     "    RRC roll-off in `[0, 1]` (ignored for the rectangle).\n"

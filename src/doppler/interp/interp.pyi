@@ -13,6 +13,8 @@ class InterpolatedTable:
     table : NDArray[np.complex128]
         Complex table, one period, length table_len.
     method : Literal["floor", "nearest", "linear"], default "linear"
+        How a lookup between table points resolves: the point below, the
+        nearest point, or linear interpolation.
         One of ``"floor"``, ``"nearest"``, ``"linear"``.
 
     Examples

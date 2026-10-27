@@ -1846,7 +1846,7 @@ static PyTypeObject ReaderObjType = {
     "wins\n"
     "    over the sidecar, so a stale one can be overridden. A wrong hint "
     "does\n"
-    "    not fail, and the trailing-bytes count is NOT the way to notice it.\n"
+    "    not fail, and `trailing_bytes` is NOT the way to notice it.\n"
     "    One of ``\"auto\"``, ``\"cf32\"``, ``\"cf64\"``, ``\"ci32\"``, "
     "``\"ci16\"``,\n"
     "    ``\"ci8\"``, ``\"f32\"``, ``\"f64\"``, ``\"i32\"``, ``\"i16\"``, "

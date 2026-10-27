@@ -578,6 +578,7 @@ static PyTypeObject FarrowObjType = {
                                             "----------\n"
                                             "order : Literal[\"linear\", \"parabolic\", \"cubic\"], default "
                                             "\"cubic\"\n"
+                                            "    The polynomial order of the Farrow interpolator.\n"
                                             "    One of ``\"linear\"``, ``\"parabolic\"``, ``\"cubic\"``.\n"
                                             "\n"
                                             "Examples\n"

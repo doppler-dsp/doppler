@@ -430,6 +430,49 @@ main (void)
     dp_tlm_destroy (t);
   }
 
+  /* ── the drop count survives a resize (#2649). Drops before open, a late
+     probe that grows the ring mid-capture, drops on each side of it: close
+     reports exactly the drops after open. The count used to live in the
+     ring, so the resize restarted it at 0 and close computed (drops after
+     the resize) - (drops before open), which wrapped to about 2^64. The
+     expected count is derived from what was emitted into an EMPTY ring of
+     known capacity, never from the counter under test. ──────────────── */
+  {
+    const size_t BLK = FLOOR / 4;
+    dp_tlm_t    *t   = dp_tlm_create (1);
+    DP_CHECK (dp_tlm_probe (t, "q0", 1) == 0);
+    for (size_t i = 0; i < 3 * dp_tlm_capacity (t); i++)
+      dp_tlm_emit (t, 0, 1.0); /* no consumer: drops before open */
+    DP_CHECK (dp_tlm_dropped (t) > 0);
+    static dp_tlm_rec_t sink[4 * FLOOR];
+    while (dp_tlm_read (t, 4 * FLOOR, sink, 4 * FLOOR) > 0)
+      ; /* empty the ring, so the capture starts from nothing */
+
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, BLK, NULL, NULL);
+    DP_REQUIRE (cap != NULL);
+    dp_tlm_set_now (t, 0);
+    const size_t cap0 = dp_tlm_capacity (t);
+    for (size_t i = 0; i < cap0 + 5; i++)
+      dp_tlm_emit (t, 0, 1.0); /* 5 drops, before the resize */
+
+    for (int i = 1; i < 8; i++) /* late probes raise the bound */
+      {
+        char nm[8];
+        snprintf (nm, sizeof nm, "q%d", i);
+        dp_tlm_probe (t, nm, 1);
+      }
+    dp_tlm_set_now (t, BLK); /* boundary: drain, then grow */
+    const size_t cap1 = dp_tlm_capacity (t);
+    DP_CHECK (cap1 > cap0);
+    for (size_t i = 0; i < cap1 + 7; i++)
+      dp_tlm_emit (t, 0, 1.0); /* 7 drops, after it */
+
+    DP_CHECK (dp_tlm_capture_close (cap) == DP_ERR_INVALID); /* a hole */
+    DP_CHECK (dp_tlm_capture_dropped (cap) == 5 + 7);
+    dp_tlm_capture_destroy (cap);
+    dp_tlm_destroy (t);
+  }
+
   /* ── open() edges ─────────────────────────────────────────────────────── */
   {
     DP_CHECK (dp_tlm_capture_open (NULL, 16, NULL, NULL) == NULL);

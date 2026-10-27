@@ -484,8 +484,8 @@ size_t dp_tlm_avail (const dp_tlm_t *t);
  * been drained — i.e. a block boundary.  dp_tlm_capture_block() is the only
  * caller that needs it; call it yourself only if you own the same guarantee.
  *
- * The overrun counter lives in the ring, so a resize that replaces the
- * ring also restarts dp_tlm_dropped() from 0.
+ * The overrun counter is carried into the new ring, so dp_tlm_dropped()
+ * stays monotonic for the life of the context across a resize.
  *
  * @param t        Context.
  * @param records  Minimum capacity wanted, in records.
@@ -646,11 +646,11 @@ void dp_tlm_demux (const dp_tlm_rec_t *recs, size_t n, float *const *values,
 /**
  * @brief Total records dropped on ring overrun.
  *
- * Monotonic for the life of a ring; dp_tlm_resize() replaces the ring and
- * so restarts the count from 0.
+ * Monotonic for the life of the context: dp_tlm_resize() carries the count
+ * into the ring it swaps in.
  *
  * @param t  Context; NULL returns 0.
- * @return Records refused by a full ring since the ring was created.
+ * @return Records refused by a full ring since the context was created.
  */
 uint64_t dp_tlm_dropped (const dp_tlm_t *t);
 

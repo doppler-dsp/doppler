@@ -1171,6 +1171,25 @@ endef
 DOXYGEN_VERSION ?= 1.9.8
 DOXYGEN_CMD      = doxygen Doxyfile
 
+# The coverage pass doxygen-warn-gate runs second, over the headers only.
+#
+# The Doxyfile sets EXTRACT_ALL=YES so the HTML lists every symbol, and with
+# it doxygen treats every symbol as documented: WARN_IF_UNDOCUMENTED never
+# fires. The zero-warning gate therefore could not see an undocumented field,
+# function, macro, @param or @return, and about 1,010 symbols, 529 functions
+# without @param and 385 without @return piled up behind it (doxygen 1.9.8,
+# 2026-10-27). This pass turns EXTRACT_ALL off and WARN_NO_PARAMDOC on, over
+# *.h files alone: a header is the contract jm copies into the .pyi and
+# __doc__. Private structs inside .c files are not in scope here (#2639).
+#
+# HTML generation stays ON, from the Doxyfile. Doxygen 1.9.8 records a
+# function's @param/@return only while it renders output, so with
+# GENERATE_HTML=NO every function reads as undocumented (XML alone is not
+# enough). Turning it off to save time made this pass report 3,659 gaps
+# where 1,970 were real.
+DOXYGEN_COVERAGE_OVERRIDES = EXTRACT_ALL=NO WARN_NO_PARAMDOC=YES \
+                             FILE_PATTERNS=*.h
+
 # The same pin, applied to GENERATION rather than checking (gen-c-api).
 #
 # doxygen versions disagree about output, not just about warnings, so
@@ -4072,8 +4091,21 @@ doxygen-warn-gate: ## The doxygen warning gate proper (re-entered in Docker)
 	  grep 'warning:' $$out/stdout.log; \
 	  echo "doxygen-check: $$n warning(s) — FAIL"; rm -rf $$out; exit 1; \
 	fi; \
+	{ cat Doxyfile; \
+	  printf '%s\n' $(DOXYGEN_COVERAGE_OVERRIDES); \
+	  echo "OUTPUT_DIRECTORY=$$out/coverage"; \
+	  echo "WARN_LOGFILE="; } | doxygen - > $$out/coverage.log 2>&1; \
+	n=$$(grep -c 'warning:' $$out/coverage.log || true); \
+	if [ "$$n" != "0" ]; then \
+	  grep 'warning:' $$out/coverage.log; \
+	  echo "doxygen-check: $$n undocumented header symbol(s) — FAIL"; \
+	  echo "  Every struct field, function, @param, @return, macro, typedef"; \
+	  echo "  and enum in a header needs a doc comment: jm copies them into"; \
+	  echo "  the Python .pyi and __doc__."; \
+	  rm -rf $$out; exit 1; \
+	fi; \
 	rm -rf $$out; \
-	echo "doxygen-check: 0 warnings"
+	echo "doxygen-check: 0 warnings, every header symbol documented"
 
 # ── Examples ─────────────────────────────────────────────────────────────────
 # Smoke-test every standalone C example. Excluded (each needs a live NATS peer

@@ -15,8 +15,10 @@
  *
  * An input of amplitude 10^(dbfs/20) uses the full ADC code range.  With the
  * default dbfs=-10.0 a signal at -10 dBFS fills the converter exactly.
- * double precision is used throughout so converters wider than 23 bits
- * (float32 mantissa limit) are modelled without rounding artefacts.
+ * step() works in double precision, so converters wider than 23 bits
+ * (float32 mantissa limit) are modelled without rounding artefacts.  The
+ * undithered steps() fast path multiplies in float32 instead (see
+ * dp_adc_steps()).
  *
  * TPDF dither (dithering != 0): two xorshift32 uniform draws are summed to
  * produce a triangular PDF over `[-1, +1]` LSB before rounding.  This breaks
@@ -71,14 +73,25 @@ extern "C" {
  * by reset().
  */
 typedef struct {
-    double   scale;     /* 2^(bits-1) * 10^(-dbfs/20) */
-    int64_t  clip_max;  /* 2^(bits-1) - 1              */
-    int64_t  clip_min;  /* -2^(bits-1)                 */
-    int      bits;      /* ADC resolution, 1..64        */
-    float    dbfs;      /* full-scale reference level   */
-    int      dithering; /* 0 = off; non-zero = TPDF     */
-    uint8_t  clipped;   /* sticky saturation flag       */
-    uint32_t rng;       /* xorshift32 PRNG state        */
+    double   scale;     /**< Input-to-code gain, 2^(bits-1) * 10^(-dbfs/20)
+                             (codes per unit input).  Config, set by
+                             create(). */
+    int64_t  clip_max;  /**< Largest output code, 2^(bits-1) - 1
+                             (INT64_MAX when bits = 64).  Config. */
+    int64_t  clip_min;  /**< Smallest output code, -2^(bits-1)
+                             (INT64_MIN when bits = 64).  Config. */
+    int      bits;      /**< ADC resolution in bits, 1..64.  Config. */
+    float    dbfs;      /**< Full-scale reference level in dBFS, as passed
+                             to create().  Config; informational once
+                             @c scale is derived. */
+    int      dithering; /**< 0 = no dither; positive = TPDF dither before
+                             rounding.  Config. */
+    uint8_t  clipped;   /**< Sticky saturation flag: 1 once any sample
+                             saturated, 0 otherwise.  Running state, set by
+                             step()/steps(), cleared by reset(). */
+    uint32_t rng;       /**< xorshift32 dither PRNG state.  Running state;
+                             seeded to a fixed constant by create() and
+                             reset(), advanced only when dithering. */
 } dp_adc_state_t;
 
 /**
@@ -86,13 +99,14 @@ typedef struct {
  *
  * Computes @c scale = 2^(bits-1) * 10^(-dbfs/20), sets the clip bounds, and
  * seeds the xorshift32 PRNG to a fixed constant.  Returns NULL if @p bits is
- * outside `[1, 64]` or on allocation failure.
+ * outside `[1, 64]`, if @p dithering is negative, or on allocation failure.
  *
- * @param bits      ADC resolution in bits (1..64).
+ * @param bits      ADC resolution in bits (1..64; default 16).
  * @param dbfs      Full-scale reference level in dBFS (typically negative,
  *                  e.g. -10.0).  A signal with amplitude 10^(dbfs/20) fills
- *                  the converter's integer range exactly.
- * @param dithering 0 = no dither; non-zero = TPDF dither before rounding.
+ *                  the converter's integer range exactly (default -10.0).
+ * @param dithering 0 = no dither (default); positive = TPDF dither before
+ *                  rounding.  A negative value is rejected (NULL).
  * @return Heap-allocated state, or NULL on invalid args or allocation failure.
  * @note Caller must call dp_adc_destroy() when done.
  */
@@ -100,7 +114,7 @@ dp_adc_state_t *dp_adc_create(int bits, float dbfs, int dithering);
 
 /**
  * @brief Destroy an ADC instance and release all memory.
- * @param state  May be NULL.
+ * @param state  Instance from dp_adc_create(); may be NULL (no-op).
  */
 void dp_adc_destroy(dp_adc_state_t *state);
 
@@ -112,7 +126,7 @@ void dp_adc_destroy(dp_adc_state_t *state);
  * bit-for-bit reproducible. The immutable configuration (bits, scale, clip
  * bounds) is preserved.
  *
- * @param state  Must be non-NULL.
+ * @param state  Instance to reset; must be non-NULL.
  *
  * @code
  * >>> from doppler.cvt import ADC
@@ -133,10 +147,12 @@ void dp_adc_reset(dp_adc_state_t *state);
  * Multiplies @p x by the pre-computed double-precision @c scale, optionally
  * adds TPDF dither (when the object was built with dithering enabled), rounds
  * with @c llround, and clamps to the signed integer range `[clip_min,
- * clip_max]`. Latches the sticky @c clipped flag if the sample saturated.
+ * clip_max]`. Latches the sticky @c clipped flag when the scaled (and
+ * dithered) value lies outside `[clip_min, clip_max]` BEFORE rounding, so a
+ * value such as clip_max + 0.3 latches it even though it rounds to clip_max.
  * A sample at amplitude 10^(dbfs/20) reaches full scale.
  *
- * @param state  Must be non-NULL.
+ * @param state  Instance to update (clip flag, dither PRNG); non-NULL.
  * @param x      Input sample, normally a normalised float in `[-1, +1]`.
  * @return Signed ADC code in `[-(2^(bits-1)), 2^(bits-1)-1]`.
  *
@@ -179,16 +195,22 @@ dp_adc_step(dp_adc_state_t *state, float x)
 /**
  * @brief Process a block of float samples to int64.
  *
- * When dithering is disabled the float-to-double multiply can use SIMD
- * widening (jm_simd.h); the int64_t conversion and clamp remain scalar.
- * When dithering is enabled the loop is scalar to preserve sequential PRNG
- * state.  Accepts an optional pre-allocated output array; allocates a fresh
- * one when @p output is NULL.
+ * When dithering is disabled and a SIMD tier is available (jm_simd.h), whole
+ * SIMD-width groups are scaled by @c scale rounded to float32, multiplied in
+ * float32, rounded with @c llroundf and clamped; the clip flag latches only
+ * when the ROUNDED code exceeds the range.  The remaining tail samples, and
+ * every sample when dithering is enabled, go through dp_adc_step() (double
+ * precision, sequential PRNG).  For converters wider than ~24 bits the
+ * float32 path can therefore differ from step() in the last codes.
  *
- * @param state   Must be non-NULL.
+ * The C function writes into @p output and never allocates; the Python
+ * binding allocates the output array when its optional @c out is omitted.
+ *
+ * @param state   Instance to update (clip flag, dither PRNG); non-NULL.
  * @param input   Input float32 array; must contain at least @p n elements.
- * @param output  Output int64 array; must contain at least @p n elements.
- * @param n       Number of samples to process.
+ * @param output  Output int64 array; must hold at least @p n elements and
+ *                must be non-NULL.
+ * @param n       Number of samples to process (0 is a no-op).
  *
  * @code
  * >>> from doppler.cvt import ADC
@@ -209,10 +231,42 @@ void dp_adc_steps(
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the dither RNG + sticky clip flag resume exactly into an
  * identically-built instance. */
+/** FourCC type tag ("ADC ") stamped in every ADC state blob's envelope. */
 #define ADC_STATE_MAGIC DP_FOURCC ('A','D','C',' ')
+/** ADC state blob format version; a blob of another version is rejected. */
 #define ADC_STATE_VERSION 1u
+/**
+ * @brief Size in bytes of this instance's serialized state blob.
+ *
+ * A fixed size: the 16-byte dp_state_hdr_t envelope plus
+ * sizeof(dp_adc_state_t) (the whole struct is snapshotted).
+ *
+ * @param state  Instance to size; not dereferenced.
+ * @return Blob size in bytes; allocate this much for dp_adc_get_state().
+ */
 size_t dp_adc_state_bytes (const dp_adc_state_t *state);
+/**
+ * @brief Serialize the full state (config, clip flag, dither PRNG).
+ *
+ * Writes the envelope then a byte copy of the struct, so an identically
+ * built instance restored from it continues bit-for-bit, dither included.
+ *
+ * @param state  Instance to snapshot; non-NULL.
+ * @param[out] blob  Destination of at least dp_adc_state_bytes() bytes.
+ */
 void dp_adc_get_state (const dp_adc_state_t *state, void *blob);
+/**
+ * @brief Restore a state blob written by dp_adc_get_state().
+ *
+ * Validates the envelope (magic, version, endianness, size) first and
+ * leaves @p state untouched on rejection.  On success the WHOLE struct is
+ * overwritten, configuration (bits, dbfs, scale, clip bounds, dithering)
+ * included, not just the running fields.
+ *
+ * @param state  Instance to overwrite; non-NULL.
+ * @param blob   Blob of dp_adc_state_bytes() bytes.
+ * @return DP_OK, or DP_ERR_INVALID if the envelope does not match.
+ */
 int dp_adc_set_state (dp_adc_state_t *state, const void *blob);
 
 #ifdef __cplusplus

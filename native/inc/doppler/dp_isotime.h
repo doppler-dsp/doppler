@@ -67,12 +67,14 @@
  * implementation-defined base. (Breaking the instant into fields needs no
  * platform call at all: see dp_isotime_utc_tm_.) */
 #ifdef _WIN32
+/** Read the UTC wall clock into @p ts; 0 on success, -1 on failure. */
 static inline int
 dp_isotime_wall (struct timespec *ts)
 {
   return timespec_get (ts, TIME_UTC) == TIME_UTC ? 0 : -1;
 }
 #else
+/** Read `CLOCK_REALTIME` into @p ts; 0 on success, -1 on failure. */
 static inline int
 dp_isotime_wall (struct timespec *ts)
 {
@@ -88,10 +90,14 @@ extern "C"
 /** Bytes needed for the longest form (nanoseconds) plus the NUL. */
 #define DP_ISOTIME_MAX 32
 
-/** Fractional digits `iso-8601-basic` offers: none, `-m`, `-u`, `-n`. */
+/** Fractional digits `iso-8601-basic` offers: none, `-m`, `-u`, `-n`.
+ *  This one is none: whole seconds, no fraction field. */
 #define DP_ISOTIME_SEC 0u
+/** Three fractional digits: milliseconds (`-m`), truncated. */
 #define DP_ISOTIME_MSEC 3u
+/** Six fractional digits: microseconds (`-u`), truncated. */
 #define DP_ISOTIME_USEC 6u
+/** Nine fractional digits: nanoseconds (`-n`), the full resolution. */
 #define DP_ISOTIME_NSEC 9u
 
 /** Separator style: `20260805T041530Z`, safe in a filename. */
@@ -115,6 +121,8 @@ extern "C"
    * validates all of them (tm_wday, tm_yday included) and aborts through the
    * invalid-parameter handler on one out of range.
    *
+   * @param sec  Seconds since the UNIX epoch (UTC); may be negative.
+   * @param out  Receives the broken-down UTC time (`tm_isdst` = 0).
    * @return 0, or -1 when the year does not fit `tm_year`.
    */
   static inline int
@@ -173,9 +181,10 @@ extern "C"
    * @param frac  Fractional digits: 0, 3, 6 or 9 (the ::DP_ISOTIME_MSEC
    *              family). Any other value is rejected.
    * @param style ::DP_ISOTIME_BASIC or ::DP_ISOTIME_EXTENDED.
-   * @return Characters written (excluding the NUL), or -1 if @p frac is not
-   * one of the four, @p style is neither, @p nsec is out of range, @p buf is
-   * too small, or the instant is not representable as a UTC calendar time.
+   * @return Characters written (excluding the NUL), or -1 if @p buf is
+   * NULL, @p frac is not one of the four, @p style is neither, @p nsec is
+   * out of range, @p buf is too small, or the instant is not representable
+   * as a UTC calendar time.
    */
   static inline int
   dp_isotime_format_as (char *buf, size_t cap, int64_t sec, uint32_t nsec,
@@ -247,8 +256,9 @@ extern "C"
   /**
    * Format the current wall clock, the way a capture filename wants it.
    *
-   * Reads `CLOCK_REALTIME` directly: no `PATH` lookup, no subprocess, and
-   * the nanoseconds arrive already split from the seconds.
+   * Reads `CLOCK_REALTIME` directly (`timespec_get(TIME_UTC)` on Windows):
+   * no `PATH` lookup, no subprocess, and the nanoseconds arrive already
+   * split from the seconds.
    *
    * @param buf  Destination; receives a NUL-terminated string.
    * @param cap  Size of @p buf; ::DP_ISOTIME_MAX is always enough.
@@ -276,7 +286,14 @@ extern "C"
    * about what this library's own timestamps mean.
    */
 
-  /** @brief Reads @p n decimal digits, advancing @p p.  0 on success. */
+  /**
+   * @brief Reads @p n decimal digits, advancing @p p.
+   *
+   * @param p    In/out cursor; advanced past the digits only on success.
+   * @param n    Number of digits to read (no sign, no whitespace).
+   * @param out  Receives the decimal value on success.
+   * @return 0 on success, -1 if any of the @p n characters is not a digit.
+   */
   static inline int
   dp_isotime_digits_ (const char **p, int n, int *out)
   {
@@ -300,6 +317,12 @@ extern "C"
    * needs no timezone database.  Written out rather than reached through
    * `timegm`: that function is neither C nor POSIX, and the one thing this
    * parser must never do is consult the ambient `TZ`.
+   *
+   * @param y  Year (proleptic Gregorian; may be zero or negative).
+   * @param m  Month, 1..12.
+   * @param d  Day of month, 1..31 (not checked against the month's
+   *           length; an overflowing day rolls into the next month).
+   * @return Days since 1970-01-01 (negative before it).
    */
   static inline int64_t
   dp_isotime_days_from_civil_ (int64_t y, unsigned m, unsigned d)
@@ -318,8 +341,10 @@ extern "C"
    *
    * Accepts both spellings this file writes — extended
    * (`2026-08-05T04:15:30.123456Z`) and basic (`20260805T041530Z`) — with an
-   * optional fraction of one to nine digits, and either `Z` or an explicit
-   * `+hh:mm` / `-hhmm` offset, which is applied.
+   * optional fraction (`.` or `,`, one or more digits; digits past the
+   * ninth are truncated), and either `Z` or an explicit `+hh:mm` / `-hhmm`
+   * / `+hh` offset, which is applied.  The day is range-checked only to
+   * 1..31, not against the month, so `02-31` rolls into March.
    *
    * **A timestamp with NO zone is REFUSED.**  It is the one input where
    * guessing costs hours rather than nothing: read as UTC, a local-time

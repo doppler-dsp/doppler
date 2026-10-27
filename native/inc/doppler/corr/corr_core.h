@@ -111,6 +111,8 @@ void dp_corr_destroy(dp_corr_state_t *state);
  * plans.  Does NOT recompute ref_spec; use dp_corr_set_ref() to replace the
  * reference.
  *
+ * @param state Allocated correlator (non-NULL).
+ *
  * @code
  * >>> from doppler.spectral import Corr
  * >>> import numpy as np
@@ -138,7 +140,16 @@ void dp_corr_reset(dp_corr_state_t *state);
  */
 void dp_corr_set_ref(dp_corr_state_t *state, const float _Complex *ref);
 
-/** @brief Maximum output samples per execute call (== n_out). */
+/**
+ * @brief Maximum output samples per execute call (== n_out).
+ *
+ * Size an output buffer with this before calling dp_corr_execute().
+ *
+ * @param state Allocated correlator (non-NULL).
+ * @return The configured output length n_out in samples: the reference
+ *         length n for the native path, or the zero-padded length passed
+ *         to dp_corr_create().
+ */
 size_t dp_corr_execute_max_out(dp_corr_state_t *state);
 
 /**
@@ -183,10 +194,42 @@ size_t dp_corr_execute(dp_corr_state_t *state, const float _Complex *in, size_t 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running product-spectrum accumulator + frame count;
  * FFT plans + ref_spec are config, rebuilt by create. */
+/** @brief State-blob magic tag for a correlator ("CORR"). */
 #define CORR_STATE_MAGIC DP_FOURCC ('C','O','R','R')
+/** @brief State-blob layout version for a correlator. */
 #define CORR_STATE_VERSION 1u
+/**
+ * @brief Size in bytes of this correlator's serialized state blob.
+ *
+ * The blob is the dp_state.h envelope header, the frame count (uint64),
+ * and the n-sample CF32 product-spectrum accumulator.  The FFT plans and
+ * ref_spec are config and are not stored.
+ *
+ * @param state Allocated correlator (non-NULL).
+ * @return Blob size in bytes; depends only on n.
+ */
 size_t dp_corr_state_bytes (const dp_corr_state_t *state);
+/**
+ * @brief Serialize the running state (frame count + accumulator).
+ *
+ * @param state Allocated correlator (non-NULL).
+ * @param blob  Destination buffer of at least dp_corr_state_bytes() bytes.
+ */
 void dp_corr_get_state (const dp_corr_state_t *state, void *blob);
+/**
+ * @brief Restore running state from a blob made by dp_corr_get_state().
+ *
+ * The target must have been created with the same reference length n
+ * (the size check rejects any other); the reference itself is not
+ * restored, so build the target from the same reference.  The frame count
+ * is restored as stored and is not checked against the target's dwell.
+ *
+ * @param state Allocated correlator (non-NULL).
+ * @param blob  Blob of dp_corr_state_bytes() bytes.
+ * @return DP_OK on success, or DP_ERR_INVALID when the envelope (magic,
+ *         version, endianness, size) does not match; the state is then
+ *         left untouched.
+ */
 int dp_corr_set_state (dp_corr_state_t *state, const void *blob);
 
 #ifdef __cplusplus

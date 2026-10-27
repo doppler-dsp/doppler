@@ -462,6 +462,10 @@ extern "C"
    *
    * Separate from the cascade's filter response (dp_RateConverter_gain()), which
    * is computed from coefficients and stays 1.0; the two multiply.
+   *
+   * @param state  Receiver state. Must be non-NULL.
+   * @return The AGC's current gain in dB (from the cascade's AGC); 0.0 when
+   *         the receiver was built with @c agc = 0.
    */
   double dp_mpsk_receiver_get_agc_gain_db (const dp_mpsk_receiver_state_t *state);
 
@@ -620,6 +624,16 @@ extern "C"
     return mpsk_rx_fold (&s->l, ys, n, y_out, ted);
   }
 
+  /**
+   * @brief Output-capacity hint for the generated binding's steps().
+   *
+   * Always returns 0, which the binding reads as "the input length is a safe
+   * bound": `sps >= m_out >= 2`, so a block
+   * never yields more symbols than it has samples.
+   *
+   * @param state  Receiver state (unused).
+   * @return 0.
+   */
   size_t dp_mpsk_receiver_steps_max_out (dp_mpsk_receiver_state_t *state);
   /**
    * @brief Demodulate a cf32 block and emit the recovered symbols.
@@ -655,6 +669,19 @@ extern "C"
                               const float _Complex *x, size_t x_len,
                               float _Complex *out, size_t max_out);
 
+  /**
+   * @brief Output-capacity hint for the generated binding's bits().
+   *
+   * Always returns 0, which the binding reads as "the input length is a safe
+   * bound": a block yields at most
+   * `x_len / sps` symbols of log2(M) bits each. That bound is <= the
+   * input length except for M = 8 at an `sps` below 3, where the
+   * input-length buffer can be too small and the excess bits are
+   * dropped (never overrun: writes stop at @p max_out).
+   *
+   * @param state  Receiver state (unused).
+   * @return 0.
+   */
   size_t dp_mpsk_receiver_bits_max_out (dp_mpsk_receiver_state_t *state);
   /**
    * @brief Demodulate a cf32 block and emit hard Gray-coded bits.
@@ -694,6 +721,16 @@ extern "C"
                              const float _Complex *x, size_t x_len,
                              uint8_t *out, size_t max_out);
 
+  /**
+   * @brief Output-capacity hint for the generated binding's steps_real().
+   *
+   * Always returns 0, which the binding reads as "the input length is a safe
+   * bound": `sps > 2 * m_out`, so a block
+   * never yields more symbols than it has samples.
+   *
+   * @param state  Receiver state (unused).
+   * @return 0.
+   */
   size_t dp_mpsk_receiver_steps_real_max_out (dp_mpsk_receiver_state_t *state);
   /**
    * @brief Demodulate a real f32 block and emit the recovered symbols.
@@ -730,6 +767,17 @@ extern "C"
                                    const float *x, size_t x_len,
                                    float _Complex *out, size_t max_out);
 
+  /**
+   * @brief Output-capacity hint for the generated binding's bits_real().
+   *
+   * Always returns 0, which the binding reads as "the input length is a safe
+   * bound": `sps > 2 * m_out >= 4`, so a
+   * block yields at most `x_len / 4` symbols of at most 3 bits each,
+   * which is below the input length.
+   *
+   * @param state  Receiver state (unused).
+   * @return 0.
+   */
   size_t dp_mpsk_receiver_bits_real_max_out (dp_mpsk_receiver_state_t *state);
   /**
    * @brief Demodulate a real f32 block and emit hard Gray-coded bits.
@@ -769,20 +817,47 @@ extern "C"
                                   size_t x_len, uint8_t *out, size_t max_out);
 
   /** @brief Carrier frequency the receiver is tracking, cycles/sample at the
-   *  input rate: the create-time centre plus the loop's own estimate. */
+   *  input rate: the create-time centre plus the loop's own estimate.
+   *
+   *  The estimate is the carrier loop filter's integrator (the frequency
+   *  memory), excluding the proportional nudge; on a real-IF receiver it is
+   *  converted from the LO's half rate back to the input rate. Equals
+   *  @p init_norm_freq right after create or reset.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return Tracked carrier frequency, cycles/sample at the input rate. */
   double dp_mpsk_receiver_get_norm_freq (const dp_mpsk_receiver_state_t *state);
   /** @brief Instantaneous NCO frequency command (carrier loop filter output,
-   * cycles/sample): mean tracks a ramp with no lag, variance is loop stress. */
+   * cycles/sample): mean tracks a ramp with no lag, variance is loop stress.
+   *
+   * The centre plus the full PI command (integrator AND proportional term),
+   * in the receiver's sign convention and at the input rate. Equals the
+   * centre before the first symbol.
+   * @param state  Receiver state. Must be non-NULL.
+   * @return LO frequency being applied, cycles/sample at the input rate. */
   double dp_mpsk_receiver_get_nco_freq (const dp_mpsk_receiver_state_t *state);
   /** @brief Retune to @p val cycles/sample: moves the LO centre there and
-   *  zeroes the loop's residual estimate, so norm_freq reads back exactly. */
+   *  zeroes the loop's residual estimate, so norm_freq reads back exactly.
+   *
+   *  The loop filter's integrator is rewritten to zero and the applied LO
+   *  command is zeroed; nothing else (timing loop, lock detector, filter
+   *  memory) is touched.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @param val    New carrier centre, cycles/sample at the input rate (on
+   *                a real-IF receiver, the IF centre, as for
+   *                @p init_norm_freq). */
   void dp_mpsk_receiver_set_norm_freq (dp_mpsk_receiver_state_t *state, double val);
   /** @brief The raw carrier lock statistic: the EMA of the M-th-power NDA
    *  lock signal, near 1 when locked and near 0 on noise. It chatters at
-   *  the threshold; `locked` is the de-chattered decision made on it. */
+   *  the threshold; `locked` is the de-chattered decision made on it.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return The lock EMA, nominally between -1 and 1; 0.0 before the first
+   *          symbol and after reset. */
   double dp_mpsk_receiver_get_lock (const dp_mpsk_receiver_state_t *state);
   /** @brief Binary carrier-lock flag from the loop's hysteretic (up/down
-   * verify-counted) lock detector — de-chattered, unlike the raw metric. */
+   * verify-counted) lock detector — de-chattered, unlike the raw metric.
+   * @param state  Receiver state. Must be non-NULL.
+   * @return 1 while carrier lock is declared, else 0 (0 after create and
+   *         reset). */
   int dp_mpsk_receiver_get_locked (const dp_mpsk_receiver_state_t *state);
 
   /**
@@ -799,10 +874,17 @@ extern "C"
    * first declaration is dated — a drop and re-acquire does not restamp it,
    * because the question this answers is "how long did this receiver take to
    * lock", not "when did it last hold". dp_mpsk_receiver_reset() clears it to -1.
+   *
+   * @param state  Receiver state. Must be non-NULL.
+   * @return Symbols from reset to the first lock declaration, or -1 if the
+   *         receiver has never declared lock since create/reset.
    */
   int64_t dp_mpsk_receiver_get_lock_time (const dp_mpsk_receiver_state_t *state);
   /** @brief Carrier loop phase discriminator (rad) — the residual phase the
-   * loop is trying to null; loop stress. */
+   * loop is trying to null; loop stress.
+   * @param state  Receiver state. Must be non-NULL.
+   * @return The most recent discriminator output, radians; 0.0 before the
+   *         first symbol and after reset. */
   double dp_mpsk_receiver_get_last_error (const dp_mpsk_receiver_state_t *state);
 
   /**
@@ -882,24 +964,41 @@ extern "C"
   int dp_mpsk_receiver_set_telemetry (dp_mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                                    const char *prefix, uint32_t decim);
   /** @brief Smoothed tracked samples per symbol — departs from the nominal
-   *  `sps` by exactly the sample-clock offset the timing loop is tracking. */
+   *  `sps` by exactly the sample-clock offset the timing loop is tracking.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return Tracked samples per symbol at the input rate; equals the
+   *          nominal `sps` after create and reset. */
   double dp_mpsk_receiver_get_timing_rate (const dp_mpsk_receiver_state_t *state);
-  /** @brief Constellation order M (2, 4 or 8), as constructed. */
+  /** @brief Constellation order M (2, 4 or 8), as constructed.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return M. */
   int    dp_mpsk_receiver_get_m (const dp_mpsk_receiver_state_t *state);
   /** @brief Nominal samples per symbol at the receiver's input, as
-   *  constructed; `timing_rate` is the tracked value. */
+   *  constructed; `timing_rate` is the tracked value.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return Nominal samples per symbol. */
   double dp_mpsk_receiver_get_sps (const dp_mpsk_receiver_state_t *state);
-  /** @brief Terminal outputs per symbol (the old `n`, now the cascade's). */
+  /** @brief Terminal outputs per symbol (the old `n`, now the cascade's).
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return m_out in use: the value passed to create, or the derived one
+   *          when 0 was passed. */
   size_t dp_mpsk_receiver_get_m_out (const dp_mpsk_receiver_state_t *state);
 
-  /** @brief Loop damping in use — derived `1/sqrt(2)` unless pinned (§8.1). */
+  /** @brief Loop damping in use — derived `1/sqrt(2)` unless pinned (§8.1).
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return Damping factor shared by the carrier and timing loops. */
   double dp_mpsk_receiver_get_zeta (const dp_mpsk_receiver_state_t *state);
 
-  /** @brief AGC bandwidth ratio in use — derived unless pinned (§8.1). */
+  /** @brief AGC bandwidth ratio in use — derived unless pinned (§8.1).
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return bn_agc_ratio in (0, 1), as validated at create; reported
+   *          even when the receiver was built with @c agc = 0. */
   double dp_mpsk_receiver_get_bn_agc_ratio (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Carrier lock DECLARE threshold in use — derived unless pinned
-   *         (§8.1). It gates no loop and no output; see mpsk_rx_loops.h. */
+   *         (§8.1). It gates no loop and no output; see mpsk_rx_loops.h.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return Declare threshold on the carrier lock EMA. */
   double dp_mpsk_receiver_get_lock_thresh (const dp_mpsk_receiver_state_t *state);
 
   /**
@@ -910,26 +1009,39 @@ extern "C"
    * lock statistic needs both edges to know what the decision was reading,
    * and deriving `0.8 *` in a plotting script puts a second copy of the
    * hysteresis rule outside the object that owns it.
+   *
+   * @param state  Receiver state. Must be non-NULL.
+   * @return Drop threshold on the carrier lock EMA
+   *         (`MPSK_RX_LOCK_DOWN * lock_thresh`).
    */
   double
   dp_mpsk_receiver_get_lock_drop_thresh (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Timing DECLARE threshold on `sync.lock`, derived by symsync's
-   *         own (rolloff, esno_min, pfa, pd) geometry rather than pinned. */
+   *         own (rolloff, esno_min, pfa, pd) geometry rather than pinned.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return Timing-loop lock declare threshold. */
   double
   dp_mpsk_receiver_get_sync_lock_thresh (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Timing DROP threshold on `sync.lock`. Equal to the declare
-   *         threshold when the timing loop carries no level hysteresis. */
+   *         threshold when the timing loop carries no level hysteresis.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return Timing-loop lock drop threshold. */
   double
   dp_mpsk_receiver_get_sync_lock_drop_thresh (const dp_mpsk_receiver_state_t *state);
 
-  /** @brief Matched-filter bank arms in use — derived unless pinned (§8.1). */
+  /** @brief Matched-filter bank arms in use — derived unless pinned (§8.1).
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return Number of polyphase arms in the cascade's terminal stage. */
   size_t dp_mpsk_receiver_get_num_phases (const dp_mpsk_receiver_state_t *state);
 
   /** @brief Has the cascade's CIC stage clipped its input since the last
    *  reset? A CIC bounds its input to +-1.0 and clips silently past that,
-   *  which costs ~25 dB of EVM behind a perfectly healthy lock. */
+   *  which costs ~25 dB of EVM behind a perfectly healthy lock.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return 1 if the front end reports a clip since create/reset, else 0
+   *          (also 0 when the planned cascade has no CIC stage). */
   int dp_mpsk_receiver_get_clipped (const dp_mpsk_receiver_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition: the front end's and the loops' self-validating child blobs.
@@ -942,13 +1054,58 @@ extern "C"
  * refused at the envelope by name rather than three levels down in a child.
  * The layouts are otherwise identical, which is why one triplet serves both.
  */
+/** State-blob envelope magic for the complex-input face ("MPSK"). */
 #define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'K')
+/** State-blob layout version for the complex-input face. */
 #define MPSK_RECEIVER_STATE_VERSION 6u /* v5: rebuilt on the matched DDC */
+/** State-blob envelope magic for the real-IF face ("MPSR"); a blob from one
+ *  face is refused by the other at the envelope. */
 #define MPSK_RECEIVER_R_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'R')
+/** State-blob layout version for the real-IF face. */
 #define MPSK_RECEIVER_R_STATE_VERSION 2u
+  /**
+   * @brief Size of this receiver's serialized state blob, in bytes.
+   *
+   * The envelope header plus the front end's child blob plus the loops'
+   * child blob. Fixed for a given construction (it depends on the face and
+   * the planned cascade, not on the stream).
+   *
+   * @param state  Receiver state. Must be non-NULL.
+   * @return Bytes dp_mpsk_receiver_get_state() writes and
+   *         dp_mpsk_receiver_set_state() expects.
+   */
   size_t dp_mpsk_receiver_state_bytes (const dp_mpsk_receiver_state_t *state);
+  /**
+   * @brief Serialize the receiver's running state into @p blob.
+   *
+   * Writes `[header][front-end child][loops child]`, the header tagged with
+   * the face's magic (MPSK_RECEIVER_STATE_MAGIC or
+   * MPSK_RECEIVER_R_STATE_MAGIC). Configuration restored by create (the
+   * cascade, its banks, the LO centre, the face) is not packed.
+   *
+   * @param state  Receiver state. Must be non-NULL.
+   * @param blob   Destination; at least dp_mpsk_receiver_state_bytes()
+   *               bytes, caller-owned.
+   */
   void   dp_mpsk_receiver_get_state (const dp_mpsk_receiver_state_t *state,
                                   void                        *blob);
+  /**
+   * @brief Restore running state from a blob taken by
+   *        dp_mpsk_receiver_get_state().
+   *
+   * The envelope is validated first (magic for this face, version, endian,
+   * size); then the front end's child blob and the loops' child blob are
+   * restored in that order, each validating its own envelope. The receiver
+   * must have been built with the same face and parameters as the one that
+   * produced the blob.
+   *
+   * @param state  Receiver state. Must be non-NULL.
+   * @param blob   Source blob, dp_mpsk_receiver_state_bytes() bytes.
+   * @return DP_OK on success, or DP_ERR_INVALID if any envelope is rejected.
+   *         A rejection in the outer envelope leaves @p state untouched; a
+   *         rejection by the loops' child blob comes after the front end
+   *         was already restored.
+   */
   int dp_mpsk_receiver_set_state (dp_mpsk_receiver_state_t *state, const void *blob);
 
 #ifdef __cplusplus

@@ -116,8 +116,11 @@ typedef dp_event_log_t dp_event_log_state_t;
  *             and not two: whether an event can carry absolute
  *             `core:freq_*_edge` keys, and what `captures[0]` reports as
  *             `core:frequency`.
- * @return New log, or NULL on a NULL/empty @p path, an unopenable @p path, or
- *         allocation failure.
+ * @return New log, owned by the caller and released with
+ *         dp_event_log_destroy(); or NULL on a NULL/empty @p path or a
+ *         @p path that cannot be opened for writing.  Allocation failure
+ *         aborts the process (the library-wide dp_xmalloc convention) rather
+ *         than returning NULL.
  *
  * @code
  * >>> import json, os, tempfile
@@ -254,8 +257,10 @@ int dp_event_log_field_str (dp_event_log_t *log, const char *name,
  *                      and a 0 Hz offset written for it would read as an
  *                      on-centre emitter.
  * @return ::DP_OK, ::DP_ERR_INVALID on NULL, a closed log, or an event that
- *         renders to ::DP_EVENT_LOG_LINE_MAX bytes or more, or ::DP_ERR_SEND
- *         if the line could not be written.
+ *         renders to ::DP_EVENT_LOG_LINE_MAX bytes or more, ::DP_ERR_MEMORY
+ *         if the JSON line could not be built, or ::DP_ERR_SEND if the line
+ *         could not be written (also recorded as the sticky error that
+ *         dp_event_log_close() reports).
  *
  * @code
  * >>> import json, os, tempfile
@@ -276,7 +281,16 @@ int dp_event_log_append (dp_event_log_t *log, uint64_t sample_start,
                          const char *label, uint64_t sample_count,
                          double freq_hz, double bandwidth_hz);
 
-/** @brief Events appended so far (successfully written). */
+/**
+ * @brief Events appended so far (successfully written).
+ *
+ * Counts only the dp_event_log_append() calls that returned ::DP_OK; a
+ * refused or failed append does not advance it.  Starts at 0 on open and is
+ * not reset by dp_event_log_close() or dp_event_log_finalize().
+ *
+ * @param log The log, or NULL.
+ * @return Number of events written to the flat file; 0 for a NULL @p log.
+ */
 size_t dp_event_log_count (const dp_event_log_t *log);
 
 /**

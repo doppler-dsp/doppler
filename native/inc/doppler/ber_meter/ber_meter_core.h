@@ -42,7 +42,9 @@ extern "C"
 {
 #endif
 
+/** @brief State-blob magic tag for a BerMeter ("BERM"). */
 #define BER_METER_STATE_MAGIC DP_FOURCC ('B', 'E', 'R', 'M')
+/** @brief State-blob layout version for a BerMeter. */
 #define BER_METER_STATE_VERSION 1u
 
   /**
@@ -78,22 +80,6 @@ extern "C"
     size_t      mk_period; /**< Marker period used.                        */
   } dp_ber_meter_state_t;
 
-  /**
-   * @brief Exact confidence interval for a run stopped on an ERROR count.
-   *
-   * Not a module free function because jm free functions cannot return a
-   * record; reach it from Python as BerMeter.ser() / .ber().
-   *
-   * Both quantiles come from doppler's own inverse regularized incomplete
-   * gamma rather than a second copy of one: `det_threshold_noncoherent(q, r)`
-   * returns the `b` with `marcum_q(r, 0, b) = q`, and
-   * `marcum_q(r, 0, b) = Q(r, b^2/2)`, so
-   * `chi2_q(2r)/2 = 0.5 * det_threshold_noncoherent(1-q, r)^2`. At `r = 1` that
-   * reduces to the closed form and the interval is `[-ln(1-a/2)/N, -ln(a/2)/N]`
-   * — no normal approximation anywhere, so it stays honest at the small error
-   * counts where a Wald interval is worst. Verified bit-identical to SciPy's
-   * `chi2.ppf` at r = 1, 2, 20, 200 and 1000.
-   */
   /**
    * @brief Detect the (lag, phase) alignment of @p rx against a known marker.
    *
@@ -137,11 +123,41 @@ extern "C"
                                 size_t t0, size_t n_marker, size_t period,
                                 int lag_span, double pfa);
 
+  /**
+   * @brief Exact confidence interval for a run stopped on an ERROR count.
+   *
+   * Not a module free function because jm free functions cannot return a
+   * record; reach it from Python as BerMeter.ser() / .ber().
+   *
+   * Both quantiles come from doppler's own inverse regularized incomplete
+   * gamma rather than a second copy of one: `det_threshold_noncoherent(q, r)`
+   * returns the `b` with `marcum_q(r, 0, b) = q`, and
+   * `marcum_q(r, 0, b) = Q(r, b^2/2)`, so
+   * `chi2_q(2r)/2 = 0.5 * det_threshold_noncoherent(1-q, r)^2`. At `r = 1`
+   * that reduces to the closed form and the interval is
+   * `[-ln(1-a/2)/N, -ln(a/2)/N]` — no normal approximation anywhere, so it
+   * stays honest at the small error counts where a Wald interval is
+   * worst. Verified bit-identical to SciPy's
+   * `chi2.ppf` at r = 1, 2, 20, 200 and 1000.
+   *
+   * Edge cases: with @p symbols == 0 the result is `p_hat = NaN`,
+   * `lo = 0`, `hi = rel = +inf`. With @p errors == 0 it is `p_hat = 0`,
+   * `lo = 0`, `rel = +inf` and `hi = -ln(1-conf)/N`, the exact ONE-sided
+   * upper limit. Otherwise `p_hat = (r-1)/(N-1)` (the unbiased estimate)
+   * for `r >= 2`, falling back to `r/N` at `r = 1`, and `rel = 1/sqrt(r)`.
+   *
+   * @param errors   Errors counted, `r`.
+   * @param symbols  Trials counted, `N` (symbols, or bits for a BER).
+   * @param conf     Two-sided confidence level in (0, 1); any value outside
+   *                 that range (including 0) selects BER_CONF (0.99).
+   * @return The interval record, with `conf` set to the level actually
+   *         used and `errors`/`symbols` echoing the inputs.
+   */
   ber_interval_t dp_ber_confidence (size_t errors, size_t symbols, double conf);
 
   /* ── the meter ────────────────────────────────────────────────────────── */
 
-  /** @brief Error counters accumulated across as many bursts as it takes. */
+  /* Error counters accumulated across as many bursts as it takes. */
 
 
   /**
@@ -150,9 +166,19 @@ extern "C"
    * @param m              Constellation order (2, 4, 8).
    * @param target_errors  Inverse-binomial stop condition; 0 selects 200.
    * @param conf           Two-sided confidence level; 0 selects 0.99.
+   * @return Heap-allocated meter with no truth installed and all counters
+   *         and the stored alignment zeroed (so `align_ok` reads 0 and
+   *         `lag`/`phase` read 0 before the first align()), or NULL when
+   *         @p m is not 2, 4 or 8 or @p conf is outside (0, 1) and not 0.
+   *         Release with dp_ber_meter_destroy().
    */
   dp_ber_meter_state_t *dp_ber_meter_create (int m, size_t target_errors,
                                        double conf);
+  /**
+   * @brief Free a meter and its owned truth copy.
+   *
+   * @param state  Meter from dp_ber_meter_create(); NULL is a no-op.
+   */
   void               dp_ber_meter_destroy (dp_ber_meter_state_t *state);
   /**
    * @brief Zero the running counters; keep the configuration and the truth.
@@ -288,6 +314,9 @@ extern "C"
    * index falls outside the installed sequence; both land in @c skipped.
    *
    * @param state   Must be non-NULL, with an alignment set by align().
+   *               The stored alignment's `ok` flag is NOT checked: check
+   *               align()'s return first. With no truth installed (or a
+   *               NULL @p rx) nothing is scored and 0 is returned.
    * @param rx      Recovered symbols to score.
    * @param rx_len  How many recovered symbols.
    * @param lo      First symbol index to score (inclusive).
@@ -325,11 +354,24 @@ extern "C"
    * the ONLY way to set an alignment other than detecting one — score() never
    * takes a lag from its caller, because a lag that was passed in is a lag that
    * could have been searched for.
+   *
+   * @param state     Must be non-NULL.
+   * @param align     The alignment record to install verbatim (its `ok`
+   *                  flag is stored but not checked).
+   * @param t0        Truth index of the marker's first occurrence.
+   * @param n_marker  Marker length in symbols; 0 selects BER_SYNC_SYMS.
+   * @param period    Repeat period in symbols; 0 for a single occurrence.
    */
   void dp_ber_meter_set_align (dp_ber_meter_state_t *state, ber_align_t align,
                             size_t t0, size_t n_marker, size_t period);
 
-  /** @brief Has the error target been reached? The inverse-binomial stop. */
+  /**
+   * @brief Has the error target been reached? The inverse-binomial stop.
+   *
+   * @param state  Must be non-NULL.
+   * @return 1 once the symbol-error count has reached target_errors,
+   *         else 0. Bit errors do not count toward it.
+   */
   int dp_ber_meter_get_enough (const dp_ber_meter_state_t *state);
 
   /**
@@ -428,26 +470,174 @@ extern "C"
    */
   ber_interval_t dp_ber_meter_ber (const dp_ber_meter_state_t *state);
 
+  /**
+   * @brief Symbol errors counted so far.
+   *
+   * @param state  Must be non-NULL.
+   * @return Accumulated symbol-error count; 0 after create() or reset().
+   */
   size_t dp_ber_meter_get_errors (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Symbols scored so far.
+   *
+   * @param state  Must be non-NULL.
+   * @return Accumulated scored-symbol count; 0 after create() or
+   *         reset().
+   */
   size_t dp_ber_meter_get_symbols (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Gray-coded bit errors counted so far.
+   *
+   * @param state  Must be non-NULL.
+   * @return Accumulated bit-error count; 0 after create() or reset().
+   */
   size_t dp_ber_meter_get_bit_errors (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Bits scored so far.
+   *
+   * @param state  Must be non-NULL.
+   * @return Scored symbols times log2(m); 0 after create() or reset().
+   */
   size_t dp_ber_meter_get_bits (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Symbols skipped by score().
+   *
+   * @param state  Must be non-NULL.
+   * @return Symbols excluded because a marker occurrence covered them or
+   *         their truth index fell outside the installed sequence.
+   */
   size_t dp_ber_meter_get_skipped (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Constellation order.
+   *
+   * @param state  Must be non-NULL.
+   * @return The order passed to create(): 2, 4 or 8.
+   */
   int    dp_ber_meter_get_m (const dp_ber_meter_state_t *state);
+  /**
+   * @brief The inverse-binomial stop condition.
+   *
+   * @param state  Must be non-NULL.
+   * @return Symbol-error target: create()'s value, or 200 when it
+   *         was 0.
+   */
   size_t dp_ber_meter_get_target_errors (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Lag of the stored alignment.
+   *
+   * @param state  Must be non-NULL.
+   * @return `rx[i]` carries `truth[i + lag]`, in symbols; 0 before the first
+   *         align() or set_align().
+   */
   int    dp_ber_meter_get_lag (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Absolute constellation rotation of the stored alignment.
+   *
+   * @param state  Must be non-NULL.
+   * @return Residual rotation in radians, between -pi and pi; 0 before the
+   *         first align() or set_align().
+   */
   double dp_ber_meter_get_phase (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Detection statistic at the stored alignment's peak.
+   *
+   * @param state  Must be non-NULL.
+   * @return The normalized statistic R (dimensionless); 0 before the
+   *         first align() and on a detection that found no peak.
+   */
   double dp_ber_meter_get_align_stat (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Headroom of the stored alignment over its threshold.
+   *
+   * @param state  Must be non-NULL.
+   * @return `20*log10(stat/threshold)` in dB; -inf when a
+   *         detection found no usable peak, 0 before the
+   *         first align().
+   */
   double dp_ber_meter_get_align_margin_db (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Peak over runner-up of the stored alignment, dB.
+   *
+   * @param state  Must be non-NULL.
+   * @return Ambiguity margin in dB (+inf when every off-peak lag
+   *         is zero); 0 before the first align() and on a
+   *         failed search.
+   */
   double dp_ber_meter_get_align_runner_db (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Marker occurrences combined by the stored alignment.
+   *
+   * @param state  Must be non-NULL.
+   * @return Occurrence count K; 0 before the first align() and
+   *         on a failed search.
+   */
   size_t dp_ber_meter_get_align_occurrences (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Cycle slips seen by the stored alignment.
+   *
+   * @param state  Must be non-NULL.
+   * @return Occurrences whose phase differed from the peak's by more
+   *         than pi/m; 0 before the first align().
+   */
   size_t dp_ber_meter_get_align_slips (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Did the stored alignment's peak sit on a search edge?
+   *
+   * @param state  Must be non-NULL.
+   * @return 1 when the peak was at +/-lag_span (widen the span),
+   *         else 0.
+   */
   int    dp_ber_meter_get_align_saturated (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Is the stored alignment trustworthy?
+   *
+   * @param state  Must be non-NULL.
+   * @return 1 when the peak beat its threshold, was not on a search
+   *         edge and stood at least 3 dB over the runner-up,
+   *         else 0 (including before the first align()).
+   */
   int    dp_ber_meter_get_align_ok (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Two-sided confidence level used by ser() and ber().
+   *
+   * @param state  Must be non-NULL.
+   * @return create()'s level, or 0.99 when it was 0.
+   */
   double dp_ber_meter_get_conf (const dp_ber_meter_state_t *state);
 
+  /**
+   * @brief Size in bytes of the meter's serialized state blob.
+   *
+   * The blob holds the envelope header and the six running counters
+   * (errors, symbols, bit_errors, bits, skipped, bursts) as uint64.
+   *
+   * @param state  Meter (unused: the size is the same for every meter).
+   * @return Blob size in bytes.
+   */
   size_t dp_ber_meter_state_bytes (const dp_ber_meter_state_t *state);
+  /**
+   * @brief Serialize the six running counters.
+   *
+   * Configuration (m, target_errors, conf), the truth sequence and the
+   * stored alignment are not included.
+   *
+   * @param state  Must be non-NULL.
+   * @param blob   Destination, at least dp_ber_meter_state_bytes() bytes.
+   */
   void   dp_ber_meter_get_state (const dp_ber_meter_state_t *state, void *blob);
+  /**
+   * @brief Restore the six running counters from a blob.
+   *
+   * Only the counters change: configuration, truth and the stored
+   * alignment stay as they are on the target, so reinstall truth and
+   * re-align before scoring more.
+   *
+   * @param state  Must be non-NULL.
+   * @param blob   Blob written by dp_ber_meter_get_state().
+   * @return DP_OK on success, or DP_ERR_INVALID when the envelope (magic,
+   *         version, endianness, size) does not match; the state is then
+   *         left untouched.
+   */
   int    dp_ber_meter_set_state (dp_ber_meter_state_t *state, const void *blob);
 
 #ifdef __cplusplus

@@ -46,9 +46,11 @@
 extern "C" {
 #endif
 
-/* Numerical guard on the prompt magnitude in the discriminator (not tunable). */
+/** @brief Numerical guard added to |P| in the discriminator and lock
+ *  metric so a zero prompt cannot divide by zero (not tunable). */
 #define COSTAS_EPS 1e-12f
-/* EMA smoothing for the |Re P|/|P| lock metric (status diagnostic). */
+/** @brief EMA smoothing factor (per symbol) for the |Re P|/|P| lock
+ *  metric, the input to the lock detector. */
 #define COSTAS_LOCK_ALPHA 0.1
 
 /**
@@ -267,16 +269,50 @@ void dp_costas_tlm_flush(const dp_costas_state_t *s);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct (embedded NCO + loop filter + I&D accumulators), so
  * a whole-struct snapshot resumes the loop exactly. */
+/** @brief State-blob magic for the Costas loop (FourCC "CSTS"). */
 #define COSTAS_STATE_MAGIC DP_FOURCC('C', 'S', 'T', 'S')
+/** @brief State-blob layout version (v3 added the lockdet decision rule). */
 #define COSTAS_STATE_VERSION 3u /* v3: lockdet decision rule */
 
-/** @brief Serialized-state byte size. */
+/**
+ * @brief Serialized-state byte size.
+ * @param state  Must be non-NULL (its contents do not affect the size).
+ * @return Bytes: the dp_state_hdr_t envelope plus the whole struct.
+ */
 size_t dp_costas_state_bytes(const dp_costas_state_t *state);
-/** @brief Serialize the full loop state into @p blob. */
+/**
+ * @brief Serialize the full loop state into @p blob.
+ *
+ * A whole-struct snapshot (config, NCO, loop filter, I&D accumulator,
+ * lock detector) with the telemetry attachment zeroed.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Caller-owned buffer of at least dp_costas_state_bytes()
+ *               bytes.
+ */
 void dp_costas_get_state(const dp_costas_state_t *state, void *blob);
-/** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+/**
+ * @brief Restore a state written by dp_costas_get_state().
+ *
+ * Restores every field, config included, but keeps the receiver's own
+ * telemetry attachment. On rejection @p state is untouched.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Blob from dp_costas_get_state().
+ * @return DP_OK, or DP_ERR_INVALID on a magic, version, endian or size
+ *         mismatch.
+ */
 int dp_costas_set_state(dp_costas_state_t *state, const void *blob);
 
+/**
+ * @brief Output capacity hint for dp_costas_steps(): always 0.
+ *
+ * The output is one prompt per @c tsamps inputs, so it never exceeds the
+ * input length; size @p out to the input length (or input / tsamps).
+ *
+ * @param state  Unused.
+ * @return 0 (no state-derived bound).
+ */
 size_t dp_costas_steps_max_out(dp_costas_state_t *state);
 
 /**
@@ -348,20 +384,80 @@ size_t dp_costas_steps(dp_costas_state_t *state, const float _Complex *x, size_t
  *         (doppler#2112).
  */
 int dp_costas_configure(dp_costas_state_t *state, double bn, double zeta);
+/**
+ * @brief PLL loop noise bandwidth currently in use.
+ * @param state  Must be non-NULL.
+ * @return bn, normalized to the symbol rate: the create() value or the last
+ *         one dp_costas_configure() / dp_costas_set_bn() accepted.
+ */
 double dp_costas_get_bn(const dp_costas_state_t *state);
 /** @brief Retune bn, keeping zeta: dp_costas_configure()'s refusal and status.
  *  As a writable property a refusal raises ValueError and the value stays
- *  put (doppler#1987). */
+ *  put (doppler#1987).
+ *  @param state  Must be non-NULL.
+ *  @param val    New loop noise bandwidth, normalized to the symbol rate.
+ *  @return DP_OK, or DP_ERR_INVALID if (val, zeta) fails
+ *          dp_loop_filter_params_ok() (nothing changes). */
 int dp_costas_set_bn(dp_costas_state_t *state, double val);
+/**
+ * @brief Tracked carrier frequency: the NCO frequency register.
+ *
+ * Holds the loop filter's integrator (the frequency memory); it excludes
+ * the proportional term, so on a frequency ramp it lags by the Type-II
+ * ramp error (see dp_costas_get_nco_freq()).
+ *
+ * @param state  Must be non-NULL.
+ * @return Frequency in cycles/sample; the seed frequency before the first
+ *         symbol is dumped.
+ */
 double dp_costas_get_norm_freq(const dp_costas_state_t *state);
 /** @brief Effective NCO frequency command (loop-filter output = integrator +
  * proportional), cycles/sample. Mean rides a ramp with no lag, unlike the
- * integrator-only get_norm_freq. */
+ * integrator-only get_norm_freq.
+ * @param state  Must be non-NULL.
+ * @return norm_freq + kp * last_error / (2 pi tsamps), in cycles/sample;
+ *         equals the seed frequency before the first symbol. */
 double dp_costas_get_nco_freq(const dp_costas_state_t *state);
+/**
+ * @brief Re-seed the loop at a new carrier frequency.
+ *
+ * Not a gentle nudge: it resets the loop filter, re-initializes the NCO
+ * (phase included) at @p val, clears the integrate-and-dump accumulator,
+ * the lock metric and the lock decision, and makes @p val the frequency a
+ * later dp_costas_reset() returns to.
+ *
+ * @param state  Must be non-NULL.
+ * @param val    New carrier frequency, cycles/sample.
+ */
 void dp_costas_set_norm_freq(dp_costas_state_t *state, double val);
+/**
+ * @brief Lock-metric EMA: |Re P|/|P| smoothed by COSTAS_LOCK_ALPHA.
+ * @param state  Must be non-NULL.
+ * @return Value from 0 to 1; near 1 when phase-locked, ~2/pi with no
+ *         carrier; 0 after create/reset until the first symbol.
+ */
 double dp_costas_get_lock_metric(const dp_costas_state_t *state);
+/**
+ * @brief Last PLL discriminator output, the loop stress.
+ * @param state  Must be non-NULL.
+ * @return sign(Re P) * Im P / |P|, about the phase error in radians when
+ *         small, between -1 and 1; 0 before the first symbol.
+ */
 double dp_costas_get_last_error(const dp_costas_state_t *state);
+/**
+ * @brief FLL-assist bandwidth.
+ * @param state  Must be non-NULL.
+ * @return bn_fll, normalized to the symbol rate; 0 means pure PLL.
+ */
 double dp_costas_get_bn_fll(const dp_costas_state_t *state);
+/**
+ * @brief Set the FLL-assist bandwidth live; the FLL gain becomes 4 * @p val.
+ *
+ * Not validated: any value <= 0 disables the assist.
+ *
+ * @param state  Must be non-NULL.
+ * @param val    FLL bandwidth, normalized to the symbol rate (0 = off).
+ */
 void dp_costas_set_bn_fll(dp_costas_state_t *state, double val);
 
 /**
@@ -404,7 +500,9 @@ void dp_costas_configure_lock(dp_costas_state_t *state, double up_thresh,
 
 /** @brief Current carrier lock decision (1 = locked, 0 = not), from the
  *         verify-counted detector on the lock-metric EMA (see
- *         dp_costas_configure_lock). */
+ *         dp_costas_configure_lock).
+ *  @param state  Must be non-NULL.
+ *  @return 1 when locked, 0 otherwise (0 after create/reset). */
 int dp_costas_get_locked(const dp_costas_state_t *state);
 
 /**

@@ -86,8 +86,10 @@
  * ---------------------------------------------------------------------- */
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__)
 #include <immintrin.h>
+/** @brief CPU pause hint for a spin-wait loop (`_mm_pause` on x86). */
 #define DP_SPIN_HINT() _mm_pause ()
 #else
+/** @brief CPU pause hint for a spin-wait loop; a no-op on this target. */
 #define DP_SPIN_HINT() ((void)0)
 #endif
 
@@ -96,8 +98,10 @@
  * ---------------------------------------------------------------------- */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 #include <stdalign.h>
+/** @brief Align the following declaration to @p n bytes (C11 `alignas`). */
 #define DP_ALIGN(n) alignas (n)
 #else
+/** @brief Align the following declaration to @p n bytes (GNU attribute). */
 #define DP_ALIGN(n) __attribute__ ((aligned (n)))
 #endif
 
@@ -105,9 +109,12 @@
  * Compat: compile-time power-of-two assert
  * ---------------------------------------------------------------------- */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+/** @brief Compile-time check that the constant @p n is a power of two. */
 #define DP_ASSERT_PWR2(n)                                                     \
   _Static_assert (((n) & ((n) - 1)) == 0, "Size must be power of 2")
 #else
+/** @brief Compile-time check that the constant @p n is a power of two;
+ *  pre-C11 form (a negative-size array typedef named after @p n). */
 #define DP_ASSERT_PWR2(n)                                                     \
   typedef char dp_assert_pwr2_##n[((n) & ((n) - 1)) == 0 ? 1 : -1]
 #endif
@@ -1042,10 +1049,16 @@ typedef enum
  * ---------------------------------------------------------------------- */
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+/** @brief Compile-time check that one @p elem spans exactly two @p type
+ *  scalars (a complex sample over its stored I/Q pair). @p tag names the
+ *  pre-C11 typedef and is unused here. */
 #define DP_ASSERT_2X(tag, elem, type)                                         \
   _Static_assert (sizeof (elem) == 2 * sizeof (type),                         \
                   "view element must span two stored scalars")
 #else
+/** @brief Compile-time check that one @p elem spans exactly two @p type
+ *  scalars; pre-C11 form, a typedef `dp_assert_2x_<tag>` whose array size
+ *  goes negative on failure. */
 #define DP_ASSERT_2X(tag, elem, type)                                         \
   typedef char dp_assert_2x_##tag[sizeof (elem) == 2 * sizeof (type) ? 1 : -1]
 #endif
@@ -1142,8 +1155,11 @@ typedef enum
  * it would be warned about the rest. The typed headers stamp it in a header,
  * where no compiler warns; this keeps a .c that stamps it quiet too. */
 #if defined(__GNUC__) || defined(__clang__)
+/** @brief Marks a stamped static function as possibly unused. */
 #define DP_BUFFER_UNUSED __attribute__ ((unused))
 #else
+/** @brief Marks a stamped static function as possibly unused; empty on
+ *  compilers without `__attribute__((unused))`. */
 #define DP_BUFFER_UNUSED
 #endif
 

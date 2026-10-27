@@ -51,10 +51,11 @@
 extern "C" {
 #endif
 
-/* Numerical guard on the early+late envelope sum (not tunable). */
+/** Numerical guard added to the prompt power |P|^2 that divides the
+ *  discriminator, so a zero prompt cannot divide by zero (not tunable). */
 #define DLL_EPS 1e-12
 
-/* The `segments > 1` output's level: the code periods its running mean of
+/** The `segments > 1` output's level: the code periods its running mean of
  * the look-back magnitude spans (doppler#2495). Each period's partials are
  * divided by that slowly tracked level, so the output sits near unit
  * amplitude at any input gain -- the level every timing detector
@@ -83,7 +84,7 @@ extern "C" {
  * only once about 16 periods have accrued, 5 ms at the specification. */
 #define DLL_OUT_LEVEL_PERIODS 32u
 
-/* Clamp on the discriminator output |e| before it reaches the loop filter.
+/** Clamp on the discriminator output |e| before it reaches the loop filter.
  * The old magnitude-domain discriminator (|E|-|L|)/(|E|+|L|) was always
  * inherently bounded in [-1, 1] (|E|-|L| <= |E|+|L| identically); the
  * power-domain 0.5*(Ep-Lp)/Pp form is NOT -- a data transition landing
@@ -307,7 +308,11 @@ typedef struct {
     dll_tlm_t tlm;           /**< live telemetry attachment; zeroed in blobs */
 } dp_dll_state_t;
 
-/** 0/1 chip -> +1/-1 BPSK sign. */
+/**
+ * @brief 0/1 chip -> +1/-1 BPSK sign.
+ * @param c  Chip; only its LSB is read.
+ * @return +1.0f for an even @p c (chip 0), -1.0f for an odd one (chip 1).
+ */
 JM_FORCEINLINE float
 dll_chip_sign(uint8_t c)
 {
@@ -673,6 +678,14 @@ dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, 
  * an abort-on-NULL wrapper, or embeds one by value through dp_dll_init(),
  * calls it first and refuses with its own error (doppler#2103).
  *
+ * @param code_len   Code length, chips per period; >= 1.
+ * @param init_chip  Initial prompt code phase, chips; any finite value.
+ * @param bn         Loop noise bandwidth, normalized to the code-period
+ *                   rate.
+ * @param zeta       Damping factor.
+ * @param spacing    Early/late tap offset, chips; 0 < spacing <
+ *                   code_len / 2.
+ * @param segments   Partial correlations per code period; >= 1.
  * @return 1 inside the domain, 0 outside it (a NaN is outside).
  */
 int dp_dll_params_ok(size_t code_len, double init_chip, double bn, double zeta, double spacing, size_t segments);
@@ -705,6 +718,9 @@ int dp_dll_params_ok(size_t code_len, double init_chip, double bn, double zeta, 
  * composer that must never see a mid-stream refusal checks the gains with
  * dp_loop_filter_params_ok() at `partials_per_symbol / segments` as well.
  *
+ * @param segments             The DLL's partial correlations per period;
+ *                             must be > 1.
+ * @param partials_per_symbol  Symbol period, in partials; 2 to 2^20.
  * @return 1 if the period turns the aid on, 0 otherwise.
  */
 int dp_dll_symbol_period_ok(size_t segments, double partials_per_symbol);
@@ -770,6 +786,15 @@ void dp_dll_destroy(dp_dll_state_t *state);
  */
 void dp_dll_reset(dp_dll_state_t *state);
 
+/**
+ * @brief Output capacity hint for dp_dll_steps(): always 0.
+ *
+ * Emitted prompts never outnumber input samples, so size @p out to the
+ * input length.
+ *
+ * @param state  Unused.
+ * @return 0 (no state-derived bound).
+ */
 size_t dp_dll_steps_max_out(dp_dll_state_t *state);
 
 /**
@@ -857,10 +882,19 @@ size_t dp_dll_steps(dp_dll_state_t *state, const float _Complex *x, size_t x_len
  * @endcode
  */
 int dp_dll_configure(dp_dll_state_t *state, double bn, double zeta);
+/**
+ * @brief Loop noise bandwidth currently in use.
+ * @param state  Must be non-NULL.
+ * @return bn, normalized to the code-period rate: the create() value or
+ *         the last one dp_dll_configure() / dp_dll_set_bn() accepted.
+ */
 double dp_dll_get_bn(const dp_dll_state_t *state);
-/** @brief Set the loop bandwidth, keeping zeta. @return As
- *         dp_dll_configure(): DP_ERR_INVALID, changing nothing, outside the
- *         loop filter's domain. */
+/** @brief Set the loop bandwidth, keeping zeta.
+ *  @param state  Must be non-NULL.
+ *  @param val    New loop noise bandwidth, normalized to the code-period
+ *                rate.
+ *  @return As dp_dll_configure(): DP_OK, or DP_ERR_INVALID, changing
+ *          nothing, outside the loop filter's domain. */
 int dp_dll_set_bn(dp_dll_state_t *state, double val);
 
 /**
@@ -1019,6 +1053,7 @@ int dp_dll_set_symbol_period(dp_dll_state_t *state, double partials_per_symbol);
  * @brief The lock detector's coherent window, in partials (0 when the
  *        symbol-period aid is off). Size `n_looks` from it.
  * @param state  Must be non-NULL.
+ * @return Window length L in partials, or 0 with the aid off.
  */
 size_t dp_dll_get_symbol_window(const dp_dll_state_t *state);
 
@@ -1049,6 +1084,14 @@ size_t dp_dll_get_symbol_window(const dp_dll_state_t *state);
  * @endcode
  */
 int dp_dll_set_lock_verify(dp_dll_state_t *state, uint32_t n_up, uint32_t n_down);
+/**
+ * @brief Current prompt code phase.
+ * @param state  Must be non-NULL.
+ * @return Phase in chips, from 0 up to code_len (exclusive) once a
+ *         sample has run (it is
+ *         derived from the code NCO on every sample); exactly init_chip,
+ *         unfolded, after create/reset.
+ */
 double dp_dll_get_code_phase(const dp_dll_state_t *state);
 
 /**
@@ -1091,6 +1134,18 @@ double dp_dll_get_code_phase(const dp_dll_state_t *state);
  * @endcode
  */
 void dp_dll_set_code_phase(dp_dll_state_t *state, double chips);
+/**
+ * @brief The loop's own code rate, without the carrier rate aid.
+ *
+ * 1 + the loop-filter output (the integrator alone at segments == 1);
+ * the code runs at this plus the rate aid. Read before the NCO truncates
+ * its command to a whole phase step, so a settled reading can sit up to
+ * one step above the rate the loop carries. A held loop reports its held
+ * integrator's rate.
+ *
+ * @param state  Must be non-NULL.
+ * @return Chips advanced per nominal chip (~1.0); 1.0 after create/reset.
+ */
 double dp_dll_get_code_rate(const dp_dll_state_t *state);
 
 /**
@@ -1160,7 +1215,21 @@ size_t dp_dll_take_error(dp_dll_state_t *state, double *sum);
  * @endcode
  */
 double dp_dll_take_error_mean(dp_dll_state_t *state);
+/**
+ * @brief Last discriminator output, the loop stress.
+ *
+ * `0.5 * (|E|^2 - |L|^2) / (|P|^2 + DLL_EPS)`, clamped to
+ * +-DLL_DISC_CLAMP. Updated on every steer, including while coasting.
+ *
+ * @param state  Must be non-NULL.
+ * @return Dimensionless error from -1 to 1; 0 after create/reset.
+ */
 double dp_dll_get_last_error(const dp_dll_state_t *state);
+/**
+ * @brief Partial correlations per code period.
+ * @param state  Must be non-NULL.
+ * @return segments, fixed at create (1 = full-period correlation).
+ */
 size_t dp_dll_get_segments(const dp_dll_state_t *state);
 
 /**
@@ -1276,13 +1345,21 @@ void dp_dll_configure_lock_raw(dp_dll_state_t *state, double up_thresh,
                             uint32_t n_up, uint32_t n_down);
 
 /** @brief Current lock decision (1 = locked, 0 = not), with the configured
- *         verify-count / hysteresis rule applied (see dp_dll_configure_lock). */
+ *         verify-count / hysteresis rule applied (see dp_dll_configure_lock).
+ *  @param state  Must be non-NULL.
+ *  @return 1 when locked, 0 otherwise (0 after create/reset). */
 int dp_dll_get_locked(const dp_dll_state_t *state);
 
-/** @brief Last lock test statistic R (compare against the configured eta). */
+/** @brief Last lock test statistic R (compare against the configured eta).
+ *  @param state  Must be non-NULL.
+ *  @return R = sqrt(2 sum|P|^2 / E|O|^2) from the last completed group of
+ *          n_looks looks (dimensionless); 0 until the first group. */
 double dp_dll_get_lock_stat(const dp_dll_state_t *state);
 
-/** @brief Current CFAR noise-power estimate E|O|^2 (offset-tap EMA). */
+/** @brief Current CFAR noise-power estimate E|O|^2 (offset-tap EMA).
+ *  @param state  Must be non-NULL.
+ *  @return Noise power on the correlator's own scale (|partial|^2); 0
+ *          after create/reset and after a lock re-tune. */
 double dp_dll_get_noise_est(const dp_dll_state_t *state);
 
 /**
@@ -1358,7 +1435,9 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
  * restored by create; the segments>1 chunk/lookback buffers (heap-owned,
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
+/** @brief State-blob magic for the DLL (FourCC "DLL "). */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
+/** @brief DLL blob layout version; the trailing comment is its history. */
 #define DLL_STATE_VERSION 15u /* v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
@@ -1374,10 +1453,28 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
                                 fields added to the struct; v4: fixed-
                                 point code_nco + segments>1 chunked
                                 lookback buffers; see dll_core.c) */
+/**
+ * @brief Serialized-state byte size.
+ * @param state  Must be non-NULL.
+ * @return Bytes: envelope + struct snapshot + the segments > 1 and
+ *         symbol-aid buffers this instance holds.
+ */
 size_t dp_dll_state_bytes (const dp_dll_state_t *state);
+/**
+ * @brief Serialize the loop state into @p blob.
+ *
+ * The borrowed code, the buffer pointers and the telemetry attachment are
+ * zeroed in the snapshot; the buffers' contents are packed field-wise.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Caller-owned buffer of at least dp_dll_state_bytes()
+ *               bytes.
+ */
 void dp_dll_get_state (const dp_dll_state_t *state, void *blob);
 /**
  * @brief Restore from @p blob. @return DP_OK or DP_ERR_INVALID.
+ * @param state  Must be non-NULL.
+ * @param blob   Blob from dp_dll_get_state().
  *
  * The blob is decoded and checked whole before any of @p state is written,
  * so a refusal changes nothing (doppler#2092). Refused: a wrong-object,

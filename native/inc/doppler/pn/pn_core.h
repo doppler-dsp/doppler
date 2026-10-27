@@ -21,22 +21,29 @@
 extern "C" {
 #endif
 
-/**
- * @brief PN state.
- *
- * Allocate with dp_pn_create().
- */
 /** LFSR realization: Galois (internal XOR) or Fibonacci (external XOR). */
 enum { PN_GALOIS = 0, PN_FIBONACCI = 1 };
 
+/**
+ * @brief PN state.
+ *
+ * Allocate with dp_pn_create(). Every field except @c reg is config set
+ * by create() and never changed; @c reg is the running register.
+ */
 typedef struct {
-    uint64_t poly;     /* Galois feedback polynomial (taps) */
-    uint64_t seed;     /* initial register state (for reset) */
-    uint64_t reg;      /* current LFSR register */
-    uint64_t mask;     /* (1 << length) - 1; all ones when length == 64 */
-    int kind;          /* PN_GALOIS or PN_FIBONACCI */
-    uint64_t fib_taps; /* Fibonacci feedback taps (canonical poly & mask) */
-    uint32_t topshift; /* length-1: position the Fibonacci feedback enters */
+    uint64_t poly;     /**< Galois feedback tap mask, masked to the
+                            register (right-shift convention). */
+    uint64_t seed;     /**< Initial register value, masked to the register;
+                            reloaded by reset(). Never zero. */
+    uint64_t reg;      /**< Current LFSR register (running state); its LSB
+                            is the next chip. The only serialized field. */
+    uint64_t mask;     /**< (1 << length) - 1; all ones when length == 64. */
+    int kind;          /**< PN_GALOIS or PN_FIBONACCI; any other lfsr
+                            argument to create() becomes PN_GALOIS. */
+    uint64_t fib_taps; /**< Fibonacci feedback taps (canonical polynomial
+                            derived from @c poly, masked); 0 for Galois. */
+    uint32_t topshift; /**< length - 1: the bit the Fibonacci feedback
+                            enters at. */
 } dp_pn_state_t;
 
 /**
@@ -58,6 +65,10 @@ typedef struct {
  *
  * Returns 0 for lengths outside 2..64 (caller errors). Generated from verified
  * primitive polynomials (period 2^n-1); the n=2..16 values are unchanged.
+ *
+ * @param n  Register length in bits.
+ * @return Galois tap mask giving period 2^n - 1, or 0 when @p n is outside
+ *         2..64.
  */
 JM_FORCEINLINE uint64_t
 pn_mls_poly(uint32_t n)
@@ -147,6 +158,10 @@ pn_mls_poly(uint32_t n)
  * pn_fits_register (0x40, 5);   // 0: bit 6, above the register
  * pn_fits_register (~0ull, 64); // 1: a 64-bit register holds every value
  * @endcode
+ *
+ * @param v  Poly, tap set or seed to test.
+ * @param n  Register length in bits; 64 or more accepts every value.
+ * @return 1 when @p v has no bit at or above bit @p n, else 0.
  */
 JM_FORCEINLINE int
 pn_fits_register(uint64_t v, uint32_t n)
@@ -163,6 +178,9 @@ pn_fits_register(uint64_t v, uint32_t n)
  * all-zero register, the fixed point the rule exists to keep out
  * (doppler#1640). A wide seed that masks to non-zero -- 129 to 1 -- is
  * fine, and documented.
+ *
+ * @param n  Register length in bits.
+ * @return `(1 << n) - 1`, or all ones when @p n >= 64.
  */
 JM_FORCEINLINE uint64_t
 pn_register_mask(uint32_t n)
@@ -190,7 +208,9 @@ pn_register_mask(uint32_t n)
  * @param length  Register width in bits, 1..64. The sequence period is
  *              2^length - 1 for a primitive polynomial. Default 7.
  * @param lfsr  Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).
- * @return Heap-allocated state, or NULL on allocation failure.
+ *              Any other value selects PN_GALOIS.
+ * @return Heap-allocated state, or NULL if @p length is outside 1..64, the
+ *         masked @p seed is zero, or allocation fails.
  * @note Caller must call dp_pn_destroy() when done.
  * @code
  * >>> from doppler.wfm import PN
@@ -282,14 +302,34 @@ void dp_pn_reset(dp_pn_state_t *state);
  * Only the running LFSR register is serialized; poly / seed / mask / kind /
  * fib_taps / topshift are config restored by the constructor.
  * Envelope: [dp_state_hdr_t][u64 reg]. */
+/** @brief State-blob magic for PN (FourCC "PN__"). */
 #define PN_STATE_MAGIC DP_FOURCC('P', 'N', '_', '_')
+/** @brief State-blob layout version for PN. */
 #define PN_STATE_VERSION 1u
 
-/** @brief Serialized-state byte size. */
+/**
+ * @brief Serialized-state byte size.
+ * @param state  Must be non-NULL (its contents do not affect the size).
+ * @return Bytes: the dp_state_hdr_t envelope plus one uint64 register.
+ */
 size_t dp_pn_state_bytes(const dp_pn_state_t *state);
-/** @brief Serialize the LFSR register into @p blob. */
+/**
+ * @brief Serialize the LFSR register into @p blob.
+ * @param state  Must be non-NULL.
+ * @param blob   Caller-owned buffer of at least dp_pn_state_bytes() bytes.
+ */
 void dp_pn_get_state(const dp_pn_state_t *state, void *blob);
-/** @brief Restore the register; DP_OK, or DP_ERR_INVALID if rejected. */
+/**
+ * @brief Restore the register from a dp_pn_get_state() blob.
+ *
+ * Only the envelope is checked; the poly, length and realization are the
+ * receiving instance's own, so restore into an identically built PN.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Blob from dp_pn_get_state().
+ * @return DP_OK, or DP_ERR_INVALID on a magic, version, endian or size
+ *         mismatch (@p state untouched).
+ */
 int dp_pn_set_state(dp_pn_state_t *state, const void *blob);
 
 /**
@@ -327,6 +367,15 @@ pn_step(dp_pn_state_t *state)
 
 
 
+/**
+ * @brief Output capacity hint for dp_pn_generate(): always 0.
+ *
+ * The chip count is the caller's @p n, not a function of the state, so
+ * there is no state-derived bound; size @p out to @p n.
+ *
+ * @param state  Unused.
+ * @return 0.
+ */
 size_t dp_pn_generate_max_out(dp_pn_state_t *state);
 
 /**

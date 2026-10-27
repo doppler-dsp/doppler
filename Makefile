@@ -261,7 +261,8 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
                version-literals text-encoding cmake-script-policy \
-               why-param doc-claims public-symbols curl-fail \
+               why-param header-file-blocks doc-claims public-symbols \
+               curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
                ring-internals named-args acq-pfa-split
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
@@ -538,6 +539,14 @@ LINT_named-args = $(UV) run python scripts/check_named_args.py --fix
 # every parameter named `why` or `*_why` must be exactly `const char **`.
 # Rule: docs/dev/contributing/error-convention.md. Plain python3: stdlib only.
 LINT_why-param = python3 scripts/check_why_param.py
+
+# doxygen-check's coverage pass (EXTRACT_ALL=NO) skips every member of a
+# header with no @file block, without a warning: 19 headers and 118
+# undocumented members hid that way. Doxygen cannot report it, so this does,
+# over the pass's own scope (the Doxyfile's INPUT and excludes, plus
+# DOXYGEN_COVERAGE_EXCLUDE). Plain python3: stdlib only.
+LINT_header-file-blocks = python3 scripts/check_header_file_blocks.py \
+    $(addprefix --exclude ,$(DOXYGEN_COVERAGE_EXCLUDE))
 
 # The shared libraries export what native/inc/** publishes and nothing else
 # (doppler#1164). cmake/public-symbols.txt is that set, read by the build
@@ -1189,6 +1198,15 @@ DOXYGEN_CMD      = doxygen Doxyfile
 # where 1,970 were real.
 DOXYGEN_COVERAGE_OVERRIDES = EXTRACT_ALL=NO WARN_NO_PARAMDOC=YES \
                              FILE_PATTERNS=*.h
+
+# Headers the coverage pass leaves out, each because jm writes it: vendored
+# create-only (jm_simd.h, jm_perf.h) or generated (the _bridge.h and
+# _procglobal.h seams). Their docs are jm's to add (just-makeit#2405); remove
+# a line when the pin carries them. lint-header-file-blocks reads this same
+# list, so the two never disagree about which headers are in scope.
+DOXYGEN_COVERAGE_EXCLUDE = */jm_simd.h */jm_perf.h \
+                           */wfm_compose_bridge.h \
+                           */dp_interrupt_guard_procglobal.h
 
 # The same pin, applied to GENERATION rather than checking (gen-c-api).
 #
@@ -4093,6 +4111,7 @@ doxygen-warn-gate: ## The doxygen warning gate proper (re-entered in Docker)
 	fi; \
 	{ cat Doxyfile; \
 	  printf '%s\n' $(DOXYGEN_COVERAGE_OVERRIDES); \
+	  echo "EXCLUDE_PATTERNS += $(DOXYGEN_COVERAGE_EXCLUDE)"; \
 	  echo "OUTPUT_DIRECTORY=$$out/coverage"; \
 	  echo "WARN_LOGFILE="; } | doxygen - > $$out/coverage.log 2>&1; \
 	n=$$(grep -c 'warning:' $$out/coverage.log || true); \

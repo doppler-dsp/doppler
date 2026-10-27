@@ -114,8 +114,10 @@ dp_i16_to_f32_step(const dp_i16_to_f32_state_t *state, int16_t x)
 /**
  * @brief Process a block of int16 samples to float32.
  *
- * Applies step() to every element.  Accepts an optional pre-allocated output
- * array; allocates a fresh one when @p output is NULL.
+ * Applies step() to every element.
+ * In C, @p output must be a caller-owned array of at least @p n elements
+ * (NULL is not accepted).  From Python it is the optional `out=` array;
+ * the binding allocates a fresh one when omitted.
  *
  * @param state   Must be non-NULL.
  * @param input   Input int16 array; must contain at least @p n elements.

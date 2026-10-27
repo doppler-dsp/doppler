@@ -96,11 +96,12 @@ extern "C"
   /**
    * @brief Decimate real float32 input by 2, producing CF32.
    *
-   * One complex output per (even, odd) input pair.  An odd-length block
-   * leaves its trailing sample held for the next call, so contiguous
+   * One complex output per (even, odd) input pair, counting a sample
+   * held from the previous call as the first of the block.  A sample
+   * left unpaired at the end is held for the next call, so contiguous
    * blocks give the same output as one large block.  Emission stops
-   * once @p max_out samples are written; complete pairs left over at
-   * that point are discarded (only one trailing sample is carried), so
+   * once @p max_out samples are written; the first unconsumed sample is
+   * then held and every sample after it is dropped (doppler#2643), so
    * size @p out for the whole block: (num_in + 1) / 2 samples.  If
    * num_in or max_out is 0 the call returns 0 and consumes nothing.
    *

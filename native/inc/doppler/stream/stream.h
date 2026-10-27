@@ -421,7 +421,8 @@ extern "C"
   /**
    * @brief Send an array of CI32 samples via a Publisher.
    *
-   * @param ctx         Publisher context.
+   * @param ctx         The sending context the function's prefix names:
+   *                    a Publisher, Push, Request or Reply socket.
    * @param samples     The samples, in the type the function's suffix
    *                    names: for ci8/ci16/ci32, interleaved integer I/Q
    *                    pairs, 2×num_samples elements; for cf32/cf64,

@@ -1,6 +1,6 @@
 /**
  * @file acc_cf64_core.h
- * @brief AccCf64 component API.
+ * @brief AccCf64: a double-precision complex running-sum accumulator.
  *
  * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
@@ -25,13 +25,16 @@ extern "C"
 #endif
 
   /**
-   * @brief AccCf64 state.
+   * @brief AccCf64 state: the single running complex sum.
    *
+   * Pointer-free, so it serializes as a whole-struct snapshot.
    * Allocate with dp_acc_cf64_create().
    */
   typedef struct
   {
-    double _Complex acc;
+    double _Complex acc; /**< Running complex sum (running state). Seeded by
+                            create() or set_acc(), grown by step/steps/madd/
+                            add2d/madd2d, zeroed by reset() and dump(). */
   } dp_acc_cf64_state_t;
 
   /**
@@ -65,6 +68,8 @@ extern "C"
    * @brief Release all memory owned by an AccCf64 instance.
    * Passing NULL is safe; the function is a no-op in that case.
    * After this call the pointer must not be used.
+   *
+   * @param state  Instance from dp_acc_cf64_create(), or NULL.
    */
   void dp_acc_cf64_destroy (dp_acc_cf64_state_t *state);
 
@@ -74,6 +79,8 @@ extern "C"
    * ``dp_acc_cf64_create``. Both the real and imaginary parts are set to
    * 0.0. Subsequent ``get`` / ``dump`` calls return ``0j`` until new
    * samples are processed.
+   *
+   * @param state  Must be non-NULL.
    * @code
    * >>> from doppler.accumulator import AccCf64
    * >>> obj = AccCf64(0j)
@@ -132,6 +139,7 @@ extern "C"
    * without disturbing it. For a read-and-reset in one call use
    * ``dp_acc_cf64_dump``.
    *
+   * @param state  Must be non-NULL.
    * @return Current value of ``acc`` (complex).
    * @code
    * >>> from doppler.accumulator import AccCf64
@@ -172,6 +180,7 @@ extern "C"
    * explicit method so call sites that need the value can be uniform
    * with ``dump`` without a conditional.
    *
+   * @param state  Must be non-NULL.
    * @return Current value of ``acc`` (complex).
    * @code
    * >>> from doppler.accumulator import AccCf64
@@ -190,6 +199,7 @@ extern "C"
    * start a fresh accumulation interval without a separate ``reset``
    * call. Both real and imaginary parts are zeroed unconditionally.
    *
+   * @param state  Must be non-NULL.
    * @return Value of ``acc`` just before the reset (complex).
    * @code
    * >>> from doppler.accumulator import AccCf64
@@ -283,10 +293,32 @@ extern "C"
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
    * Whole-struct POD snapshot (pointer-free); the running accumulator resumes exactly into an
    * identically-built instance. */
+/** @brief Blob magic ("ACCC") that dp_acc_cf64_set_state() requires. */
 #define ACC_CF64_STATE_MAGIC DP_FOURCC ('A', 'C', 'C', 'C')
+/** @brief Blob layout version; a blob of any other version is rejected. */
 #define ACC_CF64_STATE_VERSION 1u
+  /**
+   * @brief Size in bytes of the blob dp_acc_cf64_get_state() writes.
+   * @param state  Must be non-NULL (its contents do not affect the size).
+   * @return sizeof(dp_state_hdr_t) + sizeof(dp_acc_cf64_state_t).
+   */
   size_t dp_acc_cf64_state_bytes (const dp_acc_cf64_state_t *state);
+  /**
+   * @brief Serialize the accumulator into @p blob (envelope + whole struct).
+   * @param state  Instance to snapshot; not modified.
+   * @param[out] blob   Caller buffer of at least
+   *               dp_acc_cf64_state_bytes() bytes.
+   */
   void    dp_acc_cf64_get_state (const dp_acc_cf64_state_t *state, void *blob);
+  /**
+   * @brief Restore the accumulator from a blob made by
+   * dp_acc_cf64_get_state().
+   * @param state  Instance to overwrite.
+   * @param blob   Blob to restore from; its envelope (magic, version,
+   *               endianness, size) is validated before anything is copied.
+   * @return DP_OK on success; DP_ERR_INVALID if the envelope does not
+   *         match, in which case @p state is left unchanged.
+   */
   int     dp_acc_cf64_set_state (dp_acc_cf64_state_t *state, const void *blob);
 
 #ifdef __cplusplus

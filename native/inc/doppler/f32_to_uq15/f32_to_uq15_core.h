@@ -62,8 +62,11 @@ extern "C" {
  * scaled value falls outside `[-32768, 32767]`; cleared only by reset().
  */
 typedef struct {
-    float   scale;   /* multiply factor applied before saturation */
-    uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
+    float   scale;   /**< Multiply factor applied before rounding and
+                          saturation (config, fixed at create; > 0). */
+    uint8_t clipped; /**< Sticky clip flag (running state): 1 once any
+                          scaled sample fell outside -32768..32767,
+                          else 0; cleared only by reset(). */
 } dp_f32_to_uq15_state_t;
 
 /**
@@ -149,8 +152,9 @@ dp_f32_to_uq15_step(dp_f32_to_uq15_state_t *state, float x)
  * @brief Process a block of float samples to UQ15 uint16.
  *
  * Applies step() to every element.  The @c clipped flag is updated
- * cumulatively across the block.  Accepts an optional pre-allocated output
- * array; allocates a fresh one when @p output is NULL.
+ * cumulatively across the block.  The C function writes into the
+ * caller's @p output, which must be non-NULL; the Python binding allocates
+ * a fresh array when no output array is passed.
  *
  * @param state   Must be non-NULL.
  * @param input   Input float32 array; must contain at least @p n elements.
@@ -176,10 +180,36 @@ void dp_f32_to_uq15_steps(
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the sticky clip flag resumes exactly into an
  * identically-built instance. */
+/** @brief Blob magic ("FU15") that dp_f32_to_uq15_set_state() requires. */
 #define F32_TO_UQ15_STATE_MAGIC DP_FOURCC ('F','U','1','5')
+/** @brief Blob layout version; a blob of any other version is rejected. */
 #define F32_TO_UQ15_STATE_VERSION 1u
+/**
+ * @brief Size in bytes of the blob dp_f32_to_uq15_get_state() writes.
+ * @param state  Must be non-NULL (its contents do not affect the size).
+ * @return sizeof(dp_state_hdr_t) + sizeof(dp_f32_to_uq15_state_t).
+ */
 size_t dp_f32_to_uq15_state_bytes (const dp_f32_to_uq15_state_t *state);
+/**
+ * @brief Serialize the converter (scale and clip flag) into @p blob.
+ * @param state  Instance to snapshot; not modified.
+ * @param[out] blob   Caller buffer of at least
+ *               dp_f32_to_uq15_state_bytes() bytes.
+ */
 void dp_f32_to_uq15_get_state (const dp_f32_to_uq15_state_t *state, void *blob);
+/**
+ * @brief Restore the converter from a blob made by
+ * dp_f32_to_uq15_get_state().
+ *
+ * The whole struct is copied, so the blob's @c scale replaces the one this
+ * instance was created with.
+ *
+ * @param state  Instance to overwrite.
+ * @param blob   Blob to restore from; its envelope (magic, version,
+ *               endianness, size) is validated before anything is copied.
+ * @return DP_OK on success; DP_ERR_INVALID if the envelope does not
+ *         match, in which case @p state is left unchanged.
+ */
 int dp_f32_to_uq15_set_state (dp_f32_to_uq15_state_t *state, const void *blob);
 
 #ifdef __cplusplus

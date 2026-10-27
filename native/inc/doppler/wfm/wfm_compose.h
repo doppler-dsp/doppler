@@ -56,18 +56,18 @@ extern "C" {
  */
 enum
 {
-  WFM_RANGE_FREQ          = 1u << 0, /* source.freq  → [freq, freq_hi]   */
-  WFM_RANGE_SNR           = 1u << 1, /* source.snr   → [snr, snr_hi]     */
-  WFM_RANGE_LEVEL         = 1u << 2, /* source.level → [level, level_hi] */
-  WFM_RANGE_FEND          = 1u << 3, /* source.f_end → [f_end, f_end_hi] */
-  WFM_RANGE_NUM_SAMPLES   = 1u << 4, /* segment.num_samples span         */
-  WFM_RANGE_OFF_SAMPLES   = 1u << 5, /* segment.off_samples span         */
-  WFM_RANGE_DELAY_SAMPLES = 1u << 6, /* segment.delay_samples span       */
+  WFM_RANGE_FREQ          = 1u << 0, /**< source.freq  → `[freq, freq_hi]` */
+  WFM_RANGE_SNR           = 1u << 1, /**< source.snr   → `[snr, snr_hi]`   */
+  WFM_RANGE_LEVEL         = 1u << 2, /**< source.level → `[level, level_hi]` */
+  WFM_RANGE_FEND          = 1u << 3, /**< source.f_end → `[f_end, f_end_hi]` */
+  WFM_RANGE_NUM_SAMPLES   = 1u << 4, /**< segment.num_samples span         */
+  WFM_RANGE_OFF_SAMPLES   = 1u << 5, /**< segment.off_samples span         */
+  WFM_RANGE_DELAY_SAMPLES = 1u << 6, /**< segment.delay_samples span       */
   /* Source again, continuing after the segment bits rather than renumbering
      them: the bit index is the draw's stream selector (dp_wfm_draw_range), so
      moving one would change every drawn value in every existing scene. */
-  WFM_RANGE_DOPPLER      = 1u << 7, /* source.doppler → [lo, doppler_hi] */
-  WFM_RANGE_DOPPLER_RATE = 1u << 8, /* source.doppler_rate → [lo, hi]    */
+  WFM_RANGE_DOPPLER      = 1u << 7, /**< source.doppler → `[lo, doppler_hi]` */
+  WFM_RANGE_DOPPLER_RATE = 1u << 8, /**< source.doppler_rate → `[lo, hi]`  */
 };
 
 /**
@@ -94,8 +94,8 @@ enum
  */
 typedef enum
 {
-  WFM_DOPPLER_PER_INSTANCE = 0,
-  WFM_DOPPLER_PERSIST      = 1,
+  WFM_DOPPLER_PER_INSTANCE = 0, /**< restart per burst instance (default) */
+  WFM_DOPPLER_PERSIST      = 1, /**< one pass across the segment's instances */
 } wfm_doppler_lifetime_t;
 
 /**
@@ -110,10 +110,10 @@ typedef enum
  */
 typedef enum
 {
-  WFM_SNR_AUTO = 0, /* the type's own convention (esno for modulated) */
-  WFM_SNR_FS   = 1, /* against the noise in the WHOLE sampled band    */
-  WFM_SNR_EBNO = 2, /* per information bit                           */
-  WFM_SNR_ESNO = 3, /* per transmitted symbol                        */
+  WFM_SNR_AUTO = 0, /**< the type's own convention (esno for modulated) */
+  WFM_SNR_FS   = 1, /**< against the noise in the WHOLE sampled band    */
+  WFM_SNR_EBNO = 2, /**< per information bit                           */
+  WFM_SNR_ESNO = 3, /**< per transmitted symbol                        */
 } wfm_snr_mode_t;
 
 /**
@@ -124,9 +124,9 @@ typedef enum
  */
 typedef enum
 {
-  WFM_BITMOD_NONE = 0, /* the payload is not modulated */
-  WFM_BITMOD_BPSK = 1,
-  WFM_BITMOD_QPSK = 2,
+  WFM_BITMOD_NONE = 0, /**< the payload is not modulated */
+  WFM_BITMOD_BPSK = 1, /**< one bit per +/-1 symbol */
+  WFM_BITMOD_QPSK = 2, /**< Gray-coded QPSK, two bits per symbol */
 } wfm_bitmod_t;
 
 /**
@@ -142,7 +142,7 @@ typedef enum
  * in the `*_hi` companion (see the `ranged` enum).
  */
 typedef struct {
-    int type;          /* Waveform type. tone: complex sinusoid. noise:
+    int type;        /**< Waveform type. tone: complex sinusoid. noise:
                           AWGN. pn: PN sequence (LFSR). bpsk/qpsk: PN-driven
                           modulation. chirp: linear-FM sweep. bits: a
                           caller's bit pattern, with selectable modulation.
@@ -151,12 +151,12 @@ typedef struct {
                           (repeated preamble + data-code-spread frame) by
                           default, or a continuous asynchronous stream when
                           symbol_rate is set. */
-    double freq;       /* Carrier or offset frequency in Hz; for chirp, the
+    double freq;     /**< Carrier or offset frequency in Hz; for chirp, the
                           sweep start. With fs = 1 it is in normalised
                           cycles per sample. */
-    double snr;        /* Signal-to-noise ratio in dB, interpreted per
+    double snr;      /**< Signal-to-noise ratio in dB, interpreted per
                           snr_mode. 100 or more is clean: no AWGN is added. */
-    int snr_mode;      /* How snr is interpreted. auto: Es/N0 for
+    int snr_mode;    /**< How snr is interpreted. auto: Es/N0 for
                           bpsk/qpsk/dsss, and relative to full scale for
                           tone/noise/pn/chirp/bits/symbols -- bits included,
                           because a bits frame has no symbol rate the engine
@@ -165,33 +165,33 @@ typedef struct {
                           dsss burst the outer data symbol of len(data_code)
                           chips x sps samples, for a continuous dsss stream
                           the fs/symbol_rate samples the async symbol spans. */
-    uint32_t seed;     /* PRNG and LFSR seed for the noise and PN streams.
+    uint32_t seed;   /**< PRNG and LFSR seed for the noise and PN streams.
                           Deterministic: vary it for run-to-run change. For
                           a PN-sourced type it starts the pn_length-bit
                           register, masked: a seed whose low pn_length bits
                           are zero starts the register at 1, as seed 0
                           does. */
-    int sps;           /* Samples per symbol (PSK) or per chip (PN): the
+    int sps;         /**< Samples per symbol (PSK) or per chip (PN): the
                           oversampling factor. Unused by noise, which
                           records it as 0. */
-    int pn_length;     /* PN LFSR register length in bits, 2 to 64 for the
+    int pn_length;   /**< PN LFSR register length in bits, 2 to 64 for the
                           PN-bearing types; the sequence period is
                           2^pn_length - 1. Unused by noise, which records it
                           as 0. */
-    uint64_t pn_poly;  /* PN generator polynomial, in the Galois bit-vector
-                          convention; 0 selects a maximal-length (MLS)
-                          polynomial for pn_length. It must fit the
-                          pn_length-bit register: a bit at or above it is
-                          refused, not masked. A polynomial above 2^53
-                          does not survive a JSON number, so a scene file
-                          needs 0 (auto) for such a register. */
-    int lfsr;          /* PN LFSR realisation. Both give the same period;
+    uint64_t pn_poly;  /**< PN generator polynomial, in the Galois bit-vector
+                            convention; 0 selects a maximal-length (MLS)
+                            polynomial for pn_length. It must fit the
+                            pn_length-bit register: a bit at or above it is
+                            refused, not masked. A polynomial above 2^53
+                            does not survive a JSON number, so a scene file
+                            needs 0 (auto) for such a register. */
+    int lfsr;        /**< PN LFSR realisation. Both give the same period;
                           fibonacci's chips are galois's in reverse order. */
-    double level;      /* Source power in dBFS (<= 0; 0 is unit power).
+    double level;    /**< Source power in dBFS (<= 0; 0 is unit power).
                           Applies when summed in a Segment or Composer, as a
                           gain of 10^(level/20); a standalone Synth.steps()
                           ignores it. */
-    int background;    /* Mark this source as part of the static background
+    int background;  /**< Mark this source as part of the static background
                           field (0/1). Plan.prepare() folds a contiguous
                           leading run of background sources into ONE
                           pre-summed cache entry instead of caching each
@@ -206,8 +206,8 @@ typedef struct {
                           prepare, since the fold would no longer reproduce
                           compose bit-for-bit). Ignored by compose() and by
                           standalone Synth.steps(). */
-    double f_end;      /* Chirp end frequency in Hz; ignored by other types. */
-    size_t span;       /* Chirp sweep length in samples: the frequency ramps
+    double f_end;    /**< Chirp end frequency in Hz; ignored by other types. */
+    size_t span;     /**< Chirp sweep length in samples: the frequency ramps
                           from freq to f_end over this many samples, then
                           holds at f_end. 0 means the enclosing Segment's
                           num_samples. A standalone chirp (f_end != freq)
@@ -215,29 +215,29 @@ typedef struct {
                           chunking of reads produce the same waveform;
                           generating one without it raises. Ignored by
                           non-chirp types. */
-    int modulation;    /* Symbol mapping of a bits pattern. none: the
+    int modulation;  /**< Symbol mapping of a bits pattern. none: the
                           pattern shaped and output as-is (NRZ). bpsk: +/-1
                           symbols. qpsk: Gray-coded symbols from pairs of
                           bits. */
-    float _Complex *symbols; /* For type=symbols: a complex constellation
-                                stream. Each element is the output point
-                                itself, oversampled by sps, cycled, and
-                                RRC-shaped with pulse=rrc, which generalises
-                                any modulation (pi/4-QPSK, QAM, ...). */
-    size_t n_symbols;        /* type=symbols: stream length */
-    int pulse;         /* Pulse shape per symbol or chip, for
+    float _Complex *symbols; /**< For type=symbols: a complex constellation
+                                  stream. Each element is the output point
+                                  itself, oversampled by sps, cycled, and
+                                  RRC-shaped with pulse=rrc, which generalises
+                                  any modulation (pi/4-QPSK, QAM, ...). */
+    size_t n_symbols;      /**< type=symbols: stream length */
+    int pulse;       /**< Pulse shape per symbol or chip, for
                           pn/bpsk/qpsk/bits/symbols/dsss. rect: rectangular,
                           no ISI filtering. rrc: root-raised cosine; see
                           rrc_beta and rrc_span. */
-    double rrc_beta;   /* RRC roll-off factor, in (0, 1], when pulse=rrc. */
-    int rrc_span;      /* RRC filter support in symbols when pulse=rrc,
+    double rrc_beta; /**< RRC roll-off factor, in (0, 1], when pulse=rrc. */
+    int rrc_span;    /**< RRC filter support in symbols when pulse=rrc,
                           ONE-SIDED: the filter has 2*rrc_span*sps + 1 taps,
                           unit energy (sum of h^2 = 1). */
-    unsigned ranged;   /* WFM_RANGE_{FREQ,SNR,LEVEL,FEND,DOPPLER*} bitmask */
-    double freq_hi;    /* upper bound when WFM_RANGE_FREQ is set */
-    double snr_hi;     /* upper bound when WFM_RANGE_SNR is set */
-    double level_hi;   /* upper bound when WFM_RANGE_LEVEL is set */
-    double f_end_hi;   /* upper bound when WFM_RANGE_FEND is set */
+    unsigned ranged; /**< WFM_RANGE_{FREQ,SNR,LEVEL,FEND,DOPPLER*} bitmask */
+    double freq_hi;  /**< upper bound when WFM_RANGE_FREQ is set */
+    double snr_hi;   /**< upper bound when WFM_RANGE_SNR is set */
+    double level_hi; /**< upper bound when WFM_RANGE_LEVEL is set */
+    double f_end_hi; /**< upper bound when WFM_RANGE_FEND is set */
     /* CLOCK DOPPLER, per source rather than per segment: it is a property of
        one emitter's motion, and two transmitters in a `sum` segment are on
        different geometries. `freq` cannot express it -- an offset moves the
@@ -248,7 +248,7 @@ typedef struct {
        Zero `doppler` AND zero `doppler_rate` means no channel is built at
        all, so a scene that does not ask for Doppler renders through exactly
        the code it always did. */
-    double doppler;      /* Clock Doppler in ppm: the received time base is
+    double doppler;    /**< Clock Doppler in ppm: the received time base is
                             rescaled by 1 + doppler*1e-6, so the symbol and
                             chip rates move with the carrier and a timing
                             loop sees the error a carrier-only `freq` offset
@@ -257,22 +257,22 @@ typedef struct {
                             doppler_rate means no channel is built at all,
                             so a source that does not ask for Doppler
                             renders exactly as it always did. */
-    double doppler_rate; /* Linear ramp on `doppler`, in ppm per second of
-                            elapsed stream time. The channel runs through a
-                            segment's gaps as well as its on-time -- an
-                            emitter does not stop moving because its burst
-                            ended -- so this is per second, not per second
-                            of on-time. Accepts a (lo, hi) tuple drawn
-                            uniformly per repeat. */
-    double carrier_hz;   /* RF carrier in Hz that the ppm figures are
+    double doppler_rate; /**< Linear ramp on `doppler`, in ppm per second of
+                              elapsed stream time. The channel runs through a
+                              segment's gaps as well as its on-time -- an
+                              emitter does not stop moving because its burst
+                              ended -- so this is per second, not per second
+                              of on-time. Accepts a (lo, hi) tuple drawn
+                              uniformly per repeat. */
+    double carrier_hz; /**< RF carrier in Hz that the ppm figures are
                             referred to. It gives the coherent carrier
                             rotation that accompanies the time-base warp; 0
                             warps the clock alone, with no carrier rotation
                             -- a legitimate scene, not an unset field.
                             Independent of doppler/doppler_rate. */
-    double doppler_hi;      /* upper bound when WFM_RANGE_DOPPLER is set */
-    double doppler_rate_hi; /* upper bound when WFM_RANGE_DOPPLER_RATE */
-    int doppler_lifetime;   /* How long this source's Doppler channel lives.
+    double doppler_hi;    /**< upper bound when WFM_RANGE_DOPPLER is set */
+    double doppler_rate_hi; /**< upper bound when WFM_RANGE_DOPPLER_RATE */
+    int doppler_lifetime; /**< How long this source's Doppler channel lives.
                                per_instance: the channel dies with each
                                `repeats` instance, so the geometry restarts
                                -- the repeated-trial shape, which composes
@@ -284,7 +284,7 @@ typedef struct {
                                accumulates across a multi-burst scene.
                                compose(), stream() and Plan.prepare() all
                                honour both. */
-    /* A frame DESCRIPTION, the whole frame: fields in wire order, and
+    /** A frame DESCRIPTION, the whole frame: fields in wire order, and
        stages that each name the span they cover (crc16, rs, randomise,
        interleave, conv, or a kind of your own). It is the only way a source
        says anything but the common frame: a coding stage, a field of the
@@ -322,49 +322,49 @@ typedef struct {
        OWNERSHIP: a source OWNS its `.bits`. `wfm_seq_t` declares them
        `const uint8_t *` because a frame DESCRIPTOR borrows them, and the
        borrowing consumer is the common one; the owner casts to free. */
-    wfm_seq_t acq_code;  /* The preamble code, sent acq_reps times at the
-                            head of the frame (a Field's *REPS on the
-                            command line and in a scene) -- the coherent
-                            pull-in target BurstDespreader.set_acq and
-                            BurstDemod.set_preamble lock to. For type=dsss
-                            it is unmodulated chips ahead of the spread
-                            frame; for type=bits it is the head of the bit
-                            pattern. Setting it is what makes a source
-                            FRAMED. */
-    size_t acq_reps;     /* Preamble repetitions: periods of acq_code before
+    wfm_seq_t acq_code;  /**< The preamble code, sent acq_reps times at the
+                              head of the frame (a Field's *REPS on the
+                              command line and in a scene) -- the coherent
+                              pull-in target BurstDespreader.set_acq and
+                              BurstDemod.set_preamble lock to. For type=dsss
+                              it is unmodulated chips ahead of the spread
+                              frame; for type=bits it is the head of the bit
+                              pattern. Setting it is what makes a source
+                              FRAMED. */
+    size_t acq_reps;   /**< Preamble repetitions: periods of acq_code before
                             the sync word. On the command line and in a
                             scene it is acq_code's *REPS. */
-    wfm_seq_t data_code; /* For type=dsss: the payload spreading code, a
-                            second code distinct from acq_code. Every frame
-                            bit (sync, payload, crc) is XOR-spread across
-                            its full length, so len(data_code) is the
-                            spreading factor. */
+    wfm_seq_t data_code; /**< For type=dsss: the payload spreading code, a
+                              second code distinct from acq_code. Every frame
+                              bit (sync, payload, crc) is XOR-spread across
+                              its full length, so len(data_code) is the
+                              spreading factor. */
     /* type=dsss, CONTINUOUS mode: a data-symbol rate independent of the code
        epoch rate selects the continuous form (dp_wfm_synth_set_dsss_cont) over
        the burst form above -- one waveform type, one discriminator, rather
        than a tenth entry in five hand-maintained name tables. 0 = burst.
        The frame fields (acq_code/frame/data) are meaningless when this is
        set and are rejected by the caller rather than silently ignored. */
-    double symbol_rate;  /* For type=dsss: > 0 selects CONTINUOUS
-                            asynchronous mode. The spreading code repeats
-                            endlessly and data rides on it at this symbol
-                            rate (Hz), independent of the code-epoch rate
-                            (chips/symbol = fs/sps/symbol_rate,
-                            non-integer). No preamble/sync/CRC frame; data
-                            comes from the payload when supplied, else a
-                            seeded PN a receiver regenerates. Absent/0 =
-                            burst. */
-    int dsss_code_only;  /* Continuous dsss data source: 1 = code-only (the
-                            pure spreading code, no data modulation); 0 =
-                            data-modulated (the payload when supplied, else
-                            the seeded PN). Ignored for burst dsss and
-                            non-dsss types. */
+    double symbol_rate;  /**< For type=dsss: > 0 selects CONTINUOUS
+                              asynchronous mode. The spreading code repeats
+                              endlessly and data rides on it at this symbol
+                              rate (Hz), independent of the code-epoch rate
+                              (chips/symbol = fs/sps/symbol_rate,
+                              non-integer). No preamble/sync/CRC frame; data
+                              comes from the payload when supplied, else a
+                              seeded PN a receiver regenerates. Absent/0 =
+                              burst. */
+    int dsss_code_only;  /**< Continuous dsss data source: 1 = code-only (the
+                              pure spreading code, no data modulation); 0 =
+                              data-modulated (the payload when supplied, else
+                              the seeded PN). Ignored for burst dsss and
+                              non-dsss types. */
     /* The data source a frame's payload is drawn from, `data_len` bits per
        frame (docs/design/payload-data-source.md; wfm/wfm_data.h is the one
        table of what a source is). It is EITHER `data` (a Field, or a bit
        array in Python) OR `data_from_file` (a file, or `-` for stdin):
        one declaration makes the pair exclusive on every face. */
-    wfm_seq_t data;    /* A frame's payload drawn from a data source: a
+    wfm_seq_t data;  /**< A frame's payload drawn from a data source: a
                           Field on the command line and in a scene, a bit
                           array in Python. The source is split into
                           data_len-bit frames, one chunk per frame, and its
@@ -378,7 +378,7 @@ typedef struct {
                           one frame. A carried frame names its own data
                           field, and this is then 0 or that field's LEN.
                           Continuous dsss has no frame, and refuses it. */
-    wfm_seq_t fill;    /* The bits that pad a data source's last frame when
+    wfm_seq_t fill;  /**< The bits that pad a data source's last frame when
                           it does not divide into data_len-bit frames, tiled
                           from their first bit; stdin on a framed source
                           always needs them. Without them such a source is
@@ -386,50 +386,50 @@ typedef struct {
                           command line and in a scene, a bit array in
                           Python. Continuous dsss has no frame to pad, and
                           refuses it. */
-    const char *data_from_file; /* A data source read from a file of packed
-                          octets, MSB first, or `-` for stdin, instead of
-                          data. Not on the Python face: there a file is
-                          cvt.bytes_to_bin of its bytes, passed as data
-                          (payload-data-source.md section 4.9). Borrowed,
-                          so it must outlive the source. */
-    wfm_seq_t retired_bits; /* RETIRED (doppler#1718): nothing reads it but
-                          the refusal. A payload is drawn from a data
-                          source, so bits=, and its aliases payload= and
-                          pattern=, are refused naming data=; the CLI and a
-                          scene refuse --bits and "payload" the same way. */
-    wfm_seq_t retired_sync; /* RETIRED (doppler#1617): nothing reads it but
-                          the refusal. The frame-sync word is a field of the
-                          frame DESCRIPTION, so sync= is refused naming
-                          frame=; the CLI's --sync builds that description
-                          for you, and a scene refuses the "sync" key. */
-    wfm_seq_t retired_crc; /* RETIRED (doppler#1617): nothing reads it but
-                          the refusal. A CRC is a stage of the frame
-                          DESCRIPTION, so crc= is refused naming frame=,
-                          whatever its value (crc="none" included); the
-                          CLI's --crc builds that description for you, and
-                          a scene refuses the "crc" key. */
-    wfm_data_stats_t data_sent; /* What this source's data sent in the
-                          composer's latest instance: its frames, the fill
-                          bits padding the last, its idle frames, the source
-                          bits read and, for data_from_file, the dp_hash64
-                          of the octets read. The truth --record and SigMF
-                          carry (payload-data-source.md section 4.8), kept
-                          by the composer, which clears it at create; zero
-                          until an instance has sent a frame. Not an input:
-                          no face sets it. */
-    size_t code_only_symbols; /* Continuous dsss: pure-code symbols opening
-                          each frame of frame_symbols symbols. The data
-                          pauses through them and runs on across frames,
-                          so a searcher can integrate coherently over the
-                          window; once a payload ends, no window is sent.
-                          At most frame_symbols, and fewer when a data
-                          source is set; 0 with frame_symbols 0 = no
-                          window. */
-    size_t frame_symbols; /* Continuous dsss: the frame, in symbols, that
-                          code_only_symbols opens; give it with
-                          code_only_symbols, or both 0 for no window. The
-                          frame runs on the stream's own symbol clock, so
-                          its edges land at any chip phase. */
+    const char *data_from_file; /**< A data source read from a file of packed
+                            octets, MSB first, or `-` for stdin, instead of
+                            data. Not on the Python face: there a file is
+                            cvt.bytes_to_bin of its bytes, passed as data
+                            (payload-data-source.md section 4.9). Borrowed,
+                            so it must outlive the source. */
+    wfm_seq_t retired_bits; /**< RETIRED (doppler#1718): nothing reads it but
+                            the refusal. A payload is drawn from a data
+                            source, so bits=, and its aliases payload= and
+                            pattern=, are refused naming data=; the CLI and a
+                            scene refuse --bits and "payload" the same way. */
+    wfm_seq_t retired_sync; /**< RETIRED (doppler#1617): nothing reads it but
+                            the refusal. The frame-sync word is a field of the
+                            frame DESCRIPTION, so sync= is refused naming
+                            frame=; the CLI's --sync builds that description
+                            for you, and a scene refuses the "sync" key. */
+    wfm_seq_t retired_crc; /**< RETIRED (doppler#1617): nothing reads it but
+                            the refusal. A CRC is a stage of the frame
+                            DESCRIPTION, so crc= is refused naming frame=,
+                            whatever its value (crc="none" included); the
+                            CLI's --crc builds that description for you, and
+                            a scene refuses the "crc" key. */
+    wfm_data_stats_t data_sent; /**< What this source's data sent in the
+                            composer's latest instance: its frames, the fill
+                            bits padding the last, its idle frames, the source
+                            bits read and, for data_from_file, the dp_hash64
+                            of the octets read. The truth --record and SigMF
+                            carry (payload-data-source.md section 4.8), kept
+                            by the composer, which clears it at create; zero
+                            until an instance has sent a frame. Not an input:
+                            no face sets it. */
+    size_t code_only_symbols; /**< Continuous dsss: pure-code symbols opening
+                            each frame of frame_symbols symbols. The data
+                            pauses through them and runs on across frames,
+                            so a searcher can integrate coherently over the
+                            window; once a payload ends, no window is sent.
+                            At most frame_symbols, and fewer when a data
+                            source is set; 0 with frame_symbols 0 = no
+                            window. */
+    size_t frame_symbols; /**< Continuous dsss: the frame, in symbols, that
+                            code_only_symbols opens; give it with
+                            code_only_symbols, or both 0 for no window. The
+                            frame runs on the stream's own symbol clock, so
+                            its edges land at any chip phase. */
 } wfm_source_t;
 
 /**
@@ -441,13 +441,13 @@ typedef struct {
  * zeros. Durations in seconds are `round(duration * fs)` — the caller resolves.
  */
 typedef struct {
-    wfm_source_t *sources; /* n_sources sources summed at the same time */
-    size_t n_sources;
-    double fs;             /* Sample rate in Hz, one per segment and shared
+    wfm_source_t *sources; /**< n_sources sources summed at the same time */
+    size_t n_sources;      /**< number of entries in sources */
+    double fs;           /**< Sample rate in Hz, one per segment and shared
                               by all its sources. At the default 1.0 every
                               frequency is normalised (cycles per sample);
                               state it whenever a scene is in real Hz. */
-    size_t num_samples;    /* Segment on-time in samples, before the
+    size_t num_samples;  /**< Segment on-time in samples, before the
                               trailing gap: 0 derives it from the sources,
                               or 1024 when they set none. A finite data
                               source sets its frames, a lone dsss burst one
@@ -455,25 +455,27 @@ typedef struct {
                               data source or a lone dsss burst is refused,
                               since they set the length; give repeats for
                               more. */
-    size_t off_samples;    /* Trailing gap after the on-time, in samples. It
+    size_t off_samples;  /**< Trailing gap after the on-time, in samples. It
                               carries the noise floor or hard zeros, per
                               gap_noise. */
-    unsigned ranged;       /* WFM_RANGE_{NUM,OFF}_SAMPLES bitmask */
-    size_t num_samples_hi; /* upper bound when WFM_RANGE_NUM_SAMPLES is set */
-    size_t off_samples_hi; /* upper bound when WFM_RANGE_OFF_SAMPLES is set */
-    /* Play the segment this many times back-to-back (each instance = delay
+    unsigned ranged;     /**< WFM_RANGE_{NUM,OFF}_SAMPLES bitmask */
+    size_t num_samples_hi; /**< upper bound when WFM_RANGE_NUM_SAMPLES is
+                                set */
+    size_t off_samples_hi; /**< upper bound when WFM_RANGE_OFF_SAMPLES is
+                                set */
+    /** Play the segment this many times back-to-back (each instance = delay
        + on-time + trailing gap) before advancing. Ranged fields re-draw and
        the AWGN is fresh per instance; the signal (codes, payload, PN phase)
        stays fixed. 0 and 1 both mean one instance. */
     size_t repeats;
-    /* Leading gap before the on-time, in samples: the burst arrives after
+    /** Leading gap before the on-time, in samples: the burst arrives after
        this delay, and the gap carries the noise floor like off_samples.
        Ranged like off_samples and re-drawn per repeats instance, so a (lo,
        hi) delay is per-burst arrival jitter. Use off_samples for
        inter-burst spacing, delay_samples for arrival jitter. */
     size_t delay_samples;
-    size_t delay_samples_hi; /* upper bound when WFM_RANGE_DELAY_SAMPLES */
-    /* Gap policy for this segment's delay and trailing gap. auto: gaps
+    size_t delay_samples_hi; /**< upper bound when WFM_RANGE_DELAY_SAMPLES */
+    /** Gap policy for this segment's delay and trailing gap. auto: gaps
        carry the segment's noise floor -- the sources' AWGN keeps running
        while the signal stops (clean scenes still get exact-zero gaps). off:
        gaps are hard zeros. */
@@ -491,12 +493,12 @@ typedef struct {
  * (on-time) of instance k starts at `start + delay` and runs `on` samples.
  */
 typedef struct {
-    size_t seg;      /* segment index in the spec */
-    size_t instance; /* repeats instance, 0-based */
-    size_t start;    /* absolute sample index where the instance begins */
-    size_t delay;    /* leading gap length (samples) */
-    size_t on;       /* on-time length (samples) */
-    size_t off;      /* trailing gap length (samples) */
+    size_t seg;      /**< segment index in the spec */
+    size_t instance; /**< repeats instance, 0-based */
+    size_t start;    /**< absolute sample index where the instance begins */
+    size_t delay;    /**< leading gap length (samples) */
+    size_t on;       /**< on-time length (samples) */
+    size_t off;      /**< trailing gap length (samples) */
 } wfm_span_t;
 
 /**
@@ -545,22 +547,22 @@ size_t dp_wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
  * both -- which is why this is a separate call rather than a resolved spec.
  */
 typedef struct {
-    size_t seg;      /* segment index in the spec                        */
-    size_t instance; /* repeats instance, 0-based                        */
-    size_t src;      /* source index within the segment                  */
-    size_t start;    /* absolute sample index where the instance begins  */
-    size_t delay;    /* leading gap length (samples)                     */
-    size_t on;       /* on-time length (samples)                         */
-    size_t off;      /* trailing gap length (samples)                    */
-    double freq;     /* DRAWN carrier / sweep-start offset, Hz           */
-    double f_end;    /* DRAWN sweep-end offset, Hz (chirp)               */
-    double snr;      /* DRAWN SNR, dB, in the source's own snr_mode      */
-    double level;    /* DRAWN level, dB                                  */
+    size_t seg;      /**< segment index in the spec                        */
+    size_t instance; /**< repeats instance, 0-based                        */
+    size_t src;      /**< source index within the segment                  */
+    size_t start;    /**< absolute sample index where the instance begins  */
+    size_t delay;    /**< leading gap length (samples)                     */
+    size_t on;       /**< on-time length (samples)                         */
+    size_t off;      /**< trailing gap length (samples)                    */
+    double freq;     /**< DRAWN carrier / sweep-start offset, Hz           */
+    double f_end;    /**< DRAWN sweep-end offset, Hz (chirp)               */
+    double snr;      /**< DRAWN SNR, dB, in the source's own snr_mode      */
+    double level;    /**< DRAWN level, dB                                  */
     /* Clock Doppler is DRAWN like the four above, so it is reported like
        them. A ranged `doppler` recorded in the spec is a span; what this
        instance actually flew is only ever knowable here. */
-    double doppler;      /* DRAWN clock Doppler, ppm                     */
-    double doppler_rate; /* DRAWN Doppler rate, ppm/s                    */
+    double doppler;      /**< DRAWN clock Doppler, ppm                     */
+    double doppler_rate; /**< DRAWN Doppler rate, ppm/s                    */
 } wfm_draw_t;
 
 /**
@@ -628,6 +630,15 @@ char *dp_wfm_draws_json(const wfm_segment_t *segs, size_t n_segs);
  * `dp_wfm_compose_create()` calls this on its private copy, so every face (CLI,
  * JSON, Python) resolves identically.
  *
+ * A source counts as snr-bearing when its `snr` is below the clean
+ * threshold (100 dB). A non-anchor source's `snr` is turned into a `level`
+ * of floor + snr dB, and every signal source's `snr` is then set clean so
+ * its own synth adds no AWGN. A segment whose sources are all clean, with no
+ * explicit noise source, is left alone. On a -1 return the segments may
+ * already be partly rewritten.
+ *
+ * @param[in,out] segs  Segment array, rewritten in place.
+ * @param n             Number of segments in @p segs.
  * @return 0 on success; -1 if a non-anchor source over-specifies (snr + level)
  *         or on allocation failure.
  */
@@ -715,7 +726,11 @@ int dp_wfm_source_attach_dsss(dp_wfm_synth_state_t *syn, const wfm_source_t *src
  *
  * A carried description, a preamble or a data source is what says "framed".
  *
+ * Lengths are tested, never pointers: a carried `frame`, an `acq_code` with
+ * non-zero length AND `acq_reps`, a non-empty `data`, or a `data_from_file`.
+ *
  * @param src  The source; NULL reads as unframed.
+ * @return 1 when the source is framed, 0 otherwise (including NULL).
  */
 int dp_wfm_source_has_frame(const wfm_source_t *src);
 
@@ -856,6 +871,7 @@ extern const char dp_wfm_why_retired_bits[];
  * their own spelling. Exposed so a test can pin the wording once.
  */
 extern const char dp_wfm_why_retired_sync[];
+/** @copydoc dp_wfm_why_retired_sync */
 extern const char dp_wfm_why_retired_crc[];
 
 /**
@@ -946,7 +962,11 @@ int dp_wfm_synth_attach_data(dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *
  * waits for its data, as `cat` does. A paced caller (the composer under
  * `--realtime`) sets this after the build, so a source with nothing yet
  * sends an idle frame instead (dp_wfm_data_frame, the one rule). A synth
- * with no data source ignores it.
+ * with no data source ignores it, and so does a NULL @p syn.
+ *
+ * @param syn     The synth; NULL, or one with no data source, is a no-op.
+ * @param pacing  WFM_DATA_PACED to send idle frames while the source has
+ *                nothing, WFM_DATA_UNPACED to wait for it.
  *
  * @code
  * dp_wfm_synth_state_t *s = dp_wfm_synth_create (
@@ -979,6 +999,14 @@ void dp_wfm_synth_set_data_pacing(dp_wfm_synth_state_t *syn,
  * dp_wfm_compose_create() refuses exactly these, and
  * dp_wfm_compose_create_why() says which; a face calls this to say why.
  *
+ * The first fault found wins: sources are checked in segment order, and the
+ * count rule runs only after every source has passed.
+ *
+ * @param segs        The segments, as the caller gave them (unresolved).
+ * @param n_segs      Number of segments in @p segs.
+ * @param repeat      Non-zero when the scene loops (as for
+ *                    dp_wfm_compose_create()).
+ * @param continuous  Non-zero when the scene never finishes.
  * @return a static sentence naming the fault and its fix, or NULL.
  */
 const char *dp_wfm_scene_error(const wfm_segment_t *segs, size_t n_segs,
@@ -1050,6 +1078,9 @@ extern const char dp_wfm_why_count_derived[];
  * A stream has no length up front and no end to repeat, so a scene refuses
  * it with `repeat`, `continuous` or `repeats > 1`, Plan refuses it, and a
  * segment carrying one runs until it ends (dp_wfm_scene_error()).
+ *
+ * @param src  The source; NULL reads as not a stream.
+ * @return 1 when `data_from_file` is exactly `"-"`, else 0.
  */
 int dp_wfm_source_data_is_stream(const wfm_source_t *src);
 
@@ -1075,6 +1106,10 @@ int dp_wfm_source_data_is_stream(const wfm_source_t *src);
  * @param src     the source.
  * @param fs      the segment's sample rate (only continuous dsss reads it).
  * @param frames  frames (data bits, for continuous dsss) sent.
+ * @return samples, in the segment's sample clock; 0 for a NULL source, a
+ *         source with no data source and no carried frame, a frame that
+ *         does not lay out, or a continuous dsss source under one chip per
+ *         symbol.
  */
 uint64_t dp_wfm_source_data_samples(const wfm_source_t *src, double fs,
                                     uint64_t frames);
@@ -1098,11 +1133,24 @@ uint64_t dp_wfm_source_data_samples(const wfm_source_t *src, double fs,
  * if (dp_wfm_source_data_samples (&src, 1e6, 3) != 3 * 16 * 4) // bpsk
  *   return 1;
  * @endcode
+ *
+ * A carried `frame` with no data source (`data` / `data_from_file`), on a
+ * type that can carry a frame, counts as one frame, sent once.
+ *
+ * @param src  The source; NULL gives 0.
+ * @return frames (bits, for continuous dsss); 0 for a stream, a source with
+ *         no data, or a frame with no non-empty data field.
  */
 uint64_t dp_wfm_source_data_frames(const wfm_source_t *src);
 
-/** @brief The data source a synth pulls from (dp_wfm_synth_attach_data), or
- *  NULL: its stats are the run's truth for scoring. */
+/**
+ * @brief The data source a synth pulls from (dp_wfm_synth_attach_data), or
+ *  NULL: its stats are the run's truth for scoring.
+ *
+ * @param syn  The synth; NULL gives NULL.
+ * @return The source, still owned by the synth (valid until it is
+ *         destroyed), or NULL when the synth has no data source attached.
+ */
 const wfm_data_src_t *dp_wfm_synth_data_source(const dp_wfm_synth_state_t *syn);
 
 /**
@@ -1145,7 +1193,19 @@ int dp_wfm_source_synth_type(const wfm_source_t *src);
  * burst instance, signal fixed, regardless of `seed_advance`); instance 0 is
  * byte-identical to the pre-`repeats` behaviour.
  *
- * @return A heap synth (caller dp_wfm_synth_destroy()s it), or NULL on failure.
+ * @param src           The source (resolved: dp_wfm_resolve_noise() applied).
+ * @param fs            Segment sample rate, Hz.
+ * @param on_len        Segment on-time in samples; a chirp sweeps over it
+ *                      unless the source declares its own `span`.
+ * @param freq          Drawn carrier / sweep-start frequency, Hz.
+ * @param snr           Drawn SNR, dB, in the source's own `snr_mode`.
+ * @param f_end         Drawn chirp end frequency, Hz.
+ * @param epoch         Composer repeat epoch (0 = first pass).
+ * @param seed_advance  A ::wfm_seed_advance_t: ALL adds @p epoch to the whole
+ *                      seed; NOISE reseeds only the AWGN with seed + epoch.
+ * @param instance      The segment's `repeats` instance, 0-based.
+ * @return A heap synth (caller dp_wfm_synth_destroy()s it), or NULL on failure
+ *         -- allocation, or a frame / dsss geometry that does not build.
  */
 dp_wfm_synth_state_t *dp_wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            size_t on_len, double freq,
@@ -1181,7 +1241,22 @@ typedef struct wfm_render wfm_render_t;
  * ordinary case — the renderer creates and owns a channel if the source
  * declares Doppler, and destroys it with itself.
  *
- * @return A heap renderer (caller dp_wfm_render_destroy()s it), or NULL.
+ * @param src           The source.
+ * @param fs            Segment sample rate, Hz.
+ * @param on_len        Segment on-time in samples (as
+ *                      dp_wfm_compose_build_synth()).
+ * @param freq          Drawn carrier / sweep-start frequency, Hz.
+ * @param snr           Drawn SNR, dB.
+ * @param f_end         Drawn chirp end frequency, Hz.
+ * @param doppler       Drawn clock Doppler, ppm.
+ * @param doppler_rate  Drawn Doppler rate, ppm/s.
+ * @param epoch         Composer repeat epoch.
+ * @param seed_advance  A ::wfm_seed_advance_t.
+ * @param instance      The segment's `repeats` instance, 0-based.
+ * @param borrow        A scene-owned PERSIST channel, or NULL.
+ * @return A heap renderer (caller dp_wfm_render_destroy()s it), or NULL when
+ *         the synth does not build (as dp_wfm_compose_build_synth()) or the
+ *         channel cannot be created.
  */
 wfm_render_t *dp_wfm_compose_build_render(const wfm_source_t *src, double fs,
                                        size_t on_len, double freq, double snr,
@@ -1190,7 +1265,19 @@ wfm_render_t *dp_wfm_compose_build_render(const wfm_source_t *src, double fs,
                                        int seed_advance, size_t instance,
                                        dp_doppler_channel_state_t *borrow);
 
-/** @brief Pull exactly @p n samples from @p r, through its channel if any. */
+/**
+ * @brief Pull exactly @p n samples from @p r, through its channel if any.
+ *
+ * With no channel this is dp_wfm_synth_steps(). With one, the channel's
+ * leftover output (the holdover) is drained first and the input is refilled
+ * as needed, following the input timeline when one is set
+ * (dp_wfm_render_set_input_timeline()).
+ *
+ * @param r    Renderer from dp_wfm_compose_build_render() or
+ *             dp_wfm_render_from_feed(); not NULL.
+ * @param dst  Receives @p n samples.
+ * @param n    Samples to produce.
+ */
 void dp_wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 
 /**
@@ -1202,6 +1289,13 @@ void dp_wfm_render_steps(wfm_render_t *r, float _Complex *dst, size_t n);
  * continuous and during a gap the thing propagating is the noise floor. Skip
  * the channel over gaps and `doppler_rate` across a multi-burst scene
  * quietly means "rate per unit of ON time" instead of per second.
+ *
+ * With an input timeline set (dp_wfm_render_set_input_timeline()) the
+ * timeline, not this call, decides which input samples are noise-only.
+ *
+ * @param r    Renderer; not NULL.
+ * @param dst  Receives @p n samples.
+ * @param n    Samples to produce.
  */
 void dp_wfm_render_noise_steps(wfm_render_t *r, float _Complex *dst, size_t n);
 
@@ -1263,6 +1357,9 @@ wfm_render_t *dp_wfm_render_from_feed(
  * @param doppler       This instance's drawn Doppler, ppm.
  * @param doppler_rate  This instance's drawn Doppler rate, ppm/s.
  * @param slot          The scene-owned slot for this (segment, source).
+ * @return The slot's channel (created on first use with this instance's
+ *         geometry, and owned by the slot's holder, not the caller), or
+ *         NULL as above or when creation fails.
  */
 dp_doppler_channel_state_t *dp_wfm_compose_persist_channel(
     const wfm_source_t *src, double fs, double doppler, double doppler_rate,
@@ -1289,7 +1386,13 @@ dp_doppler_channel_state_t *dp_wfm_compose_persist_channel(
 void dp_wfm_render_set_input_timeline(wfm_render_t *r, size_t delay,
                                       size_t on);
 
-/** @brief Free a renderer and everything it owns. NULL-safe. */
+/**
+ * @brief Free a renderer and everything it owns. NULL-safe.
+ *
+ * A borrowed PERSIST channel is not freed: its owner frees it.
+ *
+ * @param r  The renderer, or NULL.
+ */
 void dp_wfm_render_destroy(wfm_render_t *r);
 
 /**
@@ -1301,9 +1404,9 @@ void dp_wfm_render_destroy(wfm_render_t *r);
  */
 typedef enum
 {
-  WFM_SEED_ADVANCE_NONE  = 0, /* byte-identical repeats (default) */
-  WFM_SEED_ADVANCE_NOISE = 1, /* signal fixed, AWGN fresh per repeat */
-  WFM_SEED_ADVANCE_ALL   = 2, /* whole seed advances (code+data+noise) */
+  WFM_SEED_ADVANCE_NONE  = 0, /**< byte-identical repeats (default) */
+  WFM_SEED_ADVANCE_NOISE = 1, /**< signal fixed, AWGN fresh per repeat */
+  WFM_SEED_ADVANCE_ALL   = 2, /**< whole seed advances (code+data+noise) */
 } wfm_seed_advance_t;
 
 /** Opaque composer state. */
@@ -1383,6 +1486,9 @@ void dp_wfm_compose_set_seed_advance(dp_wfm_compose_state_t *state, int mode);
  * on, so a data stream with nothing yet sends an idle frame of fill rather
  * than waiting (dp_wfm_data_frame, the one rule). The default,
  * WFM_DATA_UNPACED, waits.
+ *
+ * @param state   The composer; NULL is a no-op.
+ * @param pacing  WFM_DATA_PACED or WFM_DATA_UNPACED.
  */
 void dp_wfm_compose_set_data_pacing(dp_wfm_compose_state_t *state,
                                     wfm_data_pacing_t pacing);
@@ -1394,11 +1500,22 @@ void dp_wfm_compose_set_data_pacing(dp_wfm_compose_state_t *state,
  * flag path sets it from `--seed-advance`, so a serialiser must read it back
  * from here rather than from whichever half happened to supply it.
  * @param state  Compose state (may be NULL → `WFM_SEED_ADVANCE_NONE`).
+ * @return The mode, a ::wfm_seed_advance_t value; `WFM_SEED_ADVANCE_NONE`
+ *         until dp_wfm_compose_set_seed_advance() sets another.
  */
 int dp_wfm_compose_seed_advance(const dp_wfm_compose_state_t *state);
 
 /**
  * @brief Emit up to `max` samples of the composed stream.
+ *
+ * Segments run back to back, each as delay + on-time + trailing gap per
+ * `repeats` instance; a segment whose synth fails to build renders as its
+ * gaps only. Segments with different `fs` are concatenated without a rate
+ * marker: use dp_wfm_compose_execute_rate() to learn each block's rate.
+ *
+ * @param state  The composer.
+ * @param out    Destination for up to @p max complex samples.
+ * @param max    Capacity of @p out, in samples.
  * @return Number of samples written: < `max` (or 0) signals the sequence
  *         finished (never, when `continuous`).
  */
@@ -1554,6 +1671,14 @@ dp_wfm_scene_segments(const dp_wfm_compose_state_t *scene, size_t *n_out)
  * key was parsed and never written, so the round-trip silently fell back to
  * NONE and every loop after the first came out identical.
  *
+ * @param segs          The segments to write (typically
+ *                      dp_wfm_compose_segments() of a live composer).
+ * @param n_segs        Number of segments.
+ * @param repeat        Written as the top-level boolean `repeat`.
+ * @param continuous    Written as the top-level boolean `continuous`.
+ * @param seed_advance  A ::wfm_seed_advance_t; written as `"noise"` /
+ *                      `"all"`, omitted at NONE or an out-of-range value.
+ * @param headroom      Output backoff in dB; omitted when exactly 0.
  * @return malloc'd JSON (caller frees), or NULL on allocation failure.
  */
 char *dp_wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
@@ -1564,6 +1689,10 @@ char *dp_wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
  *
  * Lets `--from-file` reproduce a recorded `--headroom`; the value is a writer
  * gain, so it lives outside the composer state.
+ *
+ * @param json  The spec text, NUL-terminated.
+ * @return The `headroom` value in dB; 0.0 when the key is absent or the
+ *         text does not parse as JSON.
  */
 double dp_wfm_spec_headroom(const char *json);
 
@@ -1620,6 +1749,12 @@ wfm_frame_desc_t *dp_wfm_frame_from_json(const char *json, const char **why);
 /**
  * @brief Free a description returned by dp_wfm_frame_from_json(), bits and
  *        all. NULL is a no-op.
+ *
+ * Also frees a copy from dp_wfm_frame_copy(). It frees every field's `bits`
+ * and then @p d itself, so never pass a description the caller filled in
+ * its own storage (dp_wfm_frame_fixed()).
+ *
+ * @param d  The description, or NULL.
  *
  * @code
  * dp_wfm_frame_free (dp_wfm_frame_from_json ("{\"fields\": []}", NULL));
@@ -1794,7 +1929,13 @@ wfm_frame_desc_t *dp_wfm_frame_copy(const wfm_frame_desc_t *d);
 
 /**
  * @brief Build a composer from a JSON spec string (for --from-file).
- * @return Composer state, or NULL on parse error / bad type / no segments.
+ *
+ * dp_wfm_compose_from_json_why() with no reason channel. A relative
+ * `data_from_file` resolves against the caller's working directory.
+ *
+ * @param json  The spec text, NUL-terminated (docs/schema/wfmgen.schema.json).
+ * @return Composer state (caller dp_wfm_compose_destroy()s it), or NULL on
+ *         parse error / bad type / no segments / a refused scene.
  */
 dp_wfm_compose_state_t *dp_wfm_compose_from_json(const char *json);
 
@@ -1807,24 +1948,27 @@ dp_wfm_compose_state_t *dp_wfm_compose_from_json(const char *json);
  * the composer — which asks the same question and would refuse either way —
  * so the reason survives the boundary as a sentence instead of a pointer.
  *
- * Only the frame rule reports this way. A parse error or a bad type is still
- * a bare NULL, because those are cJSON's to describe and duplicating its
- * diagnostics here would be a second opinion about the same text.
+ * Beyond the frame rule, every dp_wfm_scene_error() rule reports this way,
+ * as do the reader's own refusals: an unknown or retired key, a source with
+ * no known `"type"`, a Field that does not parse, an `"fs"` at the top
+ * level instead of per segment. Text that is not JSON at all, or has no
+ * non-empty `"segments"` array, is still a bare NULL: those are cJSON's to
+ * describe, and duplicating its diagnostics here would be a second opinion
+ * about the same text.
  *
  * @param json  the spec.
- * @param why   optional; receives a STATIC message when a source's frame is
- *              refused, or NULL in every other case (including success).
- *              Passing NULL makes this exactly @ref dp_wfm_compose_from_json.
+ * @param why   optional; set to NULL first, then to the reason when the
+ *              scene is refused. Most reasons are static; one naming the
+ *              caller's text (an unknown key) is formatted into a
+ *              thread-local buffer, valid until this thread reads another
+ *              scene. Never freed by the caller. Passing NULL makes this
+ *              exactly @ref dp_wfm_compose_from_json.
  * @return Composer state, or NULL on parse error / bad type / no segments /
  *         a refused frame.
  */
 dp_wfm_compose_state_t *dp_wfm_compose_from_json_why(const char *json,
                                                const char **why);
 
-/**
- * @brief Build a composer from a JSON spec file.
- * @return Composer state, or NULL on read/parse error.
- */
 /**
  * @brief dp_wfm_compose_from_json_why(), reading a scene that lives in @p base.
  *
@@ -1898,14 +2042,26 @@ dp_wfm_compose_state_t *dp_wfm_compose_from_json_data(const char *json,
                                                       const char *data_file,
                                                       const char **why);
 
+/**
+ * @brief Build a composer from a JSON spec file.
+ *
+ * @ref dp_wfm_compose_from_file_why with no reason channel. A relative
+ * `data_from_file` in the scene resolves against the scene file's own
+ * directory.
+ *
+ * @param path  The spec file.
+ * @return Composer state (caller dp_wfm_compose_destroy()s it), or NULL on
+ *         read/parse error or a refused scene.
+ */
 dp_wfm_compose_state_t *dp_wfm_compose_from_file(const char *path);
 
 /**
  * @brief @ref dp_wfm_compose_from_file, able to say why a scene was refused.
  *
- * Reads @p path and hands its text to @ref dp_wfm_compose_from_json_why, so
- * the reason is that function's: a retired key or a refused frame, named. A
- * file that cannot be read gives NULL and leaves @p why NULL.
+ * Reads @p path and hands its text to @ref dp_wfm_compose_from_json_at with
+ * the file's directory as the base, so the reason is that function's: a
+ * retired key or a refused frame, named. A file that cannot be opened gives
+ * NULL and leaves @p why untouched.
  *
  * @param path  the spec file.
  * @param why   optional; as for @ref dp_wfm_compose_from_json_why.

@@ -188,7 +188,13 @@ extern "C"
   size_t dp_conv_enc_encode (dp_conv_enc_state_t *state, const uint8_t *in,
                           size_t n_in, uint8_t *out, size_t max_out);
 
-  /** @brief The code this encoder was built for. */
+  /**
+   * @brief The code this encoder was built for.
+   * @param s  The encoder; must be non-NULL.
+   * @return Pointer to the code stored inside @p s (generators, constraint
+   *         length, output inversion mask). Borrowed: valid until
+   *         dp_conv_enc_destroy(); never freed by the caller.
+   */
   const conv_code_t *dp_conv_enc_code (const dp_conv_enc_state_t *s);
 
   /* ── the state bytes interface ─────────────────────────────────────────
@@ -211,6 +217,9 @@ extern "C"
    *
    * A constant for this object, unlike the decoder's, whose ring is sized
    * from the configuration.
+   *
+   * @param s  The encoder; must be non-NULL.
+   * @return Blob size in bytes.
    */
   size_t dp_conv_enc_state_bytes (const dp_conv_enc_state_t *s);
 

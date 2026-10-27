@@ -75,6 +75,10 @@ extern "C"
    * implication of `A` does not apply here). `T` is a deprecated alias for a
    * 32-bit integer and decodes as 4. `O` (offset byte), `P` (packed bits) and
    * `N` (4-bit) are explicitly not permitted in keywords; `S` is reserved.
+   *
+   * @param type  BLUE type code character, e.g. D for a 64-bit float.
+   * @return Bytes per element (1, 2, 4 or 8), or 0 for any code not legal
+   *         in a keyword (including O, P, N, S and unknown characters).
    */
   size_t dp_wfm_kw_elem_size (char type);
 
@@ -91,6 +95,17 @@ extern "C"
    * consuming system, so nothing here refuses to write one; the check exists
    * so a caller can find out before committing a capture.
    *
+   * Checked tags: `ACQDATE` (type `A`, 6 chars `YY.DDD` or 8 digits
+   * `YYYYMMDD`), `ACQTIME` (type `A`, 8 chars `HH:MM:SS`, digits only
+   * around the colons; ranges such as hour <= 23 are not checked),
+   * `COMMENT` and `TIMELINE` (must be type `A`), and `SUBREC_DEF`,
+   * `SUBREC_DESCRIP`, `T4INDEX` (always -1: doppler writes type 1000 only).
+   *
+   * @param tag    NUL-terminated keyword tag; must be non-NULL.
+   * @param type   BLUE type code of the value, e.g. A for ASCII.
+   * @param value  Value bytes; read as characters when the tag is
+   *               `ACQDATE` or `ACQTIME` and @p type is A.
+   * @param count  Element count (characters for type A).
    * @return 1 conforms, -1 does not, 0 the tag is not a standard keyword.
    *
    * @code

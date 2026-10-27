@@ -137,6 +137,21 @@ extern "C"
    * already holds: a regular file is finite and its length comes from
    * `fstat`; anything else (a pipe, a terminal, a socket) is a stream and
    * needs @p fill. The source never closes @p fd.
+   *
+   * @param fd    an open, readable file descriptor; the caller keeps
+   *              ownership and closes it after @ref dp_wfm_data_destroy.
+   *              A negative @p fd, or one `fstat` fails on, is refused.
+   * @param len   bits per frame, `LEN` of the frame's `data:LEN`; > 0.
+   * @param fill  a Field whose bits pad the last frame and fill an idle
+   *              one, or NULL for none. A stream over @p fd needs one
+   *              unless @p len is 1.
+   * @param why   optional; receives a STATIC sentence naming the cause of
+   *              a refusal, untouched on success.
+   * @return the source, owned by the caller and freed with
+   *         @ref dp_wfm_data_destroy; or NULL: @p len of 0, a fill outside
+   *         the grammar, an unreadable @p fd, an empty regular file, a
+   *         regular file that does not divide into `LEN`-bit frames with
+   *         no fill, or a stream with no fill and a `LEN` above 1.
    */
   wfm_data_src_t *dp_wfm_data_create_fd (int fd, size_t len,
                                          const char *fill, const char **why);
@@ -151,6 +166,10 @@ extern "C"
    * fill -- the numbers to state that remainder in. Exactly one of @p data
    * and @p path, as @ref dp_wfm_data_create takes them.
    *
+   * @param data  a Field, as @ref dp_wfm_data_create takes it; NULL when
+   *              @p path is given.
+   * @param path  a file; NULL when @p data is given. `-` (stdin) is a
+   *              stream and gives 0.
    * @return the bits of a literal or generated Field, or of a regular file;
    *         0 for a stream (`pn:0:…`, `-`, a pipe), for text outside the
    *         grammar, and for a file that cannot be opened. A 0 does not say
@@ -180,6 +199,10 @@ extern "C"
    * @param len   bits per frame; > 0.
    * @param fill  the fill sequence, or NULL / `len == 0` for none.
    * @param why   optional; receives a STATIC reason for a refusal.
+   * @return the source, owned by the caller and freed with
+   *         @ref dp_wfm_data_destroy, or NULL on any refusal
+   *         @ref dp_wfm_data_create names (both or neither of @p data and
+   *         @p path, a zero @p len, a sequence that renders no bits, ...).
    *
    * @code
    * static const uint8_t bits[12] = { 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0 };
@@ -202,7 +225,12 @@ extern "C"
                                           const wfm_seq_t *fill,
                                           const char **why);
 
-  /** @brief Free a source; closes a file it opened itself. NULL is a no-op. */
+  /**
+   * @brief Free a source; closes a file it opened itself. NULL is a no-op.
+   *
+   * @param s  the source, or NULL. A descriptor handed to
+   *           @ref dp_wfm_data_create_fd stays open; stdin is never closed.
+   */
   void dp_wfm_data_destroy (wfm_data_src_t *s);
 
   /**
@@ -237,6 +265,11 @@ extern "C"
    * It consumes no source bits (a partial chunk already read waits for the
    * next data frame) and is counted in `idle_frames`.
    *
+   * @param s        the source.
+   * @param reps     the field's repetitions; 0 means one.
+   * @param out      receives `LEN * reps` fill bits, one per byte, the fill
+   *                 tiled from its first bit.
+   * @param max_out  capacity of @p out in bits.
    * @return @ref WFM_DATA_FRAME, or @ref WFM_DATA_ERROR when the source has
    *         no fill or @p out is too small.
    */
@@ -254,6 +287,13 @@ extern "C"
    * sends an idle frame. Every frame-pulling caller goes through this, so
    * no caller has to remember which timeout means which.
    *
+   * @param s        the source.
+   * @param pacing   @ref WFM_DATA_PACED asks with a timeout of 0 and turns
+   *                 *nothing yet* into an idle frame;
+   *                 @ref WFM_DATA_UNPACED waits (timeout -1).
+   * @param reps     the field's repetitions; 0 means one.
+   * @param out      receives `LEN * reps` bits, one per byte.
+   * @param max_out  capacity of @p out in bits.
    * @return @ref WFM_DATA_FRAME, @ref WFM_DATA_IDLE (paced only),
    *         @ref WFM_DATA_END or @ref WFM_DATA_ERROR.
    *
@@ -276,7 +316,13 @@ extern "C"
                                        wfm_data_pacing_t pacing, size_t reps,
                                        uint8_t *out, size_t max_out);
 
-  /** @brief What the source has done so far. */
+  /**
+   * @brief What the source has done so far.
+   *
+   * @param s    the source; NULL writes an all-zero @p out.
+   * @param out  receives a copy of the counts (@ref wfm_data_stats_t); a
+   *             NULL @p out is a no-op.
+   */
   void dp_wfm_data_stats (const wfm_data_src_t *s, wfm_data_stats_t *out);
 
   /**
@@ -327,6 +373,7 @@ extern "C"
    * so a checkpoint fails when it is taken rather than on the pod that
    * relies on it, and @ref dp_wfm_data_set_state is `DP_ERR_INVALID`.
    *
+   * @param s  the source; NULL gives NULL.
    * @return NULL, or a STATIC sentence naming the cause.
    */
   const char *dp_wfm_data_state_refusal (const wfm_data_src_t *s);
@@ -339,12 +386,21 @@ extern "C"
    * position: a Field's cursor, `pn:0`'s register (a nested `dp_pn` blob),
    * or a file's residue and running hash. The bits, the fill and `LEN` are
    * config, rebuilt by the create that built the receiving source.
+   *
+   * @param s  the source; NULL gives 0.
+   * @return the blob size in bytes, fixed by the source's config (the
+   *         same for every call on one source), or 0 for a pipe or NULL.
    */
   size_t dp_wfm_data_state_bytes (const wfm_data_src_t *s);
 
   /**
    * @brief Serialize the source into @p blob, of
    * @ref dp_wfm_data_state_bytes bytes. A no-op when it refuses.
+   *
+   * @param s     the source.
+   * @param blob  receives the blob; at least
+   *              @ref dp_wfm_data_state_bytes bytes, untouched when that
+   *              is 0.
    */
   void dp_wfm_data_get_state (const wfm_data_src_t *s, void *blob);
 
@@ -357,6 +413,9 @@ extern "C"
    * a file that changed under the checkpoint is refused, never resumed
    * into different data. Nothing changes on a refusal.
    *
+   * @param s     the receiving source, built with the same config as the
+   *              one the blob came from.
+   * @param blob  a blob from @ref dp_wfm_data_get_state.
    * @return DP_OK, or DP_ERR_INVALID: a bad envelope, another kind, size or
    *         `LEN`, a pipe, a position past the end, or a prefix whose hash
    *         differs.

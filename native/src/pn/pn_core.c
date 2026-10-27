@@ -92,7 +92,13 @@ dp_pn_set_state (dp_pn_state_t *state, const void *blob)
     return rc;
   dp_reader_t r = dp_reader_init (blob, dp_pn_state_bytes (state));
   r.off         = sizeof (dp_state_hdr_t);
-  state->reg    = dp_r_u64 (&r);
+  uint64_t reg  = dp_r_u64 (&r);
+  /* What create() refuses, set_state refuses (doppler#2641): a zero register
+     emits zeros forever, and a bit above the length would shift into the
+     Fibonacci sequence, whose step never masks. */
+  if (reg == 0 || (reg & ~state->mask))
+    return DP_ERR_INVALID;
+  state->reg = reg;
   return DP_OK;
 }
 

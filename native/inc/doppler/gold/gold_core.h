@@ -169,14 +169,16 @@ void dp_gold_get_state(const dp_gold_state_t *state, void *blob);
  *
  * Only the two running registers are restored; taps, seeds and length
  * come from the target's own dp_gold_create() arguments, so create the
- * target with the same configuration.  The restored registers are taken
- * as stored, without masking to length or a non-zero check.
+ * target with the same configuration.  Each register must be what a live
+ * one can hold: non-zero, with no bit above the length.  A zero register is
+ * a fixed point that leaves the other register's m-sequence alone
+ * (doppler#1640), so either one is refused (doppler#2641).
  *
  * @param state  Must be non-NULL.
  * @param blob   Blob written by dp_gold_get_state().
  * @return DP_OK on success, or DP_ERR_INVALID when the envelope (magic,
- *         version, endianness, size) does not match; the state is then
- *         left untouched.
+ *         version, endianness, size) does not match or a register is zero
+ *         or wider than the length; the state is then left untouched.
  */
 int dp_gold_set_state(dp_gold_state_t *state, const void *blob);
 

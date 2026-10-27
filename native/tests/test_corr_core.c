@@ -283,5 +283,61 @@ main (void)
     dp_corr_destroy (obj);
   }
 
+  /* set_state refuses a frame count a live correlator cannot hold
+     (doppler#2641): a live count is 0 .. dwell-1, and one at or past the
+     dwell would never dump again. A forged count keeps the blob's size, so
+     the envelope passes it; the payload check refuses it, and the target's
+     own blob is byte-identical afterwards. */
+  {
+    enum
+    {
+      N = 16
+    };
+    float _Complex ref[N], x[N], out[N];
+    for (size_t i = 0; i < N; i++)
+      {
+        ref[i] = (float)(i % 3) - 1.0f + I * (float)(i % 2);
+        x[i]   = ref[i];
+      }
+    dp_corr_state_t *obj = dp_corr_create (ref, N, 3, 1, 0);
+    DP_CHECK (obj != NULL);
+    DP_CHECK (dp_corr_execute (obj, x, N, out, N) == 0); /* count = 1 */
+    size_t         sb     = dp_corr_state_bytes (obj);
+    unsigned char *blob   = malloc (sb);
+    unsigned char *before = malloc (sb);
+    unsigned char *after  = malloc (sb);
+    dp_corr_get_state (obj, blob);
+    dp_corr_get_state (obj, before);
+    DP_CHECK (dp_corr_set_state (obj, blob) == DP_OK); /* positive control */
+
+    uint64_t forged = 3; /* == dwell: never dumps again */
+    memcpy (blob + sizeof (dp_state_hdr_t), &forged, sizeof forged);
+    DP_CHECK (
+        dp_state_validate (blob, sb, CORR_STATE_MAGIC, CORR_STATE_VERSION)
+        == DP_OK);
+    DP_CHECK (dp_corr_set_state (obj, blob) == DP_ERR_INVALID);
+    dp_corr_get_state (obj, after);
+    DP_CHECK (memcmp (before, after, sb) == 0);
+
+    forged = 2; /* dwell - 1: the last count a live one holds */
+    memcpy (blob + sizeof (dp_state_hdr_t), &forged, sizeof forged);
+    DP_CHECK (dp_corr_set_state (obj, blob) == DP_OK);
+    DP_CHECK (obj->count == 2);
+    free (blob);
+    free (before);
+    free (after);
+    dp_corr_destroy (obj);
+  }
+
+  /* dwell = 0 is refused at create (doppler#2641): it never dumps, and
+     set_state would refuse every blob it could write. */
+  {
+    float _Complex ref[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
+    DP_CHECK (dp_corr_create (ref, 4, 0, 1, 0) == NULL);
+    dp_corr_state_t *ok = dp_corr_create (ref, 4, 1, 1, 0);
+    DP_CHECK (ok != NULL);
+    dp_corr_destroy (ok);
+  }
+
   DP_TEST_END ("test_corr_core");
 }

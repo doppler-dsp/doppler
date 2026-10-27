@@ -100,3 +100,24 @@ def test_configure_refuses_outside_the_domain(bn, zeta, t):
     with pytest.raises(ValueError, match="configure failed"):
         lf.configure(bn, zeta, t)
     assert lf.get_state() == held
+
+
+@pytest.mark.parametrize("field", [0, 1, 3, 4, 5])  # kp, ki, bn, zeta, t
+def test_set_state_refuses_a_non_finite_payload(field):
+    """A forged NaN gain or loop parameter is refused, target unchanged.
+
+    The blob is the whole struct after a 16-byte envelope; the envelope
+    never reads the payload, so only the payload check (#2641) can refuse
+    the NaN gains that create() refuses (#2103). The integrator (field 2)
+    is not checked: a NaN there is garbage in (#2128).
+    """
+    lf = LoopFilter(0.01, 0.707, 1.0)
+    lf.steps(np.full(30, 0.1))
+    before = lf.get_state()
+    hdr = len(before) - 6 * 8
+    payload = np.frombuffer(before, dtype=np.float64, offset=hdr).copy()
+    payload[field] = np.nan
+    forged = before[:hdr] + payload.tobytes()
+    with pytest.raises(ValueError):
+        lf.set_state(forged)
+    assert lf.get_state() == before

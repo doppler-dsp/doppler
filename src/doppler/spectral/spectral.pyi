@@ -657,8 +657,8 @@ class Corr:
     ref : NDArray[np.complex64]
         Reference signal, CF32, length ref_len.
     dwell : int, default 1
-        Integration depth; must be >= 1. Pass 1 for immediate output on every
-        call.
+        Integration depth; must be >= 1 (0 is refused). Pass 1 for immediate
+        output on every call.
     nthreads : int, default 1
         Accepted for API compatibility; ignored.
     n_out : int, default 0
@@ -667,6 +667,12 @@ class Corr:
         band-limited (Dirichlet) interpolation of the correlation on a finer
         length-n_out grid — same peak, sub-bin lag resolution. Native is
         bit-exact and allocates no extra buffer.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Corr: invalid
+        parameter (need dwell >= 1, and n_out 0 or at least len(ref))``.
 
     Examples
     --------

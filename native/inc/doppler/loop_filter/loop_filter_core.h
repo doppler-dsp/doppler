@@ -266,14 +266,17 @@ extern "C"
    *  @param state Filter state. Must be non-NULL.
    *  @param[out] blob  At least dp_loop_filter_state_bytes() bytes. */
   void dp_loop_filter_get_state(const dp_loop_filter_state_t *state, void *blob);
-  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects.
-   *  Only the envelope (magic, version, endianness, size) is checked; the
-   *  payload is copied verbatim over the whole struct. It does NOT call
-   *  dp_loop_filter_state_ok(): a caller restoring an untrusted blob should
-   *  check the result with it.
+  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the blob is refused.
+   *  The envelope (magic, version, endianness, size) is checked, then the
+   *  payload is decoded into a temporary and accepted only when
+   *  dp_loop_filter_state_ok() accepts it -- the gains, bn, zeta and t that
+   *  create() would refuse are refused (doppler#2641). The integrator is
+   *  not checked: a NaN in it is garbage in (doppler#2128). An accepted
+   *  payload is copied over the whole struct.
    *  @param state Filter state to overwrite. Must be non-NULL.
    *  @param[in] blob  Blob from dp_loop_filter_get_state().
-   *  @return DP_OK, or DP_ERR_INVALID (and @p state is unchanged). */
+   *  @return DP_OK, or DP_ERR_INVALID on an envelope mismatch or a payload
+   *          dp_loop_filter_state_ok() refuses (and @p state is unchanged). */
   int dp_loop_filter_set_state(dp_loop_filter_state_t *state, const void *blob);
 
   /**

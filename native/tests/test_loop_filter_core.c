@@ -28,6 +28,7 @@
 #include "doppler/loop_filter/loop_filter_core.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -491,6 +492,54 @@ main (void)
     rice_gains (bn, zeta, t, &kp, &ki);
     DP_CHECK_NEAR (s.kp, kp, 1e-12);
     DP_CHECK_NEAR (s.ki, ki, 1e-12);
+  }
+
+  /* set_state refuses a payload dp_loop_filter_state_ok() refuses
+     (doppler#2641): the gains are restored verbatim, so a forged NaN or
+     infinite gain -- what create() refuses (#2103) -- used to land. The
+     integrator is deliberately not checked: a NaN in it is garbage in
+     (#2128). Each
+     forged blob passes the envelope; the target's own blob is
+     byte-identical after the refusal. */
+  {
+    dp_loop_filter_state_t *a = dp_loop_filter_create (0.01, 0.707, 1.0);
+    for (int i = 0; i < 30; i++)
+      (void)dp_loop_filter_step (a, 0.1);
+    unsigned char blob[64], before[64], after[64];
+    size_t        sb = dp_loop_filter_state_bytes (a);
+    DP_CHECK (sb <= sizeof blob);
+    dp_loop_filter_get_state (a, before);
+    const size_t off[] = {
+      offsetof (dp_loop_filter_state_t, kp),
+      offsetof (dp_loop_filter_state_t, ki),
+      offsetof (dp_loop_filter_state_t, bn),
+      offsetof (dp_loop_filter_state_t, zeta),
+      offsetof (dp_loop_filter_state_t, t),
+    };
+    const double bad[] = { NAN, INFINITY, -INFINITY };
+    for (size_t f = 0; f < sizeof off / sizeof off[0]; f++)
+      for (size_t k = 0; k < sizeof bad / sizeof bad[0]; k++)
+        {
+          memcpy (blob, before, sb);
+          memcpy (blob + sizeof (dp_state_hdr_t) + off[f], &bad[k],
+                  sizeof (double));
+          DP_CHECK (dp_state_validate (blob, sb, LOOP_FILTER_STATE_MAGIC,
+                                       LOOP_FILTER_STATE_VERSION)
+                    == DP_OK);
+          DP_CHECK (dp_loop_filter_set_state (a, blob) == DP_ERR_INVALID);
+          dp_loop_filter_get_state (a, after);
+          DP_CHECK (memcmp (before, after, sb) == 0);
+        }
+    /* A finite but absurd gain is not one this bn, zeta and t give. */
+    memcpy (blob, before, sb);
+    double absurd = 1e6;
+    memcpy (blob + sizeof (dp_state_hdr_t)
+                + offsetof (dp_loop_filter_state_t, kp),
+            &absurd, sizeof absurd);
+    DP_CHECK (dp_loop_filter_set_state (a, blob) == DP_ERR_INVALID);
+    /* Positive control: the undoctored blob restores. */
+    DP_CHECK (dp_loop_filter_set_state (a, before) == DP_OK);
+    dp_loop_filter_destroy (a);
   }
 
   DP_TEST_END ("test_loop_filter_core");

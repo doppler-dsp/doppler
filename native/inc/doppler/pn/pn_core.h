@@ -322,13 +322,16 @@ void dp_pn_get_state(const dp_pn_state_t *state, void *blob);
 /**
  * @brief Restore the register from a dp_pn_get_state() blob.
  *
- * Only the envelope is checked; the poly, length and realization are the
- * receiving instance's own, so restore into an identically built PN.
+ * The poly, length and realization are the receiving instance's own, so
+ * restore into an identically built PN.  The register must be what a live
+ * one can hold: non-zero (zero emits zeros forever) with no bit above the
+ * length (the Fibonacci step never masks), as create() requires of the
+ * masked seed (doppler#2641).
  *
  * @param state  Must be non-NULL.
  * @param blob   Blob from dp_pn_get_state().
  * @return DP_OK, or DP_ERR_INVALID on a magic, version, endian or size
- *         mismatch (@p state untouched).
+ *         mismatch, or a zero or over-wide register (@p state untouched).
  */
 int dp_pn_set_state(dp_pn_state_t *state, const void *blob);
 

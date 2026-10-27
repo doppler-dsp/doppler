@@ -8,6 +8,8 @@ class_name = "Corr"
 depends_on = ["fft_core"]
 serializable = "true"
 fragment = "generated"
+create_error = "ValueError"
+create_error_message = "Corr: invalid parameter (need dwell >= 1, and n_out 0 or at least len(ref))"
 
 [[corr.init_params]]
 name = "ref"

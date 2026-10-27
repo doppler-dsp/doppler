@@ -80,8 +80,8 @@ typedef struct {
  *
  * @param ref       Reference signal, CF32, length @p ref_len.
  * @param ref_len   Reference / FFT length in samples.
- * @param dwell     Integration depth; must be >= 1.  Pass 1 for immediate
- *                  output on every call.
+ * @param dwell     Integration depth; must be >= 1 (0 is refused).  Pass 1
+ *                  for immediate output on every call.
  * @param nthreads  Accepted for API compatibility; ignored.
  * @param n_out     Inverse/output length; 0 => native (n).  Must be >= n.  A
  *                  larger value zero-pads the cross-spectrum before the inverse,
@@ -89,7 +89,8 @@ typedef struct {
  *                  correlation on a finer length-n_out grid — same peak, sub-bin
  *                  lag resolution.  Native is bit-exact and allocates no extra
  *                  buffer.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL on a dwell of 0, an @p n_out below
+ *         @p ref_len, or allocation failure.
  * @code
  * >>> from doppler.spectral import Corr
  * >>> import numpy as np
@@ -222,13 +223,14 @@ void dp_corr_get_state (const dp_corr_state_t *state, void *blob);
  * The target must have been created with the same reference length n
  * (the size check rejects any other); the reference itself is not
  * restored, so build the target from the same reference.  The frame count
- * is restored as stored and is not checked against the target's dwell.
+ * must be below the target's dwell, the range a live correlator holds; one
+ * at or past it would never dump again (doppler#2641) and is refused.
  *
  * @param state Allocated correlator (non-NULL).
  * @param blob  Blob of dp_corr_state_bytes() bytes.
  * @return DP_OK on success, or DP_ERR_INVALID when the envelope (magic,
- *         version, endianness, size) does not match; the state is then
- *         left untouched.
+ *         version, endianness, size) does not match or the count is not
+ *         below the dwell; the state is then left untouched.
  */
 int dp_corr_set_state (dp_corr_state_t *state, const void *blob);
 

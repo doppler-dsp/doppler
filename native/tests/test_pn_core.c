@@ -356,5 +356,44 @@ main (void)
     DP_CHECK (dp_pn_create_mls (0, 1, 0, PN_GALOIS) == NULL);
   }
 
+  /* set_state refuses a register create() could never fill (doppler#2641):
+     zero emits zeros forever, and a bit above the length shifts into the
+     Fibonacci sequence. Both realizations, each forged blob passing the
+     envelope, the target's own blob byte-identical afterwards. */
+  {
+    const int kinds[] = { PN_GALOIS, PN_FIBONACCI };
+    for (int ki = 0; ki < 2; ki++)
+      {
+        dp_pn_state_t *p = dp_pn_create (96, 1, 7, kinds[ki]);
+        uint8_t        chips[9];
+        dp_pn_generate (p, 9, chips, 9);
+        size_t         sb     = dp_pn_state_bytes (p);
+        unsigned char *blob   = malloc (sb);
+        unsigned char *before = malloc (sb);
+        unsigned char *after  = malloc (sb);
+        dp_pn_get_state (p, before);
+        const uint64_t bad[] = { 0, 128, 129 };
+        for (size_t k = 0; k < sizeof bad / sizeof bad[0]; k++)
+          {
+            memcpy (blob, before, sb);
+            memcpy (blob + sizeof (dp_state_hdr_t), &bad[k], sizeof bad[k]);
+            DP_CHECK (
+                dp_state_validate (blob, sb, PN_STATE_MAGIC, PN_STATE_VERSION)
+                == DP_OK);
+            DP_CHECK (dp_pn_set_state (p, blob) == DP_ERR_INVALID);
+            dp_pn_get_state (p, after);
+            DP_CHECK (memcmp (before, after, sb) == 0);
+          }
+        memcpy (blob, before, sb);
+        uint64_t top = 64; /* the top bit of a 7-bit register is legal */
+        memcpy (blob + sizeof (dp_state_hdr_t), &top, sizeof top);
+        DP_CHECK (dp_pn_set_state (p, blob) == DP_OK);
+        free (blob);
+        free (before);
+        free (after);
+        dp_pn_destroy (p);
+      }
+  }
+
   DP_TEST_END ("test_pn_core");
 }

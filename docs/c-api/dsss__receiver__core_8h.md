@@ -301,7 +301,7 @@ int dp_dsss_receiver_configure_search_raw (
 
 **Returns:**
 
-0 on success, -1 on an invalid grid or a failed allocation (the engine keeps its prior grid; see [**dp\_acq\_configure\_search\_raw()**](acq__core_8h.md#function-dp_acq_configure_search_raw)). 
+0 on success, -1 on an invalid grid (including `n_noncoh` &gt; 1 on an engine with rate hypotheses) or a failed allocation (the engine keeps its prior grid; see [**dp\_acq\_configure\_search\_raw()**](acq__core_8h.md#function-dp_acq_configure_search_raw)). 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import DsssReceiver

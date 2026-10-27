@@ -253,7 +253,7 @@ void dp_f32_to_i16_reset (
 
 
 
-Zeroes `clipped` so a subsequent clipped query reflects only samples seen after this call; the immutable `scale` is preserved. Call it at a buffer or segment boundary so a saturation on one block does not leak into the next.
+Zeroes `clipped` so a subsequent clipped query reflects only samples seen after this call; `scale` is preserved. Call it at a buffer or segment boundary so a saturation on one block does not leak into the next.
 
 
 

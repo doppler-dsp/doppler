@@ -269,7 +269,7 @@ double dp_burst_capture_state_t::cn0_dbhz_est;
 
 
 
-C/N0 lower bound, dB-Hz (saturating). 
+C/N0 estimate, dB-Hz (saturating). 
  
 
 
@@ -659,7 +659,8 @@ uint64_t dp_burst_capture_state_t::preamble_start;
 
 
 
-Stream-absolute preamble start. Never late. 
+Stream-absolute preamble start. 
+ 
 
 
         

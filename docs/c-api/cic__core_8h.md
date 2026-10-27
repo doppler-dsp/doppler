@@ -115,7 +115,7 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 The bound is `CIC_PAPR_HEADROOM` (2.0, i.e. 6 dB) and not 1.0 because that headroom is exactly what it buys: the encode scale is `32768 / CIC_PAPR_HEADROOM`, so full scale sits 6 dB above unity amplitude and a signal whose PEAKS exceed its unit average — every pulse-shaped waveform — has somewhere to put them. Budgeting the DC gain alone left the peaks clipping against a bound the average never approached.
 
 
-\*\*So check `clipped**` — a sticky flag raised by any saturating component and cleared only by [**dp\_cic\_reset()**](cic__core_8h.md#function-dp_cic_reset), following the same convention as the quantizing `cvt` converters (adc, f32\_to\_uq15, ...). It is free: the four boundary comparisons run on every sample regardless, so recording that one fired costs a register OR. There is no reason to run a CIC without checking it at least once against real input.
+\*\*So check `clipped**` — a sticky flag raised by any saturating component and cleared by [**dp\_cic\_reset()**](cic__core_8h.md#function-dp_cic_reset), following the same convention as the quantizing `cvt` converters (adc, f32\_to\_uq15, ...). It is free: the four boundary comparisons run on every sample regardless, so recording that one fired costs a register OR. There is no reason to run a CIC without checking it at least once against real input.
 
 
 (Why the input is bounded at all: the pipeline is integer, so the CF32 boundary is quantized. That is an implementation detail — the input constraint above is the whole of what a caller needs. See `docs/design/QUANTIZATION.md` for the encoding and the headroom budget.)

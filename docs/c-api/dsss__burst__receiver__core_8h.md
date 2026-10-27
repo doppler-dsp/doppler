@@ -87,7 +87,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  void | [**dp\_dsss\_burst\_receiver\_destroy**](#function-dp_dsss_burst_receiver_destroy) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Destroy a dsss\_burst\_receiver instance and release all memory._  |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_events**](#function-dp_dsss_burst_receiver_events) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, size\_t n, [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_events\_max\_out**](#function-dp_dsss_burst_receiver_events_max_out) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Max records events() writes: one per burst the last push() returned._  |
-|  double | [**dp\_dsss\_burst\_receiver\_get\_cn0\_dbhz\_est**](#function-dp_dsss_burst_receiver_get_cn0_dbhz_est) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Acquisition's C/N0 lower bound for the most recent burst._  |
+|  double | [**dp\_dsss\_burst\_receiver\_get\_cn0\_dbhz\_est**](#function-dp_dsss_burst_receiver_get_cn0_dbhz_est) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Acquisition's C/N0 estimate for the most recent burst._  |
 |  double | [**dp\_dsss\_burst\_receiver\_get\_demod\_cn0\_dbhz**](#function-dp_dsss_burst_receiver_get_demod_cn0_dbhz) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_The demodulator's C/N0 for the most recent burst._  |
 |  double | [**dp\_dsss\_burst\_receiver\_get\_demod\_timing\_chips**](#function-dp_dsss_burst_receiver_get_demod_timing_chips) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Burst-start error the demodulator measured, most recent burst._  |
 |  double | [**dp\_dsss\_burst\_receiver\_get\_doppler\_hz\_est**](#function-dp_dsss_burst_receiver_get_doppler_hz_est) (const [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Signed coarse Doppler of the most recent burst, from acquisition._  |
@@ -523,7 +523,7 @@ The number of bursts the most recent push() completed.
 
 ### function dp\_dsss\_burst\_receiver\_get\_cn0\_dbhz\_est 
 
-_Acquisition's C/N0 lower bound for the most recent burst._ 
+_Acquisition's C/N0 estimate for the most recent burst._ 
 ```C++
 double dp_dsss_burst_receiver_get_cn0_dbhz_est (
     const dp_dsss_burst_receiver_state_t * state
@@ -532,7 +532,7 @@ double dp_dsss_burst_receiver_get_cn0_dbhz_est (
 
 
 
-A saturating lower bound from the detection hit, not a measurement on the decoded symbols; compare [**dp\_dsss\_burst\_receiver\_get\_demod\_cn0\_dbhz()**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_get_demod_cn0_dbhz).
+Backed out of the detection hit's statistic, so it saturates at the code's autocorrelation-sidelobe floor at high C/N0; not a measurement on the decoded symbols; compare [**dp\_dsss\_burst\_receiver\_get\_demod\_cn0\_dbhz()**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_get_demod_cn0_dbhz).
 
 
 

@@ -137,7 +137,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 | define  | [**MPSK\_RX\_M\_OUT\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_m_out_default)  `8`<br> |
 | define  | [**MPSK\_RX\_NUM\_PHASES**](mpsk__rx__loops_8h.md#define-mpsk_rx_num_phases)  `1024u`<br> |
 | define  | [**MPSK\_RX\_NUM\_PHASES\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_num_phases_default)  `64u`<br>_Matched-filter bank arms, derived: the measured saturation point._  |
-| define  | [**MPSK\_RX\_ZETA\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_zeta_default)  `0.70710678118654752`<br>_Loop damping, derived:_ `1/sqrt(2)` _, critically damped._ |
+| define  | [**MPSK\_RX\_ZETA\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_zeta_default)  `0.70710678118654752`<br>_Loop damping, derived:_ `1/sqrt(2)` _, underdamped (1.0 is critical)._ |
 
 ## Detailed Description
 
@@ -1113,7 +1113,7 @@ _Matched-filter bank arms, derived: the measured saturation point._
 
 ### define MPSK\_RX\_ZETA\_DEFAULT 
 
-_Loop damping, derived:_ `1/sqrt(2)` _, critically damped._
+_Loop damping, derived:_ `1/sqrt(2)` _, underdamped (1.0 is critical)._
 ```C++
 #define MPSK_RX_ZETA_DEFAULT `0.70710678118654752`
 ```

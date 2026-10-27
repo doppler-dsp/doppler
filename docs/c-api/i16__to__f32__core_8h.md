@@ -293,7 +293,7 @@ void dp_i16_to_f32_steps (
 
 
 
-Applies step() to every element. Accepts an optional pre-allocated output array; allocates a fresh one when `output` is NULL.
+Applies step() to every element. In C, `output` must be a caller-owned array of at least `n` elements (NULL is not accepted). From Python it is the optional `out=` array; the binding allocates a fresh one when omitted.
 
 
 

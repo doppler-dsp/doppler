@@ -459,7 +459,7 @@ Re-derives the 2nd-order loop filter's proportional and integral gains for a new
 
 * `state` DLL state. Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalised to the code-period rate. 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 
 
 
@@ -1132,7 +1132,7 @@ Unguarded, as the by-value path: the caller checks its arguments with [**dp\_dll
 * `sps` Samples per chip. 
 * `init_chip` Seed code phase, chips. 
 * `bn` Loop noise bandwidth, normalised to the code-period rate. 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 * `spacing` Early/late tap offset, chips (0.5 = half-chip). 
 
 
@@ -2068,7 +2068,7 @@ Clamp on the discriminator output \|e\| before it reaches the loop filter. The o
 
 
 
-Numerical guard added to the prompt power \|P\|^2 that divides the discriminator, so a zero prompt cannot divide by zero (not tunable). 
+Numerical guard added to the prompt power \|P\|^2 that divides the discriminator, so a zero prompt cannot divide by zero; also the floor on the noise EMA that divides the lock statistic (not tunable). 
 
 
         

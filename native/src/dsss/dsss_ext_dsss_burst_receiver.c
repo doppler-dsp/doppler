@@ -1161,7 +1161,7 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
   { "doppler_res_hz", (getter)DsssBurstReceiver_getprop_doppler_res_hz, NULL,
     "Width of the coarse Doppler estimate (acquisition's bin), Hz.\n", NULL },
   { "cn0_dbhz_est", (getter)DsssBurstReceiver_getprop_cn0_dbhz_est, NULL,
-    "Acquisition's C/N0 lower bound for the most recent burst.\n", NULL },
+    "Acquisition's C/N0 estimate for the most recent burst.\n", NULL },
   { "est_freq_hz", (getter)DsssBurstReceiver_getprop_est_freq_hz, NULL,
     "The demodulator's residual-frequency estimate, most recent burst.\n",
     NULL },
@@ -1541,13 +1541,13 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "Fields\n"
     "------\n"
     "preamble_start : int\n"
-    "    Exact stream position of the preamble.\n"
+    "    Refined stream position of the preamble.\n"
     "doppler_hz_est : float\n"
     "    Signed coarse Doppler, Hz.\n"
     "doppler_res_hz : float\n"
     "    Acquisition's native bin width, Hz.\n"
     "cn0_dbhz_est : float\n"
-    "    C/N0 lower bound from the hit, dB-Hz.\n"
+    "    C/N0 estimate from the hit, dB-Hz.\n"
     "est_freq_hz : float\n"
     "    Demod's residual-frequency estimate.\n"
     "est_rate_hz : float\n"

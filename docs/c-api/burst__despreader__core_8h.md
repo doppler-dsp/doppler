@@ -601,7 +601,7 @@ double dp_burst_despreader_get_snr_est (
 
 **Returns:**
 
-Linear (not dB) per-component SNR estimate over the payload prompts so far; 0.0 before the first payload prompt, after reset, or when the quadrature sum is zero. 
+Linear (not dB) per-component SNR estimate over the payload prompts so far; 0.0 before the first payload prompt, after reset, when the quadrature sum is zero, or when sum Re^2 &lt;= sum Im^2 (the clamp). 
 
 
 

@@ -856,7 +856,7 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "bn : float\n"
     "    Loop noise bandwidth, normalised to the symbol rate (>= 0).\n"
     "zeta : float\n"
-    "    Damping factor (0.707 = critically damped).\n"
+    "    Damping factor (1.0 = critical; 0.707 usual).\n"
     "\n"
     "Raises\n"
     "------\n"

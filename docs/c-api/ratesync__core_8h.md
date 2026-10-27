@@ -286,7 +286,7 @@ Only the PI coefficients change; the integrator, and therefore the tracked rate 
 
 * `state` Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalised to the symbol rate. 
-* `zeta` Damping factor (0.707 = critically damped).
+* `zeta` Damping factor (1.0 = critical; 0.707 usual).
 
 A (`bn`, `zeta`) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) is ignored silently: nothing changes and no status is returned. 
 ```C++
@@ -421,7 +421,7 @@ eye open", which even a badly mis-levelled loop eventually manages, so it declar
 * `m` Terminal outputs per symbol: even, `2 <= m <= RATESYNC_MAX_M`. Gardner needs the half-symbol gate, so m must be even and at least 2. The oversampled stream is a by-product, not an extra cost. **Use m &gt;= 4 with RATESYNC\_PULSE\_IANDD**: the rectangle is one symbol wide, so at m = 2 its matched filter is a two-tap sum and the eye barely opens. Measured on an NRZ stream, m = 2 does not clear the lock detector's own declare threshold while m = 4 clears it comfortably, and the EVM between them differs by tens of dB. The rule rests on that SEPARATION, not on any particular pair of `lock_stat` values — those move with `sps` and with the stream, and report §2.7 sweeps them. The RRC spans many symbols and is unaffected. 
 * `num_phases` Matched-filter arms; power of two (1024 is a good default). Sets the fractional-timing resolution to `1/num_phases` of an output period. 
 * `bn` Loop noise bandwidth, normalised to the symbol rate. 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 * `ted` RATESYNC\_TED\_GARDNER (blind) or RATESYNC\_TED\_DTTL (decision-directed; BPSK/QPSK only). 
 
 

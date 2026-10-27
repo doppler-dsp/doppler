@@ -122,7 +122,7 @@ float dp_f32_to_i16_state_t::scale;
 
 
 
-Multiply factor applied before rounding and saturation; set at create, never changed. 
+Multiply factor applied before rounding and saturation; set at create, replaced only by set\_state(). 
 
 
         

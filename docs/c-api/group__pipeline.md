@@ -326,7 +326,7 @@ DP_NODISCARD int dp_push_send_cf32 (
 **Parameters:**
 
 
-* `ctx` Publisher context. 
+* `ctx` The sending context the function's prefix names: a Publisher, Push, Request or Reply socket. 
 * `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
 * `num_samples` Number of complex samples. 
 * `sample_rate` Sample rate in Hz. 
@@ -368,7 +368,7 @@ DP_NODISCARD int dp_push_send_cf64 (
 **Parameters:**
 
 
-* `ctx` Publisher context. 
+* `ctx` The sending context the function's prefix names: a Publisher, Push, Request or Reply socket. 
 * `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
 * `num_samples` Number of complex samples. 
 * `sample_rate` Sample rate in Hz. 
@@ -410,7 +410,7 @@ DP_NODISCARD int dp_push_send_ci16 (
 **Parameters:**
 
 
-* `ctx` Publisher context. 
+* `ctx` The sending context the function's prefix names: a Publisher, Push, Request or Reply socket. 
 * `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
 * `num_samples` Number of complex samples. 
 * `sample_rate` Sample rate in Hz. 
@@ -452,7 +452,7 @@ DP_NODISCARD int dp_push_send_ci32 (
 **Parameters:**
 
 
-* `ctx` Publisher context. 
+* `ctx` The sending context the function's prefix names: a Publisher, Push, Request or Reply socket. 
 * `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
 * `num_samples` Number of complex samples. 
 * `sample_rate` Sample rate in Hz. 
@@ -494,7 +494,7 @@ DP_NODISCARD int dp_push_send_ci8 (
 **Parameters:**
 
 
-* `ctx` Publisher context. 
+* `ctx` The sending context the function's prefix names: a Publisher, Push, Request or Reply socket. 
 * `samples` The samples, in the type the function's suffix names: for ci8/ci16/ci32, interleaved integer I/Q pairs, 2×num\_samples elements; for cf32/cf64, num\_samples complex values. 
 * `num_samples` Number of complex samples. 
 * `sample_rate` Sample rate in Hz. 

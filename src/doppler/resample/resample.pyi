@@ -341,18 +341,19 @@ class HalfbandDecimator:
         """Decimate x by 2 using the polyphase halfband FIR filter. Each (even,
         odd) input pair yields one output: one phase runs through the symmetric
         FIR branch and the other through a pure delay weighted 0.5. State
-        persists between calls — an odd-length block holds its last sample for
-        the next call, so contiguous blocks give identical output to one large
-        block.
+        persists between calls: a sample left unpaired at the end of a block
+        (counting one held from the previous call) is held for the next, so
+        contiguous blocks give identical output to one large block.
 
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            CF32 input array. An odd length leaves its last sample held for the
+            CF32 input array. A sample left unpaired at the end is held for the
             next call.
         out : npt.NDArray[np.complex64] | None
-            Output buffer; must hold at least (x_len + 1) / 2 samples. Complete
-            input pairs left once it is full are discarded, not carried.
+            Output buffer; must hold at least (x_len + 1) / 2 samples. If it
+            fills first, the first unconsumed sample is held and every sample
+            after it is dropped (doppler#2643).
 
         Returns
         -------
@@ -387,8 +388,8 @@ class HalfbandDecimator:
         """Zero all delay lines. Coefficients and num_taps preserved. Call
         between signal bursts to suppress transient ringing from prior filter
         state. The next execute() after reset produces the same output as a
-        freshly created decimator fed the same input. Any trailing sample held
-        from an odd-length block is dropped too.
+        freshly created decimator fed the same input. Any sample held for the
+        next call is dropped too.
 
         Examples
         --------

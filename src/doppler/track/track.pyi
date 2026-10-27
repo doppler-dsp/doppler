@@ -414,7 +414,10 @@ class Costas:
         """Output capacity hint for dp_costas_steps(): always 0.
 
         The output is one prompt per tsamps inputs, so it never exceeds the
-        input length; size out to the input length (or input / tsamps).
+        input length; size out to the input length. A partial symbol carries
+        across calls, so a block of `n` samples emits `(acc_n + n) / tsamps`
+        prompts (integer division), up to one more than `n / tsamps`; a prompt
+        past max_out still steers the loop but is dropped.
 
         Returns
         -------
@@ -493,7 +496,7 @@ class Costas:
         bn : float
             Loop noise bandwidth, normalised to the symbol rate.
         zeta : float
-            Damping factor (0.707 = critically damped).
+            Damping factor (1.0 = critical; 0.707 usual).
 
         Raises
         ------
@@ -974,7 +977,7 @@ class Dll:
         bn : float
             Loop noise bandwidth, normalised to the code-period rate.
         zeta : float
-            Damping factor (0.707 = critically damped).
+            Damping factor (1.0 = critical; 0.707 usual).
 
         Raises
         ------
@@ -1791,7 +1794,7 @@ class SymbolSync:
         bn : float
             Loop noise bandwidth, normalised to the symbol rate (>= 0).
         zeta : float
-            Damping factor (0.707 = critically damped).
+            Damping factor (1.0 = critical; 0.707 usual).
 
         Raises
         ------
@@ -2143,7 +2146,7 @@ class RateSync:
     bn : float, default 0.01
         Loop noise bandwidth, normalised to the symbol rate.
     zeta : float, default 0.707
-        Damping factor (0.707 = critically damped).
+        Damping factor (1.0 = critical; 0.707 usual).
     ted : Literal["gardner", "dttl"], default "gardner"
         Timing-error detector: "gardner" (blind, works for any constellation)
         or "dttl" (decision-directed sign-sign Data Transition Tracking Loop;
@@ -2313,7 +2316,7 @@ class RateSync:
         bn : float
             Loop noise bandwidth, normalised to the symbol rate.
         zeta : float
-            Damping factor (0.707 = critically damped). A (bn, zeta) outside
+            Damping factor (1.0 = critical; 0.707 usual). A (bn, zeta) outside
             dp_loop_filter_params_ok() is ignored silently: nothing changes and
             no status is returned.
 
@@ -2722,7 +2725,7 @@ class CarrierMpsk:
         bn : float
             Loop noise bandwidth, normalised to the symbol rate.
         zeta : float
-            Damping factor (0.707 = critically damped).
+            Damping factor (1.0 = critical; 0.707 usual).
 
         Raises
         ------

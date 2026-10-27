@@ -448,7 +448,14 @@ Latched against the context's monotonic counter at open, so it reports this capt
 
 **Returns:**
 
-Records dropped between open and close. Computed at close, so it reads 0 while the capture is still open. 
+Records dropped between open and close. Computed at close, so it reads 0 while the capture is still open.
+
+
+
+
+**Warning:**
+
+Not yet trustworthy (doppler#2649): the context's drop counter restarts when its ring is resized, and a capture can resize it mid-capture when a probe registers late. Drops before open then make this wrap to about 2^64 (and close() fail falsely), and drops before the resize are lost, so a capture with a hole can read 0. 
 
 
 
@@ -699,7 +706,10 @@ const dp_tlm_rec_t * dp_tlm_capture_records (
 
 
 
-Memory mode only (`path` was NULL) — in file mode the file _is_ the capture and this returns NULL. Owned by the capture and invalidated by [**dp\_tlm\_capture\_destroy()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_destroy); NULL when nothing was captured, so use [**dp\_tlm\_capture\_count()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_count) to tell empty from absent.
+Memory mode only (`path` was NULL) — in file mode the file _is_ the capture and this returns NULL. Owned by the capture and invalidated by [**dp\_tlm\_capture\_destroy()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_destroy), and while the capture is open also by any boundary that appends (the store can be reallocated). NULL when nothing has been accumulated yet.
+
+
+While open, drained records sit in a staging buffer until it is handed on, so this view can hold fewer than [**dp\_tlm\_capture\_count()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_count) records; the two agree once [**dp\_tlm\_capture\_close()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_close) has flushed the last stage. Size the view with [**dp\_tlm\_capture\_read\_max\_out()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_read_max_out), not with count().
 
 
 The Python face binds the COPYING twin, [**dp\_tlm\_capture\_read()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_read), because a borrowed pointer the capture can free is not something a binding may hand out. This example is duplicated there deliberately: jm derives a method's docstring from the `<component>_<method>` symbol while `fn` chooses the one it calls, so the two must carry the same text or the .pyi and the runtime `__doc__` disagree (checked by scripts/check\_doc\_face\_parity.py).
@@ -716,7 +726,7 @@ The Python face binds the COPYING twin, [**dp\_tlm\_capture\_read()**](dp__tlm__
 
 **Returns:**
 
-Borrowed pointer to [**dp\_tlm\_capture\_count()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_count) records, or NULL in file mode or when nothing has been accumulated.
+Borrowed pointer to [**dp\_tlm\_capture\_read\_max\_out()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_read_max_out) records ([**dp\_tlm\_capture\_count()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_count) of them after close), or NULL in file mode or when nothing has been accumulated.
 
 
 

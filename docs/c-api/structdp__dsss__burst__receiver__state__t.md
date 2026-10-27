@@ -219,7 +219,7 @@ double dp_dsss_burst_receiver_state_t::cn0_dbhz_est;
 
 
 
-C/N0 lower bound, dB-Hz (saturating). 
+C/N0 estimate, dB-Hz (saturating). 
  
 
 
@@ -309,7 +309,7 @@ double dp_dsss_burst_receiver_state_t::demod_cn0_dbhz;
 
 
 
-Demod's own C/N0, dB-Hz, referred to the CHANNEL and corrected for the sub-chip start error `demod_timing_chips` reports. Named for its STAGE rather than `est_`-prefixed like its siblings, because `cn0_dbhz_est` above is acquisition's and two fields differing only by word order is a reader's trap. The two are not the same measurement: acquisition's is a saturating lower bound from the hit, this one is measured on the decoded symbols. Replaces `est_snr_db`, which was never an SNR (doppler#1304). 
+Demod's own C/N0, dB-Hz, referred to the CHANNEL and corrected for the sub-chip start error `demod_timing_chips` reports. Named for its STAGE rather than `est_`-prefixed like its siblings, because `cn0_dbhz_est` above is acquisition's and two fields differing only by word order is a reader's trap. The two are not the same measurement: acquisition's is backed out of the hit and saturates, this one is measured on the decoded symbols. Replaces `est_snr_db`, which was never an SNR (doppler#1304). 
  
 
 
@@ -596,7 +596,8 @@ uint64_t dp_dsss_burst_receiver_state_t::preamble_start;
 
 
 
-Stream-absolute preamble start. Never late. 
+Stream-absolute preamble start. 
+ 
 
 
         

@@ -125,7 +125,7 @@ uint8_t dp_cic_state_t::clipped;
 
 
 
-Sticky: 1 once an input component exceeded +-2.0 (CIC\_PAPR\_HEADROOM); cleared only by reset/reconfigure. 
+Sticky: 1 once an input component exceeded +-2.0 (CIC\_PAPR\_HEADROOM); cleared by reset/reconfigure, and overwritten by set\_state(). 
 
 
         

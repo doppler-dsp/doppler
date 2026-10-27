@@ -231,7 +231,7 @@ int hbdecim_state_t::has_pending;
 
 
 
-1 when the trailing even sample of an odd-length block is held for the next execute call, else 0 (running state) 
+1 when an unpaired sample is held for the next execute call, else 0 (running state) 
 
 
         

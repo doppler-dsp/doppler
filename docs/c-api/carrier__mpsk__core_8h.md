@@ -247,7 +247,7 @@ Re-derives the proportional/integral gains of the embedded 2nd-order loop filter
 
 * `state` Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalised to the symbol rate. 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 ```C++
 >>> from doppler.track import CarrierMpsk
 >>> c = CarrierMpsk(bn=0.02, zeta=0.707, init_norm_freq=0.01,
@@ -622,7 +622,7 @@ Seeds the NCO at `init_norm_freq` and the loop integrator to the matching per-sy
 
 * `s` State to initialise. Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalised to the symbol rate. 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 * `init_norm_freq` Seed carrier frequency, cycles/sample. 
 * `tsamps` Samples per symbol (the integrate-and-dump period); 0 is taken as 1. 
 * `bn_fll` FLL-assist bandwidth (0 = pure PLL). 

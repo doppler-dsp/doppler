@@ -122,7 +122,7 @@ float dp_f32_to_uq15_state_t::scale;
 
 
 
-Multiply factor applied before rounding and saturation (config, fixed at create; &gt; 0). 
+Multiply factor applied before rounding and saturation (config, &gt; 0); set by create and replaced only by set\_state(). 
 
 
         

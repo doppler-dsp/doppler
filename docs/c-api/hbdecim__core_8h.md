@@ -261,10 +261,10 @@ size_t dp_hbdecim_execute (
 
 
 
-Processes input pairs (even, odd); one output per pair. If num\_in is odd, the trailing even sample is buffered and consumed on the next call.
+Processes input pairs (even, odd); one output per pair, counting a sample held from the previous call as the first of the block. A sample left unpaired at the end is buffered and consumed on the next call.
 
 
-Output-buffer sizing: allocate at least (num\_in + 1) / 2 samples. Emission stops once `max_out` samples are written; complete input pairs left over at that point are discarded (only one trailing sample is carried), so size `out` for the whole block. If num\_in or max\_out is 0 the call returns 0 and consumes nothing.
+Output-buffer sizing: allocate at least (num\_in + 1) / 2 samples. Emission stops once `max_out` samples are written. The first unconsumed sample is then held as pending and every sample after it is dropped (doppler#2643), so size `out` for the whole block. If num\_in or max\_out is 0 the call returns 0 and consumes nothing.
 
 
 

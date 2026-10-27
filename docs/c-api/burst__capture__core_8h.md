@@ -97,7 +97,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  double | [**dp\_burst\_capture\_get\_pd\_burst**](#function-dp_burst_capture_get_pd_burst) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Detection probability of one burst: any dwell its preamble spans, at a uniform alignment (doppler#1498). What_ `underpowered` _reads._ |
 |  double | [**dp\_burst\_capture\_get\_pd\_predicted**](#function-dp_burst_capture_get_pd_predicted) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Detection probability of one dwell wholly inside the preamble._  |
 |  size\_t | [**dp\_burst\_capture\_get\_pending**](#function-dp_burst_capture_get_pending) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Detections held because their burst window has not fully arrived._  |
-|  uint64\_t | [**dp\_burst\_capture\_get\_preamble\_start**](#function-dp_burst_capture_get_preamble_start) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Stream-absolute sample index the most recent window's preamble starts at. Never late: refine is early-or-exact._  |
+|  uint64\_t | [**dp\_burst\_capture\_get\_preamble\_start**](#function-dp_burst_capture_get_preamble_start) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Stream-absolute sample index the most recent window's preamble starts at._  |
 |  double | [**dp\_burst\_capture\_get\_psl\_db**](#function-dp_burst_capture_get_psl_db) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB:_ [_**dp\_acq\_psl\_db()**_](acq__core_8h.md#function-dp_acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._ |
 |  size\_t | [**dp\_burst\_capture\_get\_rate\_hypotheses**](#function-dp_burst_capture_get_rate_hypotheses) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Doppler-rate hypotheses searched; 1 is none_  __`doppler_rate` _then only caps the coherent depth._ |
 |  void | [**dp\_burst\_capture\_get\_state**](#function-dp_burst_capture_get_state) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, void \* blob) <br>_Serialize into_ `blob` _, which must be state\_bytes() long._ |
@@ -480,14 +480,14 @@ BEFORE the claim rule and the suppression window: several rows can name one prea
 
 * `state` Capture. Must be non-NULL. 
 * `n` Ignored (the binding's request size). 
-* `out` Destination rows; may be NULL to copy nothing. 
+* `out` Destination rows; may be NULL to copy nothing (the count is still returned). 
 * `max_out` Capacity of `out`, in rows. 
 
 
 
 **Returns:**
 
-Rows copied: min(detections held, `max_out`).
+min(detections held, `max_out`): the rows copied, or with a NULL `out` the rows that would have been.
 
 
 
@@ -607,14 +607,14 @@ Row `i` describes the window at `i*burst_len`. Valid until the next push(), rese
 
 * `state` Capture. Must be non-NULL. 
 * `n` Ignored (the binding's request size). 
-* `out` Destination rows; may be NULL to copy nothing. 
+* `out` Destination rows; may be NULL to copy nothing (the count is still returned). 
 * `max_out` Capacity of `out`, in rows. 
 
 
 
 **Returns:**
 
-Rows copied: min(windows of the last push, `max_out`).
+min(windows of the last push, `max_out`): the rows copied, or with a NULL `out` the rows that would have been.
 
 
 
@@ -684,7 +684,7 @@ double dp_burst_capture_get_cn0_dbhz_est (
 
 
 
-Backed out of the hit's test statistic, so it is a lower bound that saturates at the code's autocorrelation-sidelobe floor at high C/N0.
+Backed out of the hit's test statistic. It tracks the true C/N0 while receiver noise dominates the CFAR noise estimate, and saturates at the code's autocorrelation-sidelobe floor once the true C/N0 is higher.
 
 
 
@@ -894,7 +894,7 @@ double dp_burst_capture_get_doppler_res_hz (
 
 
 
-Read from the engine, so it is valid from create on, before any burst; [**dp\_burst\_capture\_get\_doppler\_hz\_est()**](burst__capture__core_8h.md#function-dp_burst_capture_get_doppler_hz_est) is that value +/- half of this.
+Read from the engine, so it is valid from create on, before any burst. [**dp\_burst\_capture\_get\_doppler\_hz\_est()**](burst__capture__core_8h.md#function-dp_burst_capture_get_doppler_hz_est) is the center of a bin this wide, so it places the true Doppler only to within half this width either side.
 
 
 
@@ -1271,13 +1271,16 @@ Queued, unshadowed detections.
 
 ### function dp\_burst\_capture\_get\_preamble\_start 
 
-_Stream-absolute sample index the most recent window's preamble starts at. Never late: refine is early-or-exact._ 
+_Stream-absolute sample index the most recent window's preamble starts at._ 
 ```C++
 uint64_t dp_burst_capture_get_preamble_start (
     const dp_burst_capture_state_t * state
 ) 
 ```
 
+
+
+Never late is refine's design goal, not a guarantee: refine takes the strongest whole-period position over a range reaching both sides of the anchor, so at low C/N0 it can pick a wrong repetition, early or late.
 
 
 

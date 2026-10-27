@@ -126,7 +126,7 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
             ((float)(uint16_t)(im >> shift) - 32768.0f)
                 * (CIC_PAPR_HEADROOM / 32768.0f));
     }
-    state->clipped |= (uint8_t)clip;   /* sticky; cleared only by reset() */
+    state->clipped |= (uint8_t)clip;   /* sticky; cleared by reset() */
     return n_out;
 }
 

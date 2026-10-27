@@ -4287,7 +4287,7 @@ class DsssBurstReceiver:
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """Acquisition's C/N0 lower bound for the most recent burst."""
+        """Acquisition's C/N0 estimate for the most recent burst."""
 
     @property
     def est_freq_hz(self) -> float:

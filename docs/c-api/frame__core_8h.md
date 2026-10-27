@@ -802,7 +802,7 @@ Three fields as bits, each optional, and the CRC. An omitted field is absent, wh
 * `sync_len` Its length in bits. 
 * `payload` Payload bits; may be empty. 
 * `payload_len` Its length in bits. 
-* `crc` Enum index; 0=none, 1=crc16 over the payload. 
+* `crc` Enum index; 0=none, 1=crc16 over the payload. From C, any non-zero value selects crc16. 
 
 
 
@@ -884,7 +884,7 @@ Read either one through [**dp\_frame\_field\_index**](frame__core_8h.md#function
 * `sync_len` Its length in bits. 
 * `payload` Payload bits; may be empty. 
 * `payload_len` Its length in bits. 
-* `crc` Enum index; 0=none, 1=crc16 over the payload. Ignored when all three fields are empty. 
+* `crc` Enum index; 0=none, 1=crc16 over the payload. From C, any non-zero value selects crc16. Ignored when all three fields are empty. 
 
 
 

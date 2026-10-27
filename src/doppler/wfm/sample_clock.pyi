@@ -20,7 +20,7 @@ class SampleClock:
     def pace(self, count: int) -> float:
         """Advance by count samples and sleep until that block's deadline
         (``epoch + n/fs``). Returns the slack in seconds measured before
-        sleeping: ``>= 0`` means early (and it slept that long); ``< 0`` means
+        sleeping: ``> 0`` means early (and it slept that long); ``<= 0`` means
         it arrived late — an underrun, which is counted (and the epoch
         re-anchored when ``resync`` is set), with no sleep.
 

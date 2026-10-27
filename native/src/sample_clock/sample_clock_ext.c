@@ -569,7 +569,7 @@ static PyMethodDef SampleClock_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "Advance by count samples and sleep until that block's deadline\n"
     "(``epoch + n/fs``). Returns the slack in seconds measured before\n"
-    "sleeping: ``>= 0`` means early (and it slept that long); ``< 0`` means\n"
+    "sleeping: ``> 0`` means early (and it slept that long); ``<= 0`` means\n"
     "it arrived late — an underrun, which is counted (and the epoch\n"
     "re-anchored when ``resync`` is set), with no sleep.\n"
     "\n"

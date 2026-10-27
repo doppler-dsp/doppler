@@ -225,9 +225,21 @@ resamp_create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
 /* Public lifecycle                                                    */
 /* ------------------------------------------------------------------ */
 
+int
+dp_resamp_rate_ok (double rate)
+{
+  /* A NaN fails the comparison; 0 and a negative rate have no resampling
+     meaning (0 emits zeros, a negative rate a negated copy), and an infinite
+     one makes the phase step meaningless. */
+  return rate > 0.0 && isfinite (rate);
+}
+
 resamp_state_t *
 dp_resamp_create (double rate)
 {
+  if (!dp_resamp_rate_ok (rate))
+    return NULL;
+
   static const size_t NUM_PHASES = 4096;
   static const double ATTEN      = 60.0;
   static const double PB         = 0.4;
@@ -244,7 +256,11 @@ resamp_state_t *
 dp_resamp_create_custom (size_t num_phases, size_t num_taps, const float *bank,
                          double rate)
 {
-  if (!num_phases || !num_taps || !bank || rate <= 0.0)
+  /* get_branch() selects the arm from the top log2(num_phases) bits of the
+     phase word, rounded UP, so a non-power-of-two count would address arms
+     past the end of the bank: 48 phases reach arm 63 (doppler#2640). */
+  if (!num_phases || (num_phases & (num_phases - 1u)) != 0u || !num_taps
+      || !bank || !dp_resamp_rate_ok (rate))
     return NULL;
 
   size_t len = num_phases * num_taps;
@@ -357,12 +373,23 @@ dp_resamp_get_rate (const resamp_state_t *s)
   return s->rate;
 }
 
-void
+int
 dp_resamp_set_rate (resamp_state_t *s, double rate)
 {
+  if (!dp_resamp_rate_ok (rate))
+    return DP_ERR_INVALID;
+  int upsample = (rate >= 1.0);
+  /* Crossing 1 hands execute() to the other path, whose running state was
+     never advanced (the interpolator's delay line and the decimator's
+     integrate-and-dump registers are filled by different loops) and whose
+     phase word meant a different step.  Start it as a fresh create would,
+     rather than from that stale state (doppler#2640). */
+  if (upsample != s->upsample)
+    dp_resamp_reset (s);
   s->rate      = rate;
-  s->upsample  = (rate >= 1.0);
+  s->upsample  = upsample;
   s->phase_inc = resamp_step_inc (rate, s->upsample);
+  return DP_OK;
 }
 
 size_t

@@ -1,5 +1,6 @@
 """Tests for the C-backed doppler.resample.RateConverter class."""
 
+import contextlib
 import math
 
 import numpy as np
@@ -33,6 +34,30 @@ def test_invalid_rate_raises():
         RateConverter(0.0)
     with pytest.raises((ValueError, MemoryError)):
         RateConverter(-1.0)
+    with pytest.raises(ValueError):
+        RateConverter(float("nan"))
+
+
+@pytest.mark.parametrize("bad", [0.0, -2.0, float("nan"), float("inf")])
+def test_refused_rate_set_leaves_the_converter_unchanged(bad):
+    """A refused ``rate`` leaves the stream untouched (#2640).
+
+    NaN used to reach the planner and build a cascade at an undefined rate,
+    and a failed rebuild left a zero-stage converter that returned nothing
+    forever. The C setter now refuses and changes nothing; the binding does
+    not raise yet (the property declares no ``error``: a jm view gap, see
+    objects/RateConverter.toml), so the assignment may raise or be ignored,
+    and either way the converter must be as it was.
+    """
+    x = (np.exp(2j * np.pi * 0.01 * np.arange(512))).astype(np.complex64)
+    a, b = RateConverter(0.3, compensate=1), RateConverter(0.3, compensate=1)
+    a.execute(x)
+    b.execute(x)
+    stages = a.stages
+    with contextlib.suppress(ValueError):
+        a.rate = bad
+    assert a.rate == 0.3 and a.stages == stages
+    np.testing.assert_array_equal(a.execute(x), b.execute(x))
 
 
 def test_destroy():

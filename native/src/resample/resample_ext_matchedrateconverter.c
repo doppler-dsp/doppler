@@ -851,7 +851,8 @@ static PyGetSetDef MatchedRateConverter_getset[] = {
     "Get / set the output-to-input sample rate ratio. The setter rebuilds the "
     "entire cascade (new stage selection, new sub-objects) and resets all "
     "filter memories — equivalent to destroying and recreating with the new "
-    "rate. Setting rate <= 0 is silently ignored.\n",
+    "rate. A rate that is not finite and > 0 is refused and leaves the "
+    "converter as it was.\n",
     NULL },
   { "clipped", (getter)MatchedRateConverter_getprop_clipped, NULL,
     "True if any planned CIC stage has clipped its input since the last "
@@ -1209,11 +1210,10 @@ static PyTypeObject MatchedRateConverterObjType = {
     "Parameters\n"
     "----------\n"
     "rate : float, default 1.0\n"
-    "    Output-to-input sample rate ratio (any positive float). "
-    "Rate-agnostic:\n"
-    "    this object never learns about symbols — a caller wanting `m` "
-    "samples\n"
-    "    per symbol asks for `rate = m/sps`.\n"
+    "    Output-to-input sample rate ratio (finite and > 0,\n"
+    "    dp_resamp_rate_ok()). Rate-agnostic: this object never learns about\n"
+    "    symbols — a caller wanting `m` samples per symbol asks for `rate =\n"
+    "    m/sps`.\n"
     "compensate : int, default 1\n"
     "    Non-zero to correct CIC passband droop (folded into the bank here, "
     "not\n"

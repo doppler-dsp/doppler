@@ -132,27 +132,44 @@ extern "C"
    * @brief Create a resampler with the built-in 4096x19 Kaiser bank
    *        (60 dB, 0.4/0.6 pass/stop).
    * @param rate  Output/input rate ratio; > 1 interpolates, < 1
-   *              decimates.  Should be > 0; unlike
-   *              dp_resamp_create_custom(), this constructor does not
-   *              check it.
-   * @return Heap-allocated state, or NULL if allocation fails.  Free with
+   *              decimates.  Must satisfy dp_resamp_rate_ok().
+   * @return Heap-allocated state, or NULL if @p rate is outside
+   *         dp_resamp_rate_ok() or allocation fails.  Free with
    *         dp_resamp_destroy().
    */
   resamp_state_t *dp_resamp_create (double rate);
 
   /**
    * @brief Create a resampler over a user-supplied polyphase bank.
-   * @param num_phases  Arms in the bank; must be a power of two (not
-   *                    checked).
+   * @param num_phases  Arms in the bank; a power of two (1 included).
+   *                    The arm is the top log2(num_phases) bits of the
+   *                    phase word, so any other count would address arms
+   *                    past the end of the bank; it is refused.
    * @param num_taps    Taps per arm.
    * @param bank        num_phases x num_taps floats, row-major (one row
    *                    per arm); copied, so the caller keeps ownership.
-   * @param rate        Output/input rate ratio, > 0.
-   * @return Heap-allocated state, or NULL if @p num_phases or @p num_taps
-   *         is 0, @p bank is NULL, @p rate <= 0, or allocation fails.
+   * @param rate        Output/input rate ratio; must satisfy
+   *                    dp_resamp_rate_ok().
+   * @return Heap-allocated state, or NULL if @p num_phases is 0 or not a
+   *         power of two, @p num_taps is 0, @p bank is NULL, @p rate is
+   *         outside dp_resamp_rate_ok(), or allocation fails.
    */
   resamp_state_t *dp_resamp_create_custom (size_t num_phases, size_t num_taps,
                                         const float *bank, double rate);
+
+  /**
+   * @brief The rate domain: finite and > 0.
+   *
+   * The one predicate. dp_resamp_create() and dp_resamp_create_custom()
+   * return NULL outside it and dp_resamp_set_rate() refuses such a value; the
+   * RateConverter cascade checks its own rate with it too. A NaN fails the
+   * comparison, so it is outside; 0 would emit zeros and a negative rate a
+   * negated copy, which is why neither is accepted.
+   *
+   * @param rate  Output/input rate ratio.
+   * @return 1 inside the domain, 0 outside it.
+   */
+  int dp_resamp_rate_ok (double rate);
 
   /**
    * @brief Free the state, its bank and its delay lines.
@@ -410,14 +427,21 @@ extern "C"
    */
   double dp_resamp_get_rate (const resamp_state_t *state);
 
-  /** @brief Update rate and recompute phase_inc.  Accumulator phase and
-   *  delay line are preserved.  Switching between interp and decim modes
-   *  requires a new create() + destroy() pair: the call does flip the
-   *  dp_resamp_execute() path when @p rate crosses 1, but the newly
-   *  selected path's state is not primed.  The rate is not validated.
+  /** @brief Update rate and recompute phase_inc.
+   *
+   *  On the same side of 1 (both interpolating, or both decimating) the
+   *  accumulator phase and every delay line are preserved, so the stream
+   *  continues at the new rate.  A change that CROSSES 1 hands
+   *  dp_resamp_execute() to the other path, whose running state the old
+   *  path never advanced; the call therefore resets the state as
+   *  dp_resamp_reset() does, and the output from there on is exactly what a
+   *  fresh dp_resamp_create() at the new rate would emit.  A rate outside
+   *  dp_resamp_rate_ok() is refused and nothing changes.
    *  @param state  Must be non-NULL.
-   *  @param rate   New output/input rate ratio, > 0. */
-  void dp_resamp_set_rate (resamp_state_t *state, double rate);
+   *  @param rate   New output/input rate ratio.
+   *  @return DP_OK, or DP_ERR_INVALID if @p rate is outside
+   *          dp_resamp_rate_ok() (the state is then unchanged). */
+  int dp_resamp_set_rate (resamp_state_t *state, double rate);
 
   /**
    * @brief Polyphase arms in the bank.

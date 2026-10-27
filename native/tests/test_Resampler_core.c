@@ -10,10 +10,19 @@
 int
 main (void)
 {
-  dp_Resampler_state_t *obj = dp_Resampler_create (0.0);
+  /* A rate outside dp_resamp_rate_ok() is refused (doppler#2640): rate 0
+     used to build an all-zero resampler, and 0.0 was this test's rate. */
+  DP_CHECK (dp_Resampler_create (0.0) == NULL);
+  DP_CHECK (dp_Resampler_create (NAN) == NULL);
+
+  dp_Resampler_state_t *obj = dp_Resampler_create (1.0);
   DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
+  DP_CHECK (dp_Resampler_set_rate (obj, -1.0) == DP_ERR_INVALID);
+  DP_CHECK (dp_Resampler_get_rate (obj) == 1.0);
+  DP_CHECK (dp_Resampler_set_rate (obj, 0.5) == DP_OK);
+  DP_CHECK (dp_Resampler_get_rate (obj) == 0.5);
 
   /* no step() generated (--no-step) */
 

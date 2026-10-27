@@ -14,14 +14,21 @@ class Resampler:
 
     Parameters
     ----------
-    rate : float, default 0.0
-        Output-to-input sample rate ratio (any positive float). Values >= 1.0
-        interpolate; values < 1.0 decimate. Not validated here: a rate <= 0 is
-        not refused.
+    rate : float, default 1.0
+        Output-to-input sample rate ratio: finite and > 0
+        (dp_resamp_rate_ok()). Values >= 1.0 interpolate; values < 1.0
+        decimate. From Python it defaults to 1.0.
     bank : NDArray[np.float32] or None
         Optional polyphase bank: a 2-D float32 array of shape (num_phases,
         num_taps), num_phases a power of two. Omit for the built-in 4096x19
         Kaiser bank.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Resampler: invalid
+        parameter (need rate finite and > 0; a bank of num_phases a power of
+        two, num_taps >= 1)``.
 
     Examples
     --------
@@ -37,7 +44,7 @@ class Resampler:
 
     def __init__(
         self,
-        rate: float = 0.0,
+        rate: float = 1.0,
         bank: npt.NDArray[np.float32] | None = None,
     ) -> None: ...
     def execute(
@@ -224,13 +231,21 @@ class Resampler:
     @property
     def rate(self) -> float:
         """Get / set the output-to-input sample rate ratio. The setter
-        recomputes the phase increment immediately; the delay line and phase
-        accumulator are preserved so in-stream rate changes are glitch-free.
-        Crossing 1.0 also switches the engine between its interpolation and
-        decimation modes (the doctest below goes 0.5 -> 1.5). Each mode keeps
-        its own filter memory, so the first outputs after a crossing are built
-        from that mode's last (or still-zero) history: a transient, not an
-        error.
+        recomputes the phase increment immediately. On the same side of 1.0 the
+        delay line and phase accumulator are preserved, so in-stream rate
+        changes are glitch-free. Crossing 1.0 switches the engine between its
+        interpolation and decimation modes (the doctest below goes 0.5 -> 1.5);
+        the mode taking over was never advanced, so the crossing resets the
+        state as reset() does, and the output from there on is what a fresh
+        Resampler at the new rate gives. A rate that is not finite and > 0
+        raises ValueError and leaves the rate as it was.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_Resampler_set_rate`` refuses the value by
+            returning non-zero. The exception message is ``Resampler: rate must
+            be finite and > 0``, with the return code appended.
         """
     @rate.setter
     def rate(self, value: float) -> None: ...
@@ -794,7 +809,8 @@ class RateConverter:
     Parameters
     ----------
     rate : float, default 1.0
-        Output-to-input sample rate ratio. Any positive float.
+        Output-to-input sample rate ratio: finite and > 0
+        (dp_resamp_rate_ok()).
     compensate : int, default 0
         Non-zero to append a CIC passband-droop compensating FIR after any CIC
         stage.
@@ -1072,7 +1088,8 @@ class RateConverter:
         """Get / set the output-to-input sample rate ratio. The setter rebuilds
         the entire cascade (new stage selection, new sub-objects) and resets
         all filter memories — equivalent to destroying and recreating with the
-        new rate. Setting rate <= 0 is silently ignored.
+        new rate. A rate that is not finite and > 0 is refused and leaves the
+        converter as it was.
         """
     @rate.setter
     def rate(self, value: float) -> None: ...
@@ -1169,9 +1186,10 @@ class MatchedRateConverter:
     Parameters
     ----------
     rate : float, default 1.0
-        Output-to-input sample rate ratio (any positive float). Rate-agnostic:
-        this object never learns about symbols — a caller wanting `m` samples
-        per symbol asks for `rate = m/sps`.
+        Output-to-input sample rate ratio (finite and > 0,
+        dp_resamp_rate_ok()). Rate-agnostic: this object never learns about
+        symbols — a caller wanting `m` samples per symbol asks for `rate =
+        m/sps`.
     compensate : int, default 1
         Non-zero to correct CIC passband droop (folded into the bank here, not
         appended as a stage).
@@ -1484,7 +1502,8 @@ class MatchedRateConverter:
         """Get / set the output-to-input sample rate ratio. The setter rebuilds
         the entire cascade (new stage selection, new sub-objects) and resets
         all filter memories — equivalent to destroying and recreating with the
-        new rate. Setting rate <= 0 is silently ignored.
+        new rate. A rate that is not finite and > 0 is refused and leaves the
+        converter as it was.
         """
     @rate.setter
     def rate(self, value: float) -> None: ...

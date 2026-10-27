@@ -862,7 +862,7 @@ def review(sw: Blocks, bsw: Blocks) -> None:
             "lock came up and symbol lock never did. "
         )
         + "`reacquire` recovers a missed hand-off by searching again; the "
-        "The specification example locks every draw that way. The hand-off "
+        "specification example locks every draw that way. The hand-off "
         "accuracy is "
         "#2409.",
     )

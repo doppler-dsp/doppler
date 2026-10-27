@@ -269,8 +269,9 @@ _test_acquire_and_decode (void)
  * sequence gets wired into dsss_receiver_core.c's own internals (task #95).
  * Mirrors this session's own Python validation methodology (a ramp, not a
  * static offset; bn_fll=0 vs bn_fll>0 to prove the mechanism is NEEDED, not
- * just present) at the SPEC-derived bn_carrier=0.01/bn_fll=0.03 operating
- * point, using the real segments=4 Dll DsssReceiver already relies on. */
+ * just present) at the specification-derived bn_carrier=0.01/bn_fll=0.03
+ * operating point, using the real segments=4 Dll DsssReceiver already relies
+ * on. */
 static double
 _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
                        double rate_hz_per_s, size_t n_periods, double sigma,
@@ -327,8 +328,8 @@ _test_carrier_dll_composition_ramp (void)
 {
   /* sf=7 (CODE7) makes the per-period rate absurdly fast (~143 kHz),
    * trivially tracking a 500 Hz/s ramp with a bare PLL -- not
-   * representative of SPEC's real geometry. Use a PRBS-1023 code + spc=2
-   * to reproduce the same tsamps=2046/fs=4.092e6 operating point this
+   * representative of the specification's real geometry. Use a PRBS-1023 code
+   * + spc=2 to reproduce the same tsamps=2046/fs=4.092e6 operating point this
    * session's real_costas_fll_3_10db.png investigation already validated
    * the standalone Costas object against. */
   const size_t sf            = 1023;
@@ -355,8 +356,8 @@ _test_carrier_dll_composition_ramp (void)
    * this ramp anywhere near as well as bn_fll=0.03 -- proves this isn't
    * passing by accident (e.g. a ramp too gentle to matter). */
   DP_CHECK (err_on < err_off);
-  /* And it must actually WORK: bounded absolute error at SPEC's own
-   * worst-case rate, generous vs. the Python-validated ~63 Hz mean (this
+  /* And it must actually WORK: bounded absolute error at the specification's
+   * own worst-case rate, generous vs. the Python-validated ~63 Hz mean (this
    * is a single-seed C smoke test, not a calibrated statistical sweep --
    * that's what task #97's integration test is for). */
   DP_CHECK (err_on < 300.0);
@@ -438,9 +439,10 @@ _test_sustained_doppler_rate (void)
 
   DP_CHECK (dp_dsss_receiver_get_tracking (rx4) == 1);
   /* A receiver that lost lock partway through (the ~117 Hz/s bare-PLL
-   * cliff this session's own investigation found -- SPEC's 500 Hz/s is
-   * ~4x past it) would emit far fewer symbols than the run's own length;
-   * staying locked through most of it is the actual claim under test. */
+   * cliff this session's own investigation found -- the specification's 500
+   * Hz/s is ~4x past it) would emit far fewer symbols than the run's own
+   * length; staying locked through most of it is the actual claim under test.
+   */
   DP_CHECK (n_syms4 > (n_sym / 2));
   /* BER is scored by searching an unknown lag and polarity, so it is never
      asserted alone (see dp_sym_test.h): both truth-free validators must agree

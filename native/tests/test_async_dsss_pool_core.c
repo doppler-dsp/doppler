@@ -15,8 +15,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The design point of the receiver tests' ranked search: SPEC's Gold-1023
-   at 3.069 Mcps, 2 samples a chip, 2700 symbols/s. */
+/* The design point of the receiver tests' ranked search: the specification's
+   Gold-1023 (docs/design/async-dsss-receiver.md) at 3.069 Mcps, 2 samples a
+   chip, 2700 symbols/s. */
 #define POOL_CR 3.069e6
 #define POOL_RS 2700.0
 #define POOL_SPC 2

@@ -197,13 +197,13 @@ dsss_rx_rebuild_chain (dp_dsss_receiver_state_t *s, double chip_phase,
  * once per period (matching dp_costas_init's own tsamps=one-period
  * calibration, see dsss_rx_build_chain). dp_dll_steps() emits `segments`-many
  * PARTIAL prompts per period, and a data-bit transition can land inside
- * the period -- at SPEC's own async ratio (periods/symbol ~= 1.111) this
- * happens in the large majority of periods, not as a rare edge case, so
- * a bare coherent sum of the raw partials would flip sign across the
- * transition and self-cancel. The fix reuses the SAME technique
- * costas_update()'s own bn_fll cross-product term already applies
- * between consecutive symbols ("both prompts are data-wiped [by their
- * own Re sign] so a BPSK bit flip ... does not corrupt the cross
+ * the period -- at the specification's own async ratio (periods/symbol
+ * ~= 1.111) this (docs/design/async-dsss-receiver.md) happens in the large
+ * majority of periods, not as a rare edge case, so a bare coherent sum of the
+ * raw partials would flip sign across the transition and self-cancel. The fix
+ * reuses the SAME technique costas_update()'s own bn_fll cross-product term
+ * already applies between consecutive symbols ("both prompts are data-wiped
+ * [by their own Re sign] so a BPSK bit flip ... does not corrupt the cross
  * product", costas_core.h): sign-align each partial by its OWN real-part
  * sign before adding, so a bit flip between partials reinforces the sum
  * instead of cancelling it. Costas' phase/frequency discriminator only

@@ -22,12 +22,12 @@
  * independent of the blocking (doppler#2548 review), costs a worker join
  * every 2,046 samples, and that is the difference.
  *
- * Both rows feed a pool of 3 at the SPEC point, the configuration the
- * receiver's own search row times, noise alone from the shipped awgn, so
- * every receiver searches all along; a row is recorded only if every
- * receiver searched for every sample fed (a false alarm's refine would be
- * timed as search). The two thread counts are interleaved round by round,
- * so the ratio is measured on one machine state.
+ * Both rows feed a pool of 3 at the specification point, the configuration the
+ * (docs/design/async-dsss-receiver.md) receiver's own search row times, noise
+ * alone from the shipped awgn, so every receiver searches all along; a row is
+ * recorded only if every receiver searched for every sample fed (a false
+ * alarm's refine would be timed as search). The two thread counts are
+ * interleaved round by round, so the ratio is measured on one machine state.
  */
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include "doppler/awgn/awgn_core.h"
@@ -123,7 +123,8 @@ main (void)
     }
   (void)dp_awgn_generate (g, n, x, n);
 
-  printf ("=== async_dsss_pool benchmark: %d receivers at the SPEC point, "
+  printf ("=== async_dsss_pool benchmark: %d receivers at the specification "
+          "point, "
           "searching ===\n",
           N_RX);
   printf ("block = %d samples, %d rounds; workers available: %d\n\n", BLOCK,

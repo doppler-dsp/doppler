@@ -34,10 +34,10 @@
  *   sensitivity  realized Pd against C/N0 for D of 1, 16 and the operating
  *                point's 150, one look each: the C/N0 at which the depth
  *                detects what a single epoch cannot.
- *   dilated      the aligned block at SPEC's Doppler, 20 ppm of a 2.5 GHz
- *                carrier (50 kHz), two ways: the synth's own carrier offset
- *                with the code standing still, and through the shipped
- *                doppler_channel with the chips dilated by the same 20 ppm
+ *   dilated      the aligned block at the specification's Doppler, 20 ppm of
+ * a 2.5 GHz (docs/design/async-dsss-receiver.md) carrier (50 kHz), two ways:
+ * the synth's own carrier offset with the code standing still, and through the
+ * shipped doppler_channel with the chips dilated by the same 20 ppm
  *                -- 100 chips/s, 3.1 chips across a D = 150 block (#1256).
  *                Per depth: the peak against the gate, `conc`, the peak's
  *                width along the code axis, the hand-off's Doppler, and
@@ -88,9 +88,10 @@
 #define F_SYM 4950u /* the frame, symbols                               */
 #define DU 50000.0  /* +/-50 kHz, the design's starting uncertainty      */
 #define RATE 500.0  /* Hz/s, the spec's Doppler rate                     */
-#define CARRIER_HZ 2.5e9 /* SPEC's carrier: ppm -> Hz, and the chip clock  */
-#define SPEC_PPM 20.0    /* 50 kHz, 100 chips/s at 5 Mcps                  */
-#define SIZING_CN0 60.0  /* high enough that the sizer picks n_noncoh = 1 */
+#define CARRIER_HZ                                                            \
+  2.5e9 /* the specification's carrier: ppm -> Hz, and the chip clock  */
+#define SPEC_PPM 20.0   /* 50 kHz, 100 chips/s at 5 Mcps                  */
+#define SIZING_CN0 60.0 /* high enough that the sizer picks n_noncoh = 1 */
 #define PD 0.9
 #define TAU0 777u /* injected code phase, samples                         */
 #define TILE 5u   /* injected tile (window hypothesis)                    */
@@ -285,9 +286,9 @@ typedef struct
   double chip_adv;       /* the same with the half-dwell advance        */
 } dil_t;
 
-/* One ALIGNED block of a clean emitter at SPEC's Doppler, two ways: the
-   synth's own carrier offset with the code standing still (`dilate` 0),
-   or the synth at baseband through the shipped channel at `ppm` of the
+/* One ALIGNED block of a clean emitter at the specification's Doppler, two
+   ways: the synth's own carrier offset with the code standing still (`dilate`
+   0), or the synth at baseband through the shipped channel at `ppm` of the
    carrier, the chips dilated with it (`dilate` 1). Noise, when cn0_dbhz >
    0, from the shipped awgn after the channel, as a receiver sees it. */
 static int
@@ -624,7 +625,8 @@ main (int argc, char **argv)
         DP_CHECK_MSG (pd_d1_chk == 0.0, "and a single epoch detects none");
       }
   }
-  /* ── the dilated block: SPEC's 20 ppm through the channel (#1256) ── */
+  /* ── the dilated block: the specification's 20 ppm through the channel
+   * (#1256) ── */
   {
     const size_t epochs[3] = { 1, 31, 0 }; /* D = 1, 16, the window's 150 */
     printf ("\nSPEC's Doppler at 5 Mcps: %.0f ppm of %.1f GHz = %.0f Hz, "

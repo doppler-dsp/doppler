@@ -496,7 +496,7 @@ add_test(NAME validate_async_dsss_receiver_ber
          COMMAND validate_async_dsss_receiver_ber --check)
 
 # Where the receiver's implementation loss goes, stage by stage, at known
-# truth on the SPEC stimulus: the ideal despread, the cut into the Dll's
+# truth on the specification stimulus: the ideal despread, the cut into the Dll's
 # partials, the shipped Dll held at truth, the RateConverter and the
 # demodulator (docs/design/async-dsss-receiver.md §3.3; doppler#2495). The
 # spot check gates the Dll's partials against the ideal ones; the sweep adds the

@@ -4097,13 +4097,13 @@ main (void)
    * Checked against the ambiguity summed directly (_brute_dsl_db(),
    * FFT-free) on the engine's own sweep, for a real code and for a complex
    * template, whose ambiguity is not symmetric in Doppler, so the roll's
-   * direction and the negative offsets count. Then the receivers' SPEC
-   * search against an independent numpy sweep of the same ambiguity every
-   * 10 Hz over +-5 kHz (-16.95 dB, at -4500 Hz; design acq-surface.md §8);
-   * then du = 0, where it is psl; then the gate. Sabotage, each red: ignore
-   * the roll; sweep offsets 0..W-1 only (the complex template). Rolling by
-   * -k is no defect: the offsets are swept symmetrically, so each residual
-   * sees the same set either way. */
+   * direction and the negative offsets count. Then the receivers' the
+   * specification search against an independent numpy sweep of the same
+   * ambiguity every 10 Hz over +-5 kHz (-16.95 dB, at -4500 Hz; design
+   * acq-surface.md §8); then du = 0, where it is psl; then the gate. Sabotage,
+   * each red: ignore the roll; sweep offsets 0..W-1 only (the complex
+   * template). Rolling by -k is no defect: the offsets are swept
+   * symmetrically, so each residual sees the same set either way. */
   {
     const double    cr = 1.0e6;
     dp_acq_state_t *a  = dp_xnn (dp_acq_create_continuous (

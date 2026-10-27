@@ -48,7 +48,7 @@ extern "C"
    * own bn/zeta are irrelevant -- only its tsamps and init_norm_freq matter.
    *
    * 0.04 is set by pull-in and dynamics, not jitter: the refined seed
-   * leaves a residual the loop must pull in, and tracking SPEC's 500 Hz/s
+   * leaves a residual the loop must pull in, and tracking the specification's 500 Hz/s
    * ramp with a per-period Type-II loop needs the bandwidth to keep the
    * velocity lag (~ramp/omega_n^2) small. It rides the ramp with a clean
    * despread constellation; about 0.03 is the least that works. The phase
@@ -59,7 +59,7 @@ extern "C"
    * it in multiples of the `bn/m` bound (`m = 2`, the squaring
    * discriminator), its spot check on every push (CI's sweep job, `make
    * test-sweep`). At bn = 0.04 over a 2046-sample code period the bound is
-   * 9.775e-6 cycles/sample, 60 Hz at SPEC's 6.138 MHz front end; the loop
+   * 9.775e-6 cycles/sample, 60 Hz at the specification's 6.138 MHz front end; the loop
    * acquires 100% inside it on both signs, is reliable to 2x and dead by 4x.
    * The receiver's hand-off residual was measured at -54..+375 Hz, routinely
    * 2-6x the bound (doppler#982): check the hand-off against the bound

@@ -34,14 +34,15 @@
  * loop outside its pull-in, and that was measured here first. The release
  * clock is the design's 2 s. Two
  * dynamics: `static`, no Doppler at all, and the shipped doppler_channel
- * at SPEC's -- 20 ppm of a 2.5 GHz carrier (50 kHz, the chip clock dilated
- * with it), and 0.2 ppm/s (500 Hz/s) from zero -- so that coasting through
- * the window costs the symbol clock something real;
- * the receiver's carrier-to-code aiding is on for it, as in §12.5. They are
- * two conditions, `offset` and `rate`, because SPEC's worst cases do not
- * coincide: the largest Doppler is at the horizon where the rate is nil,
- * the largest rate at closest approach where the Doppler is nil. Nothing
- * here builds a chip, a bit, a sigma, a ramp or a seed by hand.
+ * at the specification's -- 20 ppm of a 2.5 GHz carrier (50 kHz, the chip
+ * clock dilated (docs/design/async-dsss-receiver.md) with it), and 0.2 ppm/s
+ * (500 Hz/s) from zero -- so that coasting through the window costs the symbol
+ * clock something real; the receiver's carrier-to-code aiding is on for it, as
+ * in §12.5. They are two conditions, `offset` and `rate`, because the
+ * specification's worst cases do not coincide: the largest Doppler is at the
+ * horizon where the rate is nil, the largest rate at closest approach where
+ * the Doppler is nil. Nothing here builds a chip, a bit, a sigma, a ramp or a
+ * seed by hand.
  *
  * What the ramp measured first is not about the window (§12.9): from the
  * searcher's seed, the chain settled in 2 of 3 trials at 45 dB-Hz and 0
@@ -122,11 +123,12 @@
 #define N_SEEDS 3
 #define CARRIER_HZ 2.5e9 /* the ramp's carrier: ppm -> Hz, and the aid  */
 #define RAMP_D0_PPM 20.0 /* 50 kHz at the carrier                       */
-#define RAMP_PPM_S 0.2   /* 500 Hz/s, SPEC's dynamics                   */
+#define RAMP_PPM_S                                                            \
+  0.2 /* 500 Hz/s, the specification's dynamics                   */
 
-/* SPEC's two dynamics are two conditions because its worst cases do not
-   coincide: the largest Doppler is at the horizon where the rate is nil,
-   the largest rate at closest approach where the Doppler is nil. */
+/* the specification's two dynamics are two conditions because its worst cases
+   do not coincide: the largest Doppler is at the horizon where the rate is
+   nil, the largest rate at closest approach where the Doppler is nil. */
 enum
 {
   COND_STATIC, /* no channel at all                       */
@@ -242,9 +244,9 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
   float complex *syms = dp_xmalloc ((cap ? cap : TE) * sizeof *syms);
   DP_REQUIRE_MSG (syn && g && rx && out->frames && (cond == COND_STATIC || ch),
                   "the emitter, the noise, the channel and the receiver open");
-  /* The searcher that seeds it: the shipped continuous engine over SPEC's
-     Doppler span (one native span without a channel), fed the same blocks
-     until its first hit. */
+  /* The searcher that seeds it: the shipped continuous engine over the
+     specification's Doppler span (one native span without a channel), fed the
+     same blocks until its first hit. */
   dp_acq_state_t *acq = dp_acq_create_continuous (
       code, SF, SPC, CHIP_RATE, SYM_RATE, cn0_dbhz,
       cond != COND_STATIC ? 1.2 * RAMP_D0_PPM * 1e-6 * CARRIER_HZ : 0.0, 1e-3,

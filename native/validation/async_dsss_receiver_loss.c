@@ -4,12 +4,13 @@
  *        at the certification's operating point.
  *
  * `async_dsss_receiver_ber.c` measures the whole receiver against the BPSK
- * bound and reports one number. This splits it: the SPEC stimulus is
- * demodulated at KNOWN truth -- the synth's own carrier, its chips from
- * sample 0, its symbol edges from dp_wfm_dsss_cont_edge() -- through more
- * and more of the shipped chain, and each stage is scored as a loss in dB,
- * the Es/N0 the bound needs for the stage's error rate subtracted from the
- * Es/N0 applied (dp_ber_esn0_db_for_ser):
+ * bound and reports one number. This splits it: the specification stimulus is
+ * (docs/design/async-dsss-receiver.md) demodulated at KNOWN truth -- the
+ * synth's own carrier, its chips from sample 0, its symbol edges from
+ * dp_wfm_dsss_cont_edge() -- through more and more of the shipped chain, and
+ * each stage is scored as a loss in dB, the Es/N0 the bound needs for the
+ * stage's error rate subtracted from the Es/N0 applied
+ * (dp_ber_esn0_db_for_ser):
  *
  *   S0   the ideal despread: the exact carrier wiped, the exact code
  *        removed, each true symbol integrated. The harness's own baseline.

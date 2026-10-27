@@ -37,7 +37,7 @@
  *     carrier loop updates once per code period from a NON-DATA-AIDED
  *     (squaring) discriminator over that period's coherent-I&D partials
  *     (`adr_track_period()`): a code period spans ~0.9 data symbols at
- *     SPEC's ratio, so a transition lands inside nearly every period, and
+ *     the specification's ratio, so a transition lands inside nearly every period, and (docs/design/async-dsss-receiver.md)
  *     squaring is what makes the error transition-robust. At
  *     `ASYNC_DSSS_RX_BN_CARRIER` the loop pulls the refined seed in and
  *     removes the full coupled Doppler (offset and 500 Hz/s ramp) before
@@ -128,7 +128,7 @@ extern "C"
    * own bn/zeta are irrelevant -- only its tsamps and init_norm_freq matter.
    *
    * 0.04 is set by pull-in and dynamics, not jitter: the refined seed
-   * leaves a residual the loop must pull in, and tracking SPEC's 500 Hz/s
+   * leaves a residual the loop must pull in, and tracking the specification's 500 Hz/s
    * ramp with a per-period Type-II loop needs the bandwidth to keep the
    * velocity lag (~ramp/omega_n^2) small. It rides the ramp with a clean
    * despread constellation; about 0.03 is the least that works. The phase
@@ -139,7 +139,7 @@ extern "C"
    * it in multiples of the `bn/m` bound (`m = 2`, the squaring
    * discriminator), its spot check on every push (CI's sweep job, `make
    * test-sweep`). At bn = 0.04 over a 2046-sample code period the bound is
-   * 9.775e-6 cycles/sample, 60 Hz at SPEC's 6.138 MHz front end; the loop
+   * 9.775e-6 cycles/sample, 60 Hz at the specification's 6.138 MHz front end; the loop
    * acquires 100% inside it on both signs, is reliable to 2x and dead by 4x.
    * The receiver's hand-off residual was measured at -54..+375 Hz, routinely
    * 2-6x the bound (doppler#982): check the hand-off against the bound
@@ -445,7 +445,7 @@ typedef enum
    * @brief Create an AsyncDsssReceiver in the searching state.
    *
    * Only `code`/`chip_rate`/`symbol_rate` describe the signal itself. The
-   * `refine_*` defaults are sized to close SPEC's 4-5 dB, 500 Hz/s combined
+   * `refine_*` defaults are sized to close the specification's 4-5 dB, 500 Hz/s combined
    * scenario as they are; a power user can override each one.
    *
    * @param code                       Spreading code, one 0/1 chip per
@@ -508,7 +508,7 @@ typedef enum
    * @param refine_sequential          CarrierAcquisition's sequential
    *                                   mode; default false -- its early
    *                                   per-block test fires on far too
-   *                                   little averaging at SPEC's Es/N0
+   *                                   little averaging at the specification's Es/N0
    *                                   floor (as few as 4 blocks, 150-200+
    *                                   Hz off), so false waits the full
    *                                   design_snr-derived dwell.
@@ -768,7 +768,7 @@ typedef enum
    * until the release rule lets it go -- or, at the default lost_confirm_s
    * of 0, until reset() -- and symbol lock (`locked`) is what says the
    * symbols are a signal's, so read it rather than the count (#2439).
-   * Under SPEC's coupled offset + 500 Hz/s Doppler ramp the pre-despread
+   * Under the specification's coupled offset + 500 Hz/s Doppler ramp the pre-despread
    * Costas removes the full carrier dynamics before the code loop, so the
    * recovered constellation lands cleanly on the BPSK real axis.
    *
@@ -1149,7 +1149,7 @@ typedef enum
    * (doppler#2554). A sidelobe then passes only when the noise on it
    * alone would have cleared the gate, the rate the search already runs
    * at. What it costs is near-far: a second signal much more than
-   * dp_acq_dsl_db() below a stronger one (-16.95 dB on the SPEC Gold-1023
+   * dp_acq_dsl_db() below a stronger one (-16.95 dB on the specification Gold-1023
    * search) is not taken while the stronger one is on the air
    * (async-dsss-parallel.md §3). Searchers
    * that share a stream and its block grid (get_coherent_bins()) and hold

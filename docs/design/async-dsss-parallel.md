@@ -42,7 +42,7 @@ In numbers, at the parameters of §2:
 
 **A signal changes only after a data-free block.** One goes off air, or a new
 one comes on, at a frame boundary, never inside a frame. The 500-symbol block
-is this design's; SPEC's code-only window is 450 symbols (167 ms), which the
+is this design's; [the specification](async-dsss-receiver.md#1-the-specification)'s code-only window is 450 symbols (167 ms), which the
 pool as built is sized at, and either holds the 94-epoch depth the 500 Hz/s
 Doppler rate allows at 3.069 Mcps.
 
@@ -177,7 +177,7 @@ What today's receiver must gain for this:
 **A strong signal's own sidelobes are not a second signal.** One emitter's
 peak list also holds its code's Doppler-offset sidelobes: the ambiguity
 of the code at the offset between the emitter and each tile it is not in,
-up to $-16.95$ dB below it for the SPEC Gold-1023 search, hundreds of chips
+up to $-16.95$ dB below it for the specification Gold-1023 search, hundreds of chips
 from its phase, dwell after dwell (the acquisition-surface design page,
 `acq-surface.md` §8, doppler#2526).
 The rank and the exclusions skip the strongest peak, so without a rule a
@@ -207,7 +207,7 @@ while a stronger one is on the air only if it clears the stronger one's
 sidelobe level by the gate. On a deep block the gate is small beside a
 strong signal and the limit approaches the sidelobe level; on a
 one-epoch search the noise on the sidelobes is larger and so is the
-gate's share. Measured on the SPEC search, the stronger signal at
+gate's share. Measured on the specification search, the stronger signal at
 47–70 dB-Hz, pooled: the share of streams whose search takes the weaker
 signal first, among those where it alone is found (the stronger one
 excluded; review 5606641242 on doppler#2525):
@@ -269,7 +269,7 @@ traits together, each over the same trailing 0.2 s of code periods
 (owner ruling on doppler#2529):
 
 - **its carrier moves in lockstep with a stronger holder's**, a whole nonzero
-    number of steps of $1/(2T_E)$ away (1500 Hz at SPEC): the sidelobe sits on
+    number of steps of $1/(2T_E)$ away (1500 Hz at the specification): the sidelobe sits on
     its parent's carrier a tile off, and the carrier loop, updating once a
     code period from a squaring combine, reads that modulo half the epoch
     rate;

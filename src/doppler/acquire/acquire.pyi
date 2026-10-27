@@ -600,10 +600,10 @@ class Acquisition:
           own frequency implies, `f_tile / carrier` chips per chip, aligned to
           the block's middle, before the slow-time transform (a linear phase on
           each epoch's product, exact to a fraction of a sample). Measured at
-          SPEC's 20 ppm with D = 154 (3.1 chips of drift across the block):
-          without it the block's peak is 13 dB down and 3 chips wide and the
-          depth detects nothing at 34 dB-Hz; with it the block reads as a still
-          one.
+          the specification's 20 ppm with D = 154 (3.1 chips of drift across
+          the block): without it the block's peak is 13 dB down and 3 chips
+          wide and the depth detects nothing at 34 dB-Hz; with it the block
+          reads as a still one.
         - **The hand-off** (dp_acq_build_handoff()) advances the hit's code
           phase by the drift over half the dwell -- the non-coherent sum's peak
           is the phase at the dwell's middle, the seed is wanted at its end:

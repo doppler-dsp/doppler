@@ -1129,7 +1129,7 @@ extern "C"
    *   tile's own frequency implies, `f_tile / carrier` chips per chip,
    *   aligned to the block's middle, before the slow-time transform
    *   (a linear phase on each epoch's product, exact to a fraction of a
-   *   sample). Measured at SPEC's 20 ppm with D = 154 (3.1 chips of
+   *   sample). Measured at the specification's 20 ppm with D = 154 (3.1 chips of
    *   drift across the block): without it the block's peak is 13 dB
    *   down and 3 chips wide and the depth detects nothing at 34 dB-Hz;
    *   with it the block reads as a still one.
@@ -1857,7 +1857,7 @@ extern "C"
    * {
    *   uint8_t          code[1023];
    *   dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
-   *   dp_gold_generate (g, 1023, code, 1023); // the SPEC Gold-1023 code
+   *   dp_gold_generate (g, 1023, code, 1023); // the specification Gold-1023 code
    *   dp_gold_destroy (g);
    *   dp_acq_state_t *a = dp_acq_create_continuous (
    *       code, 1023, 2, 3.069e6, 2700.0, 47.0, 5000.0, 1e-3, 0.9, 0, 1,
@@ -1911,7 +1911,7 @@ extern "C"
    *   is advanced by the drift over HALF the dwell, `doppler_hz_est /
    *   carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips
    *   (a coherent block's epochs are aligned to its middle by the same
-   *   setting, so the block's peak is its middle too). At SPEC's 20 ppm the
+   *   setting, so the block's peak is its middle too). At the specification's 20 ppm the
    *   continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside
    *   any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs -- 0.9
    *   chip, measured directly, past the refine Dll's; without this the

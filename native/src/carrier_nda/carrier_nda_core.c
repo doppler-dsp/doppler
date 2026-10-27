@@ -5,19 +5,14 @@
 #include <string.h>
 
 /* Default carrier lock-detector rule (see dp_carrier_nda_configure_lock's
- * header doc). up_thresh/down_thresh (0.5/0.4) start from MpskReceiver's
- * own pre-existing acquisition<->tracking handover thresholds
- * (MPSK_RX_HANDOVER_DOWN in mpsk_receiver_core.c), which steps a lockdet
- * on this exact `lock` statistic. n_up was NOT safe to inherit alongside
- * them, though: MpskReceiver's handover verify count (8) assumes
- * consecutive looks compound independently (~p^n_up), but `lock` is a
- * fast per-sample EMA (CARRIER_NDA_LOCK_ALPHA, ~20-sample memory) --
- * consecutive samples are highly autocorrelated, so that assumption does
- * not hold (the same independence violation flagged, and designed
- * around, for the DLL's lock statistic and Dll's tumbling vs. sliding
- * window discussion). Direct Monte Carlo against the real object (noise-
- * only, no carrier) confirmed the risk empirically before shipping:
- *   n_up=8  (MpskReceiver's value): 4/30 trials falsely locked
+ * header doc). up_thresh/down_thresh (0.5/0.4) are a hysteresis band on this
+ * `lock` statistic. n_up cannot be chosen by the usual "consecutive looks
+ * compound independently" argument (~p^n_up): `lock` is a fast per-sample
+ * EMA (CARRIER_NDA_LOCK_ALPHA, ~20-sample memory), so consecutive samples are
+ * highly autocorrelated and that assumption does not hold. Direct Monte
+ * Carlo against the real object (noise-only, no carrier) measured the risk
+ * before shipping:
+ *   n_up=8:                         4/30 trials falsely locked
  *   n_up=16:                        7/100 trials falsely locked
  *   n_up=32:                        1/100 trials falsely locked
  *   n_up=64:                        0/300 trials falsely locked

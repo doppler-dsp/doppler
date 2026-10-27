@@ -601,7 +601,7 @@ release clock at the design's 2 s. Once tracking with symbol lock held for
 200 blocks, ten windows per trial, three trials per C/N0; per window the
 fraction of blocks with each flag off, the longest both-off run, whether
 `lost` fired, and the pull-in after the data resumes. Three
-conditions: no Doppler, and SPEC's two worst cases through the shipped
+conditions: no Doppler, and [the specification](async-dsss-receiver.md#1-the-specification)'s two worst cases through the shipped
 `doppler_channel`, apart, since they do not coincide on a pass — the
 offset (20 ppm of a 2.5 GHz carrier, 50 kHz, the chip clock dilated with
 it) and the rate (500 Hz/s from zero).
@@ -646,7 +646,7 @@ What it settles:
 - **What the ramp found was a hand-over defect, not a window one
     ([#1249](https://github.com/doppler-dsp/doppler/issues/1249)).** From
     the searcher's seed at 20 ppm with the 500 Hz/s ramp on top (the first
-    run took SPEC's two worst cases together, which a pass never does) the
+    run took the specification's two worst cases together, which a pass never does) the
     chain settled in 2 of 3 trials at 45 dB-Hz and 0 of 3 at 40, the
     searching flavor alike. The
     refine → track hand-over re-seeded the live chain with the seed's code
@@ -659,11 +659,11 @@ What it settles:
     wanders 13 chips over the same 53 ms.) The hand-over now advances the
     seed's phase by the refined Doppler's dilation over the refine's whole
     periods: 45 dB-Hz under the ramp settles 10 of 10 seeds in 70 ms, and
-    `test_async_dsss_receiver_core` pins it at SPEC's 20 ppm with the
+    `test_async_dsss_receiver_core` pins it at the specification's 20 ppm with the
     floor's refine length, where the old hand-over was 5 chips off.
 - **What remains at the floor is the offset case, and it is the estimate,
     not the window ([#1252](https://github.com/doppler-dsp/doppler/issues/1252)).**
-    SPEC's two worst cases do not coincide — the largest Doppler is at the
+    the specification's two worst cases do not coincide — the largest Doppler is at the
     horizon where the rate is nil, the largest rate at closest approach
     where the Doppler is nil — so they are measured apart. The rate (500
     Hz/s from zero) is no problem: 10 of 10 seeds settle at both C/N0s,
@@ -839,7 +839,7 @@ ______________________________________________________________________
 ### 12.12 What was measured (2026-09-06) — the block-coherent searcher under the dilated clock
 
 **Harness:** the `dilated` section of `native/validation/acq_block_coherent.c`
-(`--check` on ctest). One aligned block of a clean emitter at SPEC's
+(`--check` on ctest). One aligned block of a clean emitter at the specification's
 Doppler, 20 ppm of 2.5 GHz = 50 kHz, three ways: the synth's own carrier
 offset with the code standing still; the synth at baseband through the
 shipped `doppler_channel`, the chips dilated with it (100 chips/s at
@@ -1933,7 +1933,7 @@ each found by a measurement that went red and corrected in the build:
 
 - **The carrier loop runs; it is not frozen.** The plan wiped the stream
     on a frozen LO at the seed's Doppler and left the residual to
-    `MpskReceiver`, folding it back above a threshold. Measured on SPEC's
+    `MpskReceiver`, folding it back above a threshold. Measured on the specification's
     500 Hz/s ramp: `MpskReceiver`'s 27 Hz loop alone lost the symbol lock
     on 40 intervals of 48, BER 0.45. The pre-despread loop 1 of the
     hand-off flavour runs unchanged, held on both flags down as there,
@@ -1945,7 +1945,7 @@ each found by a measurement that went red and corrected in the build:
     receiver fed whole periods is always at a boundary, a kick there
     lands on the code's wrap, and moved across it the `Dll`'s partial
     bookkeeping emits or skips a period's partials: a symbol slip every
-    few intervals on SPEC's geometry, where the hand-off flavour on the
+    few intervals on the specification's geometry, where the hand-off flavour on the
     same capture decoded clean
     ([#1287](https://github.com/doppler-dsp/doppler/issues/1287)).
 - **The make-up is a rate bias every period, not over the interval.** The
@@ -1976,7 +1976,7 @@ clock), 450 intervals:
 The bias is the channel's mapping, the same at both gains. Switched
 off, the receiver is lost after 31 intervals of the release clock's 57
 and its held phase is 0.003 chip from the hold point 160 intervals on
-(0.015 at switch-off). SPEC's 500 Hz/s ramp: the truth 1232 Hz at the
+(0.015 at switch-off). the specification's 500 Hz/s ramp: the truth 1232 Hz at the
 end, the status 1229, the symbol flag never down after the pull-in,
 6650 symbols at BER 0. Speed: `bench_async_dsss_receiver_core`'s cell
 row is 28.70 ns per input sample in tracking at the operating point

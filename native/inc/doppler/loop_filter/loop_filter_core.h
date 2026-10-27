@@ -149,6 +149,21 @@ extern "C"
   int dp_loop_filter_params_ok(double bn, double zeta, double t);
 
   /**
+   * @brief The domain of a first-order FLL-assist bandwidth: `bn_fll >= 0`
+   *        with a finite gain `4 * bn_fll`.
+   *
+   * The FLL assist Costas and CarrierMpsk run beside their PLL has one gain,
+   * `k_fll = 4 * bn_fll`, and `0` means "pure PLL". A negative or NaN value
+   * would silently disable the assist while the getter reports it, and an
+   * infinite one drives the loop integrator to inf/NaN, so both objects'
+   * create() and set_bn_fll() refuse outside this predicate (doppler#2646).
+   *
+   * @param bn_fll  FLL-assist bandwidth, normalized to the symbol rate.
+   * @return        1 inside the domain, 0 outside it (a NaN is outside).
+   */
+  int dp_loop_filter_fll_bn_ok(double bn_fll);
+
+  /**
    * @brief Whether a stored filter is one a live filter could hold.
    *
    * For restoring a serialized filter, whose gains are taken verbatim rather

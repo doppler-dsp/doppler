@@ -83,7 +83,8 @@ CarrierMpskObj_init (CarrierMpskObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_ValueError,
                        "CarrierMpsk: invalid parameter (need m in {2,4,8}, "
                        "tsamps >= 1, and bn >= 0 and zeta > 0, both finite, "
-                       "whose loop gains come out finite)");
+                       "whose loop gains come out finite, and bn_fll >= 0 "
+                       "and finite)");
       return -1;
     }
   return 0;
@@ -486,7 +487,15 @@ CarrierMpsk_setprop_bn_fll (CarrierMpskObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_carrier_mpsk_set_bn_fll (self->handle, v);
+  int _rc = dp_carrier_mpsk_set_bn_fll (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "CarrierMpsk: bn_fll must be >= 0 and finite (0 = pure "
+                    "PLL)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 static PyObject *
@@ -521,7 +530,16 @@ static PyGetSetDef CarrierMpsk_getset[] = {
     "Last PLL phase-discriminator output, `Im(P conj(ahat))/|P|`.\n", NULL },
   { "bn_fll", (getter)CarrierMpsk_getprop_bn_fll,
     (setter)CarrierMpsk_setprop_bn_fll,
-    "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
+    "FLL-assist bandwidth (0 = pure PLL).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_carrier_mpsk_set_bn_fll`` refuses the value\n"
+    "    by returning non-zero. The exception message is ``CarrierMpsk:\n"
+    "    bn_fll must be >= 0 and finite (0 = pure PLL)``, with the return\n"
+    "    code appended.\n",
+    NULL },
   { "m", (getter)CarrierMpsk_getprop_m, NULL, "Constellation order M.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
@@ -821,45 +839,47 @@ static PyTypeObject CarrierMpskObjType = {
   .tp_basicsize                           = sizeof (CarrierMpskObject),
   .tp_dealloc                             = (destructor)CarrierMpskObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create an M-PSK carrier loop instance.\n"
-                "\n"
-                "Parameters\n"
-                "----------\n"
-                "bn : float, default 0.05\n"
-                "    Loop noise bandwidth (default 0.05).\n"
-                "zeta : float, default 0.707\n"
-                "    Damping factor (default 0.707).\n"
-                "init_norm_freq : float, default 0.0\n"
-                "    Seed carrier frequency, cycles/sample (default 0.0).\n"
-                "tsamps : int, default 64\n"
-                "    Samples per symbol (default 64); 0 is refused.\n"
-                "bn_fll : float, default 0.0\n"
-                "    FLL-assist bandwidth (default 0.0 = pure PLL).\n"
-                "m : int, default 4\n"
-                "    Constellation order M, 2/4/8 (default 4 = QPSK).\n"
-                "\n"
-                "Raises\n"
-                "------\n"
-                "ValueError\n"
-                "    If construction fails. The exception message is "
-                "``CarrierMpsk: invalid\n"
-                "    parameter (need m in {2,4,8}, tsamps >= 1, and bn >= 0 and "
-                "zeta > 0,\n"
-                "    both finite, whose loop gains come out finite)``.\n"
-                "\n"
-                "Examples\n"
-                "--------\n"
-                "Create with defaults:\n"
-                "\n"
-                ">>> from doppler.track import CarrierMpsk\n"
-                ">>> obj = CarrierMpsk(\n"
-                "...     bn=0.05,\n"
-                "...     zeta=0.707,\n"
-                "...     init_norm_freq=0.0,\n"
-                "...     tsamps=64,\n"
-                "...     bn_fll=0.0,\n"
-                "...     m=4,\n"
-                "... )\n",
+  .tp_doc
+  = "Create an M-PSK carrier loop instance.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "bn : float, default 0.05\n"
+    "    Loop noise bandwidth (default 0.05).\n"
+    "zeta : float, default 0.707\n"
+    "    Damping factor (default 0.707).\n"
+    "init_norm_freq : float, default 0.0\n"
+    "    Seed carrier frequency, cycles/sample (default 0.0).\n"
+    "tsamps : int, default 64\n"
+    "    Samples per symbol (default 64); 0 is refused.\n"
+    "bn_fll : float, default 0.0\n"
+    "    FLL-assist bandwidth (default 0.0 = pure PLL).\n"
+    "m : int, default 4\n"
+    "    Constellation order M, 2/4/8 (default 4 = QPSK).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``CarrierMpsk: "
+    "invalid\n"
+    "    parameter (need m in {2,4,8}, tsamps >= 1, and bn >= 0 and zeta > "
+    "0,\n"
+    "    both finite, whose loop gains come out finite, and bn_fll >= 0 and\n"
+    "    finite)``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.track import CarrierMpsk\n"
+    ">>> obj = CarrierMpsk(\n"
+    "...     bn=0.05,\n"
+    "...     zeta=0.707,\n"
+    "...     init_norm_freq=0.0,\n"
+    "...     tsamps=64,\n"
+    "...     bn_fll=0.0,\n"
+    "...     m=4,\n"
+    "... )\n",
   .tp_methods = CarrierMpskObj_methods,
   .tp_getset  = CarrierMpsk_getset,
   .tp_new     = CarrierMpskObj_new,

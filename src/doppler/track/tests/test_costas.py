@@ -121,3 +121,18 @@ def test_steps_out_undersized_raises():
     c = Costas(0.03, 0.707, 0.0, TSAMPS)
     with pytest.raises(ValueError):
         c.steps(rx, out=np.zeros(1, dtype=np.complex64))
+
+
+@pytest.mark.parametrize("bad", [float("nan"), -0.01, float("inf")])
+def test_bad_bn_fll_is_refused_at_create_and_live(bad: float) -> None:
+    """#2646: a negative/NaN bn_fll silently disabled the assist; inf blew
+    the integrator up. Both faces now refuse it, and the getter is kept."""
+    from doppler.track import CarrierMpsk, Costas
+
+    for cls in (Costas, CarrierMpsk):
+        with pytest.raises(ValueError, match="bn_fll >= 0"):
+            cls(bn_fll=bad)
+        c = cls(bn_fll=0.01)
+        with pytest.raises(ValueError, match="bn_fll must be >= 0"):
+            c.bn_fll = bad
+        assert c.bn_fll == 0.01

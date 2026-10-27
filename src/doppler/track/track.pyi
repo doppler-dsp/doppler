@@ -333,7 +333,7 @@ class Costas:
     ValueError
         If construction fails. The exception message is ``Costas: invalid
         parameter (need bn >= 0 and zeta > 0, both finite, whose loop gains
-        come out finite)``.
+        come out finite, and bn_fll >= 0 and finite)``.
 
     Examples
     --------
@@ -691,7 +691,15 @@ class Costas:
 
     @property
     def bn_fll(self) -> float:
-        """FLL-assist bandwidth."""
+        """FLL-assist bandwidth.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_costas_set_bn_fll`` refuses the value by
+            returning non-zero. The exception message is ``Costas: bn_fll must
+            be >= 0 and finite (0 = pure PLL)``, with the return code appended.
+        """
     @bn_fll.setter
     def bn_fll(self, value: float) -> None: ...
     def destroy(self) -> None:
@@ -2304,7 +2312,9 @@ class RateSync:
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserve the timing
-        estimate.
+        estimate. Raises ValueError, changing nothing, when (bn, zeta) is
+        outside the loop filter's domain: bn >= 0 and zeta > 0, both finite,
+        with finite gains.
 
         Only the PI coefficients change; the integrator, and therefore the
         tracked rate and the lock, carries through untouched. Use it to narrow
@@ -2316,9 +2326,13 @@ class RateSync:
         bn : float
             Loop noise bandwidth, normalised to the symbol rate.
         zeta : float
-            Damping factor (1.0 = critical; 0.707 usual). A (bn, zeta) outside
-            dp_loop_filter_params_ok() is ignored silently: nothing changes and
-            no status is returned.
+            Damping factor (1.0 = critical; 0.707 usual).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -2482,6 +2496,14 @@ class RateSync:
         """Timing-loop noise bandwidth, normalised to the symbol rate. Writing
         it re-derives the loop gains at the damping already in use, exactly as
         configure() does.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_ratesync_set_bn`` refuses the value by
+            returning non-zero. The exception message is ``RateSync: bn is
+            outside the loop filter's domain (need bn >= 0, finite, whose loop
+            gains come out finite)``, with the return code appended.
         """
     @bn.setter
     def bn(self, value: float) -> None: ...
@@ -2598,7 +2620,8 @@ class CarrierMpsk:
     ValueError
         If construction fails. The exception message is ``CarrierMpsk: invalid
         parameter (need m in {2,4,8}, tsamps >= 1, and bn >= 0 and zeta > 0,
-        both finite, whose loop gains come out finite)``.
+        both finite, whose loop gains come out finite, and bn_fll >= 0 and
+        finite)``.
 
     Examples
     --------
@@ -2868,7 +2891,16 @@ class CarrierMpsk:
 
     @property
     def bn_fll(self) -> float:
-        """FLL-assist bandwidth (0 = pure PLL)."""
+        """FLL-assist bandwidth (0 = pure PLL).
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_carrier_mpsk_set_bn_fll`` refuses the value
+            by returning non-zero. The exception message is ``CarrierMpsk:
+            bn_fll must be >= 0 and finite (0 = pure PLL)``, with the return
+            code appended.
+        """
     @bn_fll.setter
     def bn_fll(self, value: float) -> None: ...
     @property

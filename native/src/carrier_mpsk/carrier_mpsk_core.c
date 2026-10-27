@@ -50,6 +50,8 @@ dp_carrier_mpsk_create (double bn, double zeta, double init_norm_freq,
      overflowing bandwidth gave gains that never recover (doppler#2112). */
   if (!dp_loop_filter_params_ok (bn, zeta, 1.0))
     return NULL;
+  if (!dp_loop_filter_fll_bn_ok (bn_fll))
+    return NULL; /* doppler#2646: a negative/NaN/inf FLL bandwidth */
   dp_carrier_mpsk_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
@@ -163,11 +165,16 @@ dp_carrier_mpsk_get_bn_fll (const dp_carrier_mpsk_state_t *state)
   return state->bn_fll;
 }
 
-void
+int
 dp_carrier_mpsk_set_bn_fll (dp_carrier_mpsk_state_t *state, double val)
 {
+  /* Refused before anything is written, so the getter keeps reporting the
+     assist the loop is running (doppler#2646). */
+  if (!dp_loop_filter_fll_bn_ok (val))
+    return DP_ERR_INVALID;
   state->bn_fll = val;
   state->k_fll  = 4.0 * val;
+  return DP_OK;
 }
 
 int

@@ -205,7 +205,9 @@ costas_update(dp_costas_state_t *s, float _Complex P)
  * @param init_norm_freq  Seed carrier frequency, cycles/sample (default 0.0).
  * @param tsamps          Samples per symbol (default 64).
  * @param bn_fll          FLL-assist bandwidth (default 0.0 = pure PLL).
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL if (bn, zeta) fails
+ *         dp_loop_filter_params_ok(), if @p bn_fll fails
+ *         dp_loop_filter_fll_bn_ok(), or on allocation failure.
  * @note Caller must call dp_costas_destroy() when done.
  */
 dp_costas_state_t *dp_costas_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll);
@@ -456,12 +458,14 @@ double dp_costas_get_bn_fll(const dp_costas_state_t *state);
 /**
  * @brief Set the FLL-assist bandwidth live; the FLL gain becomes 4 * @p val.
  *
- * Not validated: any value <= 0 disables the assist.
+ * A value outside dp_loop_filter_fll_bn_ok() (negative, NaN, or one whose
+ * gain overflows) is refused and nothing changes.
  *
  * @param state  Must be non-NULL.
  * @param val    FLL bandwidth, normalized to the symbol rate (0 = off).
+ * @return DP_OK, or DP_ERR_INVALID when @p val is refused.
  */
-void dp_costas_set_bn_fll(dp_costas_state_t *state, double val);
+int dp_costas_set_bn_fll(dp_costas_state_t *state, double val);
 
 /**
  * @brief Re-tune the carrier lock detector's thresholds and verify counts.

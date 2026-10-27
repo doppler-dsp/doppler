@@ -82,7 +82,8 @@ CostasObj_init (CostasObject *self, PyObject *args, PyObject *kwds)
     {
       PyErr_SetString (PyExc_ValueError,
                        "Costas: invalid parameter (need bn >= 0 and zeta > "
-                       "0, both finite, whose loop gains come out finite)");
+                       "0, both finite, whose loop gains come out finite, "
+                       "and bn_fll >= 0 and finite)");
       return -1;
     }
   return 0;
@@ -601,7 +602,14 @@ Costas_setprop_bn_fll (CostasObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  dp_costas_set_bn_fll (self->handle, v);
+  int _rc = dp_costas_set_bn_fll (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "Costas: bn_fll must be >= 0 and finite (0 = pure PLL)",
+                    (long long)_rc);
+      return -1;
+    }
   return 0;
 }
 
@@ -630,7 +638,16 @@ static PyGetSetDef Costas_getset[] = {
   { "last_error", (getter)Costas_getprop_last_error, NULL,
     "Last PLL discriminator output, the loop stress.\n", NULL },
   { "bn_fll", (getter)Costas_getprop_bn_fll, (setter)Costas_setprop_bn_fll,
-    "FLL-assist bandwidth.\n", NULL },
+    "FLL-assist bandwidth.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_costas_set_bn_fll`` refuses the value by\n"
+    "    returning non-zero. The exception message is ``Costas: bn_fll must\n"
+    "    be >= 0 and finite (0 = pure PLL)``, with the return code "
+    "appended.\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -1024,7 +1041,7 @@ static PyTypeObject CostasObjType = {
     "ValueError\n"
     "    If construction fails. The exception message is ``Costas: invalid\n"
     "    parameter (need bn >= 0 and zeta > 0, both finite, whose loop gains\n"
-    "    come out finite)``.\n"
+    "    come out finite, and bn_fll >= 0 and finite)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

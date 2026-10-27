@@ -147,18 +147,20 @@ dp_ratesync_loop_reset (ratesync_loop_t *l)
   l->prime_left = l->prime_taps + 1u;
 }
 
-void
+int
 dp_ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta)
 {
   /* The loop filter's own domain (it also refuses an infinite bn or zeta,
-     which the private check here let through; doppler#2103). */
+     which the private check here let through; doppler#2103), refused with
+     a status so a caller -- and the Python setter -- can tell (#2646). */
   if (!dp_loop_filter_params_ok (bn, zeta, 1.0))
-    return;
+    return DP_ERR_INVALID;
   l->bn   = bn;
   l->zeta = zeta;
   /* dp_loop_filter_init does not touch integ, so a retune preserves the lock.
    */
   dp_loop_filter_init (&l->lf, bn, zeta, 1.0);
+  return DP_OK;
 }
 
 void
@@ -417,10 +419,10 @@ dp_ratesync_steps (dp_ratesync_state_t *state, const float _Complex *x,
   return n;
 }
 
-void
+int
 dp_ratesync_configure (dp_ratesync_state_t *state, double bn, double zeta)
 {
-  dp_ratesync_loop_configure (&state->loop, bn, zeta);
+  return dp_ratesync_loop_configure (&state->loop, bn, zeta);
 }
 
 double
@@ -429,10 +431,10 @@ dp_ratesync_get_bn (const dp_ratesync_state_t *state)
   return state->loop.bn;
 }
 
-void
+int
 dp_ratesync_set_bn (dp_ratesync_state_t *state, double val)
 {
-  dp_ratesync_configure (state, val, state->loop.zeta);
+  return dp_ratesync_configure (state, val, state->loop.zeta);
 }
 
 double

@@ -147,9 +147,12 @@ extern "C"
 {
 #endif
 
-/* Numerical guard on the arm-sample magnitude (not tunable). */
+/** @brief Numerical guard on the arm sample's power |z|^2: at or below it
+ *  (or NaN) the discriminator outputs 0 for both phase error and lock
+ *  signal (not tunable). */
 #define CARRIER_NDA_EPS 1e-12
-/* rad/sample -> cycles/sample for the NCO control port (replaces /(2*pi)). */
+/** @brief 1/(2*pi): rad -> cycles scale folded into the loop gains so the
+ *  loop filter outputs the NCO control in cycles/sample. */
 #define CARRIER_NDA_INV_2PI 0.15915494309189535 /* 1 / (2*pi) */
 /* ── The lock statistic, and where its threshold comes from ──────────────
  *
@@ -206,10 +209,11 @@ extern "C"
  * therefore the floor under n_up. See `docs/design/lock-detect.md` section 3,
  * which owns this failure mode across every detector in the tree.
  */
-/* EMA smoothing for the lock metric: alpha = det_ema_alpha(0.0, 15.9), giving
+/** @brief EMA smoothing (per sample) for the lock metric: alpha =
+ * det_ema_alpha(0.0, 15.9), giving
  * N_eff = (2-alpha)/alpha = 39 effective looks (>= the 30-look floor). */
 #define CARRIER_NDA_LOCK_ALPHA 0.05
-/* Analytic H0 sd of the limited lock statistic AFTER the EMA above:
+/** @brief Analytic H0 sd of the limited lock statistic AFTER the EMA above:
  * sqrt(Var_look * alpha/(2-alpha)) with Var_look = 1/2 exactly, for every M.
  * A threshold of `eta * this` has per-look Pfa = Q(eta). */
 #define CARRIER_NDA_LOCK_NORM_SD 0.11322770341445956
@@ -619,26 +623,61 @@ extern "C"
 
   /** @brief Current lock decision (1 = locked, 0 = not), with the
    *         configured verify-count / hysteresis rule applied (see
-   *         dp_carrier_nda_configure_lock). */
+   *         dp_carrier_nda_configure_lock).
+   *  @param state  Must be non-NULL.
+   *  @return 1 when locked, 0 otherwise (0 after create/reset). */
   int dp_carrier_nda_get_locked (const dp_carrier_nda_state_t *state);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct, so a whole-struct snapshot resumes the loop
  * exactly.
  */
+/** @brief State-blob magic for CarrierNda (FourCC "CNDA"). */
 #define CARRIER_NDA_STATE_MAGIC DP_FOURCC ('C', 'N', 'D', 'A')
+/** @brief State-blob layout version (v5: the arm AGC was removed). */
 #define CARRIER_NDA_STATE_VERSION                                             \
   5u /* v5: the arm AGC is gone -- carrier_nda_disc normalises by its own    \
         |z|^M, so nothing upstream has to manufacture |z| = 1 (gh-657) */
 
-  /** @brief Serialized-state byte size. */
+  /**
+   * @brief Serialized-state byte size.
+   * @param state  Must be non-NULL (its contents do not affect the size).
+   * @return Bytes: the dp_state_hdr_t envelope plus the whole struct.
+   */
   size_t dp_carrier_nda_state_bytes (const dp_carrier_nda_state_t *state);
-  /** @brief Serialize the full loop state into @p blob. */
+  /**
+   * @brief Serialize the full loop state into @p blob.
+   *
+   * A whole-struct snapshot (config, NCO, loop filter, boxcar arm, lock
+   * EMA and detector) with the telemetry attachment zeroed.
+   *
+   * @param state  Must be non-NULL.
+   * @param blob   Caller-owned buffer of at least
+   *               dp_carrier_nda_state_bytes() bytes.
+   */
   void dp_carrier_nda_get_state (const dp_carrier_nda_state_t *state, void *blob);
-  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects.
+  /**
+   * @brief Restore a state written by dp_carrier_nda_get_state().
+   *
+   * Restores every field, config included, but keeps the receiver's own
+   * telemetry attachment. On rejection @p state is untouched.
+   *
+   * @param state  Must be non-NULL.
+   * @param blob   Blob from dp_carrier_nda_get_state().
+   * @return DP_OK, or DP_ERR_INVALID on a magic, version, endian or size
+   *         mismatch.
    */
   int dp_carrier_nda_set_state (dp_carrier_nda_state_t *state, const void *blob);
 
+  /**
+   * @brief Output capacity hint for dp_carrier_nda_steps(): always 0.
+   *
+   * The output is one sample per input, so size @p out to the input
+   * length.
+   *
+   * @param state  Unused.
+   * @return 0 (no state-derived bound).
+   */
   size_t dp_carrier_nda_steps_max_out (dp_carrier_nda_state_t *state);
 
   /**
@@ -683,23 +722,91 @@ extern "C"
    */
   size_t dp_carrier_nda_steps (dp_carrier_nda_state_t *state, const float _Complex *x,
                             size_t x_len, float _Complex *out, size_t max_out);
+  /**
+   * @brief Tracked carrier frequency: the NCO centre plus the loop's
+   * integrated correction (integrator only, smoothed).
+   *
+   * Under a frequency ramp it lags the true carrier by the Type-II ramp
+   * error; see dp_carrier_nda_get_nco_freq() for the full command.
+   *
+   * @param state  Must be non-NULL.
+   * @return Frequency in cycles/sample; the seed frequency until the loop
+   *         has run.
+   */
   double dp_carrier_nda_get_norm_freq (const dp_carrier_nda_state_t *state);
   /** @brief Instantaneous NCO frequency command = centre + full loop-filter
    * output (integ + kp*e), cycles/sample. Mean rides a ramp with no lag;
    * variance is the loop stress. See the impl for the estimator-vs-command
-   * distinction. */
+   * distinction.
+   * @param state  Must be non-NULL.
+   * @return Frequency in cycles/sample; the seed frequency until the loop
+   *         has run. */
   double dp_carrier_nda_get_nco_freq (const dp_carrier_nda_state_t *state);
+  /**
+   * @brief Re-seed the loop at a new carrier frequency.
+   *
+   * Not a gentle nudge: it resets the loop filter, re-initializes the NCO
+   * (phase included) at @p val, clears the moving-average arm, the lock
+   * EMA and the lock decision, and makes @p val the frequency a later
+   * dp_carrier_nda_reset() returns to.
+   *
+   * @param state  Must be non-NULL.
+   * @param val    New carrier centre frequency, cycles/sample.
+   */
   void   dp_carrier_nda_set_norm_freq (dp_carrier_nda_state_t *state, double val);
+  /**
+   * @brief Lock-signal EMA: Re((z/|z|)^M) smoothed per sample by
+   * CARRIER_NDA_LOCK_ALPHA.
+   * @param state  Must be non-NULL.
+   * @return Value from -1 to 1; ~1 at lock, zero-mean (sd
+   *         CARRIER_NDA_LOCK_NORM_SD) with no carrier; 0 after
+   *         create/reset.
+   */
   double dp_carrier_nda_get_lock (const dp_carrier_nda_state_t *state);
+  /**
+   * @brief Last phase error from the M-th-power discriminator.
+   *
+   * Im((z/|z|)^M) scaled by 1, 1/2, 1/4 for M = 2, 4, 8, which equalizes
+   * the S-curve slope across M.
+   *
+   * @param state  Must be non-NULL.
+   * @return Dimensionless error, bounded in magnitude by 1; 0 before the
+   *         first sample.
+   */
   double dp_carrier_nda_get_last_error (const dp_carrier_nda_state_t *state);
+  /**
+   * @brief Loop noise bandwidth currently in use.
+   * @param state  Must be non-NULL.
+   * @return bn in cycles/sample (the loop updates every sample): the
+   *         create() value or the last one dp_carrier_nda_set_bn()
+   *         accepted.
+   */
   double dp_carrier_nda_get_bn (const dp_carrier_nda_state_t *state);
   /** @brief Retune bn, keeping zeta. A bn outside dp_loop_filter_params_ok()
    *  is refused (`DP_ERR_INVALID`) and changes nothing: the gains, their
    *  rad->cycle scale and the reported bn all stay (doppler#2112). As a
-   *  writable property a refusal raises ValueError (doppler#1987). */
+   *  writable property a refusal raises ValueError (doppler#1987).
+   *  @param state  Must be non-NULL.
+   *  @param val    New loop noise bandwidth, cycles/sample.
+   *  @return DP_OK, or DP_ERR_INVALID if refused (nothing changes). */
   int    dp_carrier_nda_set_bn (dp_carrier_nda_state_t *state, double val);
+  /**
+   * @brief Constellation order the discriminator strips.
+   * @param state  Must be non-NULL.
+   * @return M: 2, 4 or 8, fixed at create.
+   */
   int    dp_carrier_nda_get_m (const dp_carrier_nda_state_t *state);
+  /**
+   * @brief Arm-window divisor: the moving average spans sps / n samples.
+   * @param state  Must be non-NULL.
+   * @return n, fixed at create.
+   */
   int    dp_carrier_nda_get_n (const dp_carrier_nda_state_t *state);
+  /**
+   * @brief Samples per symbol the arm window is sized from.
+   * @param state  Must be non-NULL.
+   * @return sps, in samples, fixed at create.
+   */
   size_t dp_carrier_nda_get_sps (const dp_carrier_nda_state_t *state);
 #ifdef __cplusplus
 }

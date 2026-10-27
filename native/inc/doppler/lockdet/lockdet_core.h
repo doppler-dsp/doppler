@@ -171,14 +171,40 @@ extern "C"
    * Whole-struct POD snapshot (pointer-free); the decision flag and the
    * in-flight verify run resume exactly.
    */
+/** @brief State-blob magic for the lock detector (FourCC "LKDT"). */
 #define LOCKDET_STATE_MAGIC DP_FOURCC('L', 'K', 'D', 'T')
+/** @brief State-blob layout version for the lock detector. */
 #define LOCKDET_STATE_VERSION 1u
 
-  /** @brief Serialized-state byte size. */
+  /**
+   * @brief Serialized-state byte size.
+   * @param state  Must be non-NULL (its contents do not affect the size).
+   * @return Bytes: the dp_state_hdr_t envelope plus the whole struct.
+   */
   size_t dp_lockdet_state_bytes(const dp_lockdet_state_t *state);
-  /** @brief Serialize the detector state into @p blob. */
+  /**
+   * @brief Serialize the detector state into @p blob.
+   *
+   * A whole-struct snapshot: thresholds, run lengths, the verify-run
+   * counter and the lock flag.
+   *
+   * @param state  Must be non-NULL.
+   * @param blob   Caller-owned buffer of at least dp_lockdet_state_bytes()
+   *               bytes.
+   */
   void dp_lockdet_get_state(const dp_lockdet_state_t *state, void *blob);
-  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+  /**
+   * @brief Restore a state written by dp_lockdet_get_state().
+   *
+   * The envelope is validated first; on rejection @p state is untouched.
+   * Being a whole-struct snapshot, it also restores the sender's
+   * thresholds and run lengths.
+   *
+   * @param state  Must be non-NULL.
+   * @param blob   Blob from dp_lockdet_get_state().
+   * @return DP_OK, or DP_ERR_INVALID on a magic, version, endian or size
+   *         mismatch.
+   */
   int dp_lockdet_set_state(dp_lockdet_state_t *state, const void *blob);
 
   /**

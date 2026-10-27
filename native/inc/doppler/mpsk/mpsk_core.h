@@ -36,31 +36,49 @@ extern "C" {
 #endif
 
 #ifndef MPSK_PI
+/** @brief pi, in double precision, for the M-PSK phase arithmetic. */
 #define MPSK_PI 3.14159265358979323846
 #endif
 
-/** @brief Bits per M-PSK symbol = log2(M); M in {2,4,8} -> {1,2,3}, else 0. */
+/**
+ * @brief Bits per M-PSK symbol = log2(M).
+ * @param m  Modulation order M; 2, 4 or 8.
+ * @return 1, 2 or 3 for M = 2, 4, 8; 0 for any other @p m (unsupported).
+ */
 JM_FORCEINLINE int
 mpsk_bps (int m)
 {
   return (m == 2) ? 1 : (m == 4) ? 2 : (m == 8) ? 3 : 0;
 }
 
-/** @brief Constellation phase offset (radians): pi/4 for QPSK, else 0. */
+/**
+ * @brief Constellation phase offset of the M-PSK alphabet.
+ * @param m  Modulation order M.
+ * @return pi/4 rad for M = 4 (QPSK points on the diagonals); 0 rad for
+ *         every other @p m.
+ */
 JM_FORCEINLINE double
 mpsk_phi0 (int m)
 {
   return (m == 4) ? (MPSK_PI / 4.0) : 0.0;
 }
 
-/** @brief Binary index -> Gray code (k ^ k>>1). */
+/**
+ * @brief Binary index -> Gray code (k ^ k>>1).
+ * @param k  Binary constellation index.
+ * @return Gray code of @p k; adjacent indices differ in one bit.
+ */
 JM_FORCEINLINE unsigned
 mpsk_gray_encode (unsigned k)
 {
   return k ^ (k >> 1);
 }
 
-/** @brief Gray code -> binary index (inverse of mpsk_gray_encode). */
+/**
+ * @brief Gray code -> binary index (inverse of mpsk_gray_encode).
+ * @param g  Gray-coded label.
+ * @return Binary index k with mpsk_gray_encode(k) == @p g.
+ */
 JM_FORCEINLINE unsigned
 mpsk_gray_decode (unsigned g)
 {

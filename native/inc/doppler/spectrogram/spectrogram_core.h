@@ -49,9 +49,10 @@ extern "C"
 {
 #endif
 
-/** @brief State-blob magic ('SPGM') and layout version. */
+/** @brief State-blob magic ('SPGM'). */
 #define SPECTROGRAM_STATE_MAGIC DP_FOURCC ('S', 'P', 'G', 'M')
-/* v2: the blob carries the configuration (mode, nfft, hop, window, beta) so a
+/** @brief State-blob layout version.
+ * v2: the blob carries the configuration (mode, nfft, hop, window, beta) so a
  * restore refuses a blob whose rows would mean something else (#2102). */
 #define SPECTROGRAM_STATE_VERSION 2u
 
@@ -190,6 +191,7 @@ size_t dp_spectrogram_push (dp_spectrogram_state_t *s,
  *
  * @param s     Must be non-NULL.
  * @param n_in  Samples about to be pushed.
+ * @return Floats: rows_for(@p n_in) * nfft, or SIZE_MAX on overflow.
  */
 size_t dp_spectrogram_push_max_out (const dp_spectrogram_state_t *s,
                                     size_t n_in);
@@ -201,6 +203,7 @@ size_t dp_spectrogram_push_max_out (const dp_spectrogram_state_t *s,
  * resumes at in + consumed. 0 after create, reset, flush and set_state.
  *
  * @param s  Must be non-NULL.
+ * @return Input samples consumed by the last push; 0 before any push.
  */
 size_t dp_spectrogram_consumed (const dp_spectrogram_state_t *s);
 
@@ -214,6 +217,7 @@ size_t dp_spectrogram_consumed (const dp_spectrogram_state_t *s);
  *
  * @param s     Must be non-NULL.
  * @param n_in  Samples about to be pushed.
+ * @return Rows (not floats) that push would complete.
  */
 size_t dp_spectrogram_rows_for (const dp_spectrogram_state_t *s,
                                 size_t n_in);
@@ -247,6 +251,7 @@ int64_t dp_spectrogram_flush (dp_spectrogram_state_t *s, float *row,
  * the only row length dp_spectrogram_flush() accepts.
  *
  * @param s  Must be non-NULL.
+ * @return Floats: nfft.
  */
 size_t dp_spectrogram_flush_max_out (const dp_spectrogram_state_t *s);
 
@@ -257,6 +262,7 @@ size_t dp_spectrogram_flush_max_out (const dp_spectrogram_state_t *s);
  * complete as it stands.
  *
  * @param s  Must be non-NULL.
+ * @return Samples not yet covered by any written row; 0 when none.
  */
 size_t dp_spectrogram_pending (const dp_spectrogram_state_t *s);
 
@@ -272,6 +278,7 @@ size_t dp_spectrogram_pending (const dp_spectrogram_state_t *s);
  * after a restore. What a restore refuses is dp_spectrogram_set_state()'s.
  *
  * @param s  Must be non-NULL.
+ * @return Blob size in bytes.
  */
 size_t dp_spectrogram_state_bytes (const dp_spectrogram_state_t *s);
 

@@ -73,7 +73,8 @@ extern "C" {
  */
 typedef struct
 {
-  rs_t rs;
+  rs_t rs; /**< The code parameters and GF/generator tables, built and
+               validated by dp_rs_codec_create(); read-only after. */
   /*<<property_struct_fields>>*/
 } dp_rs_codec_state_t;
 
@@ -117,6 +118,10 @@ void dp_rs_codec_destroy (dp_rs_codec_state_t *state);
 /**
  * @brief Symbols @ref dp_rs_codec_encode writes for @p n_in information
  * symbols: a whole codeword, `n`.
+ *
+ * @param state  Must be non-NULL.
+ * @param n_in   Ignored: a codeword is `n` symbols whatever it encodes.
+ * @return `n` symbols.
  */
 size_t dp_rs_codec_encode_max_out (dp_rs_codec_state_t *state, size_t n_in);
 
@@ -206,6 +211,10 @@ int dp_rs_codec_decode (dp_rs_codec_state_t *state, uint8_t *codeword,
 
 /**
  * @brief Syndromes @ref dp_rs_codec_syndromes writes: `nroots`.
+ *
+ * @param state  Must be non-NULL.
+ * @param n_in   Ignored: the syndrome count does not depend on it.
+ * @return `nroots` symbols.
  */
 size_t dp_rs_codec_syndromes_max_out (dp_rs_codec_state_t *state, size_t n_in);
 
@@ -297,19 +306,39 @@ int dp_rs_codec_codeword_ok (dp_rs_codec_state_t *state, const uint8_t *codeword
 size_t dp_rs_codec_generator (dp_rs_codec_state_t *state, uint8_t *out,
                            size_t out_len);
 
-/** @brief Symbols per codeword, `2^J - 1`. */
+/**
+ * @brief Symbols per codeword, `2^J - 1`.
+ * @param state  Must be non-NULL.
+ * @return `n`, in symbols (255 for J = 8).
+ */
 size_t dp_rs_codec_get_n (const dp_rs_codec_state_t *state);
 
-/** @brief Information symbols per codeword, `n - nroots`. */
+/**
+ * @brief Information symbols per codeword, `n - nroots`.
+ * @param state  Must be non-NULL.
+ * @return `k`, in symbols.
+ */
 size_t dp_rs_codec_get_k (const dp_rs_codec_state_t *state);
 
-/** @brief Correctable symbols per codeword, `nroots / 2`. */
+/**
+ * @brief Correctable symbols per codeword, `nroots / 2`.
+ * @param state  Must be non-NULL.
+ * @return `E`, in symbols.
+ */
 size_t dp_rs_codec_get_e (const dp_rs_codec_state_t *state);
 
-/** @brief Parity symbols per codeword, `2E`. */
+/**
+ * @brief Parity symbols per codeword, `2E`.
+ * @param state  Must be non-NULL.
+ * @return `nroots`, as passed to dp_rs_codec_create().
+ */
 size_t dp_rs_codec_get_nroots (const dp_rs_codec_state_t *state);
 
-/** @brief Symbol width `J`, in bits. */
+/**
+ * @brief Symbol width `J`, in bits.
+ * @param state  Must be non-NULL.
+ * @return `J`, 2..8, as passed to dp_rs_codec_create().
+ */
 size_t dp_rs_codec_get_symbol_bits (const dp_rs_codec_state_t *state);
 
 #ifdef __cplusplus

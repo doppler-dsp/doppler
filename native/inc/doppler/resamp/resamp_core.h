@@ -36,7 +36,7 @@
  * no interpolation between branches.
  *
  * Default constructor builds a 4096-phase × 19-tap Kaiser bank
- * (60 dB rejection, 0.4/0.6 pass/stop) at first call.  Use
+ * (60 dB rejection, 0.4/0.6 pass/stop) at create.  Use
  * dp_resamp_create_custom() to supply your own bank.
  *
  * Lifecycle:
@@ -58,29 +58,49 @@ extern "C"
 {
 #endif
 
+  /**
+   * @brief Polyphase resampler state.
+   *
+   * Allocate with dp_resamp_create() or dp_resamp_create_custom(); free
+   * with dp_resamp_destroy(), which owns every pointer below.  Config
+   * fields are set at create (rate and phase_inc also by
+   * dp_resamp_set_rate()); the rest is running state.
+   */
   typedef struct
   {
-    double rate;
-    size_t num_phases;
-    size_t num_taps;
-    unsigned log2_phases;
-    int upsample; /* 1 = rate >= 1.0, 0 = rate < 1.0 */
+    double rate; /**< Output/input rate ratio (> 1 interpolates). */
+    size_t num_phases; /**< Polyphase arms in the bank (power of two). */
+    size_t num_taps; /**< Taps per arm. */
+    unsigned log2_phases; /**< log2(num_phases), rounded up: the bits of
+                               the phase word that select an arm. */
+    int upsample; /**< 1 = rate >= 1.0 (interpolator path), 0 = rate < 1.0
+                       (decimator path) for dp_resamp_execute(). */
 
-    float *bank; /* num_phases × num_taps, row-major  */
+    float *bank; /**< Owned copy of the bank: num_phases x num_taps,
+                      row-major (one row per arm). */
 
     /* execute state */
-    uint32_t phase;
-    uint32_t phase_inc;
+    uint32_t phase; /**< dp_resamp_execute() phase accumulator (32-bit
+                         fraction of one interval). */
+    uint32_t phase_inc; /**< dp_resamp_execute() step per tick: 2^32/rate
+                             interpolating, 2^32*rate decimating, modulo
+                             2^32 (0 at rate 1). */
 
     /* interpolator / execute_ctrl: dual-buffer delay line */
-    float _Complex *delay_buf; /* 2 × delay_cap elements         */
-    size_t delay_cap;
-    size_t delay_mask;
-    size_t delay_head;
+    float _Complex *delay_buf; /**< Mirrored delay line, 2 x delay_cap
+                                    elements, so num_taps reads are
+                                    contiguous. */
+    size_t delay_cap; /**< Delay-line length: num_taps rounded up to a
+                           power of two. */
+    size_t delay_mask; /**< delay_cap - 1, the index wrap mask. */
+    size_t delay_head; /**< Delay-line write position, < delay_cap. */
 
     /* decimator transposed-form state (execute, rate < 1) */
-    float _Complex *decim_iad; /* integrate-and-dump: num_taps   */
-    float _Complex *decim_tfd; /* transposed delay line: num_taps-1 */
+    float _Complex *decim_iad; /**< Decimator integrate-and-dump
+                                    registers, num_taps elements. */
+    float _Complex *decim_tfd; /**< Decimator transposed delay line,
+                                    num_taps - 1 elements (1 allocated
+                                    when num_taps == 1). */
 
     /* execute_ctrl state: the INTERPOLATOR's accumulator.  ctrl_phase is
        the position within the current input interval -- a uint32 fraction
@@ -88,36 +108,63 @@ extern "C"
        ctrl_debt is the whole intervals still owed before the next output
        may fire; it is non-zero only when the steered rate drops below
        unity, where one output spans more than one input. */
-    uint32_t ctrl_phase;
+    uint32_t ctrl_phase; /**< execute_ctrl phase: uint32 fraction of the
+                              current input interval; selects the arm. */
     /* Inputs the accumulator has REQUESTED and not yet been given.  No
        sample enters the delay line without one of these: the push form
        holds the offered sample until a tick asks for it, exactly as the
        block form only ever loads inside its load branch. */
-    uint32_t ctrl_debt;
+    uint32_t ctrl_debt; /**< execute_ctrl: inputs requested and not yet
+                             given (whole intervals owed). */
     /* Inputs given WITHOUT a request, because max_out ended the call before
        a tick could ask.  The caller's sample has to go somewhere -- the API
        has no way to decline it -- so it is loaded and remembered here, and
        the next request is satisfied from it instead of from a new sample. */
-    uint32_t ctrl_ahead;
+    uint32_t ctrl_ahead; /**< execute_ctrl: inputs loaded ahead of any
+                              request (see above). */
   } resamp_state_t;
 
   /* ------------------------------------------------------------------
    * Lifecycle
    * ------------------------------------------------------------------ */
 
-  /** Built-in 4096×19 Kaiser bank (60 dB, 0.4/0.6 pass/stop). */
+  /**
+   * @brief Create a resampler with the built-in 4096x19 Kaiser bank
+   *        (60 dB, 0.4/0.6 pass/stop).
+   * @param rate  Output/input rate ratio; > 1 interpolates, < 1
+   *              decimates.  Should be > 0; unlike
+   *              dp_resamp_create_custom(), this constructor does not
+   *              check it.
+   * @return Heap-allocated state, or NULL if allocation fails.  Free with
+   *         dp_resamp_destroy().
+   */
   resamp_state_t *dp_resamp_create (double rate);
 
-  /** User-supplied bank, shape num_phases × num_taps, row-major.
-   *  num_phases must be a power of two. */
+  /**
+   * @brief Create a resampler over a user-supplied polyphase bank.
+   * @param num_phases  Arms in the bank; must be a power of two (not
+   *                    checked).
+   * @param num_taps    Taps per arm.
+   * @param bank        num_phases x num_taps floats, row-major (one row
+   *                    per arm); copied, so the caller keeps ownership.
+   * @param rate        Output/input rate ratio, > 0.
+   * @return Heap-allocated state, or NULL if @p num_phases or @p num_taps
+   *         is 0, @p bank is NULL, @p rate <= 0, or allocation fails.
+   */
   resamp_state_t *dp_resamp_create_custom (size_t num_phases, size_t num_taps,
                                         const float *bank, double rate);
 
-  /** Free all resources.  NULL is a no-op. */
+  /**
+   * @brief Free the state, its bank and its delay lines.
+   * @param state  May be NULL (no-op).
+   */
   void dp_resamp_destroy (resamp_state_t *state);
 
-  /** Zero phase accumulator, ctrl accumulator, and delay line.
-   *  Rate and bank are preserved. */
+  /**
+   * @brief Zero the phase accumulators, the ctrl debt/ahead counters and
+   *        every delay line.  Rate and bank are preserved.
+   * @param state  Must be non-NULL.
+   */
   void dp_resamp_reset (resamp_state_t *state);
 
   /* Serializable state (standard bytes interface; see dp_state.h): after the
@@ -132,16 +179,27 @@ extern "C"
    * bank filters well -- it is what keeps the reciprocal in
    * dp_resamp_execute_ctrl_push() defined.  Small enough that no real steer
    * reaches it. */
+  /** @brief Floor on the composite rate `rate + ctrl` in the ctrl paths. */
 #define RESAMP_CTRL_RATE_MIN 1e-6
 
+/** @brief State-blob magic for the resampler (FourCC "RSMP"). */
 #define RESAMP_STATE_MAGIC DP_FOURCC ('R', 'S', 'M', 'P')
+/** @brief State-blob layout version (v2: uint32 ctrl phase + debt). */
 #define RESAMP_STATE_VERSION 2u
 
-  /** @brief Bytes dp_resamp_get_state() writes for @p state (envelope + payload). */
+  /** @brief Bytes dp_resamp_get_state() writes for @p state (envelope +
+   *         payload).
+   *  @param state  Must be non-NULL.
+   *  @return Blob size in bytes; depends on num_taps (via delay_cap). */
   size_t dp_resamp_state_bytes (const resamp_state_t *state);
-  /** @brief Serialize @p state's mutable state into @p blob. */
+  /** @brief Serialize @p state's mutable state into @p blob.
+   *  @param state  Must be non-NULL.
+   *  @param blob   Caller-owned buffer of at least dp_resamp_state_bytes()
+   *                bytes. */
   void dp_resamp_get_state (const resamp_state_t *state, void *blob);
   /** @brief Restore mutable state from @p blob (same rate).
+   *  @param state  Must be non-NULL; built with the same bank geometry.
+   *  @param blob   Blob from dp_resamp_get_state().
    *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects or its
    *          delay-line head lies outside the line; @p state is then
    *          unchanged. */
@@ -345,14 +403,33 @@ extern "C"
    * Properties
    * ------------------------------------------------------------------ */
 
+  /**
+   * @brief Base output/input rate ratio.
+   * @param state  Must be non-NULL.
+   * @return The create() rate, or the last dp_resamp_set_rate() value.
+   */
   double dp_resamp_get_rate (const resamp_state_t *state);
 
-  /** Update rate and recompute phase_inc.  Accumulator phase and delay
-   *  line are preserved.  Switching between interp and decim modes
-   *  requires a new create() + destroy() pair. */
+  /** @brief Update rate and recompute phase_inc.  Accumulator phase and
+   *  delay line are preserved.  Switching between interp and decim modes
+   *  requires a new create() + destroy() pair: the call does flip the
+   *  dp_resamp_execute() path when @p rate crosses 1, but the newly
+   *  selected path's state is not primed.  The rate is not validated.
+   *  @param state  Must be non-NULL.
+   *  @param rate   New output/input rate ratio, > 0. */
   void dp_resamp_set_rate (resamp_state_t *state, double rate);
 
+  /**
+   * @brief Polyphase arms in the bank.
+   * @param state  Must be non-NULL.
+   * @return num_phases (4096 for the built-in bank).
+   */
   size_t dp_resamp_get_num_phases (const resamp_state_t *state);
+  /**
+   * @brief Taps per polyphase arm.
+   * @param state  Must be non-NULL.
+   * @return num_taps (19 for the built-in bank).
+   */
   size_t dp_resamp_get_num_taps (const resamp_state_t *state);
 
   /** @brief Group delay of the interpolator, in INPUT samples.
@@ -404,6 +481,11 @@ extern "C"
    *
    *  Pinned by test_resamp_core.c §10 (the arm, read off the output at four
    *  rates), §11 (the wrap's unit, against the counting law) and §12.
+   *
+   *  @param state  Must be non-NULL.
+   *  @return mu, from 0 up to (not including) 1: a fraction of one input
+   *          interval; 0 after
+   *          create/reset.
    */
   double dp_resamp_get_ctrl_acc (const resamp_state_t *state);
 

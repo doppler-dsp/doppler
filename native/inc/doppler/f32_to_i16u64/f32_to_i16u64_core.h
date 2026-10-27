@@ -51,8 +51,11 @@ extern "C" {
  * scaled value falls outside `[-32768, 32767]`; cleared only by reset().
  */
 typedef struct {
-    float   scale;   /* multiply factor applied before saturation */
-    uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
+    float   scale;   /**< Multiply factor applied before saturation; set
+                          once by create() (> 0), never changed after. */
+    uint8_t clipped; /**< Sticky saturation flag: 1 once any sample has
+                          been clamped, else 0; written by step(),
+                          cleared only by reset(). */
 } dp_f32_to_i16u64_state_t;
 
 /**
@@ -63,8 +66,9 @@ typedef struct {
  * @param scale  Multiply factor applied before quantisation and saturation
  *               (default: 32768.0f).  Use 32768.0 to convert normalised
  *               `[-1, +1]` samples to Q15 packed into the low 16 bits of
- *               a uint64.
- * @return Heap-allocated state, or NULL on allocation failure.
+ *               a uint64.  Must be > 0.
+ * @return Heap-allocated state, or NULL if @p scale <= 0 or allocation
+ *         fails.
  * @note Caller must call dp_f32_to_i16u64_destroy() when done.
  */
 dp_f32_to_i16u64_state_t *dp_f32_to_i16u64_create(float scale);
@@ -135,8 +139,8 @@ dp_f32_to_i16u64_step(dp_f32_to_i16u64_state_t *state, float x)
  * @brief Process a block of float samples to Q15-in-uint64.
  *
  * Applies step() to every element.  The @c clipped flag is updated
- * cumulatively across the block.  Accepts an optional pre-allocated output
- * array; allocates a fresh one when @p output is NULL.
+ * cumulatively across the block.  In C, @p output must be non-NULL; the
+ * Python binding allocates a fresh array when no `out=` is passed.
  *
  * @param state   Must be non-NULL.
  * @param input   Input float32 array; must contain at least @p n elements.
@@ -165,10 +169,35 @@ void dp_f32_to_i16u64_steps(
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the sticky clip flag resumes exactly into an
  * identically-built instance. */
+/** @brief State-blob magic for F32ToI16U64 (FourCC "FU64"). */
 #define F32_TO_I16U64_STATE_MAGIC DP_FOURCC ('F','U','6','4')
+/** @brief State-blob layout version for F32ToI16U64. */
 #define F32_TO_I16U64_STATE_VERSION 1u
+/**
+ * @brief Size of the serialized state blob.
+ * @param state  Must be non-NULL (its contents do not affect the size).
+ * @return Bytes: the dp_state_hdr_t envelope plus the whole state struct.
+ */
 size_t dp_f32_to_i16u64_state_bytes (const dp_f32_to_i16u64_state_t *state);
+/**
+ * @brief Serialize the state (scale and sticky clip flag) into @p blob.
+ * @param state  Must be non-NULL.
+ * @param blob   Caller-owned buffer of at least
+ *               dp_f32_to_i16u64_state_bytes() bytes.
+ */
 void dp_f32_to_i16u64_get_state (const dp_f32_to_i16u64_state_t *state, void *blob);
+/**
+ * @brief Restore a state previously written by dp_f32_to_i16u64_get_state().
+ *
+ * The envelope is validated first; on rejection @p state is left untouched.
+ * The blob carries @c scale too, so the restored instance takes the
+ * sender's scale.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Blob from dp_f32_to_i16u64_get_state().
+ * @return DP_OK, or DP_ERR_INVALID on a magic, version, endian or size
+ *         mismatch.
+ */
 int dp_f32_to_i16u64_set_state (dp_f32_to_i16u64_state_t *state, const void *blob);
 
 #ifdef __cplusplus

@@ -158,8 +158,8 @@ extern "C"
 /** Largest supported outputs-per-symbol (bounds the strobe ring in-struct). */
 #define RATESYNC_MAX_M 8
 
-/* Numerical guard on the on-time+mid energy sum feeding the lock statistic
- * (not tunable) — mirrors SYMSYNC_LOCK_EPS. */
+/** @brief Numerical guard on the on-time+mid energy sum feeding the lock
+ * statistic (not tunable) — mirrors SYMSYNC_LOCK_EPS. */
 #define RATESYNC_LOCK_EPS 1e-12
 
   /**
@@ -240,7 +240,8 @@ extern "C"
      *  comment into markdown, where a bare `name[i]` parses as a link
      *  reference and fails the --strict docs build.) */
     float _Complex ring[RATESYNC_MAX_M / 2 + 1];
-    size_t        ring_n;
+    size_t        ring_n; /**< valid entries in the ring (saturates at
+                               m/2 + 1); 0 after reset. */
     float _Complex prev_on; /**< previous on-time strobe.                  */
 
     /* ── lock detector (always on): tumbling-window block average ───── */
@@ -327,17 +328,36 @@ extern "C"
    *  @param l  Must be non-NULL. */
   void dp_ratesync_loop_reset (ratesync_loop_t *l);
 
-  /** @brief Retune the loop; preserves the integrator (and so the lock). */
+  /** @brief Retune the loop; preserves the integrator (and so the lock).
+   *
+   *  A (@p bn, @p zeta) outside dp_loop_filter_params_ok() is ignored
+   *  silently: nothing changes and no status is returned.
+   *
+   *  @param l     Must be non-NULL.
+   *  @param bn    Loop noise bandwidth, normalized to the symbol rate.
+   *  @param zeta  Damping factor. */
   void dp_ratesync_loop_configure (ratesync_loop_t *l, double bn, double zeta);
 
   /** @brief Set the lock detector's geometry; see
-   *         dp_ratesync_configure_lock_raw(), which forwards here. */
+   *         dp_ratesync_configure_lock_raw(), which forwards here.
+   *  @param l            Must be non-NULL.
+   *  @param avgs         Looks per decision; clamped >= 1.
+   *  @param up_thresh    Declare threshold on lock_stat.
+   *  @param down_thresh  Drop threshold; <= up_thresh for hysteresis.
+   *  @param n_up         Consecutive above-threshold decisions to declare.
+   *  @param n_down       Consecutive below-threshold decisions to drop. */
   void dp_ratesync_loop_configure_lock_raw (ratesync_loop_t *l, size_t avgs,
                                          double up_thresh, double down_thresh,
                                          uint32_t n_up, uint32_t n_down);
 
   /** @brief Register the six timing probes; see dp_ratesync_set_telemetry(),
-   *         which forwards here. NULL @p tlm detaches. */
+   *         which forwards here. NULL @p tlm detaches.
+   *  @param l       Must be non-NULL.
+   *  @param tlm     Telemetry context to attach (borrowed), or NULL.
+   *  @param prefix  Probe-name prefix; NULL means "sync".
+   *  @param decim   Emit every decim-th symbol.
+   *  @return DP_OK, or DP_ERR_INVALID if the prefix is too long or the
+   *          probe table cannot take all six (nothing is attached). */
   int dp_ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
                                    const char *prefix, uint32_t decim);
 
@@ -355,17 +375,30 @@ extern "C"
  * Envelope, this loop's running scalars, then the loop filter's own
  * self-validating sub-blob. Config (sps/m/term_rate/prime_taps/bn/zeta/ted)
  * is restored by the owner's create() and never packed. */
+/** @brief State-blob magic for the timing loop (FourCC "RSLP"). */
 #define RATESYNC_LOOP_STATE_MAGIC DP_FOURCC ('R', 'S', 'L', 'P')
+/** @brief Timing-loop blob layout version. */
 #define RATESYNC_LOOP_STATE_VERSION 2u /* v2: the TED normaliser is
                                         * a construct-time constant, so
                                         * pwr_avg/pwr_seeded are gone */
 
   /** @brief Bytes dp_ratesync_loop_get_state() writes (envelope + payload +
-   *         the loop filter's child blob). */
+   *         the loop filter's child blob).
+   *  @param l  Must be non-NULL.
+   *  @return Blob size in bytes. */
   size_t dp_ratesync_loop_state_bytes (const ratesync_loop_t *l);
-  /** @brief Serialize the loop's mutable state into @p blob. */
+  /** @brief Serialize the loop's mutable state into @p blob.
+   *  @param l     Must be non-NULL.
+   *  @param blob  Caller-owned buffer of at least
+   *               dp_ratesync_loop_state_bytes() bytes. */
   void dp_ratesync_loop_get_state (const ratesync_loop_t *l, void *blob);
   /** @brief Restore the loop's mutable state from @p blob.
+   *
+   *  Config is not in the blob: restore into a loop built with the same
+   *  geometry. A refusal changes nothing.
+   *
+   *  @param l     Must be non-NULL.
+   *  @param blob  Blob from dp_ratesync_loop_get_state().
    *  @return DP_OK, or DP_ERR_INVALID if any envelope rejects. */
   int dp_ratesync_loop_set_state (ratesync_loop_t *l, const void *blob);
 
@@ -706,7 +739,9 @@ extern "C"
 
   /** @brief Output-buffer hint for the generated binding; 0 means "the input
    *  length is already a safe bound" — with `sps >= m >= 2` a block can never
-   *  yield more symbols than it has samples (mirrors symsync). */
+   *  yield more symbols than it has samples (mirrors symsync).
+   *  @param state  Unused.
+   *  @return 0. */
   size_t dp_ratesync_steps_max_out (dp_ratesync_state_t *state);
 
   /**
@@ -756,6 +791,9 @@ extern "C"
    * @param state  Must be non-NULL.
    * @param bn     Loop noise bandwidth, normalised to the symbol rate.
    * @param zeta   Damping factor (0.707 = critically damped).
+   *
+   * A (@p bn, @p zeta) outside dp_loop_filter_params_ok() is ignored
+   * silently: nothing changes and no status is returned.
    * @code
    * >>> import numpy as np
    * >>> from doppler.track import RateSync
@@ -777,35 +815,61 @@ extern "C"
   void   dp_ratesync_configure (dp_ratesync_state_t *state, double bn, double zeta);
   /** @brief Timing-loop noise bandwidth, normalised to the symbol rate.
    *  Writing it re-derives the loop gains at the damping already in use,
-   *  exactly as configure() does. */
+   *  exactly as configure() does.
+   *  @param state  Must be non-NULL.
+   *  @return bn: the create() value or the last one configure() accepted. */
   double dp_ratesync_get_bn (const dp_ratesync_state_t *state);
+  /** @brief Retune bn at the current zeta, through dp_ratesync_configure().
+   *
+   *  An out-of-domain value is ignored silently (no status, no error), so
+   *  dp_ratesync_get_bn() keeps reporting the bandwidth in use.
+   *
+   *  @param state  Must be non-NULL.
+   *  @param val    New loop noise bandwidth, normalized to the symbol
+   *                rate. */
   void   dp_ratesync_set_bn (dp_ratesync_state_t *state, double val);
 
-  /** @brief Last normalised TED error — the loop stress. */
+  /** @brief Last normalised TED error — the loop stress.
+   *  @param state  Must be non-NULL.
+   *  @return The detector output scaled by its own slope (dimensionless);
+   *          0 before the first steered symbol. */
   double dp_ratesync_get_timing_error (const dp_ratesync_state_t *state);
 
   /** @brief Smoothed tracked samples per symbol. Departs from the nominal
    *         `sps` by exactly the sample-clock offset being tracked, so it is
-   *         the estimator a rate-disciplining caller reads. */
+   *         the estimator a rate-disciplining caller reads.
+   *  @param state  Must be non-NULL.
+   *  @return Samples per symbol, sps / (1 + loop integrator), clamped to
+   *          0.5 sps to 1.5 sps; the nominal sps after create/reset. */
   double dp_ratesync_get_rate (const dp_ratesync_state_t *state);
 
-  /** @brief Current per-input control deviation steering the strobe. */
+  /** @brief Current per-input control deviation steering the strobe.
+   *  @param state  Must be non-NULL.
+   *  @return Rate deviation added to the terminal stage's rate (same
+   *          units as that rate); 0 after create/reset. */
   double dp_ratesync_get_ctrl (const dp_ratesync_state_t *state);
 
   /** @brief Last block-averaged lock statistic (the eye-opening ratio).
    *
    *  This, not an error-vector magnitude, is the honest lock indicator: a
    *  single cycle slip during acquisition drags a windowed EVM by 20 dB while
-   *  the eye stays wide open at +0.75. Judge lock here. */
+   *  the eye stays wide open at +0.75. Judge lock here.
+   *  @param state  Must be non-NULL.
+   *  @return Mean lock_signal over the last completed block of avgs
+   *          looks; 0.0 until the first block completes. */
   double dp_ratesync_get_lock_stat (const dp_ratesync_state_t *state);
 
-  /** @brief Current lock decision (1 = locked), verify-counted. */
+  /** @brief Current lock decision (1 = locked), verify-counted.
+   *  @param state  Must be non-NULL.
+   *  @return 1 when locked, 0 otherwise (0 after create/reset). */
   int dp_ratesync_get_locked (const dp_ratesync_state_t *state);
 
   /** @brief Has the cascade's CIC stage clipped its input since the last
    *         reset? Forwarded from the RateConverter: a CIC bounds its input
    *         to +-2.0 and clips silently past that, which no timing metric
-   *         reveals. Always 0 when the plan has no CIC stage. */
+   *         reveals. Always 0 when the plan has no CIC stage.
+   *  @param state  Must be non-NULL.
+   *  @return 1 if the CIC has clipped since the last reset, else 0. */
   int dp_ratesync_get_clipped (const dp_ratesync_state_t *state);
 
   /**
@@ -889,15 +953,26 @@ extern "C"
  * this object's own running state moved into the loop's blob, so it packs no
  * scalars of its own; config (sps/pulse/beta/span/m/num_phases/bn/zeta/ted) is
  * restored by create() and never packed. */
+/** @brief State-blob magic for RateSync (FourCC "RATS"). */
 #define RATESYNC_STATE_MAGIC DP_FOURCC ('R', 'A', 'T', 'S')
+/** @brief RateSync blob layout version. */
 #define RATESYNC_STATE_VERSION 2u /* v2: running state moved into the loop */
 
-  /** @brief Bytes dp_ratesync_get_state() writes (envelope + payload + child). */
+  /** @brief Bytes dp_ratesync_get_state() writes (envelope + payload + child).
+   *  @param state  Must be non-NULL.
+   *  @return Blob size in bytes: envelope + RateConverter blob + loop
+   *          blob. */
   size_t dp_ratesync_state_bytes (const dp_ratesync_state_t *state);
-  /** @brief Serialize the mutable state into @p blob. */
+  /** @brief Serialize the mutable state into @p blob.
+   *  @param state  Must be non-NULL.
+   *  @param blob   Caller-owned buffer of at least
+   *                dp_ratesync_state_bytes() bytes. */
   void dp_ratesync_get_state (const dp_ratesync_state_t *state, void *blob);
   /** @brief Restore mutable state from @p blob into an identically built
-   *  instance. @return DP_OK, or DP_ERR_INVALID if any envelope rejects. */
+   *  instance.
+   *  @param state  Must be non-NULL.
+   *  @param blob   Blob from dp_ratesync_get_state().
+   *  @return DP_OK, or DP_ERR_INVALID if any envelope rejects. */
   int dp_ratesync_set_state (dp_ratesync_state_t *state, const void *blob);
 
 #ifdef __cplusplus

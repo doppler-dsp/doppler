@@ -26,6 +26,13 @@ extern "C"
 {
 #endif
 
+  /**
+   * @brief 2-D FFT engine state: two fixed ny x nx plans plus scratch.
+   *
+   * Every field is set by dp_fft2d_create() and immutable afterward,
+   * except the lazily allocated @c work_trunc.  Allocate with
+   * dp_fft2d_create(); free with dp_fft2d_destroy().
+   */
   typedef struct
   {
     pocketfft_plan *plan_f64; /**< CF64 2-D plan. */
@@ -53,7 +60,8 @@ extern "C"
    * @param nx        Number of columns (inner dimension).
    * @param sign      -1 for the forward DFT, +1 for the inverse DFT.
    * @param nthreads  Accepted for API compatibility; ignored.
-   * @return Heap-allocated state, or NULL on failure.
+   * @return Heap-allocated state, or NULL if allocation or either plan
+   *         build fails.  Free with dp_fft2d_destroy().
    * @code
    * >>> from doppler.spectral import FFT2D
    * >>> import numpy as np
@@ -73,10 +81,17 @@ extern "C"
   /** @brief Destroy and free an fft2d instance. @param state May be NULL. */
   void dp_fft2d_destroy (dp_fft2d_state_t *state);
 
-  /** @brief No-op reset (plans are immutable after creation). */
+  /**
+   * @brief No-op reset (plans are immutable after creation).
+   * @param state  Unused; may be any value.
+   */
   void dp_fft2d_reset (dp_fft2d_state_t *state);
 
-  /** @brief Maximum output samples per execute call (ny * nx). */
+  /**
+   * @brief Output capacity dp_fft2d_execute_cf64() needs.
+   * @param state  Must be non-NULL.
+   * @return ny * nx samples.
+   */
   size_t dp_fft2d_execute_cf64_max_out (dp_fft2d_state_t *state);
 
   /**
@@ -112,7 +127,11 @@ extern "C"
                              size_t n_in, double _Complex *out,
                              size_t max_out);
 
-  /** @brief Maximum output samples for CF32 execute (ny * nx). */
+  /**
+   * @brief Output capacity dp_fft2d_execute_cf32() needs.
+   * @param state  Must be non-NULL.
+   * @return ny * nx samples.
+   */
   size_t dp_fft2d_execute_cf32_max_out (dp_fft2d_state_t *state);
 
   /**
@@ -148,7 +167,11 @@ extern "C"
                              size_t n_in, float _Complex *out,
                              size_t max_out);
 
-  /** @brief Maximum output samples for inplace CF64 execute (ny * nx). */
+  /**
+   * @brief Output capacity dp_fft2d_execute_inplace_cf64() needs.
+   * @param state  Must be non-NULL.
+   * @return ny * nx samples.
+   */
   size_t dp_fft2d_execute_inplace_cf64_max_out (dp_fft2d_state_t *state);
 
   /**
@@ -182,7 +205,11 @@ extern "C"
                                      const double _Complex *in, size_t n_in,
                                      double _Complex *out, size_t max_out);
 
-  /** @brief Maximum output samples for inplace CF32 execute (ny * nx). */
+  /**
+   * @brief Output capacity dp_fft2d_execute_inplace_cf32() needs.
+   * @param state  Must be non-NULL.
+   * @return ny * nx samples.
+   */
   size_t dp_fft2d_execute_inplace_cf32_max_out (dp_fft2d_state_t *state);
 
   /**

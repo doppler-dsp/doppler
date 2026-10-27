@@ -42,7 +42,8 @@ extern "C" {
  * Allocate with dp_i8_to_f32_create().
  */
 typedef struct {
-    float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
+    float iscale; /**< 1.0f / scale, set once by create() so step() is a
+                       single multiply; never changed afterward. */
 } dp_i8_to_f32_state_t;
 
 /**
@@ -52,8 +53,9 @@ typedef struct {
  *
  * @param scale  Denominator scale; 1/scale is applied to each sample
  *               (default: 128.0f).  Use 128.0 to recover normalised floats
- *               from a signed 8-bit stream.
- * @return Heap-allocated state, or NULL on allocation failure.
+ *               from a signed 8-bit stream.  Must be > 0.
+ * @return Heap-allocated state, or NULL if @p scale <= 0 or allocation
+ *         fails.
  * @note Caller must call dp_i8_to_f32_destroy() when done.
  */
 dp_i8_to_f32_state_t *dp_i8_to_f32_create(float scale);
@@ -115,8 +117,8 @@ dp_i8_to_f32_step(const dp_i8_to_f32_state_t *state, int8_t x)
 /**
  * @brief Process a block of int8 samples to float32.
  *
- * Applies step() to every element.  Accepts an optional pre-allocated output
- * array; allocates a fresh one when @p output is NULL.
+ * Applies step() to every element.  In C, @p output must be non-NULL; the
+ * Python binding allocates a fresh array when no `out=` is passed.
  *
  * @param state   Must be non-NULL.
  * @param input   Input int8 array; must contain at least @p n elements.

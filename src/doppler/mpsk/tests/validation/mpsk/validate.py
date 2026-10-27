@@ -59,11 +59,17 @@ M_ALL = (2, 4, 8)
 #: (4, 8, 12) dB and BPSK at 12 dB collected ZERO errors in 200k symbols —
 #: which then read as a 100% deviation from theory, i.e. a defect. Each
 #: grid below is chosen so its deepest cell still collects a few hundred
-#: errors at NSYM, and MIN_ERRORS asserts that rather than trusting it.
-#: The deep cells belong to the C harness, which can afford 4e7 symbols;
-#: this file runs on every push and must not.
+#: Each cell is sized by its error count, not its symbol count: a fixed
+#: symbol count gives a deep cell (QPSK at 10 dB, ~1.6e-3) only ~300 errors,
+#: and a penalty ratio on 300 errors has a band of ±0.6x. `cell_symbols`
+#: aims each cell at TARGET_ERRORS coherent errors, clamped to
+#: [NSYM_MIN, NSYM_MAX] so the shallowest cells stay cheap and the deepest
+#: stay inside the runtime budget. MIN_ERRORS still asserts the floor.
+#: The C harness, which can afford 4e7 symbols, goes deeper still.
 ESN0_BY_M = {2: (2.0, 4.0, 6.0), 4: (4.0, 8.0, 10.0), 8: (8.0, 12.0, 14.0)}
-NSYM = 200_000
+NSYM_MIN = 200_000
+NSYM_MAX = 2_500_000
+TARGET_ERRORS = 4000
 MIN_ERRORS = 200
 NOISE_SEED = 20260814
 DATA_SEED = 7
@@ -85,6 +91,26 @@ def ser_theory(m: int, esn0_db: float) -> float:
     if m == 2:
         return _qfunc(math.sqrt(2.0 * esn0))
     return 2.0 * _qfunc(math.sqrt(2.0 * esn0) * math.sin(math.pi / m))
+
+
+def cell_symbols(m: int, esn0_db: float) -> int:
+    """Symbols to run for one (M, Es/N0) cell, sized by its error count.
+
+    The coherent SER is known in closed form (`ser_theory`), so the symbol
+    count that collects about TARGET_ERRORS coherent errors is known before
+    the run: TARGET_ERRORS / SER. The result is clamped to [NSYM_MIN,
+    NSYM_MAX]. The clamp is the budget: a cell that would need more than
+    NSYM_MAX symbols collects fewer errors than TARGET_ERRORS, and its
+    band is wider by construction.
+
+    >>> cell_symbols(4, 10.0) > cell_symbols(4, 4.0)
+    True
+    >>> cell_symbols(2, 2.0) == NSYM_MIN
+    True
+    """
+    want = ser_theory(m, esn0_db)
+    n = math.ceil(TARGET_ERRORS / want) if want > 0 else NSYM_MAX
+    return min(max(n, NSYM_MIN), NSYM_MAX)
 
 
 def penalty_sigma(ratio: float, n_coh: int, n_diff: int) -> float:
@@ -253,16 +279,17 @@ def characterise() -> Data:
     rows = []
     for m in M_ALL:
         for e in ESN0_BY_M[m]:
-            sym = _labels(m, NSYM, DATA_SEED + m * 31 + int(e))
+            nsym = cell_symbols(m, e)
+            sym = _labels(m, nsym, DATA_SEED + m * 31 + int(e))
             esn0 = 10.0 ** (e / 10.0)
             sigma = math.sqrt(1.0 / (2.0 * esn0))
-            noise = AWGN(NOISE_SEED + m * 7 + int(e), sigma).generate(NSYM)
+            noise = AWGN(NOISE_SEED + m * 7 + int(e), sigma).generate(nsym)
             coh = (mpsk_map(sym, m) + noise).astype(np.complex64)
             dif = (mpsk_diff_map(sym, m) + noise).astype(np.complex64)
             n_err = int(np.count_nonzero(mpsk_demap(coh, m) != sym))
-            ser_c = n_err / NSYM
+            ser_c = n_err / nsym
             n_err_d = int(np.count_nonzero(mpsk_diff_demap(dif, m) != sym))
-            ser_d = n_err_d / NSYM
+            ser_d = n_err_d / nsym
             want = ser_theory(m, e)
             d.ser[(m, e)] = (ser_c, ser_d, want)
             d.n_err[(m, e)] = n_err
@@ -502,8 +529,8 @@ def limits(d: Data) -> None:
     R.limit(
         abs(r10 - 2.0) <= s10,
         f"QPSK at 10 dB Es/N0 pays {r10:.2f}x for differential mode, within "
-        f"four sigma (±{s10:.2f}x) of the 2x asymptote — the cell collects "
-        f"few errors, so its band is wide by construction",
+        f"four sigma (±{s10:.2f}x) of the 2x asymptote, from the cell's own "
+        f"error counts",
     )
     fewest = min(d.n_err.values())
     R.limit(

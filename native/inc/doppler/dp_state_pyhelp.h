@@ -1,5 +1,6 @@
 /**
- * dp_state_pyhelp.h — the state bytes interface for hand-written (no_generate)
+ * @file dp_state_pyhelp.h
+ * @brief The state bytes interface for hand-written (no_generate)
  * CPython bindings.
  *
  * jm's `serializable` flag generates the Python triplet (state_bytes /
@@ -31,6 +32,26 @@
 #ifndef DP_STATE_PYHELP_H
 #define DP_STATE_PYHELP_H
 
+/**
+ * @brief Define the state_bytes / get_state / set_state methods of a
+ * hand-written binding.
+ *
+ * Expands to three static functions, `FNPFX_state_bytes`,
+ * `FNPFX_get_state` and `FNPFX_set_state` (FNPFX pasted in), with the
+ * PyMethodDef signatures shown in the file description. Each raises
+ * RuntimeError ("object is closed") when @p HANDLE_EXPR is NULL.
+ * get_state returns a new bytes object of the C state_bytes size;
+ * set_state raises TypeError for a non-bytes argument and ValueError for
+ * a size mismatch or a non-zero return from the C set_state.
+ *
+ * @param FNPFX        Prefix for the three generated function names.
+ * @param SELF_T       The binding's PyObject struct type.
+ * @param HANDLE_EXPR  Expression, evaluated with `self` in scope, that
+ *                     yields the live C handle, or NULL when closed.
+ * @param CPFX         C object prefix of the state triplet
+ *                     (`CPFX_state_bytes`, `CPFX_get_state`,
+ *                     `CPFX_set_state`).
+ */
 #define DP_PY_STATE_METHODS(FNPFX, SELF_T, HANDLE_EXPR, CPFX)                 \
   static PyObject *FNPFX##_state_bytes (SELF_T *self,                         \
                                         PyObject *Py_UNUSED (ignored))        \

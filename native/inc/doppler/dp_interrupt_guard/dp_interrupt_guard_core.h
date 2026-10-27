@@ -1,4 +1,6 @@
-/* dp_interrupt_guard_core.h — the object face of the interrupt facility.
+/**
+ * @file dp_interrupt_guard_core.h
+ * @brief The object face of the interrupt facility.
  *
  * The flag itself lives in dp_interrupt.h, a root header three modules
  * include. This is the component that binds it: a scoped handle whose
@@ -34,7 +36,7 @@ extern "C"
    */
   typedef struct dp_interrupt_guard dp_interrupt_guard_t;
 
-  /* jm derives a component's state type as <comp>_state_t, and doppler's
+  /** jm derives a component's state type as `<comp>_state_t`, and doppler's
      public spelling is dp_interrupt_guard_t. One alias bridges them until
      just-makeit#797 lands `state_type`; dp_tlm_core.h carries the same
      line for the same reason. */

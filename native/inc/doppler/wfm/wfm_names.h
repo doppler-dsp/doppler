@@ -1,7 +1,8 @@
-/*
- * wfm_names.h — the one C home for the waveform enum name tables.
+/**
+ * @file wfm_names.h
+ * @brief The one C home for the waveform enum name tables.
  *
- * One definition per enum: the [[enum]] manifest order IS the C int,
+ * One definition per enum: the `[[enum]]` manifest order IS the C int,
  * append-only. Each table carries an `SSOT:` annotation naming the
  * `[[enum]]` in just-makeit.toml that owns its contents, the `N_*` macro
  * that sizes it, and the C enum that pins its indices where one exists.
@@ -24,6 +25,7 @@
 static const char *const TYPE_NAMES[]
     = { "tone",  "noise", "pn",      "bpsk", "qpsk",
         "chirp", "bits",  "symbols", "dsss" };
+/** Entries in TYPE_NAMES. */
 #define N_TYPES 9
 
 /* SSOT: enum=snr_mode, cenum=doppler/wfm/wfm_compose.h:wfm_snr_mode_t */
@@ -38,6 +40,7 @@ static const char *const MODE_NAMES[] = { "auto", "fs", "ebno", "esno" };
 static const char *const STYPE_NAMES[]
     = { "cf32", "cf64", "ci32", "ci16", "ci8",
         "f32",  "f64",  "i32",  "i16",  "i8" };
+/** Entries in STYPE_NAMES. */
 #define N_STYPES 10
 
 /* SSOT: enum=crc */
@@ -66,6 +69,7 @@ static const char *const LFSR_NAMES[] = { "galois", "fibonacci" };
    SSOT: enum=stage_kind, count=N_STAGE_KINDS */
 static const char *const STAGE_KIND_NAMES[]
     = { "crc16", "rs", "randomise", "conv", "interleave" };
+/** Entries in STAGE_KIND_NAMES. */
 #define N_STAGE_KINDS 5
 
 /* SSOT: enum=wfm_pulse */

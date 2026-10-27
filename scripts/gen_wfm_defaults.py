@@ -218,7 +218,11 @@ def render() -> str:
     mc = man["module"]["wfm_compose"]
 
     out: list[str] = [
-        "/*",
+        "/**",
+        " * @file wfm_defaults.h",
+        " * @brief The non-zero field defaults of wfm_source_t and",
+        " * wfm_segment_t, as designated initializers.",
+        " *",
         f" * {BANNER}",
         " *",
         " * Do not edit. `just-makeit.toml` is the one declaration of a",
@@ -229,7 +233,8 @@ def render() -> str:
         " * struct already gives, and spelling it would say nothing.",
         " *",
         " * An enum-valued default is rendered as the index of its name in",
-        " * the field's OWN declared [[enum]], with the name in a comment, so",
+        " * the field's OWN declared `[[enum]]`, with the name in a"
+        " comment, so",
         " * reordering that enum moves this file rather than silently",
         " * changing what the value means.",
         " */",
@@ -247,7 +252,10 @@ def render() -> str:
             lit = _literal(f, enums)
             if lit is not None:
                 rows.append((f["name"], lit))
-        out.append(f"/* Non-zero defaults for a wfm_{kind}_t. */")
+        out.append(
+            f"/** Non-zero defaults for a wfm_{kind}_t, as a braced designated"
+        )
+        out.append(f"    initializer: `wfm_{kind}_t x = {macro};`. */")
         out.append(f"#define {macro} \\")
         body = ", \\\n".join(f"    .{n} = {v}" for n, v in rows)
         out.append("  { \\")
@@ -656,6 +664,10 @@ def render_help(rows: list[dict]) -> list[str]:
         sections.setdefault(r["section"], []).extend(help_lines(r, doc))
     out = ["/* --help option lines, one string per USAGE section. */"]
     for sec, lines in sections.items():
+        out.append(
+            f"/** wfmgen --help option lines for the {sec} section of"
+            " USAGE. */"
+        )
         out.append(f"#define WFM_SURFACE_HELP_{sec} \\")
         out += [_c_string(x) + " \\" for x in lines[:-1]]
         out.append(_c_string(lines[-1]))
@@ -972,7 +984,11 @@ def render_surface() -> str:
     rows = surface_rows(man)
     owner_c = {"source": "WFM_SURF_SOURCE", "segment": "WFM_SURF_SEGMENT"}
     out = [
-        "/*",
+        "/**",
+        " * @file wfm_surface.h",
+        " * @brief The wfm field surface table: every source and segment",
+        " * field a non-Python face reads or writes by name.",
+        " *",
         f" * {SURFACE_BANNER}",
         " *",
         " * Do not edit. One row per wfm source or segment field that a",
@@ -990,26 +1006,26 @@ def render_surface() -> str:
         '#include "doppler/wfm/wfm_compose.h"',
         '#include "doppler/wfm/wfm_names.h"',
         "",
-        "/* Which struct a row's offsets are into. */",
+        "/** Which struct a row's offsets are into. */",
         "typedef enum",
         "{",
-        "  WFM_SURF_SOURCE,  /* wfm_source_t */",
-        "  WFM_SURF_SEGMENT, /* wfm_segment_t */",
+        "  WFM_SURF_SOURCE,  /**< wfm_source_t */",
+        "  WFM_SURF_SEGMENT, /**< wfm_segment_t */",
         "} wfm_surf_owner_t;",
         "",
-        "/* What kind of value a row holds. */",
+        "/** What kind of value a row holds. */",
         "typedef enum",
         "{",
-        "  WFM_SV_DOUBLE,",
-        "  WFM_SV_INT,",
-        "  WFM_SV_SIZE,",
-        "  WFM_SV_U32,",
-        "  WFM_SV_U64,",
-        "  WFM_SV_CHOICE,  /* an int index into `choices` */",
-        "  WFM_SV_SYMBOLS, /* float _Complex *, its count at `len_off` */",
-        "  WFM_SV_FIELD,   /* a wfm_seq_t, as a Field (wfm_frame.h) */",
-        "  WFM_SV_BESPOKE, /* a pointer each face reads with its own code;",
-        "                     the generic readers and writers skip it */",
+        "  WFM_SV_DOUBLE,  /**< a double */",
+        "  WFM_SV_INT,     /**< an int */",
+        "  WFM_SV_SIZE,    /**< a size_t */",
+        "  WFM_SV_U32,     /**< a uint32_t */",
+        "  WFM_SV_U64,     /**< a uint64_t */",
+        "  WFM_SV_CHOICE,  /**< an int index into `choices` */",
+        "  WFM_SV_SYMBOLS, /**< float _Complex *, its count at `len_off` */",
+        "  WFM_SV_FIELD,   /**< a wfm_seq_t, as a Field (wfm_frame.h) */",
+        "  WFM_SV_BESPOKE, /**< a pointer each face reads with its own code;",
+        "                       the generic readers and writers skip it */",
         "} wfm_sv_kind_t;",
         "",
         "/** One field a face reads or writes by name: where it lives, what",
@@ -1130,17 +1146,25 @@ def render_json_keys(schema: dict) -> list[str]:
     so it fails here rather than generating an open level.
     """
     out = [
-        "/* The keys each object of a scene takes, generated from the "
+        "/** The keys each object of a scene takes, generated from the "
         "schema's",
         "   `properties` (docs/schema/wfmgen.schema.json). The reader "
         "refuses any",
         "   other key by name: the schema and the reader are one table "
-        "(#1153). */",
+        "(#1153).",
+        "   One level per kind of scene object; it indexes WFM_JSON_KEYS. */",
         "typedef enum",
         "{",
     ]
-    out += [f"  WFM_JSON_{name}," for name, _ in JSON_LEVELS]
-    out += ["  WFM_JSON_N_LEVELS", "} wfm_json_level_t;", ""]
+    out += [
+        f"  WFM_JSON_{name}, /**< schema `{'/'.join(path) or '$'}` */"
+        for name, path in JSON_LEVELS
+    ]
+    out += [
+        "  WFM_JSON_N_LEVELS /**< number of levels */",
+        "} wfm_json_level_t;",
+        "",
+    ]
     for name, path in JSON_LEVELS:
         obj = schema
         for k in path:
@@ -1207,6 +1231,10 @@ def render_exclusive(rows: list[dict]) -> list[str]:
         "",
     ]
     excl = exclusions(rows)
+    out += [
+        "/** Pairs in WFM_SURFACE_EXCLUSIVE. With 0, the array holds one",
+        "    zeroed entry that no loop reads. */",
+    ]
     out.append(f"#define WFM_SURFACE_N_EXCLUSIVE {len(excl)}")
     # C has no empty array: with no pair declared, one zeroed entry that
     # WFM_SURFACE_N_EXCLUSIVE (0) keeps every loop from reading.
@@ -1270,8 +1298,10 @@ def render_reps(rows: list[dict]) -> list[str]:
         "/* A Field row with no repetition count refuses *REPS: only the",
         "   rows with `field_reps` repeat (a preamble). One reason per face.",
         "*/",
+        "/** The command line's reason. */",
         "#define WFM_SURFACE_REPS_WHY_CLI \\",
         f"  {_c_lit(f'only {cli} repeats (a preamble): drop the *REPS')}",
+        "/** A scene's (JSON) reason. */",
         "#define WFM_SURFACE_REPS_WHY_JSON \\",
         f"  {_c_lit(f'only {js} repeats (a preamble): drop the *REPS')}",
         "",

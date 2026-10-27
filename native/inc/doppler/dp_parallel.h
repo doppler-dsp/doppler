@@ -1,4 +1,6 @@
-/* dp_parallel.h — a minimal bounded parallel-for over an index range, and a
+/**
+ * @file dp_parallel.h
+ * @brief A minimal bounded parallel-for over an index range, and a
  * persistent pool with the same contract.
  *
  * doppler is single-threaded C by default; this is the one place that fans a
@@ -43,9 +45,12 @@ typedef struct
                                       the next unclaimed index          */
 } dp_pf_shared_t;
 
-/* A worker drains indices off the shared cursor until the range is exhausted.
+/** A worker drains indices off the shared cursor until the range is exhausted.
  * fetch-add is the whole synchronization story: each index is handed to
- * exactly one worker, so there is no contention on the outputs. */
+ * exactly one worker, so there is no contention on the outputs.
+ *
+ * Declared through DP_THREAD_FN, so it is also a thread entry point; the
+ * caller of dp_parallel_for() runs it directly as the last worker. */
 DP_THREAD_FN (dp_pf_worker, arg)
 {
   dp_pf_shared_t *s = (dp_pf_shared_t *)arg;
@@ -161,6 +166,10 @@ typedef struct
   dp_pf_shared_t  work; /**< the current run's range, body and cursor */
 } dp_pool_t;
 
+/** A pool helper's thread body: park on @c wake until dp_pool_run() bumps
+ * @c gen or dp_pool_destroy() sets @c stop, drain the run's cursor with
+ * dp_pf_worker(), decrement @c busy (signaling @c done at zero), repeat.
+ * Returns only on @c stop. */
 DP_THREAD_FN (dp_pool_worker, arg)
 {
   dp_pool_t    *p   = (dp_pool_t *)arg;

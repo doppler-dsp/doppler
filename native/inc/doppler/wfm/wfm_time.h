@@ -1,5 +1,6 @@
-/*
- * wfm_time.h — the one BLUE timecode <-> UNIX epoch conversion.
+/**
+ * @file wfm_time.h
+ * @brief The one BLUE timecode <-> UNIX epoch conversion.
  *
  * A BLUE type-1000 header carries its capture time at byte 56 as a `double`
  * of seconds since the **J1950** epoch (1950-01-01T00:00:00Z), which is

@@ -1,5 +1,6 @@
 /**
- * dp_interrupt_pyadopt.h — the process-global interrupt rendezvous, for a
+ * @file dp_interrupt_pyadopt.h
+ * @brief The process-global interrupt rendezvous, for a
  * hand-written (`no_generate`) CPython binding.
  *
  * just-makeit's `process_global = true` (gh-1117) generates this rendezvous
@@ -27,11 +28,6 @@
  *     return NULL;
  *   return m;
  *
- * @param m The module being initialised. Released on failure, so the caller
- *          returns NULL directly and does not decref it again.
- * @return  Non-zero on success. Zero with a Python exception set when the
- *          rendezvous failed.
- *
  * A failure is FATAL to the import, matching what jm generates verbatim.
  * That is deliberate rather than defensive: the alternative is a module
  * that imports fine and silently reads a flag nobody sets, which is the
@@ -44,6 +40,21 @@
 
 #include "doppler/dp_interrupt_guard/dp_interrupt_guard_procglobal.h"
 
+/**
+ * @brief Adopt the owner module's interrupt state into module @p m.
+ *
+ * Imports the owner module (DP_INTERRUPT_GUARD_PG_OWNER), reads its
+ * capsule attribute (DP_INTERRUPT_GUARD_PG_ATTR), unwraps the pointer under
+ * the capsule name DP_INTERRUPT_GUARD_PG_CAPSULE, and hands it to
+ * dp_interrupt_guard_state_adopt(), so this module reads and writes the
+ * one process-wide flag rather than a private copy. Call it once from
+ * `PyInit_<mod>`, as shown in the file description.
+ *
+ * @param m The module being initialized. Released on failure, so the caller
+ *          returns NULL directly and does not decref it again.
+ * @return  Non-zero on success. Zero with a Python exception set when the
+ *          rendezvous failed.
+ */
 static inline int
 dp_interrupt_pyadopt (PyObject *m)
 {

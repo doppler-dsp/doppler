@@ -1,5 +1,6 @@
-/*
- * tlm_read_dict.h — the marshalling behind read_dict(), once.
+/**
+ * @file tlm_read_dict.h
+ * @brief The marshaling behind read_dict(), once.
  *
  * Hand-written, and shared by two sacred fragments: Telemetry.read_dict()
  * (telemetry_ext_dp_tlm.c) and MemoryCapture.read_dict()
@@ -9,7 +10,7 @@
  *
  * It lives in a header because jm splits a module's binding into per-object
  * `_ext_<obj>.c` fragments with no sanctioned home for hand-written C shared
- * BETWEEN them. All the fragments are #included into one translation unit
+ * BETWEEN them. All the fragments are included into one translation unit
  * (telemetry_ext.c), so an include-guarded static definition here is compiled
  * exactly once and is in scope for every caller.
  *

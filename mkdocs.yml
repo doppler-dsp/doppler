@@ -175,7 +175,7 @@ nav:
           - DsssReceiver (Composed Object): gallery/dsss-receiver.md
           - DsssBurstReceiver (Composed Burst Chain): gallery/dsss-burst-receiver.md
           - "A Message Over DSSS, Received and Deframed": gallery/data-source-link.md
-          - "AsyncDsssReceiver: the SPEC link": gallery/async-dsss-receiver-spec.md
+          - "AsyncDsssReceiver: the specification link": gallery/async-dsss-receiver-spec.md
           - "AsyncDsssReceiver: a signal's lifecycle": gallery/async-dsss-receiver-lifecycle.md
           - "AsyncDsssPool: ten emitters through six receivers": gallery/async-dsss-pool-scene.md
           - "AsyncDsssPool: emitters that come and go": gallery/async-dsss-pool-demo.md

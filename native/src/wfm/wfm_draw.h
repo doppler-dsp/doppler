@@ -1,5 +1,6 @@
-/*
- * wfm_draw.h — the composer's deterministic ranged-draw hash (internal).
+/**
+ * @file wfm_draw.h
+ * @brief The composer's deterministic ranged-draw hash (internal).
  *
  * One definition of the draw so every consumer agrees to the bit: the
  * streaming composer resolves each instance's ranged fields through these,

@@ -1,5 +1,6 @@
-/*
- * wfmgen.h — the wfmgen composer CLI, exposed as a plain callable.
+/**
+ * @file wfmgen.h
+ * @brief The wfmgen composer CLI, exposed as a plain callable.
  *
  * `dp_doppler_wfmgen()` is the entire body of the `wfmgen` command-line tool with
  * the process `main()` stripped off: it takes an argv vector, runs the same

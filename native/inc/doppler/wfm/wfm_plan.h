@@ -1,5 +1,6 @@
-/*
- * wfm_plan.h — "prepare once, materialize many" stimulus engine.
+/**
+ * @file wfm_plan.h
+ * @brief "Prepare once, materialize many" stimulus engine.
  *
  * A composed scene is a sequence of segments, each a linear form
  *
@@ -124,11 +125,18 @@ extern "C"
   wfm_plan_t *dp_wfm_plan_prepare (const char *spec_json);
 
   /** @brief Worst-case materialized length in samples (every ranged gap at
-   * its `hi` bound) — the jm binding's out_len_fn / allocation capacity. */
+   * its `hi` bound) — the jm binding's out_len_fn / allocation capacity.
+   *
+   * @param p  The Plan, or NULL.
+   * @return Capacity in samples that `out` must hold for render()/at();
+   *         0 for a NULL Plan. */
   size_t dp_wfm_plan_len (const wfm_plan_t *p);
 
   /** @brief Number of cached signal sources across every segment (excludes
-   * noise floors); the length of the `gains`/`phases`/`enable` arrays. */
+   * noise floors); the length of the `gains`/`phases`/`enable` arrays.
+   *
+   * @param p  The Plan, or NULL.
+   * @return Source count; 0 for a NULL Plan. */
   size_t dp_wfm_plan_n_sources (const wfm_plan_t *p);
 
   /**
@@ -140,6 +148,10 @@ extern "C"
    * scene; for a multi-segment scene each segment still draws from its own
    * default seed unless overridden. Varying the seed draws independent
    * Monte-Carlo noise (and, for a ranged-gap scene, timing) realizations.
+   *
+   * @param p  The Plan, or NULL.
+   * @return The first noisy segment's noise seed; 0 for a NULL Plan or a
+   *         scene with no noisy segment.
    */
   uint64_t dp_wfm_plan_anchor_seed (const wfm_plan_t *p);
 
@@ -176,6 +188,7 @@ extern "C"
    * 64
    * @endcode
    *
+   * @param p  The Plan; NULL is refused like a noiseless scene.
    * @return 0 (DP_OK) when some segment carries noise; DP_ERR_INVALID (-4)
    *         when none does, for the reason DP_WFM_PLAN_WHY_NO_NOISE.
    */
@@ -192,6 +205,17 @@ extern "C"
    * `dp_wfm_plan_len(p)` samples to `out`. An `"snr"` key on a Plan whose
    * scene carries no noise is refused (see dp_wfm_plan_check_snr()).
    *
+   * Keys are read leniently: overrides that do not parse as JSON render
+   * the baseline, a `gains`/`phases`/`enable` array whose length is not
+   * dp_wfm_plan_n_sources() (or, for `gains`/`phases`, that holds a
+   * non-number) is ignored, and a non-numeric `snr`/`seed` is ignored.
+   * An `enable` entry is on when it is `true` or a non-zero number.
+   *
+   * @param p               The Plan; NULL renders nothing and returns 0.
+   * @param overrides_json  NUL-terminated override object, or NULL / ""
+   *                        for the baseline.
+   * @param[out] out        Receives the samples; must hold
+   *                        dp_wfm_plan_len(p) of them.
    * @return Samples actually written for this draw (<= dp_wfm_plan_len(p)),
    *         or 0 when refused, with `out` untouched.
    */
@@ -207,6 +231,14 @@ extern "C"
    * and so is `snr`: on a Plan whose scene carries no noise it is refused
    * (see dp_wfm_plan_check_snr()).
    *
+   * @param p         The Plan.
+   * @param snr       SNR override, dB, in the units of the scene's own
+   *                  snr_mode; a segment whose noise floor was set
+   *                  explicitly keeps that floor.
+   * @param seed      Noise (and ranged-gap) seed override. Only its low
+   *                  32 bits are used: the seeds it replaces are 32-bit.
+   * @param[out] out  Receives the samples; must hold dp_wfm_plan_len(p)
+   *                  of them.
    * @return Samples actually written for this draw (<= dp_wfm_plan_len(p)),
    *         or 0 when refused, with `out` untouched.
    */
@@ -221,6 +253,9 @@ extern "C"
    * Dominated by the buffers (Σ per-source num_samples · 8 bytes) — multi-MB
    * for a large scene, which is exactly why the spec-rebuild path is the
    * default.
+   *
+   * @param p  The Plan, or NULL.
+   * @return Blob size in bytes; 0 for a NULL Plan.
    */
   size_t dp_wfm_plan_save_bytes (const wfm_plan_t *p);
 
@@ -231,6 +266,11 @@ extern "C"
    * self-contained. Returns the number of bytes written (==
    * dp_wfm_plan_save_bytes(p)) — the actual-length contract a variable-output
    * binding needs, so `save() -> bytes` generates with no hand-written glue.
+   *
+   * @param p          The Plan.
+   * @param[out] blob  Receives the blob; must hold
+   *                   dp_wfm_plan_save_bytes(p) bytes.
+   * @return Bytes written; 0 (nothing written) if @p p or @p blob is NULL.
    */
   size_t dp_wfm_plan_save (const wfm_plan_t *p, void *blob);
 
@@ -254,7 +294,10 @@ extern "C"
   /**
    * @brief Save a Plan to a file (dp_wfm_plan_save() bytes at @p path).
    *
-   * @return 0 on success, non-zero on an open/write error.
+   * @param p     The Plan.
+   * @param path  File to create or truncate.
+   * @return 0 on success; -1 on a NULL argument, an allocation failure, or
+   *         an open/write/close error.
    */
   int dp_wfm_plan_dump (const wfm_plan_t *p, const char *path);
 
@@ -264,12 +307,15 @@ extern "C"
    * Same fingerprint semantics as dp_wfm_plan_restore(): a matching build loads the
    * cached buffers, a mismatch rebuilds from the embedded spec.
    *
+   * @param path  File written by dp_wfm_plan_dump().
    * @return Heap Plan (caller dp_wfm_plan_destroy()s it), or NULL on an open/read
    *         error or a malformed/foreign-endian file.
    */
   wfm_plan_t *dp_wfm_plan_load (const char *path);
 
-  /** @brief Destroy a Plan and free its caches. NULL is a no-op. */
+  /** @brief Destroy a Plan and free its caches. NULL is a no-op.
+   *
+   * @param p  The Plan, or NULL. */
   void dp_wfm_plan_destroy (wfm_plan_t *p);
 
 #ifdef __cplusplus

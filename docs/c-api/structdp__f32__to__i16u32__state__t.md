@@ -122,7 +122,7 @@ float dp_f32_to_i16u32_state_t::scale;
 
 
 
-Multiply factor applied before saturation; set by create (&gt; 0) and never changed after 
+Multiply factor applied before saturation; set by create (&gt; 0), replaced only by set\_state() 
 
 
         

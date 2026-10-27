@@ -229,7 +229,7 @@ size_t dp_hbdecim_r2c_execute (
 
 
 
-One complex output per (even, odd) input pair. An odd-length block leaves its trailing sample held for the next call, so contiguous blocks give the same output as one large block. Emission stops once `max_out` samples are written; complete pairs left over at that point are discarded (only one trailing sample is carried), so size `out` for the whole block: (num\_in + 1) / 2 samples. If num\_in or max\_out is 0 the call returns 0 and consumes nothing.
+One complex output per (even, odd) input pair, counting a sample held from the previous call as the first of the block. A sample left unpaired at the end is held for the next call, so contiguous blocks give the same output as one large block. Emission stops once `max_out` samples are written; the first unconsumed sample is then held and every sample after it is dropped (doppler#2643), so size `out` for the whole block: (num\_in + 1) / 2 samples. If num\_in or max\_out is 0 the call returns 0 and consumes nothing.
 
 
 

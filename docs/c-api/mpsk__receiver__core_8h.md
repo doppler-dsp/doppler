@@ -247,7 +247,7 @@ const int    pulse          = MPSK_RX_PULSE_IANDD;
 const double rrc_beta       = 0.35;  // pulse=rrc only; inert for I&D
 const int    rrc_span       = 8;     //   "
 const double bn_carrier     = 0.01;  // x symbol rate
-const double zeta           = 0.707; // critically damped
+const double zeta           = 0.707; // usual damping; 1.0 = critical
 const double bn_timing      = 0.01;  // x symbol rate
 const double lock_thresh    = 0.0;   // 0 derives; MPSK_RX_LOCK_THRESH_DEFAULT
 const double init_norm_freq = 0.0;   // no prior carrier estimate
@@ -1196,7 +1196,7 @@ double dp_mpsk_receiver_get_norm_freq (
 
 
 
-The estimate is the carrier loop filter's integrator (the frequency memory), excluding the proportional nudge; on a real-IF receiver it is converted from the LO's half rate back to the input rate. Equals `init_norm_freq` right after create or reset. 
+The estimate is the carrier loop filter's integrator (the frequency memory), excluding the proportional nudge; on a real-IF receiver it is converted from the LO's half rate back to the input rate. Equals the carrier center right after create, reset or a retune: that is `init_norm_freq`, or the last [**dp\_mpsk\_receiver\_set\_norm\_freq()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_norm_freq) value once one has been made (reset keeps a retuned center). 
 
 **Parameters:**
 

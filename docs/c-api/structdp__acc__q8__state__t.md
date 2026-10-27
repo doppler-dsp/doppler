@@ -101,7 +101,7 @@ int32_t dp_acc_q8_state_t::acc;
 
 
 
-Running sum of every Q8 sample stepped in (wraps at int32 overflow); set by create()/set\_acc(). 
+Running sum of every Q8 sample stepped in and every madd() product; set by create()/set\_acc(). Signed overflow is undefined (no wrap is promised), so the caller must keep the sum within int32. 
 
 
         

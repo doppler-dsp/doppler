@@ -2076,12 +2076,14 @@ class BurstCapture:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : npt.NDArray[Any] | None
-            Destination rows; may be NULL to copy nothing.
+            Destination rows; may be NULL to copy nothing (the count is still
+            returned).
 
         Returns
         -------
         NDArray[Any]
-            Rows copied: min(detections held, max_out).
+            min(detections held, max_out): the rows copied, or with a NULL out
+            the rows that would have been.
 
         Examples
         --------
@@ -2130,12 +2132,14 @@ class BurstCapture:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : npt.NDArray[Any] | None
-            Destination rows; may be NULL to copy nothing.
+            Destination rows; may be NULL to copy nothing (the count is still
+            returned).
 
         Returns
         -------
         NDArray[Any]
-            Rows copied: min(windows of the last push, max_out).
+            min(windows of the last push, max_out): the rows copied, or with a
+            NULL out the rows that would have been.
 
         Examples
         --------
@@ -2344,9 +2348,11 @@ class BurstCapture:
     @property
     def preamble_start(self) -> int:
         """Stream-absolute sample index the most recent window's preamble
-        starts at. NEVER LATE: a window that began after the preamble has
-        destroyed the burst, so the refine stage's obligation is to be
-        early-or-exact and to say how early.
+        starts at; 0 before the first window and after reset(). Never late is
+        refine's design goal, not a guarantee (a window that began after the
+        preamble has destroyed the burst): refine takes the strongest
+        whole-period position over a range reaching both sides of the anchor,
+        so at low C/N0 it can pick a wrong repetition, early or late.
         """
 
     @property
@@ -2827,12 +2833,14 @@ class PersistentBurstCapture:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : npt.NDArray[Any] | None
-            Destination rows; may be NULL to copy nothing.
+            Destination rows; may be NULL to copy nothing (the count is still
+            returned).
 
         Returns
         -------
         NDArray[Any]
-            Rows copied: min(detections held, max_out).
+            min(detections held, max_out): the rows copied, or with a NULL out
+            the rows that would have been.
 
         Examples
         --------
@@ -2881,12 +2889,14 @@ class PersistentBurstCapture:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : npt.NDArray[Any] | None
-            Destination rows; may be NULL to copy nothing.
+            Destination rows; may be NULL to copy nothing (the count is still
+            returned).
 
         Returns
         -------
         NDArray[Any]
-            Rows copied: min(windows of the last push, max_out).
+            min(windows of the last push, max_out): the rows copied, or with a
+            NULL out the rows that would have been.
 
         Examples
         --------
@@ -3098,9 +3108,11 @@ class PersistentBurstCapture:
     @property
     def preamble_start(self) -> int:
         """Stream-absolute sample index the most recent window's preamble
-        starts at. NEVER LATE: a window that began after the preamble has
-        destroyed the burst, so the refine stage's obligation is to be
-        early-or-exact and to say how early.
+        starts at; 0 before the first window and after reset(). Never late is
+        refine's design goal, not a guarantee (a window that began after the
+        preamble has destroyed the burst): refine takes the strongest
+        whole-period position over a range reaching both sides of the anchor,
+        so at low C/N0 it can pick a wrong repetition, early or late.
         """
 
     @property

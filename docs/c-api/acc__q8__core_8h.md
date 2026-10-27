@@ -59,7 +59,7 @@ _AccQ8 — a running 32-bit integer accumulator for Q8 (int8\_t) samples. Intern
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* | [**dp\_acc\_q8\_create**](#function-dp_acc_q8_create) (int32\_t acc) <br>_Allocate and initialise an AccQ8 accumulator. The accumulator starts at the supplied initial value and accepts Q8 (int8\_t) samples via step(), steps(), or madd(). The 32-bit internal register handles up to roughly 16 million max-magnitude samples before wrap — sufficient for all standard DSP block sizes._  |
+|  [**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* | [**dp\_acc\_q8\_create**](#function-dp_acc_q8_create) (int32\_t acc) <br>_Allocate and initialise an AccQ8 accumulator. The accumulator starts at the supplied initial value and accepts Q8 (int8\_t) samples via step(), steps(), or madd(). The 32-bit internal register holds roughly 16 million max-magnitude samples; past int32 the signed overflow is undefined, so the caller must keep the sum in range._  |
 |  void | [**dp\_acc\_q8\_destroy**](#function-dp_acc_q8_destroy) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state) <br>_Destroy an AccQ8 instance and release all memory. Safe to call with NULL._  |
 |  int32\_t | [**dp\_acc\_q8\_dump**](#function-dp_acc_q8_dump) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state) <br>_Return the accumulated value and atomically reset it to zero. Avoids the need for a separate reset() call when processing a stream of non-overlapping blocks._  |
 |  int32\_t | [**dp\_acc\_q8\_get**](#function-dp_acc_q8_get) ([**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) \* state) <br>_Return the current accumulated value without resetting it. Mirrors get\_acc() but exposed under the name used consistently across all Acc-family objects in the Python API._  |
@@ -130,7 +130,7 @@ Lifecycle: create -&gt; `[step / steps / madd / reset]*` -&gt; `[get / dump]*` -
 
 ### function dp\_acc\_q8\_create 
 
-_Allocate and initialise an AccQ8 accumulator. The accumulator starts at the supplied initial value and accepts Q8 (int8\_t) samples via step(), steps(), or madd(). The 32-bit internal register handles up to roughly 16 million max-magnitude samples before wrap — sufficient for all standard DSP block sizes._ 
+_Allocate and initialise an AccQ8 accumulator. The accumulator starts at the supplied initial value and accepts Q8 (int8\_t) samples via step(), steps(), or madd(). The 32-bit internal register holds roughly 16 million max-magnitude samples; past int32 the signed overflow is undefined, so the caller must keep the sum in range._ 
 ```C++
 dp_acc_q8_state_t * dp_acc_q8_create (
     int32_t acc

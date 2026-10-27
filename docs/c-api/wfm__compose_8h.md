@@ -1212,7 +1212,7 @@ dp_wfm_compose_state_t * dp_wfm_compose_from_json_why (
 A spec is the interface most likely to be hand-written, and a NULL return is the one answer that cannot teach anything. This runs [**dp\_wfm\_source\_frame\_error**](wfm__compose_8h.md#function-dp_wfm_source_frame_error) over every parsed source before handing them to the composer — which asks the same question and would refuse either way — so the reason survives the boundary as a sentence instead of a pointer.
 
 
-Beyond the frame rule, every [**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error) rule reports this way, as do the reader's own refusals: an unknown or retired key, a source with no known `"type"`, a Field that does not parse, an `"fs"` at the top level instead of per segment. Text that is not JSON at all, or has no non-empty `"segments"` array, is still a bare NULL: those are cJSON's to describe, and duplicating its diagnostics here would be a second opinion about the same text.
+Beyond the frame rule, every [**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error) rule reports this way, as do the reader's own refusals: an unknown or retired key, a source with no known `"type"`, a Field that does not parse, an `"fs"` at the top level instead of per segment. Text that is not JSON at all, or has no non-empty `"segments"` array, is still a bare NULL: those are cJSON's to describe, and duplicating its diagnostics here would be a second opinion about the same text. So, for now, are a segment carrying both `"sum"` and `"type"`, an empty `"sum"` array, and an allocation or synth failure: each returns NULL with `why` left NULL.
 
 
 
@@ -1221,7 +1221,7 @@ Beyond the frame rule, every [**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#fu
 
 
 * `json` the spec. 
-* `why` optional; set to NULL first, then to the reason when the scene is refused. Most reasons are static; one naming the caller's text (an unknown key) is formatted into a thread-local buffer, valid until this thread reads another scene. Never freed by the caller. Passing NULL makes this exactly [**dp\_wfm\_compose\_from\_json**](wfm__compose_8h.md#function-dp_wfm_compose_from_json). 
+* `why` optional; set to NULL first, then to the reason when the scene is refused. Most reasons are static; two kinds are formatted into a thread-local buffer, valid until this thread reads another scene: one naming the caller's text (an unknown key), and a `"data_from_file"` that cannot be read or is not the data its record sent. Never freed by the caller. Passing NULL makes this exactly [**dp\_wfm\_compose\_from\_json**](wfm__compose_8h.md#function-dp_wfm_compose_from_json). 
 
 
 

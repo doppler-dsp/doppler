@@ -88,7 +88,7 @@ _FFT engine state: two fixed-length pocketfft plans (CF64, CF32) plus a lazily a
 ## Detailed Description
 
 
-All fields are config set at [**dp\_fft\_create()**](fft__core_8h.md#function-dp_fft_create); nothing runs between calls. Allocate with [**dp\_fft\_create()**](fft__core_8h.md#function-dp_fft_create). 
+Every field but `work_trunc` is config set at [**dp\_fft\_create()**](fft__core_8h.md#function-dp_fft_create); `work_trunc` is scratch, allocated by the first truncating call and holding nothing between calls. Allocate with [**dp\_fft\_create()**](fft__core_8h.md#function-dp_fft_create). 
 
 
     

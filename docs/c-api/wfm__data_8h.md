@@ -239,7 +239,7 @@ Exactly one of `data` and `path` is given: `--data` and `--data-from-file` are o
 * `path` a file, or `-` for stdin; NULL when `data` is given. 
 * `len` bits per frame, `LEN` of the frame's `data:LEN`; &gt; 0. 
 * `fill` a Field whose bits pad the last frame and fill an idle one, or NULL for none. `data:LEN` is refused as a fill. 
-* `why` optional; receives a STATIC sentence naming the cause of a refusal (a Field's is the parser's own), untouched on success. A remainder is stated in bits by the caller, from [**dp\_wfm\_data\_length\_bits**](wfm__data_8h.md#function-dp_wfm_data_length_bits). 
+* `why` optional; receives a STATIC sentence naming the cause of a refusal (a Field's is the parser's own). Not untouched on success: parsing a Field first sets it to NULL, so read it only after a NULL return. A remainder is stated in bits by the caller, from [**dp\_wfm\_data\_length\_bits**](wfm__data_8h.md#function-dp_wfm_data_length_bits). 
 
 
 
@@ -292,7 +292,7 @@ What [**dp\_wfm\_data\_create**](wfm__data_8h.md#function-dp_wfm_data_create) do
 * `fd` an open, readable file descriptor; the caller keeps ownership and closes it after [**dp\_wfm\_data\_destroy**](wfm__data_8h.md#function-dp_wfm_data_destroy). A negative `fd`, or one `fstat` fails on, is refused. 
 * `len` bits per frame, `LEN` of the frame's `data:LEN`; &gt; 0. 
 * `fill` a Field whose bits pad the last frame and fill an idle one, or NULL for none. A stream over `fd` needs one unless `len` is 1. 
-* `why` optional; receives a STATIC sentence naming the cause of a refusal, untouched on success. 
+* `why` optional; receives a STATIC sentence naming the cause of a refusal. With a `fill` it is set to NULL even on success (the Field parser clears it first), so read it only after a NULL return. 
 
 
 

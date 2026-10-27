@@ -124,7 +124,7 @@ double dp_mpsk_receiver_state_t::centre_freq;
 
 
 
-create-time carrier offset (cycles/sample), at the receiver's INPUT rate on both faces. 
+carrier center (cycles/sample), at the receiver's INPUT rate on both faces: set by create, moved by set\_norm\_freq(). 
 
 
         

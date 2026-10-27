@@ -854,7 +854,7 @@ void dp_carrier_nda_init (
 
 * `s` State to initialise. Must be non-NULL. 
 * `bn` Loop noise bandwidth, cycles/sample (per-sample loop). 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 * `init_norm_freq` Seed carrier frequency, cycles/sample. 
 * `sps` Samples per symbol. 
 * `n` MA window divisor: window = sps/n samples (sps % n == 0, sps/n &lt;= BOXCAR\_MAX\_LEN). 

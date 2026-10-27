@@ -213,7 +213,7 @@ Retunes the PI timing loop in place: the proportional/integral gains are recompu
 
 * `state` Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalised to the symbol rate (&gt;= 0). 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 ```C++
 >>> from doppler.track import SymbolSync
 >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
@@ -651,7 +651,7 @@ The by-value counterpart to [**dp\_symsync\_create()**](symsync__core_8h.md#func
 * `s` State to initialise. Must be non-NULL. 
 * `sps` Nominal samples per symbol. 
 * `bn` Loop noise bandwidth (normalised to the symbol rate). 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 * `order` Farrow interpolator order (0=linear, 1=parabolic, 2=cubic). 
 * `ted` Timing-error detector: SYMSYNC\_TED\_GARDNER (0, blind) or SYMSYNC\_TED\_DTTL (1, decision-directed; BPSK/QPSK only).
 

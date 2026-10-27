@@ -300,9 +300,9 @@ class AccQ15:
 class AccQ8:
     """Allocate and initialise an AccQ8 accumulator. The accumulator starts at
     the supplied initial value and accepts Q8 (int8_t) samples via step(),
-    steps(), or madd(). The 32-bit internal register handles up to roughly 16
-    million max-magnitude samples before wrap — sufficient for all standard DSP
-    block sizes.
+    steps(), or madd(). The 32-bit internal register holds roughly 16 million
+    max-magnitude samples; past int32 the signed overflow is undefined, so the
+    caller must keep the sum in range.
 
     Parameters
     ----------

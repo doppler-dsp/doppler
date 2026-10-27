@@ -108,7 +108,7 @@ double burst_capture_event_t::cn0_dbhz_est;
 
 
 
-C/N0 lower bound from the hit, dB-Hz. 
+C/N0 estimate from the hit, dB-Hz. 
  
 
 
@@ -179,7 +179,7 @@ uint64_t burst_capture_event_t::preamble_start;
 
 
 
-Exact stream position of the preamble. 
+Refined stream position of the preamble. 
  
 
 

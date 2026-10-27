@@ -256,7 +256,7 @@ Routes through 2^z = 2^floor(z) \* 2^frac with z = v\*log2(10): the integer part
 **
 **
 
-`z` is saturated into the range the exponent field can hold before it is used. Without that, assembling ``((int64\_t)zi + 1023) &lt;&lt; 52 overflows into the SIGN bit for `|v|` past ~308, and the function returns a **negative** result where the true answer is `+inf` or 0 — measured, `agc_exp10_(309)` gave `-3.09e-308` and `agc_exp10_`(-320) gave `-3.23e+296`. A gain function that returns a negative gain does not merely lose precision, it inverts the signal. Past the rails this now saturates at `2^±1023` instead.
+`z` is saturated into the range the exponent field can hold before it is used. Without that, assembling ``((int64\_t)zi + 1023) &lt;&lt; 52 overflows into the SIGN bit for `|v|` past ~308, and the function returns a **negative** result where the true answer is `+inf` or 0 — measured, `agc_exp10_(309)` gave `-3.09e-308` and `agc_exp10_`(-320) gave `-3.23e+296`. A gain function that returns a negative gain does not merely lose precision, it inverts the signal. Past the rails this now saturates instead: at exactly 0.0 low (see below) and at `2^1023` high.
 
 
 NaN takes the LOW rail, and the direction is the same one [**AGC\_POWER\_CEIL**](agc__core_8h.md#define-agc_power_ceil) uses: when the input is unknown, attenuate. A gain saturated low is silence; a gain saturated high rails everything downstream of it.

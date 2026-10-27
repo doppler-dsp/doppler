@@ -211,7 +211,7 @@ size_t dp_wfm_plan_at (
 
 
 * `p` The Plan. 
-* `snr` SNR override, dB, in the units of the scene's own snr\_mode; a segment whose noise floor was set explicitly keeps that floor. 
+* `snr` SNR override, dB, read per segment in the snr\_mode of the source that sets its SNR: a bundled segment's lone source, else the source sharing the noise source's seed. A segment whose noise floor was set explicitly keeps that floor. 
 * `seed` Noise (and ranged-gap) seed override. Only its low 32 bits are used: the seeds it replaces are 32-bit. 
 * `out` Receives the samples; must hold dp\_wfm\_plan\_len(p) of them. 
 

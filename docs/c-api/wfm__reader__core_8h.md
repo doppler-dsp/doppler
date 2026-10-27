@@ -630,7 +630,7 @@ int dp_wfm_reader_get_endian (
 
 **Returns:**
 
-0 little-endian, 1 big-endian; from the metadata for BLUE and SigMF, the constructor hint for raw; meaningless for CSV. 
+0 little-endian, 1 big-endian; from the metadata for BLUE and SigMF; for raw, from the sidecar when the type hint was WFM\_READER\_STYPE\_AUTO and one was adopted, else the constructor hint; meaningless for CSV. 
 
 
 
@@ -1050,7 +1050,7 @@ int dp_wfm_reader_get_sample_type (
 
 **Returns:**
 
-a [**wfm\_reader\_stype\_t**](wfm__reader__core_8h.md#enum-wfm_reader_stype_t) index, 0..9 (complex five, then the scalar five). Read from the metadata for BLUE/SigMF (or an adopted sidecar); the constructor hint echoed back otherwise. Never WFM\_READER\_STYPE\_AUTO. 
+a [**wfm\_reader\_stype\_t**](wfm__reader__core_8h.md#enum-wfm_reader_stype_t) index, 0..9 (complex five, then the scalar five). Read from the metadata for BLUE/SigMF (or an adopted sidecar); otherwise the constructor hint echoed back, or 0 (cf32) for an WFM\_READER\_STYPE\_AUTO hint with no sidecar. Never WFM\_READER\_STYPE\_AUTO. 
 
 
 

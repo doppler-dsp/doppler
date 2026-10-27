@@ -253,7 +253,7 @@ Re-derives the PI coefficients from the loop bandwidth and damping and installs 
 
 * `state` Costas state. Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalised to the symbol rate. 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 ```C++
 >>> from doppler.track import Costas
 >>> c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=16)
@@ -700,7 +700,7 @@ The by-value counterpart to [**dp\_costas\_create()**](costas__core_8h.md#functi
 
 * `s` State to initialise. Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalised to the symbol rate. 
-* `zeta` Damping factor (0.707 = critically damped). 
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 * `init_norm_freq` Seed carrier frequency, cycles/sample. 
 * `tsamps` Samples per symbol (the integrate-and-dump period). 
 * `bn_fll` FLL-assist bandwidth (0 = pure PLL).
@@ -1068,7 +1068,7 @@ size_t dp_costas_steps_max_out (
 
 
 
-The output is one prompt per `tsamps` inputs, so it never exceeds the input length; size `out` to the input length (or input / tsamps).
+The output is one prompt per `tsamps` inputs, so it never exceeds the input length; size `out` to the input length. A partial symbol carries across calls, so a block of `n` samples emits `(acc_n + n) / tsamps` prompts (integer division), up to one more than `n / tsamps`; a prompt past `max_out` still steers the loop but is dropped.
 
 
 

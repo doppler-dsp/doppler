@@ -29,9 +29,8 @@ class F32ToI8:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
         Zeroes clipped so a subsequent clipped query reflects only samples seen
-        after this call; the immutable scale is preserved. Call it at a buffer
-        or segment boundary so a saturation on one block does not leak into the
-        next.
+        after this call; scale is preserved. Call it at a buffer or segment
+        boundary so a saturation on one block does not leak into the next.
 
         Examples
         --------
@@ -243,9 +242,8 @@ class F32ToI16:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
         Zeroes clipped so a subsequent clipped query reflects only samples seen
-        after this call; the immutable scale is preserved. Call it at a buffer
-        or segment boundary so a saturation on one block does not leak into the
-        next.
+        after this call; scale is preserved. Call it at a buffer or segment
+        boundary so a saturation on one block does not leak into the next.
 
         Examples
         --------
@@ -456,9 +454,8 @@ class F32ToI32:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
         Zeroes clipped so a subsequent clipped query reflects only samples seen
-        after this call; the immutable scale is preserved. Call it at a buffer
-        or segment boundary so a saturation on one block does not leak into the
-        next.
+        after this call; scale is preserved. Call it at a buffer or segment
+        boundary so a saturation on one block does not leak into the next.
 
         Examples
         --------
@@ -1016,8 +1013,10 @@ class I16ToF32:
     ) -> NDArray[np.float32]:
         """Process a block of int16 samples to float32.
 
-        Applies step() to every element. Accepts an optional pre-allocated
-        output array; allocates a fresh one when output is NULL.
+        Applies step() to every element. In C, output must be a caller-owned
+        array of at least n elements (NULL is not accepted). From Python it is
+        the optional `out=` array; the binding allocates a fresh one when
+        omitted.
 
         Parameters
         ----------
@@ -1160,8 +1159,10 @@ class I32ToF32:
     ) -> NDArray[np.float32]:
         """Process a block of int32 samples to float32.
 
-        Applies step() to every element. Accepts an optional pre-allocated
-        output array; allocates a fresh one when output is NULL.
+        Applies step() to every element. In C, output must be a caller-owned
+        array of at least n elements (NULL is not accepted). From Python it is
+        the optional `out=` array; the binding allocates a fresh one when
+        omitted.
 
         Parameters
         ----------
@@ -1255,9 +1256,8 @@ class F32ToI16U32:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
         Zeroes clipped so a subsequent clipped query reflects only samples seen
-        after this call; the immutable scale is preserved. Call it at a buffer
-        or segment boundary so a saturation on one block does not leak into the
-        next.
+        after this call; scale is preserved. Call it at a buffer or segment
+        boundary so a saturation on one block does not leak into the next.
 
         Examples
         --------
@@ -1466,9 +1466,8 @@ class F32ToI16U64:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
         Zeroes clipped so a subsequent clipped query reflects only samples seen
-        after this call; the immutable scale is preserved. Call it at a buffer
-        or segment boundary so a saturation on one block does not leak into the
-        next.
+        after this call; scale is preserved. Call it at a buffer or segment
+        boundary so a saturation on one block does not leak into the next.
 
         Examples
         --------
@@ -1724,8 +1723,10 @@ class I16U32ToF32:
     ) -> NDArray[np.float32]:
         """Process a block of Q15-in-uint32 samples to float32.
 
-        Applies step() to every element. Accepts an optional pre-allocated
-        output array; allocates a fresh one when output is NULL.
+        Applies step() to every element. In C, output must be a caller-owned
+        array of at least n elements (NULL is not accepted). From Python it is
+        the optional `out=` array; the binding allocates a fresh one when
+        omitted.
 
         Parameters
         ----------
@@ -1867,8 +1868,10 @@ class I16U64ToF32:
     ) -> NDArray[np.float32]:
         """Process a block of Q15-in-uint64 samples to float32.
 
-        Applies step() to every element. Accepts an optional pre-allocated
-        output array; allocates a fresh one when output is NULL.
+        Applies step() to every element. In C, output must be a caller-owned
+        array of at least n elements (NULL is not accepted). From Python it is
+        the optional `out=` array; the binding allocates a fresh one when
+        omitted.
 
         Parameters
         ----------
@@ -1961,9 +1964,8 @@ class F32ToUQ15:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
         Zeroes clipped so a subsequent clipped query reflects only samples seen
-        after this call; the immutable scale is preserved. Call it at a buffer
-        or segment boundary so a saturation on one block does not leak into the
-        next.
+        after this call; scale is preserved. Call it at a buffer or segment
+        boundary so a saturation on one block does not leak into the next.
 
         Examples
         --------
@@ -2224,8 +2226,9 @@ class UQ15ToF32:
         """Process a block of UQ15 samples to float32.
 
         Applies step() to every element. State is not mutated (no clipped
-        flag). Accepts an optional pre-allocated output array; allocates a
-        fresh one when output is NULL.
+        flag). In C, output must be a caller-owned array of at least n elements
+        (NULL is not accepted). From Python it is the optional `out=` array;
+        the binding allocates a fresh one when omitted.
 
         Parameters
         ----------

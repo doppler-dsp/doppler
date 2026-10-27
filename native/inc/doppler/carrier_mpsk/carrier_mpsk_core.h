@@ -90,7 +90,7 @@ typedef struct {
  *
  * @param s               State to initialise.  Must be non-NULL.
  * @param bn              Loop noise bandwidth, normalised to the symbol rate.
- * @param zeta            Damping factor (0.707 = critically damped).
+ * @param zeta            Damping factor (1.0 = critical; 0.707 usual).
  * @param init_norm_freq  Seed carrier frequency, cycles/sample.
  * @param tsamps          Samples per symbol (the integrate-and-dump period);
  *                        0 is taken as 1.
@@ -333,7 +333,7 @@ size_t dp_carrier_mpsk_steps(dp_carrier_mpsk_state_t *state, const float _Comple
  *
  * @param state  Must be non-NULL.
  * @param bn     Loop noise bandwidth, normalised to the symbol rate.
- * @param zeta   Damping factor (0.707 = critically damped).
+ * @param zeta   Damping factor (1.0 = critical; 0.707 usual).
  * @code
  * >>> from doppler.track import CarrierMpsk
  * >>> c = CarrierMpsk(bn=0.02, zeta=0.707, init_norm_freq=0.01,

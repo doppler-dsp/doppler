@@ -29,8 +29,9 @@ extern "C"
    * @brief FFT engine state: two fixed-length pocketfft plans (CF64, CF32)
    *        plus a lazily allocated truncation scratch.
    *
-   * All fields are config set at dp_fft_create(); nothing runs between
-   * calls.  Allocate with dp_fft_create().
+   * Every field but @c work_trunc is config set at dp_fft_create();
+   * @c work_trunc is scratch, allocated by the first truncating call and
+   * holding nothing between calls.  Allocate with dp_fft_create().
    */
   typedef struct
   {

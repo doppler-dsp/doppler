@@ -16,14 +16,18 @@
  * over- or under-sleep on one block is corrected on the next. The residual
  * error is per-block jitter bounded by the OS scheduler, which averages out.
  *
- * Pacing has one platform split, inside timing_core.c: POSIX reads
- * ``clock_gettime`` and sleeps toward an absolute deadline; Windows reads
- * QueryPerformanceCounter and sleeps on a high-resolution waitable timer.
- * Either way the sleep is sliced at dp_interrupt_latency_ms() and returns
- * early once dp_interrupted() is set, so a stop request ends a long pace.
+ * Pacing has a platform split, inside timing_core.c: POSIX reads
+ * ``clock_gettime``; Linux sleeps each slice toward an absolute deadline
+ * with ``clock_nanosleep``, and other POSIX systems (macOS) sleep each
+ * slice as a relative ``nanosleep`` and re-read the clock. Windows reads
+ * QueryPerformanceCounter and sleeps on a high-resolution waitable timer,
+ * falling back to ``Sleep()`` if that timer cannot be created. Either way
+ * the sleep is sliced at dp_interrupt_latency_ms() and returns early once
+ * dp_interrupted() is set, so a stop request ends a long pace.
  *
  * A non-positive or NaN ``fs`` gives every sample a zero offset from the
- * epoch: pace() returns without sleeping and every stamp is the epoch.
+ * epoch: every stamp is the epoch, and pace() never sleeps -- every call
+ * finds its deadline already passed and counts an underrun.
  */
 #ifndef DP_TIMING_CORE_H
 #define DP_TIMING_CORE_H
@@ -80,7 +84,7 @@ extern "C"
 
   /** Advance by @p count samples and sleep until that block's deadline
    *  (``epoch + n/fs``). Returns the slack in seconds measured before
-   *  sleeping: ``>= 0`` means early (and it slept that long); ``< 0`` means
+   *  sleeping: ``> 0`` means early (and it slept that long); ``<= 0`` means
    *  it arrived late — an underrun, which is counted (and the epoch
    *  re-anchored when ``resync`` is set), with no sleep.
    *

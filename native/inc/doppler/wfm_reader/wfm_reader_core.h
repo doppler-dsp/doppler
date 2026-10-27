@@ -799,8 +799,9 @@ int dp_wfm_reader_get_file_type(const dp_wfm_reader_state_t *state);
    * @param state  the reader.
    * @return a ::wfm_reader_stype_t index, 0..9 (complex five, then the
    *         scalar five). Read from the metadata for BLUE/SigMF (or an
-   *         adopted sidecar); the constructor hint echoed back otherwise.
-   *         Never ::WFM_READER_STYPE_AUTO.
+   *         adopted sidecar); otherwise the constructor hint echoed back,
+   *         or 0 (cf32) for an ::WFM_READER_STYPE_AUTO hint with no
+   *         sidecar. Never ::WFM_READER_STYPE_AUTO.
    */
 int dp_wfm_reader_get_sample_type(const dp_wfm_reader_state_t *state);
   /**
@@ -814,7 +815,9 @@ int dp_wfm_reader_get_mode(const dp_wfm_reader_state_t *state);
    * @brief Byte order of the samples on the wire.
    * @param state  the reader.
    * @return 0 little-endian, 1 big-endian; from the metadata for BLUE and
-   *         SigMF, the constructor hint for raw; meaningless for CSV.
+   *         SigMF; for raw, from the sidecar when the type hint was
+   *         ::WFM_READER_STYPE_AUTO and one was adopted, else the
+   *         constructor hint; meaningless for CSV.
    */
 int dp_wfm_reader_get_endian(const dp_wfm_reader_state_t *state);
   /**

@@ -490,7 +490,7 @@ extern "C"
    *                    default). Sets the fractional-timing resolution to
    *                    `1/num_phases` of an output period.
    * @param bn          Loop noise bandwidth, normalised to the symbol rate.
-   * @param zeta        Damping factor (0.707 = critically damped).
+   * @param zeta        Damping factor (1.0 = critical; 0.707 usual).
    * @param ted         RATESYNC_TED_GARDNER (blind) or RATESYNC_TED_DTTL
    *                    (decision-directed; BPSK/QPSK only).
    * @return Heap-allocated state, or NULL if a parameter is out of range or
@@ -790,7 +790,7 @@ extern "C"
    *
    * @param state  Must be non-NULL.
    * @param bn     Loop noise bandwidth, normalised to the symbol rate.
-   * @param zeta   Damping factor (0.707 = critically damped).
+   * @param zeta   Damping factor (1.0 = critical; 0.707 usual).
    *
    * A (@p bn, @p zeta) outside dp_loop_filter_params_ok() is ignored
    * silently: nothing changes and no status is returned.

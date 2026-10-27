@@ -114,7 +114,7 @@ typedef struct {
  *
  * @param s               State to initialise.  Must be non-NULL.
  * @param bn              Loop noise bandwidth, normalised to the symbol rate.
- * @param zeta            Damping factor (0.707 = critically damped).
+ * @param zeta            Damping factor (1.0 = critical; 0.707 usual).
  * @param init_norm_freq  Seed carrier frequency, cycles/sample.
  * @param tsamps          Samples per symbol (the integrate-and-dump period).
  * @param bn_fll          FLL-assist bandwidth (0 = pure PLL).
@@ -308,7 +308,10 @@ int dp_costas_set_state(dp_costas_state_t *state, const void *blob);
  * @brief Output capacity hint for dp_costas_steps(): always 0.
  *
  * The output is one prompt per @c tsamps inputs, so it never exceeds the
- * input length; size @p out to the input length (or input / tsamps).
+ * input length; size @p out to the input length. A partial symbol carries
+ * across calls, so a block of `n` samples emits `(acc_n + n) / tsamps`
+ * prompts (integer division), up to one more than `n / tsamps`; a prompt
+ * past @p max_out still steers the loop but is dropped.
  *
  * @param state  Unused.
  * @return 0 (no state-derived bound).
@@ -369,7 +372,7 @@ size_t dp_costas_steps(dp_costas_state_t *state, const float _Complex *x, size_t
  *
  * @param state  Costas state.  Must be non-NULL.
  * @param bn     Loop noise bandwidth, normalised to the symbol rate.
- * @param zeta   Damping factor (0.707 = critically damped).
+ * @param zeta   Damping factor (1.0 = critical; 0.707 usual).
  * @code
  * >>> from doppler.track import Costas
  * >>> c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=16)

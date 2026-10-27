@@ -231,7 +231,8 @@ extern "C"
    * measured, @c agc_exp10_(309) gave @c -3.09e-308 and
    * @c agc_exp10_(-320) gave @c -3.23e+296.  A gain function that returns a
    * negative gain does not merely lose precision, it inverts the signal.
-   * Past the rails this now saturates at @c 2^±1023 instead.
+   * Past the rails this now saturates instead: at exactly 0.0 low (see
+   * below) and at @c 2^1023 high.
    *
    * NaN takes the LOW rail, and the direction is the same one
    * @ref AGC_POWER_CEIL uses: when the input is unknown, attenuate.  A gain

@@ -378,7 +378,7 @@ extern "C"
    * @param s               State to initialise.  Must be non-NULL.
    * @param bn              Loop noise bandwidth, cycles/sample (per-sample
    * loop).
-   * @param zeta            Damping factor (0.707 = critically damped).
+   * @param zeta            Damping factor (1.0 = critical; 0.707 usual).
    * @param init_norm_freq  Seed carrier frequency, cycles/sample.
    * @param sps             Samples per symbol.
    * @param n               MA window divisor: window = sps/n samples (sps % n

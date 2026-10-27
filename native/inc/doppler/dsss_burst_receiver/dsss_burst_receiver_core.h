@@ -53,10 +53,10 @@
  */
 typedef struct
 {
-  uint64_t preamble_start; /**< Exact stream position of the preamble.     */
+  uint64_t preamble_start; /**< Refined stream position of the preamble.   */
   double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                 */
   double   doppler_res_hz; /**< Acquisition's native bin width, Hz.        */
-  double   cn0_dbhz_est;   /**< C/N0 lower bound from the hit, dB-Hz.      */
+  double   cn0_dbhz_est;   /**< C/N0 estimate from the hit, dB-Hz.         */
   double   est_freq_hz;    /**< Demod's residual-frequency estimate.       */
   double   est_rate_hz;    /**< Demod's chirp-rate estimate.               */
   double   demod_cn0_dbhz; /**< Demod's C/N0, dB-Hz, channel-referred.     */
@@ -126,10 +126,10 @@ typedef struct {
   dp_burst_demod_state_t   *demod; /**< Demod stage, re-seeded per burst.     */
 
   /* ── The DetectionEvent, describing the most recent completed burst ─── */
-  uint64_t preamble_start; /**< Stream-absolute preamble start. Never late. */
+  uint64_t preamble_start; /**< Stream-absolute preamble start.             */
   double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                  */
   double   doppler_res_hz; /**< Width of that estimate.                     */
-  double   cn0_dbhz_est;   /**< C/N0 lower bound, dB-Hz (saturating).       */
+  double   cn0_dbhz_est;   /**< C/N0 estimate, dB-Hz (saturating).          */
   double   est_freq_hz;    /**< Demod's own residual estimate, Hz.          */
   double   est_rate_hz;    /**< Demod's own chirp-rate estimate.            */
   double   demod_cn0_dbhz; /**< Demod's own C/N0, dB-Hz, referred to the
@@ -139,8 +139,8 @@ typedef struct {
                                 its siblings, because `cn0_dbhz_est` above is
                                 acquisition's and two fields differing only
                                 by word order is a reader's trap. The two are
-                                not the same measurement: acquisition's is a
-                                saturating lower bound from the hit, this one
+                                not the same measurement: acquisition's is
+                                backed out of the hit and saturates, this one
                                 is measured on the decoded symbols. Replaces
                                 `est_snr_db`, which was never an SNR
                                 (doppler#1304).                             */
@@ -541,9 +541,10 @@ double dp_dsss_burst_receiver_get_doppler_hz_est(const dp_dsss_burst_receiver_st
  */
 double dp_dsss_burst_receiver_get_doppler_res_hz(const dp_dsss_burst_receiver_state_t *state);
 /**
- * @brief Acquisition's C/N0 lower bound for the most recent burst.
+ * @brief Acquisition's C/N0 estimate for the most recent burst.
  *
- * A saturating lower bound from the detection hit, not a measurement on
+ * Backed out of the detection hit's statistic, so it saturates at the
+ * code's autocorrelation-sidelobe floor at high C/N0; not a measurement on
  * the decoded symbols; compare dp_dsss_burst_receiver_get_demod_cn0_dbhz().
  *
  * @param state  Must be non-NULL.

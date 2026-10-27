@@ -1953,15 +1953,19 @@ dp_wfm_compose_state_t *dp_wfm_compose_from_json(const char *json);
  * level instead of per segment. Text that is not JSON at all, or has no
  * non-empty `"segments"` array, is still a bare NULL: those are cJSON's to
  * describe, and duplicating its diagnostics here would be a second opinion
- * about the same text.
+ * about the same text. So, for now, are a segment carrying both `"sum"`
+ * and `"type"`, an empty `"sum"` array, and an allocation or synth
+ * failure: each returns NULL with @p why left NULL.
  *
  * @param json  the spec.
  * @param why   optional; set to NULL first, then to the reason when the
- *              scene is refused. Most reasons are static; one naming the
- *              caller's text (an unknown key) is formatted into a
- *              thread-local buffer, valid until this thread reads another
- *              scene. Never freed by the caller. Passing NULL makes this
- *              exactly @ref dp_wfm_compose_from_json.
+ *              scene is refused. Most reasons are static; two kinds are
+ *              formatted into a thread-local buffer, valid until this
+ *              thread reads another scene: one naming the caller's text
+ *              (an unknown key), and a `"data_from_file"` that cannot be
+ *              read or is not the data its record sent. Never freed by
+ *              the caller. Passing NULL makes this exactly
+ *              @ref dp_wfm_compose_from_json.
  * @return Composer state, or NULL on parse error / bad type / no segments /
  *         a refused frame.
  */

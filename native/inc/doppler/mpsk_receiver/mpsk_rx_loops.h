@@ -268,7 +268,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
   return (h >= 4.0) ? 8u : (size_t)(2.0 * h);
 }
 
-/** @brief Loop damping, derived: `1/sqrt(2)`, critically damped.
+/** @brief Loop damping, derived: `1/sqrt(2)`, underdamped (1.0 is critical).
  *
  * A constant, not a computation — nothing in this receiver moves the optimal
  * damping, and both loops already share one value. It is a parameter only

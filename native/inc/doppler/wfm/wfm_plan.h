@@ -232,8 +232,10 @@ extern "C"
    * (see dp_wfm_plan_check_snr()).
    *
    * @param p         The Plan.
-   * @param snr       SNR override, dB, in the units of the scene's own
-   *                  snr_mode; a segment whose noise floor was set
+   * @param snr       SNR override, dB, read per segment in the snr_mode
+   *                  of the source that sets its SNR: a bundled segment's
+   *                  lone source, else the source sharing the noise
+   *                  source's seed. A segment whose noise floor was set
    *                  explicitly keeps that floor.
    * @param seed      Noise (and ranged-gap) seed override. Only its low
    *                  32 bits are used: the seeds it replaces are 32-bit.

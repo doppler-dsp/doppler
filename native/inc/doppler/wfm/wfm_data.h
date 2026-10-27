@@ -108,9 +108,10 @@ extern "C"
    * @param fill  a Field whose bits pad the last frame and fill an idle
    *              one, or NULL for none. `data:LEN` is refused as a fill.
    * @param why   optional; receives a STATIC sentence naming the cause of a
-   *              refusal (a Field's is the parser's own), untouched on
-   *              success. A remainder is stated in bits by the caller, from
-   *              @ref dp_wfm_data_length_bits.
+   *              refusal (a Field's is the parser's own). Not untouched on
+   *              success: parsing a Field first sets it to NULL, so read
+   *              it only after a NULL return. A remainder is stated in
+   *              bits by the caller, from @ref dp_wfm_data_length_bits.
    * @return the source, or NULL: text outside the grammar, a file that
    *         cannot be opened, an empty finite source, a finite source that
    *         does not divide into `LEN`-bit frames with no fill, or a pipe
@@ -146,7 +147,9 @@ extern "C"
    *              one, or NULL for none. A stream over @p fd needs one
    *              unless @p len is 1.
    * @param why   optional; receives a STATIC sentence naming the cause of
-   *              a refusal, untouched on success.
+   *              a refusal. With a @p fill it is set to NULL even on
+   *              success (the Field parser clears it first), so read it
+   *              only after a NULL return.
    * @return the source, owned by the caller and freed with
    *         @ref dp_wfm_data_destroy; or NULL: @p len of 0, a fill outside
    *         the grammar, an unreadable @p fd, an empty regular file, a

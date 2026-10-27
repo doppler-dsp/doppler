@@ -114,7 +114,7 @@
  * const double rrc_beta       = 0.35;  // pulse=rrc only; inert for I&D
  * const int    rrc_span       = 8;     //   "
  * const double bn_carrier     = 0.01;  // x symbol rate
- * const double zeta           = 0.707; // critically damped
+ * const double zeta           = 0.707; // usual damping; 1.0 = critical
  * const double bn_timing      = 0.01;  // x symbol rate
  * const double lock_thresh    = 0.0;   // 0 derives; MPSK_RX_LOCK_THRESH_DEFAULT
  * const double init_norm_freq = 0.0;   // no prior carrier estimate
@@ -224,8 +224,9 @@ extern "C"
        that uses it; keeping a second copy here would be a shadow of the
        cascade's own configuration, free to drift out of step with it. */
     int    real;        /**< 0 = complex front end, 1 = real IF.         */
-    double centre_freq; /**< create-time carrier offset (cycles/sample),
-                             at the receiver's INPUT rate on both faces. */
+    double centre_freq; /**< carrier center (cycles/sample), at the
+                             receiver's INPUT rate on both faces: set by
+                             create, moved by set_norm_freq(). */
   } dp_mpsk_receiver_state_t;
 
   /**
@@ -822,7 +823,9 @@ extern "C"
    *  The estimate is the carrier loop filter's integrator (the frequency
    *  memory), excluding the proportional nudge; on a real-IF receiver it is
    *  converted from the LO's half rate back to the input rate. Equals
-   *  @p init_norm_freq right after create or reset.
+   *  the carrier center right after create, reset or a retune: that is
+   *  @p init_norm_freq, or the last dp_mpsk_receiver_set_norm_freq()
+   *  value once one has been made (reset keeps a retuned center).
    * @param state  Receiver state. Must be non-NULL.
    *  @return Tracked carrier frequency, cycles/sample at the input rate. */
   double dp_mpsk_receiver_get_norm_freq (const dp_mpsk_receiver_state_t *state);

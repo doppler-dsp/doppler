@@ -95,8 +95,10 @@ extern "C"
    * consuming system, so nothing here refuses to write one; the check exists
    * so a caller can find out before committing a capture.
    *
-   * Checked tags: `ACQDATE` (type `A`, 6 chars `YY.DDD` or 8 digits
-   * `YYYYMMDD`), `ACQTIME` (type `A`, 8 chars `HH:MM:SS`, digits only
+   * Checked tags: `ACQDATE` (type `A`, 6 or 8 chars of digits and `.`,
+   * with a `.` at index 2 when 6 long; so `YY.DDD` and `YYYYMMDD` pass,
+   * but so does a `.` elsewhere, e.g. `2024.1.1`; the layout is not
+   * otherwise checked), `ACQTIME` (type `A`, 8 chars `HH:MM:SS`, digits only
    * around the colons; ranges such as hour <= 23 are not checked),
    * `COMMENT` and `TIMELINE` (must be type `A`), and `SUBREC_DEF`,
    * `SUBREC_DESCRIP`, `T4INDEX` (always -1: doppler writes type 1000 only).

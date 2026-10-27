@@ -84,8 +84,17 @@ dp_gold_set_state (dp_gold_state_t *state, const void *blob)
     return rc;
   dp_reader_t r = dp_reader_init (blob, dp_gold_state_bytes (state));
   r.off         = sizeof (dp_state_hdr_t);
-  state->reg_a  = dp_r_u64 (&r);
-  state->reg_b  = dp_r_u64 (&r);
+  uint64_t a    = dp_r_u64 (&r);
+  uint64_t b    = dp_r_u64 (&r);
+  /* What create() refuses, set_state refuses (doppler#2641): a zero register
+     is a fixed point, and the code would degenerate to the other register's
+     m-sequence alone (the #1640 case). A live register also never holds a
+     bit above the length -- the generator masks every shift -- so one that
+     does was not made by this configuration. */
+  if (a == 0 || (a & ~state->mask) || b == 0 || (b & ~state->mask))
+    return DP_ERR_INVALID;
+  state->reg_a = a;
+  state->reg_b = b;
   return DP_OK;
 }
 

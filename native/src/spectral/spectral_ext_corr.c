@@ -105,7 +105,9 @@ CorrObj_init (CorrObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (ref_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_corr_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "Corr: invalid parameter (need dwell >= 1, and n_out "
+                       "0 or at least len(ref))");
       return -1;
     }
   return 0;
@@ -646,9 +648,9 @@ static PyTypeObject CorrObjType = {
     "ref : NDArray[np.complex64]\n"
     "    Reference signal, CF32, length ref_len.\n"
     "dwell : int, default 1\n"
-    "    Integration depth; must be >= 1. Pass 1 for immediate output on "
-    "every\n"
-    "    call.\n"
+    "    Integration depth; must be >= 1 (0 is refused). Pass 1 for "
+    "immediate\n"
+    "    output on every call.\n"
     "nthreads : int, default 1\n"
     "    Accepted for API compatibility; ignored.\n"
     "n_out : int, default 0\n"
@@ -659,6 +661,12 @@ static PyTypeObject CorrObjType = {
     "finer\n"
     "    length-n_out grid — same peak, sub-bin lag resolution. Native is\n"
     "    bit-exact and allocates no extra buffer.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``Corr: invalid\n"
+    "    parameter (need dwell >= 1, and n_out 0 or at least len(ref))``.\n"
     "\n"
     "Examples\n"
     "--------\n"

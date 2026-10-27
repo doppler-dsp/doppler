@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from doppler.spectral import Corr
 
@@ -24,3 +25,11 @@ def test_context_manager():
 def test_destroy():
     obj = Corr(np.zeros(1, dtype=np.complex64), 1, 1)
     obj.destroy()
+
+
+def test_dwell_zero_is_refused_as_value_error():
+    """dwell=0 never dumps, so create refuses it as ValueError (#2641)."""
+    ref = np.zeros(8, np.complex64)
+    ref[0] = 1.0
+    with pytest.raises(ValueError, match="dwell >= 1"):
+        Corr(ref=ref, dwell=0)

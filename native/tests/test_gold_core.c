@@ -1,5 +1,6 @@
 #include "doppler/gold/gold_core.h"
 #include "dp_test.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -357,6 +358,45 @@ main (void)
     dp_gold_state_t *w = dp_gold_create (0x3A6, 1025, 0x237, 0x49, 10);
     DP_CHECK_MSG (w != NULL, "a wide seed that masks to 1 builds");
     dp_gold_destroy (w);
+  }
+
+  /* set_state refuses a register create() could never fill (doppler#2641):
+     zero, or with a bit above the length. Each forged blob keeps its size,
+     so the envelope passes it; the payload check refuses it and the
+     target's own blob is byte-identical afterwards. */
+  {
+    dp_gold_state_t *g
+        = dp_gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 10);
+    uint8_t chips[17];
+    dp_gold_generate (g, 17, chips, 17);
+    size_t         sb     = dp_gold_state_bytes (g);
+    unsigned char *blob   = malloc (sb);
+    unsigned char *before = malloc (sb);
+    unsigned char *after  = malloc (sb);
+    dp_gold_get_state (g, before);
+    const uint64_t bad[] = { 0, (uint64_t)1 << 10, 1u | ((uint64_t)1 << 40) };
+    for (int reg = 0; reg < 2; reg++)
+      for (size_t k = 0; k < sizeof bad / sizeof bad[0]; k++)
+        {
+          memcpy (blob, before, sb);
+          memcpy (blob + sizeof (dp_state_hdr_t) + reg * sizeof (uint64_t),
+                  &bad[k], sizeof bad[k]);
+          DP_CHECK (dp_state_validate (blob, sb, GOLD_STATE_MAGIC,
+                                       GOLD_STATE_VERSION)
+                    == DP_OK);
+          DP_CHECK (dp_gold_set_state (g, blob) == DP_ERR_INVALID);
+          dp_gold_get_state (g, after);
+          DP_CHECK (memcmp (before, after, sb) == 0);
+        }
+    /* Positive control: the top bit of the register is a legal value. */
+    memcpy (blob, before, sb);
+    uint64_t top = (uint64_t)1 << 9;
+    memcpy (blob + sizeof (dp_state_hdr_t), &top, sizeof top);
+    DP_CHECK (dp_gold_set_state (g, blob) == DP_OK);
+    free (blob);
+    free (before);
+    free (after);
+    dp_gold_destroy (g);
   }
 
   DP_TEST_END ("test_gold_core");

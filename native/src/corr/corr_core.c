@@ -40,7 +40,11 @@ dp_corr_create (const float _Complex *ref, size_t n, size_t dwell,
     return NULL;
 
   size_t no = n_out ? n_out : n;
-  if (no < n) /* output may only interpolate (>= native) */
+  /* dwell = 0 never dumps (the test is ++count == dwell), and no count a
+     live object holds is below it, so set_state would refuse every blob
+     (doppler#2641). The header says >= 1; dp_corr2d_create enforces the
+     same. */
+  if (no < n || dwell < 1) /* output may only interpolate (>= native) */
     {
       free (state);
       return NULL;
@@ -127,7 +131,15 @@ int
 dp_corr_set_state (dp_corr_state_t *s, const void *blob)
 {
   DP_SET_OPEN (CORR_STATE_MAGIC, CORR_STATE_VERSION, dp_corr_state_bytes (s));
-  s->count = (size_t)dp_r_u64 (&_r);
+  /* A live correlator holds 0 <= count < dwell: the dump fires on
+     ++count == dwell and zeroes it. A count at or past the dwell would never
+     dump again until size_t wrapped (doppler#2641), so it is refused before
+     anything is written -- the count is decoded first, the accumulator only
+     once it has passed. */
+  uint64_t count = dp_r_u64 (&_r);
+  if (count >= (uint64_t)s->dwell)
+    return DP_ERR_INVALID;
+  s->count = (size_t)count;
   dp_r_cf32 (&_r, s->accum, s->n);
   return DP_OK;
 }

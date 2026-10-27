@@ -36,8 +36,9 @@ extern "C"
     SYMSYNC_TED_DTTL    = 1  /**< decision-directed sign-sign DTTL.       */
   };
 
-/* Numerical guard on the on-time+mid-symbol energy sum feeding the lock
- * statistic (not tunable). */
+/** @brief Numerical guard added to the on-time + mid-symbol energy sum that
+ *         normalizes the lock statistic, so a silent input cannot divide by
+ *         zero (not tunable). */
 #define SYMSYNC_LOCK_EPS 1e-12
 
   /**
@@ -402,14 +403,18 @@ extern "C"
                      int order, int ted);
 
   /**
-   * @brief Create a symsync instance.
+   * @brief Create a symbol-timing recovery loop on the heap.
    *
-   * @param sps  sps (default: 4).
-   * @param bn  bn (default: 0.01).
-   * @param zeta  zeta (default: 0.707).
+   * Validates (bn, zeta), allocates, then runs dp_symsync_init().
+   *
+   * @param sps  Nominal input samples per symbol (default: 4).
+   * @param bn  Loop noise bandwidth, normalized to the symbol rate
+   *            (default: 0.01).
+   * @param zeta  Loop damping factor (default: 0.707).
    * @param order  Enum index; 0=linear…2=cubic.
    * @param ted  Enum index; 0=gardner, 1=dttl (BPSK/QPSK only).
-   * @return Heap-allocated state, or NULL on allocation failure.
+   * @return Heap-allocated state, or NULL when dp_loop_filter_params_ok()
+   *         refuses (bn, zeta) or allocation fails.
    * @note Caller must call dp_symsync_destroy() when done.
    */
   dp_symsync_state_t *dp_symsync_create (size_t sps, double bn, double zeta,
@@ -446,6 +451,13 @@ extern "C"
    */
   void dp_symsync_reset (dp_symsync_state_t *state);
 
+  /**
+   * @brief Minimum output capacity dp_symsync_steps() asks for beyond the
+   *        input length.
+   * @param state  Unused.
+   * @return Always 0: at least one input sample per recovered symbol, so an
+   *         @p out as long as the input always suffices.
+   */
   size_t dp_symsync_steps_max_out (dp_symsync_state_t *state);
 
   /**
@@ -509,22 +521,51 @@ extern "C"
    *         (doppler#2112).
    */
   int    dp_symsync_configure (dp_symsync_state_t *state, double bn, double zeta);
+  /**
+   * @brief Loop noise bandwidth the timing loop is running.
+   * @param state  Must be non-NULL.
+   * @return bn, normalized to the symbol rate: the create() value or the
+   *         last one dp_symsync_configure() / dp_symsync_set_bn() accepted.
+   */
   double dp_symsync_get_bn (const dp_symsync_state_t *state);
   /** @brief Retune bn, keeping zeta: dp_symsync_configure()'s refusal and status.
    *  As a writable property a refusal raises ValueError and the value stays
-   *  put (doppler#1987). */
+   *  put (doppler#1987).
+   *  @param state  Must be non-NULL.
+   *  @param val    New loop noise bandwidth, normalized to the symbol rate.
+   *  @return `DP_OK`, or `DP_ERR_INVALID` (nothing changed) for a bn
+   *          dp_loop_filter_params_ok() refuses. */
   int    dp_symsync_set_bn (dp_symsync_state_t *state, double val);
+  /**
+   * @brief Most recent timing-detector output.
+   * @param state  Must be non-NULL.
+   * @return The last TED error, normalized by the running symbol power
+   *         (dimensionless); 0.0 after create() or reset(), before the
+   *         first symbol.
+   */
   double dp_symsync_get_timing_error (const dp_symsync_state_t *state);
+  /**
+   * @brief Samples per symbol the loop is currently tracking.
+   * @param state  Must be non-NULL.
+   * @return An exponential average (weight 0.02 per symbol) of the
+   *         instantaneous strobe spacing, in input samples per symbol;
+   *         equal to the nominal sps after create() or reset().
+   */
   double dp_symsync_get_rate (const dp_symsync_state_t *state);
 
   /** @brief Last block-averaged lock statistic:
    *         mean(2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2)) over the
    *         configured avgs looks; compare against the configured
-   *         threshold (see dp_symsync_configure_lock). */
+   *         threshold (see dp_symsync_configure_lock).
+   *  @param state  Must be non-NULL.
+   *  @return The statistic, nominally between -2 and 2; 0.0 until the
+   *          first full block of avgs symbols after create() or reset(). */
   double dp_symsync_get_lock_stat (const dp_symsync_state_t *state);
 
   /** @brief Current lock decision (1 = locked, 0 = not), with the
-   *         configured verify-count / hysteresis rule applied. */
+   *         configured verify-count / hysteresis rule applied.
+   *  @param state  Must be non-NULL.
+   *  @return 1 when locked, 0 otherwise (0 after create() and reset()). */
   int dp_symsync_get_locked (const dp_symsync_state_t *state);
 
   /**
@@ -659,12 +700,33 @@ extern "C"
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * pointer-free composition: nco + farrow + loop_filter embedded by value
  * (all POD) + scalar timing state — a whole-struct snapshot. */
+/** @brief State-blob magic ('SYNC'); set_state() rejects any other. */
 #define SYMSYNC_STATE_MAGIC DP_FOURCC ('S', 'Y', 'N', 'C')
+/** @brief State-blob layout version; set_state() rejects any other. */
 #define SYMSYNC_STATE_VERSION                                                 \
   5u /* v5: block-averaged lock_signal statistic (avgs/lock_sum/lock_count)   \
       */
+  /**
+   * @brief Size in bytes of this object's state blob.
+   * @param state  Must be non-NULL.
+   * @return `sizeof(dp_state_hdr_t) + sizeof(dp_symsync_state_t)`; constant.
+   */
   size_t dp_symsync_state_bytes (const dp_symsync_state_t *state);
+  /**
+   * @brief Snapshot the whole state struct into @p blob, with the telemetry
+   *        attachment zeroed.
+   * @param state  Must be non-NULL.
+   * @param blob   Destination; at least dp_symsync_state_bytes() bytes.
+   */
   void   dp_symsync_get_state (const dp_symsync_state_t *state, void *blob);
+  /**
+   * @brief Restore the state from a blob made by dp_symsync_get_state(),
+   *        keeping this object's live telemetry attachment.
+   * @param state  Must be non-NULL.
+   * @param blob   Source blob of dp_symsync_state_bytes() bytes.
+   * @return `DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's
+   *         magic, version, endianness or size does not match.
+   */
   int    dp_symsync_set_state (dp_symsync_state_t *state, const void *blob);
 
 #ifdef __cplusplus

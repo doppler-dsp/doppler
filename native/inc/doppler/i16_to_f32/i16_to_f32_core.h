@@ -38,19 +38,21 @@ extern "C" {
  * Allocate with dp_i16_to_f32_create().
  */
 typedef struct {
-    float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
+    float iscale; /**< 1.0f / scale, set once by create(); never changes. */
 } dp_i16_to_f32_state_t;
 
 /**
- * @brief Create a i16_to_f32 instance.
+ * @brief Create a signed int16 to float32 converter.
  *
  * Pre-computes @c iscale = 1.0f / @p scale so the hot step path is a
- * single multiply.  Any non-zero finite float is a valid scale value.
+ * single multiply.  @p scale must be > 0; zero or a negative value is
+ * refused (NULL).
  *
  * @param scale  Denominator scale; 1/scale is applied to each sample
  *               (default: 32768.0f).  Use 32768.0 to recover normalised
  *               `[-1, +1]` floats from a Q15 int16 stream.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL when @p scale <= 0 or allocation
+ *         fails.
  * @note Caller must call dp_i16_to_f32_destroy() when done.
  */
 dp_i16_to_f32_state_t *dp_i16_to_f32_create(float scale);

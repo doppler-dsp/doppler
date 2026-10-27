@@ -112,7 +112,8 @@ extern "C"
    */
   typedef struct
   {
-    double p_hat;   /**< Unbiased point estimate `(r-1)/(N-1)`.          */
+    double p_hat;   /**< Point estimate: unbiased `(r-1)/(N-1)` for r >= 2,
+                         `r/N` at r = 1, 0 at r = 0, NAN when N = 0.   */
     double lo;      /**< Lower confidence limit.                          */
     double hi;      /**< Upper confidence limit.                          */
     double rel;     /**< Relative standard error `1/sqrt(r)`.             */
@@ -138,7 +139,11 @@ extern "C"
 
   /* ── free functions: theory and windows ───────────────────────────────── */
 
-  /** @brief Gaussian tail `Q(x) = P(N(0,1) > x)`. */
+  /**
+   * @brief Gaussian tail `Q(x) = P(N(0,1) > x)`.
+   * @param x  Threshold in standard deviations; any real value.
+   * @return `0.5 * erfc(x / sqrt(2))`, between 0 and 1.
+   */
   double dp_ber_qfunc (double x);
 
   /**
@@ -154,6 +159,10 @@ extern "C"
    * differential measurement with this curve invents a factor of two of
    * "implementation loss".
    *
+   * @param m     Constellation order: 2, 4 or 8.
+   * @param esn0  Matched-filter Es/N0 as a LINEAR ratio (not dB).  At or
+   *              below 0 the chance rate is returned: 0.5 for BPSK,
+   *              `1 - 1/M` otherwise.
    * @return The rate, or NAN for an M outside {2, 4, 8}: there is no closed
    *         form for it here, and another M's rate would be a fabricated
    *         answer.
@@ -163,7 +172,10 @@ extern "C"
   /** @brief Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR).
    *  BPSK and Gray QPSK are exactly `Q(sqrt(2 Eb/N0))`; 8PSK uses `SER/log2 M`,
    *  exact in the high-Es/N0 limit where an error lands on a neighbour.
-   *  NAN for an M outside {2, 4, 8}. */
+   *  NAN for an M outside {2, 4, 8}.
+   *  @param m     Constellation order: 2, 4 or 8.
+   *  @param esn0  Es/N0 as a LINEAR ratio (not dB), >= 0.
+   *  @return The bit error rate, or NAN for an unsupported M. */
   double dp_ber_theory_ber (int m, double esn0);
 
   /**
@@ -177,6 +189,8 @@ extern "C"
    * 40 dB. The endpoints are in-bracket: a rate equal to the bound at either
    * end returns that end.
    *
+   * @param m    Constellation order: 2, 4 or 8.
+   * @param ser  Measured symbol error rate, in (0, 1).
    * @return The Es/N0 in dB, or NAN when no Es/N0 from -10 to 40 dB produces
    *         the rate: `ser <= 0` (a zero SER is a perfect link, which no
    *         finite Es/N0 yields), `ser` above the bound at -10 dB (a rate
@@ -211,6 +225,7 @@ extern "C"
    * "completely broken" collapses as M grows: 5.4 dB at BPSK, 3.3 at QPSK,
    * 2.8 at 8PSK, so at high M the EVM cannot carry a verdict by itself.
    *
+   * @param m  Constellation order; any M >= 2.
    * @return The floor in dB, or NAN for M < 2, which is no constellation.
    */
   double dp_ber_evm_scatter_floor_db (int m);
@@ -256,6 +271,13 @@ extern "C"
    * This is a floor, not the answer — take the max of it and every lock
    * indicator the receiver publishes, plus the handover instant again if one is
    * enabled. Pass a loop's `bn` as 0 if it is not running.
+   *
+   * @param bn_timing   Timing-loop noise bandwidth, normalized to the symbol
+   *                    rate; <= 0 drops that loop's term.
+   * @param bn_carrier  Carrier-loop noise bandwidth, normalized to the
+   *                    symbol rate; <= 0 drops that loop's term.
+   * @return The budget in symbols, truncated to an integer; 0 when neither
+   *         loop runs.
    */
   size_t dp_ber_settle_syms (double bn_timing, double bn_carrier);
 
@@ -269,6 +291,11 @@ extern "C"
    * instead is right with no noise and badly wrong with it — one late dip once
    * moved a reported lock from 415 to 2286 and left no measurement window.
    *
+   * @param flags      Per-symbol lock flags, nonzero = locked; NULL gives -1.
+   * @param flags_len  Number of entries in @p flags.
+   * @param sustain    Consecutive locked symbols required; 0 selects 200.
+   * @param min_frac   Fraction of the remaining record that must be locked,
+   *                   in (0, 1]; a value <= 0 (or NaN) selects 0.9.
    * @return The symbol index, or -1 for "never locked" — the honest answer,
    *         which forces the caller to say so rather than measure a transient.
    */
@@ -295,6 +322,12 @@ extern "C"
    * than the error rate did, and the two eventually disagree in a way that
    * reads as a receiver defect rather than the harness bug it is.
    *
+   * @param rx      Symbol-rate complex samples (matched-filter output).
+   *                NULL gives 0.0.
+   * @param rx_len  Number of samples in @p rx.
+   * @param lo      First symbol of the window (inclusive).
+   * @param hi      One past the last symbol; clamped to @p rx_len.
+   * @param m       Constellation order the stream carries (2, 4, 8, ...).
    * @return EVM in dB, 0.0 ("no lock") for a window under 20 symbols, or
    *         NAN for M < 2, which is no constellation.
    */
@@ -345,6 +378,15 @@ extern "C"
    * With `r = 0` there is no point estimate, but the exact one-sided upper
    * limit `-ln(alpha)/N` still holds and is returned — the honest way to report
    * "no errors in N symbols".
+   *
+   * @param errors   Errors counted, r.
+   * @param symbols  Trials counted, N (symbols, or bits for a BER).
+   * @param conf     Two-sided confidence level in (0, 1); anything else
+   *                 selects #BER_CONF.
+   * @return The interval.  `p_hat` is `(r-1)/(N-1)` for r >= 2 and the naive
+   *         `r/N` at r = 1; at r = 0 it is 0 with `lo` 0 and `hi` the
+   *         one-sided limit; with N = 0 it is NAN, `lo` 0 and `hi`/`rel`
+   *         infinite.  `rel` is `1/sqrt(r)` (infinite at r = 0).
    */
   ber_interval_t dp_ber_confidence (size_t errors, size_t symbols, double conf);
 

@@ -174,6 +174,8 @@ void dp_corr2d_destroy(dp_corr2d_state_t *state);
  * Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
  * or recomputing ref_spec.
  *
+ * @param state  Must be non-NULL.
+ *
  * @code
  * >>> from doppler.spectral import Corr2D
  * >>> import numpy as np
@@ -209,8 +211,10 @@ void dp_corr2d_reset(dp_corr2d_state_t *state);
 int dp_corr2d_set_ref(dp_corr2d_state_t *state, const float _Complex *ref);
 
 /** @brief Maximum output samples per execute call (@ref dp_corr2d_state_t::n_out
- *         -- ny*nx_out normally, or ny when a single @ref
- *         dp_corr2d_state_t::col_out was selected). */
+ *         -- ny_out*nx_out normally, or ny when a single @ref
+ *         dp_corr2d_state_t::col_out was selected).
+ *  @param state  Must be non-NULL.
+ *  @return n_out, fixed at create(). */
 size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
 
 /**
@@ -226,15 +230,15 @@ size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
  * @param state  Allocated 2-D correlator (non-NULL).
  * @param in     Input frame, flat row-major CF32, length ny*nx.
  * @param n_in   Number of input samples; must equal ny*nx; else REFUSED.
- * @param out    Output buffer for the correlation map (CF32, length ny*nx);
- *               written only on a dump call.
+ * @param out    Output buffer for the correlation map (CF32, length n_out:
+ *               ny_out*nx_out, or ny with @p col_out); written only on a
+ *               dump call.
  * @param max_out Capacity of @p out in elements. Emission stops there, so the
  *               return value is the number actually written.
- * @return ny*nx on a dump (or max_out if smaller), 0 otherwise
- *          If @p n_in is not the required length the call is REFUSED with
- *          nothing read, written or counted: SIZE_MAX in C, ValueError
- *          in Python (#1925).
- *         (None in Python).
+ * @return n_out on a dump (or @p max_out if smaller), 0 otherwise (None in
+ *         Python).  If @p n_in is not the required length the call is
+ *         REFUSED with nothing read, written or counted: SIZE_MAX in C,
+ *         ValueError in Python (#1925).
  * @code
  * >>> from doppler.spectral import Corr2D
  * >>> import numpy as np
@@ -253,10 +257,30 @@ size_t dp_corr2d_execute(dp_corr2d_state_t *state, const float _Complex *in,
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running 2-D product-spectrum accumulator + frame count;
  * FFT plans + ref_spec are config, rebuilt by create. */
+/** @brief State-blob magic ('CR2D'); set_state() rejects any other. */
 #define CORR2D_STATE_MAGIC DP_FOURCC ('C','R','2','D')
+/** @brief State-blob layout version; set_state() rejects any other. */
 #define CORR2D_STATE_VERSION 1u
+/**
+ * @brief Size in bytes of this correlator's state blob.
+ * @param state  Must be non-NULL.
+ * @return Header + frame count (u64) + ny*nx complex-float accumulator.
+ */
 size_t dp_corr2d_state_bytes (const dp_corr2d_state_t *state);
+/**
+ * @brief Serialize the frame count and spectrum accumulator into @p blob.
+ * @param state  Must be non-NULL.
+ * @param blob   Destination; at least dp_corr2d_state_bytes() bytes.
+ */
 void dp_corr2d_get_state (const dp_corr2d_state_t *state, void *blob);
+/**
+ * @brief Restore a mid-dwell correlator from dp_corr2d_get_state()'s blob.
+ * @param state  Must be non-NULL, created with the same (ny, nx) and
+ *               reference (the reference is not in the blob).
+ * @param blob   Source blob of dp_corr2d_state_bytes() bytes.
+ * @return `DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's
+ *         magic, version, endianness or size does not match.
+ */
 int dp_corr2d_set_state (dp_corr2d_state_t *state, const void *blob);
 
 #ifdef __cplusplus

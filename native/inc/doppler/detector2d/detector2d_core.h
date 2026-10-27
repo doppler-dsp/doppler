@@ -48,13 +48,20 @@ extern "C" {
 /* ── Noise aggregation mode (shared definition with detector_core.h) ────── */
 
 #ifndef DET_NOISE_MODE_T_DEFINED
+/** @brief Include guard: det_noise_mode_t is defined once across the
+ *         detector headers that share it. */
 #define DET_NOISE_MODE_T_DEFINED
+/**
+ * @brief How the noise floor is aggregated from the correlation magnitudes
+ *        over the flat bins noise_lo to noise_hi, inclusive (as in
+ *        detector_core.h).
+ */
 typedef enum
 {
-  DET_NOISE_MEAN = 0,
-  DET_NOISE_MEDIAN = 1,
-  DET_NOISE_MIN = 2,
-  DET_NOISE_MAX = 3,
+  DET_NOISE_MEAN = 0,   /**< Arithmetic mean of the magnitudes.            */
+  DET_NOISE_MEDIAN = 1, /**< Median (upper middle for an even count).      */
+  DET_NOISE_MIN = 2,    /**< Minimum magnitude.                            */
+  DET_NOISE_MAX = 3,    /**< Maximum magnitude.                            */
 } det_noise_mode_t;
 #endif /* DET_NOISE_MODE_T_DEFINED */
 
@@ -75,14 +82,15 @@ typedef struct
   float test_stat;  /**< peak_mag / noise_est; 0 if noise_est == 0.        */
 } det_result2d_t;
 
+#ifndef DET_PEAK_T_DEFINED
+/** @brief Include guard: det_peak_t is defined once across headers. */
+#define DET_PEAK_T_DEFINED
 /**
  * @brief One listed peak of a surface: a cell and its value, in the
  *        surface's own units (a magnitude on a coherent surface, a power on
  *        a non-coherent one). What det_peak_list() (det_private.h) returns,
  *        and what the acquisition engine keeps per dwell.
  */
-#ifndef DET_PEAK_T_DEFINED
-#define DET_PEAK_T_DEFINED
 typedef struct
 {
   size_t row;   /**< surface row                                    */
@@ -113,14 +121,14 @@ typedef struct
   size_t ring_cap;          /**< Ring buffer capacity in complex samples.   */
   size_t noise_lo;          /**< Noise bin range lower bound (inclusive).   */
   size_t noise_hi;          /**< Noise bin range upper bound (inclusive).   */
-  det_noise_mode_t noise_mode;
+  det_noise_mode_t noise_mode; /**< Noise aggregation, set at create().    */
   float threshold;          /**< 0 = always fire; >0 = gate on test_stat.  */
   /* Last dump results — updated on every dump regardless of threshold. */
-  size_t peak_row;
-  size_t peak_col;
-  float peak_mag;
-  float noise_est;
-  float test_stat;
+  size_t peak_row;          /**< Last dump: peak row (0 before any dump).  */
+  size_t peak_col;          /**< Last dump: peak column.                   */
+  float peak_mag;           /**< Last dump: peak |R| (linear magnitude).   */
+  float noise_est;          /**< Last dump: noise floor over the window.   */
+  float test_stat;          /**< Last dump: peak_mag / noise_est, or 0.    */
   int _last_corr_valid;     /**< 1 once a dump has filled out_buf; 0
                                  after create, reset and set_state.     */
   size_t consumed;          /**< Input samples the last push took.          */
@@ -148,7 +156,8 @@ typedef struct
  * @param noise_mode Noise aggregation: "mean", "median", "min", or "max".
  * @param threshold  Test-stat gate; 0.0 = always emit.
  * @param nthreads   Accepted for API compatibility; ignored.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL when dp_corr2d_create() refuses the
+ *         arguments (e.g. @p dwell 0) or allocation fails.
  * @code
  * >>> from doppler.spectral import CorrDetector2D
  * >>> import numpy as np
@@ -172,6 +181,8 @@ void dp_detector2d_destroy (dp_detector2d_state_t *state);
  * @brief Reset the 2-D correlator, the carry, and last-corr flag.
  * Discards any partial frame carried between pushes and zeroes the coherent
  * accumulator.  The reference spectrum and FFT plans are preserved.
+ *
+ * @param state  Must be non-NULL.
  *
  * @code
  * >>> from doppler.spectral import CorrDetector2D
@@ -273,6 +284,8 @@ size_t dp_detector2d_push (dp_detector2d_state_t *state, const float _Complex *i
  * at in + consumed. 0 after create, reset, set_ref and set_state.
  *
  * @param state  Must be non-NULL.
+ * @return Samples of the last push's input consumed (including any kept as
+ *         the carry).
  */
 size_t dp_detector2d_consumed (const dp_detector2d_state_t *state);
 
@@ -284,10 +297,34 @@ size_t dp_detector2d_consumed (const dp_detector2d_state_t *state);
  * carried the ring's raw contents zero-padded to ring_cap and a last_corr
  * flag; out_buf was never in the blob, so last_corr is None after
  * set_state. */
+/** @brief State-blob magic ('DET2'); set_state() rejects any other. */
 #define DETECTOR2D_STATE_MAGIC DP_FOURCC ('D','E','T','2')
+/** @brief State-blob layout version (2; version-1 blobs are refused). */
 #define DETECTOR2D_STATE_VERSION 2u
+/**
+ * @brief Size in bytes of this detector's state blob.
+ * @param state  Must be non-NULL.
+ * @return Header + corr2d and framer child blobs + 2 u64 + 3 f32.
+ */
 size_t dp_detector2d_state_bytes (const dp_detector2d_state_t *state);
+/**
+ * @brief Serialize the correlator, carry and last-dump result into @p blob.
+ * @param state  Must be non-NULL.
+ * @param blob   Destination; at least dp_detector2d_state_bytes() bytes.
+ */
 void dp_detector2d_get_state (const dp_detector2d_state_t *state, void *blob);
+/**
+ * @brief Restore a detector from a blob made by dp_detector2d_get_state().
+ *
+ * Clears the last-surface flag (out_buf is not in the blob) and the
+ * consumed count.
+ *
+ * @param state  Must be non-NULL, created with the same configuration.
+ * @param blob   Source blob of dp_detector2d_state_bytes() bytes.
+ * @return `DP_OK`, or `DP_ERR_INVALID` for a header or child-blob mismatch
+ *         (a child refused after the corr2d child was read leaves that
+ *         child restored).
+ */
 int dp_detector2d_set_state (dp_detector2d_state_t *state, const void *blob);
 
 #ifdef __cplusplus

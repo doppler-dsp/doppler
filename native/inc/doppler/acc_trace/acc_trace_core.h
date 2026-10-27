@@ -138,7 +138,11 @@ void dp_acc_trace_reset(dp_acc_trace_state_t *state);
 void dp_acc_trace_accumulate(dp_acc_trace_state_t *state, const float *p,
                           size_t p_len);
 
-/** @brief Output capacity hint for value(); equals the trace length n. */
+/**
+ * @brief Output capacity value() needs: the trace length n.
+ * @param state  Must be non-NULL.
+ * @return The trace length n (bins) given to create(); constant.
+ */
 size_t dp_acc_trace_value_max_out(dp_acc_trace_state_t *state);
 
 /**
@@ -155,7 +159,8 @@ size_t dp_acc_trace_value_max_out(dp_acc_trace_state_t *state);
  * @param out    Destination, at least n float32 elements.
  * @param max_out Capacity of @p out in elements. Emission stops there, so the
  *               return value is the number actually written.
- * @return min(n, max_out) samples, or 0 if empty.
+ * @return min(trace length, @p max_out) samples written, or 0 before the
+ *         first frame (or after reset()).
  *
  * @code
  * >>> import numpy as np
@@ -179,10 +184,30 @@ size_t dp_acc_trace_value(dp_acc_trace_state_t *state, size_t n, float *out,
  * create (version 2; version 1 blobs, without mode or alpha, are refused).
  * set_state refuses an alpha the setter would refuse; either refusal leaves
  * the state untouched. */
+/** @brief State-blob magic ('ATRC'); set_state() rejects any other. */
 #define ACC_TRACE_STATE_MAGIC DP_FOURCC ('A','T','R','C')
+/** @brief State-blob layout version (2: carries mode and alpha). */
 #define ACC_TRACE_STATE_VERSION 2u
+/**
+ * @brief Size in bytes of this trace's state blob.
+ * @param state  Must be non-NULL.
+ * @return Header + mode (u32) + count (u64) + alpha (f64) + n doubles.
+ */
 size_t dp_acc_trace_state_bytes (const dp_acc_trace_state_t *state);
+/**
+ * @brief Serialize mode, count, alpha and the running trace into @p blob.
+ * @param state  Must be non-NULL.
+ * @param blob   Destination; at least dp_acc_trace_state_bytes() bytes.
+ */
 void dp_acc_trace_get_state (const dp_acc_trace_state_t *state, void *blob);
+/**
+ * @brief Restore a trace from a blob made by dp_acc_trace_get_state().
+ * @param state  Must be non-NULL, created with the same n.
+ * @param blob   Source blob of dp_acc_trace_state_bytes() bytes.
+ * @return `DP_OK`, or `DP_ERR_INVALID` (state untouched) for a header
+ *         mismatch, a blob from another mode, or an alpha the setter would
+ *         refuse.
+ */
 int dp_acc_trace_set_state (dp_acc_trace_state_t *state, const void *blob);
 
 #ifdef __cplusplus

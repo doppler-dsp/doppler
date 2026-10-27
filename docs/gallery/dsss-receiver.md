@@ -86,5 +86,5 @@ so a receiver mid-search and one already locked serialize and restore
 through the identical interface.
 
 Source: `src/doppler/examples/dsss_receiver_demo.py`. See also
-[AsyncDsssReceiver: the SPEC Waveform](async-dsss-receiver-spec.md)
-(the same chain packaged for a coupled-Doppler SPEC waveform).
+[AsyncDsssReceiver: the specification waveform](async-dsss-receiver-spec.md)
+(the same chain packaged for a coupled-Doppler specification waveform).

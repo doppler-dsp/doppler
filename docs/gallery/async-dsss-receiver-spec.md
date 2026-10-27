@@ -1,4 +1,4 @@
-# AsyncDsssReceiver: the SPEC link
+# AsyncDsssReceiver: the specification link
 
 ![The constellation after symbol lock, the live carrier through the TCA crossing, the time to symbol lock for every draw, and the symbol lock with the spans spent searching](../assets/async_dsss_receiver_spec_demo.png)
 
@@ -41,7 +41,7 @@ noise is added after the channel.
 
 ## What the run shows
 
-The page runs at 8 dB Es/N0. SPEC's floor is 5 dB; 8 dB is where the current
+The page runs at 8 dB Es/N0. The specification's floor is 5 dB; 8 dB is where the current
 receiver demodulates reliably, with every check below holding on every regime.
 At this Es/N0 not every hand-off lands inside the carrier loop's reach. The ones
 that miss are released and searched again, and the script prints how many draws

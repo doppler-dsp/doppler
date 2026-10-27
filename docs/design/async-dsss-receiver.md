@@ -905,6 +905,6 @@ ______________________________________________________________________
     which shares §2.2's `acq_handoff_t`.
 - [`burst-bank.md`](burst-bank.md) — the burst bank this page's continuous
     case was split from.
-- [AsyncDsssReceiver: the SPEC waveform](../gallery/async-dsss-receiver-spec.md)
+- [AsyncDsssReceiver: the specification waveform](../gallery/async-dsss-receiver-spec.md)
     and [Streaming Async Despreader](../gallery/async-despread.md) — the
     gallery demonstrations of §4 and §3.

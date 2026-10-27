@@ -39,24 +39,26 @@ extern "C" {
 #endif
 
 /**
- * @brief I16U64ToF32 state.
+ * @brief I16U64ToF32 state: the precomputed reciprocal scale.
  *
  * Allocate with dp_i16u64_to_f32_create().
  */
 typedef struct {
-    float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
+    float iscale; /**< 1.0f / scale, set at create(); the step is one
+                       multiply of the sign-extended low 16 bits.     */
 } dp_i16u64_to_f32_state_t;
 
 /**
- * @brief Create a i16u64_to_f32 instance.
+ * @brief Create an I16U64ToF32 converter (Q15-in-uint64 to float).
  *
  * Pre-computes @c iscale = 1.0f / @p scale so the hot step path is a
  * single multiply after the lower-16-bit extraction.
  *
  * @param scale  Denominator scale; 1/scale is applied after sign-extension
  *               (default: 32768.0f).  Use 32768.0 to match F32ToI16U64 at
- *               its default scale.
- * @return Heap-allocated state, or NULL on allocation failure.
+ *               its default scale.  Must be > 0.
+ * @return Heap-allocated state, or NULL when @p scale <= 0 or the
+ *         allocation fails.
  * @note Caller must call dp_i16u64_to_f32_destroy() when done.
  */
 dp_i16u64_to_f32_state_t *dp_i16u64_to_f32_create(float scale);

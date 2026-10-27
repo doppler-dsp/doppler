@@ -75,7 +75,8 @@ extern "C" {
 #endif
 
 /**
- * @brief CarrierAcquisition state.
+ * @brief CarrierAcquisition state: owned PSD and detector children,
+ *        scratch, config and the running detection result.
  *
  * Allocate with dp_carrier_acq_create().
  */
@@ -93,25 +94,33 @@ typedef struct {
 
     /* Config, fixed at construction (restored by create(), not the
      * blob -- validated against the blob's own copy in set_state). */
-    double sample_rate_hz;
-    double pfa;
-    bool   sequential;
+    double sample_rate_hz; /**< Input sample rate, Hz (config).       */
+    double pfa;   /**< Target per-test false-alarm probability (config);
+                       sets the CFAR ratio threshold.                  */
+    bool   sequential; /**< Config: true tests after every block, false
+                            tests once at dwell_target.                 */
     double s_t;   /**< sum(template) -- ratio-threshold calibration.   */
     double s_t2;  /**< sum(template^2) -- ratio-threshold calibration. */
 
     /* Public (property-backed) running/result fields. */
-    bool   ready;
-    double residual_hz;
-    size_t n_blocks;
+    bool   ready;       /**< True once a detection has fired; steps()
+                             is then a no-op until reset().          */
+    double residual_hz; /**< Sub-bin-refined residual carrier offset,
+                             Hz, signed, within +/- sample_rate_hz/2;
+                             0 until ready.                          */
+    size_t n_blocks;    /**< PSD blocks folded since create()/reset()
+                             (running count).                        */
     size_t dwell_target;  /**< Non-sequential mode's fixed wait count.   */
     size_t max_n_blocks;  /**< Sequential mode's OWN give-up cap --      *
                             *  deliberately independent of dwell_target  *
                             *  (see dp_carrier_acq_create()'s own doc).     */
-    size_t nfft;
+    size_t nfft;          /**< PSD / template length, bins (config,
+                               from the PSD core at create()).        */
 } dp_carrier_acq_state_t;
 
 /**
- * @brief Create a carrier_acq instance.
+ * @brief Create a PSD-template carrier acquisition (residual-carrier
+ *        detector and estimator).
  *
  * In C the window is DP_PSD_WINDOW_HANN, DP_PSD_WINDOW_KAISER or
  * DP_PSD_WINDOW_BLACKMAN_HARRIS; any other, the rectangular window
@@ -269,10 +278,38 @@ void dp_carrier_acq_steps(dp_carrier_acq_state_t *state, const float _Complex *x
  * of precondition dsss_receiver's own segments/sps/n check documents;
  * neither corr_core nor detector_core hash-verify their own reference
  * spectra either). */
+/** @brief State-blob magic ("CAQR"); set_state() rejects any other. */
 #define CARRIER_ACQ_STATE_MAGIC DP_FOURCC('C', 'A', 'Q', 'R')
+/** @brief State-blob layout version; bumped when the payload changes. */
 #define CARRIER_ACQ_STATE_VERSION 1u
+/**
+ * @brief Size of this instance's serialized state blob.
+ * @param state  Instance to size (non-NULL).
+ * @return Bytes: envelope + own running fields + the psd and detector
+ *         child blobs + a fixed carry region of psd->k.n samples.
+ */
 size_t dp_carrier_acq_state_bytes(const dp_carrier_acq_state_t *state);
+/**
+ * @brief Serialize the running state into a caller-owned blob.
+ * @param state  Instance to snapshot (non-NULL).
+ * @param blob   Destination of at least dp_carrier_acq_state_bytes()
+ *               bytes.
+ */
 void   dp_carrier_acq_get_state(const dp_carrier_acq_state_t *state, void *blob);
+/**
+ * @brief Restore the running state from a dp_carrier_acq_get_state() blob.
+ *
+ * The instance must have been created with the same configuration as the
+ * one that produced the blob (see the block comment above).
+ *
+ * @param state  Instance to overwrite (non-NULL).
+ * @param blob   Blob of dp_carrier_acq_state_bytes() bytes.
+ * @return DP_OK on success; DP_ERR_INVALID when the envelope does not
+ *         match, nfft / dwell_target / max_n_blocks differ from this
+ *         instance, carry_len >= psd->k.n, residual_hz is NaN or beyond
+ *         +/- sample_rate_hz/2, or a child blob is rejected.  A child
+ *         rejection can leave the psd child already restored.
+ */
 int    dp_carrier_acq_set_state(dp_carrier_acq_state_t *state, const void *blob);
 
 #ifdef __cplusplus

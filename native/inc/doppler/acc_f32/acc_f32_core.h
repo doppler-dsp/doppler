@@ -1,6 +1,6 @@
 /**
  * @file acc_f32_core.h
- * @brief AccF32 component API.
+ * @brief AccF32: single-precision scalar running-sum accumulator.
  *
  * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
@@ -25,13 +25,14 @@ extern "C"
 #endif
 
   /**
-   * @brief AccF32 state.
+   * @brief AccF32 state: one float running sum.
    *
    * Allocate with dp_acc_f32_create().
    */
   typedef struct
   {
-    float acc;
+    float acc; /**< Running sum (running state); seeded by create() or
+                    set_acc(), zeroed by reset() and dump().       */
   } dp_acc_f32_state_t;
 
   /**
@@ -63,6 +64,8 @@ extern "C"
    * @brief Release all memory owned by an AccF32 instance.
    * Passing NULL is safe; the function is a no-op in that case.
    * After this call the pointer must not be used.
+   *
+   * @param state  Instance to free, or NULL.
    */
   void dp_acc_f32_destroy (dp_acc_f32_state_t *state);
 
@@ -71,6 +74,8 @@ extern "C"
    * ``AccF32(0.0)`` — regardless of the value supplied to
    * ``dp_acc_f32_create``. Subsequent ``get`` / ``dump`` calls return
    * ``0.0`` until new samples are processed.
+   *
+   * @param state  Must be non-NULL.
    * @code
    * >>> from doppler.accumulator import AccF32
    * >>> obj = AccF32(0.0)
@@ -131,6 +136,7 @@ extern "C"
    * without disturbing it. For a read-and-reset in one call use
    * ``dp_acc_f32_dump``.
    *
+   * @param state  Must be non-NULL.
    * @return Current value of ``acc`` (float).
    * @code
    * >>> from doppler.accumulator import AccF32
@@ -171,6 +177,7 @@ extern "C"
    * explicit method so call sites that need the value can be uniform
    * with ``dump`` without a conditional.
    *
+   * @param state  Must be non-NULL.
    * @return Current value of ``acc`` (float).
    * @code
    * >>> from doppler.accumulator import AccF32
@@ -189,6 +196,7 @@ extern "C"
    * start a fresh accumulation interval without a separate ``reset``
    * call. The zero-reset is unconditional and always writes 0.0f.
    *
+   * @param state  Must be non-NULL.
    * @return Value of ``acc`` just before the reset (float).
    * @code
    * >>> from doppler.accumulator import AccF32
@@ -280,10 +288,29 @@ extern "C"
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
    * Whole-struct POD snapshot (pointer-free); the running accumulator resumes exactly into an
    * identically-built instance. */
+/** @brief State-blob magic ("ACCF"); set_state() rejects any other. */
 #define ACC_F32_STATE_MAGIC DP_FOURCC ('A', 'C', 'C', 'F')
+/** @brief State-blob layout version; bumped when the payload changes. */
 #define ACC_F32_STATE_VERSION 1u
+  /**
+   * @brief Size of this instance's serialized state blob.
+   * @param state  Instance to size (non-NULL).
+   * @return Bytes: the dp_state_hdr_t envelope plus the whole state struct.
+   */
   size_t dp_acc_f32_state_bytes (const dp_acc_f32_state_t *state);
+  /**
+   * @brief Serialize the running sum into a caller-owned blob.
+   * @param state  Instance to snapshot (non-NULL).
+   * @param blob   Destination of at least dp_acc_f32_state_bytes() bytes.
+   */
   void    dp_acc_f32_get_state (const dp_acc_f32_state_t *state, void *blob);
+  /**
+   * @brief Restore the running sum from a dp_acc_f32_get_state() blob.
+   * @param state  Instance to overwrite (non-NULL).
+   * @param blob   Blob of dp_acc_f32_state_bytes() bytes.
+   * @return DP_OK on success; DP_ERR_INVALID (state untouched) when the
+   *         magic, version, endianness or size does not match.
+   */
   int     dp_acc_f32_set_state (dp_acc_f32_state_t *state, const void *blob);
 
 #ifdef __cplusplus

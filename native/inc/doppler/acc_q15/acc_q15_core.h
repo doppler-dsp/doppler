@@ -26,12 +26,14 @@ extern "C" {
 #endif
 
 /**
- * @brief AccQ15 state.
+ * @brief AccQ15 state: one 64-bit integer running sum.
  *
  * Allocate with dp_acc_q15_create().
  */
 typedef struct {
-    int64_t acc;
+    int64_t acc; /**< Running 64-bit sum of Q15 samples / products
+                      (running state); seeded by create() or set_acc(),
+                      zeroed by reset() and dump().                    */
 } dp_acc_q15_state_t;
 
 /**
@@ -138,6 +140,7 @@ void dp_acc_q15_steps(
  * continue accumulating afterward.
  *
  * @param state  Must be non-NULL.
+ * @return Current accumulator value (int64_t).
  *
  * @code
  * >>> from doppler.arith import AccQ15
@@ -221,7 +224,8 @@ int64_t dp_acc_q15_dump(dp_acc_q15_state_t *state);
  * @param state  Must be non-NULL.
  * @param a      First input array (int16_t).
  * @param a_len  Number of elements in a.
- * @param b      Second input array (int16_t), same length as a.
+ * @param b      Second input array (int16_t); only the first
+ *               min(a_len, b_len) elements of either array are used.
  * @param b_len  Number of elements in b.
  *
  * @code
@@ -239,10 +243,29 @@ void dp_acc_q15_madd(dp_acc_q15_state_t *state, const int16_t *a, size_t a_len, 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the running 64-bit accumulator resumes exactly into an
  * identically-built instance. */
+/** @brief State-blob magic ("AC15"); set_state() rejects any other. */
 #define ACC_Q15_STATE_MAGIC DP_FOURCC ('A', 'C', '1', '5')
+/** @brief State-blob layout version; bumped when the payload changes. */
 #define ACC_Q15_STATE_VERSION 1u
+/**
+ * @brief Size of this instance's serialized state blob.
+ * @param state  Instance to size (non-NULL).
+ * @return Bytes: the dp_state_hdr_t envelope plus the whole state struct.
+ */
 size_t dp_acc_q15_state_bytes (const dp_acc_q15_state_t *state);
+/**
+ * @brief Serialize the running sum into a caller-owned blob.
+ * @param state  Instance to snapshot (non-NULL).
+ * @param blob   Destination of at least dp_acc_q15_state_bytes() bytes.
+ */
 void   dp_acc_q15_get_state (const dp_acc_q15_state_t *state, void *blob);
+/**
+ * @brief Restore the running sum from a dp_acc_q15_get_state() blob.
+ * @param state  Instance to overwrite (non-NULL).
+ * @param blob   Blob of dp_acc_q15_state_bytes() bytes.
+ * @return DP_OK on success; DP_ERR_INVALID (state untouched) when the
+ *         magic, version, endianness or size does not match.
+ */
 int    dp_acc_q15_set_state (dp_acc_q15_state_t *state, const void *blob);
 
 #ifdef __cplusplus

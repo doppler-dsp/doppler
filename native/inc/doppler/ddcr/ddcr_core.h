@@ -160,6 +160,8 @@ extern "C"
    * Releases the halfband, RateConverter, and LO substructures, then
    * the struct itself.  Passing NULL is a no-op.
    *
+   * @param s  DDCR to free, or NULL.  Invalid after the call.
+   *
    * @code
    * >>> from doppler.ddc import Ddcr
    * >>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
@@ -172,6 +174,10 @@ extern "C"
    * @brief Zero halfband filter history, LO phase, and resampler history.
    * After reset, the next execute call reproduces the output of the
    * first call after create, enabling repeatable block-by-block tests.
+   * The tuning (norm_freq) and rate are kept; the CIC clip flag reported by
+   * dp_ddcr_get_clipped() is cleared with the cascade.
+   *
+   * @param s  Must be non-NULL.
    *
    * @code
    * >>> from doppler.ddc import Ddcr
@@ -197,20 +203,44 @@ extern "C"
    * `[dp_state_hdr_t][ddcr_extra_t][r2c][lo][rc]`, each child a self-contained
    * sub-blob with its own envelope.  `rate` is the layout key. */
 
+  /** @brief DDCR-level payload that follows the state envelope: the one
+   *  config value the blob layout depends on, checked on restore. */
   typedef struct
   {
     double rate; /**< Total rate; must equal the engine's (layout key). */
   } ddcr_extra_t;
 
+  /** @brief Magic tag ("DDCR") stamped in a DDCR state blob's envelope. */
 #define DDCR_STATE_MAGIC DP_FOURCC ('D', 'D', 'C', 'R')
+  /** @brief Layout version of the DDCR state blob; bumped on any change. */
 #define DDCR_STATE_VERSION 1u
 
-  /** @brief Byte size of @p s's state blob (envelope + extra + chain). */
+  /**
+   * @brief Byte size of @p s's state blob (envelope + extra + chain).
+   * @param s  Must be non-NULL.
+   * @return Bytes the caller must provide to dp_ddcr_get_state(); fixed for
+   *         a given (rate, pulse) configuration.
+   */
   size_t dp_ddcr_state_bytes (const dp_ddcr_state_t *s);
-  /** @brief Serialize @p s's full-chain state into @p blob. */
+  /**
+   * @brief Serialize @p s's full-chain state into @p blob.
+   * @param s     Must be non-NULL; not modified.
+   * @param blob  Caller-owned buffer of at least dp_ddcr_state_bytes(s)
+   *              bytes.
+   */
   void dp_ddcr_get_state (const dp_ddcr_state_t *s, void *blob);
   /**
    * @brief Restore full-chain state from @p blob into @p s.
+   *
+   * Children are restored in chain order (halfband, LO, cascade), each
+   * validating its own sub-envelope; a child that rejects aborts the
+   * restore with DP_ERR_INVALID, leaving any earlier children already
+   * restored.
+   *
+   * @param s     Must be non-NULL; built with the same descriptor as the
+   *              engine that produced @p blob.
+   * @param blob  A blob from dp_ddcr_get_state(), of dp_ddcr_state_bytes(s)
+   *              bytes.
    * @return DP_OK, or DP_ERR_INVALID if the envelope/rate disagree with @p s
    *         (rebuild the engine from the matching descriptor first).
    */
@@ -221,7 +251,18 @@ extern "C"
    *        `(state_in, input) -> (state_out, output)` over an engine treated as
    *        immutable config.  Either state may be NULL (NULL in = use current;
    *        NULL out = discard).  @p state_in / @p state_out may alias.
-   * @return Number of CF32 output samples written.
+   *
+   * @param s          Must be non-NULL.
+   * @param state_in   Blob to restore before processing, or NULL to keep the
+   *                   current state.
+   * @param state_out  Buffer of dp_ddcr_state_bytes(s) bytes that receives
+   *                   the state after processing, or NULL.
+   * @param in         Real float32 input block.
+   * @param n_in       Number of input samples.
+   * @param out        CF32 output buffer.
+   * @param max_out    Capacity of @p out in samples.
+   * @return Number of CF32 output samples written; 0 (with nothing processed
+   *         and @p state_out untouched) if @p state_in is rejected.
    */
   size_t dp_ddcr_run (dp_ddcr_state_t *s, const void *state_in, void *state_out,
                    const float *in, size_t n_in, float _Complex *out,
@@ -230,6 +271,10 @@ extern "C"
   /**
    * @brief Return the current fine NCO normalised frequency at the
    * intermediate rate (fs_in/2, cycles/sample).
+   *
+   * @param s  Must be non-NULL.
+   * @return The LO's norm_freq as last set by create or
+   *         dp_ddcr_set_norm_freq(); excludes any per-call freq_ctrl.
    *
    * @code
    * >>> from doppler.ddc import Ddcr
@@ -263,6 +308,9 @@ extern "C"
    * This is the end-to-end ratio from ADC input to CF32 output.  Change
    * it by destroying and recreating the DDCR.
    *
+   * @param s  Must be non-NULL.
+   * @return The rate passed to create, in (0, 0.5).
+   *
    * @code
    * >>> from doppler.ddc import Ddcr
    * >>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
@@ -282,12 +330,15 @@ extern "C"
    * frequency f_c has amplitude 0.5 in the baseband output (one-sided
    * spectrum), consistent with analytic signal theory.
    *
+   * Allocates two scratch buffers per call (about n_in/2 complex samples
+   * each); if either allocation fails the call returns 0.
+   *
    * @param s        Must be non-NULL.
    * @param in       Real float32 input block.
    * @param n_in     Number of input samples (C-only, hidden from Python).
    * @param out      CF32 output buffer (C-only, hidden from Python).
    * @param max_out  Output buffer capacity (C-only, hidden from Python).
-   * @return Number of output samples written (C-only).
+   * @return Number of output samples written (C-only); 0 for n_in == 0.
    *
    * @code
    * >>> from doppler.ddc import Ddcr
@@ -309,12 +360,19 @@ extern "C"
                        float _Complex *out, size_t max_out);
 
   /** @brief Upper bound on one execute call's output, or 0 to let the caller
-   *  size it from the input block (a decimator never exceeds its input). */
+   *  size it from the input block (a decimator never exceeds its input).
+   *  @param s  Unused.
+   *  @return Always 0: size @p out from the input block length. */
   size_t dp_ddcr_execute_max_out (dp_ddcr_state_t *s);
-  /** @brief As dp_ddcr_execute_max_out(), for the block control-port form. */
+  /** @brief As dp_ddcr_execute_max_out(), for the block control-port form.
+   *  @param s  Unused.
+   *  @return Always 0: size @p out from the input block length. */
   size_t dp_ddcr_execute_ctrl_max_out (dp_ddcr_state_t *s);
-  /** @brief Bound for ONE pushed input: `ceil(rate) + 1` output periods.
-   *  Non-zero because the push form has no input block to size from. */
+  /** @brief Output-buffer size for ONE pushed input.
+   *  Non-zero because the push form has no input block to size from.
+   *  @param s  Must be non-NULL.
+   *  @return `(size_t)max(rate, 1) + 2` samples, which is 3 for every valid
+   *          rate (< 0.5). */
   size_t dp_ddcr_execute_ctrl_push_max_out (dp_ddcr_state_t *s);
 
   /**
@@ -458,7 +516,9 @@ extern "C"
 
   /** @brief Samples per symbol of the MFR-input tap; a planner outcome.
    *  Identical to the complex twin's at every rate ratio — `bank_sps` is
-   *  symbol-relative, so the halfband's 2:1 is absorbed by the plan. */
+   *  symbol-relative, so the halfband's 2:1 is absorbed by the plan.
+   *  @param s  Must be non-NULL.
+   *  @return dp_RateConverter_get_bank_sps() of the cascade. */
   double dp_ddcr_get_bank_sps (const dp_ddcr_state_t *s);
 
   /**
@@ -468,6 +528,10 @@ extern "C"
    * matched flavor with `pulse = RC_PULSE_IANDD` and fewer than four output
    * samples per symbol, where the one-symbol-wide rectangle's matched filter
    * is a 2-3 tap sum. Construction also raises a UserWarning.
+   *
+   * @param s  Must be non-NULL.
+   * @return true for a matched IANDD flavor with pulse_sps < 4, else false;
+   *         fixed at construction.
    */
   bool dp_ddcr_get_narrow_pulse (const dp_ddcr_state_t *s);
 
@@ -478,6 +542,10 @@ extern "C"
    * halfband R2C front end has unity passband gain and a real tone lands at
    * amplitude 0.5 in the analytic output, so a full-scale ADC stream sits
    * comfortably inside the CIC's bound — but a scaled-up input does not.
+   *
+   * @param s  Must be non-NULL.
+   * @return true if any CIC stage has clipped since create or the last
+   *         dp_ddcr_reset(); always false when the plan has no CIC.
    */
   bool dp_ddcr_get_clipped (const dp_ddcr_state_t *s);
 

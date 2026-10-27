@@ -63,10 +63,12 @@ enum {
  *  like the bit it replaces. */
 #define WFM_DSSS_ENDED 2u
 
-/* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
- * — a clean waveform shouldn't pay the noise cost). 100 dB SNR is the default
- * and is numerically clean anyway. Lower --snr to add noise. (type=noise always
- * generates AWGN regardless.) */
+/** SNR threshold, in dB, at and above which no AWGN is generated at all.
+ *
+ * snr >= this means "clean": no AWGN child is created (the common case — a
+ * clean waveform shouldn't pay the noise cost). 100 dB SNR is the default
+ * and is numerically clean anyway. Lower --snr to add noise. (type=noise
+ * always generates AWGN regardless.) */
 #define WFM_SYNTH_SNR_CLEAN 100.0
 
 /**
@@ -74,6 +76,10 @@ enum {
  *
  * QPSK carries two, everything else one. DSSS is one because its payload is
  * BPSK, which is what makes `ebno == esno` for a DSSS source.
+ *
+ * @param type  Waveform type, one of the WFM_SYNTH_* values.
+ * @return 2 for WFM_SYNTH_QPSK, 1 for every other type (including an
+ *         out-of-range value).
  */
 JM_FORCEINLINE int
 wfm_synth_bps (int type)
@@ -95,7 +101,8 @@ wfm_synth_bps (int type)
  * @param mode  RESOLVED mode: 1 fs, 2 Eb/No, 3 Es/No. Never 0 (auto) — see
  *              below.
  * @param bps   Bits per symbol, from wfm_synth_bps().
- * @param span  Samples one symbol's energy is spread over.
+ * @param span  Samples one symbol's energy is spread over. A value <= 0 is
+ *              treated as 1 (no spreading).
  * @param snr   The requested figure, in dB, in @p mode's reference.
  * @return      SNR in dB over fs, ready for dp_awgn_amplitude_for_snr().
  *
@@ -134,17 +141,17 @@ wfm_synth_snr_over_fs (int mode, int bps, double span, double snr)
  * convention it encodes is dp_pn_create()'s tap mask and not the synth's. This
  * spelling is retained for the call sites that already use it; it forwards and
  * holds no table of its own, so the two cannot disagree.
+ *
+ * @param n  LFSR register length in bits.
+ * @return The canonical maximal-length tap polynomial for an @p n-bit
+ *         register (dp_pn_create()'s tap-mask convention), or 0 for an
+ *         @p n outside 2..64 (the table has no entry).
  */
 JM_FORCEINLINE uint64_t
 wfm_synth_mls_poly(uint32_t n)
 {
     return pn_mls_poly(n);
 }
-/**
- * @brief Synth state.
- *
- * Allocate with dp_wfm_synth_create().
- */
 /**
  * @brief Where a BITS synth's next frame (or a dsss burst's next burst)
  *        comes from, in place of the cycle.
@@ -167,65 +174,112 @@ typedef int (*wfm_synth_refill_fn)(void *user, uint8_t *bits, size_t n);
  * storage: the synth keeps the pointer). See dp_wfm_synth_set_refill_state().
  */
 typedef struct {
+    /** Bytes the source's position serializes to (envelope included), or 0
+     *  to refuse serialization. */
     size_t (*state_bytes)(const void *user);
+    /** Write the source's position into @p blob, which holds exactly
+     *  state_bytes(user) bytes. */
     void (*get_state)(const void *user, void *blob);
+    /** Restore the source's position from @p blob; DP_OK on success, any
+     *  other value rejects the blob (the synth then returns
+     *  DP_ERR_INVALID and keeps its frame). */
     int (*set_state)(void *user, const void *blob);
+    /** A static sentence saying why state_bytes() returned 0; may be NULL
+     *  (the synth then gives a generic reason). */
     const char *(*refusal)(const void *user);
 } wfm_synth_refill_state_t;
 
+/**
+ * @brief Synth state: one streaming waveform source.
+ *
+ * Allocate with dp_wfm_synth_create(), configure with the set_* calls, and
+ * release with dp_wfm_synth_destroy(). Fields are public for the inline
+ * kernels in this header; treat them as read-only and change them through
+ * the API. "config" fields are set by create() or a setter and survive
+ * dp_wfm_synth_reset(); "running" fields are the stream position.
+ */
 typedef struct {
-    int wtype;
-    int nsps;
-    int sym_pos;
-    float cur_re;
-    float cur_im;
-    double chirp_f0;
-    double chirp_fend;
-    double chirp_k;
-    double chirp_ph;
-    size_t chirp_n;
-    size_t chirp_span;
-    uint8_t * bits;
-    size_t n_bits;
-    size_t bit_idx;
-    int bit_mod;
-    float _Complex * symbols;
-    size_t n_symbols;
-    size_t sym_read_idx;
+    int wtype;   /**< config: waveform type, a WFM_SYNTH_* value */
+    int nsps;    /**< config: samples per symbol (per chip for dsss), >= 1
+                      after create() (a smaller `sps` is clamped to 1) */
+    int sym_pos; /**< running: sample index within the held symbol,
+                      0..nsps-1; 0 means the next sample latches a new
+                      symbol (unused by the polyphase shaper path) */
+    float cur_re; /**< running: real (I) part of the held symbol; 1.0 for
+                       tone/chirp, else 0.0 until the first latch */
+    float cur_im; /**< running: imaginary (Q) part of the held symbol */
+    double chirp_f0;   /**< config: chirp start frequency, cycles/sample
+                            (`freq / fs`) */
+    double chirp_fend; /**< config: chirp end frequency, cycles/sample
+                            (`f_end / fs`) */
+    double chirp_k;    /**< config: chirp slope, cycles/sample per sample;
+                            0 until dp_wfm_synth_set_chirp_span() pins it */
+    double chirp_ph;   /**< running: chirp carrier phase, cycles, in [0, 1) */
+    size_t chirp_n;    /**< running: samples generated into the sweep; the
+                            frequency holds at the end once it reaches
+                            chirp_span */
+    size_t chirp_span; /**< config: sweep length in samples; 0 = not pinned
+                            (the chirp holds its start frequency) */
+    uint8_t * bits; /**< pattern buffer (0/1 per byte), owned: the bits
+                         pattern, a dsss burst's chips, or a continuous dsss
+                         payload; a refill rewrites it with each frame */
+    size_t n_bits;  /**< config: length of `bits` (one frame), in bits */
+    size_t bit_idx; /**< running: read cursor into `bits`; stops at
+                         n_bits (never wraps) */
+    int bit_mod;    /**< config: bits per symbol for the pattern: 0 = 0/1
+                         amplitude line, 1 = BPSK, 2 = QPSK, 3 = 8PSK */
+    float _Complex * symbols; /**< config: type=symbols stream, owned */
+    size_t n_symbols;         /**< config: length of `symbols` */
+    size_t sym_read_idx;      /**< running: read cursor into `symbols`;
+                                   wraps (the stream cycles) */
     /* continuous asynchronous DSSS (type=dsss + symbol_rate > 0):
        chips_per_symbol == 0 means burst mode (the fields below are unused). */
-    double chips_per_symbol; /* config: chip_rate / symbol_rate (non-integer) */
-    uint8_t * code;          /* config: spreading code (0/1), owned          */
-    size_t n_code;           /* config: spreading code length in chips        */
-    int data_mode;           /* config: WFM_DSSS_DATA_{NONE,BITS,PRBS}        */
-    size_t code_only_symbols; /* config: pure-code symbols opening each frame  */
-    size_t frame_symbols;     /* config: frame length in symbols; 0 = no window */
-    uint64_t chip_n;         /* running: chips emitted so far                 */
-    uint64_t sym_idx;        /* running: current data-symbol index            */
-    uint64_t next_edge;      /* derived: first chip of symbol sym_idx + 1
+    double chips_per_symbol; /**< config: chip_rate / symbol_rate
+                                  (non-integer); 0 = burst mode */
+    uint8_t * code;          /**< config: spreading code (0/1), owned */
+    size_t n_code;           /**< config: spreading code length in chips */
+    int data_mode;           /**< config: WFM_DSSS_DATA_{NONE,BITS,PRBS} */
+    size_t code_only_symbols; /**< config: pure-code symbols opening each
+                                   frame */
+    size_t frame_symbols;     /**< config: frame length in symbols;
+                                   0 = no window */
+    uint64_t chip_n;         /**< running: chips emitted so far */
+    uint64_t sym_idx;        /**< running: current data-symbol index */
+    uint64_t next_edge;      /**< derived: first chip of symbol sym_idx + 1
                                 (dp_wfm_dsss_cont_edge); not serialized --
-                                set_state recomputes it from sym_idx       */
-    uint8_t cur_data;        /* running: data bit latched for this symbol      */
-    dp_fir_state_t * fir;       /* dense RRC FIR (non-power-of-two sps fallback)  */
+                                set_state recomputes it from sym_idx */
+    uint8_t cur_data;        /**< running: data bit latched for this symbol
+                                  (0/1), or WFM_DSSS_ENDED */
+    dp_fir_state_t * fir;    /**< dense RRC FIR (non-power-of-two sps
+                                  fallback), owned; NULL = no shaping */
     /* Polyphase RRC pulse shaper: a resamp interpolate-by-sps view over the
        RRC bank, replacing the dense fir (impulse-train + full FIR) with ~sps×
        fewer MACs. Built by dp_wfm_synth_set_rrc when sps is a power of two; the
        dense `fir` is used otherwise. Exactly one of fir/shaper is ever set. */
-    resamp_state_t * shaper;
-    uint8_t primed;          /* running: shaper's sps-sample latency primed     */
-    dp_lo_state_t * lo;
-    dp_awgn_state_t * awgn;
-    dp_pn_state_t * pn;
+    resamp_state_t * shaper; /**< polyphase RRC shaper (power-of-two sps),
+                                  owned; NULL when unused */
+    uint8_t primed;          /**< running: shaper's sps-sample latency
+                                  primed */
+    dp_lo_state_t * lo;      /**< carrier LO, owned; NULL at freq 0 and
+                                  for noise/chirp */
+    dp_awgn_state_t * awgn;  /**< noise generator, owned; NULL for a clean
+                                  synth (snr >= WFM_SYNTH_SNR_CLEAN) */
+    dp_pn_state_t * pn;      /**< PN LFSR, owned: chips/data for pn, bpsk,
+                                  qpsk, and the dsss PRBS data; else NULL */
     /* A frame source (dp_wfm_synth_set_refill): NULL sends `bits` once.
        Once it reports the end, `data_ended` latches and every symbol after is zero --
        silence, never a held symbol (a line on the air nobody sent). */
-    wfm_synth_refill_fn refill;
-    void *refill_user;
-    void (*refill_free)(void *);
+    wfm_synth_refill_fn refill; /**< frame source, or NULL */
+    void *refill_user;          /**< argument passed to `refill` */
+    void (*refill_free)(void *); /**< frees `refill_user` on detach or
+                                      destroy, or NULL */
     /* The refill's state triplet (dp_wfm_synth_set_refill_state); NULL: a
        refill with none, which refuses serialization. */
-    const wfm_synth_refill_state_t *refill_state;
-    uint8_t data_ended;
+    const wfm_synth_refill_state_t *refill_state; /**< the refill's state
+                                                       triplet, or NULL */
+    uint8_t data_ended; /**< running: 1 once the data has ended (pattern
+                             spent with no refill, or the refill reported
+                             its end); output is silence from then on */
 } dp_wfm_synth_state_t;
 
 /**
@@ -370,6 +424,12 @@ wfm_synth_bit_symbol(dp_wfm_synth_state_t *s)
  * Requires `chips_per_symbol >= 1` (chip rate >= symbol rate, always true for a
  * real DSSS waveform), so the symbol index advances by 0 or 1 per chip and the
  * PN is never asked to skip.
+ *
+ * @param s  A type=dsss synth configured by dp_wfm_synth_set_dsss_cont()
+ *           (`code` set, `chips_per_symbol >= 1`); `chip_n`, `sym_idx`,
+ *           `next_edge`, `cur_data` and the data cursor advance.
+ * @return The chip as a BPSK level: +1.0f for `code ^ data == 0`, -1.0f
+ *         for 1, or 0.0f (silence) once the data has ended.
  */
 JM_FORCEINLINE float
 wfm_synth_cont_dsss_chip(dp_wfm_synth_state_t *s)
@@ -426,6 +486,13 @@ wfm_synth_cont_dsss_chip(dp_wfm_synth_state_t *s)
  * one symbol. Only the shaped types (pn/bpsk/qpsk/bits/symbols/dsss, the set
  * `dp_wfm_synth_set_rrc` accepts) reach here, so the shaper draws the *same* symbol
  * sequence the dense-FIR path would; only the pulse-shaping filter differs.
+ *
+ * @param s  Synth state; the active source's cursor (or PN register)
+ *           advances by one symbol.
+ * @return The next symbol: a user symbol (symbols), a PSK/0-1 point from
+ *         the bit pattern (bits/dsss burst), a ±1 chip (continuous dsss,
+ *         pn, bpsk), or a ±1/√2 QPSK point. 0 when the source is empty or
+ *         its data has ended.
  */
 JM_FORCEINLINE float _Complex
 wfm_synth_next_symbol(dp_wfm_synth_state_t *s)
@@ -467,6 +534,9 @@ wfm_synth_next_symbol(dp_wfm_synth_state_t *s)
  * shaped waveform to the dense path to float precision — so switching a source
  * to polyphase shaping does not shift downstream sample timing. Idempotent via
  * the `primed` flag; re-armed by `dp_wfm_synth_reset`.
+ *
+ * @param s  Shaper-attached synth state (`s->shaper != NULL`); consumes
+ *           the symbols the first `nsps` outputs need and sets `primed`.
  */
 JM_FORCEINLINE void
 wfm_synth_shaper_prime(dp_wfm_synth_state_t *s)
@@ -542,9 +612,11 @@ wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
  *              3=esno.  The Python binding accepts strings
  *              "auto"|"fs"|"ebno"|"esno".  Default 0.
  * @param seed  PRNG seed shared by AWGN and the PN LFSR.  Default 1.
- * @param sps  Samples per symbol for modulated types (BPSK, QPSK, PN).
- *              Ignored for tone/noise.  Default 8.
- * @param pn_length  LFSR register length (1..64); period = 2^pn_length - 1.
+ * @param sps  Samples per symbol for modulated types (BPSK, QPSK, PN; per
+ *              chip for dsss).  Ignored for tone/noise.  Values < 1 are
+ *              clamped to 1.  Default 8.
+ * @param pn_length  LFSR register length; period = 2^pn_length - 1.
+ *              With @p pn_poly 0 it must be 2..64 (the MLS table's range).
  *              Default 7 (period 127).
  * @param pn_poly  Galois tap polynomial for the LFSR.  0 means "look up
  *              the canonical MLS polynomial for pn_length" from the
@@ -557,7 +629,12 @@ wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
  *              span is pinned the slope is 0 (a CW tone at ``freq``).
  *              ``f_end < freq`` is a down-chirp.
  *              Default 0.0.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL on allocation failure, or (for
+ *         pn/bpsk/qpsk) when no tap polynomial results — @p pn_poly 0 with
+ *         a @p pn_length outside the MLS table — or @p pn_poly has a bit
+ *         above the @p pn_length register.  A dsss synth tolerates a bad
+ *         PN (it gets none; continuous PRBS data then fails in
+ *         dp_wfm_synth_set_dsss_cont()).
  * @note Caller must call dp_wfm_synth_destroy() when done.
  * @code
  * >>> from doppler.wfm import _SynthEngine
@@ -705,10 +782,28 @@ int dp_wfm_synth_set_refill_state(dp_wfm_synth_state_t *state,
  * A refill with no triplet (dp_wfm_synth_set_refill_state()), or a source
  * whose triplet refuses -- a pipe, whose delivered octets are gone. The
  * reason is static, as every refusal's is.
+ *
+ * @param state  Must be non-NULL.
+ * @return NULL when the synth can serialize (always, with no refill
+ *         attached), else a static, NUL-terminated sentence the caller
+ *         must not free: the synth's own text for a refill with no
+ *         triplet, or the triplet's `refusal()` (a generic sentence when
+ *         that is NULL) when its `state_bytes()` returns 0.
  */
 const char *dp_wfm_synth_state_refusal(const dp_wfm_synth_state_t *state);
 
-/** @brief Non-zero once an attached frame source has reported its end. */
+/**
+ * @brief Whether the synth's data has ended.
+ *
+ * Latches when an attached frame source reports its end, or when a
+ * pattern with no refill has sent its last bit; the output is silence from
+ * then on. dp_wfm_synth_reset() clears it only when no refill is attached;
+ * dp_wfm_synth_set_refill() (attach or detach) clears it too.
+ *
+ * @param state  Must be non-NULL.
+ * @return 1 once the data has ended, else 0 (always 0 before the first
+ *         sample).
+ */
 int dp_wfm_synth_data_ended(const dp_wfm_synth_state_t *state);
 
 /**
@@ -846,7 +941,8 @@ int dp_wfm_synth_set_symbols(dp_wfm_synth_state_t *state,
                           const float _Complex *symbols, size_t n);
 
 /**
- * @brief Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits).
+ * @brief Enable RRC pulse shaping on a symbol synth
+ *        (pn/bpsk/qpsk/bits/symbols/dsss).
  *
  * Replaces the default rectangular sample-and-hold with a root-raised-cosine
  * pulse: the symbol-rate impulse train is filtered by @p taps (a real FIR of
@@ -856,20 +952,28 @@ int dp_wfm_synth_set_symbols(dp_wfm_synth_state_t *state,
  * symbol stream (tone/noise/chirp). Replaces any existing shaper and clears its
  * delay line.
  *
+ * A power-of-two `sps` builds a polyphase interpolator (`shaper`, the same
+ * convolution at ~sps× fewer MACs); any other `sps` builds the dense FIR
+ * (`fir`). The `sps` used is the synth's `nsps` at the time of this call.
+ *
  * @param state  Must be non-NULL.
  * @param taps   Real FIR taps (copied).
  * @param ntaps  Number of taps (> 0).
- * @return 0 on success; -1 on bad args / allocation failure.
+ * @return 0 on success (and, doing nothing, for tone/noise/chirp); -1 on
+ *         NULL/empty taps or allocation failure, leaving any previous
+ *         shaper in place.
  */
 int dp_wfm_synth_set_rrc(dp_wfm_synth_state_t *state, const float *taps,
                       size_t ntaps);
 
 /**
  * @brief Destroy a synth instance and release all memory.
- * Recursively frees the LO, AWGN, and PN sub-objects, then the struct
- * itself.  Safe to call with NULL (no-op).
+ * Frees the FIR/shaper, LO, AWGN and PN sub-objects and the pattern,
+ * symbol and code buffers, calls an attached refill's `free_user`, then
+ * frees the struct itself.  NOT NULL-safe: the implementation dereferences
+ * @p state unconditionally.
  *
- * @param state  Pointer to heap-allocated state; may be NULL.
+ * @param state  Pointer to heap-allocated state; must be non-NULL.
  * @code
  * >>> from doppler.wfm import _SynthEngine
  * >>> s = _SynthEngine(type="tone", fs=1.0, freq=0.0, snr=100.0)
@@ -882,7 +986,12 @@ void dp_wfm_synth_destroy(dp_wfm_synth_state_t *state);
  * @brief Reset Synth to its post-create state.
  * Resets the LO phase accumulator, AWGN internal state, and PN LFSR
  * register to their initial values so the output sequence is perfectly
- * reproducible from sample 0.
+ * reproducible from sample 0.  Also rewinds the bit/symbol cursors, the
+ * chirp phase and the continuous-DSSS clocks, and clears the shaper's
+ * delay line.  Configuration (patterns, codes, window, RRC taps, chirp
+ * span) is kept.  With a refill attached the data-ended latch is NOT
+ * cleared and the rewound cursor replays the frame in the buffer (the
+ * last one pulled), since a pulled source cannot rewind what it consumed.
  *
  * @param state  Must be non-NULL.
  * @code
@@ -1065,9 +1174,14 @@ dp_wfm_synth_step(dp_wfm_synth_state_t *state)
 
 /**
  * @brief Generate a block of output samples.
- * Calls dp_wfm_synth_step() in a tight loop, writing each cf32 sample into
- * ``output``.  The Python binding returns a freshly allocated NumPy
- * complex64 array; ownership is transferred to the caller.
+ * Produces the same stream as @p n calls of dp_wfm_synth_step(), writing
+ * each cf32 sample into ``output``, but batched: the LO, AWGN and PN are
+ * generated a chunk at a time and the symbol map, carrier mix and noise add
+ * are separate passes.  Because the mix and the add round separately, the
+ * result can differ from step() by an ULP under -ffast-math on FMA targets
+ * (arm64, QPSK); drive one path where byte-for-byte agreement matters.
+ * The Python binding returns a freshly allocated NumPy complex64 array;
+ * ownership is transferred to the caller.
  *
  * @param state   Initialised Synth state returned by ``dp_wfm_synth_create``.
  * @param output  Output buffer of at least ``n`` cf32 elements.
@@ -1149,38 +1263,45 @@ void dp_wfm_synth_sweep_ends(double fs, double f_mid, double rate, size_t n,
 
 /**
  * @brief Return the active waveform type discriminant.
- * Maps to the WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk.
+ * Maps to the WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk,
+ * 5=chirp, 6=bits, 7=symbols, 8=dsss.
  * Use this to inspect which synthesis path is active at runtime.
  *
  * @param state  Must be non-NULL.
- * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
+ * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS),
+ *         the create-time `type` unless overridden.
  */
 int dp_wfm_synth_get_wtype(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Override the waveform type discriminant in-place.
- * Changing wtype does not reinitialise sub-objects; use with care.
+ * Changing wtype does not reinitialise sub-objects (no PN, LO, AWGN or
+ * pattern is created or freed, and the value is not validated); use with
+ * care.
  *
  * @param state  Must be non-NULL.
- * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
+ * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
  */
 void dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the samples-per-symbol count.
- * For modulated types (BPSK, QPSK, PN) each symbol is held for nsps
- * consecutive output samples.  For tone/noise this field is present but
- * unused by the synthesis path.
+ * For symbol types (PN, BPSK, QPSK, bits, symbols, dsss chips) each
+ * symbol is held for nsps consecutive output samples.  For tone/noise/chirp
+ * this field is present but unused by the synthesis path.
  *
  * @param state  Must be non-NULL.
- * @return Samples per symbol (nsps >= 1).
+ * @return Samples per symbol: the create-time `sps` clamped to >= 1, or
+ *         whatever dp_wfm_synth_set_nsps() last stored.
  */
 int dp_wfm_synth_get_nsps(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Override the samples-per-symbol count in-place.
  * Does not flush the symbol-position counter (sym_pos); set sym_pos=0
- * as well when changing sps mid-stream.
+ * as well when changing sps mid-stream.  Not validated, and does not
+ * rebuild an attached RRC shaper (whose taps and polyphase split were
+ * fixed for the nsps at dp_wfm_synth_set_rrc() time) or rescale the noise.
  *
  * @param state  Must be non-NULL.
  * @param val    New nsps value (>= 1).
@@ -1189,18 +1310,20 @@ void dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the current position within the current symbol (0..nsps-1).
- * Reaches nsps and wraps to 0 each time a new symbol is consumed from the
- * PN LFSR.  Useful for frame alignment: sym_pos==0 on a step boundary
- * means the very next sample begins a fresh symbol.
+ * Reaches nsps and wraps to 0 each time a new symbol is latched from the
+ * active source (PN LFSR, bit pattern, symbol stream or DSSS chip).
+ * Useful for frame alignment: sym_pos==0 on a step boundary means the very
+ * next sample begins a fresh symbol.  Not advanced on the polyphase-shaper
+ * path (power-of-two sps with RRC), nor for tone/noise/chirp.
  *
  * @param state  Must be non-NULL.
- * @return Symbol position counter (0 <= sym_pos < nsps).
+ * @return Symbol position counter (0 <= sym_pos < nsps); 0 after create.
  */
 int dp_wfm_synth_get_sym_pos(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Override the symbol-position counter in-place.
- * Injecting 0 forces the next dp_wfm_synth_step() to latch a new PN chip; any
+ * Injecting 0 forces the next dp_wfm_synth_step() to latch a new symbol; any
  * other value fast-forwards into the middle of the current symbol hold.
  *
  * @param state  Must be non-NULL.
@@ -1213,7 +1336,8 @@ void dp_wfm_synth_set_sym_pos(dp_wfm_synth_state_t *state, int val);
  * For modulated types this is the I component latched at the last symbol
  * boundary (±1 for BPSK/PN, ±1/√2 for QPSK).  For tone the synthesiser
  * initialises cur_re to 1.0 so that the held symbol is a clean unit-power
- * carrier; for noise it is 0.0 (noise has no held symbol).
+ * carrier (chirp too); for noise it is 0.0 (noise has no held symbol), as
+ * it is for every symbol type before its first latch.
  *
  * @param state  Must be non-NULL.
  * @return Current symbol real (I) component.
@@ -1255,8 +1379,11 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
  * running waveform-position scalars + the data-ended latch; a pattern's
  * bits are config restored by create, but a PULLED frame is state: with a
  * refill the blob carries it and nests the refill's own sub-blob. */
+/** Magic of a synth state blob's envelope ("WFMS"). */
 #define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
-/* v2: + continuous-DSSS chip/symbol clocks; v3: + data_ended, the pulled
+/** Layout version of the synth state blob; any other version is refused.
+ *
+ * v2: + continuous-DSSS chip/symbol clocks; v3: + data_ended, the pulled
    frame and the refill's sub-blob (doppler#1681); v4: the embedded AWGN
    blob is v2, which carries its seed and amplitude, so the synth blob grew
    (#2084). A v3 blob is refused by its version (a clean one has the same
@@ -1265,8 +1392,45 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
    dp_wfm_synth_set_dsss_window's value (#2022); a v4 blob is shorter, so
    its length refuses it as well as its version. */
 #define WFM_SYNTH_STATE_VERSION 5u
+/**
+ * @brief Size of this synth's serialized state blob.
+ *
+ * Envelope + running position (symbol/bit/symbol-stream cursors, chirp
+ * phase, DSSS clocks, data-ended latch, DSSS window) + a self-validating
+ * sub-blob for each present child (FIR or shaper, LO, AWGN, PN) + with a
+ * refill, the frame in play and the refill's own sub-blob. Patterns,
+ * codes, RRC taps and chirp geometry are config and are not carried.
+ *
+ * @param state  Must be non-NULL.
+ * @return Blob size in bytes, or 0 when serialization is refused
+ *         (dp_wfm_synth_state_refusal() is non-NULL).
+ */
 size_t dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *state);
+/**
+ * @brief Serialize the synth's running state into @p blob.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Caller buffer of exactly dp_wfm_synth_state_bytes() bytes.
+ *               Nothing is written when serialization is refused.
+ */
 void dp_wfm_synth_get_state (const dp_wfm_synth_state_t *state, void *blob);
+/**
+ * @brief Restore running state from a blob made by
+ *        dp_wfm_synth_get_state().
+ *
+ * The blob must come from a synth with the same configuration: same type,
+ * the same set of children (FIR/shaper, LO, AWGN, PN) and a refill if and
+ * only if this one has one. The DSSS window is restored from the blob.
+ * A blob that fails the envelope check (magic, version, endianness, size),
+ * carries an invalid window, or whose child set or sub-blobs do not match
+ * is rejected; the synth may then be partly overwritten, so reset or
+ * re-restore it before use.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   A blob of dp_wfm_synth_state_bytes(state) bytes.
+ * @return DP_OK, or DP_ERR_INVALID on a rejected blob or when the synth
+ *         refuses serialization.
+ */
 int dp_wfm_synth_set_state (dp_wfm_synth_state_t *state, const void *blob);
 
 #ifdef __cplusplus

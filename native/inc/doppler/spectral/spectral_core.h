@@ -241,6 +241,20 @@ size_t dp_find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float m
    * @endcode
    */
 double dp_obw_from_power(const double *pwr, size_t pwr_len, double fs, double frac);
+
+  /**
+   * @brief Robust noise-floor estimate: the median of a dB spectrum.
+   *
+   * Tones and spurs occupy few bins and sit well above the median, so the
+   * median tracks the noise pedestal rather than the signal.  The median is
+   * taken on a sorted heap copy; @p db is not modified.  For an even length
+   * it is the mean of the two middle values.
+   *
+   * @param db      Spectrum in dB (any reference: dBFS, dBc, ...).
+   * @param db_len  Number of elements in @p db.
+   * @return Median of @p db, in the same dB units; 0.0 when @p db_len is 0
+   *         or the scratch copy cannot be allocated.
+   */
 double dp_noise_floor_db(const float *db, size_t db_len);
 #ifdef __cplusplus
 }

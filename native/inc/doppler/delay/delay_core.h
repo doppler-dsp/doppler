@@ -1,6 +1,6 @@
 /**
  * @file delay_core.h
- * @brief Delay component API.
+ * @brief Complex-double (cf64) delay line on a mirrored power-of-two ring.
  *
  * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
@@ -34,11 +34,17 @@ extern "C"
    */
   typedef struct
   {
-    double _Complex *buf; /* 2*capacity elements; second half mirrors first */
-    size_t head;          /* write pointer; decrements mod capacity */
-    size_t mask;          /* capacity - 1 (power-of-two bitmask) */
-    size_t num_taps;      /* window length requested at construction */
-    size_t capacity;      /* smallest power-of-two >= num_taps */
+    double _Complex *buf; /**< Owned ring, 2*capacity elements; the second
+                               half mirrors the first (running state). */
+    size_t head;          /**< Index of the newest sample, in
+                               [0, capacity); decremented mod capacity
+                               on every write (running state).          */
+    size_t mask;          /**< capacity - 1, the power-of-two index mask
+                               (config, set at create()).               */
+    size_t num_taps;      /**< Window length requested at create(),
+                               samples (config).                        */
+    size_t capacity;      /**< Smallest power of two >= num_taps (1 when
+                               num_taps is 0), samples (config).        */
   } dp_delay_state_t;
 
   /**
@@ -225,10 +231,34 @@ void dp_delay_write(dp_delay_state_t *state, double _Complex x);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Field-wise: pack running ring buffer + head; capacity/mask/num_taps restored by create. */
+/** @brief State-blob magic ("DLAY"); set_state() rejects any other. */
 #define DELAY_STATE_MAGIC DP_FOURCC ('D','L','A','Y')
+/** @brief State-blob layout version; bumped when the payload changes. */
 #define DELAY_STATE_VERSION 1u
+/**
+ * @brief Size of this instance's serialized state blob.
+ * @param state  Instance to size (non-NULL).
+ * @return Bytes: envelope + 8-byte head + the full 2*capacity ring.
+ */
 size_t dp_delay_state_bytes (const dp_delay_state_t *state);
+/**
+ * @brief Serialize the ring and head into a caller-owned blob.
+ * @param state  Instance to snapshot (non-NULL).
+ * @param blob   Destination of at least dp_delay_state_bytes() bytes.
+ */
 void dp_delay_get_state (const dp_delay_state_t *state, void *blob);
+/**
+ * @brief Restore the ring and head from a dp_delay_get_state() blob.
+ *
+ * The instance must have the same capacity as the one that produced the
+ * blob (the size check enforces this).  The restored head is not range-
+ * checked against capacity.
+ *
+ * @param state  Instance to overwrite (non-NULL).
+ * @param blob   Blob of dp_delay_state_bytes() bytes.
+ * @return DP_OK on success; DP_ERR_INVALID (state untouched) when the
+ *         magic, version, endianness or size does not match.
+ */
 int dp_delay_set_state (dp_delay_state_t *state, const void *blob);
 
 #ifdef __cplusplus

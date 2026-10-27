@@ -123,36 +123,9 @@ extern "C"
                                 size_t t0, size_t n_marker, size_t period,
                                 int lag_span, double pfa);
 
-  /**
-   * @brief Exact confidence interval for a run stopped on an ERROR count.
-   *
-   * Not a module free function because jm free functions cannot return a
-   * record; reach it from Python as BerMeter.ser() / .ber().
-   *
-   * Both quantiles come from doppler's own inverse regularized incomplete
-   * gamma rather than a second copy of one: `det_threshold_noncoherent(q, r)`
-   * returns the `b` with `marcum_q(r, 0, b) = q`, and
-   * `marcum_q(r, 0, b) = Q(r, b^2/2)`, so
-   * `chi2_q(2r)/2 = 0.5 * det_threshold_noncoherent(1-q, r)^2`. At `r = 1`
-   * that reduces to the closed form and the interval is
-   * `[-ln(1-a/2)/N, -ln(a/2)/N]` — no normal approximation anywhere, so it
-   * stays honest at the small error counts where a Wald interval is
-   * worst. Verified bit-identical to SciPy's
-   * `chi2.ppf` at r = 1, 2, 20, 200 and 1000.
-   *
-   * Edge cases: with @p symbols == 0 the result is `p_hat = NaN`,
-   * `lo = 0`, `hi = rel = +inf`. With @p errors == 0 it is `p_hat = 0`,
-   * `lo = 0`, `rel = +inf` and `hi = -ln(1-conf)/N`, the exact ONE-sided
-   * upper limit. Otherwise `p_hat = (r-1)/(N-1)` (the unbiased estimate)
-   * for `r >= 2`, falling back to `r/N` at `r = 1`, and `rel = 1/sqrt(r)`.
-   *
-   * @param errors   Errors counted, `r`.
-   * @param symbols  Trials counted, `N` (symbols, or bits for a BER).
-   * @param conf     Two-sided confidence level in (0, 1); any value outside
-   *                 that range (including 0) selects BER_CONF (0.99).
-   * @return The interval record, with `conf` set to the level actually
-   *         used and `errors`/`symbols` echoing the inputs.
-   */
+  /* dp_ber_confidence() is declared and documented in ber/ber_core.h;
+     redeclared here because BerMeter's ser()/ber() reach it (it is not
+     a module free function: jm free functions cannot return a record). */
   ber_interval_t dp_ber_confidence (size_t errors, size_t symbols, double conf);
 
   /* ── the meter ────────────────────────────────────────────────────────── */

@@ -631,8 +631,9 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "  --data FIELD    A frame's payload drawn from a data source: a Field on the\n" \
   "                  command line and in a scene, a bit array in Python. Not with\n" \
   "                  --data-from-file.\n" \
-  "  --data-len BITS Bits of the data source per frame: the data:LEN of the common\n" \
-  "                  frame [preamble x reps | sync | data:LEN | crc]. (default 0)\n" \
+  "  --data-len BITS Bits of the data source per frame: the data:LEN field of the\n" \
+  "                  common frame (preamble x reps, sync, data:LEN, crc).\n" \
+  "                  (default 0)\n" \
   "  --fill FIELD    The bits that pad a data source's last frame when it does not\n" \
   "                  divide into data_len-bit frames, tiled from their first bit;\n" \
   "                  stdin on a framed source always needs them.\n"

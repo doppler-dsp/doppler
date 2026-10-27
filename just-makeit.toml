@@ -1688,7 +1688,7 @@ help_section = "BITS"
 json_omit = "default"
 type = "size_t"
 default = "0"
-doc = "Bits of the data source per frame: the data:LEN of the common frame [preamble x reps | sync | data:LEN | crc]. 0 takes a finite source whole, as one frame. A carried frame names its own data field, and this is then 0 or that field's LEN. Continuous dsss has no frame, and refuses it."
+doc = "Bits of the data source per frame: the data:LEN field of the common frame (preamble x reps, sync, data:LEN, crc). 0 takes a finite source whole, as one frame. A carried frame names its own data field, and this is then 0 or that field's LEN. Continuous dsss has no frame, and refuses it."
 
 [[module.wfm_compose.source.fields]]
 name = "fill"

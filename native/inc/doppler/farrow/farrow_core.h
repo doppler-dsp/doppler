@@ -42,14 +42,23 @@
 extern "C" {
 #endif
 
+/** @brief Interpolator order, passed to dp_farrow_create() / farrow_init(). */
 enum {
-    FARROW_LINEAR = 0,
-    FARROW_PARABOLIC = 1,
-    FARROW_CUBIC = 2,
+    FARROW_LINEAR = 0,    /**< 2-tap linear interpolation between
+                               `d[1]` and `d[2]`. */
+    FARROW_PARABOLIC = 1, /**< 4-tap symmetric piecewise-parabolic
+                               Farrow, alpha = 0.5. */
+    FARROW_CUBIC = 2,     /**< 4-tap cubic Lagrange (the Python
+                               default). */
 };
 
-/* All orders interpolate between tap d[1] and d[2]; d[3] is the newest sample,
- * so the interpolation point lags the newest input by FARROW_GROUP_DELAY. */
+/**
+ * @brief Group delay in samples, identical for every order.
+ *
+ * All orders interpolate between tap `d[1]` and `d[2]`; `d[3]` is the newest
+ * sample, so the interpolation point (at mu = 0) lags the newest input by
+ * FARROW_GROUP_DELAY samples.
+ */
 #define FARROW_GROUP_DELAY 2u
 
 /**
@@ -63,7 +72,15 @@ typedef struct {
     int order;          /**< FARROW_LINEAR / _PARABOLIC / _CUBIC.      */
 } dp_farrow_state_t;
 
-/** @brief Initialise in place: set order, clear the delay line. */
+/**
+ * @brief Initialise in place: set order, clear the delay line.
+ *
+ * @param s      State to initialise (e.g. embedded by value).  Must be
+ *               non-NULL.
+ * @param order  FARROW_LINEAR, FARROW_PARABOLIC or FARROW_CUBIC.  Not
+ *               validated: any other value is evaluated as cubic by
+ *               farrow_eval().
+ */
 JM_FORCEINLINE void
 farrow_init (dp_farrow_state_t *s, int order)
 {
@@ -71,7 +88,12 @@ farrow_init (dp_farrow_state_t *s, int order)
     s->order = order;
 }
 
-/** @brief Push one input sample into the delay line (oldest drops out). */
+/**
+ * @brief Push one input sample into the delay line (oldest drops out).
+ *
+ * @param s  State.  Must be non-NULL.
+ * @param x  New input sample; becomes `d[3]`.
+ */
 JM_FORCEINLINE JM_HOT void
 farrow_push (dp_farrow_state_t *s, float _Complex x)
 {
@@ -88,8 +110,9 @@ farrow_push (dp_farrow_state_t *s, float _Complex x)
  * `d[1]` (= input at i - 2); µ → 1 returns `d[2]`.
  *
  * @param s   State.  Must be non-NULL.
- * @param mu  Fractional offset in `[0,1)`.
- * @return The interpolated sample.
+ * @param mu  Fractional offset in `[0,1)`; values outside extrapolate.
+ * @return The interpolated sample.  An order other than linear or
+ *         parabolic is evaluated as cubic.
  */
 JM_FORCEINLINE JM_HOT float _Complex
 farrow_eval (const dp_farrow_state_t *s, float mu)
@@ -116,8 +139,12 @@ farrow_eval (const dp_farrow_state_t *s, float mu)
 
 /**
  * @brief Create a Farrow interpolator.
- * @param order  0 = linear, 1 = parabolic, 2 = cubic.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @param order  0 = linear, 1 = parabolic, 2 = cubic.  Not validated in
+ *               C: any other value is evaluated as cubic.  Python takes
+ *               the string "linear", "parabolic" or "cubic" (default
+ *               "cubic").
+ * @return Heap-allocated state with a zeroed delay line, or NULL on
+ *         allocation failure.
  * @note Caller must call dp_farrow_destroy() when done.
  */
 dp_farrow_state_t *dp_farrow_create(int order);
@@ -151,6 +178,15 @@ void dp_farrow_destroy(dp_farrow_state_t *state);
  */
 void dp_farrow_reset(dp_farrow_state_t *state);
 
+/**
+ * @brief Output capacity hint for dp_farrow_delay().
+ *
+ * delay() emits exactly one output per input sample, so the caller sizes
+ * @p out to the input length; this returns the "caller sizes it" sentinel.
+ *
+ * @param state  Unused; may be any value.
+ * @return Always 0.
+ */
 size_t dp_farrow_delay_max_out(dp_farrow_state_t *state);
 /**
  * @brief Apply a constant fractional delay of @p mu samples to a CF32 block.
@@ -170,9 +206,11 @@ size_t dp_farrow_delay_max_out(dp_farrow_state_t *state);
  * @param mu       Fractional delay in samples; the offset in `[0,1)` into the
  *                 interpolation interval (values outside extrapolate).
  * @param out      Output buffer; one output per input sample.
- * @param max_out  Capacity of @p out in samples.
- * @return CF32 output array, same length as @p x, each sample delayed by
- *         `group_delay - mu`.
+ * @param max_out  Capacity of @p out in samples.  Processing stops once it
+ *                 is full: inputs past it are not pushed.
+ * @return Number of samples written to @p out, `min(x_len, max_out)`;
+ *         from Python, the CF32 output array (same length as @p x), each
+ *         sample delayed by `group_delay - mu`.
  *
  * @code
  * >>> from doppler.resample import Farrow
@@ -186,14 +224,47 @@ size_t dp_farrow_delay_max_out(dp_farrow_state_t *state);
  * @endcode
  */
 size_t dp_farrow_delay(dp_farrow_state_t *state, const float _Complex *x, size_t x_len, double mu, float _Complex *out, size_t max_out);
+/**
+ * @brief Group delay of the interpolator, in samples.
+ *
+ * The same for every order, since all three interpolate between the two
+ * middle taps.
+ *
+ * @param state  Unused; may be any value.
+ * @return FARROW_GROUP_DELAY (2).
+ */
 size_t dp_farrow_get_group_delay(const dp_farrow_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the 4-tap delay line + order resume exactly into an
  * identically-built instance. */
+/** @brief Envelope magic ("FRRW") identifying a Farrow state blob. */
 #define FARROW_STATE_MAGIC DP_FOURCC ('F', 'R', 'R', 'W')
+/** @brief Layout version of the Farrow state blob. */
 #define FARROW_STATE_VERSION 1u
+/**
+ * @brief Size in bytes of the blob dp_farrow_get_state() writes.
+ * @param state  Must be non-NULL (the size does not depend on it).
+ * @return `sizeof(dp_state_hdr_t) + sizeof(dp_farrow_state_t)`.
+ */
 size_t dp_farrow_state_bytes (const dp_farrow_state_t *state);
+/**
+ * @brief Serialize the whole state struct (delay line and order).
+ * @param state  Must be non-NULL.
+ * @param[out] blob  Caller-owned buffer of at least dp_farrow_state_bytes()
+ *                   bytes.
+ */
 void   dp_farrow_get_state (const dp_farrow_state_t *state, void *blob);
+/**
+ * @brief Restore the whole state struct (delay line and order) from
+ *        @p blob.
+ *
+ * The envelope is validated first; on rejection @p state is unchanged.
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   A blob produced by dp_farrow_get_state().
+ * @return DP_OK, or DP_ERR_INVALID if the magic, version, endianness or
+ *         size in the envelope does not match.
+ */
 int    dp_farrow_set_state (dp_farrow_state_t *state, const void *blob);
 
 #ifdef __cplusplus

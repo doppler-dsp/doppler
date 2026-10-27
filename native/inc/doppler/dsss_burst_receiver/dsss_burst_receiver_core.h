@@ -447,6 +447,8 @@ size_t dp_dsss_burst_receiver_llrs(dp_dsss_burst_receiver_state_t *state, size_t
  *
  * @param state  Receiver handle.
  * @param n      Ignored, as in llrs().
+ * @return LLRs the last push() produced (`bursts * frame_syms`); 0 after
+ *         create, reset() or set_state().
  */
 size_t dp_dsss_burst_receiver_llrs_max_out(dp_dsss_burst_receiver_state_t *state, size_t n);
 
@@ -514,19 +516,94 @@ size_t dp_dsss_burst_receiver_events(dp_dsss_burst_receiver_state_t *state, size
  * @endcode
  */
 int dp_dsss_burst_receiver_configure_search_raw(dp_dsss_burst_receiver_state_t *state, size_t doppler_bins, size_t n_noncoh);
+/**
+ * @brief Stream-absolute preamble start of the most recent burst, samples.
+ *
+ * The scalar read-backs below all describe the LAST burst demodulated;
+ * events() has one record per burst of the last push().  Each reads 0
+ * after create and reset().
+ *
+ * @param state  Must be non-NULL.
+ * @return Sample index of the preamble, counted from the first sample
+ *         pushed since create or reset().
+ */
 uint64_t dp_dsss_burst_receiver_get_preamble_start(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief Signed coarse Doppler of the most recent burst, from acquisition.
+ * @param state  Must be non-NULL.
+ * @return Doppler estimate, Hz.
+ */
 double dp_dsss_burst_receiver_get_doppler_hz_est(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief Width of the coarse Doppler estimate (acquisition's bin), Hz.
+ * @param state  Must be non-NULL.
+ * @return Doppler resolution, Hz.
+ */
 double dp_dsss_burst_receiver_get_doppler_res_hz(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief Acquisition's C/N0 lower bound for the most recent burst.
+ *
+ * A saturating lower bound from the detection hit, not a measurement on
+ * the decoded symbols; compare dp_dsss_burst_receiver_get_demod_cn0_dbhz().
+ *
+ * @param state  Must be non-NULL.
+ * @return C/N0, dB-Hz.
+ */
 double dp_dsss_burst_receiver_get_cn0_dbhz_est(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief The demodulator's residual-frequency estimate, most recent burst.
+ * @param state  Must be non-NULL.
+ * @return Residual frequency, Hz.
+ */
 double dp_dsss_burst_receiver_get_est_freq_hz(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief The demodulator's Doppler-rate estimate, most recent burst.
+ * @param state  Must be non-NULL.
+ * @return Doppler rate, Hz/s.
+ */
 double dp_dsss_burst_receiver_get_est_rate_hz(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief The demodulator's C/N0 for the most recent burst.
+ *
+ * Measured on the decoded symbols, referred to the channel and corrected
+ * for the sub-chip start error (see the @c demod_cn0_dbhz field).
+ *
+ * @param state  Must be non-NULL.
+ * @return C/N0, dB-Hz.
+ */
 double dp_dsss_burst_receiver_get_demod_cn0_dbhz(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief Burst-start error the demodulator measured, most recent burst.
+ * @param state  Must be non-NULL.
+ * @return Signed start error, chips (the sub-sample remainder after whole
+ *         samples were removed).
+ */
 double dp_dsss_burst_receiver_get_demod_timing_chips(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief Detections the capture holds whose burst has not yet completed.
+ *
+ * A queued burst is emitted by the push() that delivers its last sample
+ * plus the trailing context (retain_span).
+ *
+ * @param state  Must be non-NULL.
+ * @return Queued detections, forwarded from the embedded capture.
+ */
 size_t dp_dsss_burst_receiver_get_pending(const dp_dsss_burst_receiver_state_t *state);
 /** @brief Samples of look-back the capture discarded while a queued burst
  *  still needed them -- never refused input, which push() does not do. A
- *  LOST BURST, not a statistic -- a lifetime count that survives reset(). */
+ *  LOST BURST, not a statistic -- a lifetime count that survives reset().
+ *  @param state  Must be non-NULL.
+ *  @return Dropped samples, lifetime; forwarded from the embedded capture. */
 uint64_t dp_dsss_burst_receiver_get_dropped(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief Bursts demodulated over this receiver's lifetime.
+ *
+ * Survives reset() (set_state() restores it).  Differs from the capture's
+ * count of windows emitted by any window the demodulator refused.
+ *
+ * @param state  Must be non-NULL.
+ * @return Lifetime burst count.
+ */
 uint64_t dp_dsss_burst_receiver_get_n_bursts(const dp_dsss_burst_receiver_state_t *state);
 
 /* ── Serializable state — the elastic / pure-transducer face ──────────────
@@ -542,26 +619,88 @@ uint64_t dp_dsss_burst_receiver_get_n_bursts(const dp_dsss_burst_receiver_state_
 
 /** @brief Per-object envelope tag: "DBRX" (DsssBurstReceiver). */
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
+/** @brief Layout version of the DsssBurstReceiver state blob. */
 #define DSSS_BURST_RECEIVER_STATE_VERSION 7u
 
-/** @brief Byte size of @p state's blob (envelope + payload + child). */
+/**
+ * @brief Byte size of @p state's blob (envelope + payload + child).
+ *
+ * A pure function of configuration, so a blob restores into any instance
+ * built the same way.
+ *
+ * @param state  Must be non-NULL.
+ * @return Envelope + 2 uint64 + 7 doubles + the capture's blob size.
+ */
 size_t dp_dsss_burst_receiver_state_bytes(const dp_dsss_burst_receiver_state_t *state);
 
 /**
  * @brief Serialize @p state's cross-call state into @p blob (caller-owned,
  *        dp_dsss_burst_receiver_state_bytes() long).
+ *
+ * Carries n_bursts and the last burst's read-backs, then the capture's
+ * nested blob (look-back, detection queue, acquisition).  Not carried:
+ * the codes and geometry (create() restores them), the last push's
+ * events/LLRs, and @c frame_valid.
+ *
+ * @param state  Must be non-NULL.
+ * @param[out] blob  Caller-owned buffer.
  */
 void dp_dsss_burst_receiver_get_state(const dp_dsss_burst_receiver_state_t *state, void *blob);
 
 /**
  * @brief Restore cross-call state from @p blob (replacing it).
+ *
+ * Clears the last push's events and LLRs.  @c frame_valid is not in the
+ * blob and keeps its value.  A rejected outer envelope changes nothing,
+ * but this object's scalars are written before the capture's child blob
+ * is checked, so a rejected child leaves them already restored.
+ *
+ * @param state  Must be non-NULL; built with the same configuration as the
+ *               blob's source.
+ * @param blob   A blob produced by dp_dsss_burst_receiver_get_state().
  * @return DP_OK, or DP_ERR_INVALID if the envelope or any child rejects.
  */
 int dp_dsss_burst_receiver_set_state(dp_dsss_burst_receiver_state_t *state, const void *blob);
+/**
+ * @brief Dead air a caller must leave BETWEEN bursts, edge to edge.
+ *
+ * Derived by the embedded capture from the geometry (see
+ * dp_burst_capture_state_t::min_gap); 0 is a real answer.
+ *
+ * @param state  Must be non-NULL.
+ * @return Minimum gap, samples.
+ */
 size_t dp_dsss_burst_receiver_get_min_gap (
     const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief Candidate preamble offsets the refine stage searches.
+ *
+ * Bounds start-to-start separation of two bursts the claim rule keeps
+ * apart; it is not the gap between them (see get_min_gap()).
+ *
+ * @param state  Must be non-NULL.
+ * @return Refine span, samples.
+ */
 size_t dp_dsss_burst_receiver_get_refine_span(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief Look-back that must stay reachable: refine span + one burst.
+ *
+ * Also the minimum trailing context: a burst closer than this to the end
+ * of what has been pushed is not emitted until more samples arrive.
+ *
+ * @param state  Must be non-NULL.
+ * @return Retain span, samples.
+ */
 size_t dp_dsss_burst_receiver_get_retain_span(const dp_dsss_burst_receiver_state_t *state);
+/**
+ * @brief Whether the most recent burst's frame passed its CRC.
+ *
+ * Always false for a frame description with no CRC stage.  Cleared by
+ * reset(); not serialized.
+ *
+ * @param state  Must be non-NULL.
+ * @return true if the last demodulated frame checked.
+ */
 bool dp_dsss_burst_receiver_get_frame_valid(const dp_dsss_burst_receiver_state_t *state);
 #ifdef __cplusplus
 }

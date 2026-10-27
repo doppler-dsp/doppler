@@ -48,9 +48,11 @@
 extern "C" {
 #endif
 
-/* Numerical guard on the prompt magnitude in the discriminator (not tunable). */
+/** @brief Guard added to |P| in the discriminator so a zero prompt cannot
+ *         divide by zero (not tunable). */
 #define CARRIER_MPSK_EPS 1e-12f
-/* EMA smoothing for the decision-aligned lock metric (status diagnostic). */
+/** @brief Per-symbol EMA weight of the decision-aligned lock metric
+ *         (status diagnostic; ~10-symbol time constant). */
 #define CARRIER_MPSK_LOCK_ALPHA 0.1
 
 /**
@@ -90,9 +92,11 @@ typedef struct {
  * @param bn              Loop noise bandwidth, normalised to the symbol rate.
  * @param zeta            Damping factor (0.707 = critically damped).
  * @param init_norm_freq  Seed carrier frequency, cycles/sample.
- * @param tsamps          Samples per symbol (the integrate-and-dump period).
+ * @param tsamps          Samples per symbol (the integrate-and-dump period);
+ *                        0 is taken as 1.
  * @param bn_fll          FLL-assist bandwidth (0 = pure PLL).
- * @param m               Constellation order M (2, 4, 8).
+ * @param m               Constellation order M (2, 4, 8); not validated
+ *                        here.
  *
  * Unguarded, as the by-value path: the caller checks (bn, zeta) with
  * dp_loop_filter_params_ok() first. Outside it the loop's gains go NaN
@@ -176,7 +180,9 @@ carrier_mpsk_update(dp_carrier_mpsk_state_t *s, float _Complex P)
  * @param tsamps          Samples per symbol (default 64).
  * @param bn_fll          FLL-assist bandwidth (default 0.0 = pure PLL).
  * @param m               Constellation order M, 2/4/8 (default 4 = QPSK).
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL if @p m is not 2, 4 or 8, if
+ *         (bn, zeta) fails dp_loop_filter_params_ok(), or on allocation
+ *         failure.
  * @note Caller must call dp_carrier_mpsk_destroy() when done.
  */
 dp_carrier_mpsk_state_t *dp_carrier_mpsk_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll, int m);
@@ -224,16 +230,43 @@ void dp_carrier_mpsk_reset(dp_carrier_mpsk_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct, so a whole-struct snapshot resumes the loop exactly.
  */
+/** @brief Envelope magic ("CMPK") identifying a CarrierMpsk state blob. */
 #define CARRIER_MPSK_STATE_MAGIC DP_FOURCC('C', 'M', 'P', 'K')
+/** @brief Layout version of the CarrierMpsk state blob. */
 #define CARRIER_MPSK_STATE_VERSION 1u
 
-/** @brief Serialized-state byte size. */
+/**
+ * @brief Serialized-state byte size.
+ * @param state  Must be non-NULL (the size does not depend on it).
+ * @return `sizeof(dp_state_hdr_t) + sizeof(dp_carrier_mpsk_state_t)`.
+ */
 size_t dp_carrier_mpsk_state_bytes(const dp_carrier_mpsk_state_t *state);
-/** @brief Serialize the full loop state into @p blob. */
+/**
+ * @brief Serialize the full loop state (config and running) into @p blob.
+ * @param state  Must be non-NULL.
+ * @param[out] blob  Caller-owned buffer of at least
+ *                   dp_carrier_mpsk_state_bytes() bytes.
+ */
 void dp_carrier_mpsk_get_state(const dp_carrier_mpsk_state_t *state, void *blob);
-/** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+/**
+ * @brief Restore the full loop state (config and running) from @p blob.
+ * @param state  Must be non-NULL.
+ * @param blob   A blob produced by dp_carrier_mpsk_get_state().
+ * @return DP_OK, or DP_ERR_INVALID if the envelope rejects (state then
+ *         unchanged).
+ */
 int dp_carrier_mpsk_set_state(dp_carrier_mpsk_state_t *state, const void *blob);
 
+/**
+ * @brief Output capacity hint for dp_carrier_mpsk_steps().
+ *
+ * steps() emits at most one prompt per input sample, so the binding sizes
+ * the buffer to the input length; this returns the "caller sizes it"
+ * sentinel.
+ *
+ * @param state  Unused; may be any value.
+ * @return Always 0.
+ */
 size_t dp_carrier_mpsk_steps_max_out(dp_carrier_mpsk_state_t *state);
 
 /**
@@ -257,10 +290,14 @@ size_t dp_carrier_mpsk_steps_max_out(dp_carrier_mpsk_state_t *state);
  * @param state    Carrier loop state (mutated). Must be non-NULL.
  * @param x        Input block, one complex baseband sample per element.
  * @param x_len    Number of input samples.
- * @param out      Prompt output buffer written by the binding.
- * @param max_out  Capacity of @p out, in symbols.
- * @return One de-rotated prompt symbol per completed integrate-and-dump
- *         period; the count is `x_len / tsamps`.
+ * @param out      Prompt output buffer.  Each prompt is the I&D sum
+ *                 divided by @c tsamps (the mean de-rotated sample).
+ * @param max_out  Capacity of @p out, in symbols.  Symbols completed once
+ *                 it is full still steer the loop but are not written.
+ * @return Number of prompts written: one per completed integrate-and-dump
+ *         period, `(carried + x_len) / tsamps` where `carried` is the
+ *         partial symbol held from the previous call, capped at
+ *         @p max_out.  From Python, the prompt array.
  * @code
  * >>> import numpy as np
  * >>> from doppler.mpsk import mpsk_map
@@ -316,17 +353,80 @@ size_t dp_carrier_mpsk_steps(dp_carrier_mpsk_state_t *state, const float _Comple
  *         (doppler#2112).
  */
 int dp_carrier_mpsk_configure(dp_carrier_mpsk_state_t *state, double bn, double zeta);
+/**
+ * @brief PLL loop noise bandwidth in force, normalised to the symbol rate.
+ * @param state  Must be non-NULL.
+ * @return The last bn accepted by create, configure or set_bn.
+ */
 double dp_carrier_mpsk_get_bn(const dp_carrier_mpsk_state_t *state);
 /** @brief Retune bn, keeping zeta: dp_carrier_mpsk_configure()'s refusal and status.
  *  As a writable property a refusal raises ValueError and the value stays
- *  put (doppler#1987). */
+ *  put (doppler#1987).
+ *  @param state  Must be non-NULL.
+ *  @param val    New loop noise bandwidth, normalised to the symbol rate.
+ *  @return `DP_OK`, or `DP_ERR_INVALID` (nothing changed) for a value
+ *          outside dp_loop_filter_params_ok(). */
 int dp_carrier_mpsk_set_bn(dp_carrier_mpsk_state_t *state, double val);
+/**
+ * @brief Current carrier-NCO frequency estimate, cycles/sample.
+ * @param state  Must be non-NULL.
+ * @return The seed frequency until the first symbol completes, then the
+ *         loop's tracked estimate.
+ */
 double dp_carrier_mpsk_get_norm_freq(const dp_carrier_mpsk_state_t *state);
+/**
+ * @brief Re-seed the loop at a new carrier frequency.
+ *
+ * Not a nudge: it replaces the create-time seed (so a later reset()
+ * returns here), resets the loop filter, re-primes its integrator to
+ * @p val, and clears the I&D accumulator, FLL history and lock/error
+ * diagnostics.  Tuning (bn, zeta, bn_fll, tsamps, m) is kept.
+ *
+ * @param state  Must be non-NULL.
+ * @param val    New seed carrier frequency, cycles/sample.
+ */
 void dp_carrier_mpsk_set_norm_freq(dp_carrier_mpsk_state_t *state, double val);
+/**
+ * @brief Decision-aligned lock metric.
+ *
+ * EMA (weight CARRIER_MPSK_LOCK_ALPHA per symbol) of `Re(P conj(ahat))/|P|`:
+ * near 1 when phase-locked, near 0 with no carrier.  A status
+ * diagnostic, not a decision.
+ *
+ * @param state  Must be non-NULL.
+ * @return The metric; 0 after create, reset or set_norm_freq.
+ */
 double dp_carrier_mpsk_get_lock_metric(const dp_carrier_mpsk_state_t *state);
+/**
+ * @brief Last PLL phase-discriminator output, `Im(P conj(ahat))/|P|`.
+ *
+ * Roughly sin(phase error), dimensionless; a measure of loop stress.
+ *
+ * @param state  Must be non-NULL.
+ * @return The last symbol's error; 0 after create, reset or set_norm_freq.
+ */
 double dp_carrier_mpsk_get_last_error(const dp_carrier_mpsk_state_t *state);
+/**
+ * @brief FLL-assist bandwidth (0 = pure PLL).
+ * @param state  Must be non-NULL.
+ * @return The value from create or the last set_bn_fll.
+ */
 double dp_carrier_mpsk_get_bn_fll(const dp_carrier_mpsk_state_t *state);
+/**
+ * @brief Set the FLL-assist bandwidth, live; the loop estimate is kept.
+ *
+ * Re-derives the FLL gain as 4 * @p val.  Not validated: a value <= 0
+ * disables the FLL assist.
+ *
+ * @param state  Must be non-NULL.
+ * @param val    New FLL-assist bandwidth, normalised to the symbol rate.
+ */
 void dp_carrier_mpsk_set_bn_fll(dp_carrier_mpsk_state_t *state, double val);
+/**
+ * @brief Constellation order M.
+ * @param state  Must be non-NULL.
+ * @return 2, 4 or 8 (fixed at create).
+ */
 int dp_carrier_mpsk_get_m(const dp_carrier_mpsk_state_t *state);
 #ifdef __cplusplus
 }

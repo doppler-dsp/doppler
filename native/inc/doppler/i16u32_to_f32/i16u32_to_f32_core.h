@@ -44,7 +44,8 @@ extern "C" {
  * Allocate with dp_i16u32_to_f32_create().
  */
 typedef struct {
-    float iscale; /* 1.0f / scale, pre-computed for single-multiply step */
+    float iscale; /**< 1.0f / scale, pre-computed by create() so step()
+                       is a single multiply (config; never changes). */
 } dp_i16u32_to_f32_state_t;
 
 /**
@@ -55,8 +56,9 @@ typedef struct {
  *
  * @param scale  Denominator scale; 1/scale is applied after sign-extension
  *               (default: 32768.0f).  Use 32768.0 to match F32ToI16U32 at
- *               its default scale.
- * @return Heap-allocated state, or NULL on allocation failure.
+ *               its default scale.  Must be > 0.
+ * @return Heap-allocated state, or NULL if @p scale <= 0 or on allocation
+ *         failure.
  * @note Caller must call dp_i16u32_to_f32_destroy() when done.
  */
 dp_i16u32_to_f32_state_t *dp_i16u32_to_f32_create(float scale);

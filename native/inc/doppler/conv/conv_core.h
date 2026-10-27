@@ -95,7 +95,13 @@ extern "C"
    */
   int dp_conv_code_valid (const conv_code_t *c);
 
-  /** @brief Number of trellis states, `2^(k-1)`. */
+  /**
+   * @brief Number of trellis states, `2^(k-1)`.
+   *
+   * @param c  The code; `k` must already be valid (see
+   *           dp_conv_code_valid()), it is not checked here.
+   * @return   `1 << (k-1)`.
+   */
   JM_FORCEINLINE uint32_t
   conv_states (const conv_code_t *c)
   {
@@ -116,7 +122,17 @@ extern "C"
    */
   unsigned dp_conv_outputs (const conv_code_t *c, uint32_t state, unsigned bit);
 
-  /** @brief The state reached from @p state on @p bit. */
+  /**
+   * @brief The state reached from @p state on @p bit.
+   *
+   * Shifts @p bit in at the high stage (bit `k-2` of the result) and drops
+   * the oldest input from bit 0.
+   *
+   * @param c      The code (only `k` is read).
+   * @param state  Current trellis state: the `k-1` previous input bits.
+   * @param bit    The new input bit; only bit 0 is used.
+   * @return       The next state, in `[0, 2^(k-1))`.
+   */
   JM_FORCEINLINE uint32_t
   conv_next_state (const conv_code_t *c, uint32_t state, unsigned bit)
   {
@@ -138,7 +154,11 @@ extern "C"
     uint32_t reg; /**< the k-1 previous inputs; newest in the high stage */
   } conv_enc_t;
 
-  /** @brief Reset the encoder to the all-zero state. */
+  /**
+   * @brief Reset the encoder to the all-zero state.
+   *
+   * @param[out] s  Encoder state to clear.  Must be non-NULL.
+   */
   void dp_conv_enc_init (conv_enc_t *s);
 
   /**

@@ -57,7 +57,9 @@ extern "C"
 {
 #endif
 
+/** @brief Envelope magic ("FRMM") identifying a FrameMeter state blob. */
 #define FRAME_METER_STATE_MAGIC   DP_FOURCC ('F', 'R', 'M', 'M')
+/** @brief Layout version of the FrameMeter state blob. */
 #define FRAME_METER_STATE_VERSION 1u
 
   /** @brief Frame-outcome accumulator. Allocate with dp_frame_meter_create(). */
@@ -77,11 +79,15 @@ extern "C"
    * @param target_errors  frame errors to accumulate before `enough`; 0 is
    *                       taken as BER_TARGET_ERRORS.
    * @param conf           confidence level in (0, 1); 0 is taken as BER_CONF.
-   * @return the meter, or NULL if @p conf is outside (0, 1).
+   * @return the meter (caller frees with dp_frame_meter_destroy()), or
+   *         NULL if @p conf is negative or >= 1, or on allocation failure.
    */
   dp_frame_meter_state_t *dp_frame_meter_create (size_t target_errors, double conf);
 
-  /** @brief Release the meter. */
+  /**
+   * @brief Release the meter.
+   * @param state  the meter; may be NULL.
+   */
   void dp_frame_meter_destroy (dp_frame_meter_state_t *state);
 
   /**
@@ -137,13 +143,30 @@ extern "C"
    */
   void dp_frame_meter_add (dp_frame_meter_state_t *state, int sync_ok, int crc);
 
-  /** @brief Frames attempted. */
+  /**
+   * @brief Frames attempted.
+   * @param state  the meter; must be non-NULL.
+   * @return every dp_frame_meter_add() call since create/reset.
+   */
   size_t dp_frame_meter_get_frames (const dp_frame_meter_state_t *state);
-  /** @brief Frames whose sync word was detected. */
+  /**
+   * @brief Frames whose sync word was detected.
+   * @param state  the meter; must be non-NULL.
+   * @return count of adds with a non-zero `sync_ok`.
+   */
   size_t dp_frame_meter_get_sync_detected (const dp_frame_meter_state_t *state);
-  /** @brief Frames whose CRC checked. */
+  /**
+   * @brief Frames whose CRC checked.
+   * @param state  the meter; must be non-NULL.
+   * @return count of detected frames with `crc` > 0.  A detected frame with
+   *         no CRC (`crc` < 0) is delivered but not counted here.
+   */
   size_t dp_frame_meter_get_crc_passed (const dp_frame_meter_state_t *state);
-  /** @brief Frames not delivered: no sync, or a failed CRC. */
+  /**
+   * @brief Frames not delivered: no sync, or a failed CRC.
+   * @param state  the meter; must be non-NULL.
+   * @return frame-error count, the numerator of dp_frame_meter_fer().
+   */
   size_t dp_frame_meter_get_errors (const dp_frame_meter_state_t *state);
 
   /**
@@ -152,6 +175,9 @@ extern "C"
    * The stopping condition, so a caller loops records until the measurement
    * has the precision it asked for rather than until a frame count someone
    * guessed.
+   *
+   * @param state  the meter; must be non-NULL.
+   * @return 1 when errors >= target_errors, else 0.
    */
   int dp_frame_meter_get_enough (const dp_frame_meter_state_t *state);
 
@@ -206,11 +232,30 @@ extern "C"
    */
   ber_interval_t dp_frame_meter_sync_miss (const dp_frame_meter_state_t *state);
 
-  /** @brief Serialized-state byte size. */
+  /**
+   * @brief Serialized-state byte size.
+   * @param state  the meter (the size does not depend on it).
+   * @return envelope + four uint64 counters.
+   */
   size_t dp_frame_meter_state_bytes (const dp_frame_meter_state_t *state);
-  /** @brief Serialize the running counters into @p blob. */
+  /**
+   * @brief Serialize the running counters into @p blob.
+   *
+   * Only frames, sync_detected, crc_passed and errors travel; the target
+   * and confidence are restored by create(), not carried.
+   *
+   * @param state  the meter; must be non-NULL.
+   * @param[out] blob  caller-owned buffer of at least
+   *                   dp_frame_meter_state_bytes() bytes.
+   */
   void dp_frame_meter_get_state (const dp_frame_meter_state_t *state, void *blob);
-  /** @brief Restore; DP_OK, or DP_ERR_INVALID if the blob is rejected. */
+  /**
+   * @brief Restore the four running counters from @p blob.
+   * @param state  the meter; must be non-NULL.  Its configuration is kept.
+   * @param blob   a blob produced by dp_frame_meter_get_state().
+   * @return DP_OK, or DP_ERR_INVALID if the blob is rejected (state then
+   *         unchanged).
+   */
   int dp_frame_meter_set_state (dp_frame_meter_state_t *state, const void *blob);
 
 #ifdef __cplusplus

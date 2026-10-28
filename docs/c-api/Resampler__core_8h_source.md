@@ -65,7 +65,7 @@ extern "C"
   /* ------------------------------------------------------------------ */
 
   double dp_Resampler_get_rate (const dp_Resampler_state_t *state);
-  void dp_Resampler_set_rate (dp_Resampler_state_t *state, double rate);
+  int dp_Resampler_set_rate (dp_Resampler_state_t *state, double rate);
 
   double dp_Resampler_get_ctrl_acc (const dp_Resampler_state_t *state);
 

@@ -79,13 +79,14 @@ extern "C"
 
   size_t dp_ber_settle_syms (double bn_timing, double bn_carrier);
 
-  int dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
-                        double min_frac);
+  int64_t dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len,
+                              size_t sustain, double min_frac);
 
   double dp_ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo,
                      size_t hi, int m);
 
-  size_t dp_ber_settle_from (size_t budget, int timing_lock, int carrier_lock);
+  size_t dp_ber_settle_from (size_t budget, int64_t timing_lock,
+                             int64_t carrier_lock);
 
   ber_interval_t dp_ber_confidence (size_t errors, size_t symbols, double conf);
 

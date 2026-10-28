@@ -37,6 +37,7 @@ _DopplerChannel state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
+|  size\_t | [**consumed**](#variable-consumed)  <br> |
 |  double \* | [**ctrl**](#variable-ctrl)  <br> |
 |  size\_t | [**ctrl\_cap**](#variable-ctrl_cap)  <br> |
 |  double | [**doppler\_ppm**](#variable-doppler_ppm)  <br> |
@@ -114,6 +115,24 @@ double dp_doppler_channel_state_t::carrier_hz;
 
 
 RF carrier fc, Hz — drives the offset (config; 0 = clocks only) 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable consumed 
+
+```C++
+size_t dp_doppler_channel_state_t::consumed;
+```
+
+
+
+input samples the last execute() or execute\_profile() took (per-call, not state) 
  
 
 
@@ -311,7 +330,7 @@ uint8_t dp_doppler_channel_state_t::profiled;
 
 
 
-running: set by any execute\_profile() call; cleared by a non-empty execute() or reset 
+running: set by an execute\_profile() call that consumes input; cleared by a non-empty execute() or reset 
 
 
         

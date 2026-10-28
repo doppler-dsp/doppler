@@ -886,7 +886,7 @@ Segments run back to back, each as delay + on-time + trailing gap per `repeats` 
 **Parameters:**
 
 
-* `state` The composer. 
+* `state` The composer; NULL writes nothing and returns 0. 
 * `out` Destination for up to `max` complex samples. 
 * `max` Capacity of `out`, in samples. 
 
@@ -949,7 +949,7 @@ return ok ? 0 : 1;
 **Parameters:**
 
 
-* `state` the composer. 
+* `state` the composer; NULL writes nothing and returns 0. 
 * `out` destination, `max` samples. 
 * `max` capacity of `out`. 
 * `fs` receives the rate of the samples written (left untouched when none are). 
@@ -1338,8 +1338,8 @@ Each source's `data_sent` holds what its data source has sent so far in the late
 **Parameters:**
 
 
-* `state` the composer. 
-* `n_out` receives the segment count. 
+* `state` the composer; NULL returns NULL with a count of 0 and both flags 0. 
+* `n_out` receives the segment count (may be NULL). 
 * `repeat` receives the repeat flag (may be NULL). 
 * `continuous` receives the continuous flag (may be NULL). 
 
@@ -1347,7 +1347,7 @@ Each source's `data_sent` holds what its data source has sent so far in the late
 
 **Returns:**
 
-Pointer to the internal segments (owned by the composer; valid until dp\_wfm\_compose\_destroy). 
+Pointer to the internal segments (owned by the composer; valid until dp\_wfm\_compose\_destroy), or NULL for a NULL `state`. 
 
 
 

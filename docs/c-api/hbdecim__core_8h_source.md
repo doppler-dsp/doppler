@@ -38,6 +38,7 @@ extern "C"
     size_t odd_head; 
     int has_pending;        
     float _Complex pending; 
+    size_t consumed; 
   } hbdecim_state_t;
 
   hbdecim_state_t *dp_hbdecim_create (size_t num_taps, const float *h);
@@ -60,6 +61,8 @@ extern "C"
 
   size_t dp_hbdecim_execute (hbdecim_state_t *r, const float _Complex *in,
                           size_t num_in, float _Complex *out, size_t max_out);
+
+  size_t dp_hbdecim_consumed (const hbdecim_state_t *r);
 
   double dp_hbdecim_get_rate (const hbdecim_state_t *r);
 

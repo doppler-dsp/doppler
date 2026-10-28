@@ -141,7 +141,7 @@ void dp_costas_set_norm_freq(dp_costas_state_t *state, double val);
 double dp_costas_get_lock_metric(const dp_costas_state_t *state);
 double dp_costas_get_last_error(const dp_costas_state_t *state);
 double dp_costas_get_bn_fll(const dp_costas_state_t *state);
-void dp_costas_set_bn_fll(dp_costas_state_t *state, double val);
+int dp_costas_set_bn_fll(dp_costas_state_t *state, double val);
 
 void dp_costas_configure_lock(dp_costas_state_t *state, double up_thresh,
                            double down_thresh, uint32_t n_up,

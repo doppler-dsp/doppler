@@ -120,7 +120,7 @@ void dp_carrier_mpsk_set_norm_freq(dp_carrier_mpsk_state_t *state, double val);
 double dp_carrier_mpsk_get_lock_metric(const dp_carrier_mpsk_state_t *state);
 double dp_carrier_mpsk_get_last_error(const dp_carrier_mpsk_state_t *state);
 double dp_carrier_mpsk_get_bn_fll(const dp_carrier_mpsk_state_t *state);
-void dp_carrier_mpsk_set_bn_fll(dp_carrier_mpsk_state_t *state, double val);
+int dp_carrier_mpsk_set_bn_fll(dp_carrier_mpsk_state_t *state, double val);
 int dp_carrier_mpsk_get_m(const dp_carrier_mpsk_state_t *state);
 #ifdef __cplusplus
 }

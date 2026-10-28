@@ -81,7 +81,7 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**dp\_mpsk\_receiver\_bits**](#function-dp_mpsk_receiver_bits) ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit hard Gray-coded bits._  |
-|  size\_t | [**dp\_mpsk\_receiver\_bits\_max\_out**](#function-dp_mpsk_receiver_bits_max_out) ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Output-capacity hint for the generated binding's bits()._  |
+|  size\_t | [**dp\_mpsk\_receiver\_bits\_max\_out**](#function-dp_mpsk_receiver_bits_max_out) ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state, size\_t x\_len) <br>_Output capacity bits() needs for an_ `x_len-sample` _block._ |
 |  size\_t | [**dp\_mpsk\_receiver\_bits\_real**](#function-dp_mpsk_receiver_bits_real) ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state, const float \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a real f32 block and emit hard Gray-coded bits._  |
 |  size\_t | [**dp\_mpsk\_receiver\_bits\_real\_max\_out**](#function-dp_mpsk_receiver_bits_real_max_out) ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* state) <br>_Output-capacity hint for the generated binding's bits\_real()._  |
 |  [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) \* | [**dp\_mpsk\_receiver\_create**](#function-dp_mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, double lock\_thresh, double init\_norm\_freq, int differential, size\_t num\_phases, int agc, double bn\_agc\_ratio) <br>_Create an M-PSK receiver._  |
@@ -151,9 +151,9 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 | Type | Name |
 | ---: | :--- |
 | define  | [**MPSK\_RECEIVER\_R\_STATE\_MAGIC**](mpsk__receiver__core_8h.md#define-mpsk_receiver_r_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('M', 'P', 'S', 'R')`<br> |
-| define  | [**MPSK\_RECEIVER\_R\_STATE\_VERSION**](mpsk__receiver__core_8h.md#define-mpsk_receiver_r_state_version)  `2u`<br> |
+| define  | [**MPSK\_RECEIVER\_R\_STATE\_VERSION**](mpsk__receiver__core_8h.md#define-mpsk_receiver_r_state_version)  `3u /\* v3: packs the carrier centre \*/`<br> |
 | define  | [**MPSK\_RECEIVER\_STATE\_MAGIC**](mpsk__receiver__core_8h.md#define-mpsk_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('M', 'P', 'S', 'K')`<br> |
-| define  | [**MPSK\_RECEIVER\_STATE\_VERSION**](mpsk__receiver__core_8h.md#define-mpsk_receiver_state_version)  `6u /\* v5: rebuilt on the matched DDC \*/`<br> |
+| define  | [**MPSK\_RECEIVER\_STATE\_VERSION**](mpsk__receiver__core_8h.md#define-mpsk_receiver_state_version)  `/* multi line expression */`<br> |
 
 ## Detailed Description
 
@@ -374,17 +374,17 @@ Number of bits written.
 
 ### function dp\_mpsk\_receiver\_bits\_max\_out 
 
-_Output-capacity hint for the generated binding's bits()._ 
+_Output capacity bits() needs for an_ `x_len-sample` _block._
 ```C++
 size_t dp_mpsk_receiver_bits_max_out (
-    dp_mpsk_receiver_state_t * state
+    dp_mpsk_receiver_state_t * state,
+    size_t x_len
 ) 
 ```
 
 
 
-Always returns 0, which the binding reads as "the input length is a safe
-bound": a block yields at most `x_len / sps` symbols of log2(M) bits each. That bound is &lt;= the input length except for M = 8 at an `sps` below 3, where the input-length buffer can be too small and the excess bits are dropped (never overrun: writes stop at `max_out`).
+A block yields at most one symbol per input sample, of log2(M) bits each, so `x_len * log2(M)` bits always fit. The bound used to be the input length alone, which 8PSK at an `sps` below 3 outruns; the bits past it were dropped silently (doppler#2643).
 
 
 
@@ -392,13 +392,14 @@ bound": a block yields at most `x_len / sps` symbols of log2(M) bits each. That 
 **Parameters:**
 
 
-* `state` Receiver state (unused). 
+* `state` Receiver state; its M sets the bits per symbol. 
+* `x_len` Input samples in the block. 
 
 
 
 **Returns:**
 
-0. 
+`x_len * log2(M)`. 
 
 
 
@@ -1299,7 +1300,7 @@ void dp_mpsk_receiver_get_state (
 
 
 
-Writes `[header][front-end child][loops child]`, the header tagged with the face's magic (MPSK\_RECEIVER\_STATE\_MAGIC or MPSK\_RECEIVER\_R\_STATE\_MAGIC). Configuration restored by create (the cascade, its banks, the LO centre, the face) is not packed.
+Writes `[header][f64 centre][front-end child][loops child]`, the header tagged with the face's magic (MPSK\_RECEIVER\_STATE\_MAGIC or MPSK\_RECEIVER\_R\_STATE\_MAGIC). The centre travels because [**dp\_mpsk\_receiver\_set\_norm\_freq()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_norm_freq) moves it; configuration restored by create (the cascade, its banks, the face) is not packed.
 
 
 
@@ -1540,7 +1541,7 @@ int dp_mpsk_receiver_set_state (
 
 
 
-The envelope is validated first (magic for this face, version, endian, size); then the front end's child blob and the loops' child blob are restored in that order, each validating its own envelope. The receiver must have been built with the same face and parameters as the one that produced the blob.
+The envelope is validated first (magic for this face, version, endian, size); then the front end's child blob and the loops' child blob are restored in that order, each validating its own envelope, and last the carrier centre, with the front end's LO retuned to it as [**dp\_mpsk\_receiver\_set\_norm\_freq()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_norm_freq) would. The receiver must have been built with the same face and parameters as the one that produced the blob.
 
 
 
@@ -1656,7 +1657,7 @@ size_t dp_mpsk_receiver_state_bytes (
 
 
 
-The envelope header plus the front end's child blob plus the loops' child blob. Fixed for a given construction (it depends on the face and the planned cascade, not on the stream).
+The envelope header, the carrier centre (a double), the front end's child blob and the loops' child blob. Fixed for a given construction (it depends on the face and the planned cascade, not on the stream).
 
 
 
@@ -1989,7 +1990,7 @@ State-blob envelope magic for the real-IF face ("MPSR"); a blob from one face is
 ### define MPSK\_RECEIVER\_R\_STATE\_VERSION 
 
 ```C++
-#define MPSK_RECEIVER_R_STATE_VERSION `2u`
+#define MPSK_RECEIVER_R_STATE_VERSION `3u /* v3: packs the carrier centre */`
 ```
 
 
@@ -2023,7 +2024,7 @@ State-blob envelope magic for the complex-input face ("MPSK").
 ### define MPSK\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define MPSK_RECEIVER_STATE_VERSION `6u /* v5: rebuilt on the matched DDC */`
+#define MPSK_RECEIVER_STATE_VERSION `/* multi line expression */`
 ```
 
 

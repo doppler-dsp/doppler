@@ -41,16 +41,18 @@ void dp_cic_destroy(dp_cic_state_t *state);
 
 void dp_cic_reset(dp_cic_state_t *state);
 
-/* Serializable state (reusable elastic-resume convention): the integrator and
- * comb accumulators, the decimation phase counter and the sticky clip flag —
- * R/shift are config (rebuilt from R on the resumed instance).  `clipped` is
+/* Serializable state (reusable elastic-resume convention): the decimation
+ * rate R, the integrator and comb accumulators, the decimation phase counter
+ * and the sticky clip flag.  R travels because dp_cic_reconfigure() changes
+ * it (#2022's rule, doppler#2642); shift is derived from it on restore, so
+ * the two cannot disagree.  `clipped` is
  * running state, not a diagnostic bolted on the side: a resumed stream that
  * silently forgot it had clipped would answer the question wrongly. */
 
-/* Standard bytes interface (see dp_state.h): [dp_state_hdr_t][integ_re/im,
- * comb_re/im (CIC_N u64 each)][u32 phase][u8 clipped]. */
+/* Standard bytes interface (see dp_state.h): [dp_state_hdr_t][u32 R]
+ * [integ_re/im, comb_re/im (CIC_N u64 each)][u32 phase][u8 clipped]. */
 #define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
-#define CIC_STATE_VERSION 2u
+#define CIC_STATE_VERSION 3u
 
 #define CIC_PAPR_HEADROOM 2.0f
 

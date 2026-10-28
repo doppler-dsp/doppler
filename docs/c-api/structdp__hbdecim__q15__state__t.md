@@ -41,6 +41,7 @@ _HalfbandDecimatorQ15 state: Q15 FIR-branch coefficients, four dual-write int16 
 |  size\_t | [**cap**](#variable-cap)  <br> |
 |  size\_t | [**centre**](#variable-centre)  <br> |
 |  int16\_t \* | [**coeffs**](#variable-coeffs)  <br> |
+|  size\_t | [**consumed**](#variable-consumed)  <br> |
 |  int16\_t \* | [**even\_I**](#variable-even_i)  <br> |
 |  int16\_t \* | [**even\_Q**](#variable-even_q)  <br> |
 |  size\_t | [**even\_head**](#variable-even_head)  <br> |
@@ -189,6 +190,24 @@ int16_t* dp_hbdecim_q15_state_t::coeffs;
 
 
 Owned, 32-byte aligned, K\_pad Q15 taps: the first K of h scaled by 0.5, zero-padded. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable consumed 
+
+```C++
+size_t dp_hbdecim_q15_state_t::consumed;
+```
+
+
+
+Complex input samples the last execute took; per-call, not in the blob. 
  
 
 

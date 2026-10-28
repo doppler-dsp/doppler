@@ -334,7 +334,7 @@ size_t dp_detector_state_t::peak_lag;
 
 
 
-Last dump: argmax \|R\| lag index. Not cleared by reset (0 after create). 
+Last dump: argmax \|R\| lag index; 0 after create and reset. 
  
 
 

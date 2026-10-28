@@ -58,6 +58,7 @@ _Real-to-complex halfband 2:1 decimator (Architecture D2)._ [More...](#detailed-
 
 | Type | Name |
 | ---: | :--- |
+|  size\_t | [**dp\_hbdecim\_r2c\_consumed**](#function-dp_hbdecim_r2c_consumed) (const [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br>_Input samples the last_ [_**dp\_hbdecim\_r2c\_execute()**_](hbdecim__r2c__core_8h.md#function-dp_hbdecim_r2c_execute) _took._ |
 |  [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* | [**dp\_hbdecim\_r2c\_create**](#function-dp_hbdecim_r2c_create) (size\_t num\_taps, const float \* h) <br>_Allocate a real-to-complex halfband decimator._  |
 |  void | [**dp\_hbdecim\_r2c\_destroy**](#function-dp_hbdecim_r2c_destroy) ([**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r) <br>_Free the coefficients, both delay lines and the state._  |
 |  size\_t | [**dp\_hbdecim\_r2c\_execute**](#function-dp_hbdecim_r2c_execute) ([**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* r, const float \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate real float32 input by 2, producing CF32._  |
@@ -148,6 +149,43 @@ Allocate with [**dp\_hbdecim\_r2c\_create()**](hbdecim__r2c__core_8h.md#function
 
 
 
+### function dp\_hbdecim\_r2c\_consumed 
+
+_Input samples the last_ [_**dp\_hbdecim\_r2c\_execute()**_](hbdecim__r2c__core_8h.md#function-dp_hbdecim_r2c_execute) _took._
+```C++
+size_t dp_hbdecim_r2c_consumed (
+    const hbdecim_r2c_state_t * r
+) 
+```
+
+
+
+Equal to its `num_in` unless `out` filled first; then the caller resumes at in + consumed. 0 after create, reset and set\_state.
+
+
+
+
+**Parameters:**
+
+
+* `r` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Input samples taken by the last execute. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_hbdecim\_r2c\_create 
 
 _Allocate a real-to-complex halfband decimator._ 
@@ -229,7 +267,7 @@ size_t dp_hbdecim_r2c_execute (
 
 
 
-One complex output per (even, odd) input pair, counting a sample held from the previous call as the first of the block. A sample left unpaired at the end is held for the next call, so contiguous blocks give the same output as one large block. Emission stops once `max_out` samples are written; the first unconsumed sample is then held and every sample after it is dropped (doppler#2643), so size `out` for the whole block: (num\_in + 1) / 2 samples. If num\_in or max\_out is 0 the call returns 0 and consumes nothing.
+One complex output per (even, odd) input pair, counting a sample held from the previous call as the first of the block. A sample left unpaired at the end is held for the next call, so contiguous blocks give the same output as one large block. Size `out` for the whole block, (num\_in + 1) / 2 samples. A shorter `out` drops nothing: the call stops at the pair boundary after the last output it has room for, and [**dp\_hbdecim\_r2c\_consumed()**](hbdecim__r2c__core_8h.md#function-dp_hbdecim_r2c_consumed) says how much input it took, so the caller offers in + consumed again and the outputs resume exactly as one whole call gives (doppler#2643). A trailing sample is held only when it is the last input; with `max_out` 0 the call writes nothing and takes at most that one sample.
 
 
 

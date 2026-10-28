@@ -90,12 +90,12 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  double | [**dp\_RateConverter\_get\_bank\_sps**](#function-dp_rateconverter_get_bank_sps) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._  |
 |  bool | [**dp\_RateConverter\_get\_clipped**](#function-dp_rateconverter_get_clipped) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Has any planned CIC stage clipped its input since the last reset?_  |
 |  bool | [**dp\_RateConverter\_get\_narrow\_pulse**](#function-dp_rateconverter_get_narrow_pulse) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Is this converter's rectangular matched filter degenerately narrow?_  |
-|  double | [**dp\_RateConverter\_get\_rate**](#function-dp_rateconverter_get_rate) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate &lt;= 0 is silently ignored._  |
+|  double | [**dp\_RateConverter\_get\_rate**](#function-dp_rateconverter_get_rate) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. A rate that is not finite and &gt; 0 is refused and leaves the converter as it was._  |
 |  void | [**dp\_RateConverter\_get\_state**](#function-dp_rateconverter_get_state) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, void \* blob) <br>_Serialize_ `s's` _active-stage state into_`blob` _._ |
 |  size\_t | [**dp\_RateConverter\_num\_bank\_shape**](#function-dp_rateconverter_num_bank_shape) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._ |
 |  size\_t | [**dp\_RateConverter\_num\_stages**](#function-dp_rateconverter_num_stages) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Number of planned cascade stages (backs the_ `stages` _property)._ |
 |  void | [**dp\_RateConverter\_reset**](#function-dp_rateconverter_reset) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory. An enabled AGC is reset too (back to unity gain with its detector at the reference), and the clip flag read by_ [_**dp\_RateConverter\_get\_clipped()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_clipped) _is cleared with the CIC stages._ |
-|  void | [**dp\_RateConverter\_set\_rate**](#function-dp_rateconverter_set_rate) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. Silently ignores rate &lt;= 0. A matched cascade keeps its pulse and an enabled AGC survives (its reference is re-derived for the new terminal bank). If building the new stages fails (OOM) the converter is left with zero stages and the new rate; there is no error return._  |
+|  void | [**dp\_RateConverter\_set\_rate**](#function-dp_rateconverter_set_rate) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. A matched cascade keeps its pulse and an enabled AGC survives (its reference is re-derived for the new terminal bank). The change is all or nothing: the new cascade (and AGC) is built first and committed only once it exists, so a refused rate or a failed rebuild leaves the converter exactly as it was_  _same rate, same stages, same filter memory._ |
 |  int | [**dp\_RateConverter\_set\_state**](#function-dp_rateconverter_set_state) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const void \* blob) <br>_Restore active-stage state from_ `blob` _(same rate)._ |
 |  int | [**dp\_RateConverter\_set\_telemetry**](#function-dp_rateconverter_set_telemetry) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the pre-terminal AGC._  |
 |  int | [**dp\_RateConverter\_stage\_label**](#function-dp_rateconverter_stage_label) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, int i, char \* buf, size\_t len) <br>_Write a human-readable label for stage i into buf._  |
@@ -303,7 +303,7 @@ size_t dp_RateConverter_bank_shape_value (
 
 
 
-Only valid when [**dp\_RateConverter\_num\_bank\_shape()**](RateConverter__core_8h.md#function-dp_rateconverter_num_bank_shape) returns 2: the terminal stage is read as a Resampler without checking its type.
+Meaningful only when [**dp\_RateConverter\_num\_bank\_shape()**](RateConverter__core_8h.md#function-dp_rateconverter_num_bank_shape) returns 2; when it returns 0 (the cascade ends in an integer decimator) there is no bank and this returns 0 rather than reading a stage that is not a Resampler.
 
 
 
@@ -318,7 +318,7 @@ Only valid when [**dp\_RateConverter\_num\_bank\_shape()**](RateConverter__core_
 
 **Returns:**
 
-The requested dimension of the terminal bank. 
+The requested dimension of the terminal bank, or 0 when there is none. 
 
 
 
@@ -374,7 +374,7 @@ Use [**dp\_RateConverter\_create()**](RateConverter__core_8h.md#function-dp_rate
 
 **Returns:**
 
-Number of output samples written; 0 only if OOM or n\_in == 0. 
+Number of output samples written; 0 if `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok), on OOM, or if n\_in == 0. 
 
 
 
@@ -403,14 +403,14 @@ dp_RateConverter_state_t * dp_RateConverter_create (
 **Parameters:**
 
 
-* `rate` Output-to-input sample rate ratio. Any positive float. 
+* `rate` Output-to-input sample rate ratio: finite and &gt; 0 ([**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok)). 
 * `compensate` Non-zero to append a CIC passband-droop compensating FIR after any CIC stage. 
 
 
 
 **Returns:**
 
-Non-NULL on success, owned by the caller and released with [**dp\_RateConverter\_destroy()**](RateConverter__core_8h.md#function-dp_rateconverter_destroy); NULL if rate &lt;= 0, if no cascade can be planned for `rate`, or on OOM.
+Non-NULL on success, owned by the caller and released with [**dp\_RateConverter\_destroy()**](RateConverter__core_8h.md#function-dp_rateconverter_destroy); NULL if `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok) (NaN included), if no cascade can be planned for `rate`, or on OOM.
 
 
 
@@ -475,7 +475,7 @@ Keep the INPUT inside +-2.0 whenever the plan contains a CIC stage — see the f
 **Parameters:**
 
 
-* `rate` Output-to-input sample rate ratio (any positive float). Rate-agnostic: this object never learns about symbols — a caller wanting `m` samples per symbol asks for `rate = m/sps`. 
+* `rate` Output-to-input sample rate ratio (finite and &gt; 0, [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok)). Rate-agnostic: this object never learns about symbols — a caller wanting `m` samples per symbol asks for `rate = m/sps`. 
 * `compensate` Non-zero to correct CIC passband droop (folded into the bank here, not appended as a stage). 
 * `pulse` RC\_PULSE\_RRC / RC\_PULSE\_IANDD. RC\_PULSE\_NONE is invalid here — use [**dp\_RateConverter\_create()**](RateConverter__core_8h.md#function-dp_rateconverter_create) for a plain conversion. 
 * `beta` RRC roll-off in `[0, 1]` (ignored for the rectangle). 
@@ -1115,7 +1115,7 @@ True for a narrow rectangular matched cascade; always false for a plain cascade 
 
 ### function dp\_RateConverter\_get\_rate 
 
-_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate &lt;= 0 is silently ignored._ 
+_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. A rate that is not finite and &gt; 0 is refused and leaves the converter as it was._ 
 ```C++
 double dp_RateConverter_get_rate (
     const dp_RateConverter_state_t * s
@@ -1248,7 +1248,7 @@ size_t dp_RateConverter_num_stages (
 
 **Returns:**
 
-Active stage count, 1 to RC\_MAX\_STAGES for a successfully built cascade; 0 only after a [**dp\_RateConverter\_set\_rate()**](RateConverter__core_8h.md#function-dp_rateconverter_set_rate) whose rebuild failed (see that function). 
+Active stage count, 1 to RC\_MAX\_STAGES. A failed [**dp\_RateConverter\_set\_rate()**](RateConverter__core_8h.md#function-dp_rateconverter_set_rate) leaves the old cascade in place, so it is never 0 on a live converter. 
 
 
 
@@ -1297,7 +1297,7 @@ void dp_RateConverter_reset (
 
 ### function dp\_RateConverter\_set\_rate 
 
-_Change the rate; rebuilds the cascade and resets all filter state. Silently ignores rate &lt;= 0. A matched cascade keeps its pulse and an enabled AGC survives (its reference is re-derived for the new terminal bank). If building the new stages fails (OOM) the converter is left with zero stages and the new rate; there is no error return._ 
+_Change the rate; rebuilds the cascade and resets all filter state. A matched cascade keeps its pulse and an enabled AGC survives (its reference is re-derived for the new terminal bank). The change is all or nothing: the new cascade (and AGC) is built first and committed only once it exists, so a refused rate or a failed rebuild leaves the converter exactly as it was_  _same rate, same stages, same filter memory._
 ```C++
 void dp_RateConverter_set_rate (
     dp_RateConverter_state_t * s,
@@ -1307,13 +1307,16 @@ void dp_RateConverter_set_rate (
 
 
 
+The call returns nothing, so a caller that must know whether it took reads [**dp\_RateConverter\_get\_rate()**](RateConverter__core_8h.md#function-dp_rateconverter_get_rate) back. It becomes an `int` status, raised as ValueError from Python (`error = "ValueError"` on the property), once just-makeit#2406 is fixed: today a refusing property setter is documented under a synthetic C name on the MatchedRateConverter view, which the doc-face-parity gate rejects.
+
+
 
 
 **Parameters:**
 
 
 * `s` Pointer to a valid [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md). 
-* `rate` New output/input rate ratio. 
+* `rate` New output/input rate ratio: finite and &gt; 0 ([**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok)). Any other value, a rate no cascade can be planned for, or a failed rebuild changes nothing. 
 
 
 

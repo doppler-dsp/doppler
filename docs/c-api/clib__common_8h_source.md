@@ -101,6 +101,12 @@ dp_xrealloc (void *p, size_t n)
   return dp_xnn (realloc (p, n));
 }
 
+static inline int
+dp_positive_finite (double x)
+{
+  return isfinite (x) && x > 0.0;
+}
+
 static inline long
 dp_fftfreq_index (size_t bin, size_t n)
 {

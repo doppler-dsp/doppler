@@ -36,7 +36,9 @@ dp_f32_to_i16u64_step(dp_f32_to_i16u64_state_t *state, float x)
 {
     float s = state->scale * x;
     /* Detect saturation before clamping; set sticky flag. */
-    state->clipped |= (uint8_t)(s > 32767.0f || s < -32768.0f);
+    /* Written as "not inside" so a NaN, which fails every comparison,
+     * latches the flag too (fmaxf then maps it to the lower bound). */
+    state->clipped |= (uint8_t)!(s <= 32767.0f && s >= -32768.0f);
     s = fmaxf(s, -32768.0f);
     s = fminf(s,  32767.0f);
     int16_t v = (int16_t)lroundf(s);

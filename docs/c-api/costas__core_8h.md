@@ -83,7 +83,7 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 |  void | [**dp\_costas\_init**](#function-dp_costas_init) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll) <br>_Initialise a Costas loop in place (no allocation)._  |
 |  void | [**dp\_costas\_reset**](#function-dp_costas_reset) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Re-seed the loop to its create-time frequency/phase; keep config._  |
 |  int | [**dp\_costas\_set\_bn**](#function-dp_costas_set_bn) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_costas\_configure()**_](costas__core_8h.md#function-dp_costas_configure) _'s refusal and status. As a writable property a refusal raises ValueError and the value stays put (doppler#1987)._ |
-|  void | [**dp\_costas\_set\_bn\_fll**](#function-dp_costas_set_bn_fll) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br>_Set the FLL-assist bandwidth live; the FLL gain becomes 4 \*_ `val` _._ |
+|  int | [**dp\_costas\_set\_bn\_fll**](#function-dp_costas_set_bn_fll) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br>_Set the FLL-assist bandwidth live; the FLL gain becomes 4 \*_ `val` _._ |
 |  void | [**dp\_costas\_set\_norm\_freq**](#function-dp_costas_set_norm_freq) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br>_Re-seed the loop at a new carrier frequency._  |
 |  int | [**dp\_costas\_set\_state**](#function-dp_costas_set_state) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, const void \* blob) <br>_Restore a state written by_ [_**dp\_costas\_get\_state()**_](costas__core_8h.md#function-dp_costas_get_state) _._ |
 |  int | [**dp\_costas\_set\_telemetry**](#function-dp_costas_set_telemetry) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers five probes, emitted once per dumped symbol and further thinned by decim: "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA, 1 = phase-locked), "&lt;prefix&gt;.e" (the PLL discriminator output — the loop stress), "&lt;prefix&gt;.freq" (the NCO's frequency register, which holds the loop filter's integrator: the loop's frequency memory, cycles/sample), "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — see dp\_costas\_configure\_lock) and "&lt;prefix&gt;.nco" (the complete loop-filter output, the integrator plus the proportional term, cycles/sample —_ [_**dp\_costas\_get\_nco\_freq()**_](costas__core_8h.md#function-dp_costas_get_nco_freq) _; its mean rides a frequency ramp with no lag, where ".freq" lags by the loop's ramp error). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
@@ -355,7 +355,7 @@ dp_costas_state_t * dp_costas_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL if (bn, zeta) fails [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), if `bn_fll` fails [**dp\_loop\_filter\_fll\_bn\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_fll_bn_ok), or on allocation failure. 
 
 
 
@@ -804,7 +804,7 @@ DP\_OK, or DP\_ERR\_INVALID if (val, zeta) fails [**dp\_loop\_filter\_params\_ok
 
 _Set the FLL-assist bandwidth live; the FLL gain becomes 4 \*_ `val` _._
 ```C++
-void dp_costas_set_bn_fll (
+int dp_costas_set_bn_fll (
     dp_costas_state_t * state,
     double val
 ) 
@@ -812,7 +812,7 @@ void dp_costas_set_bn_fll (
 
 
 
-Not validated: any value &lt;= 0 disables the assist.
+A value outside [**dp\_loop\_filter\_fll\_bn\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_fll_bn_ok) (negative, NaN, or one whose gain overflows) is refused and nothing changes.
 
 
 
@@ -822,6 +822,13 @@ Not validated: any value &lt;= 0 disables the assist.
 
 * `state` Must be non-NULL. 
 * `val` FLL bandwidth, normalized to the symbol rate (0 = off). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when `val` is refused. 
+
 
 
 

@@ -61,6 +61,7 @@ _Clock Doppler as a propagation impairment: dilate the time base and shift the c
 
 | Type | Name |
 | ---: | :--- |
+|  size\_t | [**dp\_doppler\_channel\_consumed**](#function-dp_doppler_channel_consumed) (const [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_doppler\_channel\_execute()**_](doppler__channel__core_8h.md#function-dp_doppler_channel_execute) _or_[_**dp\_doppler\_channel\_execute\_profile()**_](doppler__channel__core_8h.md#function-dp_doppler_channel_execute_profile) _took._ |
 |  [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* | [**dp\_doppler\_channel\_create**](#function-dp_doppler_channel_create) (double fs, double carrier\_hz, double doppler\_ppm, double doppler\_rate\_ppm\_s) <br>_Create a doppler\_channel instance._  |
 |  void | [**dp\_doppler\_channel\_destroy**](#function-dp_doppler_channel_destroy) ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state) <br>_Destroy a doppler\_channel instance and release all memory._  |
 |  size\_t | [**dp\_doppler\_channel\_execute**](#function-dp_doppler_channel_execute) ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Apply clock Doppler to a block of complex baseband._  |
@@ -164,6 +165,43 @@ dp_doppler_channel_destroy (ch);
     
 ## Public Functions Documentation
 
+
+
+
+### function dp\_doppler\_channel\_consumed 
+
+_Input samples the last_ [_**dp\_doppler\_channel\_execute()**_](doppler__channel__core_8h.md#function-dp_doppler_channel_execute) _or_[_**dp\_doppler\_channel\_execute\_profile()**_](doppler__channel__core_8h.md#function-dp_doppler_channel_execute_profile) _took._
+```C++
+size_t dp_doppler_channel_consumed (
+    const dp_doppler_channel_state_t * state
+) 
+```
+
+
+
+Equal to its `x_len` unless `out` filled first; then the caller resumes at x + consumed (and ppm + consumed). 0 after create, reset and a refused call.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Input samples taken by the last execute. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -271,7 +309,7 @@ Output length is approximately `x_len/(1+d)` and varies by a sample from call to
 * `x` Input block. 
 * `x_len` Input length in samples. 
 * `out` Output buffer. 
-* `max_out` Capacity of `out`; production stops there. 
+* `max_out` Capacity of `out`; production stops there, and the input after the last sample taken is not consumed: the input clock advances by [**dp\_doppler\_channel\_consumed()**](doppler__channel__core_8h.md#function-dp_doppler_channel_consumed), not by `x_len`, so the caller resumes at x + consumed. 
 
 
 
@@ -404,7 +442,7 @@ A sign change mid-record is the point: no `(doppler_ppm, doppler_rate_ppm_s)` pa
 * `ppm` Doppler in ppm, parallel to `x`. 
 * `ppm_len` Profile length; must EQUAL `x_len`. 
 * `out` Output buffer. 
-* `max_out` Capacity of `out` in samples. 
+* `max_out` Capacity of `out` in samples. Production stops there and the rest of the input is not consumed: [**dp\_doppler\_channel\_consumed()**](doppler__channel__core_8h.md#function-dp_doppler_channel_consumed) says how much was, and the last instantaneous d is the last consumed sample's (doppler#2643). An empty call, or one that consumes nothing, changes nothing  offset\_hz still reports what drove the stream before it. 
 
 
 

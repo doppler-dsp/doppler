@@ -60,7 +60,7 @@ _Halfband 2:1 decimator for CF32 IQ (adapter over hbdecim\_core)._ [More...](#de
 |  [**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* | [**dp\_HalfbandDecimator\_create**](#function-dp_halfbanddecimator_create) (const float \* h, size\_t h\_len) <br>_Create a HalfbandDecimator with caller-supplied FIR taps. Implements a 2:1 polyphase halfband decimator over CF32 IQ. The caller provides the FIR branch coefficient array h; use_ `doppler.resample.kaiser_num_taps(2, atten, pb, sb)` _to size it and scipy or the built-in bank helper to design the prototype. Output length is approximately x\_len / 2 per execute() call._ |
 |  void | [**dp\_HalfbandDecimator\_destroy**](#function-dp_halfbanddecimator_destroy) ([**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state) <br>_Free the coefficients, delay lines and the state._  |
 |  size\_t | [**dp\_HalfbandDecimator\_execute**](#function-dp_halfbanddecimator_execute) ([**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Decimate x by 2 using the polyphase halfband FIR filter. Each (even, odd) input pair yields one output: one phase runs through the symmetric FIR branch and the other through a pure delay weighted 0.5. State persists between calls: a sample left unpaired at the end of a block (counting one held from the previous call) is held for the next, so contiguous blocks give identical output to one large block._  |
-|  size\_t | [**dp\_HalfbandDecimator\_execute\_max\_out**](#function-dp_halfbanddecimator_execute_max_out) ([**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state) <br>_Default output capacity, used by the binding to size buffers._  |
+|  size\_t | [**dp\_HalfbandDecimator\_execute\_max\_out**](#function-dp_halfbanddecimator_execute_max_out) ([**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state, size\_t x\_len) <br>_The most outputs one_ [_**dp\_HalfbandDecimator\_execute()**_](HalfbandDecimator__core_8h.md#function-dp_halfbanddecimator_execute) _call over_`x_len` _inputs can write:_`(x_len + 1) / 2` _._ |
 |  size\_t | [**dp\_HalfbandDecimator\_get\_num\_taps**](#function-dp_halfbanddecimator_get_num_taps) (const [**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state) <br>_Number of FIR branch taps as passed to create. The pure-delay branch has no taps; only the FIR branch has length num\_taps (it runs on the even-indexed inputs when num\_taps is even, the odd-indexed ones when it is odd). The total prototype length is 2 \* num\_taps - 1._  |
 |  double | [**dp\_HalfbandDecimator\_get\_rate**](#function-dp_halfbanddecimator_get_rate) (const [**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state) <br>_Fixed decimation rate — always 0.5. The halfband decimator is structurally 2:1; this property exists for API parity with Resampler and RateConverter._  |
 |  void | [**dp\_HalfbandDecimator\_get\_state**](#function-dp_halfbanddecimator_get_state) (const [**dp\_HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-dp_halfbanddecimator_state_t) \* state, void \* blob) <br>_Serialize the decimator's delay-line state into_ `blob` _._ |
@@ -94,11 +94,6 @@ _Halfband 2:1 decimator for CF32 IQ (adapter over hbdecim\_core)._ [More...](#de
 
 
 
-## Macros
-
-| Type | Name |
-| ---: | :--- |
-| define  | [**HBDECIM\_MAX\_OUT**](HalfbandDecimator__core_8h.md#define-hbdecim_max_out)  `32768`<br> |
 
 ## Detailed Description
 
@@ -239,7 +234,7 @@ size_t dp_HalfbandDecimator_execute (
 * `state` Pointer to a valid dp\_HalfbandDecimator\_state\_t. 
 * `x` CF32 input array. A sample left unpaired at the end is held for the next call. 
 * `x_len` Number of input samples. 
-* `out` Output buffer; must hold at least (x\_len + 1) / 2 samples. If it fills first, the first unconsumed sample is held and every sample after it is dropped (doppler#2643). 
+* `out` Output buffer; must hold at least (x\_len + 1) / 2 samples. A shorter one drops nothing: the call stops at a pair boundary and [**dp\_hbdecim\_consumed()**](hbdecim__core_8h.md#function-dp_hbdecim_consumed) says how much input it took. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
 
@@ -271,13 +266,17 @@ Number of CF32 samples written to `out:` min((x\_len + held) / 2, max\_out), whe
 
 ### function dp\_HalfbandDecimator\_execute\_max\_out 
 
-_Default output capacity, used by the binding to size buffers._ 
+_The most outputs one_ [_**dp\_HalfbandDecimator\_execute()**_](HalfbandDecimator__core_8h.md#function-dp_halfbanddecimator_execute) _call over_`x_len` _inputs can write:_`(x_len + 1) / 2` _._
 ```C++
 size_t dp_HalfbandDecimator_execute_max_out (
-    dp_HalfbandDecimator_state_t * state
+    dp_HalfbandDecimator_state_t * state,
+    size_t x_len
 ) 
 ```
 
+
+
+A 2:1 decimator emits one output per input pair, and at most one sample is held over from the previous call, so `(x_len + held) / 2` never exceeds this. It is a true per-call bound, which is what lets the binding accept an `out=` of `len(x) // 2 + 1` and allocate no more than that when it sizes the output itself (doppler#2644; this used to return a fixed 32768, which the binding then demanded of every `out=`).
 
 
 
@@ -286,12 +285,13 @@ size_t dp_HalfbandDecimator_execute_max_out (
 
 
 * `state` State; ignored. 
+* `x_len` Number of inputs the call will be given. 
 
 
 
 **Returns:**
 
-Always HBDECIM\_MAX\_OUT (32768). 
+`(x_len + 1) / 2`; 0 for an empty call. 
 
 
 
@@ -522,26 +522,6 @@ dp\_hbdecim\_state\_bytes(state); depends on num\_taps.
 
 
 
-
-
-        
-
-<hr>
-## Macro Definition Documentation
-
-
-
-
-
-### define HBDECIM\_MAX\_OUT 
-
-```C++
-#define HBDECIM_MAX_OUT `32768`
-```
-
-
-
-Output capacity reported by [**dp\_HalfbandDecimator\_execute\_max\_out()**](HalfbandDecimator__core_8h.md#function-dp_halfbanddecimator_execute_max_out). The C execute takes the caller's real max\_out, so this is not a limit there; the Python binding allocates max(HBDECIM\_MAX\_OUT, len(x)) output samples per call. 
 
 
         

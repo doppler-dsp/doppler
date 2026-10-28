@@ -1580,7 +1580,7 @@ Registers ten probes, emitted once per DECIDED dwell (a coherent dump, or the dw
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all ten probes (the attach fails whole; the engine stays detached). 
+DP\_OK; DP\_ERR\_INVALID for an overlong `prefix`, a `decim` of 0, or a probe table without room for all ten probes; DP\_ERR\_MEMORY when the dry run's scratch context cannot be allocated. A refusal registers nothing on `tlm` and leaves the previous attachment (or detachment) exactly as it was. 
 ```C++
 >>> import numpy as np
 >>> from doppler.acquire import Acquisition

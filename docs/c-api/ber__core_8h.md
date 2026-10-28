@@ -66,9 +66,9 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 |  double | [**dp\_ber\_evm\_db**](#function-dp_ber_evm_db) (const float \_Complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi, int m) <br>_Self-referenced EVM (dB) over an EXPLICIT window_ `[lo, hi)` _._ |
 |  double | [**dp\_ber\_evm\_ideal\_db**](#function-dp_ber_evm_ideal_db) (double esn0\_db) <br>_What_ [_**dp\_ber\_evm\_db()**_](ber__core_8h.md#function-dp_ber_evm_db) _reads on an ideal stream at_`esn0_db` _._ |
 |  double | [**dp\_ber\_evm\_scatter\_floor\_db**](#function-dp_ber_evm_scatter_floor_db) (int m) <br>_EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation._  |
-|  int | [**dp\_ber\_lock\_symbol**](#function-dp_ber_lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br>_First symbol from which a verify-counted flag is SUSTAINED._  |
+|  int64\_t | [**dp\_ber\_lock\_symbol**](#function-dp_ber_lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br>_First symbol from which a verify-counted flag is SUSTAINED._  |
 |  double | [**dp\_ber\_qfunc**](#function-dp_ber_qfunc) (double x) <br>_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._ |
-|  size\_t | [**dp\_ber\_settle\_from**](#function-dp_ber_settle_from) (size\_t budget, int timing\_lock, int carrier\_lock) <br>_Combine an analytic settling budget with measured lock instants._  |
+|  size\_t | [**dp\_ber\_settle\_from**](#function-dp_ber_settle_from) (size\_t budget, int64\_t timing\_lock, int64\_t carrier\_lock) <br>_Combine an analytic settling budget with measured lock instants._  |
 |  size\_t | [**dp\_ber\_settle\_syms**](#function-dp_ber_settle_syms) (double bn\_timing, double bn\_carrier) <br>_Symbols to discard before a steady-state measurement means anything._  |
 |  double | [**dp\_ber\_theory\_ber**](#function-dp_ber_theory_ber) (int m, double esn0) <br>_Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly_ `Q(sqrt(2 Eb/N0))` _; 8PSK uses_`SER/log2 M` _, exact in the high-Es/N0 limit where an error lands on a neighbour. NAN for an M outside {2, 4, 8}._ |
 |  double | [**dp\_ber\_theory\_ser**](#function-dp_ber_theory_ser) (int m, double esn0) <br>_Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR)._  |
@@ -374,7 +374,7 @@ The floor in dB, or NAN for M &lt; 2, which is no constellation.
 
 _First symbol from which a verify-counted flag is SUSTAINED._ 
 ```C++
-int dp_ber_lock_symbol (
+int64_t dp_ber_lock_symbol (
     const uint8_t * flags,
     size_t flags_len,
     size_t sustain,
@@ -401,7 +401,7 @@ int dp_ber_lock_symbol (
 
 **Returns:**
 
-The symbol index, or -1 for "never locked" — the honest answer, which forces the caller to say so rather than measure a transient. 
+The symbol index, or -1 for "never locked" — the honest answer, which forces the caller to say so rather than measure a transient. 64-bit, so an index past 2^31 symbols is returned whole rather than truncated. 
 
 
 
@@ -453,8 +453,8 @@ _Combine an analytic settling budget with measured lock instants._
 ```C++
 size_t dp_ber_settle_from (
     size_t budget,
-    int timing_lock,
-    int carrier_lock
+    int64_t timing_lock,
+    int64_t carrier_lock
 ) 
 ```
 
@@ -554,7 +554,7 @@ double dp_ber_theory_ber (
 
 
 * `m` Constellation order: 2, 4 or 8. 
-* `esn0` Es/N0 as a LINEAR ratio (not dB), &gt;= 0. 
+* `esn0` Es/N0 as a LINEAR ratio (not dB), &gt;= 0. A value &lt;= 0 (no signal) gives the chance rate 0.5, as [**dp\_ber\_theory\_ser()**](ber__core_8h.md#function-dp_ber_theory_ser) gives its own chance rate there; a negative ratio no longer reaches `sqrt` and returns NaN. 
 
 
 

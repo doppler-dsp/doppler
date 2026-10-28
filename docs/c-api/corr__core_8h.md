@@ -162,7 +162,7 @@ dp_corr_state_t * dp_corr_create (
 
 * `ref` Reference signal, CF32, length `ref_len`. 
 * `ref_len` Reference / FFT length in samples. 
-* `dwell` Integration depth; must be &gt;= 1. Pass 1 for immediate output on every call. 
+* `dwell` Integration depth; must be &gt;= 1 (0 is refused). Pass 1 for immediate output on every call. 
 * `nthreads` Accepted for API compatibility; ignored. 
 * `n_out` Inverse/output length; 0 =&gt; native (n). Must be &gt;= n. A larger value zero-pads the cross-spectrum before the inverse, returning the band-limited (Dirichlet) interpolation of the correlation on a finer length-n\_out grid — same peak, sub-bin lag resolution. Native is bit-exact and allocates no extra buffer. 
 
@@ -170,7 +170,7 @@ dp_corr_state_t * dp_corr_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL on a dwell of 0, an `n_out` below `ref_len`, or allocation failure. 
 ```C++
 >>> from doppler.spectral import Corr
 >>> import numpy as np
@@ -422,7 +422,7 @@ int dp_corr_set_state (
 
 
 
-The target must have been created with the same reference length n (the size check rejects any other); the reference itself is not restored, so build the target from the same reference. The frame count is restored as stored and is not checked against the target's dwell.
+The target must have been created with the same reference length n (the size check rejects any other); the reference itself is not restored, so build the target from the same reference. The frame count must be below the target's dwell, the range a live correlator holds; one at or past it would never dump again (doppler#2641) and is refused.
 
 
 
@@ -437,7 +437,7 @@ The target must have been created with the same reference length n (the size che
 
 **Returns:**
 
-DP\_OK on success, or DP\_ERR\_INVALID when the envelope (magic, version, endianness, size) does not match; the state is then left untouched. 
+DP\_OK on success, or DP\_ERR\_INVALID when the envelope (magic, version, endianness, size) does not match or the count is not below the dwell; the state is then left untouched. 
 
 
 

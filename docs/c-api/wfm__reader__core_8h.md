@@ -1538,6 +1538,9 @@ Blocks until whole samples arrive. A short or empty result does not mean end-of-
 Polls the file once per interrupt slice. Data already on disk is returned before any stop is honored. Only whole samples are consumed, so a writer flushing mid-sample cannot desynchronize the stream. For a BLUE capture the end is the writer patching `data_size` at close; raw, CSV and SigMF carry no end marker, so only a stop or a bounded budget ends their wait.
 
 
+A CSV capture is followed as [**dp\_wfm\_reader\_read**](wfm__reader__core_8h.md#function-dp_wfm_reader_read) reads it, line by line, and gives the same samples (#2658). Its unit is a complete line: one the writer has not finished with a newline is left unread until it is, and a complete line that does not parse stops the read there, as it stops [**dp\_wfm\_reader\_read**](wfm__reader__core_8h.md#function-dp_wfm_reader_read), so the follow then waits.
+
+
 
 
 **Parameters:**

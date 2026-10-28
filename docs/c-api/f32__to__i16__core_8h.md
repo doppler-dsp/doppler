@@ -153,7 +153,7 @@ dp_f32_to_i16_state_t * dp_f32_to_i16_create (
 
 
 
-Allocates state and stores `scale`. The `clipped` flag is initialised to 0. The only validation is that `scale` must be positive.
+Allocates state and stores `scale`. The `clipped` flag is initialised to 0. The only validation is that `scale` must be positive and finite.
 
 
 
@@ -167,7 +167,7 @@ Allocates state and stores `scale`. The `clipped` flag is initialised to 0. The 
 
 **Returns:**
 
-Heap-allocated state, or NULL if `scale` &lt;= 0 or on allocation failure. 
+Heap-allocated state, or NULL if `scale` is not positive and finite, or on allocation failure. 
 
 
 
@@ -368,6 +368,9 @@ JM_FORCEINLINE  JM_HOT int16_t dp_f32_to_i16_step (
 
 
 Computes `round(x * scale)`, clamps to the int16 range `[-32768, 32767]`, and latches the sticky `clipped` flag if the scaled value fell outside that range before clamping. At the default scale of 32768 a normalised `[-1, +1]` input maps to the full Q15 code range.
+
+
+A NaN input counts as clipped: it latches `clipped` and returns the negative full-scale code, -32768.
 
 
 

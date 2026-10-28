@@ -141,13 +141,13 @@ Pre-computes `iscale` = 1.0f / `scale`.
 **Parameters:**
 
 
-* `scale` Denominator scale; 1/scale is applied to each sample (default: 128.0f). Use 128.0 to recover normalised floats from a signed 8-bit stream. Must be &gt; 0. 
+* `scale` Denominator scale; 1/scale is applied to each sample (default: 128.0f). Use 128.0 to recover normalised floats from a signed 8-bit stream. Must be positive and finite. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL if `scale` &lt;= 0 or allocation fails. 
+Heap-allocated state, or NULL if `scale` is not positive and finite, or allocation fails. 
 
 
 

@@ -78,7 +78,7 @@ _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._ [More...
 |  void | [**dp\_carrier\_mpsk\_init**](#function-dp_carrier_mpsk_init) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll, int m) <br>_Initialise an M-PSK carrier loop in place (no allocation)._  |
 |  void | [**dp\_carrier\_mpsk\_reset**](#function-dp_carrier_mpsk_reset) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state) <br>_Re-seed the loop to its create-time frequency/phase; keep config._  |
 |  int | [**dp\_carrier\_mpsk\_set\_bn**](#function-dp_carrier_mpsk_set_bn) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, double val) <br>_Retune bn, keeping zeta:_ [_**dp\_carrier\_mpsk\_configure()**_](carrier__mpsk__core_8h.md#function-dp_carrier_mpsk_configure) _'s refusal and status. As a writable property a refusal raises ValueError and the value stays put (doppler#1987)._ |
-|  void | [**dp\_carrier\_mpsk\_set\_bn\_fll**](#function-dp_carrier_mpsk_set_bn_fll) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, double val) <br>_Set the FLL-assist bandwidth, live; the loop estimate is kept._  |
+|  int | [**dp\_carrier\_mpsk\_set\_bn\_fll**](#function-dp_carrier_mpsk_set_bn_fll) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, double val) <br>_Set the FLL-assist bandwidth, live; the loop estimate is kept._  |
 |  void | [**dp\_carrier\_mpsk\_set\_norm\_freq**](#function-dp_carrier_mpsk_set_norm_freq) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, double val) <br>_Re-seed the loop at a new carrier frequency._  |
 |  int | [**dp\_carrier\_mpsk\_set\_state**](#function-dp_carrier_mpsk_set_state) ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state, const void \* blob) <br>_Restore the full loop state (config and running) from_ `blob` _._ |
 |  size\_t | [**dp\_carrier\_mpsk\_state\_bytes**](#function-dp_carrier_mpsk_state_bytes) (const [**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md) \* state) <br>_Serialized-state byte size._  |
@@ -302,7 +302,7 @@ dp_carrier_mpsk_state_t * dp_carrier_mpsk_create (
 * `bn` Loop noise bandwidth (default 0.05). 
 * `zeta` Damping factor (default 0.707). 
 * `init_norm_freq` Seed carrier frequency, cycles/sample (default 0.0). 
-* `tsamps` Samples per symbol (default 64). 
+* `tsamps` Samples per symbol (default 64); 0 is refused. 
 * `bn_fll` FLL-assist bandwidth (default 0.0 = pure PLL). 
 * `m` Constellation order M, 2/4/8 (default 4 = QPSK). 
 
@@ -310,7 +310,7 @@ dp_carrier_mpsk_state_t * dp_carrier_mpsk_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL if `m` is not 2, 4 or 8, if (bn, zeta) fails [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), or on allocation failure. 
+Heap-allocated state, or NULL if `m` is not 2, 4 or 8, if `tsamps` is 0, if (bn, zeta) fails [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), if `bn_fll` fails [**dp\_loop\_filter\_fll\_bn\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_fll_bn_ok), or on allocation failure. 
 
 
 
@@ -727,7 +727,7 @@ int dp_carrier_mpsk_set_bn (
 
 _Set the FLL-assist bandwidth, live; the loop estimate is kept._ 
 ```C++
-void dp_carrier_mpsk_set_bn_fll (
+int dp_carrier_mpsk_set_bn_fll (
     dp_carrier_mpsk_state_t * state,
     double val
 ) 
@@ -735,7 +735,7 @@ void dp_carrier_mpsk_set_bn_fll (
 
 
 
-Re-derives the FLL gain as 4 \* `val`. Not validated: a value &lt;= 0 disables the FLL assist.
+Re-derives the FLL gain as 4 \* `val`; 0 is a pure PLL. A value outside [**dp\_loop\_filter\_fll\_bn\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_fll_bn_ok) (negative, NaN, or one whose gain overflows) is refused and nothing changes.
 
 
 
@@ -745,6 +745,13 @@ Re-derives the FLL gain as 4 \* `val`. Not validated: a value &lt;= 0 disables t
 
 * `state` Must be non-NULL. 
 * `val` New FLL-assist bandwidth, normalised to the symbol rate. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when `val` is refused. 
+
 
 
 

@@ -133,7 +133,7 @@ dp_i32_to_f32_state_t * dp_i32_to_f32_create (
 
 
 
-Pre-computes `iscale` = 1.0f / `scale`. Any non-zero finite float is a valid scale.
+Pre-computes `iscale` = 1.0f / `scale`. Any positive, finite float is a valid scale; zero, a negative value, NaN or an infinity is refused.
 
 
 
@@ -147,7 +147,7 @@ Pre-computes `iscale` = 1.0f / `scale`. Any non-zero finite float is a valid sca
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
+Heap-allocated state, or NULL if `scale` is not positive and finite, or on allocation failure. 
 
 
 

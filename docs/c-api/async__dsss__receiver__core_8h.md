@@ -282,7 +282,7 @@ The new grid is checked as create() checked the first, before anything is rebuil
 * `state` Must be non-NULL. 
 * `segments` Live-tracking Dll segments per code period. 
 * `sps` MpskReceiver samples per symbol (the resample target), &gt;= 2. 
-* `n` MpskReceiver's terminal outputs per symbol (`m_out`): inside [**dp\_ratesync\_m\_ok()**](ratesync__core_8h.md#function-dp_ratesync_m_ok) (even, 2..8), and dividing `sps`. 
+* `n` MpskReceiver's terminal outputs per symbol (`m_out`): inside [**dp\_ratesync\_m\_ok()**](ratesync__core_8h.md#function-dp_ratesync_m_ok) (even, 2..8) and at most `sps`  [**mpsk\_rx\_m\_out\_ok()**](mpsk__rx__loops_8h.md#function-mpsk_rx_m_out_ok), the rule create()'s own derived `n` satisfies, so get\_n() always re-applies (doppler#2650). It need not divide `sps`. 
 
 
 

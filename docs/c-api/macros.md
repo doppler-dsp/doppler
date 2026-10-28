@@ -161,6 +161,7 @@
 * **DP\_ONCE\_INIT** ([**dp\_once.h**](dp__once_8h.md))
 * **DP\_SUMSQ\_F32** ([**dp\_simd.h**](dp__simd_8h.md))
 * **DP\_DEFINE\_POD\_STATE** ([**dp\_state.h**](dp__state_8h.md))
+* **DP\_DEFINE\_POD\_STATE\_CHECKED** ([**dp\_state.h**](dp__state_8h.md))
 * **DP\_DEFINE\_POD\_STATE\_TLM** ([**dp\_state.h**](dp__state_8h.md))
 * **DP\_DEFINE\_RUN** ([**dp\_state.h**](dp__state_8h.md))
 * **DP\_FOURCC** ([**dp\_state.h**](dp__state_8h.md))
@@ -224,7 +225,15 @@
 * **DSSS\_RECEIVER\_STATE\_VERSION** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **DSSS\_RX\_BN\_CARRIER** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **DSSS\_RX\_BN\_FLL** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
+* **DP\_WFM\_PLAN\_WHY\_ARRAY\_LEN** ([**wfm\_plan.h**](wfm__plan_8h.md))
+* **DP\_WFM\_PLAN\_WHY\_ENABLE** ([**wfm\_plan.h**](wfm__plan_8h.md))
+* **DP\_WFM\_PLAN\_WHY\_NOT\_OBJECT** ([**wfm\_plan.h**](wfm__plan_8h.md))
 * **DP\_WFM\_PLAN\_WHY\_NO\_NOISE** ([**wfm\_plan.h**](wfm__plan_8h.md))
+* **DP\_WFM\_PLAN\_WHY\_NULL** ([**wfm\_plan.h**](wfm__plan_8h.md))
+* **DP\_WFM\_PLAN\_WHY\_NUMBER** ([**wfm\_plan.h**](wfm__plan_8h.md))
+* **DP\_WFM\_PLAN\_WHY\_SEED** ([**wfm\_plan.h**](wfm__plan_8h.md))
+* **DP\_WFM\_PLAN\_WHY\_SNR** ([**wfm\_plan.h**](wfm__plan_8h.md))
+* **DP\_WFM\_PLAN\_WHY\_UNKNOWN\_KEY** ([**wfm\_plan.h**](wfm__plan_8h.md))
 
 
 ## f
@@ -258,7 +267,6 @@
 
 ## h
 
-* **HBDECIM\_MAX\_OUT** ([**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md))
 * **HBDECIM\_STATE\_MAGIC** ([**hbdecim\_core.h**](hbdecim__core_8h.md))
 * **HBDECIM\_STATE\_VERSION** ([**hbdecim\_core.h**](hbdecim__core_8h.md))
 * **HBDECIM\_R2C\_STATE\_MAGIC** ([**hbdecim\_r2c\_core.h**](hbdecim__r2c__core_8h.md))
@@ -341,7 +349,6 @@
 * **MPSK\_RX\_AGC\_ALPHA** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_AGC\_BW\_RATIO** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_AGC\_RATIO\_DEFAULT** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
-* **MPSK\_RX\_EPS** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_LOCK\_DOWN** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_LOCK\_N\_DOWN** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **MPSK\_RX\_LOCK\_N\_UP** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))

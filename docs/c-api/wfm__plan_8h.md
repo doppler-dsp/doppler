@@ -61,6 +61,8 @@ _"Prepare once, materialize many" stimulus engine._ [More...](#detailed-descript
 | ---: | :--- |
 |  uint64\_t | [**dp\_wfm\_plan\_anchor\_seed**](#function-dp_wfm_plan_anchor_seed) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_The noise seed that reproduces a full compose._  |
 |  size\_t | [**dp\_wfm\_plan\_at**](#function-dp_wfm_plan_at) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, double snr, uint64\_t seed, float \_Complex \* out) <br>_Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse)._  |
+|  int | [**dp\_wfm\_plan\_check\_overrides**](#function-dp_wfm_plan_check_overrides) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, const char \* overrides\_json) <br>[_**dp\_wfm\_plan\_check\_overrides\_why()**_](wfm__plan_8h.md#function-dp_wfm_plan_check_overrides_why) _without the reason._ |
+|  int | [**dp\_wfm\_plan\_check\_overrides\_why**](#function-dp_wfm_plan_check_overrides_why) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, const char \* overrides\_json, const char \*\* why) <br>_Whether_ [_**dp\_wfm\_plan\_render()**_](wfm__plan_8h.md#function-dp_wfm_plan_render) _can honour_`overrides_json` _, and if not, why._ |
 |  int | [**dp\_wfm\_plan\_check\_snr**](#function-dp_wfm_plan_check_snr) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Whether an_ `snr` _can be applied to this Plan._ |
 |  void | [**dp\_wfm\_plan\_destroy**](#function-dp_wfm_plan_destroy) ([**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Destroy a Plan and free its caches. NULL is a no-op._  |
 |  int | [**dp\_wfm\_plan\_dump**](#function-dp_wfm_plan_dump) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, const char \* path) <br>_Save a Plan to a file (_ [_**dp\_wfm\_plan\_save()**_](wfm__plan_8h.md#function-dp_wfm_plan_save) _bytes at_`path` _)._ |
@@ -103,7 +105,15 @@ _"Prepare once, materialize many" stimulus engine._ [More...](#detailed-descript
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**DP\_WFM\_PLAN\_WHY\_ARRAY\_LEN**](wfm__plan_8h.md#define-dp_wfm_plan_why_array_len)  `"gains, phases and enable must each be an array of n\_sources entries"`<br>_Why an override is refused: a per-source array has the wrong length (or is not an array)._  |
+| define  | [**DP\_WFM\_PLAN\_WHY\_ENABLE**](wfm__plan_8h.md#define-dp_wfm_plan_why_enable)  `"every enable entry must be a bool or a number"`<br>_Why an override is refused: an enable entry is neither a bool nor a number._  |
+| define  | [**DP\_WFM\_PLAN\_WHY\_NOT\_OBJECT**](wfm__plan_8h.md#define-dp_wfm_plan_why_not_object)  `"overrides must be a JSON object"`<br>_Why an override is refused: the text is not a JSON object._  |
 | define  | [**DP\_WFM\_PLAN\_WHY\_NO\_NOISE**](wfm__plan_8h.md#define-dp_wfm_plan_why_no_noise)  `/* multi line expression */`<br>_Why a Plan refuses an_ `snr` _: its scene carries no noise._ |
+| define  | [**DP\_WFM\_PLAN\_WHY\_NULL**](wfm__plan_8h.md#define-dp_wfm_plan_why_null)  `"no Plan"`<br>_Why an override is refused: there is no Plan._  |
+| define  | [**DP\_WFM\_PLAN\_WHY\_NUMBER**](wfm__plan_8h.md#define-dp_wfm_plan_why_number)  `"every gains and phases entry must be a number"`<br>_Why an override is refused: a gains/phases entry is not a number._  |
+| define  | [**DP\_WFM\_PLAN\_WHY\_SEED**](wfm__plan_8h.md#define-dp_wfm_plan_why_seed)  `"seed must be an integer in 0..4294967295"`<br>_Why an override is refused:_ `seed` _is not an integer in_`0..2^32-1` _(every seed a Plan feeds is 32-bit)._ |
+| define  | [**DP\_WFM\_PLAN\_WHY\_SNR**](wfm__plan_8h.md#define-dp_wfm_plan_why_snr)  `"snr must be a number (dB)"`<br>_Why an override is refused:_ `snr` _is not a number._ |
+| define  | [**DP\_WFM\_PLAN\_WHY\_UNKNOWN\_KEY**](wfm__plan_8h.md#define-dp_wfm_plan_why_unknown_key)  `"overrides take only the keys gains, phases, enable, snr and seed"`<br>_Why an override is refused: it names a key the Plan does not know (a typo would otherwise render the baseline)._  |
 
 ## Detailed Description
 
@@ -212,14 +222,94 @@ size_t dp_wfm_plan_at (
 
 * `p` The Plan. 
 * `snr` SNR override, dB, read per segment in the snr\_mode of the source that sets its SNR: a bundled segment's lone source, else the source sharing the noise source's seed. A segment whose noise floor was set explicitly keeps that floor. 
-* `seed` Noise (and ranged-gap) seed override. Only its low 32 bits are used: the seeds it replaces are 32-bit. 
+* `seed` Noise (and ranged-gap) seed override, `0..2^32-1`: the seeds it replaces are 32-bit, so a larger one is refused rather than cut to its low 32 bits (which would make seeds differing only above bit 31 draw the same realization). 
 * `out` Receives the samples; must hold dp\_wfm\_plan\_len(p) of them. 
 
 
 
 **Returns:**
 
-Samples actually written for this draw (&lt;= dp\_wfm\_plan\_len(p)), or 0 when refused, with `out` untouched. 
+Samples actually written for this draw (&lt;= dp\_wfm\_plan\_len(p)), or 0 when refused (no noise floor, or `seed` above 2^32-1), with `out` untouched. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_plan\_check\_overrides 
+
+[_**dp\_wfm\_plan\_check\_overrides\_why()**_](wfm__plan_8h.md#function-dp_wfm_plan_check_overrides_why) _without the reason._
+```C++
+int dp_wfm_plan_check_overrides (
+    const wfm_plan_t * p,
+    const char * overrides_json
+) 
+```
+
+
+
+The status-only face, for a binding that raises a fixed message.
+
+
+
+
+**Parameters:**
+
+
+* `p` The Plan. 
+* `overrides_json` NUL-terminated override object, or NULL / "". 
+
+
+
+**Returns:**
+
+0 (DP\_OK), or DP\_ERR\_INVALID (-4) when render() would refuse. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_plan\_check\_overrides\_why 
+
+_Whether_ [_**dp\_wfm\_plan\_render()**_](wfm__plan_8h.md#function-dp_wfm_plan_render) _can honour_`overrides_json` _, and if not, why._
+```C++
+int dp_wfm_plan_check_overrides_why (
+    const wfm_plan_t * p,
+    const char * overrides_json,
+    const char ** why
+) 
+```
+
+
+
+The one rule render() applies before it draws anything (see its doc for the keys). NULL or "" is the baseline and is accepted. An `snr` on a Plan whose scene carries no noise is refused for the reason DP\_WFM\_PLAN\_WHY\_NO\_NOISE.
+
+
+
+
+**Parameters:**
+
+
+* `p` The Plan; NULL is refused (DP\_WFM\_PLAN\_WHY\_NULL). 
+* `overrides_json` NUL-terminated override object, or NULL / "". 
+* `why` When non-NULL, receives NULL on success or one of the static DP\_WFM\_PLAN\_WHY\_\* strings. 
+
+
+
+**Returns:**
+
+0 (DP\_OK) when render() would honour every key; DP\_ERR\_INVALID (-4) when it would refuse. 
 
 
 
@@ -509,7 +599,7 @@ size_t dp_wfm_plan_render (
 `overrides_json` is a small JSON object, all keys optional: `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB, "seed":u}` (`gains`/`phases`/`enable` are per-source, flat and segment-major, length = [**dp\_wfm\_plan\_n\_sources()**](wfm__plan_8h.md#function-dp_wfm_plan_n_sources)). An empty object (or NULL) renders the baseline — bit-identical to `Composer(scene).compose()`. Writes up to `dp_wfm_plan_len(p)` samples to `out`. An `"snr"` key on a Plan whose scene carries no noise is refused (see [**dp\_wfm\_plan\_check\_snr()**](wfm__plan_8h.md#function-dp_wfm_plan_check_snr)).
 
 
-Keys are read leniently: overrides that do not parse as JSON render the baseline, a `gains`/`phases`/`enable` array whose length is not [**dp\_wfm\_plan\_n\_sources()**](wfm__plan_8h.md#function-dp_wfm_plan_n_sources) (or, for `gains`/`phases`, that holds a non-number) is ignored, and a non-numeric `snr`/`seed` is ignored. An `enable` entry is on when it is `true` or a non-zero number.
+Overrides the Plan cannot honour are refused, never read as the baseline: text that is not a JSON object, a key other than the five above, a `gains`/`phases`/`enable` array whose length is not [**dp\_wfm\_plan\_n\_sources()**](wfm__plan_8h.md#function-dp_wfm_plan_n_sources), a `gains`/`phases` entry that is not a number, an `enable` entry that is neither a bool nor a number, a non-numeric `snr`, and a `seed` that is not an integer in `0..2^32-1`. The rule is [**dp\_wfm\_plan\_check\_overrides\_why()**](wfm__plan_8h.md#function-dp_wfm_plan_check_overrides_why), which names the reason. An `enable` entry is on when it is `true` or a non-zero number.
 
 
 
@@ -525,7 +615,7 @@ Keys are read leniently: overrides that do not parse as JSON render the baseline
 
 **Returns:**
 
-Samples actually written for this draw (&lt;= dp\_wfm\_plan\_len(p)), or 0 when refused, with `out` untouched. 
+Samples actually written for this draw (&lt;= dp\_wfm\_plan\_len(p)), or 0 when refused (a NULL Plan, an override [**dp\_wfm\_plan\_check\_overrides()**](wfm__plan_8h.md#function-dp_wfm_plan_check_overrides) refuses), with `out` untouched. 
 
 
 
@@ -655,6 +745,48 @@ Blob size in bytes; 0 for a NULL Plan.
 
 
 
+### define DP\_WFM\_PLAN\_WHY\_ARRAY\_LEN 
+
+_Why an override is refused: a per-source array has the wrong length (or is not an array)._ 
+```C++
+#define DP_WFM_PLAN_WHY_ARRAY_LEN `"gains, phases and enable must each be an array of n_sources entries"`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_WFM\_PLAN\_WHY\_ENABLE 
+
+_Why an override is refused: an enable entry is neither a bool nor a number._ 
+```C++
+#define DP_WFM_PLAN_WHY_ENABLE `"every enable entry must be a bool or a number"`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_WFM\_PLAN\_WHY\_NOT\_OBJECT 
+
+_Why an override is refused: the text is not a JSON object._ 
+```C++
+#define DP_WFM_PLAN_WHY_NOT_OBJECT `"overrides must be a JSON object"`
+```
+
+
+
+
+<hr>
+
+
+
 ### define DP\_WFM\_PLAN\_WHY\_NO\_NOISE 
 
 _Why a Plan refuses an_ `snr` _: its scene carries no noise._
@@ -668,6 +800,76 @@ A segment is noisy when a source in it has an `snr` below WFM\_SYNTH\_SNR\_CLEAN
 
 
         
+
+<hr>
+
+
+
+### define DP\_WFM\_PLAN\_WHY\_NULL 
+
+_Why an override is refused: there is no Plan._ 
+```C++
+#define DP_WFM_PLAN_WHY_NULL `"no Plan"`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_WFM\_PLAN\_WHY\_NUMBER 
+
+_Why an override is refused: a gains/phases entry is not a number._ 
+```C++
+#define DP_WFM_PLAN_WHY_NUMBER `"every gains and phases entry must be a number"`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_WFM\_PLAN\_WHY\_SEED 
+
+_Why an override is refused:_ `seed` _is not an integer in_`0..2^32-1` _(every seed a Plan feeds is 32-bit)._
+```C++
+#define DP_WFM_PLAN_WHY_SEED `"seed must be an integer in 0..4294967295"`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_WFM\_PLAN\_WHY\_SNR 
+
+_Why an override is refused:_ `snr` _is not a number._
+```C++
+#define DP_WFM_PLAN_WHY_SNR `"snr must be a number (dB)"`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_WFM\_PLAN\_WHY\_UNKNOWN\_KEY 
+
+_Why an override is refused: it names a key the Plan does not know (a typo would otherwise render the baseline)._ 
+```C++
+#define DP_WFM_PLAN_WHY_UNKNOWN_KEY `"overrides take only the keys gains, phases, enable, snr and seed"`
+```
+
+
+
 
 <hr>
 

@@ -37,6 +37,24 @@ extern "C"
 
   int dp_wfm_plan_check_snr (const wfm_plan_t *p);
 
+#define DP_WFM_PLAN_WHY_NOT_OBJECT "overrides must be a JSON object"
+#define DP_WFM_PLAN_WHY_UNKNOWN_KEY                                           \
+  "overrides take only the keys gains, phases, enable, snr and seed"
+#define DP_WFM_PLAN_WHY_ARRAY_LEN                                             \
+  "gains, phases and enable must each be an array of n_sources entries"
+#define DP_WFM_PLAN_WHY_NUMBER "every gains and phases entry must be a number"
+#define DP_WFM_PLAN_WHY_ENABLE "every enable entry must be a bool or a number"
+#define DP_WFM_PLAN_WHY_SNR "snr must be a number (dB)"
+#define DP_WFM_PLAN_WHY_SEED "seed must be an integer in 0..4294967295"
+#define DP_WFM_PLAN_WHY_NULL "no Plan"
+
+  int dp_wfm_plan_check_overrides_why (const wfm_plan_t *p,
+                                       const char *overrides_json,
+                                       const char **why);
+
+  int dp_wfm_plan_check_overrides (const wfm_plan_t *p,
+                                   const char *overrides_json);
+
   size_t dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
                           float _Complex *out);
 

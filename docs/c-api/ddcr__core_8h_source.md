@@ -38,6 +38,8 @@ extern "C"
     dp_RateConverter_state_t *rc;   
     double                 rate; 
     bool narrow_pulse;
+    float _Complex *scratch;
+    size_t          scratch_cap; 
   } dp_ddcr_state_t;
 
   dp_ddcr_state_t *dp_ddcr_create (double norm_freq, double rate);

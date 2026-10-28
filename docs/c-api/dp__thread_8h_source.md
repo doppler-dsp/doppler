@@ -116,6 +116,7 @@ dp_thread_sleep_us (unsigned us)
 
 #else /* POSIX */
 
+#include <errno.h>
 #include <pthread.h>
 #include <sched.h>
 #include <time.h>
@@ -206,7 +207,12 @@ dp_thread_sleep_us (unsigned us)
   struct timespec ts;
   ts.tv_sec  = (time_t)(us / 1000000u);
   ts.tv_nsec = (long)(us % 1000000u) * 1000L;
-  nanosleep (&ts, NULL);
+  /* nanosleep writes the unslept remainder into its second argument when a
+     signal interrupts it, so passing ts for both resumes where it stopped.
+     Any failure other than EINTR (EINVAL cannot arise from these fields)
+     ends the loop rather than spinning. */
+  while (nanosleep (&ts, &ts) != 0 && errno == EINTR)
+    ;
 }
 
 #endif /* _WIN32 */

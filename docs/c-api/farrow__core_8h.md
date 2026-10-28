@@ -176,13 +176,13 @@ dp_farrow_state_t * dp_farrow_create (
 **Parameters:**
 
 
-* `order` 0 = linear, 1 = parabolic, 2 = cubic. Not validated in C: any other value is evaluated as cubic. Python takes the string "linear", "parabolic" or "cubic" (default "cubic"). 
+* `order` 0 = linear, 1 = parabolic, 2 = cubic; any other value is refused. Python takes the string "linear", "parabolic" or "cubic" (default "cubic"). 
 
 
 
 **Returns:**
 
-Heap-allocated state with a zeroed delay line, or NULL on allocation failure. 
+Heap-allocated state with a zeroed delay line, or NULL on an unknown `order` or allocation failure. 
 
 
 
@@ -559,7 +559,7 @@ JM_FORCEINLINE void farrow_init (
 
 
 * `s` State to initialise (e.g. embedded by value). Must be non-NULL. 
-* `order` FARROW\_LINEAR, FARROW\_PARABOLIC or FARROW\_CUBIC. Not validated: any other value is evaluated as cubic by [**farrow\_eval()**](farrow__core_8h.md#function-farrow_eval). 
+* `order` FARROW\_LINEAR, FARROW\_PARABOLIC or FARROW\_CUBIC. Not validated here ([**dp\_farrow\_create()**](farrow__core_8h.md#function-dp_farrow_create) is the checked door): any other value is evaluated as cubic by [**farrow\_eval()**](farrow__core_8h.md#function-farrow_eval). 
 
 
 

@@ -74,7 +74,7 @@ _BurstDespreader component API._ [More...](#detailed-description)
 |  size\_t | [**dp\_burst\_despreader\_get\_stat\_n**](#function-dp_burst_despreader_get_stat_n) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Number of prompts folded into the burst statistics so far._  |
 |  void | [**dp\_burst\_despreader\_get\_state**](#function-dp_burst_despreader_get_state) (const [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, void \* blob) <br>_Serialize_ `state` _(loops, NCO, code phase, accumulators, burst statistics, bandwidths, preamble progress and acq code) into_`blob` _._ |
 |  void | [**dp\_burst\_despreader\_reset**](#function-dp_burst_despreader_reset) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state) <br>_Re-seed the loops to the create-time phase/frequency and re-arm the burst statistics; preserve config._  |
-|  void | [**dp\_burst\_despreader\_set\_acq**](#function-dp_burst_despreader_set_acq) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t acq\_reps) <br>_Enable preamble-aided pull-in with a distinct acquisition code._  |
+|  int | [**dp\_burst\_despreader\_set\_acq**](#function-dp_burst_despreader_set_acq) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t acq\_reps) <br>_Enable preamble-aided pull-in with a distinct acquisition code._  |
 |  int | [**dp\_burst\_despreader\_set\_bn\_carrier**](#function-dp_burst_despreader_set_bn_carrier) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Set the carrier loop bandwidth (recomputes the loop gains)._  |
 |  int | [**dp\_burst\_despreader\_set\_bn\_code**](#function-dp_burst_despreader_set_bn_code) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Set the code loop bandwidth (recomputes the loop gains)._  |
 |  void | [**dp\_burst\_despreader\_set\_norm\_freq**](#function-dp_burst_despreader_set_norm_freq) ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) \* state, double val) <br>_Override the carrier frequency estimate, cycles/sample (re-seed)._  |
@@ -726,7 +726,7 @@ True
 
 _Enable preamble-aided pull-in with a distinct acquisition code._ 
 ```C++
-void dp_burst_despreader_set_acq (
+int dp_burst_despreader_set_acq (
     dp_burst_despreader_state_t * state,
     const uint8_t * acq_code,
     size_t acq_code_len,
@@ -736,7 +736,7 @@ void dp_burst_despreader_set_acq (
 
 
 
-Track `acq_reps` periods of `acq_code` coherently (the unmodulated, repeated acquisition preamble — a full ±pi phase discriminator, so the loops pull in even a wide residual) before switching to the data code for the payload. Call before feeding the burst; the acq mode clears automatically once the preamble is consumed, and re-arms on [**dp\_burst\_despreader\_reset()**](burst__despreader__core_8h.md#function-dp_burst_despreader_reset). NB: set\_acq re-arms the PREAMBLE only — the cumulative burst statistics (lock\_metric / snr\_est / lock\_stat / stat\_n) are re-armed by [**dp\_burst\_despreader\_reset()**](burst__despreader__core_8h.md#function-dp_burst_despreader_reset); call it between bursts.
+Track `acq_reps` periods of `acq_code` coherently (the unmodulated, repeated acquisition preamble — a full ±pi phase discriminator, so the loops pull in even a wide residual) before switching to the data code for the payload. Call before feeding the burst; the acq mode clears automatically once the preamble is consumed, and re-arms on [**dp\_burst\_despreader\_reset()**](burst__despreader__core_8h.md#function-dp_burst_despreader_reset). The tracked carrier frequency carries over: the carrier loop's integrator is rescaled to the symbol period now in force (the acq code's, or the data code's when this disables the preamble). NB: set\_acq re-arms the PREAMBLE only — the cumulative burst statistics (lock\_metric / snr\_est / lock\_stat / stat\_n) are re-armed by [**dp\_burst\_despreader\_reset()**](burst__despreader__core_8h.md#function-dp_burst_despreader_reset); call it between bursts.
 
 
 
@@ -747,7 +747,13 @@ Track `acq_reps` periods of `acq_code` coherently (the unmodulated, repeated acq
 * `state` Must be non-NULL. 
 * `acq_code` Acquisition code (0/1), length acq\_code\_len; copied. 
 * `acq_code_len` Acquisition code length in chips. 
-* `acq_reps` Number of acq-code periods in the preamble. A NULL/empty `acq_code` or `acq_reps == 0` disables the preamble (payload-only), as does an allocation failure; any previous acq code is freed either way. 
+* `acq_reps` Number of acq-code periods in the preamble. A NULL/empty `acq_code` or `acq_reps == 0` disables the preamble (payload-only) and frees any previous acq code. 
+
+
+
+**Returns:**
+
+DP\_OK, the preamble set (or, for the disabling arguments above, cleared); DP\_ERR\_MEMORY when the copy of `acq_code` cannot be allocated, in which case nothing changes: the previous preamble, or its absence, stands. Python raises ValueError on the failure. 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import BurstDespreader
@@ -771,6 +777,7 @@ Track `acq_reps` periods of `acq_code` coherently (the unmodulated, repeated acq
 0.0
 ```
  
+
 
 
 
@@ -865,7 +872,10 @@ void dp_burst_despreader_set_norm_freq (
 
 
 
-Sets the NCO frequency and the carrier loop's integrator (scaled to the data-code symbol period) so tracking continues from `val`. The create-time seed is not changed: [**dp\_burst\_despreader\_reset()**](burst__despreader__core_8h.md#function-dp_burst_despreader_reset) still returns to `init_norm_freq`. The value is not validated.
+Sets the NCO frequency and the carrier loop's integrator, scaled to the symbol period in force (the acq code's during a [**dp\_burst\_despreader\_set\_acq()**](burst__despreader__core_8h.md#function-dp_burst_despreader_set_acq) preamble, the data code's otherwise), so tracking continues from `val` and [**dp\_burst\_despreader\_get\_norm\_freq()**](burst__despreader__core_8h.md#function-dp_burst_despreader_get_norm_freq) reads `val` back after the next symbol's loop update absent any error. The create-time seed is not changed: [**dp\_burst\_despreader\_reset()**](burst__despreader__core_8h.md#function-dp_burst_despreader_reset) still returns to `init_norm_freq`.
+
+
+The value is not validated.
 
 
 

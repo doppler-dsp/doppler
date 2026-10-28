@@ -59,6 +59,7 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 
 | Type | Name |
 | ---: | :--- |
+|  size\_t | [**dp\_hbdecim\_q15\_consumed**](#function-dp_hbdecim_q15_consumed) (const [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_Complex input samples the last_ [_**dp\_hbdecim\_q15\_execute()**_](hbdecim__q15__core_8h.md#function-dp_hbdecim_q15_execute) _took._ |
 |  [**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* | [**dp\_hbdecim\_q15\_create**](#function-dp_hbdecim_q15_create) (size\_t num\_taps, const float \* h) <br>_Allocate and initialise a fixed-point halfband 2:1 decimator. The FIR branch coefficients are supplied as float and converted internally to Q15 with a x0.5 polyphase rate scaling. The full halfband prototype is sparse (every other tap is zero); supply only the non-zero FIR branch taps, not the full sparse prototype._  |
 |  void | [**dp\_hbdecim\_q15\_destroy**](#function-dp_hbdecim_q15_destroy) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r) <br>_Free all heap resources owned by the decimator state. Releases the Q15 coefficient buffer, all four delay rings, and the state struct itself. Passing NULL is a no-op. The Python wrapper calls this in_ **del** _and_**exit** _; call it explicitly only for deterministic release before GC reclaims the object._ |
 |  size\_t | [**dp\_hbdecim\_q15\_execute**](#function-dp_hbdecim_q15_execute) ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md) \* r, const int16\_t \* in, size\_t n\_in, int16\_t \* out, size\_t max\_out) <br>_Decimate a block of interleaved IQ int16 samples by 2. Input must be interleaved int16\_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass a 1-D array of 2\*n\_complex elements. Each pair of complex input samples produces one complex output sample, so an array of length 2N yields at most N output pairs (2N int16 output values). If n\_in is odd the trailing IQ pair is buffered and consumed on the next call._  |
@@ -150,6 +151,43 @@ dp_hbdecim_q15_destroy(r);
     
 ## Public Functions Documentation
 
+
+
+
+### function dp\_hbdecim\_q15\_consumed 
+
+_Complex input samples the last_ [_**dp\_hbdecim\_q15\_execute()**_](hbdecim__q15__core_8h.md#function-dp_hbdecim_q15_execute) _took._
+```C++
+size_t dp_hbdecim_q15_consumed (
+    const dp_hbdecim_q15_state_t * r
+) 
+```
+
+
+
+Equal to its `n_in` unless `out` filled first; then the caller resumes at in + 2 \* consumed int16 elements. 0 after create, reset and set\_state.
+
+
+
+
+**Parameters:**
+
+
+* `r` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Complex input samples taken by the last execute. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -269,7 +307,7 @@ size_t dp_hbdecim_q15_execute (
 
 **Returns:**
 
-min(available, max\_out) COMPLEX samples  twice that many int16\_t values; 0 when `n_in` or `max_out` is 0. When `max_out` stops the loop early, only the next unconsumed input pair is buffered as pending; any further input in this call is dropped. 
+min(available, max\_out) COMPLEX samples  twice that many int16\_t values; 0 when `n_in` or `max_out` is 0. When `max_out` stops the loop early, the call stops at the pair boundary and drops nothing: [**dp\_hbdecim\_q15\_consumed()**](hbdecim__q15__core_8h.md#function-dp_hbdecim_q15_consumed) says how much input it took, and offering the rest again resumes exactly (doppler#2643). 
 ```C++
 >>> import numpy as np
 >>> from doppler.resample import HalfbandDecimatorQ15

@@ -43,6 +43,7 @@ typedef struct {
     int      has_pending; 
     int16_t  pending_I;   
     int16_t  pending_Q;   
+    size_t   consumed;    
 } dp_hbdecim_q15_state_t;
 
 dp_hbdecim_q15_state_t *dp_hbdecim_q15_create(size_t num_taps, const float *h);
@@ -54,6 +55,8 @@ void dp_hbdecim_q15_reset(dp_hbdecim_q15_state_t *r);
 size_t dp_hbdecim_q15_execute(dp_hbdecim_q15_state_t *r,
                            const int16_t *in, size_t n_in,
                            int16_t *out, size_t max_out);
+
+size_t dp_hbdecim_q15_consumed(const dp_hbdecim_q15_state_t *r);
 
 size_t dp_hbdecim_q15_execute_max_out(dp_hbdecim_q15_state_t *r);
 

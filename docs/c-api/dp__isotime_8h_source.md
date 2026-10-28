@@ -66,6 +66,20 @@ extern "C"
 #define DP_ISOTIME_EXTENDED 1
 
   static inline int
+  dp_isotime_is_leap_ (int64_t y)
+  {
+    return (y % 4 == 0) && (y % 100 != 0 || y % 400 == 0);
+  }
+
+  static inline int
+  dp_isotime_days_in_month_ (int64_t y, int m)
+  {
+    static const int days[12]
+        = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    return days[m - 1] + (m == 2 && dp_isotime_is_leap_ (y));
+  }
+
+  static inline int
   dp_isotime_utc_tm_ (int64_t sec, struct tm *out)
   {
     /* floor division: 86400 * days + rem with rem in [0, 86399], also for
@@ -94,9 +108,7 @@ extern "C"
 
     static const int cum[12]
         = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
-    /* A remainder of zero is sign-agnostic in C, so this is the Gregorian
-       rule for negative years too. */
-    const int leap = (y % 4 == 0) && (y % 100 != 0 || y % 400 == 0);
+    const int leap = dp_isotime_is_leap_ (y);
 
     memset (out, 0, sizeof *out);
     out->tm_year  = (int) (y - 1900);
@@ -256,7 +268,8 @@ extern "C"
     /* A leap second is spelled :60 and is a real instant on the wire; every
        other field is range-checked so a transposed one cannot slide through
        as a plausible date. */
-    if (Mo < 1 || Mo > 12 || D < 1 || D > 31 || h > 23 || mi > 59 || se > 60)
+    if (Mo < 1 || Mo > 12 || D < 1 || D > dp_isotime_days_in_month_ (Y, Mo)
+        || h > 23 || mi > 59 || se > 60)
       return -1;
 
     uint32_t frac = 0;

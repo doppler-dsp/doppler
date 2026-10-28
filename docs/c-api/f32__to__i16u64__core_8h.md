@@ -160,13 +160,13 @@ Stores `scale` and initialises the sticky `clipped` flag to 0.
 **Parameters:**
 
 
-* `scale` Multiply factor applied before quantisation and saturation (default: 32768.0f). Use 32768.0 to convert normalised `[-1, +1]` samples to Q15 packed into the low 16 bits of a uint64. Must be &gt; 0. 
+* `scale` Multiply factor applied before quantisation and saturation (default: 32768.0f). Use 32768.0 to convert normalised `[-1, +1]` samples to Q15 packed into the low 16 bits of a uint64. Must be positive and finite. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL if `scale` &lt;= 0 or allocation fails. 
+Heap-allocated state, or NULL if `scale` is not positive and finite, or allocation fails. 
 
 
 
@@ -367,6 +367,9 @@ JM_FORCEINLINE  JM_HOT uint64_t dp_f32_to_i16u64_step (
 
 
 Computes `round(x * scale)`, saturates to `[-32768, 32767]`, then zero-extends the 16-bit two's-complement pattern into the lower 16 bits of a uint64 (upper 48 bits are always zero — headroom for the NCO phase accumulator). Latches the sticky `clipped` flag on saturation.
+
+
+A NaN input counts as clipped: it latches `clipped` and returns the negative full-scale code, -32768 (0x8000).
 
 
 

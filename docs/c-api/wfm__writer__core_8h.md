@@ -454,7 +454,7 @@ double dp_wfm_writer_clip_fraction (
 
 **Returns:**
 
-Clipped components / (2 x samples written), 0.0 before any write. The denominator is 2 per sample for every wire type, including the one-component real types. 
+Clipped components / components quantised while tracking was on (one per sample for a real type, two for a complex one), 0.0 before any such write. Writes made with tracking off count in neither, so enabling it mid-stream measures only what follows. 
 
 
 

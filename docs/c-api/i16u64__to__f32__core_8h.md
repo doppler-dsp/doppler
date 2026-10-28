@@ -147,13 +147,13 @@ Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single multiply
 **Parameters:**
 
 
-* `scale` Denominator scale; 1/scale is applied after sign-extension (default: 32768.0f). Use 32768.0 to match F32ToI16U64 at its default scale. Must be &gt; 0. 
+* `scale` Denominator scale; 1/scale is applied after sign-extension (default: 32768.0f). Use 32768.0 to match F32ToI16U64 at its default scale. Must be positive and finite. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL when `scale` &lt;= 0 or the allocation fails. 
+Heap-allocated state, or NULL when `scale` is not positive and finite, or the allocation fails. 
 
 
 

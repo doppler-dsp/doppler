@@ -355,7 +355,8 @@ dp_wfm_synth_step(dp_wfm_synth_state_t *state)
         float _Complex s1[1];
         wfm_synth_shape(state, &sym, 1, s1);
     } else if (state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS) {
-        /* User bit pattern, oversampled sps and cycled to fill the request. The
+        /* User bit pattern, oversampled sps and sent once: it never wraps, and
+         * once it ends (with no refill source) the output is silence. The
          * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
          * instead of the LFSR; bit_mod picks the mapping. A dsss burst is the
          * same machinery over the chip pattern set_dsss_chips() installed. */

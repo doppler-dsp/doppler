@@ -110,6 +110,7 @@ _The standard state_ **bytes interface** _for doppler._[More...](#detailed-descr
 | Type | Name |
 | ---: | :--- |
 | define  | [**DP\_DEFINE\_POD\_STATE**](dp__state_8h.md#define-dp_define_pod_state) (pfx, STATE\_T, MAGIC, VERSION) `/* multi line expression */`<br>_Define the whole-struct state triplet for a pointer-free POD object._  |
+| define  | [**DP\_DEFINE\_POD\_STATE\_CHECKED**](dp__state_8h.md#define-dp_define_pod_state_checked) (pfx, STATE\_T, MAGIC, VERSION, OK) `/* multi line expression */`<br>_DP\_DEFINE\_POD\_STATE whose restore refuses a payload the object's own predicate rejects._  |
 | define  | [**DP\_DEFINE\_POD\_STATE\_TLM**](dp__state_8h.md#define-dp_define_pod_state_tlm) (pfx, STATE\_T, MAGIC, VERSION, MEMBER) `/* multi line expression */`<br>_Whole-struct POD triplet for an object carrying a live telemetry attachment (or any other non-state member that must not travel in the blob)._  |
 | define  | [**DP\_DEFINE\_RUN**](dp__state_8h.md#define-dp_define_run) (pfx, STATE\_T, IN\_T, OUT\_T) `/* multi line expression */`<br>_Define the standard_ `<pfx>_run` _pure-transducer wrapper._ |
 | define  | [**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) (a, b, c, d) `/* multi line expression */`<br> |
@@ -578,6 +579,30 @@ _Define the whole-struct state triplet for a pointer-free POD object._
 
 
 Generates `<pfx>_state_bytes/get_state/set_state` that snapshot the entire `STATE_T` after the envelope. Correct only when the struct holds no pointers (the snapshot would capture a stale address): the running state _and_ the derived config are serialized, and config restores identically into an identically-built instance. For a struct with pointers or a composition, hand-write the triplet (pack running fields / delegate to children) instead. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_DEFINE\_POD\_STATE\_CHECKED 
+
+_DP\_DEFINE\_POD\_STATE whose restore refuses a payload the object's own predicate rejects._ 
+```C++
+#define DP_DEFINE_POD_STATE_CHECKED (
+    pfx,
+    STATE_T,
+    MAGIC,
+    VERSION,
+    OK
+) `/* multi line expression */`
+```
+
+
+
+The envelope never reads a payload field, so a whole-struct snapshot with one field forged keeps its size and passes dp\_state\_validate(). This form decodes the payload into a temporary `STATE_T`, calls `int OK (const STATE_T *)` on it, and commits it over `s` only when the predicate returns non-zero; otherwise set\_state returns `DP_ERR_INVALID` and `s` is byte-identical to before (doppler#2641). `OK` is the same rule create() applies, stated over a stored struct (for example [**dp\_loop\_filter\_state\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_state_ok)). 
 
 
         

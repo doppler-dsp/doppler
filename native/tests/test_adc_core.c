@@ -73,5 +73,48 @@ main (void)
     dp_adc_destroy (d);
   }
 
+  /* #2651, review of #2659: the dither's DISTRIBUTION is gated, not only
+     its draw count. A TPDF over [-1, +1] LSB, added before rounding, puts a
+     sample at 0 LSB on code 0 with probability 3/4 and on +/-1 with 1/8
+     each, and one at +0.25 LSB on +1, 0 and -1 with 9/32, 11/16 and 1/32
+     -- the triangle's tail areas. A uniform, or a second "uniform" that is
+     a function of the first, lands elsewhere. 200000 draws hold each rate
+     to about 1e-3; the bound is 5 sigma of the worst cell. */
+  {
+    enum
+    {
+      N = 200000
+    };
+    const double offs[2] = { 0.0, 0.25 };
+    const double pm[2][3]
+        = { { 0.125, 0.75, 0.125 }, { 1.0 / 32, 11.0 / 16, 9.0 / 32 } };
+    for (int c = 0; c < 2; c++)
+      {
+        dp_adc_state_t *d = dp_adc_create (8, 0.0f, 1);
+        DP_REQUIRE (d != NULL);
+        const float x    = (float)(offs[c] / d->scale);
+        size_t      n[3] = { 0, 0, 0 }, other = 0;
+        for (int i = 0; i < N; i++)
+          {
+            int64_t q = dp_adc_step (d, x);
+            if (q >= -1 && q <= 1)
+              n[q + 1]++;
+            else
+              other++;
+          }
+        DP_CHECK (other == 0);
+        for (int k = 0; k < 3; k++)
+          {
+            double p   = (double)n[k] / N;
+            double tol = 5.0 * sqrt (pm[c][k] * (1.0 - pm[c][k]) / N);
+            if (!(fabs (p - pm[c][k]) <= tol))
+              DP_TEST_ERR ("  dither at %g LSB: code %d rate %g, want %g\n",
+                           offs[c], k - 1, p, pm[c][k]);
+            DP_CHECK (fabs (p - pm[c][k]) <= tol);
+          }
+        dp_adc_destroy (d);
+      }
+  }
+
   DP_TEST_END ("test_adc_core");
 }

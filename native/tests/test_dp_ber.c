@@ -100,7 +100,9 @@ test_theory (void)
 
   /* #2651: no signal is a coin flip per bit, for every M -- as theory_ser
      gives its chance rate there. A negative ratio used to reach sqrt() and
-     return NaN for BPSK/QPSK. */
+     return NaN for BPSK/QPSK. 0.5 is CHOSEN, not the formulas' limit: BPSK
+     and QPSK approach it from just above 0, but 8PSK's SER/3 approaches
+     2Q(0)/3 = 1/3, so its curve steps there by design. */
   {
     static const int ms[] = { 2, 4, 8 };
     for (size_t i = 0; i < 3; i++)
@@ -108,6 +110,9 @@ test_theory (void)
         DP_CHECK (dp_ber_theory_ber (ms[i], -1.0) == 0.5);
         DP_CHECK (dp_ber_theory_ber (ms[i], 0.0) == 0.5);
       }
+    DP_CHECK (fabs (dp_ber_theory_ber (2, 1e-12) - 0.5) < 1e-5);
+    DP_CHECK (fabs (dp_ber_theory_ber (4, 1e-12) - 0.5) < 1e-5);
+    DP_CHECK (fabs (dp_ber_theory_ber (8, 1e-12) - 1.0 / 3.0) < 1e-5);
   }
 
   /* An M with no closed form here is refused, never answered with another

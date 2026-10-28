@@ -178,6 +178,10 @@ extern "C"
    *               (no signal) gives the chance rate 0.5, as
    *               dp_ber_theory_ser() gives its own chance rate there; a
    *               negative ratio no longer reaches `sqrt` and returns NaN.
+   *               0.5 is a chosen value, not the formulas' limit: BPSK and
+   *               QPSK reach it as esn0 -> 0+, but 8PSK's `SER/log2 M`
+   *               reaches 1/3, so its curve steps from 0.5 to 1/3 just
+   *               above 0.
    *  @return The bit error rate, or NAN for an unsupported M. */
   double dp_ber_theory_ber (int m, double esn0);
 

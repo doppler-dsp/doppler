@@ -806,3 +806,39 @@ name = "Async DSSS receiver, searching, at the specification point"
 unit = "sample"
 definition = "The searching receiver in the specification configuration the certification measures: a 1,023-chip code at 3.069 Mcps and 2 samples per chip, its own search over plus or minus one code-period frequency (3 kHz), fed noise and searching for every sample fed: 65,536 samples per round; throughput counts input samples."
 samples = 1
+
+["c:corr2d::delay_doppler_32x1024_1t"]
+name = "Delay-Doppler map, 32 x 1,024, one thread"
+unit = "sample"
+definition = "One DelayDoppler execute on 32 code periods of 1,024 samples: 32 row correlations against the code, then 1,024 length-32 slow-time FFTs, on one thread; throughput counts input samples, 32,768 per map."
+samples = 1
+
+["c:corr2d::delay_doppler_256x4096_1t"]
+name = "Delay-Doppler map, 256 x 4,096, one thread"
+unit = "sample"
+definition = "One DelayDoppler execute on 256 code periods of 4,096 samples: 256 row correlations against the code, then 4,096 length-256 slow-time FFTs, on one thread; throughput counts input samples, 1,048,576 per map."
+samples = 1
+
+["c:corr2d::delay_doppler_256x4096_all"]
+name = "Delay-Doppler map, 256 x 4,096, every core"
+unit = "sample"
+definition = "The 256 x 4,096 DelayDoppler map with nthreads=0, so the row correlations and the slow-time FFTs spread over every online core; throughput counts input samples, 1,048,576 per map."
+samples = 1
+
+["py:delay_doppler::test_bench_delay_doppler_32x1024_1t"]
+name = "Delay-Doppler map, 32 x 1,024, one thread, from Python"
+unit = "sample"
+definition = "The 32 x 1,024 DelayDoppler map on one thread through the Python binding, so the wheel's call overhead is included; throughput counts input samples, 32,768 per map."
+samples = 1
+
+["py:delay_doppler::test_bench_delay_doppler_256x4096_1t"]
+name = "Delay-Doppler map, 256 x 4,096, one thread, from Python"
+unit = "sample"
+definition = "The 256 x 4,096 DelayDoppler map on one thread through the Python binding, so the wheel's call overhead is included; throughput counts input samples, 1,048,576 per map."
+samples = 1
+
+["py:delay_doppler::test_bench_delay_doppler_256x4096_all"]
+name = "Delay-Doppler map, 256 x 4,096, every core, from Python"
+unit = "sample"
+definition = "The 256 x 4,096 DelayDoppler map on every online core (nthreads=0) through the Python binding; throughput counts input samples, 1,048,576 per map."
+samples = 1

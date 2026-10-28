@@ -871,6 +871,12 @@ compute_trailing (dp_wfm_reader_state_t *r)
   r->trailing = avail % stride;
 }
 
+/* The CSV sample formats, ONE home: csv_skip counts with them, read_csv
+   converts with them, and the follow path parses each complete line with
+   them, so the three can never disagree about what a CSV sample is. */
+#define CSV_FMT_IQ " %lf , %lf"
+#define CSV_FMT_I " %lf"
+
 /* Consume up to @p n whole samples from the current CSV position, discarding
    them, and return how many it managed.
 
@@ -884,10 +890,10 @@ csv_skip (dp_wfm_reader_state_t *r, size_t n)
   size_t         i  = 0;
   double         a, b;
   if (nc == 2u)
-    for (; i < n && fscanf (r->fp, " %lf , %lf", &a, &b) == 2; i++)
+    for (; i < n && fscanf (r->fp, CSV_FMT_IQ, &a, &b) == 2; i++)
       ;
   else
-    for (; i < n && fscanf (r->fp, " %lf", &a) == 1; i++)
+    for (; i < n && fscanf (r->fp, CSV_FMT_I, &a) == 1; i++)
       ;
   clearerr (r->fp); /* the scan ends at EOF by design; that is not an error */
   return i;
@@ -1227,25 +1233,32 @@ dp_wfm_reader_info (const dp_wfm_reader_state_t *r, wfm_reader_info_t *info)
   info->trailing_bytes = r->trailing;
 }
 
-/* CSV: one "I,Q" per line; integer wire types are divided back by full-scale.
- */
+/* One parsed CSV value pair as a sample: integer wire types are divided
+   back by full-scale. Shared by read_csv and the follow path. */
+static float _Complex csv_sample (const dp_wfm_reader_state_t *r, double a,
+                                  double b)
+{
+  double scale = dp_format_full_scale (STYPE_FMT[r->sample_type]);
+  return (float)(a / scale) + (float)(b / scale) * (float _Complex)I;
+}
+
+/* CSV: one "I,Q" per line. */
 static size_t
 read_csv (dp_wfm_reader_state_t *r, float _Complex *out, size_t max)
 {
-  double         scale = dp_format_full_scale (STYPE_FMT[r->sample_type]);
-  const unsigned nc    = comps (r->mode);
+  const unsigned nc = comps (r->mode);
   size_t         i;
   for (i = 0; i < max; i++)
     {
       double a, b = 0.0;
       if (nc == 2u)
         {
-          if (fscanf (r->fp, " %lf , %lf", &a, &b) != 2)
+          if (fscanf (r->fp, CSV_FMT_IQ, &a, &b) != 2)
             break;
         }
-      else if (fscanf (r->fp, " %lf", &a) != 1)
+      else if (fscanf (r->fp, CSV_FMT_I, &a) != 1)
         break;
-      out[i] = (float)(a / scale) + (float)(b / scale) * (float _Complex)I;
+      out[i] = csv_sample (r, a, b);
     }
   return i;
 }
@@ -1432,6 +1445,55 @@ follow_nap (uint32_t remaining_ms)
   return slice;
 }
 
+/* The CSV half of following (#2658): up to @p n samples from the complete
+   lines readable right now. A CSV writer appends whole lines, so a line is
+   the unit a follow reader must never split: the last line of a growing
+   file may be half written ("0.12" of "0.125,0.5\n"), and parsing it would
+   return a wrong value and leave the position mid-number. So only a line
+   that ends in '\n' is consumed; anything else is put back for the next
+   call, as read_block puts back a partial binary sample. Blank lines are
+   skipped. A complete line that does not parse is put back too and stops
+   the read where it is, as read() stops at one -- the follow then waits, as
+   it waits on a file that has stopped growing. Lines are what this
+   library's writer emits, well under CSV_LINE_MAX bytes. */
+#define CSV_LINE_MAX 512
+static size_t
+follow_csv (dp_wfm_reader_state_t *r, size_t n, float _Complex *out)
+{
+  const unsigned nc = comps (r->mode);
+  char           line[CSV_LINE_MAX];
+  size_t         i     = 0;
+  long           start = ftell (r->fp);
+  /* Re-seek where we are: drops stdio's buffer and its latched EOF, so the
+     lines a writer appended since the last call are seen. */
+  if (start < 0 || fseek (r->fp, start, SEEK_SET) != 0)
+    return 0;
+  while (i < n)
+    {
+      start = ftell (r->fp);
+      if (!fgets (line, sizeof line, r->fp))
+        break;
+      size_t len = strlen (line);
+      if (len == 0 || line[len - 1] != '\n')
+        break; /* a line the writer has not finished */
+      double a, b = 0.0;
+      int    ok = (nc == 2u) ? sscanf (line, CSV_FMT_IQ, &a, &b) == 2
+                             : sscanf (line, CSV_FMT_I, &a) == 1;
+      if (!ok)
+        {
+          if (strspn (line, " \t\r\n") == len)
+            continue; /* blank */
+          break;      /* malformed: stop here, as read() does */
+        }
+      out[i++] = csv_sample (r, a, b);
+      start    = -1; /* consumed: nothing to put back */
+    }
+  clearerr (r->fp);
+  if (start >= 0)
+    (void)fseek (r->fp, start, SEEK_SET); /* put the unfinished line back */
+  return i;
+}
+
 size_t
 dp_wfm_reader_read_follow_max_out (dp_wfm_reader_state_t *r, size_t n)
 {
@@ -1516,7 +1578,19 @@ dp_wfm_reader_read_follow (dp_wfm_reader_state_t *r, size_t n,
 
   for (;;)
     {
-      size_t avail = follow_available (r);
+      /* CSV is delimited, not strided: follow_available's byte arithmetic
+         does not apply, so a CSV follows by complete lines (#2658). Same
+         rules otherwise -- data first, and no marker ever ends it. */
+      if (r->file_type == WFM_FT_CSV)
+        {
+          size_t ncsv = follow_csv (r, n, out);
+          if (ncsv > 0)
+            {
+              r->pos += ncsv;
+              return ncsv;
+            }
+        }
+      size_t avail = (r->file_type == WFM_FT_CSV) ? 0 : follow_available (r);
       if (avail > 0)
         {
           /* Drain outranks the stop: data already in the file is returned

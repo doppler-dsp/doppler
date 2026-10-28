@@ -209,6 +209,12 @@ class Reader:
         CSV and SigMF carry no end marker, so only a stop or a bounded budget
         ends their wait.
 
+        A CSV capture is followed as ::dp_wfm_reader_read reads it, line by
+        line, and gives the same samples (#2658). Its unit is a complete line:
+        one the writer has not finished with a newline is left unread until it
+        is, and a complete line that does not parse stops the read there, as it
+        stops ::dp_wfm_reader_read, so the follow then waits.
+
         Parameters
         ----------
         count : int

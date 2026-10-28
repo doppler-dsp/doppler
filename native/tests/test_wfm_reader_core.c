@@ -1674,6 +1674,56 @@ test_follow_resumes_after_catching_up (void)
   return 0;
 }
 
+/* A CSV capture is followed through the CSV path (#2658), by complete
+   lines. read_follow used to skip the file-type check every other entry
+   point makes and decode the text through the binary read_block, so the
+   ASCII came back as floats. A line the writer has not finished is left
+   for the next call, so a value is never cut in half; the samples, once
+   the file is complete, are exactly what read() gives. */
+static int
+test_follow_reads_a_csv_as_csv (void)
+{
+  const char *path = "wfm_follow_grow.csv";
+  FILE       *fp   = fopen (path, "w");
+  DP_REQUIRE_MSG (fp, "open csv");
+  fputs ("1.0,2.0\n\n3.0,4.0\n5.0,6", fp); /* a blank, then half a line */
+  fclose (fp);
+
+  dp_wfm_reader_state_t *r = dp_wfm_reader_create (path, 0, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+  wfm_reader_info_t info;
+  dp_wfm_reader_info (r, &info);
+  DP_REQUIRE_MSG (info.file_type == WFM_FT_CSV, "it is a CSV");
+  dp_wfm_reader_set_follow_timeout_ms (r, 100);
+  float _Complex y[8];
+  DP_CHECK (dp_wfm_reader_read_follow (r, 8, y, 8) == 2);
+  DP_CHECK (crealf (y[0]) == 1.0f && cimagf (y[0]) == 2.0f);
+  DP_CHECK (crealf (y[1]) == 3.0f && cimagf (y[1]) == 4.0f);
+  /* Only the unfinished line is left: wait, then time out, reading nothing
+     of it. */
+  DP_CHECK (dp_wfm_reader_read_follow (r, 8, y, 8) == 0);
+  DP_CHECK (dp_wfm_reader_get_ending (r) == WFM_FOLLOW_TIMEOUT);
+
+  fp = fopen (path, "a");
+  DP_REQUIRE_MSG (fp, "append csv");
+  fputs (".5\n7.0,8.0\n", fp); /* the writer finishes the line */
+  fclose (fp);
+  DP_CHECK (dp_wfm_reader_read_follow (r, 8, y + 2, 6) == 2);
+  DP_CHECK (dp_wfm_reader_get_ending (r) == WFM_FOLLOW_NONE);
+
+  /* What read() gives for the finished file, sample for sample. */
+  dp_wfm_reader_state_t *ref = dp_wfm_reader_create (path, 0, 0);
+  DP_REQUIRE_MSG (ref, "reference open");
+  float _Complex z[8];
+  DP_CHECK (dp_wfm_reader_read (ref, 8, z, 8) == 4);
+  DP_CHECK (memcmp (y, z, 4 * sizeof *y) == 0);
+  DP_CHECK (crealf (y[2]) == 5.0f && cimagf (y[2]) == 6.5f);
+  dp_wfm_reader_destroy (ref);
+  dp_wfm_reader_destroy (r);
+  remove (path);
+  return 0;
+}
+
 /* 2b, on the PLAIN read path, which is where the fix is load-bearing.
    read() asks for `max` samples and lets fread return what it can, so it
    over-reads into a partial sample and drops the remainder -- bytes fread
@@ -2529,6 +2579,8 @@ main (void)
   if (test_sidecar_names_the_wire_type ())
     return 1;
   if (test_follow_resumes_after_catching_up ())
+    return 1;
+  if (test_follow_reads_a_csv_as_csv ())
     return 1;
   if (test_read_never_consumes_a_partial_sample ())
     return 1;

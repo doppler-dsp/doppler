@@ -873,6 +873,12 @@ size_t dp_wfm_reader_read_follow_max_out(dp_wfm_reader_state_t *state, size_t n)
  * the end is the writer patching `data_size` at close; raw, CSV and SigMF
  * carry no end marker, so only a stop or a bounded budget ends their wait.
  *
+ * A CSV capture is followed as ::dp_wfm_reader_read reads it, line by line,
+ * and gives the same samples (#2658). Its unit is a complete line: one
+ * the writer has not finished with a newline is left unread until it is,
+ * and a complete line that does not parse stops the read there, as it
+ * stops ::dp_wfm_reader_read, so the follow then waits.
+ *
  * @param state    the reader.
  * @param n        the most samples to return (`count` in Python).
  * @param out      destination, at least @p max_out samples.

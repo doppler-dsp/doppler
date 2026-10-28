@@ -335,3 +335,25 @@ def test_a_second_stop_ends_the_unbounded_grace(tmp_path):
         assert r.ending == "interrupted"
     finally:
         w.close()
+
+
+@pytest.mark.parametrize("sample_type", ["cf32", "ci16"])
+def test_a_followed_csv_reads_what_read_reads(tmp_path, sample_type):
+    """#2658: ``read_follow()`` on a CSV capture decoded its text through
+    the binary path. It now follows a CSV line by line and returns exactly
+    the samples ``read()`` returns for the same file."""
+    p = tmp_path / "capture.csv"
+    rng = np.random.default_rng(2658)
+    x = (rng.standard_normal(64) + 1j * rng.standard_normal(64)) * 0.25
+    with Writer(p, file_type="csv", sample_type=sample_type, fs=1e6) as w:
+        w.write(x.astype(np.complex64))
+    want = Reader(p).read(1000)
+    r = Reader(p)
+    r.follow_timeout_ms = 50
+    got = []
+    while len(block := r.read_follow(10)):
+        got.append(block)
+    assert r.ending == "timeout"  # a CSV carries no end marker
+    np.testing.assert_array_equal(np.concatenate(got), want)
+    assert len(want) == 64
+    r.close()

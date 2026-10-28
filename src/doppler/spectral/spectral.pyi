@@ -917,8 +917,9 @@ class Corr2D:
     nthreads : int, default 1
         Workers for the single-row-reference fast path's per-row stage: 1 runs
         serially (no threads), N runs N workers (the caller included), <= 0
-        uses every online core. The output is bit-identical whatever the count.
-        The general 2-D path runs serially and ignores it.
+        uses every online core. The count is capped at ny, one row per worker
+        at most. The output is bit-identical whatever the count. The general
+        2-D path and the col_out path run serially and ignore it.
     ny_out : int, default 0
         Inverse/output rows; 0 => native (ny). Must be >= ny. A larger output
         zero-pads the cross-spectrum before the inverse, returning the
@@ -1201,7 +1202,8 @@ class DelayDoppler:
         Frames coherently accumulated per dump; must be >= 1.
     nthreads : int, default 1
         Workers: 1 serial, N for N (the caller included), <= 0 every online
-        core.
+        core; capped at the most chunks a stage can use, `max(ny, ceil(code_len
+        / 16))`.
     ny_out : int, default 0
         Doppler bins in the map; 0 means ny. Must be >= ny.
 

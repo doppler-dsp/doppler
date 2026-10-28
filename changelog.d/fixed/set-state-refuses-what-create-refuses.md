@@ -7,4 +7,4 @@
     and the MPSK carrier filter. Each restore now checks the payload before
     it commits (the loop filter through `DP_DEFINE_POD_STATE_CHECKED`), and
     `Corr`, `Corr2D`, `CorrDetector` and `CorrDetector2D` refuse `dwell=0`
-    with `ValueError` (#2641).
+    with `ValueError`, where it raised `MemoryError` (#2641).

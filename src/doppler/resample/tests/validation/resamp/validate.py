@@ -573,6 +573,7 @@ def characterise() -> Data:
     R.md()
     R.md(
         "`Resampler` binds `execute`, `execute_ctrl`, `rate`, `ctrl_acc`, "
+        "`consumed`, "
         "`num_phases`, `num_taps`, `reset` and the state triplet. Four "
         "public C entry points still have no binding, so their claims are "
         "certified by the C suite alone:"
@@ -588,8 +589,10 @@ def characterise() -> Data:
             ],
             [
                 "`dp_resamp_set_rate`",
-                "retune preserves the accumulator and the delay line",
-                "§15",
+                "a retune on the same side of 1 preserves the accumulator "
+                "and the delay line; one that crosses 1 is a fresh create "
+                "at the new rate",
+                "§15, §14c",
             ],
             [
                 "`dp_resamp_execute_ctrl_push`",

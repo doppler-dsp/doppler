@@ -37,6 +37,7 @@ const jm_any_fn jm_bound_symbols_Resampler[] = {
     (jm_any_fn)dp_Resampler_get_rate,
     (jm_any_fn)dp_Resampler_set_rate,
     (jm_any_fn)dp_Resampler_get_ctrl_acc,
+    (jm_any_fn)dp_Resampler_get_consumed,
     (jm_any_fn)dp_Resampler_get_num_phases,
     (jm_any_fn)dp_Resampler_get_num_taps,
     (jm_any_fn)dp_Resampler_get_delay,

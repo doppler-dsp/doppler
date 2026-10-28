@@ -176,9 +176,11 @@ void dp_hbdecim_q15_reset(dp_hbdecim_q15_state_t *r);
  * @brief Decimate a block of interleaved IQ int16 samples by 2.
  * Input must be interleaved int16_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass
  * a 1-D array of 2*n_complex elements.  Each pair of complex input
- * samples produces one complex output sample, so an array of length 2N
- * yields at most N output pairs (2N int16 output values).  If n_in is
- * odd the trailing IQ pair is buffered and consumed on the next call.
+ * samples produces one complex output sample, counting an IQ pair held
+ * from the previous call as the first of the block, so an array of length
+ * 2N yields at most (N + held) / 2 output pairs.  An IQ pair left unpaired
+ * at the end is held for the next call, so contiguous blocks give the same
+ * output as one large block.
  * @param r       Decimator state.
  * @param in      Interleaved int16_t IQ input array of 2*n_in elements
  *                (I₀ Q₀ I₁ Q₁ …).

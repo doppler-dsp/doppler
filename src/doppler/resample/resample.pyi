@@ -69,7 +69,9 @@ class Resampler:
         -------
         NDArray[np.complex64]
             CF32 output array; length is approximately x_len * rate, capped at
-            max_out.
+            max_out. A full out stops the call with input unread, never
+            dropped: dp_Resampler_get_consumed() (Python: `consumed`) says
+            where to resume.
 
         Examples
         --------
@@ -121,7 +123,9 @@ class Resampler:
             capped at max_out. In C, the count written (>= 0), or
             DP_ERR_INVALID (negative) when ctrl_len is shorter than x_len:
             nothing is written. 0 stays a valid, empty result, so the sign
-            alone tells a refusal from it (doppler#1869).
+            alone tells a refusal from it (doppler#1869). A full out stops the
+            call with input unread, never dropped: dp_Resampler_get_consumed()
+            (Python: `consumed`) says where to resume.
 
         Raises
         ------
@@ -254,6 +258,10 @@ class Resampler:
         """The control accumulator's fractional phase, in [0, 1)."""
 
     @property
+    def consumed(self) -> int:
+        """Input samples the last execute() or execute_ctrl() took."""
+
+    @property
     def num_phases(self) -> int:
         """Number of polyphase branches in the filter bank. Always a power of
         two. The built-in bank has 4096 phases giving sub-sample timing
@@ -366,9 +374,10 @@ class HalfbandDecimator:
             CF32 input array. A sample left unpaired at the end is held for the
             next call.
         out : npt.NDArray[np.complex64] | None
-            Output buffer; must hold at least (x_len + 1) / 2 samples. A
-            shorter one drops nothing: the call stops at a pair boundary and
-            dp_hbdecim_consumed() says how much input it took.
+            Output buffer; must hold at least (x_len + 1) / 2 samples, which is
+            dp_HalfbandDecimator_execute_max_out(). Python refuses a shorter
+            `out=`. In C a shorter one drops nothing: the call stops at a pair
+            boundary and dp_hbdecim_consumed() says how much input it took.
 
         Returns
         -------
@@ -1859,9 +1868,11 @@ class HalfbandDecimatorQ15:
         """Decimate a block of interleaved IQ int16 samples by 2. Input must be
         interleaved int16_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass a 1-D array of
         2*n_complex elements. Each pair of complex input samples produces one
-        complex output sample, so an array of length 2N yields at most N output
-        pairs (2N int16 output values). If n_in is odd the trailing IQ pair is
-        buffered and consumed on the next call.
+        complex output sample, counting an IQ pair held from the previous call
+        as the first of the block, so an array of length 2N yields at most (N +
+        held) / 2 output pairs. An IQ pair left unpaired at the end is held for
+        the next call, so contiguous blocks give the same output as one large
+        block.
 
         Parameters
         ----------

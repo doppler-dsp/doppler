@@ -166,7 +166,10 @@ extern "C"
    * @param max_out Capacity of @p out in elements. Emission stops there, so
    *                the return value is the number actually written.
    * @return       CF32 output array; length is approximately x_len * rate,
-   *               capped at max_out.
+   *               capped at max_out. A full @p out stops the call with
+   *               input unread, never dropped:
+   *               dp_Resampler_get_consumed() (Python: `consumed`) says
+   *               where to resume.
    *
    * @code
    * >>> from doppler.resample import Resampler
@@ -213,7 +216,10 @@ extern "C"
    *                  written (>= 0), or DP_ERR_INVALID (negative) when
    *                  @p ctrl_len is shorter than @p x_len: nothing is
    *                  written. 0 stays a valid, empty result, so the sign
-   *                  alone tells a refusal from it (doppler#1869).
+   *                  alone tells a refusal from it (doppler#1869). A
+   *                  full @p out stops the call with input unread, never
+   *                  dropped: dp_Resampler_get_consumed() (Python:
+   *                  `consumed`) says where to resume.
    *
    * @code
    * >>> from doppler.resample import Resampler
@@ -294,6 +300,37 @@ extern "C"
    * @return Control-accumulator phase as a fraction of one input interval.
    */
   double dp_Resampler_get_ctrl_acc (const dp_Resampler_state_t *state);
+
+  /**
+   * @brief Input samples the last execute() or execute_ctrl() took.
+   *
+   * Both calls stop when @p out is full and leave the rest of the input
+   * unread rather than dropping it. Python's default buffer is
+   * RESAMPLER_MAX_OUT, or len(x) if larger, so at a rate above 1 a long
+   * block -- or any block a steered rate stretches -- fills it before the
+   * input runs out. Equal to the input length when everything fit;
+   * otherwise offer `x[consumed:]` (and `ctrl[consumed:]`) to the next
+   * call and the output resumes bit-exact (doppler#2643). 0 after create
+   * and reset; a call refused for a short @c ctrl leaves it unchanged.
+   *
+   * @code
+   * >>> from doppler.resample import Resampler
+   * >>> import numpy as np
+   * >>> r = Resampler(rate=2.0)
+   * >>> x = np.ones(50000, dtype=np.complex64)
+   * >>> y = r.execute_ctrl(x, np.zeros(50000))
+   * >>> r.consumed < len(x)
+   * True
+   * >>> rest = r.consumed
+   * >>> y2 = r.execute_ctrl(x[rest:], np.zeros(len(x) - rest))
+   * >>> r.consumed == len(x) - rest
+   * True
+   * @endcode
+   *
+   * @param state  Pointer to a valid dp_Resampler_state_t.
+   * @return Input samples consumed by the last execute() or execute_ctrl().
+   */
+  size_t dp_Resampler_get_consumed (const dp_Resampler_state_t *state);
 
   /**
    * @brief Number of polyphase branches in the filter bank.

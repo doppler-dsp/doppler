@@ -129,7 +129,7 @@ dp_doppler_channel_execute (dp_doppler_channel_state_t *state,
                                            out + n_out, max_out - n_out);
       /* The resampler stops offering input once out is full, so the clock
          advances by what it took, not by m (doppler#2643). */
-      size_t took = dp_resamp_ctrl_consumed (state->rs);
+      size_t took = dp_resamp_consumed (state->rs);
       state->n_in += took;
       n_out += got;
       off += took;
@@ -277,7 +277,7 @@ dp_doppler_channel_execute_profile (dp_doppler_channel_state_t *state,
 
       /* The resampler stops offering input once out is full, so the clock
          advances by what it took, not by m (doppler#2643). */
-      size_t took = dp_resamp_ctrl_consumed (state->rs);
+      size_t took = dp_resamp_consumed (state->rs);
       state->n_in += took;
       n_out += got;
       off += took;

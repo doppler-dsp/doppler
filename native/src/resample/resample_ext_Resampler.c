@@ -585,6 +585,17 @@ Resampler_getprop_ctrl_acc (ResamplerObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble (dp_Resampler_get_ctrl_acc (self->handle));
 }
 static PyObject *
+Resampler_getprop_consumed (ResamplerObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_Resampler_get_consumed (self->handle));
+}
+static PyObject *
 Resampler_getprop_num_phases (ResamplerObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -638,6 +649,8 @@ static PyGetSetDef Resampler_getset[] = {
     NULL },
   { "ctrl_acc", (getter)Resampler_getprop_ctrl_acc, NULL,
     "The control accumulator's fractional phase, in [0, 1).\n", NULL },
+  { "consumed", (getter)Resampler_getprop_consumed, NULL,
+    "Input samples the last execute() or execute_ctrl() took.\n", NULL },
   { "num_phases", (getter)Resampler_getprop_num_phases, NULL,
     "Number of polyphase branches in the filter bank. Always a power of two. "
     "The built-in bank has 4096 phases giving sub-sample timing resolution of "
@@ -705,7 +718,9 @@ static PyMethodDef ResamplerObj_methods[] = {
     "-------\n"
     "NDArray[np.complex64]\n"
     "    CF32 output array; length is approximately x_len * rate, capped at\n"
-    "    max_out.\n"
+    "    max_out. A full out stops the call with input unread, never\n"
+    "    dropped: dp_Resampler_get_consumed() (Python: `consumed`) says\n"
+    "    where to resume.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -752,7 +767,9 @@ static PyMethodDef ResamplerObj_methods[] = {
     "    capped at max_out. In C, the count written (>= 0), or\n"
     "    DP_ERR_INVALID (negative) when ctrl_len is shorter than x_len:\n"
     "    nothing is written. 0 stays a valid, empty result, so the sign\n"
-    "    alone tells a refusal from it (doppler#1869).\n"
+    "    alone tells a refusal from it (doppler#1869). A full out stops the\n"
+    "    call with input unread, never dropped: dp_Resampler_get_consumed()\n"
+    "    (Python: `consumed`) says where to resume.\n"
     "\n"
     "Raises\n"
     "------\n"

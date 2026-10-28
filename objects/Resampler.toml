@@ -73,6 +73,12 @@ error_message = "Resampler: rate must be finite and > 0"
 name = "ctrl_acc"
 type = "double"
 
+# execute_ctrl stops at a full out and leaves the rest of x unread; this says
+# where to resume (doppler#2643).
+[[Resampler.properties]]
+name = "consumed"
+type = "size_t"
+
 [[Resampler.properties]]
 name = "num_phases"
 type = "size_t"

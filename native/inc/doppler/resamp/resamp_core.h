@@ -122,9 +122,9 @@ extern "C"
        the next request is satisfied from it instead of from a new sample. */
     uint32_t ctrl_ahead; /**< execute_ctrl: inputs loaded ahead of any
                               request (see above). */
-    size_t ctrl_consumed; /**< Inputs the last dp_resamp_execute_ctrl() or
-                               dp_resamp_execute_ctrl_pos() took; per-call,
-                               not in the blob. */
+    size_t consumed; /**< Inputs the last block call took: execute(),
+                          execute_ctrl() or execute_ctrl_pos(); per-call,
+                          not in the blob. */
   } resamp_state_t;
 
   /* ------------------------------------------------------------------
@@ -236,7 +236,9 @@ extern "C"
    * @param in       Input samples.
    * @param num_in   Number of input samples.
    * @param out      Output buffer.
-   * @param max_out  Capacity of out in samples.
+   * @param max_out  Capacity of out in samples. A full @p out stops the
+   *                 call with input unread, never dropped:
+   *                 dp_resamp_consumed() says where to resume.
    * @return Number of output samples written.
    */
   size_t dp_resamp_execute (resamp_state_t *state, const float _Complex *in,
@@ -305,17 +307,18 @@ extern "C"
                                      size_t max_out);
 
   /**
-   * @brief Inputs the last dp_resamp_execute_ctrl() or
-   *        dp_resamp_execute_ctrl_pos() took.
+   * @brief Inputs the last block call took: dp_resamp_execute(),
+   *        dp_resamp_execute_ctrl() or dp_resamp_execute_ctrl_pos().
    *
-   * Both block forms stop offering input once @p out is full, so this is
-   * their @p num_in unless the output filled first; the caller resumes at
-   * in + consumed (doppler#2643).  0 after create and reset.
+   * Every block form stops offering input once @p out is full, so this is
+   * its @p num_in unless the output filled first; the caller resumes at
+   * in + consumed and the output continues exactly as one whole call gives
+   * it (doppler#2643).  0 after create and reset.
    *
    * @param state  Must be non-NULL.
-   * @return Input samples taken by the last block ctrl call.
+   * @return Input samples taken by the last block call.
    */
-  size_t dp_resamp_ctrl_consumed (const resamp_state_t *state);
+  size_t dp_resamp_consumed (const resamp_state_t *state);
 
   /* ------------------------------------------------------------------
    * Streaming interpolation (fixed integer rate, output-count driven)

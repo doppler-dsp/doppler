@@ -356,3 +356,37 @@ class TestContextManager:
             x = _ones(16)
             y = rs.execute(x)
             assert len(y) == 16
+
+
+@pytest.mark.parametrize("ctrl", [False, True])
+def test_consumed_says_where_to_resume(ctrl):
+    """doppler#2643: at rate 2 a 50000-sample block owes ~100000 outputs,
+    more than the default buffer holds, and the call stops with input
+    unread. ``consumed`` says how much it took; re-offering the rest gives
+    exactly what one call with room for everything gives."""
+    rng = np.random.default_rng(5)
+    n = 50000
+    x = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(
+        np.complex64
+    )
+
+    def run(r, xs):
+        return r.execute_ctrl(xs, np.zeros(len(xs))) if ctrl else r.execute(xs)
+
+    whole = Resampler(rate=2.0)
+    big = np.empty(2 * n + 4, dtype=np.complex64)
+    ref = np.array(
+        whole.execute_ctrl(x, np.zeros(n), out=big)
+        if ctrl
+        else whole.execute(x, out=big)
+    )
+    assert whole.consumed == n
+
+    r = Resampler(rate=2.0)
+    parts, off = [], 0
+    while off < n:
+        parts.append(np.array(run(r, x[off:])))
+        assert 0 < r.consumed <= n - off
+        off += r.consumed
+    assert len(parts) > 1  # the default buffer did stop early
+    np.testing.assert_array_equal(np.concatenate(parts), ref)

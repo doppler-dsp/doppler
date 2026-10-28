@@ -171,12 +171,12 @@ A rate deviation is real and the port now says so — `double`, matching `execut
 
 ### 2.11 Claims the binding cannot reach (C-ONLY)
 
-`Resampler` binds `execute`, `execute_ctrl`, `rate`, `ctrl_acc`, `num_phases`, `num_taps`, `reset` and the state triplet. Four public C entry points still have no binding, so their claims are certified by the C suite alone:
+`Resampler` binds `execute`, `execute_ctrl`, `rate`, `ctrl_acc`, `consumed`, `num_phases`, `num_taps`, `reset` and the state triplet. Four public C entry points still have no binding, so their claims are certified by the C suite alone:
 
 | C entry point | claim | C evidence |
 |---|---|---|
 | `dp_resamp_dc_gain` | arm 0's tap sum answers for every arm | §13 |
-| `dp_resamp_set_rate` | retune preserves the accumulator and the delay line | §15 |
+| `dp_resamp_set_rate` | a retune on the same side of 1 preserves the accumulator and the delay line; one that crosses 1 is a fresh create at the new rate | §15, §14c |
 | `dp_resamp_execute_ctrl_push` | single-input streaming form, `double` control | §8, §10-§12 |
 | `dp_resamp_interp_inputs_needed` | the streaming contract: exactly this many inputs, no over- or under-production | §7, §20 |
 

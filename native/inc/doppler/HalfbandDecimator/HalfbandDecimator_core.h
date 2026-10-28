@@ -164,9 +164,11 @@ extern "C"
    *               is held for the next call.
    * @param x_len  Number of input samples.
    * @param[out] out    Output buffer; must hold at least
-   *               (x_len + 1) / 2 samples. A shorter one drops
-   *               nothing: the call stops at a pair boundary and
-   *               dp_hbdecim_consumed() says how much input it took.
+   *               (x_len + 1) / 2 samples, which is
+   *               dp_HalfbandDecimator_execute_max_out(). Python refuses a
+   *               shorter `out=`. In C a shorter one drops nothing: the
+   *               call stops at a pair boundary and dp_hbdecim_consumed()
+   *               says how much input it took.
    * @param max_out Capacity of @p out in elements. Emission stops there, so
    *                the return value is the number actually written.
    * @return       Number of CF32 samples written to @p out:

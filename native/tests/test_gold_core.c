@@ -369,7 +369,11 @@ main (void)
         = dp_gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 10);
     uint8_t chips[17];
     dp_gold_generate (g, 17, chips, 17);
-    size_t         sb     = dp_gold_state_bytes (g);
+    size_t sb = dp_gold_state_bytes (g);
+    /* Room for both registers past the envelope, required up front so the
+       compiler cannot see a path where the forged offsets pass the end
+       (gcc's -Wstringop-overflow otherwise flags these memcpys). */
+    DP_REQUIRE (sb >= sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t));
     unsigned char *blob   = malloc (sb);
     unsigned char *before = malloc (sb);
     unsigned char *after  = malloc (sb);

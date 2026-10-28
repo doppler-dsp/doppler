@@ -753,7 +753,7 @@ Track `acq_reps` periods of `acq_code` coherently (the unmodulated, repeated acq
 
 **Returns:**
 
-DP\_OK, the preamble set (or, for the disabling arguments above, cleared); DP\_ERR\_MEMORY when the copy of `acq_code` cannot be allocated, in which case nothing changes: the previous preamble, or its absence, stands. Python raises ValueError on the failure. 
+DP\_OK, the preamble set (or, for the disabling arguments above, cleared); DP\_ERR\_MEMORY when the copy of `acq_code` cannot be allocated, in which case nothing changes: the previous preamble, or its absence, stands. Python raises MemoryError on the failure. 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import BurstDespreader

@@ -201,7 +201,7 @@ int dp_kaiser_num_taps (
 
 
 * `num_phases` Number of polyphase branches (power of two). A value below 1 is not a bank; the function returns 0. 
-* `atten` Desired stopband attenuation in dB. 
+* `atten` Desired stopband attenuation in dB. Below 8 dB the Kaiser length formula falls under one tap, and the prototype is floored at one. 
 * `pb` Passband edge in cycles per sample at the branch (input) rate, so Nyquist is 0.5 (0 &lt; pb &lt; sb &lt; 1). 
 * `sb` Stopband edge, same units as `pb`. 
 
@@ -280,7 +280,7 @@ static inline size_t dp_kaiser_num_taps_eval (
 
 
 
-Header-inline for the same reason as dp\_kaiser\_beta\_eval() (doppler#2652). It has no guard: `num_phases` must be at least 1, which [**dp\_kaiser\_num\_taps()**](resample__core_8h.md#function-dp_kaiser_num_taps) checks before calling it.
+Header-inline for the same reason as dp\_kaiser\_beta\_eval() (doppler#2652). `num_phases` must be at least 1, which [**dp\_kaiser\_num\_taps()**](resample__core_8h.md#function-dp_kaiser_num_taps) checks before calling it. Every other argument is total: the prototype length floors at one tap where the formula falls below it (an `atten` under 8 dB, or a NaN) and caps at 2^52, so the conversion to size\_t is always defined.
 
 
 
@@ -289,7 +289,7 @@ Header-inline for the same reason as dp\_kaiser\_beta\_eval() (doppler#2652). It
 
 
 * `num_phases` Number of polyphase branches, &gt;= 1. 
-* `atten` Desired stopband attenuation in dB. 
+* `atten` Desired stopband attenuation in dB; below 8 dB the prototype is one tap. 
 * `pb` Passband edge, as for [**dp\_kaiser\_num\_taps()**](resample__core_8h.md#function-dp_kaiser_num_taps). 
 * `sb` Stopband edge, same units as `pb`. 
 

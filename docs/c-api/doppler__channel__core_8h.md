@@ -233,7 +233,7 @@ dp_doppler_channel_state_t * dp_doppler_channel_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure or `fs <= 0`. 
+Heap-allocated state, or NULL when `fs` is not &gt; 0, the time scale `1 + doppler_ppm * 1e-6` is not &gt; 0, or the initial ratio is one [**dp\_resamp\_create()**](resamp__core_8h.md#function-dp_resamp_create) refuses (a NaN or infinite `doppler_ppm` lands there). Python raises ValueError. 
 
 
 

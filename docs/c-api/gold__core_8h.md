@@ -386,7 +386,7 @@ int dp_gold_set_state (
 
 
 
-Only the two running registers are restored; taps, seeds and length come from the target's own [**dp\_gold\_create()**](gold__core_8h.md#function-dp_gold_create) arguments, so create the target with the same configuration. Each register must be what a live one can hold: non-zero, with no bit above the length. A zero register is a fixed point that leaves the other register's m-sequence alone (doppler#1640), so either one is refused (doppler#2641).
+Only the two running registers are restored; taps, seeds and length come from the target's own [**dp\_gold\_create()**](gold__core_8h.md#function-dp_gold_create) arguments, so create the target with the same configuration. Each register must be what a live one can hold: no bit above the length, and non-zero unless its taps can reach zero (doppler#2641). A zero register is a fixed point that leaves the other register's m-sequence alone (doppler#1640). Taps that include the top stage (bit length-1, as every primitive tap set does) never reach it from the non-zero seed create() requires, so a zero register is refused there; taps without it can shift a register down to zero, and the Gold's own blob then restores it.
 
 
 
@@ -401,7 +401,7 @@ Only the two running registers are restored; taps, seeds and length come from th
 
 **Returns:**
 
-DP\_OK on success, or DP\_ERR\_INVALID when the envelope (magic, version, endianness, size) does not match or a register is zero or wider than the length; the state is then left untouched. 
+DP\_OK on success, or DP\_ERR\_INVALID when the envelope (magic, version, endianness, size) does not match, a register is wider than the length, or a register is zero where its taps cannot reach zero; the state is then left untouched. 
 
 
 

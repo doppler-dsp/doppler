@@ -69,6 +69,8 @@ extern "C"
 
   double dp_Resampler_get_ctrl_acc (const dp_Resampler_state_t *state);
 
+  size_t dp_Resampler_get_consumed (const dp_Resampler_state_t *state);
+
   size_t dp_Resampler_get_num_phases (const dp_Resampler_state_t *state);
 
   size_t dp_Resampler_get_num_taps (const dp_Resampler_state_t *state);

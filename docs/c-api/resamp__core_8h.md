@@ -58,9 +58,9 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 
 | Type | Name |
 | ---: | :--- |
+|  size\_t | [**dp\_resamp\_consumed**](#function-dp_resamp_consumed) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Inputs the last block call took:_ [_**dp\_resamp\_execute()**_](resamp__core_8h.md#function-dp_resamp_execute) _,_[_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _or_[_**dp\_resamp\_execute\_ctrl\_pos()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl_pos) _._ |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**dp\_resamp\_create**](#function-dp_resamp_create) (double rate) <br>_Create a resampler with the built-in 4096x19 Kaiser bank (60 dB, 0.4/0.6 pass/stop)._  |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**dp\_resamp\_create\_custom**](#function-dp_resamp_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br>_Create a resampler over a user-supplied polyphase bank._  |
-|  size\_t | [**dp\_resamp\_ctrl\_consumed**](#function-dp_resamp_ctrl_consumed) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Inputs the last_ [_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _or_[_**dp\_resamp\_execute\_ctrl\_pos()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl_pos) _took._ |
 |  double | [**dp\_resamp\_dc\_gain**](#function-dp_resamp_dc_gain) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The resampler's response to a constant input, from its own bank._  |
 |  void | [**dp\_resamp\_destroy**](#function-dp_resamp_destroy) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Free the state, its bank and its delay lines._  |
 |  size\_t | [**dp\_resamp\_execute**](#function-dp_resamp_execute) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples (fixed rate)._  |
@@ -158,6 +158,43 @@ dp_resamp_destroy(r);
 
 
 
+### function dp\_resamp\_consumed 
+
+_Inputs the last block call took:_ [_**dp\_resamp\_execute()**_](resamp__core_8h.md#function-dp_resamp_execute) _,_[_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _or_[_**dp\_resamp\_execute\_ctrl\_pos()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl_pos) _._
+```C++
+size_t dp_resamp_consumed (
+    const resamp_state_t * state
+) 
+```
+
+
+
+Every block form stops offering input once `out` is full, so this is its `num_in` unless the output filled first; the caller resumes at in + consumed and the output continues exactly as one whole call gives it (doppler#2643). 0 after create and reset.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Input samples taken by the last block call. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_resamp\_create 
 
 _Create a resampler with the built-in 4096x19 Kaiser bank (60 dB, 0.4/0.6 pass/stop)._ 
@@ -221,43 +258,6 @@ resamp_state_t * dp_resamp_create_custom (
 **Returns:**
 
 Heap-allocated state, or NULL if `num_phases` is 0 or not a power of two, `num_taps` is 0, `bank` is NULL, `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok), or allocation fails. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_resamp\_ctrl\_consumed 
-
-_Inputs the last_ [_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _or_[_**dp\_resamp\_execute\_ctrl\_pos()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl_pos) _took._
-```C++
-size_t dp_resamp_ctrl_consumed (
-    const resamp_state_t * state
-) 
-```
-
-
-
-Both block forms stop offering input once `out` is full, so this is their `num_in` unless the output filled first; the caller resumes at in + consumed (doppler#2643). 0 after create and reset.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-
-
-
-**Returns:**
-
-Input samples taken by the last block ctrl call. 
 
 
 
@@ -369,7 +369,7 @@ size_t dp_resamp_execute (
 * `in` Input samples. 
 * `num_in` Number of input samples. 
 * `out` Output buffer. 
-* `max_out` Capacity of out in samples. 
+* `max_out` Capacity of out in samples. A full `out` stops the call with input unread, never dropped: [**dp\_resamp\_consumed()**](resamp__core_8h.md#function-dp_resamp_consumed) says where to resume. 
 
 
 

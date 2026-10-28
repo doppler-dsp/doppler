@@ -352,7 +352,7 @@ size_t dp_ddcr_execute (
 
 
 
-Uses a scratch buffer kept in the state (about n\_in complex samples), grown before any input is consumed when a block is larger than any before it; if that growth fails the call returns 0 having consumed nothing, so the same block may be retried.
+Uses a scratch buffer kept in the state (about n\_in complex samples), grown when a block is larger than any before it. The growth aborts on out-of-memory, as every library allocation does (dp\_xrealloc()), so a return of 0 always means "no output yet", never a failure.
 
 
 

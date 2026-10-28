@@ -234,7 +234,7 @@ size_t dp_HalfbandDecimator_execute (
 * `state` Pointer to a valid dp\_HalfbandDecimator\_state\_t. 
 * `x` CF32 input array. A sample left unpaired at the end is held for the next call. 
 * `x_len` Number of input samples. 
-* `out` Output buffer; must hold at least (x\_len + 1) / 2 samples. A shorter one drops nothing: the call stops at a pair boundary and [**dp\_hbdecim\_consumed()**](hbdecim__core_8h.md#function-dp_hbdecim_consumed) says how much input it took. 
+* `out` Output buffer; must hold at least (x\_len + 1) / 2 samples, which is [**dp\_HalfbandDecimator\_execute\_max\_out()**](HalfbandDecimator__core_8h.md#function-dp_halfbanddecimator_execute_max_out). Python refuses a shorter `out=`. In C a shorter one drops nothing: the call stops at a pair boundary and [**dp\_hbdecim\_consumed()**](hbdecim__core_8h.md#function-dp_hbdecim_consumed) says how much input it took. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
 

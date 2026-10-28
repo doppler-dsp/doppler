@@ -394,7 +394,7 @@ A complete tracking despreader for a continuous DSSS-BPSK stream: it composes a 
 
 **Returns:**
 
-Heap-allocated state, or NULL if `code` is NULL, the code loop's arguments fail [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok), the carrier loop's (`bn_carrier`, `zeta`) fail [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), or on allocation failure. 
+Heap-allocated state, or NULL if `code` is NULL, the code loop's arguments fail [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok), the carrier loop's (`bn_carrier`, `zeta`) fail [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), `bn_fll` fails [**dp\_loop\_filter\_fll\_bn\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_fll_bn_ok) (negative, NaN, or one whose gain overflows), or on allocation failure. 
 
 
 

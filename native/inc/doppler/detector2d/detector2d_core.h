@@ -155,7 +155,9 @@ typedef struct
  *                  the default sentinel selects the full window.
  * @param noise_mode Noise aggregation: "mean", "median", "min", or "max".
  * @param threshold  Test-stat gate; 0.0 = always emit.
- * @param nthreads   Accepted for API compatibility; ignored.
+ * @param nthreads   Forwarded to dp_corr2d_create(): workers for the
+ *                   single-row-reference fast path (1 serial, <= 0 every
+ *                   online core); the general 2-D path ignores it.
  * @return Heap-allocated state, or NULL when dp_corr2d_create() refuses the
  *         arguments (e.g. @p dwell 0) or allocation fails.
  * @code

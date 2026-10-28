@@ -47,7 +47,7 @@ native/src/carrier_nda/carrier_nda_core.c 1
 native/src/cic/cic_core.c 1
 native/src/conv_enc/conv_enc_core.c 1
 native/src/corr/corr_core.c 5
-native/src/corr2d/corr2d_core.c 10
+native/src/corr2d/corr2d_core.c 9
 native/src/costas/costas_core.c 1
 native/src/ddc/ddc_core.c 3
 native/src/ddcr/ddcr_core.c 1

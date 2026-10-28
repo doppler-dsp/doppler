@@ -319,6 +319,97 @@ don't depend on which path runs); forcing `fast_path=1` on a genuinely
 multi-row reference made the new dense-signal test fail cleanly (no crash,
 no silent corruption).
 
+## 10. DelayDoppler: the slow-time FFT in C (#2666)
+
+**Status:** shipped. `DelayDoppler` is a view on `Corr2D`
+(`dp_corr2d_create_delay_doppler`). It takes the raw stream, `ny` code periods
+back to back, and returns the delay-Doppler map. Before it, a caller built a
+zero-padded `(ny, nx)` reference with the code in row 0, reshaped `Corr2D`'s
+output, and ran the slow-time FFT in numpy, which cost about 80% of the time.
+
+**What it computes.** It runs §9's per-row correlation, then on the dump the
+`ny_out`-point FFT down every delay column, centered:
+
+```text
+map = fftshift(fft(ifft(fft(x.reshape(ny, nx), axis=1) * conj(fft(code)),
+                        axis=1), n=ny_out, axis=0), axes=0)
+```
+
+Rows are Doppler bins, with zero Doppler on row `ny_out // 2`. Columns are
+delay lags. Row `r` is a Doppler of `(r - ny_out // 2) * doppler_step` cycles
+per sample, where `doppler_step = 1 / (ny_out * nx)`.
+
+**Normalization.** The row inverse carries the only `1/nx`. The slow-time FFT
+is unnormalized, as numpy's is. A unit-amplitude signal against a unit-modulus
+code peaks at `dwell * ny * nx`.
+
+**Doppler interpolation.** `ny_out > ny` pads the slow-time samples with zeros
+after the `ny` rows. The `ny_out`-point DFT then samples the same response on
+a grid `ny_out / ny` times finer. The pad adds no energy, so a peak at a bin
+center keeps its height.
+
+**Order.** It inverts the rows first, then runs the column FFTs. That costs
+`ny` length-`nx` inverses plus `nx` length-`ny_out` FFTs. The other order puts
+the column FFT on the product spectrum and then needs `ny_out` row inverses,
+which costs more whenever `ny_out > ny`.
+
+**Columns.** Columns are a stride of `nx` apart, so the stage gathers 16
+neighbouring columns per row into contiguous scratch (a tiled transpose).
+Measured on the column stage alone at `(256, 4096)`, one thread: a plain
+per-column gather took 81 ms, against 2.2 ms for a tile of 16. A tile of 8
+took 3.9 ms and a tile of 32 took 3.6 ms.
+
+**Threads.** Each stage is a set of independent transforms: rows, then
+column tiles. Each stage runs as `nworkers` contiguous chunks on a persistent
+`dp_pool_t`. A pocketfft plan keeps its own scratch, so every worker owns its
+own plans, and chunk `t` always runs on plan `t`. The output is the same
+bytes for any `nthreads`, and both test suites check that. The same row stage
+serves `Corr2D`'s fast path, so `Corr2D`'s `nthreads` is now honored there.
+The general 2-D path still runs serially.
+
+A streaming caller hands the same preallocated map to every dump:
+
+```python
+import numpy as np
+from doppler.spectral import DelayDoppler
+
+ny, nx, delay, bins = 32, 256, 41, -4
+rng = np.random.default_rng(7)
+code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+dd = DelayDoppler(code, ny=ny, dwell=2, ny_out=4 * ny)
+f = bins * dd.doppler_step * 4  # -4 native bins, in cycles/sample
+n = np.arange(ny * nx)
+x = (np.tile(np.roll(code, delay), ny) * np.exp(2j * np.pi * f * n)).astype(
+    np.complex64
+)
+
+out = np.empty(dd.execute_max_out(), np.complex64)  # (ny_out * nx,)
+dumps = 0
+for frame in range(6):  # three dwells
+    if dd.execute(x, out=out) is not None:  # writes `out` on a dump
+        dumps += 1
+        m = out.reshape(dd.ny_out, nx)
+        row, col = np.unravel_index(np.argmax(np.abs(m)), m.shape)
+        assert (int(col), int(row) - dd.ny_out // 2) == (delay, 4 * bins)
+assert dumps == 3
+```
+
+**Measured** at `(256, 4096)`, dwell 1, with the shipped binding on a
+20-core box under load (load average about 11). Each figure is the median of
+five 20-call means:
+
+| path                                               | time    |
+| -------------------------------------------------- | ------- |
+| numpy only (`fft`, `ifft`, `fft`, `fftshift`)      | 60.8 ms |
+| `Corr2D`, then `np.fft.fft(axis=0)` and `fftshift` | 56.4 ms |
+| `Corr2D` alone                                     | 5.6 ms  |
+| `DelayDoppler`, 1 thread, `out=`                   | 9.0 ms  |
+| `DelayDoppler`, 4 threads, `out=`                  | 4.7 ms  |
+| `DelayDoppler`, 20 threads, `out=`                 | 1.5 ms  |
+
+The C rows are `native/benchmarks/bench_corr2d_core.c`'s `delay_doppler_*`
+rows. The Python rows are `src/doppler/spectral/benchmarks/bench_delay_doppler.py`.
+
 ## See also
 
 - [DSSS acquisition design](dsss-acquisition.md) — §7 (FFT-bound, the forward vs

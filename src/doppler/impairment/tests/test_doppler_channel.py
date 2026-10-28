@@ -14,6 +14,8 @@ is, 20 ppm of the time base.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
@@ -186,7 +188,7 @@ def test_state_rejects_bad_blobs() -> None:
 
 @pytest.mark.parametrize("fs", [0.0, -1.0])
 def test_invalid_sample_rate_rejected(fs: float) -> None:
-    with pytest.raises((ValueError, MemoryError)):
+    with pytest.raises(ValueError):
         DopplerChannel(fs=fs, carrier_hz=FC, doppler_ppm=PPM)
 
 
@@ -197,8 +199,18 @@ def test_time_reversing_doppler_rejected() -> None:
     exactly 0 and lands at +/-1e-17 depending on the platform's FP
     evaluation, so the exact boundary is non-portable (rejected on x86,
     accepted on arm64/macOS)."""
-    with pytest.raises((ValueError, MemoryError)):
+    with pytest.raises(ValueError):
         DopplerChannel(fs=FS, carrier_hz=FC, doppler_ppm=-2.0e6)
+
+
+@pytest.mark.parametrize("ppm", [math.nan, math.inf])
+def test_non_finite_doppler_is_refused_not_an_abort(ppm: float) -> None:
+    """NaN and +inf pass the scale test (NaN compares false, +inf is > 0),
+    and the resampler refuses the NaN or zero ratio they give. create used
+    to wrap that in dp_xnn() and abort the interpreter (exit 134,
+    doppler#2640); it is a refused configuration, so the create fails."""
+    with pytest.raises(ValueError):
+        DopplerChannel(fs=FS, carrier_hz=0.0, doppler_ppm=ppm)
 
 
 # ── the array form: a Doppler PROFILE, one value per waveform sample ──────

@@ -8,6 +8,8 @@ class_name = "DopplerChannel"
 serializable = "true"
 depends_on = [{ name = "resamp", link = true }]
 fragment = "generated"
+create_error = "ValueError"
+create_error_message = "DopplerChannel: invalid parameter (need fs > 0, a time scale 1 + doppler_ppm * 1e-6 > 0, and an initial rate 1 / scale the resampler accepts)"
 
 [[doppler_channel.init_params]]
 name = "fs"

@@ -36,7 +36,17 @@ dp_doppler_channel_create (double fs, double carrier_hz, double doppler_ppm,
       return NULL;
     }
 
-  obj->rs       = dp_xnn (dp_resamp_create (doppler_channel_ratio (obj, 0.0)));
+  /* dp_resamp_create() refuses a ratio it cannot run (doppler#2640): a NaN
+     or infinite doppler_ppm passes the scale test above (NaN compares false,
+     +inf is > 0) and reaches it as a NaN or zero ratio. That is a refused
+     configuration, not an allocation failure, so it fails the create the way
+     the scale test does instead of aborting the process in dp_xnn(). */
+  obj->rs = dp_resamp_create (doppler_channel_ratio (obj, 0.0));
+  if (!obj->rs)
+    {
+      free (obj);
+      return NULL;
+    }
   obj->ctrl     = dp_xmalloc (DOPPLER_CHANNEL_MAX_BLOCK * sizeof (*obj->ctrl));
   obj->ctrl_cap = DOPPLER_CHANNEL_MAX_BLOCK;
   return obj;
@@ -93,11 +103,6 @@ dp_doppler_channel_execute (dp_doppler_channel_state_t *state,
                             float _Complex *out, size_t max_out)
 {
   size_t n_out = 0;
-  /* The closed form drives this call, so it is what offset_hz describes
-     again: a profile's last d would otherwise outlive the stream it was the
-     Doppler of. An empty call applies nothing and leaves it alone. */
-  if (x_len)
-    state->profiled = 0u;
   /* Chip away at the input in ctrl-buffer-sized pieces. dp_resamp_execute_ctrl
      is input-driven and its accumulator carries across calls, so chunking here
      is invisible in the output. */
@@ -137,6 +142,12 @@ dp_doppler_channel_execute (dp_doppler_channel_state_t *state,
         break;
     }
   state->consumed = off;
+  /* The closed form drove this call, so it is what offset_hz describes
+     again: a profile's last d would otherwise outlive the stream it was the
+     Doppler of. A call that took nothing -- an empty one, or a max_out of 0
+     -- applied nothing and leaves it alone, the execute_profile rule. */
+  if (off)
+    state->profiled = 0u;
 
   /* Carrier, on the OUTPUT clock. Skipping the loop when there is nothing to
      apply keeps a pure time-dilation configuration (carrier_hz = 0, used to

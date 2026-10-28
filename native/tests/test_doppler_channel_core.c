@@ -120,6 +120,15 @@ main (void)
     x[i]
         = 1.0f + 0.0f * I; /* DC — any offset in the output is the channel's */
 
+  /* ---- 0. a ratio the resampler refuses fails the create -------------
+     NaN and +inf pass the scale test (NaN compares false, +inf is > 0) and
+     reach dp_resamp_create() as a NaN or zero ratio, which it refuses. The
+     create used to wrap that in dp_xnn() and abort the process
+     (doppler#2640); it returns NULL like any refused configuration. */
+  DP_CHECK (dp_doppler_channel_create (T_FS, 0.0, NAN, 0.0) == NULL);
+  DP_CHECK (dp_doppler_channel_create (T_FS, 0.0, INFINITY, 0.0) == NULL);
+  DP_CHECK (dp_doppler_channel_create (T_FS, 0.0, -INFINITY, 0.0) == NULL);
+
   /* ---- 1. carrier offset is fc * d ------------------------------------ */
   {
     dp_doppler_channel_state_t *ch
@@ -722,6 +731,16 @@ main (void)
     DP_CHECK (memcmp (ref, got, ngot * sizeof *ref) == 0);
     DP_CHECK (dp_doppler_channel_get_offset_hz (b)
               == dp_doppler_channel_get_offset_hz (a));
+    /* execute() under the same rule: a call that takes nothing (max_out 0)
+       leaves the profile's offset standing; one that takes input hands
+       offset_hz back to the closed form (here 0 ppm, so 0 Hz). */
+    double prof = dp_doppler_channel_get_offset_hz (b);
+    DP_CHECK (prof != 0.0);
+    DP_CHECK (dp_doppler_channel_execute (b, x, L, got, 0) == 0);
+    DP_CHECK (dp_doppler_channel_consumed (b) == 0);
+    DP_CHECK (dp_doppler_channel_get_offset_hz (b) == prof);
+    DP_CHECK (dp_doppler_channel_execute (b, x, L, got, CAP) > 0);
+    DP_CHECK (dp_doppler_channel_get_offset_hz (b) == 0.0);
     dp_doppler_channel_destroy (a);
     dp_doppler_channel_destroy (b);
     free (x);

@@ -4,4 +4,6 @@
     to read past the end of the bank. `Resampler()` now defaults to rate 1.0,
     not 0.0, and a bad `Resampler.rate` raises `ValueError`. Setting `rate`
     across 1 starts the new path fresh. A refused or failed
-    `RateConverter.rate` change leaves the converter as it was (#2640).
+    `RateConverter.rate` change leaves the converter as it was, and a
+    `DopplerChannel` whose initial rate is refused (a NaN or infinite
+    `doppler_ppm`) raises `ValueError` instead of aborting (#2640).

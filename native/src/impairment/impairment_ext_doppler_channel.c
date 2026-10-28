@@ -61,8 +61,10 @@ DopplerChannelObj_init (DopplerChannelObject *self, PyObject *args,
                                             doppler_rate_ppm_s);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_doppler_channel_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "DopplerChannel: invalid parameter (need fs > 0, a "
+                       "time scale 1 + doppler_ppm * 1e-6 > 0, and an "
+                       "initial rate 1 / scale the resampler accepts)");
       return -1;
     }
   return 0;
@@ -1024,9 +1026,41 @@ static PyTypeObject DopplerChannelObjType = {
   .tp_basicsize = sizeof (DopplerChannelObject),
   .tp_dealloc   = (destructor)DopplerChannelObj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,
-  .tp_doc       = "DopplerChannel type.\n",
-  .tp_methods   = DopplerChannelObj_methods,
-  .tp_getset    = DopplerChannel_getset,
-  .tp_new       = DopplerChannelObj_new,
-  .tp_init      = (initproc)DopplerChannelObj_init,
+  .tp_doc
+  = "DopplerChannel component.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "fs : float, default 1000000.0\n"
+    "    fs constructor parameter.\n"
+    "carrier_hz : float, default 0.0\n"
+    "    carrier_hz constructor parameter.\n"
+    "doppler_ppm : float, default 0.0\n"
+    "    doppler_ppm constructor parameter.\n"
+    "doppler_rate_ppm_s : float, default 0.0\n"
+    "    doppler_rate_ppm_s constructor parameter.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``DopplerChannel:\n"
+    "    invalid parameter (need fs > 0, a time scale 1 + doppler_ppm * 1e-6 "
+    ">\n"
+    "    0, and an initial rate 1 / scale the resampler accepts)``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.impairment import DopplerChannel\n"
+    ">>> obj = DopplerChannel(\n"
+    "...     fs=1000000.0,\n"
+    "...     carrier_hz=0.0,\n"
+    "...     doppler_ppm=0.0,\n"
+    "...     doppler_rate_ppm_s=0.0,\n"
+    "... )\n",
+  .tp_methods = DopplerChannelObj_methods,
+  .tp_getset  = DopplerChannel_getset,
+  .tp_new     = DopplerChannelObj_new,
+  .tp_init    = (initproc)DopplerChannelObj_init,
 };

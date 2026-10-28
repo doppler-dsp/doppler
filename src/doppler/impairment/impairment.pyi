@@ -19,6 +19,13 @@ class DopplerChannel:
     doppler_rate_ppm_s : float, default 0.0
         doppler_rate_ppm_s constructor parameter.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``DopplerChannel:
+        invalid parameter (need fs > 0, a time scale 1 + doppler_ppm * 1e-6 >
+        0, and an initial rate 1 / scale the resampler accepts)``.
+
     Examples
     --------
     Create with defaults:

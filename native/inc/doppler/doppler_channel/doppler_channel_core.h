@@ -128,8 +128,8 @@ typedef struct {
     double  prof_d;   /**< running: most recent instantaneous d from a
                            profile (dimensionless, not ppm)         */
     uint8_t profiled; /**< running: set by an execute_profile() call
-                           that consumes input; cleared by a
-                           non-empty execute() or reset */
+                           that consumes input; cleared by an
+                           execute() that consumes input, or reset */
 
     double *pos;      /**< owned per-output input position scratch
                            (not state); grown on demand          */
@@ -214,7 +214,10 @@ doppler_channel_phase(const dp_doppler_channel_state_t *s, double t)
  *              (default: 0.0).
  * @param doppler_rate_ppm_s  Linear ramp of d in ppm per second
  *              (default: 0.0).
- * @return Heap-allocated state, or NULL on allocation failure or `fs <= 0`.
+ * @return Heap-allocated state, or NULL when `fs` is not > 0, the time
+ *         scale `1 + doppler_ppm * 1e-6` is not > 0, or the initial ratio is
+ *         one dp_resamp_create() refuses (a NaN or infinite @p doppler_ppm
+ *         lands there).  Python raises ValueError.
  * @note Caller must call dp_doppler_channel_destroy() when done.
  */
 dp_doppler_channel_state_t *dp_doppler_channel_create(double fs, double carrier_hz, double doppler_ppm, double doppler_rate_ppm_s);

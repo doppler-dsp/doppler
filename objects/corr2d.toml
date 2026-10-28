@@ -8,6 +8,9 @@ class_name = "Corr2D"
 depends_on = ["fft2d_core"]
 serializable = "true"
 fragment = "generated"
+# A NULL create means a parameter was refused, not OOM (gh-482).
+create_error = "ValueError"
+create_error_message = "Corr2D: invalid parameter (need dwell >= 1, and ny_out and nx_out each 0 or at least the ref extent)"
 
 [[corr2d.init_params]]
 name = "ref"

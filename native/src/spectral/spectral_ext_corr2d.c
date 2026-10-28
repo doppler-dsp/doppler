@@ -137,7 +137,9 @@ Corr2DObj_init (Corr2DObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (ref_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_corr2d_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "Corr2D: invalid parameter (need dwell >= 1, and "
+                       "ny_out and nx_out each 0 or at least the ref extent)");
       return -1;
     }
   return 0;
@@ -754,6 +756,14 @@ static PyTypeObject Corr2DObjType = {
     "    fractional lag, which no time-domain sum produces. create() returns\n"
     "    NULL if col_out >= 0 with a reference the fast path rejects, with\n"
     "    ny_out or nx_out decoupled, or with a lag outside 0 .. nx-1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``Corr2D: invalid\n"
+    "    parameter (need dwell >= 1, and ny_out and nx_out each 0 or at "
+    "least\n"
+    "    the ref extent)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

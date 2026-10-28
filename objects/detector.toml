@@ -8,6 +8,9 @@ class_name = "CorrDetector"
 depends_on = ["corr_core"]
 serializable = "true"
 fragment = "generated"
+# A NULL create means a parameter was refused, not OOM (gh-482).
+create_error = "ValueError"
+create_error_message = "CorrDetector: invalid parameter (need a non-empty ref and dwell >= 1)"
 
 [[detector.init_params]]
 name = "ref"

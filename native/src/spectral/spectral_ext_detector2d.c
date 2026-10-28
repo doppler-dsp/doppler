@@ -163,8 +163,9 @@ CorrDetector2DObj_init (CorrDetector2DObject *self, PyObject *args,
   Py_DECREF (ref_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_detector2d_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "CorrDetector2D: invalid parameter (need a non-empty "
+                       "2-D ref and dwell >= 1)");
       return -1;
     }
   return 0;
@@ -703,6 +704,12 @@ static PyTypeObject CorrDetector2DObjType = {
     "    Test-stat gate; 0.0 = always emit.\n"
     "nthreads : int, default 1\n"
     "    Accepted for API compatibility; ignored.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``CorrDetector2D:\n"
+    "    invalid parameter (need a non-empty 2-D ref and dwell >= 1)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

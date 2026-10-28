@@ -264,8 +264,10 @@ class Plan:
         ------
         ValueError
             When ``gains``/``phases``/``enable`` is not :attr:`n_sources`
-            long, or ``seed`` is outside ``0 .. 2**32 - 1``: the C render
-            refuses rather than falling back to the baseline.
+            long, ``seed`` is outside ``0 .. 2**32 - 1``, or a ``gains``,
+            ``phases`` or ``snr`` value is NaN or infinite (the overrides
+            travel as JSON, which cannot carry one): the C render refuses
+            rather than falling back to the baseline.
 
         Returns
         -------
@@ -284,7 +286,17 @@ class Plan:
             ov["snr"] = float(snr)
         if seed is not None:
             ov["seed"] = int(seed)
-        js = _json.dumps(ov) if ov else "{}"
+        # JSON has no NaN or Infinity. json.dumps would write them anyway,
+        # and cJSON then refuses the text as "not a JSON object" -- a reason
+        # that names the wrong thing -- so the encoder refuses them, naming
+        # the value (doppler#2645).
+        try:
+            js = _json.dumps(ov, allow_nan=False) if ov else "{}"
+        except ValueError:
+            raise ValueError(
+                "overrides refused: gains, phases and snr must be finite "
+                "(the overrides travel as JSON, which has no NaN or Infinity)"
+            ) from None
         self._h.check_overrides(js)  # refuses what render() cannot honour
         return self._h.render(js)
 

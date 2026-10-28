@@ -45,11 +45,14 @@ dp_kaiser_beta_eval (double atten)
  *        behind dp_kaiser_num_taps() and resamp's built-in bank.
  *
  * Header-inline for the same reason as dp_kaiser_beta_eval() (doppler#2652).
- * It has no guard: @p num_phases must be at least 1, which
- * dp_kaiser_num_taps() checks before calling it.
+ * @p num_phases must be at least 1, which dp_kaiser_num_taps() checks before
+ * calling it. Every other argument is total: the prototype length floors at
+ * one tap where the formula falls below it (an @p atten under 8 dB, or a
+ * NaN) and caps at 2^52, so the conversion to size_t is always defined.
  *
  * @param num_phases  Number of polyphase branches, >= 1.
- * @param atten       Desired stopband attenuation in dB.
+ * @param atten       Desired stopband attenuation in dB; below 8 dB the
+ *                    prototype is one tap.
  * @param pb          Passband edge, as for dp_kaiser_num_taps().
  * @param sb          Stopband edge, same units as @p pb.
  * @return            Taps per polyphase branch: the Kaiser length of the
@@ -64,7 +67,15 @@ dp_kaiser_num_taps_eval (size_t num_phases, double atten, double pb,
   double       pb_ph   = pb / (double)num_phases;
   double       sb_ph   = sb / (double)num_phases;
   double       tw      = sb_ph - pb_ph;
-  size_t       proto   = (size_t)(1.0 + (atten - 8.0) / (2.285 * (2.0 * pi * tw)));
+  double       len     = 1.0 + (atten - 8.0) / (2.285 * (2.0 * pi * tw));
+  /* Total over every double: below 8 dB (or for a NaN) the formula falls
+     under one tap, and casting a negative double to size_t is undefined
+     behaviour, so the prototype floors at one tap, the formula's own value
+     at 8 dB. The cap keeps an absurd attenuation's cast defined too; no
+     bank comes near 2^52 taps. */
+  size_t proto = !(len > 1.0) ? 1u
+                 : len >= 4503599627370496.0 ? (size_t)4503599627370496.0
+                                             : (size_t)len;
   size_t       halflen = proto / 2;
   size_t       htaps   = 2 * halflen + 1;
   return htaps / num_phases + 1;
@@ -99,7 +110,9 @@ double dp_kaiser_beta(double atten);
  *
  * @param num_phases  Number of polyphase branches (power of two). A value
  *                    below 1 is not a bank; the function returns 0.
- * @param atten       Desired stopband attenuation in dB.
+ * @param atten       Desired stopband attenuation in dB. Below 8 dB the
+ *                    Kaiser length formula falls under one tap, and the
+ *                    prototype is floored at one.
  * @param pb          Passband edge in cycles per sample at the branch
  *                    (input) rate, so Nyquist is 0.5 (0 < pb < sb < 1).
  * @param sb          Stopband edge, same units as @p pb.

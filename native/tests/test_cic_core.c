@@ -451,7 +451,14 @@ main (void)
 
     dp_cic_state_t *src = dp_cic_create (64);
     (void)dp_cic_decimate (src, in, cut, ref, 32);
-    size_t         sb   = dp_cic_state_bytes (src);
+    size_t sb = dp_cic_state_bytes (src);
+    /* The forgeries below write R just past the envelope and the phase
+       five bytes from the end. Requiring room for both up front also tells
+       the compiler the offsets cannot wrap: without it CI's gcc saw a path
+       where `sb - 5` underflows and flagged a 4-byte memcpy into a region
+       of size 0 (-Wstringop-overflow). */
+    DP_REQUIRE (sb >= sizeof (dp_state_hdr_t) + sizeof (uint32_t)
+                          + sizeof (uint8_t) + sizeof (uint32_t));
     unsigned char *blob = malloc (sb);
     dp_cic_get_state (src, blob);
     size_t nref = dp_cic_decimate (src, in + cut, L - cut, ref, 32);

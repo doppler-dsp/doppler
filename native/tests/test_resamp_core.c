@@ -1439,12 +1439,14 @@ builtin_bank_uses_public_kaiser (void)
         }
       for (int lg = 0; lg <= 14; lg++)
         {
-          int    P = 1 << lg;
+          int P = 1 << lg;
+          /* Below 8 dB the length formula goes negative; the eval floors
+             the prototype at one tap there rather than casting a negative
+             double to size_t, which is undefined (UBSan caught this sweep
+             doing it), so the two faces agree across the whole range. */
           size_t t = dp_kaiser_num_taps_eval ((size_t)P, atten, 0.4, 0.6);
-          /* Below 8 dB the length formula goes negative and its cast is
-             undefined; no bank is designed there. */
-          if (atten >= 8.0
-              && (size_t)dp_kaiser_num_taps (P, atten, 0.4, 0.6) != t)
+          if ((size_t)dp_kaiser_num_taps (P, atten, 0.4, 0.6) != t
+              || (atten <= 8.0 && t != 1u / (size_t)P + 1u))
             {
               DP_TEST_ERR ("  §21 num_taps(%d, %g) differs\n", P, atten);
               ok = 0;

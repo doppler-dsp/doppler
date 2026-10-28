@@ -2148,7 +2148,8 @@ def kaiser_num_taps(
         Number of polyphase branches (power of two). A value below 1 is not
         a bank; the function returns 0.
     atten : float
-        Desired stopband attenuation in dB.
+        Desired stopband attenuation in dB. Below 8 dB the Kaiser length
+        formula falls under one tap, and the prototype is floored at one.
     pb : float
         Passband edge in cycles per sample at the branch (input) rate, so
         Nyquist is 0.5 (0 < pb < sb < 1).

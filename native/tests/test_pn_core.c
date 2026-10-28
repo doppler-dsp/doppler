@@ -367,7 +367,11 @@ main (void)
         dp_pn_state_t *p = dp_pn_create (96, 1, 7, kinds[ki]);
         uint8_t        chips[9];
         dp_pn_generate (p, 9, chips, 9);
-        size_t         sb     = dp_pn_state_bytes (p);
+        size_t sb = dp_pn_state_bytes (p);
+        /* Room for the register past the envelope, required up front so
+           the compiler cannot see a path where the forged offset passes the
+           end (gcc's -Wstringop-overflow otherwise flags these memcpys). */
+        DP_REQUIRE (sb >= sizeof (dp_state_hdr_t) + sizeof (uint64_t));
         unsigned char *blob   = malloc (sb);
         unsigned char *before = malloc (sb);
         unsigned char *after  = malloc (sb);

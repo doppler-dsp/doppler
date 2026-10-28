@@ -64,6 +64,341 @@ _brute_corr2d (const float _Complex *x, const float _Complex *h, size_t ny,
       }
 }
 
+/* ── DelayDoppler (#2666) helpers ───────────────────────────────────────
+ *
+ * The direct reference, in double, straight from the definition with no
+ * FFT anywhere: per row, the circular correlation against the code,
+ *   R[i][j] = sum_p conj(code[p]) * x[i*nx + (p + j) mod nx]
+ * (what IFFT(FFT(row) * conj(FFT(code))) / nx expands to), summed over the
+ * dwell's frames, then the ny_out-point DFT down each column of the ny
+ * rows -- rows ny..ny_out-1 being the zero-pad, they contribute nothing --
+ *   D[k][j] = sum_{i < ny} R[i][j] * exp(-2*pi*i*k*i / ny_out)
+ * written FFT-shifted: bin k to row (k + ny_out/2) mod ny_out. */
+static void
+_dd_direct (const float _Complex *const *frames, size_t dwell,
+            const float _Complex *code, size_t ny, size_t nx, size_t nyo,
+            double _Complex *out)
+{
+  double _Complex *r = calloc (ny * nx, sizeof *r);
+  for (size_t f = 0; f < dwell; f++)
+    for (size_t i = 0; i < ny; i++)
+      for (size_t j = 0; j < nx; j++)
+        for (size_t p = 0; p < nx; p++)
+          r[i * nx + j] += conj ((double _Complex)code[p])
+                           * (double _Complex)frames[f][i * nx + (p + j) % nx];
+  for (size_t k = 0; k < nyo; k++)
+    for (size_t j = 0; j < nx; j++)
+      {
+        double _Complex acc = 0.0;
+        for (size_t i = 0; i < ny; i++)
+          acc += r[i * nx + j]
+                 * cexp (-2.0 * M_PI * I * (double)(k * i % nyo)
+                         / (double)nyo);
+        out[((k + nyo / 2) % nyo) * nx + j] = acc;
+      }
+  free (r);
+}
+
+/* max |got - want| / max |want| */
+static double
+_dd_relerr (const float _Complex *got, const double _Complex *want, size_t n)
+{
+  double emax = 0.0, wmax = 0.0;
+  for (size_t k = 0; k < n; k++)
+    {
+      double e = cabs ((double _Complex)got[k] - want[k]);
+      double w = cabs (want[k]);
+      emax     = e > emax ? e : emax;
+      wmax     = w > wmax ? w : wmax;
+    }
+  return emax / wmax;
+}
+
+/* A unit-modulus code of nx random phases, deterministic per seed. */
+static void
+_dd_code (float _Complex *code, size_t nx, uint32_t seed)
+{
+  for (size_t p = 0; p < nx; p++)
+    code[p] = cexpf (2.0f * (float)M_PI * I * (float)(dp_xs32 (&seed) % 1000u)
+                     / 1000.0f);
+}
+
+/* ny code periods delayed by d samples and rotated by f cycles/sample. */
+static void
+_dd_signal (float _Complex *x, const float _Complex *code, size_t ny,
+            size_t nx, size_t d, double f)
+{
+  for (size_t m = 0; m < ny * nx; m++)
+    x[m] = code[(m % nx + nx - d) % nx]
+           * (float _Complex)cexp (2.0 * M_PI * I * f * (double)m);
+}
+
+/* Index of the largest-magnitude element. */
+static size_t
+_dd_argmax (const float _Complex *x, size_t n)
+{
+  size_t best = 0;
+  for (size_t k = 1; k < n; k++)
+    if (cabsf (x[k]) > cabsf (x[best]))
+      best = k;
+  return best;
+}
+
+static void
+_test_delay_doppler (void)
+{
+  /* ── against the direct reference: shapes, padding, dwell, threads ──── */
+  {
+    const struct
+    {
+      size_t ny, nx, ny_out, dwell;
+      int    nthreads;
+    } cases[] = {
+      { 4, 8, 0, 1, 1 }, { 5, 7, 12, 3, 1 },  { 6, 10, 6, 2, 3 },
+      { 1, 5, 4, 1, 2 }, { 9, 16, 32, 2, 4 }, { 3, 33, 7, 1, 0 },
+    };
+    for (size_t c = 0; c < sizeof cases / sizeof *cases; c++)
+      {
+        const size_t    ny = cases[c].ny, nx = cases[c].nx;
+        const size_t    nyo  = cases[c].ny_out ? cases[c].ny_out : ny;
+        uint32_t        seed = 7u + (uint32_t)c;
+        float _Complex *code = malloc (nx * sizeof *code);
+        _dd_code (code, nx, seed);
+        float _Complex *frames[3];
+        for (size_t f = 0; f < cases[c].dwell; f++)
+          {
+            frames[f] = malloc (ny * nx * sizeof **frames);
+            for (size_t m = 0; m < ny * nx; m++)
+              frames[f][m] = _rand_cplx (&seed);
+          }
+        dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
+            code, nx, ny, cases[c].dwell, cases[c].nthreads, cases[c].ny_out);
+        DP_CHECK (dd != NULL);
+        DP_CHECK (dp_corr2d_execute_max_out (dd) == nyo * nx);
+        float _Complex  *out  = malloc (nyo * nx * sizeof *out);
+        double _Complex *want = malloc (nyo * nx * sizeof *want);
+        /* Every frame but the last is accumulated silently. */
+        for (size_t f = 0; f + 1 < cases[c].dwell; f++)
+          {
+            DP_CHECK (dp_corr2d_execute (dd, frames[f], ny * nx, out, nyo * nx)
+                      == 0);
+            DP_CHECK (dd->count == f + 1);
+          }
+        DP_CHECK (dp_corr2d_execute (dd, frames[cases[c].dwell - 1], ny * nx,
+                                     out, nyo * nx)
+                  == nyo * nx);
+        DP_CHECK (dd->count == 0);
+        _dd_direct ((const float _Complex *const *)frames, cases[c].dwell,
+                    code, ny, nx, nyo, want);
+        double err = _dd_relerr (out, want, nyo * nx);
+        if (err > 1e-5)
+          printf ("  delay-doppler case %zu: relerr %.3g\n", c, err);
+        DP_CHECK (err < 1e-5);
+        /* The accumulator is clear: a fresh dwell of the same frames gives
+           the same map, to the byte. */
+        float _Complex *again = malloc (nyo * nx * sizeof *again);
+        for (size_t f = 0; f < cases[c].dwell; f++)
+          (void)dp_corr2d_execute (dd, frames[f], ny * nx, again, nyo * nx);
+        DP_CHECK (memcmp (out, again, nyo * nx * sizeof *out) == 0);
+        free (again);
+        for (size_t f = 0; f < cases[c].dwell; f++)
+          free (frames[f]);
+        free (code);
+        free (out);
+        free (want);
+        dp_corr2d_destroy (dd);
+      }
+  }
+
+  /* ── a known (delay, Doppler) lands on its (row, col) ─────────────────
+   * Delay 7, Doppler -3 native bins (f = -3 / (ny*nx)): column 7, row
+   * ny/2 - 3.  A unit-amplitude signal against a unit-modulus code peaks at
+   * ny * nx less the intra-period rotation's loss, here 3 bins over the
+   * ny*nx span, i.e. 3/ny of a cycle per period: sinc(3/16) = 0.94. */
+  {
+    const size_t ny = 16, nx = 32, d = 7;
+    float _Complex code[32], x[16 * 32], out[16 * 32];
+    _dd_code (code, nx, 11u);
+    _dd_signal (x, code, ny, nx, d, -3.0 / (double)(ny * nx));
+    dp_corr2d_state_t *dd
+        = dp_corr2d_create_delay_doppler (code, nx, ny, 1, 1, 0);
+    DP_CHECK (dd != NULL);
+    DP_CHECK (fabs (dd->doppler_step - 1.0 / (double)(ny * nx)) < 1e-15);
+    DP_CHECK (dp_corr2d_execute (dd, x, ny * nx, out, ny * nx) == ny * nx);
+    size_t pk = _dd_argmax (out, ny * nx);
+    DP_CHECK (pk / nx == ny / 2 - 3 && pk % nx == d);
+    DP_CHECK (cabsf (out[pk]) > 0.9f * (float)(ny * nx));
+    DP_CHECK (cabsf (out[pk]) <= (float)(ny * nx) * 1.0001f);
+    dp_corr2d_destroy (dd);
+  }
+
+  /* ── ny_out interpolates: a Doppler between native bins ──────────────
+   * f = 2.5 native bins sits exactly between rows 2 and 3 at ny_out = ny;
+   * at ny_out = 4*ny the grid is 4x finer and the half bin is a whole row:
+   * row ny_out/2 + 10.  doppler_step follows the grid. */
+  {
+    const size_t ny = 16, nx = 32, nyo = 64, d = 3;
+    float _Complex code[32], x[16 * 32];
+    float _Complex *out = malloc (nyo * nx * sizeof *out);
+    _dd_code (code, nx, 13u);
+    _dd_signal (x, code, ny, nx, d, 2.5 / (double)(ny * nx));
+    dp_corr2d_state_t *dd
+        = dp_corr2d_create_delay_doppler (code, nx, ny, 1, 1, nyo);
+    DP_CHECK (dd != NULL);
+    DP_CHECK (fabs (dd->doppler_step - 1.0 / (double)(nyo * nx)) < 1e-15);
+    DP_CHECK (dp_corr2d_execute (dd, x, ny * nx, out, nyo * nx) == nyo * nx);
+    size_t pk = _dd_argmax (out, nyo * nx);
+    DP_CHECK (pk / nx == nyo / 2 + 10 && pk % nx == d);
+    dp_corr2d_destroy (dd);
+    free (out);
+  }
+
+  /* ── bit-identical across thread counts (bytes, not tolerance) ───────
+   * Odd sizes, so the chunk boundaries fall differently for every count,
+   * the last column tile is partial, and the slow-time length is padded. */
+  {
+    const size_t ny = 37, nx = 100, nyo = 50, n = 37 * 100;
+    uint32_t     seed = 99u;
+    float _Complex code[100];
+    _dd_code (code, nx, 17u);
+    float _Complex *x = malloc (2 * n * sizeof *x);
+    for (size_t m = 0; m < 2 * n; m++)
+      x[m] = _rand_cplx (&seed);
+    const int       threads[] = { 1, 2, 7 };
+    float _Complex *outs[3];
+    for (size_t t = 0; t < 3; t++)
+      {
+        dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
+            code, nx, ny, 2, threads[t], nyo);
+        DP_CHECK (dd != NULL);
+        DP_CHECK (dd->nworkers == threads[t]);
+        outs[t] = malloc (nyo * nx * sizeof **outs);
+        (void)dp_corr2d_execute (dd, x, n, outs[t], nyo * nx);
+        DP_CHECK (dp_corr2d_execute (dd, x + n, n, outs[t], nyo * nx)
+                  == nyo * nx);
+        dp_corr2d_destroy (dd);
+      }
+    DP_CHECK (memcmp (outs[0], outs[1], nyo * nx * sizeof **outs) == 0);
+    DP_CHECK (memcmp (outs[0], outs[2], nyo * nx * sizeof **outs) == 0);
+    for (size_t t = 0; t < 3; t++)
+      free (outs[t]);
+
+    /* Corr2D's fast path honors nthreads the same way. */
+    float _Complex *ref = calloc (n, sizeof *ref);
+    memcpy (ref, code, nx * sizeof *code);
+    float _Complex *c_out[2];
+    for (size_t t = 0; t < 2; t++)
+      {
+        dp_corr2d_state_t *c
+            = dp_corr2d_create (ref, ny, nx, 1, t ? 7 : 1, 0, 0, -1);
+        DP_CHECK (c != NULL && c->fast_path == 1);
+        DP_CHECK (c->nworkers == (t ? 7 : 1));
+        c_out[t] = malloc (n * sizeof **c_out);
+        DP_CHECK (dp_corr2d_execute (c, x, n, c_out[t], n) == n);
+        dp_corr2d_destroy (c);
+      }
+    DP_CHECK (memcmp (c_out[0], c_out[1], n * sizeof **c_out) == 0);
+    free (c_out[0]);
+    free (c_out[1]);
+    free (ref);
+    free (x);
+  }
+
+  /* ── refusals ─────────────────────────────────────────────────────── */
+  {
+    float _Complex code[8] = { 1.0f };
+    DP_CHECK (dp_corr2d_create_delay_doppler (NULL, 8, 4, 1, 1, 0) == NULL);
+    DP_CHECK (dp_corr2d_create_delay_doppler (code, 0, 4, 1, 1, 0) == NULL);
+    DP_CHECK (dp_corr2d_create_delay_doppler (code, 8, 0, 1, 1, 0) == NULL);
+    DP_CHECK (dp_corr2d_create_delay_doppler (code, 8, 4, 0, 1, 0) == NULL);
+    DP_CHECK (dp_corr2d_create_delay_doppler (code, 8, 4, 1, 1, 3) == NULL);
+    /* ny_out == ny is the native grid, not a refusal. */
+    dp_corr2d_state_t *ok
+        = dp_corr2d_create_delay_doppler (code, 8, 4, 1, 1, 4);
+    DP_CHECK (ok != NULL);
+    dp_corr2d_destroy (ok);
+  }
+
+  /* ── serializable state: resume, flavor and key rejects ──────────── */
+  {
+    const size_t ny = 4, nx = 8, n = 32;
+    float _Complex code[8], x[32];
+    uint32_t seed = 5u;
+    _dd_code (code, nx, 23u);
+    for (size_t m = 0; m < n; m++)
+      x[m] = _rand_cplx (&seed);
+    dp_corr2d_state_t *a
+        = dp_corr2d_create_delay_doppler (code, nx, ny, 3, 1, 8);
+    dp_corr2d_state_t *b
+        = dp_corr2d_create_delay_doppler (code, nx, ny, 3, 2, 8);
+    DP_CHECK (a != NULL && b != NULL);
+    float _Complex out_a[64], out_b[64];
+    (void)dp_corr2d_execute (a, x, n, out_a, 64);
+    DP_STATE_ROUNDTRIP_TEST (dp_corr2d, a, b);
+    /* Mid-dwell split: b resumes a's dwell and dumps the same map. */
+    {
+      void *blob = malloc (dp_corr2d_state_bytes (a));
+      dp_corr2d_get_state (a, blob);
+      DP_CHECK (dp_corr2d_set_state (b, blob) == DP_OK);
+      free (blob);
+    }
+    for (int f = 0; f < 2; f++)
+      {
+        (void)dp_corr2d_execute (a, x, n, out_a, 64);
+        (void)dp_corr2d_execute (b, x, n, out_b, 64);
+      }
+    DP_CHECK (memcmp (out_a, out_b, sizeof out_a) == 0);
+
+    /* Cross-flavor: a Corr2D blob over the same (ny, nx) and code, and the
+       delay-Doppler blob back into that Corr2D, are both refused. */
+    float _Complex ref[32] = { 0 };
+    memcpy (ref, code, sizeof code);
+    dp_corr2d_state_t *c = dp_corr2d_create (ref, ny, nx, 3, 1, 0, 0, -1);
+    DP_CHECK (c != NULL);
+    {
+      void *cb = malloc (dp_corr2d_state_bytes (c));
+      void *db = malloc (dp_corr2d_state_bytes (a));
+      dp_corr2d_get_state (c, cb);
+      dp_corr2d_get_state (a, db);
+      DP_CHECK (dp_corr2d_set_state (a, cb) == DP_ERR_INVALID);
+      DP_CHECK (dp_corr2d_set_state (c, db) == DP_ERR_INVALID);
+      free (cb);
+      free (db);
+    }
+    dp_corr2d_destroy (c);
+
+    /* Reject keys at an equal blob size: ny_out 8 vs 6 (the map), ny 4 vs
+       8 over the same ny*nx (a (4, 8) accumulator read as (8, 4)), and a
+       count the target's shorter dwell would never dump. */
+    {
+      (void)dp_corr2d_execute (a, x, n, out_a, 64);
+      (void)dp_corr2d_execute (a, x, n, out_a, 64); /* count 2 of 3 */
+      DP_CHECK (a->count == 2);
+      void *blob = malloc (dp_corr2d_state_bytes (a));
+      dp_corr2d_get_state (a, blob);
+      dp_corr2d_state_t *o6
+          = dp_corr2d_create_delay_doppler (code, nx, ny, 3, 1, 6);
+      dp_corr2d_state_t *t8
+          = dp_corr2d_create_delay_doppler (code, 4, 8, 3, 1, 8);
+      dp_corr2d_state_t *d2
+          = dp_corr2d_create_delay_doppler (code, nx, ny, 2, 1, 8);
+      DP_CHECK (o6 && t8 && d2);
+      DP_CHECK (dp_corr2d_state_bytes (o6) == dp_corr2d_state_bytes (a));
+      DP_CHECK (dp_corr2d_state_bytes (t8) == dp_corr2d_state_bytes (a));
+      DP_CHECK (dp_corr2d_set_state (o6, blob) == DP_ERR_INVALID);
+      DP_CHECK (dp_corr2d_set_state (t8, blob) == DP_ERR_INVALID);
+      DP_CHECK (dp_corr2d_set_state (d2, blob) == DP_ERR_INVALID);
+      DP_CHECK (o6->count == 0 && t8->count == 0 && d2->count == 0);
+      dp_corr2d_destroy (o6);
+      dp_corr2d_destroy (t8);
+      dp_corr2d_destroy (d2);
+      free (blob);
+    }
+    dp_corr2d_destroy (a);
+    dp_corr2d_destroy (b);
+  }
+}
+
 int
 main (void)
 {
@@ -850,6 +1185,8 @@ main (void)
     DP_CHECK (dp_corr2d_execute (obj, good, N, out, N) == N); /* dumps */
     dp_corr2d_destroy (obj);
   }
+
+  _test_delay_doppler ();
 
   DP_TEST_END ("test_corr2d_core");
 }

@@ -37,9 +37,13 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  float \_Complex \* | [**accum**](#variable-accum)  <br> |
+|  float \_Complex \* | [**col\_gather**](#variable-col_gather)  <br> |
 |  int | [**col\_out**](#variable-col_out)  <br> |
 |  float \_Complex \* | [**col\_ref**](#variable-col_ref)  <br> |
+|  float \_Complex \* | [**col\_spec**](#variable-col_spec)  <br> |
 |  size\_t | [**count**](#variable-count)  <br> |
+|  int | [**delay\_doppler**](#variable-delay_doppler)  <br> |
+|  double | [**doppler\_step**](#variable-doppler_step)  <br> |
 |  size\_t | [**dwell**](#variable-dwell)  <br> |
 |  int | [**fast\_path**](#variable-fast_path)  <br> |
 |  [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* | [**fwd**](#variable-fwd)  <br> |
@@ -48,12 +52,17 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**inv1d**](#variable-inv1d)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_out**](#variable-n_out)  <br> |
+|  int | [**nworkers**](#variable-nworkers)  <br> |
 |  size\_t | [**nx**](#variable-nx)  <br> |
 |  size\_t | [**nx\_out**](#variable-nx_out)  <br> |
 |  size\_t | [**ny**](#variable-ny)  <br> |
 |  size\_t | [**ny\_out**](#variable-ny_out)  <br> |
+|  [**dp\_pool\_t**](structdp__pool__t.md) \* | [**pool**](#variable-pool)  <br> |
 |  float \_Complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
+|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**row\_fwd**](#variable-row_fwd)  <br> |
+|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**row\_inv**](#variable-row_inv)  <br> |
 |  float \_Complex \* | [**row\_ref\_spec**](#variable-row_ref_spec)  <br> |
+|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**slow\_fft**](#variable-slow_fft)  <br> |
 |  float \_Complex \* | [**work\_fft**](#variable-work_fft)  <br> |
 |  float \_Complex \* | [**work\_pad**](#variable-work_pad)  <br> |
 |  float \_Complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
@@ -134,6 +143,24 @@ Coherent product-spectrum accumulator, same (ny,nx)/reinterpretation rule as wor
 
 
 
+### variable col\_gather 
+
+```C++
+float _Complex* dp_corr2d_state_t::col_gather;
+```
+
+
+
+Per-worker column tiles, nworkers x CORR2D\_COL\_TILE x ny\_out; rows ny.. ny\_out-1 of each column stay zero (the slow-time zero-pad). Delay-Doppler. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable col\_out 
 
 ```C++
@@ -169,6 +196,24 @@ conj(ref row 0) in the TIME domain, length nx; NULL when col\_out &lt; 0.
 
 
 
+### variable col\_spec 
+
+```C++
+float _Complex* dp_corr2d_state_t::col_spec;
+```
+
+
+
+Per-worker transformed tiles, same shape as [**col\_gather**](structdp__corr2d__state__t.md#variable-col_gather). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable count 
 
 ```C++
@@ -178,6 +223,42 @@ size_t dp_corr2d_state_t::count;
 
 
 Frames accumulated (0 … dwell-1). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable delay\_doppler 
+
+```C++
+int dp_corr2d_state_t::delay_doppler;
+```
+
+
+
+1 for the delay-Doppler flavor. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable doppler\_step 
+
+```C++
+double dp_corr2d_state_t::doppler_step;
+```
+
+
+
+Doppler spacing between adjacent output rows, cycles/sample: 1 / (ny\_out \* nx). 0 for Corr2D. 
  
 
 
@@ -330,6 +411,24 @@ ny\_out \* nx\_out — output element count.
 
 
 
+### variable nworkers 
+
+```C++
+int dp_corr2d_state_t::nworkers;
+```
+
+
+
+Chunks per stage (1 = serial). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable nx 
 
 ```C++
@@ -401,6 +500,24 @@ Output rows (== ny unless decoupled).
 
 
 
+### variable pool 
+
+```C++
+dp_pool_t* dp_corr2d_state_t::pool;
+```
+
+
+
+Persistent workers; NULL when serial. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable ref\_spec 
 
 ```C++
@@ -418,6 +535,42 @@ conj(FFT2(ref)), pre-computed. (ny, nx). NULL when [**fast\_path**](structdp__co
 
 
 
+### variable row\_fwd 
+
+```C++
+dp_fft_state_t** dp_corr2d_state_t::row_fwd;
+```
+
+
+
+Per-worker forward row plans, length nx; worker 0's is [**fwd1d**](structdp__corr2d__state__t.md#variable-fwd1d). Fast path only. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable row\_inv 
+
+```C++
+dp_fft_state_t** dp_corr2d_state_t::row_inv;
+```
+
+
+
+Per-worker inverse row plans, length nx\_out; worker 0's is [**inv1d**](structdp__corr2d__state__t.md#variable-inv1d). Fast path only. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable row\_ref\_spec 
 
 ```C++
@@ -427,6 +580,24 @@ float _Complex* dp_corr2d_state_t::row_ref_spec;
 
 
 conj(FFT\_nx(ref row 0)), length nx. Fast-path replacement for ref\_spec. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable slow\_fft 
+
+```C++
+dp_fft_state_t** dp_corr2d_state_t::slow_fft;
+```
+
+
+
+Per-worker slow-time plans, length ny\_out. Delay-Doppler only. 
  
 
 

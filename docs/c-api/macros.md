@@ -185,6 +185,8 @@
 * **DP\_FRAMER\_STATE\_VERSION** ([**buffer.h**](buffer_8h.md))
 * **DP\_FRAMER\_STATE\_WRITTEN\_OFFSET** ([**buffer.h**](buffer_8h.md))
 * **DP\_SPIN\_HINT** ([**buffer.h**](buffer_8h.md))
+* **DELAY\_DOPPLER\_STATE\_MAGIC** ([**corr2d\_core.h**](corr2d__core_8h.md))
+* **DELAY\_DOPPLER\_STATE\_VERSION** ([**corr2d\_core.h**](corr2d__core_8h.md))
 * **DDC\_STATE\_MAGIC** ([**ddc\_core.h**](ddc__core_8h.md))
 * **DDC\_STATE\_VERSION** ([**ddc\_core.h**](ddc__core_8h.md))
 * **DDCR\_STATE\_MAGIC** ([**ddcr\_core.h**](ddcr__core_8h.md))

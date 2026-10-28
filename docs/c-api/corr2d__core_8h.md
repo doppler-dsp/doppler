@@ -11,6 +11,7 @@
 _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#detailed-description)
 
 * `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_parallel.h"`
 * `#include "doppler/dp_state.h"`
 * `#include "doppler/fft/fft_core.h"`
 * `#include "doppler/fft2d/fft2d_core.h"`
@@ -61,6 +62,7 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 | Type | Name |
 | ---: | :--- |
 |  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**dp\_corr2d\_create**](#function-dp_corr2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out, int col\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**dp\_corr\_create()**_](corr__core_8h.md#function-dp_corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
+|  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**dp\_corr2d\_create\_delay\_doppler**](#function-dp_corr2d_create_delay_doppler) (const float \_Complex \* code, size\_t code\_len, size\_t ny, size\_t dwell, int nthreads, size\_t ny\_out) <br>_Allocate the delay-Doppler flavor: a code correlator that maps a raw stream of_ `ny` _code periods onto (Doppler, delay)._ |
 |  void | [**dp\_corr2d\_destroy**](#function-dp_corr2d_destroy) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Destroy and free a corr2d instance._  |
 |  size\_t | [**dp\_corr2d\_execute**](#function-dp_corr2d_execute) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._ |
 |  size\_t | [**dp\_corr2d\_execute\_max\_out**](#function-dp_corr2d_execute_max_out) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (_ [_**dp\_corr2d\_state\_t::n\_out**_](structdp__corr2d__state__t.md#variable-n_out) __ _ny\_out\*nx\_out normally, or ny when a single_[_**dp\_corr2d\_state\_t::col\_out**_](structdp__corr2d__state__t.md#variable-col_out) _was selected)._ |
@@ -102,6 +104,8 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 | ---: | :--- |
 | define  | [**CORR2D\_STATE\_MAGIC**](corr2d__core_8h.md#define-corr2d_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C','R','2','D')`<br>_State-blob magic ('CR2D'); set\_state() rejects any other._  |
 | define  | [**CORR2D\_STATE\_VERSION**](corr2d__core_8h.md#define-corr2d_state_version)  `1u`<br>_State-blob layout version; set\_state() rejects any other._  |
+| define  | [**DELAY\_DOPPLER\_STATE\_MAGIC**](corr2d__core_8h.md#define-delay_doppler_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','D','M','P')`<br>_The delay-Doppler flavor's state-blob magic ('DDMP'): a Corr2D blob and a delay-Doppler blob each refuse to restore into the other._  |
+| define  | [**DELAY\_DOPPLER\_STATE\_VERSION**](corr2d__core_8h.md#define-delay_doppler_state_version)  `1u`<br>_The delay-Doppler flavor's blob layout version._  |
 
 ## Detailed Description
 
@@ -165,7 +169,7 @@ dp_corr2d_state_t * dp_corr2d_create (
 * `ny` Number of rows in the reference and input frames. 
 * `nx` Number of columns in the reference and input frames. 
 * `dwell` Integration depth; must be &gt;= 1. 
-* `nthreads` Accepted for API compatibility; ignored. 
+* `nthreads` Workers for the single-row-reference fast path's per-row stage: 1 runs serially (no threads), N runs N workers (the caller included), &lt;= 0 uses every online core. The output is bit-identical whatever the count. The general 2-D path runs serially and ignores it. 
 * `ny_out` Inverse/output rows; 0 =&gt; native (ny). Must be &gt;= ny. A larger output zero-pads the cross-spectrum before the inverse, returning the band-limited (Dirichlet) interpolation of the correlation on a finer (ny\_out, nx\_out) grid — same peak, sub-bin resolution. Native is bit-exact and allocates no extra buffers. 
 * `nx_out` Inverse/output columns; 0 =&gt; native (nx). Must be &gt;= nx. 
 * `col_out` Emit ONLY this correlation lag, or &lt; 0 for the whole map. When set, a dump writes `ny` values  one per row  instead of ny\*nx\_out, computed as the time-domain sum over p of `conj(ref(p)) * row((p + col_out) mod nx)`, which is what R(i, col\_out) expands to once the 1/nx cancels. No transform runs in either direction, so the cost per row is O(nx) rather than O(nx log nx). Requires the single-row-reference fast path (a caller that knows its lag is by construction correlating against a code replica) and the NATIVE output grid: an interpolated column is a fractional lag, which no time-domain sum produces. create() returns NULL if `col_out` &gt;= 0 with a reference the fast path rejects, with `ny_out` or `nx_out` decoupled, or with a lag outside 0 .. nx-1. 
@@ -182,6 +186,82 @@ Heap-allocated state, or NULL on failure.
 >>> c = Corr2D(ref=ref, dwell=1, nthreads=1)
 >>> c.ny, c.nx, c.dwell, c.count
 (4, 4, 1, 0)
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_create\_delay\_doppler 
+
+_Allocate the delay-Doppler flavor: a code correlator that maps a raw stream of_ `ny` _code periods onto (Doppler, delay)._
+```C++
+dp_corr2d_state_t * dp_corr2d_create_delay_doppler (
+    const float _Complex * code,
+    size_t code_len,
+    size_t ny,
+    size_t dwell,
+    int nthreads,
+    size_t ny_out
+) 
+```
+
+
+
+Input to [**dp\_corr2d\_execute()**](corr2d__core_8h.md#function-dp_corr2d_execute) is the raw stream  `ny` periods of `code_len` samples, back to back, no reshaping or reference padding by the caller. Each period (row) is correlated against `code` exactly as Corr2D's single-row fast path does (FFT, multiply by `conj(FFT(code))`, coherent `dwell` accumulation of the product spectrum, inverse scaled by `1/nx`), and on the dump the slow-time FFT runs down every delay column. In numpy terms, for one frame `x` (dwell 1):  The output is `ny_out x nx` row-major: rows are Doppler bins, centered (zero Doppler on row `ny_out / 2`), columns are delay lags. A signal `a * code[(n - d) mod nx] * exp(2j*pi*f*n)` peaks at column `d` and row `ny_out/2 + f / doppler_step`, where [**dp\_corr2d\_state\_t::doppler\_step**](structdp__corr2d__state__t.md#variable-doppler_step) is `1 / (ny_out * nx)` cycles/sample (times the sample rate for Hz). Its peak is `a * dwell * ny * sum(|code|^2)`: the 1/nx of the row inverse cancels the row correlation's own gain of nx, and the slow-time FFT is unnormalized, as numpy's is, so it sums the ny rows coherently.
+
+
+`ny_out > ny` zero-pads the slow-time samples after the ny rows: the ny\_out-point DFT then samples the same Doppler response on a grid ny\_out/ny times finer (band-limited interpolation). The pad adds no energy, so the peak at a bin center is unchanged and a Doppler between native bins is found at its fractional row.
+
+
+Both stages fan out over `nthreads` workers  the rows, then the columns  each worker on its own FFT plans, and the result is bit-identical for every thread count.
+
+
+
+
+**Parameters:**
+
+
+* `code` The code replica, `code_len` samples (one period). 
+* `code_len` Samples per period, nx; must be &gt;= 1. 
+* `ny` Periods per frame, the slow-time length; must be &gt;= 1. 
+* `dwell` Frames coherently accumulated per dump; must be &gt;= 1. 
+* `nthreads` Workers: 1 serial, N for N (the caller included), &lt;= 0 every online core. 
+* `ny_out` Doppler bins in the map; 0 means `ny`. Must be &gt;= `ny`. 
+
+
+
+**Returns:**
+
+Heap-allocated state (free with [**dp\_corr2d\_destroy()**](corr2d__core_8h.md#function-dp_corr2d_destroy)), or NULL if `code` is NULL, `code_len` or `ny` is 0, `dwell` is 0, or `ny_out` is below `ny`. 
+```C++
+>>> import numpy as np
+>>> from doppler.spectral import DelayDoppler
+>>> rng = np.random.default_rng(0)
+>>> ny, nx, d, k = 16, 64, 5, 3       # delay 5, Doppler 3 bins
+>>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+>>> n = np.arange(ny * nx)
+>>> f = k / (ny * nx)                 # cycles/sample
+>>> x = (np.tile(np.roll(code, d), ny)
+...      * np.exp(2j * np.pi * f * n)).astype(np.complex64)
+>>> dd = DelayDoppler(code, ny=ny, dwell=2)
+>>> out = np.empty(dd.execute_max_out(), np.complex64)
+>>> for _ in range(2):                # one preallocated map per dump
+...     m = dd.execute(x, out=out)
+>>> m is not None and m.base is out
+True
+>>> row, col = np.unravel_index(np.argmax(np.abs(out)), (ny, nx))
+>>> int(row) - ny // 2, int(col)      # (Doppler bins, delay)
+(3, 5)
+>>> dd.doppler_step == 1 / (ny * nx)
+True
 ```
  
 
@@ -442,7 +522,7 @@ int dp_corr2d_set_state (
 
 **Returns:**
 
-`DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's magic, version, endianness or size does not match. 
+`DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's magic, version, endianness or size does not match  including a blob of the other flavor  or, for the delay-Doppler flavor, when the blob's ny or ny\_out differs from `state's` or its frame count is not below `state's` dwell. 
 
 
 
@@ -476,7 +556,7 @@ size_t dp_corr2d_state_bytes (
 
 **Returns:**
 
-Header + frame count (u64) + ny\*nx complex-float accumulator. 
+Header + frame count (u64) + ny\*nx complex-float accumulator; the delay-Doppler flavor adds its ny and ny\_out (u64 each). 
 
 
 
@@ -510,6 +590,34 @@ _State-blob magic ('CR2D'); set\_state() rejects any other._
 _State-blob layout version; set\_state() rejects any other._ 
 ```C++
 #define CORR2D_STATE_VERSION `1u`
+```
+
+
+
+
+<hr>
+
+
+
+### define DELAY\_DOPPLER\_STATE\_MAGIC 
+
+_The delay-Doppler flavor's state-blob magic ('DDMP'): a Corr2D blob and a delay-Doppler blob each refuse to restore into the other._ 
+```C++
+#define DELAY_DOPPLER_STATE_MAGIC `DP_FOURCC ('D','D','M','P')`
+```
+
+
+
+
+<hr>
+
+
+
+### define DELAY\_DOPPLER\_STATE\_VERSION 
+
+_The delay-Doppler flavor's blob layout version._ 
+```C++
+#define DELAY_DOPPLER_STATE_VERSION `1u`
 ```
 
 

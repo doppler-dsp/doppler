@@ -915,7 +915,10 @@ class Corr2D:
     dwell : int, default 1
         Integration depth; must be >= 1.
     nthreads : int, default 1
-        Accepted for API compatibility; ignored.
+        Workers for the single-row-reference fast path's per-row stage: 1 runs
+        serially (no threads), N runs N workers (the caller included), <= 0
+        uses every online core. The output is bit-identical whatever the count.
+        The general 2-D path runs serially and ignores it.
     ny_out : int, default 0
         Inverse/output rows; 0 => native (ny). Must be >= ny. A larger output
         zero-pads the cross-spectrum before the inverse, returning the
@@ -1168,6 +1171,282 @@ class Corr2D:
         /,
     ) -> None:
         """Exit a context manager, releasing the Corr2D.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class DelayDoppler:
+    """Allocate the delay-Doppler flavor: a code correlator that maps a raw
+    stream of ny code periods onto (Doppler, delay).
+
+    Parameters
+    ----------
+    code : NDArray[np.complex64]
+        The code replica, code_len samples (one period).
+    ny : int, default 1
+        Periods per frame, the slow-time length; must be >= 1.
+    dwell : int, default 1
+        Frames coherently accumulated per dump; must be >= 1.
+    nthreads : int, default 1
+        Workers: 1 serial, N for N (the caller included), <= 0 every online
+        core.
+    ny_out : int, default 0
+        Doppler bins in the map; 0 means ny. Must be >= ny.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Corr2D: invalid
+        parameter (need dwell >= 1, and ny_out and nx_out each 0 or at least
+        the ref extent)``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.spectral import DelayDoppler
+    >>> rng = np.random.default_rng(0)
+    >>> ny, nx, d, k = 16, 64, 5, 3       # delay 5, Doppler 3 bins
+    >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+    >>> n = np.arange(ny * nx)
+    >>> f = k / (ny * nx)                 # cycles/sample
+    >>> x = (np.tile(np.roll(code, d), ny)
+    ...      * np.exp(2j * np.pi * f * n)).astype(np.complex64)
+    >>> dd = DelayDoppler(code, ny=ny, dwell=2)
+    >>> out = np.empty(dd.execute_max_out(), np.complex64)
+    >>> for _ in range(2):                # one preallocated map per dump
+    ...     m = dd.execute(x, out=out)
+    >>> m is not None and m.base is out
+    True
+    >>> row, col = np.unravel_index(np.argmax(np.abs(out)), (ny, nx))
+    >>> int(row) - ny // 2, int(col)      # (Doppler bins, delay)
+    (3, 5)
+    >>> dd.doppler_step == 1 / (ny * nx)
+    True
+
+    """
+
+    def __init__(
+        self,
+        code: npt.NDArray[np.complex64],
+        ny: int = 1,
+        dwell: int = 1,
+        nthreads: int = 1,
+        ny_out: int = 0,
+    ) -> None: ...
+    def reset(self) -> None:
+        """Zero the accumulator and reset the integration counter to 0.
+        Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
+        or recomputing ref_spec.
+
+        Examples
+        --------
+        >>> from doppler.spectral import Corr2D
+        >>> import numpy as np
+        >>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
+        >>> c = Corr2D(ref=ref, dwell=3)
+        >>> _ = c.execute(np.ones((2, 2), dtype=np.complex64))
+        >>> c.count
+        1
+        >>> c.reset()
+        >>> c.count
+        0
+
+        """
+
+    def execute(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64] | None:
+        """Correlate one 2-D frame and optionally dump the coherent
+        accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with
+        ref_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷
+        ny*nx). Accumulating in the frequency domain and inverting once is
+        exactly the per-frame inverse summed, by linearity of the IFFT — valid
+        because the dwell is **coherent** (a complex sum); a non-coherent
+        (magnitude) integration could not defer the inverse. The Python wrapper
+        accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny*nx
+        ndarray, a no-dump returns None.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.complex64] | None
+            Output buffer for the correlation map (CF32, length n_out:
+            ny_out*nx_out, or ny with col_out); written only on a dump call.
+
+        Returns
+        -------
+        NDArray[np.complex64] | None
+            n_out on a dump (or max_out if smaller), 0 otherwise (None in
+            Python). If n_in is not the required length the call is REFUSED
+            with nothing read, written or counted: SIZE_MAX in C, ValueError in
+            Python (#1925). None when the C call writes no output.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``input length is not ny*nx;
+            execute takes exactly one frame``.
+
+        Examples
+        --------
+        >>> from doppler.spectral import Corr2D
+        >>> import numpy as np
+        >>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
+        >>> c = Corr2D(ref=ref, dwell=2)
+        >>> x = np.ones((2, 2), dtype=np.complex64)
+        >>> c.execute(x) is None   # frame 1 — no dump
+        True
+        >>> c.execute(x).tolist()  # frame 2 — dump
+        [(2+0j), (2+0j), (2+0j), (2+0j)]
+
+        """
+
+    def execute_max_out(self) -> int:
+        """Maximum output samples per execute call (dp_corr2d_state_t::n_out --
+        ny_out*nx_out normally, or ny when a single dp_corr2d_state_t::col_out
+        was selected).
+
+        Returns
+        -------
+        int
+            n_out, fixed at create().
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the DelayDoppler has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the DelayDoppler has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes, /) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the DelayDoppler has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def ny(self) -> int:
+        """Row count."""
+
+    @property
+    def nx(self) -> int:
+        """Column count."""
+
+    @property
+    def ny_out(self) -> int:
+        """Output rows (== ny unless decoupled)."""
+
+    @property
+    def n_out(self) -> int:
+        """ny_out * nx_out — output element count."""
+
+    @property
+    def dwell(self) -> int:
+        """Integration depth."""
+
+    @property
+    def count(self) -> int:
+        """Frames accumulated (0 … dwell-1)."""
+
+    @property
+    def doppler_step(self) -> float:
+        """Doppler spacing between adjacent output rows, cycles/sample: 1 /
+        (ny_out * nx). 0 for Corr2D.
+        """
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+    def __enter__(self) -> "DelayDoppler":
+        """Enter a context manager, returning this object.
+
+        Lets a DelayDoppler be used in a `with` statement so its C resources
+        are released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        DelayDoppler
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+        /,
+    ) -> None:
+        """Exit a context manager, releasing the DelayDoppler.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1482,7 +1761,9 @@ class CorrDetector2D:
     threshold : float, default 0.0
         Test-stat gate; 0.0 = always emit.
     nthreads : int, default 1
-        Accepted for API compatibility; ignored.
+        Forwarded to dp_corr2d_create(): workers for the single-row-reference
+        fast path (1 serial, <= 0 every online core); the general 2-D path
+        ignores it.
 
     Raises
     ------

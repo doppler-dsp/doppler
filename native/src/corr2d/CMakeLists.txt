@@ -18,14 +18,30 @@ target_include_directories(
   corr2d_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                      ${CMAKE_SOURCE_DIR}/native/inc/doppler/corr2d)
 target_link_libraries(corr2d_core PUBLIC
+    Threads::Threads
     fft2d_core
     fft_core)
+if(TARGET ${PROJECT_NAME}_lib)
+  target_link_libraries(${PROJECT_NAME}_lib PRIVATE
+      Threads::Threads)
+  target_include_directories(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_INCLUDE_DIRECTORIES>>)
+  target_compile_definitions(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_COMPILE_DEFINITIONS>>)
+  target_compile_options(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_COMPILE_OPTIONS>>)
+endif()
+if(TARGET ${PROJECT_NAME}_lib_static)
+  target_link_libraries(${PROJECT_NAME}_lib_static PUBLIC
+      Threads::Threads)
+endif()
 
 add_executable(test_corr2d_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_corr2d_core.c
                ${CMAKE_SOURCE_DIR}/native/tests/test_corr2d_symbols.c)
 target_link_libraries(test_corr2d_core
-                      PRIVATE corr2d_core fft2d_core
+                      PRIVATE corr2d_core Threads::Threads
+    fft2d_core
     fft_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_corr2d_core
@@ -36,7 +52,8 @@ add_executable(
   bench_corr2d_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_corr2d_core.c)
 target_link_libraries(bench_corr2d_core
-                      PRIVATE corr2d_core fft2d_core
+                      PRIVATE corr2d_core Threads::Threads
+    fft2d_core
     fft_core
     ${JM_MATH_LIBRARY})
 target_include_directories(

@@ -524,6 +524,7 @@ dp_conv_enc_state_bytes function
 dp_conv_encode function
 dp_conv_outputs function
 dp_corr2d_create function
+dp_corr2d_create_delay_doppler function
 dp_corr2d_destroy function
 dp_corr2d_execute function
 dp_corr2d_execute_max_out function

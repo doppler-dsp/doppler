@@ -13,6 +13,7 @@
 #define DP_CORR2D_CORE_H
 
 #include "doppler/clib_common.h"
+#include "doppler/dp_parallel.h"
 #include "doppler/dp_state.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/fft2d/fft2d_core.h"
@@ -63,11 +64,35 @@ typedef struct {
   int             col_out;   
   float _Complex *col_ref;   
   float _Complex *work_trunc;
+  /* Worker fan-out (#2666).  The fast path's per-row stage and the
+   * delay-Doppler flavor's per-column stage are each a set of independent
+   * transforms, run over `nworkers` contiguous chunks on `pool`.  A pocketfft
+   * plan keeps scratch of its own, so it cannot be shared between threads:
+   * every worker owns one plan per stage, and chunk t always runs on plan t,
+   * which is what keeps the output bit-identical across thread counts. */
+  int              nworkers;  
+  dp_pool_t       *pool;      
+  dp_fft_state_t **row_fwd;   
+  dp_fft_state_t **row_inv;   
+  /* Delay-Doppler flavor (dp_corr2d_create_delay_doppler).  The flavor is
+   * the fast path plus a slow-time FFT down every delay column at dump
+   * time; it is fixed at create() and changes what the state blob means,
+   * so the blob carries its own magic. */
+  int              delay_doppler; 
+  double           doppler_step;  
+  dp_fft_state_t **slow_fft;  
+  float _Complex  *col_gather;
+  float _Complex  *col_spec;  
 } dp_corr2d_state_t;
 
 dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t nx,
                               size_t dwell, int nthreads, size_t ny_out,
                               size_t nx_out, int col_out);
+
+dp_corr2d_state_t *dp_corr2d_create_delay_doppler (const float _Complex *code,
+                                                   size_t code_len, size_t ny,
+                                                   size_t dwell, int nthreads,
+                                                   size_t ny_out);
 
 void dp_corr2d_destroy(dp_corr2d_state_t *state);
 
@@ -85,6 +110,8 @@ size_t dp_corr2d_execute(dp_corr2d_state_t *state, const float _Complex *in,
  * FFT plans + ref_spec are config, rebuilt by create. */
 #define CORR2D_STATE_MAGIC DP_FOURCC ('C','R','2','D')
 #define CORR2D_STATE_VERSION 1u
+#define DELAY_DOPPLER_STATE_MAGIC DP_FOURCC ('D','D','M','P')
+#define DELAY_DOPPLER_STATE_VERSION 1u
 size_t dp_corr2d_state_bytes (const dp_corr2d_state_t *state);
 void dp_corr2d_get_state (const dp_corr2d_state_t *state, void *blob);
 int dp_corr2d_set_state (dp_corr2d_state_t *state, const void *blob);

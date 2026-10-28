@@ -57,7 +57,7 @@ from doppler.delay import DelayCf64
 from doppler.filter import FIR
 from doppler.resample import CIC, Farrow, Resampler
 from doppler.source import LO, NCO
-from doppler.spectral import FFT
+from doppler.spectral import FFT, DelayDoppler
 from doppler.wfm import PN
 
 N = 64
@@ -182,6 +182,16 @@ _CASES: list[tuple[str, Callable[[], Any], _Invoke, Any, str, int]] = [
     (
         "Resampler.execute",
         lambda: Resampler(0.5),
+        lambda o, out: o.execute(_CF32, out=out),
+        np.complex64,
+        "execute_max_out",
+        N,
+    ),
+    (
+        # One frame of 4 code periods of 16 samples is the whole N-sample
+        # block, and the map is 4 Doppler rows of 16 lags: N again.
+        "DelayDoppler.execute",
+        lambda: DelayDoppler(_CF32[:16], ny=4),
         lambda o, out: o.execute(_CF32, out=out),
         np.complex64,
         "execute_max_out",

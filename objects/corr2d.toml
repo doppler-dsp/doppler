@@ -8,9 +8,36 @@ class_name = "Corr2D"
 depends_on = ["fft2d_core"]
 serializable = "true"
 fragment = "generated"
+# dp_parallel.h's persistent pool is pthreads: the per-row correlations and
+# DelayDoppler's slow-time column FFTs fan out over `nthreads` workers.
+extra_link_libs = ["Threads::Threads"]
 # A NULL create means a parameter was refused, not OOM (gh-482).
 create_error = "ValueError"
 create_error_message = "Corr2D: invalid parameter (need dwell >= 1, and ny_out and nx_out each 0 or at least the ref extent)"
+
+# The delay-Doppler flavor (#2666): the same single-row correlator, fed the
+# RAW stream -- `ny` code periods back to back -- with the slow-time FFT down
+# each delay column done in C at dump time. The constructor takes the 1-D
+# code instead of a (ny, nx) reference with the code in row 0, and `ny_out`
+# zero-pads the slow-time axis (band-limited Doppler interpolation). nx_out
+# and col_out do not apply: the delay axis is native and the whole map is
+# the point.
+[[corr2d.views]]
+class_name = "DelayDoppler"
+create_fn = "dp_corr2d_create_delay_doppler"
+init_params = [
+  { name = "code", type = "float _Complex[]" },
+  { name = "ny", type = "size_t", default = "1" },
+  { name = "dwell", type = "size_t", default = "1" },
+  { name = "nthreads", type = "int", default = "1" },
+  { name = "ny_out", type = "size_t", default = "0" },
+]
+exclude_properties = ["nx_out", "col_out"]
+create_error = "ValueError"
+create_error_message = "DelayDoppler: invalid parameter (need a non-empty code, ny >= 1, dwell >= 1, and ny_out 0 or at least ny)"
+properties = [
+  { name = "doppler_step", type = "double", field = true },
+]
 
 [[corr2d.init_params]]
 name = "ref"

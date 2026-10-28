@@ -93,10 +93,20 @@ dp_pn_set_state (dp_pn_state_t *state, const void *blob)
   dp_reader_t r = dp_reader_init (blob, dp_pn_state_bytes (state));
   r.off         = sizeof (dp_state_hdr_t);
   uint64_t reg  = dp_r_u64 (&r);
-  /* What create() refuses, set_state refuses (doppler#2641): a zero register
-     emits zeros forever, and a bit above the length would shift into the
-     Fibonacci sequence, whose step never masks. */
-  if (reg == 0 || (reg & ~state->mask))
+  /* A register this configuration cannot hold is refused (doppler#2641): a
+     bit above the length would shift into the Fibonacci sequence, whose step
+     never masks, and zero is refused where a live register never reaches it.
+     That is everywhere but a Galois poly without the x^length term (bit
+     length-1): its step is not invertible, so a seed create() accepts can
+     still run down to zero -- poly 3 on 4 bits takes 7 there in one step,
+     and poly 0 (no feedback, which create() takes verbatim) shifts any seed
+     out. Its own blob must restore, so zero is a state it can hold. With
+     the x^length term the Galois step is a bijection on the non-zero
+     states, and the Fibonacci step always feeds x^0 back, so neither can
+     reach zero from the non-zero seed create() requires. */
+  const int zero_ok
+      = state->kind == PN_GALOIS && !((state->poly >> state->topshift) & 1u);
+  if ((reg == 0 && !zero_ok) || (reg & ~state->mask))
     return DP_ERR_INVALID;
   state->reg = reg;
   return DP_OK;

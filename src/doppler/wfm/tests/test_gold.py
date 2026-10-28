@@ -159,3 +159,21 @@ def test_state_roundtrip_rejects_non_bytes():
     a = Gold()
     with pytest.raises(TypeError):
         a.set_state("not bytes")
+
+
+def test_degenerate_taps_restore_their_own_blob():
+    """taps_a = 1 on 10 bits lacks the top stage, so register A shifts down
+    to zero from 1 << 9 -- create() accepts it, so its own blob must restore
+    (doppler#2641)."""
+    kw = {
+        "taps_a": 1,
+        "seed_a": 1 << 9,
+        "taps_b": TAPS_B,
+        "seed_b": SEED_B,
+        "length": 10,
+    }
+    g = Gold(**kw)
+    g.generate(16)
+    fresh = Gold(**kw)
+    fresh.set_state(g.get_state())
+    assert np.array_equal(fresh.generate(64), g.generate(64))

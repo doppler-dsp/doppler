@@ -395,5 +395,41 @@ main (void)
       }
   }
 
+  /* Every configuration create() accepts restores its own blob, at every
+     step (doppler#2641 follow-up). A Galois poly without the x^length term
+     can run its register down to zero -- PN(poly=3, seed=7, length=4) does
+     in its first step -- and set_state refused that blob as "a register
+     create() could never fill". Sweep every poly and every seed on 1..6
+     bits, both realizations, through more steps than the period. */
+  {
+    size_t refused = 0, zeros = 0;
+    for (uint32_t L = 1; L <= 6; L++)
+      for (int ki = 0; ki < 2; ki++)
+        for (uint64_t poly = 0; poly < ((uint64_t)1 << L); poly++)
+          for (uint64_t seed = 1; seed < ((uint64_t)1 << L); seed++)
+            {
+              dp_pn_state_t *p = dp_pn_create (poly, seed, L,
+                                               ki ? PN_FIBONACCI : PN_GALOIS);
+              if (!p)
+                {
+                  refused++;
+                  continue;
+                }
+              unsigned char blob[sizeof (dp_state_hdr_t) + sizeof (uint64_t)];
+              for (uint32_t step = 0; step < ((uint32_t)1 << L) + 2; step++)
+                {
+                  uint8_t chip;
+                  dp_pn_get_state (p, blob);
+                  zeros += p->reg == 0;
+                  if (dp_pn_set_state (p, blob) != DP_OK)
+                    refused++;
+                  dp_pn_generate (p, 1, &chip, 1);
+                }
+              dp_pn_destroy (p);
+            }
+    DP_CHECK (refused == 0);
+    DP_CHECK (zeros > 0); /* non-vacuous: some config did reach zero */
+  }
+
   DP_TEST_END ("test_pn_core");
 }

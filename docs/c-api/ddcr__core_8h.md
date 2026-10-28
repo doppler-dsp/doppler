@@ -352,7 +352,7 @@ size_t dp_ddcr_execute (
 
 
 
-Allocates two scratch buffers per call (about n\_in/2 complex samples each); if either allocation fails the call returns 0.
+Uses a scratch buffer kept in the state (about n\_in complex samples), grown before any input is consumed when a block is larger than any before it; if that growth fails the call returns 0 having consumed nothing, so the same block may be retried.
 
 
 

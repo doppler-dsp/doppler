@@ -58,6 +58,7 @@ _Halfband 2:1 decimator for CF32 IQ samples._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  size\_t | [**dp\_hbdecim\_consumed**](#function-dp_hbdecim_consumed) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_Input samples the last_ [_**dp\_hbdecim\_execute()**_](hbdecim__core_8h.md#function-dp_hbdecim_execute) _took._ |
 |  [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* | [**dp\_hbdecim\_create**](#function-dp_hbdecim_create) (size\_t num\_taps, const float \* h) <br>_Allocate and initialise a halfband 2:1 decimator._  |
 |  double | [**dp\_hbdecim\_dc\_gain**](#function-dp_hbdecim_dc_gain) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_The filter's response to a constant input, from its own taps._  |
 |  void | [**dp\_hbdecim\_destroy**](#function-dp_hbdecim_destroy) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_Free the coefficient copy, both delay lines and the state._  |
@@ -134,6 +135,43 @@ dp_hbdecim_destroy(r);
     
 ## Public Functions Documentation
 
+
+
+
+### function dp\_hbdecim\_consumed 
+
+_Input samples the last_ [_**dp\_hbdecim\_execute()**_](hbdecim__core_8h.md#function-dp_hbdecim_execute) _took._
+```C++
+size_t dp_hbdecim_consumed (
+    const hbdecim_state_t * r
+) 
+```
+
+
+
+Equal to its `num_in` unless `out` filled first; then the caller resumes at in + consumed. 0 after create, reset and set\_state.
+
+
+
+
+**Parameters:**
+
+
+* `r` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Input samples taken by the last execute. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -264,7 +302,7 @@ size_t dp_hbdecim_execute (
 Processes input pairs (even, odd); one output per pair, counting a sample held from the previous call as the first of the block. A sample left unpaired at the end is buffered and consumed on the next call.
 
 
-Output-buffer sizing: allocate at least (num\_in + 1) / 2 samples. Emission stops once `max_out` samples are written. The first unconsumed sample is then held as pending and every sample after it is dropped (doppler#2643), so size `out` for the whole block. If num\_in or max\_out is 0 the call returns 0 and consumes nothing.
+Output-buffer sizing: allocate at least (num\_in + 1) / 2 samples. A shorter `out` drops nothing: the call stops at the pair boundary after the last output it has room for, and [**dp\_hbdecim\_consumed()**](hbdecim__core_8h.md#function-dp_hbdecim_consumed) says how much input it took, so the caller offers in + consumed again and the outputs resume exactly as one whole call gives (doppler#2643). A trailing sample is held only when it is the last input; with `max_out` 0 the call writes nothing and takes at most that one sample.
 
 
 

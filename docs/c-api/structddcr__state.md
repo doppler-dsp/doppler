@@ -41,6 +41,8 @@ _DdcR state — the real-to-complex front end, an LO and a cascade._ [More...](#
 |  [**hbdecim\_r2c\_state\_t**](hbdecim__r2c__core_8h.md#typedef-hbdecim_r2c_state_t) \* | [**r2c**](#variable-r2c)  <br> |
 |  double | [**rate**](#variable-rate)  <br> |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
+|  float \_Complex \* | [**scratch**](#variable-scratch)  <br> |
+|  size\_t | [**scratch\_cap**](#variable-scratch_cap)  <br> |
 
 
 
@@ -177,6 +179,40 @@ dp_RateConverter_state_t* ddcr_state::rc;
 
 the cascade, running at 2\*rate 
  
+
+
+        
+
+<hr>
+
+
+
+### variable scratch 
+
+```C++
+float _Complex* ddcr_state::scratch;
+```
+
+
+
+Scratch, not state: the halfband output and the mixed block, grown on demand to the largest block seen and kept, so a warm execute() allocates nothing (doppler#2650). Freed in [**dp\_ddcr\_destroy()**](ddcr__core_8h.md#function-dp_ddcr_destroy). 
+
+
+        
+
+<hr>
+
+
+
+### variable scratch\_cap 
+
+```C++
+size_t ddcr_state::scratch_cap;
+```
+
+
+
+Capacity of `scratch`, samples. 
 
 
         

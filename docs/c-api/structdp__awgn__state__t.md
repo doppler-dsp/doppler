@@ -36,9 +36,9 @@ _AWGN generator state (opaque to callers; use the API)._ [More...](#detailed-des
 
 | Type | Name |
 | ---: | :--- |
-|  float | [**amplitude**](#variable-amplitude)  <br> |
+|  [**float**](structdp__awgn__state__t.md#variable-s) | [**amplitude**](#variable-amplitude)  <br> |
 |  uint64\_t | [**s**](#variable-s)  <br> |
-|  uint64\_t | [**seed**](#variable-seed)  <br> |
+|  [**uint64\_t**](structdp__awgn__state__t.md#variable-s) | [**seed**](#variable-seed)  <br> |
 
 
 

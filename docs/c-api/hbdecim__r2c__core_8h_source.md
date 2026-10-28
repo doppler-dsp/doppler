@@ -36,6 +36,8 @@ extern "C"
                               size_t num_in, float _Complex *out,
                               size_t max_out);
 
+  size_t dp_hbdecim_r2c_consumed (const hbdecim_r2c_state_t *r);
+
   /* ── Serializable state (reusable elastic-resume convention) ──────────────
    * Mutable per-stream state only — the even/odd delay rings, their write
    * heads, the pending even sample, and the output parity.  Coefficients and

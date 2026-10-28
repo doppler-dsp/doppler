@@ -62,11 +62,12 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 |  int | [**dp\_loop\_filter\_configure**](#function-dp_loop_filter_configure) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._ |
 |  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* | [**dp\_loop\_filter\_create**](#function-dp_loop_filter_create) (double bn, double zeta, double t) <br>_Create a loop\_filter instance, validating its arguments._  |
 |  void | [**dp\_loop\_filter\_destroy**](#function-dp_loop_filter_destroy) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Destroy a loop\_filter instance and release all memory._  |
+|  int | [**dp\_loop\_filter\_fll\_bn\_ok**](#function-dp_loop_filter_fll_bn_ok) (double bn\_fll) <br>_The domain of a first-order FLL-assist bandwidth:_ `bn_fll >= 0` _with a finite gain_`4 * bn_fll` _._ |
 |  void | [**dp\_loop\_filter\_get\_state**](#function-dp_loop_filter_get_state) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _. Writes the whole struct: gains, integrator, bn, zeta and t._ |
 |  void | [**dp\_loop\_filter\_init**](#function-dp_loop_filter_init) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Initialise a loop filter in place (no allocation)._  |
 |  int | [**dp\_loop\_filter\_params\_ok**](#function-dp_loop_filter_params_ok) (double bn, double zeta, double t) <br>_The domain the loop's gains are defined on:_ `bn >= 0` _,_`zeta > 0` _,_`t > 0` _, all three finite, and gains that come out finite._ |
 |  void | [**dp\_loop\_filter\_reset**](#function-dp_loop_filter_reset) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Zero the integrator memory while keeping the configured gains._  |
-|  int | [**dp\_loop\_filter\_set\_state**](#function-dp_loop_filter_set_state) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects. Only the envelope (magic, version, endianness, size) is checked; the payload is copied verbatim over the whole struct. It does NOT call_ [_**dp\_loop\_filter\_state\_ok()**_](loop__filter__core_8h.md#function-dp_loop_filter_state_ok) _: a caller restoring an untrusted blob should check the result with it._ |
+|  int | [**dp\_loop\_filter\_set\_state**](#function-dp_loop_filter_set_state) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the blob is refused. The envelope (magic, version, endianness, size) is checked, then the payload is decoded into a temporary and accepted only when_ [_**dp\_loop\_filter\_state\_ok()**_](loop__filter__core_8h.md#function-dp_loop_filter_state_ok) _accepts it_ _the gains, bn, zeta and t that create() would refuse are refused (doppler#2641). The integrator is not checked: a NaN in it is garbage in (doppler#2128). An accepted payload is copied over the whole struct._ |
 |  size\_t | [**dp\_loop\_filter\_state\_bytes**](#function-dp_loop_filter_state_bytes) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  int | [**dp\_loop\_filter\_state\_ok**](#function-dp_loop_filter_state_ok) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* s) <br>_Whether a stored filter is one a live filter could hold._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) double | [**dp\_loop\_filter\_step**](#function-dp_loop_filter_step) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double x) <br>_Advance the loop one update with error_ `x` _and return the control value the tracker should apply._ |
@@ -280,6 +281,43 @@ void dp_loop_filter_destroy (
 
 
 
+### function dp\_loop\_filter\_fll\_bn\_ok 
+
+_The domain of a first-order FLL-assist bandwidth:_ `bn_fll >= 0` _with a finite gain_`4 * bn_fll` _._
+```C++
+int dp_loop_filter_fll_bn_ok (
+    double bn_fll
+) 
+```
+
+
+
+The FLL assist Costas and CarrierMpsk run beside their PLL has one gain, `k_fll = 4 * bn_fll`, and `0` means "pure PLL". A negative or NaN value would silently disable the assist while the getter reports it, and an infinite one drives the loop integrator to inf/NaN, so both objects' create() and set\_bn\_fll() refuse outside this predicate (doppler#2646).
+
+
+
+
+**Parameters:**
+
+
+* `bn_fll` FLL-assist bandwidth, normalized to the symbol rate. 
+
+
+
+**Returns:**
+
+1 inside the domain, 0 outside it (a NaN is outside). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_loop\_filter\_get\_state 
 
 _Serialize the loop state into_ `blob` _. Writes the whole struct: gains, integrator, bn, zeta and t._
@@ -433,7 +471,7 @@ Clears the accumulated frequency/rate estimate (`integ`) back to zero but leaves
 
 ### function dp\_loop\_filter\_set\_state 
 
-_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects. Only the envelope (magic, version, endianness, size) is checked; the payload is copied verbatim over the whole struct. It does NOT call_ [_**dp\_loop\_filter\_state\_ok()**_](loop__filter__core_8h.md#function-dp_loop_filter_state_ok) _: a caller restoring an untrusted blob should check the result with it._
+_Restore state; DP\_OK, or DP\_ERR\_INVALID if the blob is refused. The envelope (magic, version, endianness, size) is checked, then the payload is decoded into a temporary and accepted only when_ [_**dp\_loop\_filter\_state\_ok()**_](loop__filter__core_8h.md#function-dp_loop_filter_state_ok) _accepts it_ _the gains, bn, zeta and t that create() would refuse are refused (doppler#2641). The integrator is not checked: a NaN in it is garbage in (doppler#2128). An accepted payload is copied over the whole struct._
 ```C++
 int dp_loop_filter_set_state (
     dp_loop_filter_state_t * state,
@@ -455,7 +493,7 @@ int dp_loop_filter_set_state (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID (and `state` is unchanged). 
+DP\_OK, or DP\_ERR\_INVALID on an envelope mismatch or a payload [**dp\_loop\_filter\_state\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_state_ok) refuses (and `state` is unchanged). 
 
 
 

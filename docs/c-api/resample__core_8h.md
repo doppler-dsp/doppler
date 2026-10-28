@@ -11,6 +11,8 @@
 _Resample module — public C API._ 
 
 * `#include "doppler/clib_common.h"`
+* `#include <math.h>`
+* `#include <stddef.h>`
 
 
 
@@ -57,6 +59,12 @@ _Resample module — public C API._
 |  int | [**dp\_kaiser\_num\_taps**](#function-dp_kaiser_num_taps) (int num\_phases, double atten, double pb, double sb) <br>_Estimate the taps-per-phase count for a polyphase Kaiser FIR bank. Applies the Kaiser length formula to the per-phase normalised prototype (pb/num\_phases, sb/num\_phases), rounds up to the next odd symmetrical length, then divides by num\_phases to give taps per branch. The result is the minimum num\_taps argument to pass to_ [_**dp\_Resampler\_create\_custom()**_](Resampler__core_8h.md#function-dp_resampler_create_custom) _._ |
 
 
+## Public Static Functions
+
+| Type | Name |
+| ---: | :--- |
+|  double | [**dp\_kaiser\_beta\_eval**](#function-dp_kaiser_beta_eval) (double atten) <br>_The Kaiser beta formula itself: the one implementation behind_ [_**dp\_kaiser\_beta()**_](resample__core_8h.md#function-dp_kaiser_beta) _and resamp's built-in bank._ |
+|  size\_t | [**dp\_kaiser\_num\_taps\_eval**](#function-dp_kaiser_num_taps_eval) (size\_t num\_phases, double atten, double pb, double sb) <br>_The Kaiser taps-per-phase formula itself: the one implementation behind_ [_**dp\_kaiser\_num\_taps()**_](resample__core_8h.md#function-dp_kaiser_num_taps) _and resamp's built-in bank._ |
 
 
 
@@ -211,6 +219,88 @@ Taps per polyphase branch (&gt;= 1).
 19
 ```
  
+
+
+        
+
+<hr>
+## Public Static Functions Documentation
+
+
+
+
+### function dp\_kaiser\_beta\_eval 
+
+_The Kaiser beta formula itself: the one implementation behind_ [_**dp\_kaiser\_beta()**_](resample__core_8h.md#function-dp_kaiser_beta) _and resamp's built-in bank._
+```C++
+static inline double dp_kaiser_beta_eval (
+    double atten
+) 
+```
+
+
+
+Header-inline so that resamp\_core, which sits below this module in the link graph, computes beta with this code and not a private copy of it, without a link edge to resample\_core (doppler#2652). [**dp\_kaiser\_beta()**](resample__core_8h.md#function-dp_kaiser_beta) is a call to it; prefer that public function everywhere else.
+
+
+
+
+**Parameters:**
+
+
+* `atten` Desired stopband attenuation in dB. 
+
+
+
+**Returns:**
+
+Kaiser beta: 0.1102 \* (atten - 8.7) above 50 dB, 0.5842 \* (atten - 21)^0.4 + 0.07886 \* (atten - 21) from 21 to 50 dB, and 0.0 below 21 dB. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_kaiser\_num\_taps\_eval 
+
+_The Kaiser taps-per-phase formula itself: the one implementation behind_ [_**dp\_kaiser\_num\_taps()**_](resample__core_8h.md#function-dp_kaiser_num_taps) _and resamp's built-in bank._
+```C++
+static inline size_t dp_kaiser_num_taps_eval (
+    size_t num_phases,
+    double atten,
+    double pb,
+    double sb
+) 
+```
+
+
+
+Header-inline for the same reason as dp\_kaiser\_beta\_eval() (doppler#2652). It has no guard: `num_phases` must be at least 1, which [**dp\_kaiser\_num\_taps()**](resample__core_8h.md#function-dp_kaiser_num_taps) checks before calling it.
+
+
+
+
+**Parameters:**
+
+
+* `num_phases` Number of polyphase branches, &gt;= 1. 
+* `atten` Desired stopband attenuation in dB. 
+* `pb` Passband edge, as for [**dp\_kaiser\_num\_taps()**](resample__core_8h.md#function-dp_kaiser_num_taps). 
+* `sb` Stopband edge, same units as `pb`. 
+
+
+
+**Returns:**
+
+Taps per polyphase branch: the Kaiser length of the per-phase prototype, made odd, over `num_phases`, plus one. 
+
+
+
 
 
         

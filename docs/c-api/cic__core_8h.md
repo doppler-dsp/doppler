@@ -64,10 +64,10 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**dp\_cic\_decimate**](#function-dp_cic_decimate) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
 |  size\_t | [**dp\_cic\_decimate\_max\_out**](#function-dp_cic_decimate_max_out) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
 |  void | [**dp\_cic\_destroy**](#function-dp_cic_destroy) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Free the filter state._  |
-|  void | [**dp\_cic\_get\_state**](#function-dp_cic_get_state) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, void \* blob) <br>_Serialize the integrator/comb/phase state and_ `clipped` _into_`blob` _. R and shift are not written._ |
+|  void | [**dp\_cic\_get\_state**](#function-dp_cic_get_state) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, void \* blob) <br>_Serialize R, the integrator/comb/phase state and_ `clipped` _into_`blob` _. shift is not written: it is derived from R._ |
 |  void | [**dp\_cic\_reconfigure**](#function-dp_cic_reconfigure) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 2048]` _(_`CIC_R_MAX` _) — the state is left unchanged in that case._ |
 |  void | [**dp\_cic\_reset**](#function-dp_cic_reset) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state. Also clears the sticky_ `clipped` _flag._ |
-|  int | [**dp\_cic\_set\_state**](#function-dp_cic_set_state) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const void \* blob) <br>_Restore the integrator/comb/phase state and_ `clipped` _from_`blob` _._ |
+|  int | [**dp\_cic\_set\_state**](#function-dp_cic_set_state) ([**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state, const void \* blob) <br>_Restore R, the integrator/comb/phase state and_ `clipped` _from_`blob` _._ |
 |  size\_t | [**dp\_cic\_state\_bytes**](#function-dp_cic_state_bytes) (const [**dp\_cic\_state\_t**](structdp__cic__state__t.md) \* state) <br>_Bytes_ [_**dp\_cic\_get\_state()**_](cic__core_8h.md#function-dp_cic_get_state) _writes (envelope + payload)._ |
 
 
@@ -104,7 +104,7 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 | define  | [**CIC\_PAPR\_HEADROOM**](cic__core_8h.md#define-cic_papr_headroom)  `2.0f`<br>_Peak-to-average headroom the input encoding reserves, as a voltage ratio (2.0 = 6 dB)._  |
 | define  | [**CIC\_R\_MAX**](cic__core_8h.md#define-cic_r_max)  `2048u`<br>_Largest decimation ratio a CIC will be built at._  |
 | define  | [**CIC\_STATE\_MAGIC**](cic__core_8h.md#define-cic_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C', 'I', 'C', '\_')`<br> |
-| define  | [**CIC\_STATE\_VERSION**](cic__core_8h.md#define-cic_state_version)  `2u`<br> |
+| define  | [**CIC\_STATE\_VERSION**](cic__core_8h.md#define-cic_state_version)  `3u`<br> |
 
 ## Detailed Description
 
@@ -364,7 +364,7 @@ void dp_cic_destroy (
 
 ### function dp\_cic\_get\_state 
 
-_Serialize the integrator/comb/phase state and_ `clipped` _into_`blob` _. R and shift are not written._
+_Serialize R, the integrator/comb/phase state and_ `clipped` _into_`blob` _. shift is not written: it is derived from R._
 ```C++
 void dp_cic_get_state (
     const dp_cic_state_t * state,
@@ -465,7 +465,7 @@ void dp_cic_reset (
 
 ### function dp\_cic\_set\_state 
 
-_Restore the integrator/comb/phase state and_ `clipped` _from_`blob` _._
+_Restore R, the integrator/comb/phase state and_ `clipped` _from_`blob` _._
 ```C++
 int dp_cic_set_state (
     dp_cic_state_t * state,
@@ -475,7 +475,7 @@ int dp_cic_set_state (
 
 
 
-R and shift are kept from `state`, so restore into a CIC built with the same R as the writer; the blob does not record R and cannot detect a mismatch.
+R is the writer's, as [**dp\_cic\_reconfigure()**](cic__core_8h.md#function-dp_cic_reconfigure) would set it, and shift is recomputed from it, so a blob restores into a CIC built with any R (doppler#2642). A blob whose R is not one [**dp\_cic\_create()**](cic__core_8h.md#function-dp_cic_create) accepts, or whose phase is not below that R, is refused and `state` is unchanged.
 
 
 
@@ -490,7 +490,7 @@ R and shift are kept from `state`, so restore into a CIC built with the same R a
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+DP\_OK, or DP\_ERR\_INVALID if the envelope rejects, R is invalid or the phase is not below R. 
 
 
 
@@ -524,7 +524,7 @@ size_t dp_cic_state_bytes (
 
 **Returns:**
 
-`sizeof(dp_state_hdr_t) + 4 * CIC_N * 8 + 4 + 1` bytes, the same for every R. 
+`sizeof(dp_state_hdr_t) + 4 + 4 * CIC_N * 8 + 4 + 1` bytes, the same for every R. 
 
 
 
@@ -621,12 +621,12 @@ FourCC type tag ("CIC\_") stamped in a CIC state blob's header.
 ### define CIC\_STATE\_VERSION 
 
 ```C++
-#define CIC_STATE_VERSION `2u`
+#define CIC_STATE_VERSION `3u`
 ```
 
 
 
-Layout version of the CIC state blob (2 added `clipped`). 
+Layout version of the CIC state blob (2 added `clipped`, 3 added R). 
 
 
         

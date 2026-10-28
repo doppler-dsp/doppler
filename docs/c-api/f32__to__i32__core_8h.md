@@ -159,7 +159,7 @@ dp_f32_to_i32_state_t * dp_f32_to_i32_create (
 
 
 
-Allocates state and stores `scale`. The `clipped` flag is initialised to 0. Returns NULL for a non-positive scale, which is the only failure a caller can cause; the allocation itself aborts on exhaustion (dp\_xcalloc) rather than handing back an unwind path no test can reach.
+Allocates state and stores `scale`. The `clipped` flag is initialised to 0. Returns NULL for a scale that is not positive and finite, which is the only failure a caller can cause; the allocation itself aborts on exhaustion (dp\_xcalloc) rather than handing back an unwind path no test can reach.
 
 
 
@@ -173,7 +173,7 @@ Allocates state and stores `scale`. The `clipped` flag is initialised to 0. Retu
 
 **Returns:**
 
-Heap-allocated state, or NULL if `scale` is not positive. 
+Heap-allocated state, or NULL if `scale` is not positive and finite (zero, negative, NaN or infinite). 
 
 
 
@@ -377,6 +377,9 @@ Computes `round(x * scale)`, clamps to the int32 range `[-2147483648, 2147483647
 
 
 Unlike its int8 and int16 siblings this works in `double` throughout. INT32\_MAX is not representable as a float — 2147483647.0f rounds UP to 2^31 — so a float `fminf(s, 2147483647.0f)` clamps to a value one past the range it is trying to enforce, and the following lround() overflows. The float32 input still bounds the useful precision at 24 bits; the double is there to make the CLAMP exact, not to invent significance.
+
+
+A NaN input counts as clipped: it latches `clipped` and returns the negative full-scale code, -2147483648.
 
 
 

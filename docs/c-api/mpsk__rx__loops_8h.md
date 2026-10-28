@@ -90,6 +90,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**mpsk\_rx\_derive\_m\_out**](#function-mpsk_rx_derive_m_out) (double cap, int strict) <br>_Terminal outputs per symbol, derived: the largest even count in 2..8 the caller's own rate constraint allows._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex z) <br>_Run the NDA discriminator on one on-time strobe._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_fold**](#function-mpsk_rx_fold) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const float \_Complex \* ys, size\_t n, float \_Complex \* y\_out, int ted) <br>_Fold one front end's burst of outputs into both loops._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**mpsk\_rx\_m\_out\_ok**](#function-mpsk_rx_m_out_ok) (double cap, size\_t m\_out, int strict) <br>_Is_ `m_out` _a terminal-output count a chain bounded by_`cap` _can be built with? The validity rule_[_**mpsk\_rx\_derive\_m\_out()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_derive_m_out) _derives inside, ONE home for both._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_steer**](#function-mpsk_rx_steer) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double pe) <br>_Filter a carrier phase error and update_ `freq_ctrl` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_take\_output**](#function-mpsk_rx_take_output) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y, float \_Complex \* sym, int ted) <br>_Fold one terminal-stage output into both loops._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_updates\_per\_symbol**](#function-mpsk_rx_updates_per_symbol) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_How many times per symbol the carrier loop updates._  |
@@ -127,7 +128,6 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 | define  | [**MPSK\_RX\_AGC\_ALPHA**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_alpha)  `0.01`<br> |
 | define  | [**MPSK\_RX\_AGC\_BW\_RATIO**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_bw_ratio)  `0.05`<br> |
 | define  | [**MPSK\_RX\_AGC\_RATIO\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_ratio_default)  `[**MPSK\_RX\_AGC\_BW\_RATIO**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_bw_ratio)`<br>_AGC bandwidth ratio, derived: 20x slower than the slowest loop it feeds. The RATIO is the part that is not negotiable (see the block above); the value is_ `MPSK_RX_AGC_BW_RATIO` _, and it is a parameter only because the right separation depends on how fast the channel's LEVEL moves against its phase and timing. Zero asks for the default rather than being rejected._ |
-| define  | [**MPSK\_RX\_EPS**](mpsk__rx__loops_8h.md#define-mpsk_rx_eps)  `1e-12`<br> |
 | define  | [**MPSK\_RX\_LOCK\_DOWN**](mpsk__rx__loops_8h.md#define-mpsk_rx_lock_down)  `0.8`<br> |
 | define  | [**MPSK\_RX\_LOCK\_N\_DOWN**](mpsk__rx__loops_8h.md#define-mpsk_rx_lock_n_down)  `32u`<br> |
 | define  | [**MPSK\_RX\_LOCK\_N\_UP**](mpsk__rx__loops_8h.md#define-mpsk_rx_lock_n_up)  `8u`<br> |
@@ -745,6 +745,47 @@ behave identically regardless of front end" is a property of one function rather
 
 
 
+### function mpsk\_rx\_m\_out\_ok 
+
+_Is_ `m_out` _a terminal-output count a chain bounded by_`cap` _can be built with? The validity rule_[_**mpsk\_rx\_derive\_m\_out()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_derive_m_out) _derives inside, ONE home for both._
+```C++
+JM_FORCEINLINE int mpsk_rx_m_out_ok (
+    double cap,
+    size_t m_out,
+    int strict
+) 
+```
+
+
+
+Inside [**dp\_ratesync\_m\_ok()**](ratesync__core_8h.md#function-dp_ratesync_m_ok) (even, 2..8) and within the caller's rate bound, inclusive or strict exactly as [**mpsk\_rx\_derive\_m\_out()**](mpsk__rx__loops_8h.md#function-mpsk_rx_derive_m_out) reads it, so every count the derivation returns passes and a count it could not have returned for a larger `cap` still passes when it fits. It is NOT a divisibility rule: `m_out` need not divide `sps`. MpskReceiver's create asks it, and so do both DSSS receivers' configure\_chain\_raw(), so a receiver's own derived `n` is always one its configure accepts (#2650; the divisor check they carried was a survivor of the retired NDA-arm `n`).
+
+
+
+
+**Parameters:**
+
+
+* `cap` Upper bound from the caller's constraint: `sps` for the complex twin, `sps/2` for the real one. 
+* `m_out` Candidate terminal outputs per symbol. 
+* `strict` Non-zero when the bound is strict (`m_out < cap`), the real twin's case. 
+
+
+
+**Returns:**
+
+1 when `m_out` is valid, else 0 (a NaN `cap` is refused). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function mpsk\_rx\_steer 
 
 _Filter a carrier phase error and update_ `freq_ctrl` _._
@@ -903,23 +944,6 @@ _AGC bandwidth ratio, derived: 20x slower than the slowest loop it feeds. The RA
 
 
 
-
-<hr>
-
-
-
-### define MPSK\_RX\_EPS 
-
-```C++
-#define MPSK_RX_EPS `1e-12`
-```
-
-
-
-Magnitude guard for a decision-directed discriminator. No code in the tree reads it now that the decision-directed handover is gone. 
-
-
-        
 
 <hr>
 

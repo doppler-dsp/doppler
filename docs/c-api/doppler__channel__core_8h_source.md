@@ -52,6 +52,7 @@ typedef struct {
     uint8_t profiled; 
     double *pos;      
     size_t  pos_cap;  
+    size_t  consumed; 
 } dp_doppler_channel_state_t;
 
 static inline double
@@ -91,6 +92,8 @@ size_t dp_doppler_channel_execute(dp_doppler_channel_state_t *state, const float
 size_t dp_doppler_channel_execute_profile_max_out(dp_doppler_channel_state_t *state, size_t n);
 
 int64_t dp_doppler_channel_execute_profile(dp_doppler_channel_state_t *state, const float _Complex *x, size_t x_len, const double *ppm, size_t ppm_len, float _Complex *out, size_t max_out);
+
+size_t dp_doppler_channel_consumed(const dp_doppler_channel_state_t *state);
 
 double dp_doppler_channel_get_elapsed_s(const dp_doppler_channel_state_t *state);
 

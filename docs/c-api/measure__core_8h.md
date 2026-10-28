@@ -218,7 +218,7 @@ double dp_measure_proc_gain (
 
 
 
-How far a single bin's noise sits below the total noise power for an nfft-point transform of a real capture. No argument check: nfft = 0 returns -inf.
+How far a single bin's noise sits below the total noise power for an nfft-point transform of a real capture. A transform shorter than two bins has no gain to report (nfft = 1 would read -3 dB and nfft = 0 -inf), so it is refused with NaN, which no caller can mistake for a gain.
 
 
 
@@ -226,13 +226,13 @@ How far a single bin's noise sits below the total noise power for an nfft-point 
 **Parameters:**
 
 
-* `nfft` Transform length (bins). 
+* `nfft` Transform length (bins), at least 2. 
 
 
 
 **Returns:**
 
-Processing gain (dB). 
+Processing gain (dB), or NaN when `nfft` &lt; 2. 
 
 
 

@@ -156,7 +156,7 @@ dp_f32_to_i8_state_t * dp_f32_to_i8_create (
 
 
 
-Allocates state and stores `scale`. The `clipped` flag is initialised to 0. Returns NULL for a non-positive scale, which is the only failure a caller can cause; the allocation itself aborts on exhaustion (dp\_xcalloc) rather than handing back an unwind path no test can reach.
+Allocates state and stores `scale`. The `clipped` flag is initialised to 0. Returns NULL for a scale that is not positive and finite, which is the only failure a caller can cause; the allocation itself aborts on exhaustion (dp\_xcalloc) rather than handing back an unwind path no test can reach.
 
 
 
@@ -170,7 +170,7 @@ Allocates state and stores `scale`. The `clipped` flag is initialised to 0. Retu
 
 **Returns:**
 
-Heap-allocated state, or NULL if `scale` is not positive. 
+Heap-allocated state, or NULL if `scale` is not positive and finite (zero, negative, NaN or infinite). 
 
 
 
@@ -374,6 +374,9 @@ JM_FORCEINLINE  JM_HOT int8_t dp_f32_to_i8_step (
 
 
 Computes `round(x * scale)`, clamps to the int8 range `[-128, 127]`, and latches the sticky `clipped` flag if the scaled value fell outside that range before clamping (and before rounding, so 127.3 latches it even though it would round to 127). At the default scale of 128 a normalised `[-1, +1]` input maps to the full 8-bit code range.
+
+
+A NaN input counts as clipped: it latches `clipped` and returns the negative full-scale code, -128.
 
 
 

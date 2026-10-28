@@ -101,7 +101,7 @@ void dp_design_lowpass (
 
 
 
-The tap count is chosen automatically from the band edges and the attenuation with the Kaiser FIR-length formula, `n = dp_kaiser_num_taps(1, atten_db, fpass / 2, fstop / 2) | 1` (always odd, so the filter is type-I linear phase with an integer group delay of `(n - 1) / 2` samples). The window shape comes from [**dp\_kaiser\_beta()**](resample__core_8h.md#function-dp_kaiser_beta), the FIR-design beta formula, not the window-sidelobe one. The ideal cutoff sits at the midpoint of the transition band, `(fpass + fstop) / 2`. Taps are `2 fc sinc(2 fc m) w[m]` with `fc` in cycles/sample; they are not renormalized afterwards, so the DC gain is close to, but not exactly, 1.
+The tap count is chosen automatically from the band edges and the attenuation with the Kaiser FIR-length formula, `n = dp_kaiser_num_taps(1, atten_db, fpass / 2, fstop / 2) | 1` (always odd, so the filter is type-I linear phase with an integer group delay of `(n - 1) / 2` samples). The window shape comes from [**dp\_kaiser\_beta()**](resample__core_8h.md#function-dp_kaiser_beta), the FIR-design beta formula, not the window-sidelobe one. The ideal cutoff sits at the midpoint of the transition band, `(fpass + fstop) / 2`. Taps are `2 fc sinc(2 fc m) w[m]` with `fc` in cycles/sample, then divided by their sum, so the DC gain is 1 to float precision (the windowed sinc alone misses it by up to a few percent on a short design).
 
 
 

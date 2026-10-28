@@ -37,6 +37,7 @@ _State of a CF32 halfband 2:1 decimator._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**centre**](#variable-centre)  <br> |
+|  size\_t | [**consumed**](#variable-consumed)  <br> |
 |  float \_Complex \* | [**even\_buf**](#variable-even_buf)  <br> |
 |  size\_t | [**even\_cap**](#variable-even_cap)  <br> |
 |  size\_t | [**even\_head**](#variable-even_head)  <br> |
@@ -113,6 +114,23 @@ size_t hbdecim_state_t::centre;
 
 
 num\_taps / 2 (integer division): the delay-line index the half-weight delay branch reads (config) 
+
+
+        
+
+<hr>
+
+
+
+### variable consumed 
+
+```C++
+size_t hbdecim_state_t::consumed;
+```
+
+
+
+Input samples the last execute took; per-call, not in the blob (0 after create, reset and set\_state) 
 
 
         

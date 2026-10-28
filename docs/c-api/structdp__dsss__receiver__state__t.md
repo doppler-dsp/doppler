@@ -57,6 +57,10 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**sps**](#variable-sps)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  int | [**tracking**](#variable-tracking)  <br> |
+|  float \_Complex \* | [**trk\_dll\_buf**](#variable-trk_dll_buf)  <br> |
+|  size\_t | [**trk\_dll\_cap**](#variable-trk_dll_cap)  <br> |
+|  float \_Complex \* | [**trk\_rc\_buf**](#variable-trk_rc_buf)  <br> |
+|  size\_t | [**trk\_rc\_cap**](#variable-trk_rc_cap)  <br> |
 |  size\_t | [**tsamps**](#variable-tsamps)  <br> |
 
 
@@ -468,6 +472,74 @@ int dp_dsss_receiver_state_t::tracking;
 
 0 = searching, 1 = locked and demodulating. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable trk\_dll\_buf 
+
+```C++
+float _Complex* dp_dsss_receiver_state_t::trk_dll_buf;
+```
+
+
+
+Scratch, not state: the tracking chain's Dll output, grown on demand to the largest block seen and kept, so a tracking steps() allocates nothing once warm (doppler#2650). Freed in destroy(). 
+
+
+        
+
+<hr>
+
+
+
+### variable trk\_dll\_cap 
+
+```C++
+size_t dp_dsss_receiver_state_t::trk_dll_cap;
+```
+
+
+
+Capacity of `trk_dll_buf`, samples. 
+
+
+        
+
+<hr>
+
+
+
+### variable trk\_rc\_buf 
+
+```C++
+float _Complex* dp_dsss_receiver_state_t::trk_rc_buf;
+```
+
+
+
+Scratch, not state: the tracking chain's RateConverter output, grown on demand and kept like `trk_dll_buf`. 
+
+
+        
+
+<hr>
+
+
+
+### variable trk\_rc\_cap 
+
+```C++
+size_t dp_dsss_receiver_state_t::trk_rc_cap;
+```
+
+
+
+Capacity of `trk_rc_buf`, samples. 
 
 
         

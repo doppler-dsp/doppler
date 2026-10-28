@@ -170,7 +170,7 @@ Stores `scale` and initialises the sticky `clipped` flag to 0.
 **Parameters:**
 
 
-* `scale` Multiply factor applied before quantisation and saturation (default: 32768.0f). Use 32768.0 to convert normalised `[-1, +1]` floats to the full UQ15 range `[0, 65535]`. Must be &gt; 0; returns NULL otherwise. 
+* `scale` Multiply factor applied before quantisation and saturation (default: 32768.0f). Use 32768.0 to convert normalised `[-1, +1]` floats to the full UQ15 range `[0, 65535]`. Must be positive and finite; NULL otherwise. 
 
 
 
@@ -377,6 +377,9 @@ JM_FORCEINLINE  JM_HOT uint16_t dp_f32_to_uq15_step (
 
 
 Computes `round(x * scale)`, clamps to `[-32768, 32767]`, then adds the 32768 offset-binary bias so the signed float domain maps onto the full unsigned uint16 range. Latches the sticky `clipped` flag if the scaled value saturated before clamping. Suits DAC and file formats that store only unsigned integers.
+
+
+A NaN input counts as clipped: it latches `clipped` and returns the negative full-scale code, 0 (offset-binary -32768).
 
 
 

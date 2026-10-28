@@ -110,7 +110,8 @@ extern "C"
                               const float _Complex *x, size_t x_len,
                               float _Complex *out, size_t max_out);
 
-  size_t dp_mpsk_receiver_bits_max_out (dp_mpsk_receiver_state_t *state);
+  size_t dp_mpsk_receiver_bits_max_out (dp_mpsk_receiver_state_t *state,
+                                        size_t x_len);
   size_t dp_mpsk_receiver_bits (dp_mpsk_receiver_state_t *state,
                              const float _Complex *x, size_t x_len,
                              uint8_t *out, size_t max_out);
@@ -160,8 +161,10 @@ extern "C"
   int dp_mpsk_receiver_get_clipped (const dp_mpsk_receiver_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition: the front end's and the loops' self-validating child blobs.
- * Every scalar this object carries across inputs lives in one of them; the
- * cascade, its banks, the LO centre and the `real` tag are restored by create.
+ * Every scalar this object carries across inputs lives in one of them, except
+ * the carrier centre, which dp_mpsk_receiver_set_norm_freq() moves and so is
+ * packed ahead of them (doppler#2642); the cascade, its banks and the `real`
+ * tag are restored by create.
  *
  * The MAGIC is keyed on the face. The two faces hold genuinely different
  * state — a DDC's cascade against a DDCR's halfband plus cascade — so a blob
@@ -170,9 +173,10 @@ extern "C"
  * The layouts are otherwise identical, which is why one triplet serves both.
  */
 #define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'K')
-#define MPSK_RECEIVER_STATE_VERSION 6u /* v5: rebuilt on the matched DDC */
+#define MPSK_RECEIVER_STATE_VERSION 7u /* v5: rebuilt on the matched DDC;
+                                          v7: packs the carrier centre */
 #define MPSK_RECEIVER_R_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'R')
-#define MPSK_RECEIVER_R_STATE_VERSION 2u
+#define MPSK_RECEIVER_R_STATE_VERSION 3u /* v3: packs the carrier centre */
   size_t dp_mpsk_receiver_state_bytes (const dp_mpsk_receiver_state_t *state);
   void   dp_mpsk_receiver_get_state (const dp_mpsk_receiver_state_t *state,
                                   void                        *blob);

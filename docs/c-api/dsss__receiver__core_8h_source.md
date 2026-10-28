@@ -43,6 +43,10 @@ extern "C"
     float _Complex *car_wiped_buf;
     float _Complex *car_carry_buf;
     size_t         car_carry_len; 
+    float _Complex *trk_dll_buf;
+    size_t         trk_dll_cap; 
+    float _Complex *trk_rc_buf;
+    size_t         trk_rc_cap; 
     uint8_t *code;
     size_t   code_len; 
     /* Config carried across a dll/rc/rx rebuild (create-time or

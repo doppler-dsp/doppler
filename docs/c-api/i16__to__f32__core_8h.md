@@ -133,7 +133,7 @@ dp_i16_to_f32_state_t * dp_i16_to_f32_create (
 
 
 
-Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single multiply. `scale` must be &gt; 0; zero or a negative value is refused (NULL).
+Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single multiply. `scale` must be positive and finite; zero, a negative value, NaN or an infinity is refused (NULL).
 
 
 
@@ -147,7 +147,7 @@ Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single multiply
 
 **Returns:**
 
-Heap-allocated state, or NULL when `scale` &lt;= 0 or allocation fails. 
+Heap-allocated state, or NULL when `scale` is not positive and finite, or allocation fails. 
 
 
 

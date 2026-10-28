@@ -21,9 +21,6 @@ extern "C"
 
   typedef hbdecim_state_t dp_HalfbandDecimator_state_t;
 
-/* Maximum output samples per call (pre-allocated by ext.c at init). */
-#define HBDECIM_MAX_OUT 32768
-
   /* ------------------------------------------------------------------ */
   /* Lifecycle                                                           */
   /* ------------------------------------------------------------------ */
@@ -45,7 +42,8 @@ extern "C"
   /* Execute                                                             */
   /* ------------------------------------------------------------------ */
 
-  size_t dp_HalfbandDecimator_execute_max_out (dp_HalfbandDecimator_state_t *state);
+  size_t dp_HalfbandDecimator_execute_max_out (dp_HalfbandDecimator_state_t *state,
+                                            size_t x_len);
 
   size_t dp_HalfbandDecimator_execute (dp_HalfbandDecimator_state_t *state,
                                     const float _Complex *x, size_t x_len,

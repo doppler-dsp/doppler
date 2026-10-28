@@ -59,9 +59,11 @@ _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for nam
 | Type | Name |
 | ---: | :--- |
 |  int64\_t | [**dp\_isotime\_days\_from\_civil\_**](#function-dp_isotime_days_from_civil_) (int64\_t y, unsigned m, unsigned d) <br>_Days since 1970-01-01 for a proleptic-Gregorian civil date._  |
+|  int | [**dp\_isotime\_days\_in\_month\_**](#function-dp_isotime_days_in_month_) (int64\_t y, int m) <br>_Number of days in month_ `m` _of year_`y` _(28..31)._ |
 |  int | [**dp\_isotime\_digits\_**](#function-dp_isotime_digits_) (const char \*\* p, int n, int \* out) <br>_Reads_ `n` _decimal digits, advancing_`p` _._ |
 |  int | [**dp\_isotime\_format**](#function-dp_isotime_format) (char \* buf, size\_t cap, int64\_t sec, uint32\_t nsec, unsigned frac) <br> |
 |  int | [**dp\_isotime\_format\_as**](#function-dp_isotime_format_as) (char \* buf, size\_t cap, int64\_t sec, uint32\_t nsec, unsigned frac, int style) <br> |
+|  int | [**dp\_isotime\_is\_leap\_**](#function-dp_isotime_is_leap_) (int64\_t y) <br>_Whether_ `y` _is a leap year in the proleptic Gregorian calendar._ |
 |  int | [**dp\_isotime\_now**](#function-dp_isotime_now) (char \* buf, size\_t cap, unsigned frac) <br> |
 |  int | [**dp\_isotime\_parse**](#function-dp_isotime_parse) (const char \* s, int64\_t \* sec, uint32\_t \* nsec) <br>_Parses an ISO 8601 UTC timestamp into UNIX seconds + nanoseconds._  |
 |  int | [**dp\_isotime\_utc\_tm\_**](#function-dp_isotime_utc_tm_) (int64\_t sec, struct tm \* out) <br>_Break a UTC instant into a fully-populated_ `struct tm` _, by arithmetic rather than by gmtime._ |
@@ -157,13 +159,49 @@ Howard Hinnant's `days_from_civil`, which is exact for every date and needs no t
 
 * `y` Year (proleptic Gregorian; may be zero or negative). 
 * `m` Month, 1..12. 
-* `d` Day of month, 1..31 (not checked against the month's length; an overflowing day rolls into the next month). 
+* `d` Day of month, 1..31 (not checked here against the month's length; dp\_isotime\_parse() checks it before calling). 
 
 
 
 **Returns:**
 
 Days since 1970-01-01 (negative before it). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_isotime\_days\_in\_month\_ 
+
+_Number of days in month_ `m` _of year_`y` _(28..31)._
+```C++
+static inline int dp_isotime_days_in_month_ (
+    int64_t y,
+    int m
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `y` Year (proleptic Gregorian), for February's leap day. 
+* `m` Month, 1..12. 
+
+
+
+**Returns:**
+
+Days in that month. 
 
 
 
@@ -306,6 +344,43 @@ Characters written (excluding the NUL), or -1 if `buf` is NULL, `frac` is not on
 
 
 
+### function dp\_isotime\_is\_leap\_ 
+
+_Whether_ `y` _is a leap year in the proleptic Gregorian calendar._
+```C++
+static inline int dp_isotime_is_leap_ (
+    int64_t y
+) 
+```
+
+
+
+Divisible by 4, except centuries, except centuries divisible by 400. A remainder of zero is sign-agnostic in C, so this is the Gregorian rule for zero and negative years too.
+
+
+
+
+**Parameters:**
+
+
+* `y` Year (may be zero or negative). 
+
+
+
+**Returns:**
+
+1 for a leap year, else 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_isotime\_now 
 
 ```C++
@@ -362,7 +437,7 @@ static inline int dp_isotime_parse (
 
 
 
-Accepts both spellings this file writes — extended (`2026-08-05T04:15:30.123456Z`) and basic (`20260805T041530Z`) — with an optional fraction (`.` or `,`, one or more digits; digits past the ninth are truncated), and either `Z` or an explicit `+hh:mm` / `-hhmm` / `+hh` offset, which is applied. The day is range-checked only to 1..31, not against the month, so `02-31` rolls into March.
+Accepts both spellings this file writes — extended (`2026-08-05T04:15:30.123456Z`) and basic (`20260805T041530Z`) — with an optional fraction (`.` or `,`, one or more digits; digits past the ninth are truncated), and either `Z` or an explicit `+hh:mm` / `-hhmm` / `+hh` offset, which is applied. The day is checked against its month's length, leap years included, so `2026-02-31`, `04-31` and `2025-02-29` are refused rather than rolled into the next month.
 
 
 **A timestamp with NO zone is REFUSED.** It is the one input where guessing costs hours rather than nothing: read as UTC, a local-time stamp dates a capture wrong and looks authoritative doing it. A caller that cannot parse a start time has ways to say so (the reader reports WFM\_T0\_NONE); a caller holding a wrong one does not.

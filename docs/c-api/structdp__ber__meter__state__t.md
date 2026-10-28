@@ -36,6 +36,7 @@ _BerMeter state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**armed**](#variable-armed)  <br> |
 |  size\_t | [**bit\_errors**](#variable-bit_errors)  <br> |
 |  size\_t | [**bits**](#variable-bits)  <br> |
 |  int | [**bps**](#variable-bps)  <br> |
@@ -105,6 +106,23 @@ _BerMeter state._ [More...](#detailed-description)
     
 ## Public Attributes Documentation
 
+
+
+
+### variable armed 
+
+```C++
+int dp_ber_meter_state_t::armed;
+```
+
+
+
+1 once an alignment score() may use is installed: the last align() succeeded, or set\_align() was called. 
+
+
+        
+
+<hr>
 
 
 

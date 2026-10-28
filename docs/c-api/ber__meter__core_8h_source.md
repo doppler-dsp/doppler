@@ -52,6 +52,7 @@ extern "C"
     size_t      mk_t0;     
     size_t      mk_n;      
     size_t      mk_period; 
+    int armed; 
   } dp_ber_meter_state_t;
 
   ber_align_t dp_ber_align_detect (const float _Complex *rx, size_t rx_len,

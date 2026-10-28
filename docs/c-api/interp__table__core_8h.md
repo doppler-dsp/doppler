@@ -141,13 +141,13 @@ Copies `table` internally; the caller's own array can be freed or modified after
 
 * `table` Complex table, one period, length `table_len`. 
 * `table_len` Number of elements in `table` (&gt; 0). 
-* `method` 0 = floor, 1 = nearest, 2 = linear. Not validated: any other value behaves as linear. 
+* `method` 0 = floor, 1 = nearest, 2 = linear; any other value is refused. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure or table\_len == 0. 
+Heap-allocated state, or NULL on allocation failure, table\_len == 0, or a `method` outside 0..2. 
 
 
 

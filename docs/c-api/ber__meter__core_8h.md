@@ -1229,7 +1229,7 @@ Demodulates each symbol in the window under the alignment the last align() detec
 **Parameters:**
 
 
-* `state` Must be non-NULL, with an alignment set by align(). The stored alignment's `ok` flag is NOT checked: check align()'s return first. With no truth installed (or a NULL `rx`) nothing is scored and 0 is returned. 
+* `state` Must be non-NULL. Without a usable alignment  before any align(), or after one that failed (`ok == 0`), unless set\_align() installed one since  nothing is scored, the counters are untouched and 0 is returned, rather than scoring at lag 0, phase 0. With no truth installed (or a NULL `rx`) nothing is scored and 0 is returned either. 
 * `rx` Recovered symbols to score. 
 * `rx_len` How many recovered symbols. 
 * `lo` First symbol index to score (inclusive). 
@@ -1349,7 +1349,7 @@ The stateful [**dp\_ber\_meter\_align()**](ber__meter__core_8h.md#function-dp_be
 
 
 * `state` Must be non-NULL. 
-* `align` The alignment record to install verbatim (its `ok` flag is stored but not checked). 
+* `align` The alignment record to install verbatim. Its `ok` flag is stored but not checked: installing it is the caller's statement that it is known, so score() uses it. 
 * `t0` Truth index of the marker's first occurrence. 
 * `n_marker` Marker length in symbols; 0 selects BER\_SYNC\_SYMS. 
 * `period` Repeat period in symbols; 0 for a single occurrence. 

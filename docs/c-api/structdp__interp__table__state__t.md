@@ -103,7 +103,7 @@ int dp_interp_table_state_t::method;
 
 
 
-0=floor, 1=nearest, 2=linear (any other value also evaluates as linear) 
+0=floor, 1=nearest, 2=linear (create() refuses any other value) 
 
 
         

@@ -446,7 +446,7 @@ void dp_adc_steps (
 
 
 
-When dithering is disabled and a SIMD tier is available ([**jm\_simd.h**](jm__simd_8h.md)), whole SIMD-width groups are scaled by `scale` rounded to float32, multiplied in float32, rounded with `llroundf` and clamped; the clip flag latches only when the ROUNDED code exceeds the range. The remaining tail samples, and every sample when dithering is enabled, go through [**dp\_adc\_step()**](adc__core_8h.md#function-dp_adc_step) (double precision, sequential PRNG). For converters wider than ~24 bits the float32 path can therefore differ from step() in the last codes.
+When dithering is disabled and a SIMD tier is available ([**jm\_simd.h**](jm__simd_8h.md)), whole SIMD-width groups are scaled by `scale` rounded to float32, multiplied in float32, rounded with `llroundf` and clamped; the clip flag latches on the same double-precision pre-rounding value step() uses, so it does not depend on which path a sample took. The remaining tail samples, and every sample when dithering is enabled, go through [**dp\_adc\_step()**](adc__core_8h.md#function-dp_adc_step) (double precision, sequential PRNG). For converters wider than ~24 bits the float32 path can therefore differ from step() in the last codes.
 
 
 The C function writes into `output` and never allocates; the Python binding allocates the output array when its optional `out` is omitted.

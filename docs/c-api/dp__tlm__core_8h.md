@@ -566,7 +566,7 @@ uint64_t dp_tlm_dropped (
 
 
 
-Monotonic for the life of a ring; [**dp\_tlm\_resize()**](dp__tlm__core_8h.md#function-dp_tlm_resize) replaces the ring and so restarts the count from 0.
+Monotonic for the life of the context: [**dp\_tlm\_resize()**](dp__tlm__core_8h.md#function-dp_tlm_resize) carries the count into the ring it swaps in.
 
 
 
@@ -580,7 +580,7 @@ Monotonic for the life of a ring; [**dp\_tlm\_resize()**](dp__tlm__core_8h.md#fu
 
 **Returns:**
 
-Records refused by a full ring since the ring was created. 
+Records refused by a full ring since the context was created. 
 
 
 
@@ -1152,7 +1152,7 @@ The new ring holds exactly `records`. A no-op returning [**DP\_OK**](clib__commo
 **Destroys whatever the ring holds** and is unsynchronised with the producer. Legal only where the producer is quiescent AND the ring has been drained — i.e. a block boundary. [**dp\_tlm\_capture\_block()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_block) is the only caller that needs it; call it yourself only if you own the same guarantee.
 
 
-The overrun counter lives in the ring, so a resize that replaces the ring also restarts [**dp\_tlm\_dropped()**](dp__tlm__core_8h.md#function-dp_tlm_dropped) from 0.
+The overrun counter is carried into the new ring, so [**dp\_tlm\_dropped()**](dp__tlm__core_8h.md#function-dp_tlm_dropped) stays monotonic for the life of the context across a resize.
 
 
 

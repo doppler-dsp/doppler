@@ -36,7 +36,9 @@ dp_f32_to_i8_step(dp_f32_to_i8_state_t *state, float x)
 {
     float s = state->scale * x;
     /* Detect saturation before clamping; set sticky flag. */
-    state->clipped |= (uint8_t)(s > 127.0f || s < -128.0f);
+    /* Written as "not inside" so a NaN, which fails every comparison,
+     * latches the flag too (fmaxf then maps it to the lower bound). */
+    state->clipped |= (uint8_t)!(s <= 127.0f && s >= -128.0f);
     s = fmaxf(s, -128.0f);
     s = fminf(s,  127.0f);
     return (int8_t)lroundf(s);

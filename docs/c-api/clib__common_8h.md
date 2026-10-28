@@ -68,6 +68,7 @@ _Common C99 types and performance macros for doppler._ [More...](#detailed-descr
 | ---: | :--- |
 |  double | [**dp\_fftfreq**](#function-dp_fftfreq) (size\_t bin, size\_t n, double fs) <br>_The frequency of an FFT bin, in the units of_ `fs` _._ |
 |  long | [**dp\_fftfreq\_index**](#function-dp_fftfreq_index) (size\_t bin, size\_t n) <br>`numpy.fft.fftfreq(n)[bin] * n` _— the SIGNED index of an FFT bin._ |
+|  int | [**dp\_positive\_finite**](#function-dp_positive_finite) (double x) <br>_Whether_ `x` _is a positive, finite number._ |
 |  void \* | [**dp\_xcalloc**](#function-dp_xcalloc) (size\_t nmemb, size\_t size) <br> |
 |  void \* | [**dp\_xmalloc**](#function-dp_xmalloc) (size\_t n) <br> |
 |  void \* | [**dp\_xnn**](#function-dp_xnn) (void \* p) <br> |
@@ -289,6 +290,43 @@ What must not vary is the READER: a consumer seeded on one side of the fold whil
 **Returns:**
 
 Signed index in `[-(n/2), +((n-1)/2)]`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_positive\_finite 
+
+_Whether_ `x` _is a positive, finite number._
+```C++
+static inline int dp_positive_finite (
+    double x
+) 
+```
+
+
+
+The domain of a scale or gain that a constructor stores and later divides by or multiplies with: zero, a negative, NaN and either infinity are all refused. Spelled once here so every converter's create() refuses the same set; `x <= 0` alone lets NaN through (every comparison with NaN is false) and lets +inf through, which then maps every input to a full scale or to zero.
+
+
+
+
+**Parameters:**
+
+
+* `x` The value to test. 
+
+
+
+**Returns:**
+
+1 when `0 < x < inf`, else 0. 
 
 
 

@@ -36,10 +36,14 @@ dp_f32_to_i32_step(dp_f32_to_i32_state_t *state, float x)
 {
     double s = (double)state->scale * (double)x;
     /* Detect saturation before clamping; set sticky flag. */
-    state->clipped |= (uint8_t)(s > 2147483647.0 || s < -2147483648.0);
+    /* Written as "not inside" so a NaN, which fails every comparison,
+     * latches the flag too; the lower clamp is spelled the same way so a
+     * NaN leaves as the negative full-scale code rather than reaching
+     * lround(), where it has no defined result. */
+    state->clipped |= (uint8_t)!(s <= 2147483647.0 && s >= -2147483648.0);
     if (s > 2147483647.0)
         s = 2147483647.0;
-    if (s < -2147483648.0)
+    if (!(s >= -2147483648.0))
         s = -2147483648.0;
     return (int32_t)lround(s);
 }

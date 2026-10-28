@@ -37,9 +37,6 @@ extern "C"
     MPSK_RX_PULSE_RRC   = RC_PULSE_RRC    
   };
 
-/* Numerical guard on the symbol magnitude in the decision discriminator. */
-#define MPSK_RX_EPS 1e-12
-
 /* THE RECEIVER HAS EXACTLY ONE AGC, and it is the front-end cascade's
  * (dp_RateConverter_enable_agc). One, not none and not one per detector: it
  * levels the SIGNAL PATH, and both loops run on that path, so it sits inside
@@ -157,6 +154,14 @@ mpsk_rx_derive_m_out (double cap, int strict)
   if (!(h >= 1.0))
     return 0u;
   return (h >= 4.0) ? 8u : (size_t)(2.0 * h);
+}
+
+JM_FORCEINLINE int
+mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
+{
+  if (!dp_ratesync_m_ok (m_out))
+    return 0;
+  return strict ? cap > (double)m_out : cap >= (double)m_out;
 }
 
 #define MPSK_RX_ZETA_DEFAULT 0.70710678118654752

@@ -179,7 +179,7 @@ double dp_wfm_stream_sink_clip_fraction (
 
 
 
-Clips counted while [**dp\_wfm\_stream\_sink\_track\_clipping()**](wfm__sink_8h.md#function-dp_wfm_stream_sink_track_clipping) is on, divided by all integer-path I and Q components sent since open. The generated StreamSink handle binds peak/clip\_fraction directly as per-field getters (jm#320), so no stats-snapshot struct shim is needed.
+Clips counted while [**dp\_wfm\_stream\_sink\_track\_clipping()**](wfm__sink_8h.md#function-dp_wfm_stream_sink_track_clipping) is on, divided by the integer-path I and Q components sent while it was on. The generated StreamSink handle binds peak/clip\_fraction directly as per-field getters (jm#320), so no stats-snapshot struct shim is needed.
 
 
 
@@ -484,7 +484,7 @@ void dp_wfm_stream_sink_track_clipping (
 
 
 
-Off by default; the peak is tracked regardless. Only clips seen while tracking is on are counted, but every integer-path component sent since open counts toward [**dp\_wfm\_stream\_sink\_clip\_fraction()**](wfm__sink_8h.md#function-dp_wfm_stream_sink_clip_fraction)'s denominator.
+Off by default; the peak is tracked regardless. Only components sent while tracking is on are counted, in both the clips and the [**dp\_wfm\_stream\_sink\_clip\_fraction()**](wfm__sink_8h.md#function-dp_wfm_stream_sink_clip_fraction) denominator, so enabling it mid-stream measures only what follows.
 
 
 

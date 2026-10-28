@@ -69,10 +69,10 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 |  double | [**dp\_Resampler\_get\_delay**](#function-dp_resampler_get_delay) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Group delay of the interpolator, in input samples._  |
 |  size\_t | [**dp\_Resampler\_get\_num\_phases**](#function-dp_resampler_get_num_phases) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._  |
 |  size\_t | [**dp\_Resampler\_get\_num\_taps**](#function-dp_resampler_get_num_taps) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Taps per polyphase branch. Total prototype filter length is num\_phases \* num\_taps - 1. The built-in bank uses 19 taps per branch._  |
-|  double | [**dp\_Resampler\_get\_rate**](#function-dp_resampler_get_rate) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately; the delay line and phase accumulator are preserved so in-stream rate changes are glitch-free. Crossing 1.0 also switches the engine between its interpolation and decimation modes (the doctest below goes 0.5 -&gt; 1.5). Each mode keeps its own filter memory, so the first outputs after a crossing are built from that mode's last (or still-zero) history: a transient, not an error._  |
+|  double | [**dp\_Resampler\_get\_rate**](#function-dp_resampler_get_rate) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately. On the same side of 1.0 the delay line and phase accumulator are preserved, so in-stream rate changes are glitch-free. Crossing 1.0 switches the engine between its interpolation and decimation modes (the doctest below goes 0.5 -&gt; 1.5); the mode taking over was never advanced, so the crossing resets the state as reset() does, and the output from there on is what a fresh Resampler at the new rate gives. A rate that is not finite and &gt; 0 raises ValueError and leaves the rate as it was._  |
 |  void | [**dp\_Resampler\_get\_state**](#function-dp_resampler_get_state) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, void \* blob) <br>_Serialize the resampler's phase + delay-line state into_ `blob` _._ |
 |  void | [**dp\_Resampler\_reset**](#function-dp_resampler_reset) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Zero the delay line and phase accumulator. Rate and polyphase bank are preserved so the resampler can be resumed at the same ratio. Zeroing state eliminates transient artefacts when starting a new signal burst. The control accumulator read by_ [_**dp\_Resampler\_get\_ctrl\_acc()**_](Resampler__core_8h.md#function-dp_resampler_get_ctrl_acc) _returns to 0.0 as well._ |
-|  void | [**dp\_Resampler\_set\_rate**](#function-dp_resampler_set_rate) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, double rate) <br>_Set the output-to-input sample rate ratio (see_ [_**dp\_Resampler\_get\_rate()**_](Resampler__core_8h.md#function-dp_resampler_get_rate) _for the mid-stream semantics)._ |
+|  int | [**dp\_Resampler\_set\_rate**](#function-dp_resampler_set_rate) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, double rate) <br>_Set the output-to-input sample rate ratio (see_ [_**dp\_Resampler\_get\_rate()**_](Resampler__core_8h.md#function-dp_resampler_get_rate) _for the mid-stream semantics)._ |
 |  int | [**dp\_Resampler\_set\_state**](#function-dp_resampler_set_state) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, const void \* blob) <br>_Restore state from_ `blob` _._ |
 |  size\_t | [**dp\_Resampler\_state\_bytes**](#function-dp_resampler_state_bytes) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Serialized-state byte size (forwarded to the resamp leaf)._  |
 
@@ -168,13 +168,13 @@ dp_Resampler_state_t * dp_Resampler_create (
 **Parameters:**
 
 
-* `rate` Output-to-input sample rate ratio (any positive float). Values &gt;= 1.0 interpolate; values &lt; 1.0 decimate. Not validated here: a rate &lt;= 0 is not refused. 
+* `rate` Output-to-input sample rate ratio: finite and &gt; 0 ([**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok)). Values &gt;= 1.0 interpolate; values &lt; 1.0 decimate. From Python it defaults to 1.0. 
 
 
 
 **Returns:**
 
-Non-NULL on success, owned by the caller and released with [**dp\_Resampler\_destroy()**](Resampler__core_8h.md#function-dp_resampler_destroy); NULL on OOM.
+Non-NULL on success, owned by the caller and released with [**dp\_Resampler\_destroy()**](Resampler__core_8h.md#function-dp_resampler_destroy); NULL if `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok), or on OOM.
 
 
 
@@ -218,16 +218,16 @@ The bank is copied, so the caller keeps ownership of `bank`.
 **Parameters:**
 
 
-* `num_phases` Number of polyphase branches; must be a power of two (the caller's responsibility: only zero is refused). 
+* `num_phases` Number of polyphase branches; a power of two (any other count is refused, since the branch select would read past the bank). 
 * `num_taps` Taps per branch; &gt; 0. 
 * `bank` Row-major float32 array, shape num\_phases × num\_taps. 
-* `rate` Initial output-to-input sample rate ratio; &gt; 0. 
+* `rate` Initial output-to-input sample rate ratio; finite and &gt; 0 ([**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok)). 
 
 
 
 **Returns:**
 
-Non-NULL on success, owned by the caller and released with [**dp\_Resampler\_destroy()**](Resampler__core_8h.md#function-dp_resampler_destroy); NULL if `num_phases` or `num_taps` is 0, `bank` is NULL, `rate` &lt;= 0, or on OOM. 
+Non-NULL on success, owned by the caller and released with [**dp\_Resampler\_destroy()**](Resampler__core_8h.md#function-dp_resampler_destroy); NULL if `num_phases` is 0 or not a power of two, `num_taps` is 0, `bank` is NULL, `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok), or on OOM. 
 
 
 
@@ -625,7 +625,7 @@ Taps per polyphase arm.
 
 ### function dp\_Resampler\_get\_rate 
 
-_Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately; the delay line and phase accumulator are preserved so in-stream rate changes are glitch-free. Crossing 1.0 also switches the engine between its interpolation and decimation modes (the doctest below goes 0.5 -&gt; 1.5). Each mode keeps its own filter memory, so the first outputs after a crossing are built from that mode's last (or still-zero) history: a transient, not an error._ 
+_Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately. On the same side of 1.0 the delay line and phase accumulator are preserved, so in-stream rate changes are glitch-free. Crossing 1.0 switches the engine between its interpolation and decimation modes (the doctest below goes 0.5 -&gt; 1.5); the mode taking over was never advanced, so the crossing resets the state as reset() does, and the output from there on is what a fresh Resampler at the new rate gives. A rate that is not finite and &gt; 0 raises ValueError and leaves the rate as it was._ 
 ```C++
 double dp_Resampler_get_rate (
     const dp_Resampler_state_t * state
@@ -740,7 +740,7 @@ void dp_Resampler_reset (
 
 _Set the output-to-input sample rate ratio (see_ [_**dp\_Resampler\_get\_rate()**_](Resampler__core_8h.md#function-dp_resampler_get_rate) _for the mid-stream semantics)._
 ```C++
-void dp_Resampler_set_rate (
+int dp_Resampler_set_rate (
     dp_Resampler_state_t * state,
     double rate
 ) 
@@ -754,7 +754,14 @@ void dp_Resampler_set_rate (
 
 
 * `state` Pointer to a valid dp\_Resampler\_state\_t. 
-* `rate` New ratio; should be &gt; 0 (not validated). 
+* `rate` New ratio; finite and &gt; 0 ([**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok)). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if `rate` is refused (nothing changes). 
+
 
 
 

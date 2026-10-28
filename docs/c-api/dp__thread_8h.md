@@ -11,6 +11,7 @@
 _The threading primitives doppler uses, with one platform split._ [More...](#detailed-description)
 
 * `#include "doppler/dp_once.h"`
+* `#include <errno.h>`
 * `#include <pthread.h>`
 * `#include <sched.h>`
 * `#include <time.h>`
@@ -77,7 +78,8 @@ _The threading primitives doppler uses, with one platform split._ [More...](#det
 |  void | [**dp\_mutex\_unlock**](#function-dp_mutex_unlock) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br>_Unlocks_ `m` _, which this thread must hold._ |
 |  int | [**dp\_thread\_create**](#function-dp_thread_create) ([**dp\_thread\_t**](dp__thread_8h.md#typedef-dp_thread_t) \* t, void \*(\*)(void \*) fn, void \* arg) <br>_Starts_ `fn` _on a new thread. Returns 0 on success._ |
 |  int | [**dp\_thread\_join**](#function-dp_thread_join) ([**dp\_thread\_t**](dp__thread_8h.md#typedef-dp_thread_t) t) <br>_Waits for_ `t` _to finish and releases it. Returns 0 on success, as pthread\_join does, so a caller that asserted the join can still._ |
-|  void | [**dp\_thread\_sleep\_us**](#function-dp_thread_sleep_us) (unsigned us) <br>_Sleeps for about_ `us` _microseconds: at least that long unless a signal cuts the sleep short, since nanosleep() is not restarted. For "let the other thread get there", never for timing._ |
+|  void | [**dp\_thread\_sleep\_us**](#function-dp_thread_sleep_us) (unsigned us) <br>_Sleeps for at least_ `us` _microseconds. For "let the other thread
+get there", never for timing. A signal does not cut the sleep short: nanosleep() reports the time it had left, and the sleep resumes with that remainder until it is spent (#2647)._ |
 |  void | [**dp\_thread\_yield**](#function-dp_thread_yield) (void) <br>_Gives up the rest of this thread's time slice._  |
 
 
@@ -546,7 +548,8 @@ static inline int dp_thread_join (
 
 ### function dp\_thread\_sleep\_us 
 
-_Sleeps for about_ `us` _microseconds: at least that long unless a signal cuts the sleep short, since nanosleep() is not restarted. For "let the other thread get there", never for timing._
+_Sleeps for at least_ `us` _microseconds. For "let the other thread
+get there", never for timing. A signal does not cut the sleep short: nanosleep() reports the time it had left, and the sleep resumes with that remainder until it is spent (#2647)._
 ```C++
 static inline void dp_thread_sleep_us (
     unsigned us

@@ -80,7 +80,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_ratesync\_configure**](#function-dp_ratesync_configure) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new bandwidth/damping, keeping the timing estimate._  |
+|  int | [**dp\_ratesync\_configure**](#function-dp_ratesync_configure) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new bandwidth/damping, keeping the timing estimate._  |
 |  void | [**dp\_ratesync\_configure\_lock\_raw**](#function-dp_ratesync_configure_lock_raw) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, size\_t avgs, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's geometry directly._  |
 |  [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* | [**dp\_ratesync\_create**](#function-dp_ratesync_create) (double sps, int pulse, double beta, size\_t span, size\_t m, size\_t num\_phases, double bn, double zeta, int ted) <br>_Create a RateSync instance._  |
 |  void | [**dp\_ratesync\_destroy**](#function-dp_ratesync_destroy) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Destroy a RateSync instance and release all memory._  |
@@ -93,7 +93,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  void | [**dp\_ratesync\_get\_state**](#function-dp_ratesync_get_state) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, void \* blob) <br>_Serialize the mutable state into_ `blob` _._ |
 |  double | [**dp\_ratesync\_get\_timing\_error**](#function-dp_ratesync_get_timing_error) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Last normalised TED error — the loop stress._  |
 |  void | [**dp\_ratesync\_loop\_bind\_cascade**](#function-dp_ratesync_loop_bind_cascade) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* rc) <br>_Read that geometry straight off a cascade._  |
-|  void | [**dp\_ratesync\_loop\_configure**](#function-dp_ratesync_loop_configure) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double bn, double zeta) <br>_Retune the loop; preserves the integrator (and so the lock)._  |
+|  int | [**dp\_ratesync\_loop\_configure**](#function-dp_ratesync_loop_configure) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double bn, double zeta) <br>_Retune the loop; preserves the integrator (and so the lock)._  |
 |  void | [**dp\_ratesync\_loop\_configure\_lock\_raw**](#function-dp_ratesync_loop_configure_lock_raw) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, size\_t avgs, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's geometry; see_ [_**dp\_ratesync\_configure\_lock\_raw()**_](ratesync__core_8h.md#function-dp_ratesync_configure_lock_raw) _, which forwards here._ |
 |  void | [**dp\_ratesync\_loop\_get\_state**](#function-dp_ratesync_loop_get_state) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, void \* blob) <br>_Serialize the loop's mutable state into_ `blob` _._ |
 |  void | [**dp\_ratesync\_loop\_init**](#function-dp_ratesync_loop_init) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, double sps, size\_t m, double bn, double zeta, int ted) <br>_Initialise a standalone timing loop._  |
@@ -105,7 +105,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  void | [**dp\_ratesync\_loop\_tlm\_flush**](#function-dp_ratesync_loop_tlm_flush) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Emit the timing loop's telemetry for the symbol just recovered._  |
 |  int | [**dp\_ratesync\_m\_ok**](#function-dp_ratesync_m_ok) (size\_t m) <br>_The domain of_ `m` _, the terminal outputs per symbol: even, and_`2 <= m <= RATESYNC_MAX_M` _._ |
 |  void | [**dp\_ratesync\_reset**](#function-dp_ratesync_reset) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Reset to the post-create state: the cascade, the loop integrator, the lock detector, the strobe ring and the prime countdown._  |
-|  void | [**dp\_ratesync\_set\_bn**](#function-dp_ratesync_set_bn) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, double val) <br>_Retune bn at the current zeta, through_ [_**dp\_ratesync\_configure()**_](ratesync__core_8h.md#function-dp_ratesync_configure) _._ |
+|  int | [**dp\_ratesync\_set\_bn**](#function-dp_ratesync_set_bn) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, double val) <br>_Retune bn at the current zeta, through_ [_**dp\_ratesync\_configure()**_](ratesync__core_8h.md#function-dp_ratesync_configure) _._ |
 |  int | [**dp\_ratesync\_set\_state**](#function-dp_ratesync_set_state) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, const void \* blob) <br>_Restore mutable state from_ `blob` _into an identically built instance._ |
 |  int | [**dp\_ratesync\_set\_telemetry**](#function-dp_ratesync_set_telemetry) ([**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the probes._  |
 |  size\_t | [**dp\_ratesync\_state\_bytes**](#function-dp_ratesync_state_bytes) (const [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md) \* state) <br>_Bytes_ [_**dp\_ratesync\_get\_state()**_](ratesync__core_8h.md#function-dp_ratesync_get_state) _writes (envelope + payload + child)._ |
@@ -267,7 +267,7 @@ enum ratesync__core_8h_1a726ca809ffd3d67ab4b8476646f26635 {
 
 _Recompute the loop gains for a new bandwidth/damping, keeping the timing estimate._ 
 ```C++
-void dp_ratesync_configure (
+int dp_ratesync_configure (
     dp_ratesync_state_t * state,
     double bn,
     double zeta
@@ -286,9 +286,13 @@ Only the PI coefficients change; the integrator, and therefore the tracked rate 
 
 * `state` Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalised to the symbol rate. 
-* `zeta` Damping factor (1.0 = critical; 0.707 usual).
+* `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 
-A (`bn`, `zeta`) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) is ignored silently: nothing changes and no status is returned. 
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when (`bn`, `zeta`) is outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok); nothing changes then (Python raises ValueError). 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import RateSync
@@ -306,6 +310,9 @@ True
 True
 ```
  
+
+
+
 
 
         
@@ -777,7 +784,7 @@ Walks `rc` to its terminal stage and forwards its rate and tap count to [**dp\_r
 
 _Retune the loop; preserves the integrator (and so the lock)._ 
 ```C++
-void dp_ratesync_loop_configure (
+int dp_ratesync_loop_configure (
     ratesync_loop_t * l,
     double bn,
     double zeta
@@ -786,7 +793,7 @@ void dp_ratesync_loop_configure (
 
 
 
-A (`bn`, `zeta`) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) is ignored silently: nothing changes and no status is returned.
+A (`bn`, `zeta`) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) is refused: nothing changes.
 
 
 
@@ -797,6 +804,13 @@ A (`bn`, `zeta`) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core
 * `l` Must be non-NULL. 
 * `bn` Loop noise bandwidth, normalized to the symbol rate. 
 * `zeta` Damping factor. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when (`bn`, `zeta`) is refused. 
+
 
 
 
@@ -1200,7 +1214,7 @@ True
 
 _Retune bn at the current zeta, through_ [_**dp\_ratesync\_configure()**_](ratesync__core_8h.md#function-dp_ratesync_configure) _._
 ```C++
-void dp_ratesync_set_bn (
+int dp_ratesync_set_bn (
     dp_ratesync_state_t * state,
     double val
 ) 
@@ -1208,7 +1222,7 @@ void dp_ratesync_set_bn (
 
 
 
-An out-of-domain value is ignored silently (no status, no error), so [**dp\_ratesync\_get\_bn()**](ratesync__core_8h.md#function-dp_ratesync_get_bn) keeps reporting the bandwidth in use.
+An out-of-domain value is refused and nothing changes, so [**dp\_ratesync\_get\_bn()**](ratesync__core_8h.md#function-dp_ratesync_get_bn) keeps reporting the bandwidth in use (Python raises ValueError).
 
 
 
@@ -1218,6 +1232,13 @@ An out-of-domain value is ignored silently (no status, no error), so [**dp\_rate
 
 * `state` Must be non-NULL. 
 * `val` New loop noise bandwidth, normalized to the symbol rate. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when `val` is refused. 
+
 
 
 

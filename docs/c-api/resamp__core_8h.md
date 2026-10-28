@@ -60,6 +60,7 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 | ---: | :--- |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**dp\_resamp\_create**](#function-dp_resamp_create) (double rate) <br>_Create a resampler with the built-in 4096x19 Kaiser bank (60 dB, 0.4/0.6 pass/stop)._  |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**dp\_resamp\_create\_custom**](#function-dp_resamp_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br>_Create a resampler over a user-supplied polyphase bank._  |
+|  size\_t | [**dp\_resamp\_ctrl\_consumed**](#function-dp_resamp_ctrl_consumed) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Inputs the last_ [_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _or_[_**dp\_resamp\_execute\_ctrl\_pos()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl_pos) _took._ |
 |  double | [**dp\_resamp\_dc\_gain**](#function-dp_resamp_dc_gain) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The resampler's response to a constant input, from its own bank._  |
 |  void | [**dp\_resamp\_destroy**](#function-dp_resamp_destroy) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Free the state, its bank and its delay lines._  |
 |  size\_t | [**dp\_resamp\_execute**](#function-dp_resamp_execute) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples (fixed rate)._  |
@@ -74,8 +75,9 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 |  void | [**dp\_resamp\_get\_state**](#function-dp_resamp_get_state) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _mutable state into_`blob` _._ |
 |  size\_t | [**dp\_resamp\_interp\_fill**](#function-dp_resamp_interp_fill) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, float \_Complex \* out, size\_t max\_out) <br>_Emit exactly_ `max_out` _interpolated outputs, pulling inputs on overflow._ |
 |  size\_t | [**dp\_resamp\_interp\_inputs\_needed**](#function-dp_resamp_interp_inputs_needed) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state, size\_t max\_out) <br>_Input samples an interpolating fill of_ `max_out` _outputs consumes._ |
+|  int | [**dp\_resamp\_rate\_ok**](#function-dp_resamp_rate_ok) (double rate) <br>_The rate domain: finite and &gt; 0._  |
 |  void | [**dp\_resamp\_reset**](#function-dp_resamp_reset) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Zero the phase accumulators, the ctrl debt/ahead counters and every delay line. Rate and bank are preserved._  |
-|  void | [**dp\_resamp\_set\_rate**](#function-dp_resamp_set_rate) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, double rate) <br>_Update rate and recompute phase\_inc. Accumulator phase and delay line are preserved. Switching between interp and decim modes requires a new create() + destroy() pair: the call does flip the_ [_**dp\_resamp\_execute()**_](resamp__core_8h.md#function-dp_resamp_execute) _path when_`rate` _crosses 1, but the newly selected path's state is not primed. The rate is not validated._ |
+|  int | [**dp\_resamp\_set\_rate**](#function-dp_resamp_set_rate) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, double rate) <br>_Update rate and recompute phase\_inc._  |
 |  int | [**dp\_resamp\_set\_state**](#function-dp_resamp_set_state) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const void \* blob) <br>_Restore mutable state from_ `blob` _(same rate)._ |
 |  size\_t | [**dp\_resamp\_state\_bytes**](#function-dp_resamp_state_bytes) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Bytes_ [_**dp\_resamp\_get\_state()**_](resamp__core_8h.md#function-dp_resamp_get_state) _writes for_`state` _(envelope + payload)._ |
 
@@ -172,13 +174,13 @@ resamp_state_t * dp_resamp_create (
 **Parameters:**
 
 
-* `rate` Output/input rate ratio; &gt; 1 interpolates, &lt; 1 decimates. Should be &gt; 0; unlike [**dp\_resamp\_create\_custom()**](resamp__core_8h.md#function-dp_resamp_create_custom), this constructor does not check it. 
+* `rate` Output/input rate ratio; &gt; 1 interpolates, &lt; 1 decimates. Must satisfy [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok). 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL if allocation fails. Free with [**dp\_resamp\_destroy()**](resamp__core_8h.md#function-dp_resamp_destroy). 
+Heap-allocated state, or NULL if `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok) or allocation fails. Free with [**dp\_resamp\_destroy()**](resamp__core_8h.md#function-dp_resamp_destroy). 
 
 
 
@@ -209,16 +211,53 @@ resamp_state_t * dp_resamp_create_custom (
 **Parameters:**
 
 
-* `num_phases` Arms in the bank; must be a power of two (not checked). 
+* `num_phases` Arms in the bank; a power of two (1 included). The arm is the top log2(num\_phases) bits of the phase word, so any other count would address arms past the end of the bank; it is refused. 
 * `num_taps` Taps per arm. 
 * `bank` num\_phases x num\_taps floats, row-major (one row per arm); copied, so the caller keeps ownership. 
-* `rate` Output/input rate ratio, &gt; 0. 
+* `rate` Output/input rate ratio; must satisfy [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok). 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL if `num_phases` or `num_taps` is 0, `bank` is NULL, `rate` &lt;= 0, or allocation fails. 
+Heap-allocated state, or NULL if `num_phases` is 0 or not a power of two, `num_taps` is 0, `bank` is NULL, `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok), or allocation fails. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_resamp\_ctrl\_consumed 
+
+_Inputs the last_ [_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _or_[_**dp\_resamp\_execute\_ctrl\_pos()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl_pos) _took._
+```C++
+size_t dp_resamp_ctrl_consumed (
+    const resamp_state_t * state
+) 
+```
+
+
+
+Both block forms stop offering input once `out` is full, so this is their `num_in` unless the output filled first; the caller resumes at in + consumed (doppler#2643). 0 after create and reset.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Input samples taken by the last block ctrl call. 
 
 
 
@@ -816,6 +855,43 @@ Inputs that call will consume.
 
 
 
+### function dp\_resamp\_rate\_ok 
+
+_The rate domain: finite and &gt; 0._ 
+```C++
+int dp_resamp_rate_ok (
+    double rate
+) 
+```
+
+
+
+The one predicate. [**dp\_resamp\_create()**](resamp__core_8h.md#function-dp_resamp_create) and [**dp\_resamp\_create\_custom()**](resamp__core_8h.md#function-dp_resamp_create_custom) return NULL outside it and [**dp\_resamp\_set\_rate()**](resamp__core_8h.md#function-dp_resamp_set_rate) refuses such a value; the RateConverter cascade checks its own rate with it too. A NaN fails the comparison, so it is outside; 0 would emit zeros and a negative rate a negated copy, which is why neither is accepted.
+
+
+
+
+**Parameters:**
+
+
+* `rate` Output/input rate ratio. 
+
+
+
+**Returns:**
+
+1 inside the domain, 0 outside it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_resamp\_reset 
 
 _Zero the phase accumulators, the ctrl debt/ahead counters and every delay line. Rate and bank are preserved._ 
@@ -845,9 +921,9 @@ void dp_resamp_reset (
 
 ### function dp\_resamp\_set\_rate 
 
-_Update rate and recompute phase\_inc. Accumulator phase and delay line are preserved. Switching between interp and decim modes requires a new create() + destroy() pair: the call does flip the_ [_**dp\_resamp\_execute()**_](resamp__core_8h.md#function-dp_resamp_execute) _path when_`rate` _crosses 1, but the newly selected path's state is not primed. The rate is not validated._
+_Update rate and recompute phase\_inc._ 
 ```C++
-void dp_resamp_set_rate (
+int dp_resamp_set_rate (
     resamp_state_t * state,
     double rate
 ) 
@@ -855,13 +931,20 @@ void dp_resamp_set_rate (
 
 
 
-
+On the same side of 1 (both interpolating, or both decimating) the accumulator phase and every delay line are preserved, so the stream continues at the new rate. A change that CROSSES 1 hands [**dp\_resamp\_execute()**](resamp__core_8h.md#function-dp_resamp_execute) to the other path, whose running state the old path never advanced; the call therefore resets the state as [**dp\_resamp\_reset()**](resamp__core_8h.md#function-dp_resamp_reset) does, and the output from there on is exactly what a fresh [**dp\_resamp\_create()**](resamp__core_8h.md#function-dp_resamp_create) at the new rate would emit. A rate outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok) is refused and nothing changes. 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
-* `rate` New output/input rate ratio, &gt; 0. 
+* `rate` New output/input rate ratio. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok) (the state is then unchanged). 
+
 
 
 

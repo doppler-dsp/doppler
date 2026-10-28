@@ -57,7 +57,7 @@ typedef struct
 
 dp_burst_despreader_state_t *dp_burst_despreader_create(const uint8_t *code, size_t code_len, size_t sf, size_t sps, double init_norm_freq, double init_chip_phase, double bn_carrier, double bn_code);
 
-void dp_burst_despreader_set_acq(dp_burst_despreader_state_t *state, const uint8_t *acq_code,
+int dp_burst_despreader_set_acq(dp_burst_despreader_state_t *state, const uint8_t *acq_code,
                         size_t acq_code_len, size_t acq_reps);
 
 void dp_burst_despreader_destroy(dp_burst_despreader_state_t *state);

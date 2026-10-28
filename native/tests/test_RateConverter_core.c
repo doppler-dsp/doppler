@@ -29,6 +29,56 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ── Allocation-failure injection (glibc, no sanitizer) ──────────────────
+ *
+ * dp_RateConverter_set_rate() builds the new cascade on a scratch copy and
+ * commits it only once all of it exists (doppler#2640). Every rate it can
+ * plan builds, so the rollback runs only when an allocation fails, and the
+ * review of #2659 showed the old destroy-first body passing the suite.
+ * glibc exports its allocator as __libc_malloc and friends, so this test
+ * binary can define malloc/calloc/realloc over them and fail exactly the
+ * Nth call after arming. A sanitizer brings its own allocator, and another
+ * libc has no such export, so elsewhere the test reports itself skipped. */
+#if defined(__GLIBC__) && !defined(__SANITIZE_ADDRESS__)                      \
+    && !defined(__SANITIZE_THREAD__)
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)       \
+    || __has_feature(memory_sanitizer)
+#define RC_NO_ALLOC_INJECT 1
+#endif
+#endif
+#ifndef RC_NO_ALLOC_INJECT
+#define RC_ALLOC_INJECT 1
+extern void *__libc_malloc (size_t);
+extern void *__libc_calloc (size_t, size_t);
+extern void *__libc_realloc (void *, size_t);
+/* Allocations to let through before the one that fails; -1 is off. */
+static long rc_fail_at = -1;
+static int
+rc_fail_now (void)
+{
+  if (rc_fail_at < 0)
+    return 0;
+  return rc_fail_at-- == 0;
+}
+void *
+malloc (size_t n)
+{
+  return rc_fail_now () ? NULL : __libc_malloc (n);
+}
+void *
+calloc (size_t m, size_t n)
+{
+  return rc_fail_now () ? NULL : __libc_calloc (m, n);
+}
+void *
+realloc (void *p, size_t n)
+{
+  return rc_fail_now () ? NULL : __libc_realloc (p, n);
+}
+#endif
+#endif
+
 static inline int
 _near (double a, double b, double tol)
 {
@@ -135,6 +185,83 @@ test_set_rate_refusal_changes_nothing (void)
   free (in);
   free (ya);
   free (yb);
+}
+
+/* A failed rebuild changes nothing (doppler#2640, review of #2659). Fail
+ * the 1st, 2nd, ... allocation set_rate makes, each on its own attempt,
+ * until one attempt makes them all: every failed attempt must leave the
+ * converter at its old rate with its old stages and AGC, and running on
+ * bit-identical to a twin that was never asked -- the destroy-first body
+ * left a stageless converter that emitted nothing. A matched converter
+ * with the AGC on reaches every allocation the rebuild makes, the AGC's
+ * last, so the sweep also covers an AGC that cannot be rebuilt: the whole
+ * change is refused rather than the AGC dropped. */
+static void
+test_set_rate_rollback_on_a_failed_build (void)
+{
+#ifndef RC_ALLOC_INJECT
+  printf ("  SKIP set_rate rollback: no allocation injection on this "
+          "toolchain\n");
+#else
+  enum
+  {
+    N = 256
+  };
+  float _Complex *in = malloc (N * sizeof (float _Complex));
+  float _Complex *ya = malloc (2 * N * sizeof (float _Complex));
+  float _Complex *yb = malloc (2 * N * sizeof (float _Complex));
+  DP_CHECK (in && ya && yb);
+  for (int k = 0; k < N; k++)
+    in[k] = CMPLXF ((float)cos (0.05 * k), (float)sin (0.03 * k));
+  dp_RateConverter_state_t *a = dp_RateConverter_create_matched (
+      0.5, 1, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
+  dp_RateConverter_state_t *b = dp_RateConverter_create_matched (
+      0.5, 1, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
+  DP_CHECK (a && b);
+  if (a && b && in && ya && yb)
+    {
+      DP_CHECK (dp_RateConverter_enable_agc (a, 0.01, 0.05) == DP_OK);
+      DP_CHECK (dp_RateConverter_enable_agc (b, 0.01, 0.05) == DP_OK);
+      size_t failed = 0, k = 0;
+      for (; k < 10000; k++)
+        {
+          (void)dp_RateConverter_execute (a, in, N, ya, 2 * N);
+          (void)dp_RateConverter_execute (b, in, N, yb, 2 * N);
+          int   ns    = a->n_stages;
+          void *first = a->stage_ptrs[0];
+          void *agc   = a->agc;
+          rc_fail_at  = (long)k;
+          dp_RateConverter_set_rate (a, 0.125);
+          /* The counter reaches -1 only by failing the k-th allocation;
+             fewer than k + 1 allocations leave it armed. */
+          int fired  = rc_fail_at == -1;
+          rc_fail_at = -1;
+          if (!fired)
+            {
+              /* Every allocation succeeded: the change took. */
+              DP_CHECK (dp_RateConverter_get_rate (a) == 0.125);
+              break;
+            }
+          failed++;
+          DP_CHECK (dp_RateConverter_get_rate (a) == 0.5);
+          DP_CHECK (a->n_stages == ns && a->stage_ptrs[0] == first);
+          DP_CHECK (a->agc == agc && a->agc != NULL);
+          size_t na = dp_RateConverter_execute (a, in, N, ya, 2 * N);
+          size_t nb = dp_RateConverter_execute (b, in, N, yb, 2 * N);
+          DP_CHECK (na == nb && na > 0);
+          DP_CHECK (memcmp (ya, yb, na * sizeof *ya) == 0);
+        }
+      /* Non-vacuous: several allocations were failed, and the sweep ended
+         because one attempt finally built. */
+      DP_CHECK (failed >= 3);
+      DP_CHECK (dp_RateConverter_get_rate (a) == 0.125 && a->agc != NULL);
+    }
+  dp_RateConverter_destroy (a);
+  dp_RateConverter_destroy (b);
+  free (in);
+  free (ya);
+  free (yb);
+#endif
 }
 
 /* bank_shape_value() read the last stage as a Resampler without asking
@@ -1768,6 +1895,7 @@ main (void)
 {
   test_invalid_rate ();
   test_set_rate_refusal_changes_nothing ();
+  test_set_rate_rollback_on_a_failed_build ();
   test_bank_shape_value_without_a_bank ();
   test_capped_cic_still_delivers_the_requested_rate ();
   test_cic_ratio_is_capped_at_both_layers ();

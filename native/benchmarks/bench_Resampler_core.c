@@ -11,9 +11,15 @@
 int
 main (void)
 {
-  dp_Resampler_state_t *obj = dp_Resampler_create (0.0);
-  uint64_t              t0, t1;
-  jm_bench_t            _bench = { 0 };
+  /* Rate 1.0 is the default; 0 is refused (create returns NULL). */
+  dp_Resampler_state_t *obj = dp_Resampler_create (1.0);
+  if (!obj)
+    {
+      (void)fprintf (stderr, "bench_Resampler: create failed\n");
+      return 1;
+    }
+  uint64_t   t0, t1;
+  jm_bench_t _bench = { 0 };
 
   printf ("=== Resampler benchmark ===\n");
   printf ("  (no step(); methods below)\n");

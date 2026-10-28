@@ -79,6 +79,14 @@ main (void)
   printf ("=== ber_meter benchmark ===\n");
   printf ("M=%d, %d symbols, %d rounds\n\n", M, NSYM, ITERATIONS);
 
+  /* score() counts nothing until an alignment is detected, so detect one
+     the way a sweep does: the stream's own head is the marker. */
+  if (!dp_ber_meter_align (b, rx, NSYM, 0, 0, 0, 0, 0.0))
+    {
+      (void)fprintf (stderr, "bench_ber_meter: align() found no marker\n");
+      return 1;
+    }
+
   size_t got = dp_ber_meter_score (b, rx, NSYM, 0, NSYM);
   if (got == 0)
     {

@@ -144,8 +144,9 @@ extern "C"
    *                         period).
    * @return Heap-allocated state, or NULL if @p code is NULL, the code
    *         loop's arguments fail dp_dll_params_ok(), the carrier loop's
-   *         (@p bn_carrier, @p zeta) fail dp_loop_filter_params_ok(), or
-   *         on allocation failure.
+   *         (@p bn_carrier, @p zeta) fail dp_loop_filter_params_ok(),
+   *         @p bn_fll fails dp_loop_filter_fll_bn_ok() (negative, NaN, or
+   *         one whose gain overflows), or on allocation failure.
    * @note Caller must call dp_despreader_destroy() when done.
    * @code
    * >>> import numpy as np

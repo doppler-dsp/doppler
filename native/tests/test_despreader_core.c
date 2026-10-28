@@ -123,6 +123,20 @@ main (void)
               == NULL);
     DP_CHECK (dp_despreader_set_bn_carrier (c, NAN) == DP_ERR_INVALID);
     DP_CHECK (dp_despreader_get_bn_carrier (c) == 0.05);
+    /* And its FLL assist, through the predicate Costas and CarrierMpsk use
+       (doppler#2112, #2646): negative, NaN and infinite are refused, a
+       positive finite one builds. */
+    {
+      const double bad_fll[] = { -1.0, NAN, INFINITY };
+      for (size_t k = 0; k < sizeof bad_fll / sizeof bad_fll[0]; k++)
+        DP_CHECK (dp_despreader_create (code, sf, sps, 0.0, 0.0, 0.05, 0.005,
+                                        bad_fll[k], 0.707, 0.5, 1)
+                  == NULL);
+      dp_despreader_state_t *f = dp_despreader_create (
+          code, sf, sps, 0.0, 0.0, 0.05, 0.005, 0.01, 0.707, 0.5, 1);
+      DP_CHECK (f != NULL);
+      dp_despreader_destroy (f);
+    }
     DP_CHECK (fabs (dp_despreader_get_norm_freq (c) - 0.001)
               < 1e-9); /* seeded */
     DP_CHECK (dp_despreader_get_code_rate (c) == 1.0);

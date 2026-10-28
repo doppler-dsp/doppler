@@ -2332,7 +2332,9 @@ class RateSync:
         ------
         ValueError
             If the C call returns a non-zero status. The exception message is
-            ``configure failed``, with the return code appended (gh-869).
+            ``RateSync: (bn, zeta) is outside the loop filter's domain (need bn
+            >= 0 and zeta > 0, both finite, whose loop gains come out
+            finite)``, with the return code appended (gh-869).
 
         Examples
         --------

@@ -90,7 +90,11 @@ def test_a_refused_retune_changes_nothing(name):
     assert loop.get_state() == held
     if hasattr(loop, "configure"):
         for bad in ((float("nan"), 0.707), (0.05, float("inf"))):
-            with pytest.raises(ValueError, match="configure failed"):
+            # RateSync names its domain; the others still give the rc.
+            with pytest.raises(
+                ValueError,
+                match=r"configure failed|\(bn, zeta\) is outside",
+            ):
                 loop.configure(*bad)
         assert loop.bn == bn
         assert loop.get_state() == held

@@ -110,6 +110,9 @@ doc = "Recompute the loop gains for a new (bn, zeta); preserve the timing estima
 arg_type = "void"
 return_type = "int"
 status_return = true
+# Its only refusal is the domain check, so it names it rather than a bare rc.
+error = "ValueError"
+error_message = "RateSync: (bn, zeta) is outside the loop filter's domain (need bn >= 0 and zeta > 0, both finite, whose loop gains come out finite)"
 params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
 
 [[ratesync.methods]]

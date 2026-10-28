@@ -883,6 +883,9 @@ ______________________________________________________________________
 - [DSSS acquisition](dsss-acquisition.md) — the detector's own architecture
 - [State serialization](state-serialization.md) — the triplet the composition
     inherits from its parts
+- [A known reference resolves the ambiguity](mpsk.md#a-known-reference-resolves-the-ambiguity-and-why-that-comes-first)
+    — why `BurstDespreader`'s preamble hands the payload over at absolute
+    phase, and what differential encoding would cost instead
 
 ## 10. The receiver stops at decisions (2026-08-27)
 

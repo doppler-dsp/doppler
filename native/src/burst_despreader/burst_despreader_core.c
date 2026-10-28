@@ -300,6 +300,42 @@ chip_index (double pos, size_t n)
   return (size_t)pos;
 }
 
+/* The preamble sets the payload's ABSOLUTE phase (#2664). Called once, at
+   the preamble -> payload handover, after the carrier loop has stepped on
+   the last preamble prompt, whose phase error is e_last.
+
+   The payload's decision-directed Costas detector is blind to a rotation by
+   pi: it settles on whichever of 0 and pi is nearer when it takes over. A
+   short preamble need not have pulled the carrier in -- five 512-chip reps
+   against an unseeded 4e-5 cycles/sample offset end 1.8 rad off -- so the
+   payload used to lock at pi and decode complemented. The receiver was told
+   better: every preamble symbol is the known +1 (bit 0 under 1 - 2b), and
+   e_last = atan2(Im P, Re P) is already the phase of the prompt's
+   correlation with it. So the handover finishes the job the loop's
+   proportional step began: that step turned the NCO by kp * e_last, this
+   turns it by the rest, and the payload starts at the preamble's phase.
+   It turns the NCO itself, so every later prompt, soft symbol, bit and the
+   SNR and lock statistics see the corrected carrier.
+
+   Why the whole error and not only pi when it is past pi/2: a residual near
+   pi/2 is a coin flip either way, and the sign alone misjudged it. Measured
+   over 16 phases x f0 in 0..8e-5 x 3 seeds, per reps (1..5) and chip SNR
+   (none, -3, -6 dB): the sign test still inverted up to 39 of those 288
+   bursts, and this none; out to f0 = 1.6e-4 it still inverts none. The half
+   symbol the residual frequency drifts between the prompt's midpoint and the
+   handover is left to the Costas loop, which pulls in from there: it is a
+   fraction of a radian wherever the preamble's loop tracks at all.
+
+   No threshold, no abstention: the phase of a prompt with no signal in it
+   is noise, and so is a payload that follows it. Needs no state: e_last is
+   this boundary's own prompt. */
+static void
+burst_despreader_take_preamble_phase (dp_burst_despreader_state_t *s,
+                                      double                       e_last)
+{
+  s->car_phase += (1.0 - s->lf_car.kp) * e_last;
+}
+
 /* Shared streaming kernel: carrier wipe-off, early/prompt/late despread, and
  * per-symbol integrate-and-dump driving the two tracking loops. Exactly one of
  * csym / bits is non-NULL; returns the number of symbols emitted. */
@@ -415,6 +451,7 @@ despread_run (dp_burst_despreader_state_t *s, const float _Complex *x,
           s->preamble_left--;
           if (s->preamble_left == 0)
             {
+              burst_despreader_take_preamble_phase (s, e_cos);
               burst_despreader_put_car_w (s, s->car_w);
               preamble   = 0;
               code       = s->code;

@@ -57,7 +57,7 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 [[burst_despreader.methods]]
 name = "bits"
-doc = "Despread a cf32 block; emit one hard BPSK bit per code period, by the library's one polarity: bit b is sent as 1 - 2b (mpsk_core.h), so a negative prompt is a 1."
+doc = "Despread a cf32 block; emit one hard BPSK bit per code period, by the library's one polarity: bit b is sent as 1 - 2b (mpsk_core.h), so a negative prompt is a 1. With a set_acq preamble the decisions are absolute (the preamble sets the phase); without one they are relative to the carrier phase handed in."
 arg_type = "void"
 return_type = "uint8_t"
 variable_output = true
@@ -67,7 +67,7 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 [[burst_despreader.methods]]
 name = "set_acq"
-doc = "Enable preamble-aided pull-in: track acq_reps periods of the (distinct) acq_code coherently before despreading the payload with the data code. Call before feeding the burst; clears when the preamble is consumed."
+doc = "Enable preamble-aided pull-in: track acq_reps periods of the (distinct) acq_code coherently before despreading the payload with the data code. The preamble is a known +1, so it also sets the payload's absolute phase: the payload is handed over at the preamble's phase from any starting phase, carrier seeded or not. Call before feeding the burst; clears when the preamble is consumed."
 arg_type = "void"
 return_type = "int"
 # The copy of acq_code can fail to allocate; it used to disable the preamble

@@ -954,7 +954,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 gen-c-api-check \
                 validate-check \
                 test-all test-sweep test-stubs test-api-docs test-snippets \
-                test-rust \
+                test-rust bench-run-check \
                 abi-check link-check installed-headers-check \
                 exported-link-check symbol-prefix-check export-check \
                 vendored-collision-check \
@@ -1849,7 +1849,8 @@ LOCAL_TARGETS = specan record-demo parallel-record-write acq-surface-record \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
-                bench-coverage-check bench-run-check kwarg-parity-check issues issues-check \
+                bench-coverage-check bench-run-check kwarg-parity-check \
+                issues issues-check \
                 gates-extra-home-check \
                 doc-sections-check doc-symbols-check state-versions-check \
                 installed-headers-check exported-link-check symbol-prefix-check \

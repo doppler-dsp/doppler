@@ -542,15 +542,21 @@ void dp_RateConverter_reset (dp_RateConverter_state_t *s);
  * v2: an enabled pre-terminal AGC appends its seed scalars and its own
  * sub-blob after the stages. A converter with the AGC off writes exactly the
  * bytes v1 did — but the version still moves, because nothing in the blob
- * distinguishes an AGC-off v2 from a v1, and the size check alone cannot. */
+ * distinguishes an AGC-off v2 from a v1, and the size check alone cannot.
+ * v3: the rate rides between the envelope and the stages as a reject key.
+ * The rate sizes the stage chain, but two rates can give chains of the same
+ * size (1/64 and 1/128 differ only in the CIC's R), and a CIC sub-blob
+ * restores the R it carries, so without the key a cross-rate blob ran the
+ * source's chain behind the target's reported rate (doppler#2642). */
 /** State-blob magic: FOURCC 'RCVT'. */
 #define RC_STATE_MAGIC DP_FOURCC ('R', 'C', 'V', 'T')
-/** State-blob layout version; 2 adds the optional pre-terminal AGC part. */
-#define RC_STATE_VERSION 2u
+/** State-blob layout version; 2 adds the optional pre-terminal AGC part,
+ *  3 the rate reject key. */
+#define RC_STATE_VERSION 3u
 
 /**
  * @brief Bytes dp_RateConverter_get_state() writes for @p s (envelope +
- *        stages + the AGC's sub-blob when enabled).
+ *        rate + stages + the AGC's sub-blob when enabled).
  *
  * Depends on the current plan, so it changes with dp_RateConverter_set_rate()
  * and dp_RateConverter_enable_agc().
@@ -571,7 +577,9 @@ void dp_RateConverter_get_state (const dp_RateConverter_state_t *s, void *blob);
  *               on/off) as the one that wrote @p blob.
  *  @param blob  Blob from dp_RateConverter_get_state().
  *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope or any stage's
- *          (or the AGC's) part rejects. Stages restore in order, so a later
+ *          (or the AGC's) part rejects, or if the blob was taken at a rate
+ *          other than @p s's (the rate is a reject key, checked before any
+ *          stage is touched). Stages restore in order, so a later
  *          stage's refusal leaves the earlier ones restored until doppler#2104's
  *          transaction lands. Within a stage, a CIC stage restores its CIC
  *          before its compensator FIR, so a FIR refusal leaves the CIC

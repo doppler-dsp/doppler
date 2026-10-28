@@ -1,1 +1,0 @@
-- The Resampler and BerMeter C benchmarks run again: #2659's refusals (rate 0, scoring before alignment) had broken both. CI now runs every built C benchmark and fails on a crash or nonzero exit (`make bench-run-check`, #2675).

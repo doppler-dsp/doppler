@@ -162,17 +162,23 @@ background, and it leaves its outcome where a watcher can wait on it: the log
 at `build/bench-runs/X.Y.Z.log` and, written last, the exit code at
 `build/bench-runs/X.Y.Z.rc` -- on success and on every failure
 ([#2681](https://github.com/doppler-dsp/doppler/issues/2681)). Wait on that
-file, never on the process: a remote `pgrep -f` matches the ssh shell that
+file, with a cap, never on the process: a remote `pgrep -f` matches the ssh shell that
 carries its own pattern, so it never sees the run end -- a failed
-release run once read "running" for hours that way.
+release run once read "running" for hours that way. The
+cap is for the one case no file can cover: a run killed outright writes
+nothing.
 
 ```sh
 ssh <box> 'bash -lc "cd ~/doppler-bench && \
   (nohup make bench-interleaved VERSION=X.Y.Z >/dev/null 2>&1 &)"'
-until ssh <box> 'test -f ~/doppler-bench/build/bench-runs/X.Y.Z.rc'; do
+run=doppler-bench/build/bench-runs/X.Y.Z   # relative to the box's $HOME
+for _ in $(seq 90); do                      # 3 h cap; a run takes about 1 h
+  ssh <box> "test -f $run.rc" && break
   sleep 120
 done
-ssh <box> 'cat ~/doppler-bench/build/bench-runs/X.Y.Z.rc'   # 0 = measured
+# 0 = measured. No .rc after the cap: the run was killed (SIGKILL, OOM,
+# reboot) before it could write one -- read where its log stopped.
+ssh <box> "cat $run.rc || tail -20 $run.log"
 ```
 
 If a set was measured on a branch head instead, it can be restamped after

@@ -1849,7 +1849,7 @@ LOCAL_TARGETS = specan record-demo parallel-record-write acq-surface-record \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
-                bench-coverage-check kwarg-parity-check issues issues-check \
+                bench-coverage-check bench-run-check kwarg-parity-check issues issues-check \
                 gates-extra-home-check \
                 doc-sections-check doc-symbols-check state-versions-check \
                 installed-headers-check exported-link-check symbol-prefix-check \
@@ -2007,9 +2007,10 @@ bench-commits-check: ## Fail when a published benchmark names a commit main cann
 # only shrink against BENCH_LABELS_BASE's merge base.
 # The half bench-coverage-check cannot see: a benchmark that builds but
 # crashes or exits nonzero. Discovers every built bench_*_core, so it needs a
-# built tree and runs in CI right after `make test` (#2675).
+# built tree and runs in CI right after `make test` (#2675). Stdlib-only,
+# so python3: the build-and-test-linux container has no uv.
 bench-run-check: ## Run every built C benchmark; fail on any nonzero exit
-	@$(UV) run python scripts/check_bench_runs.py $(BUILD_DIR)
+	@python3 scripts/check_bench_runs.py $(BUILD_DIR)
 
 BENCH_LABELS_BASE ?= origin/main
 bench-coverage-check: ## Verify every tested component has a benchmark that runs

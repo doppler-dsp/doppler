@@ -193,7 +193,12 @@ def _preamble_burst(seed, phase, f0, reps=5, n=60, chip_snr_db=None):
     """A set_acq burst -- `reps` periods of a 512-chip acq code, then `n`
     payload bits on a 32-chip data code -- at carrier `phase` (rad) and
     offset `f0` (cycles/sample), optionally in complex AWGN at a per-sample
-    chip SNR. Returns (despreader set up for it, unseeded; rx; sent bits)."""
+    chip SNR. Returns (despreader set up for it, unseeded; rx; sent bits).
+
+    One data-symbol period of silence follows the payload. Without it the
+    last symbol completes on the input's final sample, and a code clock one
+    rounding behind leaves it pending: correct streaming, but the burst
+    came back a symbol short on CI's arm64 leg (doppler#2664)."""
     from doppler.cvt import bin_to_nrz
 
     rng = np.random.default_rng(seed)
@@ -203,7 +208,7 @@ def _preamble_burst(seed, phase, f0, reps=5, n=60, chip_snr_db=None):
     sym = np.zeros(tx.size, np.float32)
     bin_to_nrz(tx, sym)
     pre = np.tile(np.repeat(1.0 - 2.0 * acq, SPS), reps)
-    burst = np.concatenate([pre, _spread(data, sym)])
+    burst = np.concatenate([pre, _spread(data, sym), np.zeros(32 * SPS)])
     t = np.arange(burst.size)
     rx = burst * np.exp(1j * (phase + 2 * np.pi * f0 * t))
     if chip_snr_db is not None:
@@ -216,7 +221,17 @@ def _preamble_burst(seed, phase, f0, reps=5, n=60, chip_snr_db=None):
     return d, rx.astype(np.complex64), tx
 
 
-_PHASES = [0.0, np.pi / 2, np.pi, 3 * np.pi / 2]
+# pi and pi +- 1e-6 are the atan2 discriminator's branch cut: the first
+# prompt reads +pi or -pi on the sign of a rounding residue, and either
+# sign must walk the loop round to the same answer.
+_PHASES = [
+    0.0,
+    np.pi / 2,
+    np.pi - 1e-6,
+    np.pi,
+    np.pi + 1e-6,
+    3 * np.pi / 2,
+]
 _OFFSETS = [0.0, 2e-5, 4e-5, 8e-5]
 
 
@@ -230,12 +245,15 @@ def test_a_preamble_is_the_phase_reference(phase, f0):
     starting phase, at any offset the preamble's loop tracks. Five reps do
     not pull 8e-5 in: the loop ends up to 1.8 rad off, and the payload's
     Costas detector locked at pi and decoded every bit complemented in 24 of
-    these 64 cells before the handover took the preamble's phase. Scored
-    RAW: an inversion is 60 errors.
+    the 64 cells at 0, pi/2, pi and 3pi/2 before the handover took the
+    preamble's phase. Scored RAW: an inversion is 60 errors, and a burst
+    that comes back short fails as short.
     """
     for seed in (1, 2, 3, 5):
         d, rx, tx = _preamble_burst(seed, phase, f0)
-        assert np.array_equal(d.bits(rx), tx), seed
+        got = d.bits(rx)
+        assert len(got) >= tx.size, (seed, "short", len(got))
+        assert np.array_equal(got[: tx.size], tx), seed
 
 
 @pytest.mark.parametrize("phase", _PHASES)
@@ -252,7 +270,9 @@ def test_the_preamble_phase_holds_in_noise(phase):
             d, rx, tx = _preamble_burst(
                 seed, phase, f0, reps=1, chip_snr_db=-3.0
             )
-            assert np.array_equal(d.bits(rx), tx), (f0, seed)
+            got = d.bits(rx)
+            assert len(got) >= tx.size, (f0, seed, "short", len(got))
+            assert np.array_equal(got[: tx.size], tx), (f0, seed)
 
 
 def test_property_accessors():

@@ -554,7 +554,7 @@ double dp_ber_theory_ber (
 
 
 * `m` Constellation order: 2, 4 or 8. 
-* `esn0` Es/N0 as a LINEAR ratio (not dB), &gt;= 0. A value &lt;= 0 (no signal) gives the chance rate 0.5, as [**dp\_ber\_theory\_ser()**](ber__core_8h.md#function-dp_ber_theory_ser) gives its own chance rate there; a negative ratio no longer reaches `sqrt` and returns NaN. 
+* `esn0` Es/N0 as a LINEAR ratio (not dB), &gt;= 0. A value &lt;= 0 (no signal) gives the chance rate 0.5, as [**dp\_ber\_theory\_ser()**](ber__core_8h.md#function-dp_ber_theory_ser) gives its own chance rate there; a negative ratio no longer reaches `sqrt` and returns NaN. 0.5 is a chosen value, not the formulas' limit: BPSK and QPSK reach it as esn0 -&gt; 0+, but 8PSK's `SER/log2 M` reaches 1/3, so its curve steps from 0.5 to 1/3 just above 0. 
 
 
 

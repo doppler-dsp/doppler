@@ -41,7 +41,15 @@ dp_kaiser_num_taps_eval (size_t num_phases, double atten, double pb,
   double       pb_ph   = pb / (double)num_phases;
   double       sb_ph   = sb / (double)num_phases;
   double       tw      = sb_ph - pb_ph;
-  size_t       proto   = (size_t)(1.0 + (atten - 8.0) / (2.285 * (2.0 * pi * tw)));
+  double       len     = 1.0 + (atten - 8.0) / (2.285 * (2.0 * pi * tw));
+  /* Total over every double: below 8 dB (or for a NaN) the formula falls
+     under one tap, and casting a negative double to size_t is undefined
+     behaviour, so the prototype floors at one tap, the formula's own value
+     at 8 dB. The cap keeps an absurd attenuation's cast defined too; no
+     bank comes near 2^52 taps. */
+  size_t proto = !(len > 1.0) ? 1u
+                 : len >= 4503599627370496.0 ? (size_t)4503599627370496.0
+                                             : (size_t)len;
   size_t       halflen = proto / 2;
   size_t       htaps   = 2 * halflen + 1;
   return htaps / num_phases + 1;

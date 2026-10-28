@@ -330,7 +330,7 @@ uint8_t dp_doppler_channel_state_t::profiled;
 
 
 
-running: set by an execute\_profile() call that consumes input; cleared by a non-empty execute() or reset 
+running: set by an execute\_profile() call that consumes input; cleared by an execute() that consumes input, or reset 
 
 
         

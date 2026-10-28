@@ -65,6 +65,7 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 |  int64\_t | [**dp\_Resampler\_execute\_ctrl**](#function-dp_resampler_execute_ctrl) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state, const float \_Complex \* x, size\_t x\_len, const double \* ctrl, size\_t ctrl\_len, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate +_ `ctrl[i]` _. Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._ |
 |  size\_t | [**dp\_Resampler\_execute\_ctrl\_max\_out**](#function-dp_resampler_execute_ctrl_max_out) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Output-capacity hint for_ [_**dp\_Resampler\_execute\_ctrl()**_](Resampler__core_8h.md#function-dp_resampler_execute_ctrl) _._ |
 |  size\_t | [**dp\_Resampler\_execute\_max\_out**](#function-dp_resampler_execute_max_out) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Output-capacity hint for_ [_**dp\_Resampler\_execute()**_](Resampler__core_8h.md#function-dp_resampler_execute) _._ |
+|  size\_t | [**dp\_Resampler\_get\_consumed**](#function-dp_resampler_get_consumed) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Input samples the last execute() or execute\_ctrl() took._  |
 |  double | [**dp\_Resampler\_get\_ctrl\_acc**](#function-dp_resampler_get_ctrl_acc) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_The control accumulator's fractional phase, in [0, 1)._  |
 |  double | [**dp\_Resampler\_get\_delay**](#function-dp_resampler_get_delay) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Group delay of the interpolator, in input samples._  |
 |  size\_t | [**dp\_Resampler\_get\_num\_phases**](#function-dp_resampler_get_num_phases) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._  |
@@ -296,7 +297,7 @@ size_t dp_Resampler_execute (
 
 **Returns:**
 
-CF32 output array; length is approximately x\_len \* rate, capped at max\_out.
+CF32 output array; length is approximately x\_len \* rate, capped at max\_out. A full `out` stops the call with input unread, never dropped: [**dp\_Resampler\_get\_consumed()**](Resampler__core_8h.md#function-dp_resampler_get_consumed) (Python: `consumed`) says where to resume.
 
 
 
@@ -351,7 +352,7 @@ int64_t dp_Resampler_execute_ctrl (
 
 **Returns:**
 
-CF32 output array; length depends on accumulated rate deviations, capped at max\_out. In C, the count written (&gt;= 0), or DP\_ERR\_INVALID (negative) when `ctrl_len` is shorter than `x_len:` nothing is written. 0 stays a valid, empty result, so the sign alone tells a refusal from it (doppler#1869).
+CF32 output array; length depends on accumulated rate deviations, capped at max\_out. In C, the count written (&gt;= 0), or DP\_ERR\_INVALID (negative) when `ctrl_len` is shorter than `x_len:` nothing is written. 0 stays a valid, empty result, so the sign alone tells a refusal from it (doppler#1869). A full `out` stops the call with input unread, never dropped: [**dp\_Resampler\_get\_consumed()**](Resampler__core_8h.md#function-dp_resampler_get_consumed) (Python: `consumed`) says where to resume.
 
 
 
@@ -431,6 +432,60 @@ size_t dp_Resampler_execute_max_out (
 **Returns:**
 
 Always RESAMPLER\_MAX\_OUT. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_Resampler\_get\_consumed 
+
+_Input samples the last execute() or execute\_ctrl() took._ 
+```C++
+size_t dp_Resampler_get_consumed (
+    const dp_Resampler_state_t * state
+) 
+```
+
+
+
+Both calls stop when `out` is full and leave the rest of the input unread rather than dropping it. Python's default buffer is RESAMPLER\_MAX\_OUT, or len(x) if larger, so at a rate above 1 a long block  or any block a steered rate stretches  fills it before the input runs out. Equal to the input length when everything fit; otherwise offer `x[consumed:]` (and `ctrl[consumed:]`) to the next call and the output resumes bit-exact (doppler#2643). 0 after create and reset; a call refused for a short `ctrl` leaves it unchanged.
+
+
+
+```C++
+>>> from doppler.resample import Resampler
+>>> import numpy as np
+>>> r = Resampler(rate=2.0)
+>>> x = np.ones(50000, dtype=np.complex64)
+>>> y = r.execute_ctrl(x, np.zeros(50000))
+>>> r.consumed < len(x)
+True
+>>> rest = r.consumed
+>>> y2 = r.execute_ctrl(x[rest:], np.zeros(len(x) - rest))
+>>> r.consumed == len(x) - rest
+True
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Pointer to a valid dp\_Resampler\_state\_t. 
+
+
+
+**Returns:**
+
+Input samples consumed by the last execute() or execute\_ctrl(). 
 
 
 

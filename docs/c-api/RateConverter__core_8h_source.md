@@ -122,9 +122,14 @@ void dp_RateConverter_reset (dp_RateConverter_state_t *s);
  * v2: an enabled pre-terminal AGC appends its seed scalars and its own
  * sub-blob after the stages. A converter with the AGC off writes exactly the
  * bytes v1 did — but the version still moves, because nothing in the blob
- * distinguishes an AGC-off v2 from a v1, and the size check alone cannot. */
+ * distinguishes an AGC-off v2 from a v1, and the size check alone cannot.
+ * v3: the rate rides between the envelope and the stages as a reject key.
+ * The rate sizes the stage chain, but two rates can give chains of the same
+ * size (1/64 and 1/128 differ only in the CIC's R), and a CIC sub-blob
+ * restores the R it carries, so without the key a cross-rate blob ran the
+ * source's chain behind the target's reported rate (doppler#2642). */
 #define RC_STATE_MAGIC DP_FOURCC ('R', 'C', 'V', 'T')
-#define RC_STATE_VERSION 2u
+#define RC_STATE_VERSION 3u
 
 size_t dp_RateConverter_state_bytes (const dp_RateConverter_state_t *s);
 void dp_RateConverter_get_state (const dp_RateConverter_state_t *s, void *blob);

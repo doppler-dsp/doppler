@@ -37,8 +37,8 @@ _Polyphase resampler state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  float \* | [**bank**](#variable-bank)  <br> |
+|  size\_t | [**consumed**](#variable-consumed)  <br> |
 |  uint32\_t | [**ctrl\_ahead**](#variable-ctrl_ahead)  <br> |
-|  size\_t | [**ctrl\_consumed**](#variable-ctrl_consumed)  <br> |
 |  uint32\_t | [**ctrl\_debt**](#variable-ctrl_debt)  <br> |
 |  uint32\_t | [**ctrl\_phase**](#variable-ctrl_phase)  <br> |
 |  float \_Complex \* | [**decim\_iad**](#variable-decim_iad)  <br> |
@@ -127,6 +127,23 @@ Owned copy of the bank: num\_phases x num\_taps, row-major (one row per arm).
 
 
 
+### variable consumed 
+
+```C++
+size_t resamp_state_t::consumed;
+```
+
+
+
+Inputs the last block call took: execute(), execute\_ctrl() or execute\_ctrl\_pos(); per-call, not in the blob. 
+
+
+        
+
+<hr>
+
+
+
 ### variable ctrl\_ahead 
 
 ```C++
@@ -136,23 +153,6 @@ uint32_t resamp_state_t::ctrl_ahead;
 
 
 execute\_ctrl: inputs loaded ahead of any request (see above). 
-
-
-        
-
-<hr>
-
-
-
-### variable ctrl\_consumed 
-
-```C++
-size_t resamp_state_t::ctrl_consumed;
-```
-
-
-
-Inputs the last [**dp\_resamp\_execute\_ctrl()**](resamp__core_8h.md#function-dp_resamp_execute_ctrl) or [**dp\_resamp\_execute\_ctrl\_pos()**](resamp__core_8h.md#function-dp_resamp_execute_ctrl_pos) took; per-call, not in the blob. 
 
 
         

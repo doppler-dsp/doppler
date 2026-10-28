@@ -56,7 +56,7 @@ extern "C"
        has no way to decline it -- so it is loaded and remembered here, and
        the next request is satisfied from it instead of from a new sample. */
     uint32_t ctrl_ahead; 
-    size_t ctrl_consumed; 
+    size_t consumed; 
   } resamp_state_t;
 
   /* ------------------------------------------------------------------
@@ -112,7 +112,7 @@ extern "C"
                                      float _Complex *out, double *pos,
                                      size_t max_out);
 
-  size_t dp_resamp_ctrl_consumed (const resamp_state_t *state);
+  size_t dp_resamp_consumed (const resamp_state_t *state);
 
   /* ------------------------------------------------------------------
    * Streaming interpolation (fixed integer rate, output-count driven)

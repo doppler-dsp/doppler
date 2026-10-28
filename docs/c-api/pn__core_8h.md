@@ -470,7 +470,7 @@ int dp_pn_set_state (
 
 
 
-The poly, length and realization are the receiving instance's own, so restore into an identically built PN. The register must be what a live one can hold: non-zero (zero emits zeros forever) with no bit above the length (the Fibonacci step never masks), as create() requires of the masked seed (doppler#2641).
+The poly, length and realization are the receiving instance's own, so restore into an identically built PN. The register must be what a live one can hold: no bit above the length (the Fibonacci step never masks), and non-zero unless this configuration can reach zero (doppler#2641). Only a Galois `poly` without the x^length term (bit length-1) can: its step is not invertible, so a seed create() accepts may run down to the all-zero register, which then emits zeros forever. Such a PN's own blob restores; every other configuration refuses a zero register.
 
 
 
@@ -485,7 +485,7 @@ The poly, length and realization are the receiving instance's own, so restore in
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID on a magic, version, endian or size mismatch, or a zero or over-wide register (`state` untouched). 
+DP\_OK, or DP\_ERR\_INVALID on a magic, version, endian or size mismatch, an over-wide register, or a zero register this configuration cannot reach (`state` untouched). 
 
 
 

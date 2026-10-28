@@ -95,12 +95,12 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  size\_t | [**dp\_RateConverter\_num\_bank\_shape**](#function-dp_rateconverter_num_bank_shape) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Terminal polyphase bank shape (backs the_ `bank_shape` _property)._ |
 |  size\_t | [**dp\_RateConverter\_num\_stages**](#function-dp_rateconverter_num_stages) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Number of planned cascade stages (backs the_ `stages` _property)._ |
 |  void | [**dp\_RateConverter\_reset**](#function-dp_rateconverter_reset) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory. An enabled AGC is reset too (back to unity gain with its detector at the reference), and the clip flag read by_ [_**dp\_RateConverter\_get\_clipped()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_clipped) _is cleared with the CIC stages._ |
-|  void | [**dp\_RateConverter\_set\_rate**](#function-dp_rateconverter_set_rate) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. A matched cascade keeps its pulse and an enabled AGC survives (its reference is re-derived for the new terminal bank). The change is all or nothing: the new cascade (and AGC) is built first and committed only once it exists, so a refused rate or a failed rebuild leaves the converter exactly as it was_  _same rate, same stages, same filter memory._ |
+|  void | [**dp\_RateConverter\_set\_rate**](#function-dp_rateconverter_set_rate) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. A matched cascade keeps its pulse and an enabled AGC survives (its reference is re-derived for the new terminal bank). The change is all or nothing: the new cascade (and AGC) is built first and committed only once it exists, so a refused rate or a failed rebuild leaves the converter exactly as it was_  _same rate, same stages, same filter memory. That includes the AGC: one that cannot be rebuilt for the new bank refuses the whole change, where it used to be dropped and the rate taken anyway._ |
 |  int | [**dp\_RateConverter\_set\_state**](#function-dp_rateconverter_set_state) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, const void \* blob) <br>_Restore active-stage state from_ `blob` _(same rate)._ |
 |  int | [**dp\_RateConverter\_set\_telemetry**](#function-dp_rateconverter_set_telemetry) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the pre-terminal AGC._  |
 |  int | [**dp\_RateConverter\_stage\_label**](#function-dp_rateconverter_stage_label) ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, int i, char \* buf, size\_t len) <br>_Write a human-readable label for stage i into buf._  |
 |  const char \* | [**dp\_RateConverter\_stages\_value**](#function-dp_rateconverter_stages_value) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, size\_t i) <br>_Label of stage_ `i` _, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)"._ |
-|  size\_t | [**dp\_RateConverter\_state\_bytes**](#function-dp_rateconverter_state_bytes) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Bytes_ [_**dp\_RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_state) _writes for_`s` _(envelope + stages + the AGC's sub-blob when enabled)._ |
+|  size\_t | [**dp\_RateConverter\_state\_bytes**](#function-dp_rateconverter_state_bytes) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Bytes_ [_**dp\_RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_state) _writes for_`s` _(envelope + rate + stages + the AGC's sub-blob when enabled)._ |
 
 
 
@@ -134,7 +134,7 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 | ---: | :--- |
 | define  | [**RC\_MAX\_STAGES**](RateConverter__core_8h.md#define-rc_max_stages)  `3`<br> |
 | define  | [**RC\_STATE\_MAGIC**](RateConverter__core_8h.md#define-rc_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'C', 'V', 'T')`<br> |
-| define  | [**RC\_STATE\_VERSION**](RateConverter__core_8h.md#define-rc_state_version)  `2u`<br> |
+| define  | [**RC\_STATE\_VERSION**](RateConverter__core_8h.md#define-rc_state_version)  `3u`<br> |
 
 ## Detailed Description
 
@@ -1297,7 +1297,7 @@ void dp_RateConverter_reset (
 
 ### function dp\_RateConverter\_set\_rate 
 
-_Change the rate; rebuilds the cascade and resets all filter state. A matched cascade keeps its pulse and an enabled AGC survives (its reference is re-derived for the new terminal bank). The change is all or nothing: the new cascade (and AGC) is built first and committed only once it exists, so a refused rate or a failed rebuild leaves the converter exactly as it was_  _same rate, same stages, same filter memory._
+_Change the rate; rebuilds the cascade and resets all filter state. A matched cascade keeps its pulse and an enabled AGC survives (its reference is re-derived for the new terminal bank). The change is all or nothing: the new cascade (and AGC) is built first and committed only once it exists, so a refused rate or a failed rebuild leaves the converter exactly as it was_  _same rate, same stages, same filter memory. That includes the AGC: one that cannot be rebuilt for the new bank refuses the whole change, where it used to be dropped and the rate taken anyway._
 ```C++
 void dp_RateConverter_set_rate (
     dp_RateConverter_state_t * s,
@@ -1351,7 +1351,7 @@ int dp_RateConverter_set_state (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or any stage's (or the AGC's) part rejects. Stages restore in order, so a later stage's refusal leaves the earlier ones restored until doppler#2104's transaction lands. Within a stage, a CIC stage restores its CIC before its compensator FIR, so a FIR refusal leaves the CIC restored; every other stage changes nothing it refuses. 
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or any stage's (or the AGC's) part rejects, or if the blob was taken at a rate other than `s's` (the rate is a reject key, checked before any stage is touched). Stages restore in order, so a later stage's refusal leaves the earlier ones restored until doppler#2104's transaction lands. Within a stage, a CIC stage restores its CIC before its compensator FIR, so a FIR refusal leaves the CIC restored; every other stage changes nothing it refuses. 
 
 
 
@@ -1513,7 +1513,7 @@ Borrowed pointer to a NUL-terminated label (do not free), or NULL.
 
 ### function dp\_RateConverter\_state\_bytes 
 
-_Bytes_ [_**dp\_RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_state) _writes for_`s` _(envelope + stages + the AGC's sub-blob when enabled)._
+_Bytes_ [_**dp\_RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-dp_rateconverter_get_state) _writes for_`s` _(envelope + rate + stages + the AGC's sub-blob when enabled)._
 ```C++
 size_t dp_RateConverter_state_bytes (
     const dp_RateConverter_state_t * s
@@ -1588,12 +1588,12 @@ State-blob magic: FOURCC 'RCVT'.
 ### define RC\_STATE\_VERSION 
 
 ```C++
-#define RC_STATE_VERSION `2u`
+#define RC_STATE_VERSION `3u`
 ```
 
 
 
-State-blob layout version; 2 adds the optional pre-terminal AGC part. 
+State-blob layout version; 2 adds the optional pre-terminal AGC part, 3 the rate reject key. 
 
 
         

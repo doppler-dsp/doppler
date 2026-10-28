@@ -298,6 +298,43 @@ _test_delay_doppler (void)
         dp_corr2d_destroy (c);
       }
     DP_CHECK (memcmp (c_out[0], c_out[1], n * sizeof **c_out) == 0);
+
+    /* A huge request is capped at the most chunks a stage can use --
+       Corr2D: ny rows; delay-Doppler: max(ny, ceil(nx / 16)) = 37 here --
+       and the output is still the same bytes. */
+    dp_corr2d_state_t *big = dp_corr2d_create (ref, ny, nx, 1, 2000, 0, 0, -1);
+    DP_CHECK (big != NULL && big->nworkers == (int)ny);
+    DP_CHECK (dp_corr2d_execute (big, x, n, c_out[1], n) == n);
+    DP_CHECK (memcmp (c_out[0], c_out[1], n * sizeof **c_out) == 0);
+    dp_corr2d_destroy (big);
+    float _Complex *dd_out[2];
+    for (size_t t = 0; t < 2; t++)
+      {
+        dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
+            code, nx, ny, 1, t ? 2000 : 1, nyo);
+        DP_CHECK (dd != NULL);
+        DP_CHECK (dd->nworkers == (t ? 37 : 1));
+        dd_out[t] = malloc (nyo * nx * sizeof **dd_out);
+        DP_CHECK (dp_corr2d_execute (dd, x, n, dd_out[t], nyo * nx)
+                  == nyo * nx);
+        dp_corr2d_destroy (dd);
+      }
+    DP_CHECK (memcmp (dd_out[0], dd_out[1], nyo * nx * sizeof **dd_out) == 0);
+    /* Wide and short: the column stage has more chunks than the rows. */
+    {
+      float _Complex wcode[640];
+      _dd_code (wcode, 640, 31u);
+      dp_corr2d_state_t *w
+          = dp_corr2d_create_delay_doppler (wcode, 640, 4, 1, 2000, 0);
+      DP_CHECK (w != NULL && w->nworkers == 40);
+      dp_corr2d_destroy (w);
+    }
+    /* The known-lag path never runs the row stage: no pool, one worker. */
+    dp_corr2d_state_t *lag = dp_corr2d_create (ref, ny, nx, 1, 8, 0, 0, 3);
+    DP_CHECK (lag != NULL && lag->pool == NULL && lag->nworkers == 1);
+    dp_corr2d_destroy (lag);
+    free (dd_out[0]);
+    free (dd_out[1]);
     free (c_out[0]);
     free (c_out[1]);
     free (ref);
@@ -763,20 +800,16 @@ main (void)
     dp_corr2d_destroy (b);
   }
 
-  /* ── nthreads is accepted and IGNORED, as the header says ─────────────
+  /* ── nthreads never changes the output ───────────────────────────────
    *
-   * A documented no-op is still a claim. Be precise about what this can
-   * catch, because it CANNOT be sabotaged today: dp_corr2d_state_t has no
-   * nthreads member at all -- create() forwards the argument to
-   * dp_fft_create/dp_fft2d_create, and both of those open with
-   * `(void)nthreads;`. So the parameter is discarded at the bottom of the
-   * stack and there is no state to corrupt.
-   *
-   * That makes this a forward guard rather than a proof: it fires on the
-   * day someone wires nthreads up to a threaded reduction whose summation
-   * order differs, which is precisely when "ignored" stops being true and
-   * a caller's output starts depending on a parameter documented not to
-   * matter. Bit-for-bit across four values, on both paths. */
+   * nthreads is honored on the single-row fast path (#2666: the rows fan
+   * out over a pool, each worker on its own plans) and ignored by the
+   * general 2-D path. Either way it is documented not to change the result,
+   * so this pins the output bit-for-bit across four values on both paths.
+   * On the fast path that is a real check -- sharing one plan between the
+   * workers, which race on its scratch, turns it red (the delay-Doppler
+   * thread test below holds the same property at sizes where the chunks
+   * differ more). With ny = 5, counts above 5 are capped to 5 workers. */
   {
     const size_t ny = 5, nx = 7, n = ny * nx;
     uint32_t     seed       = 4242u;

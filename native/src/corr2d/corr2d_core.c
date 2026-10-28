@@ -88,15 +88,25 @@ corr2d_chunk (size_t n, size_t t, int nworkers, size_t *r0, size_t *r1)
 
 /* Build the per-row machinery the single-row fast path runs on: one
  * forward/inverse plan pair per worker, the conjugated code spectrum, and
- * the pool.  nthreads == 1 is serial (no pool); <= 0 asks dp_pool_create()
- * for every online core.  Every size here comes from arguments create()
- * already validated, so the allocations abort on OOM (clib_common.h). */
+ * the pool.  nthreads == 1 is serial (no pool); <= 0 means every online
+ * core.  Either way the count is capped at max_chunks, the most chunks any
+ * stage can split into -- a worker past that would hold plans and a thread
+ * and never get a chunk with work in it -- and a cap of 1 builds no pool.
+ * Every size here comes from arguments create() already validated, so the
+ * allocations abort on OOM (clib_common.h). */
 static void
 corr2d_build_fast (dp_corr2d_state_t *state, const float _Complex *code,
-                   size_t nx, size_t nxo, int nthreads)
+                   size_t nx, size_t nxo, int nthreads, size_t max_chunks)
 {
-  if (nthreads != 1)
-    state->pool = dp_pool_create (nthreads);
+  long nt = nthreads;
+  if (nt <= 0)
+    nt = dp_cpu_count ();
+  if (nt < 1)
+    nt = 1;
+  if ((size_t)nt > max_chunks)
+    nt = (long)max_chunks;
+  if (nt > 1)
+    state->pool = dp_pool_create ((int)nt);
   state->nworkers = dp_pool_threads (state->pool);
   const size_t nw = (size_t)state->nworkers;
   state->row_fwd  = dp_xcalloc (nw, sizeof *state->row_fwd);
@@ -176,7 +186,10 @@ dp_corr2d_create (const float _Complex *ref, size_t ny, size_t nx,
     {
       /* ref's rows 1..ny-1 are all zero (just checked above), so row 0 is
        * the whole reference. */
-      corr2d_build_fast (state, ref, nx, nxo, nthreads);
+      /* The row stage splits into at most ny chunks.  The known-lag path
+         (col_out >= 0) never runs the row stage at all, so it gets no
+         workers. */
+      corr2d_build_fast (state, ref, nx, nxo, nthreads, col_out >= 0 ? 1 : ny);
 
       if (nxo != nx)
         {
@@ -683,7 +696,10 @@ dp_corr2d_create_delay_doppler (const float _Complex *code, size_t code_len,
   state->accum             = dp_xcalloc (n, sizeof (*state->accum));
   /* The delay axis is native (nx_out == nx), so the row stage is exactly
      Corr2D's fast path over a reference whose row 0 is the code. */
-  corr2d_build_fast (state, code, nx, nx, nthreads);
+  /* Rows split into at most ny chunks, columns into at most one per tile:
+     the larger is the most workers either stage can keep busy. */
+  const size_t ntiles = (nx + CORR2D_COL_TILE - 1) / CORR2D_COL_TILE;
+  corr2d_build_fast (state, code, nx, nx, nthreads, ny > ntiles ? ny : ntiles);
 
   const size_t nw = (size_t)state->nworkers;
   state->slow_fft = dp_xcalloc (nw, sizeof *state->slow_fft);

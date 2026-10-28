@@ -163,8 +163,10 @@ typedef struct {
  * @param nthreads  Workers for the single-row-reference fast path's per-row
  *                  stage: 1 runs serially (no threads), N runs N workers
  *                  (the caller included), <= 0 uses every online core.  The
- *                  output is bit-identical whatever the count.  The general
- *                  2-D path runs serially and ignores it.
+ *                  count is capped at @p ny, one row per worker at most.
+ *                  The output is bit-identical whatever the count.  The
+ *                  general 2-D path and the @p col_out path run serially and
+ *                  ignore it.
  * @param ny_out    Inverse/output rows; 0 => native (ny).  Must be >= ny.  A
  *                  larger output zero-pads the cross-spectrum before the
  *                  inverse, returning the band-limited (Dirichlet) interpolation
@@ -218,11 +220,12 @@ dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t
  *     map = np.fft.fftshift(np.fft.fft(R, n=ny_out, axis=0), axes=0)
  *
  * The output is `ny_out x nx` row-major: rows are Doppler bins, centered
- * (zero Doppler on row `ny_out / 2`), columns are delay lags.  A signal
- * `a * code[(n - d) mod nx] * exp(2j*pi*f*n)` peaks at column `d` and row
- * `ny_out/2 + f / doppler_step`, where @ref dp_corr2d_state_t::doppler_step
- * is `1 / (ny_out * nx)` cycles/sample (times the sample rate for Hz).  Its
- * peak is `a * dwell * ny * sum(|code|^2)`: the 1/nx of the row inverse
+ * (zero Doppler on row `ny_out / 2`), columns are delay lags.  A signal of
+ * amplitude `a` that is the code delayed by `d` samples and rotated by `f`
+ * cycles/sample peaks at column `d` and row `ny_out/2 + f / doppler_step`,
+ * where @ref dp_corr2d_state_t::doppler_step is `1 / (ny_out * nx)`
+ * cycles/sample (times the sample rate for Hz).  Its peak is
+ * `a * dwell * ny * sum(abs(code)**2)`: the 1/nx of the row inverse
  * cancels the row correlation's own gain of nx, and the slow-time FFT is
  * unnormalized, as numpy's is, so it sums the ny rows coherently.
  *
@@ -241,7 +244,8 @@ dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t
  * @param ny        Periods per frame, the slow-time length; must be >= 1.
  * @param dwell     Frames coherently accumulated per dump; must be >= 1.
  * @param nthreads  Workers: 1 serial, N for N (the caller included), <= 0
- *                  every online core.
+ *                  every online core; capped at the most chunks a stage
+ *                  can use, `max(ny, ceil(code_len / 16))`.
  * @param ny_out    Doppler bins in the map; 0 means @p ny.  Must be >= @p ny.
  * @return Heap-allocated state (free with dp_corr2d_destroy()), or NULL if
  *         @p code is NULL, @p code_len or @p ny is 0, @p dwell is 0, or

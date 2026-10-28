@@ -1879,6 +1879,7 @@
 * **measure\_dr\_from\_bits** ([**measure\_core.h**](measure__core_8h.md))
 * **measure\_resolve\_dr** ([**measure\_core.h**](measure__core_8h.md))
 * **mpsk\_bps** ([**mpsk\_core.h**](mpsk__core_8h.md))
+* **mpsk\_bpsk\_bit** ([**mpsk\_core.h**](mpsk__core_8h.md))
 * **mpsk\_constellation** ([**mpsk\_core.h**](mpsk__core_8h.md))
 * **mpsk\_gray\_decode** ([**mpsk\_core.h**](mpsk__core_8h.md))
 * **mpsk\_gray\_encode** ([**mpsk\_core.h**](mpsk__core_8h.md))

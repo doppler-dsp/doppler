@@ -160,7 +160,10 @@ size_t dp_burst_despreader_bits (
 
 
 
-Same streaming kernel as [**dp\_burst\_despreader\_steps()**](burst__despreader__core_8h.md#function-dp_burst_despreader_steps), but emits the hard decision `crealf(prompt) >= 0` instead of the complex symbol.
+Same streaming kernel as [**dp\_burst\_despreader\_steps()**](burst__despreader__core_8h.md#function-dp_burst_despreader_steps), but emits the hard decision instead of the complex symbol.
+
+
+**Polarity is the library's one rule** ([**mpsk\_core.h**](mpsk__core_8h.md), [**mpsk\_bpsk\_bit()**](mpsk__core_8h.md#function-mpsk_bpsk_bit)): bit b is sent as `1 - 2b`, so a bit is 1 when Re(prompt) is NEGATIVE and 0 when it is zero or positive  the inverse of [**dp\_bin\_to\_nrz()**](cvt__core_8h.md#function-dp_bin_to_nrz), and the same decision [**dp\_nrz\_to\_bin()**](cvt__core_8h.md#function-dp_nrz_to_bin) makes. The decisions are absolute relative to the carrier phase the loop locks at. With a [**dp\_burst\_despreader\_set\_acq()**](burst__despreader__core_8h.md#function-dp_burst_despreader_set_acq) preamble  a known +1  and the carrier seeded, that phase is the preamble's, so the payload decodes as sent from any starting phase. With no preamble the caller's phase is the reference: a burst at phase 0 decodes as sent and one at pi decodes complemented.
 
 
 
@@ -193,8 +196,7 @@ Number of hard bits written into `out`.
 >>> rec = d.bits(tx)                             # hard 0/1 per symbol
 >>> rec.shape
 (30,)
->>> e = np.mean(rec != bits)             # up to a BPSK sign flip
->>> round(float(min(e, 1.0 - e)), 4)
+>>> float(np.mean(rec != bits))          # raw: 1 - 2b at phase 0
 0.0
 >>> round(d.lock_metric, 3)
 1.0
@@ -772,8 +774,7 @@ DP\_OK, the preamble set (or, for the disabling arguments above, cleared); DP\_E
 >>> out = d.bits(burst)          # preamble emits nothing
 >>> out.shape                    # only the payload symbols come out
 (40,)
->>> e = np.mean(out != pbits)
->>> round(float(min(e, 1.0 - e)), 4)
+>>> float(np.mean(out != pbits))  # raw: the preamble is a known +1
 0.0
 ```
  

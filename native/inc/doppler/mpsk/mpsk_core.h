@@ -133,6 +133,33 @@ mpsk_slice (float _Complex y, int m, float _Complex *ahat)
 }
 
 /**
+ * @brief BPSK hard decision on a real value: negative is bit 1.
+ *
+ * The library's ONE bit <-> symbol polarity, stated where every caller can
+ * inline it. A bit @c b is sent as `1 - 2*b` -- bit 0 is +1, bit 1 is -1,
+ * which is mpsk_constellation() at m = 2 -- so the decision that inverts it
+ * maps a NEGATIVE value to 1 and zero or positive to 0. Exactly zero decides
+ * to 0, so the rule is total and a round trip through dp_bin_to_nrz() is
+ * exact.
+ *
+ * Every object that turns a real correlation into a bit calls this rather
+ * than writing its own comparison: dp_nrz_to_bin(), and the despreaders'
+ * bits(). Two copies of a one-line comparison are how two objects came to
+ * emit opposite bits for the same signal (doppler#2654), and
+ * test_bit_polarity.py runs one known-phase BPSK stream through every bit
+ * emitter and requires they agree.
+ *
+ * @param re  The real part of a carrier-wiped prompt, an NRZ symbol, or any
+ *            sum of them.
+ * @return    1 if @p re < 0, else 0.
+ */
+JM_FORCEINLINE uint8_t
+mpsk_bpsk_bit (double re)
+{
+  return (re < 0.0) ? 1u : 0u;
+}
+
+/**
  * @brief Map Gray-coded M-PSK labels to unit-amplitude constellation points.
  *
  * Element-wise inverse of dp_mpsk_demap(): each input byte is one symbol's

@@ -1,5 +1,6 @@
 #include "doppler/burst_despreader/burst_despreader_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/mpsk/mpsk_core.h" /* mpsk_bpsk_bit -- the ONE polarity */
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -355,7 +356,7 @@ despread_run (dp_burst_despreader_state_t *s, const float _Complex *x,
           if (bitsym_csym)
             bitsym_csym[n_out] = P / (float)cur_tsamps;
           else
-            bits[n_out] = (crealf (P) >= 0.0f) ? 1u : 0u;
+            bits[n_out] = mpsk_bpsk_bit (crealf (P));
           n_out++;
         }
 

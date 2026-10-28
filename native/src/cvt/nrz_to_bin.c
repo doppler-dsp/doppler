@@ -2,6 +2,7 @@
  * nrz_to_bin.c — cvt module-level function.
  */
 #include "doppler/cvt/cvt_core.h"
+#include "doppler/mpsk/mpsk_core.h" /* mpsk_bpsk_bit -- the ONE polarity */
 
 /* The hard decision that inverts bin_to_nrz.
  *
@@ -18,6 +19,6 @@ dp_nrz_to_bin (const float *nrz, size_t nrz_len, uint8_t *out, size_t out_len)
     return 0;
 
   for (size_t i = 0; i < nrz_len; i++)
-    out[i] = (nrz[i] < 0.0f) ? 1u : 0u;
+    out[i] = mpsk_bpsk_bit (nrz[i]);
   return nrz_len;
 }

@@ -160,8 +160,7 @@ extern "C"
    * ...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
    * >>> d = Despreader(code, sps=4)          # seed a fresh tracking loop
    * >>> data = d.bits(rx)                        # hard data bits, 1/period
-   * >>> e = np.mean(data != bits[:data.size])    # up to a global BPSK flip
-   * >>> round(float(min(e, 1.0 - e)), 4)
+   * >>> float(np.mean(data != bits[:data.size]))  # raw: phase 0 is known
    * 0.0
    *
    * @endcode
@@ -247,9 +246,8 @@ extern "C"
    * ...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
    * >>> d = Despreader(code=code, sps=4)
    * >>> prompt = d.steps(rx)                 # one prompt per code period
-   * >>> hard = (prompt.real < 0).astype(np.uint8)
-   * >>> e = np.mean(hard != bits[:hard.size])   # payload recovered
-   * >>> round(float(min(e, 1.0 - e)), 4)
+   * >>> hard = (prompt.real < 0).astype(np.uint8)  # negative is a 1
+   * >>> float(np.mean(hard != bits[:hard.size]))   # payload recovered
    * 0.0
    *
    * @endcode
@@ -272,11 +270,19 @@ extern "C"
    * synchronisation: the per-period prompts are coherently summed across each
    * detected bit boundary (a data bit spans @c periods_per_bit code periods)
    * and one hard 0/1 bit is emitted per data bit. The bit boundary is estimated
-   * on-line from the prompt sign-flip histogram, so the phase is a BPSK
-   * ambiguity — a globally inverted decision stream is equally correct.
-   * A bit is 1 when its summed Re(prompt) is >= 0, else 0. The first
-   * (partial) bit after create or reset is not emitted; with
-   * periods_per_bit == 1 every prompt yields one bit.
+   * on-line from the prompt sign-flip histogram. The first (partial) bit after
+   * create or reset is not emitted; with periods_per_bit == 1 every prompt
+   * yields one bit.
+   *
+   * **Polarity is the library's one rule** (mpsk_core.h, mpsk_bpsk_bit()):
+   * bit b is sent as `1 - 2b`, so a bit is 1 when its summed Re(prompt) is
+   * NEGATIVE and 0 when it is zero or positive -- the inverse of
+   * dp_bin_to_nrz(), and the same decision dp_nrz_to_bin() makes. The
+   * carrier loop is a Costas loop, so the decisions are absolute relative to
+   * the phase it locks at: a carrier that arrives at phase 0 decodes as sent,
+   * one at pi decodes complemented, and a loop pulling in from an unseeded
+   * offset may land on either. Resolving that is a sync word's job (see
+   * doppler.detection.SyncFinder's `inverted`), not this object's.
    *
    * @param state    Must be non-NULL.
    * @param x        Input CF32 samples.
@@ -296,9 +302,12 @@ extern "C"
    * ...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
    * >>> d = Despreader(code=code, sps=4)
    * >>> data = d.bits(rx)                       # hard data bits
-   * >>> e = np.mean(data != bits[:data.size])   # up to a BPSK sign flip
-   * >>> round(float(min(e, 1.0 - e)), 4)
+   * >>> float(np.mean(data != bits[:data.size]))  # raw: 1 - 2b at phase 0
    * 0.0
+   * >>> d.reset()
+   * >>> flipped = d.bits(-rx)                   # the same carrier at pi
+   * >>> bool(np.all(flipped == 1 - bits[:flipped.size]))   # complemented
+   * True
    *
    * @endcode
    */

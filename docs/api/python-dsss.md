@@ -122,8 +122,10 @@ prompts into hard data bits.
 `bn_fll > 0` enables FLL-assisted carrier pull-in. When a data bit spans
 `periods_per_bit` code periods (GPS C/A: 20), `bits()` **bit-syncs** — it
 histograms the prompt sign-flip positions to find the bit boundary
-(`bit_phase`), then coherently sums `periods_per_bit` prompts per bit. The
-despreader is seeded by acquisition (coarse carrier frequency + code phase)
+(`bit_phase`), then coherently sums `periods_per_bit` prompts per bit. Each
+bit follows the library's one polarity, the one `mpsk_core.h` defines: bit
+`b` is sent as `1 - 2b`, so a negative prompt sum is a 1, exactly as
+`doppler.cvt.nrz_to_bin` decides. The despreader is seeded by acquisition (coarse carrier frequency + code phase)
 and tracks the residual.
 
 ```python

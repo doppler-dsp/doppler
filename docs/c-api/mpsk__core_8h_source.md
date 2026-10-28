@@ -71,6 +71,12 @@ mpsk_slice (float _Complex y, int m, float _Complex *ahat)
   return mpsk_gray_encode (ki);
 }
 
+JM_FORCEINLINE uint8_t
+mpsk_bpsk_bit (double re)
+{
+  return (re < 0.0) ? 1u : 0u;
+}
+
 void dp_mpsk_map(const uint8_t *sym, size_t sym_len, float _Complex *out, int m);
 
 void dp_mpsk_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);

@@ -10,9 +10,13 @@
  *   5. Bit-sync (periods_per_bit > 1) recovers data bits + detects the
  * boundary
  *   6. Reset reproducibility
+ *   7. Bit polarity at a KNOWN carrier phase: bit b is sent as 1 - 2b
+ *      (mpsk_core.h), so bits() returns the sent bits raw at phase 0 and
+ *      every one complemented at pi -- both bit paths (doppler#2654)
  */
 #include "doppler/despreader/despreader_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/mpsk/mpsk_core.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -70,7 +74,10 @@ make_signal (float _Complex *rx, int *data, const uint8_t *code, size_t sf,
   return k;
 }
 
-/* ambiguity-tolerant bit-error count of decisions vs truth over [lo,hi) */
+/* Ambiguity-tolerant bit-error count of decisions vs truth over [lo,hi).
+ * Only for the tests whose loop pulls in from an UNSEEDED offset, where the
+ * pull-in alone picks the 0 or pi lock point. Polarity itself is test 7,
+ * at a carrier phase the test chooses, and it counts errors raw. */
 static int
 amb_errors (const int *dec, const int *truth, size_t lo, size_t hi)
 {
@@ -79,6 +86,44 @@ amb_errors (const int *dec, const int *truth, size_t lo, size_t hi)
     if (dec[i] != truth[i])
       err++;
   return err < n - err ? err : n - err;
+}
+
+/* Spread nbits known bits, sent as 1 - 2b through mpsk_constellation() (the
+ * polarity's home), at zero frequency and carrier phase `phase`; run bits()
+ * on a seeded despreader and count the decisions that differ from the sent
+ * bits, RAW -- no min(e, 1 - e). The bit-sync path emits data bit i as its
+ * i-th output (the boundary is at epoch 0 and the leading partial bit is
+ * empty), so the comparison is index for index. */
+static void
+polarity_run (size_t sf, size_t sps, size_t ppb, float phase, size_t *n_bits,
+              size_t *errs)
+{
+  const size_t nbits = 64, tsamps = sf * sps, n = nbits * ppb * tsamps;
+  uint8_t     *code = malloc (sf), *tx = malloc (nbits), *rx = malloc (nbits);
+  float _Complex *x  = malloc (n * sizeof (*x));
+  uint32_t        st = 0x2654u;
+  make_code (code, sf, 31u);
+  const float _Complex rot = cexpf (phase * I);
+  size_t k                 = 0;
+  for (size_t b = 0; b < nbits; b++)
+    {
+      tx[b]         = dp_bit (&st) < 0 ? 1u : 0u;
+      const float s = crealf (mpsk_constellation (tx[b], 2)); /* 1 - 2b */
+      for (size_t p = 0; p < ppb; p++)
+        for (size_t i = 0; i < tsamps; i++, k++)
+          x[k] = s * ((code[i / sps] & 1u) ? -1.0f : 1.0f) * rot;
+    }
+  dp_despreader_state_t *c = dp_despreader_create (
+      code, sf, sps, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, ppb);
+  *n_bits = dp_despreader_bits (c, x, n, rx, nbits);
+  *errs   = 0;
+  for (size_t i = 0; i < *n_bits; i++)
+    *errs += (rx[i] != tx[i]);
+  dp_despreader_destroy (c);
+  free (code);
+  free (tx);
+  free (rx);
+  free (x);
 }
 
 int
@@ -235,7 +280,7 @@ main (void)
     size_t   k    = dp_despreader_bits (c, rx, n, bits, nper);
     int     *dec  = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
-      dec[i] = bits[i] ? 1 : -1;
+      dec[i] = bits[i] ? -1 : 1; /* 1 - 2b: bit 1 is -1 (mpsk_core.h) */
     DP_CHECK (amb_errors (dec, data, k / 2, k) == 0);
     dp_despreader_destroy (c);
     free (rx);
@@ -263,7 +308,7 @@ main (void)
     DP_CHECK (dp_despreader_get_bit_phase (c) == 0); /* boundary at epoch 0 */
     int *dec = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
-      dec[i] = bits[i] ? 1 : -1;
+      dec[i] = bits[i] ? -1 : 1; /* 1 - 2b: bit 1 is -1 (mpsk_core.h) */
     /* tail: after bit-sync settles, recovered bits match the data */
     DP_CHECK (amb_errors (dec, data, k / 3, k) == 0);
     dp_despreader_destroy (c);
@@ -298,6 +343,22 @@ main (void)
     free (data);
     free (sym);
     free (code);
+  }
+
+  /* 7. Bit polarity at a known carrier phase (doppler#2654). */
+  {
+    const size_t ppbs[] = { 1, 4 }; /* the per-period AND bit-sync paths */
+    for (size_t q = 0; q < 2; q++)
+      for (int flip = 0; flip < 2; flip++)
+        {
+          size_t n_bits = 0, errs = 0;
+          polarity_run (sf, sps, ppbs[q], flip ? (float)M_PI : 0.0f, &n_bits,
+                        &errs);
+          DP_CHECK (n_bits >= 60);
+          /* phase 0: every bit raw; phase pi: every bit complemented */
+          DP_CHECK_MSG (errs == (flip ? n_bits : 0),
+                        "bits() at a known phase disagrees with 1 - 2b");
+        }
   }
 
   /* serializable state — costas + dll children resume; dll borrows this

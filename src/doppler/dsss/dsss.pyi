@@ -305,8 +305,7 @@ class Despreader:
     ...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
     >>> d = Despreader(code, sps=4)          # seed a fresh tracking loop
     >>> data = d.bits(rx)                        # hard data bits, 1/period
-    >>> e = np.mean(data != bits[:data.size])    # up to a global BPSK flip
-    >>> round(float(min(e, 1.0 - e)), 4)
+    >>> float(np.mean(data != bits[:data.size]))  # raw: phase 0 is known
     0.0
 
     """
@@ -358,7 +357,7 @@ class Despreader:
     def bits(
         self, x: NDArray[np.complex64], out: NDArray[np.uint8] | None = ...
     ) -> NDArray[np.uint8]:
-        """Same tracking kernel as steps(), but bit-sync the per-period prompts into hard data bits: periods_per_bit prompts are coherently summed across each detected bit boundary and one 0/1 bit is emitted per data bit.
+        """Same tracking kernel as steps(), but bit-sync the per-period prompts into hard data bits: periods_per_bit prompts are coherently summed across each detected bit boundary and one 0/1 bit is emitted per data bit, by the library's one polarity: bit b is sent as 1 - 2b (mpsk_core.h), so a negative summed prompt is a 1.
 
         Without out=, the returned array is a view into a buffer reused on the
         next call (see bits_max_out() to size an out= buffer for an
@@ -863,10 +862,12 @@ class BurstDespreader:
     def bits(
         self, x: NDArray[np.complex64], out: NDArray[np.uint8] | None = ...
     ) -> NDArray[np.uint8]:
-        """Despread a cf32 block; emit one hard BPSK bit per code period.
+        """Despread a cf32 block; emit one hard BPSK bit per code period, by the library's one polarity: bit b is sent as 1 - 2b (mpsk_core.h), so a negative prompt is a 1.
 
-        Same streaming kernel as burst_despreader_steps(), but emits the hard decision
-        `crealf(prompt) >= 0` instead of the complex symbol.
+        Same streaming kernel as burst_despreader_steps(), but emits the hard
+        decision instead of the complex symbol: 1 when Re(prompt) is
+        negative, 0 when it is zero or positive -- the decision nrz_to_bin()
+        makes.
 
         Without out=, the returned array is a view into a buffer reused on the
         next call (see bits_max_out() to size an out= buffer for an
@@ -947,8 +948,7 @@ class BurstDespreader:
         >>> out = d.bits(burst)          # preamble emits nothing
         >>> out.shape                    # only the payload symbols come out
         (40,)
-        >>> e = np.mean(out != pbits)
-        >>> round(float(min(e, 1.0 - e)), 4)
+        >>> float(np.mean(out != pbits))  # raw: the preamble is a known +1
         0.0
 
         """

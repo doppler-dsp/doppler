@@ -36,6 +36,12 @@ def _signal(code, nper, periods_per_bit=1, f0=0.0, sigma=0.0, seed=3):
 
 
 def _amb_ber(dec, truth):
+    """Bit error rate up to a global inversion.
+
+    Only for the tests whose loop pulls in from an UNSEEDED offset, where the
+    pull-in alone picks the 0 or pi lock point. Polarity at a known phase is
+    `test_bits_follow_one_minus_2b_at_a_known_phase`, scored raw.
+    """
     err = int(np.sum(dec != truth))
     return min(err, len(dec) - err) / len(dec)
 
@@ -173,7 +179,7 @@ def test_hard_bits_periods_per_bit_1():
     c.steps(rx)  # prompts
     hb = c.bits(_signal(code, 400, f0=4e-5, seed=17)[0])  # fresh run
     assert hb.dtype == np.uint8
-    dec = np.where(hb > 0, 1, -1)
+    dec = 1 - 2 * hb.astype(int)  # 1 - 2b (mpsk_core.h)
     half = len(dec) // 2
     assert _amb_ber_best_shift(dec[half:], data[half : len(dec)]) == 0.0
 
@@ -186,9 +192,36 @@ def test_bit_sync_recovers_data_bits():
     bits = c.bits(rx)
     assert len(bits) >= nbits - 3
     assert c.bit_phase == 0  # data boundary at epoch 0
-    dec = np.where(bits > 0, 1, -1)
+    dec = 1 - 2 * bits.astype(int)  # 1 - 2b (mpsk_core.h)
     tail = len(dec) // 3
     assert _amb_ber(dec[tail:], data[tail : len(dec)]) == 0.0
+
+
+@pytest.mark.parametrize("periods_per_bit", [1, 4])
+def test_bits_follow_one_minus_2b_at_a_known_phase(periods_per_bit):
+    """bits() decides by the library's one polarity (doppler#2654).
+
+    Bit b is sent as ``1 - 2b`` through ``bin_to_nrz``, at zero frequency
+    and a carrier phase the test chooses. At phase 0 the decisions are the
+    sent bits, raw -- no ``min(e, 1 - e)``; at pi every one is complemented,
+    which is what makes the first assertion a statement about polarity
+    rather than about the loop. Both the per-period and the bit-sync paths.
+    """
+    from doppler.cvt import bin_to_nrz
+
+    code = _code()
+    tx = np.random.default_rng(2654).integers(0, 2, 64).astype(np.uint8)
+    sym = np.zeros(tx.size, np.float32)
+    bin_to_nrz(tx, sym)
+    chips = 1.0 - 2.0 * code.astype(np.float32)
+    one = np.repeat(chips, SPS)  # one code period, SPS samples a chip
+    base = np.concatenate([np.tile(s * one, periods_per_bit) for s in sym])
+    for phase, want in ((0.0, tx), (np.pi, 1 - tx)):
+        rx = (base * np.exp(1j * phase)).astype(np.complex64)
+        d = Despreader(code, SPS, periods_per_bit=periods_per_bit)
+        got = d.bits(rx)
+        assert got.size >= 60
+        assert np.array_equal(got, want[: got.size]), phase
 
 
 def test_reset_reproducible():

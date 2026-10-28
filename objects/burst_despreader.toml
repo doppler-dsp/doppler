@@ -57,7 +57,7 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 [[burst_despreader.methods]]
 name = "bits"
-doc = "Despread a cf32 block; emit one hard BPSK bit per code period."
+doc = "Despread a cf32 block; emit one hard BPSK bit per code period, by the library's one polarity: bit b is sent as 1 - 2b (mpsk_core.h), so a negative prompt is a 1."
 arg_type = "void"
 return_type = "uint8_t"
 variable_output = true

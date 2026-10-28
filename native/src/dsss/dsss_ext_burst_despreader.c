@@ -569,7 +569,7 @@ BurstDespreaderObj_set_acq (BurstDespreaderObject *self, PyObject *args,
   Py_DECREF (acq_code_arr);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+      PyErr_Format (PyExc_MemoryError, "%s (rc=%lld)",
                     "set_acq: the acquisition code could not be allocated; "
                     "the previous preamble stands",
                     (long long)_rc);
@@ -1054,7 +1054,7 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "\n"
     "Raises\n"
     "------\n"
-    "ValueError\n"
+    "MemoryError\n"
     "    If the C call returns a non-zero status. The exception message is\n"
     "    ``set_acq: the acquisition code could not be allocated; the\n"
     "    previous preamble stands``, with the return code appended (gh-869).\n"

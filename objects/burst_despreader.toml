@@ -71,9 +71,10 @@ doc = "Enable preamble-aided pull-in: track acq_reps periods of the (distinct) a
 arg_type = "void"
 return_type = "int"
 # The copy of acq_code can fail to allocate; it used to disable the preamble
-# silently (#2647). jm raises on the non-zero return.
+# silently (#2647). jm raises on the non-zero return. Its only failure is
+# DP_ERR_MEMORY, so the exception is MemoryError.
 status_return = true
-error = "ValueError"
+error = "MemoryError"
 error_message = "set_acq: the acquisition code could not be allocated; the previous preamble stands"
 params = [{ name = "acq_code", type = "uint8_t[]" }, { name = "acq_reps", type = "size_t" }]
 

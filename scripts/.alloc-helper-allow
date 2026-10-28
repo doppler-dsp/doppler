@@ -50,7 +50,7 @@ native/src/corr/corr_core.c 5
 native/src/corr2d/corr2d_core.c 10
 native/src/costas/costas_core.c 1
 native/src/ddc/ddc_core.c 3
-native/src/ddcr/ddcr_core.c 2
+native/src/ddcr/ddcr_core.c 1
 native/src/delay/delay_core.c 2
 native/src/despreader/despreader_core.c 3
 native/src/detector/detector_core.c 4

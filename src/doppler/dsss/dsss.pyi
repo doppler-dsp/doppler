@@ -922,7 +922,7 @@ class BurstDespreader:
 
         Raises
         ------
-        ValueError
+        MemoryError
             If the C call returns a non-zero status. The exception message is
             ``set_acq: the acquisition code could not be allocated; the
             previous preamble stands``, with the return code appended (gh-869).

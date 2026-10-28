@@ -147,7 +147,7 @@ dp_burst_despreader_state_t *dp_burst_despreader_create(const uint8_t *code, siz
  * @return DP_OK, the preamble set (or, for the disabling arguments above,
  *         cleared); DP_ERR_MEMORY when the copy of @p acq_code cannot be
  *         allocated, in which case nothing changes: the previous preamble,
- *         or its absence, stands. Python raises ValueError on the failure.
+ *         or its absence, stands. Python raises MemoryError on the failure.
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstDespreader

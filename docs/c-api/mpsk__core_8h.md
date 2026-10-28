@@ -62,6 +62,7 @@ _M-PSK constellation: Gray-coded map / demap for BPSK, QPSK, 8PSK._ [More...](#d
 |  void | [**dp\_mpsk\_map**](#function-dp_mpsk_map) (const uint8\_t \* sym, size\_t sym\_len, float \_Complex \* out, int m) <br>_Map Gray-coded M-PSK labels to unit-amplitude constellation points._  |
 |  void | [**dp\_mpsk\_soft\_demap**](#function-dp_mpsk_soft_demap) (const float \_Complex \* x, size\_t x\_len, float \* llr, size\_t llr\_len, int m, float n0) <br>_Soft-demap M-PSK symbols to per-bit log-likelihood ratios._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**mpsk\_bps**](#function-mpsk_bps) (int m) <br>_Bits per M-PSK symbol = log2(M)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint8\_t | [**mpsk\_bpsk\_bit**](#function-mpsk_bpsk_bit) (double re) <br>_BPSK hard decision on a real value: negative is bit 1._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**mpsk\_constellation**](#function-mpsk_constellation) (unsigned g, int m) <br>_Constellation point for Gray label_ `g` _(M-PSK), unit amplitude._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_gray\_decode**](#function-mpsk_gray_decode) (unsigned g) <br>_Gray code -&gt; binary index (inverse of mpsk\_gray\_encode)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_gray\_encode**](#function-mpsk_gray_encode) (unsigned k) <br>_Binary index -&gt; Gray code (k ^ k&gt;&gt;1)._  |
@@ -445,6 +446,46 @@ JM_FORCEINLINE int mpsk_bps (
 **Returns:**
 
 1, 2 or 3 for M = 2, 4, 8; 0 for any other `m` (unsupported). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function mpsk\_bpsk\_bit 
+
+_BPSK hard decision on a real value: negative is bit 1._ 
+```C++
+JM_FORCEINLINE uint8_t mpsk_bpsk_bit (
+    double re
+) 
+```
+
+
+
+The library's ONE bit &lt;-&gt; symbol polarity, stated where every caller can inline it. A bit `b` is sent as `1 - 2*b`  bit 0 is +1, bit 1 is -1, which is [**mpsk\_constellation()**](mpsk__core_8h.md#function-mpsk_constellation) at m = 2  so the decision that inverts it maps a NEGATIVE value to 1 and zero or positive to 0. Exactly zero decides to 0, so the rule is total and a round trip through [**dp\_bin\_to\_nrz()**](cvt__core_8h.md#function-dp_bin_to_nrz) is exact.
+
+
+Every object that turns a real correlation into a bit calls this rather than writing its own comparison: [**dp\_nrz\_to\_bin()**](cvt__core_8h.md#function-dp_nrz_to_bin), and the despreaders' bits(). Two copies of a one-line comparison are how two objects came to emit opposite bits for the same signal (doppler#2654), and test\_bit\_polarity.py runs one known-phase BPSK stream through every bit emitter and requires they agree.
+
+
+
+
+**Parameters:**
+
+
+* `re` The real part of a carrier-wiped prompt, an NRZ symbol, or any sum of them. 
+
+
+
+**Returns:**
+
+1 if `re` &lt; 0, else 0. 
 
 
 

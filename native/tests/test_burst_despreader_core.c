@@ -1,5 +1,6 @@
 #include "doppler/burst_despreader/burst_despreader_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/mpsk/mpsk_core.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -29,7 +30,8 @@ make_burst (const uint8_t *code, size_t sf, size_t sps, size_t nsym, double f0,
     {
       uint8_t bit = (uint8_t)((i * 2654435761u) >> 31) & 1u; /* cheap PRBS */
       tx_bits[i]  = bit;
-      float sym   = bit ? -1.0f : 1.0f; /* BPSK: 0->+1, 1->-1 */
+      /* 1 - 2b, from the polarity's home rather than restated here */
+      float sym = crealf (mpsk_constellation (bit, 2));
       for (size_t j = 0; j < sf; j++)
         {
           float chip = sym * ((code[j] & 1u) ? -1.0f : 1.0f);
@@ -45,16 +47,17 @@ make_burst (const uint8_t *code, size_t sf, size_t sps, size_t nsym, double f0,
   return x;
 }
 
-/* Ambiguity-tolerant bit error count over [start, nsym): 180 deg is
- * don't-care, so a globally-inverted decision counts as correct. */
+/* Bit error rate over [start, nsym), RAW. Every burst here starts the
+ * carrier at a phase the test knows, so the decision is not ambiguous:
+ * bits() follows 1 - 2b (mpsk_core.h) and an inverted stream is an error,
+ * not an equally-correct answer (doppler#2654). */
 static double
-amb_ber (const uint8_t *rx, const uint8_t *tx, size_t start, size_t nsym)
+bit_errors (const uint8_t *rx, const uint8_t *tx, size_t start, size_t nsym)
 {
   size_t err = 0, tot = 0;
   for (size_t i = start; i < nsym; i++, tot++)
     err += (rx[i] != tx[i]);
-  double b = (double)err / (double)tot;
-  return b < 1.0 - b ? b : 1.0 - b;
+  return (double)err / (double)tot;
 }
 
 /* The bytes an object's state is: two objects whose blobs compare equal are
@@ -174,7 +177,21 @@ main (void)
   DP_CHECK (d != NULL);
   size_t n_out = dp_burst_despreader_bits (d, burst, blen, rx, nsym);
   DP_CHECK (n_out == nsym);
-  DP_CHECK (amb_ber (rx, tx, 0, n_out) == 0.0);
+  DP_CHECK (bit_errors (rx, tx, 0, n_out) == 0.0);
+  dp_burst_despreader_destroy (d);
+
+  /* (1b) Polarity at a known carrier phase: the same burst rotated by pi
+   *      decides every bit complemented. Together with (1) that pins the
+   *      mapping itself -- a payload-only burst has no preamble to resolve
+   *      the phase, so it is the phase the caller hands in that decides. */
+  for (size_t i = 0; i < blen; i++)
+    burst[i] *= cexpf ((float)M_PI * I);
+  d = dp_burst_despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.05, 0.01);
+  DP_REQUIRE (d != NULL);
+  n_out = dp_burst_despreader_bits (d, burst, blen, rx, nsym);
+  DP_CHECK (n_out == nsym);
+  DP_CHECK_MSG (bit_errors (rx, tx, 0, n_out) == 1.0,
+                "bits() at phase pi is not the complement of 1 - 2b");
   dp_burst_despreader_destroy (d);
   free (burst);
 
@@ -184,7 +201,7 @@ main (void)
   burst     = make_burst (code, sf, sps, nsym, f0, tx, &blen);
   d     = dp_burst_despreader_create (code, sf, sf, sps, f0, 0.0, 0.05, 0.01);
   n_out = dp_burst_despreader_bits (d, burst, blen, rx, nsym);
-  DP_CHECK (amb_ber (rx, tx, n_out / 4, n_out) == 0.0);
+  DP_CHECK (bit_errors (rx, tx, n_out / 4, n_out) == 0.0);
   DP_CHECK (fabs (dp_burst_despreader_get_norm_freq (d) - f0) < 1e-4);
   DP_CHECK (dp_burst_despreader_get_lock_metric (d) > 0.9);
 
@@ -193,7 +210,7 @@ main (void)
   uint8_t *rx2 = malloc (nsym);
   size_t   n2  = dp_burst_despreader_bits (d, burst, blen, rx2, nsym);
   DP_CHECK (n2 == n_out);
-  DP_CHECK (amb_ber (rx2, tx, n2 / 4, n2) == 0.0);
+  DP_CHECK (bit_errors (rx2, tx, n2 / 4, n2) == 0.0);
 
   /* (4) property accessors round-trip. */
   dp_burst_despreader_set_bn_carrier (d, 0.06);

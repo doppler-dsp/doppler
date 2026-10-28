@@ -1,4 +1,5 @@
 #include "doppler/despreader/despreader_core.h"
+#include "doppler/mpsk/mpsk_core.h" /* mpsk_bpsk_bit -- the ONE polarity */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -259,7 +260,7 @@ bit_sync (dp_despreader_state_t *ch, float _Complex P, uint8_t *bit)
   double re = (double)crealf (P);
   if (N <= 1)
     {
-      *bit = (re >= 0.0) ? 1u : 0u;
+      *bit = mpsk_bpsk_bit (re);
       ch->epoch_count++;
       return 1;
     }
@@ -284,7 +285,7 @@ bit_sync (dp_despreader_state_t *ch, float _Complex P, uint8_t *bit)
       /* boundary: emit the just-completed bit if it spanned a full period */
       if (ch->epochs_in_bit == N)
         {
-          *bit    = (ch->bit_acc >= 0.0) ? 1u : 0u;
+          *bit    = mpsk_bpsk_bit (ch->bit_acc);
           emitted = 1;
         }
       ch->bit_acc       = 0.0;

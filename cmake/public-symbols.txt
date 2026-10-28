@@ -1798,6 +1798,7 @@ gold_step function
 lo_step function
 lo_step_ctrl function
 mpsk_bps function
+mpsk_bpsk_bit function
 mpsk_constellation function
 mpsk_gray_decode function
 mpsk_gray_encode function

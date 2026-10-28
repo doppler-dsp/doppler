@@ -82,7 +82,7 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 [[despreader.methods]]
 name = "bits"
-doc = "Same tracking kernel as steps(), but bit-sync the per-period prompts into hard data bits: periods_per_bit prompts are coherently summed across each detected bit boundary and one 0/1 bit is emitted per data bit."
+doc = "Same tracking kernel as steps(), but bit-sync the per-period prompts into hard data bits: periods_per_bit prompts are coherently summed across each detected bit boundary and one 0/1 bit is emitted per data bit, by the library's one polarity: bit b is sent as 1 - 2b (mpsk_core.h), so a negative summed prompt is a 1."
 arg_type = "void"
 return_type = "uint8_t"
 variable_output = true

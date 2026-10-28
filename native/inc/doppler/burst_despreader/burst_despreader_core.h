@@ -166,8 +166,7 @@ dp_burst_despreader_state_t *dp_burst_despreader_create(const uint8_t *code, siz
  * >>> out = d.bits(burst)          # preamble emits nothing
  * >>> out.shape                    # only the payload symbols come out
  * (40,)
- * >>> e = np.mean(out != pbits)
- * >>> round(float(min(e, 1.0 - e)), 4)
+ * >>> float(np.mean(out != pbits))  # raw: the preamble is a known +1
  * 0.0
  *
  * @endcode
@@ -275,8 +274,18 @@ size_t dp_burst_despreader_bits_max_out (dp_burst_despreader_state_t *state);
 /**
  * @brief Despread a CF32 block; emit one hard BPSK bit (0/1) per code period.
  *
- * Same streaming kernel as dp_burst_despreader_steps(), but emits the hard decision
- * `crealf(prompt) >= 0` instead of the complex symbol.
+ * Same streaming kernel as dp_burst_despreader_steps(), but emits the hard
+ * decision instead of the complex symbol.
+ *
+ * **Polarity is the library's one rule** (mpsk_core.h, mpsk_bpsk_bit()):
+ * bit b is sent as `1 - 2b`, so a bit is 1 when Re(prompt) is NEGATIVE and 0
+ * when it is zero or positive -- the inverse of dp_bin_to_nrz(), and the same
+ * decision dp_nrz_to_bin() makes. The decisions are absolute relative to the
+ * carrier phase the loop locks at. With a dp_burst_despreader_set_acq()
+ * preamble -- a known +1 -- and the carrier seeded, that phase is the
+ * preamble's, so the payload decodes as sent from any starting phase. With
+ * no preamble the caller's phase is the reference: a burst at phase 0 decodes
+ * as sent and one at pi decodes complemented.
  *
  * @param state    Must be non-NULL.
  * @param x        Input CF32 samples, length @p x_len.
@@ -298,8 +307,7 @@ size_t dp_burst_despreader_bits_max_out (dp_burst_despreader_state_t *state);
  * >>> rec = d.bits(tx)                             # hard 0/1 per symbol
  * >>> rec.shape
  * (30,)
- * >>> e = np.mean(rec != bits)             # up to a BPSK sign flip
- * >>> round(float(min(e, 1.0 - e)), 4)
+ * >>> float(np.mean(rec != bits))          # raw: 1 - 2b at phase 0
  * 0.0
  * >>> round(d.lock_metric, 3)
  * 1.0

@@ -807,7 +807,9 @@ double dp_RateConverter_get_rate (const dp_RateConverter_state_t *s);
  * reference is re-derived for the new terminal bank). The change is all or
  * nothing: the new cascade (and AGC) is built first and committed only once
  * it exists, so a refused rate or a failed rebuild leaves the converter
- * exactly as it was -- same rate, same stages, same filter memory.
+ * exactly as it was -- same rate, same stages, same filter memory. That
+ * includes the AGC: one that cannot be rebuilt for the new bank refuses
+ * the whole change, where it used to be dropped and the rate taken anyway.
  *
  * The call returns nothing, so a caller that must know whether it took
  * reads dp_RateConverter_get_rate() back. It becomes an `int` status,

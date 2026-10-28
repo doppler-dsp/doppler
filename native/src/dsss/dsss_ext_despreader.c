@@ -128,7 +128,7 @@ DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
                        ">= 0 and zeta > 0 both finite, whose loop gains come "
                        "out finite, and 0 < spacing < len(code)/2; for the "
                        "carrier loop bn_carrier >= 0, finite, whose loop "
-                       "gains come out finite)");
+                       "gains come out finite, and bn_fll >= 0 and finite)");
       return -1;
     }
   return 0;
@@ -1451,7 +1451,8 @@ static PyTypeObject DespreaderObjType = {
     "    bn_code >= 0 and zeta > 0 both finite, whose loop gains come out\n"
     "    finite, and 0 < spacing < len(code)/2; for the carrier loop "
     "bn_carrier\n"
-    "    >= 0, finite, whose loop gains come out finite)``.\n"
+    "    >= 0, finite, whose loop gains come out finite, and bn_fll >= 0 and\n"
+    "    finite)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

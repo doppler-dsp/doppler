@@ -203,6 +203,14 @@ def test_reset_reproducible():
     assert f1 == c.norm_freq
 
 
+@pytest.mark.parametrize("bn_fll", [-1.0, float("nan"), float("inf")])
+def test_bad_bn_fll_is_refused(bn_fll):
+    """The FLL assist meets the predicate Costas and CarrierMpsk use
+    (doppler#2112): a negative, NaN or infinite bn_fll is refused."""
+    with pytest.raises(ValueError, match="bn_fll"):
+        Despreader(_code(), SPS, 0.0, 0.0, 0.05, 0.005, bn_fll, 0.707, 0.5, 1)
+
+
 def test_steps_out_writes_into_callers_buffer():
     code = _code()
     rx, _ = _signal(code, 50, seed=5)

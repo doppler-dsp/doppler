@@ -289,7 +289,8 @@ class Despreader:
         parameter (need a non-empty code; for the code loop a finite init_chip,
         bn_code >= 0 and zeta > 0 both finite, whose loop gains come out
         finite, and 0 < spacing < len(code)/2; for the carrier loop bn_carrier
-        >= 0, finite, whose loop gains come out finite)``.
+        >= 0, finite, whose loop gains come out finite, and bn_fll >= 0 and
+        finite)``.
 
     Examples
     --------

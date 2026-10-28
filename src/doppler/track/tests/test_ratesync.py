@@ -391,6 +391,6 @@ def test_bad_bn_raises_and_keeps_the_running_value(bad: float) -> None:
     with pytest.raises(ValueError, match="bn is outside"):
         rs.bn = bad
     assert rs.bn == 0.01
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"\(bn, zeta\) is outside"):
         rs.configure(bad, 0.707)
     assert rs.bn == 0.01

@@ -446,7 +446,10 @@ RateSyncObj_configure (RateSyncObject *self, PyObject *args, PyObject *kwds)
   int _rc = dp_ratesync_configure (self->handle, bn, zeta);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure failed",
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "RateSync: (bn, zeta) is outside the loop filter's "
+                    "domain (need bn >= 0 and zeta > 0, both finite, whose "
+                    "loop gains come out finite)",
                     (long long)_rc);
       return NULL;
     }
@@ -905,7 +908,9 @@ static PyMethodDef RateSyncObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``configure failed``, with the return code appended (gh-869).\n"
+    "    ``RateSync: (bn, zeta) is outside the loop filter's domain (need bn\n"
+    "    >= 0 and zeta > 0, both finite, whose loop gains come out\n"
+    "    finite)``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"

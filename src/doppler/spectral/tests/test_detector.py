@@ -1,6 +1,7 @@
 import numpy as np
+import pytest
 
-from doppler.spectral import CorrDetector
+from doppler.spectral import Corr2D, CorrDetector, CorrDetector2D
 
 
 def test_create():
@@ -155,3 +156,15 @@ def test_a_full_push_keeps_a_remainder_shorter_than_a_frame():
     probe[5] = 1
     hits = obj.push(np.concatenate([stream[16382:], probe]))
     assert [lag for lag, *_ in hits] == [0, 5]
+
+
+def test_a_refused_create_is_a_value_error():
+    """dwell=0 is refused as it is for Corr (#2641); the detector, its 2-D
+    twin and Corr2D used to report it as MemoryError, having no
+    create_error."""
+    with pytest.raises(ValueError, match="dwell >= 1"):
+        CorrDetector(np.ones(16, np.complex64), dwell=0)
+    with pytest.raises(ValueError, match="dwell >= 1"):
+        CorrDetector2D(np.ones((4, 4), np.complex64), dwell=0)
+    with pytest.raises(ValueError, match="dwell >= 1"):
+        Corr2D(np.ones((4, 4), np.complex64), dwell=0)

@@ -937,6 +937,13 @@ class Corr2D:
         NULL if col_out >= 0 with a reference the fast path rejects, with
         ny_out or nx_out decoupled, or with a lag outside 0 .. nx-1.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Corr2D: invalid
+        parameter (need dwell >= 1, and ny_out and nx_out each 0 or at least
+        the ref extent)``.
+
     Examples
     --------
     >>> from doppler.spectral import Corr2D
@@ -1205,6 +1212,12 @@ class CorrDetector:
     nthreads : int, default 1
         Accepted for API compatibility; ignored.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``CorrDetector: invalid
+        parameter (need a non-empty ref and dwell >= 1)``.
+
     Examples
     --------
     >>> from doppler.spectral import CorrDetector
@@ -1470,6 +1483,12 @@ class CorrDetector2D:
         Test-stat gate; 0.0 = always emit.
     nthreads : int, default 1
         Accepted for API compatibility; ignored.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``CorrDetector2D:
+        invalid parameter (need a non-empty 2-D ref and dwell >= 1)``.
 
     Examples
     --------

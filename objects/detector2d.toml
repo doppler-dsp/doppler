@@ -8,6 +8,9 @@ class_name = "CorrDetector2D"
 depends_on = ["corr2d_core"]
 serializable = "true"
 fragment = "generated"
+# A NULL create means a parameter was refused, not OOM (gh-482).
+create_error = "ValueError"
+create_error_message = "CorrDetector2D: invalid parameter (need a non-empty 2-D ref and dwell >= 1)"
 
 [[detector2d.init_params]]
 name = "ref"

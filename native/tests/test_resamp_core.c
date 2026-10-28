@@ -1402,6 +1402,82 @@ reset_zeroes_state (void)
   return ok;
 }
 
+/* ── §21b — the built-in bank's TAPS follow the public Kaiser design ─────
+ *
+ * §21 pins the sizing and the formulas' agreement, but nothing pinned the
+ * taps themselves: scaling resamp's beta by 1.01 inside its bank builder
+ * left the suite green (review of #2659). This rebuilds a sample of taps
+ * from the published design -- a windowed sinc at the bank's centre cutoff,
+ * the window a Kaiser one with beta = dp_kaiser_beta (60 dB) -- and holds
+ * the bank to it. The tolerance absorbs float32 rounding and a libm's last
+ * bit in sin(), so it does not ride on a byte hash: the bank's sha256 is
+ * the same here (be0a7f3c...) on two machines, but a hash cannot say which
+ * of two differing banks is right, and a hash of anything but the float32
+ * bank itself (the a6481fff in #2652's commit body matches none of the
+ * bank's float32, float64, transposed, .npy or text forms) pins nothing. */
+static double
+ref_bessel_i0 (double x)
+{
+  /* The power series, summed to convergence: an independent I0, not the
+     builder's. */
+  double sum = 1.0, term = 1.0;
+  for (int k = 1; k < 500; k++)
+    {
+      double q = x / (2.0 * k);
+      term *= q * q;
+      sum += term;
+      if (term < 1e-18 * sum)
+        break;
+    }
+  return sum;
+}
+
+static int
+builtin_bank_taps_follow_the_public_design (void)
+{
+  resamp_state_t *r = dp_resamp_create (1.0);
+  if (!r)
+    return 0;
+  const size_t P    = dp_resamp_get_num_phases (r),
+               T    = dp_resamp_get_num_taps (r);
+  const double beta = dp_kaiser_beta (60.0), pb = 0.4 / (double)P,
+               sb    = 0.6 / (double)P;
+  const double wc    = 2.0 * M_PI * (pb + (sb - pb) * 0.5);
+  size_t       proto = P * T;
+  if (proto % 2 == 0)
+    proto++;
+  const double half = (double)(proto / 2), mid = (double)(proto - 1) * 0.5;
+  const double i0b   = ref_bessel_i0 (beta);
+  double       worst = 0.0;
+  for (size_t p = 0; p < P; p += 37)
+    for (size_t t = 0; t < T; t++)
+      {
+        size_t idx = t * P + p;
+        double g   = 0.0;
+        if (idx < proto)
+          {
+            double m = (double)idx - half;
+            double u = 2.0 * ((double)idx - mid) / (double)(proto - 1);
+            double w = ref_bessel_i0 (beta * sqrt (1.0 - u * u)) / i0b;
+            double s = (m == 0.0) ? 1.0 : sin (wc * m) / (wc * m);
+            g        = w * wc / M_PI * s * (double)P;
+          }
+        double e = fabs ((double)r->bank[p * T + t] - g);
+        if (e > worst)
+          worst = e;
+      }
+  dp_resamp_destroy (r);
+  /* The taps peak near 1; float32 holds them to ~6e-8. */
+  if (!(worst < 1e-6))
+    {
+      DP_TEST_ERR ("  §21b built-in bank differs from the public Kaiser "
+                   "design by %g\n",
+                   worst);
+      return 0;
+    }
+  return 1;
+}
+
 /* ── §21 — the built-in bank uses the library's Kaiser rules ─────────────
  *
  * resamp used to carry private copies of dp_kaiser_beta() and
@@ -1832,6 +1908,7 @@ main (void)
   DP_CHECK (non_power_of_two_phases_refused ());
   DP_CHECK (crossing_set_rate_is_a_fresh_create ());
   DP_CHECK (builtin_bank_uses_public_kaiser ());
+  DP_CHECK (builtin_bank_taps_follow_the_public_design ());
 
   /* ── §15 / §16 — the two promises the old literals could not see ────── */
   DP_CHECK (set_rate_preserves_state ());

@@ -1931,7 +1931,7 @@ main (void)
       }
     resamp_state_t *a    = dp_resamp_create (1.37);
     size_t          nref = dp_resamp_execute_ctrl (a, in, ctrl, L, ref, CAP);
-    DP_CHECK (dp_resamp_ctrl_consumed (a) == L);
+    DP_CHECK (dp_resamp_consumed (a) == L);
     for (int form = 0; form < 2; form++)
       {
         resamp_state_t *b   = dp_resamp_create (1.37);
@@ -1944,7 +1944,7 @@ main (void)
                                                        pos, cap)
                          : dp_resamp_execute_ctrl (b, in + off, ctrl + off,
                                                    L - off, got + ngot, cap);
-            off += dp_resamp_ctrl_consumed (b);
+            off += dp_resamp_consumed (b);
           }
         DP_CHECK (off == L);
         DP_CHECK (ngot == nref);
@@ -1952,6 +1952,44 @@ main (void)
         dp_resamp_destroy (b);
       }
     dp_resamp_destroy (a);
+  }
+
+  /* The plain block form reports what it took too (doppler#2643, review
+     of #2659): execute() also stops when out fills, and before
+     dp_resamp_consumed() covered it a caller had no count of the input it
+     left unread. Both engines -- output-driven interpolation (rate > 1)
+     and input-driven decimation (rate < 1) -- split by a short out resume
+     bit-exact from in + consumed. */
+  {
+    enum
+    {
+      L   = 400,
+      CAP = 1024
+    };
+    float _Complex in[L], ref[CAP], got[CAP];
+    for (size_t i = 0; i < L; i++)
+      in[i]
+          = (float)cos (0.21 * (double)i) + I * (float)sin (0.05 * (double)i);
+    const double rates[] = { 1.37, 2.0, 0.61, 0.25 };
+    for (size_t r = 0; r < sizeof rates / sizeof rates[0]; r++)
+      {
+        resamp_state_t *a    = dp_resamp_create (rates[r]);
+        size_t          nref = dp_resamp_execute (a, in, L, ref, CAP);
+        DP_CHECK (dp_resamp_consumed (a) == L);
+        resamp_state_t *b   = dp_resamp_create (rates[r]);
+        size_t          off = 0, ngot = 0, k = 0, calls = 0;
+        while (off < L && calls++ < 4 * L)
+          {
+            size_t cap = 1 + (k++) % 5;
+            ngot += dp_resamp_execute (b, in + off, L - off, got + ngot, cap);
+            off += dp_resamp_consumed (b);
+          }
+        DP_CHECK (off == L);
+        DP_CHECK (ngot == nref);
+        DP_CHECK (memcmp (ref, got, nref * sizeof *ref) == 0);
+        dp_resamp_destroy (a);
+        dp_resamp_destroy (b);
+      }
   }
 
   DP_TEST_END ("test_resamp_core");

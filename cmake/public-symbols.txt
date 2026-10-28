@@ -74,6 +74,7 @@ dp_Resampler_execute function
 dp_Resampler_execute_ctrl function
 dp_Resampler_execute_ctrl_max_out function
 dp_Resampler_execute_max_out function
+dp_Resampler_get_consumed function
 dp_Resampler_get_ctrl_acc function
 dp_Resampler_get_delay function
 dp_Resampler_get_num_phases function
@@ -1345,9 +1346,9 @@ dp_req_send_ci16 function
 dp_req_send_ci32 function
 dp_req_send_ci8 function
 dp_req_set_timeout function
+dp_resamp_consumed function
 dp_resamp_create function
 dp_resamp_create_custom function
-dp_resamp_ctrl_consumed function
 dp_resamp_dc_gain function
 dp_resamp_destroy function
 dp_resamp_execute function

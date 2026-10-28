@@ -266,12 +266,12 @@ dp_resamp_destroy (resamp_state_t *s)
 void
 dp_resamp_reset (resamp_state_t *s)
 {
-  s->phase         = 0;
-  s->ctrl_phase    = 0;
-  s->ctrl_debt     = 0;
-  s->ctrl_ahead    = 0;
-  s->ctrl_consumed = 0;
-  s->delay_head    = 0;
+  s->phase      = 0;
+  s->ctrl_phase = 0;
+  s->ctrl_debt  = 0;
+  s->ctrl_ahead = 0;
+  s->consumed   = 0;
+  s->delay_head = 0;
   memset (s->delay_buf, 0, 2 * s->delay_cap * sizeof (float _Complex));
   memset (s->decim_iad, 0, s->num_taps * sizeof (float _Complex));
   if (s->num_taps > 1)
@@ -491,7 +491,8 @@ interp_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
         dl_push (s, in[xi++]);
       ph = new_ph;
     }
-  s->phase = ph;
+  s->phase    = ph;
+  s->consumed = xi;
   return oi;
 }
 
@@ -560,7 +561,8 @@ decim_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
   float _Complex *iad   = s->decim_iad;
   float _Complex *tfd   = s->decim_tfd;
 
-  for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
+  size_t xi = 0;
+  for (; xi < num_in && oi < max_out; xi++)
     {
       /* 1. Accumulate x[n] × reversed_h into integrate-and-dump */
       const float *h    = get_branch (s, ph);
@@ -586,7 +588,8 @@ decim_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
         }
       ph = new_ph;
     }
-  s->phase = ph;
+  s->phase    = ph;
+  s->consumed = xi;
   return oi;
 }
 
@@ -779,7 +782,7 @@ dp_resamp_execute_ctrl (resamp_state_t *s, const float _Complex *in,
         break; /* out filled with ticks still owed before in[xi] */
       xi++;
     }
-  s->ctrl_consumed = xi;
+  s->consumed = xi;
   return oi;
 }
 
@@ -798,12 +801,12 @@ dp_resamp_execute_ctrl_pos (resamp_state_t *s, const float _Complex *in,
         break; /* out filled with ticks still owed before in[xi] */
       xi++;
     }
-  s->ctrl_consumed = xi;
+  s->consumed = xi;
   return oi;
 }
 
 size_t
-dp_resamp_ctrl_consumed (const resamp_state_t *s)
+dp_resamp_consumed (const resamp_state_t *s)
 {
-  return s->ctrl_consumed;
+  return s->consumed;
 }

@@ -262,6 +262,30 @@ def test_rateconverter_state_roundtrip_resume():
         b.set_state(bytes([blob[0] ^ 0xFF]) + blob[1:])
 
 
+@pytest.mark.parametrize(
+    ("src_rate", "dst_rate"),
+    [(1 / 64, 1 / 128), (1 / 128, 1 / 64), (1 / 32, 1 / 64)],
+)
+def test_cross_rate_blob_is_refused(src_rate, dst_rate):
+    """The rate is a reject key (doppler#2642): these pairs build chains of
+    the same blob size that differ only in the CIC's R, and a CIC sub-blob
+    restores its R, so an accepted blob ran the source's chain behind the
+    target's reported rate. Refused, the target is unchanged and still
+    produces what a fresh converter at its own rate does."""
+    src, dst = RateConverter(src_rate), RateConverter(dst_rate)
+    blob = src.get_state()
+    assert len(blob) == dst.state_bytes()  # the size alone cannot tell
+    before = dst.get_state()
+    with pytest.raises(ValueError):
+        dst.set_state(blob)
+    assert dst.get_state() == before
+    assert dst.rate == dst_rate
+    x = np.ones(4096, dtype=np.complex64)
+    fresh = RateConverter(dst_rate)
+    assert len(dst.execute(x)) == len(fresh.execute(x))
+    RateConverter(src_rate).set_state(blob)  # control: its own rate takes it
+
+
 def test_execute_out_writes_into_callers_buffer():
     rc = RateConverter(0.5)
     x = _dc(256)

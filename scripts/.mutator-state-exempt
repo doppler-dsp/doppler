@@ -29,8 +29,6 @@ LO.norm_freq                                            LOST              family
 MatchedDDC.norm_freq                                    LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
 NCO.norm_freq                                           LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
 Specan.retune                                           LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
-MatchedRateConverter.rate                               LOST              family 2: the rate is neither packed nor a reject key (#2080)
-RateConverter.rate                                      LOST              family 2: the rate is neither packed nor a reject key (#2080)
 Resampler.rate                                          LOST              family 2: the rate is neither packed nor a reject key (#2080)
 _SynthEngine.set_nsps                                   LOST              family 4: wfm_synth's setters are not serialized (#2082)
 RateSync.bn                                             LOST              family 5: the receivers' loop/lock setters (#2083)

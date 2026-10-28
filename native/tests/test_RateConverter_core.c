@@ -479,6 +479,61 @@ test_state_roundtrip (void)
   free (outB);
 }
 
+/* A blob restores only into a converter at the rate that wrote it
+ * (doppler#2642). 1/64 and 1/128 build chains that differ only in the CIC's
+ * R, so their blobs are the same size and the envelope passes; the CIC child
+ * restores the R its sub-blob carries, so before the rate became a reject key
+ * a 1/64 blob ran a 1/64 chain inside a converter reporting 1/128 (64
+ * outputs per 4096 inputs against a fresh 1/128's 32). The refusal leaves
+ * the target byte-identical, and the same-rate restore is the control. */
+static void
+test_cross_rate_restore_is_refused (void)
+{
+  static const double pairs[][2] = {
+    { 1.0 / 64, 1.0 / 128 },
+    { 1.0 / 128, 1.0 / 64 },
+    { 1.0 / 32, 1.0 / 64 },
+  };
+  for (size_t k = 0; k < sizeof pairs / sizeof pairs[0]; k++)
+    {
+      dp_RateConverter_state_t *src = dp_RateConverter_create (pairs[k][0], 0);
+      dp_RateConverter_state_t *dst = dp_RateConverter_create (pairs[k][1], 0);
+      DP_CHECK (src && dst);
+      if (!src || !dst)
+        {
+          dp_RateConverter_destroy (src);
+          dp_RateConverter_destroy (dst);
+          continue;
+        }
+      size_t sb = dp_RateConverter_state_bytes (src);
+      /* Non-vacuous: the size check alone does not tell these apart. */
+      DP_CHECK (sb == dp_RateConverter_state_bytes (dst));
+      unsigned char *blob   = malloc (sb);
+      unsigned char *before = malloc (sb);
+      unsigned char *after  = malloc (sb);
+      DP_CHECK (blob && before && after);
+      if (blob && before && after)
+        {
+          dp_RateConverter_get_state (src, blob);
+          dp_RateConverter_get_state (dst, before);
+          DP_CHECK (dp_RateConverter_set_state (dst, blob) == DP_ERR_INVALID);
+          dp_RateConverter_get_state (dst, after);
+          DP_CHECK (memcmp (before, after, sb) == 0);
+          DP_CHECK (dp_RateConverter_get_rate (dst) == pairs[k][1]);
+          /* Control: the blob restores at its own rate. */
+          dp_RateConverter_state_t *same
+              = dp_RateConverter_create (pairs[k][0], 0);
+          DP_CHECK (same && dp_RateConverter_set_state (same, blob) == DP_OK);
+          dp_RateConverter_destroy (same);
+        }
+      free (blob);
+      free (before);
+      free (after);
+      dp_RateConverter_destroy (src);
+      dp_RateConverter_destroy (dst);
+    }
+}
+
 /* A stage that refuses its part of the blob is reported (doppler#2104).
  * set_state discarded every stage's return, so a refused stage reported a
  * restore. Each stage's part is found by its own envelope magic, and the
@@ -1724,6 +1779,7 @@ main (void)
   test_execute_max_out ();
   test_convert ();
   test_state_roundtrip ();
+  test_cross_rate_restore_is_refused ();
   /* Each stage type's refusal is returned, first and last of a cascade. */
   DP_CHECK (stage_refusal_is_returned (0.25, 0, HBDECIM_STATE_MAGIC, 0));
   DP_CHECK (stage_refusal_is_returned (0.25, 0, HBDECIM_STATE_MAGIC, -1));

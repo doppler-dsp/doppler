@@ -989,7 +989,8 @@ dp_RateConverter_reset (dp_RateConverter_state_t *s)
 size_t
 dp_RateConverter_state_bytes (const dp_RateConverter_state_t *s)
 {
-  size_t b = sizeof (dp_state_hdr_t);
+  /* The rate rides ahead of the stages as a reject key (v3). */
+  size_t b = sizeof (dp_state_hdr_t) + sizeof (double);
   for (int i = 0; i < s->n_stages; i++)
     b += rc_stage_state_bytes (s->stage_types[i], s->stage_ptrs[i]);
   if (s->agc)
@@ -1003,7 +1004,8 @@ dp_RateConverter_get_state (const dp_RateConverter_state_t *s, void *blob)
   dp_writer_t w = dp_writer_init (blob, dp_RateConverter_state_bytes (s));
   dp_w_hdr (&w, RC_STATE_MAGIC, RC_STATE_VERSION,
             dp_RateConverter_state_bytes (s));
-  char *p = (char *)blob + sizeof (dp_state_hdr_t);
+  dp_w_f64 (&w, s->rate);
+  char *p = (char *)blob + sizeof (dp_state_hdr_t) + sizeof (double);
   for (int i = 0; i < s->n_stages; i++)
     p = rc_stage_get_state (s->stage_types[i], s->stage_ptrs[i], p);
   if (s->agc)
@@ -1017,7 +1019,18 @@ dp_RateConverter_set_state (dp_RateConverter_state_t *s, const void *blob)
                               RC_STATE_MAGIC, RC_STATE_VERSION);
   if (rc != DP_OK)
     return rc;
-  const char *p = (const char *)blob + sizeof (dp_state_hdr_t);
+  /* The rate is a reject key: it sizes the stage chain, and two rates whose
+     chains happen to give the same blob size (1/64 and 1/128 differ only in
+     the CIC's R) would otherwise restore one rate's stages behind the
+     other's reported rate -- a CIC child adopts the R its sub-blob carries
+     (doppler#2642). Refused before any stage is touched. */
+  double blob_rate;
+  memcpy (&blob_rate, (const char *)blob + sizeof (dp_state_hdr_t),
+          sizeof blob_rate);
+  if (blob_rate != s->rate)
+    return DP_ERR_INVALID;
+  const char *p
+      = (const char *)blob + sizeof (dp_state_hdr_t) + sizeof (double);
   for (int i = 0; i < s->n_stages; i++)
     {
       rc = rc_stage_set_state (s->stage_types[i], s->stage_ptrs[i], &p);

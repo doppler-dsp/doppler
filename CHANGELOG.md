@@ -13,6 +13,198 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.77.0] - 2026-10-28
+
+### Breaking
+
+- **`MpskReceiver.bits_max_out` and `BpskReceiver.bits_max_out` take the
+    block length.** Old: `bits_max_out()`, which returned 0 ("size `out` to
+    the input") and let 8PSK at `sps` below 3 lose bits. New:
+    `bits_max_out(len(x))`, which returns `len(x) * log2(m)`, the bound
+    `bits()` can actually fill. Size an `out=` buffer from it (#2643).
+
+- **`Despreader.bits()` and `BurstDespreader.bits()` follow the library's
+    one bit polarity.** Old: a positive prompt decoded as 1, the complement
+    of every other decision in the library. New: bit `b` is sent as
+    `1 - 2b` (`mpsk_core.h`), so a negative prompt is 1 and zero or positive
+    is 0, the same decision as `nrz_to_bin`. A stream decoded before this
+    release now comes back complemented. Code that inverted it to compensate
+    should stop, and a `min(e, 1 - e)` score at a known carrier phase can
+    become a plain `e` (#2654).
+
+- **`HalfbandDecimator.execute_max_out` takes the block length, and
+    `HBDECIM_MAX_OUT` is gone.** Old: `execute_max_out()` (C:
+    `dp_HalfbandDecimator_execute_max_out(s)`) returned a fixed 32768, and
+    the binding demanded that much of every `out=`. New:
+    `execute_max_out(len(x))` (C: `(s, x_len)`) returns the real bound,
+    `(len(x) + 1) // 2`, so an `out=` that fits the result works. The public
+    `HBDECIM_MAX_OUT` macro is removed; size from the call instead (#2644).
+
+### Added
+
+- **`DelayDoppler`: the delay-Doppler map from raw samples.** A view on
+    `Corr2D` that takes `ny` code periods back to back and returns the
+    centered `ny_out x nx` map, with the slow-time FFT done in C and
+    `ny_out` interpolating the Doppler axis. At `(256, 4096)` it took 9.0 ms
+    on one thread and 1.5 ms on 20, against 56 ms for `Corr2D` plus numpy.
+    `Corr2D`'s `nthreads` now works on its single-row fast path, with output
+    bit-identical across thread counts (#2666).
+
+### Changed
+
+- **`Corr2D` and `CorrDetector2D` now honor `nthreads` on the single-row
+    fast path.** It used to be ignored. Now 1 is serial, N runs N workers
+    capped at `ny`, and `nthreads <= 0` means every online core. The output
+    is bit-identical across counts. The general 2-D path and `col_out` stay
+    serial. With `dwell >= 2`, the map now differs from v0.76.0 at float
+    rounding, about 1e-7 relative. The accumulate loop compiles differently
+    under `-ffast-math` (#2666).
+
+### Fixed
+
+- The Resampler and BerMeter C benchmarks run again: #2659's refusals (rate 0, scoring before alignment) had broken both. CI now runs every built C benchmark and fails on a crash or nonzero exit (`make bench-run-check`, #2675).
+
+- **The halfband decimators, `DopplerChannel` and `MpskReceiver.bits` no
+    longer drop input when `out` fills.** `hbdecim`, `hbdecim_r2c` and
+    `hbdecim_q15` stop at a pair boundary and say what they took
+    (`*_consumed()`), so a split call matches one whole call. Every resamp
+    block form, `Resampler.consumed` and `DopplerChannel` report it too, and
+    a call that takes nothing no longer resets `offset_hz`. `bits_max_out`
+    takes the block length and returns `len * log2(M)` (#2643).
+
+- **`BurstDespreader` keeps the carrier frequency it is given during a
+    preamble.** Every write of a frequency into the carrier loop
+    (`norm_freq`, the create/reset seed, `set_acq`'s period switch) now scales
+    by the symbol period in force, so a value set during a `set_acq`
+    preamble no longer comes back as `val * sf / acq_sf` one symbol later
+    (#2648).
+
+- **`BurstDespreader`'s `set_acq` preamble now sets the payload's absolute
+    phase, carrier seeded or not.** An unseeded offset the preamble had not
+    pulled in left the payload's Costas detector to lock at π, and every
+    bit came out complemented: 24 of 64 phase × offset × seed cells at five
+    512-chip reps. At the handover the NCO now turns to the last preamble
+    prompt's phase, so soft symbols and statistics are corrected too.
+    Design and the cost of differential encoding instead:
+    `docs/design/mpsk.md` §9.5 (#2664).
+
+- **A DSSS receiver's own grid re-applies, and tracking allocates nothing
+    once warm.** `DsssReceiver` and `AsyncDsssReceiver` `configure_chain_raw`
+    now accept any `n` MpskReceiver accepts (even, 2..8, at most `sps`;
+    `mpsk_rx_m_out_ok`, beside the derivation `create` uses), so the `n` that
+    `create` picks at `sps` 3, 5 or 10 is no longer refused. `DsssReceiver`
+    tracking and `Ddcr.execute`/`execute_ctrl` keep their scratch in the state
+    instead of allocating it on every call (#2650).
+
+- **Every C header symbol is documented, and `make doxygen-check` fails on
+    one that is not.** `EXTRACT_ALL = YES` made Doxygen count every symbol
+    as documented, so about 1,130 symbols and ~900 missing `@param`/`@return`
+    lines went unseen, 118 of them in headers with no `@file` block. Each is
+    now written from its implementation, and the Python stubs pick them up:
+    "Gain db." now gives a unit, range and role. A second Doxygen pass and
+    `make lint-header-file-blocks` hold it; jm's own headers wait on
+    just-makeit#2405, `.c` internals on #2639, and the code the comb found
+    is #2640-#2654.
+
+- **Constructors and parsers refuse what they cannot represent.** Every
+    converter's `create()` refuses a NaN or infinite scale (Python
+    `ValueError`), and a NaN sample latches `clipped`; `InterpolatedTable`
+    and `Farrow` refuse an unknown method or order in C; `dp_isotime_parse`
+    refuses `2026-02-31` and `2025-02-29`; `proc_gain(nfft < 2)` is NaN;
+    `CarrierMpsk(tsamps=0)` raises; a `Plan` refuses a seed above `2**32 - 1`
+    and an override it cannot honour (unknown key, wrong-length array,
+    non-number or non-finite entry) instead of rendering the baseline (#2645).
+
+- **One Kaiser design rule, and no dead `MPSK_RX_EPS`.** resamp's built-in
+    bank used private copies of `dp_kaiser_beta` and `dp_kaiser_num_taps`.
+    The formulas now live once, header-inline in `resample_core.h`, and the
+    public functions and resamp both call them; the bank is byte-identical.
+    The unused `MPSK_RX_EPS` macro, a guard for a discriminator that no
+    longer exists, is gone (#2652).
+
+- **`RateSync.bn` and the Costas / CarrierMpsk `bn_fll` refuse a bad
+    value.** `dp_ratesync_configure`, `_set_bn` and `_loop_configure` now
+    return `int` and refuse through `dp_loop_filter_params_ok`, so
+    `rs.bn = float("nan")` raises `ValueError` instead of being ignored;
+    `set_bn_fll` and the Costas, CarrierMpsk and Despreader `create()`s
+    refuse a negative, NaN or infinite FLL bandwidth through the new
+    `dp_loop_filter_fll_bn_ok`; `RateSync.configure` names the domain (#2646).
+
+- **Meters report the right number in their corners.** `ADC.steps()`
+    latches `clipped` on the same pre-rounding value as `step()`, and its
+    TPDF dither takes two independent draws (the dither stream changes); the
+    WFM writer and stream sink divide clips by the components quantised
+    while tracking, so a real type no longer reads half and enabling it
+    mid-stream measures only what follows; `BerMeter.score()` scores nothing
+    without a successful alignment; `ber_theory_ber` is the chosen chance
+    rate 0.5 for `esn0 <= 0`; `dp_ber_lock_symbol` returns `int64_t` (#2651).
+
+- **`Resampler` and `RateConverter` refuse a rate or phase count they cannot
+    use.** Every rate entry point now needs a finite rate above 0 (NaN used to
+    pass). A bank whose `num_phases` is not a power of two is refused; it used
+    to read past the end of the bank. `Resampler()` now defaults to rate 1.0,
+    not 0.0, and a bad `Resampler.rate` raises `ValueError`. Setting `rate`
+    across 1 starts the new path fresh. A refused or failed
+    `RateConverter.rate` change leaves the converter as it was, and a
+    `DopplerChannel` whose initial rate is refused (a NaN or infinite
+    `doppler_ppm`) raises `ValueError` instead of aborting (#2640).
+
+- **`set_state` refuses what `create()` refuses, for `Corr`, `Pn`, `Gold`
+    and `LoopFilter`.** A forged blob kept its size and passed the envelope:
+    a `Corr` count at or past the dwell never dumped again, a zero or
+    over-wide `Pn`/`Gold` register was stuck or leaked into the sequence
+    (zero stays legal where the feedback lacks its top term and can reach
+    it), and a NaN loop-filter gain reached `LoopFilter`, the ratesync loop
+    and the MPSK carrier filter. Each restore now checks the payload before
+    it commits (the loop filter through `DP_DEFINE_POD_STATE_CHECKED`), and
+    `Corr`, `Corr2D`, `CorrDetector` and `CorrDetector2D` refuse `dwell=0`
+    with `ValueError`, where it raised `MemoryError` (#2641).
+
+- **`design_lowpass` taps have unit DC gain, and eight stale texts match
+    the code again.** The taps are now divided by their sum, so they sum to
+    1 to float precision; their values change slightly (by up to a few
+    percent on a short design). The text fixes: `wfm_synth`'s bit pattern is
+    sent once, not cycled, and `snr_mode = auto` leaves dsss at full scale;
+    `ppe` uses dechirp and FFT, not a HAF; `cic_core.c`'s header names the
+    2.0 headroom and offset binary; `Reader.sample_type` lists the scalar
+    types; a nearest tie in `interp_table` takes the floor; `rrc_taps` are
+    real float32; the `snr_core.h` example compiles (#2653).
+
+- **State blobs match the running state: CIC carries R, MpskReceiver its
+    centre, and nothing stale is serialized.** `CIC`'s blob carries R, so a
+    restore follows `reconfigure()`, and `RateConverter`'s carries its rate
+    as a reject key, so a blob from another rate is refused rather than run
+    behind the target's; `MpskReceiver`'s carries the centre
+    `norm_freq` sets, retuning the LO on restore. `hbdecim_r2c` and
+    `hbdecim_q15` zero a dropped held sample, `CorrDetector`/`CorrDetector2D`
+    reset clears the last dump, and `DsssBurstReceiver.set_state` clears
+    `frame_valid`. Same logical state, same blob (#2642).
+
+- **A telemetry capture reports exactly the drops after it opened, even when
+    the ring grows.** `dp_tlm_resize` now carries the drop count into the
+    ring it swaps in, so `dp_tlm_dropped` is monotonic for the life of the
+    context. A late probe that grew the ring mid-capture used to restart the
+    count, so close either wrapped to about 2^64 and failed a clean capture,
+    or lost the drops before the resize and passed one with a hole (#2649).
+
+- **Failures that used to pass silently are now reported or cannot happen.**
+    `BurstDespreader.set_acq` returns a status and raises `MemoryError`
+    instead of quietly disabling the preamble; `Acquisition.set_telemetry`
+    registers all ten probes or none; `Ddcr.execute`'s scratch growth aborts
+    on OOM like every library allocation, so its 0 only means "no output";
+    `design_lowpass` needs no scratch; `dp_wfm_synth_destroy(NULL)` and the
+    composer's execute/segments entry points are NULL-safe;
+    `dp_thread_sleep_us` resumes after a signal; the Windows pacing nap
+    falls back to `Sleep()` when its timer will not arm, not only when it
+    cannot be created; and a frame's bits per symbol are spelled out (#2647).
+
+- **`Reader.read_follow` on a CSV capture returns its samples, not its text
+    as floats.** The follow read skipped the file-type check every other
+    entry point makes and decoded a CSV's bytes through the binary path. It
+    now follows a CSV by complete lines, with the same parser `read()` uses,
+    leaving a line the writer has not finished for the next call, and
+    returns exactly what `read()` returns (#2658).
+
 ## [0.76.0] - 2026-10-27
 
 ### Added
@@ -17917,6 +18109,7 @@ ______________________________________________________________________
 [0.74.0]: https://github.com/doppler-dsp/doppler/compare/v0.73.0...v0.74.0
 [0.75.0]: https://github.com/doppler-dsp/doppler/compare/v0.74.0...v0.75.0
 [0.76.0]: https://github.com/doppler-dsp/doppler/compare/v0.75.0...v0.76.0
+[0.77.0]: https://github.com/doppler-dsp/doppler/compare/v0.76.0...v0.77.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.76.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.77.0...HEAD

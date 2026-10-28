@@ -122,11 +122,23 @@ bd_forged_refused (dp_burst_despreader_state_t       *target,
 }
 
 /* One unseeded set_acq burst (#2664): `reps` periods of a 512-chip acq
-   code, then `npay` payload bits on a 32-chip data code, sps 4, at carrier
+   code, then NPAY payload bits on a 32-chip data code, sps 4, at carrier
    `phase` (rad) and offset `f0` (cycles/sample), codes and bits drawn from
-   `seed`. Returns the payload's raw bit errors; npay is an inversion. */
+   `seed`. Returns the payload's raw bit errors (NPAY is an inversion) and
+   puts the symbols bits() emitted in *got.
+
+   The burst is followed by one data-symbol period of silence. Without it
+   the 60th symbol completes on the input's very last sample, so a code
+   clock one rounding behind leaves it pending -- correct streaming, the
+   object carries a partial symbol -- and the burst came back 59 symbols
+   long. That is what failed on CI's arm64 leg at phase pi, f0 = 0, seed 2,
+   scored as "60/60 bit errors" while the 59 it did emit were right. A
+   receiver cannot emit a symbol before its last sample, so a burst
+   harness gives it the samples; and a short burst is reported as short,
+   not as errors. */
 static size_t
-preamble_burst_errors (uint32_t seed, double phase, double f0, size_t reps)
+preamble_burst_errors (uint32_t seed, double phase, double f0, size_t reps,
+                       size_t *got)
 {
   enum
   {
@@ -137,6 +149,7 @@ preamble_burst_errors (uint32_t seed, double phase, double f0, size_t reps)
   };
   uint8_t  acq[ASF], data[DSF], tx[NPAY], rx[NPAY];
   uint32_t st = seed;
+  *got        = 0;
   for (size_t i = 0; i < ASF; i++)
     acq[i] = dp_bit (&st) < 0;
   for (size_t i = 0; i < DSF; i++)
@@ -144,8 +157,8 @@ preamble_burst_errors (uint32_t seed, double phase, double f0, size_t reps)
   for (size_t i = 0; i < NPAY; i++)
     tx[i] = dp_bit (&st) < 0;
 
-  size_t          n = (reps * ASF + (size_t)NPAY * DSF) * PSPS, k = 0;
-  float _Complex *x = malloc (n * sizeof *x);
+  size_t          n = (reps * ASF + (size_t)(NPAY + 1) * DSF) * PSPS, k = 0;
+  float _Complex *x = calloc (n, sizeof *x); /* the tail stays silent */
   if (!x)
     return NPAY;
   for (size_t r = 0; r < reps; r++) /* the preamble: the known +1 */
@@ -163,11 +176,11 @@ preamble_burst_errors (uint32_t seed, double phase, double f0, size_t reps)
   dp_burst_despreader_state_t *d = dp_burst_despreader_create (
       data, DSF, DSF, PSPS, 0.0, 0.0, 0.05, 0.01); /* carrier NOT seeded */
   size_t err = NPAY;
-  if (d && dp_burst_despreader_set_acq (d, acq, ASF, reps) == DP_OK
-      && dp_burst_despreader_bits (d, x, n, rx, NPAY) == NPAY)
+  if (d && dp_burst_despreader_set_acq (d, acq, ASF, reps) == DP_OK)
     {
-      err = 0;
-      for (size_t i = 0; i < NPAY; i++)
+      *got = dp_burst_despreader_bits (d, x, n, rx, NPAY);
+      err  = 0;
+      for (size_t i = 0; i < *got; i++)
         err += rx[i] != tx[i];
     }
   dp_burst_despreader_destroy (d);
@@ -944,28 +957,46 @@ main (void)
    *     not pull 8e-5 cycles/sample in: the loop ends up to 1.8 rad off,
    *     and the payload's Costas detector, blind to pi, locked at pi and
    *     complemented every bit until the handover took the preamble's
-   *     phase. One rep is the fewest a preamble can have. */
+   *     phase. One rep is the fewest a preamble can have.
+   *
+   *     pi itself, and pi +- 1e-6, are the atan2 discriminator's branch
+   *     cut: the first prompt reads +pi or -pi on the sign of a rounding
+   *     residue. Either sign walks the loop round to the same answer, by
+   *     symmetry, and these cells hold it to that. */
   {
-    const double   phases[] = { 0.0, M_PI / 2, M_PI, 3 * M_PI / 2 };
-    const double   offs[]   = { 0.0, 2e-5, 4e-5, 8e-5 };
-    const size_t   reps[]   = { 5, 1 };
-    const uint32_t seeds[]  = { 1u, 2u, 3u };
-    size_t         bad      = 0;
+    const double phases[]
+        = { 0.0, M_PI / 2, M_PI - 1e-6, M_PI, M_PI + 1e-6, 3 * M_PI / 2 };
+    const double   offs[]  = { 0.0, 2e-5, 4e-5, 8e-5 };
+    const size_t   reps[]  = { 5, 1 };
+    const uint32_t seeds[] = { 1u, 2u, 3u };
+    const size_t   np      = sizeof phases / sizeof *phases;
+    size_t         bad = 0, short_ = 0;
     for (size_t r = 0; r < 2; r++)
-      for (size_t p = 0; p < 4; p++)
+      for (size_t p = 0; p < np; p++)
         for (size_t f = 0; f < 4; f++)
           for (size_t z = 0; z < 3; z++)
             {
-              size_t e = preamble_burst_errors (seeds[z], phases[p], offs[f],
-                                                reps[r]);
+              size_t got = 0;
+              size_t e   = preamble_burst_errors (seeds[z], phases[p], offs[f],
+                                                  reps[r], &got);
+              if (got != 60)
+                {
+                  short_++;
+                  printf ("  preamble phase: reps=%zu phase=%.7f f0=%g "
+                          "seed=%u -> %zu of 60 symbols emitted\n",
+                          reps[r], phases[p], offs[f], (unsigned)seeds[z],
+                          got);
+                }
               if (e)
                 {
                   bad++;
-                  printf ("  preamble phase: reps=%zu phase=%.2f f0=%g "
-                          "seed=%u -> %zu/60 bit errors\n",
-                          reps[r], phases[p], offs[f], (unsigned)seeds[z], e);
+                  printf ("  preamble phase: reps=%zu phase=%.7f f0=%g "
+                          "seed=%u -> %zu/%zu bit errors\n",
+                          reps[r], phases[p], offs[f], (unsigned)seeds[z], e,
+                          got);
                 }
             }
+    DP_CHECK_MSG (short_ == 0, "a whole set_acq burst came back short");
     DP_CHECK_MSG (bad == 0, "a set_acq preamble handed the payload over at "
                             "the wrong absolute phase");
   }

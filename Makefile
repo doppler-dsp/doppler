@@ -5094,6 +5094,16 @@ bench-preflight: ## Clear the last release's bench outputs once main has them
 	$(UV) run python scripts/bench_interleaved.py --preflight \
 	    --base $(BENCH_COMMIT_BASE)
 
+#
+# The run takes most of an hour and is launched in the background over ssh,
+# so it leaves its outcome where a watcher can wait on it (#2681): the log
+# at $(BENCH_RUN_DIR)/<VERSION>.log and, written LAST, the exit code at
+# $(BENCH_RUN_DIR)/<VERSION>.rc -- on success and on any failure, including
+# uv itself failing. Wait with `until test -f <VERSION>.rc`, never on the
+# process: a remote `pgrep -f` matches its own ssh shell, so it never sees
+# the run end, and v0.77.0's failed run read "running" for hours that way.
+BENCH_RUN_DIR ?= $(BUILD_DIR)/bench-runs
+BENCH_RUN_RC   = $(BENCH_RUN_DIR)/$(VERSION).rc
 bench-interleaved: ## Measure portable + native alternately, denoised (VERSION=)
 ifndef VERSION
 	@echo "usage: make bench-interleaved VERSION=X.Y.Z [K=5]"
@@ -5101,8 +5111,12 @@ ifndef VERSION
 	@echo "  make bench-preflight && git checkout --detach origin/main"
 	@exit 1
 endif
-	$(UV) run python scripts/bench_interleaved.py $(VERSION) $(if $(K),-k $(K),) \
-	    --base $(BENCH_COMMIT_BASE)
+	@mkdir -p $(BENCH_RUN_DIR) && rm -f $(BENCH_RUN_RC) $(BENCH_RUN_RC).tmp
+	@{ $(UV) run python scripts/bench_interleaved.py $(VERSION) \
+	    $(if $(K),-k $(K),) --base $(BENCH_COMMIT_BASE); \
+	  echo $$? > $(BENCH_RUN_RC).tmp; } 2>&1 \
+	  | tee $(BENCH_RUN_DIR)/$(VERSION).log; \
+	  mv $(BENCH_RUN_RC).tmp $(BENCH_RUN_RC); exit $$(cat $(BENCH_RUN_RC))
 
 bench-publish: ## Stamp one build's numbers for a release (VERSION= BUILD=)
 ifndef VERSION

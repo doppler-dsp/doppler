@@ -36,9 +36,17 @@ lag = int(np.argmax(np.abs(out)))                 # correlation peak position
 `(ny, nx)` array, `execute` takes the input in either shape, and it returns a
 flat row-major array.
 
+`DelayDoppler` is the `Corr2D` view for a delay-Doppler map. It takes the raw
+stream, `ny` code periods back to back, and returns the centered
+`ny_out × nx` map: rows are Doppler bins `doppler_step` cycles/sample apart,
+with zero Doppler on row `ny_out // 2`, and columns are delay lags. See
+[the design section](../design/corr2d-interpolated-inverse.md#10-delaydoppler-the-slow-time-fft-in-c-2666).
+
 ::: doppler.spectral.Corr
 
 ::: doppler.spectral.Corr2D
+
+::: doppler.spectral.DelayDoppler
 
 ______________________________________________________________________
 

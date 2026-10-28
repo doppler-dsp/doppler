@@ -108,6 +108,55 @@ main (void)
 
   free (in);
   free (out);
+
+  /* ── delay-Doppler flavor (#2666): raw stream in, centered map out ──────
+   * The row correlations of the fast path above, then the slow-time FFT
+   * down every delay column, at 1 thread and every online core (0). */
+  {
+    const struct
+    {
+      size_t      ny, nx;
+      int         nthreads;
+      const char *name;
+    } dd_cases[] = {
+      { 32, 1024, 1, "delay_doppler_32x1024_1t" },
+      { 256, 4096, 1, "delay_doppler_256x4096_1t" },
+      { 256, 4096, 0, "delay_doppler_256x4096_all" },
+    };
+    for (size_t c = 0; c < sizeof dd_cases / sizeof *dd_cases; c++)
+      {
+        const size_t    dny = dd_cases[c].ny, dnx = dd_cases[c].nx;
+        const size_t    dn   = dny * dnx;
+        float _Complex *code = malloc (dnx * sizeof *code);
+        float _Complex *x    = malloc (dn * sizeof *x);
+        float _Complex *map  = malloc (dn * sizeof *map);
+        for (size_t j = 0; j < dnx; j++)
+          code[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+        for (size_t k = 0; k < dn; k++)
+          x[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+        dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
+            code, dnx, dny, 1, dd_cases[c].nthreads, 0);
+        dp_corr2d_execute (dd, x, dn, map, dn); /* warmup */
+        double sum = 0.0;
+        for (int r = 0; r < ITERATIONS; r++)
+          {
+            t0 = jm_bench_now_ns ();
+            dp_corr2d_execute (dd, x, dn, map, dn);
+            t1       = jm_bench_now_ns ();
+            times[r] = jm_bench_elapsed_sec (t0, t1);
+            sum += times[r];
+          }
+        jm_bench_add_unit (&_bench, dd_cases[c].name, times, ITERATIONS, dn,
+                           JM_BENCH_SAMPLE);
+        printf ("  %-28s %8.2f ms  (%d workers)\n", dd_cases[c].name,
+                sum / ITERATIONS * 1e3, dd->nworkers);
+        dp_corr2d_destroy (dd);
+        free (code);
+        free (x);
+        free (map);
+      }
+  }
+
   jm_bench_write_json (&_bench, "corr2d");
   return 0;
 }

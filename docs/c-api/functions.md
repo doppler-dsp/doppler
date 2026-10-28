@@ -632,6 +632,7 @@
 * **dp\_corr\_set\_state** ([**corr\_core.h**](corr__core_8h.md))
 * **dp\_corr\_state\_bytes** ([**corr\_core.h**](corr__core_8h.md))
 * **dp\_corr2d\_create** ([**corr2d\_core.h**](corr2d__core_8h.md))
+* **dp\_corr2d\_create\_delay\_doppler** ([**corr2d\_core.h**](corr2d__core_8h.md))
 * **dp\_corr2d\_destroy** ([**corr2d\_core.h**](corr2d__core_8h.md))
 * **dp\_corr2d\_execute** ([**corr2d\_core.h**](corr2d__core_8h.md))
 * **dp\_corr2d\_execute\_max\_out** ([**corr2d\_core.h**](corr2d__core_8h.md))

@@ -240,7 +240,7 @@ dp_detector2d_state_t * dp_detector2d_create (
 * `noise_hi` Upper flat-index noise bin (inclusive, &lt; ny\*nx). A value at or beyond the window clamps to ny\*nx - 1, so the default sentinel selects the full window. 
 * `noise_mode` Noise aggregation: "mean", "median", "min", or "max". 
 * `threshold` Test-stat gate; 0.0 = always emit. 
-* `nthreads` Accepted for API compatibility; ignored. 
+* `nthreads` Forwarded to [**dp\_corr2d\_create()**](corr2d__core_8h.md#function-dp_corr2d_create): workers for the single-row-reference fast path (1 serial, &lt;= 0 every online core); the general 2-D path ignores it. 
 
 
 

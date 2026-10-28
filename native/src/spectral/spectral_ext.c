@@ -2,8 +2,8 @@
  * spectral_ext.c — Python extension module spectral
  *
  * Objects: FFT, FFT2D, Corr, Corr2D, CorrDetector, CorrDetector2D, PSD,
- * Spectrogram GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c
- * fragments.
+ * Spectrogram, DelayDoppler GENERATED — do not hand-edit. Patches belong in
+ * the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -192,6 +192,7 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 
 #include "spectral_ext_corr.c"
 #include "spectral_ext_corr2d.c"
+#include "spectral_ext_delaydoppler.c"
 #include "spectral_ext_detector.c"
 #include "spectral_ext_detector2d.c"
 #include "spectral_ext_fft.c"
@@ -866,6 +867,8 @@ PyInit_spectral (void)
     return NULL;
   if (PyType_Ready (&SpectrogramObjType) < 0)
     return NULL;
+  if (PyType_Ready (&DelayDopplerObjType) < 0)
+    return NULL;
   PyObject *m = PyModule_Create (&spectral_moduledef);
   if (!m)
     return NULL;
@@ -926,6 +929,14 @@ PyInit_spectral (void)
       < 0)
     {
       Py_DECREF (&SpectrogramObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&DelayDopplerObjType);
+  if (PyModule_AddObject (m, "DelayDoppler", (PyObject *)&DelayDopplerObjType)
+      < 0)
+    {
+      Py_DECREF (&DelayDopplerObjType);
       Py_DECREF (m);
       return NULL;
     }

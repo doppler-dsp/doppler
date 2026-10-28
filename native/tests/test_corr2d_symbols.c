@@ -24,6 +24,7 @@ __attribute__((used))
 #endif
 const jm_any_fn jm_bound_symbols_corr2d[] = {
     (jm_any_fn)dp_corr2d_create,
+    (jm_any_fn)dp_corr2d_create_delay_doppler,
     (jm_any_fn)dp_corr2d_destroy,
     (jm_any_fn)dp_corr2d_reset,
     (jm_any_fn)dp_corr2d_execute_max_out,

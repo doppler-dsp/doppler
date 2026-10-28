@@ -79,6 +79,7 @@ from doppler.spectral import (
     Corr2D,
     CorrDetector,
     CorrDetector2D,
+    DelayDoppler,
     Spectrogram,
 )
 from doppler.track import (
@@ -533,6 +534,12 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "Corr": (lambda: Corr(ref=_REF16, dwell=5), _frame_feed("execute", 16)),
     "Corr2D": (
         lambda: Corr2D(ref=_REF16.reshape(4, 4), dwell=5),
+        _frame_feed("execute", 16),
+    ),
+    # The delay-Doppler flavor of Corr2D: the same accumulator under its own
+    # magic, with ny and ny_out as reject keys.
+    "DelayDoppler": (
+        lambda: DelayDoppler(_REF16[:4], ny=4, dwell=5, ny_out=8),
         _frame_feed("execute", 16),
     ),
     "PSD": (

@@ -399,5 +399,46 @@ main (void)
     dp_gold_destroy (g);
   }
 
+  /* Every configuration create() accepts restores its own blob, at every
+     step (doppler#2641 follow-up). Taps without the top stage can shift a
+     register down to zero -- taps_a = 1 on 10 bits from 1 << 9 does in one
+     step -- and set_state refused that blob. Sweep every tap set and every
+     seed of one register on 1..6 bits (the other register on all-ones taps
+     and seed 1), each register in turn, through more steps than the period. */
+  {
+    size_t refused = 0, zeros = 0;
+    for (uint32_t L = 1; L <= 6; L++)
+      {
+        const uint64_t m = ((uint64_t)1 << L) - 1;
+        for (int which = 0; which < 2; which++)
+          for (uint64_t taps = 0; taps <= m; taps++)
+            for (uint64_t seed = 1; seed <= m; seed++)
+              {
+                dp_gold_state_t *g
+                    = which ? dp_gold_create (m, 1, taps, seed, L)
+                            : dp_gold_create (taps, seed, m, 1, L);
+                if (!g)
+                  {
+                    refused++;
+                    continue;
+                  }
+                unsigned char
+                    blob[sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t)];
+                for (uint64_t step = 0; step < m + 3; step++)
+                  {
+                    uint8_t chip;
+                    dp_gold_get_state (g, blob);
+                    zeros += (which ? g->reg_b : g->reg_a) == 0;
+                    if (dp_gold_set_state (g, blob) != DP_OK)
+                      refused++;
+                    dp_gold_generate (g, 1, &chip, 1);
+                  }
+                dp_gold_destroy (g);
+              }
+      }
+    DP_CHECK (refused == 0);
+    DP_CHECK (zeros > 0); /* non-vacuous: some config did reach zero */
+  }
+
   DP_TEST_END ("test_gold_core");
 }

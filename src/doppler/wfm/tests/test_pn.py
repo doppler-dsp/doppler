@@ -132,3 +132,14 @@ def test_generate_out_undersized_raises():
     p = PN(96, 1, 7)
     with pytest.raises(ValueError):
         p.generate(100, out=np.zeros(1, dtype=np.uint8))
+
+
+def test_a_degenerate_poly_restores_its_own_blob():
+    """poly 3 on 4 bits has no x^4 term, so its register can reach zero (7
+    does in one step) -- create() accepts it, so its own blob must restore
+    (doppler#2641). A primitive poly still refuses a zero register."""
+    p = PN(poly=3, seed=7, length=4)
+    p.generate(3)
+    fresh = PN(poly=3, seed=7, length=4)
+    fresh.set_state(p.get_state())
+    assert np.array_equal(fresh.generate(8), p.generate(8))

@@ -2005,6 +2005,12 @@ bench-commits-check: ## Fail when a published benchmark names a commit main cann
 # newest published release measures has a plain name, unit and definition in
 # benchmarks/labels.toml, or a line in benchmarks/.labels-exempt -- which may
 # only shrink against BENCH_LABELS_BASE's merge base.
+# The half bench-coverage-check cannot see: a benchmark that builds but
+# crashes or exits nonzero. Discovers every built bench_*_core, so it needs a
+# built tree and runs in CI right after `make test` (#2675).
+bench-run-check: ## Run every built C benchmark; fail on any nonzero exit
+	@$(UV) run python scripts/check_bench_runs.py $(BUILD_DIR)
+
 BENCH_LABELS_BASE ?= origin/main
 bench-coverage-check: ## Verify every tested component has a benchmark that runs
 	@$(UV) run python scripts/check_bench_coverage.py

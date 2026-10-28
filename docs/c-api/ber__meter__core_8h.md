@@ -143,10 +143,8 @@ dp_ber_meter_set_truth (m, truth, nsym);
 while (!dp_ber_meter_get_enough (m))
   {
     size_t n = run_receiver (rx);
-    ber_align_t a = dp_ber_meter_align (m, rx, n, t0, 0, 0, 0, 0.0);
-    if (a.ok)
-      dp_ber_meter_score (m, rx, n, lo, n, a.lag, a.phase, t0, 0, 0,
-                       a.occurrences);
+    if (dp_ber_meter_align (m, rx, n, t0, 0, 0, 0, 0.0))
+      dp_ber_meter_score (m, rx, n, lo, n);
   }
 ber_interval_t ser = dp_ber_meter_ser (m);
 dp_ber_meter_destroy (m);

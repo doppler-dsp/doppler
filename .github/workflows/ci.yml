@@ -181,6 +181,11 @@ jobs:
     - name: Test
       run: make test
 
+    # Every built C benchmark runs to exit 0. Nothing else runs them before
+    # the release bench run, which is where #2675's two crashes surfaced.
+    - name: Benchmarks run
+      run: make bench-run-check
+
     # dp_isotime.h follows just-bashit's `iso-8601-basic` rather than defining
     # the format itself, so the reference has to be present for the agreement
     # to be checkable at all. Clone it and set ISOTIME_REQUIRE=1: without the

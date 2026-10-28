@@ -808,9 +808,9 @@ class Ddcr:
         """Down-convert a block of real float32 samples to CF32 baseband.
 
         Uses a scratch buffer kept in the state (about n_in complex samples),
-        grown before any input is consumed when a block is larger than any
-        before it; if that growth fails the call returns 0 having consumed
-        nothing, so the same block may be retried.
+        grown when a block is larger than any before it. The growth aborts on
+        out-of-memory, as every library allocation does (dp_xrealloc()), so a
+        return of 0 always means "no output yet", never a failure.
 
         Parameters
         ----------
@@ -1177,9 +1177,9 @@ class MatchedDdcr:
         """Down-convert a block of real float32 samples to CF32 baseband.
 
         Uses a scratch buffer kept in the state (about n_in complex samples),
-        grown before any input is consumed when a block is larger than any
-        before it; if that growth fails the call returns 0 having consumed
-        nothing, so the same block may be retried.
+        grown when a block is larger than any before it. The growth aborts on
+        out-of-memory, as every library allocation does (dp_xrealloc()), so a
+        return of 0 always means "no output yet", never a failure.
 
         Parameters
         ----------

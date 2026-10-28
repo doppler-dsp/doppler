@@ -13,6 +13,7 @@
 #include "doppler/hbdecim/hbdecim_r2c_core.h"
 #include "doppler/lo/lo_core.h"
 
+#include "doppler/clib_common.h"
 #include "doppler/dp_complex.h"
 #include <stdlib.h>
 #include <string.h>
@@ -209,18 +210,16 @@ dp_ddcr_execute_ctrl_push_max_out (dp_ddcr_state_t *s)
 }
 
 /* The scratch, grown to at least @p need samples and kept (doppler#2650):
- * a steady stream allocates once, not per call. Called before the halfband
- * consumes any input, so a failed growth (NULL; the old buffer is kept)
- * loses nothing and the caller may retry the block (#2647). */
+ * a steady stream allocates once, not per call. The growth aborts on OOM
+ * (dp_xrealloc, the library's grow-on-demand scratch rule): returning 0 for
+ * a failed growth looked exactly like "no output yet", and no caller could
+ * tell it to retry (#2647). */
 static float _Complex *
 ddcr_scratch (dp_ddcr_state_t *s, size_t need)
 {
   if (s->scratch_cap < need)
     {
-      float _Complex *p = realloc (s->scratch, need * sizeof *p);
-      if (!p)
-        return NULL;
-      s->scratch     = p;
+      s->scratch     = dp_xrealloc (s->scratch, need * sizeof *s->scratch);
       s->scratch_cap = need;
     }
   return s->scratch;
@@ -236,9 +235,7 @@ dp_ddcr_execute (dp_ddcr_state_t *s, const float *in, size_t n_in,
   /* One buffer holds the halfband output and the mixed block. */
   size_t          hb_max = n_in / 2 + 2;
   float _Complex *hb_buf = ddcr_scratch (s, 2 * hb_max);
-  if (!hb_buf)
-    return 0; /* nothing consumed: the caller may retry the same block */
-  float _Complex *mix = hb_buf + hb_max;
+  float _Complex *mix    = hb_buf + hb_max;
 
   /* Step 1: halfband R2C decimation (2:1). */
   size_t n_hb = dp_hbdecim_r2c_execute (s->r2c, in, n_in, hb_buf, hb_max);
@@ -264,8 +261,6 @@ dp_ddcr_execute_ctrl (dp_ddcr_state_t *s, const float *x, size_t n_in,
 
   size_t          hb_max = n_in / 2 + 2;
   float _Complex *hb_buf = ddcr_scratch (s, hb_max);
-  if (!hb_buf)
-    return 0; /* nothing consumed: the caller may retry the same block */
 
   size_t n_hb = dp_hbdecim_r2c_execute (s->r2c, x, n_in, hb_buf, hb_max);
   if (n_hb == 0)

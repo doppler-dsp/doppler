@@ -18,9 +18,14 @@ dp_ber_theory_ber (int m, double esn0)
   /* No closed form for this M: NaN, never another M's rate (#1913). */
   if (bps == 0)
     return NAN;
-  /* No signal: a coin flip per bit, for every M -- the limit the formulas
-     below reach at esn0 = 0, and what ber_theory_ser() reports there. A
-     negative ratio would otherwise reach sqrt() and return NaN (#2651). */
+  /* No signal: a coin flip per bit, for every M. 0.5 is CHOSEN as the
+     chance rate, not read off the formulas below: BPSK/QPSK's Q(0) does
+     reach it at esn0 = 0+, but 8-PSK's SER/log2(M) approximation reaches
+     2Q(0)/3 = 1/3 there, so its curve steps from 0.5 to 0.333 just above
+     0 -- the approximation is a high-Es/N0 one and says nothing honest at
+     no signal. It is the same choice ber_theory_ser() makes with its own
+     chance rate. A negative ratio would otherwise reach sqrt() and return
+     NaN (#2651). */
   if (esn0 <= 0.0)
     return 0.5;
   if (m <= 4)

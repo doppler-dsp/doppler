@@ -938,7 +938,9 @@ def ber_theory_ber(m: int, esn0: float) -> float:
         Es/N0 as a LINEAR ratio (not dB), >= 0. A value <= 0 (no signal)
         gives the chance rate 0.5, as dp_ber_theory_ser() gives its own
         chance rate there; a negative ratio no longer reaches `sqrt` and
-        returns NaN.
+        returns NaN. 0.5 is a chosen value, not the formulas' limit: BPSK
+        and QPSK reach it as esn0 -> 0+, but 8PSK's `SER/log2 M` reaches
+        1/3, so its curve steps from 0.5 to 1/3 just above 0.
 
     Returns
     -------

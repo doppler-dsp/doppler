@@ -121,6 +121,60 @@ bd_forged_refused (dp_burst_despreader_state_t       *target,
   return refused;
 }
 
+/* One unseeded set_acq burst (#2664): `reps` periods of a 512-chip acq
+   code, then `npay` payload bits on a 32-chip data code, sps 4, at carrier
+   `phase` (rad) and offset `f0` (cycles/sample), codes and bits drawn from
+   `seed`. Returns the payload's raw bit errors; npay is an inversion. */
+static size_t
+preamble_burst_errors (uint32_t seed, double phase, double f0, size_t reps)
+{
+  enum
+  {
+    ASF  = 512,
+    DSF  = 32,
+    PSPS = 4,
+    NPAY = 60
+  };
+  uint8_t  acq[ASF], data[DSF], tx[NPAY], rx[NPAY];
+  uint32_t st = seed;
+  for (size_t i = 0; i < ASF; i++)
+    acq[i] = dp_bit (&st) < 0;
+  for (size_t i = 0; i < DSF; i++)
+    data[i] = dp_bit (&st) < 0;
+  for (size_t i = 0; i < NPAY; i++)
+    tx[i] = dp_bit (&st) < 0;
+
+  size_t          n = (reps * ASF + (size_t)NPAY * DSF) * PSPS, k = 0;
+  float _Complex *x = malloc (n * sizeof *x);
+  if (!x)
+    return NPAY;
+  for (size_t r = 0; r < reps; r++) /* the preamble: the known +1 */
+    for (size_t j = 0; j < ASF; j++)
+      for (size_t q = 0; q < PSPS; q++, k++)
+        x[k] = crealf (mpsk_constellation (acq[j], 2));
+  for (size_t b = 0; b < NPAY; b++)
+    for (size_t j = 0; j < DSF; j++)
+      for (size_t q = 0; q < PSPS; q++, k++)
+        x[k] = crealf (mpsk_constellation (tx[b], 2))
+               * crealf (mpsk_constellation (data[j], 2));
+  for (k = 0; k < n; k++)
+    x[k] *= cexp ((phase + 2.0 * M_PI * f0 * (double)k) * I);
+
+  dp_burst_despreader_state_t *d = dp_burst_despreader_create (
+      data, DSF, DSF, PSPS, 0.0, 0.0, 0.05, 0.01); /* carrier NOT seeded */
+  size_t err = NPAY;
+  if (d && dp_burst_despreader_set_acq (d, acq, ASF, reps) == DP_OK
+      && dp_burst_despreader_bits (d, x, n, rx, NPAY) == NPAY)
+    {
+      err = 0;
+      for (size_t i = 0; i < NPAY; i++)
+        err += rx[i] != tx[i];
+    }
+  dp_burst_despreader_destroy (d);
+  free (x);
+  return err;
+}
+
 int
 main (void)
 {
@@ -883,6 +937,37 @@ main (void)
     (void)dp_burst_despreader_steps (f, zeros, fsf * fsps, sym, 4);
     DP_CHECK_NEAR (dp_burst_despreader_get_norm_freq (f), f0, tol);
     dp_burst_despreader_destroy (f);
+  }
+
+  /* (7) The preamble sets the payload's ABSOLUTE phase (#2664). Unseeded,
+   *     every starting phase x offset x seed must decode RAW. Five reps do
+   *     not pull 8e-5 cycles/sample in: the loop ends up to 1.8 rad off,
+   *     and the payload's Costas detector, blind to pi, locked at pi and
+   *     complemented every bit until the handover took the preamble's
+   *     phase. One rep is the fewest a preamble can have. */
+  {
+    const double   phases[] = { 0.0, M_PI / 2, M_PI, 3 * M_PI / 2 };
+    const double   offs[]   = { 0.0, 2e-5, 4e-5, 8e-5 };
+    const size_t   reps[]   = { 5, 1 };
+    const uint32_t seeds[]  = { 1u, 2u, 3u };
+    size_t         bad      = 0;
+    for (size_t r = 0; r < 2; r++)
+      for (size_t p = 0; p < 4; p++)
+        for (size_t f = 0; f < 4; f++)
+          for (size_t z = 0; z < 3; z++)
+            {
+              size_t e = preamble_burst_errors (seeds[z], phases[p], offs[f],
+                                                reps[r]);
+              if (e)
+                {
+                  bad++;
+                  printf ("  preamble phase: reps=%zu phase=%.2f f0=%g "
+                          "seed=%u -> %zu/60 bit errors\n",
+                          reps[r], phases[p], offs[f], (unsigned)seeds[z], e);
+                }
+            }
+    DP_CHECK_MSG (bad == 0, "a set_acq preamble handed the payload over at "
+                            "the wrong absolute phase");
   }
 
   DP_TEST_END ("test_burst_despreader_core");

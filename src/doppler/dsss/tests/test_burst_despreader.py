@@ -3,8 +3,8 @@
 Builds DSSS-BPSK bursts with the library's one polarity, bit b sent as
 ``1 - 2b`` (``bin_to_nrz``; home ``mpsk_core.h``), and checks the despreader
 recovers the bits. Every burst starts the carrier at a phase the test knows,
-so error rates are RAW: an inverted stream is an error (doppler#2654). The
-one exception is named where it is used.
+or carries a preamble that tells the receiver it, so error rates are RAW: an
+inverted stream is an error (doppler#2654, doppler#2664).
 """
 
 import numpy as np
@@ -27,18 +27,6 @@ def _ber(rec_bits, tx_syms, start=0):
     """Raw bit error rate of `rec_bits` against the sent +-1 symbols."""
     rec = 1.0 - 2.0 * np.asarray(rec_bits, np.float32)  # 1 - 2b
     return float(np.mean(rec[start:] != tx_syms[start : len(rec)]))
-
-
-def _amb_ber(rec_bits, tx_syms, start=0):
-    """`_ber` up to a global inversion -- for an UNSEEDED pull-in only.
-
-    A preamble resolves the absolute phase when the carrier is seeded
-    (`test_a_preamble_is_the_phase_reference`), but a residual it must
-    pull in from scratch can hand the payload over at the pi lock point.
-    That is the pull-in's choice, not the decision's polarity.
-    """
-    e = _ber(rec_bits, tx_syms, start)
-    return min(e, 1.0 - e)
 
 
 def _burst(rng, sf, n):
@@ -154,7 +142,8 @@ def test_preamble_aided_distinct_codes():
     """Realistic scenario: long acq code, 5 reps, distinct 32-chip data code.
 
     The unmodulated preamble pulls the loops in (set_acq), then the payload is
-    despread with the data code. BER 0 even with a residual carrier offset.
+    despread with the data code. BER 0, raw, even with an unseeded carrier
+    offset: the preamble sets the payload's absolute phase (doppler#2664).
     """
     rng = np.random.default_rng(5)
     acq_sf, data_sf, reps = 512, 32, 5
@@ -175,7 +164,7 @@ def test_preamble_aided_distinct_codes():
     out = d.bits(rx)
     # the preamble emits nothing; only the payload symbols come out
     assert len(out) == len(syms)
-    assert _amb_ber(out, syms, start=len(out) // 5) == 0.0
+    assert _ber(out, syms, start=len(out) // 5) == 0.0
     assert abs(d.norm_freq - f0) < 5e-5
 
 
@@ -200,26 +189,70 @@ def test_bits_follow_one_minus_2b_at_a_known_phase():
         assert np.array_equal(got, want), phase
 
 
-@pytest.mark.parametrize("phase", [0.0, np.pi / 2, np.pi])
-def test_a_preamble_is_the_phase_reference(phase):
-    """An unmodulated preamble is a known +1 (bit 0), so with the carrier
-    seeded the payload decodes raw at ANY starting phase -- pi included."""
+def _preamble_burst(seed, phase, f0, reps=5, n=60, chip_snr_db=None):
+    """A set_acq burst -- `reps` periods of a 512-chip acq code, then `n`
+    payload bits on a 32-chip data code -- at carrier `phase` (rad) and
+    offset `f0` (cycles/sample), optionally in complex AWGN at a per-sample
+    chip SNR. Returns (despreader set up for it, unseeded; rx; sent bits)."""
     from doppler.cvt import bin_to_nrz
 
-    rng = np.random.default_rng(5)
+    rng = np.random.default_rng(seed)
     acq = rng.integers(0, 2, 512).astype(np.uint8)
     data = rng.integers(0, 2, 32).astype(np.uint8)
-    tx = rng.integers(0, 2, 60).astype(np.uint8)
+    tx = rng.integers(0, 2, n).astype(np.uint8)
     sym = np.zeros(tx.size, np.float32)
     bin_to_nrz(tx, sym)
-    # Five 512-chip reps: from pi the atan2 discriminator starts at its
-    # unstable point and needs the length to walk the loop round.
-    pre = np.tile(np.repeat(1.0 - 2.0 * acq, SPS), 5)
+    pre = np.tile(np.repeat(1.0 - 2.0 * acq, SPS), reps)
     burst = np.concatenate([pre, _spread(data, sym)])
-    rx = (burst * np.exp(1j * phase)).astype(np.complex64)
-    d = BurstDespreader(data, sf=32, sps=SPS)
-    d.set_acq(acq, 5)
-    assert np.array_equal(d.bits(rx), tx)
+    t = np.arange(burst.size)
+    rx = burst * np.exp(1j * (phase + 2 * np.pi * f0 * t))
+    if chip_snr_db is not None:
+        sigma = 10 ** (-chip_snr_db / 20) / np.sqrt(2)
+        rx = rx + sigma * (
+            rng.standard_normal(t.size) + 1j * rng.standard_normal(t.size)
+        )
+    d = BurstDespreader(data, sf=32, sps=SPS)  # carrier NOT seeded
+    d.set_acq(acq, reps)
+    return d, rx.astype(np.complex64), tx
+
+
+_PHASES = [0.0, np.pi / 2, np.pi, 3 * np.pi / 2]
+_OFFSETS = [0.0, 2e-5, 4e-5, 8e-5]
+
+
+@pytest.mark.parametrize("f0", _OFFSETS)
+@pytest.mark.parametrize("phase", _PHASES)
+def test_a_preamble_is_the_phase_reference(phase, f0):
+    """The preamble sets the payload's ABSOLUTE phase (doppler#2664).
+
+    An unmodulated preamble is a known +1 (bit 0), so the receiver was told
+    the phase and must hand the payload over at it -- unseeded, from any
+    starting phase, at any offset the preamble's loop tracks. Five reps do
+    not pull 8e-5 in: the loop ends up to 1.8 rad off, and the payload's
+    Costas detector locked at pi and decoded every bit complemented in 24 of
+    these 64 cells before the handover took the preamble's phase. Scored
+    RAW: an inversion is 60 errors.
+    """
+    for seed in (1, 2, 3, 5):
+        d, rx, tx = _preamble_burst(seed, phase, f0)
+        assert np.array_equal(d.bits(rx), tx), seed
+
+
+@pytest.mark.parametrize("phase", _PHASES)
+def test_the_preamble_phase_holds_in_noise(phase):
+    """The same, one rep short of the minimum and in noise.
+
+    A single-rep preamble has one prompt to take the phase from, and -3 dB
+    chip SNR puts noise on it. The bound is still zero errors: 128 samples a
+    payload symbol make Es/N0 = 128 * 10**-0.3 = 18 dB, where BPSK's BER is
+    Q(sqrt(2 * 64)) < 1e-29. An inversion would be every bit.
+    """
+    for f0 in _OFFSETS:
+        for seed in (1, 2, 3):
+            d, rx, tx = _preamble_burst(
+                seed, phase, f0, reps=1, chip_snr_db=-3.0
+            )
+            assert np.array_equal(d.bits(rx), tx), (f0, seed)
 
 
 def test_property_accessors():

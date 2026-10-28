@@ -137,6 +137,20 @@ dp_burst_despreader_state_t *dp_burst_despreader_create(const uint8_t *code, siz
  * (lock_metric / snr_est / lock_stat / stat_n) are re-armed by
  * dp_burst_despreader_reset(); call it between bursts.
  *
+ * **The preamble sets the payload's absolute phase.** Every preamble symbol
+ * is the known +1 (bit 0 under `1 - 2b`), so at the handover the NCO is
+ * turned to the last preamble prompt's phase, and the payload starts there
+ * -- from any starting phase and with no carrier seed (#2664). Without it,
+ * a preamble too short to pull an offset in left the payload's Costas
+ * detector, which cannot tell 0 from pi, to lock at pi and complement
+ * every bit. Turning the NCO, not flipping bits, corrects the soft symbols
+ * and statistics too. The alternative, differential encoding, needs no
+ * reference but is not free: about twice the bit error rate, decoded
+ * coherently (docs/design/mpsk.md, "A known reference resolves the
+ * ambiguity"). A link with no preamble or sync word gets it from
+ * dp_mpsk_diff_map() / dp_mpsk_diff_demap() (Python: mpsk_diff_map /
+ * mpsk_diff_demap).
+ *
  * @param state         Must be non-NULL.
  * @param acq_code      Acquisition code (0/1), length acq_code_len; copied.
  * @param acq_code_len  Acquisition code length in chips.
@@ -161,12 +175,15 @@ dp_burst_despreader_state_t *dp_burst_despreader_create(const uint8_t *code, siz
  * >>> pre = np.concatenate([np.repeat(asig, 4) for _ in range(4)])
  * >>> pay = np.concatenate([np.repeat(s * dch, 4) for s in psyms])
  * >>> burst = np.concatenate([pre, pay]).astype(np.complex64)
+ * >>> t = np.arange(burst.size)
+ * >>> rx = (burst * np.exp(1j * (np.pi + 2 * np.pi * 4e-5 * t))
+ * ...       ).astype(np.complex64)  # phase pi, offset NOT seeded
  * >>> d = BurstDespreader(data_code, sf=32, sps=4)
  * >>> d.set_acq(acq, 4)            # 4 preamble reps, pulls loops in
- * >>> out = d.bits(burst)          # preamble emits nothing
+ * >>> out = d.bits(rx)             # preamble emits nothing
  * >>> out.shape                    # only the payload symbols come out
  * (40,)
- * >>> float(np.mean(out != pbits))  # raw: the preamble is a known +1
+ * >>> float(np.mean(out != pbits))  # raw: the preamble sets the phase
  * 0.0
  *
  * @endcode
@@ -282,9 +299,9 @@ size_t dp_burst_despreader_bits_max_out (dp_burst_despreader_state_t *state);
  * when it is zero or positive -- the inverse of dp_bin_to_nrz(), and the same
  * decision dp_nrz_to_bin() makes. The decisions are absolute relative to the
  * carrier phase the loop locks at. With a dp_burst_despreader_set_acq()
- * preamble -- a known +1 -- and the carrier seeded, that phase is the
- * preamble's, so the payload decodes as sent from any starting phase. With
- * no preamble the caller's phase is the reference: a burst at phase 0 decodes
+ * preamble -- a known +1 -- that phase is the preamble's, so the payload
+ * decodes as sent from any starting phase, seeded or not (#2664). With no
+ * preamble the caller's phase is the reference: a burst at phase 0 decodes
  * as sent and one at pi decodes complemented.
  *
  * @param state    Must be non-NULL.

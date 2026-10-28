@@ -1604,6 +1604,61 @@ The first symbol is also not free: it references the implicit zero-phase
 start, so a constant rotation leaves `out[0]` wrong and every later symbol
 right.
 
+#### A known reference resolves the ambiguity — and why that comes first
+
+**The rule (owner, 2026-10-28):** a receiver that is told the reference
+resolves the ambiguity itself. If it holds a preamble, sync word or unique
+word, it knows what the carrier phase must be, so it hands the payload over
+at **absolute** phase. It does not leave the payload's polarity to whichever
+lock point the carrier loop found.
+
+`BurstDespreader` is the first instance
+([#2664](https://github.com/doppler-dsp/doppler/issues/2664)). Its
+`set_acq` preamble is the acq code sent unmodulated, so every preamble
+symbol is a known +1 (bit 0 under `1 - 2b`). The preamble's carrier
+discriminator is `atan2` of that prompt, so it is already the correlation
+with the known symbol. The payload's decision-directed Costas detector
+cannot tell 0 from π, and settles on whichever is nearer when it takes
+over. Before #2664, five 512-chip reps against an unseeded 4e-5
+cycles/sample offset ended the preamble 1.8 rad off. The payload then locked
+at π and decoded every bit complemented: 24 of 64 phase × offset × seed
+cells. At the handover the despreader now turns its NCO by the rest of the
+last preamble prompt's phase error, so the payload starts at the preamble's
+phase. It turns the NCO, not the bits, so soft symbols, `snr_est` and the
+lock statistics are corrected too.
+
+It takes the whole phase error, not only π when the error is past π/2. A
+residual near π/2 is a coin flip either way, and the sign alone misjudged
+it: in a sweep of 16 phases × offsets to 8e-5 × 3 seeds, at 1–5 reps and
+chip SNR of none, −3 and −6 dB, the sign test still inverted up to 39 of
+288 bursts. The full turn inverted none, and none out to 1.6e-4.
+
+**Why not differential encoding instead.** Differential encoding is immune
+to the ambiguity, so it needs no reference, but it is not free. Decoded
+coherently, a bit fails when either of its two symbols fails, so the BER is
+`2p(1 − p)`, about twice coherent BPSK's `p` at any useful Eb/N0. The
+measured symbol-rate penalty is in the table above. Detected noncoherently
+(DBPSK, `½·exp(−Eb/N0)`), it needs about 1 dB more Eb/N0: 1.1 dB at 1e-3,
+0.75 dB at 1e-5. The library's coherent curve gives the numbers:
+
+```pycon
+>>> import math
+>>> from doppler.ber import ber_theory_ber, ber_esn0_db_for_ser
+>>> p = ber_theory_ber(2, 10 ** (8 / 10))      # coherent BPSK, 8 dB Eb/N0
+>>> round(2 * p * (1 - p) / p, 3)              # differentially decoded
+2.0
+>>> def dbpsk_db(ber):                         # noncoherent DBPSK
+...     return 10 * math.log10(math.log(0.5 / ber))
+>>> round(dbpsk_db(1e-3) - ber_esn0_db_for_ser(2, 1e-3), 2)
+1.14
+>>> round(dbpsk_db(1e-5) - ber_esn0_db_for_ser(2, 1e-5), 2)
+0.75
+```
+
+So a reference the receiver already has is used first. Differential mode
+(`mpsk_diff_map` / `mpsk_diff_demap`, above) is the choice for a link with
+no preamble, sync word or unique word to resolve against.
+
 ### 9.6 The open items
 
 - **The `~2x` differential SER penalty** — *resolved* (§9.5). Measured

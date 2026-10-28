@@ -157,6 +157,24 @@ row. Nothing checks that at PR time yet
 where a forgotten or mistyped label first shows. A label the new set was measured with but that names no row it
 recorded is reported as dead: a retired row, or a mistyped ID.
 
+The run takes most of an hour, so over ssh it is launched in the
+background, and it leaves its outcome where a watcher can wait on it: the log
+at `build/bench-runs/X.Y.Z.log` and, written last, the exit code at
+`build/bench-runs/X.Y.Z.rc` -- on success and on every failure
+([#2681](https://github.com/doppler-dsp/doppler/issues/2681)). Wait on that
+file, never on the process: a remote `pgrep -f` matches the ssh shell that
+carries its own pattern, so it never sees the run end -- a failed
+release run once read "running" for hours that way.
+
+```sh
+ssh <box> 'bash -lc "cd ~/doppler-bench && \
+  (nohup make bench-interleaved VERSION=X.Y.Z >/dev/null 2>&1 &)"'
+until ssh <box> 'test -f ~/doppler-bench/build/bench-runs/X.Y.Z.rc'; do
+  sleep 120
+done
+ssh <box> 'cat ~/doppler-bench/build/bench-runs/X.Y.Z.rc'   # 0 = measured
+```
+
 If a set was measured on a branch head instead, it can be restamped after
 the merge, but **only if that exact tree landed on main unchanged** (the
 branch rebase-merged, so the measured commit lands as a commit of its own).

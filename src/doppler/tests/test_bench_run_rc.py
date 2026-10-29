@@ -22,10 +22,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._platform import posix_only
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+# The recipe is POSIX sh and UV is swapped for a `#!/bin/sh` stub, which
+# make on Windows cannot exec; bench-interleaved itself runs only on a POSIX
+# bench box (cpufreq, git worktrees).
+pytestmark = posix_only("execs a #!/bin/sh stub through a POSIX-sh recipe")
 
 REPO = repo_root(__file__)
 VERSION = "9.9.9"

@@ -35,6 +35,17 @@ rules, and that file loads into every session in every repo.
 
 ______________________________________________________________________
 
+## Landing PRs — two or more ready ones go as ONE train
+
+`protect-main` is strict, so merging ready PRs one at a time costs one full
+CI run each, in series. Land them together instead:
+`make train PRS="<n> <n>"` (dry run), then `PUSH=1`, then rebase-merge the
+train. Never squash it. `docs/dev/workflow.md` §4 is the policy;
+`skills://merge-set` is the method. A lone PR that is merely behind:
+`git rebase origin/main && git push --force-with-lease`.
+
+______________________________________________________________________
+
 ## Repository layout
 
 ```

@@ -133,6 +133,28 @@ speed up your own.
     same way it skips a version bump. Only the cheap gates run. Each tree
     on `main` is tested exactly once, before it lands.
 
+- **Two or more ready PRs: land them as ONE train.** This is the preferred
+    way to land PRs. Merged one at a time, N ready PRs cost N full runs in
+    series, because each merge puts the rest behind. A train cherry-picks
+    their commits, unchanged and in order, onto current `main` as one PR,
+    so CI runs once, on the combined tree. That is the tree `main` will
+    hold, and it is where two PRs that are green apart and red together
+    show up:
+
+    <!-- docs-snippet: no-exec=publishes PRs and needs GitHub -->
+
+    ```sh
+    make train PRS="12 15"          # dry run: compose, verify, gate
+    make train PRS="12 15" PUSH=1   # open the train, close the two
+    ```
+
+    Then rebase-merge the train once `CI passed` is green, so each commit
+    keeps its own message and `Closes #N`; never squash it. The target
+    refuses a PR that is not ready, has moved, or conflicts, and a pick
+    that is not byte-identical to its source. A merge queue would not save
+    the runs: it tests each queued PR separately. The full method is the
+    `merge-set` skill.
+
 - **Behind: rebase, let it run, merge.** When another PR lands first,
     yours is behind. Rebase it, and its run tests the combination:
 

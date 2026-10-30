@@ -31,6 +31,79 @@ _rand_uniform (uint32_t *s)
   return ((float)(_xorshift32 (s) % 20001u) - 10000.0f) / 10000.0f;
 }
 
+/* Batches (#2683): H maps in one call against H execute() calls.  The
+ * request's geometry: a 64 x 512 delay-Doppler map, H = 48 frames.  The
+ * per-map work is the same either way, so what a batch can save is the
+ * per-call overhead and, on a pool, the dispatches: whole maps per worker
+ * against each map split across every worker.  Setup (create, stimulus,
+ * buffers) is outside the timed region. */
+static void
+bench_batches (jm_bench_t *bench, uint32_t *seed)
+{
+  enum
+  {
+    BREPS = 10
+  };
+  const size_t    bny = 64, bnx = 512, H = 48, bn = bny * bnx;
+  float _Complex *code = malloc (bnx * sizeof *code);
+  float _Complex *x    = malloc (H * bn * sizeof *x);
+  float _Complex *maps = malloc (H * bn * sizeof *maps);
+  float          *pw   = malloc (bn * sizeof *pw);
+  uint32_t       *idx  = malloc (bn * sizeof *idx);
+  for (size_t j = 0; j < bnx; j++)
+    code[j] = _rand_uniform (seed) + _rand_uniform (seed) * I;
+  for (size_t k = 0; k < H * bn; k++)
+    x[k] = _rand_uniform (seed) + _rand_uniform (seed) * I;
+  const struct
+  {
+    int         nthreads;
+    const char *name[3];
+  } bc[] = {
+    { 1,
+      { "batch_64x512_h48_execute_loop_1t", "batch_64x512_h48_all_1t",
+        "batch_64x512_h48_power_max_1t" } },
+    { 0,
+      { "batch_64x512_h48_execute_loop_all", "batch_64x512_h48_all_all",
+        "batch_64x512_h48_power_max_all" } },
+  };
+  double bt[BREPS];
+  for (size_t c = 0; c < sizeof bc / sizeof *bc; c++)
+    {
+      dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
+          code, bnx, bny, 1, bc[c].nthreads, 0);
+      /* warmup: one of each, which also makes the batch scratch */
+      dp_corr2d_execute (dd, x, bn, maps, bn);
+      dp_corr2d_execute_all (dd, x, H * bn, maps, H * bn);
+      for (int which = 0; which < 3; which++)
+        {
+          double best = 1e30;
+          for (int r = 0; r < BREPS; r++)
+            {
+              const uint64_t t0 = jm_bench_now_ns ();
+              if (which == 0)
+                for (size_t h = 0; h < H; h++)
+                  dp_corr2d_execute (dd, x + h * bn, bn, maps + h * bn, bn);
+              else if (which == 1)
+                dp_corr2d_execute_all (dd, x, H * bn, maps, H * bn);
+              else
+                dp_corr2d_execute_power_max (dd, x, H * bn, pw, idx, bn);
+              bt[r] = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
+              best  = bt[r] < best ? bt[r] : best;
+            }
+          jm_bench_add_unit (bench, bc[c].name[which], bt, BREPS, H * bn,
+                             JM_BENCH_SAMPLE);
+          printf ("  %-36s %8.2f ms  (%d workers)\n", bc[c].name[which],
+                  best * 1e3, dd->nworkers);
+        }
+      dp_corr2d_destroy (dd);
+    }
+  free (code);
+  free (x);
+  free (maps);
+  free (pw);
+  free (idx);
+}
+
 int
 main (void)
 {
@@ -156,6 +229,8 @@ main (void)
         free (map);
       }
   }
+
+  bench_batches (&_bench, &seed);
 
   jm_bench_write_json (&_bench, "corr2d");
   return 0;

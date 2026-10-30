@@ -63,6 +63,15 @@ class Data:
     peak_preserved: float = 0.0
     reset_keeps_config: bool = False
     rejects_bad_args: bool = False
+    batch_rows: list[list[str]] = field(default_factory=list)
+    batch_maps_exact: bool = False
+    batch_coherent_exact: bool = False
+    batch_folds_worst: float = 1.0
+    batch_index_exact: bool = False
+    batch_dwell_untouched: bool = False
+    batch_refuses: bool = False
+    batch_cancel: float = 1.0
+    batch_doubles: float = 1.0
 
 
 def _rng(tag: int) -> np.random.Generator:
@@ -208,8 +217,10 @@ def section_object() -> None:
                 "C §set_ref",
             ],
             [
-                "`nthreads` is accepted and ignored",
-                "C, as a forward guard",
+                "`nthreads` fans the fast path out, and the output is "
+                "bit-identical at every count",
+                "C (`_test_delay_doppler`, `_test_batch` at 1, 2, 7) + "
+                "Python §2.10",
                 "F4",
             ],
             [
@@ -218,6 +229,38 @@ def section_object() -> None:
                 "§2.8",
             ],
             ["the state triplet round-trips", "C + Python", "§2.7"],
+            [
+                "a batch's map h is a fresh dwell-1 object's map for frame "
+                "h, every path, every thread count",
+                "C (`_test_batch`, bit-exact) + Python",
+                "§2.10",
+            ],
+            [
+                "`execute_coherent` is a fresh dwell-H object's dump",
+                "C (bit-exact) + Python",
+                "§2.10",
+            ],
+            [
+                "power sum, power max (lowest h on a tie) and per-map peaks "
+                "are folds over the maps, in h order",
+                "C + Python",
+                "§2.10",
+            ],
+            [
+                "a batch never touches the dwell",
+                "C (blob compare) + Python",
+                "§2.10",
+            ],
+            [
+                "a ragged, empty or short-output batch writes nothing",
+                "C (poisoned outputs) + Python (`ValueError`)",
+                "§2.10",
+            ],
+            [
+                "`dp_corr2d_execute_fold` takes a caller's reducer",
+                "C — **C-ONLY**, no Python callback by design",
+                "C `_test_batch`",
+            ],
         ],
     )
 
@@ -239,6 +282,7 @@ def characterise() -> Data:
     _sec_accuracy(d)
     _sec_lifecycle(d)
     _sec_bounds(d)
+    _sec_batch(d)
     return d
 
 
@@ -716,17 +760,16 @@ def review(d: Data) -> None:
     R.find(
         "F4",
         "BY DESIGN",
-        '`nthreads` is documented *"accepted for API compatibility; '
-        'ignored"* and cannot be sabotaged: `dp_corr2d_state_t` has no such '
-        "member, `create()` forwards the argument to "
-        "`dp_fft_create`/`dp_fft2d_create`, and both open with "
-        "`(void)nthreads;`. "
-        "So nothing stores it and there is no state to corrupt. The C test "
-        "checks bit-identical output across four values anyway, described "
-        "there as a forward guard rather than a proof — it fires the day "
-        "someone wires it to a threaded reduction whose summation order "
-        "differs, which is exactly when the documented no-op stops being "
-        "one.",
+        "`nthreads` was once documented *accepted for API compatibility; "
+        "ignored*, and this finding said so. Since #2666 it is real: the "
+        "fast path's rows and the delay-Doppler columns fan out over a "
+        "persistent pool, each worker on its own FFT plans, and a batch "
+        "makes whole maps per worker (#2683). The forward guard this "
+        "finding described is what now holds the design: the output is "
+        "bit-identical at every thread count, checked in C at 1, 2 and 7 "
+        "workers and here at 1 and 3 (§2.10). A threaded reduction that "
+        "folded in completion order would break it, and the C test's "
+        "sabotage of exactly that goes red.",
     )
     R.find(
         "F6",
@@ -760,6 +803,126 @@ def review(d: Data) -> None:
         "The last is now asserted with the padded path checked to allocate "
         "them, so it cannot pass on fields that are always NULL.",
     )
+
+
+def _sec_batch(d: Data) -> None:
+    R.md("### 2.10 Batches")
+    R.md()
+    R.md(
+        "A batch is H frames in one call (#2683, "
+        "[`docs/design/corr2d-batch.md`](../../../../../../docs/design/"
+        "corr2d-batch.md)). Every map is checked against what a FRESH "
+        "dwell-1 object returns for that frame through `execute()`, which "
+        "shares no batch code path, on the general, fast and known-column "
+        "paths, at one thread and at three. The five frames are more than "
+        "the three workers, so the three-thread rows run the whole-map "
+        "path."
+    )
+    R.md()
+    ny, nx, H = 4, 8, 5
+    r = _rng(600)
+    single = np.zeros((ny, nx), dtype=np.complex64)
+    single[0] = _cplx(r, nx)
+    dense = _cplx(r, ny, nx)
+    x = _cplx(r, H * ny * nx).ravel()
+    configs = [
+        ("general 2-D", {"ref": dense}),
+        ("fast path", {"ref": single}),
+        ("fast, nx_out=12", {"ref": single, "nx_out": 12}),
+        ("known column 3", {"ref": single, "col_out": 3}),
+    ]
+    maps_ok = coh_ok = idx_ok = untouched = refuses = True
+    folds = 0.0
+    for name, kw in configs:
+        for nt in (1, 3):
+            c = Corr2D(dwell=2, nthreads=nt, **kw)
+            n = ny * nx
+            fresh = np.stack(
+                [
+                    np.asarray(
+                        Corr2D(dwell=1, **kw).execute(x[h * n : (h + 1) * n])
+                    )
+                    for h in range(H)
+                ]
+            )
+            c.execute(x[:n])  # a dwell in progress
+            blob = c.get_state()
+            maps = c.execute_all(x)
+            exact = bool(np.array_equal(maps, fresh))
+            dh = Corr2D(dwell=H, **kw)
+            for h in range(H):
+                want = dh.execute(x[h * n : (h + 1) * n])
+            coh = c.execute_coherent(x)
+            coh_exact = bool(np.array_equal(coh, np.asarray(want)))
+            pw = np.abs(fresh.astype(np.complex128)) ** 2
+            ps = c.execute_power_sum(x)
+            pm, ix = c.execute_power_max(x)
+            pk, _, _, mn = c.execute_peaks(x)
+            worst = max(
+                float(np.max(np.abs(ps - pw.sum(0)) / pw.sum(0).max())),
+                float(np.max(np.abs(pm - pw.max(0)) / pw.max())),
+                float(np.max(np.abs(pk - pw.max(1)) / pw.max())),
+                float(np.max(np.abs(mn - pw.mean(1)) / pw.mean(1).max())),
+            )
+            idx = bool(np.array_equal(ix, np.argmax(pw, axis=0)))
+            still = c.get_state() == blob and c.count == 1
+            bad = 0
+            for length in (0, n - 1, n + 1, 2 * n + 1):
+                try:
+                    c.execute_all(x[:length])
+                except ValueError:
+                    bad += 1
+            maps_ok &= exact
+            coh_ok &= coh_exact
+            idx_ok &= idx
+            untouched &= still
+            refuses &= bad == 4
+            folds = max(folds, worst)
+            d.batch_rows.append(
+                [
+                    name,
+                    str(nt),
+                    str(exact),
+                    str(coh_exact),
+                    f"{worst:.1e}",
+                    str(idx),
+                    str(still),
+                    f"{bad}/4",
+                ]
+            )
+    d.batch_maps_exact, d.batch_coherent_exact = maps_ok, coh_ok
+    d.batch_index_exact, d.batch_dwell_untouched = idx_ok, untouched
+    d.batch_refuses, d.batch_folds_worst = refuses, folds
+    R.table(
+        [
+            "path",
+            "threads",
+            "maps == fresh",
+            "coherent == dwell-H",
+            "folds, worst rel.",
+            "max index",
+            "dwell untouched",
+            "refused",
+        ],
+        d.batch_rows,
+    )
+    R.md()
+    c = Corr2D(ref=single, dwell=1)
+    one = np.abs(np.asarray(c.execute(x[: ny * nx]))) ** 2
+    both = np.concatenate([x[: ny * nx], -x[: ny * nx]])
+    d.batch_cancel = float(
+        np.abs(c.execute_coherent(both)).max() / np.sqrt(one.max())
+    )
+    d.batch_doubles = float(
+        np.max(np.abs(c.execute_power_sum(both) - 2 * one)) / one.max()
+    )
+    R.md(
+        f"Frames x and -x: the coherent sum cancels to "
+        f"{d.batch_cancel:.1e} of one map's peak magnitude, and the power "
+        f"sum is twice one map's power to {d.batch_doubles:.1e}. That is "
+        f"the difference between the two sums, and why both exist."
+    )
+    R.md()
 
 
 # ── 4. limits ─────────────────────────────────────────────────────────
@@ -852,6 +1015,39 @@ def limits(d: Data) -> None:
         "reset() clears the run and keeps the configuration",
     )
     R.limit(
+        d.batch_maps_exact,
+        "a batch's map h is bit-identical to a fresh dwell-1 object's map "
+        "for frame h, on the general, fast, interpolated and known-column "
+        "paths, at one thread and three",
+    )
+    R.limit(
+        d.batch_coherent_exact,
+        "execute_coherent is bit-identical to a fresh dwell-H object's dump",
+    )
+    R.limit(
+        d.batch_folds_worst < 1e-5,
+        f"power sum, power max and per-map peak and mean are the folds over "
+        f"the maps (worst {d.batch_folds_worst:.1e})",
+    )
+    R.limit(
+        d.batch_index_exact,
+        "execute_power_max's index is the map each maximum came from",
+    )
+    R.limit(
+        d.batch_dwell_untouched,
+        "a batch mid-dwell leaves the count and the state blob unchanged",
+    )
+    R.limit(
+        d.batch_refuses,
+        "an empty or ragged batch is a ValueError",
+    )
+    R.limit(
+        d.batch_cancel < 1e-5 and abs(d.batch_doubles) < 1e-5,
+        f"frames x and -x: the coherent sum cancels "
+        f"({d.batch_cancel:.1e}) and the power sum doubles "
+        f"({d.batch_doubles:.1e})",
+    )
+    R.limit(
         d.rejects_bad_args,
         "an output grid smaller than the input, and dwell=0, are refused "
         "rather than silently accepted",
@@ -898,6 +1094,11 @@ def build(write: bool = True) -> Report:
             "Nyquist split was covered by nothing at all. Both were found "
             "by breaking the code and watching the suite stay green, which "
             "is the only way that class of gap surfaces (F1, F2).",
+            "**A batch makes the same maps as execute(), and leaves the "
+            "dwell alone.** H frames in one call give maps bit-identical to "
+            "H fresh dwell-1 objects on every path and thread count, the "
+            "coherent sum is a dwell-H dump, and a batch mid-dwell changes "
+            "neither the count nor the state blob (§2.10).",
         ],
     )
     R.summary(

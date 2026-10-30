@@ -71,7 +71,7 @@ _The threading primitives doppler uses, with one platform split._ [More...](#det
 |  void | [**dp\_cond\_init**](#function-dp_cond_init) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c) <br>_Initializes_ `c` _with no waiters._ |
 |  void | [**dp\_cond\_signal**](#function-dp_cond_signal) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c) <br>_Wakes at most one thread waiting on_ `c` _._ |
 |  void | [**dp\_cond\_wait**](#function-dp_cond_wait) ([**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) \* c, [**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br>_Atomically unlocks_ `m` _and waits on_`c` _, relocking_`m` _before returning. No timeout. Wakeups may be spurious, so wait in a loop that re-checks the predicate._ |
-|  int | [**dp\_cpu\_count**](#function-dp_cpu_count) (void) <br>_Online processor count, or 1 if it cannot be determined._  |
+|  int | [**dp\_cpu\_count**](#function-dp_cpu_count) (void) <br>_Processors this process may run on, or 1 if unknown._  |
 |  void | [**dp\_mutex\_destroy**](#function-dp_mutex_destroy) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br>_Releases_ `m` _(a no-op on Windows)._`m` _must be unlocked._ |
 |  void | [**dp\_mutex\_init**](#function-dp_mutex_init) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br>_Initializes_ `m` _, unlocked._ |
 |  void | [**dp\_mutex\_lock**](#function-dp_mutex_lock) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br>_Locks_ `m` _, blocking until it is free. Not recursive: locking a mutex this thread already holds deadlocks or is undefined._ |
@@ -134,7 +134,8 @@ The Windows side is Vista-era and deliberately not `pthreads-win32`:
 |`pthread_cond_t`   |`CONDITION_VARIABLE`    |
 |`pthread_cond_wait`   |`SleepConditionVariableSRW`    |
 |`pthread_create`/`join`   |`_beginthreadex` / `WaitForSingleObject`    |
-|`sysconf(_SC_NPROCESSORS_ONLN)`   |`GetActiveProcessorCount`    |
+|`sched_getaffinity` (Linux),   |`GetActiveProcessorCount`    |
+|else `sysconf(_SC_NPROCESSORS_ONLN)`   ||
 |`pthread_once`   |`InitOnceExecuteOnce`, both behind    |
 ||[**dp\_once()**](dp__once_8h.md#function-dp_once) ([**dp\_once.h**](dp__once_8h.md), included here)   |
 
@@ -341,7 +342,7 @@ static inline void dp_cond_wait (
 
 ### function dp\_cpu\_count 
 
-_Online processor count, or 1 if it cannot be determined._ 
+_Processors this process may run on, or 1 if unknown._ 
 ```C++
 static inline int dp_cpu_count (
     void
@@ -350,11 +351,17 @@ static inline int dp_cpu_count (
 
 
 
+On Linux this is the size of the process's CPU affinity mask, so `taskset`, a container's cpuset and a cgroup cpuset all shrink it, and a "use every core" caller (`nthreads = 0`) starts one worker per CPU it can actually use rather than one per CPU the machine has (doppler#2679). The machine's online count is the fallback: on a platform without `sched_getaffinity`, where `CPU_COUNT` is not declared (it needs `_GNU_SOURCE`, which doppler's build and exported targets set), or when the mask does not fit a fixed `cpu_set_t` (more than 1024 CPUs).
+
+
+A cgroup CPU _quota_ (`docker --cpus=2`, `cpu.max`) is not a mask and is not read here.
+
+
 
 
 **Returns:**
 
-Number of online logical processors, always &gt;= 1. 
+Number of usable logical processors, always &gt;= 1. 
 
 
 

@@ -1248,6 +1248,16 @@ target_include_directories(test_dp_thread_sleep
 target_link_libraries(test_dp_thread_sleep PRIVATE Threads::Threads)
 add_test(NAME test_dp_thread_sleep COMMAND test_dp_thread_sleep)
 
+# dp_cpu_count honors the affinity mask (doppler#2679): pinned to one CPU,
+# then two, the count follows. Skips (77) where fewer than two are usable.
+add_executable(test_dp_cpu_count native/tests/test_dp_cpu_count.c)
+target_include_directories(test_dp_cpu_count
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(test_dp_cpu_count PRIVATE Threads::Threads)
+add_test(NAME test_dp_cpu_count COMMAND test_dp_cpu_count)
+set_tests_properties(test_dp_cpu_count PROPERTIES SKIP_RETURN_CODE 77)
+
 add_executable(test_dp_state native/tests/test_dp_state.c)
 target_include_directories(test_dp_state
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

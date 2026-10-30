@@ -23,7 +23,8 @@
  * | `pthread_cond_t`         | `CONDITION_VARIABLE`                   |
  * | `pthread_cond_wait`      | `SleepConditionVariableSRW`            |
  * | `pthread_create`/`join`  | `_beginthreadex` / `WaitForSingleObject` |
- * | `sysconf(_SC_NPROCESSORS_ONLN)` | `GetActiveProcessorCount`       |
+ * | `sched_getaffinity` (Linux),    | `GetActiveProcessorCount`       |
+ * | else `sysconf(_SC_NPROCESSORS_ONLN)` |                            |
  * | `pthread_once`           | `InitOnceExecuteOnce`, both behind     |
  * |                          | dp_once() (dp_once.h, included here)   |
  *
@@ -308,11 +309,34 @@ dp_thread_join (dp_thread_t t)
   return pthread_join (t, NULL);
 }
 
-/** @brief Online processor count, or 1 if it cannot be determined.
- *  @return Number of online logical processors, always >= 1. */
+/** @brief Processors this process may run on, or 1 if unknown.
+ *
+ *  On Linux this is the size of the process's CPU affinity mask, so
+ *  `taskset`, a container's cpuset and a cgroup cpuset all shrink it, and
+ *  a "use every core" caller (`nthreads = 0`) starts one worker per CPU it
+ *  can actually use rather than one per CPU the machine has (doppler#2679).
+ *  The machine's online count is the fallback: on a platform without
+ *  `sched_getaffinity`, where `CPU_COUNT` is not declared (it needs
+ *  `_GNU_SOURCE`, which doppler's build and exported targets set), or when
+ *  the mask does not fit a fixed `cpu_set_t` (more than 1024 CPUs).
+ *
+ *  A cgroup CPU *quota* (`docker --cpus=2`, `cpu.max`) is not a mask and
+ *  is not read here.
+ *
+ *  @return Number of usable logical processors, always >= 1. */
 static inline int
 dp_cpu_count (void)
 {
+#if defined(__linux__) && defined(CPU_COUNT)
+  cpu_set_t set;
+  CPU_ZERO (&set);
+  if (sched_getaffinity (0, sizeof set, &set) == 0)
+    {
+      int k = CPU_COUNT (&set);
+      if (k > 0)
+        return k;
+    }
+#endif
   long n = sysconf (_SC_NPROCESSORS_ONLN);
   return n > 0 ? (int)n : 1;
 }

@@ -191,6 +191,16 @@ dp_thread_join (dp_thread_t t)
 static inline int
 dp_cpu_count (void)
 {
+#if defined(__linux__) && defined(CPU_COUNT)
+  cpu_set_t set;
+  CPU_ZERO (&set);
+  if (sched_getaffinity (0, sizeof set, &set) == 0)
+    {
+      int k = CPU_COUNT (&set);
+      if (k > 0)
+        return k;
+    }
+#endif
   long n = sysconf (_SC_NPROCESSORS_ONLN);
   return n > 0 ? (int)n : 1;
 }

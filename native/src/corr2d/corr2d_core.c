@@ -76,6 +76,13 @@ corr2d_is_single_row_ref (const float _Complex *ref, size_t ny, size_t nx)
  * where the tile's ny_out-deep columns still sit in L1/L2. */
 #define CORR2D_COL_TILE 16
 
+/* Tiles of CORR2D_COL_TILE columns across nx delay columns. */
+static size_t
+corr2d_ntiles (size_t nx)
+{
+  return (nx + CORR2D_COL_TILE - 1) / CORR2D_COL_TILE;
+}
+
 /* Rows [r0, r1) of chunk t of nworkers over n items: contiguous, fixed by
  * (t, nworkers) alone, so chunk t always covers the same rows whichever
  * thread drains it. */
@@ -292,6 +299,10 @@ dp_corr2d_destroy (dp_corr2d_state_t *state)
   free (state->slow_fft);
   free (state->col_gather);
   free (state->col_spec);
+  free (state->bat_acc);
+  free (state->bat_work);
+  free (state->bat_pad);
+  free (state->bat_map);
   free (state->ref_spec);
   free (state->row_ref_spec);
   free (state->col_ref);
@@ -419,16 +430,49 @@ dp_corr2d_execute_max_out (dp_corr2d_state_t *state)
   return state->n_out;
 }
 
-/* One fast-path frame, per-row stage: the work of chunk t (rows r0..r1-1,
- * on worker t's own plans).  Each row is forward-transformed, multiplied by
- * the conjugated code spectrum and added into its accumulator row; on a dump
- * frame the row is then inverted (zero-padded first when nx_out > nx),
- * scaled by 1/nx and its accumulator row cleared.  Rows share nothing, so
- * chunks run concurrently with no synchronization. */
+/* One fast-path row, on worker t's plans: forward-transform the period x
+ * into w, multiply by the conjugated code spectrum and add into the
+ * accumulator row a; on a dump, invert a (zero-padded into pad first when
+ * nx_out > nx) into d, scale by 1/nx and clear a.  d may alias w: the
+ * forward spectrum is spent once it is accumulated.  Every map the object
+ * makes, from execute() or a batch, goes through here, so a batch map is
+ * the same arithmetic as a dump. */
+static void
+corr2d_row (const dp_corr2d_state_t *s, size_t t, const float _Complex *x,
+            float _Complex *a, float _Complex *w, float _Complex *pad,
+            float _Complex *d, int dump)
+{
+  const size_t nx = s->nx, nxo = s->nx_out;
+  dp_fft_execute_cf32 (s->row_fwd[t], x, nx, w, nx);
+  for (size_t v = 0; v < nx; v++)
+    a[v] += w[v] * s->row_ref_spec[v];
+  if (!dump)
+    return;
+  if (nxo == nx)
+    dp_fft_execute_cf32 (s->row_inv[t], a, nx, d, nx);
+  else
+    {
+      corr2d_zeropad_1d (a, nx, pad, nxo);
+      dp_fft_execute_cf32 (s->row_inv[t], pad, nxo, d, nxo);
+    }
+  const float inv_nx = 1.0f / (float)nx;
+  for (size_t k = 0; k < nxo; k++)
+    d[k] *= inv_nx;
+  memset (a, 0, nx * sizeof *a);
+}
+
+/* One fast-path frame, per-row stage: chunk t runs rows r0..r1-1 through
+ * corr2d_row on worker t's plans.  The accumulator, spectrum and pad
+ * surfaces are named here rather than read from the state, so execute()
+ * runs the dwell's own and a batch runs its scratch.  Rows share nothing,
+ * so chunks run concurrently with no synchronization. */
 typedef struct
 {
   dp_corr2d_state_t    *s;
   const float _Complex *in;   /**< the frame, ny rows of nx              */
+  float _Complex       *acc;  /**< accumulator, ny rows of nx            */
+  float _Complex       *work; /**< forward spectra, ny rows of nx        */
+  float _Complex       *pad;  /**< zero-pad rows of nx_out; NULL native  */
   float _Complex       *dst;  /**< dump destination, ny rows of nx_out   */
   int                   dump; /**< 1 on the frame that completes a dwell */
 } corr2d_rows_t;
@@ -439,36 +483,17 @@ corr2d_rows_body (size_t t, void *ctx)
   const corr2d_rows_t *c  = (const corr2d_rows_t *)ctx;
   dp_corr2d_state_t   *s  = c->s;
   const size_t         nx = s->nx, nxo = s->nx_out;
-  const float          inv_nx = 1.0f / (float)nx;
   size_t               r0, r1;
   corr2d_chunk (s->ny, t, s->nworkers, &r0, &r1);
   for (size_t i = r0; i < r1; i++)
-    {
-      float _Complex *w = s->work_fft + i * nx;
-      float _Complex *a = s->accum + i * nx;
-      dp_fft_execute_cf32 (s->row_fwd[t], c->in + i * nx, nx, w, nx);
-      for (size_t v = 0; v < nx; v++)
-        a[v] += w[v] * s->row_ref_spec[v];
-      if (!c->dump)
-        continue;
-      float _Complex *d = c->dst + i * nxo;
-      if (nxo == nx)
-        dp_fft_execute_cf32 (s->row_inv[t], a, nx, d, nx);
-      else
-        {
-          float _Complex *pad = s->work_pad + i * nxo;
-          corr2d_zeropad_1d (a, nx, pad, nxo);
-          dp_fft_execute_cf32 (s->row_inv[t], pad, nxo, d, nxo);
-        }
-      for (size_t k = 0; k < nxo; k++)
-        d[k] *= inv_nx;
-      memset (a, 0, nx * sizeof *a);
-    }
+    corr2d_row (s, t, c->in + i * nx, c->acc + i * nx, c->work + i * nx,
+                c->pad ? c->pad + i * nxo : NULL, c->dst + i * nxo, c->dump);
 }
 
 /* Delay-Doppler dump, per-column stage: the slow-time FFT down every delay
- * column of the (ny, nx) correlation surface, chunk t covering tiles
- * b0..b1-1 of CORR2D_COL_TILE columns on worker t's plan and scratch.
+ * column of the (ny, nx) correlation surface.  corr2d_col_tile does tile b
+ * of CORR2D_COL_TILE columns on worker t's plan and scratch;
+ * corr2d_cols_body runs chunk t's tiles b0..b1-1.
  *
  * A tile is gathered into contiguous columns of length ny_out, whose rows
  * ny..ny_out-1 were zeroed at create() and are never written: that trailing
@@ -477,6 +502,31 @@ corr2d_rows_body (size_t t, void *ctx)
  * times finer).  Each column is transformed unnormalized, as numpy's fft is,
  * and scattered back FFT-shifted: Doppler bin k lands on output row
  * (k + ny_out/2) mod ny_out, so zero Doppler is row ny_out/2. */
+static void
+corr2d_col_tile (const dp_corr2d_state_t *s, size_t t,
+                 const float _Complex *surf, float _Complex *out, size_t b)
+{
+  const size_t    ny = s->ny, nx = s->nx, nyo = s->ny_out, half = nyo / 2;
+  float _Complex *g  = s->col_gather + t * CORR2D_COL_TILE * nyo;
+  float _Complex *o  = s->col_spec + t * CORR2D_COL_TILE * nyo;
+  const size_t    j0 = b * CORR2D_COL_TILE;
+  const size_t    nb = (nx - j0 < CORR2D_COL_TILE) ? nx - j0 : CORR2D_COL_TILE;
+  for (size_t i = 0; i < ny; i++)
+    {
+      const float _Complex *src = surf + i * nx + j0;
+      for (size_t q = 0; q < nb; q++)
+        g[q * nyo + i] = src[q];
+    }
+  for (size_t q = 0; q < nb; q++)
+    dp_fft_execute_cf32 (s->slow_fft[t], g + q * nyo, nyo, o + q * nyo, nyo);
+  for (size_t k = 0; k < nyo; k++)
+    {
+      float _Complex *dst = out + ((k + half) % nyo) * nx + j0;
+      for (size_t q = 0; q < nb; q++)
+        dst[q] = o[q * nyo + k];
+    }
+}
+
 typedef struct
 {
   dp_corr2d_state_t    *s;
@@ -487,35 +537,36 @@ typedef struct
 static void
 corr2d_cols_body (size_t t, void *ctx)
 {
-  const corr2d_cols_t *c  = (const corr2d_cols_t *)ctx;
-  dp_corr2d_state_t   *s  = c->s;
-  const size_t         ny = s->ny, nx = s->nx, nyo = s->ny_out, half = nyo / 2;
-  const size_t         ntiles = (nx + CORR2D_COL_TILE - 1) / CORR2D_COL_TILE;
-  float _Complex      *g      = s->col_gather + t * CORR2D_COL_TILE * nyo;
-  float _Complex      *o      = s->col_spec + t * CORR2D_COL_TILE * nyo;
+  const corr2d_cols_t *c      = (const corr2d_cols_t *)ctx;
+  const size_t         ntiles = corr2d_ntiles (c->s->nx);
   size_t               b0, b1;
-  corr2d_chunk (ntiles, t, s->nworkers, &b0, &b1);
+  corr2d_chunk (ntiles, t, c->s->nworkers, &b0, &b1);
   for (size_t b = b0; b < b1; b++)
+    corr2d_col_tile (c->s, t, c->surf, c->out, b);
+}
+
+/* Known-lag frame (col_out >= 0): row i's correlation at the one lag, a
+ * time-domain dot product against the conjugated code, added into acc[i];
+ * on a dump, acc's first ny entries go to dst and acc is cleared (all n of
+ * it, as the state blob covers all n). */
+static void
+corr2d_col_frame (const dp_corr2d_state_t *s, const float _Complex *in,
+                  float _Complex *acc, float _Complex *dst, int dump)
+{
+  const size_t ny = s->ny, nx = s->nx, j0 = (size_t)s->col_out;
+  for (size_t i = 0; i < ny; i++)
     {
-      const size_t j0 = b * CORR2D_COL_TILE;
-      const size_t nb
-          = (nx - j0 < CORR2D_COL_TILE) ? nx - j0 : CORR2D_COL_TILE;
-      for (size_t i = 0; i < ny; i++)
-        {
-          const float _Complex *src = c->surf + i * nx + j0;
-          for (size_t q = 0; q < nb; q++)
-            g[q * nyo + i] = src[q];
-        }
-      for (size_t q = 0; q < nb; q++)
-        dp_fft_execute_cf32 (s->slow_fft[t], g + q * nyo, nyo, o + q * nyo,
-                             nyo);
-      for (size_t k = 0; k < nyo; k++)
-        {
-          float _Complex *dst = c->out + ((k + half) % nyo) * nx + j0;
-          for (size_t q = 0; q < nb; q++)
-            dst[q] = o[q * nyo + k];
-        }
+      const float _Complex *x = in + i * nx;
+      float _Complex sum      = 0.0f;
+      for (size_t p = 0; p < nx; p++)
+        sum += s->col_ref[p] * x[(p + j0) % nx];
+      acc[i] += sum;
     }
+  if (!dump)
+    return;
+  for (size_t i = 0; i < ny; i++)
+    dst[i] = acc[i];
+  memset (acc, 0, s->n * sizeof *acc);
 }
 
 /* Fast path: ref is single-row and ny_out == ny, so (see the header doc
@@ -535,32 +586,18 @@ static size_t
 corr2d_execute_fast (dp_corr2d_state_t *state, const float _Complex *in,
                      float _Complex *out)
 {
-  const size_t ny = state->ny, nx = state->nx;
-
   if (state->col_out >= 0)
     {
       /* Known lag: correlate in the time domain, no transform either way.
          The running sum lives in the first ny entries of `accum` so the
          serialized state keeps covering it -- a dwell interrupted mid-way
          still resumes, exactly as the full path's product spectrum does. */
-      const size_t j0 = (size_t)state->col_out;
-      for (size_t i = 0; i < ny; i++)
-        {
-          const float _Complex *x = in + i * nx;
-          float _Complex acc      = 0.0f;
-          for (size_t p = 0; p < nx; p++)
-            acc += state->col_ref[p] * x[(p + j0) % nx];
-          state->accum[i] += acc;
-        }
-      if (++state->count == state->dwell)
-        {
-          for (size_t i = 0; i < ny; i++)
-            out[i] = state->accum[i];
-          memset (state->accum, 0, state->n * sizeof (*state->accum));
-          state->count = 0;
-          return state->n_out;
-        }
-      return 0;
+      const int dump = (++state->count == state->dwell);
+      corr2d_col_frame (state, in, state->accum, out, dump);
+      if (!dump)
+        return 0;
+      state->count = 0;
+      return state->n_out;
     }
 
   /* Dump decided up front: the per-row stage inverts each row as soon as
@@ -569,8 +606,13 @@ corr2d_execute_fast (dp_corr2d_state_t *state, const float _Complex *in,
   /* The delay-Doppler flavor inverts into work_fft (each row's forward
      spectrum is spent once it is accumulated) and the column stage writes
      `out`; Corr2D inverts straight into `out`. */
-  corr2d_rows_t rows
-      = { state, in, state->delay_doppler ? state->work_fft : out, dump };
+  corr2d_rows_t rows = { state,
+                         in,
+                         state->accum,
+                         state->work_fft,
+                         state->work_pad,
+                         state->delay_doppler ? state->work_fft : out,
+                         dump };
   dp_pool_run (state->pool, (size_t)state->nworkers, corr2d_rows_body, &rows);
   if (!dump)
     {
@@ -585,6 +627,36 @@ corr2d_execute_fast (dp_corr2d_state_t *state, const float _Complex *in,
     }
   state->count = 0;
   return state->n_out;
+}
+
+/* One general-path (2-D) frame: FFT2 into work_fft, multiply by the
+ * reference spectrum and add into acc.  On a dump, invert once: when
+ * (ny_out, nx_out) > (ny, nx) the accumulated spectrum is zero-padded first
+ * (band-limited interpolation onto the finer grid), and the normalization
+ * stays the native 1/n (not 1/n_out) so the interpolated peak equals the
+ * native peak.  acc is then cleared.  work_fft, work_pad and the zero-pad
+ * scratch are scratch, not state, so a batch shares them; it brings its own
+ * acc. */
+static void
+corr2d_general_frame (dp_corr2d_state_t *s, const float _Complex *in,
+                      float _Complex *acc, float _Complex *dst, int dump)
+{
+  dp_fft2d_execute_cf32 (s->fwd, in, s->n, s->work_fft, s->n);
+  for (size_t k = 0; k < s->n; k++)
+    acc[k] += s->work_fft[k] * s->ref_spec[k];
+  if (!dump)
+    return;
+  const float _Complex *src = acc;
+  if (s->n_out != s->n)
+    {
+      corr2d_zeropad_2d (s, acc, s->work_pad);
+      src = s->work_pad;
+    }
+  dp_fft2d_execute_cf32 (s->inv, src, s->n_out, dst, s->n_out);
+  const float inv_n = 1.0f / (float)s->n;
+  for (size_t k = 0; k < s->n_out; k++)
+    dst[k] *= inv_n;
+  memset (acc, 0, s->n * sizeof *acc);
 }
 
 size_t
@@ -647,35 +719,14 @@ dp_corr2d_execute (dp_corr2d_state_t *state, const float _Complex *in,
    *
    * Equivalence is exact in real arithmetic; in cf32 it differs from the
    * per-frame sum only by accumulation-order rounding (~1e-5 relative). */
-  dp_fft2d_execute_cf32 (state->fwd, in, state->n, state->work_fft, state->n);
-
-  for (size_t k = 0; k < state->n; k++)
-    state->accum[k] += state->work_fft[k] * state->ref_spec[k];
-
-  if (++state->count == state->dwell)
-    {
-      /* On dump, invert once.  When (ny_out,nx_out) > (ny,nx), zero-pad the
-       * accumulated spectrum first → band-limited interpolation onto the finer
-       * grid; the normalization stays the native 1/n (not 1/n_out) so the
-       * interpolated peak equals the native peak.  Native path is unchanged.
-       */
-      const float _Complex *src = state->accum;
-      if (state->n_out != state->n)
-        {
-          corr2d_zeropad_2d (state, state->accum, state->work_pad);
-          src = state->work_pad;
-        }
-      dp_fft2d_execute_cf32 (state->inv, src, state->n_out, dst, state->n_out);
-      const float inv_n = 1.0f / (float)state->n;
-      for (size_t k = 0; k < state->n_out; k++)
-        dst[k] *= inv_n;
-      if (dst != out)
-        memcpy (out, dst, cap * sizeof *out);
-      memset (state->accum, 0, state->n * sizeof (*state->accum));
-      state->count = 0;
-      return cap;
-    }
-  return 0;
+  const int dump = (++state->count == state->dwell);
+  corr2d_general_frame (state, in, state->accum, dst, dump);
+  if (!dump)
+    return 0;
+  if (dst != out)
+    memcpy (out, dst, cap * sizeof *out);
+  state->count = 0;
+  return cap;
 }
 
 dp_corr2d_state_t *
@@ -698,7 +749,7 @@ dp_corr2d_create_delay_doppler (const float _Complex *code, size_t code_len,
      Corr2D's fast path over a reference whose row 0 is the code. */
   /* Rows split into at most ny chunks, columns into at most one per tile:
      the larger is the most workers either stage can keep busy. */
-  const size_t ntiles = (nx + CORR2D_COL_TILE - 1) / CORR2D_COL_TILE;
+  const size_t ntiles = corr2d_ntiles (nx);
   corr2d_build_fast (state, code, nx, nx, nthreads, ny > ntiles ? ny : ntiles);
 
   const size_t nw = (size_t)state->nworkers;
@@ -725,4 +776,303 @@ dp_corr2d_create_delay_doppler (const float _Complex *code, size_t code_len,
   state->col_out       = -1;
   state->doppler_step  = 1.0 / ((double)nyo * (double)nx);
   return state;
+}
+
+/* ── Batches (#2683) ───────────────────────────────────────────────────────
+ */
+
+/* Frames in a batch of n_in samples, or 0 when it is empty or ragged. */
+static size_t
+corr2d_frames (const dp_corr2d_state_t *s, size_t n_in)
+{
+  return (n_in % s->n) ? 0 : n_in / s->n;
+}
+
+/* The batch scratch: one slot per worker, made on the first batch.  The
+   sizes are the object's own, already allocated once by create(), so the
+   allocations abort on OOM (clib_common.h).  bat_acc is calloc'd: every
+   frame helper leaves its accumulator zero again after a dump, which is
+   what makes each map start from the zero a fresh object starts from. */
+static void
+corr2d_batch_alloc (dp_corr2d_state_t *s)
+{
+  if (s->bat_acc)
+    return;
+  const size_t nw = (size_t)s->nworkers;
+  s->bat_acc      = dp_xcalloc (nw * s->n, sizeof *s->bat_acc);
+  s->bat_work     = dp_xmalloc (nw * s->n * sizeof *s->bat_work);
+  s->bat_map      = dp_xmalloc (nw * s->n_out * sizeof *s->bat_map);
+  if (s->fast_path && s->nx_out != s->nx)
+    s->bat_pad = dp_xmalloc (nw * s->ny * s->nx_out * sizeof *s->bat_pad);
+}
+
+/* One frame into slot 0 of the batch scratch, split across the workers as
+   execute() splits it: the general and known-lag paths run serially, the
+   fast path's rows (and, on a dump, the delay-Doppler columns) on the
+   pool.  dst receives the map when dump is set. */
+static void
+corr2d_batch_frame (dp_corr2d_state_t *s, const float _Complex *x,
+                    float _Complex *dst, int dump)
+{
+  if (!s->fast_path)
+    {
+      corr2d_general_frame (s, x, s->bat_acc, dst, dump);
+      return;
+    }
+  if (s->col_out >= 0)
+    {
+      corr2d_col_frame (s, x, s->bat_acc, dst, dump);
+      return;
+    }
+  corr2d_rows_t rows
+      = { s,           x,          s->bat_acc,
+          s->bat_work, s->bat_pad, s->delay_doppler ? s->bat_work : dst,
+          dump };
+  dp_pool_run (s->pool, (size_t)s->nworkers, corr2d_rows_body, &rows);
+  if (dump && s->delay_doppler)
+    {
+      corr2d_cols_t cols = { s, s->bat_work, dst };
+      dp_pool_run (s->pool, (size_t)s->nworkers, corr2d_cols_body, &cols);
+    }
+}
+
+/* Whole maps, one per worker: chunk t makes the map of frame h0 + t on
+   worker t's plans and scratch slot t, every row and then every column
+   tile, serially.  A row or tile is the same arithmetic on any worker's
+   plans, so the map equals the split one bit for bit. */
+typedef struct
+{
+  dp_corr2d_state_t    *s;
+  const float _Complex *in; /**< the batch                 */
+  size_t                h0; /**< frame of chunk 0          */
+} corr2d_whole_t;
+
+static void
+corr2d_whole_body (size_t t, void *ctx)
+{
+  const corr2d_whole_t *c  = (const corr2d_whole_t *)ctx;
+  dp_corr2d_state_t    *s  = c->s;
+  const size_t          nx = s->nx, nxo = s->nx_out, n = s->n;
+  const float _Complex *x    = c->in + (c->h0 + t) * n;
+  float _Complex       *acc  = s->bat_acc + t * n;
+  float _Complex       *work = s->bat_work + t * n;
+  float _Complex       *pad = s->bat_pad ? s->bat_pad + t * s->ny * nxo : NULL;
+  float _Complex       *map = s->bat_map + t * s->n_out;
+  float _Complex       *surf = s->delay_doppler ? work : map;
+  for (size_t i = 0; i < s->ny; i++)
+    corr2d_row (s, t, x + i * nx, acc + i * nx, work + i * nx,
+                pad ? pad + i * nxo : NULL, surf + i * nxo, 1);
+  if (s->delay_doppler)
+    for (size_t b = 0; b < corr2d_ntiles (nx); b++)
+      corr2d_col_tile (s, t, work, map, b);
+}
+
+/* The one batch loop.  coherent = 0 makes every frame's map and folds each
+   in h order; coherent = 1 sums the frames' product spectra and folds the
+   one map it inverts, as h = 0.  The dwell is never read or written. */
+static size_t
+corr2d_batch (dp_corr2d_state_t *s, const float _Complex *in, size_t n_in,
+              int coherent, const dp_corr2d_fold_t *fold)
+{
+  const size_t H = corr2d_frames (s, n_in);
+  if (H == 0)
+    return SIZE_MAX;
+  corr2d_batch_alloc (s);
+  const size_t n = s->n, nw = (size_t)s->nworkers;
+  if (coherent)
+    {
+      for (size_t h = 0; h < H; h++)
+        corr2d_batch_frame (s, in + h * n, s->bat_map, h + 1 == H);
+      fold->fold (fold->ctx, 0, s->bat_map, s->n_out);
+      return H;
+    }
+  /* Whole maps per worker only where a map is split at all (the fast path's
+     rows) and there are frames enough to keep every worker busy. */
+  if (s->fast_path && s->col_out < 0 && nw > 1 && H >= nw)
+    {
+      for (size_t h0 = 0; h0 < H; h0 += nw)
+        {
+          const size_t   m = (H - h0 < nw) ? H - h0 : nw;
+          corr2d_whole_t w = { s, in, h0 };
+          dp_pool_run (s->pool, m, corr2d_whole_body, &w);
+          for (size_t t = 0; t < m; t++)
+            fold->fold (fold->ctx, h0 + t, s->bat_map + t * s->n_out,
+                        s->n_out);
+        }
+      return H;
+    }
+  for (size_t h = 0; h < H; h++)
+    {
+      corr2d_batch_frame (s, in + h * n, s->bat_map, 1);
+      fold->fold (fold->ctx, h, s->bat_map, s->n_out);
+    }
+  return H;
+}
+
+size_t
+dp_corr2d_execute_fold (dp_corr2d_state_t *state, const float _Complex *in,
+                        size_t n_in, const dp_corr2d_fold_t *fold)
+{
+  return corr2d_batch (state, in, n_in, 0, fold);
+}
+
+/* |z|^2, in float, as every power reducer computes it. */
+static inline float
+corr2d_pow (float _Complex z)
+{
+  const float re = crealf (z), im = cimagf (z);
+  return re * re + im * im;
+}
+
+/* The built-in reducers.  Each copies or folds the map into its outputs;
+   the typed calls below have already checked the outputs are big enough. */
+static void
+corr2d_fold_copy (void *ctx, size_t h, const float _Complex *map, size_t n)
+{
+  memcpy ((float _Complex *)ctx + h * n, map, n * sizeof *map);
+}
+
+static void
+corr2d_fold_power_sum (void *ctx, size_t h, const float _Complex *map,
+                       size_t n)
+{
+  float *out = (float *)ctx;
+  for (size_t k = 0; k < n; k++)
+    out[k] = (h == 0) ? corr2d_pow (map[k]) : out[k] + corr2d_pow (map[k]);
+}
+
+typedef struct
+{
+  float    *pow;
+  uint32_t *idx;
+} corr2d_max_t;
+
+static void
+corr2d_fold_power_max (void *ctx, size_t h, const float _Complex *map,
+                       size_t n)
+{
+  const corr2d_max_t *c = (const corr2d_max_t *)ctx;
+  for (size_t k = 0; k < n; k++)
+    {
+      const float p = corr2d_pow (map[k]);
+      /* Strictly greater: a tie keeps the earlier, lower h. */
+      if (h == 0 || p > c->pow[k])
+        {
+          c->pow[k] = p;
+          c->idx[k] = (uint32_t)h;
+        }
+    }
+}
+
+typedef struct
+{
+  const dp_corr2d_state_t *s;
+  float                   *peak;
+  uint32_t                *row;
+  uint32_t                *col;
+  float                   *mean;
+} corr2d_peaks_t;
+
+static void
+corr2d_fold_peaks (void *ctx, size_t h, const float _Complex *map, size_t n)
+{
+  const corr2d_peaks_t *c    = (const corr2d_peaks_t *)ctx;
+  size_t                best = 0;
+  float                 pk   = corr2d_pow (map[0]);
+  double                sum  = pk;
+  for (size_t k = 1; k < n; k++)
+    {
+      const float p = corr2d_pow (map[k]);
+      sum += p;
+      if (p > pk) /* the first cell in row-major order wins a tie */
+        {
+          pk   = p;
+          best = k;
+        }
+    }
+  const int    col_out = c->s->col_out >= 0;
+  const size_t width   = col_out ? 1 : c->s->nx_out;
+  c->peak[h]           = pk;
+  c->row[h]            = (uint32_t)(best / width);
+  c->col[h]  = col_out ? (uint32_t)c->s->col_out : (uint32_t)(best % width);
+  c->mean[h] = (float)(sum / (double)n);
+}
+
+size_t
+dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state, size_t n_in)
+{
+  const size_t H = n_in / state->n;
+  if (H && state->n_out > SIZE_MAX / H)
+    return SIZE_MAX;
+  return H * state->n_out;
+}
+
+size_t
+dp_corr2d_execute_all (dp_corr2d_state_t *state, const float _Complex *in,
+                       size_t n_in, float _Complex *out, size_t max_out)
+{
+  const size_t need = dp_corr2d_execute_all_max_out (state, n_in);
+  if (corr2d_frames (state, n_in) == 0 || need == SIZE_MAX || max_out < need)
+    return SIZE_MAX;
+  dp_corr2d_fold_t f = { corr2d_fold_copy, out };
+  corr2d_batch (state, in, n_in, 0, &f);
+  return need;
+}
+
+size_t
+dp_corr2d_execute_coherent (dp_corr2d_state_t *state, const float _Complex *in,
+                            size_t n_in, float _Complex *out, size_t max_out)
+{
+  if (corr2d_frames (state, n_in) == 0 || max_out < state->n_out)
+    return SIZE_MAX;
+  dp_corr2d_fold_t f = { corr2d_fold_copy, out };
+  corr2d_batch (state, in, n_in, 1, &f);
+  return state->n_out;
+}
+
+size_t
+dp_corr2d_execute_power_sum (dp_corr2d_state_t    *state,
+                             const float _Complex *in, size_t n_in, float *out,
+                             size_t max_out)
+{
+  if (corr2d_frames (state, n_in) == 0 || max_out < state->n_out)
+    return SIZE_MAX;
+  dp_corr2d_fold_t f = { corr2d_fold_power_sum, out };
+  corr2d_batch (state, in, n_in, 0, &f);
+  return state->n_out;
+}
+
+size_t
+dp_corr2d_execute_power_max (dp_corr2d_state_t    *state,
+                             const float _Complex *in, size_t n_in, float *out,
+                             uint32_t *out1, size_t max_out)
+{
+  const size_t H = corr2d_frames (state, n_in);
+  /* The index is a uint32: map H - 1 must fit in one. */
+  if (H == 0 || H - 1 > UINT32_MAX || max_out < state->n_out)
+    return SIZE_MAX;
+  corr2d_max_t     c = { out, out1 };
+  dp_corr2d_fold_t f = { corr2d_fold_power_max, &c };
+  corr2d_batch (state, in, n_in, 0, &f);
+  return state->n_out;
+}
+
+size_t
+dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state, size_t n_in)
+{
+  return n_in / state->n;
+}
+
+size_t
+dp_corr2d_execute_peaks (dp_corr2d_state_t *state, const float _Complex *in,
+                         size_t n_in, float *out, uint32_t *out1,
+                         uint32_t *out2, float *out3, size_t max_out)
+{
+  const size_t H = corr2d_frames (state, n_in);
+  if (H == 0 || max_out < H)
+    return SIZE_MAX;
+  corr2d_peaks_t   c = { state, out, out1, out2, out3 };
+  dp_corr2d_fold_t f = { corr2d_fold_peaks, &c };
+  corr2d_batch (state, in, n_in, 0, &f);
+  return H;
 }

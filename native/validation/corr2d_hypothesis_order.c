@@ -44,6 +44,7 @@
 #include "doppler/dp_thread.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/timing/timing_core.h"
+#include "dp_rng_test.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -342,14 +343,6 @@ xcalloc (size_t n, size_t sz)
   return p;
 }
 
-/* A small deterministic generator, so the frame is the same every run. */
-static double
-urand (unsigned long long *s)
-{
-  *s = *s * 6364136223846793005ULL + 1442695040888963407ULL;
-  return (double)(*s >> 11) / 9007199254740992.0;
-}
-
 static cf
 cis (double a)
 {
@@ -360,23 +353,27 @@ static geo_t *
 geo_create (size_t ny, size_t nx, size_t ny_out, size_t lf, size_t rates,
             int nw)
 {
-  geo_t *g             = (geo_t *)xcalloc (1, sizeof *g);
-  g->ny                = ny;
-  g->nx                = nx;
-  g->ny_out            = ny_out;
-  g->lf                = lf;
-  g->m                 = lf * nx;
-  g->carriers          = lf;
-  g->rates             = rates;
-  g->nw                = nw;
-  unsigned long long s = 2683;
-  g->x                 = (cf *)xcalloc (ny * nx, sizeof (cf));
-  g->code              = (cf *)xcalloc (nx, sizeof (cf));
-  g->cref              = (cf *)xcalloc (nx, sizeof (cf));
+  geo_t *g    = (geo_t *)xcalloc (1, sizeof *g);
+  g->ny       = ny;
+  g->nx       = nx;
+  g->ny_out   = ny_out;
+  g->lf       = lf;
+  g->m        = lf * nx;
+  g->carriers = lf;
+  g->rates    = rates;
+  g->nw       = nw;
+  uint32_t s  = 2683u; /* dp_rng_test.h's xorshift32, so the frame repeats */
+  g->x        = (cf *)xcalloc (ny * nx, sizeof (cf));
+  g->code     = (cf *)xcalloc (nx, sizeof (cf));
+  g->cref     = (cf *)xcalloc (nx, sizeof (cf));
   for (size_t k = 0; k < ny * nx; k++)
-    g->x[k] = (float)(urand (&s) - 0.5) + I * (float)(urand (&s) - 0.5);
+    {
+      const double re = dp_uni (&s) - 0.5;
+      const double im = dp_uni (&s) - 0.5;
+      g->x[k]         = (float)re + I * (float)im;
+    }
   for (size_t k = 0; k < nx; k++)
-    g->code[k] = cis (2 * M_PI * urand (&s));
+    g->code[k] = cis (2 * M_PI * dp_uni (&s));
   dp_fft_state_t *f = dp_fft_create (nx, -1, 1);
   dp_fft_execute_cf32 (f, g->code, nx, g->cref, nx);
   dp_fft_destroy (f);

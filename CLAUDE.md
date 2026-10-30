@@ -67,6 +67,16 @@ ______________________________________________________________________
 
 ## Adding a new module or object
 
+**Any new feature, object or reshaped public surface follows
+[`docs/dev/contributing/adding-algorithms.md`](docs/dev/contributing/adding-algorithms.md)
+phase by phase: design page, declare, implement, pin and sabotage, bind,
+instrument, explore, certify, document, land.** Open it before planning,
+not after; the steps below are phase 2's and 3's mechanics only. A
+PreToolUse hook (`~/mcp-store/hooks/lifecycle-spine.sh`) refuses a write to
+`native/inc/doppler/**`, `objects/*.toml` or `just-makeit.toml` until the
+page has been read in the session: it went unread twice with a memory
+saying to read it (2026-09-27, 2026-10-30).
+
 ### Step 0 — characterise the algorithm
 
 Ask one question:

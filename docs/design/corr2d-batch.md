@@ -60,6 +60,10 @@ the maps: one inverse instead of H, and the sum of the maps only up to
 rounding. Each call is a thin wrapper over the one loop with a built-in
 reducer, and the header (`corr2d_core.h`) is the contract per call.
 
+A carrier-offset search run as one batch, with the caller's buffers and
+the refusals in view, is `native/examples/delay_doppler_batch_demo.c`; its
+Python twin is `src/doppler/examples/delay_doppler_batch_demo.py`.
+
 ## 4. Threads
 
 [Corr2D hypothesis bank §5](corr2d-hypotheses.md#5-cost) measured that
@@ -79,18 +83,39 @@ what keeps the result identical across thread counts. The scratch is one slot
 per worker (`2 n + n_out` complex values, plus the row zero-pad when
 `nx_out > nx`), made on the first batch.
 
-## 5. Unknowns
+## 5. What it costs
 
-- **What a batch saves over H `execute()` calls** at the request's geometry
-    (64 x 512, H = 48). The per-map work is the same, so the saving is the
-    per-call overhead and, on a pool, the dispatches. The benchmark row in
-    `bench_corr2d_core.c` and `bench_corr2d.py` measures it.
-- **Whether `ALL`'s copy out of the scratch map costs anything measurable**
-    next to the transforms. It is one pass over n_out values a map.
+`bench_corr2d_core.c`'s batch rows, at the request's geometry (a 64 x 512
+delay-Doppler map, H = 48), best of ten, on an 18-thread arm64 box:
+
+|                         | 48 `execute()` calls | `execute_all` | `execute_power_max` |
+| ----------------------- | -------------------- | ------------- | ------------------- |
+| one thread              | 5.99 ms              | 5.31 ms       | 6.15 ms             |
+| every core (18 workers) | 41.34 ms             | 2.64 ms       | 3.57 ms             |
+
+- **On one thread a batch saves nothing that matters.** The per-map work
+    is the whole cost, and from Python the two are within run-to-run noise
+    (4.94 ms for the loop, 5.25 ms for `execute_all`). The request's 186 us
+    a map was this work, not call overhead.
+- **On a pool it is the difference.** 48 `execute()` calls split every
+    map across 18 workers and pay a pool dispatch each, which costs more
+    than the map
+    ([#2696](https://github.com/doppler-dsp/doppler/issues/2696)); a batch
+    makes whole maps per worker and is 15x faster than that loop and 2x
+    faster than one thread.
+- **`ALL`'s copy out of the scratch map does not show** next to the
+    transforms.
+- **The power fold costs 15–20% of a batch** on one thread, a pass over
+    every cell of every map that is not vectorized
+    ([#2703](https://github.com/doppler-dsp/doppler/issues/2703)).
+
+## 6. Unknowns
+
 - **Where whole maps lose to a split**: long codes with fewer frames than
     workers. Phase 0 measured a split gaining at `nx = 1023` (0.6–0.94x of one
-    thread); a batch of two such frames on a large pool uses two workers. Not
-    measured yet.
+    thread); a batch of two such frames on a large pool uses two workers.
+    Not measured yet
+    ([#2704](https://github.com/doppler-dsp/doppler/issues/2704)).
 
 No Python prototype was needed: a batch changes no arithmetic, and every
 claim above is checked in `test_corr2d_core.c` against the object's own

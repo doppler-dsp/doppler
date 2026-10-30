@@ -677,10 +677,12 @@ set_tests_properties(validate_rx_dynamics validate_acq_rate_pd_pfa_smoke
 # (docs/design/corr2d-hypotheses.md §5, rendered by
 # docs/design/corr2d-hypotheses-measurements/record.py from --emit). CTest
 # runs --check only: the three pipelines agree, serial and pooled.
+# native/tests for dp_rng_test.h's generator only.
 add_executable(validate_corr2d_hypothesis_order
                ${CMAKE_CURRENT_SOURCE_DIR}/corr2d_hypothesis_order.c)
 target_include_directories(validate_corr2d_hypothesis_order
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_corr2d_hypothesis_order PRIVATE doppler_lib_static ${DP_MATH_LIBRARY} Threads::Threads)
 dp_gnu_compile_options(validate_corr2d_hypothesis_order PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_corr2d_hypothesis_order

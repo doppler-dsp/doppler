@@ -1121,3 +1121,22 @@ dp_corr2d_execute_peaks (dp_corr2d_state_t *state, const float _Complex *in,
   corr2d_batch (state, in, n_in, 0, &f);
   return H;
 }
+
+/* The three reductions to one map each write n_out values. */
+size_t
+dp_corr2d_execute_coherent_max_out (const dp_corr2d_state_t *state)
+{
+  return state->n_out;
+}
+
+size_t
+dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state)
+{
+  return state->n_out;
+}
+
+size_t
+dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state)
+{
+  return state->n_out;
+}

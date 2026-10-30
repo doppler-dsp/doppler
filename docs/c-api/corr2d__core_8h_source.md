@@ -153,13 +153,19 @@ size_t dp_corr2d_execute_all (dp_corr2d_state_t *state,
                               const float _Complex *in, size_t n_in,
                               float _Complex *out, size_t max_out);
 
+size_t dp_corr2d_execute_coherent_max_out (const dp_corr2d_state_t *state);
+
 size_t dp_corr2d_execute_coherent (dp_corr2d_state_t *state,
                                    const float _Complex *in, size_t n_in,
                                    float _Complex *out, size_t max_out);
 
+size_t dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state);
+
 size_t dp_corr2d_execute_power_sum (dp_corr2d_state_t *state,
                                     const float _Complex *in, size_t n_in,
                                     float *out, size_t max_out);
+
+size_t dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state);
 
 size_t dp_corr2d_execute_power_max (dp_corr2d_state_t *state,
                                     const float _Complex *in, size_t n_in,

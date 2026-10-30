@@ -166,11 +166,29 @@ dp_thread_join (dp_thread_t t)
   return (waited == WAIT_OBJECT_0 && closed) ? 0 : -1;
 }
 
-/** @brief Online processor count, or 1 if it cannot be determined.
- *  @return Number of online logical processors, always >= 1. */
+/** @brief Processors this process may run on, or 1 if unknown.
+ *
+ *  On a machine with one processor group (64 logical CPUs or fewer) this is
+ *  the size of the process affinity mask, so `start /affinity` and
+ *  SetProcessAffinityMask() shrink it the way `taskset` does on Linux
+ *  (doppler#2684). With several groups the mask describes the primary group
+ *  only -- on Windows 11 a process spans every group by default -- so there
+ *  the count is every active CPU in every group, as before.
+ *
+ *  @return Number of usable logical processors, always >= 1. */
 static inline int
 dp_cpu_count (void)
 {
+  DWORD_PTR proc = 0, sys = 0;
+  if (GetActiveProcessorGroupCount () == 1
+      && GetProcessAffinityMask (GetCurrentProcess (), &proc, &sys)
+      && proc != 0)
+    {
+      int k = 0;
+      for (; proc != 0; proc &= proc - 1) /* clears the lowest set bit */
+        k++;
+      return k;
+    }
   DWORD n = GetActiveProcessorCount (ALL_PROCESSOR_GROUPS);
   return n ? (int)n : 1;
 }

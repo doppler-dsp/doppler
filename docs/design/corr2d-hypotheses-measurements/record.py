@@ -45,6 +45,9 @@ PAGE = DATA.parent / "corr2d-hypotheses.md"
 SCRIPT = "docs/design/corr2d-hypotheses-measurements/record.py"
 SOURCE = ROOT / "native/validation/corr2d_hypothesis_order.c"
 VALIDATOR = ROOT / "build/native/validation/validate_corr2d_hypothesis_order"
+# The bank's default grid factor (§5). The pool table shows it alone: a
+# frame's time grows in proportion to L, so the other factors repeat it.
+DEFAULT_L = 4
 
 
 def measure() -> int:
@@ -133,14 +136,14 @@ def serial(run: dict[str, Any], meta: dict[str, Any]) -> str:
 
 
 def pool(run: dict[str, Any], meta: dict[str, Any]) -> str:
-    """On a pool: each method's frame time against its own serial time."""
+    """On a pool, at the default L: each method against its serial time."""
     by = _by(run)
     rows = []
     for (nx, lf, w), m in sorted(by.items()):
-        if w == 1:
+        if w == 1 or lf != DEFAULT_L:
             continue
         one = by[(nx, lf, 1)]
-        cells = [f"{nx}", f"{lf}", f"{w}"]
+        cells = [f"{nx}", f"{w}"]
         for k in ("full", "padded", "mix"):
             t = m[k]["frame_ms"]
             cells.append(f"{_ms(t)} ({t / one[k]['frame_ms']:.2f}x)")
@@ -148,7 +151,6 @@ def pool(run: dict[str, Any], meta: dict[str, Any]) -> str:
     return table(
         [
             "$n_x$",
-            "$L$",
             "workers",
             "full, ms (vs serial)",
             "zero-pad then roll, ms (vs serial)",

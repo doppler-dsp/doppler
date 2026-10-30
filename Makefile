@@ -1139,6 +1139,7 @@ $(UV) run python docs/design/spectrogram-measurements/u1u4.py --check
 $(UV) run python docs/design/spectrogram-measurements/b2094.py --check
 $(UV) run python docs/design/async-dsss-parallel-measurements/record.py --check
 $(UV) run python docs/design/acq-surface-measurements/record.py --check
+$(UV) run python docs/design/corr2d-hypotheses-measurements/prototype.py --check
 $(UV) run python docs/design/spectrogram-measurements/b2062.py --check
 endef
 

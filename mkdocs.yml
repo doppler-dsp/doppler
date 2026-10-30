@@ -318,6 +318,7 @@ nav:
       - A Receiver Built from a Frame Description: design/rx-frame-description.md
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Corr2D Hypothesis Bank: design/corr2d-hypotheses.md
+      - Corr2D Batches: design/corr2d-batch.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - wfmgen — the waveform generator: design/wfmgen.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md

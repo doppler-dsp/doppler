@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_corr2d_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } DelayDopplerObject;
 
 static void
@@ -23,6 +24,7 @@ DelayDopplerObj_dealloc (DelayDopplerObject *self)
 {
   if (self->handle)
     dp_corr2d_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -353,6 +355,966 @@ DelayDopplerObj_execute (DelayDopplerObject *self, PyObject *args,
 }
 
 static PyObject *
+DelayDopplerObj_execute_all_max_out (DelayDopplerObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t n_in = 0;
+  if (!PyArg_ParseTuple (args, "n", &n_in))
+    return NULL;
+  return PyLong_FromSize_t (
+      dp_corr2d_execute_all_max_out (self->handle, (size_t)n_in));
+}
+
+static PyObject *
+DelayDopplerObj_execute_all (DelayDopplerObject *self, PyObject *args,
+                             PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj    = NULL;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
+                                    &out_obj))
+    return NULL;
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!in_arr)
+    {
+      return NULL;
+    }
+  Py_ssize_t         n     = PyArray_SIZE (in_arr);
+  dp_corr2d_state_t *state = self->handle;
+  size_t             _cols = (size_t)(state->n_out);
+  if (_cols == 0)
+    {
+      PyErr_SetString (PyExc_RuntimeError,
+                       "DelayDoppler.execute_all: out_cols evaluated to 0");
+      Py_DECREF (in_arr);
+      return NULL;
+    }
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (PyArray_NDIM (out_arr) != 2
+          || (size_t)PyArray_DIM (out_arr, 1) != _cols)
+        {
+          PyErr_Format (
+              PyExc_ValueError,
+              "out must be a 2-D array with %zu columns, shape (rows, %zu)",
+              _cols, _cols);
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      size_t _omax = dp_corr2d_execute_all_max_out (self->handle, (size_t)n);
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
+      const float _Complex *_ng0
+          = (const float _Complex *)PyArray_DATA (in_arr);
+      float _Complex *_ng1 = (float _Complex *)PyArray_DATA (out_arr);
+      size_t          n_out;
+      void           *_jm_h = self->handle;
+      jm_inflight_enter (&self->_jm_inflight);
+      Py_BEGIN_ALLOW_THREADS
+        n_out = dp_corr2d_execute_all (_jm_h, _ng0, (size_t)n, _ng1, _cap);
+      Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
+      Py_DECREF (in_arr);
+      if (n_out == (SIZE_MAX))
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "execute_all: the input must be a whole, nonzero "
+                           "number of frames, and out= must hold every map");
+          return NULL;
+        }
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "DelayDoppler.execute_all: wrote %zu elements into a "
+                        "buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp _odim = (npy_intp)n_out;
+      if ((size_t)_odim % _cols != 0)
+        {
+          PyErr_Format (PyExc_RuntimeError,
+                        "DelayDoppler.execute_all: kernel returned %zu "
+                        "elements, not a whole number of %zu-wide rows",
+                        (size_t)_odim, _cols);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      npy_intp  _odims[2] = { _odim / (npy_intp)_cols, (npy_intp)_cols };
+      PyObject *_oview = PyArray_SimpleNewFromData (2, _odims, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)n;
+  size_t _cap  = dp_corr2d_execute_all_max_out (self->handle, (size_t)n);
+  (void)_need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "DelayDoppler.execute_all: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      Py_DECREF (in_arr);
+      return NULL;
+    }
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
+  size_t                n_out;
+  void                 *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
+  Py_BEGIN_ALLOW_THREADS
+    n_out = dp_corr2d_execute_all (_jm_h, _ng0, (size_t)n, _d0, _cap);
+  Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
+  Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "execute_all: the input must be a whole, nonzero "
+                       "number of frames, and out= must hold every map");
+      return NULL;
+    }
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "DelayDoppler.execute_all: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  npy_intp _odim = (npy_intp)n_out;
+  if ((size_t)_odim % _cols != 0)
+    {
+      PyErr_Format (PyExc_RuntimeError,
+                    "DelayDoppler.execute_all: kernel returned %zu elements, "
+                    "not a whole number of %zu-wide rows",
+                    (size_t)_odim, _cols);
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  npy_intp     _odims[2] = { _odim / (npy_intp)_cols, (npy_intp)_cols };
+  PyArray_Dims _rs0      = { _odims, 2 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+DelayDopplerObj_execute_coherent_max_out (DelayDopplerObject *self,
+                                          PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_corr2d_execute_coherent_max_out (self->handle));
+}
+
+static PyObject *
+DelayDopplerObj_execute_coherent (DelayDopplerObject *self, PyObject *args,
+                                  PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj    = NULL;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
+                                    &out_obj))
+    return NULL;
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!in_arr)
+    {
+      return NULL;
+    }
+  Py_ssize_t n = PyArray_SIZE (in_arr);
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      size_t _omax    = dp_corr2d_execute_coherent_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
+      const float _Complex *_ng0
+          = (const float _Complex *)PyArray_DATA (in_arr);
+      float _Complex *_ng1 = (float _Complex *)PyArray_DATA (out_arr);
+      size_t          n_out;
+      void           *_jm_h = self->handle;
+      jm_inflight_enter (&self->_jm_inflight);
+      Py_BEGIN_ALLOW_THREADS
+        n_out
+            = dp_corr2d_execute_coherent (_jm_h, _ng0, (size_t)n, _ng1, _cap);
+      Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
+      Py_DECREF (in_arr);
+      if (n_out == (SIZE_MAX))
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "execute_coherent: the input must be a whole, "
+                           "nonzero number of frames, and out= must hold one "
+                           "map");
+          return NULL;
+        }
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "DelayDoppler.execute_coherent: wrote %zu elements "
+                        "into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)n;
+  size_t _cap  = dp_corr2d_execute_coherent_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "DelayDoppler.execute_coherent: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      Py_DECREF (in_arr);
+      return NULL;
+    }
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
+  size_t                n_out;
+  void                 *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
+  Py_BEGIN_ALLOW_THREADS
+    n_out = dp_corr2d_execute_coherent (_jm_h, _ng0, (size_t)n, _d0, _cap);
+  Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
+  Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "execute_coherent: the input must be a whole, nonzero "
+                       "number of frames, and out= must hold one map");
+      return NULL;
+    }
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "DelayDoppler.execute_coherent: wrote %zu elements into a "
+                    "buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+DelayDopplerObj_execute_power_sum_max_out (DelayDopplerObject *self,
+                                           PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (
+      dp_corr2d_execute_power_sum_max_out (self->handle));
+}
+
+static PyObject *
+DelayDopplerObj_execute_power_sum (DelayDopplerObject *self, PyObject *args,
+                                   PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj    = NULL;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
+                                    &out_obj))
+    return NULL;
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!in_arr)
+    {
+      return NULL;
+    }
+  Py_ssize_t n = PyArray_SIZE (in_arr);
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_FLOAT,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      size_t _omax    = dp_corr2d_execute_power_sum_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel. Two calls on
+       * one object may run at once only if its kernel allows it; a
+       * teardown waits for a running call (gh-2272). */
+      const float _Complex *_ng0
+          = (const float _Complex *)PyArray_DATA (in_arr);
+      float *_ng1 = (float *)PyArray_DATA (out_arr);
+      size_t n_out;
+      void  *_jm_h = self->handle;
+      jm_inflight_enter (&self->_jm_inflight);
+      Py_BEGIN_ALLOW_THREADS
+        n_out
+            = dp_corr2d_execute_power_sum (_jm_h, _ng0, (size_t)n, _ng1, _cap);
+      Py_END_ALLOW_THREADS
+      jm_inflight_leave (&self->_jm_inflight);
+      Py_DECREF (in_arr);
+      if (n_out == (SIZE_MAX))
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_ValueError,
+                           "execute_power_sum: the input must be a whole, "
+                           "nonzero number of frames, and out= must hold one "
+                           "map");
+          return NULL;
+        }
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "DelayDoppler.execute_power_sum: wrote %zu elements "
+                        "into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)n;
+  size_t _cap  = dp_corr2d_execute_power_sum_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "DelayDoppler.execute_power_sum: output of %zu elements "
+                    "is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  if (!arr0)
+    {
+      Py_DECREF (in_arr);
+      return NULL;
+    }
+  float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
+  size_t                n_out;
+  void                 *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
+  Py_BEGIN_ALLOW_THREADS
+    n_out = dp_corr2d_execute_power_sum (_jm_h, _ng0, (size_t)n, _d0, _cap);
+  Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
+  Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_ValueError,
+                       "execute_power_sum: the input must be a whole, "
+                       "nonzero number of frames, and out= must hold one map");
+      return NULL;
+    }
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "DelayDoppler.execute_power_sum: wrote %zu elements into "
+                    "a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+DelayDopplerObj_execute_power_max (DelayDopplerObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  PyObject *in_obj = NULL;
+  if (!PyArg_ParseTuple (args, "O", &in_obj))
+    return NULL;
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!in_arr)
+    {
+      return NULL;
+    }
+  Py_ssize_t n = PyArray_SIZE (in_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)n;
+  size_t _cap  = dp_corr2d_execute_power_max_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "DelayDoppler.execute_power_max: output of %zu elements "
+                    "is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  PyObject *arr1  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
+  if (!arr0 || !arr1)
+    {
+      Py_XDECREF (arr0);
+      Py_XDECREF (arr1);
+      Py_DECREF (in_arr);
+      return NULL;
+    }
+  float    *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  uint32_t *_d1 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr1);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
+  size_t                n_out;
+  void                 *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
+  Py_BEGIN_ALLOW_THREADS
+    n_out
+        = dp_corr2d_execute_power_max (_jm_h, _ng0, (size_t)n, _d0, _d1, _cap);
+  Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
+  Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      PyErr_SetString (PyExc_ValueError,
+                       "execute_power_max: the input must be a whole, "
+                       "nonzero number of frames (at most 2**32), and out= "
+                       "must hold one map");
+      return NULL;
+    }
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      PyErr_Format (PyExc_RuntimeError,
+                    "DelayDoppler.execute_power_max: wrote %zu elements into "
+                    "a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      PyObject *_exact = PyTuple_Pack (2, arr0, arr1);
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      return _exact;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  PyArray_Dims _rs1 = { &_odim, 1 };
+  PyObject *v1 = PyArray_Resize ((PyArrayObject *)arr1, &_rs1, 0, NPY_CORDER);
+  if (!v1)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      return NULL;
+    }
+  Py_DECREF (v1);
+  PyObject *result = PyTuple_Pack (2, arr0, arr1);
+  Py_DECREF (arr0);
+  Py_DECREF (arr1);
+  return result;
+}
+
+static PyObject *
+DelayDopplerObj_execute_peaks (DelayDopplerObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  PyObject *in_obj = NULL;
+  if (!PyArg_ParseTuple (args, "O", &in_obj))
+    return NULL;
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!in_arr)
+    {
+      return NULL;
+    }
+  Py_ssize_t n = PyArray_SIZE (in_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)n;
+  size_t _cap  = dp_corr2d_execute_peaks_max_out (self->handle, (size_t)n);
+  (void)_need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "DelayDoppler.execute_peaks: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  PyObject *arr1  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
+  PyObject *arr2  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
+  PyObject *arr3  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  if (!arr0 || !arr1 || !arr2 || !arr3)
+    {
+      Py_XDECREF (arr0);
+      Py_XDECREF (arr1);
+      Py_XDECREF (arr2);
+      Py_XDECREF (arr3);
+      Py_DECREF (in_arr);
+      return NULL;
+    }
+  float    *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  uint32_t *_d1 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr1);
+  uint32_t *_d2 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr2);
+  float    *_d3 = (float *)PyArray_DATA ((PyArrayObject *)arr3);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
+  size_t                n_out;
+  void                 *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
+  Py_BEGIN_ALLOW_THREADS
+    n_out = dp_corr2d_execute_peaks (_jm_h, _ng0, (size_t)n, _d0, _d1, _d2,
+                                     _d3, _cap);
+  Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
+  Py_DECREF (in_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      PyErr_SetString (PyExc_ValueError,
+                       "execute_peaks: the input must be a whole, nonzero "
+                       "number of frames, and out= must hold one record per "
+                       "frame");
+      return NULL;
+    }
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      PyErr_Format (PyExc_RuntimeError,
+                    "DelayDoppler.execute_peaks: wrote %zu elements into a "
+                    "buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      PyObject *_exact = PyTuple_Pack (4, arr0, arr1, arr2, arr3);
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      return _exact;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  PyArray_Dims _rs1 = { &_odim, 1 };
+  PyObject *v1 = PyArray_Resize ((PyArrayObject *)arr1, &_rs1, 0, NPY_CORDER);
+  if (!v1)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      return NULL;
+    }
+  Py_DECREF (v1);
+  PyArray_Dims _rs2 = { &_odim, 1 };
+  PyObject *v2 = PyArray_Resize ((PyArrayObject *)arr2, &_rs2, 0, NPY_CORDER);
+  if (!v2)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      return NULL;
+    }
+  Py_DECREF (v2);
+  PyArray_Dims _rs3 = { &_odim, 1 };
+  PyObject *v3 = PyArray_Resize ((PyArrayObject *)arr3, &_rs3, 0, NPY_CORDER);
+  if (!v3)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      return NULL;
+    }
+  Py_DECREF (v3);
+  PyObject *result = PyTuple_Pack (4, arr0, arr1, arr2, arr3);
+  Py_DECREF (arr0);
+  Py_DECREF (arr1);
+  Py_DECREF (arr2);
+  Py_DECREF (arr3);
+  return result;
+}
+
+static PyObject *
 DelayDopplerObj_state_bytes (DelayDopplerObject *self,
                              PyObject           *Py_UNUSED (ignored))
 {
@@ -507,8 +1469,16 @@ DelayDopplerObj_destroy (DelayDopplerObject *self,
 {
   if (self->handle)
     {
-      dp_corr2d_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_corr2d_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -526,8 +1496,16 @@ DelayDopplerObj_exit (DelayDopplerObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_corr2d_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_corr2d_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -611,6 +1589,307 @@ static PyMethodDef DelayDopplerObj_methods[] = {
     "-------\n"
     "int\n"
     "    n_out, fixed at create().\n" },
+  { "execute_all", (PyCFunction)(void *)DelayDopplerObj_execute_all,
+    METH_VARARGS | METH_KEYWORDS,
+    "execute_all(x, out) -> ndarray\n"
+    "\n"
+    "Every map of a batch, unreduced: map h at `out + h * n_out`.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    H * n_out values (CF32).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    H * n_out, or SIZE_MAX (nothing written) for a refused batch. From\n"
+    "    Python, an (H, n_out) array, a view of `out=` when given.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``execute_all: the input must be\n"
+    "    a whole, nonzero number of frames, and out= must hold every map``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import DelayDoppler\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> ny, nx = 8, 32\n"
+    ">>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)\n"
+    ">>> dd = DelayDoppler(code, ny=ny)\n"
+    ">>> frames = np.concatenate([np.tile(np.roll(code, d), ny)\n"
+    "...                          for d in (3, 11)])   # delays 3 and 11\n"
+    ">>> maps = dd.execute_all(frames)\n"
+    ">>> maps.shape\n"
+    "(2, 256)\n"
+    ">>> [int(np.argmax(np.abs(m))) % nx for m in maps]   # each map's delay\n"
+    "[3, 11]\n"
+    ">>> dd.count                    # the dwell never moved\n"
+    "0\n" },
+  { "execute_all_max_out", (PyCFunction)DelayDopplerObj_execute_all_max_out,
+    METH_VARARGS,
+    "execute_all_max_out(n_in) -> int\n"
+    "\n"
+    "Samples dp_corr2d_execute_all() writes for n_in input samples: H *\n"
+    "n_out, H = n_in / (ny * nx).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_in : int\n"
+    "    Input samples about to be passed.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    H * n_out, or SIZE_MAX if that overflows.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import DelayDoppler\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> ny, nx = 8, 32\n"
+    ">>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)\n"
+    ">>> dd = DelayDoppler(code, ny=ny)\n"
+    ">>> frames = np.concatenate([np.tile(np.roll(code, d), ny)\n"
+    "...                          for d in (3, 11)])   # delays 3 and 11\n"
+    ">>> dd.execute_all_max_out(len(frames))   # 2 maps of 8 x 32\n"
+    "512\n" },
+  { "execute_coherent", (PyCFunction)(void *)DelayDopplerObj_execute_coherent,
+    METH_VARARGS | METH_KEYWORDS,
+    "execute_coherent(x, out) -> ndarray\n"
+    "\n"
+    "The coherent sum of a batch's maps, inverted once.\n"
+    "\n"
+    "The frames' product spectra are summed and the sum is inverted, as a\n"
+    "dwell does: the result is bit-identical to what a fresh object with\n"
+    "dwell = H dumps for the same frames, and equal to the sum of the H maps\n"
+    "up to rounding. The object's own dwell is untouched.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    n_out values (CF32).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    n_out, or SIZE_MAX (nothing written) for a refused batch.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``execute_coherent: the input\n"
+    "    must be a whole, nonzero number of frames, and out= must hold one\n"
+    "    map``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import DelayDoppler\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> ny, nx = 8, 32\n"
+    ">>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)\n"
+    ">>> dd = DelayDoppler(code, ny=ny)\n"
+    ">>> frames = np.concatenate([np.tile(np.roll(code, d), ny)\n"
+    "...                          for d in (3, 11)])   # delays 3 and 11\n"
+    ">>> x = np.tile(code, ny)\n"
+    ">>> total = dd.execute_coherent(np.concatenate([x, -x]))\n"
+    ">>> bool(np.abs(total).max() < 1e-3)          # x and -x cancel\n"
+    "True\n" },
+  { "execute_coherent_max_out",
+    (PyCFunction)DelayDopplerObj_execute_coherent_max_out, METH_NOARGS,
+    "execute_coherent_max_out() -> int\n"
+    "\n"
+    "Samples dp_corr2d_execute_coherent() writes: n_out.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    n_out, fixed at create().\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import DelayDoppler\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> ny, nx = 8, 32\n"
+    ">>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)\n"
+    ">>> dd = DelayDoppler(code, ny=ny)\n"
+    ">>> frames = np.concatenate([np.tile(np.roll(code, d), ny)\n"
+    "...                          for d in (3, 11)])   # delays 3 and 11\n"
+    ">>> dd.execute_coherent_max_out()\n"
+    "256\n" },
+  { "execute_power_sum",
+    (PyCFunction)(void *)DelayDopplerObj_execute_power_sum,
+    METH_VARARGS | METH_KEYWORDS,
+    "execute_power_sum(x, out) -> ndarray\n"
+    "\n"
+    "The power of a batch's maps, summed cell by cell: `out[k] = sum_h\n"
+    "|map_h[k]|^2`, summed in h order in float.\n"
+    "\n"
+    "Unlike the coherent sum, phase does not cancel: frames x and -x sum to\n"
+    "twice one map's power, where their coherent sum is zero.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "out : npt.NDArray[np.float32] | None\n"
+    "    n_out powers (float).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.float32]\n"
+    "    n_out, or SIZE_MAX (nothing written) for a refused batch.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``execute_power_sum: the input\n"
+    "    must be a whole, nonzero number of frames, and out= must hold one\n"
+    "    map``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import DelayDoppler\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> ny, nx = 8, 32\n"
+    ">>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)\n"
+    ">>> dd = DelayDoppler(code, ny=ny)\n"
+    ">>> frames = np.concatenate([np.tile(np.roll(code, d), ny)\n"
+    "...                          for d in (3, 11)])   # delays 3 and 11\n"
+    ">>> x = np.tile(code, ny)\n"
+    ">>> power = dd.execute_power_sum(np.concatenate([x, -x]))\n"
+    ">>> one = np.abs(dd.execute_all(x)[0]) ** 2\n"
+    ">>> bool(np.allclose(power, 2 * one))        # x and -x do not cancel\n"
+    "True\n" },
+  { "execute_power_sum_max_out",
+    (PyCFunction)DelayDopplerObj_execute_power_sum_max_out, METH_NOARGS,
+    "execute_power_sum_max_out() -> int\n"
+    "\n"
+    "Powers dp_corr2d_execute_power_sum() writes: n_out.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    n_out, fixed at create().\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import DelayDoppler\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> ny, nx = 8, 32\n"
+    ">>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)\n"
+    ">>> dd = DelayDoppler(code, ny=ny)\n"
+    ">>> frames = np.concatenate([np.tile(np.roll(code, d), ny)\n"
+    "...                          for d in (3, 11)])   # delays 3 and 11\n"
+    ">>> dd.execute_power_sum_max_out()\n"
+    "256\n" },
+  { "execute_power_max", (PyCFunction)DelayDopplerObj_execute_power_max,
+    METH_VARARGS,
+    "execute_power_max(x) -> tuple[ndarray, ndarray]\n"
+    "\n"
+    "The largest power over a batch's maps, cell by cell, and the map it\n"
+    "came from.\n"
+    "\n"
+    "`out[k] = max_h |map_h[k]|^2` and `out1[k]` is that h. A tie goes to\n"
+    "the lowest h: a later map replaces the running maximum only when it is\n"
+    "strictly greater.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "tuple[NDArray[np.float32], NDArray[np.uint32]]\n"
+    "    n_out, or SIZE_MAX (nothing written) for a refused batch or H above\n"
+    "    2^32. From Python, the tuple (power, index).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``execute_power_max: the input\n"
+    "    must be a whole, nonzero number of frames (at most 2**32), and out=\n"
+    "    must hold one map``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import DelayDoppler\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> ny, nx = 8, 32\n"
+    ">>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)\n"
+    ">>> dd = DelayDoppler(code, ny=ny)\n"
+    ">>> frames = np.concatenate([np.tile(np.roll(code, d), ny)\n"
+    "...                          for d in (3, 11)])   # delays 3 and 11\n"
+    ">>> power, index = dd.execute_power_max(frames)\n"
+    ">>> int(index[4 * nx + 3]), int(index[4 * nx + 11])  # which map peaks\n"
+    "(0, 1)\n" },
+  { "execute_peaks", (PyCFunction)DelayDopplerObj_execute_peaks, METH_VARARGS,
+    "execute_peaks(x) -> tuple[ndarray, ndarray, ndarray, ndarray]\n"
+    "\n"
+    "One record per map of a batch: its peak power, where the peak is,\n"
+    "and its mean power.\n"
+    "\n"
+    "For map h: `out[h]` is its largest `|map[k]|^2`, `out1[h]` and\n"
+    "`out2[h]` the row and column of that cell (the first in row-major order\n"
+    "on a tie), and `out3[h]` the mean of `|map[k]|^2` over its n_out cells.\n"
+    "A map is ny_out x nx_out; with col_out it is ny x 1, and the column\n"
+    "reported is col_out. The peak-to-mean of each map is `out[h] /\n"
+    "out3[h]`, a statistic of each map, which the same statistic of a\n"
+    "pointwise maximum over maps does not give.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "tuple[NDArray[np.float32], NDArray[np.uint32], NDArray[np.uint32], "
+    "NDArray[np.float32]]\n"
+    "    H, or SIZE_MAX (nothing written) for a refused batch. From Python,\n"
+    "    the tuple (peak, row, col, mean).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``execute_peaks: the input must\n"
+    "    be a whole, nonzero number of frames, and out= must hold one record\n"
+    "    per frame``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import DelayDoppler\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> ny, nx = 8, 32\n"
+    ">>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)\n"
+    ">>> dd = DelayDoppler(code, ny=ny)\n"
+    ">>> frames = np.concatenate([np.tile(np.roll(code, d), ny)\n"
+    "...                          for d in (3, 11)])   # delays 3 and 11\n"
+    ">>> peak, row, col, mean = dd.execute_peaks(frames)\n"
+    ">>> row.tolist(), col.tolist()     # zero Doppler is row ny / 2\n"
+    "([4, 4], [3, 11])\n"
+    ">>> bool(np.all(peak / mean > 100))   # each map's own peak-to-mean\n"
+    "True\n" },
   { "state_bytes", (PyCFunction)DelayDopplerObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

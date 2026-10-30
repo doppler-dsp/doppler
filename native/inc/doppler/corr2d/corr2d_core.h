@@ -427,7 +427,10 @@ typedef struct
  * @return H, or SIZE_MAX (nothing folded) when @p n_in is 0 or not a
  *         multiple of the frame.
  * @code
- * // The energy of each map, one value per frame.
+ * #include "doppler/corr2d/corr2d_core.h"
+ * #include <stdio.h>
+ *
+ * // A reducer: the energy of each map, one value per frame.
  * static void
  * energy (void *ctx, size_t h, const float _Complex *m, size_t n_out)
  * {
@@ -437,9 +440,23 @@ typedef struct
  *   ((double *)ctx)[h] = e;
  * }
  *
- * double           e[NFRAMES];
- * dp_corr2d_fold_t f = { energy, e };
- * size_t H = dp_corr2d_execute_fold (c, frames, NFRAMES * NY * NX, &f);
+ * int
+ * main (void)
+ * {
+ *   const float _Complex code[4] = { 1.0f, 1.0f, -1.0f, 1.0f };
+ *   dp_corr2d_state_t   *dd
+ *       = dp_corr2d_create_delay_doppler (code, 4, 2, 1, 1, 0);
+ *   float _Complex frames[3 * 2 * 4]; // 3 frames of ny x nx = 2 x 4
+ *   for (size_t k = 0; k < 3 * 2 * 4; k++)
+ *     frames[k] = code[k % 4] * (float)(1 + k / 8); // frame h is (h+1) x
+ *   double           e[3];
+ *   dp_corr2d_fold_t f = { energy, e };
+ *   size_t           H = dp_corr2d_execute_fold (dd, frames, 3 * 2 * 4, &f);
+ *   printf ("%zu maps, energy ratios %.0f %.0f\n", H, e[1] / e[0],
+ *           e[2] / e[0]); // 3 maps, energy ratios 4 9
+ *   dp_corr2d_destroy (dd);
+ *   return !(H == 3 && e[1] > 3.99 * e[0] && e[1] < 4.01 * e[0]);
+ * }
  * @endcode
  */
 size_t dp_corr2d_execute_fold (dp_corr2d_state_t *state,
@@ -452,6 +469,18 @@ size_t dp_corr2d_execute_fold (dp_corr2d_state_t *state,
  * @param state  Must be non-NULL.
  * @param n_in   Input samples about to be passed.
  * @return H * n_out, or SIZE_MAX if that overflows.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.spectral import DelayDoppler
+ * >>> rng = np.random.default_rng(0)
+ * >>> ny, nx = 8, 32
+ * >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+ * >>> dd = DelayDoppler(code, ny=ny)
+ * >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+ * ...                          for d in (3, 11)])   # delays 3 and 11
+ * >>> dd.execute_all_max_out(len(frames))   # 2 maps of 8 x 32
+ * 512
+ * @endcode
  */
 size_t dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state,
                                       size_t n_in);
@@ -466,10 +495,47 @@ size_t dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state,
  * @param max_out  Capacity of @p out; at least
  *                 dp_corr2d_execute_all_max_out().
  * @return H * n_out, or SIZE_MAX (nothing written) for a refused batch.
+ *         From Python, an (H, n_out) array, a view of `out=` when given.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.spectral import DelayDoppler
+ * >>> rng = np.random.default_rng(0)
+ * >>> ny, nx = 8, 32
+ * >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+ * >>> dd = DelayDoppler(code, ny=ny)
+ * >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+ * ...                          for d in (3, 11)])   # delays 3 and 11
+ * >>> maps = dd.execute_all(frames)
+ * >>> maps.shape
+ * (2, 256)
+ * >>> [int(np.argmax(np.abs(m))) % nx for m in maps]   # each map's delay
+ * [3, 11]
+ * >>> dd.count                    # the dwell never moved
+ * 0
+ * @endcode
  */
 size_t dp_corr2d_execute_all (dp_corr2d_state_t *state,
                               const float _Complex *in, size_t n_in,
                               float _Complex *out, size_t max_out);
+
+/**
+ * @brief Samples dp_corr2d_execute_coherent() writes: n_out.
+ * @param state  Must be non-NULL.
+ * @return n_out, fixed at create().
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.spectral import DelayDoppler
+ * >>> rng = np.random.default_rng(0)
+ * >>> ny, nx = 8, 32
+ * >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+ * >>> dd = DelayDoppler(code, ny=ny)
+ * >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+ * ...                          for d in (3, 11)])   # delays 3 and 11
+ * >>> dd.execute_coherent_max_out()
+ * 256
+ * @endcode
+ */
+size_t dp_corr2d_execute_coherent_max_out (const dp_corr2d_state_t *state);
 
 /**
  * @brief The coherent sum of a batch's maps, inverted once.
@@ -485,10 +551,43 @@ size_t dp_corr2d_execute_all (dp_corr2d_state_t *state,
  * @param out      n_out values (CF32).
  * @param max_out  Capacity of @p out; at least n_out.
  * @return n_out, or SIZE_MAX (nothing written) for a refused batch.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.spectral import DelayDoppler
+ * >>> rng = np.random.default_rng(0)
+ * >>> ny, nx = 8, 32
+ * >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+ * >>> dd = DelayDoppler(code, ny=ny)
+ * >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+ * ...                          for d in (3, 11)])   # delays 3 and 11
+ * >>> x = np.tile(code, ny)
+ * >>> total = dd.execute_coherent(np.concatenate([x, -x]))
+ * >>> bool(np.abs(total).max() < 1e-3)          # x and -x cancel
+ * True
+ * @endcode
  */
 size_t dp_corr2d_execute_coherent (dp_corr2d_state_t *state,
                                    const float _Complex *in, size_t n_in,
                                    float _Complex *out, size_t max_out);
+
+/**
+ * @brief Powers dp_corr2d_execute_power_sum() writes: n_out.
+ * @param state  Must be non-NULL.
+ * @return n_out, fixed at create().
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.spectral import DelayDoppler
+ * >>> rng = np.random.default_rng(0)
+ * >>> ny, nx = 8, 32
+ * >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+ * >>> dd = DelayDoppler(code, ny=ny)
+ * >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+ * ...                          for d in (3, 11)])   # delays 3 and 11
+ * >>> dd.execute_power_sum_max_out()
+ * 256
+ * @endcode
+ */
+size_t dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state);
 
 /**
  * @brief The power of a batch's maps, summed cell by cell:
@@ -503,10 +602,40 @@ size_t dp_corr2d_execute_coherent (dp_corr2d_state_t *state,
  * @param out      n_out powers (float).
  * @param max_out  Capacity of @p out; at least n_out.
  * @return n_out, or SIZE_MAX (nothing written) for a refused batch.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.spectral import DelayDoppler
+ * >>> rng = np.random.default_rng(0)
+ * >>> ny, nx = 8, 32
+ * >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+ * >>> dd = DelayDoppler(code, ny=ny)
+ * >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+ * ...                          for d in (3, 11)])   # delays 3 and 11
+ * >>> x = np.tile(code, ny)
+ * >>> power = dd.execute_power_sum(np.concatenate([x, -x]))
+ * >>> one = np.abs(dd.execute_all(x)[0]) ** 2
+ * >>> bool(np.allclose(power, 2 * one))        # x and -x do not cancel
+ * True
+ * @endcode
  */
 size_t dp_corr2d_execute_power_sum (dp_corr2d_state_t *state,
                                     const float _Complex *in, size_t n_in,
                                     float *out, size_t max_out);
+
+/**
+ * @brief Values per output dp_corr2d_execute_power_max() writes: n_out.
+ * @param state  Must be non-NULL.
+ * @return n_out, fixed at create().
+ * @code
+ * const float _Complex code[4] = { 1.0f, 1.0f, -1.0f, 1.0f };
+ * dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (code, 4, 2, 1, 1,
+ *                                                          0);
+ * size_t n = dp_corr2d_execute_power_max_max_out (dd); // 2 x 4 = 8
+ * dp_corr2d_destroy (dd);
+ * return n != 8;
+ * @endcode
+ */
+size_t dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state);
 
 /**
  * @brief The largest power over a batch's maps, cell by cell, and the map
@@ -523,7 +652,20 @@ size_t dp_corr2d_execute_power_sum (dp_corr2d_state_t *state,
  * @param out1     n_out map indices (uint32).
  * @param max_out  Capacity of each of @p out and @p out1; at least n_out.
  * @return n_out, or SIZE_MAX (nothing written) for a refused batch or
- *         H above 2^32.
+ *         H above 2^32.  From Python, the tuple (power, index).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.spectral import DelayDoppler
+ * >>> rng = np.random.default_rng(0)
+ * >>> ny, nx = 8, 32
+ * >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+ * >>> dd = DelayDoppler(code, ny=ny)
+ * >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+ * ...                          for d in (3, 11)])   # delays 3 and 11
+ * >>> power, index = dd.execute_power_max(frames)
+ * >>> int(index[4 * nx + 3]), int(index[4 * nx + 11])  # which map peaks
+ * (0, 1)
+ * @endcode
  */
 size_t dp_corr2d_execute_power_max (dp_corr2d_state_t *state,
                                     const float _Complex *in, size_t n_in,
@@ -535,6 +677,14 @@ size_t dp_corr2d_execute_power_max (dp_corr2d_state_t *state,
  * @param state  Must be non-NULL.
  * @param n_in   Input samples about to be passed.
  * @return n_in / (ny * nx).
+ * @code
+ * const float _Complex code[4] = { 1.0f, 1.0f, -1.0f, 1.0f };
+ * dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (code, 4, 2, 1, 1,
+ *                                                          0);
+ * size_t h = dp_corr2d_execute_peaks_max_out (dd, 3 * 2 * 4); // 3 frames
+ * dp_corr2d_destroy (dd);
+ * return h != 3;
+ * @endcode
  */
 size_t dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state,
                                         size_t n_in);
@@ -559,7 +709,23 @@ size_t dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state,
  * @param out2     H peak columns (uint32).
  * @param out3     H mean powers (float).
  * @param max_out  Capacity of each output; at least H.
- * @return H, or SIZE_MAX (nothing written) for a refused batch.
+ * @return H, or SIZE_MAX (nothing written) for a refused batch.  From
+ *         Python, the tuple (peak, row, col, mean).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.spectral import DelayDoppler
+ * >>> rng = np.random.default_rng(0)
+ * >>> ny, nx = 8, 32
+ * >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+ * >>> dd = DelayDoppler(code, ny=ny)
+ * >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+ * ...                          for d in (3, 11)])   # delays 3 and 11
+ * >>> peak, row, col, mean = dd.execute_peaks(frames)
+ * >>> row.tolist(), col.tolist()     # zero Doppler is row ny / 2
+ * ([4, 4], [3, 11])
+ * >>> bool(np.all(peak / mean > 100))   # each map's own peak-to-mean
+ * True
+ * @endcode
  */
 size_t dp_corr2d_execute_peaks (dp_corr2d_state_t *state,
                                 const float _Complex *in, size_t n_in,

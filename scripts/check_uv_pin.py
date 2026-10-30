@@ -208,7 +208,7 @@ RUN_VALUED = frozenset(
 
 #: Value-taking spellings `uv run --help` does not show, so the test that
 #: holds RUN_VALUED to the help cannot see them: hidden options and aliases,
-#: read from uv 0.12.24's CLI source (crates/uv-cli/src/lib.rs).
+#: read from uv 0.13.6's CLI source (crates/uv-cli/src/lib.rs).
 RUN_VALUED_UNLISTED = frozenset(
     {
         "--python-preference",
@@ -224,7 +224,7 @@ RUN_VALUED_UNLISTED = frozenset(
 #: hidden option, so a test fails once the uv pin moves past this: re-read
 #: the new uv's crates/uv-cli/src/lib.rs for hidden options and aliases that
 #: take a value, update the set, then this version.
-RUN_VALUED_UNLISTED_UV = "0.12.24"
+RUN_VALUED_UNLISTED_UV = "0.13.6"
 _VALUED = RUN_VALUED | RUN_VALUED_UNLISTED
 
 

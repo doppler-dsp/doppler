@@ -84,7 +84,7 @@ listed the moment its folder exists. There is no list here to update.
 | [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)                     | `resample`   | 14/14  | 9        | none                       |
 | [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)                               | `source`     | 26/26  | 9        | none                       |
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)                             | `source`     | 18/18  | 9        | none                       |
-| [Corr2D](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/corr2d/results.md)                     | `spectral`   | 18/18  | 6        | none                       |
+| [Corr2D](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/corr2d/results.md)                     | `spectral`   | 25/25  | 6        | none                       |
 | [CorrDetector2D](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/detector2d/results.md)         | `spectral`   | 15/15  | 5        | none                       |
 | [PSD](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/psd/results.md)                           | `spectral`   | 28/28  | 16       | 4 — F11, F12, F14, F16     |
 | [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/spectrogram/results.md)       | `spectral`   | 36/36  | 11       | 1 — F7                     |

@@ -72,6 +72,7 @@
 * [**dp\_chunk\_t**](structdp__chunk__t.md)
 * [**dp\_cic\_state\_t**](structdp__cic__state__t.md)
 * [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md)
+* [**dp\_corr2d\_fold\_t**](structdp__corr2d__fold__t.md)
 * [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md)
 * [**dp\_corr\_state\_t**](structdp__corr__state__t.md)
 * [**dp\_costas\_state\_t**](structdp__costas__state__t.md)

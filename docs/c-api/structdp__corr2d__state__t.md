@@ -37,6 +37,10 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  float \_Complex \* | [**accum**](#variable-accum)  <br> |
+|  float \_Complex \* | [**bat\_acc**](#variable-bat_acc)  <br> |
+|  float \_Complex \* | [**bat\_map**](#variable-bat_map)  <br> |
+|  float \_Complex \* | [**bat\_pad**](#variable-bat_pad)  <br> |
+|  float \_Complex \* | [**bat\_work**](#variable-bat_work)  <br> |
 |  float \_Complex \* | [**col\_gather**](#variable-col_gather)  <br> |
 |  int | [**col\_out**](#variable-col_out)  <br> |
 |  float \_Complex \* | [**col\_ref**](#variable-col_ref)  <br> |
@@ -135,6 +139,76 @@ float _Complex* dp_corr2d_state_t::accum;
 
 Coherent product-spectrum accumulator, same (ny,nx)/reinterpretation rule as work\_fft. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable bat\_acc 
+
+```C++
+float _Complex* dp_corr2d_state_t::bat_acc;
+```
+
+
+
+Per-worker accumulators, nworkers x n; zero between maps. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable bat\_map 
+
+```C++
+float _Complex* dp_corr2d_state_t::bat_map;
+```
+
+
+
+Per-worker maps, nworkers x n\_out. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable bat\_pad 
+
+```C++
+float _Complex* dp_corr2d_state_t::bat_pad;
+```
+
+
+
+Per-worker row zero-pad, nworkers x ny x nx\_out; fast path with nx\_out &gt; nx only. 
+
+
+        
+
+<hr>
+
+
+
+### variable bat\_work 
+
+```C++
+float _Complex* dp_corr2d_state_t::bat_work;
+```
+
+
+
+Per-worker forward spectra, nworkers x n. 
 
 
         

@@ -146,6 +146,16 @@ typedef struct {
                                    slow-time zero-pad).  Delay-Doppler.   */
   float _Complex  *col_spec;  /**< Per-worker transformed tiles, same
                                    shape as @ref col_gather.              */
+  /* Batch scratch (dp_corr2d_execute_fold and the typed batch calls),
+   * allocated on the first batch, one slot per worker.  A batch makes its
+   * maps here and never touches accum or count, so it is not state and is
+   * not in the blob. */
+  float _Complex  *bat_acc;   /**< Per-worker accumulators, nworkers x n;
+                                   zero between maps.                    */
+  float _Complex  *bat_work;  /**< Per-worker forward spectra, nworkers x n. */
+  float _Complex  *bat_pad;   /**< Per-worker row zero-pad, nworkers x ny x
+                                   nx_out; fast path with nx_out > nx only. */
+  float _Complex  *bat_map;   /**< Per-worker maps, nworkers x n_out.    */
 } dp_corr2d_state_t;
 
 /**
@@ -365,6 +375,194 @@ size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
  */
 size_t dp_corr2d_execute(dp_corr2d_state_t *state, const float _Complex *in,
                       size_t n_in, float _Complex *out, size_t max_out);
+
+/* ── Batches: many frames in one call (#2683) ──────────────────────────────
+ *
+ * A batch is H frames back to back, n_in = H * ny * nx.  Map h is exactly
+ * what a fresh object with dwell 1 returns for frame h -- the same
+ * arithmetic, bit for bit, on every path (general 2-D, single-row fast
+ * path, col_out, delay-Doppler) and at every thread count.  A batch never
+ * reads or writes the dwell: accum, count and the state blob are the same
+ * after it as before, so a batch may run in the middle of a dwell.
+ *
+ * Each typed call folds the H maps into a caller-owned result, in h order.
+ * Every one refuses, with nothing written and SIZE_MAX returned, an empty
+ * batch (n_in == 0), a length that is not a whole number of frames, or an
+ * output with room for less than the whole result: a truncated reduction
+ * has no meaning, so a batch never truncates the way execute() does.
+ *
+ * Threads: with at least as many frames as workers, each worker makes whole
+ * maps on its own plans and scratch, and the maps are folded in h order; a
+ * short frame gains nothing from splitting (corr2d-hypotheses.md section
+ * 5).  With fewer frames, each map is split across the workers as
+ * execute() splits it.  The result is the same either way. */
+
+/**
+ * @brief A C reducer: called once per map, in h order, by
+ *        dp_corr2d_execute_fold().
+ *
+ * @p map holds @p n_out values laid out as execute() writes them, and is
+ * valid only for the duration of the call.
+ */
+typedef struct
+{
+  /** Fold map @p h into the result @p ctx names. */
+  void (*fold) (void *ctx, size_t h, const float _Complex *map, size_t n_out);
+  void *ctx; /**< Passed to every call of @ref fold. */
+} dp_corr2d_fold_t;
+
+/**
+ * @brief Make the map of every frame in a batch and hand each to a reducer.
+ *
+ * The one loop every typed batch call runs on.  Maps are made as described
+ * above and passed to `fold->fold(fold->ctx, h, map, n_out)` for h = 0 ..
+ * H-1, in that order, from the calling thread.
+ *
+ * @param state  Must be non-NULL.
+ * @param in     H frames, each ny * nx samples (CF32), back to back.
+ * @param n_in   Samples in @p in: a nonzero multiple of ny * nx.
+ * @param fold   The reducer; must be non-NULL.
+ * @return H, or SIZE_MAX (nothing folded) when @p n_in is 0 or not a
+ *         multiple of the frame.
+ * @code
+ * // The energy of each map, one value per frame.
+ * static void
+ * energy (void *ctx, size_t h, const float _Complex *m, size_t n_out)
+ * {
+ *   double e = 0.0;
+ *   for (size_t k = 0; k < n_out; k++)
+ *     e += crealf (m[k]) * crealf (m[k]) + cimagf (m[k]) * cimagf (m[k]);
+ *   ((double *)ctx)[h] = e;
+ * }
+ *
+ * double           e[NFRAMES];
+ * dp_corr2d_fold_t f = { energy, e };
+ * size_t H = dp_corr2d_execute_fold (c, frames, NFRAMES * NY * NX, &f);
+ * @endcode
+ */
+size_t dp_corr2d_execute_fold (dp_corr2d_state_t *state,
+                               const float _Complex *in, size_t n_in,
+                               const dp_corr2d_fold_t *fold);
+
+/**
+ * @brief Samples dp_corr2d_execute_all() writes for @p n_in input samples:
+ *        H * n_out, H = n_in / (ny * nx).
+ * @param state  Must be non-NULL.
+ * @param n_in   Input samples about to be passed.
+ * @return H * n_out, or SIZE_MAX if that overflows.
+ */
+size_t dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state,
+                                      size_t n_in);
+
+/**
+ * @brief Every map of a batch, unreduced: map h at `out + h * n_out`.
+ *
+ * @param state    Must be non-NULL.
+ * @param in       H frames back to back (CF32).
+ * @param n_in     A nonzero multiple of ny * nx.
+ * @param out      H * n_out values (CF32).
+ * @param max_out  Capacity of @p out; at least
+ *                 dp_corr2d_execute_all_max_out().
+ * @return H * n_out, or SIZE_MAX (nothing written) for a refused batch.
+ */
+size_t dp_corr2d_execute_all (dp_corr2d_state_t *state,
+                              const float _Complex *in, size_t n_in,
+                              float _Complex *out, size_t max_out);
+
+/**
+ * @brief The coherent sum of a batch's maps, inverted once.
+ *
+ * The frames' product spectra are summed and the sum is inverted, as a
+ * dwell does: the result is bit-identical to what a fresh object with
+ * dwell = H dumps for the same frames, and equal to the sum of the H maps
+ * up to rounding.  The object's own dwell is untouched.
+ *
+ * @param state    Must be non-NULL.
+ * @param in       H frames back to back (CF32).
+ * @param n_in     A nonzero multiple of ny * nx.
+ * @param out      n_out values (CF32).
+ * @param max_out  Capacity of @p out; at least n_out.
+ * @return n_out, or SIZE_MAX (nothing written) for a refused batch.
+ */
+size_t dp_corr2d_execute_coherent (dp_corr2d_state_t *state,
+                                   const float _Complex *in, size_t n_in,
+                                   float _Complex *out, size_t max_out);
+
+/**
+ * @brief The power of a batch's maps, summed cell by cell:
+ *        `out[k] = sum_h |map_h[k]|^2`, summed in h order in float.
+ *
+ * Unlike the coherent sum, phase does not cancel: frames x and -x sum to
+ * twice one map's power, where their coherent sum is zero.
+ *
+ * @param state    Must be non-NULL.
+ * @param in       H frames back to back (CF32).
+ * @param n_in     A nonzero multiple of ny * nx.
+ * @param out      n_out powers (float).
+ * @param max_out  Capacity of @p out; at least n_out.
+ * @return n_out, or SIZE_MAX (nothing written) for a refused batch.
+ */
+size_t dp_corr2d_execute_power_sum (dp_corr2d_state_t *state,
+                                    const float _Complex *in, size_t n_in,
+                                    float *out, size_t max_out);
+
+/**
+ * @brief The largest power over a batch's maps, cell by cell, and the map
+ *        it came from.
+ *
+ * `out[k] = max_h |map_h[k]|^2` and `out1[k]` is that h.  A tie goes to the
+ * lowest h: a later map replaces the running maximum only when it is
+ * strictly greater.
+ *
+ * @param state    Must be non-NULL.
+ * @param in       H frames back to back (CF32); H at most 2^32.
+ * @param n_in     A nonzero multiple of ny * nx.
+ * @param out      n_out powers (float).
+ * @param out1     n_out map indices (uint32).
+ * @param max_out  Capacity of each of @p out and @p out1; at least n_out.
+ * @return n_out, or SIZE_MAX (nothing written) for a refused batch or
+ *         H above 2^32.
+ */
+size_t dp_corr2d_execute_power_max (dp_corr2d_state_t *state,
+                                    const float _Complex *in, size_t n_in,
+                                    float *out, uint32_t *out1,
+                                    size_t max_out);
+
+/**
+ * @brief Records dp_corr2d_execute_peaks() writes for @p n_in samples: H.
+ * @param state  Must be non-NULL.
+ * @param n_in   Input samples about to be passed.
+ * @return n_in / (ny * nx).
+ */
+size_t dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state,
+                                        size_t n_in);
+
+/**
+ * @brief One record per map of a batch: its peak power, where the peak is,
+ *        and its mean power.
+ *
+ * For map h: `out[h]` is its largest `|map[k]|^2`, `out1[h]` and `out2[h]`
+ * the row and column of that cell (the first in row-major order on a tie),
+ * and `out3[h]` the mean of `|map[k]|^2` over its n_out cells.  A map is
+ * ny_out x nx_out; with col_out it is ny x 1, and the column reported is
+ * col_out.  The peak-to-mean of each map is `out[h] / out3[h]`, a statistic
+ * of each map, which the same statistic of a pointwise maximum over maps
+ * does not give.
+ *
+ * @param state    Must be non-NULL.
+ * @param in       H frames back to back (CF32).
+ * @param n_in     A nonzero multiple of ny * nx.
+ * @param out      H peak powers (float).
+ * @param out1     H peak rows (uint32).
+ * @param out2     H peak columns (uint32).
+ * @param out3     H mean powers (float).
+ * @param max_out  Capacity of each output; at least H.
+ * @return H, or SIZE_MAX (nothing written) for a refused batch.
+ */
+size_t dp_corr2d_execute_peaks (dp_corr2d_state_t *state,
+                                const float _Complex *in, size_t n_in,
+                                float *out, uint32_t *out1, uint32_t *out2,
+                                float *out3, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running 2-D product-spectrum accumulator + frame count;

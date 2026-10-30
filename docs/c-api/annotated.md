@@ -61,6 +61,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_chunk\_t**](structdp__chunk__t.md) _Reassembly geometry, present only when_ [_**DP\_FLAG\_CHUNKED**_](group__wire.md#define-dp_flag_chunked) _._    
 * **struct** [**dp\_cic\_state\_t**](structdp__cic__state__t.md) _CIC filter state._     
 * **struct** [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) _A code and the register encoding it, together._     
+* **struct** [**dp\_corr2d\_fold\_t**](structdp__corr2d__fold__t.md) _A C reducer: called once per map, in h order, by_ [_**dp\_corr2d\_execute\_fold()**_](corr2d__core_8h.md#function-dp_corr2d_execute_fold) _._    
 * **struct** [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) _2-D FFT correlator state._     
 * **struct** [**dp\_corr\_state\_t**](structdp__corr__state__t.md) _1-D FFT correlator state._     
 * **struct** [**dp\_costas\_state\_t**](structdp__costas__state__t.md) _Costas loop state._     

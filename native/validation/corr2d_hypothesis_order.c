@@ -24,6 +24,10 @@
  * mis-signed hypothesis changes the result, which is what --check needs; all
  * three pipelines pay the same fold.
  *
+ * Code lengths run from preamble-short (32) to 1023, the powers of two
+ * beside the 2^n - 1 lengths real codes have, because the slow-time
+ * stage's share, and so the pool's worth, changes with nx.
+ *
  * The carriers are the L fractions of one whole bin, offsets j / (L nx) for
  * j = 0 .. L-1: whole-bin offsets cost both methods the same (a roll), so
  * they are left out of the comparison.
@@ -530,7 +534,7 @@ main (int argc, char **argv)
     return check ();
   const int    emit = argc > 1 && strcmp (argv[1], "--emit") == 0;
   const size_t ny = 64, ny_out = 64, rates = 12;
-  const size_t nxs[] = { 512, 1023 };
+  const size_t nxs[] = { 32, 64, 127, 128, 255, 256, 512, 1023 };
   const size_t lfs[] = { 2, 4, 8 };
   int          pool  = dp_cpu_count ();
   if (pool > (int)ny)
@@ -552,8 +556,8 @@ main (int argc, char **argv)
                   "workers", "method", "frame ms", "fwd", "inv", "col",
                   "other");
   int first = 1;
-  for (size_t a = 0; a < 2; a++)
-    for (size_t b = 0; b < 3; b++)
+  for (size_t a = 0; a < sizeof nxs / sizeof *nxs; a++)
+    for (size_t b = 0; b < sizeof lfs / sizeof *lfs; b++)
       for (size_t c = 0; c < 3; c++)
         {
           if (c > 0 && nws[c] <= nws[c - 1])

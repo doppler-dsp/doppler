@@ -527,7 +527,15 @@ dp_corr2d_create function
 dp_corr2d_create_delay_doppler function
 dp_corr2d_destroy function
 dp_corr2d_execute function
+dp_corr2d_execute_all function
+dp_corr2d_execute_all_max_out function
+dp_corr2d_execute_coherent function
+dp_corr2d_execute_fold function
 dp_corr2d_execute_max_out function
+dp_corr2d_execute_peaks function
+dp_corr2d_execute_peaks_max_out function
+dp_corr2d_execute_power_max function
+dp_corr2d_execute_power_sum function
 dp_corr2d_get_state function
 dp_corr2d_reset function
 dp_corr2d_set_ref function

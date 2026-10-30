@@ -34,6 +34,7 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**dp\_corr2d\_fold\_t**](structdp__corr2d__fold__t.md) <br>_A C reducer: called once per map, in h order, by_ [_**dp\_corr2d\_execute\_fold()**_](corr2d__core_8h.md#function-dp_corr2d_execute_fold) _._ |
 | struct | [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) <br>_2-D FFT correlator state._  |
 
 
@@ -65,7 +66,15 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 |  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**dp\_corr2d\_create\_delay\_doppler**](#function-dp_corr2d_create_delay_doppler) (const float \_Complex \* code, size\_t code\_len, size\_t ny, size\_t dwell, int nthreads, size\_t ny\_out) <br>_Allocate the delay-Doppler flavor: a code correlator that maps a raw stream of_ `ny` _code periods onto (Doppler, delay)._ |
 |  void | [**dp\_corr2d\_destroy**](#function-dp_corr2d_destroy) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Destroy and free a corr2d instance._  |
 |  size\_t | [**dp\_corr2d\_execute**](#function-dp_corr2d_execute) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._ |
+|  size\_t | [**dp\_corr2d\_execute\_all**](#function-dp_corr2d_execute_all) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Every map of a batch, unreduced: map h at_ `out + h * n_out` _._ |
+|  size\_t | [**dp\_corr2d\_execute\_all\_max\_out**](#function-dp_corr2d_execute_all_max_out) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, size\_t n\_in) <br>_Samples_ [_**dp\_corr2d\_execute\_all()**_](corr2d__core_8h.md#function-dp_corr2d_execute_all) _writes for_`n_in` _input samples: H \* n\_out, H = n\_in / (ny \* nx)._ |
+|  size\_t | [**dp\_corr2d\_execute\_coherent**](#function-dp_corr2d_execute_coherent) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_The coherent sum of a batch's maps, inverted once._  |
+|  size\_t | [**dp\_corr2d\_execute\_fold**](#function-dp_corr2d_execute_fold) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, const [**dp\_corr2d\_fold\_t**](structdp__corr2d__fold__t.md) \* fold) <br>_Make the map of every frame in a batch and hand each to a reducer._  |
 |  size\_t | [**dp\_corr2d\_execute\_max\_out**](#function-dp_corr2d_execute_max_out) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (_ [_**dp\_corr2d\_state\_t::n\_out**_](structdp__corr2d__state__t.md#variable-n_out) __ _ny\_out\*nx\_out normally, or ny when a single_[_**dp\_corr2d\_state\_t::col\_out**_](structdp__corr2d__state__t.md#variable-col_out) _was selected)._ |
+|  size\_t | [**dp\_corr2d\_execute\_peaks**](#function-dp_corr2d_execute_peaks) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, uint32\_t \* out1, uint32\_t \* out2, float \* out3, size\_t max\_out) <br>_One record per map of a batch: its peak power, where the peak is, and its mean power._  |
+|  size\_t | [**dp\_corr2d\_execute\_peaks\_max\_out**](#function-dp_corr2d_execute_peaks_max_out) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, size\_t n\_in) <br>_Records_ [_**dp\_corr2d\_execute\_peaks()**_](corr2d__core_8h.md#function-dp_corr2d_execute_peaks) _writes for_`n_in` _samples: H._ |
+|  size\_t | [**dp\_corr2d\_execute\_power\_max**](#function-dp_corr2d_execute_power_max) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, uint32\_t \* out1, size\_t max\_out) <br>_The largest power over a batch's maps, cell by cell, and the map it came from._  |
+|  size\_t | [**dp\_corr2d\_execute\_power\_sum**](#function-dp_corr2d_execute_power_sum) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_The power of a batch's maps, summed cell by cell:_ `out[k] = sum_h |map_h[k]|^2` _, summed in h order in float._ |
 |  void | [**dp\_corr2d\_get\_state**](#function-dp_corr2d_get_state) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, void \* blob) <br>_Serialize the frame count and spectrum accumulator into_ `blob` _._ |
 |  void | [**dp\_corr2d\_reset**](#function-dp_corr2d_reset) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._  |
 |  int | [**dp\_corr2d\_set\_ref**](#function-dp_corr2d_set_ref) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
@@ -356,6 +365,188 @@ True
 
 
 
+### function dp\_corr2d\_execute\_all 
+
+_Every map of a batch, unreduced: map h at_ `out + h * n_out` _._
+```C++
+size_t dp_corr2d_execute_all (
+    dp_corr2d_state_t * state,
+    const float _Complex * in,
+    size_t n_in,
+    float _Complex * out,
+    size_t max_out
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `in` H frames back to back (CF32). 
+* `n_in` A nonzero multiple of ny \* nx. 
+* `out` H \* n\_out values (CF32). 
+* `max_out` Capacity of `out`; at least [**dp\_corr2d\_execute\_all\_max\_out()**](corr2d__core_8h.md#function-dp_corr2d_execute_all_max_out). 
+
+
+
+**Returns:**
+
+H \* n\_out, or SIZE\_MAX (nothing written) for a refused batch. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_execute\_all\_max\_out 
+
+_Samples_ [_**dp\_corr2d\_execute\_all()**_](corr2d__core_8h.md#function-dp_corr2d_execute_all) _writes for_`n_in` _input samples: H \* n\_out, H = n\_in / (ny \* nx)._
+```C++
+size_t dp_corr2d_execute_all_max_out (
+    const dp_corr2d_state_t * state,
+    size_t n_in
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `n_in` Input samples about to be passed. 
+
+
+
+**Returns:**
+
+H \* n\_out, or SIZE\_MAX if that overflows. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_execute\_coherent 
+
+_The coherent sum of a batch's maps, inverted once._ 
+```C++
+size_t dp_corr2d_execute_coherent (
+    dp_corr2d_state_t * state,
+    const float _Complex * in,
+    size_t n_in,
+    float _Complex * out,
+    size_t max_out
+) 
+```
+
+
+
+The frames' product spectra are summed and the sum is inverted, as a dwell does: the result is bit-identical to what a fresh object with dwell = H dumps for the same frames, and equal to the sum of the H maps up to rounding. The object's own dwell is untouched.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `in` H frames back to back (CF32). 
+* `n_in` A nonzero multiple of ny \* nx. 
+* `out` n\_out values (CF32). 
+* `max_out` Capacity of `out`; at least n\_out. 
+
+
+
+**Returns:**
+
+n\_out, or SIZE\_MAX (nothing written) for a refused batch. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_execute\_fold 
+
+_Make the map of every frame in a batch and hand each to a reducer._ 
+```C++
+size_t dp_corr2d_execute_fold (
+    dp_corr2d_state_t * state,
+    const float _Complex * in,
+    size_t n_in,
+    const dp_corr2d_fold_t * fold
+) 
+```
+
+
+
+The one loop every typed batch call runs on. Maps are made as described above and passed to `fold->fold(fold->ctx, h, map, n_out)` for h = 0 .. H-1, in that order, from the calling thread.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `in` H frames, each ny \* nx samples (CF32), back to back. 
+* `n_in` Samples in `in:` a nonzero multiple of ny \* nx. 
+* `fold` The reducer; must be non-NULL. 
+
+
+
+**Returns:**
+
+H, or SIZE\_MAX (nothing folded) when `n_in` is 0 or not a multiple of the frame. 
+```C++
+// The energy of each map, one value per frame.
+static void
+energy (void *ctx, size_t h, const float _Complex *m, size_t n_out)
+{
+  double e = 0.0;
+  for (size_t k = 0; k < n_out; k++)
+    e += crealf (m[k]) * crealf (m[k]) + cimagf (m[k]) * cimagf (m[k]);
+  ((double *)ctx)[h] = e;
+}
+
+double           e[NFRAMES];
+dp_corr2d_fold_t f = { energy, e };
+size_t H = dp_corr2d_execute_fold (c, frames, NFRAMES * NY * NX, &f);
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_corr2d\_execute\_max\_out 
 
 _Maximum output samples per execute call (_ [_**dp\_corr2d\_state\_t::n\_out**_](structdp__corr2d__state__t.md#variable-n_out) __ _ny\_out\*nx\_out normally, or ny when a single_[_**dp\_corr2d\_state\_t::col\_out**_](structdp__corr2d__state__t.md#variable-col_out) _was selected)._
@@ -379,6 +570,185 @@ size_t dp_corr2d_execute_max_out (
 **Returns:**
 
 n\_out, fixed at create(). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_execute\_peaks 
+
+_One record per map of a batch: its peak power, where the peak is, and its mean power._ 
+```C++
+size_t dp_corr2d_execute_peaks (
+    dp_corr2d_state_t * state,
+    const float _Complex * in,
+    size_t n_in,
+    float * out,
+    uint32_t * out1,
+    uint32_t * out2,
+    float * out3,
+    size_t max_out
+) 
+```
+
+
+
+For map h: `out[h]` is its largest `|map[k]|^2`, `out1[h]` and `out2[h]` the row and column of that cell (the first in row-major order on a tie), and `out3[h]` the mean of `|map[k]|^2` over its n\_out cells. A map is ny\_out x nx\_out; with col\_out it is ny x 1, and the column reported is col\_out. The peak-to-mean of each map is `out[h] / out3[h]`, a statistic of each map, which the same statistic of a pointwise maximum over maps does not give.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `in` H frames back to back (CF32). 
+* `n_in` A nonzero multiple of ny \* nx. 
+* `out` H peak powers (float). 
+* `out1` H peak rows (uint32). 
+* `out2` H peak columns (uint32). 
+* `out3` H mean powers (float). 
+* `max_out` Capacity of each output; at least H. 
+
+
+
+**Returns:**
+
+H, or SIZE\_MAX (nothing written) for a refused batch. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_execute\_peaks\_max\_out 
+
+_Records_ [_**dp\_corr2d\_execute\_peaks()**_](corr2d__core_8h.md#function-dp_corr2d_execute_peaks) _writes for_`n_in` _samples: H._
+```C++
+size_t dp_corr2d_execute_peaks_max_out (
+    const dp_corr2d_state_t * state,
+    size_t n_in
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `n_in` Input samples about to be passed. 
+
+
+
+**Returns:**
+
+n\_in / (ny \* nx). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_execute\_power\_max 
+
+_The largest power over a batch's maps, cell by cell, and the map it came from._ 
+```C++
+size_t dp_corr2d_execute_power_max (
+    dp_corr2d_state_t * state,
+    const float _Complex * in,
+    size_t n_in,
+    float * out,
+    uint32_t * out1,
+    size_t max_out
+) 
+```
+
+
+
+`out[k] = max_h |map_h[k]|^2` and `out1[k]` is that h. A tie goes to the lowest h: a later map replaces the running maximum only when it is strictly greater.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `in` H frames back to back (CF32); H at most 2^32. 
+* `n_in` A nonzero multiple of ny \* nx. 
+* `out` n\_out powers (float). 
+* `out1` n\_out map indices (uint32). 
+* `max_out` Capacity of each of `out` and `out1`; at least n\_out. 
+
+
+
+**Returns:**
+
+n\_out, or SIZE\_MAX (nothing written) for a refused batch or H above 2^32. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_execute\_power\_sum 
+
+_The power of a batch's maps, summed cell by cell:_ `out[k] = sum_h |map_h[k]|^2` _, summed in h order in float._
+```C++
+size_t dp_corr2d_execute_power_sum (
+    dp_corr2d_state_t * state,
+    const float _Complex * in,
+    size_t n_in,
+    float * out,
+    size_t max_out
+) 
+```
+
+
+
+Unlike the coherent sum, phase does not cancel: frames x and -x sum to twice one map's power, where their coherent sum is zero.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `in` H frames back to back (CF32). 
+* `n_in` A nonzero multiple of ny \* nx. 
+* `out` n\_out powers (float). 
+* `max_out` Capacity of `out`; at least n\_out. 
+
+
+
+**Returns:**
+
+n\_out, or SIZE\_MAX (nothing written) for a refused batch. 
 
 
 

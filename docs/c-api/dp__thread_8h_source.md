@@ -98,6 +98,16 @@ dp_thread_join (dp_thread_t t)
 static inline int
 dp_cpu_count (void)
 {
+  DWORD_PTR proc = 0, sys = 0;
+  if (GetActiveProcessorGroupCount () == 1
+      && GetProcessAffinityMask (GetCurrentProcess (), &proc, &sys)
+      && proc != 0)
+    {
+      int k = 0;
+      for (; proc != 0; proc &= proc - 1) /* clears the lowest set bit */
+        k++;
+      return k;
+    }
   DWORD n = GetActiveProcessorCount (ALL_PROCESSOR_GROUPS);
   return n ? (int)n : 1;
 }

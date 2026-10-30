@@ -391,11 +391,13 @@ size_t dp_corr2d_execute(dp_corr2d_state_t *state, const float _Complex *in,
  * output with room for less than the whole result: a truncated reduction
  * has no meaning, so a batch never truncates the way execute() does.
  *
- * Threads: with at least as many frames as workers, each worker makes whole
- * maps on its own plans and scratch, and the maps are folded in h order; a
- * short frame gains nothing from splitting (corr2d-hypotheses.md section
- * 5).  With fewer frames, each map is split across the workers as
- * execute() splits it.  The result is the same either way. */
+ * Threads: with two frames or more, each worker makes whole maps on its own
+ * plans and scratch, and the maps are folded in h order, because splitting
+ * one short frame across a pool costs more than it saves
+ * (corr2d-hypotheses.md section 5).  A batch of one frame is split as
+ * execute() splits it.  The coherent sum gives each worker a fixed range of
+ * rows through every frame.  The result is the same at every thread
+ * count. */
 
 /**
  * @brief A C reducer: called once per map, in h order, by

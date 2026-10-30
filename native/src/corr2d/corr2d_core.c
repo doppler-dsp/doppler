@@ -867,6 +867,35 @@ corr2d_whole_body (size_t t, void *ctx)
       corr2d_col_tile (s, t, work, map, b);
 }
 
+/* The coherent sum on the fast path, one dispatch for the whole batch:
+   chunk t owns rows r0..r1-1 and takes each of them through every frame in
+   h order, dumping on the last.  A row's accumulator sees the frames in the
+   order a dwell would, so the sum is a fresh dwell-H object's bit for bit,
+   and a short frame is not split once per frame. */
+typedef struct
+{
+  dp_corr2d_state_t    *s;
+  const float _Complex *in;  /**< the batch                       */
+  size_t                H;   /**< frames                          */
+  float _Complex       *dst; /**< the surface: map, or bat_work   */
+} corr2d_coh_t;
+
+static void
+corr2d_coh_body (size_t t, void *ctx)
+{
+  const corr2d_coh_t *c  = (const corr2d_coh_t *)ctx;
+  dp_corr2d_state_t  *s  = c->s;
+  const size_t        nx = s->nx, nxo = s->nx_out;
+  size_t              r0, r1;
+  corr2d_chunk (s->ny, t, s->nworkers, &r0, &r1);
+  for (size_t h = 0; h < c->H; h++)
+    for (size_t i = r0; i < r1; i++)
+      corr2d_row (s, t, c->in + h * s->n + i * nx, s->bat_acc + i * nx,
+                  s->bat_work + i * nx,
+                  s->bat_pad ? s->bat_pad + i * nxo : NULL, c->dst + i * nxo,
+                  h + 1 == c->H);
+}
+
 /* The one batch loop.  coherent = 0 makes every frame's map and folds each
    in h order; coherent = 1 sums the frames' product spectra and folds the
    one map it inverts, as h = 0.  The dwell is never read or written. */
@@ -879,6 +908,20 @@ corr2d_batch (dp_corr2d_state_t *s, const float _Complex *in, size_t n_in,
     return SIZE_MAX;
   corr2d_batch_alloc (s);
   const size_t n = s->n, nw = (size_t)s->nworkers;
+  const int    split = s->fast_path && s->col_out < 0;
+  if (coherent && split)
+    {
+      corr2d_coh_t c
+          = { s, in, H, s->delay_doppler ? s->bat_work : s->bat_map };
+      dp_pool_run (s->pool, nw, corr2d_coh_body, &c);
+      if (s->delay_doppler)
+        {
+          corr2d_cols_t cols = { s, s->bat_work, s->bat_map };
+          dp_pool_run (s->pool, nw, corr2d_cols_body, &cols);
+        }
+      fold->fold (fold->ctx, 0, s->bat_map, s->n_out);
+      return H;
+    }
   if (coherent)
     {
       for (size_t h = 0; h < H; h++)
@@ -886,9 +929,11 @@ corr2d_batch (dp_corr2d_state_t *s, const float _Complex *in, size_t n_in,
       fold->fold (fold->ctx, 0, s->bat_map, s->n_out);
       return H;
     }
-  /* Whole maps per worker only where a map is split at all (the fast path's
-     rows) and there are frames enough to keep every worker busy. */
-  if (s->fast_path && s->col_out < 0 && nw > 1 && H >= nw)
+  /* Two frames or more: whole maps, one per worker.  Splitting one map
+     across a pool costs more than it saves at short frame lengths
+     (corr2d-hypotheses.md section 5), and maps side by side need no split.
+     One frame runs as execute() runs it. */
+  if (split && nw > 1 && H >= 2)
     {
       for (size_t h0 = 0; h0 < H; h0 += nw)
         {

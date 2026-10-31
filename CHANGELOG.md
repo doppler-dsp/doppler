@@ -13,6 +13,88 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.78.0] - 2026-10-31
+
+### Added
+
+- **Corr2D and DelayDoppler batches in C** (#2683):
+    `dp_corr2d_execute_all`, `_coherent`, `_power_sum`, `_power_max` and
+    `_peaks` take many frames in one call and return every map or one
+    reduction of them, on one fold loop that C callers also reach with
+    their own reducer (`dp_corr2d_execute_fold`). Map h is what a fresh
+    dwell-1 object returns for frame h, and a batch never touches the dwell.
+    Python bindings follow.
+
+- **A hypothesis bank on `Corr2D` and `DelayDoppler`** (#2683): one frame
+    through every carrier offset on a `1/(L nx)` grid times every rate, as if
+    each were a hand-corrected copy, with the row transforms shared:
+    `bank_power_max` and, C-only, `dp_corr2d_bank_fold`. `bank_detect`
+    searches on a coarse grid and refines each candidate on a fine one, which
+    holds the fine grid's sensitivity for half the bank (L = 2 refined to
+    L = 4: 0.71 ms against 1.11 ms at 64 x 512).
+
+- **[Corr2D hypothesis bank: operation order](docs/design/corr2d-hypotheses.md)**,
+    the pre-design study for #2683 and #2670, with a prototype and a C
+    timing harness (`validate_corr2d_hypothesis_order`) whose results the
+    page renders, from 32-sample codes to 1023. A bank shares the row FFT,
+    pays the row inverses per carrier and the slow-time FFT per map: 1.5-6.5x
+    faster than running every map through `DelayDoppler`. It mixes per
+    fraction on an $L = 4$ grid (0.22 dB worst loss), and runs a short frame
+    on one thread, where a pool is 1.5-8x slower.
+
+- **`make train PRS="<n> <n>"`** lands two or more ready PRs as one PR,
+    so `protect-main`'s strict check costs one CI run instead of one per
+    PR. It is now the preferred way to land PRs; see
+    [workflow §4](docs/dev/workflow.md).
+
+### Changed
+
+- **AccTrace's mean is a per-bin sum, and every fold vectorizes** (#2094).
+    Mean readings are 10× more accurate over 10⁷ frames and may differ by
+    one float32 ULP (147 of 4.1e7). Max/min-hold folds are about 10×
+    faster on x86 (portable and native) and 4–5× on aarch64. The public `acc` field now holds the SUM in mean mode
+    (divide by `count`), an Inf frame leaves +Inf where it read NaN, and a
+    non-finite trace round-trips. The blob is version 3: a version-2 blob
+    is refused, nested ones too, and so is a zero count with a nonzero
+    trace. The record is `spectrogram-measurements.md` §5.16.
+
+- **One fast dB conversion, `dp_power_to_db_f32`, and PSD reads dB through
+    it** (#2094, #2074). It is 10·log10 within 0.01 dB (measured 3.25e-4 over
+    every float32), exact at every power of two, with PSD's −200 dB floor,
+    and vectorized: on x86 PSD's dB conversion is 6× faster (12× in a native
+    build), and a dB frame 2.5–4×. Every PSD and Spectrogram dB reading is now this function of
+    the linear one, bit for bit, and moves by at most 3.25e-4 dB. Python:
+    `doppler.spectral.power_to_db_f32`. Other converters: #2108.
+
+- **uv is pinned at 0.13.6** (was 0.12.24). `uv.lock` is byte-identical
+    under it, and `uv run`'s hidden value-taking options are unchanged.
+
+### Fixed
+
+- **`make bench-interleaved` leaves its exit code in a file.** The hour-long
+    release bench run writes `build/bench-runs/<VERSION>.log` and, last,
+    `<VERSION>.rc`, on success and on every failure, so a watcher waits on the
+    file instead of the process. A remote `pgrep` matched its own ssh shell, and
+    v0.77.0's failed run read "running" for hours
+    ([#2681](https://github.com/doppler-dsp/doppler/issues/2681)).
+
+- **`nthreads=0` uses the CPUs the process may run on, not every CPU on
+    the machine.** `dp_cpu_count()` now reads the affinity mask on Linux, so
+    `taskset`, a container cpuset or a cgroup cpuset no longer oversubscribes
+    Corr2D, DelayDoppler, AsyncDsssPool or `dp_parallel` (20 workers on 8
+    pinned CPUs in the v0.77.0 bench). (#2679)
+
+- **On Windows, `nthreads=0` honors the process affinity mask too.**
+    `start /affinity` or `SetProcessAffinityMask` now shrinks
+    `dp_cpu_count()` on a machine with one processor group (64 CPUs or
+    fewer), as `taskset` does on Linux. (#2684)
+
+- **`make install-deps` installs the NATS broker** (#2712). `nats-server` is
+    now `bootstrap.toml`'s `nats` group, the release binary pinned by version
+    and SHA-256, which the CI image installs too. A Linux dev box gets the
+    broker CI tests against, so `make nats-up` no longer needs docker and the
+    `nats://` tests run instead of skipping.
+
 ## [0.77.0] - 2026-10-28
 
 ### Breaking
@@ -18110,6 +18192,7 @@ ______________________________________________________________________
 [0.75.0]: https://github.com/doppler-dsp/doppler/compare/v0.74.0...v0.75.0
 [0.76.0]: https://github.com/doppler-dsp/doppler/compare/v0.75.0...v0.76.0
 [0.77.0]: https://github.com/doppler-dsp/doppler/compare/v0.76.0...v0.77.0
+[0.78.0]: https://github.com/doppler-dsp/doppler/compare/v0.77.0...v0.78.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.77.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.78.0...HEAD

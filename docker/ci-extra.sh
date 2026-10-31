@@ -13,12 +13,10 @@
 #                              dpkg's into CI_IMAGE_FINGERPRINT_<key>
 set -euo pipefail
 
-# Pinned by value AND by hash: the version a commit names, the bytes the
-# release published. Both sums are the release's own SHA256SUMS lines, and
-# were re-measured against the downloaded tarballs when they were written.
-NATS_VERSION=2.10.22
-NATS_SHA256_amd64=db0b3ccbe4cbdd3872ae7486ec4f6b0f85824632a0789f4da2e0a8518390483e
-NATS_SHA256_arm64=b4da77b2b194dc5fcf13a1df0dad59ba7e87ae4423f254c50534015b7c8a2369
+# nats-server is NOT installed here any more: it is bootstrap.toml's `nats`
+# group, in CI_IMAGE_GROUPS, so the image and `make install-deps` read one pin
+# (#2712). It is still FINGERPRINTED here, below, because it lives outside
+# dpkg and a dpkg-only hash would not see it change.
 
 # Every tool installed outside dpkg, so the weekly comparison can see it: a
 # dpkg-only hash once left an entire rustup layer invisible. These are the
@@ -43,25 +41,7 @@ printf 'int main(void){return 0;}\n' > /tmp/probe.c
 clang -fprofile-instr-generate -fcoverage-mapping /tmp/probe.c -o /tmp/probe
 rm -f /tmp/probe.c /tmp/probe
 
-# nats-server as a BINARY, not a container. `make nats-up` shells out to
-# `docker run`, which is not available inside a container job -- and the
-# stream suite's nats:// tests self-skip when 127.0.0.1:4222 is unreachable,
-# so without this the coverage number would quietly drop the whole nats path
-# instead of failing. scripts/start-nats.sh prefers this binary when it is on
-# PATH and falls back to docker.
-#
-# curl --fail, to a file, then verified: without -f an error page is saved as
-# the tarball and the failure surfaces later as "not in gzip format", naming
-# the wrong thing (doppler#1738).
-arch="$(dpkg --print-architecture)"
-sum_var="NATS_SHA256_$arch"
-want="${!sum_var:-}"
-[ -n "$want" ] || { echo "no nats-server sha256 pinned for $arch" >&2; exit 1; }
-pkg="nats-server-v${NATS_VERSION}-linux-${arch}"
-curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o /tmp/nats.tar.gz \
-    "https://github.com/nats-io/nats-server/releases/download/v${NATS_VERSION}/${pkg}.tar.gz"
-echo "$want  /tmp/nats.tar.gz" | sha256sum -c -
-tar -xzf /tmp/nats.tar.gz -C /tmp
-install -m 755 "/tmp/$pkg/nats-server" /usr/local/bin/nats-server
-rm -rf /tmp/nats.tar.gz "/tmp/$pkg"
+# The nats group installed the broker before this file ran; asserting it here
+# means an image whose install-deps skipped or lost it is never published.
+# Without it every nats:// test SELF-SKIPS, which reads as green.
 nats-server --version

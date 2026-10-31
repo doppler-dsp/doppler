@@ -6,14 +6,16 @@
 # One definition, shared by every ci.yml job that needs the broker.
 #
 # TWO WAYS TO GET A BROKER, and the binary is preferred deliberately. CI now
-# runs its Linux jobs INSIDE a container (the CI image, docker/ci-extra.sh), where
+# runs its Linux jobs INSIDE a container (the CI image), where
 # there is no docker daemon to run a sibling container with -- so a
 # docker-only script would leave 127.0.0.1:4222 unreachable and the nats://
 # tests would SELF-SKIP. That is the bad failure: the suite stays green while
 # silently dropping the whole nats path, and the coverage number drops with
-# it. The image therefore carries nats-server, and this prefers it.
+# it. The image therefore carries nats-server, and this prefers it. The
+# binary is bootstrap.toml's `nats` group (#2712), which the image and
+# `make install-deps` both install, so a dev box gets CI's broker.
 #
-# The docker path stays for a dev box without the binary, so the script's
+# The docker path stays for a box without the binary, so the script's
 # contract -- "a JetStream broker is listening on 4222 when I exit 0" -- is
 # the same either way. A box with neither now says so and fails, rather than
 # leaving the caller to discover an absent broker as a skipped test.
@@ -78,7 +80,8 @@ elif command -v docker >/dev/null 2>&1; then
 else
   echo "start-nats: neither nats-server nor docker is available, so no" >&2
   echo "  broker can be started. The nats:// tests would self-skip, which" >&2
-  echo "  reads as success -- failing here instead." >&2
+  echo "  reads as success -- failing here instead. 'make install-deps'" >&2
+  echo "  installs the pinned nats-server (bootstrap.toml's nats group)." >&2
   exit 1
 fi
 

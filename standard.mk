@@ -254,6 +254,11 @@ all: $(ALL_DEPS) ## Default goal
 #     FAILS: a red run that also dirtied the tree reports both.
 #   - Not a git checkout (an sdist, a tarball): said, and the suite still
 #     runs. There is no tree to compare, which is not the same as a clean one.
+#   - `+` on the guard line: make runs a line under -n only when it sees
+#     $(MAKE) in it, and $(call ...) hides it. Without `+`, `make -n test`
+#     printed the guard and never the suite, so a reader of the plan (an
+#     adopter's test that the recipe passes the right variables) went blind.
+#     Under -n the guard only reads `git status`; the sub-make prints.
 #   - Both snapshots keep git's stderr. A warning git prints every time (an
 #     unreadable ~/.config/git/ignore under a container's foreign HOME) is
 #     then on both sides and cancels; one kept on only the after side failed
@@ -280,10 +285,10 @@ _std_tree_guard = \
 	exit $$rc
 
 test: ## Run the default test suite
-	@$(call _std_tree_guard,.std-test,test)
+	+@$(call _std_tree_guard,.std-test,test)
 
 test-fast: ## Run tests, stopping at the first failure
-	@$(call _std_tree_guard,.std-test-fast,test-fast)
+	+@$(call _std_tree_guard,.std-test-fast,test-fast)
 
 .PHONY: .std-test .std-test-fast
 .std-test:

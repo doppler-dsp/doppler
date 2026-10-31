@@ -47,7 +47,9 @@ Usage::
     python prototype.py --check   # exit 1 if a claim fails or a block
                                   # differs (the gate, in docs-check)
 
-Run from a checkout with the extensions built (``make pyext``).
+Claim 1 compares against the compiled ``DelayDoppler``, so it runs in
+``src/doppler/spectral/tests/test_corr2d_hypotheses_oracle.py`` where the
+extension is built; everything here is numpy and runs anywhere.
 
 Examples
 --------
@@ -135,6 +137,29 @@ def full(x: CF, code: CF, ny: int, ny_out: int, f: float, w: CF) -> CF:
     spec = np.fft.fft(y, axis=1) * np.conj(np.fft.fft(code))
     rows = np.fft.ifft(spec, axis=1)
     return np.fft.fftshift(np.fft.fft(rows, n=ny_out, axis=0), axes=0)
+
+
+#: Where claim 1 (the reference is the shipped pipeline) is executed.
+ORACLE_TEST = "test_corr2d_hypotheses_oracle.py"
+
+
+def oracle_error() -> float:
+    """Claim 1: the worst relative error between the numpy reference and
+    the shipped DelayDoppler, over signed fractional carrier offsets and
+    two rate weightings. Needs the extension (``make pyext``)."""
+    rng = np.random.default_rng(2683)
+    code = code_of(NX, rng)
+    m = L * NX
+    ws = rate_weights(NY, 3)
+    x = stream(code, NY, 5.4, 3.37 / m)
+    return max(
+        rel(
+            oracle(x, code, NY, NY_OUT, g / m, w),
+            full(x, code, NY, NY_OUT, g / m, w),
+        )
+        for g in (-5, 0, 3, 7)
+        for w in ws[:2]
+    )
 
 
 def oracle(x: CF, code: CF, ny: int, ny_out: int, f: float, w: CF) -> CF:
@@ -268,22 +293,17 @@ def run() -> list[tuple[str, bool, str, str]]:
     res: list[tuple[str, bool, str, str]] = []
 
     # 1. The reference is the shipped pipeline (float32 kernel vs float64).
+    #    That needs the compiled extension, which the Docs job does not
+    #    build, so the claim is held by a pytest test that runs where the
+    #    extension is (ORACLE_TEST); its row here is the claim and its home.
     f0 = 3.37 / m
     x = stream(code, NY, 5.4, f0)
-    e = max(
-        rel(
-            oracle(x, code, NY, NY_OUT, g / m, w),
-            full(x, code, NY, NY_OUT, g / m, w),
-        )
-        for g in (-5, 0, 3, 7)
-        for w in ws[:2]
-    )
     res.append(
         (
             "the numpy reference equals the shipped `DelayDoppler`",
-            e < 2e-5,
-            f"max rel err {e:.1e}",
-            "2e-5 (float32 kernel)",
+            True,
+            f"held by {ORACLE_TEST}",
+            f"2e-5 (float32 kernel), `{ORACLE_TEST}`",
         )
     )
 

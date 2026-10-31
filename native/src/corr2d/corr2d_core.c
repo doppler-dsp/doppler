@@ -1005,15 +1005,26 @@ corr2d_fold_power_max (void *ctx, size_t h, const float _Complex *map,
                        size_t n)
 {
   const corr2d_max_t *c = (const corr2d_max_t *)ctx;
+  float *restrict pw    = c->pow;
+  uint32_t *restrict ix = c->idx;
+  const uint32_t hh     = (uint32_t)h;
+  if (h == 0)
+    {
+      for (size_t k = 0; k < n; k++)
+        {
+          pw[k] = corr2d_pow (map[k]);
+          ix[k] = 0;
+        }
+      return;
+    }
+  /* A select with unconditional stores, so the loop vectorizes. Strictly
+     greater: a tie keeps the earlier, lower h. */
   for (size_t k = 0; k < n; k++)
     {
-      const float p = corr2d_pow (map[k]);
-      /* Strictly greater: a tie keeps the earlier, lower h. */
-      if (h == 0 || p > c->pow[k])
-        {
-          c->pow[k] = p;
-          c->idx[k] = (uint32_t)h;
-        }
+      const float    p = corr2d_pow (map[k]);
+      const uint32_t m = 0u - (uint32_t)(p > pw[k]);
+      ix[k]            = (ix[k] & ~m) | (hh & m);
+      pw[k]            = fmaxf (p, pw[k]);
     }
 }
 
@@ -1029,20 +1040,20 @@ typedef struct
 static void
 corr2d_fold_peaks (void *ctx, size_t h, const float _Complex *map, size_t n)
 {
-  const corr2d_peaks_t *c    = (const corr2d_peaks_t *)ctx;
-  size_t                best = 0;
-  float                 pk   = corr2d_pow (map[0]);
-  double                sum  = pk;
-  for (size_t k = 1; k < n; k++)
+  const corr2d_peaks_t *c = (const corr2d_peaks_t *)ctx;
+  /* Two passes so both vectorize: the peak value and the sum, then the
+     first cell holding that value (row-major order wins a tie). */
+  float  pk  = corr2d_pow (map[0]);
+  double sum = 0.0;
+  for (size_t k = 0; k < n; k++)
     {
       const float p = corr2d_pow (map[k]);
       sum += p;
-      if (p > pk) /* the first cell in row-major order wins a tie */
-        {
-          pk   = p;
-          best = k;
-        }
+      pk = fmaxf (pk, p);
     }
+  size_t best = 0;
+  while (corr2d_pow (map[best]) != pk)
+    best++;
   const int    col_out = c->s->col_out >= 0;
   const size_t width   = col_out ? 1 : c->s->nx_out;
   c->peak[h]           = pk;

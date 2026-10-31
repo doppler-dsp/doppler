@@ -6,6 +6,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 /* 1-D spectral zero-pad: q (length m >= n) is the band-limited (Dirichlet)
  * interpolation of p (length n) — low half [0..n/2] at the front, zeros in the
  * middle, high half at the end, with the Nyquist bin split for even n.
@@ -36,7 +40,7 @@ corr2d_zeropad_1d (const float _Complex *p, size_t n, float _Complex *q,
  * (nx -> nx_out) into ztmp, then columns (ny -> ny_out) into out.  The
  * even-axis Nyquist split is handled per axis by corr2d_zeropad_1d. */
 static void
-corr2d_zeropad_2d (dp_corr2d_state_t *s, const float _Complex *p,
+corr2d_zeropad_2d (const dp_corr2d_state_t *s, const float _Complex *p,
                    float _Complex *out)
 {
   for (size_t i = 0; i < s->ny; i++)
@@ -437,17 +441,16 @@ dp_corr2d_execute_max_out (dp_corr2d_state_t *state)
  * forward spectrum is spent once it is accumulated.  Every map the object
  * makes, from execute() or a batch, goes through here, so a batch map is
  * the same arithmetic as a dump. */
+/* A row's product spectrum a back to the delay domain, on worker t's
+ * inverse plan: zero-padded into pad first when nx_out > nx, inverted into d,
+ * scaled by 1/nx.  The one inverse every fast-path map is made with: a dump
+ * (corr2d_row) and a bank hypothesis (corr2d_bank_rows_body). */
 static void
-corr2d_row (const dp_corr2d_state_t *s, size_t t, const float _Complex *x,
-            float _Complex *a, float _Complex *w, float _Complex *pad,
-            float _Complex *d, int dump)
+corr2d_row_inverse (const dp_corr2d_state_t *s, size_t t,
+                    const float _Complex *a, float _Complex *pad,
+                    float _Complex *d)
 {
   const size_t nx = s->nx, nxo = s->nx_out;
-  dp_fft_execute_cf32 (s->row_fwd[t], x, nx, w, nx);
-  for (size_t v = 0; v < nx; v++)
-    a[v] += w[v] * s->row_ref_spec[v];
-  if (!dump)
-    return;
   if (nxo == nx)
     dp_fft_execute_cf32 (s->row_inv[t], a, nx, d, nx);
   else
@@ -458,6 +461,20 @@ corr2d_row (const dp_corr2d_state_t *s, size_t t, const float _Complex *x,
   const float inv_nx = 1.0f / (float)nx;
   for (size_t k = 0; k < nxo; k++)
     d[k] *= inv_nx;
+}
+
+static void
+corr2d_row (const dp_corr2d_state_t *s, size_t t, const float _Complex *x,
+            float _Complex *a, float _Complex *w, float _Complex *pad,
+            float _Complex *d, int dump)
+{
+  const size_t nx = s->nx;
+  dp_fft_execute_cf32 (s->row_fwd[t], x, nx, w, nx);
+  for (size_t v = 0; v < nx; v++)
+    a[v] += w[v] * s->row_ref_spec[v];
+  if (!dump)
+    return;
+  corr2d_row_inverse (s, t, a, pad, d);
   memset (a, 0, nx * sizeof *a);
 }
 
@@ -504,18 +521,25 @@ corr2d_rows_body (size_t t, void *ctx)
  * (k + ny_out/2) mod ny_out, so zero Doppler is row ny_out/2. */
 static void
 corr2d_col_tile (const dp_corr2d_state_t *s, size_t t,
-                 const float _Complex *surf, float _Complex *out, size_t b)
+                 const float _Complex *surf, float _Complex *out, size_t b,
+                 const float _Complex *w)
 {
   const size_t    ny = s->ny, nx = s->nx, nyo = s->ny_out, half = nyo / 2;
   float _Complex *g  = s->col_gather + t * CORR2D_COL_TILE * nyo;
   float _Complex *o  = s->col_spec + t * CORR2D_COL_TILE * nyo;
   const size_t    j0 = b * CORR2D_COL_TILE;
   const size_t    nb = (nx - j0 < CORR2D_COL_TILE) ? nx - j0 : CORR2D_COL_TILE;
+  /* w, when given, weights slow-time sample i (a bank's rate hypothesis);
+     NULL multiplies nothing, so execute() is unchanged bit for bit. */
   for (size_t i = 0; i < ny; i++)
     {
       const float _Complex *src = surf + i * nx + j0;
-      for (size_t q = 0; q < nb; q++)
-        g[q * nyo + i] = src[q];
+      if (w)
+        for (size_t q = 0; q < nb; q++)
+          g[q * nyo + i] = src[q] * w[i];
+      else
+        for (size_t q = 0; q < nb; q++)
+          g[q * nyo + i] = src[q];
     }
   for (size_t q = 0; q < nb; q++)
     dp_fft_execute_cf32 (s->slow_fft[t], g + q * nyo, nyo, o + q * nyo, nyo);
@@ -542,7 +566,7 @@ corr2d_cols_body (size_t t, void *ctx)
   size_t               b0, b1;
   corr2d_chunk (ntiles, t, c->s->nworkers, &b0, &b1);
   for (size_t b = b0; b < b1; b++)
-    corr2d_col_tile (c->s, t, c->surf, c->out, b);
+    corr2d_col_tile (c->s, t, c->surf, c->out, b, NULL);
 }
 
 /* Known-lag frame (col_out >= 0): row i's correlation at the one lag, a
@@ -638,7 +662,7 @@ corr2d_execute_fast (dp_corr2d_state_t *state, const float _Complex *in,
  * scratch are scratch, not state, so a batch shares them; it brings its own
  * acc. */
 static void
-corr2d_general_frame (dp_corr2d_state_t *s, const float _Complex *in,
+corr2d_general_frame (const dp_corr2d_state_t *s, const float _Complex *in,
                       float _Complex *acc, float _Complex *dst, int dump)
 {
   dp_fft2d_execute_cf32 (s->fwd, in, s->n, s->work_fft, s->n);
@@ -864,7 +888,7 @@ corr2d_whole_body (size_t t, void *ctx)
                 pad ? pad + i * nxo : NULL, surf + i * nxo, 1);
   if (s->delay_doppler)
     for (size_t b = 0; b < corr2d_ntiles (nx); b++)
-      corr2d_col_tile (s, t, work, map, b);
+      corr2d_col_tile (s, t, work, map, b, NULL);
 }
 
 /* The coherent sum on the fast path, one dispatch for the whole batch:
@@ -1158,4 +1182,560 @@ size_t
 dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state)
 {
   return state->n_out;
+}
+
+/* ── The hypothesis bank (#2683 phase 3) ──────────────────────────────────
+ *
+ * One frame through every carrier g in g_min..g_max on a 1/(L nx) grid,
+ * times every rate (a slow-time weight vector, DelayDoppler only).  The
+ * order is corr2d-hypotheses.md's: each fraction j = g mod L mixes and
+ * transforms the rows once; each whole bin k = floor(g / L) is a roll of
+ * that spectrum before the reference multiply; each carrier pays its row
+ * inverses once; each rate pays only the slow-time FFT.  Hypothesis h is
+ * (g - g_min) * R + r, and maps are folded in h order. */
+
+/* The validated geometry of one bank call. */
+typedef struct
+{
+  size_t L;     /**< fractions per whole bin                       */
+  int    g_min; /**< lowest carrier, in 1/(L nx) cycles/sample     */
+  size_t C;     /**< carriers, g_max - g_min + 1                   */
+  size_t R;     /**< rates, at least 1 (no rates = one unit vector) */
+  const float _Complex *rates; /**< R x ny weights, or NULL        */
+} corr2d_bank_t;
+
+/* Refuse what a bank cannot mean, before anything is allocated or written:
+   a frame of another length, no grid, an empty or inverted range, rates
+   that are not whole ny-long vectors, and a hypothesis count the uint32
+   index cannot name.  Every path runs a bank; only the fast path and
+   DelayDoppler share work across hypotheses. */
+static int
+corr2d_bank_check (const dp_corr2d_state_t *s, size_t x_len, size_t L,
+                   int g_min, int g_max, size_t rates_len, corr2d_bank_t *b)
+{
+  if (x_len != s->n || L == 0 || g_min > g_max || rates_len % s->ny != 0)
+    return 0;
+  const size_t C = (size_t)((long long)g_max - (long long)g_min + 1);
+  const size_t R = rates_len ? rates_len / s->ny : 1;
+  if (C > UINT32_MAX / R)
+    return 0;
+  b->L     = L;
+  b->g_min = g_min;
+  b->C     = C;
+  b->R     = R;
+  b->rates = NULL;
+  return 1;
+}
+
+/* floor(a / b) and the matching non-negative remainder, for any sign. */
+static long long
+corr2d_floordiv (long long a, long long b)
+{
+  return (a >= 0) ? a / b : -((-a + b - 1) / b);
+}
+
+/* The bank's scratch for one call, released by corr2d_bank_free. */
+typedef struct
+{
+  float _Complex *spec;  /**< L x n: each fraction's row spectra          */
+  unsigned char  *have;  /**< L flags: fraction j's spectra are made       */
+  float _Complex *phase; /**< L x nx: e^{-j 2 pi j n / (L nx)}             */
+  float _Complex *prod;  /**< nworkers x nx: one row's product spectrum   */
+  float _Complex *pad;   /**< nworkers x nx_out, or NULL when native       */
+  float _Complex *surf;  /**< ny x nx_out: one carrier's correlated rows   */
+  float _Complex *maps;  /**< R x n_out: one carrier's maps, one per rate  */
+  float _Complex *acc;   /**< n: a fresh accumulator; unshared paths only */
+  float _Complex *copy;  /**< n: one corrected frame; unshared paths only */
+} corr2d_bank_mem_t;
+
+static void
+corr2d_bank_free (corr2d_bank_mem_t *m)
+{
+  free (m->spec);
+  free (m->have);
+  free (m->phase);
+  free (m->prod);
+  free (m->pad);
+  free (m->surf);
+  free (m->maps);
+  free (m->acc);
+  free (m->copy);
+}
+
+/* The fraction spectra, phases and flags follow the caller's L, and the
+   maps its rate count, so a failure there is a refusal (0), never an abort.
+   The rest is the object's own size, already allocated once by create(), so
+   it goes through the abort-on-OOM helpers (clib_common.h). */
+static int
+corr2d_bank_alloc (const dp_corr2d_state_t *s, const corr2d_bank_t *b,
+                   corr2d_bank_mem_t *m)
+{
+  const size_t nw = (size_t)s->nworkers, L = b->L;
+  memset (m, 0, sizeof *m);
+  if (L > SIZE_MAX / s->n / sizeof (float _Complex)
+      || b->R > SIZE_MAX / s->n_out / sizeof (float _Complex))
+    return 0;
+  m->spec  = malloc (L * s->n * sizeof *m->spec);
+  m->have  = calloc (L, 1);
+  m->phase = malloc (L * s->nx * sizeof *m->phase);
+  m->maps  = malloc (b->R * s->n_out * sizeof *m->maps);
+  if (!m->spec || !m->have || !m->phase || !m->maps)
+    {
+      corr2d_bank_free (m);
+      return 0;
+    }
+  m->prod = dp_xmalloc (nw * s->nx * sizeof *m->prod);
+  if (s->nx_out != s->nx)
+    m->pad = dp_xmalloc (nw * s->nx_out * sizeof *m->pad);
+  m->surf = dp_xmalloc (s->ny * s->nx_out * sizeof *m->surf);
+  if (!(s->fast_path && s->col_out < 0))
+    {
+      m->acc  = dp_xcalloc (s->n, sizeof *m->acc);
+      m->copy = dp_xmalloc (s->n * sizeof *m->copy);
+    }
+  /* The within-period mix of each fraction, formed in double and rounded
+     once: the phase restarts at every period (rule 4 of the design page),
+     so the phase between periods stays Doppler. */
+  for (size_t j = 0; j < L; j++)
+    for (size_t p = 0; p < s->nx; p++)
+      {
+        const double a          = -2.0 * M_PI * (double)j * (double)p
+                                  / ((double)L * (double)s->nx);
+        m->phase[j * s->nx + p] = (float)cos (a) + (float)sin (a) * I;
+      }
+  return 1;
+}
+
+/* Fraction j's row spectra: chunk t mixes rows r0..r1-1 and transforms them
+   on worker t's forward plan.  j = 0 is not mixed at all, so the whole-bin
+   carriers see exactly the frame execute() sees. */
+typedef struct
+{
+  const dp_corr2d_state_t *s;
+  const float _Complex    *x;
+  const float _Complex    *phase; /**< nx values, or NULL for j = 0 */
+  float _Complex          *spec;  /**< ny x nx                      */
+  float _Complex          *prod;  /**< per-worker mix scratch       */
+} corr2d_bank_fwd_t;
+
+static void
+corr2d_bank_fwd_body (size_t t, void *ctx)
+{
+  const corr2d_bank_fwd_t *c  = (const corr2d_bank_fwd_t *)ctx;
+  const size_t             nx = c->s->nx;
+  float _Complex          *y  = c->prod + t * nx;
+  size_t                   r0, r1;
+  corr2d_chunk (c->s->ny, t, c->s->nworkers, &r0, &r1);
+  for (size_t i = r0; i < r1; i++)
+    {
+      const float _Complex *src = c->x + i * nx;
+      if (c->phase)
+        {
+          for (size_t p = 0; p < nx; p++)
+            y[p] = src[p] * c->phase[p];
+          src = y;
+        }
+      dp_fft_execute_cf32 (c->s->row_fwd[t], src, nx, c->spec + i * nx, nx);
+    }
+}
+
+/* One carrier's rows: chunk t rolls each row spectrum by k whole bins,
+   multiplies by the conjugated code spectrum and inverts it (the dump's own
+   inverse, corr2d_row_inverse) into the surface. */
+typedef struct
+{
+  const dp_corr2d_state_t *s;
+  const float _Complex    *spec; /**< fraction j's ny x nx spectra */
+  size_t                   k;    /**< the roll, 0 .. nx-1          */
+  corr2d_bank_mem_t       *m;
+  float _Complex          *dst; /**< ny x nx_out                  */
+} corr2d_bank_rows_t;
+
+static void
+corr2d_bank_rows_body (size_t t, void *ctx)
+{
+  const corr2d_bank_rows_t *c  = (const corr2d_bank_rows_t *)ctx;
+  const dp_corr2d_state_t  *s  = c->s;
+  const size_t              nx = s->nx, nxo = s->nx_out, k = c->k;
+  float _Complex           *a   = c->m->prod + t * nx;
+  float _Complex           *pad = c->m->pad ? c->m->pad + t * nxo : NULL;
+  size_t                    r0, r1;
+  corr2d_chunk (s->ny, t, s->nworkers, &r0, &r1);
+  for (size_t i = r0; i < r1; i++)
+    {
+      /* DFT{x e^{-j 2 pi k n / nx}}[q] = X[(q + k) mod nx]: a correction of
+         k bins reads the spectrum k bins up. */
+      const float _Complex *w = c->spec + i * nx;
+      for (size_t q = 0; q < nx - k; q++)
+        a[q] = w[q + k] * s->row_ref_spec[q];
+      for (size_t q = nx - k; q < nx; q++)
+        a[q] = w[q + k - nx] * s->row_ref_spec[q];
+      corr2d_row_inverse (s, t, a, pad, c->dst + i * nxo);
+    }
+}
+
+/* One carrier's slow-time stage for every rate: the R x ntiles items split
+   into nworkers chunks, rate innermost so each tile of the surface is read
+   while it is warm. */
+typedef struct
+{
+  const dp_corr2d_state_t *s;
+  const float _Complex    *surf;
+  const corr2d_bank_t     *b;
+  float _Complex          *maps; /**< R x n_out */
+} corr2d_bank_cols_t;
+
+static void
+corr2d_bank_cols_body (size_t t, void *ctx)
+{
+  const corr2d_bank_cols_t *c      = (const corr2d_bank_cols_t *)ctx;
+  const dp_corr2d_state_t  *s      = c->s;
+  const size_t              ntiles = corr2d_ntiles (s->nx), R = c->b->R;
+  size_t                    i0, i1;
+  corr2d_chunk (ntiles * R, t, s->nworkers, &i0, &i1);
+  for (size_t it = i0; it < i1; it++)
+    {
+      const size_t          b = it / R, r = it % R;
+      const float _Complex *w = c->b->rates ? c->b->rates + r * s->ny : NULL;
+      corr2d_col_tile (s, t, c->surf, c->maps + r * s->n_out, b, w);
+    }
+}
+
+/* Run a stage's chunks in order on the caller.  Same chunks, same per-worker
+   plans, so a bank is bit-identical for any worker count; but one frame is
+   never split across the pool, which costs more than it saves at the frame
+   lengths a bank serves (corr2d-hypotheses.md section 5: short frames run on
+   one thread).  Parallel banks would split hypotheses, not a frame. */
+static void
+corr2d_bank_stage (const dp_corr2d_state_t *s, void (*body) (size_t, void *),
+                   void                    *ctx)
+{
+  for (size_t t = 0; t < (size_t)s->nworkers; t++)
+    body (t, ctx);
+}
+
+/* The one bank loop: carriers in ascending g, rates inside, each map folded
+   as h = (g - g_min) * R + r.  The dwell is never read or written. */
+/* A path with no shared stage (the general 2-D path, a known column): each
+   hypothesis is its corrected frame, made by hand and run through the
+   path's own frame code into a fresh accumulator, which the frame code
+   leaves zero again.  The bank's definition, with nothing shared. */
+static void
+corr2d_bank_unshared (const dp_corr2d_state_t *s, const float _Complex *x,
+                      const corr2d_bank_t *b, const dp_corr2d_fold_t *fold,
+                      corr2d_bank_mem_t *m)
+{
+  const size_t    ny = s->ny, nx = s->nx;
+  float _Complex *ph = m->prod; /* nx: one carrier's within-period mix */
+  for (size_t c = 0; c < b->C; c++)
+    {
+      const double g = (double)b->g_min + (double)c;
+      for (size_t p = 0; p < nx; p++)
+        {
+          const double a
+              = -2.0 * M_PI * g * (double)p / ((double)b->L * (double)nx);
+          ph[p] = (float)cos (a) + (float)sin (a) * I;
+        }
+      for (size_t r = 0; r < b->R; r++)
+        {
+          const float _Complex *w = b->rates ? b->rates + r * ny : NULL;
+          for (size_t i = 0; i < ny; i++)
+            for (size_t p = 0; p < nx; p++)
+              m->copy[i * nx + p] = x[i * nx + p] * ph[p] * (w ? w[i] : 1.0f);
+          if (s->col_out >= 0)
+            corr2d_col_frame (s, m->copy, m->acc, m->maps, 1);
+          else
+            corr2d_general_frame (s, m->copy, m->acc, m->maps, 1);
+          fold->fold (fold->ctx, c * b->R + r, m->maps, s->n_out);
+        }
+    }
+}
+
+static size_t
+corr2d_bank_run (const dp_corr2d_state_t *s, const float _Complex *x,
+                 const corr2d_bank_t *b, const dp_corr2d_fold_t *fold)
+{
+  corr2d_bank_mem_t m;
+  if (!corr2d_bank_alloc (s, b, &m))
+    return SIZE_MAX;
+  if (!(s->fast_path && s->col_out < 0))
+    {
+      corr2d_bank_unshared (s, x, b, fold, &m);
+      corr2d_bank_free (&m);
+      return b->C * b->R;
+    }
+  const size_t n = s->n, L = b->L;
+  for (size_t c = 0; c < b->C; c++)
+    {
+      const long long g = (long long)b->g_min + (long long)c;
+      const long long k = corr2d_floordiv (g, (long long)L);
+      const size_t    j = (size_t)(g - k * (long long)L);
+      if (!m.have[j])
+        {
+          corr2d_bank_fwd_t f = { s, x, j ? m.phase + j * s->nx : NULL,
+                                  m.spec + j * n, m.prod };
+          corr2d_bank_stage (s, corr2d_bank_fwd_body, &f);
+          m.have[j] = 1;
+        }
+      const long long kn   = (long long)s->nx;
+      const size_t    roll = (size_t)(((k % kn) + kn) % kn);
+      /* Corr2D with rates, like DelayDoppler, keeps the carrier's rows in
+         the surface and makes one map per rate from them. */
+      const int          keep = s->delay_doppler || b->rates;
+      float _Complex    *dst  = keep ? m.surf : m.maps;
+      corr2d_bank_rows_t rows = { s, m.spec + j * n, roll, &m, dst };
+      corr2d_bank_stage (s, corr2d_bank_rows_body, &rows);
+      if (s->delay_doppler)
+        {
+          corr2d_bank_cols_t cols = { s, m.surf, b, m.maps };
+          corr2d_bank_stage (s, corr2d_bank_cols_body, &cols);
+        }
+      else if (b->rates)
+        /* Corr2D's rows are its periods: weighting period i weights map
+           row i, the correlation being linear in the row. */
+        for (size_t r = 0; r < b->R; r++)
+          for (size_t i = 0; i < s->ny; i++)
+            for (size_t q = 0; q < s->nx_out; q++)
+              m.maps[r * s->n_out + i * s->nx_out + q]
+                  = m.surf[i * s->nx_out + q] * b->rates[r * s->ny + i];
+      for (size_t r = 0; r < b->R; r++)
+        fold->fold (fold->ctx, c * b->R + r, m.maps + r * s->n_out, s->n_out);
+    }
+  corr2d_bank_free (&m);
+  return b->C * b->R;
+}
+
+size_t
+dp_corr2d_bank_fold (const dp_corr2d_state_t *state, const float _Complex *x,
+                     size_t x_len, size_t L, int g_min, int g_max,
+                     const float _Complex *rates, size_t rates_len,
+                     const dp_corr2d_fold_t *fold)
+{
+  corr2d_bank_t b;
+  if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b))
+    return SIZE_MAX;
+  b.rates = rates_len ? rates : NULL;
+  return corr2d_bank_run (state, x, &b, fold);
+}
+
+size_t
+dp_corr2d_bank_power_max_max_out (dp_corr2d_state_t *state, size_t x_len)
+{
+  (void)x_len;
+  return state->n_out;
+}
+
+size_t
+dp_corr2d_bank_power_max (const dp_corr2d_state_t *state,
+                          const float _Complex *x, size_t x_len, size_t L,
+                          int g_min, int g_max, const float _Complex *rates,
+                          size_t rates_len, float *out, uint32_t *out1,
+                          size_t max_out)
+{
+  corr2d_bank_t b;
+  if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b)
+      || max_out < state->n_out)
+    return SIZE_MAX;
+  b.rates            = rates_len ? rates : NULL;
+  corr2d_max_t     c = { out, out1 };
+  dp_corr2d_fold_t f = { corr2d_fold_power_max, &c };
+  return corr2d_bank_run (state, x, &b, &f) == SIZE_MAX ? SIZE_MAX
+                                                        : state->n_out;
+}
+
+/* ── Detect coarse, refine the candidate (corr2d-hypotheses.md section 6) */
+
+/* The map value of carrier g (on a 1/(L nx) grid) and rate w at one cell,
+   with no transform: row i's correlation at lag tau is the time-domain sum
+   the known-column path computes, over the row mixed within its period;
+   DelayDoppler then takes the slow-time DFT at the cell's Doppler bin.  It
+   is the bank's map at that cell, up to float rounding. */
+static double
+corr2d_cell_power (const dp_corr2d_state_t *s, const float _Complex *x,
+                   const float _Complex *code_conj, long long g, size_t L,
+                   const float _Complex *w, size_t row, size_t tau,
+                   double _Complex *ph)
+{
+  const size_t nx = s->nx, ny = s->ny, nyo = s->ny_out;
+  /* The within-period mix depends only on n, so one table serves every row:
+     nx sines rather than ny * nx. */
+  for (size_t n = 0; n < nx; n++)
+    {
+      const double a
+          = -2.0 * M_PI * (double)g * (double)n / ((double)L * (double)nx);
+      ph[n] = cos (a) + I * sin (a);
+    }
+  const double bin
+      = s->delay_doppler ? (double)((row + nyo - nyo / 2) % nyo) : 0.0;
+  double _Complex v = 0.0;
+  for (size_t i = 0; i < ny; i++)
+    {
+      if (!s->delay_doppler && i != row)
+        continue;
+      const float _Complex *xi = x + i * nx;
+      double _Complex sum      = 0.0;
+      for (size_t p = 0; p < nx; p++)
+        {
+          const size_t n = (p + tau) % nx;
+          sum += (double _Complex)code_conj[p] * (double _Complex)xi[n]
+                 * ph[n];
+        }
+      if (w)
+        sum *= (double _Complex)w[i];
+      if (s->delay_doppler)
+        {
+          const double a = -2.0 * M_PI * bin * (double)i / (double)nyo;
+          sum *= cos (a) + I * sin (a);
+        }
+      v += sum;
+    }
+  return creal (v) * creal (v) + cimag (v) * cimag (v);
+}
+
+size_t
+dp_corr2d_bank_detect_max_out (dp_corr2d_state_t *state, size_t x_len)
+{
+  (void)x_len;
+  return state->n_out;
+}
+
+/* The cell's power under one fine carrier and rate, by the bank itself: the
+   map of that one hypothesis, read at the cell.  The refine on a path with
+   no time-domain cell evaluator (an interpolated delay axis, the general
+   path, a known column), where it costs a map rather than a dot product. */
+typedef struct
+{
+  size_t cell;
+  double power;
+} corr2d_cell_t;
+
+static void
+corr2d_fold_cell (void *ctx, size_t h, const float _Complex *map, size_t n)
+{
+  corr2d_cell_t *c = (corr2d_cell_t *)ctx;
+  (void)h, (void)n;
+  const double re = crealf (map[c->cell]), im = cimagf (map[c->cell]);
+  c->power = re * re + im * im;
+}
+
+size_t
+dp_corr2d_bank_detect (const dp_corr2d_state_t *state, const float _Complex *x,
+                       size_t x_len, size_t L_d, size_t L_r, int g_min,
+                       int g_max, float t_candidate, float t_confirm,
+                       const float _Complex *rates, size_t rates_len,
+                       float *out, int32_t *out1, uint32_t *out2,
+                       uint32_t *out3, uint32_t *out4, size_t max_out)
+{
+  corr2d_bank_t b;
+  if (L_d == 0 || L_r < L_d || L_r % L_d != 0
+      || !corr2d_bank_check (state, x_len, L_d, g_min, g_max, rates_len, &b)
+      || max_out < state->n_out)
+    return SIZE_MAX;
+  const long long m = (long long)(L_r / L_d);
+  /* every refined carrier must fit the int32 the record carries */
+  if ((long long)g_min * m - (m - 1) < INT32_MIN
+      || (long long)g_max * m + (m - 1) > INT32_MAX)
+    return SIZE_MAX;
+  b.rates            = rates_len ? rates : NULL;
+  const size_t n_out = state->n_out, nx = state->nx;
+  /* The map's own geometry: a known column is ny rows of one. */
+  const size_t width = state->col_out >= 0 ? 1 : state->nx_out;
+  const size_t rows  = n_out / width;
+  /* The time-domain refine needs whole lags on a shared row stage. */
+  const int direct
+      = state->fast_path && state->col_out < 0 && state->nx_out == nx;
+  float           *pw   = dp_xmalloc (n_out * sizeof *pw);
+  uint32_t        *ix   = dp_xmalloc (n_out * sizeof *ix);
+  float _Complex  *code = direct ? dp_xmalloc (nx * sizeof *code) : NULL;
+  double _Complex *ph   = direct ? dp_xmalloc (nx * sizeof *ph) : NULL;
+  /* 1. Detect: the strongest cell over the coarse bank, and which carrier
+     and rate it came from. */
+  corr2d_max_t     c = { pw, ix };
+  dp_corr2d_fold_t f = { corr2d_fold_power_max, &c };
+  if (corr2d_bank_run (state, x, &b, &f) == SIZE_MAX)
+    {
+      free (pw), free (ix), free (code), free (ph);
+      return SIZE_MAX;
+    }
+  if (direct)
+    {
+      /* The refine wants conj(code[p]) in the time domain, and the object
+         keeps only row_ref_spec = conj(FFT(code)).  Its unnormalized
+         inverse over nx is nx * conj(code[(nx - p) mod nx]): scale it, then
+         undo the time reversal (index 0 is its own mirror). */
+      dp_fft_execute_cf32 (state->row_inv[0], state->row_ref_spec, nx, code,
+                           nx);
+      for (size_t p = 0; p < nx; p++)
+        code[p] = code[p] / (float)nx;
+      for (size_t p = 1; p < nx - p; p++)
+        {
+          const float _Complex tmp = code[p];
+          code[p]                  = code[nx - p];
+          code[nx - p]             = tmp;
+        }
+    }
+  /* 2. Candidates: local maxima above t_candidate, over the 8 neighbors
+     with both axes circular (a delay lag and a Doppler bin both wrap).
+     3. Refine each at its own cell over the fine carriers between its coarse
+     neighbors, on the rate that found it; 4. confirm. */
+  size_t nrec = 0, ok = 1;
+  for (size_t cell = 0; cell < n_out && ok; cell++)
+    {
+      const float p0 = pw[cell];
+      if (!(p0 > t_candidate))
+        continue;
+      const size_t row = cell / width, col = cell % width;
+      int          peak = 1;
+      for (int dr = -1; dr <= 1 && peak; dr++)
+        for (int dc = -1; dc <= 1 && peak; dc++)
+          {
+            if (!dr && !dc)
+              continue;
+            const size_t rr = (row + rows + (size_t)(dr + 1) - 1) % rows;
+            const size_t cc = (col + width + (size_t)(dc + 1) - 1) % width;
+            peak            = pw[rr * width + cc] <= p0;
+          }
+      if (!peak)
+        continue;
+      const size_t          h    = ix[cell];
+      const size_t          r    = h % b.R;
+      const long long       gd   = (long long)g_min + (long long)(h / b.R);
+      const float _Complex *w    = b.rates ? b.rates + r * state->ny : NULL;
+      double                best = -1.0;
+      long long             gbst = gd * m;
+      for (long long gr = gd * m - (m - 1); gr <= gd * m + (m - 1); gr++)
+        {
+          double pr;
+          if (direct)
+            pr = corr2d_cell_power (state, x, code, gr, L_r, w, row, col, ph);
+          else
+            {
+              corr2d_bank_t    one = { L_r, (int)gr, 1, 1, w };
+              corr2d_cell_t    cc  = { cell, 0.0 };
+              dp_corr2d_fold_t cf  = { corr2d_fold_cell, &cc };
+              if (corr2d_bank_run (state, x, &one, &cf) == SIZE_MAX)
+                {
+                  ok = 0;
+                  break;
+                }
+              pr = cc.power;
+            }
+          if (pr > best) /* the lowest g wins a tie */
+            {
+              best = pr;
+              gbst = gr;
+            }
+        }
+      if (!ok || !(best > (double)t_confirm))
+        continue;
+      out[nrec]  = (float)best;
+      out1[nrec] = (int32_t)gbst;
+      out2[nrec] = (uint32_t)r;
+      out3[nrec] = (uint32_t)row;
+      out4[nrec]
+          = state->col_out >= 0 ? (uint32_t)state->col_out : (uint32_t)col;
+      nrec++;
+    }
+  free (pw), free (ix), free (code), free (ph);
+  return ok ? nrec : SIZE_MAX;
 }

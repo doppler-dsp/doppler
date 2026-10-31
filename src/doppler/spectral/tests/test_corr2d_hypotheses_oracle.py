@@ -12,9 +12,12 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+from doppler.tests._repo import repo_root
+
+# Walked up, not counted: the coverage job runs a copy of this package two
+# levels deeper (doppler/tests/_repo.py says why).
 PROTOTYPE = (
-    Path(__file__).resolve().parents[4]
-    / "docs/design/corr2d-hypotheses-measurements/prototype.py"
+    repo_root() / "docs/design/corr2d-hypotheses-measurements/prototype.py"
 )
 
 

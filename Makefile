@@ -44,8 +44,9 @@ HAS_PR_WATCH = 1
 # every input it was built from in .github/ci-images.env. The flag vendors
 # docker/ci.Dockerfile, scripts/ci-image.py and .github/workflows/ci-image.yml
 # and hangs `ci-image-check` off lint; doppler's own copy of all three is gone.
-# doppler's one extra (nats-server, pinned by hash) is docker/ci-extra.sh,
-# canonical's extension point; clang's runtime is bootstrap.toml's clang-rt.
+# doppler's extension point, docker/ci-extra.sh, now only probes and
+# fingerprints: clang's runtime is bootstrap.toml's clang-rt group, and
+# nats-server (pinned by hash) its nats group (#2712).
 #
 # TWO BASES, and the pair is load-bearing rather than thorough: build-and-test
 # runs ubuntu-22.04 and ubuntu-24.04 on purpose (two glibcs). One image for
@@ -58,7 +59,7 @@ HAS_PR_WATCH = 1
 HAS_CI_IMAGE          = 1
 CI_IMAGE_REPO         = ghcr.io/doppler-dsp/doppler-ci
 CI_IMAGE_BASES        = ubuntu:22.04 ubuntu:24.04
-CI_IMAGE_GROUPS       = dev docs clang-rt
+CI_IMAGE_GROUPS       = dev docs clang-rt nats
 CI_IMAGE_LANDING      = branch
 CI_IMAGE_SMOKE_TARGET = build
 # The CI-image rebuild fetches each pinned base the way every other stock pull

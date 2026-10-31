@@ -64,28 +64,34 @@ on one bad day it stalled five runs of a single PR, one job trickling for
 21 minutes against a 25-minute ceiling.
 
 **The image has no package list of its own.** It copies `bootstrap.toml` and
-installs its `CI_IMAGE_GROUPS` (`dev docs clang-rt`) with a pinned just-bashit
+installs its `CI_IMAGE_GROUPS` (`dev docs clang-rt nats`) with a pinned just-bashit
 release's `install-deps.sh` — the same file `make install-deps` reads. A
 second list is exactly what `bootstrap.toml` exists to prevent, and it would
 rot in the way hardest to notice: the image would keep working while no
 longer being what a developer gets.
 
-One thing is installed *outside* that list, by `docker/ci-extra.sh`, for a
-reason one cross-distro package list cannot express. (clang's compiler
-runtime used to be the second: it is now `bootstrap.toml`'s `clang-rt` group,
-whose apt `cmd` derives the release's package name and tolerates its absence,
-and `docker/ci-extra.sh` keeps only the link probe that asserts it.)
+Nothing is installed outside that list any more. Two tools used to be, by
+`docker/ci-extra.sh`, because one cross-distro package list could not say
+them, and both are now `bootstrap.toml` groups whose `cmd` says what a package
+list cannot:
 
-| what          | why it cannot come from `bootstrap.toml`                                                                                                             |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nats-server` | `make nats-up` shells out to `docker run`, and there is no docker daemon inside a container job. Pinned by version **and** by the release's SHA-256. |
+| group      | what                     | why it is a `cmd`                                                                                                    |
+| ---------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `clang-rt` | clang's compiler runtime | apt's package name depends on the release's clang, and 22.04 has none (clang bundles it); the `cmd` derives the name |
+| `nats`     | `nats-server`            | the distros' versions differ and CI runs one: the release binary, pinned by version **and** by its SHA-256 per arch  |
 
-That last one matters more than it looks. The `nats://` stream tests
+`docker/ci-extra.sh` keeps only what asserts them: the runtime's link probe
+and `nats-server --version`, so an image missing either is never published.
+
+The broker matters more than it looks. The `nats://` stream tests
 **self-skip** when 127.0.0.1:4222 is unreachable, so without a broker the
 suite would stay green while silently dropping the whole NATS path — and the
-coverage number with it. `scripts/start-nats.sh` prefers the binary and falls
-back to docker, so a dev box without docker *gains* those tests rather than
-skipping them.
+coverage number with it. `make nats-up` (`scripts/start-nats.sh`) prefers the
+binary and falls back to docker, which a container job does not have. Because
+the pin is a `bootstrap.toml` group, `make install-deps` gives a dev box the
+same pinned broker CI tests against
+([#2712](https://github.com/doppler-dsp/doppler/issues/2712)); before, a dev
+box got no broker at all unless it ran docker.
 
 `ci-extra.sh --fingerprint` prints `rustup`, `cargo` and `nats-server`
 version lines, which the image hashes together with every dpkg package. A

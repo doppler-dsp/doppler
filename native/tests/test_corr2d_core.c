@@ -523,6 +523,67 @@ _close (float got, float want)
   return fabsf (got - want) <= 1e-5f * fmaxf (1.0f, fabsf (want));
 }
 
+/* ── the best map by its own statistic is not the max map's: #2683 ─────
+ * The request's requirement, built so the two answers disagree. Map 0 is
+ * a clean code at delay 5: a sharp peak over a low mean. Map 1 is the
+ * code 1.5x stronger at delay 40 under noise: the strongest single cell,
+ * but a high mean. Ranked by peak-to-mean, PEAKS must pick map 0, while
+ * POWER_MAX's strongest cell comes from map 1 -- and the peak-to-mean of
+ * the pointwise-max map is not map 0's. A PEAKS read off the pointwise
+ * max would give both records the same statistic, which the strict
+ * comparison below refuses. */
+static int
+_test_batch_ranking (void)
+{
+  enum
+  {
+    DNX = 64,
+    DNY = 8,
+    DN  = DNX * DNY,
+    D0  = 5,
+    D1  = 40
+  };
+  uint32_t seed = 0x2683bu, rng = 0x5eedu;
+  float _Complex code[DNX];
+  for (size_t j = 0; j < DNX; j++)
+    code[j] = crealf (_rand_cplx (&seed)) >= 0.0f ? 1.0f : -1.0f;
+  static float _Complex x[2 * DN];
+  for (size_t m = 0; m < DN; m++)
+    {
+      x[m] = code[(m % DNX + DNX - D0) % DNX];
+      x[DN + m]
+          = 1.5f * code[(m % DNX + DNX - D1) % DNX] + 3.0f * dp_cgauss (&rng);
+    }
+  dp_corr2d_state_t *dd
+      = dp_corr2d_create_delay_doppler (code, DNX, DNY, 1, 2, 0);
+  DP_REQUIRE (dd != NULL && dd->n == DN && dd->n_out == DN);
+  float    pk[2], mn[2], pm[DN];
+  uint32_t pr[2], pc[2], pi[DN];
+  DP_REQUIRE (dp_corr2d_execute_peaks (dd, x, 2 * DN, pk, pr, pc, mn, 2) == 2);
+  DP_REQUIRE (dp_corr2d_execute_power_max (dd, x, 2 * DN, pm, pi, DN) == DN);
+  /* each map's own peak sits at its own code delay */
+  DP_CHECK (pc[0] == D0 && pc[1] == D1);
+  /* ranked by its own statistic, map 0 wins, strictly */
+  DP_CHECK_MSG (pk[0] / mn[0] > pk[1] / mn[1],
+                "peak-to-mean ranks the clean map first");
+  /* the strongest cell over every map is map 1's, at its delay */
+  size_t best = 0;
+  double sum  = 0.0;
+  for (size_t k = 0; k < DN; k++)
+    {
+      sum += pm[k];
+      if (pm[k] > pm[best])
+        best = k;
+    }
+  DP_CHECK (pi[best] == 1 && best % DNX == D1);
+  /* and the pointwise-max map's own peak-to-mean is not map 0's */
+  DP_CHECK_MSG (fabs ((double)pm[best] / (sum / DN) - (double)(pk[0] / mn[0]))
+                    > 0.1 * (double)(pk[0] / mn[0]),
+                "the max map's statistic differs from the best map's");
+  dp_corr2d_destroy (dd);
+  return 0;
+}
+
 static void
 _test_batch (void)
 {
@@ -1575,6 +1636,7 @@ main (void)
 
   _test_delay_doppler ();
   _test_batch ();
+  (void)_test_batch_ranking (); /* a REQUIRE failure is counted */
 
   DP_TEST_END ("test_corr2d_core");
 }

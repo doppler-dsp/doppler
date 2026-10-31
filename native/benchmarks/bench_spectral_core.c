@@ -15,6 +15,10 @@
  *                     the window per frame instead of holding it
  *   kaiser_enbw       the window's noise bandwidth, also cacheable
  *   magnitude_db_*    per bin, per frame, unavoidable
+ *   power_to_db_f32   the library's one dB conversion (#2094): what PSD
+ *                     and the Spectrogram read every dB through, from
+ *                     power already formed; against magnitude_db_cf32 it
+ *                     prices a log10f against the fast polynomial
  *   noise_floor_db    a pass over the dB spectrum
  *   find_peaks_f32    local maxima, parabolic interpolation, then a sort
  *   obw_from_power    a cumulative walk over the power spectrum
@@ -44,6 +48,7 @@ enum
   C_ENBW,
   C_MAG_CF32,
   C_MAG_CF64,
+  C_P2DB,
   C_NOISE_FLOOR,
   C_FIND_PEAKS,
   C_OBW,
@@ -54,8 +59,8 @@ static const char *const cfg_name[N_CFG] = {
   "kaiser_window[4096]",          "hann_window[4096]",
   "blackman_harris_window[4096]", "kaiser_enbw[4096]",
   "magnitude_db_cf32[4096]",      "magnitude_db_cf64[4096]",
-  "noise_floor_db[4096]",         "find_peaks_f32[4096,n=8]",
-  "obw_from_power[4096]",
+  "power_to_db_f32[4096]",        "noise_floor_db[4096]",
+  "find_peaks_f32[4096,n=8]",     "obw_from_power[4096]",
 };
 
 static float win[NFFT];
@@ -63,6 +68,7 @@ static float _Complex x32[NFFT];
 static double _Complex x64[NFFT];
 static float     db[NFFT];
 static double    pwr[NFFT];
+static float     pwr32[NFFT];
 static dp_peak_t peaks[N_PEAKS];
 
 static volatile double sink = 0.0;
@@ -95,6 +101,10 @@ run (int cfg)
       dp_magnitude_db_cf64 (x64, NFFT, db, 1e-20, 0.0f);
       sink += db[0];
       break;
+    case C_P2DB:
+      dp_power_to_db_f32 (pwr32, NFFT, db);
+      sink += db[0];
+      break;
     case C_NOISE_FLOOR:
       sink += dp_noise_floor_db (db, NFFT);
       break;
@@ -123,9 +133,10 @@ main (void)
       double       a  = 1e-3 * (1.0 + 0.5 * sin (0.013 * (double)i));
       if (i == 512 || i == 1300 || i == 2048 || i == 3100)
         a = 1.0;
-      x32[i] = (float _Complex) (a * cos (ph) + a * sin (ph) * I);
-      x64[i] = a * cos (ph) + a * sin (ph) * I;
-      pwr[i] = a * a;
+      x32[i]   = (float _Complex) (a * cos (ph) + a * sin (ph) * I);
+      x64[i]   = a * cos (ph) + a * sin (ph) * I;
+      pwr[i]   = a * a;
+      pwr32[i] = (float)(a * a);
     }
   dp_hann_window (win, NFFT);
   dp_magnitude_db_cf32 (x32, NFFT, db, 1e-20f, 0.0f);
@@ -136,7 +147,7 @@ main (void)
 
   DP_BENCH_SETTLE (run (C_MAG_CF32));
 
-  /* Rounds outside, stages inside. These nine rows are read against each
+  /* Rounds outside, stages inside. These ten rows are read against each
      other -- and against the FFT row in another file -- so drift has to
      land on all of them or the comparison is the artifact. */
   for (int r = 0; r < ITERATIONS; r++)
@@ -155,6 +166,8 @@ main (void)
 
   printf ("\n  cf64 costs %.2fx cf32 over the same bins -- the price of the\n"
           "  precision, not of the operation.\n"
+          "\n  power_to_db_f32 costs %.2fx magnitude_db_cf32: the fast dB\n"
+          "  conversion against a log10f per bin (#2094).\n"
           "\n  Two rows cost more than the log10 pass they follow:\n"
           "    kaiser_window  %.1fx magnitude_db_cf32  (cache it; a Bessel\n"
           "                   per bin is not a per-frame cost)\n"
@@ -162,6 +175,8 @@ main (void)
           "                   the dB spectrum, and the more surprising one)\n"
           "  Neither is the FFT, and neither was measured before this file.\n",
           dp_bench_min (t[C_MAG_CF64], ITERATIONS)
+              / dp_bench_min (t[C_MAG_CF32], ITERATIONS),
+          dp_bench_min (t[C_P2DB], ITERATIONS)
               / dp_bench_min (t[C_MAG_CF32], ITERATIONS),
           dp_bench_min (t[C_KAISER_WIN], ITERATIONS)
               / dp_bench_min (t[C_MAG_CF32], ITERATIONS),

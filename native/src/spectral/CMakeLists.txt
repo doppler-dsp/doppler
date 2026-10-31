@@ -12,7 +12,7 @@ if(NOT JM_MATH_LIBRARY)
   set(JM_MATH_LIBRARY "")
 endif()
 
-add_library(spectral_core OBJECT spectral_core.c kaiser_enbw.c kaiser_window.c kaiser_beta_for_sidelobe.c hann_window.c blackman_harris_window.c magnitude_db_cf32.c magnitude_db_cf64.c find_peaks_f32.c obw_from_power.c noise_floor_db.c)
+add_library(spectral_core OBJECT spectral_core.c kaiser_enbw.c kaiser_window.c kaiser_beta_for_sidelobe.c hann_window.c blackman_harris_window.c magnitude_db_cf32.c magnitude_db_cf64.c find_peaks_f32.c obw_from_power.c noise_floor_db.c power_to_db_f32.c)
 target_include_directories(spectral_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)

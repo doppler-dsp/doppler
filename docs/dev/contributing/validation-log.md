@@ -87,7 +87,7 @@ listed the moment its folder exists. There is no list here to update.
 | [Corr2D](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/corr2d/results.md)                     | `spectral`   | 30/30  | 6        | none                       |
 | [CorrDetector2D](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/detector2d/results.md)         | `spectral`   | 15/15  | 5        | none                       |
 | [PSD](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/psd/results.md)                           | `spectral`   | 28/28  | 16       | 4 — F11, F12, F14, F16     |
-| [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/spectrogram/results.md)       | `spectral`   | 36/36  | 11       | 1 — F7                     |
+| [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/spectrogram/results.md)       | `spectral`   | 36/36  | 12       | 1 — F7                     |
 | [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md)               | `track`      | 43/43  | 12       | 6 — F4, F5, F6, F7, F8, F9 |
 | [LoopFilter](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/loop_filter/results.md)               | `track`      | 26/26  | 10       | 1 — F6                     |
 | [MpskReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md)           | `track`      | 63/63  | 8        | 2 — F6, F7                 |

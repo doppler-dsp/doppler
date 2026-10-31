@@ -191,6 +191,8 @@ peaks = find_peaks_f32(db, n_peaks=5, min_db=-60.0)
 
 ::: doppler.spectral.noise_floor_db
 
+::: doppler.spectral.power_to_db_f32
+
 ## Window and mode names
 
 `PSD_WINDOW` and `SPECTROGRAM_MODE` map each C enum value to the name the

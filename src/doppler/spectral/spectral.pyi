@@ -1051,6 +1051,328 @@ class Corr2D:
             n_out, fixed at create().
         """
 
+    def execute_all(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Every map of a batch, unreduced: map h at `out + h * n_out`.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.complex64] | None
+            H * n_out values (CF32).
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            H * n_out, or SIZE_MAX (nothing written) for a refused batch. From
+            Python, an (H, n_out) array, a view of `out=` when given.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``execute_all: the input must be
+            a whole, nonzero number of frames, and out= must hold every map``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> maps = dd.execute_all(frames)
+        >>> maps.shape
+        (2, 256)
+        >>> [int(np.argmax(np.abs(m))) % nx for m in maps]   # each map's delay
+        [3, 11]
+        >>> dd.count                    # the dwell never moved
+        0
+
+        """
+
+    def execute_all_max_out(self, n_in: int, /) -> int:
+        """Samples dp_corr2d_execute_all() writes for n_in input samples: H *
+        n_out, H = n_in / (ny * nx).
+
+        Parameters
+        ----------
+        n_in : int
+            Input samples about to be passed.
+
+        Returns
+        -------
+        int
+            H * n_out, or SIZE_MAX if that overflows.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> dd.execute_all_max_out(len(frames))   # 2 maps of 8 x 32
+        512
+
+        """
+
+    def execute_coherent(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """The coherent sum of a batch's maps, inverted once.
+
+        The frames' product spectra are summed and the sum is inverted, as a
+        dwell does: the result is bit-identical to what a fresh object with
+        dwell = H dumps for the same frames, and equal to the sum of the H maps
+        up to rounding. The object's own dwell is untouched.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.complex64] | None
+            n_out values (CF32).
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            n_out, or SIZE_MAX (nothing written) for a refused batch.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``execute_coherent: the input
+            must be a whole, nonzero number of frames, and out= must hold one
+            map``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> x = np.tile(code, ny)
+        >>> total = dd.execute_coherent(np.concatenate([x, -x]))
+        >>> bool(np.abs(total).max() < 1e-3)          # x and -x cancel
+        True
+
+        """
+
+    def execute_coherent_max_out(self) -> int:
+        """Samples dp_corr2d_execute_coherent() writes: n_out.
+
+        Returns
+        -------
+        int
+            n_out, fixed at create().
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> dd.execute_coherent_max_out()
+        256
+
+        """
+
+    def execute_power_sum(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """The power of a batch's maps, summed cell by cell: each output cell
+        is the sum over h of that cell's `|map_h|^2`, summed in h order in
+        float.
+
+        Unlike the coherent sum, phase does not cancel: frames x and -x sum to
+        twice one map's power, where their coherent sum is zero.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.float32] | None
+            n_out powers (float).
+
+        Returns
+        -------
+        NDArray[np.float32]
+            n_out, or SIZE_MAX (nothing written) for a refused batch.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``execute_power_sum: the input
+            must be a whole, nonzero number of frames, and out= must hold one
+            map``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> x = np.tile(code, ny)
+        >>> power = dd.execute_power_sum(np.concatenate([x, -x]))
+        >>> one = np.abs(dd.execute_all(x)[0]) ** 2
+        >>> bool(np.allclose(power, 2 * one))        # x and -x do not cancel
+        True
+
+        """
+
+    def execute_power_sum_max_out(self) -> int:
+        """Powers dp_corr2d_execute_power_sum() writes: n_out.
+
+        Returns
+        -------
+        int
+            n_out, fixed at create().
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> dd.execute_power_sum_max_out()
+        256
+
+        """
+
+    def execute_power_max(
+        self,
+        x: npt.NDArray[np.complex64],
+        /,
+    ) -> tuple[NDArray[np.float32], NDArray[np.uint32]]:
+        """The largest power over a batch's maps, cell by cell, and the map it
+        came from.
+
+        Each cell of out is the largest `|map_h|^2` that cell takes over the
+        maps, and the same cell of out1 is the h it came from. A tie goes to
+        the lowest h: a later map replaces the running maximum only when it is
+        strictly greater.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        tuple[NDArray[np.float32], NDArray[np.uint32]]
+            n_out, or SIZE_MAX (nothing written) for a refused batch or H above
+            2^32. From Python, the tuple (power, index).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``execute_power_max: the input
+            must be a whole, nonzero number of frames (at most 2**32), and out=
+            must hold one map``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> power, index = dd.execute_power_max(frames)
+        >>> int(index[4 * nx + 3]), int(index[4 * nx + 11])  # which map peaks
+        (0, 1)
+
+        """
+
+    def execute_peaks(
+        self,
+        x: npt.NDArray[np.complex64],
+        /,
+    ) -> tuple[NDArray[np.float32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.float32]]:
+        """One record per map of a batch: its peak power, where the peak is,
+        and its mean power.
+
+        Entry h of each output describes map h: out its largest `|map|^2`, out1
+        and out2 the row and column of that cell (the first in row-major order
+        on a tie), and out3 the mean `|map|^2` over its n_out cells. A map is
+        ny_out x nx_out; with col_out it is ny x 1, and the column reported is
+        col_out. The peak-to-mean of each map is out over out3, entry by entry:
+        a statistic of each map, which the same statistic of a pointwise
+        maximum over maps does not give.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        tuple[NDArray[np.float32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.float32]]
+            H, or SIZE_MAX (nothing written) for a refused batch. From Python,
+            the tuple (peak, row, col, mean).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``execute_peaks: the input must
+            be a whole, nonzero number of frames, and out= must hold one record
+            per frame``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> peak, row, col, mean = dd.execute_peaks(frames)
+        >>> row.tolist(), col.tolist()     # zero Doppler is row ny / 2
+        ([4, 4], [3, 11])
+        >>> bool(np.all(peak / mean > 100))   # each map's own peak-to-mean
+        True
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -1328,6 +1650,328 @@ class DelayDoppler:
         -------
         int
             n_out, fixed at create().
+        """
+
+    def execute_all(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Every map of a batch, unreduced: map h at `out + h * n_out`.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.complex64] | None
+            H * n_out values (CF32).
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            H * n_out, or SIZE_MAX (nothing written) for a refused batch. From
+            Python, an (H, n_out) array, a view of `out=` when given.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``execute_all: the input must be
+            a whole, nonzero number of frames, and out= must hold every map``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> maps = dd.execute_all(frames)
+        >>> maps.shape
+        (2, 256)
+        >>> [int(np.argmax(np.abs(m))) % nx for m in maps]   # each map's delay
+        [3, 11]
+        >>> dd.count                    # the dwell never moved
+        0
+
+        """
+
+    def execute_all_max_out(self, n_in: int, /) -> int:
+        """Samples dp_corr2d_execute_all() writes for n_in input samples: H *
+        n_out, H = n_in / (ny * nx).
+
+        Parameters
+        ----------
+        n_in : int
+            Input samples about to be passed.
+
+        Returns
+        -------
+        int
+            H * n_out, or SIZE_MAX if that overflows.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> dd.execute_all_max_out(len(frames))   # 2 maps of 8 x 32
+        512
+
+        """
+
+    def execute_coherent(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """The coherent sum of a batch's maps, inverted once.
+
+        The frames' product spectra are summed and the sum is inverted, as a
+        dwell does: the result is bit-identical to what a fresh object with
+        dwell = H dumps for the same frames, and equal to the sum of the H maps
+        up to rounding. The object's own dwell is untouched.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.complex64] | None
+            n_out values (CF32).
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            n_out, or SIZE_MAX (nothing written) for a refused batch.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``execute_coherent: the input
+            must be a whole, nonzero number of frames, and out= must hold one
+            map``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> x = np.tile(code, ny)
+        >>> total = dd.execute_coherent(np.concatenate([x, -x]))
+        >>> bool(np.abs(total).max() < 1e-3)          # x and -x cancel
+        True
+
+        """
+
+    def execute_coherent_max_out(self) -> int:
+        """Samples dp_corr2d_execute_coherent() writes: n_out.
+
+        Returns
+        -------
+        int
+            n_out, fixed at create().
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> dd.execute_coherent_max_out()
+        256
+
+        """
+
+    def execute_power_sum(
+        self,
+        x: npt.NDArray[np.complex64],
+        out: npt.NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """The power of a batch's maps, summed cell by cell: each output cell
+        is the sum over h of that cell's `|map_h|^2`, summed in h order in
+        float.
+
+        Unlike the coherent sum, phase does not cancel: frames x and -x sum to
+        twice one map's power, where their coherent sum is zero.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        out : npt.NDArray[np.float32] | None
+            n_out powers (float).
+
+        Returns
+        -------
+        NDArray[np.float32]
+            n_out, or SIZE_MAX (nothing written) for a refused batch.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``execute_power_sum: the input
+            must be a whole, nonzero number of frames, and out= must hold one
+            map``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> x = np.tile(code, ny)
+        >>> power = dd.execute_power_sum(np.concatenate([x, -x]))
+        >>> one = np.abs(dd.execute_all(x)[0]) ** 2
+        >>> bool(np.allclose(power, 2 * one))        # x and -x do not cancel
+        True
+
+        """
+
+    def execute_power_sum_max_out(self) -> int:
+        """Powers dp_corr2d_execute_power_sum() writes: n_out.
+
+        Returns
+        -------
+        int
+            n_out, fixed at create().
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> dd.execute_power_sum_max_out()
+        256
+
+        """
+
+    def execute_power_max(
+        self,
+        x: npt.NDArray[np.complex64],
+        /,
+    ) -> tuple[NDArray[np.float32], NDArray[np.uint32]]:
+        """The largest power over a batch's maps, cell by cell, and the map it
+        came from.
+
+        Each cell of out is the largest `|map_h|^2` that cell takes over the
+        maps, and the same cell of out1 is the h it came from. A tie goes to
+        the lowest h: a later map replaces the running maximum only when it is
+        strictly greater.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        tuple[NDArray[np.float32], NDArray[np.uint32]]
+            n_out, or SIZE_MAX (nothing written) for a refused batch or H above
+            2^32. From Python, the tuple (power, index).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``execute_power_max: the input
+            must be a whole, nonzero number of frames (at most 2**32), and out=
+            must hold one map``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> power, index = dd.execute_power_max(frames)
+        >>> int(index[4 * nx + 3]), int(index[4 * nx + 11])  # which map peaks
+        (0, 1)
+
+        """
+
+    def execute_peaks(
+        self,
+        x: npt.NDArray[np.complex64],
+        /,
+    ) -> tuple[NDArray[np.float32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.float32]]:
+        """One record per map of a batch: its peak power, where the peak is,
+        and its mean power.
+
+        Entry h of each output describes map h: out its largest `|map|^2`, out1
+        and out2 the row and column of that cell (the first in row-major order
+        on a tie), and out3 the mean `|map|^2` over its n_out cells. A map is
+        ny_out x nx_out; with col_out it is ny x 1, and the column reported is
+        col_out. The peak-to-mean of each map is out over out3, entry by entry:
+        a statistic of each map, which the same statistic of a pointwise
+        maximum over maps does not give.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        tuple[NDArray[np.float32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.float32]]
+            H, or SIZE_MAX (nothing written) for a refused batch. From Python,
+            the tuple (peak, row, col, mean).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``execute_peaks: the input must
+            be a whole, nonzero number of frames, and out= must hold one record
+            per frame``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx = 8, 32
+        >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
+        ...                          for d in (3, 11)])   # delays 3 and 11
+        >>> peak, row, col, mean = dd.execute_peaks(frames)
+        >>> row.tolist(), col.tolist()     # zero Doppler is row ny / 2
+        ([4, 4], [3, 11])
+        >>> bool(np.all(peak / mean > 100))   # each map's own peak-to-mean
+        True
+
         """
 
     def state_bytes(self) -> int:

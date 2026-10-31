@@ -83,6 +83,14 @@ typedef struct {
   dp_fft_state_t **slow_fft;  
   float _Complex  *col_gather;
   float _Complex  *col_spec;  
+  /* Batch scratch (dp_corr2d_execute_fold and the typed batch calls),
+   * allocated on the first batch, one slot per worker.  A batch makes its
+   * maps here and never touches accum or count, so it is not state and is
+   * not in the blob. */
+  float _Complex  *bat_acc;   
+  float _Complex  *bat_work;  
+  float _Complex  *bat_pad;   
+  float _Complex  *bat_map;   
 } dp_corr2d_state_t;
 
 dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t nx,
@@ -104,6 +112,73 @@ size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
 
 size_t dp_corr2d_execute(dp_corr2d_state_t *state, const float _Complex *in,
                       size_t n_in, float _Complex *out, size_t max_out);
+
+/* ── Batches: many frames in one call (#2683) ──────────────────────────────
+ *
+ * A batch is H frames back to back, n_in = H * ny * nx.  Map h is exactly
+ * what a fresh object with dwell 1 returns for frame h -- the same
+ * arithmetic, bit for bit, on every path (general 2-D, single-row fast
+ * path, col_out, delay-Doppler) and at every thread count.  A batch never
+ * reads or writes the dwell: accum, count and the state blob are the same
+ * after it as before, so a batch may run in the middle of a dwell.
+ *
+ * Each typed call folds the H maps into a caller-owned result, in h order.
+ * Every one refuses, with nothing written and SIZE_MAX returned, an empty
+ * batch (n_in == 0), a length that is not a whole number of frames, or an
+ * output with room for less than the whole result: a truncated reduction
+ * has no meaning, so a batch never truncates the way execute() does.
+ *
+ * Threads: with two frames or more, each worker makes whole maps on its own
+ * plans and scratch, and the maps are folded in h order, because splitting
+ * one short frame across a pool costs more than it saves
+ * (corr2d-hypotheses.md section 5).  A batch of one frame is split as
+ * execute() splits it.  The coherent sum gives each worker a fixed range of
+ * rows through every frame.  The result is the same at every thread
+ * count. */
+
+typedef struct
+{
+  void (*fold) (void *ctx, size_t h, const float _Complex *map, size_t n_out);
+  void *ctx; 
+} dp_corr2d_fold_t;
+
+size_t dp_corr2d_execute_fold (dp_corr2d_state_t *state,
+                               const float _Complex *in, size_t n_in,
+                               const dp_corr2d_fold_t *fold);
+
+size_t dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state,
+                                      size_t n_in);
+
+size_t dp_corr2d_execute_all (dp_corr2d_state_t *state,
+                              const float _Complex *in, size_t n_in,
+                              float _Complex *out, size_t max_out);
+
+size_t dp_corr2d_execute_coherent_max_out (const dp_corr2d_state_t *state);
+
+size_t dp_corr2d_execute_coherent (dp_corr2d_state_t *state,
+                                   const float _Complex *in, size_t n_in,
+                                   float _Complex *out, size_t max_out);
+
+size_t dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state);
+
+size_t dp_corr2d_execute_power_sum (dp_corr2d_state_t *state,
+                                    const float _Complex *in, size_t n_in,
+                                    float *out, size_t max_out);
+
+size_t dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state);
+
+size_t dp_corr2d_execute_power_max (dp_corr2d_state_t *state,
+                                    const float _Complex *in, size_t n_in,
+                                    float *out, uint32_t *out1,
+                                    size_t max_out);
+
+size_t dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state,
+                                        size_t n_in);
+
+size_t dp_corr2d_execute_peaks (dp_corr2d_state_t *state,
+                                const float _Complex *in, size_t n_in,
+                                float *out, uint32_t *out1, uint32_t *out2,
+                                float *out3, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running 2-D product-spectrum accumulator + frame count;

@@ -102,6 +102,70 @@ error_sentinel = "SIZE_MAX"
 error = "ValueError"
 error_message = "input length is not ny*nx; execute takes exactly one frame"
 
+# Batches (#2683): H frames back to back in one call, every map or one
+# reduction of them, on the C fold loop dp_corr2d_execute_fold. One typed
+# method per reduction, because the return shapes differ. Each refuses an
+# empty batch, a length that is not a whole number of frames, or a short
+# out= with SIZE_MAX, which jm raises as ValueError. The GIL is released
+# across the kernel; the DelayDoppler view shares every method.
+[[corr2d.methods]]
+name = "execute_all"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+out_cols = "state->n_out"
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "execute_all: the input must be a whole, nonzero number of frames, and out= must hold every map"
+nogil = true
+
+[[corr2d.methods]]
+name = "execute_coherent"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "execute_coherent: the input must be a whole, nonzero number of frames, and out= must hold one map"
+nogil = true
+
+[[corr2d.methods]]
+name = "execute_power_sum"
+arg_type = "float _Complex"
+return_type = "float"
+variable_output = true
+pass_capacity = true
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "execute_power_sum: the input must be a whole, nonzero number of frames, and out= must hold one map"
+nogil = true
+
+[[corr2d.methods]]
+name = "execute_power_max"
+arg_type = "float _Complex"
+return_type = "float"
+variable_output = true
+pass_capacity = true
+multi_output = ["uint32_t"]
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "execute_power_max: the input must be a whole, nonzero number of frames (at most 2**32), and out= must hold one map"
+nogil = true
+
+[[corr2d.methods]]
+name = "execute_peaks"
+arg_type = "float _Complex"
+return_type = "float"
+variable_output = true
+pass_capacity = true
+multi_output = ["uint32_t", "uint32_t", "float"]
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "execute_peaks: the input must be a whole, nonzero number of frames, and out= must hold one record per frame"
+nogil = true
+
 [[corr2d.properties]]
 name = "ny"
 type = "size_t"

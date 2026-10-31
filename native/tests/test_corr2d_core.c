@@ -436,6 +436,421 @@ _test_delay_doppler (void)
   }
 }
 
+/* ── Batches (#2683) ──────────────────────────────────────────────────────
+ *
+ * One object of each path: general 2-D (native and interpolated), the
+ * single-row fast path (native and nx_out > nx), the known column, and the
+ * delay-Doppler flavor with ny_out > ny.  Every reference below comes from
+ * the object's own public execute(), so a batch is held to what the object
+ * already promises, bit for bit. */
+enum
+{
+  B_GEN,
+  B_GEN_PAD,
+  B_FAST,
+  B_FAST_PAD,
+  B_COL,
+  B_DD,
+  B_KINDS
+};
+
+static dp_corr2d_state_t *
+_batch_make (int kind, size_t dwell, int nthreads)
+{
+  uint32_t seed = 0x2683u + (uint32_t)kind;
+  float _Complex ref[42];
+  const size_t ny = (kind <= B_GEN_PAD) ? 3 : 6;
+  const size_t nx = (kind <= B_GEN_PAD) ? 5 : 7;
+  for (size_t k = 0; k < ny * nx; k++)
+    {
+      const float _Complex z = _rand_cplx (&seed);
+      /* The general path needs energy outside row 0; the others refuse it. */
+      ref[k] = (kind <= B_GEN_PAD || k < nx) ? z : 0.0f;
+    }
+  switch (kind)
+    {
+    case B_GEN:
+      return dp_corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0, -1);
+    case B_GEN_PAD:
+      return dp_corr2d_create (ref, ny, nx, dwell, nthreads, 4, 8, -1);
+    case B_FAST:
+      return dp_corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0, -1);
+    case B_FAST_PAD:
+      return dp_corr2d_create (ref, ny, nx, dwell, nthreads, 0, 10, -1);
+    case B_COL:
+      return dp_corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0, 2);
+    default:
+      return dp_corr2d_create_delay_doppler (ref, nx, 5, dwell, nthreads, 8);
+    }
+}
+
+/* H frames of the object's frame length, deterministic per seed. */
+static float _Complex *
+_batch_frames (const dp_corr2d_state_t *c, size_t H, uint32_t seed)
+{
+  float _Complex *x = malloc (H * c->n * sizeof *x);
+  for (size_t k = 0; k < H * c->n; k++)
+    x[k] = _rand_cplx (&seed);
+  return x;
+}
+
+/* The maps H fresh dwell-1, one-thread objects return for the frames. */
+static float _Complex *
+_batch_reference (int kind, const float _Complex *x, size_t H)
+{
+  dp_corr2d_state_t *f = _batch_make (kind, 1, 1);
+  const size_t       n = f->n, no = f->n_out;
+  float _Complex    *ref = malloc (H * no * sizeof *ref);
+  for (size_t h = 0; h < H; h++)
+    {
+      dp_corr2d_destroy (f);
+      f = _batch_make (kind, 1, 1);
+      DP_CHECK (dp_corr2d_execute (f, x + h * n, n, ref + h * no, no) == no);
+    }
+  dp_corr2d_destroy (f);
+  return ref;
+}
+
+static float
+_batch_pow (float _Complex z)
+{
+  return crealf (z) * crealf (z) + cimagf (z) * cimagf (z);
+}
+
+static int
+_close (float got, float want)
+{
+  return fabsf (got - want) <= 1e-5f * fmaxf (1.0f, fabsf (want));
+}
+
+/* ── the best map by its own statistic is not the max map's: #2683 ─────
+ * The request's requirement, built so the two answers disagree. Map 0 is
+ * a clean code at delay 5: a sharp peak over a low mean. Map 1 is the
+ * code 1.5x stronger at delay 40 under noise: the strongest single cell,
+ * but a high mean. Ranked by peak-to-mean, PEAKS must pick map 0, while
+ * POWER_MAX's strongest cell comes from map 1 -- and the peak-to-mean of
+ * the pointwise-max map is not map 0's. A PEAKS read off the pointwise
+ * max would give both records the same statistic, which the strict
+ * comparison below refuses. */
+static int
+_test_batch_ranking (void)
+{
+  enum
+  {
+    DNX = 64,
+    DNY = 8,
+    DN  = DNX * DNY,
+    D0  = 5,
+    D1  = 40
+  };
+  uint32_t seed = 0x2683bu, rng = 0x5eedu;
+  float _Complex code[DNX];
+  for (size_t j = 0; j < DNX; j++)
+    code[j] = crealf (_rand_cplx (&seed)) >= 0.0f ? 1.0f : -1.0f;
+  static float _Complex x[2 * DN];
+  for (size_t m = 0; m < DN; m++)
+    {
+      x[m] = code[(m % DNX + DNX - D0) % DNX];
+      x[DN + m]
+          = 1.5f * code[(m % DNX + DNX - D1) % DNX] + 3.0f * dp_cgauss (&rng);
+    }
+  dp_corr2d_state_t *dd
+      = dp_corr2d_create_delay_doppler (code, DNX, DNY, 1, 2, 0);
+  DP_REQUIRE (dd != NULL && dd->n == DN && dd->n_out == DN);
+  float    pk[2], mn[2], pm[DN];
+  uint32_t pr[2], pc[2], pi[DN];
+  DP_REQUIRE (dp_corr2d_execute_peaks (dd, x, 2 * DN, pk, pr, pc, mn, 2) == 2);
+  DP_REQUIRE (dp_corr2d_execute_power_max (dd, x, 2 * DN, pm, pi, DN) == DN);
+  /* each map's own peak sits at its own code delay */
+  DP_CHECK (pc[0] == D0 && pc[1] == D1);
+  /* ranked by its own statistic, map 0 wins, strictly */
+  DP_CHECK_MSG (pk[0] / mn[0] > pk[1] / mn[1],
+                "peak-to-mean ranks the clean map first");
+  /* the strongest cell over every map is map 1's, at its delay */
+  size_t best = 0;
+  double sum  = 0.0;
+  for (size_t k = 0; k < DN; k++)
+    {
+      sum += pm[k];
+      if (pm[k] > pm[best])
+        best = k;
+    }
+  DP_CHECK (pi[best] == 1 && best % DNX == D1);
+  /* and the pointwise-max map's own peak-to-mean is not map 0's */
+  DP_CHECK_MSG (fabs ((double)pm[best] / (sum / DN) - (double)(pk[0] / mn[0]))
+                    > 0.1 * (double)(pk[0] / mn[0]),
+                "the max map's statistic differs from the best map's");
+  dp_corr2d_destroy (dd);
+  return 0;
+}
+
+static void
+_test_batch (void)
+{
+  const int    threads[] = { 1, 2, 7 };
+  const size_t Hs[]      = { 1, 3, 9 }; /* 9 >= workers: whole maps */
+
+  for (int kind = 0; kind < B_KINDS; kind++)
+    for (size_t hi = 0; hi < sizeof Hs / sizeof *Hs; hi++)
+      for (size_t ti = 0; ti < sizeof threads / sizeof *threads; ti++)
+        {
+          const size_t       H = Hs[hi];
+          dp_corr2d_state_t *c = _batch_make (kind, 3, threads[ti]);
+          DP_CHECK (c != NULL);
+          const size_t    n = c->n, no = c->n_out;
+          float _Complex *x    = _batch_frames (c, H, 0x51u + (uint32_t)H);
+          float _Complex *want = _batch_reference (kind, x, H);
+
+          /* A dwell in progress: one frame in, its blob kept. */
+          float _Complex *dump = malloc (no * sizeof *dump);
+          DP_CHECK (dp_corr2d_execute (c, x, n, dump, no) == 0);
+          const size_t   nb     = dp_corr2d_state_bytes (c);
+          unsigned char *before = malloc (nb), *after = malloc (nb);
+          dp_corr2d_get_state (c, before);
+
+          /* ALL: every map is the fresh object's, bit for bit. */
+          float _Complex *all = malloc (H * no * sizeof *all);
+          DP_CHECK (dp_corr2d_execute_all_max_out (c, H * n) == H * no);
+          DP_CHECK (dp_corr2d_execute_all (c, x, H * n, all, H * no)
+                    == H * no);
+          DP_CHECK_MSG (memcmp (all, want, H * no * sizeof *all) == 0,
+                        "batch map h == a fresh dwell-1 object's map");
+
+          /* COHERENT: bit for bit a fresh object with dwell = H; and the
+             sum of the maps up to rounding. */
+          float _Complex *coh = malloc (no * sizeof *coh);
+          float _Complex *cw  = malloc (no * sizeof *cw);
+          {
+            dp_corr2d_state_t *f = _batch_make (kind, H, 1);
+            for (size_t h = 0; h < H; h++)
+              (void)dp_corr2d_execute (f, x + h * n, n, cw, no);
+            dp_corr2d_destroy (f);
+          }
+          DP_CHECK (dp_corr2d_execute_coherent (c, x, H * n, coh, no) == no);
+          DP_CHECK_MSG (memcmp (coh, cw, no * sizeof *coh) == 0,
+                        "coherent == a fresh object with dwell = H");
+          {
+            double emax = 0.0, wmax = 0.0;
+            for (size_t k = 0; k < no; k++)
+              {
+                float _Complex sum = 0.0f;
+                for (size_t h = 0; h < H; h++)
+                  sum += all[h * no + k];
+                emax = fmax (emax, cabsf (coh[k] - sum));
+                wmax = fmax (wmax, cabsf (sum));
+              }
+            DP_CHECK (emax <= 1e-5 * wmax);
+          }
+
+          /* POWER_SUM, POWER_MAX and PEAKS against folds over ALL. */
+          float *ps = malloc (no * sizeof *ps), *pm = malloc (no * sizeof *pm);
+          uint32_t *pi = malloc (no * sizeof *pi);
+          float *pk = malloc (H * sizeof *pk), *mn = malloc (H * sizeof *mn);
+          uint32_t *pr = malloc (H * sizeof *pr),
+                   *pc = malloc (H * sizeof *pc);
+          DP_CHECK (dp_corr2d_execute_power_sum (c, x, H * n, ps, no) == no);
+          DP_CHECK (dp_corr2d_execute_power_max (c, x, H * n, pm, pi, no)
+                    == no);
+          DP_CHECK (dp_corr2d_execute_peaks_max_out (c, H * n) == H);
+          DP_CHECK (dp_corr2d_execute_peaks (c, x, H * n, pk, pr, pc, mn, H)
+                    == H);
+          int sum_ok = 1, max_ok = 1, peak_ok = 1;
+          for (size_t k = 0; k < no; k++)
+            {
+              float    s = 0.0f, m = -1.0f;
+              uint32_t at = 0;
+              for (size_t h = 0; h < H; h++)
+                {
+                  const float p = _batch_pow (all[h * no + k]);
+                  s += p;
+                  if (p > m)
+                    {
+                      m  = p;
+                      at = (uint32_t)h;
+                    }
+                }
+              sum_ok &= _close (ps[k], s);
+              max_ok &= _close (pm[k], m) && pi[k] == at;
+            }
+          const size_t width = (kind == B_COL) ? 1 : c->nx_out;
+          for (size_t h = 0; h < H; h++)
+            {
+              const float _Complex *m    = all + h * no;
+              size_t                best = 0;
+              double                s    = 0.0;
+              for (size_t k = 0; k < no; k++)
+                {
+                  s += _batch_pow (m[k]);
+                  if (_batch_pow (m[k]) > _batch_pow (m[best]))
+                    best = k;
+                }
+              const uint32_t col
+                  = (kind == B_COL) ? 2u : (uint32_t)(best % width);
+              peak_ok &= _close (pk[h], _batch_pow (m[best]))
+                         && pr[h] == best / width && pc[h] == col
+                         && _close (mn[h], (float)(s / (double)no));
+            }
+          /* The folds run in h order whatever the thread count: the same
+             reductions from a one-thread object, bit for bit. */
+          {
+            dp_corr2d_state_t *one = _batch_make (kind, 1, 1);
+            float             *ps1 = malloc (no * sizeof *ps1);
+            float             *pm1 = malloc (no * sizeof *pm1);
+            uint32_t          *pi1 = malloc (no * sizeof *pi1);
+            float             *pk1 = malloc (H * sizeof *pk1);
+            float             *mn1 = malloc (H * sizeof *mn1);
+            uint32_t          *pr1 = malloc (H * sizeof *pr1);
+            uint32_t          *pc1 = malloc (H * sizeof *pc1);
+            (void)dp_corr2d_execute_power_sum (one, x, H * n, ps1, no);
+            (void)dp_corr2d_execute_power_max (one, x, H * n, pm1, pi1, no);
+            (void)dp_corr2d_execute_peaks (one, x, H * n, pk1, pr1, pc1, mn1,
+                                           H);
+            DP_CHECK_MSG (memcmp (ps, ps1, no * sizeof *ps) == 0
+                              && memcmp (pm, pm1, no * sizeof *pm) == 0
+                              && memcmp (pi, pi1, no * sizeof *pi) == 0
+                              && memcmp (pk, pk1, H * sizeof *pk) == 0
+                              && memcmp (mn, mn1, H * sizeof *mn) == 0
+                              && memcmp (pr, pr1, H * sizeof *pr) == 0
+                              && memcmp (pc, pc1, H * sizeof *pc) == 0,
+                          "reductions are bit-identical at any thread count");
+            free (ps1), free (pm1), free (pi1), free (pk1), free (mn1),
+                free (pr1), free (pc1);
+            dp_corr2d_destroy (one);
+          }
+          DP_CHECK_MSG (sum_ok, "power_sum == sum over h of |map|^2");
+          DP_CHECK_MSG (max_ok, "power_max == max over h, lowest h on a tie");
+          DP_CHECK_MSG (peak_ok, "peaks == each map's own peak and mean");
+
+          /* None of it touched the dwell: same blob, and the dwell's next
+             dumps equal a twin's that never saw a batch. */
+          dp_corr2d_get_state (c, after);
+          DP_CHECK_MSG (memcmp (before, after, nb) == 0,
+                        "a batch leaves accum and count alone");
+          {
+            dp_corr2d_state_t *twin = _batch_make (kind, 3, 1);
+            float _Complex    *td   = malloc (no * sizeof *td);
+            (void)dp_corr2d_execute (twin, x, n, td, no);
+            for (size_t f = 1; f < 3; f++)
+              {
+                const float _Complex *xf = x + (f % H) * n;
+                DP_CHECK (dp_corr2d_execute (c, xf, n, dump, no)
+                          == dp_corr2d_execute (twin, xf, n, td, no));
+              }
+            DP_CHECK (memcmp (dump, td, no * sizeof *td) == 0);
+            dp_corr2d_destroy (twin);
+            free (td);
+          }
+
+          free (ps), free (pm), free (pi), free (pk), free (mn), free (pr),
+              free (pc);
+          free (coh), free (cw), free (all), free (before), free (after);
+          free (dump), free (want), free (x);
+          dp_corr2d_destroy (c);
+        }
+
+  /* ── coherent cancels, power does not: frames x and -x ──────────────── */
+  for (int kind = 0; kind < B_KINDS; kind++)
+    {
+      dp_corr2d_state_t *c = _batch_make (kind, 1, 2);
+      const size_t       n = c->n, no = c->n_out;
+      float _Complex    *x  = _batch_frames (c, 2, 7u);
+      float _Complex    *m  = malloc (no * sizeof *m);
+      float _Complex    *co = malloc (no * sizeof *co);
+      float             *ps = malloc (no * sizeof *ps);
+      for (size_t k = 0; k < n; k++)
+        x[n + k] = -x[k];
+      DP_CHECK (dp_corr2d_execute (c, x, n, m, no) == no);
+      DP_CHECK (dp_corr2d_execute_coherent (c, x, 2 * n, co, no) == no);
+      DP_CHECK (dp_corr2d_execute_power_sum (c, x, 2 * n, ps, no) == no);
+      int cancel = 1, doubled = 1;
+      for (size_t k = 0; k < no; k++)
+        {
+          cancel &= cabsf (co[k]) <= 1e-5f * (1.0f + cabsf (m[k]));
+          doubled &= _close (ps[k], 2.0f * _batch_pow (m[k]));
+        }
+      DP_CHECK_MSG (cancel, "coherent sum of x and -x is zero");
+      DP_CHECK_MSG (doubled, "power sum of x and -x is twice one map");
+      free (x), free (m), free (co), free (ps);
+      dp_corr2d_destroy (c);
+    }
+
+  /* ── ties go to the lowest h: identical frames ──────────────────────── */
+  for (int kind = 0; kind < B_KINDS; kind++)
+    {
+      dp_corr2d_state_t *c = _batch_make (kind, 1, 7);
+      const size_t       n = c->n, no = c->n_out, H = 9;
+      float _Complex    *x  = _batch_frames (c, H, 9u);
+      float             *pm = malloc (no * sizeof *pm);
+      uint32_t          *pi = malloc (no * sizeof *pi);
+      for (size_t h = 1; h < H; h++)
+        memcpy (x + h * n, x, n * sizeof *x);
+      DP_CHECK (dp_corr2d_execute_power_max (c, x, H * n, pm, pi, no) == no);
+      int zero = 1;
+      for (size_t k = 0; k < no; k++)
+        zero &= pi[k] == 0;
+      DP_CHECK_MSG (zero, "equal maps: power_max index is 0 everywhere");
+      free (x), free (pm), free (pi);
+      dp_corr2d_destroy (c);
+    }
+
+  /* ── refusals: nothing written, nothing folded ──────────────────────── */
+  for (int kind = 0; kind < B_KINDS; kind++)
+    {
+      dp_corr2d_state_t *c = _batch_make (kind, 1, 2);
+      const size_t       n = c->n, no = c->n_out, H = 2;
+      float _Complex    *x = _batch_frames (c, H + 1, 3u);
+      enum
+      {
+        CAN = 1 << 12
+      };
+      static float _Complex cf[CAN];
+      static float    ff[CAN], f3[CAN];
+      static uint32_t u1[CAN], u2[CAN];
+      DP_CHECK (H * no <= CAN);
+      for (size_t k = 0; k < CAN; k++)
+        {
+          cf[k] = CMPLXF (-7.0f, -7.0f);
+          ff[k] = f3[k] = -7.0f;
+          u1[k] = u2[k] = 77u;
+        }
+      const size_t bad[] = { 0, 1, n - 1, n + 1, 2 * n + 1 };
+      for (size_t b = 0; b < sizeof bad / sizeof *bad; b++)
+        {
+          const size_t m = bad[b];
+          DP_CHECK (dp_corr2d_execute_all (c, x, m, cf, CAN) == SIZE_MAX);
+          DP_CHECK (dp_corr2d_execute_coherent (c, x, m, cf, CAN) == SIZE_MAX);
+          DP_CHECK (dp_corr2d_execute_power_sum (c, x, m, ff, CAN)
+                    == SIZE_MAX);
+          DP_CHECK (dp_corr2d_execute_power_max (c, x, m, ff, u1, CAN)
+                    == SIZE_MAX);
+          DP_CHECK (dp_corr2d_execute_peaks (c, x, m, ff, u1, u2, f3, CAN)
+                    == SIZE_MAX);
+          size_t           calls = 0;
+          dp_corr2d_fold_t f     = { NULL, &calls };
+          /* A NULL fold would crash if called: refusal must come first. */
+          DP_CHECK (dp_corr2d_execute_fold (c, x, m, &f) == SIZE_MAX);
+        }
+      /* Room for one value less than the whole result. */
+      DP_CHECK (dp_corr2d_execute_all (c, x, H * n, cf, H * no - 1)
+                == SIZE_MAX);
+      DP_CHECK (dp_corr2d_execute_coherent (c, x, H * n, cf, no - 1)
+                == SIZE_MAX);
+      DP_CHECK (dp_corr2d_execute_power_sum (c, x, H * n, ff, no - 1)
+                == SIZE_MAX);
+      DP_CHECK (dp_corr2d_execute_power_max (c, x, H * n, ff, u1, no - 1)
+                == SIZE_MAX);
+      DP_CHECK (dp_corr2d_execute_peaks (c, x, H * n, ff, u1, u2, f3, H - 1)
+                == SIZE_MAX);
+      int untouched = 1;
+      for (size_t k = 0; k < CAN; k++)
+        untouched &= crealf (cf[k]) == -7.0f && ff[k] == -7.0f
+                     && f3[k] == -7.0f && u1[k] == 77u && u2[k] == 77u;
+      DP_CHECK_MSG (untouched, "a refused batch writes nothing");
+      free (x);
+      dp_corr2d_destroy (c);
+    }
+}
+
 int
 main (void)
 {
@@ -1220,6 +1635,8 @@ main (void)
   }
 
   _test_delay_doppler ();
+  _test_batch ();
+  (void)_test_batch_ranking (); /* a REQUIRE failure is counted */
 
   DP_TEST_END ("test_corr2d_core");
 }

@@ -180,6 +180,34 @@ size_t dp_corr2d_execute_peaks (dp_corr2d_state_t *state,
                                 float *out, uint32_t *out1, uint32_t *out2,
                                 float *out3, size_t max_out);
 
+/* ── The hypothesis bank (#2683 phase 3) ───────────────────────────────── */
+
+size_t dp_corr2d_bank_fold (const dp_corr2d_state_t *state, const float _Complex *x,
+                            size_t x_len, size_t L, int g_min, int g_max,
+                            const float _Complex *rates, size_t rates_len,
+                            const dp_corr2d_fold_t *fold);
+
+size_t dp_corr2d_bank_power_max_max_out (dp_corr2d_state_t *state,
+                                         size_t x_len);
+
+size_t dp_corr2d_bank_power_max (const dp_corr2d_state_t *state,
+                                 const float _Complex *x, size_t x_len,
+                                 size_t L, int g_min, int g_max,
+                                 const float _Complex *rates,
+                                 size_t rates_len, float *out, uint32_t *out1,
+                                 size_t max_out);
+
+size_t dp_corr2d_bank_detect_max_out (dp_corr2d_state_t *state,
+                                      size_t x_len);
+
+size_t dp_corr2d_bank_detect (const dp_corr2d_state_t *state,
+                              const float _Complex *x, size_t x_len,
+                              size_t L_d, size_t L_r, int g_min, int g_max,
+                              float t_candidate, float t_confirm,
+                              const float _Complex *rates, size_t rates_len,
+                              float *out, int32_t *out1, uint32_t *out2,
+                              uint32_t *out3, uint32_t *out4, size_t max_out);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running 2-D product-spectrum accumulator + frame count;
  * FFT plans + ref_spec are config, rebuilt by create. */

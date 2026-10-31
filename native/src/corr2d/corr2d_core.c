@@ -961,12 +961,20 @@ dp_corr2d_execute_fold (dp_corr2d_state_t *state, const float _Complex *in,
   return corr2d_batch (state, in, n_in, 0, fold);
 }
 
-/* |z|^2, in float, as every power reducer computes it. */
+/* |z|^2 as every power reducer computes it: in double, rounded once to
+   float.  A float squared is exact in double (24-bit mantissas, 48-bit
+   product), so the sum rounds the same whether or not the compiler fuses it
+   into an FMA.  In float it did not: under -ffast-math, clang -O3 compiled
+   the h == 0 store and the h > 0 compare as two loop versions that rounded
+   re*re + im*im differently, so an identical map compared one ulp greater
+   and took the index (the tie test failed on macOS; reproduced locally with
+   clang -O3).  The power of a cell must be one value, whichever code path
+   computes it. */
 static inline float
 corr2d_pow (float _Complex z)
 {
-  const float re = crealf (z), im = cimagf (z);
-  return re * re + im * im;
+  const double re = crealf (z), im = cimagf (z);
+  return (float)(re * re + im * im);
 }
 
 /* The built-in reducers.  Each copies or folds the map into its outputs;

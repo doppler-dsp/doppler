@@ -327,6 +327,15 @@ main (void)
     (void)dp_specan_execute (a, in, 4096, out, OUTCAP);
     DP_STATE_ROUNDTRIP_TEST (dp_specan, a, b);
     DP_CHECK (b->pend_len == a->pend_len);
+    /* a version-2 AccTrace blob, two levels down (specan -> psd -> trace),
+       is refused (#2094): its mean trace held the mean, which version 3
+       would read as a sum. NOT atomic: specan restores its DDC before the
+       PSD's trace refuses, so the refusal leaves the DDC replaced (#2104).
+       The refusal and the positive control are asserted; #2104's fix flips
+       the last argument to 1, and this then holds it. */
+    DP_STATE_NESTED_VERSION_TEST (
+        dp_specan, a, (void)dp_specan_execute (a, in, 4096, out, OUTCAP),
+        ACC_TRACE_STATE_MAGIC, 2u, 1, 0);
     dp_specan_destroy (a);
     dp_specan_destroy (b);
   }

@@ -970,6 +970,30 @@ _test_ghost_needs_both_tests (void)
   return 0;
 }
 
+/* A version-2 AccTrace blob, nested three deep in each receiver, is
+   refused through the pool (#2094): pool -> receiver -> CarrierAcquisition
+   -> PSD -> AccTrace. A version-2 trace held the mean, which version 3
+   reads as a sum. The pool restores whole or nothing, so the refusal
+   leaves it exactly as advanced, though its own fields and receiver 0's
+   children decode first. One trace per receiver, so three hits. */
+static int
+_test_nested_trace_version_refused (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t                      n;
+  float _Complex             *x = _two_emitters (code, &n);
+  dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
+  DP_REQUIRE (p != NULL && x != NULL);
+  (void)dp_async_dsss_pool_push (p, x, 4096);
+  DP_STATE_NESTED_VERSION_TEST (
+      dp_async_dsss_pool, p, (void)dp_async_dsss_pool_push (p, x + 4096, 4096),
+      ACC_TRACE_STATE_MAGIC, 2u, 3, 1);
+  dp_async_dsss_pool_destroy (p);
+  free (x);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -987,5 +1011,6 @@ main (void)
   DP_CHECK (_test_state_round_trip () == 0);
   DP_CHECK (_test_chunk_invariance () == 0);
   DP_CHECK (_test_refused_restore_changes_nothing () == 0);
+  DP_CHECK (_test_nested_trace_version_refused () == 0);
   DP_TEST_END ("test_async_dsss_pool_core");
 }

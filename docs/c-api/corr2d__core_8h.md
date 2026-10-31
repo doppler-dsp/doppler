@@ -62,6 +62,11 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
+|  size\_t | [**dp\_corr2d\_bank\_detect**](#function-dp_corr2d_bank_detect) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L\_d, size\_t L\_r, int g\_min, int g\_max, float t\_candidate, float t\_confirm, const float \_Complex \* rates, size\_t rates\_len, float \* out, int32\_t \* out1, uint32\_t \* out2, uint32\_t \* out3, uint32\_t \* out4, size\_t max\_out) <br>_Detect on a coarse carrier grid, refine each candidate at its own cell on a fine one, and keep what confirms._  |
+|  size\_t | [**dp\_corr2d\_bank\_detect\_max\_out**](#function-dp_corr2d_bank_detect_max_out) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, size\_t x\_len) <br>_Capacity_ [_**dp\_corr2d\_bank\_detect()**_](corr2d__core_8h.md#function-dp_corr2d_bank_detect) _needs: one record per map cell._ |
+|  size\_t | [**dp\_corr2d\_bank\_fold**](#function-dp_corr2d_bank_fold) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L, int g\_min, int g\_max, const float \_Complex \* rates, size\_t rates\_len, const [**dp\_corr2d\_fold\_t**](structdp__corr2d__fold__t.md) \* fold) <br>_Run one frame through a bank of carrier and rate hypotheses and hand each map to a reducer._  |
+|  size\_t | [**dp\_corr2d\_bank\_power\_max**](#function-dp_corr2d_bank_power_max) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L, int g\_min, int g\_max, const float \_Complex \* rates, size\_t rates\_len, float \* out, uint32\_t \* out1, size\_t max\_out) <br>_The strongest power at every cell over a bank, and which hypothesis it came from._  |
+|  size\_t | [**dp\_corr2d\_bank\_power\_max\_max\_out**](#function-dp_corr2d_bank_power_max_max_out) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, size\_t x\_len) <br>_Capacity_ [_**dp\_corr2d\_bank\_power\_max()**_](corr2d__core_8h.md#function-dp_corr2d_bank_power_max) _needs: one map._ |
 |  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**dp\_corr2d\_create**](#function-dp_corr2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out, int col\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**dp\_corr\_create()**_](corr__core_8h.md#function-dp_corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
 |  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**dp\_corr2d\_create\_delay\_doppler**](#function-dp_corr2d_create_delay_doppler) (const float \_Complex \* code, size\_t code\_len, size\_t ny, size\_t dwell, int nthreads, size\_t ny\_out) <br>_Allocate the delay-Doppler flavor: a code correlator that maps a raw stream of_ `ny` _code periods onto (Doppler, delay)._ |
 |  void | [**dp\_corr2d\_destroy**](#function-dp_corr2d_destroy) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Destroy and free a corr2d instance._  |
@@ -151,6 +156,325 @@ dp_corr2d_destroy(c);
     
 ## Public Functions Documentation
 
+
+
+
+### function dp\_corr2d\_bank\_detect 
+
+_Detect on a coarse carrier grid, refine each candidate at its own cell on a fine one, and keep what confirms._ 
+```C++
+size_t dp_corr2d_bank_detect (
+    const dp_corr2d_state_t * state,
+    const float _Complex * x,
+    size_t x_len,
+    size_t L_d,
+    size_t L_r,
+    int g_min,
+    int g_max,
+    float t_candidate,
+    float t_confirm,
+    const float _Complex * rates,
+    size_t rates_len,
+    float * out,
+    int32_t * out1,
+    uint32_t * out2,
+    uint32_t * out3,
+    uint32_t * out4,
+    size_t max_out
+) 
+```
+
+
+
+The bank searches on `L_d` and resolves on `L_r` (docs/design/corr2d-hypotheses.md section 6):
+
+
+
+* **Detect.** [**dp\_corr2d\_bank\_power\_max()**](corr2d__core_8h.md#function-dp_corr2d_bank_power_max) over carriers `g_min` .. `g_max` on the `1 / (L_d nx)` grid, with every rate.
+* **Candidates.** Every cell whose power exceeds `t_candidate` and is at least each of its 8 neighbors, both axes circular (a delay lag and a Doppler bin both wrap).
+* **Refine.** For a candidate found by coarse carrier g\_d and rate r, the map value at its cell under every fine carrier g\_r from `m g_d - (m - 1)` to `m g_d + (m - 1)`, m = `L_r / L_d`: the carriers between its coarse neighbors, on the `1 / (L_r nx)` grid. On the fast path and DelayDoppler with a native delay axis each is a time-domain correlation at the cell's lag and a slow-time DFT at its Doppler row, in double, with no FFT: `2 ny nx` multiply-adds a carrier. Any other object makes that hypothesis's map and reads the cell. The best g\_r wins, the lowest on a tie.
+* **Confirm.** A candidate whose refined power exceeds `t_confirm` is a record.
+
+
+
+
+Records come out in cell order (row-major), one entry of each output per record: `out` the refined power, `out1` g\_r on the fine grid, `out2` the rate r, `out3` the row and `out4` the column, the cell as execute() lays out the map. Measured at 64 x 512 against an oracle that corrects the exact offset, `L_d` = 2 with `L_r` = 4 holds L = 4's sensitivity within 0.16 dB, for about half the bank (the design page). `L_d` = `L_r` is the one-stage bank. Thresholds are powers in the map's own units; the caller sets them for its noise, as for any detector.
+
+
+
+
+**Parameters:**
+
+
+* `state` As [**dp\_corr2d\_bank\_fold()**](corr2d__core_8h.md#function-dp_corr2d_bank_fold); `g_min` and `g_max` are on the coarse grid. 
+* `L_d` The search grid; at least 1. 
+* `L_r` The resolution grid; a multiple of `L_d`. 
+* `t_candidate` Candidate threshold, on the coarse power. 
+* `t_confirm` Confirm threshold, on the refined power. 
+* `out` Refined powers. 
+* `out1` Refined carriers, on the `1 / (L_r nx)` grid. 
+* `out2` Rates. 
+* `out3` Rows. 
+* `out4` Columns. 
+* `max_out` Capacity of each output; at least `n_out`. 
+
+
+
+**Returns:**
+
+The record count (0 included), or SIZE\_MAX with nothing written for anything [**dp\_corr2d\_bank\_fold()**](corr2d__core_8h.md#function-dp_corr2d_bank_fold) refuses, `L_d == 0`, an `L_r` that `L_d` does not divide, a refined carrier past int32, or `max_out` below `n_out`. 
+```C++
+>>> import numpy as np
+>>> from doppler.spectral import DelayDoppler
+>>> rng = np.random.default_rng(0)
+>>> ny, nx, d = 8, 32, 5
+>>> code = rng.choice([-1.0, 1.0], nx).astype(np.complex64)
+>>> m = np.arange(ny * nx)
+>>> x = (np.tile(np.roll(code, d), ny)    # 1.25 bins: between L_d = 2
+...      * np.exp(2j * np.pi * 1.25 / nx * m)).astype(np.complex64)
+>>> dd = DelayDoppler(code, ny=ny)
+>>> no_rates = np.empty(0, np.complex64)
+>>> coarse, _ = dd.bank_power_max(x, 2, -4, 4, no_rates)
+>>> t = 0.5 * coarse.max()
+>>> power, g, rate, row, col = dd.bank_detect(x, 2, 4, -4, 4, t, t,
+...                                           no_rates)
+>>> len(power), int(g[0]), int(col[0])    # g on the 1/(4 nx) grid
+(1, 5, 5)
+>>> round(float(power[0] / coarse.max()), 3)  # the straddle recovered
+1.233
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_bank\_detect\_max\_out 
+
+_Capacity_ [_**dp\_corr2d\_bank\_detect()**_](corr2d__core_8h.md#function-dp_corr2d_bank_detect) _needs: one record per map cell._
+```C++
+size_t dp_corr2d_bank_detect_max_out (
+    dp_corr2d_state_t * state,
+    size_t x_len
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` The correlator. 
+* `x_len` The frame's length (the bound does not depend on it). 
+
+
+
+**Returns:**
+
+`n_out`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_bank\_fold 
+
+_Run one frame through a bank of carrier and rate hypotheses and hand each map to a reducer._ 
+```C++
+size_t dp_corr2d_bank_fold (
+    const dp_corr2d_state_t * state,
+    const float _Complex * x,
+    size_t x_len,
+    size_t L,
+    int g_min,
+    int g_max,
+    const float _Complex * rates,
+    size_t rates_len,
+    const dp_corr2d_fold_t * fold
+) 
+```
+
+
+
+A bank is what a frame batch of corrected copies would compute, without the copies: carrier g corrects an offset of `g / (L * nx)` cycles/sample, for every g from `g_min` to `g_max`, and each rate r weights the slow-time samples by `rates[r * ny .. r * ny + ny - 1]`. Map h, for `h = (g - g_min) * R + r` (R = `rates_len / ny`, or 1 with no rates), is what a fresh dwell-1 object's execute() returns for the frame with period i multiplied by `rates[r * ny + i] * exp(-j 2 pi g n / (L nx))`, where n counts samples WITHIN period i (0 .. nx-1), up to float rounding.
+
+
+The correction restarts at every period on purpose: the phase a carrier adds between periods is slow-time Doppler, which the slow-time FFT measures, so a signal stays on its own absolute Doppler row under every carrier hypothesis (docs/design/corr2d-hypotheses.md, rule 4).
+
+
+Every path runs a bank, and only the single-row fast path and DelayDoppler share work: whole bins (g a multiple of L) are a roll of the row spectrum, each fraction `g mod L` mixes and transforms the rows once for every whole bin that shares it, and each carrier inverts its rows once for all its rates. On DelayDoppler a rate pays only the slow-time FFT; on Corr2D, whose rows are its periods, it scales the carrier's rows. The general 2-D path and a known column run each hypothesis's corrected frame through their own frame code, which is the definition with nothing shared.
+
+
+Maps reach `fold` in h order, so a reducer's tie rule is the batch's. The stages split across the object's workers exactly as execute() does, and every map is bit-identical for any worker count. The dwell accumulator, `count` and the state blob are never read or written.
+
+
+
+
+**Parameters:**
+
+
+* `state` Any Corr2D or DelayDoppler object. 
+* `x` One frame, `x_len` samples. 
+* `x_len` Must be exactly `ny * nx`. 
+* `L` Fractions per whole bin; at least 1. 
+* `g_min` Lowest carrier, in units of `1 / (L * nx)` cycles/sample. 
+* `g_max` Highest carrier; at least `g_min`. 
+* `rates` Per-period weights, R vectors of ny, or NULL with `rates_len` 0 (one unit vector). 
+* `rates_len` A whole multiple of ny, 0 included. 
+* `fold` The reducer, called once per map. 
+
+
+
+**Returns:**
+
+The number of maps, `(g_max - g_min + 1) * R`; or SIZE\_MAX, with nothing folded, for a frame of another length, `L == 0`, `g_min > g_max`, a `rates_len` that is not a whole number of ny-long vectors, a count past 2^32, or scratch that cannot be allocated. 
+```C++
+#include "doppler/corr2d/corr2d_core.h"
+#include <stdio.h>
+static void count_maps (void *ctx, size_t h, const float _Complex *map,
+                        size_t n_out)
+{
+  (void)h, (void)map, (void)n_out;
+  ++*(size_t *)ctx;
+}
+int main (void)
+{
+  float _Complex code[8] = { 1, -1, 1, 1, -1, 1, -1, -1 }, x[4 * 8] = { 0 };
+  dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (code, 8, 4, 1, 1, 0);
+  size_t maps = 0;
+  dp_corr2d_fold_t f = { count_maps, &maps };
+  size_t h = dp_corr2d_bank_fold (dd, x, 4 * 8, 4, -4, 4, NULL, 0, &f);
+  printf ("%zu %zu\n", h, maps); // 9 carriers, one rate: 9 maps
+  dp_corr2d_destroy (dd);
+  return !(h == 9 && maps == 9);
+}
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_bank\_power\_max 
+
+_The strongest power at every cell over a bank, and which hypothesis it came from._ 
+```C++
+size_t dp_corr2d_bank_power_max (
+    const dp_corr2d_state_t * state,
+    const float _Complex * x,
+    size_t x_len,
+    size_t L,
+    int g_min,
+    int g_max,
+    const float _Complex * rates,
+    size_t rates_len,
+    float * out,
+    uint32_t * out1,
+    size_t max_out
+) 
+```
+
+
+
+[**dp\_corr2d\_bank\_fold()**](corr2d__core_8h.md#function-dp_corr2d_bank_fold) with the `POWER_MAX` reducer: at each cell, `out` holds the largest \|map\_h\|^2 over every hypothesis h, and `out1` that h, `(g - g_min) * R + r`, the lowest h on a tie. Every argument and refusal is [**dp\_corr2d\_bank\_fold()**](corr2d__core_8h.md#function-dp_corr2d_bank_fold)'s; in addition `max_out` below `n_out` is refused with nothing written.
+
+
+
+
+**Parameters:**
+
+
+* `state` As [**dp\_corr2d\_bank\_fold()**](corr2d__core_8h.md#function-dp_corr2d_bank_fold). 
+* `out` `n_out` powers. 
+* `out1` `n_out` hypothesis indices. 
+* `max_out` Capacity of each output; at least `n_out`. 
+
+
+
+**Returns:**
+
+`n_out`, or SIZE\_MAX with nothing written. 
+```C++
+>>> import numpy as np
+>>> from doppler.spectral import DelayDoppler
+>>> rng = np.random.default_rng(0)
+>>> ny, nx, d = 8, 32, 5                  # code delayed by 5 samples
+>>> code = rng.choice([-1.0, 1.0], nx).astype(np.complex64)
+>>> m = np.arange(ny * nx)
+>>> x = (np.tile(np.roll(code, d), ny)    # on a carrier 1.5 bins off
+...      * np.exp(2j * np.pi * 1.5 / nx * m)).astype(np.complex64)
+>>> dd = DelayDoppler(code, ny=ny)
+>>> no_rates = np.empty(0, np.complex64)
+>>> pw, h = dd.bank_power_max(x, 2, -4, 4, no_rates)  # g / (2 nx), -4..4
+>>> cell = int(np.argmax(pw))
+>>> cell % nx, int(h[cell]) - 4           # (delay, g = h + g_min)
+(5, 3)
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_corr2d\_bank\_power\_max\_max\_out 
+
+_Capacity_ [_**dp\_corr2d\_bank\_power\_max()**_](corr2d__core_8h.md#function-dp_corr2d_bank_power_max) _needs: one map._
+```C++
+size_t dp_corr2d_bank_power_max_max_out (
+    dp_corr2d_state_t * state,
+    size_t x_len
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` The correlator. 
+* `x_len` The frame's length (one map whatever it is). 
+
+
+
+**Returns:**
+
+`n_out`. 
+
+
+
+
+
+        
+
+<hr>
 
 
 

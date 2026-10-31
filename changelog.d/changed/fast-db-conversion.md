@@ -1,7 +1,7 @@
 - **One fast dB conversion, `dp_power_to_db_f32`, and PSD reads dB through
     it** (#2094, #2074). It is 10·log10 within 0.01 dB (measured 3.25e-4 over
     every float32), exact at every power of two, with PSD's −200 dB floor,
-    and vectorized: PSD's dB conversion is about 7× faster, and a dB frame
-    about 3×. Every PSD and Spectrogram dB reading is now this function of
+    and vectorized: on x86 PSD's dB conversion is 6× faster (12× in a native
+    build), and a dB frame 2.5–4×. Every PSD and Spectrogram dB reading is now this function of
     the linear one, bit for bit, and moves by at most 3.25e-4 dB. Python:
     `doppler.spectral.power_to_db_f32`. Other converters: #2108.

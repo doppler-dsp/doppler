@@ -590,8 +590,9 @@ size_t dp_corr2d_execute_coherent (dp_corr2d_state_t *state,
 size_t dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state);
 
 /**
- * @brief The power of a batch's maps, summed cell by cell:
- *        `out[k] = sum_h |map_h[k]|^2`, summed in h order in float.
+ * @brief The power of a batch's maps, summed cell by cell: each output
+ *        cell is the sum over h of that cell's `|map_h|^2`, summed in h
+ *        order in float.
  *
  * Unlike the coherent sum, phase does not cancel: frames x and -x sum to
  * twice one map's power, where their coherent sum is zero.
@@ -641,8 +642,9 @@ size_t dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state);
  * @brief The largest power over a batch's maps, cell by cell, and the map
  *        it came from.
  *
- * `out[k] = max_h |map_h[k]|^2` and `out1[k]` is that h.  A tie goes to the
- * lowest h: a later map replaces the running maximum only when it is
+ * Each cell of @p out is the largest `|map_h|^2` that cell takes over the
+ * maps, and the same cell of @p out1 is the h it came from.  A tie goes to
+ * the lowest h: a later map replaces the running maximum only when it is
  * strictly greater.
  *
  * @param state    Must be non-NULL.
@@ -693,13 +695,13 @@ size_t dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state,
  * @brief One record per map of a batch: its peak power, where the peak is,
  *        and its mean power.
  *
- * For map h: `out[h]` is its largest `|map[k]|^2`, `out1[h]` and `out2[h]`
- * the row and column of that cell (the first in row-major order on a tie),
- * and `out3[h]` the mean of `|map[k]|^2` over its n_out cells.  A map is
- * ny_out x nx_out; with col_out it is ny x 1, and the column reported is
- * col_out.  The peak-to-mean of each map is `out[h] / out3[h]`, a statistic
- * of each map, which the same statistic of a pointwise maximum over maps
- * does not give.
+ * Entry h of each output describes map h: @p out its largest `|map|^2`,
+ * @p out1 and @p out2 the row and column of that cell (the first in
+ * row-major order on a tie), and @p out3 the mean `|map|^2` over its n_out
+ * cells.  A map is ny_out x nx_out; with col_out it is ny x 1, and the
+ * column reported is col_out.  The peak-to-mean of each map is @p out over
+ * @p out3, entry by entry: a statistic of each map, which the same
+ * statistic of a pointwise maximum over maps does not give.
  *
  * @param state    Must be non-NULL.
  * @param in       H frames back to back (CF32).

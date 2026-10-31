@@ -76,7 +76,7 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 |  size\_t | [**dp\_corr2d\_execute\_peaks\_max\_out**](#function-dp_corr2d_execute_peaks_max_out) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, size\_t n\_in) <br>_Records_ [_**dp\_corr2d\_execute\_peaks()**_](corr2d__core_8h.md#function-dp_corr2d_execute_peaks) _writes for_`n_in` _samples: H._ |
 |  size\_t | [**dp\_corr2d\_execute\_power\_max**](#function-dp_corr2d_execute_power_max) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, uint32\_t \* out1, size\_t max\_out) <br>_The largest power over a batch's maps, cell by cell, and the map it came from._  |
 |  size\_t | [**dp\_corr2d\_execute\_power\_max\_max\_out**](#function-dp_corr2d_execute_power_max_max_out) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Values per output_ [_**dp\_corr2d\_execute\_power\_max()**_](corr2d__core_8h.md#function-dp_corr2d_execute_power_max) _writes: n\_out._ |
-|  size\_t | [**dp\_corr2d\_execute\_power\_sum**](#function-dp_corr2d_execute_power_sum) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_The power of a batch's maps, summed cell by cell:_ `out[k] = sum_h |map_h[k]|^2` _, summed in h order in float._ |
+|  size\_t | [**dp\_corr2d\_execute\_power\_sum**](#function-dp_corr2d_execute_power_sum) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_The power of a batch's maps, summed cell by cell: each output cell is the sum over h of that cell's_ `|map_h|^2` _, summed in h order in float._ |
 |  size\_t | [**dp\_corr2d\_execute\_power\_sum\_max\_out**](#function-dp_corr2d_execute_power_sum_max_out) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Powers_ [_**dp\_corr2d\_execute\_power\_sum()**_](corr2d__core_8h.md#function-dp_corr2d_execute_power_sum) _writes: n\_out._ |
 |  void | [**dp\_corr2d\_get\_state**](#function-dp_corr2d_get_state) (const [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state, void \* blob) <br>_Serialize the frame count and spectrum accumulator into_ `blob` _._ |
 |  void | [**dp\_corr2d\_reset**](#function-dp_corr2d_reset) ([**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._  |
@@ -712,7 +712,7 @@ size_t dp_corr2d_execute_peaks (
 
 
 
-For map h: `out[h]` is its largest `|map[k]|^2`, `out1[h]` and `out2[h]` the row and column of that cell (the first in row-major order on a tie), and `out3[h]` the mean of `|map[k]|^2` over its n\_out cells. A map is ny\_out x nx\_out; with col\_out it is ny x 1, and the column reported is col\_out. The peak-to-mean of each map is `out[h] / out3[h]`, a statistic of each map, which the same statistic of a pointwise maximum over maps does not give.
+Entry h of each output describes map h: `out` its largest `|map|^2`, `out1` and `out2` the row and column of that cell (the first in row-major order on a tie), and `out3` the mean `|map|^2` over its n\_out cells. A map is ny\_out x nx\_out; with col\_out it is ny x 1, and the column reported is col\_out. The peak-to-mean of each map is `out` over `out3`, entry by entry: a statistic of each map, which the same statistic of a pointwise maximum over maps does not give.
 
 
 
@@ -822,7 +822,7 @@ size_t dp_corr2d_execute_power_max (
 
 
 
-`out[k] = max_h |map_h[k]|^2` and `out1[k]` is that h. A tie goes to the lowest h: a later map replaces the running maximum only when it is strictly greater.
+Each cell of `out` is the largest `|map_h|^2` that cell takes over the maps, and the same cell of `out1` is the h it came from. A tie goes to the lowest h: a later map replaces the running maximum only when it is strictly greater.
 
 
 
@@ -912,7 +912,7 @@ return n != 8;
 
 ### function dp\_corr2d\_execute\_power\_sum 
 
-_The power of a batch's maps, summed cell by cell:_ `out[k] = sum_h |map_h[k]|^2` _, summed in h order in float._
+_The power of a batch's maps, summed cell by cell: each output cell is the sum over h of that cell's_ `|map_h|^2` _, summed in h order in float._
 ```C++
 size_t dp_corr2d_execute_power_sum (
     dp_corr2d_state_t * state,

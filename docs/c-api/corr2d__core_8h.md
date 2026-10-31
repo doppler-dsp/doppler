@@ -310,7 +310,7 @@ size_t dp_corr2d_bank_fold (
 
 
 
-A bank is what a frame batch of corrected copies would compute, without the copies: carrier g corrects an offset of `g / (L * nx)` cycles/sample, for every g from `g_min` to `g_max`, and each rate r weights the slow-time samples by `rates[r * ny .. r * ny + ny - 1]`. Map h, for `h = (g - g_min) * R + r` (R = `rates_len / ny`, or 1 with no rates), is what a fresh dwell-1 object's execute() returns for the frame with period i multiplied by `rates[r * ny + i] * exp(-j 2 pi g n / (L nx))`, where n counts samples WITHIN period i (0 .. nx-1), up to float rounding.
+A bank is what a frame batch of corrected copies would compute, without the copies: carrier g corrects an offset of `g / (L * nx)` cycles/sample, for every g from `g_min` to `g_max`, and each rate r weights the slow-time samples by the r-th ny-long vector of `rates`. Map h, for `h = (g - g_min) * R + r` (R = `rates_len / ny`, or 1 with no rates), is what a fresh dwell-1 object's execute() returns for the frame with period i multiplied by element i of rate vector r and by `exp(-j 2 pi g n / (L nx))`, where n counts samples WITHIN period i (0 .. nx-1), up to float rounding.
 
 
 The correction restarts at every period on purpose: the phase a carrier adds between periods is slow-time Doppler, which the slow-time FFT measures, so a signal stays on its own absolute Doppler row under every carrier hypothesis (docs/design/corr2d-hypotheses.md, rule 4).

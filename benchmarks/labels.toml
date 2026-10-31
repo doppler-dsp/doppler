@@ -167,6 +167,12 @@ definition = "The equivalent noise bandwidth of a 4,096-point window, a property
 domain = "call"
 count = 4096
 
+["c:spectral::power_to_db_f32[4096]"]
+name = "Power to dB, 4,096 bins"
+unit = "bin"
+definition = "The library's one dB conversion (power_to_db_f32), which PSD and the Spectrogram read every dB through, over 4,096 float32 power bins already formed; throughput counts bins."
+samples = 1
+
 # Bit-stream rows from Python. Their input is bits, not samples, so they
 # read in bits per second like their C twins; these record no rate of their
 # own, so the label gives the count per call.
@@ -825,6 +831,66 @@ unit = "sample"
 definition = "The 256 x 4,096 DelayDoppler map with nthreads=0, so the row correlations and the slow-time FFTs spread over every online core; throughput counts input samples, 1,048,576 per map."
 samples = 1
 
+["c:corr2d::batch_64x512_h48_execute_loop_1t"]
+name = "Delay-Doppler batch baseline, 48 maps of 64 x 512, one thread"
+unit = "sample"
+definition = "48 separate execute() calls on a 64 x 512 DelayDoppler (nthreads=1), one map each: the loop a batch replaces; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
+["c:corr2d::batch_64x512_h48_all_1t"]
+name = "Delay-Doppler batch, 48 maps of 64 x 512, one thread"
+unit = "sample"
+definition = "execute_all: the same 48 maps of 64 x 512 in one call (nthreads=1), every map written out; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
+["c:corr2d::batch_64x512_h48_power_max_1t"]
+name = "Delay-Doppler batch max-power fold, 48 maps of 64 x 512, one thread"
+unit = "sample"
+definition = "execute_power_max: the 48 maps of 64 x 512 folded into one per-cell maximum power and its frame index, no map written out (nthreads=1); throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
+["c:corr2d::batch_64x512_h48_execute_loop_all"]
+name = "Delay-Doppler batch baseline, 48 maps of 64 x 512, every core"
+unit = "sample"
+definition = "48 separate execute() calls on a 64 x 512 DelayDoppler (nthreads=0), one map each: the loop a batch replaces; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
+["c:corr2d::batch_64x512_h48_all_all"]
+name = "Delay-Doppler batch, 48 maps of 64 x 512, every core"
+unit = "sample"
+definition = "execute_all: the same 48 maps of 64 x 512 in one call (nthreads=0), every map written out; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
+["c:corr2d::batch_64x512_h48_power_max_all"]
+name = "Delay-Doppler batch max-power fold, 48 maps of 64 x 512, every core"
+unit = "sample"
+definition = "execute_power_max: the 48 maps of 64 x 512 folded into one per-cell maximum power and its frame index, no map written out (nthreads=0); throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
+["c:corr2d::bank_64x512_c12_corrected_batch_1t"]
+name = "Carrier hypotheses by hand, 12 corrected copies, 64 x 512, one thread"
+unit = "sample"
+definition = "The baseline the hypothesis bank replaces: 12 carrier-corrected copies of one frame (three whole bins x 4 fractions), built outside the timed region, through execute_power_max on one thread; throughput counts the one input frame, 32,768 per round (one 64 x 512 frame)."
+samples = 1
+
+["c:corr2d::bank_64x512_c12_l4_1t"]
+name = "Hypothesis bank, 12 carriers (L = 4), 64 x 512, one thread"
+unit = "sample"
+definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
+samples = 1
+
+["c:corr2d::bank_64x512_c6_l2_1t"]
+name = "Hypothesis bank, 6 carriers (L = 2), 64 x 512, one thread"
+unit = "sample"
+definition = "bank_power_max at the coarse L = 2: one 64 x 512 frame over 6 carrier hypotheses (three whole bins x 2 fractions) on one thread; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
+samples = 1
+
+["c:corr2d::bank_64x512_detect_l2_l4_1t"]
+name = "Hypothesis bank detect, L = 2 refined to L = 4, 64 x 512, one thread"
+unit = "sample"
+definition = "bank_detect: the L = 2 search over one 64 x 512 frame holding one signal, its one candidate refined to L = 4, on one thread; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
+samples = 1
+
 ["py:delay_doppler::test_bench_delay_doppler_32x1024_1t"]
 name = "Delay-Doppler map, 32 x 1,024, one thread, from Python"
 unit = "sample"
@@ -842,3 +908,81 @@ name = "Delay-Doppler map, 256 x 4,096, every core, from Python"
 unit = "sample"
 definition = "The 256 x 4,096 DelayDoppler map on every online core (nthreads=0) through the Python binding; throughput counts input samples, 1,048,576 per map."
 samples = 1
+
+["py:delay_doppler::test_bench_batch_64x512_h48_execute_loop_1t"]
+name = "Delay-Doppler batch baseline, 48 maps of 64 x 512, one thread, from Python"
+unit = "call"
+definition = "48 execute() calls through the Python binding on a 64 x 512 DelayDoppler (nthreads=1), one map each, per round: the loop a batch replaces, with the binding's per-call overhead 48 times; read in input samples per second, 1,572,864 per round."
+samples = 1572864
+
+["py:delay_doppler::test_bench_batch_64x512_h48_all_1t"]
+name = "Delay-Doppler batch, 48 maps of 64 x 512, one thread, from Python"
+unit = "call"
+definition = "One execute_all call through the Python binding: 48 maps of 64 x 512 on one thread, every map written out; read in input samples per second, 1,572,864 per call."
+samples = 1572864
+
+["py:delay_doppler::test_bench_batch_64x512_h48_power_max_1t"]
+name = "Delay-Doppler batch max-power fold, 48 maps of 64 x 512, one thread, from Python"
+unit = "call"
+definition = "One execute_power_max call through the Python binding: 48 maps of 64 x 512 on one thread, folded to per-cell maximum power and frame index; read in input samples per second, 1,572,864 per call."
+samples = 1572864
+
+["py:delay_doppler::test_bench_bank_64x512_c12_corrected_batch_1t"]
+name = "Carrier hypotheses by hand, 12 corrected copies, 64 x 512, one thread, from Python"
+unit = "call"
+definition = "One execute_power_max call through the Python binding over 12 carrier-corrected copies of one 64 x 512 frame, built outside the timed region: the baseline the hypothesis bank replaces; read in samples of the one input frame per second, 32,768 per call."
+samples = 32768
+
+["py:delay_doppler::test_bench_bank_64x512_c12_l4_1t"]
+name = "Hypothesis bank, 12 carriers (L = 4), 64 x 512, one thread, from Python"
+unit = "call"
+definition = "One bank_power_max call through the Python binding: one 64 x 512 frame over 12 carrier hypotheses (three whole bins x L = 4 fractions) on one thread; read in input samples per second, 32,768 per call."
+samples = 32768
+
+["py:delay_doppler::test_bench_bank_64x512_c6_l2_1t"]
+name = "Hypothesis bank, 6 carriers (L = 2), 64 x 512, one thread, from Python"
+unit = "call"
+definition = "One bank_power_max call through the Python binding at the coarse L = 2: one 64 x 512 frame over 6 carrier hypotheses on one thread; read in input samples per second, 32,768 per call."
+samples = 32768
+
+["py:delay_doppler::test_bench_bank_64x512_detect_l2_l4_1t"]
+name = "Hypothesis bank detect, L = 2 refined to L = 4, 64 x 512, one thread, from Python"
+unit = "call"
+definition = "One bank_detect call through the Python binding: the L = 2 search over one 64 x 512 frame holding one signal, its candidate refined to L = 4, on one thread; read in input samples per second, 32,768 per call."
+samples = 32768
+
+["py:power_to_db::test_bench_power_to_db_f32[1024]"]
+name = "Power to dB, 1,024 bins, from Python"
+unit = "call"
+definition = "One power_to_db_f32 call through the Python binding over 1,024 float32 power bins, the binding's per-call overhead included; read in bins per second, 1,024 per call."
+samples = 1024
+
+["py:power_to_db::test_bench_power_to_db_f32[16384]"]
+name = "Power to dB, 16,384 bins, from Python"
+unit = "call"
+definition = "One power_to_db_f32 call through the Python binding over 16,384 float32 power bins, the binding's per-call overhead included; read in bins per second, 16,384 per call."
+samples = 16384
+
+["py:power_to_db::test_bench_power_to_db_f32[262144]"]
+name = "Power to dB, 262,144 bins, from Python"
+unit = "call"
+definition = "One power_to_db_f32 call through the Python binding over 262,144 float32 power bins, the binding's per-call overhead included; read in bins per second, 262,144 per call."
+samples = 262144
+
+["py:power_to_db::test_bench_numpy_log10[1024]"]
+name = "numpy 10 log10, 1,024 bins (reference)"
+unit = "call"
+definition = "numpy's float32 10 * log10 over the same 1,024 power bins: what converting power rows by hand costs, beside power_to_db_f32; read in bins per second, 1,024 per call."
+samples = 1024
+
+["py:power_to_db::test_bench_numpy_log10[16384]"]
+name = "numpy 10 log10, 16,384 bins (reference)"
+unit = "call"
+definition = "numpy's float32 10 * log10 over the same 16,384 power bins: what converting power rows by hand costs, beside power_to_db_f32; read in bins per second, 16,384 per call."
+samples = 16384
+
+["py:power_to_db::test_bench_numpy_log10[262144]"]
+name = "numpy 10 log10, 262,144 bins (reference)"
+unit = "call"
+definition = "numpy's float32 10 * log10 over the same 262,144 power bins: what converting power rows by hand costs, beside power_to_db_f32; read in bins per second, 262,144 per call."
+samples = 262144

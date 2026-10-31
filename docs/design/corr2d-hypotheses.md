@@ -10,7 +10,9 @@ reductions on `Corr2D`/`DelayDoppler`) and
 search on DelayDoppler's primitive). §1–§4 are pinned by a prototype that
 `make docs-check` runs. §5 times them in C, from preamble-short codes to
 1023, and shows that the order of the stages, not the method, is what sets
-the cost. The bank mixes per fraction, on a grid of $L = 4$ by default.
+the cost. The bank mixes per fraction. §6 splits the grid in two: it detects
+on $L_d = 2$ and refines each candidate to $L_r = 4$, which matches
+$L = 4$'s sensitivity for 44% less work.
 
 ______________________________________________________________________
 
@@ -251,3 +253,64 @@ What the run shows:
     carrier costs the same. $L = 4$ holds the worst loss to 0.22 dB (§3) for
     twice the time of $L = 2$, which at $n_x = 64$ is 0.31 ms a frame
     against 0.15.
+
+## 6. Detect coarse, refine the candidate
+
+$L$ buys sensitivity only at the moment of detection. After a detection,
+the fraction is resolved at one cell, where it costs almost nothing. So the
+bank detects on a coarse grid and refines each candidate on the fine grid:
+
+1. **Detect** on $L_d = 2$: half the carrier hypotheses of $L = 4$, so half
+    the bank. Its threshold is set for a candidate rate (here $10^{-2}$ per
+    search), not for the final $P_{fa}$.
+1. **Refine** each candidate at its cell only: the two fine hypotheses
+    ($L_r = 4$) on either side of the coarse one that found it, at the same
+    delay and Doppler row. That is a time-domain correlation at one lag and a
+    slow-time DFT at one row: $2\,n_y\,n_x$ multiply-adds a candidate, with no
+    FFT.
+1. **Confirm** on the refined value, against a threshold that sets the final
+    $P_{fa}$.
+
+The fraction a caller gets back is $L_r$'s, so what $L = 4$ resolved, the
+refine still resolves. What changes is the cost.
+
+**Measured** (2026-10-31; throwaway numpy prototype on the shipped
+`DelayDoppler`, which is exactly the bank's arithmetic, since a bank is a
+frame batch of mixed copies): $n_y = 64$, $n_x = 512$, whole bins
+$k \in \{-1, 0, 1\}$, $P_{fa} = 10^{-3}$ per search. Every detector's
+thresholds come from its own 20,000 noise-only frames, and each held its
+$P_{fa}$ on 20,000 fresh ones (Wilson 95% intervals all containing
+$10^{-3}$). Pd = 0.9 points come from probit fits to 600 trials a point; loss
+is against an oracle that corrects the exact offset, so the Doppler and delay
+straddle every option shares cancels:
+
+| detector                    | uniform fraction | fraction between $L_d$ points (worst) |
+| --------------------------- | ---------------- | ------------------------------------- |
+| $L = 4$, one stage          | −0.07 dB         | −0.03 dB                              |
+| $L = 2$, one stage          | +0.13 dB         | +0.37 dB                              |
+| $L_d = 2$, refine $L_r = 4$ | −0.03 dB         | +0.04 dB                              |
+
+Each value is $\pm 0.1$–$0.16$ dB (95%). Noiseless, the worst case loses
+the full sinc(1/4), 0.912 dB, exactly as §3 says. In noise it loses less
+because two coarse hypotheses straddle the signal and their max claws some
+back, and because half the cells lower the threshold by 0.07 dB. The refine
+recovers the rest: **detect-and-refine matches $L = 4$ within the
+intervals.**
+
+**Cost.** By §5's run at $n_x = 512$ with 12 rates on one thread, an $L = 2$
+frame is 1.84 ms against $L = 4$'s 3.31 ms: **44% less**. The refine is not
+yet timed. At $2\,n_y\,n_x$ multiply-adds a candidate (65,536 here), and with
+candidates at $10^{-2}$ a search on noise, it is expected to be negligible.
+Phase 3's C bench times it.
+
+**What this changes in the bank.** $L$ splits into $L_d$ (the search,
+default 2) and $L_r$ (the resolution, default 4). §5's "the default is 4"
+stays true of the resolution. A caller who wants one stage sets
+$L_d = L_r$. The candidate threshold, the refine and the confirm live in C,
+beside the reducers, and the refine reads the frame through Corr2D's
+known-column path, which already computes one lag without an FFT.
+
+**Where this is certified.** The numbers above are the de-risk. Phase 3's
+validation harness re-measures them in C (Pd with Wilson intervals, the
+worst case beside the average, a noise-only $P_{fa}$ row), on the model of
+`native/validation/acq_rate_pd.c`, with a `--check` subset in CTest.

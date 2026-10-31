@@ -169,17 +169,17 @@ A batch is H frames in one call (#2683, [`docs/design/corr2d-batch.md`](../../..
 
 | path | threads | maps == fresh | coherent == dwell-H | folds, worst rel. | max index | dwell untouched | refused |
 |---|---|---|---|---|---|---|---|
-| general 2-D | 1 | True | True | 1.4e-07 | True | True | 4/4 |
-| general 2-D | 3 | True | True | 1.4e-07 | True | True | 4/4 |
-| fast path | 1 | True | True | 1.8e-07 | True | True | 4/4 |
-| fast path | 3 | True | True | 1.8e-07 | True | True | 4/4 |
-| fast, nx_out=12 | 1 | True | True | 8.7e-08 | True | True | 4/4 |
-| fast, nx_out=12 | 3 | True | True | 8.7e-08 | True | True | 4/4 |
-| known column 3 | 1 | True | True | 5.5e-08 | True | True | 4/4 |
-| known column 3 | 3 | True | True | 5.5e-08 | True | True | 4/4 |
+| general 2-D | 1 | True | True | 6.9e-08 | True | True | 4/4 |
+| general 2-D | 3 | True | True | 6.9e-08 | True | True | 4/4 |
+| fast path | 1 | True | True | 7.1e-08 | True | True | 4/4 |
+| fast path | 3 | True | True | 7.1e-08 | True | True | 4/4 |
+| fast, nx_out=12 | 1 | True | True | 8.3e-08 | True | True | 4/4 |
+| fast, nx_out=12 | 3 | True | True | 8.3e-08 | True | True | 4/4 |
+| known column 3 | 1 | True | True | 4.6e-08 | True | True | 4/4 |
+| known column 3 | 3 | True | True | 4.6e-08 | True | True | 4/4 |
 
 
-Frames x and -x: the coherent sum cancels to 2.9e-08 of one map's peak magnitude, and the power sum is twice one map's power to 4.6e-07. That is the difference between the two sums, and why both exist.
+Frames x and -x: the coherent sum cancels to 2.9e-08 of one map's peak magnitude, and the power sum is twice one map's power to 2.3e-07. That is the difference between the two sums, and why both exist.
 
 ## 3. Review — findings
 
@@ -221,11 +221,11 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | PASS | reset() clears the run and keeps the configuration |
 | PASS | a batch's map h is bit-identical to a fresh dwell-1 object's map for frame h, on the general, fast, interpolated and known-column paths, at one thread and three |
 | PASS | execute_coherent is bit-identical to a fresh dwell-H object's dump |
-| PASS | power sum, power max and per-map peak and mean are the folds over the maps (worst 1.8e-07) |
+| PASS | power sum, power max and per-map peak and mean are the folds over the maps (worst 8.3e-08) |
 | PASS | execute_power_max's index is the map each maximum came from |
 | PASS | a batch mid-dwell leaves the count and the state blob unchanged |
 | PASS | an empty or ragged batch is a ValueError |
-| PASS | frames x and -x: the coherent sum cancels (2.9e-08) and the power sum doubles (4.6e-07) |
+| PASS | frames x and -x: the coherent sum cancels (2.9e-08) and the power sum doubles (2.3e-07) |
 | PASS | an output grid smaller than the input, and dwell=0, are refused rather than silently accepted |
 
 

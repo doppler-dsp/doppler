@@ -103,14 +103,14 @@ prototype renders, fails the gate.
 
 <!-- corr2d-hypotheses:claims:start -->
 
-| claim                                                                      | held to                                  |
-| -------------------------------------------------------------------------- | ---------------------------------------- |
-| the numpy reference equals the shipped `DelayDoppler`                      | 2e-5 (float32 kernel)                    |
-| zero-pad then roll equals the reference, all 57 maps                       | 1e-12                                    |
-| mix per fraction equals the reference, all 57 maps                         | 1e-12                                    |
-| the peak sits on the absolute Doppler row under every carrier hypothesis   | half a Doppler bin; delay within one lag |
-| the loss between grid points is the Dirichlet factor, worst at half a step | 1e-9 to Dirichlet; 1e-3 to sinc(1/(2L))  |
-| the op counts are the plan's                                               | exact, to two places                     |
+| claim                                                                      | held to                                                   |
+| -------------------------------------------------------------------------- | --------------------------------------------------------- |
+| the numpy reference equals the shipped `DelayDoppler`                      | 2e-5 (float32 kernel), `test_corr2d_hypotheses_oracle.py` |
+| zero-pad then roll equals the reference, all 57 maps                       | 1e-12                                                     |
+| mix per fraction equals the reference, all 57 maps                         | 1e-12                                                     |
+| the peak sits on the absolute Doppler row under every carrier hypothesis   | half a Doppler bin; delay within one lag                  |
+| the loss between grid points is the Dirichlet factor, worst at half a step | 1e-9 to Dirichlet; 1e-3 to sinc(1/(2L))                   |
+| the op counts are the plan's                                               | exact, to two places                                      |
 
 <!-- corr2d-hypotheses:claims:end -->
 

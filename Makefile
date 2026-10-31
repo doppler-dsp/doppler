@@ -1138,6 +1138,8 @@ $(UV) run python docs/design/spectrogram-measurements/u1u4.py --check
 $(UV) run python docs/design/spectrogram-measurements/b2094.py --check
 $(UV) run python docs/design/async-dsss-parallel-measurements/record.py --check
 $(UV) run python docs/design/acq-surface-measurements/record.py --check
+$(UV) run python docs/design/corr2d-hypotheses-measurements/prototype.py --check
+$(UV) run python docs/design/corr2d-hypotheses-measurements/record.py --check
 $(UV) run python docs/design/spectrogram-measurements/b2062.py --check
 endef
 
@@ -1808,6 +1810,7 @@ endef
 # gates cover them: criterion 2 is "help lists EVERY target", not "every
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo parallel-record-write acq-surface-record \
+                corr2d-hypotheses-record \
                 gallery blazing \
                 gen-c-api just-build docs-invariants \
                 jm-apply jm-apply-downstream jm-adopt jm-revendor \
@@ -2340,6 +2343,14 @@ parallel-record-write: ## Re-render the parallel record's blocks from its data
 acq-surface-record: build ## Re-run the acq surface's validator; rewrite its §8 tables
 	$(UV) run python docs/design/acq-surface-measurements/record.py measure
 	$(UV) run python docs/design/acq-surface-measurements/record.py --write
+
+# docs/design/corr2d-hypotheses.md §5 is one run of
+# validate_corr2d_hypothesis_order. The run is stamped with the commit it was
+# taken at and refused from a dirty tree, so commit the harness first, then
+# run this, then commit the data.
+corr2d-hypotheses-record: build ## Re-time the hypothesis-bank orderings; rewrite §5's tables
+	$(UV) run python docs/design/corr2d-hypotheses-measurements/record.py measure
+	$(UV) run python docs/design/corr2d-hypotheses-measurements/record.py --write
 
 # Run all plot-generating examples and copy output PNGs to docs/assets/.
 # Run before releasing whenever src/doppler/examples/ has changed.

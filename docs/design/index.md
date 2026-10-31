@@ -113,6 +113,7 @@ instead.)
     today, and the order of work
 - [Receiver Test Harness](rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
+- [Corr2D hypothesis bank: operation order](corr2d-hypotheses.md) — pre-design study for #2683/#2670: which stages a bank of carrier and rate hypotheses shares, fractional carrier offsets by zero-pad then roll, and the cost each ordering saves
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph
 - [wfmgen — the waveform generator](wfmgen.md) — the spine for the tool:
     modulations, impairments and output streams from three interchangeable

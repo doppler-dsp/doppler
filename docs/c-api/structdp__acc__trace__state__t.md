@@ -98,7 +98,7 @@ double* dp_acc_trace_state_t::acc;
 
 
 
-Running trace, length n (double). 
+Running trace, length n (double); in mean mode the per-bin SUM, not the mean. 
 
 
         

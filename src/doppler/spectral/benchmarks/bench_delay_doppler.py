@@ -103,3 +103,65 @@ def test_bench_batch_64x512_h48_power_max_1t(benchmark: Any) -> None:
     dd, x = _batch_setup()
     benchmark(dd.execute_power_max, x)
     _per_frame(benchmark)
+
+
+# The hypothesis bank (#2683 phase 3): one frame through 12 carriers (three
+# whole bins x L = 4) against the 12 hand-corrected copies a caller would
+# otherwise build and batch, and ruling 9's coarse search: L = 2 alone, and
+# bank_detect's L = 2 search refined to L = 4. The same rows as
+# bench_corr2d_core.c's bench_bank, so the gap is the binding's overhead.
+NO_RATES = np.empty(0, np.complex64)
+
+
+def _bank_setup() -> tuple[DelayDoppler, np.ndarray, np.ndarray]:
+    rng = np.random.default_rng(2683)
+    ny, nx = 64, 512
+    code = rng.choice(np.array([-1.0, 1.0]), nx).astype(np.complex64)
+    m = np.arange(ny * nx)
+    x = (
+        0.1
+        * np.tile(np.roll(code, 77), ny)
+        * np.exp(2j * np.pi * 0.25 / nx * m)
+        + rng.standard_normal(ny * nx)
+        + 1j * rng.standard_normal(ny * nx)
+    ).astype(np.complex64)
+    n = np.arange(nx)
+    copies = np.concatenate(
+        [
+            x * np.tile(np.exp(-2j * np.pi * g * n / (4 * nx)), ny)
+            for g in range(-4, 8)
+        ]
+    ).astype(np.complex64)
+    return DelayDoppler(code, ny=ny, nthreads=1), x, copies
+
+
+def test_bench_bank_64x512_c12_corrected_batch_1t(benchmark: Any) -> None:
+    """12 hand-corrected copies through execute_power_max."""
+    dd, _, copies = _bank_setup()
+    benchmark(dd.execute_power_max, copies)
+
+
+def test_bench_bank_64x512_c12_l4_1t(benchmark: Any) -> None:
+    """The same 12 carriers as one bank: the forward FFTs shared."""
+    dd, x, _ = _bank_setup()
+    pw, _h = benchmark(dd.bank_power_max, x, 4, -4, 7, NO_RATES)
+    assert (
+        int(np.argmax(pw)) % 512 == 77
+    )  # the code's lag, or it searched nothing
+
+
+def test_bench_bank_64x512_c6_l2_1t(benchmark: Any) -> None:
+    """Ruling 9's search grid: half the carriers."""
+    dd, x, _ = _bank_setup()
+    benchmark(dd.bank_power_max, x, 2, -2, 3, NO_RATES)
+
+
+def test_bench_bank_64x512_detect_l2_l4_1t(benchmark: Any) -> None:
+    """bank_detect: the L = 2 search, its one candidate refined to L = 4."""
+    dd, x, _ = _bank_setup()
+    pw, _ = dd.bank_power_max(x, 2, -2, 3, NO_RATES)
+    t = 0.5 * float(pw.max())
+    p, g, *_ = benchmark(dd.bank_detect, x, 2, 4, -2, 3, t, t, NO_RATES)
+    assert (
+        len(p) == 1 and int(g[0]) == 1
+    )  # a quarter bin, on the 1/(4 nx) grid

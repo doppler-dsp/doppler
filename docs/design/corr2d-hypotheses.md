@@ -274,43 +274,58 @@ bank detects on a coarse grid and refines each candidate on the fine grid:
 The fraction a caller gets back is $L_r$'s, so what $L = 4$ resolved, the
 refine still resolves. What changes is the cost.
 
-**Measured** (2026-10-31; throwaway numpy prototype on the shipped
-`DelayDoppler`, which is exactly the bank's arithmetic, since a bank is a
-frame batch of mixed copies): $n_y = 64$, $n_x = 512$, whole bins
-$k \in \{-1, 0, 1\}$, $P_{fa} = 10^{-3}$ per search. Every detector's
-thresholds come from its own 20,000 noise-only frames, and each held its
-$P_{fa}$ on 20,000 fresh ones (Wilson 95% intervals all containing
-$10^{-3}$). Pd = 0.9 points come from probit fits to 600 trials a point; loss
-is against an oracle that corrects the exact offset, so the Doppler and delay
-straddle every option shares cancels:
+**Measured** by the bank's characterization
+(`spectral/tests/characterization/corr2d_bank/characterize.py`, through
+`bank_power_max` and `bank_detect`): a repeated 511-chip PN m-sequence, 64
+periods, at a uniform delay, whole bins $k \in \{-1, 0, 1\}$, in the shipped
+`AWGN`. Every detector's thresholds come from its own 20,000 noise-only
+frames at $P_{fa} = 10^{-3}$ per search, and the oracle corrects the exact
+carrier at L = 4's threshold. Pd is at the SNR where the oracle detects
+about 0.9, 1,000 trials a row, with Wilson 95% intervals:
 
-| detector                    | uniform fraction | fraction between $L_d$ points (worst) |
-| --------------------------- | ---------------- | ------------------------------------- |
-| $L = 4$, one stage          | −0.07 dB         | −0.03 dB                              |
-| $L = 2$, one stage          | +0.13 dB         | +0.37 dB                              |
-| $L_d = 2$, refine $L_r = 4$ | −0.03 dB         | +0.04 dB                              |
+| carrier                         | oracle               | $L = 4$              | $L = 2$              | detect 2 -> 4        |
+| ------------------------------- | -------------------- | -------------------- | -------------------- | -------------------- |
+| uniform fraction, −29.0 dB      | 0.895 [0.874, 0.913] | 0.899 [0.879, 0.916] | 0.889 [0.868, 0.907] | 0.901 [0.881, 0.918] |
+| a quarter bin (worst), −30.7 dB | 0.897 [0.877, 0.914] | 0.903 [0.883, 0.920] | 0.861 [0.838, 0.881] | 0.898 [0.878, 0.915] |
 
-Each value is $\pm 0.1$–$0.16$ dB (95%). Noiseless, the worst case loses
-the full sinc(1/4), 0.912 dB, exactly as §3 says. In noise it loses less
-because two coarse hypotheses straddle the signal and their max claws some
-back, and because half the cells lower the threshold by 0.07 dB. The refine
-recovers the rest: **detect-and-refine matches $L = 4$ within the
-intervals.**
+On fresh noise each held its rate: $1.00 \times 10^{-3}$, $0.95 \times 10^{-3}$
+and $1.00 \times 10^{-3}$ (intervals $[0.6, 1.5] \times 10^{-3}$). **At the
+worst fraction $L = 2$ alone loses detections and detect-and-refine does not:
+it matches $L = 4$.** Noiseless, the worst case loses the full sinc(1/4),
+0.912 dB, exactly as §3 says; in noise $L = 2$ alone loses less (the
+de-risk prototype put it at 0.37 dB of SNR), because two coarse hypotheses
+straddle the signal and their max claws some back, and half the cells
+lower its threshold. The refine recovers the rest.
 
 **Cost.** By §5's run at $n_x = 512$ with 12 rates on one thread, an $L = 2$
-frame is 1.84 ms against $L = 4$'s 3.31 ms: **44% less**. The refine is not
-yet timed. At $2\,n_y\,n_x$ multiply-adds a candidate (65,536 here), and with
-candidates at $10^{-2}$ a search on noise, it is expected to be negligible.
-Phase 3's C bench times it.
+frame is 1.84 ms against $L = 4$'s 3.31 ms: **44% less**. The shipped bank
+measures the same at 64 x 512 with no rates (`bench_corr2d_core.c`,
+`bench_bank`, one thread, aarch64): 12 carriers in 1.11 ms, 6 in 0.54 ms,
+48%. The refine adds 0.17 ms a candidate, three fine carriers at
+$2\,n_y\,n_x$ multiply-adds each, so `bank_detect` with one candidate runs
+in 0.71 ms. Against the frame batch of 12 hand-corrected copies a caller
+would otherwise build, 1.35 ms before the copies, the bank is 1.21x: the
+row FFT is shared per fraction, and the slow-time stage is not.
 
-**What this changes in the bank.** $L$ splits into $L_d$ (the search,
-default 2) and $L_r$ (the resolution, default 4). §5's "the default is 4"
-stays true of the resolution. A caller who wants one stage sets
-$L_d = L_r$. The candidate threshold, the refine and the confirm live in C,
-beside the reducers, and the refine reads the frame through Corr2D's
-known-column path, which already computes one lag without an FFT.
+**The bank, as shipped.** $L$ splits into $L_d$ (the search, default 2) and
+$L_r$ (the resolution, default 4). §5's "the default is 4" stays true of
+the resolution. A caller who wants one stage sets $L_d = L_r$.
+`dp_corr2d_bank_fold` hands every hypothesis map to a C reducer;
+`dp_corr2d_bank_power_max` and `dp_corr2d_bank_detect` are bound as
+`bank_power_max` and `bank_detect` on `Corr2D` and `DelayDoppler`. On the
+fast path and DelayDoppler with a native delay axis, the refine is a
+time-domain correlation at the cell's lag and one Doppler DFT; anywhere
+else it makes the fine map and reads the cell. Every path runs a bank, and
+only those two share work. A bank runs on the calling thread
+([#2716](https://github.com/doppler-dsp/doppler/issues/2716) is splitting
+hypotheses across workers).
 
-**Where this is certified.** The numbers above are the de-risk. Phase 3's
-validation harness re-measures them in C (Pd with Wilson intervals, the
-worst case beside the average, a noise-only $P_{fa}$ row), on the model of
-`native/validation/acq_rate_pd.c`, with a `--check` subset in CTest.
+**Where this is certified.** The Corr2D report's §2.11 holds five limits:
+the bank equals the corrected batch on every path; it leaves the dwell
+alone and refuses what it should; the loss between grid points is at most
+sinc(1/(2L)), and exactly that half a step out; `bank_detect` names the
+fine carrier, and its refine is the fine bank's own value; and every
+detector holds its $P_{fa}$, with detect-and-refine matching $L = 4$, at a
+small scale. The full-geometry Monte Carlo is
+`src/doppler/spectral/tests/characterization/corr2d_bank/characterize.py`,
+run by `make characterize`, with its fast twin per push.

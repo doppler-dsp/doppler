@@ -1315,6 +1315,429 @@ Corr2DObj_execute_peaks (Corr2DObject *self, PyObject *args)
 }
 
 static PyObject *
+Corr2DObj_bank_power_max (Corr2DObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "x", "L", "g_min", "g_max", "rates", NULL };
+  PyObject          *x_obj     = NULL;
+  PyObject          *L_obj     = NULL;
+  unsigned long long L_raw     = 0ULL;
+  int                g_min     = 0;
+  int                g_max     = 0;
+  PyObject          *rates_obj = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OOiiO", _kwlist, &x_obj,
+                                    &L_obj, &g_min, &g_max, &rates_obj))
+    return NULL;
+  if (L_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (L_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      L_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((L_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || L_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "L: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t         L = (size_t)L_raw;
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!x_arr)
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  PyArrayObject *rates_arr    = jm_array_arg (rates_obj, NPY_COMPLEX64,
+                                              NPY_ARRAY_C_CONTIGUOUS, "rates");
+  if (!rates_arr)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  const float _Complex *rates
+      = (const float _Complex *)PyArray_DATA (rates_arr);
+  size_t rates_len = (size_t)PyArray_SIZE (rates_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (rates_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = dp_corr2d_bank_power_max_max_out (
+      self->handle, (size_t)PyArray_SIZE (x_arr));
+  (void)_need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (rates_arr);
+      PyErr_Format (
+          PyExc_OverflowError,
+          "Corr2D.bank_power_max: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  PyObject *arr1  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
+  if (!arr0 || !arr1)
+    {
+      Py_XDECREF (arr0);
+      Py_XDECREF (arr1);
+      Py_DECREF (x_arr);
+      Py_DECREF (rates_arr);
+      return NULL;
+    }
+  float    *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  uint32_t *_d1 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr1);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (x_arr);
+      Py_DECREF (rates_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  size_t n_out;
+  void  *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
+  Py_BEGIN_ALLOW_THREADS
+    n_out = dp_corr2d_bank_power_max (_jm_h, x, x_len, L, g_min, g_max, rates,
+                                      rates_len, _d0, _d1, _cap);
+  Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
+  Py_DECREF (x_arr);
+  Py_DECREF (rates_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      PyErr_SetString (PyExc_ValueError,
+                       "bank_power_max: needs one frame, L >= 1, g_min <= "
+                       "g_max, rates a whole number of ny-long vectors, and "
+                       "out= holding one map");
+      return NULL;
+    }
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Corr2D.bank_power_max: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      PyObject *_exact = PyTuple_Pack (2, arr0, arr1);
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      return _exact;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  PyArray_Dims _rs1 = { &_odim, 1 };
+  PyObject *v1 = PyArray_Resize ((PyArrayObject *)arr1, &_rs1, 0, NPY_CORDER);
+  if (!v1)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      return NULL;
+    }
+  Py_DECREF (v1);
+  PyObject *result = PyTuple_Pack (2, arr0, arr1);
+  Py_DECREF (arr0);
+  Py_DECREF (arr1);
+  return result;
+}
+
+static PyObject *
+Corr2DObj_bank_detect (Corr2DObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]
+      = { "x",           "L_d",       "L_r",   "g_min", "g_max",
+          "t_candidate", "t_confirm", "rates", NULL };
+  PyObject          *x_obj       = NULL;
+  PyObject          *L_d_obj     = NULL;
+  unsigned long long L_d_raw     = 0ULL;
+  PyObject          *L_r_obj     = NULL;
+  unsigned long long L_r_raw     = 0ULL;
+  int                g_min       = 0;
+  int                g_max       = 0;
+  float              t_candidate = 0.0f;
+  float              t_confirm   = 0.0f;
+  PyObject          *rates_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OOOiiffO", _kwlist, &x_obj,
+                                    &L_d_obj, &L_r_obj, &g_min, &g_max,
+                                    &t_candidate, &t_confirm, &rates_obj))
+    return NULL;
+  if (L_d_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (L_d_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      L_d_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((L_d_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || L_d_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "L_d: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t L_d = (size_t)L_d_raw;
+  if (L_r_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (L_r_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      L_r_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((L_r_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || L_r_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "L_r: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t         L_r = (size_t)L_r_raw;
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!x_arr)
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  PyArrayObject *rates_arr    = jm_array_arg (rates_obj, NPY_COMPLEX64,
+                                              NPY_ARRAY_C_CONTIGUOUS, "rates");
+  if (!rates_arr)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  const float _Complex *rates
+      = (const float _Complex *)PyArray_DATA (rates_arr);
+  size_t rates_len = (size_t)PyArray_SIZE (rates_arr);
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (rates_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = dp_corr2d_bank_detect_max_out (self->handle,
+                                                (size_t)PyArray_SIZE (x_arr));
+  (void)_need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      Py_DECREF (rates_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Corr2D.bank_detect: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  PyObject *arr1  = PyArray_SimpleNew (1, &_adim, NPY_INT32);
+  PyObject *arr2  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
+  PyObject *arr3  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
+  PyObject *arr4  = PyArray_SimpleNew (1, &_adim, NPY_UINT32);
+  if (!arr0 || !arr1 || !arr2 || !arr3 || !arr4)
+    {
+      Py_XDECREF (arr0);
+      Py_XDECREF (arr1);
+      Py_XDECREF (arr2);
+      Py_XDECREF (arr3);
+      Py_XDECREF (arr4);
+      Py_DECREF (x_arr);
+      Py_DECREF (rates_arr);
+      return NULL;
+    }
+  float    *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  int32_t  *_d1 = (int32_t *)PyArray_DATA ((PyArrayObject *)arr1);
+  uint32_t *_d2 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr2);
+  uint32_t *_d3 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr3);
+  uint32_t *_d4 = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr4);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      Py_DECREF (arr4);
+      Py_DECREF (x_arr);
+      Py_DECREF (rates_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* nogil: GIL released across the pure-C kernel. Two calls on
+   * one object may run at once only if its kernel allows it; a
+   * teardown waits for a running call (gh-2272). */
+  size_t n_out;
+  void  *_jm_h = self->handle;
+  jm_inflight_enter (&self->_jm_inflight);
+  Py_BEGIN_ALLOW_THREADS
+    n_out = dp_corr2d_bank_detect (_jm_h, x, x_len, L_d, L_r, g_min, g_max,
+                                   t_candidate, t_confirm, rates, rates_len,
+                                   _d0, _d1, _d2, _d3, _d4, _cap);
+  Py_END_ALLOW_THREADS
+  jm_inflight_leave (&self->_jm_inflight);
+  Py_DECREF (x_arr);
+  Py_DECREF (rates_arr);
+  if (n_out == (SIZE_MAX))
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      Py_DECREF (arr4);
+      PyErr_SetString (PyExc_ValueError,
+                       "bank_detect: needs one frame, L_d >= 1 dividing L_r, "
+                       "g_min <= g_max, rates a whole number of ny-long "
+                       "vectors, and out= holding one record per map cell");
+      return NULL;
+    }
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      Py_DECREF (arr4);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Corr2D.bank_detect: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      PyObject *_exact = PyTuple_Pack (5, arr0, arr1, arr2, arr3, arr4);
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      Py_DECREF (arr4);
+      return _exact;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      Py_DECREF (arr4);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  PyArray_Dims _rs1 = { &_odim, 1 };
+  PyObject *v1 = PyArray_Resize ((PyArrayObject *)arr1, &_rs1, 0, NPY_CORDER);
+  if (!v1)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      Py_DECREF (arr4);
+      return NULL;
+    }
+  Py_DECREF (v1);
+  PyArray_Dims _rs2 = { &_odim, 1 };
+  PyObject *v2 = PyArray_Resize ((PyArrayObject *)arr2, &_rs2, 0, NPY_CORDER);
+  if (!v2)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      Py_DECREF (arr4);
+      return NULL;
+    }
+  Py_DECREF (v2);
+  PyArray_Dims _rs3 = { &_odim, 1 };
+  PyObject *v3 = PyArray_Resize ((PyArrayObject *)arr3, &_rs3, 0, NPY_CORDER);
+  if (!v3)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      Py_DECREF (arr4);
+      return NULL;
+    }
+  Py_DECREF (v3);
+  PyArray_Dims _rs4 = { &_odim, 1 };
+  PyObject *v4 = PyArray_Resize ((PyArrayObject *)arr4, &_rs4, 0, NPY_CORDER);
+  if (!v4)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (arr1);
+      Py_DECREF (arr2);
+      Py_DECREF (arr3);
+      Py_DECREF (arr4);
+      return NULL;
+    }
+  Py_DECREF (v4);
+  PyObject *result = PyTuple_Pack (5, arr0, arr1, arr2, arr3, arr4);
+  Py_DECREF (arr0);
+  Py_DECREF (arr1);
+  Py_DECREF (arr2);
+  Py_DECREF (arr3);
+  Py_DECREF (arr4);
+  return result;
+}
+
+static PyObject *
 Corr2DObj_state_bytes (Corr2DObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
@@ -1892,6 +2315,159 @@ static PyMethodDef Corr2DObj_methods[] = {
     "([4, 4], [3, 11])\n"
     ">>> bool(np.all(peak / mean > 100))   # each map's own peak-to-mean\n"
     "True\n" },
+  { "bank_power_max", (PyCFunction)(void *)Corr2DObj_bank_power_max,
+    METH_VARARGS | METH_KEYWORDS,
+    "bank_power_max(x, L, g_min, g_max, rates) -> tuple[ndarray, ndarray]\n"
+    "\n"
+    "The strongest power at every cell over a bank, and which hypothesis\n"
+    "it came from.\n"
+    "\n"
+    "dp_corr2d_bank_fold() with the `POWER_MAX` reducer: at each cell, out\n"
+    "holds the largest |map_h|^2 over every hypothesis h, and out1 that h,\n"
+    "`(g - g_min) * R + r`, the lowest h on a tie. Every argument and\n"
+    "refusal is dp_corr2d_bank_fold()'s; in addition max_out below `n_out`\n"
+    "is refused with nothing written.\n"
+    "\n"
+    "As dp_corr2d_bank_fold().\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "L : int\n"
+    "    Input.\n"
+    "g_min : int\n"
+    "    Input.\n"
+    "g_max : int\n"
+    "    Input.\n"
+    "rates : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "tuple[NDArray[np.float32], NDArray[np.uint32]]\n"
+    "    `n_out`, or SIZE_MAX with nothing written.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``bank_power_max: needs one\n"
+    "    frame, L >= 1, g_min <= g_max, rates a whole number of ny-long\n"
+    "    vectors, and out= holding one map``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import DelayDoppler\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> ny, nx, d = 8, 32, 5                  # code delayed by 5 samples\n"
+    ">>> code = rng.choice([-1.0, 1.0], nx).astype(np.complex64)\n"
+    ">>> m = np.arange(ny * nx)\n"
+    ">>> x = (np.tile(np.roll(code, d), ny)    # on a carrier 1.5 bins off\n"
+    "...      * np.exp(2j * np.pi * 1.5 / nx * m)).astype(np.complex64)\n"
+    ">>> dd = DelayDoppler(code, ny=ny)\n"
+    ">>> no_rates = np.empty(0, np.complex64)\n"
+    ">>> pw, h = dd.bank_power_max(x, 2, -4, 4, no_rates)  # g / (2 nx), "
+    "-4..4\n"
+    ">>> cell = int(np.argmax(pw))\n"
+    ">>> cell % nx, int(h[cell]) - 4           # (delay, g = h + g_min)\n"
+    "(5, 3)\n" },
+  { "bank_detect", (PyCFunction)(void *)Corr2DObj_bank_detect,
+    METH_VARARGS | METH_KEYWORDS,
+    "bank_detect(x, L_d, L_r, g_min, g_max, t_candidate, t_confirm, rates) -> "
+    "tuple[ndarray, ndarray, ndarray, ndarray, ndarray]\n"
+    "\n"
+    "Detect on a coarse carrier grid, refine each candidate at its own\n"
+    "cell on a fine one, and keep what confirms.\n"
+    "\n"
+    "The bank searches on L_d and resolves on L_r\n"
+    "(docs/design/corr2d-hypotheses.md section 6):\n"
+    "\n"
+    "1. **Detect.** dp_corr2d_bank_power_max() over carriers g_min .. g_max\n"
+    "   on the `1 / (L_d nx)` grid, with every rate.\n"
+    "2. **Candidates.** Every cell whose power exceeds t_candidate and is at\n"
+    "   least each of its 8 neighbors, both axes circular (a delay lag and a\n"
+    "   Doppler bin both wrap).\n"
+    "3. **Refine.** For a candidate found by coarse carrier g_d and rate r,\n"
+    "   the map value at its cell under every fine carrier g_r from `m g_d -\n"
+    "   (m - 1)` to `m g_d + (m - 1)`, m = `L_r / L_d`: the carriers between\n"
+    "   its coarse neighbors, on the `1 / (L_r nx)` grid. On the fast path\n"
+    "   and DelayDoppler with a native delay axis each is a time-domain\n"
+    "   correlation at the cell's lag and a slow-time DFT at its Doppler\n"
+    "   row, in double, with no FFT: `2 ny nx` multiply-adds a carrier. Any\n"
+    "   other object makes that hypothesis's map and reads the cell. The\n"
+    "   best g_r wins, the lowest on a tie.\n"
+    "4. **Confirm.** A candidate whose refined power exceeds t_confirm is a\n"
+    "   record.\n"
+    "\n"
+    "Records come out in cell order (row-major), one entry of each output\n"
+    "per record: out the refined power, out1 g_r on the fine grid, out2 the\n"
+    "rate r, out3 the row and out4 the column, the cell as execute() lays\n"
+    "out the map. Measured at 64 x 512 against an oracle that corrects the\n"
+    "exact offset, L_d = 2 with L_r = 4 holds L = 4's sensitivity within\n"
+    "0.16 dB, for about half the bank (the design page). L_d = L_r is the\n"
+    "one-stage bank. Thresholds are powers in the map's own units; the\n"
+    "caller sets them for its noise, as for any detector.\n"
+    "\n"
+    "As dp_corr2d_bank_fold(); g_min and g_max are on the coarse grid.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "L_d : int\n"
+    "    The search grid; at least 1.\n"
+    "L_r : int\n"
+    "    The resolution grid; a multiple of L_d.\n"
+    "g_min : int\n"
+    "    Input.\n"
+    "g_max : int\n"
+    "    Input.\n"
+    "t_candidate : float\n"
+    "    Candidate threshold, on the coarse power.\n"
+    "t_confirm : float\n"
+    "    Confirm threshold, on the refined power.\n"
+    "rates : npt.NDArray[np.complex64]\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "tuple[NDArray[np.float32], NDArray[np.int32], NDArray[np.uint32], "
+    "NDArray[np.uint32], NDArray[np.uint32]]\n"
+    "    The record count (0 included), or SIZE_MAX with nothing written for\n"
+    "    anything dp_corr2d_bank_fold() refuses, `L_d == 0`, an L_r that L_d\n"
+    "    does not divide, a refined carrier past int32, or max_out below\n"
+    "    `n_out`.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
+    "    a count. The exception message is ``bank_detect: needs one frame,\n"
+    "    L_d >= 1 dividing L_r, g_min <= g_max, rates a whole number of\n"
+    "    ny-long vectors, and out= holding one record per map cell``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import DelayDoppler\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> ny, nx, d = 8, 32, 5\n"
+    ">>> code = rng.choice([-1.0, 1.0], nx).astype(np.complex64)\n"
+    ">>> m = np.arange(ny * nx)\n"
+    ">>> x = (np.tile(np.roll(code, d), ny)    # 1.25 bins: between L_d = 2\n"
+    "...      * np.exp(2j * np.pi * 1.25 / nx * m)).astype(np.complex64)\n"
+    ">>> dd = DelayDoppler(code, ny=ny)\n"
+    ">>> no_rates = np.empty(0, np.complex64)\n"
+    ">>> coarse, _ = dd.bank_power_max(x, 2, -4, 4, no_rates)\n"
+    ">>> t = 0.5 * coarse.max()\n"
+    ">>> power, g, rate, row, col = dd.bank_detect(x, 2, 4, -4, 4, t, t,\n"
+    "...                                           no_rates)\n"
+    ">>> len(power), int(g[0]), int(col[0])    # g on the 1/(4 nx) grid\n"
+    "(1, 5, 5)\n"
+    ">>> round(float(power[0] / coarse.max()), 3)  # the straddle recovered\n"
+    "1.233\n" },
   { "state_bytes", (PyCFunction)Corr2DObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

@@ -166,6 +166,32 @@ error = "ValueError"
 error_message = "execute_peaks: the input must be a whole, nonzero number of frames, and out= must hold one record per frame"
 nogil = true
 
+[[corr2d.methods]]
+name = "bank_power_max"
+arg_type = "void"
+return_type = "float"
+variable_output = true
+pass_capacity = true
+multi_output = ["uint32_t"]
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "bank_power_max: needs one frame, L >= 1, g_min <= g_max, rates a whole number of ny-long vectors, and out= holding one map"
+nogil = true
+params = [{name = "x", type = "float _Complex[]"}, {name = "L", type = "size_t"}, {name = "g_min", type = "int"}, {name = "g_max", type = "int"}, {name = "rates", type = "float _Complex[]"}]
+
+[[corr2d.methods]]
+name = "bank_detect"
+arg_type = "void"
+return_type = "float"
+variable_output = true
+pass_capacity = true
+multi_output = ["int32_t", "uint32_t", "uint32_t", "uint32_t"]
+error_sentinel = "SIZE_MAX"
+error = "ValueError"
+error_message = "bank_detect: needs one frame, L_d >= 1 dividing L_r, g_min <= g_max, rates a whole number of ny-long vectors, and out= holding one record per map cell"
+nogil = true
+params = [{name = "x", type = "float _Complex[]"}, {name = "L_d", type = "size_t"}, {name = "L_r", type = "size_t"}, {name = "g_min", type = "int"}, {name = "g_max", type = "int"}, {name = "t_candidate", type = "float"}, {name = "t_confirm", type = "float"}, {name = "rates", type = "float _Complex[]"}]
+
 [[corr2d.properties]]
 name = "ny"
 type = "size_t"

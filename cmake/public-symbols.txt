@@ -523,6 +523,11 @@ dp_conv_enc_set_state function
 dp_conv_enc_state_bytes function
 dp_conv_encode function
 dp_conv_outputs function
+dp_corr2d_bank_detect function
+dp_corr2d_bank_detect_max_out function
+dp_corr2d_bank_fold function
+dp_corr2d_bank_power_max function
+dp_corr2d_bank_power_max_max_out function
 dp_corr2d_create function
 dp_corr2d_create_delay_doppler function
 dp_corr2d_destroy function

@@ -4,7 +4,7 @@ version = "0.77.0"
 
 [tools.install-deps]
 source = "just-bashit:install-deps"
-groups = ["runtime", "dev", "clang-rt"]
+groups = ["runtime", "dev", "clang-rt", "nats"]
 
 [tools.just-makeit]
 source = "just-bashit:just-makeit"
@@ -314,4 +314,48 @@ packages = [
 [packager.dnf]
 packages = [
     "rpm-build",
+]
+
+# nats-server: the JetStream broker the nats:// stream tests need. They
+# SELF-SKIP when 127.0.0.1:4222 is unreachable, so a box without a broker runs
+# a green suite that never touched the NATS path (stream.pyi's doctests fail
+# outright instead). `make nats-up` (scripts/start-nats.sh) prefers this binary
+# and falls back to docker; with neither it fails. It is a group of its own
+# because no package list can say it: the distros' versions differ, and CI
+# runs ONE, so the binary is the release's, pinned by version and by the
+# release's own SHA256SUMS line per arch. This group is that pin's one home:
+# the CI image installs it too (CI_IMAGE_GROUPS), so a dev box's broker is
+# the one CI tests against. docker/ci-extra.sh held the pin until #2712.
+#
+# Linux only, and the four sections run the SAME command:
+# check_bootstrap_cmd.py refuses any [nats.*] cmd that differs from the
+# others, and runs it against stubs (a hash mismatch, an unpinned arch and a
+# failed download must fail; the pinned version already installed must
+# succeed without a download). No brew or msys2 section: there is no pinned
+# macOS or Windows build in CI to match, and a missing section is skipped.
+# It installs to /usr/local/bin and escalates only when that is not
+# writable, so the root image build needs no sudo; NATS_BIN_DIR overrides the
+# directory (a user's ~/.local/bin, or the check's scratch directory).
+[nats.apt]
+cmd = [
+    "sh", "-c",
+    "v=2.10.22; d=${NATS_BIN_DIR:-/usr/local/bin}; case $(uname -m) in x86_64) a=amd64; h=db0b3ccbe4cbdd3872ae7486ec4f6b0f85824632a0789f4da2e0a8518390483e;; aarch64) a=arm64; h=b4da77b2b194dc5fcf13a1df0dad59ba7e87ae4423f254c50534015b7c8a2369;; *) echo nats: no nats-server v$v is pinned for $(uname -m) >&2; exit 1;; esac; if test -x $d/nats-server && $d/nats-server --version | grep -q v$v; then echo nats: nats-server v$v is already in $d; exit 0; fi; s=; test -w $d || s=sudo; p=nats-server-v$v-linux-$a; t=$(mktemp -d) || exit 1; curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o $t/n.tar.gz https://github.com/nats-io/nats-server/releases/download/v$v/$p.tar.gz || { rm -rf $t; exit 1; }; printf '%s  %s\n' $h $t/n.tar.gz | sha256sum -c - || { echo nats: $p.tar.gz does not match its pinned sha256 >&2; rm -rf $t; exit 1; }; tar -xzf $t/n.tar.gz -C $t && $s install -m 755 $t/$p/nats-server $d/nats-server || { rm -rf $t; exit 1; }; rm -rf $t; $d/nats-server --version",
+]
+
+[nats.pacman]
+cmd = [
+    "sh", "-c",
+    "v=2.10.22; d=${NATS_BIN_DIR:-/usr/local/bin}; case $(uname -m) in x86_64) a=amd64; h=db0b3ccbe4cbdd3872ae7486ec4f6b0f85824632a0789f4da2e0a8518390483e;; aarch64) a=arm64; h=b4da77b2b194dc5fcf13a1df0dad59ba7e87ae4423f254c50534015b7c8a2369;; *) echo nats: no nats-server v$v is pinned for $(uname -m) >&2; exit 1;; esac; if test -x $d/nats-server && $d/nats-server --version | grep -q v$v; then echo nats: nats-server v$v is already in $d; exit 0; fi; s=; test -w $d || s=sudo; p=nats-server-v$v-linux-$a; t=$(mktemp -d) || exit 1; curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o $t/n.tar.gz https://github.com/nats-io/nats-server/releases/download/v$v/$p.tar.gz || { rm -rf $t; exit 1; }; printf '%s  %s\n' $h $t/n.tar.gz | sha256sum -c - || { echo nats: $p.tar.gz does not match its pinned sha256 >&2; rm -rf $t; exit 1; }; tar -xzf $t/n.tar.gz -C $t && $s install -m 755 $t/$p/nats-server $d/nats-server || { rm -rf $t; exit 1; }; rm -rf $t; $d/nats-server --version",
+]
+
+[nats.dnf]
+cmd = [
+    "sh", "-c",
+    "v=2.10.22; d=${NATS_BIN_DIR:-/usr/local/bin}; case $(uname -m) in x86_64) a=amd64; h=db0b3ccbe4cbdd3872ae7486ec4f6b0f85824632a0789f4da2e0a8518390483e;; aarch64) a=arm64; h=b4da77b2b194dc5fcf13a1df0dad59ba7e87ae4423f254c50534015b7c8a2369;; *) echo nats: no nats-server v$v is pinned for $(uname -m) >&2; exit 1;; esac; if test -x $d/nats-server && $d/nats-server --version | grep -q v$v; then echo nats: nats-server v$v is already in $d; exit 0; fi; s=; test -w $d || s=sudo; p=nats-server-v$v-linux-$a; t=$(mktemp -d) || exit 1; curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o $t/n.tar.gz https://github.com/nats-io/nats-server/releases/download/v$v/$p.tar.gz || { rm -rf $t; exit 1; }; printf '%s  %s\n' $h $t/n.tar.gz | sha256sum -c - || { echo nats: $p.tar.gz does not match its pinned sha256 >&2; rm -rf $t; exit 1; }; tar -xzf $t/n.tar.gz -C $t && $s install -m 755 $t/$p/nats-server $d/nats-server || { rm -rf $t; exit 1; }; rm -rf $t; $d/nats-server --version",
+]
+
+[nats.zypper]
+cmd = [
+    "sh", "-c",
+    "v=2.10.22; d=${NATS_BIN_DIR:-/usr/local/bin}; case $(uname -m) in x86_64) a=amd64; h=db0b3ccbe4cbdd3872ae7486ec4f6b0f85824632a0789f4da2e0a8518390483e;; aarch64) a=arm64; h=b4da77b2b194dc5fcf13a1df0dad59ba7e87ae4423f254c50534015b7c8a2369;; *) echo nats: no nats-server v$v is pinned for $(uname -m) >&2; exit 1;; esac; if test -x $d/nats-server && $d/nats-server --version | grep -q v$v; then echo nats: nats-server v$v is already in $d; exit 0; fi; s=; test -w $d || s=sudo; p=nats-server-v$v-linux-$a; t=$(mktemp -d) || exit 1; curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o $t/n.tar.gz https://github.com/nats-io/nats-server/releases/download/v$v/$p.tar.gz || { rm -rf $t; exit 1; }; printf '%s  %s\n' $h $t/n.tar.gz | sha256sum -c - || { echo nats: $p.tar.gz does not match its pinned sha256 >&2; rm -rf $t; exit 1; }; tar -xzf $t/n.tar.gz -C $t && $s install -m 755 $t/$p/nats-server $d/nats-server || { rm -rf $t; exit 1; }; rm -rf $t; $d/nats-server --version",
 ]

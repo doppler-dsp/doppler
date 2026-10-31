@@ -105,9 +105,16 @@ delay-Doppler map, H = 48), best of ten, on an 18-thread arm64 box:
     faster than one thread.
 - **`ALL`'s copy out of the scratch map does not show** next to the
     transforms.
-- **The power fold costs 15–20% of a batch** on one thread, a pass over
-    every cell of every map that is not vectorized
-    ([#2703](https://github.com/doppler-dsp/doppler/issues/2703)).
+- **The power folds are vectorized**
+    ([#2703](https://github.com/doppler-dsp/doppler/issues/2703)). The max
+    fold was a branch per cell, which no compiler vectorized, and cost 20%
+    of a `POWER_MAX` batch. As a select with unconditional stores (`fmaxf`
+    for the power, a bit mask for the index) it costs 4%: on one thread at
+    64 x 512 and H = 48, 6.17 ms fell to 5.12 ms, against 4.91 ms for
+    `ALL`. `PEAKS` takes two vectorized passes, the peak and the sum then the
+    first cell holding the peak: 5.81 ms to 5.38 ms. The power itself stays
+    in double, so a cell's power is one value on every compiler (the tie
+    rule depends on it). Measured on an aarch64 (NEON) box, portable build.
 
 ## 6. Unknowns
 

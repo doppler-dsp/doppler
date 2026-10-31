@@ -1018,13 +1018,18 @@ corr2d_fold_power_max (void *ctx, size_t h, const float _Complex *map,
       return;
     }
   /* A select with unconditional stores, so the loop vectorizes. Strictly
-     greater: a tie keeps the earlier, lower h. */
+     greater: a tie keeps the earlier, lower h.  The value is a ternary, not
+     fmaxf: under -fno-finite-math-only fmaxf keeps its NaN rule, and GCC 16
+     on x86 compiled it to a library call per cell (1.8x slower than the
+     branch it replaced).  The ternary is a packed max on every compiler
+     measured, and matches the old branch for a NaN exactly. */
   for (size_t k = 0; k < n; k++)
     {
       const float    p = corr2d_pow (map[k]);
-      const uint32_t m = 0u - (uint32_t)(p > pw[k]);
+      const float    q = pw[k];
+      const uint32_t m = 0u - (uint32_t)(p > q);
       ix[k]            = (ix[k] & ~m) | (hh & m);
-      pw[k]            = fmaxf (p, pw[k]);
+      pw[k]            = p > q ? p : q;
     }
 }
 
@@ -1041,19 +1046,35 @@ static void
 corr2d_fold_peaks (void *ctx, size_t h, const float _Complex *map, size_t n)
 {
   const corr2d_peaks_t *c = (const corr2d_peaks_t *)ctx;
-  /* Two passes so both vectorize: the peak value and the sum, then the
-     first cell holding that value (row-major order wins a tie). */
-  float  pk  = corr2d_pow (map[0]);
-  double sum = 0.0;
+  /* Two passes, both vectorized on every target: the peak and the sum, then
+     the first cell holding the peak (row-major order wins a tie).  A power
+     is a sum of squares, never negative, so its IEEE bits order as an
+     unsigned integer, and an integer max is a packed reduction everywhere;
+     a float max is not under -fno-finite-math-only (fmaxf keeps its NaN
+     rule, and GCC 16 on x86 made it a library call per cell).  The second
+     pass matches bits, so it stops at the peak's cell whatever the peak is;
+     only a map holding a NaN reads differently from the old branch. */
+  uint32_t pkb = 0;
+  double   sum = 0.0;
   for (size_t k = 0; k < n; k++)
     {
       const float p = corr2d_pow (map[k]);
+      uint32_t    b;
+      memcpy (&b, &p, sizeof b);
       sum += p;
-      pk = fmaxf (pk, p);
+      pkb = b > pkb ? b : pkb;
     }
   size_t best = 0;
-  while (corr2d_pow (map[best]) != pk)
-    best++;
+  for (;; best++)
+    {
+      const float p = corr2d_pow (map[best]);
+      uint32_t    b;
+      memcpy (&b, &p, sizeof b);
+      if (b == pkb)
+        break;
+    }
+  float pk;
+  memcpy (&pk, &pkb, sizeof pk);
   const int    col_out = c->s->col_out >= 0;
   const size_t width   = col_out ? 1 : c->s->nx_out;
   c->peak[h]           = pk;

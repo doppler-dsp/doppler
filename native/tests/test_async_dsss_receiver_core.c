@@ -4301,6 +4301,44 @@ _test_rank_and_exclusions_domain_and_blob (void)
   return 0;
 }
 
+/* ── a version-2 AccTrace blob, nested in the receiver, is refused ──────
+ * receiver -> CarrierAcquisition -> PSD -> AccTrace (#2094): a version-2
+ * trace held the mean, which version 3 reads as a sum, so the receiver
+ * refuses it, searching or seeded. NOT atomic: the receiver restores its
+ * earlier children before the CarrierAcquisition's trace refuses, so a
+ * refusal leaves those replaced (#2104). The refusal and the positive
+ * control are asserted; #2104's fix flips the last argument to 1, and this
+ * then holds it. Returns the number of failed checks. */
+static int
+_test_nested_trace_version_refused (void)
+{
+  const size_t    n   = 4096;
+  float _Complex *x   = malloc (n * sizeof *x);
+  float _Complex *sym = malloc (n * sizeof *sym);
+  uint32_t        rng = 0x2094u;
+  DP_REQUIRE (x != NULL && sym != NULL);
+  for (size_t i = 0; i < n; i++)
+    x[i] = 0.1f * dp_cgauss (&rng);
+  for (int k = 0; k < 2; k++)
+    {
+      dp_async_dsss_receiver_state_t *rx
+          = _searching_rx (55.0, 35714.29, 0.0, false);
+      DP_REQUIRE (rx != NULL);
+      if (k == 1) /* the seeded flavor: past the search, into the refine */
+        DP_REQUIRE (dp_async_dsss_receiver_seed (rx, 3.25, 0.0, 55.0)
+                    == DP_OK);
+      (void)dp_async_dsss_receiver_steps (rx, x, n / 2, sym, n);
+      DP_STATE_NESTED_VERSION_TEST (
+          dp_async_dsss_receiver, rx,
+          (void)dp_async_dsss_receiver_steps (rx, x + n / 2, n / 2, sym, n),
+          ACC_TRACE_STATE_MAGIC, 2u, 1, 0);
+      dp_async_dsss_receiver_destroy (rx);
+    }
+  free (sym);
+  free (x);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -4354,6 +4392,7 @@ main (void)
   DP_CHECK (_test_one_signal_holds_one_rank () == 0);
   DP_CHECK (_test_ranked_search_takes_no_sidelobe () == 0);
   DP_CHECK (_test_refining_reports_the_seed_phase () == 0);
+  DP_CHECK (_test_nested_trace_version_refused () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

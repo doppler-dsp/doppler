@@ -7,7 +7,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.spectral import Spectrogram
+from doppler.spectral import Spectrogram, power_to_db_f32
 from doppler.wfm import Composer, Segment, chirp, noise, tone
 
 NFFT = 256
@@ -258,9 +258,12 @@ def make_figure(out_path: str = "spectrogram_demo.png") -> None:
     assert far.sum() > 200
     assert np.all(np.abs(power[far, tone_bin] - 0.25) < 0.02)
     assert np.all(np.abs(db[far, tone_bin] + 6.02) < 0.2)
-    # Each dB row is 10 log10 of its power row, above the -90 dB floor.
+    # Each dB row IS the library's dB conversion of its power row, bit for
+    # bit (#2094): converting only the bins a display draws gives exactly
+    # the dB rows. The conversion is within 5e-4 dB of 10 log10.
+    assert np.array_equal(db, power_to_db_f32(power.ravel()).reshape(db.shape))
     live = power > 1e-9
-    assert np.allclose(db[live], 10 * np.log10(power[live]), atol=1e-3)
+    assert np.allclose(db[live], 10 * np.log10(power[live]), atol=5e-4)
 
     fig, (ax_p, ax_d) = plt.subplots(1, 2, figsize=(11, 5), sharey=True)
     # MHz across; ms down, with row 0 (time 0) at the top of the panel.

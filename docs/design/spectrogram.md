@@ -289,7 +289,7 @@ Its header's claims are certified in C, where they are stated; the Python
 face is generated over the same C and pinned by its own tests.
 `native/validation/spectrogram_certify.c` measures and
 `src/doppler/spectral/tests/validation/spectrogram/results.md` is the
-generated report, with the header's twenty-seven claims inventoried against
+generated report, with the header's twenty-eight claims inventoried against
 their pins and the sabotage that turned each red.
 
 ## 6. The order of work

@@ -1373,6 +1373,173 @@ class Corr2D:
 
         """
 
+    def bank_power_max(
+        self,
+        x: npt.NDArray[np.complex64],
+        L: int,
+        g_min: int,
+        g_max: int,
+        rates: npt.NDArray[np.complex64],
+    ) -> tuple[NDArray[np.float32], NDArray[np.uint32]]:
+        """The strongest power at every cell over a bank, and which hypothesis
+        it came from.
+
+        dp_corr2d_bank_fold() with the `POWER_MAX` reducer: at each cell, out
+        holds the largest |map_h|^2 over every hypothesis h, and out1 that h,
+        `(g - g_min) * R + r`, the lowest h on a tie. Every argument and
+        refusal is dp_corr2d_bank_fold()'s; in addition max_out below `n_out`
+        is refused with nothing written.
+
+        As dp_corr2d_bank_fold().
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        L : int
+            Input.
+        g_min : int
+            Input.
+        g_max : int
+            Input.
+        rates : npt.NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        tuple[NDArray[np.float32], NDArray[np.uint32]]
+            `n_out`, or SIZE_MAX with nothing written.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``bank_power_max: needs one
+            frame, L >= 1, g_min <= g_max, rates a whole number of ny-long
+            vectors, and out= holding one map``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx, d = 8, 32, 5                  # code delayed by 5 samples
+        >>> code = rng.choice([-1.0, 1.0], nx).astype(np.complex64)
+        >>> m = np.arange(ny * nx)
+        >>> x = (np.tile(np.roll(code, d), ny)    # on a carrier 1.5 bins off
+        ...      * np.exp(2j * np.pi * 1.5 / nx * m)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> no_rates = np.empty(0, np.complex64)
+        >>> pw, h = dd.bank_power_max(x, 2, -4, 4, no_rates)  # g / (2 nx), -4..4
+        >>> cell = int(np.argmax(pw))
+        >>> cell % nx, int(h[cell]) - 4           # (delay, g = h + g_min)
+        (5, 3)
+
+        """
+
+    def bank_detect(
+        self,
+        x: npt.NDArray[np.complex64],
+        L_d: int,
+        L_r: int,
+        g_min: int,
+        g_max: int,
+        t_candidate: float,
+        t_confirm: float,
+        rates: npt.NDArray[np.complex64],
+    ) -> tuple[NDArray[np.float32], NDArray[np.int32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.uint32]]:
+        """Detect on a coarse carrier grid, refine each candidate at its own
+        cell on a fine one, and keep what confirms.
+
+        The bank searches on L_d and resolves on L_r
+        (docs/design/corr2d-hypotheses.md section 6):
+
+        1. **Detect.** dp_corr2d_bank_power_max() over carriers g_min .. g_max
+           on the `1 / (L_d nx)` grid, with every rate.
+        2. **Candidates.** Every cell whose power exceeds t_candidate and is at
+           least each of its 8 neighbors, both axes circular (a delay lag and a
+           Doppler bin both wrap).
+        3. **Refine.** For a candidate found by coarse carrier g_d and rate r,
+           the map value at its cell under every fine carrier g_r from `m g_d -
+           (m - 1)` to `m g_d + (m - 1)`, m = `L_r / L_d`: the carriers between
+           its coarse neighbors, on the `1 / (L_r nx)` grid. On the fast path
+           and DelayDoppler with a native delay axis each is a time-domain
+           correlation at the cell's lag and a slow-time DFT at its Doppler
+           row, in double, with no FFT: `2 ny nx` multiply-adds a carrier. Any
+           other object makes that hypothesis's map and reads the cell. The
+           best g_r wins, the lowest on a tie.
+        4. **Confirm.** A candidate whose refined power exceeds t_confirm is a
+           record.
+
+        Records come out in cell order (row-major), one entry of each output
+        per record: out the refined power, out1 g_r on the fine grid, out2 the
+        rate r, out3 the row and out4 the column, the cell as execute() lays
+        out the map. Measured at 64 x 512 against an oracle that corrects the
+        exact offset, L_d = 2 with L_r = 4 holds L = 4's sensitivity within
+        0.16 dB, for about half the bank (the design page). L_d = L_r is the
+        one-stage bank. Thresholds are powers in the map's own units; the
+        caller sets them for its noise, as for any detector.
+
+        As dp_corr2d_bank_fold(); g_min and g_max are on the coarse grid.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        L_d : int
+            The search grid; at least 1.
+        L_r : int
+            The resolution grid; a multiple of L_d.
+        g_min : int
+            Input.
+        g_max : int
+            Input.
+        t_candidate : float
+            Candidate threshold, on the coarse power.
+        t_confirm : float
+            Confirm threshold, on the refined power.
+        rates : npt.NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        tuple[NDArray[np.float32], NDArray[np.int32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.uint32]]
+            The record count (0 included), or SIZE_MAX with nothing written for
+            anything dp_corr2d_bank_fold() refuses, `L_d == 0`, an L_r that L_d
+            does not divide, a refined carrier past int32, or max_out below
+            `n_out`.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``bank_detect: needs one frame,
+            L_d >= 1 dividing L_r, g_min <= g_max, rates a whole number of
+            ny-long vectors, and out= holding one record per map cell``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx, d = 8, 32, 5
+        >>> code = rng.choice([-1.0, 1.0], nx).astype(np.complex64)
+        >>> m = np.arange(ny * nx)
+        >>> x = (np.tile(np.roll(code, d), ny)    # 1.25 bins: between L_d = 2
+        ...      * np.exp(2j * np.pi * 1.25 / nx * m)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> no_rates = np.empty(0, np.complex64)
+        >>> coarse, _ = dd.bank_power_max(x, 2, -4, 4, no_rates)
+        >>> t = 0.5 * coarse.max()
+        >>> power, g, rate, row, col = dd.bank_detect(x, 2, 4, -4, 4, t, t,
+        ...                                           no_rates)
+        >>> len(power), int(g[0]), int(col[0])    # g on the 1/(4 nx) grid
+        (1, 5, 5)
+        >>> round(float(power[0] / coarse.max()), 3)  # the straddle recovered
+        1.233
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -1971,6 +2138,173 @@ class DelayDoppler:
         ([4, 4], [3, 11])
         >>> bool(np.all(peak / mean > 100))   # each map's own peak-to-mean
         True
+
+        """
+
+    def bank_power_max(
+        self,
+        x: npt.NDArray[np.complex64],
+        L: int,
+        g_min: int,
+        g_max: int,
+        rates: npt.NDArray[np.complex64],
+    ) -> tuple[NDArray[np.float32], NDArray[np.uint32]]:
+        """The strongest power at every cell over a bank, and which hypothesis
+        it came from.
+
+        dp_corr2d_bank_fold() with the `POWER_MAX` reducer: at each cell, out
+        holds the largest |map_h|^2 over every hypothesis h, and out1 that h,
+        `(g - g_min) * R + r`, the lowest h on a tie. Every argument and
+        refusal is dp_corr2d_bank_fold()'s; in addition max_out below `n_out`
+        is refused with nothing written.
+
+        As dp_corr2d_bank_fold().
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        L : int
+            Input.
+        g_min : int
+            Input.
+        g_max : int
+            Input.
+        rates : npt.NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        tuple[NDArray[np.float32], NDArray[np.uint32]]
+            `n_out`, or SIZE_MAX with nothing written.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``bank_power_max: needs one
+            frame, L >= 1, g_min <= g_max, rates a whole number of ny-long
+            vectors, and out= holding one map``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx, d = 8, 32, 5                  # code delayed by 5 samples
+        >>> code = rng.choice([-1.0, 1.0], nx).astype(np.complex64)
+        >>> m = np.arange(ny * nx)
+        >>> x = (np.tile(np.roll(code, d), ny)    # on a carrier 1.5 bins off
+        ...      * np.exp(2j * np.pi * 1.5 / nx * m)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> no_rates = np.empty(0, np.complex64)
+        >>> pw, h = dd.bank_power_max(x, 2, -4, 4, no_rates)  # g / (2 nx), -4..4
+        >>> cell = int(np.argmax(pw))
+        >>> cell % nx, int(h[cell]) - 4           # (delay, g = h + g_min)
+        (5, 3)
+
+        """
+
+    def bank_detect(
+        self,
+        x: npt.NDArray[np.complex64],
+        L_d: int,
+        L_r: int,
+        g_min: int,
+        g_max: int,
+        t_candidate: float,
+        t_confirm: float,
+        rates: npt.NDArray[np.complex64],
+    ) -> tuple[NDArray[np.float32], NDArray[np.int32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.uint32]]:
+        """Detect on a coarse carrier grid, refine each candidate at its own
+        cell on a fine one, and keep what confirms.
+
+        The bank searches on L_d and resolves on L_r
+        (docs/design/corr2d-hypotheses.md section 6):
+
+        1. **Detect.** dp_corr2d_bank_power_max() over carriers g_min .. g_max
+           on the `1 / (L_d nx)` grid, with every rate.
+        2. **Candidates.** Every cell whose power exceeds t_candidate and is at
+           least each of its 8 neighbors, both axes circular (a delay lag and a
+           Doppler bin both wrap).
+        3. **Refine.** For a candidate found by coarse carrier g_d and rate r,
+           the map value at its cell under every fine carrier g_r from `m g_d -
+           (m - 1)` to `m g_d + (m - 1)`, m = `L_r / L_d`: the carriers between
+           its coarse neighbors, on the `1 / (L_r nx)` grid. On the fast path
+           and DelayDoppler with a native delay axis each is a time-domain
+           correlation at the cell's lag and a slow-time DFT at its Doppler
+           row, in double, with no FFT: `2 ny nx` multiply-adds a carrier. Any
+           other object makes that hypothesis's map and reads the cell. The
+           best g_r wins, the lowest on a tie.
+        4. **Confirm.** A candidate whose refined power exceeds t_confirm is a
+           record.
+
+        Records come out in cell order (row-major), one entry of each output
+        per record: out the refined power, out1 g_r on the fine grid, out2 the
+        rate r, out3 the row and out4 the column, the cell as execute() lays
+        out the map. Measured at 64 x 512 against an oracle that corrects the
+        exact offset, L_d = 2 with L_r = 4 holds L = 4's sensitivity within
+        0.16 dB, for about half the bank (the design page). L_d = L_r is the
+        one-stage bank. Thresholds are powers in the map's own units; the
+        caller sets them for its noise, as for any detector.
+
+        As dp_corr2d_bank_fold(); g_min and g_max are on the coarse grid.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.complex64]
+            Input.
+        L_d : int
+            The search grid; at least 1.
+        L_r : int
+            The resolution grid; a multiple of L_d.
+        g_min : int
+            Input.
+        g_max : int
+            Input.
+        t_candidate : float
+            Candidate threshold, on the coarse power.
+        t_confirm : float
+            Confirm threshold, on the refined power.
+        rates : npt.NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        tuple[NDArray[np.float32], NDArray[np.int32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.uint32]]
+            The record count (0 included), or SIZE_MAX with nothing written for
+            anything dp_corr2d_bank_fold() refuses, `L_d == 0`, an L_r that L_d
+            does not divide, a refined carrier past int32, or max_out below
+            `n_out`.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns ``SIZE_MAX``, its refusal value, in place of
+            a count. The exception message is ``bank_detect: needs one frame,
+            L_d >= 1 dividing L_r, g_min <= g_max, rates a whole number of
+            ny-long vectors, and out= holding one record per map cell``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import DelayDoppler
+        >>> rng = np.random.default_rng(0)
+        >>> ny, nx, d = 8, 32, 5
+        >>> code = rng.choice([-1.0, 1.0], nx).astype(np.complex64)
+        >>> m = np.arange(ny * nx)
+        >>> x = (np.tile(np.roll(code, d), ny)    # 1.25 bins: between L_d = 2
+        ...      * np.exp(2j * np.pi * 1.25 / nx * m)).astype(np.complex64)
+        >>> dd = DelayDoppler(code, ny=ny)
+        >>> no_rates = np.empty(0, np.complex64)
+        >>> coarse, _ = dd.bank_power_max(x, 2, -4, 4, no_rates)
+        >>> t = 0.5 * coarse.max()
+        >>> power, g, rate, row, col = dd.bank_detect(x, 2, 4, -4, 4, t, t,
+        ...                                           no_rates)
+        >>> len(power), int(g[0]), int(col[0])    # g on the 1/(4 nx) grid
+        (1, 5, 5)
+        >>> round(float(power[0] / coarse.max()), 3)  # the straddle recovered
+        1.233
 
         """
 

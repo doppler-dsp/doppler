@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #define TOL 1e-4f
 
 static float
@@ -851,6 +855,553 @@ _test_batch (void)
     }
 }
 
+/* ── The hypothesis bank (#2683 phase 3) ─────────────────────────────────
+ * Every claim of dp_corr2d_bank_fold, _power_max and _detect against an
+ * oracle built from the object's own execute(): map h of a bank is a fresh
+ * dwell-1 object's map of the frame corrected by hand. */
+
+/* Every map of a bank, copied out in fold order. */
+typedef struct
+{
+  float _Complex *maps;
+  size_t          n_out, calls, order_ok;
+} _bank_copy_t;
+
+static void
+_bank_copy (void *ctx, size_t h, const float _Complex *map, size_t n_out)
+{
+  _bank_copy_t *c = (_bank_copy_t *)ctx;
+  c->order_ok &= (h == c->calls); /* maps arrive in h order */
+  memcpy (c->maps + h * n_out, map, n_out * sizeof *map);
+  c->calls++;
+}
+
+/* The frame corrected by hand: period i times rate w[i] (when given) times
+   exp(-j 2 pi g n / (L nx)), n counted within the period, in double. */
+static void
+_bank_correct (const float _Complex *x, size_t ny, size_t nx, long g, size_t L,
+               const float _Complex *w, float _Complex *y)
+{
+  for (size_t i = 0; i < ny; i++)
+    for (size_t n = 0; n < nx; n++)
+      {
+        const double a
+            = -2.0 * M_PI * (double)g * (double)n / ((double)L * (double)nx);
+        double _Complex v
+            = (double _Complex)x[i * nx + n] * (cos (a) + I * sin (a));
+        if (w)
+          v *= (double _Complex)w[i];
+        y[i * nx + n] = (float _Complex)v;
+      }
+}
+
+/* Every object a bank runs on: Corr2D's fast path (native, and with an
+   interpolated delay axis), its general 2-D path and a known column, and
+   DelayDoppler with an interpolated Doppler axis.  Same code, so the oracle
+   is one execute() away. */
+enum
+{
+  K_FAST,
+  K_FAST_PAD,
+  K_GEN,
+  K_COL,
+  K_DD,
+  K_BANK_KINDS
+};
+
+static dp_corr2d_state_t *
+_bank_make (int kind, const float _Complex *code, size_t ny, size_t nx,
+            int nthreads)
+{
+  float _Complex *ref = calloc (ny * nx, sizeof *ref);
+  memcpy (ref, code, nx * sizeof *ref);
+  /* the general path needs energy outside row 0: the code, scaled per row */
+  if (kind == K_GEN)
+    for (size_t i = 1; i < ny; i++)
+      for (size_t p = 0; p < nx; p++)
+        ref[i * nx + p] = code[p] * (float)(i + 1) * 0.5f;
+  dp_corr2d_state_t *c
+      = kind == K_FAST ? dp_corr2d_create (ref, ny, nx, 1, nthreads, 0, 0, -1)
+        : kind == K_FAST_PAD
+            ? dp_corr2d_create (ref, ny, nx, 1, nthreads, 0, 2 * nx, -1)
+        : kind == K_GEN ? dp_corr2d_create (ref, ny, nx, 1, nthreads, 0, 0, -1)
+        : kind == K_COL ? dp_corr2d_create (ref, ny, nx, 1, nthreads, 0, 0, 3)
+                        : dp_corr2d_create_delay_doppler (code, nx, ny, 1,
+                                                          nthreads, 2 * ny);
+  free (ref);
+  return c;
+}
+
+static int
+_test_bank (void)
+{
+  enum
+  {
+    BNY = 6,
+    BNX = 20, /* not a power of two: the general FFT, and a 2-element roll */
+    BN  = BNY * BNX
+  };
+  const size_t L    = 3;            /* not a power of two either */
+  const int    gmin = -7, gmax = 5; /* negative and positive, both ends
+                                      off the whole-bin grid */
+  const size_t C    = (size_t)(gmax - gmin + 1);
+  uint32_t     seed = 0xBA4Cu;
+  float _Complex code[BNX], x[BN], rates[2 * BNY];
+  for (size_t p = 0; p < BNX; p++)
+    code[p] = crealf (_rand_cplx (&seed)) >= 0.0f ? 1.0f : -1.0f;
+  for (size_t k = 0; k < BN; k++)
+    x[k] = _rand_cplx (&seed);
+  for (size_t k = 0; k < 2 * BNY; k++)
+    {
+      const double a = 2.0 * M_PI * (double)(_rand_cplx (&seed) + 1.0f);
+      rates[k]       = (float)cos (a) + (float)sin (a) * I;
+    }
+
+  for (int kind = 0; kind < K_BANK_KINDS; kind++)
+    {
+      /* rates on every kind: per-period weights, as defined */
+      const size_t          R    = 2;
+      const float _Complex *rv   = rates;
+      const size_t          rl   = 2 * BNY;
+      float _Complex       *ref1 = NULL;
+      size_t                no   = 0;
+      for (int ti = 0; ti < 3; ti++)
+        {
+          static const int   th[3] = { 1, 2, 7 };
+          dp_corr2d_state_t *c     = _bank_make (kind, code, BNY, BNX, th[ti]);
+          DP_REQUIRE (c != NULL);
+          no                    = c->n_out;
+          float _Complex  *maps = malloc (C * R * no * sizeof *maps);
+          _bank_copy_t     cp   = { maps, no, 0, 1 };
+          dp_corr2d_fold_t f    = { _bank_copy, &cp };
+
+          /* mid-dwell, with its blob kept, to show the bank leaves it */
+          const size_t   nb     = dp_corr2d_state_bytes (c);
+          unsigned char *before = malloc (nb), *after = malloc (nb);
+          dp_corr2d_get_state (c, before);
+
+          DP_CHECK (dp_corr2d_bank_fold (c, x, BN, L, gmin, gmax, rv, rl, &f)
+                    == C * R);
+          DP_CHECK_MSG (cp.calls == C * R && cp.order_ok,
+                        "bank: one map per hypothesis, in h order");
+          dp_corr2d_get_state (c, after);
+          DP_CHECK_MSG (memcmp (before, after, nb) == 0,
+                        "bank: the dwell's blob is untouched");
+
+          /* the oracle: a fresh dwell-1 object per corrected frame */
+          dp_corr2d_state_t *o    = _bank_make (kind, code, BNY, BNX, 1);
+          float _Complex    *y    = malloc (BN * sizeof *y);
+          float _Complex    *want = malloc (no * sizeof *want);
+          double             err = 0.0, peak = 0.0;
+          for (size_t ci = 0; ci < C; ci++)
+            for (size_t r = 0; r < R; r++)
+              {
+                _bank_correct (x, BNY, BNX, gmin + (long)ci, L,
+                               rv ? rv + r * BNY : NULL, y);
+                DP_CHECK (dp_corr2d_execute (o, y, BN, want, no) == no);
+                const float _Complex *got = maps + (ci * R + r) * no;
+                for (size_t k = 0; k < no; k++)
+                  {
+                    err  = fmax (err, cabs (got[k] - want[k]));
+                    peak = fmax (peak, cabs (want[k]));
+                  }
+              }
+          DP_CHECK_MSG (err <= 1e-5 * peak,
+                        "bank map h == the hand-corrected frame's map");
+
+          /* every worker count gives the same maps, bit for bit */
+          if (ti == 0)
+            {
+              ref1 = malloc (C * R * no * sizeof *ref1);
+              memcpy (ref1, maps, C * R * no * sizeof *maps);
+            }
+          else
+            DP_CHECK_MSG (memcmp (ref1, maps, C * R * no * sizeof *maps) == 0,
+                          "bank maps are bit-identical for any nthreads");
+
+          /* power_max is the bank's POWER_MAX: pointwise max, lowest h */
+          float    *pw = malloc (no * sizeof *pw);
+          uint32_t *pi = malloc (no * sizeof *pi);
+          DP_CHECK (dp_corr2d_bank_power_max_max_out (c, BN) == no);
+          DP_CHECK (dp_corr2d_bank_power_max (c, x, BN, L, gmin, gmax, rv, rl,
+                                              pw, pi, no)
+                    == no);
+          int pm_ok = 1;
+          for (size_t k = 0; k < no; k++)
+            {
+              size_t bh = 0;
+              float  bp = -1.0f;
+              for (size_t h = 0; h < C * R; h++)
+                {
+                  const float _Complex z = maps[h * no + k];
+                  const double re = crealf (z), im = cimagf (z);
+                  const float  p = (float)(re * re + im * im);
+                  if (p > bp)
+                    bp = p, bh = h;
+                }
+              pm_ok &= pw[k] == bp && pi[k] == bh;
+            }
+          DP_CHECK_MSG (pm_ok, "bank_power_max == max over the bank's maps");
+          free (pw), free (pi);
+          free (y), free (want), free (maps), free (before), free (after);
+          dp_corr2d_destroy (o);
+          dp_corr2d_destroy (c);
+        }
+      free (ref1);
+    }
+
+  /* ── an offset between grid points loses at most sinc(1/(2L)) ────────────
+   * A noiseless code at a continuous carrier phi (in whole bins), on
+   * DelayDoppler: the bank's strongest cell against the exact correction's,
+   * at several phi including the worst, half a grid step from both
+   * neighbors, where the loss is the bound itself. */
+  {
+    enum
+    {
+      ONY = 8,
+      ONX = 64,
+      ON  = ONY * ONX
+    };
+    float _Complex oc[ONX], ox[ON], oy[ON], map[ON];
+    float    pw[ON];
+    uint32_t pi[ON];
+    for (size_t p = 0; p < ONX; p++)
+      oc[p] = crealf (_rand_cplx (&seed)) >= 0.0f ? 1.0f : -1.0f;
+    dp_corr2d_state_t *d
+        = dp_corr2d_create_delay_doppler (oc, ONX, ONY, 1, 1, 0);
+    DP_REQUIRE (d != NULL);
+    /* the midpoints of L = 1, 2, 4 (0.5, 0.25, 0.125 and 0.375) and points
+       off them */
+    static const double phis[]
+        = { 0.0, 0.1, 0.125, 0.25, 0.3, 0.375, 0.5, -0.625 };
+    for (size_t L2 = 1; L2 <= 4; L2 *= 2)
+      {
+        const double bound
+            = sin (M_PI / (2.0 * (double)L2)) / (M_PI / (2.0 * (double)L2));
+        int ok = 1, tight = 0;
+        for (size_t q = 0; q < sizeof phis / sizeof *phis; q++)
+          {
+            const double phi = phis[q];
+            for (size_t m = 0; m < ON; m++)
+              {
+                const double a = 2.0 * M_PI * phi * (double)m / ONX;
+                ox[m]          = oc[(m + ONX - 13) % ONX]
+                                 * ((float)cos (a) + (float)sin (a) * I);
+              }
+            /* the exact correction: the same within-period mix at phi */
+            for (size_t i = 0; i < ONY; i++)
+              for (size_t n = 0; n < ONX; n++)
+                {
+                  const double a  = -2.0 * M_PI * phi * (double)n / ONX;
+                  oy[i * ONX + n] = ox[i * ONX + n]
+                                    * ((float)cos (a) + (float)sin (a) * I);
+                }
+            DP_REQUIRE (dp_corr2d_execute (d, oy, ON, map, ON) == ON);
+            double exact = 0.0;
+            for (size_t k = 0; k < ON; k++)
+              exact = fmax (exact,
+                            (double)(crealf (map[k]) * crealf (map[k])
+                                     + cimagf (map[k]) * cimagf (map[k])));
+            DP_REQUIRE (dp_corr2d_bank_power_max (d, ox, ON, L2, -2 * (int)L2,
+                                                  2 * (int)L2, NULL, 0, pw, pi,
+                                                  ON)
+                        == ON);
+            double best = 0.0;
+            for (size_t k = 0; k < ON; k++)
+              best = fmax (best, (double)pw[k]);
+            const double ratio = sqrt (best / exact);
+            ok &= ratio >= bound - 1e-3;
+            /* half a step from both grid points: the loss IS the bound */
+            const double frac = phi * (double)L2 - floor (phi * (double)L2);
+            if (fabs (frac - 0.5) < 1e-12)
+              tight |= fabs (ratio - bound) < 2e-3;
+          }
+        DP_CHECK_MSG (ok, "off-grid loss is at most sinc(1/(2L))");
+        DP_CHECK_MSG (tight, "half a step from both points loses the bound");
+      }
+    dp_corr2d_destroy (d);
+  }
+
+  /* ── refusals: nothing folded, nothing written ──────────────────────── */
+  {
+    enum
+    {
+      RNY = 4,
+      RNX = 8,
+      RN  = RNY * RNX
+    };
+    float _Complex rc[RNX] = { 1, -1, 1, 1, -1, 1, -1, -1 }, rx[RN] = { 0 };
+    float _Complex rw[2 * RNY];
+    for (size_t k = 0; k < 2 * RNY; k++)
+      rw[k] = 1.0f;
+    float _Complex gref[RN];
+    for (size_t k = 0; k < RN; k++)
+      gref[k] = _rand_cplx (&seed); /* energy off row 0: the general path */
+    dp_corr2d_state_t *dd
+        = dp_corr2d_create_delay_doppler (rc, RNX, RNY, 1, 2, 0);
+    dp_corr2d_state_t *gen = dp_corr2d_create (gref, RNY, RNX, 1, 1, 0, 0, -1);
+    float _Complex r0[RN];
+    memset (r0, 0, sizeof r0);
+    memcpy (r0, rc, sizeof rc);
+    dp_corr2d_state_t *col  = dp_corr2d_create (r0, RNY, RNX, 1, 1, 0, 0, 3);
+    dp_corr2d_state_t *fast = dp_corr2d_create (r0, RNY, RNX, 1, 1, 0, 0, -1);
+    dp_corr2d_state_t *pad
+        = dp_corr2d_create (r0, RNY, RNX, 1, 1, 0, 2 * RNX, -1);
+    DP_REQUIRE (dd && gen && col && fast && pad && !gen->fast_path);
+    _bank_copy_t     cp = { NULL, RN, 0, 1 };
+    dp_corr2d_fold_t f  = { _bank_copy, &cp };
+    DP_CHECK (dp_corr2d_bank_fold (dd, rx, RN - 1, 2, 0, 1, NULL, 0, &f)
+              == SIZE_MAX);
+    DP_CHECK (dp_corr2d_bank_fold (dd, rx, 2 * RN, 2, 0, 1, NULL, 0, &f)
+              == SIZE_MAX);
+    DP_CHECK (dp_corr2d_bank_fold (dd, rx, RN, 0, 0, 1, NULL, 0, &f)
+              == SIZE_MAX);
+    DP_CHECK (dp_corr2d_bank_fold (dd, rx, RN, 2, 1, 0, NULL, 0, &f)
+              == SIZE_MAX);
+    DP_CHECK (dp_corr2d_bank_fold (dd, rx, RN, 2, 0, 1, rw, RNY + 1, &f)
+              == SIZE_MAX);
+    DP_CHECK_MSG (cp.calls == 0, "a refused bank folds nothing");
+
+    enum
+    {
+      CAN = 64
+    };
+    float    po[CAN], o0[CAN];
+    uint32_t pi[CAN], u2[CAN], u3[CAN], u4[CAN];
+    int32_t  g1[CAN];
+    for (size_t k = 0; k < CAN; k++)
+      po[k] = o0[k] = -7.0f, pi[k] = u2[k] = u3[k] = u4[k] = 77u, g1[k] = 77;
+    DP_CHECK (
+        dp_corr2d_bank_power_max (dd, rx, RN, 2, 0, 1, NULL, 0, po, pi, RN - 1)
+        == SIZE_MAX);
+    /* detect: a zero search grid, a grid that does not divide, a resolution
+       below the search, a short output, and a refined carrier past int32 */
+    DP_CHECK (dp_corr2d_bank_detect (dd, rx, RN, 0, 4, 0, 1, 0.f, 0.f, NULL, 0,
+                                     o0, g1, u2, u3, u4, CAN)
+              == SIZE_MAX);
+    DP_CHECK (dp_corr2d_bank_detect (dd, rx, RN, 3, 4, 0, 1, 0.f, 0.f, NULL, 0,
+                                     o0, g1, u2, u3, u4, CAN)
+              == SIZE_MAX);
+    DP_CHECK (dp_corr2d_bank_detect (dd, rx, RN, 4, 2, 0, 1, 0.f, 0.f, NULL, 0,
+                                     o0, g1, u2, u3, u4, CAN)
+              == SIZE_MAX);
+    DP_CHECK (dp_corr2d_bank_detect (dd, rx, RN, 2, 4, 0, 1, 0.f, 0.f, NULL, 0,
+                                     o0, g1, u2, u3, u4, RN - 1)
+              == SIZE_MAX);
+    DP_CHECK (dp_corr2d_bank_detect (dd, rx, RN, 1, 4, INT32_MAX / 2,
+                                     INT32_MAX / 2, 0.f, 0.f, NULL, 0, o0, g1,
+                                     u2, u3, u4, CAN)
+              == SIZE_MAX);
+    int clean = 1;
+    for (size_t k = 0; k < CAN; k++)
+      clean &= po[k] == -7.0f && o0[k] == -7.0f && pi[k] == 77u && u2[k] == 77u
+               && u3[k] == 77u && u4[k] == 77u && g1[k] == 77;
+    DP_CHECK_MSG (clean, "a refused bank call writes nothing");
+    dp_corr2d_destroy (dd), dp_corr2d_destroy (gen), dp_corr2d_destroy (col);
+    dp_corr2d_destroy (fast), dp_corr2d_destroy (pad);
+  }
+  return 0;
+}
+
+/* ── detect coarse, refine the candidate, confirm (section 6) ────────────
+ * A noiseless code on a carrier between two coarse points: one record, at
+ * the signal's lag and Doppler row, on the fine carrier nearest it, whose
+ * power is the fine bank's own map at that cell and beats the coarse one by
+ * the straddle loss the refine recovers.  And the rate that matches is the
+ * rate reported. */
+static int
+_test_bank_detect (void)
+{
+  enum
+  {
+    DNY  = 16,
+    DNX  = 128,
+    DN   = DNY * DNX,
+    DLAG = 41
+  };
+  uint32_t seed = 0xDE7Cu;
+  float _Complex code[DNX], x[DN];
+  for (size_t p = 0; p < DNX; p++)
+    code[p] = crealf (_rand_cplx (&seed)) >= 0.0f ? 1.0f : -1.0f;
+  dp_corr2d_state_t *d
+      = dp_corr2d_create_delay_doppler (code, DNX, DNY, 1, 2, 0);
+  DP_REQUIRE (d != NULL);
+  static float        pw[DN], fp[DN], po[DN];
+  static uint32_t     pi[DN], fi[DN], ur[DN], urow[DN], ucol[DN];
+  static int32_t      gr[DN];
+  static const double phis[]
+      = { 0.25, -0.75, 1.25 }; /* between L_d = 2 points */
+  for (size_t q = 0; q < sizeof phis / sizeof *phis; q++)
+    {
+      const double phi = phis[q];
+      for (size_t m = 0; m < DN; m++)
+        {
+          const double a = 2.0 * M_PI * phi * (double)m / DNX;
+          x[m]           = code[(m + DNX - DLAG) % DNX]
+                           * ((float)cos (a) + (float)sin (a) * I);
+        }
+      DP_REQUIRE (
+          dp_corr2d_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0, pw, pi, DN)
+          == DN);
+      float top = 0.0f;
+      for (size_t k = 0; k < DN; k++)
+        top = fmaxf (top, pw[k]);
+      const size_t nrec = dp_corr2d_bank_detect (
+          d, x, DN, 2, 4, -4, 4, 0.5f * top, 0.5f * top, NULL, 0, po, gr, ur,
+          urow, ucol, DN);
+      DP_CHECK_MSG (nrec == 1, "one signal, one record");
+      const int32_t want_g = (int32_t)lround (4.0 * phi);
+      DP_CHECK_MSG (nrec >= 1 && gr[0] == want_g && ucol[0] == DLAG
+                        && ur[0] == 0,
+                    "the record is the signal's fine carrier and lag");
+      /* the refined power is the fine (L = 4) bank's map at that cell */
+      DP_REQUIRE (dp_corr2d_bank_power_max (d, x, DN, 4, want_g, want_g, NULL,
+                                            0, fp, fi, DN)
+                  == DN);
+      const size_t cell = (size_t)urow[0] * DNX + ucol[0];
+      DP_CHECK_MSG (nrec >= 1 && fabsf (po[0] - fp[cell]) <= 1e-5f * fp[cell],
+                    "the refine equals the fine bank's map at the cell");
+      /* and recovers the straddle: 1 / sinc(1/4)^2 over the coarse peak */
+      const double gain = sin (M_PI / 4.0) / (M_PI / 4.0);
+      DP_CHECK_MSG (
+          nrec >= 1
+              && fabs ((double)po[0] / (double)top - 1.0 / (gain * gain))
+                     < 1e-3,
+          "the refine recovers the coarse grid's straddle loss");
+      /* a confirm threshold above the refined power keeps nothing, and so
+         does a candidate threshold above the coarse peak */
+      DP_CHECK (dp_corr2d_bank_detect (d, x, DN, 2, 4, -4, 4, 0.5f * top,
+                                       1.01f * po[0], NULL, 0, po, gr, ur,
+                                       urow, ucol, DN)
+                == 0);
+      DP_CHECK (dp_corr2d_bank_detect (d, x, DN, 2, 4, -4, 4, 1.01f * top,
+                                       0.0f, NULL, 0, po, gr, ur, urow, ucol,
+                                       DN)
+                == 0);
+    }
+
+  /* a candidate is a local maximum: a Doppler 0.3 bins off a row puts the
+     next row above both thresholds too, and it is the same signal, so it
+     must not be a second record.  The carrier stays nearest fine point 1. */
+  {
+    const double phi = 0.25 + 0.3 / DNY;
+    for (size_t m = 0; m < DN; m++)
+      {
+        const double a = 2.0 * M_PI * phi * (double)m / DNX;
+        x[m]           = code[(m + DNX - DLAG) % DNX]
+                         * ((float)cos (a) + (float)sin (a) * I);
+      }
+    DP_REQUIRE (
+        dp_corr2d_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0, pw, pi, DN)
+        == DN);
+    size_t at = 0;
+    for (size_t k = 0; k < DN; k++)
+      at = pw[k] > pw[at] ? k : at;
+    const float  top = pw[at];
+    const size_t nb  = ((at / DNX + 1) % DNY) * DNX + at % DNX;
+    /* not vacuous: the neighbor row clears the thresholds below */
+    DP_REQUIRE (pw[nb] > 0.1f * top);
+    const size_t nrec
+        = dp_corr2d_bank_detect (d, x, DN, 2, 4, -4, 4, 0.1f * top, 0.1f * top,
+                                 NULL, 0, po, gr, ur, urow, ucol, DN);
+    DP_CHECK_MSG (nrec == 1 && gr[0] == 1 && ucol[0] == DLAG,
+                  "a candidate is a local maximum: one signal, one record");
+  }
+
+  /* the matching rate is the one reported: a quadratic slow-time phase
+     (a Doppler rate) on the signal, and two rate hypotheses, the second its
+     de-chirp */
+  {
+    float _Complex w[2 * DNY];
+    for (size_t i = 0; i < DNY; i++)
+      {
+        const double a = M_PI * 0.9 * (double)(i * i) / DNY;
+        w[i]           = 1.0f;
+        w[DNY + i]     = (float)cos (-a) + (float)sin (-a) * I;
+        for (size_t n = 0; n < DNX; n++)
+          x[i * DNX + n] = code[(n + DNX - DLAG) % DNX]
+                           * ((float)cos (a) + (float)sin (a) * I);
+      }
+    DP_REQUIRE (
+        dp_corr2d_bank_power_max (d, x, DN, 2, -2, 2, w, 2 * DNY, pw, pi, DN)
+        == DN);
+    float top = 0.0f;
+    for (size_t k = 0; k < DN; k++)
+      top = fmaxf (top, pw[k]);
+    const size_t nrec
+        = dp_corr2d_bank_detect (d, x, DN, 2, 4, -2, 2, 0.5f * top, 0.5f * top,
+                                 w, 2 * DNY, po, gr, ur, urow, ucol, DN);
+    DP_CHECK_MSG (nrec == 1 && ur[0] == 1 && gr[0] == 0 && ucol[0] == DLAG,
+                  "the de-chirping rate is the rate reported");
+  }
+  dp_corr2d_destroy (d);
+
+  /* the refine is the fine bank's own value at the cell, on every path: the
+     time-domain refine (fast path and DelayDoppler, native delay) and the
+     one that makes the fine map (an interpolated delay axis, the general
+     path, a known column) are held to the same reference */
+  {
+    enum
+    {
+      PNY = 6,
+      PNX = 20,
+      PN  = PNY * PNX
+    };
+    float _Complex pc[PNX], px[PN];
+    for (size_t p = 0; p < PNX; p++)
+      pc[p] = crealf (_rand_cplx (&seed)) >= 0.0f ? 1.0f : -1.0f;
+    for (size_t m = 0; m < PN; m++)
+      {
+        const double a = 2.0 * M_PI * 0.6 * (double)m / PNX;
+        px[m] = pc[(m + PNX - 7) % PNX] * ((float)cos (a) + (float)sin (a) * I)
+                + 0.05f * _rand_cplx (&seed);
+      }
+    int every = 1, kinds = 0;
+    for (int kind = 0; kind < K_BANK_KINDS; kind++)
+      {
+        dp_corr2d_state_t *k  = _bank_make (kind, pc, PNY, PNX, 2);
+        const size_t       no = k->n_out;
+        float *cp = malloc (no * sizeof *cp), *fpw = malloc (no * sizeof *fpw);
+        float *rp     = malloc (no * sizeof *rp);
+        uint32_t *ci  = malloc (no * sizeof *ci),
+                 *fi2 = malloc (no * sizeof *fi2);
+        uint32_t *rr  = malloc (no * sizeof *rr),
+                 *rw2 = malloc (no * sizeof *rw2);
+        uint32_t *rc  = malloc (no * sizeof *rc);
+        int32_t  *rg  = malloc (no * sizeof *rg);
+        DP_REQUIRE (
+            dp_corr2d_bank_power_max (k, px, PN, 2, -3, 3, NULL, 0, cp, ci, no)
+            == no);
+        float top = 0.0f;
+        for (size_t q = 0; q < no; q++)
+          top = fmaxf (top, cp[q]);
+        const size_t nrec
+            = dp_corr2d_bank_detect (k, px, PN, 2, 4, -3, 3, 0.3f * top, 0.0f,
+                                     NULL, 0, rp, rg, rr, rw2, rc, no);
+        DP_REQUIRE (nrec != SIZE_MAX);
+        kinds += nrec > 0;
+        const size_t width = k->col_out >= 0 ? 1 : k->nx_out;
+        for (size_t q = 0; q < nrec; q++)
+          {
+            DP_REQUIRE (dp_corr2d_bank_power_max (k, px, PN, 4, rg[q], rg[q],
+                                                  NULL, 0, fpw, fi2, no)
+                        == no);
+            const size_t col  = k->col_out >= 0 ? 0 : rc[q];
+            const float  want = fpw[(size_t)rw2[q] * width + col];
+            every &= fabsf (rp[q] - want) <= 1e-5f * fmaxf (want, 1e-12f);
+          }
+        free (cp), free (fpw), free (rp), free (ci), free (fi2), free (rr);
+        free (rw2), free (rc), free (rg);
+        dp_corr2d_destroy (k);
+      }
+    DP_CHECK_MSG (kinds == K_BANK_KINDS,
+                  "every path makes a record (none is vacuous)");
+    DP_CHECK_MSG (every,
+                  "the refine equals the fine bank's map, on every path");
+  }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1637,6 +2188,8 @@ main (void)
   _test_delay_doppler ();
   _test_batch ();
   (void)_test_batch_ranking (); /* a REQUIRE failure is counted */
+  (void)_test_bank ();
+  (void)_test_bank_detect ();
 
   DP_TEST_END ("test_corr2d_core");
 }

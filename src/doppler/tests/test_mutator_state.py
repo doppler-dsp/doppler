@@ -739,7 +739,16 @@ def _calls(mut: Mutator, obj: Any) -> Iterator[Call]:
         for k in range(width)
     )
     # ...then combinations, for params that constrain each other (pfa < pd).
-    combos = itertools.product(*(c[:4] for c in per))
+    # The FIRST parameter varies fastest. _accepted tries only the first 40
+    # calls, and itertools.product varies the LAST fastest, so a first
+    # parameter that must be one exact length (a frame) sat at its first
+    # candidate for every one of them: a call whose other parameters
+    # constrain each other (g_min <= g_max) was reachable only if the one
+    # staggered call holding the right length happened to satisfy them.
+    combos = (
+        tuple(reversed(args))
+        for args in itertools.product(*(c[:4] for c in reversed(per)))
+    )
     return (Call(args) for args in itertools.chain(staggered, combos))
 
 

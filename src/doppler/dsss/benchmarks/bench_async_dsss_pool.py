@@ -1,5 +1,5 @@
-"""Benchmark for AsyncDsssPool -- one dwell through four searching
-receivers, from Python.
+"""Benchmark for AsyncDsssPool -- one dwell through a pool of four idle
+receivers and the controller's one search, from Python.
 
 Run: pytest src/doppler/dsss/benchmarks/bench_async_dsss_pool.py
      --benchmark-only
@@ -14,8 +14,9 @@ slow-time tile.
 The C rows ask how the cost scales with receivers, span and threads; this
 row is what a Python caller pays per dwell, the bindings' calls and the
 controller's steps included. The pool is fed noise, so every receiver
-searches all along, and the row asserts that it did: a false alarm's refine
-would be timed as search.
+stays idle and only the controller searches, and the row asserts it: every
+receiver idle for every whole code period fed (a false alarm's seed would be
+timed as a refine).
 """
 
 import numpy as np
@@ -57,6 +58,8 @@ def test_push_dwell_native4(benchmark):
         rounds=ROUNDS,
         warmup_rounds=1,
     )
+    period = 1023 * SPC  # status is as of the last whole code period
+    fed = pool.samples - pool.samples % period
     for i in range(4):
         st = pool.status(i)
-        assert st.state == 0 and st.refused_hits == 0
+        assert st.state == 3 and st.state_samples == fed  # idle throughout

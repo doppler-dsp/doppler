@@ -98,6 +98,20 @@ entries' style. Don't write a generic stub description; these are the only
 hand-curated lines left in this system, so they carry actual editorial
 context a bare file listing can't.
 
+## User-story coverage (`check_user_docs.py`)
+
+The nav-index check asks whether a page that exists is reachable. This one
+asks whether a page that should exist does. For every public class (from
+each package's `__all__`) it requires a real API entry on `docs/api/` (a
+`:::` directive, a member list entry or a heading, not a bare mention), a
+mention in `docs/guide/`, and use in a `src/doppler/examples/` script; a
+record type owes only the API entry. Every example is in `GALLERY_SCRIPTS`
+or named in `src/doppler/examples/.no-figure` with a reason. Gaps that
+predate it are in `docs/.user-docs-exempt`, a ratchet that only shrinks.
+
+Run it locally: `make user-docs-check`. The rule it holds is phase 9 of
+[Adding an algorithm](adding-algorithms.md#9-the-user-story-and-carry-it-back).
+
 **What NOT to do**: don't add the page only to `mkdocs.yml`'s nav (or only
 create the file) without touching `index.md` — that's exactly the drift
 this gate exists to catch, and CI will fail with a clear "add a bullet for

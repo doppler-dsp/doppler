@@ -9,12 +9,12 @@ scaffold handles boilerplate; you fill in the DSP logic.
 *order*; this page is the *how* for its declare, implement and bind phases.
 The phases after them are somebody else's page and are not optional:
 
-| after you finish here                         | go to                                                                          | gate                                               |
-| --------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------- |
-| explore the envelope, characterize            | [Object Validation](validation.md)                                             | `make validate-c`, `make characterize`             |
-| **certify** — the evidence a caller relies on | [Object Validation](validation.md)                                             | `make validate-check`, `test_validation_limits.py` |
-| document — header `@code`, guides, examples   | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md) | `make test-stubs`, `make test-examples-c`          |
-| land — changelog, issues for what is left     | [Release](../release.md)                                                       | `make changelog-check`                             |
+| after you finish here                                         | go to                                                                                                                                                                   | gate                                                              |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| explore the envelope, characterize                            | [Object Validation](validation.md)                                                                                                                                      | `make validate-c`, `make characterize`                            |
+| **certify** — the evidence a caller relies on                 | [Object Validation](validation.md)                                                                                                                                      | `make validate-check`, `test_validation_limits.py`                |
+| the user story — API entry, guide, examples, gallery decision | [Adding an algorithm, phase 9](adding-algorithms.md#9-the-user-story-and-carry-it-back), [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md) | `make user-docs-check`, `make test-stubs`, `make test-examples-c` |
+| land — changelog, issues for what is left                     | [Release](../release.md)                                                                                                                                                | `make changelog-check`                                            |
 
 A module that builds and passes its own tests is **not** finished: an object
 ships with certified limits, and the order is not negotiable — the C header

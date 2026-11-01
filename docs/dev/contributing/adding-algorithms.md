@@ -66,9 +66,34 @@ ______________________________________________________________________
     can only be shown by a sweep, it is a **finding for the report**, not a
     gate — say so in the report and move on.
 
+## Who each page is for
+
+A feature is finished when a user can **find it, follow it and try it**.
+Five kinds of page carry it, and only one of them is ours:
+
+| page    | answers               | lives in                                              | read by                 |
+| ------- | --------------------- | ----------------------------------------------------- | ----------------------- |
+| guide   | "how do I use it?"    | `docs/guide/`                                         | users                   |
+| gallery | "show me it working"  | `docs/gallery/`, its figure drawn by a tested example | users                   |
+| example | "let me try it"       | `src/doppler/examples/` and `native/examples/`        | users                   |
+| API     | "look it up"          | `docs/api/`, rendered from the header's Doxygen       | users                   |
+| design  | "why is it this way?" | `docs/design/`                                        | us; power users welcome |
+
+**A design page is not a user doc.** It records why the object is what it
+is, the use cases it was shaped by and the decisions behind it, and a power
+user who wants to dig in is welcome there. A user meets the feature through
+the other four. Phase 9 owes all four for every public class; a design page
+satisfies none of them.
+
+This is a rule because the opposite happened: #2683's `DelayDoppler`
+shipped with two design pages, two examples and an API entry, and
+no guide or gallery page. The design pages counted as its guide, and the
+owner had to use site search to find it.
+
 ## Start with why
 
-Before any code, write `docs/design/<algo>.md`:
+Before any code, write `docs/design/<algo>.md`. It is for us: the record of
+why, which the user story in phase 9 draws on but never replaces.
 
 - **the use cases** — who calls this, with what, and what they do with the
     answer;
@@ -114,7 +139,7 @@ ______________________________________________________________________
 | 6   | **Instrument** | the state triplet, telemetry probes                        | [state serialization](../../design/state-serialization.md), [telemetry](../../design/telemetry.md#instrumenting-an-object) | `check_serializable.py`, the state matrix, the object's probe-list test |
 | 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/`   | [Object Validation](validation.md)                                                                                         | `make validate-c`, `make characterize`                                  |
 | 8   | **Certify**    | `tests/validation/<obj>/results.md`                        | [Object Validation](validation.md)                                                                                         | `make validate-check`, `test_validation_limits.py`                      |
-| 9   | **Document**   | header `@code`, a guide if needed, benchmarks, examples    | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)                                             | `make test-stubs`, `make test-examples-c`, `make bench`                 |
+| 9   | **User story** | API entry, guide section, examples, gallery, benchmarks    | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)                                             | `make user-docs-check`, `make test-stubs`, `make test-examples-c`       |
 | 10  | **Land**       | `changelog.d/<section>/<slug>.md`, issues for what is left | [Release](../release.md)                                                                                                   | `make changelog-check`, `make issue-link-check`                         |
 
 CI runs the merge-guarding set; the per-phase targets above are how you
@@ -413,32 +438,64 @@ the record page's, refreshed on purpose. This is a cost decision, measured:
 
     Certify with the full envelope. **Gate on the point it identified.**
 
-### 9 — Document it, and carry it back
+### 9 — The user story, and carry it back
 
 A finding that reaches only the report reaches nobody, and an object nobody
-can find is an object nobody uses. Five deliverables, each with the gate that
-keeps it honest — none of them optional except where the table says so:
+can find is an object nobody uses. This phase is where the feature becomes
+something a user can **find, follow and try** — the four user pages of
+[Who each page is for](#who-each-page-is-for) — plus the benchmark that
+backs its speed claims. Every row is owed for **every public class**:
 
-| you owe                                               | it lives in                                           | kept true by                                        |
-| ----------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
-| a `@code` example on each public function             | `native/inc/doppler/<obj>/<obj>_core.h`               | `make test-stubs`, `make test-snippets`             |
-| a markdown guide, **when** prose outgrows a docstring | `docs/design/<algo>.md`, or `docs/guide/`             | `make docs-check`, `check_nav_index.py`             |
-| a benchmark, C **and** Python                         | `native/benchmarks/`, `src/doppler/<mod>/benchmarks/` | `make bench`, `make bench-compare`                  |
-| a runnable example, C **and** Python                  | `native/examples/`, `src/doppler/examples/`           | `make test-examples-c`, `make test-examples-python` |
-| a gallery page, **when** there is a figure worth it   | `docs/gallery/`                                       | `make test-snippets`, `check_nav_index.py`          |
+| you owe                                  | it lives in                                             | kept true by                                         |
+| ---------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------- |
+| an **API entry** a caller can work from  | the header's Doxygen, rendered on `docs/api/<mod>.md`   | `make user-docs-check`, `make test-stubs`            |
+| a **section in a guide**                 | `docs/guide/`                                           | `make user-docs-check`, `make test-snippets`         |
+| a **runnable example**, C **and** Python | `src/doppler/examples/`, `native/examples/`             | `make user-docs-check`, `make test-examples-python`  |
+| a **gallery decision**, in writing       | `GALLERY_SCRIPTS`, or `src/doppler/examples/.no-figure` | `make user-docs-check`, `make gallery-scripts-check` |
+| a **benchmark**, C **and** Python        | `native/benchmarks/`, `src/doppler/<mod>/benchmarks/`   | `make bench`, `make bench-compare`                   |
 
-Three things about that table are worth knowing before you trip over them.
+`make user-docs-check` enumerates the public classes from each package's
+`__all__`, so a new class is held to this the moment it exists. Gaps that
+predate the rule are listed in `docs/.user-docs-exempt`, which only shrinks.
 
-**The two `when`s are the only judgement calls.** A guide earns its place when
-the object needs prose a docstring cannot hold — a derivation, a comparison,
-a decision a caller has to make. A **composition** of objects earns a user's
-guide under `docs/guide/` on findability rather than on prose: a caller who
-wants to track a population of emitters does not know to look for a pool
-whose docstring is split across the objects it composes. A
-gallery page earns its place when there is a figure that shows something a
-number cannot. Everything else on the list is owed unconditionally, and "it
-is obvious from the code" has never once been true for the person reading it
-six months later.
+**An API entry a caller can work from.** The class has a `:::` directive or
+a heading on its module's API page, and its docstrings, written once in the
+header, answer what a caller has to know without reading the C:
+
+- the layout and axes of every array in and out — which axis is time,
+    Doppler or lag, and how frames sit end to end in a batch;
+- the shape each call returns, and its ordering;
+- **ownership** — whether a result is a fresh array, a view of `out=`, or a
+    buffer the next call overwrites;
+- what state a call reads or changes (a dwell, a phase, a counter), and what
+    it leaves alone;
+- what it refuses, in the face's own words: a Python docstring says what
+    raises, never `SIZE_MAX` or `out + h * n_out`.
+
+[Docstring Authoring](docstring-authoring.md) owns how; each `@code` block is
+a test, and is the first example a user copies.
+
+**A section in a guide, always.** A guide is where a user learns to *use* the
+class: what it is for, the one call that does the job, and the decisions a
+caller has to make (which mode, which grid, how to set a threshold). The only
+judgement is whether the class gets a page of its own or a section in its
+module's guide. A **composition** of objects earns a page on findability
+alone: a caller who wants to track a population of emitters does not know to
+look for a pool whose docstring is split across the objects it composes. A
+guide includes tested code rather than retyping it — a `--8<--` region of the
+example — and links the API entry and the gallery page.
+
+**A gallery decision, in writing.** A gallery page shows the feature working,
+with a figure that shows something a number cannot, drawn by the example
+itself. Every example is either in `GALLERY_SCRIPTS` (its figure committed,
+its page under `docs/gallery/`) or named in `src/doppler/examples/.no-figure`
+with the reason it has nothing to draw. Skipping the page is allowed; doing
+so silently is not.
+
+**Check it as a user, on the built site.** Before landing, open the built
+docs cold: reach the class from the nav or the API page in two clicks,
+follow its guide section, and run its example. "It is obvious from the code"
+has never once been true for the person reading it six months later.
 
 **A benchmark is a claim, and an unmeasured claim is a guess.** `jm apply`
 scaffolds both files for you, so the deliverable is filling them in, not
@@ -471,6 +528,12 @@ test and into one of the artifacts above, because those are the two things
 that keep it true and put it in front of someone.
 
 ### 10 — Land it
+
+A user story that nobody links to is still unfindable. The landing PR adds
+the guide page or section to `docs/guide/index.md`, the gallery page to
+`docs/gallery/index.md`, and both to the nav, with `check_nav_index.py`
+refusing a page its index does not list. The changelog entry links the guide,
+not the design page: it is the first place a user hears of the feature.
 
 The CHANGELOG entry lands with the change, not at release time, and it is a
 **fragment**, `changelog.d/<section>/<slug>.md` — one file per entry, so two

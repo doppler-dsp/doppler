@@ -9,7 +9,7 @@ reference fast path) is a later, independent addition — shipped.
 size to `Corr2D` (`native/src/corr2d/corr2d_core.c`) — a pffft-friendly,
 malloc-free inverse plus free band-limited interpolation of the correlation
 surface — without touching the forward transform. Motivated by the
-[DSSS acquisition design](dsss-acquisition.md) §7 (the engine is 2-D-FFT bound,
+[DSSS acquisition design](acq-surface.md) §14 (the engine is 2-D-FFT bound,
 and real DSSS code lengths are `2ⁿ−1` → the native size is prime).
 
 ______________________________________________________________________
@@ -295,7 +295,7 @@ spectrum. Same byte count, same layout, so `dp_corr2d_state_bytes`/
 `get_state`/`set_state` needed zero changes.
 
 **Measured** (see `native/benchmarks/corr2d/bench_corr2d_core.c`,
-`ny=16, nx=2046` — the acquisition grid from §1/`dsss-acquisition.md` §7):
+`ny=16, nx=2046` — the acquisition grid from §1/`acq-surface.md` §14):
 single-row (fast path) ~86 MSa/s vs. multi-row (general path) ~54 MSa/s at
 that grid. The much larger end-to-end win is in the small-grid regime
 `dp_acq_push` actually runs at (`ny=16, nx=14`): the composed `DsssReceiver`'s
@@ -412,6 +412,6 @@ rows. The Python rows are `src/doppler/spectral/benchmarks/bench_delay_doppler.p
 
 ## See also
 
-- [DSSS acquisition design](dsss-acquisition.md) — §7 (FFT-bound, the forward vs
+- [DSSS acquisition design](acq-surface.md) — §14 (FFT-bound, the forward vs
     inverse split this implements).
 - [`Corr2D` / 2-D Acquisition gallery](../gallery/detection2d.md).

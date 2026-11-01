@@ -157,8 +157,8 @@ def section_object() -> None:
         ["page", "owns"],
         [
             [
-                "[`docs/design/dsss-acquisition.md`]"
-                "(../../../../../../docs/design/dsss-acquisition.md)",
+                "[`docs/design/acq-surface.md`]"
+                "(../../../../../../docs/design/acq-surface.md)",
                 "the architecture this object is a front door onto — the "
                 "burst constructor it selects, and why burst and continuous "
                 "are fixed at construction rather than switchable",

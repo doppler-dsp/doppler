@@ -3,7 +3,7 @@
 One ``push`` of ``N = doppler_bins*code_bins`` samples is the engine's smallest
 reusable unit: ring write → slow-time Doppler FFT → single-row corr2d → CFAR.
 These benchmarks measure its latency and derive per-core sample throughput,
-which feeds the compute model in ``docs/design/dsss-acquisition.md``.
+which feeds the compute model in ``docs/design/acq-surface.md`` §13-§14.
 
 The grids pin ``doppler_bins == reps`` with a deliberately low sizing
 ``cn0_dbhz`` (which the engine reports as ``underpowered`` — irrelevant for a

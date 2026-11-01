@@ -425,8 +425,8 @@ add_test(NAME validate_wfm_field_explore
 
 # One emitter on the acquisition engine's own surface: the sidelobe floor
 # per tile distance and the CFAR reference it sets -- the number the
-# continuous async-DSSS design forks on (docs/design/async-dsss-receiver.md
-# §6.3; docs/design/async-dsss-receiver-measurements.md §12.2). Reads the
+# continuous async-DSSS design forks on (docs/design/acq-surface.md §8;
+# docs/design/async-dsss-receiver-measurements.md §12.2). Reads the
 # engine's mag_buf after a single-look dwell.
 add_executable(validate_acq_emitter_floor
                ${CMAKE_CURRENT_SOURCE_DIR}/acq_emitter_floor.c)

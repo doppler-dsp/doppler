@@ -272,7 +272,7 @@ It carries no timestamp: the caller owns the sample clock and stamps it.
 
 `AsyncDsssPool` runs N `AsyncDsssReceiver`s on one stream under a controller
 that searches nothing itself (design
-[async-dsss-parallel](../design/async-dsss-parallel.md) §4). `push()` steps
+[async-dsss-receiver](../design/async-dsss-receiver.md) §8). `push()` steps
 every receiver on the block in parallel. At each code period of the stream
 the controller releases the lost and resets the later of two receivers on one
 code phase. It also hands each searcher the phases the others hold and a rank,

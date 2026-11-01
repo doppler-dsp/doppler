@@ -6659,7 +6659,7 @@ carries a message, a file or stdin across as many frames as it takes.
     = 1.86 (what interpolation adds). Only `N` is wrong — the ratio holds
     across three decades of target, which clears the per-cell threshold and
     the CFAR conversion. Certification records it as F7 and ratchets it;
-    `docs/design/dsss-acquisition.md` §9.1 derives the model.
+    `docs/design/acq-surface.md` §12 derives the model.
     [#1064](https://github.com/doppler-dsp/doppler/issues/1064)
 
 ## [0.44.0] — 2026-08-24

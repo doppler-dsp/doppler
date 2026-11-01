@@ -5,6 +5,7 @@
  *        named in its comment.
  */
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "dp_chunk_inv.h"
 #include "dp_dsss_test.h"
@@ -37,10 +38,10 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 static dp_async_dsss_pool_state_t *
 _pool (const uint8_t *code, size_t n, double lost_confirm_s, int threads)
 {
-  return dp_async_dsss_pool_create (code, 1023, n, POOL_CR, POOL_RS, POOL_SPC,
-                                    2, 47.0, 1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4,
-                                    14.0, 64, 8, false, 100000, 0.0,
-                                    lost_confirm_s, false, 0.0, 0.0, threads);
+  return dp_async_dsss_pool_create (
+      code, 1023, n, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0,
+      1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
+      lost_confirm_s, false, 0.0, 0.0, threads);
 }
 
 /* Two emitters on one Gold code, ~400 chips apart: A at 200 Hz carries the
@@ -98,10 +99,10 @@ _test_create_domain (void)
   DP_CHECK (_pool (code, ASYNC_DSSS_POOL_MAX_RECEIVERS + 1, 0.0, 1) == NULL);
   DP_CHECK (_pool (code, 2, 0.0, -1) == NULL);
   DP_CHECK (_pool (code, 2, -1.0, 1) == NULL); /* the receiver's refusal */
-  DP_CHECK (dp_async_dsss_pool_create (NULL, 1023, 2, POOL_CR, POOL_RS,
-                                       POOL_SPC, 2, 47.0, 1e-3, 0.9, 500.0, 4,
-                                       8, 0, 0.5, 4, 14.0, 64, 8, false,
-                                       100000, 0.0, 0.0, false, 0.0, 0.0, 1)
+  DP_CHECK (dp_async_dsss_pool_create (
+                NULL, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2,
+                47.0, 1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
+                100000, 0.0, 0.0, false, 0.0, 0.0, 1)
             == NULL);
   dp_async_dsss_pool_state_t *p
       = _pool (code, ASYNC_DSSS_POOL_MAX_RECEIVERS, 0.0, 0);
@@ -111,9 +112,10 @@ _test_create_domain (void)
   /* A search over several Doppler tiles (+/-5 kHz, tiles 3 kHz apart)
      would start an engine pool of every core on its own; in a pool it
      runs one thread. */
-  p = dp_async_dsss_pool_create (
-      code, 1023, 2, POOL_CR, POOL_RS, POOL_SPC, 2, 60.0, 1e-3, 0.9, 5000.0, 4,
-      8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 0);
+  p = dp_async_dsss_pool_create (code, 1023, 2, POOL_CR, POOL_RS,
+                                 POOL_CR * (double)POOL_SPC, 2, 60.0, 1e-3,
+                                 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8,
+                                 false, 100000, 0.0, 0.0, false, 0.0, 0.0, 0);
   DP_REQUIRE (p != NULL && p->rx[0]->acq->window_bins > 1);
   for (size_t i = 0; i < p->n_receivers; i++)
     DP_CHECK (dp_async_dsss_receiver_get_threads (p->rx[i]) == 1);
@@ -128,10 +130,11 @@ _test_create_domain (void)
 }
 
 /* The point of the pool: three receivers on two emitters hold the two,
-   one each, and the third keeps searching, excluded from both; nothing is
-   a duplicate. Sabotage: skip the exclusions -> the third (and every
-   reset) piles onto A; skip the ranks -> receivers 0 and 1 seed on A in
-   one dwell and one is released as a duplicate. */
+   one each, and the third stays idle; the one search is excluded from both
+   holders; nothing is a duplicate. Sabotage: skip the search's exclusions
+   -> its picks name A again and the third piles onto it; one pick a dwell
+   instead of one per idle receiver -> still two holders, later (not this
+   test's to catch: _test_search_runs_once). */
 static int
 _test_two_emitters_two_holders (void)
 {
@@ -162,14 +165,13 @@ _test_two_emitters_two_holders (void)
               || st[i].state == ASYNC_DSSS_RX_TRACKING;
     }
   DP_CHECK_MSG (held == 2, "two emitters, two holders");
-  DP_CHECK (st[2].state == ASYNC_DSSS_RX_SEARCHING);
+  DP_CHECK (st[2].state == ASYNC_DSSS_RX_IDLE);
   DP_CHECK (_chip_dist (st[0].chip_phase, st[1].chip_phase, 1023.0) > 100.0);
   DP_CHECK (p->released_duplicate == 0);
-  /* The searcher is excluded from both holders, and a holder from the
-     other. */
-  DP_CHECK (dp_async_dsss_receiver_get_n_exclusions (p->rx[2]) == 2);
-  DP_CHECK (dp_async_dsss_receiver_get_n_exclusions (p->rx[0]) == 1);
-  DP_CHECK (dp_async_dsss_receiver_get_rank (p->rx[2]) == 0);
+  /* The one search is excluded from both holders; no receiver searches. */
+  DP_CHECK (dp_async_dsss_receiver_get_n_exclusions (p->search) == 2);
+  for (size_t i = 0; i < 3; i++)
+    DP_CHECK (dp_acq_position (p->rx[i]->acq) == 0);
   /* The holders track and emit; the searcher never emitted. */
   DP_CHECK (st[0].state == ASYNC_DSSS_RX_TRACKING
             && st[1].state == ASYNC_DSSS_RX_TRACKING);
@@ -180,11 +182,58 @@ _test_two_emitters_two_holders (void)
   return 0;
 }
 
+/* One search (docs/design/async-dsss-receiver.md §5): two receivers on
+   two emitters hold both, and no receiver ever runs a search of its own --
+   every receiver's engine stays at 0 -- while the controller's one search
+   runs only while a receiver is idle: once both hold it is not fed again,
+   so its period count and its engine stop where they were. Sabotage, each
+   red: feed the search every period (its count keeps rising); leave the
+   receivers unpooled (their engines move). */
+static int
+_test_search_runs_once (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t                      n;
+  float _Complex             *x = _two_emitters (code, &n);
+  dp_async_dsss_pool_state_t *p = _pool (code, 2, 0.0, 1);
+  DP_REQUIRE (p != NULL);
+  const size_t blk     = 1023 * POOL_SPC;
+  size_t       both_at = 0, periods = 0;
+  uint64_t     count_then = 0, engine_then = 0;
+  for (size_t pos = 0; pos + blk <= n; pos += blk)
+    {
+      (void)dp_async_dsss_pool_push (p, x + pos, blk);
+      periods++;
+      const int both
+          = dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_TRACKING
+            && dp_async_dsss_pool_status (p, 1).state
+                   == ASYNC_DSSS_RX_TRACKING;
+      if (both && !both_at)
+        {
+          both_at     = periods;
+          count_then  = p->search_periods;
+          engine_then = dp_acq_position (p->search->acq);
+        }
+    }
+  DP_REQUIRE_MSG (both_at > 0, "both emitters held");
+  DP_CHECK (periods > both_at + 20); /* a long run past it */
+  for (size_t i = 0; i < 2; i++)
+    DP_CHECK (dp_acq_position (p->rx[i]->acq) == 0);
+  DP_CHECK_MSG (p->search_periods == count_then,
+                "the search ran with every receiver holding");
+  DP_CHECK (dp_acq_position (p->search->acq) == engine_then);
+  DP_CHECK (!p->searching);
+  dp_async_dsss_pool_destroy (p);
+  free (x);
+  return 0;
+}
+
 /* Duplicates: two holders within a chip hold one signal, and the keeper
    is tracking over refining, then the longer in its state, then the
-   higher C/N0, then the lower index; the other is reset and excluded
-   from the keeper's phase. The holders here are seeded by hand through
-   the borrow, so each rung is set up exactly. Sabotage: drop the
+   higher C/N0, then the lower index; the other is reset to idle, and the
+   search is excluded from the keeper's phase. The holders here are seeded by
+   hand through the borrow, so each rung is set up exactly. Sabotage: drop the
    duplicate pass -> both keep refining; reverse any rung -> the wrong
    receiver is reset. */
 static int
@@ -232,14 +281,10 @@ _test_duplicates_keep_the_first (void)
                         == ASYNC_DSSS_RX_REFINING,
                     "the keeper is still refining");
       DP_CHECK_MSG (dp_async_dsss_pool_status (p, loser).state
-                        == ASYNC_DSSS_RX_SEARCHING,
+                        == ASYNC_DSSS_RX_IDLE,
                     "the loser is reset");
-      /* The loser now excludes the keeper's phase, and searches at rank 0
-         of the two searchers (receiver 2 being the other). */
-      DP_CHECK (dp_async_dsss_receiver_get_n_exclusions (p->rx[loser]) == 1);
-      DP_CHECK (dp_async_dsss_receiver_get_rank (p->rx[loser])
-                == (loser < 2 ? 0u : 1u));
-      DP_CHECK (dp_async_dsss_receiver_get_rank (p->rx[2]) == 1);
+      /* The search now excludes the keeper's phase, the one holder. */
+      DP_CHECK (dp_async_dsss_receiver_get_n_exclusions (p->search) == 1);
       dp_async_dsss_pool_destroy (p);
     }
   return 0;
@@ -303,8 +348,9 @@ _test_lost_is_released (void)
       off[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
   }
   dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
-      CODE7, 7, 1, 1.0e6, sym_rate, 4, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, confirm_s, false, 0.0, 0.0, 1);
+      CODE7, 7, 1, 1.0e6, sym_rate, 4.0 * 1.0e6, 2, cn0, 1e-2, 0.9, 500.0, 4,
+      8, 0, 0.5, 4, 14.0, 32, 8, false, 100000, 0.0, confirm_s, false, 0.0,
+      0.0, 1);
   DP_REQUIRE (p != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[0], 0.0, 0.0, cn0) == DP_OK);
   const size_t te = sf * spc;
@@ -478,7 +524,7 @@ _test_refused_restore_changes_nothing (void)
   /* Clobber receiver 2's envelope magic: its sub-blob follows the pool's
      header, extra, carry, and receivers 0 and 1. */
   const size_t cells = src->n_receivers * src->ghost_window;
-  const size_t rx2   = sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 8
+  const size_t rx2   = sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 10
                        + src->period * sizeof (float _Complex)
                        + src->n_receivers * sizeof (uint64_t)
                        + cells * (sizeof (double) + 1)
@@ -548,10 +594,10 @@ _test_telemetry_one_producer (void)
   return 0;
 }
 
-/* reset() hands back every receiver searching, with no exclusions and
-   rank 0, and the clock and counts at 0; set_threads refuses a negative
-   count unchanged. Sabotage: leave the exclusions -> a reset pool's
-   receivers still skip the old phases. */
+/* reset() hands back every receiver idle and the search with no
+   exclusions, and the clock and counts at 0; set_threads refuses a
+   negative count unchanged. Sabotage: leave the search's exclusions -> a
+   reset pool still skips the old phases. */
 static int
 _test_reset_and_threads (void)
 {
@@ -566,17 +612,18 @@ _test_reset_and_threads (void)
               == DP_OK);
   (void)dp_async_dsss_pool_push (p, z, 2046);
   DP_REQUIRE (p->released_duplicate == 1 && p->samples == 2046);
-  DP_REQUIRE (dp_async_dsss_receiver_get_n_exclusions (p->rx[1]) == 1);
+  DP_REQUIRE (dp_async_dsss_receiver_get_n_exclusions (p->search) == 1);
   dp_async_dsss_pool_reset (p);
   DP_CHECK (p->samples == 0 && p->released_duplicate == 0
             && p->released_lost == 0);
   for (size_t i = 0; i < 3; i++)
     {
-      DP_CHECK (dp_async_dsss_pool_status (p, i).state
-                == ASYNC_DSSS_RX_SEARCHING);
+      DP_CHECK (dp_async_dsss_pool_status (p, i).state == ASYNC_DSSS_RX_IDLE);
       DP_CHECK (dp_async_dsss_receiver_get_n_exclusions (p->rx[i]) == 0);
       DP_CHECK (dp_async_dsss_receiver_get_rank (p->rx[i]) == 0);
     }
+  DP_CHECK (dp_async_dsss_receiver_get_n_exclusions (p->search) == 0);
+  DP_CHECK (!p->searching && p->search_periods == 0);
   DP_CHECK (dp_async_dsss_pool_set_threads (p, -1) == DP_ERR_INVALID);
   DP_CHECK (p->threads == 1);
   DP_CHECK (dp_async_dsss_pool_set_threads (p, 2) == DP_OK);
@@ -752,8 +799,9 @@ static dp_async_dsss_pool_state_t *
 _ghost_pool (const uint8_t *code)
 {
   return dp_async_dsss_pool_create (
-      code, 1023, 2, POOL_CR, POOL_RS, POOL_SPC, 2, 47.0, 1e-3, 0.9, 5000.0, 4,
-      8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 1);
+      code, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0,
+      1e-3, 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
+      false, 0.0, 0.0, 1);
 }
 
 /* A real ghost is released. A alone at 70 dB-Hz, 1500 Hz, with data;
@@ -780,8 +828,9 @@ _test_ghost_is_released (void)
                    70.0, 1000, 0, 4, &x, &n, &data);
   dp_async_dsss_pool_state_t     *p  = _ghost_pool (code);
   dp_async_dsss_receiver_state_t *pr = dp_async_dsss_receiver_create (
-      code, 1023, POOL_CR, POOL_RS, POOL_SPC, 2, 47.0, 1e-3, 0.9, 5000.0, 4, 8,
-      0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+      code, 1023, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0, 1e-3,
+      0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
+      false, 0.0, 0.0);
   DP_REQUIRE (p && pr);
   (void)dp_async_dsss_receiver_set_threads (pr, 1);
   DP_REQUIRE (dp_acq_set_max_peaks (pr->acq, 16) == DP_OK);
@@ -798,10 +847,10 @@ _test_ghost_is_released (void)
       if (k < 2 || h[0].samples_consumed != b + te)
         continue;
       acq_handoff_t h0, hi;
-      dp_acq_build_handoff (pr->acq, &h[0], 1023, POOL_SPC, &h0);
+      dp_acq_build_handoff (pr->acq, &h[0], 1023, &h0);
       for (size_t i = 1; i < k && !seeded; i++)
         {
-          dp_acq_build_handoff (pr->acq, &h[i], 1023, POOL_SPC, &hi);
+          dp_acq_build_handoff (pr->acq, &h[i], 1023, &hi);
           if (_chip_dist (hi.chip_phase, h0.chip_phase, 1023.0) > 1.0)
             {
               DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[1], hi.chip_phase,
@@ -821,7 +870,7 @@ _test_ghost_is_released (void)
   DP_CHECK_MSG (p->released_ghost == 1, "the ghost was released");
   DP_CHECK (p->released_duplicate == 0);
   DP_CHECK (dp_async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_TRACKING);
-  DP_CHECK (dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_SEARCHING);
+  DP_CHECK (dp_async_dsss_pool_status (p, 1).state == ASYNC_DSSS_RX_IDLE);
   DP_CHECK (p->hist_len[1] == 0);
   /* And a pool that has released one round-trips. */
   dp_async_dsss_pool_state_t *q = _ghost_pool (code);
@@ -830,14 +879,15 @@ _test_ghost_is_released (void)
   /* Its blob holds only what control() leaves: receiver 0's full ring and
      receiver 1's empty one. Each forgery below breaks one rule set_state
      checks, and is refused. Sabotage: drop any one check -> its row
-     restores. Layout: header, the 8 extra fields (hist_pos last), the
-     carry, then the lengths, the carrier rings and the code-lock rings. */
+     restores. Layout: header, the 10 extra fields (hist_pos the eighth,
+     then the search's two), the carry, then the lengths, the carrier
+     rings and the code-lock rings. */
   {
     const size_t w     = p->ghost_window,
                  bytes = dp_async_dsss_pool_state_bytes (p);
     const size_t o_pos = sizeof (dp_state_hdr_t) + 7 * sizeof (uint64_t);
     const size_t o_len
-        = o_pos + sizeof (uint64_t) + p->period * sizeof (float _Complex);
+        = o_pos + 3 * sizeof (uint64_t) + p->period * sizeof (float _Complex);
     const size_t   o_car = o_len + 2 * sizeof (uint64_t);
     const size_t   o_cl  = o_car + 2 * w * sizeof (double);
     unsigned char *blob = malloc (bytes), *forged = malloc (bytes);
@@ -975,7 +1025,8 @@ _test_ghost_needs_both_tests (void)
    -> PSD -> AccTrace. A version-2 trace held the mean, which version 3
    reads as a sum. The pool restores whole or nothing, so the refusal
    leaves it exactly as advanced, though its own fields and receiver 0's
-   children decode first. One trace per receiver, so three hits. */
+   children decode first. One trace per receiver and one in the search, so
+   four hits. */
 static int
 _test_nested_trace_version_refused (void)
 {
@@ -988,7 +1039,7 @@ _test_nested_trace_version_refused (void)
   (void)dp_async_dsss_pool_push (p, x, 4096);
   DP_STATE_NESTED_VERSION_TEST (
       dp_async_dsss_pool, p, (void)dp_async_dsss_pool_push (p, x + 4096, 4096),
-      ACC_TRACE_STATE_MAGIC, 2u, 3, 1);
+      ACC_TRACE_STATE_MAGIC, 2u, 4, 1);
   dp_async_dsss_pool_destroy (p);
   free (x);
   return 0;
@@ -1001,6 +1052,7 @@ main (void)
   DP_CHECK (_test_ghost_test_edges () == 0);
   DP_CHECK (_test_ghost_is_released () == 0);
   DP_CHECK (_test_ghost_needs_both_tests () == 0);
+  DP_CHECK (_test_search_runs_once () == 0);
   DP_CHECK (_test_duplicates_keep_the_first () == 0);
   DP_CHECK (_test_duplicate_zone_is_one_chip_circular () == 0);
   DP_CHECK (_test_reset_and_threads () == 0);

@@ -22,9 +22,11 @@ CARRIER_HZ = 2.5e9  # coupled carrier the drifted hit is searched against
 DRIFT_HZ = 20e-6 * CARRIER_HZ  # 20 ppm of the carrier: 50 kHz
 
 
-def _inversion(code_phase):
-    """The uncoupled phase: the lag inverted modulo the code period."""
-    return (SF - code_phase / SPC) % SF
+def _inversion(code_phase, acq):
+    """The uncoupled phase: the lag inverted modulo the code period. A lag
+    column is SF / lag_bins chips (the search's lag grid, padded to a power
+    of two when the period is not 7-smooth)."""
+    return (SF - code_phase * SF / acq.lag_bins) % SF
 
 
 def _search(x, carrier_hz):
@@ -33,7 +35,7 @@ def _search(x, carrier_hz):
         warnings.simplefilter("ignore", UserWarning)
         acq = Acquisition(
             _h.CODE,
-            spc=SPC,
+            sample_rate=SPC * _h.CHIP_RATE,
             chip_rate=_h.CHIP_RATE,
             cn0_dbhz=55.0,
             doppler_uncertainty=100e3,
@@ -65,7 +67,7 @@ def test_drifted_hit_chip_phase_carries_the_dwell_advance(monkeypatch):
     advance = doppler_hz / CARRIER_HZ * 0.5 * dwell_chips
     assert abs(advance) > 1e-3, "the drift must be material to test"
 
-    expect = (_inversion(hit[1]) + advance) % SF
+    expect = (_inversion(hit[1], acq) + advance) % SF
     err = ((hit[7] - expect + SF / 2) % SF) - SF / 2
     assert abs(err) < 1e-6, (
         f"hit[7] disagrees with the C dwell advance by {err:.3e} "
@@ -78,7 +80,7 @@ def test_uncoupled_hit_chip_phase_is_the_inverted_lag(monkeypatch):
     chip_phase is the lag inverted, exactly."""
     monkeypatch.setattr(_h, "DOPPLER_HZ", 50.0)
     x = _h._make_signal(cn0_dbhz=75.0, n_sym=1500, seed=6)
-    hit, _acq = _search(x, 0.0)
+    hit, acq = _search(x, 0.0)
     assert hit is not None, "acquisition failed on the uncoupled signal"
-    err = ((hit[7] - _inversion(hit[1]) + SF / 2) % SF) - SF / 2
+    err = ((hit[7] - _inversion(hit[1], acq) + SF / 2) % SF) - SF / 2
     assert abs(err) < 1e-9

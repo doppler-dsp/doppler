@@ -1690,6 +1690,54 @@ main (void)
   }
 
   /* ---------------------------------------------------------------- *
+   * 6e. A period that is not a whole number of samples               *
+   * ---------------------------------------------------------------- *
+   * 11 MSa/s over 5 Mcps is 2.2 samples a chip. The partials close on the
+   * code NCO's phase and the taps sit at each sample's dwell centre, so
+   * the loop tracks there exactly as at an integer rate. The stimulus is
+   * each sample's dwell-average of the chip waveform -- what a
+   * band-limited front end delivers, and the model the taps assume; a
+   * chip HELD from the dwell's start agrees with it only when no dwell
+   * straddles a boundary, which is the integer case. After 3,000 periods
+   * (415,800 samples, the next sample's dwell starting back at phase 0)
+   * the loop reads phase 0 to well inside 0.01 chip (measured: -0.0011),
+   * locked. Sabotage, red: truncate sps to an integer in
+   * configure_geometry. */
+  {
+    const size_t sf = 63, K = 4, nper = 3000;
+    const double sps  = 2.2;
+    const size_t n    = (size_t)llround ((double)(sf * nper) * sps);
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 23u);
+    float _Complex *rx  = malloc (n * sizeof *rx);
+    float _Complex *out = malloc (n * sizeof *out);
+    for (size_t i = 0; i < n; i++)
+      {
+        const double a = (double)i / sps, b = (double)(i + 1) / sps;
+        const double ca = floor (a), cb = floor (b - 1e-12);
+        const float  va = code[(size_t)ca % sf] ? -1.0f : 1.0f;
+        const float  vb = code[(size_t)cb % sf] ? -1.0f : 1.0f;
+        const float  fa = (float)((ca + 1.0 - a) * sps); /* share of chip a */
+        rx[i]           = ca == cb ? va : fa * va + (1.0f - fa) * vb;
+      }
+    dp_dll_state_t *d
+        = dp_dll_create (code, sf, sps, 0.0, 0.005, 0.707, 0.5, K);
+    DP_REQUIRE (d != NULL);
+    dp_dll_steps (d, rx, n, out, n);
+    const double ph  = dp_dll_get_code_phase (d);
+    const double off = ph > 0.5 * (double)sf ? ph - (double)sf : ph;
+    printf ("  6e: 2.2 samples a chip, %zu periods: code phase off %+.4f "
+            "chips, locked %d\n",
+            nper, off, dp_dll_get_locked (d));
+    DP_CHECK (fabs (off) < 0.01);
+    DP_CHECK (dp_dll_get_locked (d) == 1);
+    dp_dll_destroy (d);
+    free (out);
+    free (rx);
+    free (code);
+  }
+
+  /* ---------------------------------------------------------------- *
    * 7. Always-on lock detector: locks on signal, not on noise        *
    * ---------------------------------------------------------------- */
   {

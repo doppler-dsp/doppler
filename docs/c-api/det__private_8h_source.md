@@ -12,6 +12,7 @@
 #ifndef DET_PRIVATE_H
 #define DET_PRIVATE_H
 
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -135,9 +136,62 @@ det_peak_scan (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
           best = k;
       return best;
     }
-  for (size_t k = k0; k < k1; k++)
-    if (!mask[k] && (best == k1 || surf[k] > surf[best]))
-      best = k;
+  /* Masked: the same loop, run only on the blocks that can move `best`.
+     A block's largest candidate (and whether it has one) is a lane-wise
+     pass the compiler vectorizes; the plain loop then runs on a block only
+     when that largest candidate beats the pick so far (or there is no pick
+     yet and the block has a candidate), seeded with the pick so far -- so
+     the result is the plain loop's, cell for cell. A NaN enters the lane
+     pass as -INFINITY, like a masked cell: the plain loop never moves to a
+     NaN after its first candidate, and mapping it out here means no max
+     instruction the compiler picks under -ffast-math (FMAX propagates a
+     NaN, FMAXNM drops it) ever sees one.
+     On noise the pick moves in a handful of blocks, so the cost is the one
+     vector pass. */
+  enum
+  {
+    LANES = 8,
+    BLOCK = 256
+  };
+  for (size_t b0 = k0; b0 < k1; b0 += BLOCK)
+    {
+      const size_t b1 = k1 - b0 < BLOCK ? k1 : b0 + BLOCK;
+      float        top[LANES];
+      uint8_t      any[LANES];
+      for (size_t l = 0; l < LANES; l++)
+        {
+          top[l] = -INFINITY;
+          any[l] = 0;
+        }
+      size_t k = b0;
+      for (; k + LANES <= b1; k += LANES)
+        for (size_t l = 0; l < LANES; l++)
+          {
+            const float x = surf[k + l];
+            const float v = mask[k + l] || x != x ? -INFINITY : x;
+            top[l]        = v > top[l] ? v : top[l];
+            any[l] |= (uint8_t)!mask[k + l];
+          }
+      for (size_t l = 0; k < b1; k++, l++)
+        {
+          const float x = surf[k];
+          const float v = mask[k] || x != x ? -INFINITY : x;
+          top[l]        = v > top[l] ? v : top[l];
+          any[l] |= (uint8_t)!mask[k];
+        }
+      float   m = top[0];
+      uint8_t a = any[0];
+      for (size_t l = 1; l < LANES; l++)
+        {
+          m = top[l] > m ? top[l] : m;
+          a |= any[l];
+        }
+      if (best == k1 ? !a : !(m > surf[best]))
+        continue;
+      for (k = b0; k < b1; k++)
+        if (!mask[k] && (best == k1 || surf[k] > surf[best]))
+          best = k;
+    }
   return best;
 }
 

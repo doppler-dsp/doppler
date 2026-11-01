@@ -130,7 +130,7 @@ typedef struct {
     dp_nco_state_t code_nco;    /**< fixed-point code-phase NCO (phase/phase_inc).*/
     const uint8_t *code;     /**< spreading code, one period (0/1 chips).  */
     size_t sf;               /**< code length (chips per period).          */
-    size_t sps;              /**< samples per chip.                        */
+    double sps;              /**< samples per chip, any positive value.    */
     double inv_sps;          /**< 1 / sps (per-sample chip advance scale).  */
     double inv_tsamps;       /**< 1 / (sf*sps) -- the nominal phase_inc,
                                   cycles/sample; precomputed once (sf/sps are
@@ -391,13 +391,15 @@ dll_replica_word(const dp_dll_state_t *s, uint32_t w)
  * @param code       Spreading code (0/1 chips), one period; borrowed.
  * @param code_len   Code length (chips per period); with the floats, inside
  *                   dp_dll_params_ok().
- * @param sps        Samples per chip.
+ * @param sps        Samples per chip, any positive value: the partials
+ *                   close on the code NCO's phase, so a code period need
+ *                   not be a whole number of samples.
  * @param init_chip  Seed code phase, chips.
  * @param bn         Loop noise bandwidth, normalised to the code-period rate.
  * @param zeta       Damping factor (1.0 = critical; 0.707 usual).
  * @param spacing    Early/late tap offset, chips (0.5 = half-chip).
  */
-void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
+void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, double sps,
               double init_chip, double bn, double zeta, double spacing);
 
 /**
@@ -623,7 +625,10 @@ dll_update(dp_dll_state_t *s)
  *
  * @param code       Spreading code (0/1 chips), one period; copied internally.
  * @param code_len   Code length (chips per period).
- * @param sps        Samples per chip (default 2).
+ * @param sps        Samples per chip (default 2), any positive value: the
+ *                   partials close on the code NCO's phase, so a code
+ *                   period need not be a whole number of samples (11 MSa/s
+ *                   over 5 Mcps is 2.2).
  * @param init_chip  Seed code phase, chips (default 0.0).
  * @param bn         Loop noise bandwidth (default 0.01).
  * @param zeta       Damping factor (default 0.707).
@@ -661,7 +666,7 @@ dll_update(dp_dll_state_t *s)
  *
  * @endcode
  */
-dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
+dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, double sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
 /**
  * @brief The DLL's one domain predicate: the arguments dp_dll_create()

@@ -3624,7 +3624,7 @@ carries a message, a file or stdin across as many frames as it takes.
     peak slides along its ridge instead of shrinking). A shaped template is
     optimistic by 0.02–0.03 at 3σ
     ([#1483](https://github.com/doppler-dsp/doppler/issues/1483)).
-    [`dsss-acquisition.md` §3.1](docs/design/dsss-acquisition.md) records the
+    [`acq-surface.md` §9.1](docs/design/acq-surface.md) records the
     design and these numbers.
 
 - **A burst capture's Pd is measured against its coherent depth** (#1470).
@@ -6659,7 +6659,7 @@ carries a message, a file or stdin across as many frames as it takes.
     = 1.86 (what interpolation adds). Only `N` is wrong — the ratio holds
     across three decades of target, which clears the per-cell threshold and
     the CFAR conversion. Certification records it as F7 and ratchets it;
-    `docs/design/dsss-acquisition.md` §9.1 derives the model.
+    `docs/design/acq-surface.md` §12 derives the model.
     [#1064](https://github.com/doppler-dsp/doppler/issues/1064)
 
 ## [0.44.0] — 2026-08-24

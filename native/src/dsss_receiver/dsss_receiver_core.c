@@ -340,15 +340,27 @@ dsss_rx_track_chain (dp_dsss_receiver_state_t *s, const float _Complex *x,
 
 dp_dsss_receiver_state_t *
 dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
-                         double chip_rate, double symbol_rate, size_t spc,
-                         int m, double cn0_dbhz, double pfa, double pd,
-                         double doppler_uncertainty, size_t segments,
-                         size_t sps, int differential)
+                         double chip_rate, double symbol_rate,
+                         double sample_rate, int m, double cn0_dbhz,
+                         double pfa, double pd, double doppler_uncertainty,
+                         size_t segments, size_t sps, int differential)
 {
   /* The Dll this receiver builds under dp_xnn meets the Dll's own domain
      here, so a configuration it refuses (a 1-chip code) is refused rather
      than aborting the process. So is a non-finite rate: the chain's
      resampler is built from their ratio, also under dp_xnn (doppler#2103). */
+  if (sample_rate == 0.0 && chip_rate > 0.0 && isfinite (chip_rate))
+    sample_rate = 2.0 * chip_rate; /* the default: two samples a chip */
+  /* Whole samples a chip, to a part in 1e9: the code loop and the carrier
+     stage below run whole-sample code periods. */
+  const double ratio = (chip_rate > 0.0 && isfinite (chip_rate))
+                           ? sample_rate / chip_rate
+                           : 0.0;
+  const double whole = nearbyint (ratio);
+  const size_t spc
+      = (whole >= 1.0 && whole < 1e9 && fabs (ratio - whole) <= 1e-9 * whole)
+            ? (size_t)whole
+            : 0;
   if (!code
       || !dp_dll_params_ok (code_len, 0.0, DSSS_RX_DLL_BN, DSSS_RX_DLL_ZETA,
                             DSSS_RX_DLL_SPACING, segments)
@@ -375,8 +387,8 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
   /* The searcher checks its own domain (pfa, pd, C/N0 ...), so its refusal
      is this create's, not an abort under dp_xnn (doppler#2103). */
   obj->acq = dp_acq_create_continuous (
-      obj->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0);
+      obj->code, code_len, chip_rate * (double)spc, chip_rate, symbol_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0);
   if (!obj->acq)
     {
       free (obj->code);
@@ -491,8 +503,7 @@ dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
        * window_bins is the active mechanism, always --
        * dp_acq_build_handoff()'s only supported mode. */
       acq_handoff_t ho;
-      dp_acq_build_handoff (state->acq, &hit, state->code_len, state->spc,
-                            &ho);
+      dp_acq_build_handoff (state->acq, &hit, state->code_len, &ho);
 
       dsss_rx_rebuild_chain (state, ho.chip_phase, ho.doppler_hz_est,
                              state->segments, state->sps, state->n);

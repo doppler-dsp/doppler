@@ -22,13 +22,15 @@ also frees a receiver whose emitter has left.
 - **A departure frees a receiver, and a newcomer takes it.** Ten emitters pass
     through six receivers. Receiver 0 holds A, then J. Receiver 2 holds C, then
     H.
-- **A weak emitter waits for the strong one that masks it.** A search that skips
-    the signals already held can't tell a second signal far below a stronger one
-    from that stronger one's own sidelobes. On a one-epoch search a signal 10 dB
-    below a stronger one is taken first in about two streams in three, and 13 dB
-    below in about one in three
-    ([the parallel design, §3](../design/async-dsss-parallel.md#3-the-receiver)).
-    F arrives 13 dB below C, waits here, and is taken once C leaves.
+- **A weak emitter is taken beside a much stronger one, up to a limit.** A
+    search that skips the signals already held has to tell a second signal
+    from the stronger ones' sidelobes, and it judges each candidate by what
+    those sidelobes can reach at its own cell. At the floor, a one-epoch
+    search takes a signal 14 dB below a stronger one in 90% of streams and
+    16 dB below in 78%
+    ([the design, §7.2](../design/async-dsss-receiver.md#72-the-pick)).
+    F arrives 16 dB below E and 13 dB below C: it waits for E to leave, and
+    is taken while C is still on the air.
 
 ## How it is built
 
@@ -79,6 +81,6 @@ python -m doppler.examples.async_dsss_pool_scene out.png
 ```
 
 The design, including the controller and the near-far limit, is in
-[the parallel async DSSS design](../design/async-dsss-parallel.md).
+[the async DSSS design](../design/async-dsss-receiver.md), §5-§9.
 
 Source: [`async_dsss_pool_scene.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/async_dsss_pool_scene.py).

@@ -4,14 +4,14 @@
  *        operating point: from a signal's arrival to tracking and to symbol
  *        lock, and symbol lock through a dropout and after a loss.
  *
- * The parallel-receivers design (docs/design/async-dsss-parallel.md) makes
+ * The pool's design (docs/design/async-dsss-receiver.md §6) makes
  * symbol lock the receiver's own rule: without it a receiver searches, with
  * it it tracks, and losing it sends the receiver back to search. Two things
  * that rule rests on are measured here, at that design's operating point:
  * how long a new signal takes to be tracked and then locked (its §5), and
- * how symbol lock behaves through a dropout and after a loss (its §3).
- * The record (docs/design/async-dsss-parallel-measurements.md, §3.1 and
- * §5.1) renders this harness's `--emit` output.
+ * how symbol lock behaves through a dropout and after a loss (its §6).
+ * The record (docs/design/async-dsss-receiver-measurements.md, §6.1 and
+ * §6.3) renders this harness's `--emit` output.
  *
  * Operating point. A 1023-chip Gold code (CCSDS #365) at 3.069 Mcps, two
  * samples a chip, so one code epoch -- the feed block -- is 2,046 samples,

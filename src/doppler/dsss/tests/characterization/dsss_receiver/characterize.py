@@ -208,7 +208,7 @@ def run_trial(
             CODE,
             chip_rate=CHIP_RATE,
             symbol_rate=SYM_RATE,
-            spc=spc,
+            sample_rate=fs_front,
             cn0_dbhz=max(cn0_dbhz, 30.0),
             doppler_uncertainty=0.95 * SPAN_HZ,
             segments=4,

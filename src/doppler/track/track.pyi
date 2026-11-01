@@ -757,8 +757,10 @@ class Dll:
     ----------
     code : NDArray[np.uint8]
         Spreading code (0/1 chips), one period; copied internally.
-    sps : int, default 2
-        Samples per chip (default 2).
+    sps : float, default 2.0
+        Samples per chip (default 2), any positive value: the partials close on
+        the code NCO's phase, so a code period need not be a whole number of
+        samples (11 MSa/s over 5 Mcps is 2.2).
     init_chip : float, default 0.0
         Seed code phase, chips (default 0.0).
     bn : float, default 0.01
@@ -807,7 +809,7 @@ class Dll:
     def __init__(
         self,
         code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
-        sps: int = 2,
+        sps: float = 2.0,
         init_chip: float = 0.0,
         bn: float = 0.01,
         zeta: float = 0.707,

@@ -1,42 +1,46 @@
 /**
  * @file async_dsss_pool_core.h
  * @brief AsyncDsssPool -- N AsyncDsssReceivers on one stream under a
- *        controller (docs/design/async-dsss-parallel.md §4).
+ *        controller (docs/design/async-dsss-receiver.md §5-§8).
  *
- * Every receiver is a whole AsyncDsssReceiver: it searches the full
- * Doppler range for itself, seeds itself, refines, tracks and releases.
- * The pool adds no searcher and no surface. What it adds is the
- * bookkeeping that makes N of them hold N different signals instead of
- * all piling onto the strongest:
+ * The pool owns one search and N receivers that each hold one signal
+ * (docs/design/async-dsss-receiver.md §5). A pooled receiver has no search
+ * of its own: holding nothing, it is idle (ASYNC_DSSS_RX_IDLE) and costs
+ * nothing until the controller seeds it. The search is a receiver in
+ * search-only mode (dp_async_dsss_receiver_set_search_only()): it runs the
+ * receivers' own pick on each dwell and reports the survivors instead of
+ * seeding itself. N idle receivers therefore cost one search, not N.
  *
- * 1. **One block to every receiver, in parallel.** push() hands the same
- *    samples to each receiver and steps them on the `dp_parallel` workers,
- *    one receiver per task. Each receiver's own search engine runs on one
- *    thread (dp_async_dsss_receiver_set_threads() 1), so N receivers do
- *    not each start a pool of every core. A receiver touches only its own
- *    state, so the result does not depend on the thread count: one thread
- *    and N give the same bytes.
- * 2. **Then the controller, serially, at every code period of the
+ * 1. **One search, while any receiver is idle.** push() feeds each whole
+ *    code period to the search first, its tiles across the workers, and
+ *    only while some receiver is idle: with every receiver holding there
+ *    is nobody to hand a detection to, so it stops, and a fresh search
+ *    starts on the period one is free.
+ * 2. **Then the receivers, in parallel.** The same period goes to every
+ *    receiver, one per task on the `dp_parallel` workers when at least two
+ *    hold a signal (idle ones cost nothing, so they run inline). A receiver
+ *    touches only its own state, so the result does not depend on the
+ *    thread count: one thread and N give the same bytes.
+ * 3. **Then the controller, serially, at every code period of the
  *    stream.** A receiver is fed exactly one code period (`code_len *
- *    spc` samples) per call, on the grid of the pool's sample count from
- *    create or reset; push() keeps what is left past the last whole
- *    period and feeds it with the next push. The controller runs after
- *    each period. Every receiver call and every controller step is then a
+ *    sample_rate / chip_rate` samples, its floor when that is not whole)
+ *    per call, on the grid of the pool's sample count from create or
+ *    reset; push() keeps what is left past the last whole period and feeds
+ *    it with the next push. Every call and every controller step is then a
  *    position in the stream, not a call boundary, so any blocking of one
- *    stream gives the same receivers, the same releases (a receiver's
- *    release clock is read once per call) and the same symbols. The cost
- *    is latency: up to one code period of a push waits for the next. It
- *    reads every receiver's status() and:
+ *    stream gives the same receivers, the same releases and the same
+ *    symbols. The cost is latency: up to one code period of a push waits
+ *    for the next. It reads every receiver's status() and:
  *    - **releases the lost.** A receiver in the lost state (its release
  *      rule fired: the emitter left, or the seed never locked) is reset to
- *      searching. With `reacquire` the receiver does this itself and is
- *      never lost.
+ *      idle. With `reacquire` the receiver does this itself and is never
+ *      lost.
  *    - **resolves duplicates.** Two receivers that hold a signal
  *      (refining or tracking) within one chip of each other's code phase,
  *      circularly, hold the same signal. The one that keeps it is the one
  *      tracking over the one refining, then the one in its state longer
  *      (status().state_samples: the first to lock), then the higher C/N0
- *      estimate, then the lower index. The other is reset.
+ *      estimate, then the lower index. The other is reset to idle.
  *    - **releases ghosts.** A receiver can take a strong emitter's
  *      Doppler-offset sidelobe, hundreds of chips from the emitter's own
  *      phase, where the duplicate key cannot see it: it despreads the
@@ -59,26 +63,25 @@
  *      Neither alone will do: a distinct emitter can co-move with another
  *      on the lattice (but holds code lock), and a true track near the
  *      floor loses code lock (but its carrier is its own).
- *      dp_async_dsss_pool_ghost_of() is the test. The ghost is reset; the
- *      search's own sidelobe rule (dp_async_dsss_receiver_set_rank()) then
- *      keeps it off that cell, but for noise lifting it past the gate.
- *    - **hands out exclusions and ranks.** Every receiver gets the code
- *      phases the OTHER holders hold as its exclusions
- *      (dp_async_dsss_receiver_set_exclusions()), so a search never takes
- *      a signal already held, and a reset loser does not take its signal
- *      back. The searching receivers get ranks 0, 1, ... in index order
- *      (dp_async_dsss_receiver_set_rank()), so searchers that decide in
- *      the same dwell take different signals. A holder's rank is set to 0,
- *      ready for its next search.
- *    Both levers take effect at a receiver's next dwell.
+ *      dp_async_dsss_pool_ghost_of() is the test. The ghost is reset to
+ *      idle; the search's sidelobe rule then keeps it off that cell, but
+ *      for noise lifting it past the gate.
+ *    - **seeds the idle receivers.** The search's picks of the period just
+ *      fed, strongest first, go to the idle receivers in index order
+ *      (dp_async_dsss_receiver_seed()), each with its code phase at the
+ *      receivers' next sample.
+ *    - **sets the search's levers.** Every holder's code phase, the ones
+ *      just seeded included, becomes the search's exclusions
+ *      (dp_async_dsss_receiver_set_exclusions()), so it never names a
+ *      signal already held, and its pick count is the receivers still
+ *      idle. Both take effect at its next dwell.
  * 3. **Reports.** status() is a receiver's status now, symbols() the
  *    symbols it emitted during the last push(); both are as of the last
  *    whole period fed, since the controller runs right after it, so a
  *    released receiver never reads lost.
  *
- * The receivers share the stream from create on, so their dwells share
- * one block grid (a reset receiver's engine restarts on it), and their
- * ranks line up with no command.
+ * Each restart of the search aligns its dwells to the block grid of the
+ * pool's stream (a fresh search is reset at its first period).
  *
  * Lifecycle: create, then push() any number of times, reset() at any point,
  * destroy.
@@ -89,14 +92,14 @@
  * >>> from doppler.wfm import Gold
  * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
  * >>> pool = AsyncDsssPool(code, n_receivers=3, chip_rate=3.069e6,
- * ...                      symbol_rate=2700.0, spc=2,
+ * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
  * ...                      doppler_uncertainty=500.0, threads=1)
  * >>> pool.n_receivers
  * 3
  * >>> pool.push(np.zeros(4096, dtype=np.complex64))   # holders: none
  * 0
- * >>> [pool.status(i).state for i in range(3)]         # all searching
- * [0, 0, 0]
+ * >>> [pool.status(i).state for i in range(3)]         # all idle
+ * [3, 3, 3]
  *
  * @endcode
  */
@@ -133,8 +136,9 @@ extern "C"
 {
 #endif
 
-  /** Most receivers a pool runs: one rank per peak a dwell reports
-   *  (@ref ASYNC_DSSS_RX_MAX_PEAKS), so every searcher has a rank. */
+  /** Most receivers a pool runs: one pick per peak a dwell reports
+   *  (@ref ASYNC_DSSS_RX_MAX_PEAKS), so every idle receiver can be seeded
+   *  from one dwell. */
 #define ASYNC_DSSS_POOL_MAX_RECEIVERS ASYNC_DSSS_RX_MAX_PEAKS
 
   /** `status().state` for a receiver index past the pool: no such
@@ -148,7 +152,7 @@ extern "C"
  * (v0.48.0 - v0.73.0), and v0.74.0 shipped this pool as v2. Each version
  * of a magic names one layout, so this pool steps past every number the
  * magic has carried (#2569; scripts/check_state_versions.py). */
-#define ASYNC_DSSS_POOL_STATE_VERSION 4u
+#define ASYNC_DSSS_POOL_STATE_VERSION 5u /* v5: the controller's search */
 
   /** The ghost rule's window, s: the trailing span both its tests read
    *  (doppler#2529). */
@@ -169,7 +173,18 @@ extern "C"
    */
   typedef struct
   {
-    dp_async_dsss_receiver_state_t **rx; /**< The receivers, n_receivers. */
+    dp_async_dsss_receiver_state_t **rx; /**< The receivers, n_receivers:
+                                              pooled, so idle until seeded
+                                              (set_pooled()).            */
+    dp_async_dsss_receiver_state_t *search; /**< The controller's one search:
+                                                 a search-only receiver
+                                                 (set_search_only()) fed
+                                                 the same periods while any
+                                                 receiver is idle.        */
+    bool     searching;    /**< Whether the search was fed the last period:
+                                it restarts when it resumes.            */
+    uint64_t search_periods; /**< Periods the search was fed since create
+                                  or reset: what one search cost.       */
     dp_pool_t *workers; /**< NULL when one thread: push() runs serially. */
     int        threads; /**< Workers asked for; 0 = the online cores. */
     float _Complex *sym_buf; /**< n_receivers rows of sym_cap symbols. */
@@ -224,7 +239,9 @@ extern "C"
    *                     the most signals the pool holds at once (default 3).
    * @param chip_rate    Chip rate, Hz.
    * @param symbol_rate  Symbol rate, Hz.
-   * @param spc          Samples per chip.
+   * @param sample_rate  The rate of the samples pushed, Hz: any ratio to
+   *                     chip_rate of at least one, or 0 for two samples a
+   *                     chip (AsyncDsssReceiver's).
    * @param m            PSK order.
    * @param cn0_dbhz     Design C/N0, dB-Hz.
    * @param pfa          Search false-alarm probability.
@@ -250,7 +267,7 @@ extern "C"
    * @param threads      Workers push() steps the receivers on, the calling
    *                     thread included: 1 = serial, 0 = the online cores
    *                     (default). Never more than @p n_receivers run.
-   * @return A new pool, every receiver searching; NULL on an invalid
+   * @return A new pool, every receiver idle; NULL on an invalid
    *         argument, or one any receiver refuses.
    * @note Caller must call dp_async_dsss_pool_destroy() when done.
    * @code
@@ -259,7 +276,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=3, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0, threads=1)
    * >>> (pool.n_receivers, pool.threads, pool.coherent_bins)
    * (3, 1, 1)
@@ -272,7 +289,7 @@ extern "C"
    */
   dp_async_dsss_pool_state_t *dp_async_dsss_pool_create (
       const uint8_t *code, size_t code_len, size_t n_receivers,
-      double chip_rate, double symbol_rate, size_t spc, int m,
+      double chip_rate, double symbol_rate, double sample_rate, int m,
       double cn0_dbhz, double pfa, double pd, double doppler_uncertainty,
       size_t segments, size_t sps, int differential,
       double refine_max_error_db, size_t refine_samples_per_symbol,
@@ -289,9 +306,9 @@ extern "C"
   void dp_async_dsss_pool_destroy (dp_async_dsss_pool_state_t *state);
 
   /**
-   * @brief Every receiver back to searching, with no exclusions and rank
-   *        0; the clock, the release counts and the ghost history back to
-   *        0.
+   * @brief Every receiver back to idle and the search to no exclusions;
+   *        the clock, the release counts, the search's period count and
+   *        the ghost history back to 0.
    * @param state  Must be non-NULL.
    * @code
    * >>> import numpy as np
@@ -299,7 +316,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, chip_rate=3.069e6, symbol_rate=2700.0,
-   * ...                      spc=2, doppler_uncertainty=500.0, threads=1)
+   * ...                      sample_rate=6.138e6, doppler_uncertainty=500.0, threads=1)
    * >>> _ = pool.push(np.zeros(2046, dtype=np.complex64))
    * >>> pool.samples
    * 2046
@@ -323,8 +340,8 @@ extern "C"
    *  the thread count (a mutator's value, #2022), the samples carried to
    *  the next whole period, the ghost rule's history (each receiver's
    *  carriers and code-lock flags over its window), and each receiver's
-   *  state, which carries the
-   *  exclusions and rank the controller gave it. The last push's symbols
+   *  state, and the search's, which carries the exclusions the controller
+   *  gave it. The last push's symbols
    *  do not travel.
    *  @param state  Must be non-NULL.
    *  @param blob   Destination; at least
@@ -366,8 +383,9 @@ extern "C"
    *
    * Hands every whole code period it completes to every receiver (header
    * step 1), keeps each one's symbols for symbols(), and after each period
-   * releases the lost, resolves duplicates, releases ghosts and hands out
-   * exclusions and ranks (step 2). The samples past the last whole period are kept for
+   * releases the lost, resolves duplicates, releases ghosts, seeds the idle
+   * receivers and sets the search's levers (step 3). The samples past the
+   * last whole period are kept for
    * the next push. Accepts any block size, and state carries across calls:
    * the result is a function of the stream, not of its blocking.
    *
@@ -382,7 +400,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0, threads=1)
    * >>> pool.push(np.zeros(2046, dtype=np.complex64))
    * 0
@@ -397,7 +415,7 @@ extern "C"
    *
    * dp_async_dsss_receiver_status() of that receiver, as of the last whole
    * code period fed, after the controller's step on it: a receiver the
-   * controller released reads searching. A
+   * controller released reads idle. A
    * @p receiver past the pool returns a zeroed record with
    * `state` @ref ASYNC_DSSS_POOL_NO_RECEIVER.
    *
@@ -410,10 +428,10 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0, threads=1)
-   * >>> (pool.status(0).state, pool.status(2).state)  # 2 is past the pool
-   * (0, -1)
+   * >>> (pool.status(0).state, pool.status(2).state)  # 3 idle; 2 is past
+   * (3, -1)
    *
    * @endcode
    */
@@ -432,7 +450,7 @@ extern "C"
   /**
    * @brief The symbols receiver @p receiver emitted during the last push().
    *
-   * Empty for a receiver that was searching, refining or lost throughout
+   * Empty for a receiver that was idle, refining or lost throughout
    * the push, and for a @p receiver past the pool. Tracking emits symbols
    * whether or not they are a signal's (dp_async_dsss_receiver_steps()):
    * read status().locked for that. A push replaces them, and set_state()
@@ -450,10 +468,10 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0, threads=1)
    * >>> _ = pool.push(np.zeros(2046, dtype=np.complex64))
-   * >>> pool.symbols(0).size                    # searching: nothing yet
+   * >>> pool.symbols(0).size                    # idle: nothing yet
    * 0
    *
    * @endcode
@@ -481,7 +499,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0)
    * >>> pool.set_threads(1)
    * >>> pool.threads
@@ -521,7 +539,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0, threads=1)
    * >>> tlm = Telemetry(1 << 16)
    * >>> pool.set_telemetry(tlm, "pool")
@@ -563,8 +581,9 @@ extern "C"
    *        dp_async_dsss_receiver_configure_chain_raw()).
    *
    * Not for telemetry: dp_async_dsss_pool_set_telemetry() is the one
-   * route that keeps a context to one producer. The controller sets the exclusions and the rank at every push, so a
-   * value set through the borrow for either is overwritten.
+   * route that keeps a context to one producer. A borrowed receiver is
+   * pooled: it does not search, and the controller seeds it only from the
+   * search's picks.
    *
    * @param state     Must be non-NULL.
    * @param receiver  0 to n_receivers - 1.

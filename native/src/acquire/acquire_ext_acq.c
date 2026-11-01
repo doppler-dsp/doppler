@@ -45,18 +45,15 @@ AcquisitionObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
 {
-  static char       *kwlist[]    = { "code",         "spc",
-                                     "chip_rate",    "symbol_rate",
-                                     "cn0_dbhz",     "doppler_uncertainty",
-                                     "pfa",          "pd",
-                                     "noise_mode",   "code_only_epochs",
-                                     "doppler_rate", NULL };
-  PyObject          *code_obj    = NULL;
-  PyObject          *spc_obj     = NULL;
-  unsigned long long spc_raw     = 4;
-  double             chip_rate   = 1000000.0;
-  double             symbol_rate = 1000.0;
-  double             cn0_dbhz    = 50.0;
+  static char *kwlist[]
+      = { "code",       "sample_rate",         "chip_rate",    "symbol_rate",
+          "cn0_dbhz",   "doppler_uncertainty", "pfa",          "pd",
+          "noise_mode", "code_only_epochs",    "doppler_rate", NULL };
+  PyObject          *code_obj             = NULL;
+  double             sample_rate          = 4000000.0;
+  double             chip_rate            = 1000000.0;
+  double             symbol_rate          = 1000.0;
+  double             cn0_dbhz             = 50.0;
   double             doppler_uncertainty  = 0.0;
   double             pfa                  = 1e-3;
   double             pd                   = 0.9;
@@ -66,31 +63,11 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
   double             doppler_rate         = 0.0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|OddddddsOd", kwlist, &code_obj, &spc_obj, &chip_rate,
-          &symbol_rate, &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
+          args, kwds, "O|dddddddsOd", kwlist, &code_obj, &sample_rate,
+          &chip_rate, &symbol_rate, &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
           &noise_mode_str, &code_only_epochs_obj, &doppler_rate))
     return -1;
-  if (spc_obj != NULL)
-    {
-      PyObject *_ix = PyNumber_Index (spc_obj);
-      if (_ix == NULL)
-        {
-          return -1;
-        }
-      spc_raw = PyLong_AsUnsignedLongLong (_ix);
-      if ((spc_raw == (unsigned long long)-1 && PyErr_Occurred ())
-          || spc_raw > (unsigned long long)SIZE_MAX)
-        {
-          PyErr_Format (PyExc_OverflowError,
-                        "spc: %S is out of range for size_t [0, %llu]", _ix,
-                        (unsigned long long)SIZE_MAX);
-          Py_DECREF (_ix);
-          return -1;
-        }
-      Py_DECREF (_ix);
-    }
-  size_t spc        = (size_t)spc_raw;
-  int    noise_mode = 0;
+  int noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
     noise_mode = 0;
   else if (strcmp (noise_mode_str, "median") == 0)
@@ -136,9 +113,9 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
   self->handle    = dp_acq_create_continuous (
-      (const uint8_t *)PyArray_DATA (code_arr), code_len, spc, chip_rate,
-      symbol_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
-      code_only_epochs, doppler_rate);
+      (const uint8_t *)PyArray_DATA (code_arr), code_len, sample_rate,
+      chip_rate, symbol_rate, cn0_dbhz, doppler_uncertainty, pfa, pd,
+      noise_mode, code_only_epochs, doppler_rate);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -895,6 +872,18 @@ Acquisition_getprop_code_bins (AcquisitionObject *self,
       (unsigned long long)self->handle->code_bins);
 }
 static PyObject *
+Acquisition_getprop_lag_bins (AcquisitionObject *self,
+                              void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->lag_bins);
+}
+static PyObject *
 Acquisition_getprop_doppler_bins (AcquisitionObject *self,
                                   void              *Py_UNUSED (closure))
 {
@@ -927,16 +916,6 @@ Acquisition_getprop_sf (AcquisitionObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->sf);
-}
-static PyObject *
-Acquisition_getprop_spc (AcquisitionObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->spc);
 }
 static PyObject *
 Acquisition_getprop_n_noncoh (AcquisitionObject *self,
@@ -1199,7 +1178,7 @@ Acquisition_getprop_surface_rows (AcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)((self->handle->n_surf / self->handle->code_bins)));
+      (unsigned long long)((self->handle->n_surf / self->handle->lag_bins)));
 }
 static PyObject *
 Acquisition_getprop_surface_at (AcquisitionObject *self,
@@ -1258,7 +1237,16 @@ static PyGetSetDef Acquisition_getset[] = {
     "set with set_carrier_freq_hz().\n",
     NULL },
   { "code_bins", (getter)Acquisition_getprop_code_bins, NULL,
-    "Code-phase hypotheses searched (= sf*spc, one code period).\n", NULL },
+    "One code period in samples, sample_rate * sf / chip_rate: the length of "
+    "every forward transform and of a raw epoch.\n",
+    NULL },
+  { "lag_bins", (getter)Acquisition_getprop_lag_bins, NULL,
+    "Code-phase columns of the surface. Equal to code_bins unless code_bins "
+    "is not 7-smooth; then the correlation is read on the next power of two, "
+    "an exact interpolation that keeps the inverse transforms fast. Column c "
+    "is a lag of c * code_bins / lag_bins samples; surface_chip_phase() gives "
+    "each column in chips.\n",
+    NULL },
   { "doppler_bins", (getter)Acquisition_getprop_doppler_bins, NULL,
     "Native Doppler bins this engine searches: the window-tile count times "
     "the block-coherent depth inside each tile (`coherent_bins`), one uniform "
@@ -1272,8 +1260,6 @@ static PyGetSetDef Acquisition_getset[] = {
     NULL },
   { "sf", (getter)Acquisition_getprop_sf, NULL,
     "Chips per PN segment, inferred from len(code).\n", NULL },
-  { "spc", (getter)Acquisition_getprop_spc, NULL,
-    "Samples per chip (chip-rate oversample factor).\n", NULL },
   { "n_noncoh", (getter)Acquisition_getprop_n_noncoh, NULL,
     "Non-coherent looks per detection (1 = pure coherent).\n", NULL },
   { "ring_cap", (getter)Acquisition_getprop_ring_cap, NULL,
@@ -1307,7 +1293,8 @@ static PyGetSetDef Acquisition_getset[] = {
     "amplitude would overstate the mean Pd).\n",
     NULL },
   { "fs", (getter)Acquisition_getprop_fs, NULL,
-    "Sample rate (Hz) = chip_rate * spc.\n", NULL },
+    "Sample rate (Hz) the engine searches at: chip_rate * code_bins / sf.\n",
+    NULL },
   { "chip_rate", (getter)Acquisition_getprop_chip_rate, NULL,
     "Chip rate (Hz).\n", NULL },
   { "cn0_dbhz", (getter)Acquisition_getprop_cn0_dbhz, NULL,
@@ -1348,7 +1335,7 @@ static PyGetSetDef Acquisition_getset[] = {
   { "surface_rows", (getter)Acquisition_getprop_surface_rows, NULL,
     "Rows of the surface `surface()` returns: the Doppler axis in surface "
     "units (tiles x interpolated slow-time rows); its columns are "
-    "`code_bins`.\n",
+    "`lag_bins`.\n",
     NULL },
   { "surface_at", (getter)Acquisition_getprop_surface_at, NULL,
     "`samples_consumed` of the dwell whose surface `surface()` returns (0 "
@@ -1437,11 +1424,12 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
     "...     np.complex64)\n"
     ">>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)\n"
-    ">>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)\n"
+    ">>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
+    "cn0_dbhz=50.0)\n"
     ">>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream\n"
     ">>> a.reset()                 # drop it before it can bias a detection\n"
-    ">>> a.push(burst)[0][:2]      # (Doppler bin, code phase)\n"
-    "(0, 17)\n" },
+    ">>> a.push(burst)[0][:2]      # (Doppler bin, code phase column)\n"
+    "(0, 18)\n" },
 
   { "push", (PyCFunction)AcquisitionObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"
@@ -1487,15 +1475,16 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "...                      length=5).generate(31)).astype(np.uint8)\n"
     ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
     "...     np.complex64)\n"
-    ">>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,\n"
+    ">>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
+    "cn0_dbhz=50.0,\n"
     "...                 doppler_uncertainty=40e3)\n"
     ">>> fs = 1e6 * 4                    # sample rate = chip_rate * spc\n"
     ">>> t = np.arange(a.code_bins * a.n_noncoh)\n"
     ">>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)\n"
     ">>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)\n"
     "...        * carrier).astype(np.complex64)\n"
-    ">>> a.push(sig)[0][:2]              # (Doppler-window bin, code phase)\n"
-    "(1, 17)\n" },
+    ">>> a.push(sig)[0][:2]              # (Doppler-window bin, lag column)\n"
+    "(1, 18)\n" },
   { "configure_search_raw",
     (PyCFunction)(void *)AcquisitionObj_configure_search_raw,
     METH_VARARGS | METH_KEYWORDS,
@@ -1545,13 +1534,14 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "...                      length=5).generate(31)).astype(np.uint8)\n"
     ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
     "...     np.complex64)\n"
-    ">>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)\n"
+    ">>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
+    "cn0_dbhz=50.0)\n"
     ">>> a.configure_search_raw(doppler_bins=1, n_noncoh=4)  # pin the grid\n"
     ">>> a.doppler_bins, a.n_noncoh\n"
     "(1, 4)\n"
     ">>> burst = np.tile(np.roll(s0, 17), 4).astype(np.complex64)\n"
     ">>> a.push(burst)[0][:2]      # detects at the pinned grid\n"
-    "(0, 17)\n" },
+    "(0, 18)\n" },
   { "set_max_peaks", (PyCFunction)(void *)AcquisitionObj_set_max_peaks,
     METH_VARARGS | METH_KEYWORDS,
     "set_max_peaks(n) -> None\n"
@@ -1602,7 +1592,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.acquire import Acquisition\n"
     ">>> code = (np.arange(31) * 5 % 2).astype(np.uint8)\n"
-    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,\n"
+    ">>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, "
+    "symbol_rate=1e3,\n"
     "...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)\n"
     ">>> a.max_peaks\n"
     "1\n"
@@ -1667,7 +1658,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> from doppler.acquire import Acquisition\n"
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
-    ">>> a = Acquisition(code, spc=2, chip_rate=5e6, symbol_rate=2700.0,\n"
+    ">>> a = Acquisition(code, sample_rate=1e7, chip_rate=5e6, "
+    "symbol_rate=2700.0,\n"
     "...                 cn0_dbhz=45.0, doppler_uncertainty=50e3)\n"
     ">>> a.carrier_freq_hz\n"
     "0.0\n"
@@ -1710,7 +1702,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> from doppler.wfm import PN, mls_poly\n"
     ">>> code = np.asarray(\n"
     "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
-    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,\n"
+    ">>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, "
+    "cn0_dbhz=50.0,\n"
     "...                 doppler_uncertainty=4000.0)\n"
     ">>> a.threads >= 1               # a pool, sized to the machine\n"
     "True\n"
@@ -1773,7 +1766,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> from doppler.wfm import PN, mls_poly\n"
     ">>> code = np.asarray(\n"
     "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
-    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)\n"
+    ">>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, "
+    "cn0_dbhz=50.0)\n"
     ">>> tlm = Telemetry(1 << 12)\n"
     ">>> a.set_telemetry(tlm, \"acq\")\n"
     ">>> sorted(tlm.probe_names)[:3]\n"
@@ -1790,7 +1784,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "\n"
     "Copies the surface the last dwell was decided on into out, row-major\n"
     "`surface_rows` (Doppler: tiles, or interpolated slow-time rows) by\n"
-    "`code_bins` (code phase), every cell divided by the same CFAR reference\n"
+    "`lag_bins` (code phase), every cell divided by the same CFAR reference\n"
     "the gate used — so a cell reads as its own test statistic, to a float\n"
     "rounding (the SIMD build's fast-math may take a reciprocal in this loop\n"
     "and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on\n"
@@ -1803,12 +1797,12 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "out : npt.NDArray[np.float32]\n"
-    "    At least `surface_rows * code_bins` floats.\n"
+    "    At least `surface_rows * lag_bins` floats.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Cells written (`surface_rows * code_bins`), or 0 when no dwell has\n"
+    "    Cells written (`surface_rows * lag_bins`), or 0 when no dwell has\n"
     "    been decided with `keep_surface` set, or out is too small.\n"
     "\n"
     "Examples\n"
@@ -1818,15 +1812,18 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> from doppler.wfm import PN, mls_poly\n"
     ">>> code = np.asarray(\n"
     "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
-    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)\n"
+    ">>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, "
+    "cn0_dbhz=50.0)\n"
     ">>> a.keep_surface = 1\n"
     ">>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)\n"
     ">>> _ = a.push(x)\n"
-    ">>> s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)\n"
+    ">>> s = np.empty(a.surface_rows * a.lag_bins, dtype=np.float32)\n"
     ">>> a.surface(s) == s.size\n"
     "True\n"
-    ">>> s.reshape(a.surface_rows, a.code_bins).shape == (a.surface_rows, "
-    "1022)\n"
+    ">>> a.code_bins, a.lag_bins  # 1022 is 2 x 7 x 73: read on 1024 lags\n"
+    "(1022, 1024)\n"
+    ">>> s.reshape(a.surface_rows, a.lag_bins).shape == (a.surface_rows, "
+    "1024)\n"
     "True\n" },
   { "surface_doppler_hz",
     (PyCFunction)(void *)AcquisitionObj_surface_doppler_hz,
@@ -1857,7 +1854,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> from doppler.wfm import PN, mls_poly\n"
     ">>> code = np.asarray(\n"
     "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
-    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,\n"
+    ">>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, "
+    "cn0_dbhz=50.0,\n"
     "...                 doppler_uncertainty=4000.0)\n"
     ">>> f = np.empty(a.surface_rows, dtype=np.float64)\n"
     ">>> a.surface_doppler_hz(f) == a.surface_rows\n"
@@ -1878,12 +1876,12 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "out : npt.NDArray[np.float64]\n"
-    "    At least `code_bins` doubles.\n"
+    "    At least `lag_bins` doubles.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Values written (`code_bins`), or 0 if out is too small.\n"
+    "    Values written (`lag_bins`), or 0 if out is too small.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1892,11 +1890,12 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> from doppler.wfm import PN, mls_poly\n"
     ">>> code = np.asarray(\n"
     "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
-    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)\n"
-    ">>> c = np.empty(a.code_bins, dtype=np.float64)\n"
-    ">>> a.surface_chip_phase(c) == a.code_bins\n"
+    ">>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, "
+    "cn0_dbhz=50.0)\n"
+    ">>> c = np.empty(a.lag_bins, dtype=np.float64)\n"
+    ">>> a.surface_chip_phase(c) == a.lag_bins\n"
     "True\n"
-    ">>> bool(c[0] == 0.0 and c[1] == 510.5)\n"
+    ">>> bool(c[0] == 0.0 and c[1] == 511 - 511 / 1024)\n"
     "True\n" },
   { "surface_complex", (PyCFunction)(void *)AcquisitionObj_surface_complex,
     METH_VARARGS | METH_KEYWORDS,
@@ -1906,7 +1905,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "phase per cell, before the magnitude the gate reads.\n"
     "\n"
     "Copies the coherent sum the last dwell was decided on into out,\n"
-    "row-major `surface_rows` x `code_bins` like dp_acq_surface(), in the\n"
+    "row-major `surface_rows` x `lag_bins` like dp_acq_surface(), in the\n"
     "correlation's own units rather than the gate's. A cell's phase is the\n"
     "carrier at the block's middle, relative to its tile's centre; its\n"
     "neighbours along the code axis are complex early and late arms, so a\n"
@@ -1919,12 +1918,12 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "out : npt.NDArray[np.complex64]\n"
-    "    At least `surface_rows * code_bins` complex floats.\n"
+    "    At least `surface_rows * lag_bins` complex floats.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Cells written (`surface_rows * code_bins`), or 0 when no dwell has\n"
+    "    Cells written (`surface_rows * lag_bins`), or 0 when no dwell has\n"
     "    been decided, the path is non-coherent, or out is too small.\n"
     "\n"
     "Examples\n"
@@ -1936,16 +1935,17 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "...                      length=5).generate(31)).astype(np.uint8)\n"
     ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
     "...     np.complex64)\n"
-    ">>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=70.0)\n"
+    ">>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
+    "cn0_dbhz=70.0)\n"
     ">>> a.n_noncoh                 # one look: the dwell is the coherent "
     "dump\n"
     "1\n"
     ">>> _ = a.push(np.roll(s0, 17).astype(np.complex64))\n"
-    ">>> sc = np.empty(a.surface_rows * a.code_bins, dtype=np.complex64)\n"
+    ">>> sc = np.empty(a.surface_rows * a.lag_bins, dtype=np.complex64)\n"
     ">>> a.surface_complex(sc) == sc.size\n"
     "True\n"
-    ">>> int(np.argmax(np.abs(sc)) % a.code_bins)   # the peak's code phase\n"
-    "17\n" },
+    ">>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's lag column\n"
+    "18\n" },
   { "block_prompt", (PyCFunction)(void *)AcquisitionObj_block_prompt,
     METH_VARARGS | METH_KEYWORDS,
     "block_prompt(tile, col, out) -> int\n"
@@ -1971,7 +1971,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "    Tile index, `0 … window_bins-1` (native FFT order, the order the\n"
     "    surface's rows are cut in).\n"
     "col : int\n"
-    "    Code-phase column, `0 … code_bins-1`.\n"
+    "    Code-phase column, `0 … lag_bins-1`.\n"
     "out : npt.NDArray[np.complex64]\n"
     "    At least `coherent_bins` complex floats.\n"
     "\n"
@@ -1991,7 +1991,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "...                      length=5).generate(31)).astype(np.uint8)\n"
     ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
     "...     np.complex64)\n"
-    ">>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,\n"
+    ">>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
+    "cn0_dbhz=60.0,\n"
     "...                 doppler_uncertainty=40e3, code_only_epochs=7)\n"
     ">>> b.coherent_bins                    # (7 + 1) // 2\n"
     "4\n"
@@ -2043,7 +2044,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "...                      length=5).generate(31)).astype(np.uint8)\n"
     ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
     "...     np.complex64)\n"
-    ">>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,\n"
+    ">>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
+    "cn0_dbhz=60.0,\n"
     "...                 doppler_uncertainty=40e3, code_only_epochs=7)\n"
     ">>> blk = np.tile(np.roll(s0, 17), "
     "b.coherent_bins).astype(np.complex64)\n"
@@ -2157,8 +2159,17 @@ static PyTypeObject AcquisitionObjType = {
     "----------\n"
     "code : NDArray[np.uint8]\n"
     "    PN chips (0/1), length code_len.\n"
-    "spc : int, default 4\n"
-    "    Samples per chip (>= 1).\n"
+    "sample_rate : float, default 4000000.0\n"
+    "    The rate of the samples pushed, Hz. One code period is then `n =\n"
+    "    sample_rate * code_len / chip_rate` samples, which must be a whole\n"
+    "    number of at least code_len: the search's transforms are n points "
+    "long,\n"
+    "    so a smooth n (a power of two, dp_acq_period_samples()) is what "
+    "makes\n"
+    "    them fast. When n is a multiple of code_len each chip is held n /\n"
+    "    code_len samples; otherwise each sample takes the chip its centre "
+    "falls\n"
+    "    in, and the correlation shape is measured from that replica.\n"
     "chip_rate : float, default 1000000.0\n"
     "    Chip rate in Hz (> 0).\n"
     "symbol_rate : float, default 1000.0\n"
@@ -2220,12 +2231,18 @@ static PyTypeObject AcquisitionObjType = {
     ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
     "...     np.complex64)\n"
     ">>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)\n"
-    ">>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)\n"
+    ">>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
+    "cn0_dbhz=50.0)\n"
     ">>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)\n"
-    "(0, 17)\n"
+    "(0, 18)\n"
+    ">>> (a.code_bins, a.lag_bins)  # 124 samples, read on 128 columns\n"
+    "(124, 128)\n"
+    ">>> round(18 * a.code_bins / a.lag_bins, 2)  # column 18, in samples\n"
+    "17.44\n"
     ">>> a.coherent_bins            # no window given: one epoch\n"
     "1\n"
-    ">>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,\n"
+    ">>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
+    "cn0_dbhz=50.0,\n"
     "...                 code_only_epochs=7)\n"
     ">>> b.coherent_bins            # (7 + 1) // 2: a whole block fits\n"
     "4\n",

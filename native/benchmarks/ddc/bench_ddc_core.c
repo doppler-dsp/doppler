@@ -43,7 +43,8 @@
 #define N_RATE 5
 
 /* The fifth rate is the continuous async-DSSS operating point (13 MSa/s in,
-   twice a 5 Mcps chip rate out, docs/design/async-dsss-receiver.md §6.4):
+   twice a 5 Mcps chip rate out, the pool as built's point, retired from
+   docs/design/async-dsss-receiver.md §9):
    a ratio with no integer factor, so the cascade is the polyphase
    arbitrary resampler alone -- the dearest sample the front end makes,
    chosen for exactly that reason. */

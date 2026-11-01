@@ -43,52 +43,31 @@ DsssReceiverObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]    = { "code",     "chip_rate", "symbol_rate",
-                               "spc",      "m",         "cn0_dbhz",
-                               "pfa",      "pd",        "doppler_uncertainty",
-                               "segments", "sps",       "differential",
-                               NULL };
-  PyObject    *code_obj    = NULL;
-  double       chip_rate   = 1000000.0;
-  double       symbol_rate = 1000.0;
-  PyObject    *spc_obj     = NULL;
-  unsigned long long spc_raw             = 2;
-  int                m                   = 2;
-  double             cn0_dbhz            = 55.0;
-  double             pfa                 = 1e-3;
-  double             pd                  = 0.9;
-  double             doppler_uncertainty = 100.0;
-  PyObject          *segments_obj        = NULL;
-  unsigned long long segments_raw        = 4;
-  PyObject          *sps_obj             = NULL;
-  unsigned long long sps_raw             = 8;
-  int                differential        = 0;
+  static char *kwlist[]  = { "code",        "chip_rate", "symbol_rate",
+                             "sample_rate", "m",         "cn0_dbhz",
+                             "pfa",         "pd",        "doppler_uncertainty",
+                             "segments",    "sps",       "differential",
+                             NULL };
+  PyObject    *code_obj  = NULL;
+  double       chip_rate = 1000000.0;
+  double       symbol_rate         = 1000.0;
+  double       sample_rate         = 0.0;
+  int          m                   = 2;
+  double       cn0_dbhz            = 55.0;
+  double       pfa                 = 1e-3;
+  double       pd                  = 0.9;
+  double       doppler_uncertainty = 100.0;
+  PyObject    *segments_obj        = NULL;
+  unsigned long long segments_raw  = 4;
+  PyObject          *sps_obj       = NULL;
+  unsigned long long sps_raw       = 8;
+  int                differential  = 0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|ddOiddddOOi", kwlist, &code_obj, &chip_rate,
-          &symbol_rate, &spc_obj, &m, &cn0_dbhz, &pfa, &pd,
+          args, kwds, "O|dddiddddOOi", kwlist, &code_obj, &chip_rate,
+          &symbol_rate, &sample_rate, &m, &cn0_dbhz, &pfa, &pd,
           &doppler_uncertainty, &segments_obj, &sps_obj, &differential))
     return -1;
-  if (spc_obj != NULL)
-    {
-      PyObject *_ix = PyNumber_Index (spc_obj);
-      if (_ix == NULL)
-        {
-          return -1;
-        }
-      spc_raw = PyLong_AsUnsignedLongLong (_ix);
-      if ((spc_raw == (unsigned long long)-1 && PyErr_Occurred ())
-          || spc_raw > (unsigned long long)SIZE_MAX)
-        {
-          PyErr_Format (PyExc_OverflowError,
-                        "spc: %S is out of range for size_t [0, %llu]", _ix,
-                        (unsigned long long)SIZE_MAX);
-          Py_DECREF (_ix);
-          return -1;
-        }
-      Py_DECREF (_ix);
-    }
-  size_t spc = (size_t)spc_raw;
   if (segments_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (segments_obj);
@@ -138,15 +117,16 @@ DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
   self->handle    = dp_dsss_receiver_create (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, chip_rate,
-      symbol_rate, spc, m, cn0_dbhz, pfa, pd, doppler_uncertainty, segments,
-      sps, differential);
+      symbol_rate, sample_rate, m, cn0_dbhz, pfa, pd, doppler_uncertainty,
+      segments, sps, differential);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
                        "DsssReceiver: invalid parameter (need a code of at "
                        "least 2 chips, a finite chip_rate > 0, a finite "
-                       "symbol_rate > 0 and <= chip_rate, spc >= 1, m in "
+                       "symbol_rate > 0 and <= chip_rate, a sample_rate that "
+                       "is a whole number >= 1 of samples a chip, m in "
                        "{2,4,8}, segments >= 1, sps >= 2 -- sps = 1 cannot "
                        "carry an m_out, whose smallest legal value is 2 and "
                        "which MpskReceiver requires sps to reach; a chain "
@@ -887,7 +867,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "...          + 1j * rng.standard_normal(pre + n))\n"
     ">>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)\n"
     "...      + noise.astype(np.complex64))\n"
-    ">>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,\n"
+    ">>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, "
+    "sample_rate=fs,\n"
     "...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)\n"
     ">>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]\n"
     ">>> syms = np.concatenate([s for s in syms if len(s)])\n"
@@ -943,7 +924,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     ">>> from doppler.dsss import DsssReceiver\n"
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
-    ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)\n"
+    ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,\n"
+    "...                   sample_rate=6.0e6)\n"
     ">>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it\n"
     ">>> rx.tracking                # still searching, on the pinned grid\n"
     "0\n" },
@@ -981,7 +963,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     ">>> from doppler.dsss import DsssReceiver\n"
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
-    ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)\n"
+    ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,\n"
+    "...                   sample_rate=6.0e6)\n"
     ">>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,\n"
     "...                       alpha=0.1, n_up=5, n_down=3)\n"
     ">>> rx.tracking                # a no-op until a hit builds the Dll\n"
@@ -1043,7 +1026,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     ">>> from doppler.dsss import DsssReceiver\n"
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
-    ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)\n"
+    ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,\n"
+    "...                   sample_rate=6.0e6)\n"
     ">>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain\n"
     ">>> rx.segments                       # tracking grid updated in place\n"
     "6\n" },
@@ -1059,7 +1043,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     ">>> from doppler.dsss import DsssReceiver\n"
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
-    ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)\n"
+    ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,\n"
+    "...                   sample_rate=6.0e6)\n"
     ">>> rx.reset()                 # abort any lock, hunt from scratch\n"
     ">>> (rx.tracking, rx.chip_phase)   # back to searching, all cleared\n"
     "(0, 0.0)\n" },
@@ -1173,8 +1158,12 @@ static PyTypeObject DsssReceiverObjType = {
     "    Data-symbol rate, Hz. Required — passed straight to the embedded\n"
     "    Acquisition's own `symbol_rate` (diagnostic there; see\n"
     "    `dp_acq_create_continuous()`).\n"
-    "spc : int, default 2\n"
-    "    Samples/chip (front-end oversample); default 2 (fs = 2x chip_rate).\n"
+    "sample_rate : float, default 0.0\n"
+    "    Input sample rate, Hz: a whole number of samples a chip (to a part "
+    "in\n"
+    "    1e9), at least one, or 0 for two a chip (the default). A fractional\n"
+    "    rate is refused: this receiver's code loop and carrier stage run\n"
+    "    whole-sample code periods (AsyncDsssReceiver takes any).\n"
     "m : int, default 2\n"
     "    PSK order, 2/4/8; default 2 (BPSK).\n"
     "cn0_dbhz : float, default 55.0\n"
@@ -1206,15 +1195,17 @@ static PyTypeObject DsssReceiverObjType = {
     "invalid\n"
     "    parameter (need a code of at least 2 chips, a finite chip_rate > 0, "
     "a\n"
-    "    finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},\n"
-    "    segments >= 1, sps >= 2 -- sps = 1 cannot carry an m_out, whose\n"
-    "    smallest legal value is 2 and which MpskReceiver requires sps to "
-    "reach;\n"
-    "    a chain resampling ratio, sps * symbol_rate * code_len / (chip_rate "
-    "*\n"
-    "    segments), that is a normal double; and for the searcher a finite\n"
-    "    cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=\n"
-    "    0)``.\n"
+    "    finite symbol_rate > 0 and <= chip_rate, a sample_rate that is a "
+    "whole\n"
+    "    number >= 1 of samples a chip, m in {2,4,8}, segments >= 1, sps >= 2 "
+    "--\n"
+    "    sps = 1 cannot carry an m_out, whose smallest legal value is 2 and\n"
+    "    which MpskReceiver requires sps to reach; a chain resampling ratio, "
+    "sps\n"
+    "    * symbol_rate * code_len / (chip_rate * segments), that is a normal\n"
+    "    double; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd "
+    "<\n"
+    "    1, a finite doppler_uncertainty >= 0)``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1238,7 +1229,8 @@ static PyTypeObject DsssReceiverObjType = {
     "...          + 1j * rng.standard_normal(pre + n))\n"
     ">>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)\n"
     "...      + noise.astype(np.complex64))\n"
-    ">>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,\n"
+    ">>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, "
+    "sample_rate=fs,\n"
     "...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)\n"
     ">>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]\n"
     ">>> syms = np.concatenate([s for s in syms if len(s)])\n"

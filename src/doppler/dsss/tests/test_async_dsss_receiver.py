@@ -94,7 +94,11 @@ def _new_receiver(cn0_dbhz, **kwargs):
     kwargs.setdefault("segments", 4)
     kwargs.setdefault("sps", 8)
     return AsyncDsssReceiver(
-        CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, spc=SPC, **kwargs
+        CODE,
+        chip_rate=CHIP_RATE,
+        symbol_rate=SYM_RATE,
+        sample_rate=FS,
+        **kwargs,
     )
 
 
@@ -230,7 +234,7 @@ def test_lifecycle_walks_every_state():
 
 
 def test_reacquire_returns_to_searching_never_lost():
-    # The parallel design's release (async-dsss-parallel.md section 3): the
+    # The pool's release (async-dsss-receiver.md section 10): the
     # emitter gone past the interval, the receiver searches again by
     # itself, with no reset(). The behavior's own test is the C one; this
     # is the keyword reaching it.
@@ -539,7 +543,7 @@ def test_a_non_finite_symbol_rate_is_refused(rate):
             CODE,
             chip_rate=CHIP_RATE,
             symbol_rate=rate,
-            spc=SPC,
+            sample_rate=FS,
             cn0_dbhz=70.0,
         )
 

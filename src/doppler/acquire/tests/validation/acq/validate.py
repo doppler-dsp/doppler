@@ -152,9 +152,9 @@ def section_object() -> None:
         ["page", "owns"],
         [
             [
-                "[`docs/design/dsss-acquisition.md`]"
-                "(../../../../../../docs/design/dsss-acquisition.md)",
-                "the architecture, the aliasing argument, and the roadmap",
+                "[`docs/design/acq-surface.md`]"
+                "(../../../../../../docs/design/acq-surface.md)",
+                "the architecture, the aliasing argument, and what is open",
             ],
             [
                 "[`corr2d`'s report](../../../../spectral/tests/validation/"
@@ -483,7 +483,7 @@ def _sec_modes(d: Data) -> None:
             "continuous, no uncertainty",
             Acquisition(
                 code,
-                spc=SPC,
+                sample_rate=SPC * CHIP_RATE,
                 chip_rate=CHIP_RATE,
                 symbol_rate=2000.0,
                 cn0_dbhz=70.0,
@@ -494,7 +494,7 @@ def _sec_modes(d: Data) -> None:
             "continuous, wide uncertainty",
             Acquisition(
                 code,
-                spc=SPC,
+                sample_rate=SPC * CHIP_RATE,
                 chip_rate=CHIP_RATE,
                 symbol_rate=2000.0,
                 cn0_dbhz=70.0,
@@ -523,7 +523,7 @@ def _sec_modes(d: Data) -> None:
     d.burst_uses_coherent = strong.doppler_bins < weak.doppler_bins
     cont = Acquisition(
         code,
-        spc=SPC,
+        sample_rate=SPC * CHIP_RATE,
         chip_rate=CHIP_RATE,
         symbol_rate=2000.0,
         cn0_dbhz=70.0,
@@ -1145,7 +1145,7 @@ def review(d: Data) -> None:
         "across the whole Doppler axis, which is a structural mislock. "
         "Closing the footgun at the constructor rather than pricing it as a "
         "tunable loss is the design decision, and `docs/design/"
-        "dsss-acquisition.md` carries the argument.",
+        "acq-surface.md` §9 carries the argument.",
     )
     R.find(
         "F5",

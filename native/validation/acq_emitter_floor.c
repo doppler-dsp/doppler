@@ -3,8 +3,8 @@
  * @brief What ONE emitter puts on the (tile x code phase) surface, and what
  *        the CFAR reference makes of it.
  *
- * The continuous async-DSSS design (docs/design/async-dsss-receiver.md
- * §6.3) forks on one number: how far below a strong emitter's peak the rest
+ * The continuous async-DSSS design (docs/design/acq-surface.md §8) forks
+ * on one number: how far below a strong emitter's peak the rest
  * of the surface sits. Inside that floor a second emitter is a second peak
  * and a peak list finds it; below it the weak emitter is under the strong
  * one's sidelobes and only cancellation reaches it. The maintainer's figure
@@ -101,9 +101,9 @@ static int
 measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
          double cn0_dbhz, int present, uint32_t seed, floor_t *out)
 {
-  dp_acq_state_t *a
-      = dp_acq_create_continuous (code, SF, SPC, chip_rate, SYMBOL_RATE,
-                                  SIZING_CN0, DU, PFA, PD, 0, 1, 0.0);
+  dp_acq_state_t *a = dp_acq_create_continuous (
+      code, SF, chip_rate * (double)SPC, chip_rate, SYMBOL_RATE, SIZING_CN0,
+      DU, PFA, PD, 0, 1, 0.0);
   if (!a)
     {
       DP_TEST_ERR ("dp_acq_create_continuous failed\n");

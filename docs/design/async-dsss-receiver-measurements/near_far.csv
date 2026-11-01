@@ -1,0 +1,40 @@
+# near_far
+depth,delta_db,trials,valid,taken,taken_lo,taken_hi,swapped,sidelobe,alone_sidelobe
+near-far at the floor (W at Es/N0 5 dB, 39.3 dB-Hz), S delta dB above:
+  D=1      0 dB  W taken  32/32  (0.89-1.00, 14 swapped)  sidelobe 0, alone 0
+one,0,40,32,32,0.8928,1.0000,14,0,0
+  D=1      4 dB  W taken  39/39  (0.91-1.00, 0 swapped)  sidelobe 0, alone 0
+one,4,40,39,39,0.9103,1.0000,0,0,0
+  D=1      8 dB  W taken  37/37  (0.91-1.00, 0 swapped)  sidelobe 0, alone 0
+one,8,40,37,37,0.9059,1.0000,0,0,0
+  D=1     10 dB  W taken  37/37  (0.91-1.00, 0 swapped)  sidelobe 0, alone 0
+one,10,40,37,37,0.9059,1.0000,0,0,0
+  D=1     12 dB  W taken  34/35  (0.85-0.99, 0 swapped)  sidelobe 0, alone 0
+one,12,40,35,34,0.8547,0.9949,0,0,0
+  D=1     14 dB  W taken  36/40  (0.77-0.96, 0 swapped)  sidelobe 0, alone 0
+one,14,40,40,36,0.7695,0.9604,0,0,0
+  D=1     16 dB  W taken  28/36  (0.62-0.88, 0 swapped)  sidelobe 0, alone 0
+one,16,40,36,28,0.6192,0.8828,0,0,0
+  D=1     18 dB  W taken  13/32  (0.26-0.58, 0 swapped)  sidelobe 0, alone 0
+one,18,40,32,13,0.2552,0.5774,0,0,0
+  D=1     20 dB  W taken   7/34  (0.10-0.37, 0 swapped)  sidelobe 0, alone 0
+one,20,40,34,7,0.1035,0.3680,0,0,0
+  D=90     0 dB  W taken  15/15  (0.80-1.00, 9 swapped)  sidelobe 0, alone 0
+deep,0,20,15,15,0.7961,1.0000,9,0,0
+  D=90     4 dB  W taken  20/20  (0.84-1.00, 0 swapped)  sidelobe 0, alone 0
+deep,4,20,20,20,0.8389,1.0000,0,0,0
+  D=90     8 dB  W taken  18/18  (0.82-1.00, 0 swapped)  sidelobe 0, alone 0
+deep,8,20,18,18,0.8241,1.0000,0,0,0
+  D=90    10 dB  W taken  19/19  (0.83-1.00, 0 swapped)  sidelobe 0, alone 0
+deep,10,20,19,19,0.8318,1.0000,0,0,0
+  D=90    12 dB  W taken  17/17  (0.82-1.00, 0 swapped)  sidelobe 0, alone 0
+deep,12,20,17,17,0.8157,1.0000,0,0,0
+  D=90    14 dB  W taken  12/20  (0.39-0.78, 0 swapped)  sidelobe 0, alone 0
+deep,14,20,20,12,0.3866,0.7812,0,0,0
+  D=90    16 dB  W taken   8/18  (0.25-0.66, 0 swapped)  sidelobe 0, alone 0
+deep,16,20,18,8,0.2456,0.6628,0,0,0
+  D=90    18 dB  W taken   0/17  (0.00-0.18, 0 swapped)  sidelobe 0, alone 0
+deep,18,20,17,0,0.0000,0.1843,0,0,0
+  D=90    20 dB  W taken   0/17  (0.00-0.18, 0 swapped)  sidelobe 0, alone 0
+deep,20,20,17,0,0.0000,0.1843,0,0,0
+validate_async_dsss_near_far PASSED

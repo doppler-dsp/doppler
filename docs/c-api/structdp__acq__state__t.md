@@ -66,6 +66,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**fs**](#variable-fs)  <br> |
 |  size\_t | [**interp**](#variable-interp)  <br> |
 |  int | [**keep\_surface**](#variable-keep_surface)  <br> |
+|  size\_t | [**lag\_bins**](#variable-lag_bins)  <br> |
 |  float \* | [**mag\_buf**](#variable-mag_buf)  <br> |
 |  size\_t | [**max\_peaks**](#variable-max_peaks)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
@@ -112,8 +113,11 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  [**acq\_surface\_sink\_fn**](acq__core_8h.md#typedef-acq_surface_sink_fn) | [**sink**](#variable-sink)  <br> |
 |  void \* | [**sink\_ctx**](#variable-sink_ctx)  <br> |
 |  uint32\_t | [**sink\_decim**](#variable-sink_decim)  <br> |
+|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**sl\_fwd**](#variable-sl_fwd)  <br> |
+|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**sl\_inv**](#variable-sl_inv)  <br> |
+|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**sl\_inv\_cb**](#variable-sl_inv_cb)  <br> |
+|  float \_Complex \* | [**sl\_scratch**](#variable-sl_scratch)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**slow\_fft**](#variable-slow_fft)  <br> |
-|  size\_t | [**spc**](#variable-spc)  <br> |
 |  float \* | [**stat\_surface**](#variable-stat_surface)  <br> |
 |  double | [**straddle\_loss**](#variable-straddle_loss)  <br> |
 |  uint64\_t | [**surface\_at**](#variable-surface_at)  <br> |
@@ -219,7 +223,7 @@ float _Complex* dp_acq_state_t::blk;
 
 
 
-window\_bins \* coherent\_bins \* code\_bins: the block's per-tile epoch correlations; NULL unless both exceed 1. 
+window\_bins \* coherent\_bins \* lag\_bins: the block's per-tile epoch correlations; NULL unless both exceed 1. 
  
 
 
@@ -344,7 +348,7 @@ size_t dp_acq_state_t::code_bins;
 
 
 
-One segment in samples = sf\*spc. 
+One code period in samples, fs \* sf / chip\_rate: the length of every forward fast-time transform and of the raw epoch. 
  
 
 
@@ -681,8 +685,7 @@ double dp_acq_state_t::fs;
 
 
 
-Sample rate (Hz) = chip\_rate \* spc. 
- 
+Sample rate (Hz) = chip\_rate \* code\_bins / sf. 
 
 
         
@@ -718,6 +721,24 @@ int dp_acq_state_t::keep_surface;
 
 
 1 = normalise every decided dwell into `stat_surface` for acq\_surface(); set by a caller or by [**dp\_acq\_set\_surface\_sink()**](acq__core_8h.md#function-dp_acq_set_surface_sink) 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable lag\_bins 
+
+```C++
+size_t dp_acq_state_t::lag_bins;
+```
+
+
+
+Code-phase columns of the surface: the inverse fast-time transform's length. code\_bins, except on a continuous engine whose code\_bins is not 7-smooth ([**dp\_fft\_smooth\_floor()**](fft__core_8h.md#function-dp_fft_smooth_floor)): there the cross-spectrum is zero-padded to the next power of two before the inverse, which interpolates the circular correlation exactly and costs a fraction of a transform of awkward length. Column c is lag c \* code\_bins / lag\_bins samples. 
  
 
 
@@ -1545,6 +1566,78 @@ the sink sees every sink\_decim-th dwell
 
 
 
+### variable sl\_fwd 
+
+```C++
+dp_fft_state_t* dp_acq_state_t::sl_fwd;
+```
+
+
+
+[**dp\_acq\_sidelobe\_ratio()**](acq__core_8h.md#function-dp_acq_sidelobe_ratio)'s forward plan (code\_bins), made on its first call 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable sl\_inv 
+
+```C++
+dp_fft_state_t* dp_acq_state_t::sl_inv;
+```
+
+
+
+... its inverse (lag\_bins) 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable sl\_inv\_cb 
+
+```C++
+dp_fft_state_t* dp_acq_state_t::sl_inv_cb;
+```
+
+
+
+... and an inverse at code\_bins, for the delayed replica 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable sl\_scratch 
+
+```C++
+float _Complex* dp_acq_state_t::sl_scratch;
+```
+
+
+
+its buffers: the replica's spectrum, a mixed signal, its spectrum and the delayed replica (code\_bins each), then the padded product and the row (lag\_bins each) 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable slow\_fft 
 
 ```C++
@@ -1554,24 +1647,6 @@ dp_fft_state_t* dp_acq_state_t::slow_fft;
 
 
 Length-coherent\_bins forward FFT (slow time). 
-
-
-        
-
-<hr>
-
-
-
-### variable spc 
-
-```C++
-size_t dp_acq_state_t::spc;
-```
-
-
-
-Samples per chip (chip-rate oversample factor). 
- 
 
 
         
@@ -1731,7 +1806,7 @@ dp_fft_state_t** dp_acq_state_t::tile_inv;
 
 
 
-window\_bins inverse plans (code\_bins) 
+window\_bins inverse plans (lag\_bins) 
 
 
         
@@ -1748,7 +1823,7 @@ float _Complex** dp_acq_state_t::tile_prod;
 
 
 
-window\_bins product buffers 
+window\_bins product buffers: code\_bins bins, then lag\_bins padded ones when the lag axis is padded 
  
 
 

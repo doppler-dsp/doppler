@@ -53,10 +53,15 @@ fragment = "generated"
 name = "code"
 type = "uint8_t[]"
 
+# The rate of the samples pushed. One code period is then
+# sample_rate * len(code) / chip_rate samples, which must be a whole number
+# of at least len(code): the search's transforms are that long, and a smooth
+# one (acq_period_samples) is what makes them fast. The placeholder is four
+# samples a chip at the default chip rate.
 [[acq.init_params]]
-name = "spc"
-type = "size_t"
-default = "4"
+name = "sample_rate"
+type = "double"
+default = "4000000.0"
 
 [[acq.init_params]]
 name = "chip_rate"
@@ -183,7 +188,13 @@ doc = "RF carrier the Doppler is physically coupled to, Hz (0.0 = uncoupled); se
 name = "code_bins"
 type = "size_t"
 field = true
-doc = "Code-phase hypotheses searched (= sf*spc, one code period)."
+doc = "One code period in samples, sample_rate * sf / chip_rate: the length of every forward transform and of a raw epoch."
+
+[[acq.properties]]
+name = "lag_bins"
+type = "size_t"
+field = true
+doc = "Code-phase columns of the surface. Equal to code_bins unless code_bins is not 7-smooth; then the correlation is read on the next power of two, an exact interpolation that keeps the inverse transforms fast. Column c is a lag of c * code_bins / lag_bins samples; surface_chip_phase() gives each column in chips."
 
 # Unified property: whichever mechanism is active. Always window_bins for this
 # (continuous) engine -- coherent_bins is pinned to 1 -- but written with the
@@ -207,12 +218,6 @@ name = "sf"
 type = "size_t"
 field = true
 doc = "Chips per PN segment, inferred from len(code)."
-
-[[acq.properties]]
-name = "spc"
-type = "size_t"
-field = true
-doc = "Samples per chip (chip-rate oversample factor)."
 
 [[acq.properties]]
 name = "n_noncoh"
@@ -278,7 +283,7 @@ doc = "Mean amplitude derating of the correlation peak from grid straddle (slow-
 name = "fs"
 type = "double"
 field = true
-doc = "Sample rate (Hz) = chip_rate * spc."
+doc = "Sample rate (Hz) the engine searches at: chip_rate * code_bins / sf."
 
 [[acq.properties]]
 name = "chip_rate"
@@ -357,7 +362,7 @@ params = [
 ]
 
 # The last decided dwell's surface in the gate's own units (the per-cell
-# test statistic), row-major `surface_rows` x `code_bins`, into a caller
+# test statistic), row-major `surface_rows` x `lag_bins`, into a caller
 # buffer; returns the cells written, 0 until a dwell has been decided.
 # The explicit buffer is the rs_codec.generator shape, not the self-sizing
 # `variable_output` one: the surface has exactly one size, so a `count`
@@ -389,7 +394,7 @@ params = [{ name = "out", type = "double[]", out = true }]
 # engine's own, so no `count` parameter (just-makeit#1042).
 #
 # The last decided dwell's COMPLEX surface, row-major `surface_rows` x
-# `code_bins` in the correlation's own units: the coherent sum's amplitude
+# `lag_bins` in the correlation's own units: the coherent sum's amplitude
 # and carrier phase per cell. Coherent path only (`n_noncoh == 1`: a
 # non-coherent dwell is a power sum and has no phase); 0 until a dwell has
 # been decided.
@@ -433,8 +438,8 @@ doc = "1 keeps every decided dwell's surface for `surface()` (normalised into th
 [[acq.properties]]
 name = "surface_rows"
 type = "size_t"
-expr = "(self->handle->n_surf / self->handle->code_bins)"
-doc = "Rows of the surface `surface()` returns: the Doppler axis in surface units (tiles x interpolated slow-time rows); its columns are `code_bins`."
+expr = "(self->handle->n_surf / self->handle->lag_bins)"
+doc = "Rows of the surface `surface()` returns: the Doppler axis in surface units (tiles x interpolated slow-time rows); its columns are `lag_bins`."
 
 [[acq.properties]]
 name = "surface_at"

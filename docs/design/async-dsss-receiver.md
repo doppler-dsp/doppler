@@ -1,32 +1,47 @@
-# AsyncDsssReceiver — the continuous DSSS receiver, from spec to object
+# AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object
 
 *`AsyncDsssReceiver` is one C object that searches for a continuous DSSS
 emitter, refines the detection, and tracks it until its own lock detectors
-say it is gone. Its design of record is
-[async-dsss-parallel.md](async-dsss-parallel.md): N of these receivers,
-always on, each searching and tracking by itself under a controller that only
-watches, excludes and reports. This page holds what that design builds on:
-the specification, the acquisition engine's hand-off, the asynchronous
-despreader, the receiver's states, its release, and what it hands a holder.
-§5–§9 and §11.1 described the pool as built, which the parallel design
-replaces; they are retired to the page as it stood. Bursts are
+say it is gone. `AsyncDsssPool` holds up to ten such signals on one code: N
+receivers that refine and track, and **one search, owned by the controller**,
+run while any receiver is idle (§5). This page is the design of record for
+both: the specification (§1), the acquisition engine's hand-off (§2), the
+asynchronous despreader (§3), the receiver's states (§4), the pool (§5–§9),
+the release (§10) and what a holder reads (§11). Bursts are
 [`burst-bank.md`](burst-bank.md)'s. The runs behind the numbers here are
-[the measurement record](async-dsss-receiver-measurements.md), and a cost is
-a [published benchmark](../benchmarks.md) row.*
+[the measurement record](async-dsss-receiver-measurements.md), under the same
+section numbers, and a cost is a [published benchmark](../benchmarks.md)
+row. The pool as built before this design, with its never-stopping central
+searcher and its cell receivers, is at
+[`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md);
+§9 keeps what it taught.*
 
 ______________________________________________________________________
 
 ## 1. The specification
 
-| quantity                 | value                                                      |
-| ------------------------ | ---------------------------------------------------------- |
-| nominal frequency        | 2.5 GHz, uncertainty ±50 kHz                               |
-| frequency rate of change | < 500 Hz/s                                                 |
-| waveform                 | continuous DSSS BPSK, asynchronous rectangular data        |
-| exemplary use case       | CCSDS command-link Gold code, 1023 chips, 3.069 Mcps       |
-| data rate                | 2700 bps, on no fixed relation to the chip clock           |
-| sensitivity              | Es/N0 ≥ 5 dB                                               |
-| deliverable              | one C receiver in `libdoppler.{a,so}`, the same via Python |
+| quantity                 | value                                                                      |
+| ------------------------ | -------------------------------------------------------------------------- |
+| nominal frequency        | 2.5 GHz, uncertainty ±50 kHz                                               |
+| frequency rate of change | < 500 Hz/s                                                                 |
+| waveform                 | continuous DSSS BPSK, asynchronous rectangular data                        |
+| code                     | CCSDS command-link Gold code, 1,023 chips, at 5 Mcps                       |
+| capture                  | complex samples at 11 MSa/s                                                |
+| data rate                | 3 kbps (3,000 sym/s), on no fixed relation to the chip clock               |
+| data-free block          | periodic and long, common to every signal: 500 all-zero symbols by default |
+| signals                  | up to 10 on the one code at once                                           |
+| sensitivity              | Es/N0 ≥ 5 dB                                                               |
+| deliverable              | one C receiver and one pool in `libdoppler.{a,so}`, the same via Python    |
+
+In numbers: one code epoch $T_E$ is 1,023 chips at 5 Mcps, 204.6 µs, so
+$1/T_E$ is 4,887.6 Hz, one search tile's width, and ±50 kHz is 21 tiles.
+A symbol spans 1.63 epochs. Es/N0 ≥ 5 dB at 3,000 sym/s is C/N0 ≥ 39.8
+dB-Hz. The default data-free block is 167 ms, 815 epochs.
+
+Many of the numbers below were measured at the earlier specification point,
+3.069 Mcps and 2,700 sym/s at two samples a chip (an epoch of 333.3 µs and
+2,046 samples); each says so and names its record entry. They are not
+re-measured at this point yet.
 
 Two of those are derived. **500 Hz/s** is set against the LEO nadir-pass
 figure `f_dot_max = (f_c/c)·(v²/h)`, about 579 Hz/s at 2.5 GHz and 800 km;
@@ -34,20 +49,48 @@ the engine's coherent depth is sized from the specification's bound
 (§2.1). **5 dB** is the floor the receiver is held to at the specification's
 geometry: its BER is under 5% at 5 dB and over 10% at 4 dB, with the
 self-referenced EVM and the blind M2M4 SNR agreeing (`_test_awgn_esn0_floor`
-in `native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c`). §3.3 gives how far that
-BER sits from the bound.
+in `native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c`, at
+the 3.069 Mcps point). §3.3 gives how far that BER sits from the bound.
 
 **The code loop and the demodulator's carrier loop are sized to a loop SNR
 of at least 20 dB at that floor.** `rho(dB) = Es/N0(dB) − 10·log10(2·bn)`,
 with `bn` normalized to the loop's own update rate so the rate cancels,
 gives `bn ≤ 0.0158` at 5 dB. The Dll ships at `bn` 0.002
 (`ASYNC_DSSS_RX_DLL_BN`) and MpskReceiver's carrier loop at 0.01. The code
-loop's per-epoch SNR is Es/N0 over `epochs_per_symbol`, 1.11 here, inside
+loop's per-epoch SNR is Es/N0 over `epochs_per_symbol`, 1.63 here, inside
 the same bound. The pre-despread Costas loop is wider, 0.04
 (`ASYNC_DSSS_RX_BN_CARRIER`): pull-in and the 500 Hz/s ramp set its width,
 not jitter (§4). There is no FLL. `bn` does not set the floor: sizing a
 loop for steady-state jitter and pulling one in from a coarse estimate are
 different problems, and §4's refining stage answers the second.
+
+### 1.1 The signals
+
+M out of N ($\leq 10$) possible signals are on air at once, with at least
+differing code phase and carrier phase trajectory. Each may go off air and
+be replaced by a new signal at any moment. All share a common, periodic,
+simultaneous data-free block lasting many code epochs. **A signal changes
+only after a data-free block**: one goes off air, or a new one comes on, at a
+frame boundary, never inside a frame.
+
+### 1.2 The sample rate is derived, not chosen
+
+The caller states its capture's `sample_rate` (11 MSa/s here); neither the
+receiver nor the pool takes a samples-per-chip. Each derives $N$, the
+samples in one code period, as the smallest power of two of at least two
+samples a chip: 2,048 for a 1,023-chip code, a rate of
+$5\,\text{Mcps} \times 2048/1023 = 10.0098$ MSa/s. It resamples once, on the
+way in (one front end per pool, shared by its receivers and its search).
+The Dll already tracks on a fractional code NCO, and a search tile is one
+bin of the $N$-point transform, $1/T_E$ wide, whatever $N$ is.
+
+**Why a power of two.** Every search transform is one code period long. At
+two samples a chip that is $2 \times 1023 = 2 \cdot 3 \cdot 11 \cdot 31$,
+and pocketfft has no radix-31 or fast radix-11 pass: profiling one dwell of
+the one-tile search put about 90% of it in FFT passes and 62% in the
+generic radix-31 and the radix-11 passes, and a 2,046-point transform takes
+9.89 µs against 1.99 µs at 2,048 (record §9.4). `spc` is removed from every
+object that took it, a breaking change made before 1.0.
 
 ______________________________________________________________________
 
@@ -69,7 +112,7 @@ there is no `doppler_resolution` and no `max_noncoh`.
 **`doppler_bins` is the whole Doppler grid** a hit's `doppler_bin` indexes:
 the coherent depth `coherent_bins` times the frequency windows the engine
 rolls one epoch's spectrum across when the uncertainty is wider than one
-epoch's span ([`dsss-acquisition.md`](dsss-acquisition.md) §4).
+epoch's span ([`acq-surface.md`](acq-surface.md) §3).
 Non-coherent looks are a separate axis. On the continuous door `n_noncoh`
 is auto-selected to meet `pd` at `pfa` and read-only, bounded only by a
 safety valve (`ACQ_N_NONCOH_SAFETY_CEILING`, 256 looks) because the
@@ -146,17 +189,16 @@ its rank (`set_rank()`, 0 = the strongest, the default), or nothing that
 dwell. With no exclusions at rank 0 that is the one-peak detector's pick.
 An uncertainty wider than one epoch's span, `±1/(2·T_E)`,
 is covered by the engine's roll across frequency windows, which it fans
-across every online core unless `set_threads()` says otherwise; a pool
-that steps its receivers in parallel sets each to 1. The search is
-bit-identical at any thread count. What searching costs is
-[async-dsss-parallel.md](async-dsss-parallel.md) §6.
+across every online core unless `set_threads()` says otherwise; a pool's
+one search may use every core, since no receiver of the pool runs a search
+of its own (§5). The search is bit-identical at any thread count. What
+searching costs is §9.
 
 **Every dwell starts on the block grid of the receiver's own input count.**
-The receiver counts every sample fed since create, and every receiver of a
-pool is fed every sample from create, so that count is the pool's shared
-one. A search restarted by `reset()`, a release, a refused hand-over or
+The receiver counts every sample fed since create; in a pool the one search
+counts the pool's samples the same way. A search restarted by `reset()`, a release, a refused hand-over or
 `configure_search_raw()` first discards input up to the next multiple of
-`D · L · spc` samples, at most one block (30 ms at `D = 90`), so searchers
+`D · N` samples, at most one block (30 ms at `D = 90`), so searchers
 re-armed at different times still decide on the same blocks. The count and
 the alignment owed travel in the state blob. At `D = 1` the grid is one
 code epoch.
@@ -164,14 +206,14 @@ code epoch.
 **The slow-time depth `D > 1` is safe only inside a pure-code window.**
 Coherent combining across data aliases the data's own spectrum across the
 Doppler axis and mislocks structurally
-([`dsss-acquisition.md`](dsss-acquisition.md)). Inside a window of code
+([`acq-surface.md`](acq-surface.md) §9). Inside a window of code
 alone there is nothing to alias. The engine does not know any emitter's
 window phase, so it sums **non-overlapping blocks of `D` epochs**, one
 coherent surface per block, detected per block. A whole block always lands
 inside a window once `W ≥ 2D − 1`, and `⌊W/D⌋` land in a row for
 `n_noncoh` to accumulate. A `D`-point slow-time FFT at the epoch rate
 subdivides one epoch's span into `D` rows; it never widens it. At the
-specification's geometry a 450-symbol code-only window holds 499 whole
+earlier 3.069 Mcps geometry a 450-symbol code-only window holds 499 whole
 epochs, and the 500 Hz/s bound gives 94, which the engine runs at the
 7-smooth `D = 90` (a slow-time FFT length, #1247): a 33.3 Hz row and 19.5 dB
 of coherent gain. A block that straddles data spreads its emitter over the `D`
@@ -185,10 +227,9 @@ there (`test_async_dsss_receiver_core.c`,
 **The engine's windowing ships.** Its roll of one epoch's spectrum across
 frequency windows, the alias check a pick near a window's edge gets
 (`acq_resolve_tile_alias`), and the roll per thread on persistent workers
-are current engine behavior, and the parallel design's search over
-`±1/T_E` runs on them. Their design text is §2.3 at
+are current engine behavior, and the pool's search runs on them. Their design text is §2.3 at
 [`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md)
-until it moves to [`dsss-acquisition.md`](dsss-acquisition.md)
+until it moves to [`acq-surface.md`](acq-surface.md)
 ([#2500](https://github.com/doppler-dsp/doppler/issues/2500)).
 
 ### 2.4 The searcher is watched, not trusted
@@ -276,7 +317,7 @@ rectangular symbol is sampled at one partial, which carries about `1/P` of
 its energy, `P` the partials a symbol spans (4.44 at the specification's
 geometry, §3.7).
 
-At the specification's geometry (Gold-1023, 3.069 Mcps, 2,700 sym/s
+At the earlier 3.069 Mcps geometry (Gold-1023, 3.069 Mcps, 2,700 sym/s
 asynchronous BPSK, two samples a chip, no Doppler) the receiver holds a BER
 under 5% at Es/N0 10, 8 and 5 dB, the specification's floor, and exceeds 10% at
 4 dB, with the self-referenced EVM and the blind M2M4 SNR corroborating:
@@ -491,14 +532,14 @@ The partial form of §3.3 is forced by the data: a full-epoch coherent look
 collapses on a transition, so the code-lock detector's look is the
 quarter-epoch partial — the smallest integration the asynchronous data
 allows when nothing is known about where its transitions fall, and
-therefore the weakest. At the specification's geometry a symbol spans 4.44
+therefore the weakest. At the earlier 3.069 Mcps geometry a symbol spans 4.44
 partials, so at the 5 dB floor one partial carries −1.5 dB per look.
 
 §3.6's search already finds a transition-free window; what it does not know
 is the symbol *period*, and the receiver does —
-`P = segments · chip_rate / (sf · symbol_rate)` partials, 4.44 at the
-specification's geometry. With the period the same search lifts to the
-symbol scale: `ceil(P)` boundary-phase hypotheses, five here, each placing a
+`P = segments · chip_rate / (sf · symbol_rate)` partials, 4.44 at the earlier
+3.069 Mcps geometry (6.52 at this specification). With the period the same search lifts to the
+symbol scale: `ceil(P)` boundary-phase hypotheses, five at the earlier point and seven here, each placing a
 boundary every `P` partials and owning a window of
 `L = min(floor(P) − 1, 4 · segments)` partials after it — short enough to
 sit inside one symbol under the hypothesis's quantization, capped so a slow
@@ -548,17 +589,19 @@ ______________________________________________________________________
 `AsyncDsssReceiver`
 (`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`) is
 the composed continuous receiver, one C object, read back through the
-`get_*()` family, the `lifecycle` property and §11.3's status record. Its
-design of record is [async-dsss-parallel.md](async-dsss-parallel.md) §3;
-this section is the chain under it.
+`get_*()` family, the `lifecycle` property and §11.3's status record. A
+receiver in a pool is §6; this section is the chain under both.
 
-- **searching** — samples feed an embedded continuous `Acquisition` (§2)
+- **searching** — on its own, samples feed an embedded continuous
+    `Acquisition` (§2)
     over `±doppler_uncertainty`, at the coherent depth `D` its code-only
     window sizes (§2.3; `D = 1`, one epoch a look, without one). A hit becomes
     a seed through `dp_acq_build_handoff()` and `seed()`, and the
     unconsumed tail of the same call goes straight on. A hit at or past
     half the sample rate is outside the seed domain: it is refused, counted
-    in `refused_hits`, and the search goes on over its tail.
+    in `refused_hits`, and the search goes on over its tail. In a pool the
+    receiver has no search: it is **idle** until the controller seeds it
+    (§6).
 - **refining** — a frozen-carrier derotation at the coarse estimate
     (`costas_wipeoff` with `costas_update` never called) feeds a collection
     `Dll` whose look-back segments oversample each epoch, then a
@@ -643,13 +686,11 @@ static Doppler, and the refine is what closes it.
     (§12.10, §12.16); `_test_refine_dwell_floor` pins that it binds.
 - **Telemetry** is attached on demand: `set_telemetry` in
     `async_dsss_receiver_core.h`. Telemetry is single-producer, so each
-    receiver steps on one thread with its own context
-    ([async-dsss-parallel.md](async-dsss-parallel.md) §4).
-- **What it costs**: tracking at the specification's geometry is the
-    published row `async_dsss_receiver::steps[track,sf=1023,3.069Mcps]`
-    in [the benchmarks](../benchmarks.md), and searching is the `search`
-    row beside it. Each state against real time is
-    [async-dsss-parallel.md](async-dsss-parallel.md) §6.
+    receiver steps on one thread with its own context (§8).
+- **What it costs**: tracking is the published row
+    `async_dsss_receiver::steps[track,sf=1023,3.069Mcps]` in
+    [the benchmarks](../benchmarks.md), at the earlier point, and searching
+    is the `search` row beside it. The search at this specification is §9.
 - **Steady tracking allocates nothing** (§11.5).
 
 Every part is pinned in `native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c`,
@@ -658,99 +699,359 @@ Every part is pinned in `native/tests/async_dsss_receiver/test_async_dsss_receiv
 
 ______________________________________________________________________
 
-## 5. One code, one channel, many emitters — retired
+## 5. The pool: N receivers, one search
 
-§5 to §9 described `AsyncDsssPool` as built: one central searcher over the
-whole channel, an assigned table, and cell receivers seeded from it. That
-pool will never work, and [async-dsss-parallel.md](async-dsss-parallel.md)
-replaces it with receivers that each search for themselves. Each section
-below says where its subject went and links its text as it stood; the dated
-runs behind them stay in
-[the measurement record](async-dsss-receiver-measurements.md). The signals
-§5 described, many emitters on one code with a periodic data-free block,
-are async-dsss-parallel.md §1. Its text:
-[§5 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+`AsyncDsssPool` (`native/inc/doppler/async_dsss_pool/async_dsss_pool_core.h`)
+holds the signals of §1.1 on one code.
 
-## 6. The searcher — retired
+- **One front end.** The caller's capture at `sample_rate` is resampled once
+    to $N$ samples a code period (§1.2); the search and every receiver read
+    the same samples.
+- **One search, owned by the controller.** Code phase across the whole
+    carrier range, ±50 kHz, with the slow-time Doppler search of §2.3, on
+    the one acquisition kernel. It runs **only while at least one receiver
+    is idle**: with every receiver holding a signal there is nobody to hand
+    a detection to, so it stops, and it starts again on the next sample a
+    receiver is free. Each dwell's peak list goes through the pick of §7.2
+    once, and the controller seeds the survivors into the idle receivers
+    in rank order (§8).
+- **N receivers, each refining and tracking.** A pooled receiver has no
+    search of its own (§6). One receiver holds one signal, so N bounds how
+    many are held: 3 for the proof of concept, up to 10.
+- **The controller steps at dwell boundaries.** Its levers, the seeds and
+    the exclusions, act at the next dwell, so it runs once a dwell, after
+    the search decides; between two boundaries the receivers run the whole
+    segment in parallel, one per worker, and the search spreads its tiles
+    across the cores (§2.3). The result does not depend on the thread count
+    or on how a caller blocks its pushes.
+- **Each receiver makes its code phase and carrier estimate available**,
+    through `status()` (§11.3).
 
-The central searcher is gone: each receiver searches for itself
-(async-dsss-parallel.md §3), and what that costs is its §6. Its text:
-[§6 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+```mermaid
+flowchart LR
+    IN["capture at sample_rate"] --> FE["one front end<br/>resample to N samples a code period"]
+    subgraph POOL["AsyncDsssPool"]
+        FE --> S["the search<br/>(one engine, while any receiver is idle)"]
+        FE --> R1["receiver 1<br/>idle or holding"]
+        FE --> R2["receiver 2"]
+        FE --> RN["receiver N"]
+        S -->|"each dwell's peak list"| C["controller<br/>(the bookkeeper)"]
+        R1 -->|"status: state, code phase, carrier"| C
+        R2 --> C
+        RN --> C
+        C -->|"seed rank k's peak"| R1
+        C --> R2
+        C --> RN
+    end
+    C --> OUT["reports"]
+```
 
-### 6.1 The operating point — retired
+**Why the controller owns the search.** Every searching receiver would
+build the same surface: the same samples, the same code, the same grid,
+dwells on the same block grid (the ranks depended on it). N idle receivers
+searching each for itself cost N searches, and the pinned bench measured
+3.4 to 4.0 searches for four (§9). One search costs one, whatever N is.
+The pool as built before this design also had one search, and failed
+because it **never stopped** (§9); this one stops whenever no receiver can
+take a hit.
 
-The pool's operating point (2 to 5 Mcps, ±50 kHz, twelve slots, a per-core
-budget). The parallel design's parameters are its §1 and §2. Its text:
-[§6.1 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+## 6. A receiver in the pool
 
-### 6.2 One maximum per dwell — retired
+A pooled `AsyncDsssReceiver` has three states: **idle**, refining and
+tracking (§4). Idle is state value 3 (`ASYNC_DSSS_RX_IDLE`,
+§11.1), the value the pool as built's cell receivers used for the same
+thing. A seed from the controller (`seed()`, §2.2's three fields) starts the
+refine at the seed's sample; a release (§10, with `reacquire`) returns the
+receiver to idle, and the controller's search picks the next signal for it.
+A standalone `AsyncDsssReceiver` keeps its own search, unchanged.
 
-Why one gated maximum masks every emitter but the strongest. The answer
-ships as the peak list (§7.1), and the parallel design's ranks use it. Its
-text:
-[§6.2 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+- **The search covers the whole carrier range**, in dwells of D epochs back
+    to back, with D at most half the data-free block. At least one dwell
+    then lands wholly inside every data-free block with no frame timing at
+    all, and a dwell partly in data gives only a weaker, smeared peak. A
+    coherent dwell of D epochs resolves the carrier to $1/(D T_E)$ across
+    the whole range: the only fine frequency search, and nothing commands
+    it. At this specification the 500 Hz/s rate allows D = 154, run at the
+    7-smooth 150 (§9).
+- **Tracking ends when symbol lock is lost** (§10's rule with `reacquire`).
+    A signal changes only after a data-free block, so a loss there is
+    normally its signal leaving, and symbol lock lets go of a signal gone
+    for good well inside one data-free block. Inside a frame it is less
+    forgiving: a fade it does not ride out costs a re-search, and at the
+    5 dB floor a 20 ms one nearly always does.
 
-### 6.3 The power spread — retired
+Symbol lock through a fade, of the draws that held lock before it, at the
+3.069 Mcps point (record §6.1):
 
-The surface floor the searcher's two branches forked on; the record's
-§12.2 holds its runs. Its text:
-[§6.3 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+<!-- async-dsss-pool:design-fade:start -->
 
-### 6.4 The throughput floor — retired
+| Es/N0 | draws not settled, excluded | rides out 5 ms       | rides out 10 ms      | rides out 20 ms      | lets go after a loss, the slowest |
+| ----- | --------------------------- | -------------------- | -------------------- | -------------------- | --------------------------------- |
+| 10 dB | 0 of 20                     | 19 of 20 (0.76–0.99) | 18 of 20 (0.70–0.97) | 15 of 20 (0.53–0.89) | 34.6 ms                           |
+| 5 dB  | 0 of 20                     | 17 of 20 (0.64–0.95) | 16 of 20 (0.58–0.92) | 2 of 20 (0.03–0.30)  | 42.4 ms                           |
 
-The pool's cost floor and the shapes it argued for. The parallel design's
-costs are its §6, and why the pool as built is replaced is its §7. Its
-text:
-[§6.4 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+<!-- async-dsss-pool:design-fade:end -->
 
-## 7. The two mechanisms — retired
+**Arrival to tracking.** A new signal is found by the next dwell that
+decides it, without waiting for a receiver to be freed if one is idle.
+Measured at the 3.069 Mcps point with each receiver searching ±1/T_E for
+itself, a signal arriving at any time, code phase and carrier in range
+(record §6.3):
 
-The list against cancellation; only the list was built (§7.1, §9). Its
-text:
-[§7 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+<!-- async-dsss-pool:design-arrival:start -->
 
-### 7.1 The peak list — current, shipped behavior
+| Es/N0 | tracking (the state), median | symbol lock, median of those that lock | locked 2 s after arrival |
+| ----- | ---------------------------- | -------------------------------------- | ------------------------ |
+| 10 dB | 45 ms (slowest 47)           | 77 ms (slowest 219)                    | 20 of 20 (0.84–1.00)     |
+| 5 dB  | 86 ms (slowest 101)          | 289 ms (slowest 1640)                  | 20 of 20 (0.84–1.00)     |
 
-The peak list is not part of what retired. `Acquisition.set_max_peaks` and
-`BurstAcquisition.set_max_peaks` list every peak above the dwell's gate,
-strongest first, with an exclusion zone of one Doppler bin by one chip
-around each and the two-epoch rule for a peak at an already-listed code
-phase. `det_peak_list` (`native/inc/doppler/detector/det_private.h`) is the
-one primitive under both detectors, and async-dsss-parallel.md §3's ranks
-take the r-th peak it lists. Its design is §7.1 at
+<!-- async-dsss-pool:design-arrival:end -->
+
+At 10 dB the median arrival locks inside one data-free block, though not
+every draw does. At the 5 dB floor the search is not what is slow: the state
+reads tracking on every draw, and it is symbol lock that lags, on some draws
+for more than a second. What decides it is the carrier the refine stage
+hands the carrier loop, by how far it lands from the truth (record §6.3):
+
+<!-- async-dsss-pool:design-seed:start -->
+
+| refine seed error | locked, 10 dB                      | locked, 5 dB                        |
+| ----------------- | ---------------------------------- | ----------------------------------- |
+| 0–100 Hz          | 16 of 16 (0.81–1.00), median 74 ms | 10 of 10 (0.72–1.00), median 157 ms |
+| 100–200 Hz        | 4 of 4 (0.51–1.00), median 165 ms  | 8 of 8 (0.68–1.00), median 482 ms   |
+| 200–300 Hz        | —                                  | 2 of 2 (0.34–1.00), median 1424 ms  |
+| ≥ 300 Hz          | —                                  | —                                   |
+
+<!-- async-dsss-pool:design-seed:end -->
+
+The loop's acquisition bound is `bn / m`, 60 Hz at that front end, and it
+acquires every draw inside it, reliably to twice it and not at all by four
+times (`costas_pullin.c`, `async_dsss_receiver_core.h`). The whole receiver
+is more forgiving than the loop alone: slower to lock as the seed error
+grows, it still locked draws in the 200–300 Hz row. Why it reaches past the
+loop's edge is open (doppler#2409): the error is read when tracking starts,
+which need not be the residual the loop finally pulls in. That residual is
+doppler#982's; `rx.car.nco` (#2412) shows what the loop pulls in, not yet
+measured as a residual. Since tracking is symbol lock, a receiver at the
+floor that misses it lets go and is searched for again, so the refine's
+residual is a design input (doppler#2409).
+
+## 7. The peak list, and the pick
+
+### 7.1 The peak list
+
+`Acquisition.set_max_peaks` and `BurstAcquisition.set_max_peaks` list every
+peak above the dwell's gate, strongest first, with an exclusion zone of one
+Doppler bin by one chip around each and the two-epoch rule for a peak at an
+already-listed code phase. `det_peak_list`
+(`native/inc/doppler/detector/det_private.h`) is the one primitive under
+both detectors, and §7.2's pick reads it. Its design is §7.1 at
 [`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md)
-until it moves to [`dsss-acquisition.md`](dsss-acquisition.md)
+until it moves to [`acq-surface.md`](acq-surface.md)
 ([#2500](https://github.com/doppler-dsp/doppler/issues/2500)).
 
-## 8. The shapes — retired
+### 7.2 The pick
 
-Where each piece of the pool lived. The parallel design's shape is its §2,
-and its controller is §4. Its text:
-[§8 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+One function turns a dwell's list into the signals it may seed, in order;
+a standalone receiver applies it to its own search's list, and the pool's
+controller to the one search's. The engine is asked for 16 peaks a dwell.
 
-### 8.1 The holder owns the clock; events are SigMF annotations — current, shipped behavior
+1. **Duplicates.** A peak within a chip of a stronger one, circularly, is
+    the same signal (a neighbouring cell, or its copy in a neighbouring
+    tile): it does not take a second place.
+1. **Sidelobes.** A strong signal's own Doppler-offset sidelobes are not a
+    second signal. One emitter's list also holds its code's ambiguity at
+    the offset between the emitter and each tile it is not in, up to
+    $-16.95$ dB below it for the Gold-1023 search, hundreds of chips from
+    its phase, dwell after dwell (`acq-surface.md` §8, doppler#2526). A
+    peak counts as a second signal only if its statistic exceeds what the
+    stronger signals' sidelobes can read **at its own cell** by more than
+    the detector's own gate. Each stronger signal contributes its
+    statistic on its own lag (`test_stat_peak`: a straddle between two lag
+    columns put back, since its sidelobes keep their level) times the
+    code's ambiguity from it to that cell (`dp_acq_sidelobe_ratio()`,
+    computed the way the surface is made, over what the hits leave
+    unknown). That is the worst sidelobe level only at the worst cells;
+    bounded by it everywhere, as it was until 2026-11-01, a signal at the
+    design floor was never taken beside any stronger one its sidelobes
+    could reach. The contributions combine as before: the strongest one;
+    on a deep block, the sum over the stronger signals on the peak's own
+    Doppler row (modulo the epoch rate) and its neighbours when that is
+    larger, because two signals on one row can stack their sidelobes on
+    one cell (doppler#2554, doppler#2556). A deep block keeps the worst
+    sidelobe level (`dp_acq_dsl_db()`, read at create) as a floor under
+    each ratio: with data inside the block a strong signal's own data
+    splatter adds to a cell beyond its ambiguity, and is not modelled yet
+    (doppler#2730). Noise riding on a sidelobe lifts it by no more than
+    the noise's own magnitude, so a sidelobe passes only when that noise
+    alone would have cleared the gate: the false-alarm rate the search
+    already runs at.
+1. **Exclusions.** A peak within a chip of a code phase another receiver
+    holds, refining or tracking, at any Doppler, is that receiver's signal.
+    Keying on carrier as well seeded duplicate receivers (record §12.14).
+    It still counts in rule 2's bound.
 
-The clock and the event log are not part of what retired. Whatever feeds
-the samples owns the clock: one `dp_sample_clock_t` per stream
-(`native/inc/doppler/timing/timing_core.h`) stamps a record as
+The survivors seed the idle receivers, the strongest first, so k signals
+arriving together are held by k receivers after one dwell; a standalone
+receiver takes the first. The rule lives once, in the receiver's core, and
+the controller calls it (`async_dsss_receiver_core.h`).
+
+That sets the **near-far limit**: a second signal is taken while a stronger
+one is on the air only if it clears what the stronger one's sidelobes reach
+at its cell by the gate. The operating range is the floor (Es/N0 5 dB) to
+20 dB above it, so the case that bounds it is the weaker signal at the
+floor, where its statistic is closest to the gate. Measured at the 3.069
+Mcps point with the weaker signal there and the stronger one above it,
+both carrying data, at random code phases and carriers
+(`native/validation/async_dsss_near_far.c`): the share of streams whose
+rank-1 search takes the second signal.
+
+<!-- async-dsss-pool:design-near-far:start -->
+
+| stronger, above the weaker | $D = 1$, weaker taken | $D = 90$, weaker taken |
+| -------------------------- | --------------------- | ---------------------- |
+| +0 dB                      | 32 of 32 (0.89–1.00)  | 15 of 15 (0.80–1.00)   |
+| +4 dB                      | 39 of 39 (0.91–1.00)  | 20 of 20 (0.84–1.00)   |
+| +8 dB                      | 37 of 37 (0.91–1.00)  | 18 of 18 (0.82–1.00)   |
+| +10 dB                     | 37 of 37 (0.91–1.00)  | 19 of 19 (0.83–1.00)   |
+| +12 dB                     | 34 of 35 (0.85–0.99)  | 17 of 17 (0.82–1.00)   |
+| +14 dB                     | 36 of 40 (0.77–0.96)  | 12 of 20 (0.39–0.78)   |
+| +16 dB                     | 28 of 36 (0.62–0.88)  | 8 of 18 (0.25–0.66)    |
+| +18 dB                     | 13 of 32 (0.26–0.58)  | 0 of 17 (0.00–0.18)    |
+| +20 dB                     | 7 of 34 (0.10–0.37)   | 0 of 17 (0.00–0.18)    |
+
+Sidelobes taken, with or without the weaker emitter, over every row: 0. Run `validate_async_dsss_near_far --emit` at `b15233152`, 2026-11-01 20:05 UTC on `zen-x2elite-x`, 1343.6 s.
+
+<!-- async-dsss-pool:design-near-far:end -->
+
+A signal below the limit is found once the stronger one leaves. Removing
+the stronger one's replica before the search (cancellation) is what would
+move the limit, and is not built (doppler#2531).
+
+## 8. The controller
+
+The bookkeeper of §5. It owns the search and runs once a dwell. It:
+
+- **reads each receiver's `status()`** (state, chip phase, carrier, code and
+    symbol lock) and keeps the table of who holds what, never the
+    demodulator's timing flag, which outlives the signal (record §6.2);
+- **seeds the idle receivers** from the dwell's pick (§7.2), the strongest
+    survivor into the lowest-numbered idle receiver;
+- **resolves duplicates**: two receivers holding the same code phase (within
+    a chip, the exclusions' key) hold the same signal; the one that keeps it
+    is the one tracking over the one refining, then the first to lock, then
+    the higher C/N0 estimate, then the lower index, and the other goes idle;
+- **releases ghosts** (below);
+- **runs the receivers in parallel** between its steps, one per worker,
+    with a serial path when there is one CPU; the results do not depend on
+    the thread count;
+- **reports**.
+
+Telemetry is single-producer, so each receiver attaches its own context,
+and one context must not be shared across the workers. The controller
+refuses a context shared across its receivers
+(`dp_async_dsss_pool_set_telemetry()`).
+
+**Ghosts.** The code-phase key does not catch every duplicate. A receiver
+seeded on a strong emitter's Doppler-offset sidelobe holds a phase hundreds
+of chips from the emitter's and despreads the emitter's own data, so it
+tracks a copy no exclusion names. The controller releases such a ghost on
+two of its traits together, each over the same trailing 0.2 s (owner ruling
+on doppler#2529):
+
+- **its carrier moves in lockstep with a stronger holder's**, a whole nonzero
+    number of steps of $1/(2T_E)$ away: the sidelobe sits on its parent's
+    carrier a tile off, and the carrier loop, updating once a code period
+    from a squaring combine, reads that modulo half the epoch rate;
+- **its Dll rarely holds code lock**, since a sidelobe is not the code's
+    triangle.
+
+Neither alone will do. A distinct emitter can co-move with another a lattice
+step away, but it usually holds code lock; a true track near the floor loses
+code lock, but its carrier is its own. Measured at the 3.069 Mcps point on
+the reviewer's populations, the pair caught all 416 Doppler-offset ghosts in
+a median 0.20 s and released 23 of 2050 true emitters, all 20 dB below a
+60 dB-Hz partner they co-move with (doppler#2550). A ghost on its parent's
+own carrier (k = 0) is left alone: allowing it releases most true emitters
+that share a stronger one's Doppler (doppler#2551). The constants are
+`ASYNC_DSSS_POOL_GHOST_*` in `async_dsss_pool_core.h`, and the measurements
+behind them are on doppler#2529.
+
+### 8.1 The holder owns the clock; events are SigMF annotations
+
+Whatever feeds the samples owns the clock: one `dp_sample_clock_t` per
+stream (`native/inc/doppler/timing/timing_core.h`) stamps a record as
 `dp_sample_clock_stamp_at(n)`. A run's events are SigMF annotations,
 appended live and finalized at close (`dp_event_log`,
 `native/inc/doppler/dp_event_log/dp_event_log_core.h`), while telemetry stays
 a flat record file the sidecar points at, each in the format that suits its
-rate. The clock rule the receiver obeys is §11.3. Its text:
-[§8.1 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+rate. The clock rule the receiver obeys is §11.3.
 
-### 8.2 The pool holds the population in one object — retired
+## 9. What it costs
 
-The pool as built: its assigned table, its zone and its lifecycle.
-The object was deleted, its header and pages with it; the parallel design's
-controller (its §4) replaces the table. Its text:
-[§8.2 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+**The pinned bench** (`native/benchmarks/async_dsss_pool/bench_async_dsss_pool_core.c`, the
+`async_dsss_pool::push[...]` rows): the §1 specification at 11 MSa/s
+through the front end, D = 150, noise alone so every receiver searches, one
+push a dwell. The load is CPU time per second of signal, 1 being exactly
+real time; measured on `zen-x2elite-x` at the bench's own commit, before
+this design is built (record §9.3):
 
-## 9. The branch is chosen by the spread — retired
+| search span, receivers, threads | ns a sample | load |
+| ------------------------------- | ----------- | ---- |
+| one tile (±2,444 Hz), 1, 1      | 37.1        | 0.41 |
+| one tile, 4, 1                  | 126.8       | 1.39 |
+| one tile, 4, 4                  | 101.8       | 1.12 |
+| ±50 kHz, 1, 1                   | 317.2       | 3.49 |
+| ±50 kHz, 4, 1                   | 1264.0      | 13.9 |
 
-The list branch shipped and cancellation was never built (§11.4). Its text:
-[§9 at `4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md).
+Two findings, and the design answers each:
+
+1. **Four searching receivers cost 3.4 to 4.0 searches**, and four threads
+    buy little back, because every receiver builds the same surface and
+    the workers were joined once a code period. The earlier cost argument,
+    that every state fits one CPU so every receiver can search the whole
+    range itself, priced one receiver and never multiplied by N. §5's one
+    search costs one, and the controller steps once a dwell.
+1. **One search is FFT-bound on its transform length.** The one-tile
+    search is about 90% FFT passes, 62% of it in the radix-31 and radix-11
+    passes of the 2,046-point period (record §9.4). §1.2's power-of-two
+    period answers it: the transform is 5x faster at 2,048 points.
+
+The same rows measure the design once it is built.
+
+**What the pool as built taught.** Its push was one receiver's plus a
+central searcher's that never stopped, because a new emitter may appear at
+any time; at ±50 kHz that searcher alone ran several times slower than real
+time on one thread, and threads brought it down only in wall time (record
+§9.2):
+
+<!-- async-dsss-pool:design-pool:start -->
+
+| per push                                   | timed at | × real time (wall) |
+| ------------------------------------------ | -------- | ------------------ |
+| one receiver, tracking                     | 10 MSa/s | 0.11               |
+| the pool, 12 slots, one emitter tracked    | 10 MSa/s | 1.04               |
+| the same, across the machine's cores       | 10 MSa/s | 1.07               |
+| its searcher at ±50 kHz, 21 tiles, D = 154 | 10 MSa/s | 5.30               |
+| the same, eight threads                    | 10 MSa/s | 1.41               |
+| its searcher at ±50 kHz, 53 tiles, D = 61  | 4 MSa/s  | 8.60               |
+| the same, four threads                     | 4 MSa/s  | 2.42               |
+
+<!-- async-dsss-pool:design-pool:end -->
+
+So the one search runs only while a receiver is idle (§5). Each receiver
+state at the 3.069 Mcps point, one thread (record §9.1):
+
+<!-- async-dsss-pool:design-cost:start -->
+
+| receiver state                              | × real time, one thread |
+| ------------------------------------------- | ----------------------- |
+| tracking                                    | 0.07                    |
+| searching one tile, one-epoch looks         | 0.14                    |
+| searching ±1/T_E (3 tiles), one-epoch looks | 0.22                    |
+| searching ±1/T_E, slow time over D = 154    | 0.54                    |
+
+<!-- async-dsss-pool:design-cost:end -->
 
 ______________________________________________________________________
 
@@ -767,11 +1068,10 @@ lock** (`get_locked()`) is the BPSK `cos(2φ)` statistic over the emitted
 symbols, the health of the *carrier* leg: a cycle slip or a deep fade drops
 it while the code is still being despread.
 
-**The rule is symbol lock alone**, the parallel design's
-([async-dsss-parallel.md](async-dsss-parallel.md) §3), with `reacquire`:
+**The rule is symbol lock alone**, the pool's (§6), with `reacquire`:
 once symbol lock has been down without a break for longer than
-`lost_confirm_s`, the receiver resets itself to searching, and nobody calls
-`reset()`. Without `reacquire` the rule is both flags down for longer than
+`lost_confirm_s`, the receiver resets itself to searching (idle, in a
+pool), and nobody calls `reset()`. Without `reacquire` the rule is both flags down for longer than
 `lost_confirm_s`, and the receiver enters lost until `reset()`; one flag
 down is a degrade, reported and not acted on. Either way the clock runs
 from the first tracking sample, when no flag is up yet, so a hand-off that
@@ -809,23 +1109,20 @@ first lock the loops must run — that is the pull-in. The hold is the same
 with or without `reacquire`; with it, the release ends the hold. Pinned by
 the release validator's `--check`, the crossing and the live crossing
 included. A neighbor within about a kilohertz crossing at a chip or two a
-second is, to a receiver on its own, a return: the parallel design's
-controller, which knows every receiver's code phase, is where it is told
-apart ([#1275](https://github.com/doppler-dsp/doppler/issues/1275)).
+second is, to a receiver on its own, a return: the pool's controller,
+which knows every receiver's code phase, is where it is told apart ([#1275](https://github.com/doppler-dsp/doppler/issues/1275)).
 
 ______________________________________________________________________
 
 ## 11. What a holder needs from the receiver
 
-### 11.1 The cell flavor — deleted with the pool as built
+### 11.1 Idle is the receiver with no search of its own
 
-`CellAsyncDsssReceiver` (`dp_async_dsss_receiver_create_cell()`), the
-receiver with no search of its own that the pool as built seeded from its
-searcher, was deleted with that pool: the parallel design seeds no receiver
-from outside ([doppler#2409](https://github.com/doppler-dsp/doppler/issues/2409)).
-`seed()` stays, a searching receiver's own. The state value its idle used,
-3, stays reserved (`ASYNC_DSSS_RX_RESERVED`), because the values are
-persisted. Its design as it stood is §11.1 at
+A pooled receiver is seeded from outside (§6), and while it holds nothing
+it is idle, state value 3. That value was reserved
+(`ASYNC_DSSS_RX_RESERVED`) when the pool as built's cell receivers, which
+were seeded the same way, were deleted, because the values are persisted;
+it returns to the same meaning. The cell flavor as it stood is §11.1 at
 [`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md),
 its code at
 [`35d8049a2`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h).
@@ -836,9 +1133,7 @@ Without `reacquire` the receiver enters **lost** on §10's both-flags rule.
 In it the loops stop updating, samples are consumed and discarded, and
 `get_lost()` reports it until `reset()`. `lost_confirm_s = 0` never enters
 it. With `reacquire` the receiver releases itself back to searching and is
-never lost. The parallel design keeps this state, and its self-release
-replaces a holder's
-([async-dsss-parallel.md](async-dsss-parallel.md) §3).
+never lost. The pool runs its receivers with `reacquire` (§6).
 
 ### 11.3 The status record is one consistent picture, by value
 
@@ -847,9 +1142,8 @@ cannot assemble a consistent picture across a `steps()` call. `status()`
 returns that picture as one record by value, a jm-generated structseq whose
 fields are the header's (`async_dsss_receiver_status_t` in
 `native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`). It is
-allocation-free: every field is a read of live state. The parallel design's
-controller keys its table and its exclusions on it, never on the seed
-([async-dsss-parallel.md](async-dsss-parallel.md) §4).
+allocation-free: every field is a read of live state. The pool's
+controller keys its table and its exclusions on it, never on the seed (§8).
 
 **It carries no timestamp.** The receiver, its engine and every record they
 produce are sample-domain: each carries a stream position, never a time.
@@ -861,7 +1155,8 @@ resumes the receiver elsewhere, this record describes it here.
 
 ### 11.4 The replica output is not built
 
-It belonged to the retired pool's cancellation branch (§5–§9).
+It belonged to the pool as built's cancellation branch, never built
+(§7.2's near-far limit, doppler#2531).
 
 ### 11.5 Nothing grows with time
 
@@ -886,21 +1181,17 @@ ______________________________________________________________________
 - **No carrier recovery or symbol extraction inside the despreader**, and
     no coupling of `segments` to a demodulator's `sps` (§3.4).
 - **The frame epoch is not recovered.** Nothing in the receiver finds where
-    a data-free block starts, and its search needs no frame timing
-    ([async-dsss-parallel.md](async-dsss-parallel.md) §3).
+    a data-free block starts, and its search needs no frame timing (§6).
 
 ______________________________________________________________________
 
 ## See also
 
-- [async-dsss-parallel.md](async-dsss-parallel.md) — the receiver's design
-    of record: N receivers, always on, under a controller that only
-    watches.
 - [the measurement record](async-dsss-receiver-measurements.md) — every run
-    behind the numbers here, under its own section numbers, the pool as
+    behind the numbers here, under the same section numbers, the pool as
     built's included.
-- [`dsss-acquisition.md`](dsss-acquisition.md) — the acquisition engine
-    under §2: the windowing, the CFAR vocabulary, the roadmap.
+- [`acq-surface.md`](acq-surface.md) — the acquisition engine
+    under §2: the windowing, the CFAR gate, what is open.
 - [`dsss-burst-receiver.md`](dsss-burst-receiver.md) — the burst chain,
     which shares §2.2's `acq_handoff_t`.
 - [`burst-bank.md`](burst-bank.md) — the burst bank this page's continuous

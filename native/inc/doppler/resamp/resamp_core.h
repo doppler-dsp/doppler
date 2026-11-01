@@ -475,7 +475,7 @@ extern "C"
    */
   size_t dp_resamp_get_num_taps (const resamp_state_t *state);
 
-  /** @brief Group delay of the interpolator, in INPUT samples.
+  /** @brief Group delay of the interpolating structure, in INPUT samples.
    *
    *  The prototype is a symmetric (linear-phase) Kaiser lowpass, so its
    *  delay is its centre: `floor((num_phases * num_taps) | 1) / 2` prototype
@@ -483,9 +483,14 @@ extern "C"
    *  bank -- plus ONE input sample of pipeline: an output is formed from the
    *  delay line as it stands, and only then is the next input loaded, so the
    *  newest sample under the taps is the one before the sample being
-   *  offered. 10.5 for the built-in bank, on every entry point (the free,
-   *  ctrl and push forms agree; test_resamp_core.c §3 measures it by phase
-   *  differencing on each and holds it to this value).
+   *  offered. 10.5 for the built-in bank.
+   *
+   *  It is the delay of the ctrl and push forms at EVERY rate (they ride the
+   *  interpolating structure, which is what lets a timing loop steer through
+   *  unity), and of dp_resamp_execute() at rate >= 1; test_resamp_core.c §3
+   *  measures it by phase differencing on each. dp_resamp_execute() below
+   *  unity runs the decimator instead, whose delay is
+   *  dp_resamp_get_execute_delay()'s.
    *
    *  What it is for: output `k` carries the input at index
    *  `k * (1/rate) + (the accumulated ctrl) - delay`. A caller comparing the
@@ -501,6 +506,28 @@ extern "C"
    *  @return       The delay in input samples (`>= 1`).
    */
   double dp_resamp_get_delay (const resamp_state_t *state);
+
+  /** @brief Group delay of dp_resamp_execute(), in INPUT samples, on the
+   *         path its rate runs.
+   *
+   *  At rate >= 1 it is the interpolating structure's, dp_resamp_get_delay().
+   *  Below unity dp_resamp_execute() runs the decimator, the transposed
+   *  form, which runs at the OUTPUT rate and emits each interval's output as
+   *  the interval closes, one output period ahead of the prototype's centre:
+   *  `(centre - 1)` output samples, `8.5 / rate` input samples for the
+   *  built-in bank. test_resamp_core.c §3b measures it at 0.91, 0.80, 0.67
+   *  and 0.50 and holds it to this value.
+   *
+   *  What it is for: output `k` of dp_resamp_execute() carries the input at
+   *  index `k / rate - dp_resamp_get_execute_delay()` from a fresh stream; a
+   *  caller mapping a position found on the output timeline back to the
+   *  input (a search run on resampled samples handing off to a loop on the
+   *  original ones) subtracts this.
+   *
+   *  @param state  Must be non-NULL.
+   *  @return The delay in input samples.
+   */
+  double dp_resamp_get_execute_delay (const resamp_state_t *state);
 
   /** @brief The control accumulator's fractional phase, in [0, 1).
    *

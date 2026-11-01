@@ -95,7 +95,7 @@ def watch() -> dict:
     probe series -- everything the figure and the asserts need."""
     acq = Acquisition(
         CODE,
-        spc=SPC,
+        sample_rate=SPC * CHIP_RATE,
         chip_rate=CHIP_RATE,
         symbol_rate=SYM_RATE,
         cn0_dbhz=DESIGN_CN0_DBHZ,
@@ -111,11 +111,11 @@ def watch() -> dict:
     x = make_signal(N_DWELLS * per_dwell)
     hits = acq.push(x)
 
-    surface = np.empty(acq.surface_rows * acq.code_bins, np.float32)
+    surface = np.empty(acq.surface_rows * acq.lag_bins, np.float32)
     assert acq.surface(surface) == surface.size
-    surface = surface.reshape(acq.surface_rows, acq.code_bins)
+    surface = surface.reshape(acq.surface_rows, acq.lag_bins)
     doppler_hz = np.empty(acq.surface_rows)
-    chip_phase = np.empty(acq.code_bins)
+    chip_phase = np.empty(acq.lag_bins)
     acq.surface_doppler_hz(doppler_hz)
     acq.surface_chip_phase(chip_phase)
 

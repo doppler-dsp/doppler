@@ -26,7 +26,7 @@ only what the pool reports: each receiver's ``status()``, after every push.
 An emitter is identified by its code phase, which this file knows because it
 placed each emitter on the stream.
 
-The design is ``docs/design/async-dsss-parallel.md``.
+The design is ``docs/design/async-dsss-receiver.md`` §5-§9.
 
 Run:  python -m doppler.examples.async_dsss_pool_demo  [out.png]
 """
@@ -138,7 +138,7 @@ def run(x: np.ndarray) -> dict:
         n_receivers=N_RECEIVERS,
         chip_rate=CHIP_RATE,
         symbol_rate=SYM_RATE,
-        spc=SPC,
+        sample_rate=FS,
         cn0_dbhz=CN0_DBHZ,
         doppler_uncertainty=CARRIER_UNCERTAINTY,
         lost_confirm_s=LOST_CONFIRM_S,

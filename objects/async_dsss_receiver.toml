@@ -24,7 +24,7 @@ no_state = "true"
 no_step = "true"
 class_name = "AsyncDsssReceiver"
 create_error = "ValueError"
-create_error_message = "AsyncDsssReceiver: invalid parameter (need a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input sample with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0)"
+create_error_message = "AsyncDsssReceiver: invalid parameter (need a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, sample_rate >= chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above sample_rate / 2, lost_confirm_s >= 0 (and at least one input sample with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0)"
 serializable = "true"
 depends_on = [
     { name = "ber" }, # dp_sym_test.h delegates here
@@ -79,9 +79,9 @@ type = "double"
 default = "1000.0"
 
 [[async_dsss_receiver.init_params]]
-name = "spc"
-type = "size_t"
-default = "2"
+name = "sample_rate"
+type = "double"
+default = "0.0"
 
 [[async_dsss_receiver.init_params]]
 name = "m"
@@ -221,8 +221,7 @@ name = "carrier_freq_hz"
 type = "double"
 default = "0.0"
 
-# The release rule (docs/design/async-dsss-parallel.md §3, and
-# docs/design/async-dsss-receiver.md §10): with `reacquire`, symbol lock
+# The release rule (docs/design/async-dsss-receiver.md §6 and §10): with `reacquire`, symbol lock
 # down, continuously, for longer than this many seconds while tracking
 # resets the receiver to searching. Without it, both lock flags down that
 # long puts the receiver in the lost state (`lost` == 1, loops stopped,
@@ -239,7 +238,7 @@ type = "bool"
 default = "false"
 
 # The searcher's slow-time depth from physical inputs (docs/design/
-# async-dsss-parallel.md §4): code_only_epochs = floor(code_only_s *
+# async-dsss-receiver.md §2.3): code_only_epochs = floor(code_only_s *
 # chip_rate / sf) - 1, and the engine rounds D to a 7-smooth length. The
 # defaults are D = 1, the epoch-by-epoch search.
 [[async_dsss_receiver.init_params]]
@@ -267,7 +266,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 error = "ValueError"
-error_message = "seed refused: the receiver already holds an assignment (refining, tracking or lost -- reset() releases it), or chip_phase is outside [0, code_len), or doppler_hz_est is not finite and below chip_rate * spc / 2 in magnitude"
+error_message = "seed refused: the receiver already holds an assignment (refining, tracking or lost -- reset() releases it), or chip_phase is outside [0, code_len), or doppler_hz_est is not finite and below sample_rate / 2 in magnitude"
 params = [
     { name = "chip_phase", type = "double" },
     { name = "doppler_hz_est", type = "double" },
@@ -375,7 +374,7 @@ params = [{ name = "n", type = "int" }]
 name = "threads"
 type = "int"
 
-# The controller's two levers (docs/design/async-dsss-parallel.md §3): which
+# The controller's two levers (docs/design/async-dsss-receiver.md §7.2): which
 # surviving peak of a dwell this receiver takes, and the code phases other
 # receivers already hold.
 [[async_dsss_receiver.methods]]

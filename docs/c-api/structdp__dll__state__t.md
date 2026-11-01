@@ -102,7 +102,7 @@ _DLL state._ [More...](#detailed-description)
 |  size\_t | [**segments**](#variable-segments)  <br> |
 |  size\_t | [**sf**](#variable-sf)  <br> |
 |  double | [**spacing**](#variable-spacing)  <br> |
-|  size\_t | [**sps**](#variable-sps)  <br> |
+|  double | [**sps**](#variable-sps)  <br> |
 |  float \_Complex \* | [**sums**](#variable-sums)  <br> |
 |  double | [**sym\_period**](#variable-sym_period)  <br> |
 |  uint32\_t | [**tap\_grid**](#variable-tap_grid)  <br> |
@@ -1340,12 +1340,12 @@ early/late tap offset, chips (e.g. 0.5).
 ### variable sps 
 
 ```C++
-size_t dp_dll_state_t::sps;
+double dp_dll_state_t::sps;
 ```
 
 
 
-samples per chip. 
+samples per chip, any positive value. 
  
 
 

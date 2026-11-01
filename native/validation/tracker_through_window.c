@@ -112,7 +112,7 @@
 #define SYM_RATE 2700.0
 #define CPS (CHIP_RATE / SYM_RATE) /* chips per symbol, 1851.85       */
 #define W_SYM 450u                 /* code-only symbols per frame     */
-/* The frame: docs/design/async-dsss-receiver.md §5. */
+/* The frame: docs/design/async-dsss-receiver.md §5 at 4a4c437d0. */
 #define F_SYM 4950u /* frame, symbols                  */
 
 #define SETTLE_BLOCKS 200  /* tracking + symbol lock for this many first */
@@ -190,8 +190,8 @@ make_rx (const uint8_t *code, double cn0_dbhz, int cond)
      docs/design/async-dsss-receiver-measurements.md §12.28; seed() is a method
      of both, and the refine chain under test is the same). */
   return dp_async_dsss_receiver_create (
-      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 100.0, 4, 8,
-      0, 0.5, 4, 14.0, 64, 8, false, 100000,
+      code, SF, CHIP_RATE, SYM_RATE, CHIP_RATE * (double)SPC, 2, cn0_dbhz,
+      1e-2, 0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
       cond != COND_STATIC ? CARRIER_HZ : 0.0, LOST_CONFIRM_S, false, 0.0, 0.0);
 }
 
@@ -248,7 +248,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
      specification's Doppler span (one native span without a channel), fed the
      same blocks until its first hit. */
   dp_acq_state_t *acq = dp_acq_create_continuous (
-      code, SF, SPC, CHIP_RATE, SYM_RATE, cn0_dbhz,
+      code, SF, CHIP_RATE * (double)SPC, CHIP_RATE, SYM_RATE, cn0_dbhz,
       cond != COND_STATIC ? 1.2 * RAMP_D0_PPM * 1e-6 * CARRIER_HZ : 0.0, 1e-3,
       0.9, 0, 1, 0.0);
   DP_REQUIRE_MSG (acq != NULL, "the searcher opens");
@@ -298,7 +298,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
               continue;
             }
           acq_handoff_t ho;
-          dp_acq_build_handoff (acq, &hit, SF, SPC, &ho);
+          dp_acq_build_handoff (acq, &hit, SF, &ho);
           DP_REQUIRE_MSG (dp_async_dsss_receiver_seed (rx, ho.chip_phase,
                                                        ho.doppler_hz_est,
                                                        ho.cn0_dbhz_est)

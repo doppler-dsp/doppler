@@ -37,7 +37,6 @@ from doppler.dsss.benchmarks._async_stimulus import (
     CHIP_RATE,
     CODE,
     FS,
-    SPC,
     SYM_RATE,
 )
 from doppler.wfm import Synth
@@ -53,7 +52,7 @@ def _receiver():
             CODE,
             chip_rate=CHIP_RATE,
             symbol_rate=SYM_RATE,
-            spc=SPC,
+            sample_rate=FS,
             cn0_dbhz=55.0,
             doppler_uncertainty=100.0,
             segments=4,

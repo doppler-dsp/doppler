@@ -1,6 +1,6 @@
-"""Render the parallel receivers' measurement record from its runs.
+"""Render the pool's measurement runs (§6 and §9) from their data.
 
-The record (``docs/design/async-dsss-parallel-measurements.md``) quotes two
+The record (``docs/design/async-dsss-receiver-measurements.md``) quotes two
 runs of shipped tools, at one commit, and keeps both beside this file:
 
 - the lock validator, ``native/validation/async_dsss_receiver_lock.c``, its
@@ -13,6 +13,11 @@ runs of shipped tools, at one commit, and keeps both beside this file:
   load either side of the bench. ``bench`` waits for a quiet machine, runs
   it and keeps the rows.
 
+A fourth run is the near-far sweep, ``native/validation/async_dsss_near_far.c``
+with ``--emit``: ``near_far.csv`` and ``near-far-meta.json``, taken by
+``nearfar``. It stands on its own commit (it was measured after the lock
+sweep), and the design page's near-far table (§7.2) is its block.
+
 A third run draws the record's figures: the same validator's lifecycle
 stories, ``--telemetry DIR --emit``, three receivers each through an
 arrival trial of the sweep, three fades and a departure. ``stories`` runs
@@ -22,8 +27,8 @@ stamp (``stories-meta.json``), and draws each capture with
 here. The captures stay in ``build/``; the figures are what is committed.
 
 Every table in the record is this file's output, and so is every number
-the design page (``docs/design/async-dsss-parallel.md``) quotes from it:
-both pages hold them between ``<!-- async-dsss-parallel:<block>:start -->``
+the design page (``docs/design/async-dsss-receiver.md``) quotes from it:
+both pages hold them between ``<!-- async-dsss-pool:<block>:start -->``
 and ``:end`` markers, so a cell cannot be edited by hand, or left behind by
 a re-run, without ``--check`` failing. The blocks and the
 ``--write``/``--check`` machinery are ``../_record_blocks.py``'s. Data from
@@ -34,6 +39,7 @@ Usage::
     python record.py measure            # the validator's sweep -> lock.*
     python record.py bench              # the benches, quiet -> bench.json
     python record.py stories            # the lifecycle stories -> *.png
+    python record.py nearfar            # the near-far sweep -> near_far.*
     python record.py                    # print the blocks
     python record.py --write            # rewrite them in both pages
     python record.py --check            # fail when they differ (the gate)
@@ -60,11 +66,13 @@ from _record_blocks import table
 
 DATA = Path(__file__).resolve().parent
 ROOT = DATA.parents[2]
-RECORD = DATA.parent / "async-dsss-parallel-measurements.md"
-DESIGN = DATA.parent / "async-dsss-parallel.md"
-SCRIPT = "docs/design/async-dsss-parallel-measurements/record.py"
+RECORD = DATA.parent / "async-dsss-receiver-measurements.md"
+DESIGN = DATA.parent / "async-dsss-receiver.md"
+SCRIPT = "docs/design/async-dsss-receiver-measurements/record.py"
 SOURCE = ROOT / "native/validation/async_dsss_receiver_lock.c"
 VALIDATOR = ROOT / "build/native/validation/validate_async_dsss_receiver_lock"
+NF_SOURCE = ROOT / "native/validation/async_dsss_near_far.c"
+NF_VALIDATOR = ROOT / "build/native/validation/validate_async_dsss_near_far"
 BENCH_ARGS = "--c-only acq async_dsss_receiver async_dsss_pool"
 STORIES_DIR = ROOT / "build/lifecycle-stories"
 #: Each story figure's panels, top down: the receiver's own symbol-lock
@@ -157,6 +165,67 @@ def measure() -> int:
     )
     print(f"measure: {VALIDATOR.name} --emit in {meta['wall_s']} s")
     return 0
+
+
+def nearfar() -> int:
+    """Run the near-far validator's sweep; write near_far.csv and its stamp."""
+    meta = blocks.run_stamp(ROOT, NF_VALIDATOR, NF_SOURCE)
+    t0 = time.perf_counter()
+    run = subprocess.run(
+        [str(NF_VALIDATOR), "--emit"], capture_output=True, text=True
+    )
+    if run.returncode != 0:
+        sys.stderr.write(run.stdout + run.stderr)
+        return run.returncode
+    meta["load_after"] = blocks.load_avg()
+    meta["wall_s"] = round(time.perf_counter() - t0, 1)
+    (DATA / "near_far.csv").write_text(run.stdout, encoding="utf-8")
+    (DATA / "near-far-meta.json").write_text(
+        json.dumps(meta, indent=1) + "\n", encoding="utf-8"
+    )
+    print(f"nearfar: {NF_VALIDATOR.name} --emit in {meta['wall_s']} s")
+    return 0
+
+
+def load_near_far() -> tuple[list[dict[str, str]], dict[str, Any]]:
+    """The near-far rows and their stamp, held to their own clean commit."""
+    meta = json.loads(
+        (DATA / "near-far-meta.json").read_text(encoding="utf-8")
+    )
+    blocks.require_toolchain("near-far-meta.json", meta)
+    if meta["dirty"]:
+        raise SystemExit("record data from a dirty tree is refused")
+    rows = _csv_blocks((DATA / "near_far.csv").read_text(encoding="utf-8"))
+    # The run prints its readable table to the same stream, between the
+    # block's rows; a CSV row names a depth.
+    return [r for r in rows["near_far"] if r["depth"] in ("one", "deep")], meta
+
+
+def design_near_far(rows: list[dict[str, str]], meta: dict[str, Any]) -> str:
+    """The share of streams whose rank-1 search takes the weaker emitter,
+    the weaker at the floor, by how far above it the stronger sits."""
+    by = {(r["depth"], r["delta_db"]): r for r in rows}
+    levels = sorted({r["delta_db"] for r in rows}, key=float)
+    out = []
+    for d in levels:
+        cells = [f"+{float(d):.0f} dB"]
+        for depth in ("one", "deep"):
+            r = by.get((depth, d))
+            cells.append(_frac(int(r["taken"]), int(r["valid"])) if r else "—")
+        out.append(cells)
+    side = sum(int(r["sidelobe"]) + int(r["alone_sidelobe"]) for r in rows)
+    head = [
+        "stronger, above the weaker",
+        "$D = 1$, weaker taken",
+        "$D = 90$, weaker taken",
+    ]
+    note = (
+        f"Sidelobes taken, with or without the weaker emitter, over every "
+        f"row: {side}. Run `{NF_VALIDATOR.name} --emit` at "
+        f"`{meta['commit']}`, {meta['date_utc']} UTC on "
+        f"`{meta['machine']}`, {meta['wall_s']} s."
+    )
+    return table(head, out) + "\n\n" + note
 
 
 def stories() -> int:
@@ -407,7 +476,7 @@ def stamp(lock: Any, meta: dict[str, Any], bench_: dict[str, Any]) -> str:
             f"under {QUIET_LOAD:g}, rows kept by `record.py`",
         ],
         [
-            "lifecycle stories (§3.2)",
+            "lifecycle stories (§6.2)",
             f"{sm['date_utc']} UTC, {sm['wall_s']:.0f} s",
             f"`{sm['machine']}`: {sm['cpu_model']} "
             f"({sm['cpu_threads']} threads)",
@@ -757,7 +826,7 @@ def stories_block(lock: Any, meta: Any, bench_: Any) -> str:
         for s in lock["story"]
     ]
     figs = [
-        f"![{s['name']}](async-dsss-parallel-measurements/{s['name']}.png)"
+        f"![{s['name']}](async-dsss-receiver-measurements/{s['name']}.png)"
         for s in lock["story"]
     ]
     head = [
@@ -793,9 +862,13 @@ DESIGN_BLOCKS = {
 
 def render() -> dict[Path, dict[str, str]]:
     data = load()
+    nf = load_near_far()
     return {
         RECORD: {name: f(*data) for name, f in BLOCKS.items()},
-        DESIGN: {name: f(*data) for name, f in DESIGN_BLOCKS.items()},
+        DESIGN: {
+            **{name: f(*data) for name, f in DESIGN_BLOCKS.items()},
+            "design-near-far": design_near_far(*nf),
+        },
     }
 
 
@@ -806,10 +879,12 @@ if __name__ == "__main__":
         sys.exit(bench())
     if len(sys.argv) > 1 and sys.argv[1] == "stories":
         sys.exit(stories())
+    if len(sys.argv) > 1 and sys.argv[1] == "nearfar":
+        sys.exit(nearfar())
     sys.exit(
         blocks.main_pages(
-            "async-dsss-parallel",
-            "async-dsss-parallel",
+            "async-dsss-pool",
+            "async-dsss-pool",
             SCRIPT,
             render,
             __doc__ or "",

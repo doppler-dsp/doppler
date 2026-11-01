@@ -16,12 +16,14 @@ What the run shows:
   ramp the whole time, and its symbol lock is up.
 - **A departure frees a receiver, and a newcomer takes it.** Ten emitters
   pass through six receivers.
-- **A weak emitter waits for the strong one that masks it.** A search that
-  skips the signals already held cannot tell a second signal far below a
-  stronger one from that one's sidelobes. On a one-epoch search a signal
-  10 dB below a stronger one is taken first in about two streams in three,
-  and 13 dB below in about one in three (design ``async-dsss-parallel.md``
-  §3). F, 13 dB below C, waits here and is taken once C leaves.
+- **A weak emitter is taken beside a much stronger one, up to a limit.**
+  A search that skips the signals already held must tell a second signal
+  from the stronger ones' sidelobes, and it judges each candidate by what
+  those sidelobes can reach at its own cell. At the floor a one-epoch
+  search takes a signal 14 dB below a stronger one in 90% of streams and
+  16 dB below in 78% (design ``async-dsss-receiver.md`` §7.2). F arrives
+  16 dB below E and 13 dB below C: it waits for E to leave, and is taken
+  while C is still on the air.
 
 The pool is fed one code epoch per push. The checks and the figure read
 only what the pool reports: each receiver's ``status()`` after every push.
@@ -163,7 +165,7 @@ def run(x: np.ndarray) -> dict:
         n_receivers=N_RECEIVERS,
         chip_rate=CHIP_RATE,
         symbol_rate=SYM_RATE,
-        spc=SPC,
+        sample_rate=FS,
         cn0_dbhz=ESN0_REF_DB + weakest + 10.0 * np.log10(SYM_RATE),
         doppler_uncertainty=CARRIER_UNCERTAINTY,
         lost_confirm_s=LOST_CONFIRM_S,
@@ -200,9 +202,9 @@ def run(x: np.ndarray) -> dict:
 
 # --8<-- [start:validate]
 # The level gap past which a one-epoch search is not expected to take the
-# weaker signal: docs/design/async-dsss-parallel.md §3 takes it first in
-# 65% of streams at -10 dB, 36% at -13 dB and 1% at -16 dB.
-MASK_DB = 10.0
+# weaker signal: at the floor, docs/design/async-dsss-receiver.md §7.2 takes
+# it in 90% of streams at -14 dB and 78% at -16 dB, so 15 dB sits between.
+MASK_DB = 15.0
 SETTLE_S = 0.5  # time allowed from arrival (or unmasking) to a hold
 GONE_S = LOST_CONFIRM_S + 0.2  # time allowed from departure to release
 
@@ -254,7 +256,7 @@ def check(rec: dict) -> dict:
         n_holders = (held == k).sum(axis=1)
         # Never two receivers on one emitter.
         assert n_holders.max() <= 1, f"{name}: held twice"
-        # Not held while a stronger emitter masks it (F, until C leaves) ...
+        # Not held while a stronger emitter masks it (F, until E leaves) ...
         assert not n_holders[a:u].any(), f"{name}: held while masked"
         # ... then held from SETTLE_S after it can be told from the others
         assert n_holders[u:b].any(), f"{name}: never taken"
@@ -275,11 +277,16 @@ def check(rec: dict) -> dict:
     # Ten emitters passed through six receivers.
     assert len(EMITTERS) > N_RECEIVERS
     assert rec["released"]["lost"] >= len(EMITTERS) - N_RECEIVERS
-    # F is the masked one: C is the emitter whose departure unmasks it,
-    # which the hold-while-masked check above then holds the run to.
-    f_k = [e[0] for e in EMITTERS].index("F")
-    c_end = EMITTERS[[e[0] for e in EMITTERS].index("C")][5][1]
-    assert unmasked_from(f_k) == c_end > EMITTERS[f_k][5][0]
+    # F is masked by E (16 dB above) until E leaves, which the
+    # hold-while-masked check above holds the run to, and is then held while
+    # C, 13 dB above it, is still on the air.
+    names = [e[0] for e in EMITTERS]
+    f_k = names.index("F")
+    c_end = EMITTERS[names.index("C")][5][1]
+    e_end = EMITTERS[names.index("E")][5][1]
+    assert unmasked_from(f_k) == e_end > EMITTERS[f_k][5][0]
+    f_first = int(np.flatnonzero((held == f_k).any(axis=1))[0])
+    assert f_first < c_end, "F: not held beside C"
     return {"taken_ms": taken_ms, "held": held}
 
 
@@ -344,14 +351,15 @@ def main(out_path: str = "async_dsss_pool_scene.png") -> None:
         for k in range(len(EMITTERS)):
             f = np.where(held[:, i] == k, rec["doppler"][:, i], np.nan)
             top.plot(t_s, f, color=COLORS[k], lw=1.4)
-    # F's wait: on the air, but more than MASK_DB below C until C leaves.
+    # F taken once E leaves, beside C, 13 dB stronger and still on.
     names = [e[0] for e in EMITTERS]
     f_k = names.index("F")
-    u = unmasked_from(f_k)
+    u = int(np.flatnonzero((held == f_k).any(axis=1))[0])
     f_u, _ = truth(f_k, np.array([u]))
+    lv = {e[0]: e[1] for e in EMITTERS}
     top.annotate(
-        f"F waits: C is {EMITTERS[names.index('C')][1] - EMITTERS[f_k][1]:.0f}"
-        " dB stronger until it leaves",
+        f"F waits for E ({lv['E'] - lv['F']:.0f} dB above), then is taken "
+        f"{lv['C'] - lv['F']:.0f} dB below C",
         xy=(u * EPOCH_S, f_u[0]),
         xytext=(u * EPOCH_S - 0.9, f_u[0] - 1100),
         fontsize=8,

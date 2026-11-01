@@ -249,6 +249,6 @@ ______________________________________________________________________
 
 **Gallery** — [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md)
 **Guides** — [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
-**Design** — [Automatic Gain Control](../design/agc.md), [AsyncDsssReceiver — the continuous DSSS receiver, from spec to object](../design/async-dsss-receiver.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [The Exponential Moving Average](../design/ema.md), [Lock Detection — the reasoning](../design/lock-detect.md)
+**Design** — [The acquisition surface: the DSSS search engine](../design/acq-surface.md), [Automatic Gain Control](../design/agc.md), [AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object](../design/async-dsss-receiver.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [The Exponential Moving Average](../design/ema.md), [Lock Detection — the reasoning](../design/lock-detect.md)
 
 <!-- related-pages:end -->

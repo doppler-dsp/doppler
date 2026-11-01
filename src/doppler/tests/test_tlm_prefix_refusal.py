@@ -89,7 +89,7 @@ _CODE = (np.arange(31) % 2).astype(np.uint8)
 # separately in test_a_disabled_agc_still_bounds_the_receiver_prefix.
 FACES: dict[str, Callable[[], Any]] = {
     "doppler.acquire.Acquisition": lambda: Acquisition(
-        _CODE, spc=2, chip_rate=1e6, cn0_dbhz=50.0
+        _CODE, sample_rate=2 * 1e6, chip_rate=1e6, cn0_dbhz=50.0
     ),
     "doppler.agc.AGC": lambda: AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05),
     "doppler.dsss.AsyncDsssPool": lambda: AsyncDsssPool(

@@ -52,10 +52,20 @@ acq_cn0_dbhz_from_amp_snr (float amp_snr, double fs)
  * mapping, kept in one place so the surface axis and the hand-off cannot
  * drift apart. */
 static inline double
-acq_chip_phase_of_col (size_t col, size_t code_len, size_t spc)
+acq_chip_phase_of_col (size_t col, size_t code_len, size_t code_bins)
 {
   const double cl = (double)code_len;
-  return dp_fmod_pos (cl - (double)col / (double)spc, cl);
+  return dp_fmod_pos (cl - (double)col * cl / (double)code_bins, cl);
+}
+
+/* The correlation mainlobe's half-width in surface columns: shape.zone is
+ * counted in samples of the code period, and a padded lag axis has
+ * lag_bins / code_bins columns a sample (rounded up, so a padded zone never
+ * covers less of the mainlobe than the native one). */
+static inline size_t
+acq_zone_cols (const dp_acq_state_t *st)
+{
+  return (st->shape.zone * st->lag_bins + st->code_bins - 1) / st->code_bins;
 }
 
 /* The chip phase a hit seeds a code loop with, in Dll's convention: the
@@ -71,9 +81,9 @@ acq_chip_phase_of_col (size_t col, size_t code_len, size_t spc)
  * is no drift to advance by, so the phase is the inverted lag alone. */
 static double
 acq_handoff_chip_phase (const dp_acq_state_t *state, size_t doppler_bin,
-                        size_t code_phase, size_t code_len, size_t spc)
+                        size_t code_phase, size_t code_len)
 {
-  double phase = acq_chip_phase_of_col (code_phase, code_len, spc);
+  double phase = acq_chip_phase_of_col (code_phase, code_len, state->lag_bins);
   if (state->carrier_freq_hz > 0.0)
     {
       const double doppler_hz  = acq_bin_doppler_hz (state, doppler_bin);
@@ -105,7 +115,7 @@ acq_in_doppler_band (const dp_acq_state_t *st, size_t k)
      compare against a band widened by the same factor -- otherwise
      interpolation would silently narrow the searched Doppler range. */
   const size_t rows = st->coherent_bins * st->interp;
-  const size_t row  = k / st->code_bins;
+  const size_t row  = k / st->lag_bins;
   const size_t fold = (row <= rows - row) ? row : rows - row;
   /* The FULL native band is every row: its edge is +/-span = D/2 bins, so
      for an even D the Nyquist bin belongs to it, and for an odd D so does
@@ -152,7 +162,8 @@ acq_band_cells (size_t D, size_t sb, size_t window_bins, size_t cb)
  * a bin was undetectable at ANY C/N0 (gh-1002).
  *
  * WHAT IS PADDED IS THE SLOW-TIME TRANSFORM, NOT THE CODE. The code axis
- * (`code_bins = sf*spc`) is untouched: corr2d's correlation along it is
+ * (`code_bins`, one code period in samples) is untouched: corr2d's
+ * correlation along it is
  * CIRCULAR, so zero-padding the replica or the epoch in time would not be an
  * interpolation at all -- it would change the correlation being computed
  * (corr2d's own header states this: the forward FFT2 must stay at the
@@ -194,15 +205,15 @@ acq_native_row (const dp_acq_state_t *st, const float *surf, size_t row,
 {
   if (st->interp <= 1)
     return row;
-  const size_t rows = st->n_surf / st->code_bins;
+  const size_t rows = st->n_surf / st->lag_bins;
   size_t       best = rows;
   for (size_t d = 0; d <= 2 * st->interp; d++)
     {
       size_t r = (row + rows + d - st->interp) % rows;
       if (r % st->interp)
         continue;
-      size_t k = r * st->code_bins + col;
-      if (best == rows || surf[k] > surf[best * st->code_bins + col])
+      size_t k = r * st->lag_bins + col;
+      if (best == rows || surf[k] > surf[best * st->lag_bins + col])
         best = r;
     }
   return best / st->interp;
@@ -347,7 +358,7 @@ acq_scan_surface (dp_acq_state_t *st, const float *surf, int magnitude)
 static void
 acq_list_peaks (dp_acq_state_t *st, const float *surf, float gate)
 {
-  const size_t nx   = st->code_bins;
+  const size_t nx   = st->lag_bins;
   const size_t rows = st->n_surf / nx;
   acq_scan_t   sc   = { st, surf, 0, 0 };
   size_t       best = acq_merge_best (st, surf);
@@ -359,7 +370,7 @@ acq_list_peaks (dp_acq_state_t *st, const float *surf, float gate)
       if (st->n_peaks == st->max_peaks)
         break;
       det_peak_zone (st->peak_mask, rows, nx, best / nx, best % nx, st->interp,
-                     st->shape.zone);
+                     acq_zone_cols (st));
       dp_pool_run (st->pool, st->window_bins, acq_tile_pick, &sc);
       best = acq_merge_best (st, surf);
     }
@@ -382,7 +393,7 @@ acq_list_peaks (dp_acq_state_t *st, const float *surf, float gate)
 static float
 acq_peak_concentration (const dp_acq_state_t *st, const float *surf, int power)
 {
-  const size_t nx   = st->code_bins;
+  const size_t nx   = st->lag_bins;
   const size_t rows = st->n_surf / nx;
   const size_t col  = st->peaks[0].col;
   const size_t prow = st->peaks[0].row;
@@ -418,8 +429,8 @@ acq_dwell_decided (dp_acq_state_t *st, const float                      *surf,
         st->stat_surface[k] = stat_of (st, surf[k]);
       st->surface_at = st->samples_consumed;
       if (st->sink && st->dwells % (st->sink_decim ? st->sink_decim : 1) == 0)
-        st->sink (st->sink_ctx, st->stat_surface, st->n_surf / st->code_bins,
-                  st->code_bins, st->samples_consumed);
+        st->sink (st->sink_ctx, st->stat_surface, st->n_surf / st->lag_bins,
+                  st->lag_bins, st->samples_consumed);
     }
   if (st->tlm.ctx)
     {
@@ -680,6 +691,35 @@ acq_rate_of (double span, size_t n, size_t h)
   return n > 1 ? -span + 2.0 * span * (double)h / (double)(n - 1) : 0.0;
 }
 
+/* A pick's statistic on its own lag (acq_result_t::test_stat_peak): the
+ * centre column `c` and the larger of its two neighbours, on the pick's
+ * surface row, under the triangular mainlobe `shape.zone` samples wide. A
+ * column is lag_bins/code_bins of a sample, so the neighbour sits s =
+ * code_bins/lag_bins samples off; a true lag a samples from the centre's
+ * (0 <= a <= s/2, toward that neighbour) reads c = P (1 - a/zone) and
+ * n = P (1 - (s - a)/zone), so P = (c + n) / (2 - s/zone). The clamp keeps
+ * the estimate inside what a straddle can do. Statistics are amplitudes on
+ * both paths (stat_of is linear in |z| coherently, in sqrt of the power
+ * sum non-coherently), so the triangle applies to them as read. */
+static float
+acq_peak_on_lag (const dp_acq_state_t *st, const float *surf, size_t row,
+                 size_t c, float centre,
+                 float (*stat_of) (const dp_acq_state_t *, float))
+{
+  const size_t lb = st->lag_bins;
+  const double s  = (double)st->code_bins / (double)lb;
+  const double z  = (double)st->shape.zone;
+  if (!(z > s) || !(centre > 0.0f))
+    return centre;
+  const float  l  = stat_of (st, surf[row * lb + (c + lb - 1) % lb]);
+  const float  h  = stat_of (st, surf[row * lb + (c + 1) % lb]);
+  const double n  = (double)(l > h ? l : h);
+  double       p  = ((double)centre + n) / (2.0 - s / z);
+  const double hi = (double)centre / (1.0 - s / (2.0 * z));
+  p               = p < (double)centre ? (double)centre : p > hi ? hi : p;
+  return (float)p;
+}
+
 /* The listed peaks of the dwell just decided, as results: each pick's
  * native row and column, its own statistic against the dwell's reference,
  * and the two-epoch rule of docs/design/async-dsss-receiver.md §7.1 -- a
@@ -702,7 +742,8 @@ acq_report_peaks (dp_acq_state_t *st, const float *surf,
                   float (*stat_of) (const dp_acq_state_t *, float),
                   float (*mag_of) (float), acq_result_t *result, size_t room)
 {
-  const size_t nx   = st->code_bins;
+  const size_t nx   = st->lag_bins;
+  const size_t zone = acq_zone_cols (st);
   size_t       ndet = 0, n_listed = 0, n_seen = 0;
   size_t       listed_col[ACQ_MAX_PEAKS];
   uint32_t     seen_row[ACQ_MAX_PEAKS], seen_col[ACQ_MAX_PEAKS];
@@ -721,7 +762,7 @@ acq_report_peaks (dp_acq_state_t *st, const float *surf,
           size_t d = c > listed_col[j] ? c - listed_col[j] : listed_col[j] - c;
           if (d > nx / 2)
             d = nx - d;
-          twin = d <= st->shape.zone;
+          twin = d <= zone;
         }
       if (twin)
         {
@@ -732,7 +773,7 @@ acq_report_peaks (dp_acq_state_t *st, const float *surf,
                                              : st->twin_col[k] - c;
               if (d > nx / 2)
                 d = nx - d;
-              still = st->twin_row[k] == (uint32_t)r && d <= st->shape.zone;
+              still = st->twin_row[k] == (uint32_t)r && d <= zone;
             }
           if (!still)
             continue; /* held: seen this dwell, listed next if it stays */
@@ -756,11 +797,13 @@ acq_report_peaks (dp_acq_state_t *st, const float *surf,
         .test_stat        = stat,
         .cn0_dbhz_est     = acq_cn0_dbhz_from_amp_snr (amp_snr, st->fs),
         .samples_consumed = st->samples_consumed,
-        .chip_phase       = acq_handoff_chip_phase (st, r, c, st->sf, st->spc),
+        .chip_phase       = acq_handoff_chip_phase (st, r, c, st->sf),
         .doppler_rate_hz_s
         = acq_rate_count (st) > 1
               ? acq_rate_of (st->doppler_rate, st->rate_hyps, st->rate_best_h)
               : 0.0,
+        .test_stat_peak
+        = acq_peak_on_lag (st, surf, st->peaks[i].row, c, stat, stat_of),
       };
     }
   /* This dwell's picks, listed and held, are what the next dwell's
@@ -1134,7 +1177,8 @@ acq_commit_thresholds (dp_acq_state_t *st, double pfa, double pd, double snr,
   st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)D);
   /* Every rate hypothesis is another independent look at each cell. */
   st->pfa_cell = dp_det_pfa_cell (
-      pfa, (double)(acq_band_cells (D, st->searched_bins, st->window_bins, cb)
+      pfa, (double)(acq_band_cells (D, st->searched_bins, st->window_bins,
+                                    st->lag_bins)
                     * acq_rate_count (st)));
   double umax       = acq_intra_umax (D, st->searched_bins, du, span);
   st->straddle_loss = acq_straddle_loss (D, st->searched_bins, &st->shape, du,
@@ -1161,10 +1205,11 @@ acq_commit_thresholds (dp_acq_state_t *st, double pfa, double pd, double snr,
     {
       /* The coherent gate divides by a reference measured over the whole
          native surface: price that, in the mode the gate is derived for. */
-      const double k_ref
-          = st->noise_mode == DET_NOISE_MEAN ? (double)st->n : 0.0;
-      st->pd_predicted = acq_mean_pd (snr, D, umax, &st->shape, (int)st->n,
-                                      gate, (int)nc, st->interp, 0, k_ref);
+      const double k_ref = st->noise_mode == DET_NOISE_MEAN
+                               ? (double)(st->n / st->code_bins * st->lag_bins)
+                               : 0.0;
+      st->pd_predicted   = acq_mean_pd (snr, D, umax, &st->shape, (int)st->n,
+                                        gate, (int)nc, st->interp, 0, k_ref);
       /* A burst is judged on the burst: the Pd a caller of a burst engine
          gets is any dwell the preamble spans detecting. Non-coherent looks
          on a burst have no alignment model (see acq_auto_config_burst for
@@ -1194,13 +1239,16 @@ acq_commit_thresholds (dp_acq_state_t *st, double pfa, double pd, double snr,
  * target. */
 static size_t
 acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t window_bins,
-                     size_t cb, double pfa, double pd, const acq_shape_t *sh,
-                     double du, double span, double k_ref)
+                     size_t cb, size_t lb, double pfa, double pd,
+                     const acq_shape_t *sh, double du, double span,
+                     double k_ref)
 {
   const size_t interp = acq_interp_for (D, 1);
   const double umax   = acq_intra_umax (D, sb, du, span);
+  /* `cb` samples set the coherent gain; the `lb` columns a row are the
+     cells the maximum ranges over (lag_bins). */
   const double pc
-      = dp_det_pfa_cell (pfa, (double)acq_band_cells (D, sb, window_bins, cb));
+      = dp_det_pfa_cell (pfa, (double)acq_band_cells (D, sb, window_bins, lb));
   const double sloss = acq_straddle_loss (D, sb, sh, du, span, interp);
 
   int    k  = dp_det_n_noncoh (snr * sloss, (int)(D * cb), pd, pc,
@@ -1400,14 +1448,16 @@ acq_auto_config_continuous (const dp_acq_state_t *st, size_t D, double pfa,
                             size_t *out_window_bins)
 {
   const size_t cb          = st->code_bins;
+  const size_t lb          = st->lag_bins;
   const double span        = st->doppler_span_hz;
   const size_t window_bins = acq_cover_window_bins (du, span);
 
   *out_window_bins = window_bins;
   /* The searched Doppler cells are the tiles times the rows inside each. */
   *out_nc = acq_ascend_n_noncoh (
-      snr, D, window_bins * D, window_bins, cb, pfa, pd, &st->shape, du, span,
-      st->noise_mode == DET_NOISE_MEAN ? (double)(window_bins * D * cb) : 0.0);
+      snr, D, window_bins * D, window_bins, cb, lb, pfa, pd, &st->shape, du,
+      span,
+      st->noise_mode == DET_NOISE_MEAN ? (double)(window_bins * D * lb) : 0.0);
 }
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
@@ -1464,7 +1514,8 @@ acq_tiles_free (dp_acq_state_t *st)
 }
 
 static int
-acq_tiles_alloc (dp_acq_state_t *st, size_t tiles, size_t cb, size_t dI)
+acq_tiles_alloc (dp_acq_state_t *st, size_t tiles, size_t cb, size_t lb,
+                 size_t dI)
 {
   st->tile_inv
       = (dp_fft_state_t **)dp_xcalloc (tiles, sizeof (dp_fft_state_t *));
@@ -1480,11 +1531,13 @@ acq_tiles_alloc (dp_acq_state_t *st, size_t tiles, size_t cb, size_t dI)
     }
   for (size_t t = 0; t < tiles; t++)
     {
-      st->tile_inv[t] = dp_fft_create (cb, +1, 1);
+      st->tile_inv[t] = dp_fft_create (lb, +1, 1);
       if (!st->tile_inv[t])
         return -1;
-      st->tile_prod[t]
-          = (float _Complex *)dp_xmalloc (cb * sizeof (float _Complex));
+      /* The product at the period's cb bins, then (padded lag axis only)
+         the same spectrum zero-padded to lb bins for the inverse. */
+      st->tile_prod[t] = (float _Complex *)dp_xmalloc (
+          (lb == cb ? cb : cb + lb) * sizeof (float _Complex));
       if (dI > 1)
         {
           st->tile_slow[t] = dp_fft_create (dI, -1, 1);
@@ -1509,6 +1562,7 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
             size_t new_freq_bins, const float _Complex *replica)
 {
   const size_t cb           = st->code_bins;
+  const size_t lb           = st->lag_bins;
   const size_t new_n        = new_db * new_freq_bins * cb;
   const int    grid_changed = (new_db != st->coherent_bins) || (new_n != st->n)
                               || (new_freq_bins != st->window_bins);
@@ -1517,7 +1571,10 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
     supplies coarse frequency tiles; each tile can still have a coherent
     slow-time FFT and its own interpolated rows. */
   const size_t new_interp = acq_interp_for (new_db, new_freq_bins);
-  const size_t new_n_surf = new_n * new_interp;
+  /* The surface: every Doppler row (D * interp a tile) by lag_bins code
+     phases. The slow-time input of the narrow path, `yframe`, is the same
+     rows by code_bins samples, never more cells than the surface. */
+  const size_t new_n_surf = new_db * new_freq_bins * new_interp * lb;
 
   dp_corr2d_state_t *new_corr          = NULL;
   dp_fft_state_t    *new_fft           = NULL;
@@ -1559,7 +1616,8 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
          ACQ_DOPPLER_INTERP). */
       new_corr = dp_corr2d_create (
           new_ref, (new_freq_bins > 1) ? 1 : new_db * new_interp, cb, 1, 1, 0,
-          0, -1); /* wideband mode never runs it: one row, not D * interp */
+          lb == cb ? 0 : lb,
+          -1); /* wideband mode never runs it: one row, not D * interp */
       if (!new_corr)
         goto fail;
       /* Zero-padded slow-time transform: `new_db` real inputs into a
@@ -1611,7 +1669,7 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
           if (new_db > 1)
             {
               new_blk = (float _Complex *)dp_xmalloc (
-                  new_freq_bins * new_db * cb * sizeof (float _Complex));
+                  new_freq_bins * new_db * lb * sizeof (float _Complex));
               new_blk_raw = (float _Complex *)dp_xmalloc (
                   new_db * cb * sizeof (float _Complex));
             }
@@ -1686,7 +1744,8 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
       st->parts = (acq_part_t *)dp_xmalloc (new_freq_bins * sizeof *st->parts);
       acq_tiles_free (st);
       if (new_freq_bins > 1
-          && acq_tiles_alloc (st, new_freq_bins, cb, new_db * new_interp) != 0)
+          && acq_tiles_alloc (st, new_freq_bins, cb, lb, new_db * new_interp)
+                 != 0)
         {
           acq_tiles_free (st);
           st->coherent_bins = new_db;
@@ -2042,13 +2101,13 @@ acq_auto_rate_hypotheses (dp_acq_state_t *st, double pfa, double pd,
  * public entry points, each fixing @p reps/@p symbol_rate/`continuous` to its
  * own mode, never a per-call knob (see the file doc comment).
  *
- * It knows the waveform only as one period of @p replica (`sf * spc`
- * samples) and its correlation @p shape: the unit the rates are counted in
- * is a chip for a code, and the arithmetic is the same whatever that unit
- * is. */
+ * It knows the waveform only as one period of @p replica (@p n_period
+ * samples, sf chips) and its correlation @p shape: the unit the rates are
+ * counted in is a chip for a code, and the arithmetic is the same whatever
+ * that unit is. */
 static dp_acq_state_t *
 acq_acq_create_impl (const float _Complex *replica, size_t sf,
-                     const acq_shape_t *shape, size_t reps, size_t spc,
+                     const acq_shape_t *shape, size_t reps, size_t n_period,
                      double chip_rate, double symbol_rate, double cn0_dbhz,
                      double doppler_uncertainty, double pfa, double pd,
                      int noise_mode, int continuous, size_t code_only_epochs,
@@ -2069,7 +2128,7 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
    * instead of being an out-of-range error. It must be finite, though: a
    * NaN or an infinity reached the searched-bin and window counts through
    * a float-to-size conversion (doppler#2103). */
-  if (!replica || sf < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
+  if (!replica || sf < 1 || n_period < sf || reps < 1 || !(chip_rate > 0.0)
       || !(isfinite (cn0_dbhz) || (!continuous && isnan (cn0_dbhz)))
       || !(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0)
       || !(doppler_uncertainty >= 0.0 && isfinite (doppler_uncertainty))
@@ -2083,14 +2142,21 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
     return NULL;
 
   st->sf    = sf;
-  st->spc   = spc;
   st->shape = *shape;
-  acq_off_peak (replica, sf * spc, &st->shape);
-  st->reps                = reps;
-  st->code_bins           = sf * spc;
-  st->chip_rate           = chip_rate;
-  st->fs                  = chip_rate * (double)spc;
-  st->cn0_dbhz            = cn0_dbhz;
+  acq_off_peak (replica, n_period, &st->shape);
+  st->reps      = reps;
+  st->code_bins = n_period;
+  /* The surface's lag axis (the field's doc): a continuous engine whose
+     period is an awkward length pads its inverse transforms to the next
+     power of two -- one forward transform an epoch stays at the period,
+     the many inverses (one a tile) get fast. A burst engine keeps the
+     template's own length. */
+  st->lag_bins  = (continuous && dp_fft_smooth_floor (n_period) != n_period)
+                      ? dp_next_pow_two (n_period)
+                      : n_period;
+  st->chip_rate = chip_rate;
+  st->fs        = chip_rate * (double)n_period / (double)sf;
+  st->cn0_dbhz  = cn0_dbhz;
   st->doppler_span_hz     = span;
   st->pd                  = pd;
   st->pfa                 = pfa;
@@ -2148,46 +2214,99 @@ fail:
   return NULL;
 }
 
-/* A PN code as the builder's waveform: one period of oversampled BPSK
- * (chip 0 -> +1, chip 1 -> -1, each held for `spc` samples) and the
- * triangle's shape. sf is the code length. The CONTINUOUS engine's only:
- * a burst engine takes its preamble as samples (dp_acq_create_burst()). */
+/* A PN code as the builder's waveform: one period of BPSK (chip 0 -> +1,
+ * chip 1 -> -1) over @p n_period samples, and its correlation shape. sf is
+ * the code length. The CONTINUOUS engine's only: a burst engine takes its
+ * preamble as samples (dp_acq_create_burst()).
+ *
+ * A whole number of samples a chip holds each chip that many samples and
+ * takes the triangle's analytic shape, exactly as an integer oversample
+ * always has. Any other period gives each sample the chip its centre falls
+ * in, `floor((k + 1/2) * code_len / n_period)`, which is what sampling the
+ * chip waveform at that rate yields; its chips are then not all the same
+ * length, so the shape is measured from the replica itself
+ * (acq_shape_of_template()), as a burst engine's is. */
 static dp_acq_state_t *
 acq_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
-                       size_t spc, double chip_rate, double symbol_rate,
+                       size_t n_period, double chip_rate, double symbol_rate,
                        double cn0_dbhz, double doppler_uncertainty, double pfa,
                        double pd, int noise_mode, int continuous,
                        size_t code_only_epochs, double doppler_rate)
 {
-  if (!code || code_len < 1 || spc < 1)
+  if (!code || code_len < 1 || n_period < code_len)
     return NULL;
   float _Complex *replica
-      = (float _Complex *)dp_xmalloc (code_len * spc * sizeof *replica);
-  for (size_t c = 0; c < code_len; c++)
+      = (float _Complex *)dp_xmalloc (n_period * sizeof *replica);
+  for (size_t k = 0; k < n_period; k++)
     {
-      float sign = (code[c] & 1u) ? -1.0f : 1.0f;
-      for (size_t s = 0; s < spc; s++)
-        replica[c * spc + s] = sign;
+      const size_t c
+          = (size_t)(((double)k + 0.5) * (double)code_len / (double)n_period);
+      replica[k] = (code[c < code_len ? c : code_len - 1] & 1u) ? -1.0f : 1.0f;
     }
-  const acq_shape_t shape = acq_shape_of_chips (spc);
-  dp_acq_state_t   *st    = acq_acq_create_impl (
-      replica, code_len, &shape, reps, spc, chip_rate, symbol_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, noise_mode, continuous, code_only_epochs,
-      doppler_rate, /* rate_hypotheses= */ 1);
+  acq_shape_t shape;
+  if (n_period % code_len == 0)
+    shape = acq_shape_of_chips (n_period / code_len);
+  else
+    acq_shape_of_template (replica, n_period, &shape);
+  dp_acq_state_t *st = acq_acq_create_impl (
+      replica, code_len, &shape, reps, n_period, chip_rate, symbol_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, continuous,
+      code_only_epochs, doppler_rate, /* rate_hypotheses= */ 1);
   free (replica);
   return st;
 }
 
-dp_acq_state_t *
-dp_acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
-                          double chip_rate, double symbol_rate,
-                          double cn0_dbhz, double doppler_uncertainty,
-                          double pfa, double pd, int noise_mode,
-                          size_t code_only_epochs, double doppler_rate)
+size_t
+dp_acq_period_samples (size_t code_len)
 {
+  if (code_len == 0 || code_len > SIZE_MAX / 4)
+    return 0;
+  return dp_next_pow_two (2 * code_len);
+}
+
+/* The samples one period of a code_len-chip code spans at sample_rate, or
+   0 when that is not a whole number (to a part in 1e9) of at least
+   code_len: the search's transforms are that long, and a fractional period
+   has no grid to correlate on. */
+static size_t
+acq_period_at (size_t code_len, double sample_rate, double chip_rate)
+{
+  if (code_len < 1 || !(sample_rate > 0.0) || !isfinite (sample_rate)
+      || !(chip_rate > 0.0) || !isfinite (chip_rate))
+    return 0;
+  const double n = sample_rate * (double)code_len / chip_rate;
+  const double r = nearbyint (n);
+  if (!(r >= (double)code_len) || r > (double)(SIZE_MAX / 2)
+      || fabs (n - r) > 1e-9 * r)
+    return 0;
+  return (size_t)r;
+}
+
+size_t
+dp_acq_search_period (size_t code_len, double sample_rate, double chip_rate)
+{
+  const size_t own = acq_period_at (code_len, sample_rate, chip_rate);
+  if (own != 0)
+    return own;
+  return (sample_rate > 0.0 && chip_rate > 0.0)
+             ? dp_acq_period_samples (code_len)
+             : 0;
+}
+
+dp_acq_state_t *
+dp_acq_create_continuous (const uint8_t *code, size_t code_len,
+                          double sample_rate, double chip_rate,
+                          double symbol_rate, double cn0_dbhz,
+                          double doppler_uncertainty, double pfa, double pd,
+                          int noise_mode, size_t code_only_epochs,
+                          double doppler_rate)
+{
+  const size_t n_period = acq_period_at (code_len, sample_rate, chip_rate);
+  if (n_period == 0)
+    return NULL;
   return acq_create_from_chips (
-      code, code_len, /* reps= */ 1, spc, chip_rate, symbol_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, noise_mode,
+      code, code_len, /* reps= */ 1, n_period, chip_rate, symbol_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
       /* continuous= */ 1, code_only_epochs, doppler_rate);
 }
 
@@ -2221,9 +2340,9 @@ dp_acq_create_burst (const float _Complex *tmpl, size_t n, size_t reps,
 
   acq_shape_t shape;
   acq_shape_of_template (replica, n, &shape);
-  /* One chip = one sample: sf = n, spc = 1, chip_rate = fs. */
+  /* One chip = one sample: sf = n, a period of n samples, chip_rate = fs. */
   dp_acq_state_t *st = acq_acq_create_impl (
-      replica, n, &shape, reps, /* spc= */ 1, fs, /* symbol_rate= */ 0.0,
+      replica, n, &shape, reps, /* n_period= */ n, fs, /* symbol_rate= */ 0.0,
       cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
       /* continuous= */ 0, 1, doppler_rate, rate_hypotheses);
   free (replica);
@@ -2296,6 +2415,13 @@ dp_acq_destroy (dp_acq_state_t *st)
     dp_fft_destroy (st->wide_fwd);
   if (st->wide_inv)
     dp_fft_destroy (st->wide_inv);
+  if (st->sl_fwd)
+    dp_fft_destroy (st->sl_fwd);
+  if (st->sl_inv)
+    dp_fft_destroy (st->sl_inv);
+  if (st->sl_inv_cb)
+    dp_fft_destroy (st->sl_inv_cb);
+  free (st->sl_scratch);
   if (st->ring)
     dp_f32_destroy (st->ring);
   free (st->ref);
@@ -2442,9 +2568,19 @@ acq_tile_epoch (size_t r, void *ctx)
           ph *= step;
         }
     }
-  float _Complex *row = (D > 1) ? st->blk + (r * D + st->blk_epoch) * nx
-                                : st->out_buf + r * nx;
-  dp_fft_execute_cf32 (st->tile_inv[r], prod, nx, row, nx);
+  /* The inverse at lag_bins: the cross-spectrum zero-padded first when the
+     lag axis is padded (dp_fft_pad_spectrum: the circular correlation,
+     interpolated -- the roll and the code-rate ramp above act on the
+     period's own bins, so neither changes). */
+  const size_t    lb  = st->lag_bins;
+  float _Complex *row = (D > 1) ? st->blk + (r * D + st->blk_epoch) * lb
+                                : st->out_buf + r * lb;
+  if (lb != nx)
+    {
+      dp_fft_pad_spectrum (prod, nx, prod + nx, lb);
+      prod += nx;
+    }
+  dp_fft_execute_cf32 (st->tile_inv[r], prod, lb, row, lb);
 }
 
 /* One tile at the block's end (a body of the fan): per code-phase column,
@@ -2462,7 +2598,7 @@ static void
 acq_tile_block (size_t r, void *ctx)
 {
   dp_acq_state_t *st = ((acq_fan_t *)ctx)->st;
-  const size_t    nx = st->code_bins, D = st->coherent_bins;
+  const size_t    nx = st->lag_bins, D = st->coherent_bins;
   const size_t    dI = D * st->interp;
   /* The rate hypothesis' de-chirp over the block's epochs; NULL = none. */
   const float _Complex *chirp
@@ -2564,7 +2700,7 @@ acq_make_surface (dp_acq_state_t *st, const float _Complex *frame,
       for (size_t i = 0; i < ny_f; i++)
         st->yframe[i * nx + j] = st->colout[i];
     }
-  return dp_corr2d_execute (st->corr, st->yframe, st->n_surf, st->out_buf,
+  return dp_corr2d_execute (st->corr, st->yframe, ny_f * nx, st->out_buf,
                             st->n_surf);
 }
 
@@ -2699,7 +2835,7 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
            * "negative" row correctly represents a negative-frequency
            * roll instead of silently aliasing back into the positive
            * side (window_bins is always << nx: window_bins tiles the
-           * requested uncertainty, nx = sf*spc is the full code
+           * requested uncertainty, nx = code_bins is the full code
            * length). */
           dp_fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec, nx);
           const size_t D   = st->coherent_bins;
@@ -2838,16 +2974,162 @@ dp_acq_dsl_db (dp_acq_state_t *state)
   return state->shape.dsl > 0.0 ? 20.0 * log10 (state->shape.dsl) : -INFINITY;
 }
 
+/* Sweep points of dp_acq_sidelobe_ratio(): across the emitter's native row
+   of Doppler, and across its lag column. */
+#define ACQ_SIDELOBE_DOPPLER_PTS 9
+#define ACQ_SIDELOBE_LAG_PTS 5
+/* A frequency touches at most two tiles' bands (an edge), and its folds add
+   none past the grid's own: room for any grid. */
+#define ACQ_SIDELOBE_TILES_MAX 4
+
+/* The fast-time mixing frequencies (tile centres) a cell at Doppler `f` can
+   have been read in: every tile of the grid whose band, widened by `tol`,
+   holds f or one of its folds onto the circular combined axis (W tiles of
+   width fe). A cell on a tile edge, or on the axis's wrap, belongs to both
+   tiles it touches. A single-tile engine mixes at DC. Returns the count. */
+static size_t
+acq_tiles_of (const dp_acq_state_t *st, double f, double tol, double *out)
+{
+  const double fe = st->fs / (double)st->code_bins;
+  const long   W  = (long)st->window_bins;
+  if (W <= 1)
+    {
+      out[0] = 0.0;
+      return 1;
+    }
+  size_t n = 0;
+  for (long k = -(W - 1) / 2; k <= W / 2; k++)
+    {
+      const double t = fe * (double)k;
+      for (long q = -1; q <= 1; q++)
+        if (fabs (f + (double)q * (double)W * fe - t) <= 0.5 * fe + tol)
+          {
+            out[n++] = t;
+            break;
+          }
+    }
+  return n;
+}
+
+/* The cell value a replica delayed to `refd` (time domain, code_bins) puts
+   on the surface when mixed by `nu` Hz relative to the mixing tile: the
+   Doppler is applied after the delay, continuous across the code's wrap as
+   a channel applies it; the spectrum times conj(FFT(replica)), zero-padded
+   to lag_bins and inverted. Into `out` (lag_bins), unnormalised like the
+   surface's own inverse. */
+static void
+acq_sidelobe_row (dp_acq_state_t *st, const float _Complex *refd, double nu,
+                  float _Complex *out)
+{
+  const size_t    cb = st->code_bins, lb = st->lag_bins;
+  float _Complex *C    = st->sl_scratch; /* FFT(replica) */
+  float _Complex *sig  = C + cb;
+  float _Complex *spec = sig + cb;
+  float _Complex *pad  = spec + 2 * cb; /* after refd */
+  const double    w    = 2.0 * M_PI * nu / st->fs;
+  for (size_t k = 0; k < cb; k++)
+    sig[k] = refd[k] * (float _Complex)cexp (I * w * (double)k);
+  dp_fft_execute_cf32 (st->sl_fwd, sig, cb, spec, cb);
+  for (size_t b = 0; b < cb; b++)
+    spec[b] *= conjf (C[b]);
+  dp_fft_pad_spectrum (spec, cb, pad, lb);
+  dp_fft_execute_cf32 (st->sl_inv, pad, lb, out, lb);
+}
+
+double
+dp_acq_sidelobe_ratio (dp_acq_state_t *state, const acq_result_t *from,
+                       const acq_result_t *to)
+{
+  dp_acq_state_t *st = state;
+  const size_t    cb = st->code_bins, lb = st->lag_bins;
+  if (!st->sl_scratch)
+    {
+      st->sl_fwd     = dp_xnn (dp_fft_create (cb, -1, 1));
+      st->sl_inv     = dp_xnn (dp_fft_create (lb, +1, 1));
+      st->sl_inv_cb  = dp_xnn (dp_fft_create (cb, +1, 1));
+      st->sl_scratch = dp_xmalloc ((4 * cb + 2 * lb) * sizeof *st->sl_scratch);
+      dp_fft_execute_cf32 (st->sl_fwd, st->ref, cb, st->sl_scratch, cb);
+    }
+  float _Complex *C      = st->sl_scratch;
+  float _Complex *spec   = C + 2 * cb; /* scratch for the delayed replica */
+  float _Complex *refd   = C + 3 * cb;
+  float _Complex *row    = C + 4 * cb + lb;
+  const double    s      = (double)cb / (double)lb; /* samples a column */
+  const double    f_from = acq_bin_doppler_hz (st, from->doppler_bin);
+  const double    f_to   = acq_bin_doppler_hz (st, to->doppler_bin);
+  const double    res    = st->doppler_res_hz;
+  double          t_to[ACQ_SIDELOBE_TILES_MAX], t_from[ACQ_SIDELOBE_TILES_MAX];
+  const size_t    n_to = acq_tiles_of (st, f_to, 1e-9 * st->fs, t_to);
+  /* its own peak on its own lag, per Doppler point: |sum_n |c[n]|^2
+     e^{j w n}| in the best tile it can have been read in */
+  double own[ACQ_SIDELOBE_DOPPLER_PTS], fpt[ACQ_SIDELOBE_DOPPLER_PTS];
+  for (int p = 0; p < ACQ_SIDELOBE_DOPPLER_PTS; p++)
+    {
+      fpt[p]
+          = f_from
+            + res * ((double)p / (double)(ACQ_SIDELOBE_DOPPLER_PTS - 1) - 0.5);
+      const size_t n_from = acq_tiles_of (st, fpt[p], 1e-9 * st->fs, t_from);
+      own[p]              = 0.0;
+      for (size_t a = 0; a < n_from; a++)
+        {
+          const double w    = 2.0 * M_PI * (fpt[p] - t_from[a]) / st->fs;
+          double _Complex z = 0.0;
+          for (size_t k = 0; k < cb; k++)
+            z += (double)(crealf (st->ref[k]) * crealf (st->ref[k])
+                          + cimagf (st->ref[k]) * cimagf (st->ref[k]))
+                 * cexp (I * w * (double)k);
+          own[p] = fmax (own[p], cabs (z));
+        }
+    }
+  double worst = 0.0;
+  for (int q = 0; q < ACQ_SIDELOBE_LAG_PTS; q++)
+    {
+      /* the emitter's lag, samples, across its column (a delay of tau puts
+         the correlation's peak at column tau / s): the replica delayed by
+         tau, a phase ramp over the signed bin of its spectrum */
+      const double tau
+          = ((double)from->code_phase
+             + ((double)q / (double)(ACQ_SIDELOBE_LAG_PTS - 1) - 0.5))
+            * s;
+      const double w    = -2.0 * M_PI * tau / (double)cb;
+      const size_t half = cb / 2;
+      for (size_t b = 0; b < cb; b++)
+        {
+          const double kb = (b < half || (cb % 2 == 1 && b == half))
+                                ? (double)b
+                                : (double)b - (double)cb;
+          spec[b]         = C[b] * (float _Complex)cexp (I * w * kb);
+        }
+      dp_fft_execute_cf32 (st->sl_inv_cb, spec, cb, refd, cb);
+      for (size_t k = 0; k < cb; k++)
+        refd[k] /= (float)cb; /* the unnormalised inverse */
+      for (int p = 0; p < ACQ_SIDELOBE_DOPPLER_PTS; p++)
+        {
+          if (!(own[p] > 0.0))
+            continue;
+          for (size_t t = 0; t < n_to; t++)
+            {
+              acq_sidelobe_row (st, refd, fpt[p] - t_to[t], row);
+              /* the unnormalised inverse is code_bins times the
+                 time-domain correlation own[] is (Parseval) */
+              worst = fmax (worst, cabsf (row[to->code_phase % lb])
+                                       / ((double)cb * own[p]));
+            }
+        }
+    }
+  return worst > 1.0 ? 1.0 : worst;
+}
+
 void
 dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
-                      size_t code_len, size_t spc, acq_handoff_t *out)
+                      size_t code_len, acq_handoff_t *out)
 {
   /* Shared with the wideband search's own row->roll mapping — see
      dp_fftfreq_index()'s doc comment for the sign inversion that a second,
      drifted copy of this formula used to cause here. */
   double doppler_hz = acq_bin_doppler_hz (state, hit->doppler_bin);
   double phase      = acq_handoff_chip_phase (state, hit->doppler_bin,
-                                              hit->code_phase, code_len, spc);
+                                              hit->code_phase, code_len);
 
   *out = (acq_handoff_t){
     .samples_consumed = hit->samples_consumed,
@@ -2925,7 +3207,7 @@ dp_acq_surface (dp_acq_state_t *state, float *out, size_t n_out)
 size_t
 dp_acq_surface_doppler_hz (dp_acq_state_t *state, double *out, size_t n_out)
 {
-  const size_t rows = state->n_surf / state->code_bins;
+  const size_t rows = state->n_surf / state->lag_bins;
   if (n_out < rows)
     return 0;
   /* Row r is bin r/interp of the native axis (window_bins tiles, or the
@@ -2938,11 +3220,11 @@ dp_acq_surface_doppler_hz (dp_acq_state_t *state, double *out, size_t n_out)
 size_t
 dp_acq_surface_chip_phase (dp_acq_state_t *state, double *out, size_t n_out)
 {
-  const size_t cols = state->code_bins;
+  const size_t cols = state->lag_bins;
   if (n_out < cols)
     return 0;
   for (size_t c = 0; c < cols; c++)
-    out[c] = acq_chip_phase_of_col (c, state->sf, state->spc);
+    out[c] = acq_chip_phase_of_col (c, state->sf, cols);
   return cols;
 }
 size_t
@@ -2970,7 +3252,7 @@ size_t
 dp_acq_block_prompt (dp_acq_state_t *state, size_t tile, size_t col,
                      float _Complex *out, size_t n_out)
 {
-  const size_t D = state->coherent_bins, nx = state->code_bins;
+  const size_t D = state->coherent_bins, nx = state->lag_bins;
   if (!acq_block_whole (state) || tile >= state->window_bins || col >= nx
       || n_out < D)
     return 0;
@@ -3036,7 +3318,7 @@ acq_state_twins (void *blob, const dp_acq_state_t *st)
 static size_t
 acq_blk_cells (const dp_acq_state_t *st)
 {
-  return st->blk ? st->window_bins * st->coherent_bins * st->code_bins : 0;
+  return st->blk ? st->window_bins * st->coherent_bins * st->lag_bins : 0;
 }
 
 static float _Complex *
@@ -3121,6 +3403,7 @@ dp_acq_get_state (const dp_acq_state_t *st, void *blob)
      block's share of #1471). Nothing reads them before they are rewritten,
      so a restored engine's zeros change no output. */
   const size_t D = st->coherent_bins, nx = st->code_bins;
+  const size_t lb   = st->lag_bins; /* a block row is one inverse */
   const size_t live = st->blk_epoch          ? st->blk_epoch
                       : st->samples_consumed ? D
                                              : 0;
@@ -3131,8 +3414,8 @@ dp_acq_get_state (const dp_acq_state_t *st, void *blob)
                             acq_blk_cells (st) * sizeof (float _Complex));
       for (size_t r = 0; r < st->window_bins; r++)
         {
-          dp_w_cf32 (&bw, st->blk + r * D * nx, live * nx);
-          dp_w_zeros (&bw, (D - live) * nx * sizeof (float _Complex));
+          dp_w_cf32 (&bw, st->blk + r * D * lb, live * lb);
+          dp_w_zeros (&bw, (D - live) * lb * sizeof (float _Complex));
         }
     }
   if (st->blk_raw)

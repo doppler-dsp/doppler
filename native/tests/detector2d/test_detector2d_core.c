@@ -194,6 +194,20 @@ _agg (const float *mag, size_t lo, size_t hi, det_noise_mode_t mode)
   return tmp[cnt / 2];
 }
 
+/* det_peak_scan()'s definition: the first maximum among the candidates,
+   one cell at a time. The masked scan skips whole blocks a lane-wise pass
+   says cannot move the pick; this is what it must agree with, cell for
+   cell, so the oracle is the plain loop and never the implementation. */
+static size_t
+_scan_oracle (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
+{
+  size_t best = k1;
+  for (size_t k = k0; k < k1; k++)
+    if (!mask[k] && (best == k1 || surf[k] > surf[best]))
+      best = k;
+  return best;
+}
+
 int
 main (void)
 {
@@ -775,6 +789,114 @@ main (void)
     free (bb);
     dp_detector2d_destroy (a);
     dp_detector2d_destroy (b);
+  }
+
+  /* ── det_peak_scan, masked, over many blocks ──────────────────────────
+   * The masked scan runs the plain loop only on the blocks whose largest
+   * candidate beats the pick so far, so every case here spans several
+   * blocks: candidates dense and sparse, whole blocks masked, a maximum in
+   * the partial tail block, a candidate only in the last block, ties across
+   * blocks (the FIRST maximum), and ranges that start mid-block, as the
+   * acquisition engine's per-tile chunks do. */
+  {
+    enum
+    {
+      SN = 3001
+    };
+    float   *surf = malloc (SN * sizeof *surf);
+    uint8_t *mask = malloc (SN);
+    DP_REQUIRE (surf && mask);
+    uint32_t     rs        = 0x5ca9u;
+    const double density[] = { 0.0, 0.5, 0.97, 1.0 };
+    size_t       cases = 0, agree = 0;
+    for (int ties = 0; ties < 2; ties++)
+      for (size_t d = 0; d < sizeof density / sizeof *density; d++)
+        for (int trial = 0; trial < 40; trial++)
+          {
+            for (size_t k = 0; k < SN; k++)
+              {
+                /* Ties: a few levels, so equal maxima land in many blocks. */
+                const double u = dp_uni (&rs);
+                surf[k]        = ties ? (float)(int)(u * 4.0) : (float)u;
+                mask[k]        = dp_uni (&rs) < density[d];
+              }
+            if (trial % 4 == 1) /* the tail block holds the maximum */
+              {
+                surf[SN - 2] = 10.0f;
+                mask[SN - 2] = 0;
+              }
+            if (trial % 4 == 2) /* only the last cell is a candidate */
+              {
+                memset (mask, 1, SN);
+                mask[SN - 1] = 0;
+              }
+            const size_t k0
+                = trial % 3 == 0 ? 0 : (size_t)(dp_uni (&rs) * 700);
+            const size_t k1
+                = trial % 3 == 0 ? SN : SN - (size_t)(dp_uni (&rs) * 700);
+            cases++;
+            agree += det_peak_scan (surf, mask, k0, k1)
+                     == _scan_oracle (surf, mask, k0, k1);
+          }
+    DP_CHECK (cases == 320);
+    DP_CHECK (agree == cases);
+    /* A masked cell larger than every candidate is never the pick. */
+    for (size_t k = 0; k < SN; k++)
+      {
+        surf[k] = 1.0f;
+        mask[k] = 0;
+      }
+    surf[1500] = 9.0f;
+    mask[1500] = 1;
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 0);
+    /* Ties, placed: the maximum duplicated in two blocks, then twice in one
+       block, after a decoy -- the FIRST index wins, as in the plain loop. */
+    memset (mask, 0, SN);
+    for (size_t k = 0; k < SN; k++)
+      surf[k] = 1.0f;
+    surf[300]  = 5.0f; /* block 1 */
+    surf[2000] = 5.0f; /* block 7 */
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 300);
+    DP_CHECK (det_peak_scan (surf, mask, 301, SN) == 2000);
+    surf[300] = surf[2000] = 1.0f;
+    surf[600] = surf[700] = 5.0f; /* both in block 2 */
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 600);
+    /* All candidates negative: a masked cell must not read as 0 and win. */
+    for (size_t k = 0; k < SN; k++)
+      {
+        surf[k] = -1.0f - (float)k;
+        mask[k] = k % 3 == 0;
+      }
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 1);
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN)
+              == _scan_oracle (surf, mask, 0, SN));
+    /* NaN: a NaN is never larger than anything, so the plain loop passes
+       over it -- unless it is the FIRST candidate, which it then keeps,
+       since nothing compares larger than a NaN. The lane-wise pass must
+       neither let a NaN hide its block's true maximum nor skip that rule. */
+    memset (mask, 0, SN);
+    for (size_t k = 0; k < SN; k++)
+      surf[k] = 1.0f;
+    /* The true maximum in the NaN's own LANE (8 cells on), after it and
+       then before it: a lane max that let the NaN through would read NaN
+       there, and the block would be skipped. */
+    surf[1100] = NAN;
+    surf[1108] = 7.0f;
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 1108);
+    surf[1108] = NAN;
+    surf[1100] = 7.0f;
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 1100);
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN)
+              == _scan_oracle (surf, mask, 0, SN));
+    surf[0] = NAN; /* the first candidate: the plain loop keeps it */
+    DP_CHECK (_scan_oracle (surf, mask, 0, SN) == 0);
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 0);
+    /* Nothing a candidate: k1. */
+    memset (mask, 1, SN);
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == SN);
+    DP_CHECK (det_peak_scan (surf, mask, 7, 7) == 7);
+    free (surf);
+    free (mask);
   }
 
   DP_TEST_END ("test_detector2d_core");

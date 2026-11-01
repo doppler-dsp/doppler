@@ -425,8 +425,8 @@ add_test(NAME validate_wfm_field_explore
 
 # One emitter on the acquisition engine's own surface: the sidelobe floor
 # per tile distance and the CFAR reference it sets -- the number the
-# continuous async-DSSS design forks on (docs/design/async-dsss-receiver.md
-# §6.3; docs/design/async-dsss-receiver-measurements.md §12.2). Reads the
+# continuous async-DSSS design forks on (docs/design/acq-surface.md §8;
+# docs/design/async-dsss-receiver-measurements.md §12.2). Reads the
 # engine's mag_buf after a single-look dwell.
 add_executable(validate_acq_emitter_floor
                ${CMAKE_CURRENT_SOURCE_DIR}/acq_emitter_floor.c)
@@ -469,10 +469,10 @@ add_test(NAME validate_async_dsss_receiver_release
 # Symbol lock through a signal's life at the parallel receivers' operating
 # point, 3.069 Mcps with the receiver's own search over +/-1/T_E: arrival to
 # tracking and to symbol lock, and lock through a dropout and after a loss
-# (docs/design/async-dsss-parallel.md §3, §5). The emitter is the shipped
+# (docs/design/async-dsss-receiver.md §6). The emitter is the shipped
 # continuous-DSSS synth with the harness's own data bits, so every event is
 # measured mid-data; the noise the shipped awgn. `--emit` is the record's
-# data (docs/design/async-dsss-parallel-measurements/).
+# data (docs/design/async-dsss-receiver-measurements/).
 add_executable(validate_async_dsss_receiver_lock
                ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_receiver_lock.c)
 target_include_directories(validate_async_dsss_receiver_lock
@@ -492,6 +492,23 @@ add_test(NAME validate_async_dsss_receiver_lock
 add_test(NAME validate_async_dsss_receiver_lock_telemetry
          COMMAND validate_async_dsss_receiver_lock --telemetry
                  ${CMAKE_CURRENT_BINARY_DIR} --check)
+
+# How far below a stronger emitter a weaker one is still taken, the weak
+# one at the specification's floor and the strong one up to 20 dB above it,
+# one epoch deep and on the deep frame (docs/design/async-dsss-receiver.md
+# §7.2). The spot check gates that no sidelobe is ever taken and that D = 1
+# takes the weak emitter at 10 and 20 dB; the sweep is the near-far table.
+add_executable(validate_async_dsss_near_far
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_near_far.c)
+target_include_directories(validate_async_dsss_near_far
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_async_dsss_near_far
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_async_dsss_near_far
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_near_far
+         COMMAND validate_async_dsss_near_far --check)
 
 # The same receiver's bit error rate against the BPSK bound, as an
 # implementation loss in dB, on the same stimulus

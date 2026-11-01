@@ -47,7 +47,7 @@ extern "C"
 #define ASYNC_DSSS_POOL_NO_RECEIVER (-1)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC   DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 4u
+#define ASYNC_DSSS_POOL_STATE_VERSION 5u /* v5: the controller's search */
 
 #define ASYNC_DSSS_POOL_GHOST_WINDOW_S 0.2
 #define ASYNC_DSSS_POOL_GHOST_EPS_HZ 10.0
@@ -57,6 +57,9 @@ extern "C"
   typedef struct
   {
     dp_async_dsss_receiver_state_t **rx; 
+    dp_async_dsss_receiver_state_t *search; 
+    bool     searching;    
+    uint64_t search_periods; 
     dp_pool_t *workers; 
     int        threads; 
     float _Complex *sym_buf; 
@@ -86,7 +89,7 @@ extern "C"
 
   dp_async_dsss_pool_state_t *dp_async_dsss_pool_create (
       const uint8_t *code, size_t code_len, size_t n_receivers,
-      double chip_rate, double symbol_rate, size_t spc, int m,
+      double chip_rate, double symbol_rate, double sample_rate, int m,
       double cn0_dbhz, double pfa, double pd, double doppler_uncertainty,
       size_t segments, size_t sps, int differential,
       double refine_max_error_db, size_t refine_samples_per_symbol,

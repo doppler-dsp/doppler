@@ -10,6 +10,7 @@
 
 _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detailed-description)
 
+* `#include <math.h>`
 * `#include <stdint.h>`
 * `#include <stdlib.h>`
 * `#include <string.h>`
@@ -365,7 +366,10 @@ static size_t det_peak_scan (
 
 
 
-Returns the cell, or `k1` when no cell in the range is a candidate. The pick is the FIRST maximum (strict `>`), so a caller that cuts the surface into chunks, scans each, and merges the chunks' picks in order with the same strict `>` makes exactly the pick one scan over the whole surface makes  which is what lets the acquisition engine run the scan per tile on its pool and merge serially, bit-identical at any thread count (doppler#1243). `mask` may be NULL: every cell is then a candidate, and the loop is the plain argmax on purpose  a four-lane unrolled form runs 4x faster in isolation but moves detector2d::push by nothing measurable (doppler#1208), so the simple one stays. 
+Returns the cell, or `k1` when no cell in the range is a candidate. The pick is the FIRST maximum (strict `>`), so a caller that cuts the surface into chunks, scans each, and merges the chunks' picks in order with the same strict `>` makes exactly the pick one scan over the whole surface makes  which is what lets the acquisition engine run the scan per tile on its pool and merge serially, bit-identical at any thread count (doppler#1243). `mask` may be NULL: every cell is then a candidate, and the loop is the plain argmax on purpose  a four-lane unrolled form runs 4x faster in isolation but moves detector2d::push by nothing measurable (doppler#1208), so the simple one stays.
+
+
+With a mask the surface can be large (an acquisition dwell over a wide Doppler span is millions of cells, scanned once a pick), and there the plain loop was a fifth of the whole push. So the masked scan is split into blocks: a lane-wise pass finds each block's largest candidate, and the plain loop, seeded with the pick so far, runs only on a block whose largest candidate beats it. The pick is the plain loop's, NaN cells included; test\_detector2d\_core.c holds it to that loop over multi-block surfaces. 
 
 
         

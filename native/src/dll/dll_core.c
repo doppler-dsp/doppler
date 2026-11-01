@@ -278,7 +278,7 @@ set_segments (dp_dll_state_t *s, size_t segments)
 {
   s->segments  = segments ? segments : 1;
   s->seg_chips = (double)s->sf / (double)s->segments;
-  s->seg_norm  = (double)(s->sf * s->sps) / (double)s->segments;
+  s->seg_norm  = (double)s->sf * s->sps / (double)s->segments;
   /* The steer's gain table (dll_steer): the coherent full-epoch loop
      applies the integrator as a code-rate ratio (inv_tsamps cycles per
      sample per unit) and kp*e as chips per epoch (inv_tsamps/sf), and
@@ -329,18 +329,22 @@ dll_bn_zeta_ok (double bn, double zeta, double t)
 }
 
 static void
-configure_geometry (dp_dll_state_t *s, size_t code_len, size_t sps,
+configure_geometry (dp_dll_state_t *s, size_t code_len, double sps,
                     double init_chip, double bn, double zeta, double spacing)
 {
-  s->sf      = code_len ? code_len : 1;
-  s->sps     = sps ? sps : 1;
-  s->inv_sps = 1.0 / (double)s->sps;
+  s->sf = code_len ? code_len : 1;
+  /* Any positive samples a chip: the partials close on the code NCO's
+     phase, never on a sample count, so a period need not be a whole number
+     of samples (a non-positive or non-finite value falls back to 1, as 0
+     always has). */
+  s->sps     = (sps > 0.0 && isfinite (sps)) ? sps : 1.0;
+  s->inv_sps = 1.0 / s->sps;
   /* sf/sps are create-time invariants (no setter changes them after
      this), so their reciprocals are computed exactly once, here --
      never re-derived (let alone divided) in the tracking loop's
      per-epoch execution code (dll_update(), dll_steps_impl()'s
      segments>1 branch). */
-  double tsamps    = (double)s->sf * (double)s->sps;
+  double tsamps    = (double)s->sf * s->sps;
   s->inv_tsamps    = 1.0 / tsamps;
   s->inv_tsamps2   = s->inv_tsamps * s->inv_tsamps;
   s->inv_tsamps_sf = s->inv_tsamps / (double)s->sf;
@@ -361,7 +365,7 @@ configure_geometry (dp_dll_state_t *s, size_t code_len, size_t sps,
 
 void
 dp_dll_init (dp_dll_state_t *s, const uint8_t *code, size_t code_len,
-             size_t sps, double init_chip, double bn, double zeta,
+             double sps, double init_chip, double bn, double zeta,
              double spacing)
 {
   configure_geometry (s, code_len, sps, init_chip, bn, zeta, spacing);
@@ -464,7 +468,7 @@ free_segment_buffers (dp_dll_state_t *s)
 }
 
 dp_dll_state_t *
-dp_dll_create (const uint8_t *code, size_t code_len, size_t sps,
+dp_dll_create (const uint8_t *code, size_t code_len, double sps,
                double init_chip, double bn, double zeta, double spacing,
                size_t segments)
 {
@@ -878,7 +882,7 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
    */
   if (state->segments <= 1)
     {
-      double tsamps = (double)(state->sf * state->sps);
+      double tsamps = (double)state->sf * state->sps;
       for (size_t n = 0; n < x_len; n++)
         {
           /* Off-peak (noise) tap on the same pre-advance phase as the
@@ -949,7 +953,7 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
      pseudocode, and empirically made no difference to this scenario's own
      behavior -- removed). */
   size_t w      = state->segments;
-  double tsamps = (double)(state->sf * state->sps);
+  double tsamps = (double)state->sf * state->sps;
   for (size_t n = 0; n < x_len; n++)
     {
       dll_lock_accumulate (state, x[n]);

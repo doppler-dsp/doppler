@@ -50,7 +50,7 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
                                              "n_receivers",
                                              "chip_rate",
                                              "symbol_rate",
-                                             "spc",
+                                             "sample_rate",
                                              "m",
                                              "cn0_dbhz",
                                              "pfa",
@@ -78,8 +78,7 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
   unsigned long long n_receivers_raw     = 3;
   double             chip_rate           = 1000000.0;
   double             symbol_rate         = 1000.0;
-  PyObject          *spc_obj             = NULL;
-  unsigned long long spc_raw             = 2;
+  double             sample_rate         = 0.0;
   int                m                   = 2;
   double             cn0_dbhz            = 55.0;
   double             pfa                 = 1e-3;
@@ -109,9 +108,9 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
   int                threads                       = 0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|OddOiddddOOidOdOOpOddpddi", kwlist, &code_obj,
-          &n_receivers_obj, &chip_rate, &symbol_rate, &spc_obj, &m, &cn0_dbhz,
-          &pfa, &pd, &doppler_uncertainty, &segments_obj, &sps_obj,
+          args, kwds, "O|OdddiddddOOidOdOOpOddpddi", kwlist, &code_obj,
+          &n_receivers_obj, &chip_rate, &symbol_rate, &sample_rate, &m,
+          &cn0_dbhz, &pfa, &pd, &doppler_uncertainty, &segments_obj, &sps_obj,
           &differential, &refine_max_error_db, &refine_samples_per_symbol_obj,
           &refine_design_margin_db, &refine_n_fft_obj, &refine_zero_pad_obj,
           &refine_sequential_raw, &refine_max_n_blocks_obj, &carrier_freq_hz,
@@ -138,26 +137,6 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
       Py_DECREF (_ix);
     }
   size_t n_receivers = (size_t)n_receivers_raw;
-  if (spc_obj != NULL)
-    {
-      PyObject *_ix = PyNumber_Index (spc_obj);
-      if (_ix == NULL)
-        {
-          return -1;
-        }
-      spc_raw = PyLong_AsUnsignedLongLong (_ix);
-      if ((spc_raw == (unsigned long long)-1 && PyErr_Occurred ())
-          || spc_raw > (unsigned long long)SIZE_MAX)
-        {
-          PyErr_Format (PyExc_OverflowError,
-                        "spc: %S is out of range for size_t [0, %llu]", _ix,
-                        (unsigned long long)SIZE_MAX);
-          Py_DECREF (_ix);
-          return -1;
-        }
-      Py_DECREF (_ix);
-    }
-  size_t spc = (size_t)spc_raw;
   if (segments_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (segments_obj);
@@ -295,8 +274,8 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
   self->handle    = dp_async_dsss_pool_create (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, n_receivers,
-      chip_rate, symbol_rate, spc, m, cn0_dbhz, pfa, pd, doppler_uncertainty,
-      segments, sps, differential, refine_max_error_db,
+      chip_rate, symbol_rate, sample_rate, m, cn0_dbhz, pfa, pd,
+      doppler_uncertainty, segments, sps, differential, refine_max_error_db,
       refine_samples_per_symbol, refine_design_margin_db, refine_n_fft,
       refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
       lost_confirm_s, reacquire, code_only_s, doppler_rate, threads);
@@ -308,10 +287,10 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
                        "n_receivers <= 16, threads >= 0, and every parameter "
                        "AsyncDsssReceiver takes: a code of at least 2 chips, "
                        "a finite chip_rate > 0, a finite symbol_rate > 0 and "
-                       "<= chip_rate, spc >= 1, m in {2,4,8}, segments >= 1, "
-                       "sps >= 2, carrier_freq_hz 0 or finite and above "
-                       "chip_rate * spc / 2, lost_confirm_s >= 0 (and at "
-                       "least one input sample with reacquire), "
+                       "<= chip_rate, sample_rate >= chip_rate, m in "
+                       "{2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 "
+                       "or finite and above sample_rate / 2, lost_confirm_s "
+                       ">= 0 (and at least one input sample with reacquire), "
                        "refine_samples_per_symbol >= 1, refine_n_fft >= 1, "
                        "refine_zero_pad >= 1; and for the searcher a finite "
                        "cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite "
@@ -1007,11 +986,11 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "\n"
     "Hands every whole code period it completes to every receiver (header\n"
     "step 1), keeps each one's symbols for symbols(), and after each period\n"
-    "releases the lost, resolves duplicates, releases ghosts and hands out\n"
-    "exclusions and ranks (step 2). The samples past the last whole period\n"
-    "are kept for the next push. Accepts any block size, and state carries\n"
-    "across calls: the result is a function of the stream, not of its\n"
-    "blocking.\n"
+    "releases the lost, resolves duplicates, releases ghosts, seeds the idle\n"
+    "receivers and sets the search's levers (step 3). The samples past the\n"
+    "last whole period are kept for the next push. Accepts any block size,\n"
+    "and state carries across calls: the result is a function of the stream,\n"
+    "not of its blocking.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1031,7 +1010,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,\n"
-    "...                      symbol_rate=2700.0, spc=2,\n"
+    "...                      symbol_rate=2700.0, sample_rate=6.138e6,\n"
     "...                      doppler_uncertainty=500.0, threads=1)\n"
     ">>> pool.push(np.zeros(2046, dtype=np.complex64))\n"
     "0\n" },
@@ -1046,7 +1025,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "\n"
     "dp_async_dsss_receiver_status() of that receiver, as of the last whole\n"
     "code period fed, after the controller's step on it: a receiver the\n"
-    "controller released reads searching. A receiver past the pool returns a\n"
+    "controller released reads idle. A receiver past the pool returns a\n"
     "zeroed record with `state` ASYNC_DSSS_POOL_NO_RECEIVER.\n"
     "\n"
     "Parameters\n"
@@ -1066,21 +1045,21 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,\n"
-    "...                      symbol_rate=2700.0, spc=2,\n"
+    "...                      symbol_rate=2700.0, sample_rate=6.138e6,\n"
     "...                      doppler_uncertainty=500.0, threads=1)\n"
-    ">>> (pool.status(0).state, pool.status(2).state)  # 2 is past the pool\n"
-    "(0, -1)\n" },
+    ">>> (pool.status(0).state, pool.status(2).state)  # 3 idle; 2 is past\n"
+    "(3, -1)\n" },
   { "symbols", (PyCFunction)(void *)AsyncDsssPoolObj_symbols,
     METH_VARARGS | METH_KEYWORDS,
     "symbols(receiver, out) -> ndarray\n"
     "\n"
     "The symbols receiver receiver emitted during the last push().\n"
     "\n"
-    "Empty for a receiver that was searching, refining or lost throughout\n"
-    "the push, and for a receiver past the pool. Tracking emits symbols\n"
-    "whether or not they are a signal's (dp_async_dsss_receiver_steps()):\n"
-    "read status().locked for that. A push replaces them, and set_state()\n"
-    "and reset() clear them.\n"
+    "Empty for a receiver that was idle, refining or lost throughout the\n"
+    "push, and for a receiver past the pool. Tracking emits symbols whether\n"
+    "or not they are a signal's (dp_async_dsss_receiver_steps()): read\n"
+    "status().locked for that. A push replaces them, and set_state() and\n"
+    "reset() clear them.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1101,10 +1080,10 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,\n"
-    "...                      symbol_rate=2700.0, spc=2,\n"
+    "...                      symbol_rate=2700.0, sample_rate=6.138e6,\n"
     "...                      doppler_uncertainty=500.0, threads=1)\n"
     ">>> _ = pool.push(np.zeros(2046, dtype=np.complex64))\n"
-    ">>> pool.symbols(0).size                    # searching: nothing yet\n"
+    ">>> pool.symbols(0).size                    # idle: nothing yet\n"
     "0\n" },
   { "symbols_max_out", (PyCFunction)AsyncDsssPoolObj_symbols_max_out,
     METH_NOARGS,
@@ -1121,8 +1100,9 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
   { "reset", (PyCFunction)AsyncDsssPoolObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Every receiver back to searching, with no exclusions and rank 0; the\n"
-    "clock, the release counts and the ghost history back to 0.\n"
+    "Every receiver back to idle and the search to no exclusions; the\n"
+    "clock, the release counts, the search's period count and the ghost\n"
+    "history back to 0.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1131,7 +1111,8 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> pool = AsyncDsssPool(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
-    "...                      spc=2, doppler_uncertainty=500.0, threads=1)\n"
+    "...                      sample_rate=6.138e6, doppler_uncertainty=500.0, "
+    "threads=1)\n"
     ">>> _ = pool.push(np.zeros(2046, dtype=np.complex64))\n"
     ">>> pool.samples\n"
     "2046\n"
@@ -1168,7 +1149,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,\n"
-    "...                      symbol_rate=2700.0, spc=2,\n"
+    "...                      symbol_rate=2700.0, sample_rate=6.138e6,\n"
     "...                      doppler_uncertainty=500.0)\n"
     ">>> pool.set_threads(1)\n"
     ">>> pool.threads\n"
@@ -1218,7 +1199,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,\n"
-    "...                      symbol_rate=2700.0, spc=2,\n"
+    "...                      symbol_rate=2700.0, sample_rate=6.138e6,\n"
     "...                      doppler_uncertainty=500.0, threads=1)\n"
     ">>> tlm = Telemetry(1 << 16)\n"
     ">>> pool.set_telemetry(tlm, \"pool\")\n"
@@ -1335,8 +1316,10 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "    Chip rate, Hz.\n"
     "symbol_rate : float, default 1000.0\n"
     "    Symbol rate, Hz.\n"
-    "spc : int, default 2\n"
-    "    Samples per chip.\n"
+    "sample_rate : float, default 0.0\n"
+    "    The rate of the samples pushed, Hz: any ratio to chip_rate of at "
+    "least\n"
+    "    one, or 0 for two samples a chip (AsyncDsssReceiver's).\n"
     "m : int, default 2\n"
     "    PSK order.\n"
     "cn0_dbhz : float, default 55.0\n"
@@ -1392,17 +1375,17 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "every\n"
     "    parameter AsyncDsssReceiver takes: a code of at least 2 chips, a "
     "finite\n"
-    "    chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, "
-    "m\n"
-    "    in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite "
-    "and\n"
-    "    above chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one "
-    "input\n"
-    "    sample with reacquire), refine_samples_per_symbol >= 1, refine_n_fft "
-    ">=\n"
-    "    1, refine_zero_pad >= 1; and for the searcher a finite cn0_dbhz, 0 "
-    "<\n"
-    "    pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0)``.\n"
+    "    chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, "
+    "sample_rate\n"
+    "    >= chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz "
+    "0\n"
+    "    or finite and above sample_rate / 2, lost_confirm_s >= 0 (and at "
+    "least\n"
+    "    one input sample with reacquire), refine_samples_per_symbol >= 1,\n"
+    "    refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a "
+    "finite\n"
+    "    cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=\n"
+    "    0)``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1411,7 +1394,7 @@ static PyTypeObject AsyncDsssPoolObjType = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> pool = AsyncDsssPool(code, n_receivers=3, chip_rate=3.069e6,\n"
-    "...                      symbol_rate=2700.0, spc=2,\n"
+    "...                      symbol_rate=2700.0, sample_rate=6.138e6,\n"
     "...                      doppler_uncertainty=500.0, threads=1)\n"
     ">>> (pool.n_receivers, pool.threads, pool.coherent_bins)\n"
     "(3, 1, 1)\n"

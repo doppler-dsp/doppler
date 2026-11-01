@@ -68,7 +68,8 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 |  size\_t | [**dp\_resamp\_execute\_ctrl\_pos**](#function-dp_resamp_execute_ctrl_pos) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, const double \* ctrl, size\_t num\_in, float \_Complex \* out, double \* pos, size\_t max\_out) <br>[_**dp\_resamp\_execute\_ctrl()**_](resamp__core_8h.md#function-dp_resamp_execute_ctrl) _, also reporting where each output sits on the input timeline._ |
 |  size\_t | [**dp\_resamp\_execute\_ctrl\_push**](#function-dp_resamp_execute_ctrl_push) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push one input at an instantaneous rate deviation; emit any outputs._  |
 |  double | [**dp\_resamp\_get\_ctrl\_acc**](#function-dp_resamp_get_ctrl_acc) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The control accumulator's fractional phase, in [0, 1)._  |
-|  double | [**dp\_resamp\_get\_delay**](#function-dp_resamp_get_delay) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Group delay of the interpolator, in INPUT samples._  |
+|  double | [**dp\_resamp\_get\_delay**](#function-dp_resamp_get_delay) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Group delay of the interpolating structure, in INPUT samples._  |
+|  double | [**dp\_resamp\_get\_execute\_delay**](#function-dp_resamp_get_execute_delay) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Group delay of_ [_**dp\_resamp\_execute()**_](resamp__core_8h.md#function-dp_resamp_execute) _, in INPUT samples, on the path its rate runs._ |
 |  size\_t | [**dp\_resamp\_get\_num\_phases**](#function-dp_resamp_get_num_phases) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Polyphase arms in the bank._  |
 |  size\_t | [**dp\_resamp\_get\_num\_taps**](#function-dp_resamp_get_num_taps) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Taps per polyphase arm._  |
 |  double | [**dp\_resamp\_get\_rate**](#function-dp_resamp_get_rate) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Base output/input rate ratio._  |
@@ -594,7 +595,7 @@ mu, from 0 up to (not including) 1: a fraction of one input interval; 0 after cr
 
 ### function dp\_resamp\_get\_delay 
 
-_Group delay of the interpolator, in INPUT samples._ 
+_Group delay of the interpolating structure, in INPUT samples._ 
 ```C++
 double dp_resamp_get_delay (
     const resamp_state_t * state
@@ -603,7 +604,10 @@ double dp_resamp_get_delay (
 
 
 
-The prototype is a symmetric (linear-phase) Kaiser lowpass, so its delay is its centre: `floor((num_phases * num_taps) | 1) / 2` prototype taps, i.e. that over `num_phases` input samples  9.5 for the built-in bank  plus ONE input sample of pipeline: an output is formed from the delay line as it stands, and only then is the next input loaded, so the newest sample under the taps is the one before the sample being offered. 10.5 for the built-in bank, on every entry point (the free, ctrl and push forms agree; test\_resamp\_core.c §3 measures it by phase differencing on each and holds it to this value).
+The prototype is a symmetric (linear-phase) Kaiser lowpass, so its delay is its centre: `floor((num_phases * num_taps) | 1) / 2` prototype taps, i.e. that over `num_phases` input samples  9.5 for the built-in bank  plus ONE input sample of pipeline: an output is formed from the delay line as it stands, and only then is the next input loaded, so the newest sample under the taps is the one before the sample being offered. 10.5 for the built-in bank.
+
+
+It is the delay of the ctrl and push forms at EVERY rate (they ride the interpolating structure, which is what lets a timing loop steer through unity), and of [**dp\_resamp\_execute()**](resamp__core_8h.md#function-dp_resamp_execute) at rate &gt;= 1; test\_resamp\_core.c §3 measures it by phase differencing on each. [**dp\_resamp\_execute()**](resamp__core_8h.md#function-dp_resamp_execute) below unity runs the decimator instead, whose delay is [**dp\_resamp\_get\_execute\_delay()**](resamp__core_8h.md#function-dp_resamp_get_execute_delay)'s.
 
 
 What it is for: output `k` carries the input at index `k * (1/rate) + (the accumulated ctrl) - delay`. A caller comparing the output timeline with the input's  a code loop fed through doppler\_channel, a test asserting where a chip lands  subtracts this, and a loop started at the input's phase without it is this far from the peak (doppler-dsp/doppler#1189: 5 chips at 2 samples per chip, onto a Gold sidelobe). Closed-form from the bank's geometry, so it is exact for the built-in bank; a [**dp\_resamp\_create\_custom()**](resamp__core_8h.md#function-dp_resamp_create_custom) bank is assumed symmetric about the same centre.
@@ -621,6 +625,46 @@ What it is for: output `k` carries the input at index `k * (1/rate) + (the accum
 **Returns:**
 
 The delay in input samples (`>= 1`). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_resamp\_get\_execute\_delay 
+
+_Group delay of_ [_**dp\_resamp\_execute()**_](resamp__core_8h.md#function-dp_resamp_execute) _, in INPUT samples, on the path its rate runs._
+```C++
+double dp_resamp_get_execute_delay (
+    const resamp_state_t * state
+) 
+```
+
+
+
+At rate &gt;= 1 it is the interpolating structure's, [**dp\_resamp\_get\_delay()**](resamp__core_8h.md#function-dp_resamp_get_delay). Below unity [**dp\_resamp\_execute()**](resamp__core_8h.md#function-dp_resamp_execute) runs the decimator, the transposed form, which runs at the OUTPUT rate and emits each interval's output as the interval closes, one output period ahead of the prototype's centre: `(centre - 1)` output samples, `8.5 / rate` input samples for the built-in bank. test\_resamp\_core.c §3b measures it at 0.91, 0.80, 0.67 and 0.50 and holds it to this value.
+
+
+What it is for: output `k` of [**dp\_resamp\_execute()**](resamp__core_8h.md#function-dp_resamp_execute) carries the input at index `k / rate -  dp_resamp_get_execute_delay()` from a fresh stream; a caller mapping a position found on the output timeline back to the input (a search run on resampled samples handing off to a loop on the original ones) subtracts this.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The delay in input samples. 
 
 
 

@@ -1798,8 +1798,11 @@ class DsssReceiver:
         Data-symbol rate, Hz. Required — passed straight to the embedded
         Acquisition's own `symbol_rate` (diagnostic there; see
         `dp_acq_create_continuous()`).
-    spc : int, default 2
-        Samples/chip (front-end oversample); default 2 (fs = 2x chip_rate).
+    sample_rate : float, default 0.0
+        Input sample rate, Hz: a whole number of samples a chip (to a part in
+        1e9), at least one, or 0 for two a chip (the default). A fractional
+        rate is refused: this receiver's code loop and carrier stage run
+        whole-sample code periods (AsyncDsssReceiver takes any).
     m : int, default 2
         PSK order, 2/4/8; default 2 (BPSK).
     cn0_dbhz : float, default 55.0
@@ -1827,13 +1830,13 @@ class DsssReceiver:
     ValueError
         If construction fails. The exception message is ``DsssReceiver: invalid
         parameter (need a code of at least 2 chips, a finite chip_rate > 0, a
-        finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
-        segments >= 1, sps >= 2 -- sps = 1 cannot carry an m_out, whose
-        smallest legal value is 2 and which MpskReceiver requires sps to reach;
-        a chain resampling ratio, sps * symbol_rate * code_len / (chip_rate *
-        segments), that is a normal double; and for the searcher a finite
-        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=
-        0)``.
+        finite symbol_rate > 0 and <= chip_rate, a sample_rate that is a whole
+        number >= 1 of samples a chip, m in {2,4,8}, segments >= 1, sps >= 2 --
+        sps = 1 cannot carry an m_out, whose smallest legal value is 2 and
+        which MpskReceiver requires sps to reach; a chain resampling ratio, sps
+        * symbol_rate * code_len / (chip_rate * segments), that is a normal
+        double; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd <
+        1, a finite doppler_uncertainty >= 0)``.
 
     Examples
     --------
@@ -1857,7 +1860,7 @@ class DsssReceiver:
     ...          + 1j * rng.standard_normal(pre + n))
     >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
     ...      + noise.astype(np.complex64))
-    >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,
+    >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, sample_rate=fs,
     ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
     >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
     >>> syms = np.concatenate([s for s in syms if len(s)])
@@ -1878,7 +1881,7 @@ class DsssReceiver:
         code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
-        spc: int = 2,
+        sample_rate: float = 0.0,
         m: int = 2,
         cn0_dbhz: float = 55.0,
         pfa: float = 1e-3,
@@ -1952,7 +1955,7 @@ class DsssReceiver:
         ...          + 1j * rng.standard_normal(pre + n))
         >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
         ...      + noise.astype(np.complex64))
-        >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,
+        >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, sample_rate=fs,
         ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
         >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
         >>> syms = np.concatenate([s for s in syms if len(s)])
@@ -2007,7 +2010,8 @@ class DsssReceiver:
         >>> from doppler.dsss import DsssReceiver
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+        ...                   sample_rate=6.0e6)
         >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it
         >>> rx.tracking                # still searching, on the pinned grid
         0
@@ -2051,7 +2055,8 @@ class DsssReceiver:
         >>> from doppler.dsss import DsssReceiver
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+        ...                   sample_rate=6.0e6)
         >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
         ...                       alpha=0.1, n_up=5, n_down=3)
         >>> rx.tracking                # a no-op until a hit builds the Dll
@@ -2113,7 +2118,8 @@ class DsssReceiver:
         >>> from doppler.dsss import DsssReceiver
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+        ...                   sample_rate=6.0e6)
         >>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain
         >>> rx.segments                       # tracking grid updated in place
         6
@@ -2131,7 +2137,8 @@ class DsssReceiver:
         >>> from doppler.dsss import DsssReceiver
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+        ...                   sample_rate=6.0e6)
         >>> rx.reset()                 # abort any lock, hunt from scratch
         >>> (rx.tracking, rx.chip_phase)   # back to searching, all cleared
         (0, 0.0)
@@ -2296,8 +2303,12 @@ class AsyncDsssReceiver:
     symbol_rate : float, default 1000.0
         Data-symbol rate, Hz: finite, > 0, at most `chip_rate`, and at most
         2^20 Dll partials per symbol at `segments`.
-    spc : int, default 2
-        Samples/chip; default 2.
+    sample_rate : float, default 0.0
+        The rate of the samples pushed, Hz: any ratio to chip_rate of at least
+        one, or 0 for two samples a chip (the default). Refine and tracking run
+        at this rate. The search runs at it too when one code period is a whole
+        number of samples (dp_acq_search_period()); a fractional period is
+        resampled, for the search alone, to a power of two.
     m : int, default 2
         PSK order, 2/4/8; default 2 (BPSK).
     cn0_dbhz : float, default 55.0
@@ -2376,12 +2387,12 @@ class AsyncDsssReceiver:
         false: the release rule above.
     code_only_s : float, default 0.0
         Seconds of code-only signal the waveform holds at any chip phase (a
-        symbol-free window; design async-dsss-parallel.md §4), >= 0 and finite.
-        The receiver hands its searcher `code_only_epochs = floor(code_only_s *
-        chip_rate / code_len) - 1` (at least 1), and the searcher's slow-time
-        depth follows: `coherent_bins = D`, at most `(code_only_epochs + 1)/2`,
-        rounded down to a 7-smooth length (dp_acq_create_continuous()). Default
-        0: no window, D = 1.
+        symbol-free window; design async-dsss-receiver.md §2.3), >= 0 and
+        finite. The receiver hands its searcher `code_only_epochs =
+        floor(code_only_s * chip_rate / code_len) - 1` (at least 1), and the
+        searcher's slow-time depth follows: `coherent_bins = D`, at most
+        `(code_only_epochs + 1)/2`, rounded down to a 7-smooth length
+        (dp_acq_create_continuous()). Default 0: no window, D = 1.
     doppler_rate : float, default 0.0
         Doppler rate in Hz/s, >= 0 and finite, that the slow-time depth is
         bounded against: at most `f_epoch / sqrt(2 * doppler_rate)` epochs
@@ -2392,14 +2403,14 @@ class AsyncDsssReceiver:
     ValueError
         If construction fails. The exception message is ``AsyncDsssReceiver:
         invalid parameter (need a code of at least 2 chips, a finite chip_rate
-        > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8},
-        segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above
-        chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input sample
-        with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1,
-        refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, segments *
-        chip_rate / (code_len * symbol_rate) <= 1048576; and for the searcher a
-        finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty
-        >= 0)``.
+        > 0, a finite symbol_rate > 0 and <= chip_rate, sample_rate >=
+        chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or
+        finite and above sample_rate / 2, lost_confirm_s >= 0 (and at least one
+        input sample with reacquire), refine_samples_per_symbol >= 1,
+        refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20 Dll
+        partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576;
+        and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a
+        finite doppler_uncertainty >= 0)``.
 
     Examples
     --------
@@ -2408,7 +2419,7 @@ class AsyncDsssReceiver:
     >>> from doppler.wfm import Gold
     >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
     >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-    ...                        spc=2, doppler_uncertainty=500.0)
+    ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
     >>> (rx.tracking, rx.refining, rx.lost)       # searching
     (0, 0, 0)
 
@@ -2419,7 +2430,7 @@ class AsyncDsssReceiver:
         code: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
-        spc: int = 2,
+        sample_rate: float = 0.0,
         m: int = 2,
         cn0_dbhz: float = 55.0,
         pfa: float = 1e-3,
@@ -2512,7 +2523,7 @@ class AsyncDsssReceiver:
         >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
         ...      + noise.astype(np.complex64))
         >>> rx = AsyncDsssReceiver(
-        ...     code, chip_rate=chip, symbol_rate=sym, spc=spc,
+        ...     code, chip_rate=chip, symbol_rate=sym, sample_rate=fs,
         ...     cn0_dbhz=cn0, doppler_uncertainty=500.0)
         >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
         >>> syms = np.concatenate([s for s in syms if len(s)])
@@ -2585,8 +2596,9 @@ class AsyncDsssReceiver:
             If the C call returns a non-zero status. The exception message is
             ``seed refused: the receiver already holds an assignment (refining,
             tracking or lost -- reset() releases it), or chip_phase is outside
-            [0, code_len), or doppler_hz_est is not finite and below chip_rate
-            * spc / 2 in magnitude``, with the return code appended (gh-869).
+            [0, code_len), or doppler_hz_est is not finite and below
+            sample_rate / 2 in magnitude``, with the return code appended
+            (gh-869).
 
         Examples
         --------
@@ -2595,7 +2607,7 @@ class AsyncDsssReceiver:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6,
-        ...                        symbol_rate=2700.0, spc=2)
+        ...                        symbol_rate=2700.0, sample_rate=6.138e6)
         >>> rx.seed(chip_phase=512.25, doppler_hz_est=-1500.0,
         ...         cn0_dbhz_est=48.0)
         >>> (rx.refining, rx.doppler_hz, rx.cn0_dbhz_est)
@@ -2643,7 +2655,7 @@ class AsyncDsssReceiver:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6,
-        ...                        symbol_rate=2700.0, spc=2)
+        ...                        symbol_rate=2700.0, sample_rate=6.138e6)
         >>> st = rx.status()
         >>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # searching
         (0, 0.0, 0, 0)
@@ -2689,7 +2701,7 @@ class AsyncDsssReceiver:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-        ...                        spc=2, doppler_uncertainty=500.0)
+        ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
         >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it
         >>> rx.refining                # still searching, on the pinned grid
         0
@@ -2729,7 +2741,7 @@ class AsyncDsssReceiver:
         --------
         >>> from doppler.dsss import AsyncDsssReceiver
         >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
-        ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+        ...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, cn0_dbhz=60.0)
         >>> rx.refine_min_blocks                     # the default floor
         7
         >>> rx.set_refine_min_blocks(12)
@@ -2783,7 +2795,7 @@ class AsyncDsssReceiver:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-        ...                        spc=2, doppler_uncertainty=500.0)
+        ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
         >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
         ...                       alpha=0.1, n_up=5, n_down=3)
         >>> rx.tracking                       # replaced at the next chain build
@@ -2838,7 +2850,7 @@ class AsyncDsssReceiver:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-        ...                        spc=2, doppler_uncertainty=500.0)
+        ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
         >>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain
         >>> rx.segments                       # tracking grid updated in place
         6
@@ -2859,7 +2871,7 @@ class AsyncDsssReceiver:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-        ...                        spc=2, doppler_uncertainty=500.0)
+        ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
         >>> rx.reset()                 # abort any lock, hunt from scratch
         >>> (rx.tracking, rx.refining, rx.chip_phase)   # all cleared
         (0, 0, 0.0)
@@ -2961,7 +2973,7 @@ class AsyncDsssReceiver:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-        ...                        spc=2, doppler_uncertainty=500.0)
+        ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
         >>> tlm = Telemetry(1 << 12)
         >>> rx.set_telemetry(tlm, "rx")
         >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
@@ -3001,7 +3013,7 @@ class AsyncDsssReceiver:
         --------
         >>> from doppler.dsss import AsyncDsssReceiver
         >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
-        ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+        ...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, cn0_dbhz=60.0)
         >>> rx.set_threads(1)
         >>> rx.threads
         1
@@ -3034,7 +3046,7 @@ class AsyncDsssReceiver:
         it costs is near-far: a second signal much more than dp_acq_dsl_db()
         below a stronger one (-16.95 dB on the specification Gold-1023 search)
         is not taken while the stronger one is on the air
-        (async-dsss-parallel.md §3). Searchers that share a stream and its
+        (async-dsss-receiver.md §7.2). Searchers that share a stream and its
         block grid (get_coherent_bins()) and hold ranks 0..k-1 therefore take k
         different signals in one dwell. Takes effect at the next dwell. A
         mutator's value, so it travels in the state blob (#2022).
@@ -3055,7 +3067,7 @@ class AsyncDsssReceiver:
         --------
         >>> from doppler.dsss import AsyncDsssReceiver
         >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
-        ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+        ...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, cn0_dbhz=60.0)
         >>> rx.set_rank(1)
         >>> rx.rank
         1
@@ -3092,7 +3104,7 @@ class AsyncDsssReceiver:
         >>> import numpy as np
         >>> from doppler.dsss import AsyncDsssReceiver
         >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
-        ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+        ...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, cn0_dbhz=60.0)
         >>> rx.set_exclusions(np.array([2.5, 9.0]))   # 9 folds to 2
         >>> rx.n_exclusions
         2
@@ -3188,7 +3200,7 @@ class AsyncDsssReceiver:
         """The searcher's slow-time depth D: epochs per coherent block."""
 
     @property
-    def lifecycle(self) -> Literal["searching", "refining", "tracking", "reserved", "lost"]:
+    def lifecycle(self) -> Literal["searching", "refining", "tracking", "idle", "lost"]:
         """Where the receiver is in its lifecycle, by name: `"searching"`,
         `"refining"`, `"tracking"` or `"lost"` (released, waiting for
         `reset()`). The same state as `status().state`, which carries it as the
@@ -3390,8 +3402,9 @@ class AsyncDsssPool:
         Chip rate, Hz.
     symbol_rate : float, default 1000.0
         Symbol rate, Hz.
-    spc : int, default 2
-        Samples per chip.
+    sample_rate : float, default 0.0
+        The rate of the samples pushed, Hz: any ratio to chip_rate of at least
+        one, or 0 for two samples a chip (AsyncDsssReceiver's).
     m : int, default 2
         PSK order.
     cn0_dbhz : float, default 55.0
@@ -3444,12 +3457,13 @@ class AsyncDsssPool:
         If construction fails. The exception message is ``AsyncDsssPool:
         invalid parameter (need 1 <= n_receivers <= 16, threads >= 0, and every
         parameter AsyncDsssReceiver takes: a code of at least 2 chips, a finite
-        chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m
-        in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and
-        above chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input
-        sample with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >=
-        1, refine_zero_pad >= 1; and for the searcher a finite cn0_dbhz, 0 <
-        pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0)``.
+        chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, sample_rate
+        >= chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0
+        or finite and above sample_rate / 2, lost_confirm_s >= 0 (and at least
+        one input sample with reacquire), refine_samples_per_symbol >= 1,
+        refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a finite
+        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=
+        0)``.
 
     Examples
     --------
@@ -3458,7 +3472,7 @@ class AsyncDsssPool:
     >>> from doppler.wfm import Gold
     >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
     >>> pool = AsyncDsssPool(code, n_receivers=3, chip_rate=3.069e6,
-    ...                      symbol_rate=2700.0, spc=2,
+    ...                      symbol_rate=2700.0, sample_rate=6.138e6,
     ...                      doppler_uncertainty=500.0, threads=1)
     >>> (pool.n_receivers, pool.threads, pool.coherent_bins)
     (3, 1, 1)
@@ -3475,7 +3489,7 @@ class AsyncDsssPool:
         n_receivers: int = 3,
         chip_rate: float = 1000000.0,
         symbol_rate: float = 1000.0,
-        spc: int = 2,
+        sample_rate: float = 0.0,
         m: int = 2,
         cn0_dbhz: float = 55.0,
         pfa: float = 1e-3,
@@ -3504,11 +3518,11 @@ class AsyncDsssPool:
 
         Hands every whole code period it completes to every receiver (header
         step 1), keeps each one's symbols for symbols(), and after each period
-        releases the lost, resolves duplicates, releases ghosts and hands out
-        exclusions and ranks (step 2). The samples past the last whole period
-        are kept for the next push. Accepts any block size, and state carries
-        across calls: the result is a function of the stream, not of its
-        blocking.
+        releases the lost, resolves duplicates, releases ghosts, seeds the idle
+        receivers and sets the search's levers (step 3). The samples past the
+        last whole period are kept for the next push. Accepts any block size,
+        and state carries across calls: the result is a function of the stream,
+        not of its blocking.
 
         Parameters
         ----------
@@ -3528,7 +3542,7 @@ class AsyncDsssPool:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-        ...                      symbol_rate=2700.0, spc=2,
+        ...                      symbol_rate=2700.0, sample_rate=6.138e6,
         ...                      doppler_uncertainty=500.0, threads=1)
         >>> pool.push(np.zeros(2046, dtype=np.complex64))
         0
@@ -3540,7 +3554,7 @@ class AsyncDsssPool:
 
         dp_async_dsss_receiver_status() of that receiver, as of the last whole
         code period fed, after the controller's step on it: a receiver the
-        controller released reads searching. A receiver past the pool returns a
+        controller released reads idle. A receiver past the pool returns a
         zeroed record with `state` ASYNC_DSSS_POOL_NO_RECEIVER.
 
         Parameters
@@ -3560,10 +3574,10 @@ class AsyncDsssPool:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-        ...                      symbol_rate=2700.0, spc=2,
+        ...                      symbol_rate=2700.0, sample_rate=6.138e6,
         ...                      doppler_uncertainty=500.0, threads=1)
-        >>> (pool.status(0).state, pool.status(2).state)  # 2 is past the pool
-        (0, -1)
+        >>> (pool.status(0).state, pool.status(2).state)  # 3 idle; 2 is past
+        (3, -1)
 
         """
 
@@ -3574,11 +3588,11 @@ class AsyncDsssPool:
     ) -> NDArray[np.complex64]:
         """The symbols receiver receiver emitted during the last push().
 
-        Empty for a receiver that was searching, refining or lost throughout
-        the push, and for a receiver past the pool. Tracking emits symbols
-        whether or not they are a signal's (dp_async_dsss_receiver_steps()):
-        read status().locked for that. A push replaces them, and set_state()
-        and reset() clear them.
+        Empty for a receiver that was idle, refining or lost throughout the
+        push, and for a receiver past the pool. Tracking emits symbols whether
+        or not they are a signal's (dp_async_dsss_receiver_steps()): read
+        status().locked for that. A push replaces them, and set_state() and
+        reset() clear them.
 
         Parameters
         ----------
@@ -3599,10 +3613,10 @@ class AsyncDsssPool:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-        ...                      symbol_rate=2700.0, spc=2,
+        ...                      symbol_rate=2700.0, sample_rate=6.138e6,
         ...                      doppler_uncertainty=500.0, threads=1)
         >>> _ = pool.push(np.zeros(2046, dtype=np.complex64))
-        >>> pool.symbols(0).size                    # searching: nothing yet
+        >>> pool.symbols(0).size                    # idle: nothing yet
         0
 
         """
@@ -3619,8 +3633,9 @@ class AsyncDsssPool:
         """
 
     def reset(self) -> None:
-        """Every receiver back to searching, with no exclusions and rank 0; the
-        clock, the release counts and the ghost history back to 0.
+        """Every receiver back to idle and the search to no exclusions; the
+        clock, the release counts, the search's period count and the ghost
+        history back to 0.
 
         Examples
         --------
@@ -3629,7 +3644,7 @@ class AsyncDsssPool:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> pool = AsyncDsssPool(code, chip_rate=3.069e6, symbol_rate=2700.0,
-        ...                      spc=2, doppler_uncertainty=500.0, threads=1)
+        ...                      sample_rate=6.138e6, doppler_uncertainty=500.0, threads=1)
         >>> _ = pool.push(np.zeros(2046, dtype=np.complex64))
         >>> pool.samples
         2046
@@ -3666,7 +3681,7 @@ class AsyncDsssPool:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-        ...                      symbol_rate=2700.0, spc=2,
+        ...                      symbol_rate=2700.0, sample_rate=6.138e6,
         ...                      doppler_uncertainty=500.0)
         >>> pool.set_threads(1)
         >>> pool.threads
@@ -3721,7 +3736,7 @@ class AsyncDsssPool:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-        ...                      symbol_rate=2700.0, spc=2,
+        ...                      symbol_rate=2700.0, sample_rate=6.138e6,
         ...                      doppler_uncertainty=500.0, threads=1)
         >>> tlm = Telemetry(1 << 16)
         >>> pool.set_telemetry(tlm, "pool")

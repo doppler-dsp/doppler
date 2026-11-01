@@ -88,6 +88,11 @@ AccQ15_step (AccQ15Object *self, PyObject *args)
       return NULL;
     }
   int16_t x = (int16_t)x_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_q15_step (self->handle, x);
   Py_RETURN_NONE;
 }
@@ -110,6 +115,12 @@ AccQ15_steps (AccQ15Object *self, PyObject *args, PyObject *kwds)
   if (!in_arr)
     return NULL;
 
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_q15_steps (self->handle, (const int16_t *)PyArray_DATA (in_arr),
                     (size_t)PyArray_SIZE (in_arr));
   Py_DECREF (in_arr);
@@ -139,6 +150,11 @@ AccQ15_set_acc (AccQ15Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "L", &v_raw))
     return NULL;
   int64_t v = (int64_t)v_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_q15_set_acc (self->handle, v);
   Py_RETURN_NONE;
 }

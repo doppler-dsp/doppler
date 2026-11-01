@@ -88,6 +88,11 @@ LockDet_step (LockDetObject *self, PyObject *args)
   double x;
   if (!PyArg_ParseTuple (args, "d", &x))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int y = dp_lockdet_step (self->handle, x);
   return PyLong_FromLong ((long)y);
 }
@@ -145,6 +150,13 @@ LockDet_steps (LockDetObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
+      if (!self->handle)
+        {
+          Py_DECREF (in_arr);
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       dp_lockdet_steps (self->handle, (const double *)PyArray_DATA (in_arr),
                         (int *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
@@ -159,6 +171,13 @@ LockDet_steps (LockDetObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_lockdet_steps (self->handle, (const double *)PyArray_DATA (in_arr),
                     (int *)PyArray_DATA ((PyArrayObject *)out_arr), (size_t)n);
 
@@ -300,6 +319,11 @@ LockDet_setprop_up_thresh (LockDetObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   self->handle->up_thresh = v;
   return 0;
 }
@@ -325,6 +349,11 @@ LockDet_setprop_down_thresh (LockDetObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   self->handle->down_thresh = v;
   return 0;
 }

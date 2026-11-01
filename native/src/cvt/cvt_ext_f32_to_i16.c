@@ -79,6 +79,11 @@ F32ToI16_step (F32ToI16Object *self, PyObject *args)
   float x;
   if (!PyArg_ParseTuple (args, "f", &x))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int16_t y = dp_f32_to_i16_step (self->handle, x);
   return PyLong_FromLong ((long)y);
 }
@@ -136,6 +141,13 @@ F32ToI16_steps (F32ToI16Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
+      if (!self->handle)
+        {
+          Py_DECREF (in_arr);
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       dp_f32_to_i16_steps (self->handle, (const float *)PyArray_DATA (in_arr),
                            (int16_t *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
@@ -150,6 +162,13 @@ F32ToI16_steps (F32ToI16Object *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_f32_to_i16_steps (self->handle, (const float *)PyArray_DATA (in_arr),
                        (int16_t *)PyArray_DATA ((PyArrayObject *)out_arr),
                        (size_t)n);

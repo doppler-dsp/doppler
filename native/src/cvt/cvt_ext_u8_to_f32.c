@@ -98,7 +98,12 @@ U8ToF32_step (U8ToF32Object *self, PyObject *args)
       return NULL;
     }
   uint8_t x = (uint8_t)x_raw;
-  float   y = dp_u8_to_f32_step (self->handle, x);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  float y = dp_u8_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);
 }
 
@@ -155,6 +160,13 @@ U8ToF32_steps (U8ToF32Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
+      if (!self->handle)
+        {
+          Py_DECREF (in_arr);
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       dp_u8_to_f32_steps (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
                           (float *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
@@ -169,6 +181,13 @@ U8ToF32_steps (U8ToF32Object *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_u8_to_f32_steps (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
                       (float *)PyArray_DATA ((PyArrayObject *)out_arr),
                       (size_t)n);

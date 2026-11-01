@@ -699,6 +699,11 @@ Ddcr_setprop_norm_freq (DdcrObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_ddcr_set_norm_freq (self->handle, v);
   return 0;
 }

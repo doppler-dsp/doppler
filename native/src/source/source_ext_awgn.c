@@ -359,6 +359,11 @@ AWGN_setprop_amplitude (AWGNObject *self, PyObject *value,
   float v = 0.0f;
   if (!PyArg_Parse (value, "f", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   int _rc = dp_awgn_set_amplitude (self->handle, v);
   if (_rc != 0)
     {

@@ -1239,8 +1239,8 @@ class EventLog:
             Sidecar to write, conventionally `<base>.sigmf-meta`.
         sample_type : str
             The dataset wire type, recorded as SigMF `core:datatype`.
-
-            One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``, ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
+            One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``,
+            ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
         endian : str
             One of ``"le"``, ``"be"``.
         fs : float

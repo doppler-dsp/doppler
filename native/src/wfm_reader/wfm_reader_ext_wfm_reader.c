@@ -182,6 +182,11 @@ ReaderObj_read_max_out (ReaderObject *self, PyObject *args)
   Py_ssize_t n = 0;
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
       dp_wfm_reader_read_max_out (self->handle, (size_t)n));
 }
@@ -335,6 +340,11 @@ ReaderObj_read_follow_max_out (ReaderObject *self, PyObject *args)
   Py_ssize_t n = 0;
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
       dp_wfm_reader_read_follow_max_out (self->handle, (size_t)n));
 }
@@ -600,6 +610,11 @@ Reader_setprop_follow_timeout_ms (ReaderObject *self, PyObject *value,
       return -1;
     }
   uint32_t v = (uint32_t)v_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_wfm_reader_set_follow_timeout_ms (self->handle, v);
   return 0;
 }
@@ -635,6 +650,11 @@ Reader_setprop_follow_grace_ms (ReaderObject *self, PyObject *value,
       return -1;
     }
   uint32_t v = (uint32_t)v_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_wfm_reader_set_follow_grace_ms (self->handle, v);
   return 0;
 }

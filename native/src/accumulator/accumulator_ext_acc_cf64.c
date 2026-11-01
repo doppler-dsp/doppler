@@ -80,6 +80,11 @@ AccCf64_step (AccCf64Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "D", &x_raw))
     return NULL;
   double _Complex x = x_raw.real + x_raw.imag * I;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_cf64_step (self->handle, x);
   Py_RETURN_NONE;
 }
@@ -102,6 +107,12 @@ AccCf64_steps (AccCf64Object *self, PyObject *args, PyObject *kwds)
   if (!in_arr)
     return NULL;
 
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_cf64_steps (self->handle,
                      (const double _Complex *)PyArray_DATA (in_arr),
                      (size_t)PyArray_SIZE (in_arr));
@@ -133,6 +144,11 @@ AccCf64_set_acc (AccCf64Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "D", &v_raw))
     return NULL;
   double _Complex v = v_raw.real + v_raw.imag * I;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_cf64_set_acc (self->handle, v);
   Py_RETURN_NONE;
 }

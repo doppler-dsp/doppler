@@ -565,6 +565,11 @@ Resampler_setprop_rate (ResamplerObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   int _rc = dp_Resampler_set_rate (self->handle, v);
   if (_rc != 0)
     {

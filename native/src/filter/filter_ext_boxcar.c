@@ -91,6 +91,11 @@ MovingAverage_step (MovingAverageObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "D", &x_raw))
     return NULL;
   float _Complex x = (float)x_raw.real + (float)x_raw.imag * I;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   float _Complex y = dp_boxcar_step (self->handle, x);
   return PyComplex_FromDoubles ((double)crealf (y), (double)cimagf (y));
 }
@@ -148,6 +153,13 @@ MovingAverage_steps (MovingAverageObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
+      if (!self->handle)
+        {
+          Py_DECREF (in_arr);
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       dp_boxcar_steps (self->handle,
                        (const float _Complex *)PyArray_DATA (in_arr),
                        (float _Complex *)PyArray_DATA (out_arr), (size_t)n);
@@ -163,6 +175,13 @@ MovingAverage_steps (MovingAverageObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_boxcar_steps (self->handle, (const float _Complex *)PyArray_DATA (in_arr),
                    (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
                    (size_t)n);
@@ -277,6 +296,11 @@ MovingAverage_setprop_gain (MovingAverageObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_boxcar_set_gain (self->handle, v);
   return 0;
 }

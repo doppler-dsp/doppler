@@ -81,6 +81,11 @@ ADC_step (ADCObject *self, PyObject *args)
   float x;
   if (!PyArg_ParseTuple (args, "f", &x))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int64_t y = dp_adc_step (self->handle, x);
   return PyLong_FromLongLong ((long long)y);
 }
@@ -138,6 +143,13 @@ ADC_steps (ADCObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
+      if (!self->handle)
+        {
+          Py_DECREF (in_arr);
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       dp_adc_steps (self->handle, (const float *)PyArray_DATA (in_arr),
                     (int64_t *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
@@ -152,6 +164,13 @@ ADC_steps (ADCObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_adc_steps (self->handle, (const float *)PyArray_DATA (in_arr),
                 (int64_t *)PyArray_DATA ((PyArrayObject *)out_arr), (size_t)n);
 

@@ -377,6 +377,11 @@ BpskReceiverObj_bits_max_out (BpskReceiverObject *self, PyObject *args)
   Py_ssize_t x_len = 0;
   if (!PyArg_ParseTuple (args, "n", &x_len))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
       dp_mpsk_receiver_bits_max_out (self->handle, (size_t)x_len));
 }
@@ -666,6 +671,11 @@ BpskReceiver_setprop_norm_freq (BpskReceiverObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_mpsk_receiver_set_norm_freq (self->handle, v);
   return 0;
 }

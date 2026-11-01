@@ -276,6 +276,11 @@ DopplerChannelObj_execute_profile_max_out (DopplerChannelObject *self,
   Py_ssize_t x_len = 0;
   if (!PyArg_ParseTuple (args, "n", &x_len))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (dp_doppler_channel_execute_profile_max_out (
       self->handle, (size_t)x_len));
 }

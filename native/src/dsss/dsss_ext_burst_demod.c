@@ -246,6 +246,11 @@ BurstDemodObj_llrs_max_out (BurstDemodObject *self, PyObject *args)
   Py_ssize_t n = 0;
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
       dp_burst_demod_llrs_max_out (self->handle, (size_t)n));
 }
@@ -399,6 +404,11 @@ BurstDemodObj_symbols_max_out (BurstDemodObject *self, PyObject *args)
   Py_ssize_t n = 0;
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
       dp_burst_demod_symbols_max_out (self->handle, (size_t)n));
 }

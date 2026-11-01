@@ -203,6 +203,11 @@ PersistentBurstCaptureObj_push_max_out (PersistentBurstCaptureObject *self,
   Py_ssize_t x_len = 0;
   if (!PyArg_ParseTuple (args, "n", &x_len))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
       dp_burst_capture_push_max_out (self->handle, (size_t)x_len));
 }
@@ -400,6 +405,11 @@ PersistentBurstCaptureObj_detections_max_out (
   Py_ssize_t n = 0;
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
       dp_burst_capture_detections_max_out (self->handle, (size_t)n));
 }
@@ -646,6 +656,11 @@ PersistentBurstCaptureObj_events_max_out (PersistentBurstCaptureObject *self,
   Py_ssize_t n = 0;
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
       dp_burst_capture_events_max_out (self->handle, (size_t)n));
 }

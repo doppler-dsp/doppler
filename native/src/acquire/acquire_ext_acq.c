@@ -1181,6 +1181,11 @@ Acquisition_setprop_keep_surface (AcquisitionObject *self, PyObject *value,
   int v = 0;
   if (!PyArg_Parse (value, "i", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   self->handle->keep_surface = v;
   return 0;
 }

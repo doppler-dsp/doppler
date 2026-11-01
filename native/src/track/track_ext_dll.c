@@ -755,6 +755,11 @@ Dll_setprop_bn (DllObject *self, PyObject *value, void *Py_UNUSED (closure))
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   int _rc = dp_dll_set_bn (self->handle, v);
   if (_rc != 0)
     {

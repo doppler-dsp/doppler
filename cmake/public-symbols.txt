@@ -1376,6 +1376,7 @@ dp_resamp_execute_ctrl_pos function
 dp_resamp_execute_ctrl_push function
 dp_resamp_get_ctrl_acc function
 dp_resamp_get_delay function
+dp_resamp_get_execute_delay function
 dp_resamp_get_num_phases function
 dp_resamp_get_num_taps function
 dp_resamp_get_rate function

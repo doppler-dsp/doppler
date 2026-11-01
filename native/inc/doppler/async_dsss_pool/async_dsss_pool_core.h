@@ -18,7 +18,7 @@
  *    and N give the same bytes.
  * 2. **Then the controller, serially, at every code period of the
  *    stream.** A receiver is fed exactly one code period (`code_len *
- *    spc` samples) per call, on the grid of the pool's sample count from
+ *    spc` samples, its floor when that is not whole) per call, on the grid of the pool's sample count from
  *    create or reset; push() keeps what is left past the last whole
  *    period and feeds it with the next push. The controller runs after
  *    each period. Every receiver call and every controller step is then a
@@ -89,7 +89,7 @@
  * >>> from doppler.wfm import Gold
  * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
  * >>> pool = AsyncDsssPool(code, n_receivers=3, chip_rate=3.069e6,
- * ...                      symbol_rate=2700.0, spc=2,
+ * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
  * ...                      doppler_uncertainty=500.0, threads=1)
  * >>> pool.n_receivers
  * 3
@@ -224,7 +224,9 @@ extern "C"
    *                     the most signals the pool holds at once (default 3).
    * @param chip_rate    Chip rate, Hz.
    * @param symbol_rate  Symbol rate, Hz.
-   * @param spc          Samples per chip.
+   * @param sample_rate  The rate of the samples pushed, Hz: any ratio to
+   *                     chip_rate of at least one, or 0 for two samples a
+   *                     chip (AsyncDsssReceiver's).
    * @param m            PSK order.
    * @param cn0_dbhz     Design C/N0, dB-Hz.
    * @param pfa          Search false-alarm probability.
@@ -259,7 +261,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=3, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0, threads=1)
    * >>> (pool.n_receivers, pool.threads, pool.coherent_bins)
    * (3, 1, 1)
@@ -272,7 +274,7 @@ extern "C"
    */
   dp_async_dsss_pool_state_t *dp_async_dsss_pool_create (
       const uint8_t *code, size_t code_len, size_t n_receivers,
-      double chip_rate, double symbol_rate, size_t spc, int m,
+      double chip_rate, double symbol_rate, double sample_rate, int m,
       double cn0_dbhz, double pfa, double pd, double doppler_uncertainty,
       size_t segments, size_t sps, int differential,
       double refine_max_error_db, size_t refine_samples_per_symbol,
@@ -299,7 +301,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, chip_rate=3.069e6, symbol_rate=2700.0,
-   * ...                      spc=2, doppler_uncertainty=500.0, threads=1)
+   * ...                      sample_rate=6.138e6, doppler_uncertainty=500.0, threads=1)
    * >>> _ = pool.push(np.zeros(2046, dtype=np.complex64))
    * >>> pool.samples
    * 2046
@@ -382,7 +384,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0, threads=1)
    * >>> pool.push(np.zeros(2046, dtype=np.complex64))
    * 0
@@ -410,7 +412,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0, threads=1)
    * >>> (pool.status(0).state, pool.status(2).state)  # 2 is past the pool
    * (0, -1)
@@ -450,7 +452,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0, threads=1)
    * >>> _ = pool.push(np.zeros(2046, dtype=np.complex64))
    * >>> pool.symbols(0).size                    # searching: nothing yet
@@ -481,7 +483,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0)
    * >>> pool.set_threads(1)
    * >>> pool.threads
@@ -521,7 +523,7 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-   * ...                      symbol_rate=2700.0, spc=2,
+   * ...                      symbol_rate=2700.0, sample_rate=6.138e6,
    * ...                      doppler_uncertainty=500.0, threads=1)
    * >>> tlm = Telemetry(1 << 16)
    * >>> pool.set_telemetry(tlm, "pool")

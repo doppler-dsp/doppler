@@ -36,9 +36,10 @@ PD = 0.9
 CN0_DBHZ = 50.0  # comfortably powered (not underpowered) at doppler_bins=1
 
 
-def _acq(**kw):
-    kw.setdefault("spc", SPC)
+def _acq(spc=SPC, **kw):
+    # Samples a chip is the caller's sample rate over the chip rate.
     kw.setdefault("chip_rate", CHIP_RATE)
+    kw.setdefault("sample_rate", kw["chip_rate"] * spc)
     kw.setdefault("symbol_rate", 1000.0)
     kw.setdefault("cn0_dbhz", CN0_DBHZ)
     kw.setdefault("doppler_uncertainty", 0.0)
@@ -213,12 +214,12 @@ def test_telemetry_probes_and_the_surface_tap():
     hit_id = tlm.probe_id("acq.hit")
     assert np.all(recs["value"][recs["probe"] == hit_id] == 1.0)
 
-    s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)
+    s = np.empty(a.surface_rows * a.lag_bins, dtype=np.float32)
     assert a.surface(s) == s.size
     # a hit is (doppler_bin, code_phase, peak_mag, noise_est, test_stat,
     # cn0_dbhz_est, samples_consumed)
     assert a.surface_at == hits[-1][6]
-    surf = s.reshape(a.surface_rows, a.code_bins)
+    surf = s.reshape(a.surface_rows, a.lag_bins)
     row, col = np.unravel_index(np.argmax(surf), surf.shape)
     assert (row, col) == (hits[-1][0], hits[-1][1])
     # to a float rounding: the SIMD build's fast-math may normalise the
@@ -227,11 +228,13 @@ def test_telemetry_probes_and_the_surface_tap():
     assert a.peak_conc > 0.5
 
     hz = np.empty(a.surface_rows)
-    ch = np.empty(a.code_bins)
+    ch = np.empty(a.lag_bins)
     assert a.surface_doppler_hz(hz) == hz.size
     assert a.surface_chip_phase(ch) == ch.size
     assert hz[0] == 0.0 and hz[1] == CHIP_RATE / SF and hz[-1] == -hz[1]
-    assert ch[0] == 0.0 and ch[col] == (SF - col / SPC) % SF
+    # column c is a lag of c * code_bins / lag_bins samples
+    assert ch[0] == 0.0
+    assert ch[col] == pytest.approx((SF - col * SF / a.lag_bins) % SF)
 
     # too small a buffer, and nothing kept once the tap is off
     assert a.surface(np.empty(3, dtype=np.float32)) == 0
@@ -302,7 +305,7 @@ def test_the_roll_per_thread_is_bit_identical():
     a.set_threads(1)
     assert a.threads == 1
     ref_hits = a.push(x)
-    ref = np.empty(a.surface_rows * a.code_bins, np.float32)
+    ref = np.empty(a.surface_rows * a.lag_bins, np.float32)
     assert a.surface(ref) == ref.size
     for n in (2, 4, 8, 0):
         a.set_threads(n)
@@ -331,7 +334,12 @@ def test_carrier_and_prior_refusals_are_raised():
     from doppler.wfm import Gold
 
     code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-    kw = {"spc": 2, "chip_rate": 5e6, "symbol_rate": 2700.0, "cn0_dbhz": 45.0}
+    kw = {
+        "sample_rate": 2 * 5e6,
+        "chip_rate": 5e6,
+        "symbol_rate": 2700.0,
+        "cn0_dbhz": 45.0,
+    }
     a = Acquisition(code, doppler_uncertainty=50e3, **kw)
     a.set_carrier_freq_hz(2.5e9)
     with pytest.raises(ValueError, match="set_carrier_freq_hz failed"):

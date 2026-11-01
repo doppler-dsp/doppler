@@ -130,9 +130,10 @@ def test_state_roundtrip_resume():
 # ── Cross-class: Acquisition and BurstAcquisition share one engine ─────────
 
 
-def _continuous_acq(**kw):
-    kw.setdefault("spc", SPC)
+def _continuous_acq(spc=SPC, **kw):
+    # Samples a chip is the caller's sample rate over the chip rate.
     kw.setdefault("chip_rate", CHIP_RATE)
+    kw.setdefault("sample_rate", kw["chip_rate"] * spc)
     kw.setdefault("symbol_rate", 1000.0)
     kw.setdefault("cn0_dbhz", CN0_DBHZ)
     kw.setdefault("doppler_uncertainty", 0.0)
@@ -173,6 +174,11 @@ def test_hit_chip_phase_matches_acquisition(spc):
     sample per chip the two are equal; at ``spc`` the burst value is
     ``spc`` times the chip value. Neither class is coupled to a carrier
     here, so ``chip_phase`` is the inverted lag alone.
+
+    A continuous engine whose period is not 7-smooth (31 chips at one or
+    four samples a chip: 31 and 124 samples) reads its lag on ``lag_bins``
+    columns, the next power of two, so its lag and chip phase sit on that
+    grid: within half a column of the burst engine's, never further.
     """
     rng = np.random.default_rng(7)
     period = np.asarray(code_preamble(CODE, spc))
@@ -184,16 +190,19 @@ def test_hit_chip_phase_matches_acquisition(spc):
     x = (sig + noise).astype(np.complex64)
 
     burst = _burst_acq(spc=spc, cn0_dbhz=90.0).push(x)
-    cont = _continuous_acq(spc=spc, cn0_dbhz=90.0).push(x)
+    ca = _continuous_acq(spc=spc, cn0_dbhz=90.0)
+    cont = ca.push(x)
     assert burst and cont, "both classes must detect the strong code"
     b, c = burst[0], cont[0]
 
     assert len(b) == len(c) == 9
     assert b[8] == c[8] == 0.0, "neither searches rate hypotheses here"
-    assert b[1] == c[1], "the two front doors disagree on the lag"
     n = SF * spc
+    col = n / ca.lag_bins  # samples a column of the continuous surface
+    assert ca.lag_bins > n  # 31 and 124 are not 7-smooth: padded
+    assert abs(c[1] * col - b[1]) <= 0.5 * col, "the lags disagree"
     assert b[7] == pytest.approx((n - b[1]) % n, abs=1e-9)
-    assert b[7] == pytest.approx(spc * c[7], abs=1e-9)
+    assert abs(b[7] / spc - c[7]) <= 0.5 * col / spc
 
 
 def test_cross_class_state_rejection():

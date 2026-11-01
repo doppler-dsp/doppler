@@ -347,7 +347,8 @@ typedef enum
     size_t   code_len; /**< Chips in @c code.                            */
 
     /* Config carried across every chain rebuild. */
-    size_t spc;          /**< Samples per chip (config).                */
+    double spc;          /**< Samples per chip, sample_rate / chip_rate:
+                              any positive value (config).            */
     int    m;            /**< PSK order, 2/4/8 (config).                */
     int    differential; /**< MpskReceiver's differential demap flag
                               (config).                               */
@@ -413,9 +414,42 @@ typedef enum
                                 the shared sample count the searchers'
                                 dwells align to.                         */
     bool     align_pending; /**< Running: the searcher was reset and
-                                 discards input to the next multiple of
-                                 `coherent_bins * code_len * spc` before
-                                 its next dwell starts.                  */
+                                 discards search samples to the next
+                                 multiple of `coherent_bins * code_bins`
+                                 before its next dwell starts.           */
+
+    /* The search's own rate. The engine runs at the rate where one code
+     * period is dp_acq_period_samples(code_len) samples (a power of two:
+     * its transforms are that long); refine and tracking run at the
+     * caller's. `srch_rs` resamples the input to it while searching and
+     * is NULL when the caller already feeds that rate. Search sample j
+     * since the resampler last restarted carries input index
+     * `srch_origin + j / srch_ratio - dp_resamp_get_execute_delay()` (resamp's own
+     * contract), which is how a hit's position is mapped back. */
+    resamp_state_t *srch_rs;     /**< Owned search-path resampler, or
+                                      NULL at the search rate already.  */
+    double          srch_ratio;  /**< Search rate over input rate.      */
+    float _Complex *srch_buf;    /**< Owned scratch: one call's input,
+                                      resampled.                        */
+    size_t          srch_cap;    /**< Capacity of srch_buf, samples.    */
+    uint64_t        srch_origin; /**< Running: input index (of
+                                      samples_in) the resampler last
+                                      restarted at.                     */
+    uint64_t        srch_n;      /**< Running: search samples produced
+                                      since srch_origin.                */
+    /* The hand-off maps a hit to input index t, which the resampler's lag
+     * puts a few samples BEHIND the call that reports it. The last
+     * srch_hist_cap input samples are kept while searching, so the live
+     * chain starts at ceil(t) exactly whatever the chunking (#2042's
+     * invariance). Empty at the search rate. */
+    float _Complex *srch_hist;     /**< Owned: the last input samples.  */
+    size_t          srch_hist_cap; /**< ceil(resampler delay) + 3; 0 at
+                                        the search rate.                */
+    size_t          srch_hist_len; /**< Running: live samples held.     */
+    size_t          srch_warm;     /**< Search samples a restarted
+                                        resampler fills with its filter's
+                                        start-up: no dwell starts before
+                                        them. 0 at the search rate.     */
     size_t   rank;   /**< set_rank(): which surviving peak of a dwell the
                           search takes, 0 = the strongest.               */
     size_t   n_excl; /**< set_exclusions(): code phases held.            */
@@ -502,7 +536,17 @@ typedef enum
    *                                   at most `chip_rate`, and at most
    *                                   2^20 Dll partials per symbol at
    *                                   `segments`.
-   * @param spc                        Samples/chip; default 2.
+   * @param sample_rate                The rate of the samples pushed,
+   *                                   Hz: any ratio to @p chip_rate of
+   *                                   at least one, or 0 for two samples
+   *                                   a chip (the default). Refine and
+   *                                   tracking run at this rate. The
+   *                                   search runs at it too when one code
+   *                                   period is a whole number of samples
+   *                                   (dp_acq_search_period()); a
+   *                                   fractional period is resampled, for
+   *                                   the search alone, to a power of
+   *                                   two.
    * @param m                          PSK order, 2/4/8; default 2 (BPSK).
    * @param cn0_dbhz                   Design C/N0, dB-Hz; default 55.0 --
    *                                   feeds BOTH the embedded Acquisition's
@@ -632,7 +676,7 @@ typedef enum
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-   * ...                        spc=2, doppler_uncertainty=500.0)
+   * ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
    * >>> (rx.tracking, rx.refining, rx.lost)       # searching
    * (0, 0, 0)
    *
@@ -640,7 +684,8 @@ typedef enum
    */
   dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create (
       const uint8_t *code, size_t code_len, double chip_rate,
-      double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
+      double symbol_rate, double sample_rate, int m, double cn0_dbhz,
+      double pfa,
       double pd, double doppler_uncertainty, size_t segments, size_t sps,
       int differential, double refine_max_error_db,
       size_t refine_samples_per_symbol, double refine_design_margin_db,
@@ -667,7 +712,7 @@ typedef enum
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-   * ...                        spc=2, doppler_uncertainty=500.0)
+   * ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
    * >>> rx.reset()                 # abort any lock, hunt from scratch
    * >>> (rx.tracking, rx.refining, rx.chip_phase)   # all cleared
    * (0, 0, 0.0)
@@ -760,7 +805,7 @@ typedef enum
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-   * ...                        spc=2, doppler_uncertainty=500.0)
+   * ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
    * >>> tlm = Telemetry(1 << 12)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
@@ -856,7 +901,7 @@ typedef enum
    * >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
    * ...      + noise.astype(np.complex64))
    * >>> rx = AsyncDsssReceiver(
-   * ...     code, chip_rate=chip, symbol_rate=sym, spc=spc,
+   * ...     code, chip_rate=chip, symbol_rate=sym, sample_rate=fs,
    * ...     cn0_dbhz=cn0, doppler_uncertainty=500.0)
    * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
    * >>> syms = np.concatenate([s for s in syms if len(s)])
@@ -910,7 +955,7 @@ typedef enum
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6,
-   * ...                        symbol_rate=2700.0, spc=2)
+   * ...                        symbol_rate=2700.0, sample_rate=6.138e6)
    * >>> rx.seed(chip_phase=512.25, doppler_hz_est=-1500.0,
    * ...         cn0_dbhz_est=48.0)
    * >>> (rx.refining, rx.doppler_hz, rx.cn0_dbhz_est)
@@ -1042,7 +1087,7 @@ typedef enum
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6,
-   * ...                        symbol_rate=2700.0, spc=2)
+   * ...                        symbol_rate=2700.0, sample_rate=6.138e6)
    * >>> st = rx.status()
    * >>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # searching
    * (0, 0.0, 0, 0)
@@ -1091,7 +1136,7 @@ typedef enum
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-   * ...                        spc=2, doppler_uncertainty=500.0)
+   * ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
    * >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it
    * >>> rx.refining                # still searching, on the pinned grid
    * 0
@@ -1128,7 +1173,7 @@ typedef enum
    * @code
    * >>> from doppler.dsss import AsyncDsssReceiver
    * >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
-   * ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+   * ...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, cn0_dbhz=60.0)
    * >>> rx.refine_min_blocks                     # the default floor
    * 7
    * >>> rx.set_refine_min_blocks(12)
@@ -1161,7 +1206,7 @@ typedef enum
    * @code
    * >>> from doppler.dsss import AsyncDsssReceiver
    * >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
-   * ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+   * ...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, cn0_dbhz=60.0)
    * >>> rx.set_threads(1)
    * >>> rx.threads
    * 1
@@ -1210,7 +1255,7 @@ typedef enum
    * @code
    * >>> from doppler.dsss import AsyncDsssReceiver
    * >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
-   * ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+   * ...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, cn0_dbhz=60.0)
    * >>> rx.set_rank(1)
    * >>> rx.rank
    * 1
@@ -1249,7 +1294,7 @@ typedef enum
    * >>> import numpy as np
    * >>> from doppler.dsss import AsyncDsssReceiver
    * >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
-   * ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+   * ...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, cn0_dbhz=60.0)
    * >>> rx.set_exclusions(np.array([2.5, 9.0]))   # 9 folds to 2
    * >>> rx.n_exclusions
    * 2
@@ -1293,11 +1338,11 @@ typedef enum
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-   * ...                        spc=2, doppler_uncertainty=500.0)
+   * ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
    * >>> rx.coherent_bins                  # no code-only window
    * 1
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-   * ...                        spc=2, doppler_uncertainty=500.0,
+   * ...                        sample_rate=6.138e6, doppler_uncertainty=500.0,
    * ...                        code_only_s=0.0627)
    * >>> rx.coherent_bins                  # 187 epochs: 94, run 7-smooth
    * 90
@@ -1335,7 +1380,7 @@ typedef enum
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-   * ...                        spc=2, doppler_uncertainty=500.0)
+   * ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
    * >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
    * ...                       alpha=0.1, n_up=5, n_down=3)
    * >>> rx.tracking                       # replaced at the next chain build
@@ -1384,7 +1429,7 @@ typedef enum
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
-   * ...                        spc=2, doppler_uncertainty=500.0)
+   * ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
    * >>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain
    * >>> rx.segments                       # tracking grid updated in place
    * 6
@@ -1571,12 +1616,16 @@ typedef enum
     uint64_t n_excl;        /**< v13: set_exclusions()'s count ...       */
     double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; /**< ... and phases, the
                                  unused tail zeroed.                     */
+    uint64_t srch_origin;   /**< v14: the search resampler's origin, an
+                                 input index.                            */
+    uint64_t srch_n;        /**< v14: search samples since it.           */
+    uint64_t srch_hist_len; /**< v14: the hand-off history's live count. */
   } async_dsss_receiver_extra_t;
 
 /** @brief Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob. */
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 /** @brief Layout version of the AsyncDsssReceiver blob (history below). */
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 13u /* v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 14u /* v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   /**
    * @brief Size in bytes of the blob dp_async_dsss_receiver_get_state()

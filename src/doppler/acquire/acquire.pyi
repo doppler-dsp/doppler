@@ -765,7 +765,7 @@ class Acquisition:
 
         Copies the surface the last dwell was decided on into out, row-major
         `surface_rows` (Doppler: tiles, or interpolated slow-time rows) by
-        `code_bins` (code phase), every cell divided by the same CFAR reference
+        `lag_bins` (code phase), every cell divided by the same CFAR reference
         the gate used — so a cell reads as its own test statistic, to a float
         rounding (the SIMD build's fast-math may take a reciprocal in this loop
         and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on
@@ -778,12 +778,12 @@ class Acquisition:
         Parameters
         ----------
         out : npt.NDArray[np.float32]
-            At least `surface_rows * code_bins` floats.
+            At least `surface_rows * lag_bins` floats.
 
         Returns
         -------
         int
-            Cells written (`surface_rows * code_bins`), or 0 when no dwell has
+            Cells written (`surface_rows * lag_bins`), or 0 when no dwell has
             been decided with `keep_surface` set, or out is too small.
 
         Examples
@@ -797,10 +797,12 @@ class Acquisition:
         >>> a.keep_surface = 1
         >>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)
         >>> _ = a.push(x)
-        >>> s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)
+        >>> s = np.empty(a.surface_rows * a.lag_bins, dtype=np.float32)
         >>> a.surface(s) == s.size
         True
-        >>> s.reshape(a.surface_rows, a.code_bins).shape == (a.surface_rows, 1022)
+        >>> a.code_bins, a.lag_bins  # 1022 is 2 x 7 x 73: read on 1024 lags
+        (1022, 1024)
+        >>> s.reshape(a.surface_rows, a.lag_bins).shape == (a.surface_rows, 1024)
         True
 
         """
@@ -850,12 +852,12 @@ class Acquisition:
         Parameters
         ----------
         out : npt.NDArray[np.float64]
-            At least `code_bins` doubles.
+            At least `lag_bins` doubles.
 
         Returns
         -------
         int
-            Values written (`code_bins`), or 0 if out is too small.
+            Values written (`lag_bins`), or 0 if out is too small.
 
         Examples
         --------
@@ -865,10 +867,10 @@ class Acquisition:
         >>> code = np.asarray(
         ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
         >>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
-        >>> c = np.empty(a.code_bins, dtype=np.float64)
-        >>> a.surface_chip_phase(c) == a.code_bins
+        >>> c = np.empty(a.lag_bins, dtype=np.float64)
+        >>> a.surface_chip_phase(c) == a.lag_bins
         True
-        >>> bool(c[0] == 0.0 and c[1] == 510.5)
+        >>> bool(c[0] == 0.0 and c[1] == 511 - 511 / 1024)
         True
 
         """
@@ -878,7 +880,7 @@ class Acquisition:
         phase per cell, before the magnitude the gate reads.
 
         Copies the coherent sum the last dwell was decided on into out,
-        row-major `surface_rows` x `code_bins` like dp_acq_surface(), in the
+        row-major `surface_rows` x `lag_bins` like dp_acq_surface(), in the
         correlation's own units rather than the gate's. A cell's phase is the
         carrier at the block's middle, relative to its tile's centre; its
         neighbours along the code axis are complex early and late arms, so a
@@ -891,12 +893,12 @@ class Acquisition:
         Parameters
         ----------
         out : npt.NDArray[np.complex64]
-            At least `surface_rows * code_bins` complex floats.
+            At least `surface_rows * lag_bins` complex floats.
 
         Returns
         -------
         int
-            Cells written (`surface_rows * code_bins`), or 0 when no dwell has
+            Cells written (`surface_rows * lag_bins`), or 0 when no dwell has
             been decided, the path is non-coherent, or out is too small.
 
         Examples
@@ -912,10 +914,10 @@ class Acquisition:
         >>> a.n_noncoh                 # one look: the dwell is the coherent dump
         1
         >>> _ = a.push(np.roll(s0, 17).astype(np.complex64))
-        >>> sc = np.empty(a.surface_rows * a.code_bins, dtype=np.complex64)
+        >>> sc = np.empty(a.surface_rows * a.lag_bins, dtype=np.complex64)
         >>> a.surface_complex(sc) == sc.size
         True
-        >>> int(np.argmax(np.abs(sc)) % a.code_bins)   # the peak's code phase
+        >>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's code phase
         17
 
         """
@@ -947,7 +949,7 @@ class Acquisition:
             Tile index, `0 … window_bins-1` (native FFT order, the order the
             surface's rows are cut in).
         col : int
-            Code-phase column, `0 … code_bins-1`.
+            Code-phase column, `0 … lag_bins-1`.
         out : npt.NDArray[np.complex64]
             At least `coherent_bins` complex floats.
 
@@ -1100,8 +1102,17 @@ class Acquisition:
 
     @property
     def code_bins(self) -> int:
-        """Code-phase hypotheses searched: one code period in samples,
-        sample_rate * sf / chip_rate.
+        """One code period in samples, sample_rate * sf / chip_rate: the length
+        of every forward transform and of a raw epoch.
+        """
+
+    @property
+    def lag_bins(self) -> int:
+        """Code-phase columns of the surface. Equal to code_bins unless
+        code_bins is not 7-smooth; then the correlation is read on the next
+        power of two, an exact interpolation that keeps the inverse transforms
+        fast. Column c is a lag of c * code_bins / lag_bins samples;
+        surface_chip_phase() gives each column in chips.
         """
 
     @property
@@ -1242,7 +1253,7 @@ class Acquisition:
     def surface_rows(self) -> int:
         """Rows of the surface `surface()` returns: the Doppler axis in surface
         units (tiles x interpolated slow-time rows); its columns are
-        `code_bins`.
+        `lag_bins`.
         """
 
     @property

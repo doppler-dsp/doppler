@@ -61,7 +61,10 @@ HEADROOM = 4
 
 def _receiver():
     return AsyncDsssReceiver(
-        CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, spc=SPC
+        CODE,
+        chip_rate=CHIP_RATE,
+        symbol_rate=SYM_RATE,
+        sample_rate=CHIP_RATE * SPC,
     )
 
 

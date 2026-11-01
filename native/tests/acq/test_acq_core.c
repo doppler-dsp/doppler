@@ -4210,6 +4210,17 @@ main (void)
     DP_CHECK (dp_acq_period_samples (31) == 64);
     DP_CHECK (dp_acq_period_samples (1) == 2);
     DP_CHECK (dp_acq_period_samples (0) == 0);
+    /* The caller's own period whenever it is whole, smooth or not -- an
+       awkward length is the lag axis's to pad (lag_bins), not a reason to
+       resample -- else the power of two: 4 a chip of 7 chips keeps 28, 2 a
+       chip of 1,023 chips keeps 2,046 (2 * 3 * 11 * 31), 2 a chip of 31
+       keeps 62; 11 MSa/s over 5 Mcps (2,250.6) takes 2,048. Sabotage, red:
+       restore the smoothness test (the 1,023 case takes 2,048). */
+    DP_CHECK (dp_acq_search_period (7, 4.0e6, 1.0e6) == 28);
+    DP_CHECK (dp_acq_search_period (1023, 2.0 * 3.069e6, 3.069e6) == 2046);
+    DP_CHECK (dp_acq_search_period (1023, 11.0e6, 5.0e6) == 2048);
+    DP_CHECK (dp_acq_search_period (31, 2.0e6, 1.0e6) == 62);
+    DP_CHECK (dp_acq_search_period (1023, 0.0, 5.0e6) == 0);
 
     uint8_t          gold[1023];
     dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
@@ -4248,8 +4259,156 @@ main (void)
     acq_handoff_t ho;
     dp_acq_build_handoff (a, &hit[0], 1023, &ho);
     DP_CHECK (fabs (ho.chip_phase - (1023.0 - LAG * 1023.0 / 2048.0)) < 1e-9);
+    DP_CHECK (a->lag_bins == 2048); /* a power of two is not padded */
     free (x);
     dp_acq_destroy (a);
+
+    /* The padded lag axis: 2 samples a chip gives 2,046 samples a period,
+       not 7-smooth, so the surface is read on 2,048 lags -- the forward
+       transform at 2,046, the inverse zero-padded. Column c is lag
+       c * 2046 / 2048 samples, and the hand-off maps the hit's column to
+       chips on that axis: every delay lands within half a column (a
+       quarter chip) of the truth, at every tenth sample of the period.
+       A 7-smooth period is not padded (CODE7 at 28). A burst engine never
+       pads. Sabotage, each red: skip the tile's pad (its inverse reads
+       the unpadded bins), build the narrow correlator without nx_out, map
+       the column by code_bins instead of lag_bins in
+       acq_handoff_chip_phase (up to a chip of drift across the period).
+       The Nyquist split is test_fft_core's to pin. */
+    /* Both transform paths pad: the narrow engine through corr2d's
+       decoupled inverse, a tiled one (doppler_uncertainty past the native
+       span) through each tile's own inverse. */
+    const double fs2 = 2.0 * cr;
+    for (int tiled = 0; tiled <= 1; tiled++)
+      {
+        dp_acq_state_t *b = dp_xnn (dp_acq_create_continuous (
+            gold, 1023, fs2, cr, 3000.0, 60.0, tiled ? 7000.0 : 0.0, 1e-3, 0.9,
+            0, 1, 0.0));
+        DP_REQUIRE (b->code_bins == 2046);
+        DP_REQUIRE ((b->window_bins > 1) == tiled);
+        DP_CHECK (b->lag_bins == 2048);
+        float _Complex *y     = dp_xmalloc (2046 * REPS * sizeof *y);
+        size_t          bad   = 0;
+        double          worst = 0.0;
+        for (size_t lag = 0; lag < 2046; lag += 10)
+          {
+            for (size_t k = 0; k < 2046 * REPS; k++)
+              {
+                const size_t m = (k + 2046 - lag) % 2046;
+                y[k]           = (gold[m / 2] & 1u) ? -1.0f : 1.0f;
+              }
+            dp_acq_reset (b);
+            if (dp_acq_push (b, y, 2046 * REPS, hit, 4) < 1)
+              {
+                bad++;
+                continue;
+              }
+            dp_acq_build_handoff (b, &hit[0], 1023, &ho);
+            /* the chip phase a delay of `lag` samples carries */
+            double want = fmod (1023.0 - (double)lag / 2.0, 1023.0);
+            double d    = fabs (ho.chip_phase - want);
+            worst       = fmax (worst, fmin (d, 1023.0 - d));
+          }
+        DP_CHECK (bad == 0);
+        DP_CHECK (worst <= 0.25 + 1e-9);
+        free (y);
+        dp_acq_destroy (b);
+      }
+
+    static const uint8_t code7[7] = { 1, 1, 1, 0, 0, 1, 0 };
+    dp_acq_state_t      *c7       = dp_xnn (dp_acq_create_continuous (
+        code7, 7, 4.0e6, 1.0e6, 1000.0, 60.0, 0.0, 1e-3, 0.9, 0, 1, 0.0));
+    DP_CHECK (c7->code_bins == 28 && c7->lag_bins == 28);
+    dp_acq_destroy (c7);
+    /* dp_acq_sidelobe_ratio bounds every sidelobe one emitter puts on the
+       surface. One noise-free emitter, delayed off the lag grid (2,046
+       samples on 2,048 columns), on a three-tile search, twice: one epoch
+       deep with the emitter 0.45 of a tile off its tile's centre, and two
+       deep (a six-row axis whose wrap row, +-1.5 tiles, belongs to both
+       outer tiles) with it at +1.45 tiles, by that edge. The surface is
+       read in the gate's units, a cell as its statistic; its 20 strongest
+       cells on native rows past the emitter's mainlobe are its worst
+       sidelobes, and each must read no more than the ratio times the
+       emitter's on-lag statistic. With no noise the CFAR reference is the
+       sidelobe floor, so none of them clears the gate to be listed -- the
+       surface is where they are. Sabotage, each red: apply the Doppler
+       before the delay (it wraps at the period), give a cell only the
+       tiles its unfolded frequency touches (the wrap row reads one), or
+       drop test_stat_peak's straddle (the bound reads low). */
+    {
+      const double fe = fs2 / 2046.0; /* the epoch rate: a tile */
+      const struct
+      {
+        size_t co, D;
+        double fd;
+      } sc[2] = { { 1, 1, 0.45 }, { 3, 2, 1.45 } };
+      for (int c = 0; c < 2; c++)
+        {
+          dp_acq_state_t *w = dp_xnn (dp_acq_create_continuous (
+              gold, 1023, fs2, cr, 3000.0, 60.0, 1.2 * fe, 1e-3, 0.9, 0,
+              sc[c].co, 0.0));
+          DP_REQUIRE (w->window_bins == 3 && w->coherent_bins == sc[c].D);
+          w->keep_surface     = 1;
+          const size_t    n_x = 2046 * 8;
+          float _Complex *xs  = dp_xmalloc (n_x * sizeof *xs);
+          for (size_t k = 0; k < n_x; k++)
+            {
+              const size_t m  = (k + 2046 - 1371) % 2046;
+              const double ph = 2.0 * M_PI * sc[c].fd * fe * (double)k / fs2;
+              xs[k]           = ((gold[m / 2] & 1u) ? -1.0f : 1.0f)
+                                * (float _Complex)cexp (I * ph);
+            }
+          acq_result_t hs[4];
+          DP_REQUIRE (dp_acq_push (w, xs, n_x, hs, 4) >= 1);
+          const size_t cols = w->lag_bins, rows = w->n_surf / cols;
+          const size_t nat = w->window_bins * w->coherent_bins;
+          float       *sf  = dp_xmalloc (rows * cols * sizeof *sf);
+          DP_REQUIRE (dp_acq_surface (w, sf, rows * cols) == rows * cols);
+          size_t checked = 0, over = 0;
+          for (int t = 0; t < 20; t++)
+            {
+              size_t best = rows * cols;
+              for (size_t k = 0; k < rows * cols; k++)
+                {
+                  size_t d = k % cols > hs[0].code_phase
+                                 ? k % cols - hs[0].code_phase
+                                 : hs[0].code_phase - k % cols;
+                  d        = d > cols / 2 ? cols - d : d;
+                  /* the mainlobe, a half row, or already taken */
+                  if (d <= 4 || (k / cols) % w->interp || sf[k] < 0.0f)
+                    continue;
+                  if (best == rows * cols || sf[k] > sf[best])
+                    best = k;
+                }
+              DP_REQUIRE (best < rows * cols);
+              /* the surface row's native bin: the same frequency */
+              const long fi
+                  = dp_fftfreq_index (best / cols, rows) / (long)w->interp;
+              acq_result_t cell = { .code_phase = best % cols };
+              cell.doppler_bin
+                  = (size_t)((fi % (long)nat + (long)nat) % (long)nat);
+              const double bound = dp_acq_sidelobe_ratio (w, &hs[0], &cell)
+                                   * (double)hs[0].test_stat_peak;
+              over += (double)sf[best] > bound * (1.0 + 1e-3);
+              checked++;
+              sf[best] = -1.0f;
+            }
+          DP_CHECK (checked == 20);
+          DP_CHECK (over == 0);
+          free (sf);
+          free (xs);
+          dp_acq_destroy (w);
+        }
+    }
+
+    /* A burst engine keeps its template's length, smooth or not. */
+    float _Complex tm[62];
+    for (size_t k = 0; k < 62; k++)
+      tm[k] = (gold[k / 2] & 1u) ? -1.0f : 1.0f;
+    dp_acq_state_t *bu = dp_xnn (dp_acq_create_burst (
+        tm, 62, 4, 2.0e6, 60.0, 0.0, 1e-3, 0.9, 0, 0.0, 1));
+    DP_CHECK (bu->code_bins == 62 && bu->lag_bins == 62);
+    dp_acq_destroy (bu);
   }
 
   /* A coupled carrier and the Doppler prior (doppler#2103). */

@@ -199,7 +199,7 @@ def receive(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         code=GOLD,
         chip_rate=CHIP_RATE,
         symbol_rate=SYM_RATE,
-        spc=SPC,
+        sample_rate=FS,
         cn0_dbhz=CN0_DBHZ,
         doppler_uncertainty=CARRIER_UNCERTAINTY_HZ,
         carrier_freq_hz=CARRIER_HZ,

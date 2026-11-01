@@ -17,8 +17,12 @@
  *   against a single-row reference (corr2d) -> argmax + CFAR noise estimate
  *   -> threshold gate -> acq_result_t.
  *
- * The fast-time axis (code_bins = sf*spc columns) is the circular code matched
- * filter; the slow-time axis (coherent_bins rows, one row per code
+ * The fast-time axis (code_bins samples, one code period) is the circular
+ * code matched filter, read on lag_bins columns: code_bins itself, or, on a
+ * continuous engine whose period is not 7-smooth, the next power of two --
+ * the cross-spectrum zero-padded before the inverse, an exact interpolation
+ * of the same circular correlation at a fraction of the cost of inverses of
+ * an awkward length (lag_bins' doc). The slow-time axis (coherent_bins rows, one row per code
  * repetition) is the coherent Doppler search.  A carrier offset f
  * (cycles/sample) lands the peak at row = round(f*code_bins*coherent_bins)
  * mod coherent_bins, column = code phase.
@@ -181,7 +185,8 @@ extern "C"
                              window_bins*coherent_bins bins (window_bins
                              tiles of coherent_bins each) — see acq_core.h's
                              file doc comment.                              */
-    size_t code_phase; /**< Peak col: code phase (0 … code_bins-1).          */
+    size_t code_phase; /**< Peak col: code phase (0 … lag_bins-1), a lag of
+                            code_phase * code_bins / lag_bins samples.  */
     float  peak_mag;   /**< max `|R[i,j]|` over the surface (linear).        */
     float  noise_est;  /**< CFAR noise estimate over `[noise_lo, noise_hi]`. */
     float  test_stat;  /**< The gating CFAR statistic: peak_mag / noise_est
@@ -261,6 +266,25 @@ extern "C"
                             reports is the carrier's at the middle of the
                             dwell's block. Appended last so positional
                             initialisers do not shift. */
+    float test_stat_peak; /**< test_stat as the emitter would read on its
+                               own lag: the straddle a delay between two
+                               lag columns costs, put back. Estimated from
+                               the larger of the hit's two neighbouring
+                               columns under the mainlobe the engine
+                               models (a triangle `shape.zone` samples
+                               wide, as for a chip code): a centre c and
+                               neighbour n one column, s samples, apart
+                               give (c + n) / (2 - s / zone), exact on
+                               that triangle, clamped between c and
+                               c / (1 - s / (2 zone)) -- never below what
+                               was read,
+                               never past the worst straddle. Noise lifts
+                               the neighbour, so at low statistics it
+                               reads high, within that clamp. For a bound
+                               on what the emitter's sidelobes can reach
+                               (a sidelobe does not lose its straddle with
+                               the peak); detection reads test_stat.
+                               Appended last, like the field above. */
   } acq_result_t;
 
   /**
@@ -422,7 +446,18 @@ extern "C"
     size_t window_bins; /**< Wideband frequency-window hypotheses (1 =
                               disabled/native — see the file doc comment).   */
     size_t code_bins; /**< One code period in samples, fs * sf / chip_rate:
-                           the length of every fast-time transform.      */
+                           the length of every forward fast-time transform
+                           and of the raw epoch.                         */
+    size_t lag_bins;  /**< Code-phase columns of the surface: the inverse
+                           fast-time transform's length. code_bins, except
+                           on a continuous engine whose code_bins is not
+                           7-smooth (dp_fft_smooth_floor()): there the
+                           cross-spectrum is zero-padded to the next power
+                           of two before the inverse, which interpolates
+                           the circular correlation exactly and costs a
+                           fraction of a transform of awkward length.
+                           Column c is lag c * code_bins / lag_bins
+                           samples.                                      */
     size_t n; /**< NATIVE grid size in samples: coherent_bins * window_bins *
                    code_bins (both may exceed 1: D rows inside each tile).
                    This is the INPUT frame and the count of statistically
@@ -506,7 +541,7 @@ extern "C"
                                  coupled to, Hz (dp_acq_set_carrier_freq_hz());
                                  0 = uncoupled: no code-rate hypothesis per
                                  tile, no dwell advance in the hand-off. */
-    float _Complex *blk; /**< window_bins * coherent_bins * code_bins: the
+    float _Complex *blk; /**< window_bins * coherent_bins * lag_bins: the
                               block's per-tile epoch correlations; NULL
                               unless both exceed 1.                     */
     float _Complex *blk_raw; /**< coherent_bins * code_bins: the block's raw
@@ -525,8 +560,20 @@ extern "C"
     dp_pool_t       *pool;      /**< NULL or one thread = serial          */
     int              threads;   /**< workers the pool runs on, the caller
                                      included; 1 without a pool          */
-    dp_fft_state_t    **tile_inv;  /**< window_bins inverse plans (code_bins) */
-    float _Complex **tile_prod; /**< window_bins product buffers          */
+    dp_fft_state_t *sl_fwd; /**< dp_acq_sidelobe_ratio()'s forward plan
+                                 (code_bins), made on its first call  */
+    dp_fft_state_t *sl_inv; /**< ... its inverse (lag_bins)            */
+    dp_fft_state_t *sl_inv_cb; /**< ... and an inverse at code_bins, for
+                                    the delayed replica              */
+    float _Complex *sl_scratch; /**< its buffers: the replica's spectrum,
+                                     a mixed signal, its spectrum and
+                                     the delayed replica (code_bins
+                                     each), then the padded product
+                                     and the row (lag_bins each)     */
+    dp_fft_state_t    **tile_inv;  /**< window_bins inverse plans (lag_bins) */
+    float _Complex **tile_prod; /**< window_bins product buffers: code_bins
+                                     bins, then lag_bins padded ones when
+                                     the lag axis is padded            */
     dp_fft_state_t    **tile_slow; /**< window_bins slow-time plans (D*interp),
                                      NULL at D == 1                      */
     float _Complex **tile_col;  /**< window_bins column scratch: a chunk of
@@ -917,6 +964,30 @@ extern "C"
    *         not fit a size_t.
    */
   size_t dp_acq_period_samples (size_t code_len);
+
+  /**
+   * @brief The samples one code period is searched at, for a caller feeding
+   *        @p sample_rate: its own period when that is already fast, else
+   *        dp_acq_period_samples().
+   *
+   * The caller's period, `sample_rate * code_len / chip_rate`, is kept
+   * when it is a whole number of samples (to a part in 1e9), at least
+   * @p code_len, and 7-smooth (dp_fft_smooth_floor() leaves it as it is):
+   * the transforms then run on pocketfft's own radices, and searching the
+   * samples as they come needs no resampler. Otherwise -- a fractional
+   * period (11 MSa/s over 5 Mcps for 1,023 chips is 2,250.6), or one with a
+   * larger prime (2 * 1,023 = 2 * 3 * 11 * 31) -- it is the power of two
+   * dp_acq_period_samples() derives, and the caller resamples to
+   * `chip_rate * period / code_len`. 4 samples a chip of a 7-chip code
+   * keeps 28; 2 a chip of 1,023 chips takes 2,048.
+   *
+   * @param code_len    Chips in one code period (>= 1).
+   * @param sample_rate The caller's sample rate, Hz (> 0).
+   * @param chip_rate   Chip rate, Hz (> 0).
+   * @return The period in samples; 0 for an argument outside the domain.
+   */
+  size_t dp_acq_search_period (size_t code_len, double sample_rate,
+                               double chip_rate);
 
   /**
    * @brief Create a continuous-mode acquisition engine: always wideband
@@ -1332,7 +1403,7 @@ extern "C"
    *
    * Copies the surface the last dwell was decided on into @p out, row-major
    * `surface_rows` (Doppler: tiles, or interpolated slow-time rows) by
-   * `code_bins` (code phase), every cell divided by the same CFAR reference
+   * `lag_bins` (code phase), every cell divided by the same CFAR reference
    * the gate used — so a cell reads as its own test statistic, to a float
    * rounding (the SIMD build's fast-math may take a reciprocal in this
    * loop and a divide in the gate's), and the gate (`threshold`, or
@@ -1342,9 +1413,9 @@ extern "C"
    * the caller reading every k-th dwell, or a sink with `decim`.
    *
    * @param state Must be non-NULL.
-   * @param out   At least `surface_rows * code_bins` floats.
+   * @param out   At least `surface_rows * lag_bins` floats.
    * @param n_out Capacity of @p out.
-   * @return Cells written (`surface_rows * code_bins`), or 0 when no dwell
+   * @return Cells written (`surface_rows * lag_bins`), or 0 when no dwell
    *         has been decided with `keep_surface` set, or @p out is too small.
    * @code
    * >>> import numpy as np
@@ -1356,10 +1427,12 @@ extern "C"
    * >>> a.keep_surface = 1
    * >>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)
    * >>> _ = a.push(x)
-   * >>> s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)
+   * >>> s = np.empty(a.surface_rows * a.lag_bins, dtype=np.float32)
    * >>> a.surface(s) == s.size
    * True
-   * >>> s.reshape(a.surface_rows, a.code_bins).shape == (a.surface_rows, 1022)
+   * >>> a.code_bins, a.lag_bins  # 1022 is 2 x 7 x 73: read on 1024 lags
+   * (1022, 1024)
+   * >>> s.reshape(a.surface_rows, a.lag_bins).shape == (a.surface_rows, 1024)
    * True
    *
    * @endcode
@@ -1405,9 +1478,9 @@ extern "C"
    * peak sits at the chip phase the DetectionEvent would carry.
    *
    * @param state Must be non-NULL.
-   * @param out   At least `code_bins` doubles.
+   * @param out   At least `lag_bins` doubles.
    * @param n_out Capacity of @p out.
-   * @return Values written (`code_bins`), or 0 if @p out is too small.
+   * @return Values written (`lag_bins`), or 0 if @p out is too small.
    * @code
    * >>> import numpy as np
    * >>> from doppler.acquire import Acquisition
@@ -1415,10 +1488,10 @@ extern "C"
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
    * >>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
-   * >>> c = np.empty(a.code_bins, dtype=np.float64)
-   * >>> a.surface_chip_phase(c) == a.code_bins
+   * >>> c = np.empty(a.lag_bins, dtype=np.float64)
+   * >>> a.surface_chip_phase(c) == a.lag_bins
    * True
-   * >>> bool(c[0] == 0.0 and c[1] == 510.5)
+   * >>> bool(c[0] == 0.0 and c[1] == 511 - 511 / 1024)
    * True
    *
    * @endcode
@@ -1431,7 +1504,7 @@ extern "C"
    *        carrier phase per cell, before the magnitude the gate reads.
    *
    * Copies the coherent sum the last dwell was decided on into @p out,
-   * row-major `surface_rows` x `code_bins` like dp_acq_surface(), in the
+   * row-major `surface_rows` x `lag_bins` like dp_acq_surface(), in the
    * correlation's own units rather than the gate's. A cell's phase is
    * the carrier at the block's middle, relative to its tile's centre; its
    * neighbours along the code axis are complex early and late arms, so a
@@ -1442,9 +1515,9 @@ extern "C"
    * (`n_noncoh > 1`) is a power sum with no phase, and reads 0.
    *
    * @param state Must be non-NULL.
-   * @param out   At least `surface_rows * code_bins` complex floats.
+   * @param out   At least `surface_rows * lag_bins` complex floats.
    * @param n_out Capacity of @p out.
-   * @return Cells written (`surface_rows * code_bins`), or 0 when no dwell
+   * @return Cells written (`surface_rows * lag_bins`), or 0 when no dwell
    *         has been decided, the path is non-coherent, or @p out is too
    *         small.
    * @code
@@ -1459,10 +1532,10 @@ extern "C"
    * >>> a.n_noncoh                 # one look: the dwell is the coherent dump
    * 1
    * >>> _ = a.push(np.roll(s0, 17).astype(np.complex64))
-   * >>> sc = np.empty(a.surface_rows * a.code_bins, dtype=np.complex64)
+   * >>> sc = np.empty(a.surface_rows * a.lag_bins, dtype=np.complex64)
    * >>> a.surface_complex(sc) == sc.size
    * True
-   * >>> int(np.argmax(np.abs(sc)) % a.code_bins)   # the peak's code phase
+   * >>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's code phase
    * 17
    *
    * @endcode
@@ -1560,7 +1633,7 @@ extern "C"
    * @param state Must be non-NULL.
    * @param tile  Tile index, `0 … window_bins-1` (native FFT order, the
    *              order the surface's rows are cut in).
-   * @param col   Code-phase column, `0 … code_bins-1`.
+   * @param col   Code-phase column, `0 … lag_bins-1`.
    * @param out   At least `coherent_bins` complex floats.
    * @param n_out Capacity of @p out.
    * @return Values written (`coherent_bins`), or 0 at `coherent_bins == 1`
@@ -1955,10 +2028,10 @@ extern "C"
    * `dsss_receiver_core.c`'s own (pre-existing, now-shared) handoff logic:
    *
    * - **Chip phase**: @p hit's `code_phase` is a correlation LAG (0 …
-   *   code_bins-1); a code-tracking loop's `init_chip` wants the code's
+   *   lag_bins-1); a code-tracking loop's `init_chip` wants the code's
    *   own instantaneous phase instead — the mirror-image inversion
-   *   `phase = fmod(code_len - code_phase/spc, code_len)`, folded
-   *   non-negative.
+   *   `phase = fmod(code_len - code_phase * code_len / lag_bins,
+   *   code_len)`, folded non-negative.
    * - **Doppler**: @p state is assumed built via dp_acq_create_continuous()
    *   (`window_bins` tiles of `coherent_bins` each, the only mode this
    *   function supports), so `hit`'s `doppler_bin` indexes the uniform grid
@@ -1984,16 +2057,62 @@ extern "C"
    * @param state    The engine @p hit came from (non-NULL, built via
    *                 dp_acq_create_continuous()).
    * @param hit      One hit from dp_acq_push() (non-NULL).
-   * @param code_len Spreading-code length (chips): a hit's lag, in samples
-   *                 of the engine's `code_bins`-sample period, becomes a
-   *                 phase in these units (`code_len / code_bins` chips a
-   *                 sample). For a code engine it is the code's length; a
+   * @param code_len Spreading-code length (chips): a hit's lag, in columns
+   *                 of the engine's `lag_bins`-column period, becomes a
+   *                 phase in these units (`code_len / lag_bins` chips a
+   *                 column). For a code engine it is the code's length; a
    *                 burst engine built from a code held k samples a chip
    *                 passes the code's length too.
    * @param out      Written on return (non-NULL).
    */
   void dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
                           size_t code_len, acq_handoff_t *out);
+
+  /**
+   * @brief How far up the sidelobes of the emitter behind one hit can reach
+   *        at another hit's cell, relative to that emitter's own peak.
+   *
+   * One emitter puts its code's cross-ambiguity on every cell of the
+   * surface. This computes that row the way the surface itself is made:
+   * one period of the replica, carrying @p from's Doppler less the cell's
+   * tile centre and delayed by @p from's lag (a phase ramp, so a lag
+   * between two samples is exact), its spectrum times the replica's
+   * conjugate, zero-padded to lag_bins and inverted (dp_fft_pad_spectrum()),
+   * read at @p to's column. The emitter's own peak is the same product's
+   * zero lag at its residual from its own tile's centre. The ratio is the
+   * most it can be over what the hits do not pin down:
+   *
+   * - @p from's lag is known to half a lag column either side of its
+   *   column: five points across that are read;
+   * - @p from's Doppler is known to half a native row either side: nine
+   *   points across that row are read, its own residual moving with each;
+   * - a cell on a tile edge, or on the combined axis's wrap, is read in
+   *   every tile it touches.
+   *
+   * The cell's fast-time mixing frequency is its tile's centre (a
+   * multiple of the epoch rate, chip_rate / sf; DC on a single-tile
+   * engine): within a tile the slow-time transform only lowers a sidelobe
+   * that sits off the emitter's own row, and no credit is taken for that.
+   * So the value bounds the sidelobe at @p to's cell from above, and it is
+   * the code's worst sidelobe (dp_acq_dsl_db()) only at the worst cells:
+   * most cells sit well below it, which is the room a weak emitter beside
+   * a strong one needs. Times @p from's statistic on its own lag
+   * (acq_result_t::test_stat_peak), it is the statistic @p from's
+   * sidelobe can read at @p to.
+   *
+   * Cost: per pair of hits, about 18 forward transforms of code_bins and
+   * 90 inverses of lag_bins -- under a millisecond at a 2,046-sample
+   * period, and per pair, not per sample. The plans and buffers are made
+   * on the first call and kept on @p state.
+   *
+   * @param state  The engine both hits came from (non-NULL).
+   * @param from   The hit whose emitter's sidelobes are bounded.
+   * @param to     The hit whose cell they are bounded at.
+   * @return The ratio, from 0 to 1.
+   */
+  double dp_acq_sidelobe_ratio (dp_acq_state_t     *state,
+                                const acq_result_t *from,
+                                const acq_result_t *to);
 
   /* ── Serializable state — the elastic / pure-transducer face
    * ─────────────────

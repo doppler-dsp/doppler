@@ -19,7 +19,7 @@ CODE = np.asarray(Gold().generate(1023)).astype(np.uint8)
 SPEC = {
     "chip_rate": 3.069e6,
     "symbol_rate": 2700.0,
-    "spc": 2,
+    "sample_rate": 2 * 3.069e6,
     "doppler_uncertainty": 500.0,
 }
 

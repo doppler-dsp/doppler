@@ -149,6 +149,36 @@ columns 1
   tm["tile q = −1 · Doppler −f_E · the epoch mixed up by f_E, then correlated"]
 ```
 
+### 3.1 The lag grid: a padded inverse for an awkward period
+
+The forward transform must be the period's own length, $N$ samples: the
+correlation is circular, and padding the epoch or the template in time would
+change what it computes. The inverse need not be. Zero-padding the product
+spectrum from $N$ bins to $L \ge N$ before inverting (the low half at the
+front, the high half at the end, an even $N$'s Nyquist bin split between
+the two: `dp_fft_pad_spectrum()`) gives the same circular correlation at
+every $L/N$-th output and its band-limited interpolation between: the lag
+grid becomes $N/L$ of a sample a column.
+
+The continuous engine uses that to keep its inverses fast. When $N$ is not
+7-smooth, $L$ is the next power of two (`lag_bins`; $N$ itself otherwise,
+and always on a burst engine). At two samples a chip of a 1,023-chip code,
+$N = 2046 = 2 \cdot 3 \cdot 11 \cdot 31$ and $L = 2048$: an inverse of 1.65
+us against 9.32 us at 2,046, measured on the engine's own FFT, and there
+are $W$ of them an epoch against one forward. The surface is `surface_rows`
+by `lag_bins`; a hit's `code_phase` is a column, a lag of
+`code_phase * code_bins / lag_bins` samples, and the hand-off maps it to
+chips on that grid. On a narrow engine corr2d's decoupled inverse
+(`nx_out`) pads the same way.
+
+What it changes downstream is the grid, not the correlation. An emitter
+whose delay lands between two columns reads up to a triangle's straddle
+low ($1 - s/(2\,\text{zone})$ at a column of $s$ samples), as it already
+could between two samples; the hit carries the statistic with that put
+back (`test_stat_peak`), which rule 2 of the receiver's pick needs (§8).
+The false-alarm budget counts `lag_bins` columns a row; measured noise-only,
+the padded engine's Pfa sits on its target at D = 1 and D = 150.
+
 ## 4. Slow time: the Doppler inside each hypothesis, and the tiles
 
 Column $m$ of $z_{k,q}$ is a series at the epoch rate. When $D > 1$ the
@@ -324,7 +354,10 @@ list removes a peak further away: §8 is what can stand there.
 A reported cell, at native row $u'$ (of $WD$) and lag $m$, becomes physical
 values (`dp_acq_build_handoff()`, `acq_handoff_chip_phase()`):
 
-$$\hat f_{\text{hit}} = f_{\text{FFT}}(u', WD)\; \delta f, \qquad \hat\phi = \big(L - m/S\big) \bmod L \ \text{chips}$$
+$$\hat f_{\text{hit}} = f_{\text{FFT}}(u', WD)\; \delta f, \qquad \hat\phi = \big(L - m\,L/L_m\big) \bmod L \ \text{chips}$$
+
+with $L_m$ the lag grid's columns (`lag_bins`, §3.1; $L_m = SL$, one a
+sample, unless the period is padded).
 
 The chip phase inverts the lag into the code-tracking convention. With a
 carrier $f_C$ set, it also advances by the dilation over half the dwell,

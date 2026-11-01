@@ -94,7 +94,11 @@ def _new_receiver(cn0_dbhz, **kwargs):
     kwargs.setdefault("segments", 4)
     kwargs.setdefault("sps", 8)
     return AsyncDsssReceiver(
-        CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, spc=SPC, **kwargs
+        CODE,
+        chip_rate=CHIP_RATE,
+        symbol_rate=SYM_RATE,
+        sample_rate=FS,
+        **kwargs,
     )
 
 
@@ -539,7 +543,7 @@ def test_a_non_finite_symbol_rate_is_refused(rate):
             CODE,
             chip_rate=CHIP_RATE,
             symbol_rate=rate,
-            spc=SPC,
+            sample_rate=FS,
             cn0_dbhz=70.0,
         )
 

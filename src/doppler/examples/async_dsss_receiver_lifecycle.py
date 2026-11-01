@@ -182,7 +182,7 @@ def receive(x: np.ndarray) -> dict:
         code=GOLD,
         chip_rate=CHIP_RATE,
         symbol_rate=SYM_RATE,
-        spc=SPC,
+        sample_rate=FS,
         cn0_dbhz=CN0_DBHZ,
         pfa=PFA,
         doppler_uncertainty=CARRIER_UNCERTAINTY,

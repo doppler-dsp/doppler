@@ -175,12 +175,14 @@ dp_acq_rate_hypothesis function
 dp_acq_rate_phasor function
 dp_acq_reset function
 dp_acq_run function
+dp_acq_search_period function
 dp_acq_set_carrier_freq_hz function
 dp_acq_set_max_peaks function
 dp_acq_set_state function
 dp_acq_set_surface_sink function
 dp_acq_set_telemetry function
 dp_acq_set_threads function
+dp_acq_sidelobe_ratio function
 dp_acq_state_bytes function
 dp_acq_surface function
 dp_acq_surface_chip_phase function

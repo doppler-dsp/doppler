@@ -782,6 +782,11 @@ Despreader_setprop_norm_freq (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_despreader_set_norm_freq (self->handle, v);
   return 0;
 }
@@ -877,6 +882,11 @@ Despreader_setprop_bn_carrier (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   int _rc = dp_despreader_set_bn_carrier (self->handle, v);
   if (_rc != 0)
     {
@@ -911,6 +921,11 @@ Despreader_setprop_bn_code (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   int _rc = dp_despreader_set_bn_code (self->handle, v);
   if (_rc != 0)
     {

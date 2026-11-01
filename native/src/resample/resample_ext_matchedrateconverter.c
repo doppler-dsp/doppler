@@ -756,6 +756,11 @@ MatchedRateConverter_setprop_rate (MatchedRateConverterObject *self,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_RateConverter_set_rate (self->handle, v);
   return 0;
 }

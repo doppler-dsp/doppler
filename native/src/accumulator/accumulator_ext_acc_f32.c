@@ -78,6 +78,11 @@ AccF32_step (AccF32Object *self, PyObject *args)
   float x;
   if (!PyArg_ParseTuple (args, "f", &x))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_f32_step (self->handle, x);
   Py_RETURN_NONE;
 }
@@ -100,6 +105,12 @@ AccF32_steps (AccF32Object *self, PyObject *args, PyObject *kwds)
   if (!in_arr)
     return NULL;
 
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_f32_steps (self->handle, (const float *)PyArray_DATA (in_arr),
                     (size_t)PyArray_SIZE (in_arr));
   Py_DECREF (in_arr);
@@ -128,6 +139,11 @@ AccF32_set_acc (AccF32Object *self, PyObject *args)
   float v = 0.0f;
   if (!PyArg_ParseTuple (args, "f", &v))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_f32_set_acc (self->handle, v);
   Py_RETURN_NONE;
 }

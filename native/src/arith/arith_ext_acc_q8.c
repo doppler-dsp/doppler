@@ -96,6 +96,11 @@ AccQ8_step (AccQ8Object *self, PyObject *args)
       return NULL;
     }
   int8_t x = (int8_t)x_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_q8_step (self->handle, x);
   Py_RETURN_NONE;
 }
@@ -118,6 +123,12 @@ AccQ8_steps (AccQ8Object *self, PyObject *args, PyObject *kwds)
   if (!in_arr)
     return NULL;
 
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_q8_steps (self->handle, (const int8_t *)PyArray_DATA (in_arr),
                    (size_t)PyArray_SIZE (in_arr));
   Py_DECREF (in_arr);
@@ -155,6 +166,11 @@ AccQ8_set_acc (AccQ8Object *self, PyObject *args)
       return NULL;
     }
   int32_t v = (int32_t)v_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_acc_q8_set_acc (self->handle, v);
   Py_RETURN_NONE;
 }

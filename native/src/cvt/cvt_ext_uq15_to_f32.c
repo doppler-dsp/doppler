@@ -87,7 +87,12 @@ UQ15ToF32_step (UQ15ToF32Object *self, PyObject *args)
       return NULL;
     }
   uint16_t x = (uint16_t)x_raw;
-  float    y = dp_uq15_to_f32_step (self->handle, x);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  float y = dp_uq15_to_f32_step (self->handle, x);
   return PyFloat_FromDouble ((double)y);
 }
 
@@ -144,6 +149,13 @@ UQ15ToF32_steps (UQ15ToF32Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
+      if (!self->handle)
+        {
+          Py_DECREF (in_arr);
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       dp_uq15_to_f32_steps (self->handle,
                             (const uint16_t *)PyArray_DATA (in_arr),
                             (float *)PyArray_DATA (out_arr), (size_t)n);
@@ -159,6 +171,13 @@ UQ15ToF32_steps (UQ15ToF32Object *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_uq15_to_f32_steps (self->handle, (const uint16_t *)PyArray_DATA (in_arr),
                         (float *)PyArray_DATA ((PyArrayObject *)out_arr),
                         (size_t)n);

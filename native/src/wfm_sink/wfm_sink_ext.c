@@ -283,6 +283,12 @@ StreamSink_send (StreamSinkObject *self, PyObject *args, PyObject *kwds)
       = jm_array_arg (x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "iq");
   if (!x_arr)
     return NULL;
+  if (self->closed)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "StreamSink is closed");
+      return NULL;
+    }
   size_t                n_in    = (size_t)PyArray_SIZE (x_arr);
   const float _Complex *in_data = (const float _Complex *)PyArray_DATA (x_arr);
   int                   _rc;

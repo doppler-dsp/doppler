@@ -676,6 +676,11 @@ BurstDespreader_setprop_bn_carrier (BurstDespreaderObject *self,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   int _rc = dp_burst_despreader_set_bn_carrier (self->handle, v);
   if (_rc != 0)
     {
@@ -711,6 +716,11 @@ BurstDespreader_setprop_bn_code (BurstDespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   int _rc = dp_burst_despreader_set_bn_code (self->handle, v);
   if (_rc != 0)
     {
@@ -746,6 +756,11 @@ BurstDespreader_setprop_norm_freq (BurstDespreaderObject *self,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_burst_despreader_set_norm_freq (self->handle, v);
   return 0;
 }

@@ -6002,8 +6002,14 @@ _pop_flag (PyObject *kw, const char *name, int *out)
 static int
 Composer_init (ComposerObject *self, PyObject *args, PyObject *kwds)
 {
-  self->state     = NULL;
-  self->destroyed = 0;
+  if (self->lent)
+    {
+      PyErr_SetString (
+          PyExc_RuntimeError,
+          "ComposerObject: its state was lent as a capsule; a second "
+          "__init__ would free it under the borrower");
+      return -1;
+    }
   int repeat = 0, continuous = 0;
 
   PyObject *kw = kwds ? PyDict_Copy (kwds) : PyDict_New ();
@@ -6116,11 +6122,12 @@ Composer_init (ComposerObject *self, PyObject *args, PyObject *kwds)
    * seglist must outlive the create call below (which deep-copies them) --
    * dropping it earlier would, in the single-segment-kwargs path where
    * seglist is the sole owner, free the bits out from under the read. */
-  const char *_why = NULL;
-  self->state = dp_wfm_compose_create_why (segs, n, repeat, continuous, &_why);
+  const char             *_why = NULL;
+  dp_wfm_compose_state_t *_jm_new
+      = dp_wfm_compose_create_why (segs, n, repeat, continuous, &_why);
   _free_dp_wfm_compose_segments (segs, n);
   Py_DECREF (seglist);
-  if (!self->state)
+  if (!_jm_new)
     {
       if (_why)
         PyErr_SetString (PyExc_ValueError, _why);
@@ -6128,6 +6135,32 @@ Composer_init (ComposerObject *self, PyObject *args, PyObject *kwds)
         PyErr_SetString (PyExc_ValueError, "dp_wfm_compose_create_why failed");
       return -1;
     }
+  if (self->lent)
+    {
+      dp_wfm_compose_destroy (_jm_new);
+      PyErr_SetString (
+          PyExc_RuntimeError,
+          "ComposerObject: its state was lent as a capsule; a second "
+          "__init__ would free it under the borrower");
+      return -1;
+    }
+  if (self->state && !self->destroyed)
+    {
+      dp_wfm_compose_state_t *_jm_old = self->state;
+      /* gh-2272: refuse new calls, then wait for a running one. */
+      self->destroyed = 1;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->destroyed = 0;
+          dp_wfm_compose_destroy (_jm_new);
+          return -1;
+        }
+      dp_wfm_compose_destroy (_jm_old);
+    }
+  self->state     = _jm_new;
+  self->destroyed = 0;
   return 0;
 }
 
@@ -6736,6 +6769,11 @@ Composer__draws_json (ComposerObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
 
+  if (self->destroyed)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "composer already closed");
+      return NULL;
+    }
   size_t               _n;
   int                  _rep = 0, _cont = 0;
   const wfm_segment_t *segs
@@ -6782,6 +6820,11 @@ Composer_to_sigmf (ComposerObject *self, PyObject *args, PyObject *kwds)
     {
       PyErr_Format (PyExc_ValueError, "invalid endian '%s' (choices: le, be)",
                     endian);
+      return NULL;
+    }
+  if (self->destroyed)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "composer already closed");
       return NULL;
     }
   size_t               _n;

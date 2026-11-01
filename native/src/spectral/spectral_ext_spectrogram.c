@@ -184,6 +184,11 @@ SpectrogramObj_push_max_out (SpectrogramObject *self, PyObject *args)
   Py_ssize_t n_in = 0;
   if (!PyArg_ParseTuple (args, "n", &n_in))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
       dp_spectrogram_push_max_out (self->handle, (size_t)n_in));
 }

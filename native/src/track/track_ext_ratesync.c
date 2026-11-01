@@ -615,6 +615,11 @@ RateSync_setprop_bn (RateSyncObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   int _rc = dp_ratesync_set_bn (self->handle, v);
   if (_rc != 0)
     {

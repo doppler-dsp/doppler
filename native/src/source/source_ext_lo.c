@@ -464,6 +464,11 @@ LO_setprop_norm_freq (LOObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_lo_set_norm_freq (self->handle, v);
   return 0;
 }
@@ -497,6 +502,11 @@ LO_setprop_phase (LOObject *self, PyObject *value, void *Py_UNUSED (closure))
       return -1;
     }
   uint32_t v = (uint32_t)v_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_lo_set_phase (self->handle, v);
   return 0;
 }

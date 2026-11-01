@@ -145,6 +145,11 @@ FrameDescObj_bits_max_out (FrameDescObject *self, PyObject *args)
   Py_ssize_t n = 0;
   if (!PyArg_ParseTuple (args, "n", &n))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (dp_frame_bits_max_out (self->handle, (size_t)n));
 }
 
@@ -744,6 +749,11 @@ FrameDescObj_deframe_max_out (FrameDescObject *self, PyObject *args)
   Py_ssize_t rx_bits_len = 0;
   if (!PyArg_ParseTuple (args, "n", &rx_bits_len))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (
       dp_frame_deframe_max_out (self->handle, (size_t)rx_bits_len));
 }

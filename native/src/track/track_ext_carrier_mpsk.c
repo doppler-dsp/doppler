@@ -405,6 +405,11 @@ CarrierMpsk_setprop_bn (CarrierMpskObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   int _rc = dp_carrier_mpsk_set_bn (self->handle, v);
   if (_rc != 0)
     {
@@ -440,6 +445,11 @@ CarrierMpsk_setprop_norm_freq (CarrierMpskObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   dp_carrier_mpsk_set_norm_freq (self->handle, v);
   return 0;
 }
@@ -487,6 +497,11 @@ CarrierMpsk_setprop_bn_fll (CarrierMpskObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
   int _rc = dp_carrier_mpsk_set_bn_fll (self->handle, v);
   if (_rc != 0)
     {

@@ -179,6 +179,11 @@ _SynthEngine_step (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   float _Complex y = dp_wfm_synth_step (self->handle);
   return PyComplex_FromDoubles ((double)crealf (y), (double)cimagf (y));
 }
@@ -201,6 +206,12 @@ _SynthEngine_steps (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
   if (!out_arr)
     return NULL;
 
+  if (!self->handle)
+    {
+      Py_DECREF (out_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_wfm_synth_steps (
       self->handle, (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
       (size_t)n);
@@ -231,6 +242,11 @@ _SynthEngine_set_wtype (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_wfm_synth_set_wtype (self->handle, v);
   Py_RETURN_NONE;
 }
@@ -257,6 +273,11 @@ _SynthEngine_set_nsps (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_wfm_synth_set_nsps (self->handle, v);
   Py_RETURN_NONE;
 }
@@ -284,6 +305,11 @@ _SynthEngine_set_sym_pos (_SynthEngineObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_wfm_synth_set_sym_pos (self->handle, v);
   Py_RETURN_NONE;
 }
@@ -311,6 +337,11 @@ _SynthEngine_set_cur_re (_SynthEngineObject *self, PyObject *args)
   float v = 0.0f;
   if (!PyArg_ParseTuple (args, "f", &v))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_wfm_synth_set_cur_re (self->handle, v);
   Py_RETURN_NONE;
 }
@@ -338,6 +369,11 @@ _SynthEngine_set_cur_im (_SynthEngineObject *self, PyObject *args)
   float v = 0.0f;
   if (!PyArg_ParseTuple (args, "f", &v))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_wfm_synth_set_cur_im (self->handle, v);
   Py_RETURN_NONE;
 }

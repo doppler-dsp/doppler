@@ -338,6 +338,12 @@ unit = "call"
 definition = "One push of a 2,046-sample epoch of noise (a Gold-1023 code at 3.069 Mcps and 2 samples per chip) through a pool of three AsyncDsssReceivers on one thread, each searching plus or minus 3 kHz, through the Python binding; read in input samples per second."
 samples = 2046
 
+["py:async_dsss_pool::test_push_dwell_native4"]
+name = "Async DSSS pool, 4 receivers searching one tile, from Python"
+unit = "call"
+definition = "One push through the Python binding of a pool of four AsyncDsssReceivers on one thread, searching one slow-time tile, plus or minus 2,444 Hz: a 1,023-chip Gold code at 5 Mcps captured at 11 MSa/s, through one RateConverter to 10 MSa/s (2 samples a chip) inside the timed push, 3,000 symbols a second, the search block-coherent over the 150 code periods a 500-symbol data-free block and a 500 Hz/s Doppler rate allow; one push is one such dwell of noise, every receiver searching for every sample fed; throughput counts input samples; read in input samples per second."
+samples = 337590
+
 # Reed-Solomon from Python, one CCSDS (255,223) codeword per call. Coded
 # data, so these read in bits per second like the C headline row: one
 # codeword is 255 bytes, 2,040 bits.
@@ -695,6 +701,36 @@ samples = 1
 name = "Async DSSS pool, 3 receivers searching, three threads"
 unit = "sample"
 definition = "The one-thread row's push, with the three receivers stepped on three workers, one receiver per worker, the controller's step serial after them; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[native,n=1,threads=1]"]
+name = "Async DSSS pool, 1 receiver searching one tile"
+unit = "sample"
+definition = "A pool of one AsyncDsssReceiver searching one slow-time tile, plus or minus 2,444 Hz, on one thread: a 1,023-chip Gold code at 5 Mcps captured at 11 MSa/s, through one RateConverter to 10 MSa/s (2 samples a chip) inside the timed push, 3,000 symbols a second, the search block-coherent over the 150 code periods a 500-symbol data-free block and a 500 Hz/s Doppler rate allow; one push is one such dwell of noise, every receiver searching for every sample fed; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[native,n=4,threads=1]"]
+name = "Async DSSS pool, 4 receivers searching one tile"
+unit = "sample"
+definition = "A pool of four AsyncDsssReceivers searching one slow-time tile, plus or minus 2,444 Hz, stepped one after another on one thread: a 1,023-chip Gold code at 5 Mcps captured at 11 MSa/s, through one RateConverter to 10 MSa/s (2 samples a chip) inside the timed push, 3,000 symbols a second, the search block-coherent over the 150 code periods a 500-symbol data-free block and a 500 Hz/s Doppler rate allow; one push is one such dwell of noise, every receiver searching for every sample fed; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[native,n=4,threads=4]"]
+name = "Async DSSS pool, 4 receivers searching one tile, 4 threads"
+unit = "sample"
+definition = "The four-receiver one-tile pool with the receivers stepped on four workers, joined once every code period: a 1,023-chip Gold code at 5 Mcps captured at 11 MSa/s, through one RateConverter to 10 MSa/s (2 samples a chip) inside the timed push, 3,000 symbols a second, the search block-coherent over the 150 code periods a 500-symbol data-free block and a 500 Hz/s Doppler rate allow; one push is one such dwell of noise, every receiver searching for every sample fed; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[full,n=1,threads=1]"]
+name = "Async DSSS pool, 1 receiver searching plus or minus 50 kHz"
+unit = "sample"
+definition = "A pool of one AsyncDsssReceiver searching plus or minus 50 kHz on one thread: a 1,023-chip Gold code at 5 Mcps captured at 11 MSa/s, through one RateConverter to 10 MSa/s (2 samples a chip) inside the timed push, 3,000 symbols a second, the search block-coherent over the 150 code periods a 500-symbol data-free block and a 500 Hz/s Doppler rate allow; one push is one such dwell of noise, every receiver searching for every sample fed; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[full,n=4,threads=1]"]
+name = "Async DSSS pool, 4 receivers searching plus or minus 50 kHz"
+unit = "sample"
+definition = "A pool of four AsyncDsssReceivers searching plus or minus 50 kHz, stepped one after another on one thread: a 1,023-chip Gold code at 5 Mcps captured at 11 MSa/s, through one RateConverter to 10 MSa/s (2 samples a chip) inside the timed push, 3,000 symbols a second, the search block-coherent over the 150 code periods a 500-symbol data-free block and a 500 Hz/s Doppler rate allow; one push is one such dwell of noise, every receiver searching for every sample fed; throughput counts input samples."
 samples = 1
 
 ["c:dsss_burst_receiver::push_idle"]

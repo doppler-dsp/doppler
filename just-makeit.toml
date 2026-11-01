@@ -3846,8 +3846,8 @@ values = ["floor", "nearest", "linear"]
 # through the receiver's `lifecycle` property as a string.
 [[enum]]
 name = "async_dsss_rx_state"
-values = ["searching", "refining", "tracking", "reserved", "lost"]
+values = ["searching", "refining", "tracking", "idle", "lost"]
 enumerators = [
   "ASYNC_DSSS_RX_SEARCHING", "ASYNC_DSSS_RX_REFINING",
-  "ASYNC_DSSS_RX_TRACKING", "ASYNC_DSSS_RX_RESERVED", "ASYNC_DSSS_RX_LOST",
+  "ASYNC_DSSS_RX_TRACKING", "ASYNC_DSSS_RX_IDLE", "ASYNC_DSSS_RX_LOST",
 ]

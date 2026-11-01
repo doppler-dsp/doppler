@@ -95,10 +95,7 @@ typedef enum
   ASYNC_DSSS_RX_SEARCHING = 0, 
   ASYNC_DSSS_RX_REFINING  = 1, 
   ASYNC_DSSS_RX_TRACKING  = 2, 
-  /* 3 was the deleted cell mode's idle. The values are persisted (a blob,
-     a telemetry capture), so it stays reserved: no state reaches it, and a
-     blob that names it is refused. */
-  ASYNC_DSSS_RX_RESERVED = 3, 
+  ASYNC_DSSS_RX_IDLE = 3, 
   ASYNC_DSSS_RX_LOST     = 4, 
 } async_dsss_rx_state_t;
 
@@ -211,6 +208,12 @@ typedef enum
     size_t   rank;   
     size_t   n_excl; 
     double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; 
+    bool     pooled;     
+    size_t   pick_want;  
+    size_t   n_picks;    
+    double   pick_phase[ASYNC_DSSS_RX_MAX_PEAKS]; 
+    double   pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS]; 
+    double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     
     uint64_t refused_hits;         
     uint64_t both_down_samples;    
     int      had_lock;             
@@ -414,10 +417,16 @@ typedef enum
     uint64_t srch_origin;   
     uint64_t srch_n;        
     uint64_t srch_hist_len; 
+    uint64_t pooled;        
+    uint64_t pick_want;     
+    uint64_t n_picks;       
+    double   pick_phase[ASYNC_DSSS_RX_MAX_PEAKS];   
+    double   pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS]; 
+    double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 14u /* v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 15u /* v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

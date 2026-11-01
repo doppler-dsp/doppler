@@ -19,17 +19,17 @@
  * every push decides exactly one dwell and the rows compare like for like.
  *
  * The rows ask two questions. n=1 against n=4 on one thread: does a pool of
- * N idle receivers cost one search or N? Every searching receiver builds
- * the same surface on the same block grid (the ranks depend on it,
- * docs/design/async-dsss-receiver.md §5), so anything above one search is
- * repeated work. And n=4 on 4 threads against one: what do the workers buy
- * back, given push() joins them once every code period?
+ * N idle receivers cost one search or N? The controller owns the one search
+ * (docs/design/async-dsss-receiver.md §5) and an idle receiver runs none,
+ * so it should be one, whatever N is. And n=4 on 4 threads against one:
+ * what do the workers buy back, given push() joins them once every code
+ * period?
  *
- * Fed noise alone from the shipped awgn, so every receiver searches all
- * along; a row is recorded only if every receiver searched for every sample
- * fed (a false alarm's refine would be timed as search). The rows are
- * interleaved round by round, so their ratios are measured on one machine
- * state.
+ * Fed noise alone from the shipped awgn, so every receiver stays idle and
+ * the search runs all along; a row is recorded only if every receiver was
+ * idle for every sample fed and the search ran every period (a false
+ * alarm's seed would be timed as a refine). The rows are interleaved round
+ * by round, so their ratios are measured on one machine state.
  */
 #include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
@@ -66,9 +66,9 @@ min_sec (const double *t, int n)
   return m;
 }
 
-/* Every receiver searching for every sample fed, or a message. The
-   receivers have been fed the whole periods pushed: the pool carries the
-   rest to the next push. */
+/* Every receiver idle for every sample fed and the one search fed every
+   period, or a message. The receivers have been fed the whole periods
+   pushed: the pool carries the rest to the next push. */
 static int
 all_searching (dp_async_dsss_pool_state_t *p, size_t n_rx, uint64_t pushed,
                const char *tag)
@@ -77,18 +77,26 @@ all_searching (dp_async_dsss_pool_state_t *p, size_t n_rx, uint64_t pushed,
   for (size_t i = 0; i < n_rx; i++)
     {
       async_dsss_receiver_status_t st = dp_async_dsss_pool_status (p, i);
-      if (st.state != ASYNC_DSSS_RX_SEARCHING || st.state_samples != fed
-          || st.refused_hits != 0)
+      if (st.state != ASYNC_DSSS_RX_IDLE || st.state_samples != fed)
         {
           (void)fprintf (stderr,
                          "bench_async_dsss_pool[%s]: receiver %zu state=%d "
-                         "state_samples=%llu of %llu -- not a search all "
+                         "state_samples=%llu of %llu -- not idle all "
                          "along\n",
                          tag, i, st.state,
                          (unsigned long long)st.state_samples,
                          (unsigned long long)fed);
           return 0;
         }
+    }
+  if (p->search_periods * p->period != fed || p->search->refused_hits != 0)
+    {
+      (void)fprintf (stderr,
+                     "bench_async_dsss_pool[%s]: the search ran %llu of %llu "
+                     "periods -- not a search all along\n",
+                     tag, (unsigned long long)p->search_periods,
+                     (unsigned long long)(fed / p->period));
+      return 0;
     }
   return 1;
 }
@@ -163,7 +171,7 @@ main (void)
 
   const size_t     n_in = (LEAD + ITERATIONS) * block_in;
   dp_awgn_state_t *g    = dp_awgn_create (
-      7919u,
+      7921u,
       dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (fs_in)), 1.0f));
   float _Complex *x = malloc (n_in * sizeof *x);
   if (!g || !x)

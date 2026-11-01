@@ -1,7 +1,8 @@
 # async_dsss_pool -- AsyncDsssPool: N AsyncDsssReceivers on one stream under
-# a controller that only excludes, ranks, resolves duplicates and reports
-# (docs/design/async-dsss-receiver.md §8). Every receiver searches the whole
-# band for itself; the controller searches nothing and seeds nothing.
+# a controller that owns the one search, seeds idle receivers from its picks,
+# excludes, ranks, resolves duplicates and reports
+# (docs/design/async-dsss-receiver.md §5, §8). An idle receiver searches
+# nothing; the search runs only while a receiver is idle.
 
 [async_dsss_pool]
 arg_type = "float _Complex"
@@ -196,7 +197,7 @@ result_fields = [
 ]
 single = true
 record_name = "PoolReceiverStatus"
-record_doc = "One AsyncDsssPool receiver's status record, read after the controller's step: state (0 searching, 1 refining, 2 tracking, 4 lost), the live estimates, both lock flags, and the two clocks in input samples."
+record_doc = "One AsyncDsssPool receiver's status record, read after the controller's step: state (1 refining, 2 tracking, 3 idle, 4 lost; a pooled receiver never searches), the live estimates, both lock flags, and the two clocks in input samples."
 record_module = "doppler.dsss"
 
 [[async_dsss_pool.methods]]

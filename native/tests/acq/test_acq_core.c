@@ -4120,6 +4120,8 @@ main (void)
       {
         DP_CHECK (dp_acq_set_threads (c, counts[i]) == DP_OK);
         DP_CHECK (c->threads >= 1 && c->threads <= counts[i]);
+        DP_CHECK_MSG (c->threads <= (int)c->window_bins,
+                      "no more workers than tiles to give them");
         dp_acq_reset (c);
         size_t ngot = dp_acq_push (c, x, n, hgot, 16);
         DP_CHECK (ngot == nref);
@@ -4132,7 +4134,8 @@ main (void)
                     && hgot[h].peak_mag == href[h].peak_mag
                     && hgot[h].test_stat == href[h].test_stat);
       }
-    DP_CHECK (dp_acq_set_threads (c, 0) == DP_OK && c->threads >= 1);
+    DP_CHECK (dp_acq_set_threads (c, 0) == DP_OK && c->threads >= 1
+              && c->threads <= (int)c->window_bins);
     free (got);
     free (ref);
     free (x);

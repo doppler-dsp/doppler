@@ -57,7 +57,8 @@ def test_push_status_symbols():
     assert p.push(np.zeros(2046, dtype=np.complex64)) == 0
     assert p.samples == 2046
     st = p.status(0)
-    assert st.state == 0 and st.state_samples == 2046
+    # 3 is idle: a pooled receiver waits for the controller's seed
+    assert st.state == 3 and st.state_samples == 2046
     assert type(st).__name__ == "PoolReceiverStatus"
     assert p.status(2).state == -1  # past the pool
     assert p.symbols(0).size == 0

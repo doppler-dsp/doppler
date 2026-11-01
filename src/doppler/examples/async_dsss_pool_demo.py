@@ -3,12 +3,12 @@ several emitters that come and go.
 
 Three receivers share one stream. Four emitters on one Gold code reach it at
 different times, code phases and carriers: A, B and C arrive one after
-another, B leaves, and D arrives after it. Every receiver searches the
-whole carrier range for itself; the pool's controller only keeps them apart.
-It gives each searching receiver the code phases the others hold, so a
-search never takes a signal already held, and a rank, so two receivers that
-decide in the same dwell take different signals. When a receiver's emitter
-leaves, its release rule fires, the controller resets it, and it searches
+another, B leaves, and D arrives after it. The pool's controller runs one
+search over the whole carrier range while any receiver is idle. It leaves
+out the code phases the receivers hold, so the search never takes a signal
+already held, and seeds each idle receiver from its picks, strongest first,
+so no two receivers take one signal. When a receiver's emitter leaves, its
+release rule fires, the receiver returns to idle, and the search seeds it
 again.
 
 What the run shows:
@@ -17,7 +17,8 @@ What the run shows:
   held by exactly one receiver, and no two receivers hold one signal.
 - **A departure frees a receiver.** After B leaves, its receiver is
   released once both of its lock detectors have stayed down for
-  ``lost_confirm_s``, and it searches again.
+  ``lost_confirm_s``, and it returns to idle for the controller's search to
+  seed again.
 - **The freed receiver takes the newcomer.** D is acquired by the receiver
   that was free, without disturbing the two that track A and C.
 
@@ -331,7 +332,7 @@ def main(out_path: str = "async_dsss_pool_demo.png") -> None:
     )
     top.legend(fontsize=7, loc="lower left")
     top.grid(alpha=0.25, axis="x")
-    # Receiver 1 over time: B's symbols, silence while it searches after
+    # Receiver 1 over time: B's symbols, silence while it is idle after
     # the release, then D's.
     mid = fig.add_subplot(gs[1, :], sharex=top)
     mid.plot(

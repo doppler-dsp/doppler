@@ -119,8 +119,13 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_acq_create_continuous returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "Acquisition: invalid parameter (need chip_rate > 0 "
+                       "and a sample_rate whose code period, sample_rate * "
+                       "len(code) / chip_rate, is a whole number of samples, "
+                       "at least len(code); a finite cn0_dbhz; 0 < pfa < 1 "
+                       "and 0 < pd < 1; a finite doppler_uncertainty >= 0 "
+                       "and doppler_rate >= 0; code_only_epochs >= 1)");
       return -1;
     }
   if (self->handle->underpowered)
@@ -2213,6 +2218,19 @@ static PyTypeObject AcquisitionObjType = {
     "    over one block stays inside half a slow-time row); 0 leaves the "
     "window\n"
     "    as the only bound.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``Acquisition: "
+    "invalid\n"
+    "    parameter (need chip_rate > 0 and a sample_rate whose code period,\n"
+    "    sample_rate * len(code) / chip_rate, is a whole number of samples, "
+    "at\n"
+    "    least len(code); a finite cn0_dbhz; 0 < pfa < 1 and 0 < pd < 1; a\n"
+    "    finite doppler_uncertainty >= 0 and doppler_rate >= 0; "
+    "code_only_epochs\n"
+    "    >= 1)``.\n"
     "\n"
     "Warns\n"
     "-----\n"

@@ -347,6 +347,16 @@ class Acquisition:
         over one block stays inside half a slow-time row); 0 leaves the window
         as the only bound.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Acquisition: invalid
+        parameter (need chip_rate > 0 and a sample_rate whose code period,
+        sample_rate * len(code) / chip_rate, is a whole number of samples, at
+        least len(code); a finite cn0_dbhz; 0 < pfa < 1 and 0 < pd < 1; a
+        finite doppler_uncertainty >= 0 and doppler_rate >= 0; code_only_epochs
+        >= 1)``.
+
     Warns
     -----
     UserWarning

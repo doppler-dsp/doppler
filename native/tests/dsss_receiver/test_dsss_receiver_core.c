@@ -32,8 +32,8 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 static int
 _test_arg_validation (void)
 {
-  DP_CHECK (dp_dsss_receiver_create (NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
-                                     100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (NULL, 0, 1e6, 1e3, (1e6) * (2), 2, 55.0,
+                                     1e-3, 0.9, 100.0, 4, 8, 0)
             == NULL);
   /* Refused by create itself, where each reached a dp_xnn build and
      aborted the process (doppler#2103): the searcher's own domain (a pfa of
@@ -41,42 +41,61 @@ _test_arg_validation (void)
      control is the same receiver at good values. */
   {
     dp_dsss_receiver_state_t *ok = dp_dsss_receiver_create (
-        CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0);
+        CODE7, 7, 1e6, 1e3, (1e6) * (2), 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0);
     DP_CHECK (ok != NULL);
     dp_dsss_receiver_destroy (ok);
   }
-  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 2.0, 0.9,
-                                     100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, (1e6) * (2), 2, 55.0,
+                                     2.0, 0.9, 100.0, 4, 8, 0)
             == NULL); /* pfa */
-  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, NAN, 2, 2, 55.0, 1e-3, 0.9,
-                                     100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, NAN, (1e6) * (2), 2, 55.0,
+                                     1e-3, 0.9, 100.0, 4, 8, 0)
             == NULL); /* symbol_rate */
   /* A symbol rate at either extreme: 5e-324 underflowed the chain's
      resampling ratio to 0, which the resampler refuses under dp_xnn, and
      one past the chip rate sized its scratch at ~4e12 samples. */
-  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 5e-324, 2, 2, 55.0, 1e-3,
-                                     0.9, 100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 5e-324, (1e6) * (2), 2,
+                                     55.0, 1e-3, 0.9, 100.0, 4, 8, 0)
             == NULL);
-  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e15, 2, 2, 55.0, 1e-3,
-                                     0.9, 100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e15, (1e6) * (2), 2, 55.0,
+                                     1e-3, 0.9, 100.0, 4, 8, 0)
             == NULL);
   /* A 1-chip code: refused, where the Dll built under dp_xnn used to abort
      the process once it refused the code (doppler#2103). */
-  DP_CHECK (dp_dsss_receiver_create (CODE7, 1, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
-                                     100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 1, 1e6, 1e3, (1e6) * (2), 2, 55.0,
+                                     1e-3, 0.9, 100.0, 4, 8, 0)
             == NULL);
-  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3, 0.9,
-                                     100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 0.0, 1e3, (0.0) * (2), 2, 55.0,
+                                     1e-3, 0.9, 100.0, 4, 8, 0)
             == NULL); /* chip_rate <= 0 */
-  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 3, 55.0, 1e-3, 0.9,
-                                     100.0, 4, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, (1e6) * (2), 3, 55.0,
+                                     1e-3, 0.9, 100.0, 4, 8, 0)
             == NULL); /* m not in {2,4,8} */
-  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
-                                     100.0, 0, 8, 0)
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, (1e6) * (2), 2, 55.0,
+                                     1e-3, 0.9, 100.0, 0, 8, 0)
             == NULL); /* segments < 1 */
+  /* The rate: a whole number of samples a chip, to a part in 1e9. 2.5 a
+     chip is refused (this receiver's code periods are whole samples), and
+     so is less than one; two a chip off by a part in 1e12 is two.
+     Sabotage, each red: drop the whole-number test (2.5 builds), or
+     round instead of refusing below one. */
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2.5e6, 2, 55.0, 1e-3,
+                                     0.9, 100.0, 4, 8, 0)
+            == NULL);
+  DP_CHECK (dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 0.6e6, 2, 55.0, 1e-3,
+                                     0.9, 100.0, 4, 8, 0)
+            == NULL);
+  {
+    dp_dsss_receiver_state_t *two
+        = dp_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2e6 * (1.0 + 1e-12), 2,
+                                   55.0, 1e-3, 0.9, 100.0, 4, 8, 0);
+    DP_CHECK (two != NULL && two->spc == 2);
+    dp_dsss_receiver_destroy (two);
+  }
 
-  dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
-      CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *rx
+      = dp_dsss_receiver_create (CODE7, 7, 1.0e6, 35714.29, (1.0e6) * (4), 2,
+                                 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx != NULL);
   if (rx)
     {
@@ -183,8 +202,9 @@ _test_acquire_and_decode (void)
    * scope (validating the composed object's wiring, not re-proving
    * Acquisition's own precision-vs-sizing trade-offs, already covered by
    * Acquisition's own dedicated tests). */
-  dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *rx
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, (1.0e6) * (spc),
+                                 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -208,8 +228,9 @@ _test_acquire_and_decode (void)
   void  *blob = malloc (cb);
   dp_dsss_receiver_get_state (rx, blob);
 
-  dp_dsss_receiver_state_t *rx2 = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *rx2
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, (1.0e6) * (spc),
+                                 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx2 != NULL);
   if (rx2)
     {
@@ -227,8 +248,9 @@ _test_acquire_and_decode (void)
   free (blob);
 
   /* ── state-serialization round trip, while searching ─────────────────── */
-  dp_dsss_receiver_state_t *rx3 = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *rx3
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, (1.0e6) * (spc),
+                                 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx3 != NULL);
   if (rx3)
     {
@@ -237,7 +259,8 @@ _test_acquire_and_decode (void)
       dp_dsss_receiver_get_state (rx3, blob3);
 
       dp_dsss_receiver_state_t *rx4 = dp_dsss_receiver_create (
-          CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+          CODE7, sf, 1.0e6, sym_rate, (1.0e6) * (spc), 2, 70.0, 1e-2, 0.9,
+          500.0, 4, 8, 0);
       DP_CHECK (rx4 != NULL);
       if (rx4)
         {
@@ -414,9 +437,11 @@ _test_sustained_doppler_rate (void)
                         pre_silence, 21, &x, &n, &data);
 
   dp_dsss_receiver_state_t *rx4 = dp_dsss_receiver_create (
-      code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0);
+      code, sf, chip_rate, sym_rate, (chip_rate) * (spc), 2, cn0, 1e-2, 0.9,
+      500.0, 4, 8, 0);
   dp_dsss_receiver_state_t *rx1 = dp_dsss_receiver_create (
-      code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 1, 8, 0);
+      code, sf, chip_rate, sym_rate, (chip_rate) * (spc), 2, cn0, 1e-2, 0.9,
+      500.0, 1, 8, 0);
   DP_CHECK (rx4 != NULL && rx1 != NULL);
   if (!rx4 || !rx1)
     {
@@ -506,8 +531,9 @@ _test_carry_buffer_state_roundtrip (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
-  dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *rx
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, (1.0e6) * (spc),
+                                 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -556,8 +582,9 @@ _test_carry_buffer_state_roundtrip (void)
     DP_CHECK (nonzero == 0);
   }
 
-  dp_dsss_receiver_state_t *rx2 = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, sym_rate, spc, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *rx2
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, (1.0e6) * (spc),
+                                 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx2 != NULL);
   if (rx2)
     {
@@ -611,8 +638,9 @@ _test_carry_buffer_state_roundtrip (void)
 static int
 _test_accessor_coverage (void)
 {
-  dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
-      CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *rx
+      = dp_dsss_receiver_create (CODE7, 7, 1.0e6, 35714.29, (1.0e6) * (4), 2,
+                                 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (rx != NULL);
   if (!rx)
     return 1;
@@ -646,9 +674,9 @@ _test_accessor_coverage (void)
   static const size_t odd_sps[] = { 3, 5, 10 };
   for (size_t k = 0; k < sizeof odd_sps / sizeof *odd_sps; k++)
     {
-      dp_dsss_receiver_state_t *r
-          = dp_dsss_receiver_create (CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0,
-                                     1e-2, 0.9, 500.0, 4, odd_sps[k], 0);
+      dp_dsss_receiver_state_t *r = dp_dsss_receiver_create (
+          CODE7, 7, 1.0e6, 35714.29, (1.0e6) * (4), 2, 70.0, 1e-2, 0.9, 500.0,
+          4, odd_sps[k], 0);
       DP_REQUIRE (r != NULL);
       const int n = dp_dsss_receiver_get_n (r);
       DP_CHECK ((size_t)n == mpsk_rx_derive_m_out ((double)odd_sps[k], 0));
@@ -681,10 +709,12 @@ _test_handoff_resumes_at_the_hit (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, 90.0, n_sym, te * 5 + 3, 7,
                    &x, &n, &data);
 
-  dp_dsss_receiver_state_t *one = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
-  dp_dsss_receiver_state_t *chunked = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *one
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, 35714.29, (1.0e6) * (spc),
+                                 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *chunked
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, 35714.29, (1.0e6) * (spc),
+                                 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (one != NULL && chunked != NULL);
   if (!one || !chunked)
     {
@@ -733,14 +763,18 @@ _test_handoff_survives_reconfigure_and_restore (void)
                    &x, &n, &data);
   const size_t cut = 2 * te + 5; /* inside the silence: frames and a carry */
 
-  dp_dsss_receiver_state_t *a = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
-  dp_dsss_receiver_state_t *ref = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
-  dp_dsss_receiver_state_t *b = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
-  dp_dsss_receiver_state_t *whole = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *a
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, 35714.29, (1.0e6) * (spc),
+                                 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *ref
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, 35714.29, (1.0e6) * (spc),
+                                 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *b
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, 35714.29, (1.0e6) * (spc),
+                                 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *whole
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, 35714.29, (1.0e6) * (spc),
+                                 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (a && ref && b && whole);
   if (!a || !ref || !b || !whole)
     {
@@ -767,8 +801,9 @@ _test_handoff_survives_reconfigure_and_restore (void)
 
   /* (b) Restored mid-search into a fresh receiver: the uninterrupted run
      over the whole capture is the truth. */
-  dp_dsss_receiver_state_t *src = dp_dsss_receiver_create (
-      CODE7, sf, 1.0e6, 35714.29, spc, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  dp_dsss_receiver_state_t *src
+      = dp_dsss_receiver_create (CODE7, sf, 1.0e6, 35714.29, (1.0e6) * (spc),
+                                 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0);
   DP_CHECK (src != NULL);
   if (src)
     {

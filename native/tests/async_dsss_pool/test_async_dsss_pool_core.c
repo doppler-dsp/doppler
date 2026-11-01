@@ -37,10 +37,10 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 static dp_async_dsss_pool_state_t *
 _pool (const uint8_t *code, size_t n, double lost_confirm_s, int threads)
 {
-  return dp_async_dsss_pool_create (code, 1023, n, POOL_CR, POOL_RS, POOL_SPC,
-                                    2, 47.0, 1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4,
-                                    14.0, 64, 8, false, 100000, 0.0,
-                                    lost_confirm_s, false, 0.0, 0.0, threads);
+  return dp_async_dsss_pool_create (
+      code, 1023, n, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0,
+      1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
+      lost_confirm_s, false, 0.0, 0.0, threads);
 }
 
 /* Two emitters on one Gold code, ~400 chips apart: A at 200 Hz carries the
@@ -98,10 +98,10 @@ _test_create_domain (void)
   DP_CHECK (_pool (code, ASYNC_DSSS_POOL_MAX_RECEIVERS + 1, 0.0, 1) == NULL);
   DP_CHECK (_pool (code, 2, 0.0, -1) == NULL);
   DP_CHECK (_pool (code, 2, -1.0, 1) == NULL); /* the receiver's refusal */
-  DP_CHECK (dp_async_dsss_pool_create (NULL, 1023, 2, POOL_CR, POOL_RS,
-                                       POOL_SPC, 2, 47.0, 1e-3, 0.9, 500.0, 4,
-                                       8, 0, 0.5, 4, 14.0, 64, 8, false,
-                                       100000, 0.0, 0.0, false, 0.0, 0.0, 1)
+  DP_CHECK (dp_async_dsss_pool_create (
+                NULL, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2,
+                47.0, 1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
+                100000, 0.0, 0.0, false, 0.0, 0.0, 1)
             == NULL);
   dp_async_dsss_pool_state_t *p
       = _pool (code, ASYNC_DSSS_POOL_MAX_RECEIVERS, 0.0, 0);
@@ -111,9 +111,10 @@ _test_create_domain (void)
   /* A search over several Doppler tiles (+/-5 kHz, tiles 3 kHz apart)
      would start an engine pool of every core on its own; in a pool it
      runs one thread. */
-  p = dp_async_dsss_pool_create (
-      code, 1023, 2, POOL_CR, POOL_RS, POOL_SPC, 2, 60.0, 1e-3, 0.9, 5000.0, 4,
-      8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 0);
+  p = dp_async_dsss_pool_create (code, 1023, 2, POOL_CR, POOL_RS,
+                                 POOL_CR * (double)POOL_SPC, 2, 60.0, 1e-3,
+                                 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8,
+                                 false, 100000, 0.0, 0.0, false, 0.0, 0.0, 0);
   DP_REQUIRE (p != NULL && p->rx[0]->acq->window_bins > 1);
   for (size_t i = 0; i < p->n_receivers; i++)
     DP_CHECK (dp_async_dsss_receiver_get_threads (p->rx[i]) == 1);
@@ -303,8 +304,9 @@ _test_lost_is_released (void)
       off[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
   }
   dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
-      CODE7, 7, 1, 1.0e6, sym_rate, 4, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 32, 8, false, 100000, 0.0, confirm_s, false, 0.0, 0.0, 1);
+      CODE7, 7, 1, 1.0e6, sym_rate, 4.0 * 1.0e6, 2, cn0, 1e-2, 0.9, 500.0, 4,
+      8, 0, 0.5, 4, 14.0, 32, 8, false, 100000, 0.0, confirm_s, false, 0.0,
+      0.0, 1);
   DP_REQUIRE (p != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[0], 0.0, 0.0, cn0) == DP_OK);
   const size_t te = sf * spc;
@@ -752,8 +754,9 @@ static dp_async_dsss_pool_state_t *
 _ghost_pool (const uint8_t *code)
 {
   return dp_async_dsss_pool_create (
-      code, 1023, 2, POOL_CR, POOL_RS, POOL_SPC, 2, 47.0, 1e-3, 0.9, 5000.0, 4,
-      8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 1);
+      code, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0,
+      1e-3, 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
+      false, 0.0, 0.0, 1);
 }
 
 /* A real ghost is released. A alone at 70 dB-Hz, 1500 Hz, with data;
@@ -780,8 +783,9 @@ _test_ghost_is_released (void)
                    70.0, 1000, 0, 4, &x, &n, &data);
   dp_async_dsss_pool_state_t     *p  = _ghost_pool (code);
   dp_async_dsss_receiver_state_t *pr = dp_async_dsss_receiver_create (
-      code, 1023, POOL_CR, POOL_RS, POOL_SPC, 2, 47.0, 1e-3, 0.9, 5000.0, 4, 8,
-      0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+      code, 1023, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0, 1e-3,
+      0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
+      false, 0.0, 0.0);
   DP_REQUIRE (p && pr);
   (void)dp_async_dsss_receiver_set_threads (pr, 1);
   DP_REQUIRE (dp_acq_set_max_peaks (pr->acq, 16) == DP_OK);

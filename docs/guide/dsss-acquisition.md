@@ -274,17 +274,17 @@ for (
     ...
 ```
 
-| field               | meaning                                                                                                                                                                    |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `doppler_bin`       | peak row — slow-time Doppler bin (`0 … doppler_bins-1`)                                                                                                                    |
-| `code_phase`        | peak column — integer-sample code phase (`0 … code_bins-1`)                                                                                                                |
-| `peak_mag`          | peak correlation magnitude over the surface                                                                                                                                |
-| `noise_est`         | CFAR noise estimate                                                                                                                                                        |
-| `test_stat`         | `peak_mag / noise_est` (compared against `threshold`)                                                                                                                      |
-| `cn0_dbhz_est`      | estimated carrier-to-noise density (dB-Hz), comparable to `cn0_dbhz`                                                                                                       |
-| `samples_consumed`  | raw sample offset (since this engine's own stream start) this hit's epoch ended at                                                                                         |
-| `chip_phase`        | the `Dll` seed: the code phase inverted, in template samples (`[0, code_bins)`), advanced by the dwell's drift when a carrier is set; divide by samples per chip for chips |
-| `doppler_rate_hz_s` | the winning Doppler-rate hypothesis (Hz/s); 0 without `rate_hypotheses`                                                                                                    |
+| field               | meaning                                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `doppler_bin`       | peak row — slow-time Doppler bin (`0 … doppler_bins-1`)                                                                                  |
+| `code_phase`        | peak column (`0 … lag_bins-1`); a column is `code_bins / lag_bins` samples of code phase, and `surface_chip_phase()` gives each in chips |
+| `peak_mag`          | peak correlation magnitude over the surface                                                                                              |
+| `noise_est`         | CFAR noise estimate                                                                                                                      |
+| `test_stat`         | `peak_mag / noise_est` (compared against `threshold`)                                                                                    |
+| `cn0_dbhz_est`      | estimated carrier-to-noise density (dB-Hz), comparable to `cn0_dbhz`                                                                     |
+| `samples_consumed`  | raw sample offset (since this engine's own stream start) this hit's epoch ended at                                                       |
+| `chip_phase`        | the `Dll` seed: the code's own phase at the hand-off, in chips (Dll's convention), advanced by the dwell's drift when a carrier is set   |
+| `doppler_rate_hz_s` | the winning Doppler-rate hypothesis (Hz/s); 0 without `rate_hypotheses`                                                                  |
 
 Map the integer bins back to physical units:
 
@@ -295,6 +295,8 @@ def doppler_hz(dop, acq):
     """Doppler bin → Hz (the library's fold: numpy's fftfreq convention)."""
     return bin_to_signed(dop, acq.doppler_bins) * acq.doppler_res_hz
 
+# a burst engine reads whole samples (a column is a sample); Acquisition's
+# padded grid is code_bins / lag_bins samples a column
 delay_chips = phase / 4                # code phase in samples ÷ samples/chip
 ```
 
@@ -305,7 +307,8 @@ independent captures).
 
     The code phase is measured against the frame grid, which is anchored at sample
     0\. Inserting `Δ` extra samples of lead-in (silence) before the burst shifts
-    every reported `code_phase` by `Δ mod code_bins` — that offset *is* extra
+    every reported code phase by `Δ mod code_bins` samples (the column moves by
+    that times `lag_bins / code_bins`) — that offset *is* extra
     propagation delay. Frame the same burst at a different stream position and the
     Doppler bin is unchanged but the code phase rotates accordingly.
 

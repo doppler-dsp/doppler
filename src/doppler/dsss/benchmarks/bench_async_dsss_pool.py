@@ -36,7 +36,7 @@ def test_push_dwell_native4(benchmark):
         n_receivers=4,
         chip_rate=CHIP,
         symbol_rate=sym,
-        spc=SPC,
+        sample_rate=CHIP * SPC,
         cn0_dbhz=10.0 + 10.0 * np.log10(sym),
         doppler_uncertainty=CHIP / 1023 / 2,  # one tile: +/- 1 / (2 T_E)
         code_only_s=500 / sym,  # 500 data-free symbols

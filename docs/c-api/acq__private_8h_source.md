@@ -49,6 +49,12 @@ acq_resolve_tile_alias (const dp_acq_state_t *st, size_t row, size_t col)
     return row;
   const double f0 = (double)dp_fftfreq_index (row, rows) * st->doppler_res_hz;
   const double span = st->fs / (double)nx;
+  /* The pick's column on a padded lag axis (lag_bins) is a lag in samples
+     of col * code_bins / lag_bins; the raw epochs are correlated at the
+     nearest whole sample. */
+  if (st->lag_bins != nx)
+    col = (size_t)lround ((double)col * (double)nx / (double)st->lag_bins)
+          % nx;
   double       best = -1.0;
   long         win  = 0;
   for (long h = -1; h <= 1; h++)

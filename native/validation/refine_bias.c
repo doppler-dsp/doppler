@@ -142,9 +142,9 @@ run_trial (const uint8_t *code, int sign_idx, size_t seed, double seed_err,
      retired, docs/design/async-dsss-receiver-measurements.md §12.28; seed() is
      a method of both). */
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-2, 0.9, 100.0, 4, 8, 0,
-      lookback_db[lb], 4, margin_db, REFINE_N_FFT, 8, false, 100000,
-      CARRIER_HZ, 0.0, false, 0.0, 0.0);
+      code, SF, CHIP_RATE, SYM_RATE, CHIP_RATE * (double)SPC, 2, CN0, 1e-2,
+      0.9, 100.0, 4, 8, 0, lookback_db[lb], 4, margin_db, REFINE_N_FFT, 8,
+      false, 100000, CARRIER_HZ, 0.0, false, 0.0, 0.0);
   DP_REQUIRE_MSG (rx != NULL, "the receiver opens");
   /* The capture's signal starts on chip 0 at PRE_SILENCE; fed from there,
      the seed's phase is 0 -- the test's own convention. */

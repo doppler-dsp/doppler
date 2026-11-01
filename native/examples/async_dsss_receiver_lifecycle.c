@@ -272,11 +272,11 @@ main (void)
   const double lost_confirm_s          = LOST_CONFIRM_S;
 
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz, pfa, pd,
-      doppler_uncertainty, segments, sps, differential, refine_max_error_db,
-      refine_samples_per_sym, refine_design_margin_db, refine_n_fft,
-      refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-      lost_confirm_s, false, 0.0, 0.0);
+      code, code_len, chip_rate, symbol_rate, chip_rate * (double)spc, m,
+      cn0_dbhz, pfa, pd, doppler_uncertainty, segments, sps, differential,
+      refine_max_error_db, refine_samples_per_sym, refine_design_margin_db,
+      refine_n_fft, refine_zero_pad, refine_sequential, refine_max_n_blocks,
+      carrier_freq_hz, lost_confirm_s, false, 0.0, 0.0);
   CHECK (rx != NULL, "the receiver opens");
 
   /* The telemetry. set_telemetry() registers every probe the receiver and

@@ -340,15 +340,27 @@ dsss_rx_track_chain (dp_dsss_receiver_state_t *s, const float _Complex *x,
 
 dp_dsss_receiver_state_t *
 dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
-                         double chip_rate, double symbol_rate, size_t spc,
-                         int m, double cn0_dbhz, double pfa, double pd,
-                         double doppler_uncertainty, size_t segments,
-                         size_t sps, int differential)
+                         double chip_rate, double symbol_rate,
+                         double sample_rate, int m, double cn0_dbhz,
+                         double pfa, double pd, double doppler_uncertainty,
+                         size_t segments, size_t sps, int differential)
 {
   /* The Dll this receiver builds under dp_xnn meets the Dll's own domain
      here, so a configuration it refuses (a 1-chip code) is refused rather
      than aborting the process. So is a non-finite rate: the chain's
      resampler is built from their ratio, also under dp_xnn (doppler#2103). */
+  if (sample_rate == 0.0 && chip_rate > 0.0 && isfinite (chip_rate))
+    sample_rate = 2.0 * chip_rate; /* the default: two samples a chip */
+  /* Whole samples a chip, to a part in 1e9: the code loop and the carrier
+     stage below run whole-sample code periods. */
+  const double ratio = (chip_rate > 0.0 && isfinite (chip_rate))
+                           ? sample_rate / chip_rate
+                           : 0.0;
+  const double whole = nearbyint (ratio);
+  const size_t spc
+      = (whole >= 1.0 && whole < 1e9 && fabs (ratio - whole) <= 1e-9 * whole)
+            ? (size_t)whole
+            : 0;
   if (!code
       || !dp_dll_params_ok (code_len, 0.0, DSSS_RX_DLL_BN, DSSS_RX_DLL_ZETA,
                             DSSS_RX_DLL_SPACING, segments)

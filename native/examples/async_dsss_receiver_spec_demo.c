@@ -118,19 +118,27 @@
 #define LOCK_MIN_FRAC 0.9
 
 /** @brief One regime of a pass: the Doppler at the first signal sample, Hz,
- *  and its rate of change, Hz/s. */
+ *  and its rate of change, Hz/s; then the same two in ppm of CARRIER_HZ,
+ *  the unit the channel takes. */
 struct regime
 {
   const char *name;
   double      start_hz;
   double      rate_hz_s;
+  double      start_ppm;
+  double      rate_ppm_s;
 };
 
-/* The TCA crossing starts below zero so the ramp crosses zero mid-capture. */
+/* The TCA crossing starts below zero so the ramp crosses zero mid-capture.
+   The ppm are LITERALS, the Python twin's own: a Hz-to-ppm division here is
+   rewritten by -ffast-math into one multiply, a ulp from the Python twin's
+   divide-then-multiply, and a ulp of Doppler moved a bit error between the
+   twins on x86. main() checks them against the Hz. */
 static const struct regime REGIMES[] = {
-  { "TCA crossing", -0.5 * DOPPLER_RATE_HZ_S * DURATION_S, DOPPLER_RATE_HZ_S },
-  { "+50 kHz extremum", CARRIER_UNCERTAINTY_HZ, 0.0 },
-  { "-50 kHz extremum", -CARRIER_UNCERTAINTY_HZ, 0.0 },
+  { "TCA crossing", -0.5 * DOPPLER_RATE_HZ_S * DURATION_S, DOPPLER_RATE_HZ_S,
+    -0.2222222222222222, 0.2 },
+  { "+50 kHz extremum", CARRIER_UNCERTAINTY_HZ, 0.0, 20.0, 0.0 },
+  { "-50 kHz extremum", -CARRIER_UNCERTAINTY_HZ, 0.0, -20.0, 0.0 },
 };
 #define N_REGIMES (sizeof REGIMES / sizeof REGIMES[0])
 
@@ -186,9 +194,8 @@ capture_open (struct capture *c, const uint8_t *code, const uint8_t *payload,
          "the emitter takes the payload");
   /* The Doppler, as ppm of the carrier: it stretches the chip clock and
      rotates the carrier from the one figure. */
-  c->ch = dp_doppler_channel_create (FS, CARRIER_HZ,
-                                     r->start_hz / CARRIER_HZ * 1e6,
-                                     r->rate_hz_s / CARRIER_HZ * 1e6);
+  c->ch = dp_doppler_channel_create (FS, CARRIER_HZ, r->start_ppm,
+                                     r->rate_ppm_s);
   /* The noise, added after the channel, at the Es/N0 over one symbol's
      FS / SYM_RATE samples. */
   c->awg = dp_awgn_create (
@@ -310,11 +317,11 @@ run_draw (const uint8_t *code, const uint8_t *payload, const struct regime *r,
   const bool   reacquire               = true;
 
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz, pfa, pd,
-      doppler_uncertainty, segments, sps, differential, refine_max_error_db,
-      refine_samples_per_sym, refine_design_margin_db, refine_n_fft,
-      refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-      lost_confirm_s, reacquire, 0.0, 0.0);
+      code, code_len, chip_rate, symbol_rate, chip_rate * (double)spc, m,
+      cn0_dbhz, pfa, pd, doppler_uncertainty, segments, sps, differential,
+      refine_max_error_db, refine_samples_per_sym, refine_design_margin_db,
+      refine_n_fft, refine_zero_pad, refine_sequential, refine_max_n_blocks,
+      carrier_freq_hz, lost_confirm_s, reacquire, 0.0, 0.0);
   CHECK (rx != NULL, "the receiver opens");
 
   /* The caller's buffers: one push in, one push of symbols out (a push of TE
@@ -412,6 +419,19 @@ run_draw (const uint8_t *code, const uint8_t *payload, const struct regime *r,
 int
 main (void)
 {
+  /* The ppm literals the channel takes are the Hz the checks read. */
+  for (size_t r = 0; r < N_REGIMES; r++)
+    {
+      CHECK (
+          fabs (REGIMES[r].start_ppm * CARRIER_HZ * 1e-6 - REGIMES[r].start_hz)
+              < 1e-6,
+          "a regime's ppm is its Hz");
+      CHECK (fabs (REGIMES[r].rate_ppm_s * CARRIER_HZ * 1e-6
+                   - REGIMES[r].rate_hz_s)
+                 < 1e-9,
+             "a regime's ppm/s is its Hz/s");
+    }
+
   /* The Gold code, from doppler's generator at its CCSDS defaults (the
      Python face's `Gold()`). */
   const uint64_t   taps_a = 934, seed_a = 350, taps_b = 567, seed_b = 73;

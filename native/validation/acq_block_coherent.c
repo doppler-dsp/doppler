@@ -156,8 +156,13 @@ measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
          double frac, double cn0_dbhz, uint32_t seed, block_t *out)
 {
   const size_t D = a->coherent_bins, tiles = a->window_bins;
-  const size_t nx   = a->code_bins;
-  const size_t rows = a->n_surf / nx;
+  const size_t nx = a->code_bins;
+  /* The surface is read on lag_bins columns (the padded lag grid when the
+     period is not 7-smooth), a column nx/lb of a sample; one chip, SPC
+     samples, is zc whole columns. */
+  const size_t lb   = a->lag_bins;
+  const long   zc   = (long)(SPC * lb / nx);
+  const size_t rows = a->n_surf / lb;
   const double fs   = a->fs;
   const double cps  = a->chip_rate / SYMBOL_RATE;
   /* Tile TILE's own frequency plus a fraction of a ROW: the fold the
@@ -240,7 +245,9 @@ measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
   out->hit       = nh > 0;
   /* The code phase the engine reports for a block that starts `discard`
      samples into the code: the hand-off's mapping, inverted. */
-  out->want_col = (nx - discard % nx) % nx;
+  out->want_col = (size_t)lround ((double)((nx - discard % nx) % nx)
+                                  * (double)lb / (double)nx)
+                  % lb;
   /* Bin every cell outside the exclusion zone by its Doppler-row distance
      from the peak -- native rows, circular on the one folded grid -- and
      keep the worst cell at another code phase. */
@@ -248,7 +255,7 @@ measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
   double       mx[NBIN] = { 0 }, mx_other = 0.0;
   for (size_t k = 0; k < a->n_surf; k++)
     {
-      size_t row = k / nx, col = k % nx;
+      size_t row = k / lb, col = k % lb;
       size_t dr = row > prow ? row - prow : prow - row;
       if (dr > rows - dr)
         dr = rows - dr;
@@ -256,14 +263,14 @@ measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
       long   dc  = (long)col - (long)out->peak_col;
       if (dc < 0)
         dc = -dc;
-      if ((size_t)dc > nx / 2)
-        dc = (long)nx - dc;
-      if (drn <= 1.0 && dc <= (long)SPC)
+      if ((size_t)dc > lb / 2)
+        dc = (long)lb - dc;
+      if (drn <= 1.0 && dc <= zc)
         continue; /* the zone: the emitter's own main lobe */
       int b = drn >= 3.0 ? 3 : (int)floor (drn);
       if (s[k] > mx[b])
         mx[b] = s[k];
-      if (dc > (long)SPC && s[k] > mx_other)
+      if (dc > zc && s[k] > mx_other)
         mx_other = s[k];
     }
   for (int b = 0; b < NBIN; b++)
@@ -364,11 +371,13 @@ measure_dilated (const uint8_t *code, dp_acq_state_t *a, double ppm,
   /* The peak's width along the code axis: columns of the peak's own
      surface row within 3 dB of it, circular. */
   const size_t prow = a->peak_row * a->interp;
+  const size_t lb   = a->lag_bins; /* the surface's columns */
   size_t       wide = 0;
-  for (size_t c = 0; c < nx; c++)
-    if (s[prow * nx + c] >= 0.7071 * s[prow * nx + a->peak_col])
+  for (size_t c = 0; c < lb; c++)
+    if (s[prow * lb + c] >= 0.7071 * s[prow * lb + a->peak_col])
       wide++;
-  out->width_chips = (double)wide / (double)SPC;
+  /* columns are nx/lb of a sample each */
+  out->width_chips = (double)wide * (double)nx / (double)lb / (double)SPC;
   /* The hand-off, without and with the carrier (the half-dwell advance
      of #1254 -- for one look of D epochs, D * SF / 2 of the drift). The
      hit is the engine's own; when the gate did not fire, its peak. */
@@ -488,7 +497,7 @@ main (int argc, char **argv)
               "epochs, rate %.0f Hz/s), %.1f Hz per row, %zu surface rows\n",
               rates[i] / 1e6, a->window_bins, a->coherent_bins,
               a->code_only_epochs, RATE, a->doppler_res_hz,
-              a->n_surf / a->code_bins);
+              a->n_surf / a->lag_bins);
       printf ("  %-26s %-9s %-8s %-6s %-6s %-6s %-6s %-6s %-6s\n", "block",
               "peak/gate", "conc", "row0", "row1", "row2", "row3+", "other",
               "col");

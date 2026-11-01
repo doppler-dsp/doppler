@@ -190,8 +190,8 @@ make_rx (const uint8_t *code, double cn0_dbhz, int cond)
      docs/design/async-dsss-receiver-measurements.md §12.28; seed() is a method
      of both, and the refine chain under test is the same). */
   return dp_async_dsss_receiver_create (
-      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 100.0, 4, 8,
-      0, 0.5, 4, 14.0, 64, 8, false, 100000,
+      code, SF, CHIP_RATE, SYM_RATE, CHIP_RATE * (double)SPC, 2, cn0_dbhz,
+      1e-2, 0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
       cond != COND_STATIC ? CARRIER_HZ : 0.0, LOST_CONFIRM_S, false, 0.0, 0.0);
 }
 

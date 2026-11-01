@@ -221,8 +221,7 @@ name = "carrier_freq_hz"
 type = "double"
 default = "0.0"
 
-# The release rule (docs/design/async-dsss-parallel.md §3, and
-# docs/design/async-dsss-receiver.md §10): with `reacquire`, symbol lock
+# The release rule (docs/design/async-dsss-receiver.md §6 and §10): with `reacquire`, symbol lock
 # down, continuously, for longer than this many seconds while tracking
 # resets the receiver to searching. Without it, both lock flags down that
 # long puts the receiver in the lost state (`lost` == 1, loops stopped,
@@ -239,7 +238,7 @@ type = "bool"
 default = "false"
 
 # The searcher's slow-time depth from physical inputs (docs/design/
-# async-dsss-parallel.md §4): code_only_epochs = floor(code_only_s *
+# async-dsss-receiver.md §2.3): code_only_epochs = floor(code_only_s *
 # chip_rate / sf) - 1, and the engine rounds D to a 7-smooth length. The
 # defaults are D = 1, the epoch-by-epoch search.
 [[async_dsss_receiver.init_params]]
@@ -375,7 +374,7 @@ params = [{ name = "n", type = "int" }]
 name = "threads"
 type = "int"
 
-# The controller's two levers (docs/design/async-dsss-parallel.md §3): which
+# The controller's two levers (docs/design/async-dsss-receiver.md §7.2): which
 # surviving peak of a dwell this receiver takes, and the code phases other
 # receivers already hold.
 [[async_dsss_receiver.methods]]

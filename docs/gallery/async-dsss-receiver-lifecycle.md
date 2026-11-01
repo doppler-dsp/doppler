@@ -36,7 +36,7 @@ The timeline has six parts:
 - **Lock-up time and fade survival vary by draw.** This run keeps tracking and
     the symbol lock through a 10 ms fade. Lock-up time varies between noise draws.
     How often a fade is ridden out is measured in
-    [the measurement record](../design/async-dsss-parallel-measurements.md#31-symbol-lock-through-a-dropout),
+    [the measurement record](../design/async-dsss-receiver-measurements.md#61-symbol-lock-through-a-dropout),
     under that record's own conditions. This setup is not that measurement, and
     this page does not restate its rate.
 - **The release rule is armed.** `lost_confirm_s` is the interval both lock

@@ -27,7 +27,7 @@ also frees a receiver whose emitter has left.
     from that stronger one's own sidelobes. On a one-epoch search a signal 10 dB
     below a stronger one is taken first in about two streams in three, and 13 dB
     below in about one in three
-    ([the parallel design, §3](../design/async-dsss-parallel.md#3-the-receiver)).
+    ([the design, §7.2](../design/async-dsss-receiver.md#72-the-pick)).
     F arrives 13 dB below C, waits here, and is taken once C leaves.
 
 ## How it is built
@@ -79,6 +79,6 @@ python -m doppler.examples.async_dsss_pool_scene out.png
 ```
 
 The design, including the controller and the near-far limit, is in
-[the parallel async DSSS design](../design/async-dsss-parallel.md).
+[the async DSSS design](../design/async-dsss-receiver.md), §5-§9.
 
 Source: [`async_dsss_pool_scene.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/async_dsss_pool_scene.py).

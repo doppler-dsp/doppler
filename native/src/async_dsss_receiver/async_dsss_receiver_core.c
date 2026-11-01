@@ -852,7 +852,7 @@ adr_align_skip (dp_async_dsss_receiver_state_t *s, size_t x_len)
 
 /* One signal's code phase, within a chip, circularly over the code: the
  * zone a tracked signal holds and a peak's neighbouring cells share
- * (design async-dsss-parallel.md §3; keyed on code phase alone, never
+ * (design async-dsss-receiver.md §7.2; keyed on code phase alone, never
  * carrier, async-dsss-receiver-measurements.md §12.14). */
 static int
 adr_same_code_phase (double a, double b, size_t code_len)
@@ -1010,7 +1010,7 @@ dp_async_dsss_receiver_create (
      refused here, at create (doppler#2103). */
   if (!(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0))
     return NULL;
-  /* The code-only window in whole epochs, design async-dsss-parallel.md §4:
+  /* The code-only window in whole epochs, design async-dsss-receiver.md §2.3:
      floor(W * chip_rate / sf) - 1 epochs fit at ANY chip phase, and under
      two (no window, or less than two epochs of one) is the epoch-by-epoch
      search. The engine refuses a bad doppler_rate itself; a window too
@@ -1293,8 +1293,8 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
  * the confirm interval means the emitter is gone. One flag down is a
  * degrade and leaves the clock alone; either flag up restarts it.
  *
- * With reacquire the rule is the parallel design's (async-dsss-parallel.md
- * section 3): symbol lock alone, and the release resets the receiver to
+ * With reacquire the rule is the pool's (async-dsss-receiver.md section
+ * 10): symbol lock alone, and the release resets the receiver to
  * searching instead of parking it in lost, so a receiver that is always
  * online finds the next signal without anyone calling reset(). */
 static void

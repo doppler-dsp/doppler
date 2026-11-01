@@ -1,6 +1,6 @@
 # async_dsss_pool -- AsyncDsssPool: N AsyncDsssReceivers on one stream under
 # a controller that only excludes, ranks, resolves duplicates and reports
-# (docs/design/async-dsss-parallel.md §4). Every receiver searches the whole
+# (docs/design/async-dsss-receiver.md §8). Every receiver searches the whole
 # band for itself; the controller searches nothing and seeds nothing.
 
 [async_dsss_pool]

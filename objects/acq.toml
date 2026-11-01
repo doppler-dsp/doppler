@@ -6,6 +6,10 @@ no_state = "true"
 no_step = "true"
 class_name = "Acquisition"
 serializable = "true"
+# A refused create is a caller's argument, not a memory failure: a caller
+# still passing the retired spc positionally lands it in sample_rate.
+create_error = "ValueError"
+create_error_message = "Acquisition: invalid parameter (need chip_rate > 0 and a sample_rate whose code period, sample_rate * len(code) / chip_rate, is a whole number of samples, at least len(code); a finite cn0_dbhz; 0 < pfa < 1 and 0 < pd < 1; a finite doppler_uncertainty >= 0 and doppler_rate >= 0; code_only_epochs >= 1)"
 # The continuous front door is a second constructor over the shared engine,
 # not the default acq_create() (gh-509).
 create_fn = "dp_acq_create_continuous"

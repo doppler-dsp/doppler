@@ -257,7 +257,7 @@ def test_block_coherent_depth_inside_the_tiles():
     assert a.doppler_res_hz == pytest.approx(CHIP_RATE / (SF * 4))
     r = _acq(doppler_uncertainty=du, code_only_epochs=7, doppler_rate=1e9)
     assert r.coherent_bins == 1  # the rate bound floors at one epoch
-    with pytest.raises((ValueError, MemoryError)):
+    with pytest.raises(ValueError, match="Acquisition: invalid parameter"):
         _acq(doppler_uncertainty=du, code_only_epochs=0)
 
     nx = a.code_bins
@@ -327,9 +327,8 @@ def test_carrier_and_prior_refusals_are_raised():
     """The carrier rule and the finite prior (doppler#2103), from Python.
     set_carrier_freq_hz refuses a carrier at or below half the sample rate
     (here 1e-305, which overflowed doppler / carrier) and keeps the one set.
-    A non-finite doppler_uncertainty is refused at create; Acquisition has
-    no create_error yet, so it surfaces as MemoryError (doppler#2112 item 7
-    turns it into a ValueError naming the condition)."""
+    A non-finite doppler_uncertainty is refused at create, as a ValueError
+    naming the domain (Acquisition's create_error, doppler#2112 item 7)."""
     from doppler.acquire import Acquisition
     from doppler.wfm import Gold
 
@@ -347,5 +346,5 @@ def test_carrier_and_prior_refusals_are_raised():
     with pytest.raises(ValueError, match="set_carrier_freq_hz failed"):
         a.set_carrier_freq_hz(5e6)  # exactly fs / 2
     assert a.carrier_freq_hz == 2.5e9
-    with pytest.raises(MemoryError, match="returned NULL"):
+    with pytest.raises(ValueError, match="finite doppler_uncertainty"):
         Acquisition(code, doppler_uncertainty=float("nan"), **kw)

@@ -3624,7 +3624,7 @@ carries a message, a file or stdin across as many frames as it takes.
     peak slides along its ridge instead of shrinking). A shaped template is
     optimistic by 0.02–0.03 at 3σ
     ([#1483](https://github.com/doppler-dsp/doppler/issues/1483)).
-    [`dsss-acquisition.md` §3.1](docs/design/dsss-acquisition.md) records the
+    [`acq-surface.md` §9.1](docs/design/acq-surface.md) records the
     design and these numbers.
 
 - **A burst capture's Pd is measured against its coherent depth** (#1470).

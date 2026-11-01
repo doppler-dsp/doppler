@@ -30,7 +30,7 @@
  * data-modulated) signal, a multi-epoch coherent axis wide enough to matter
  * aliases the data's own bit transitions across the whole Doppler-bin axis (a
  * structural mislock, not a graceful SNR loss — see
- * docs/design/dsss-acquisition.md).  So the two constructors fix a mode each,
+ * docs/design/acq-surface.md §9).  So the two constructors fix a mode each,
  * never a per-call knob:
  *
  * - dp_acq_create_burst() — the smallest coherent depth `coherent_bins` in
@@ -913,7 +913,7 @@ extern "C"
    * @p doppler_uncertainty is no wider than one native span.
    * A continuous, data-modulated signal's own bit transitions make coherent
    * multi-epoch combining across DATA a structural aliasing mislock (see
-   * docs/design/dsss-acquisition.md), so the depth is bounded by what a
+   * docs/design/acq-surface.md §9), so the depth is bounded by what a
    * waveform's code-only window holds: `coherent_bins = D =
    * min((code_only_epochs+1)/2, f_epoch/sqrt(2*doppler_rate))`, at least 1,
    * rounded down to a 7-smooth length (dp_fft_smooth_floor(): 94 runs as

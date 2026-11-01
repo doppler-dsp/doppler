@@ -173,9 +173,9 @@ ______________________________________________________________________
 
 ## See also
 
-- [DSSS acquisition architecture + roadmap](../../design/dsss-acquisition.md) — the
-    CAF framing, the trade space, and the phased plan (P1 non-coherent shipped; P2
-    sub-block `K` is the wide-Doppler *widener* that cuts the channel count).
+- [DSSS acquisition engine design](../../design/acq-surface.md) — the
+    CAF framing, the trade space, and what is open (sub-block `K`, the
+    wide-Doppler *widener* that would cut the channel count).
 - [DSSS Burst Acquisition guide](../../guide/dsss-acquisition.md) — the mixer-bank
     loop and worked ±100 kHz example.
 - [corr2d interpolated inverse](../../design/corr2d-interpolated-inverse.md) — the

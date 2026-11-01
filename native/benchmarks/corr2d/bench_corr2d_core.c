@@ -199,7 +199,7 @@ main (void)
   uint64_t   t0, t1;
   double     times[ITERATIONS];
 
-  /* ny=16, nx=2046 mirrors docs/design/dsss-acquisition.md §7's worked
+  /* ny=16, nx=2046 mirrors docs/design/acq-surface.md §14's worked
    * case (L=1023, spc=2 -> code_bins=2046; doppler_bins=16). */
   const size_t ny = 16, nx = 2046, n = ny * nx;
   uint32_t     seed = 42;

@@ -335,7 +335,7 @@ ______________________________________________________________________
 ## 8. Related pages
 
 - [Lock Detection](lock-detect.md) — the decision rule these numbers feed
-- [DSSS Acquisition](dsss-acquisition.md) — the largest consumer, and where
+- [DSSS Acquisition](acq-surface.md) — the largest consumer, and where
     the cell-count price of §3 is paid
 - [Timing Lock Detector](timing_lock_detector.md) — a Gaussian-family caller
 - [The FEC Receive Half](fec-receive.md) — node sync's two error probabilities

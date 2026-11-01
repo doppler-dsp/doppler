@@ -211,7 +211,7 @@ A unit complex tone on bin *k*, for every bin *k* from -`nfft`/2 to `nfft`/2 - 1
 | power | kaiser | 1,024 | 1,024 | 0 | 2.4e-07 |
 | power | blackman-harris | 8 | 8 | 0 | 1.2e-07 |
 | power | blackman-harris | 64 | 64 | 0 | 3.0e-07 |
-| power | blackman-harris | 1,024 | 1,024 | 0 | 1.8e-07 |
+| power | blackman-harris | 1,024 | 1,024 | 0 | 3.0e-07 |
 | power | rect | 8 | 8 | 0 | 0.0e+00 |
 | power | rect | 64 | 64 | 0 | 1.2e-07 |
 | power | rect | 1,024 | 1,024 | 0 | 2.4e-07 |
@@ -267,7 +267,7 @@ Those other bins are the window's leakage on the grid. A full-scale on-bin tone 
 | hann | -6.0 | -69.7 | -78.2 | -83.7 |
 | kaiser | -4.8 | -22.3 | -59.6 | -77.6 |
 | blackman-harris | -3.3 | -14.1 | -35.7 | -117.5 |
-| rect | -200.0 | -200.0 | -200.0 | -165.7 |
+| rect | -200.0 | -200.0 | -200.0 | -166.3 |
 
 
 A tone at -120 dBFS lifts exactly the bins whose leakage puts them above the clamp, so the count it leaves above the floor is predicted from the leakage of every offset the harness reads (up to +-20):

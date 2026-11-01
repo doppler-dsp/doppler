@@ -73,6 +73,9 @@
 #define SF 1023u
 #define SPC 2u
 #define NX (SF * SPC) /* code_bins = 2046 = one epoch                 */
+/* lag_bins: 2046 is not 7-smooth, so the surface is read on the next power
+   of two, a column NX/LB of a sample (scene_open() checks the engine's). */
+#define LB 2048u
 #define CHIP_RATE 5.0e6
 #define FS (CHIP_RATE * (double)SPC)
 #define SYM_RATE 2700.0
@@ -150,16 +153,24 @@ source_open (source_t *s, const uint8_t *code, const emitter_t *e, size_t W)
   return 0;
 }
 
+/* A hit's lag column against a source's code phase, in samples,
+   circularly: the column is NX/LB of a sample. */
+static double
+lag_dist (const acq_result_t *h, const source_t *s)
+{
+  double d = fabs ((double)h->code_phase * (double)NX / (double)LB
+                   - (double)s->col);
+  if (d > 0.5 * (double)NX)
+    d = (double)NX - d;
+  return d;
+}
+
 /* Does the hit report this source: its tile (a neighbour too when it sits
    half a tile off) and within one chip of its code phase, circularly. */
 static int
 hit_is (const acq_result_t *h, const source_t *s, size_t W)
 {
-  size_t dc = h->code_phase > s->col ? h->code_phase - s->col
-                                     : s->col - h->code_phase;
-  if (dc > NX / 2)
-    dc = NX - dc;
-  if (dc > SPC)
+  if (lag_dist (h, s) > (double)SPC)
     return 0;
   if (h->doppler_bin == s->row)
     return 1;
@@ -170,11 +181,7 @@ hit_is (const acq_result_t *h, const source_t *s, size_t W)
 static int
 hit_is_twin (const acq_result_t *h, const source_t *s, size_t W)
 {
-  size_t dc = h->code_phase > s->col ? h->code_phase - s->col
-                                     : s->col - h->code_phase;
-  if (dc > NX / 2)
-    dc = NX - dc;
-  return dc <= SPC && !hit_is (h, s, W);
+  return lag_dist (h, s) <= (double)SPC && !hit_is (h, s, W);
 }
 
 typedef struct
@@ -198,7 +205,8 @@ scene_open (scene_t *sc, const uint8_t *code, const emitter_t *em, size_t n_em,
   sc->a
       = dp_acq_create_continuous (code, SF, CHIP_RATE * (double)SPC, CHIP_RATE,
                                   SYM_RATE, size_cn0, DU, PFA, PD, 0, 1, 0.0);
-  if (!sc->a || dp_acq_set_max_peaks (sc->a, max_peaks) != 0)
+  if (!sc->a || sc->a->lag_bins != LB
+      || dp_acq_set_max_peaks (sc->a, max_peaks) != 0)
     return 1;
   sc->W        = sc->a->window_bins;
   sc->n_noncoh = sc->a->n_noncoh;

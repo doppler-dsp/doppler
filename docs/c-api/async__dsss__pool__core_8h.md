@@ -81,7 +81,7 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, size\_t n\_receivers, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate, int threads) <br>_Create a pool of_ `n_receivers` _receivers built alike._ |
+|  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, size\_t n\_receivers, double chip\_rate, double symbol\_rate, double sample\_rate, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate, int threads) <br>_Create a pool of_ `n_receivers` _receivers built alike._ |
 |  void | [**dp\_async\_dsss\_pool\_destroy**](#function-dp_async_dsss_pool_destroy) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Destroy a pool and every receiver._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_get\_coherent\_bins**](#function-dp_async_dsss_pool_get_coherent_bins) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_The receivers' slow-time depth D, epochs per coherent block (_ [_**dp\_async\_dsss\_receiver\_get\_coherent\_bins()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_coherent_bins) _); alike for all._ |
 |  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br>_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022), the samples carried to the next whole period, the ghost rule's history (each receiver's carriers and code-lock flags over its window), and each receiver's state, which carries the exclusions and rank the controller gave it. The last push's symbols do not travel._ |
@@ -145,7 +145,7 @@ Every receiver is a whole AsyncDsssReceiver: it searches the full Doppler range 
 
 
 * **One block to every receiver, in parallel.** push() hands the same samples to each receiver and steps them on the `dp_parallel` workers, one receiver per task. Each receiver's own search engine runs on one thread ([**dp\_async\_dsss\_receiver\_set\_threads()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_set_threads) 1), so N receivers do not each start a pool of every core. A receiver touches only its own state, so the result does not depend on the thread count: one thread and N give the same bytes.
-* **Then the controller, serially, at every code period of the stream.** A receiver is fed exactly one code period (`code_len * spc` samples) per call, on the grid of the pool's sample count from create or reset; push() keeps what is left past the last whole period and feeds it with the next push. The controller runs after each period. Every receiver call and every controller step is then a position in the stream, not a call boundary, so any blocking of one stream gives the same receivers, the same releases (a receiver's release clock is read once per call) and the same symbols. The cost is latency: up to one code period of a push waits for the next. It reads every receiver's status() and:
+* **Then the controller, serially, at every code period of the stream.** A receiver is fed exactly one code period (`code_len * spc` samples, its floor when that is not whole) per call, on the grid of the pool's sample count from create or reset; push() keeps what is left past the last whole period and feeds it with the next push. The controller runs after each period. Every receiver call and every controller step is then a position in the stream, not a call boundary, so any blocking of one stream gives the same receivers, the same releases (a receiver's release clock is read once per call) and the same symbols. The cost is latency: up to one code period of a push waits for the next. It reads every receiver's status() and:
   * **releases the lost.** A receiver in the lost state (its release rule fired: the emitter left, or the seed never locked) is reset to searching. With `reacquire` the receiver does this itself and is never lost.
   * **resolves duplicates.** Two receivers that hold a signal (refining or tracking) within one chip of each other's code phase, circularly, hold the same signal. The one that keeps it is the one tracking over the one refining, then the one in its state longer (status().state\_samples: the first to lock), then the higher C/N0 estimate, then the lower index. The other is reset.
   * **releases ghosts.** A receiver can take a strong emitter's Doppler-offset sidelobe, hundreds of chips from the emitter's own phase, where the duplicate key cannot see it: it despreads the emitter's own data. Two of its traits give it away together (doppler#2529), each over the same trailing window of [**ASYNC\_DSSS\_POOL\_GHOST\_WINDOW\_S**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_window_s) of whole code periods, both receivers tracking throughout:
@@ -174,7 +174,7 @@ Lifecycle: create, then push() any number of times, reset() at any point, destro
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 >>> pool = AsyncDsssPool(code, n_receivers=3, chip_rate=3.069e6,
-...                      symbol_rate=2700.0, spc=2,
+...                      symbol_rate=2700.0, sample_rate=6.138e6,
 ...                      doppler_uncertainty=500.0, threads=1)
 >>> pool.n_receivers
 3
@@ -202,7 +202,7 @@ dp_async_dsss_pool_state_t * dp_async_dsss_pool_create (
     size_t n_receivers,
     double chip_rate,
     double symbol_rate,
-    size_t spc,
+    double sample_rate,
     int m,
     double cn0_dbhz,
     double pfa,
@@ -242,7 +242,7 @@ Every parameter after `n_receivers` and before `threads` is [**dp\_async\_dsss\_
 * `n_receivers` Receivers, 1 to [**ASYNC\_DSSS\_POOL\_MAX\_RECEIVERS**](async__dsss__pool__core_8h.md#define-async_dsss_pool_max_receivers); the most signals the pool holds at once (default 3). 
 * `chip_rate` Chip rate, Hz. 
 * `symbol_rate` Symbol rate, Hz. 
-* `spc` Samples per chip. 
+* `sample_rate` The rate of the samples pushed, Hz: any ratio to chip\_rate of at least one, or 0 for two samples a chip (AsyncDsssReceiver's). 
 * `m` PSK order. 
 * `cn0_dbhz` Design C/N0, dB-Hz. 
 * `pfa` Search false-alarm probability. 
@@ -283,7 +283,7 @@ Caller must call [**dp\_async\_dsss\_pool\_destroy()**](async__dsss__pool__core_
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 >>> pool = AsyncDsssPool(code, n_receivers=3, chip_rate=3.069e6,
-...                      symbol_rate=2700.0, spc=2,
+...                      symbol_rate=2700.0, sample_rate=6.138e6,
 ...                      doppler_uncertainty=500.0, threads=1)
 >>> (pool.n_receivers, pool.threads, pool.coherent_bins)
 (3, 1, 1)
@@ -505,7 +505,7 @@ The receivers holding a signal (refining or tracking) at the end of the block.
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-...                      symbol_rate=2700.0, spc=2,
+...                      symbol_rate=2700.0, sample_rate=6.138e6,
 ...                      doppler_uncertainty=500.0, threads=1)
 >>> pool.push(np.zeros(2046, dtype=np.complex64))
 0
@@ -584,7 +584,7 @@ void dp_async_dsss_pool_reset (
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 >>> pool = AsyncDsssPool(code, chip_rate=3.069e6, symbol_rate=2700.0,
-...                      spc=2, doppler_uncertainty=500.0, threads=1)
+...                      sample_rate=6.138e6, doppler_uncertainty=500.0, threads=1)
 >>> _ = pool.push(np.zeros(2046, dtype=np.complex64))
 >>> pool.samples
 2046
@@ -681,7 +681,7 @@ Whole or nothing: every receiver's names must fit before any registers on `tlm` 
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-...                      symbol_rate=2700.0, spc=2,
+...                      symbol_rate=2700.0, sample_rate=6.138e6,
 ...                      doppler_uncertainty=500.0, threads=1)
 >>> tlm = Telemetry(1 << 16)
 >>> pool.set_telemetry(tlm, "pool")
@@ -734,7 +734,7 @@ The receivers' results do not change with it (header step 1); only the time a pu
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-...                      symbol_rate=2700.0, spc=2,
+...                      symbol_rate=2700.0, sample_rate=6.138e6,
 ...                      doppler_uncertainty=500.0)
 >>> pool.set_threads(1)
 >>> pool.threads
@@ -820,7 +820,7 @@ The status record.
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-...                      symbol_rate=2700.0, spc=2,
+...                      symbol_rate=2700.0, sample_rate=6.138e6,
 ...                      doppler_uncertainty=500.0, threads=1)
 >>> (pool.status(0).state, pool.status(2).state)  # 2 is past the pool
 (0, -1)
@@ -875,7 +875,7 @@ Symbols written.
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
-...                      symbol_rate=2700.0, spc=2,
+...                      symbol_rate=2700.0, sample_rate=6.138e6,
 ...                      doppler_uncertainty=500.0, threads=1)
 >>> _ = pool.push(np.zeros(2046, dtype=np.complex64))
 >>> pool.symbols(0).size                    # searching: nothing yet

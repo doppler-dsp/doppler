@@ -60,6 +60,9 @@ _The receiver's own fields in its state blob, after the envelope and before the 
 |  double | [**seed\_doppler\_hz\_est**](#variable-seed_doppler_hz_est)  <br> |
 |  uint64\_t | [**segments**](#variable-segments)  <br> |
 |  uint64\_t | [**sps**](#variable-sps)  <br> |
+|  uint64\_t | [**srch\_hist\_len**](#variable-srch_hist_len)  <br> |
+|  uint64\_t | [**srch\_n**](#variable-srch_n)  <br> |
+|  uint64\_t | [**srch\_origin**](#variable-srch_origin)  <br> |
 |  uint8\_t | [**state**](#variable-state)  <br> |
 |  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
 |  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
@@ -533,6 +536,59 @@ uint64_t async_dsss_receiver_extra_t::sps;
 
 
 Layout key: must match the receiver. 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_hist\_len 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::srch_hist_len;
+```
+
+
+
+v14: the hand-off history's live count. 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_n 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::srch_n;
+```
+
+
+
+v14: search samples since it. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_origin 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::srch_origin;
+```
+
+
+
+v14: the search resampler's origin, an input index. 
+ 
 
 
         

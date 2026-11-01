@@ -36,6 +36,7 @@ _One acquisition detection event._
 
 | Type | Name |
 | ---: | :--- |
+|  uint32\_t | [**\_pad**](#variable-_pad)  <br> |
 |  double | [**chip\_phase**](#variable-chip_phase)  <br> |
 |  float | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  size\_t | [**code\_phase**](#variable-code_phase)  <br> |
@@ -45,6 +46,7 @@ _One acquisition detection event._
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  uint64\_t | [**samples\_consumed**](#variable-samples_consumed)  <br> |
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
+|  float | [**test\_stat\_peak**](#variable-test_stat_peak)  <br> |
 
 
 
@@ -94,6 +96,23 @@ _One acquisition detection event._
 
 
 
+### variable \_pad 
+
+```C++
+uint32_t acq_result_t::_pad;
+```
+
+
+
+Alignment padding, named so the record has none unnamed; written as 0 (every builder's designated initializer zeroes it). A new field goes before it, which moves it, and test\_acq\_core.c's layout assert goes red until the comparison names the field. 
+
+
+        
+
+<hr>
+
+
+
 ### variable chip\_phase 
 
 ```C++
@@ -137,7 +156,7 @@ size_t acq_result_t::code_phase;
 
 
 
-Peak col: code phase (0 … code\_bins-1). 
+Peak col: code phase (0 … lag\_bins-1), a lag of code\_phase \* code\_bins / lag\_bins samples. 
  
 
 
@@ -245,6 +264,23 @@ float acq_result_t::test_stat;
 
 The gating CFAR statistic: peak\_mag / noise\_est under coherent-only detection (n\_noncoh == 1); scaled by sqrt(2\*n\_noncoh) once non-coherent looks are combined. 0 if noise\_est == 0. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable test\_stat\_peak 
+
+```C++
+float acq_result_t::test_stat_peak;
+```
+
+
+
+test\_stat as the emitter would read on its own lag: the straddle a delay between two lag columns costs, put back. Estimated from the larger of the hit's two neighbouring columns under the mainlobe the engine models (a triangle `shape.zone` samples wide, as for a chip code): a centre c and neighbour n one column, s samples, apart give (c + n) / (2 - s / zone), exact on that triangle, clamped between c and c / (1 - s / (2 zone))  never below what was read, never past the worst straddle. Noise lifts the neighbour, so at low statistics it reads high, within that clamp. For a bound on what the emitter's sidelobes can reach (a sidelobe does not lose its straddle with the peak); detection reads test\_stat. Appended last, like the field above. 
 
 
         

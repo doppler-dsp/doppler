@@ -62,7 +62,7 @@ def _new_receiver():
             CODE,
             chip_rate=CHIP_RATE,
             symbol_rate=SYM_RATE,
-            spc=SPC,
+            sample_rate=FS,
             cn0_dbhz=55.0,
             doppler_uncertainty=100.0,
             segments=4,
@@ -92,7 +92,7 @@ def test_context_manager():
 def test_only_signal_params_required():
     """code/chip_rate/symbol_rate are the only required constructor args --
     everything else defaults, matching this object's own "just works"
-    design (spc defaults to 2x chip_rate, segments/sps to their own
+    design (sample_rate defaults to 2x chip_rate, segments/sps to their own
     validated defaults)."""
     rx = DsssReceiver(CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE)
     assert rx.tracking == 0
@@ -251,8 +251,8 @@ _REFUSALS = [
         {"doppler_uncertainty": _NAN},
         "a finite doppler_uncertainty >= 0",
     ),
-    (_ASYNC, {"carrier_freq_hz": 1e-305}, "above chip_rate \\* spc / 2"),
-    (_ASYNC, {"carrier_freq_hz": 5e-324}, "above chip_rate \\* spc / 2"),
+    (_ASYNC, {"carrier_freq_hz": 1e-305}, "above sample_rate / 2"),
+    (_ASYNC, {"carrier_freq_hz": 5e-324}, "above sample_rate / 2"),
     (_ASYNC, {"symbol_rate": 1e-6}, "at most 2\\^20 Dll partials"),
     # The cap holds at one segment too, where the aid is off but the
     # chain's resampling ratio still depends on it.

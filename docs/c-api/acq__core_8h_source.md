@@ -42,6 +42,8 @@ extern "C"
     uint64_t samples_consumed; 
     double chip_phase; 
     double doppler_rate_hz_s; 
+    float test_stat_peak; 
+    uint32_t _pad; 
   } acq_result_t;
 
   typedef struct
@@ -82,6 +84,10 @@ extern "C"
     double dsl; 
   } acq_shape_t;
 
+#define ACQ_SIDELOBE_DOPPLER_PTS 9
+#define ACQ_SIDELOBE_LAG_PTS 5
+#define ACQ_SIDELOBE_SLOTS 32
+
   typedef struct
   {
     dp_corr2d_state_t *corr; 
@@ -115,6 +121,7 @@ extern "C"
         coherent_bins; 
     size_t window_bins; 
     size_t code_bins; 
+    size_t lag_bins;  
     size_t n; 
     size_t n_surf; 
     size_t interp; 
@@ -164,6 +171,16 @@ extern "C"
        and the surface is bit-identical either way. */
     dp_pool_t       *pool;      
     int              threads;   
+    dp_fft_state_t *sl_fwd; 
+    dp_fft_state_t *sl_inv; 
+    dp_fft_state_t *sl_inv_cb; 
+    float _Complex *sl_scratch; 
+    double *sl_cmax; 
+    size_t sl_crow[ACQ_SIDELOBE_SLOTS]; 
+    size_t sl_ccol[ACQ_SIDELOBE_SLOTS]; 
+    double sl_ctile[ACQ_SIDELOBE_SLOTS]; 
+    size_t sl_cn;    
+    size_t sl_cnext; 
     dp_fft_state_t    **tile_inv;  
     float _Complex **tile_prod; 
     dp_fft_state_t    **tile_slow; 
@@ -238,7 +255,7 @@ extern "C"
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-#define ACQ_STATE_VERSION 6u
+#define ACQ_STATE_VERSION 7u
 
 #define ACQ_MAX_PEAKS 64u
 
@@ -258,6 +275,9 @@ extern "C"
                                  size_t rate_hypotheses);
 
   size_t dp_acq_period_samples (size_t code_len);
+
+  size_t dp_acq_search_period (size_t code_len, double sample_rate,
+                               double chip_rate);
 
   dp_acq_state_t *dp_acq_create_continuous (const uint8_t *code, size_t code_len,
                                       double sample_rate, double chip_rate,
@@ -370,6 +390,10 @@ extern "C"
 
   void dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
                           size_t code_len, acq_handoff_t *out);
+
+  double dp_acq_sidelobe_ratio (dp_acq_state_t     *state,
+                                const acq_result_t *from,
+                                const acq_result_t *to);
 
   /* ── Serializable state — the elastic / pure-transducer face
    * ─────────────────

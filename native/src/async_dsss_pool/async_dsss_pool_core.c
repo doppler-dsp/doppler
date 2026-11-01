@@ -42,7 +42,7 @@ build_workers (dp_async_dsss_pool_state_t *s, int threads)
 dp_async_dsss_pool_state_t *
 dp_async_dsss_pool_create (
     const uint8_t *code, size_t code_len, size_t n_receivers, double chip_rate,
-    double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
+    double symbol_rate, double sample_rate, int m, double cn0_dbhz, double pfa,
     double pd, double doppler_uncertainty, size_t segments, size_t sps,
     int differential, double refine_max_error_db,
     size_t refine_samples_per_symbol, double refine_design_margin_db,
@@ -63,8 +63,8 @@ dp_async_dsss_pool_create (
       /* The receiver validates every parameter it takes; the first refusal
          refuses the pool. */
       s->rx[i] = dp_async_dsss_receiver_create (
-          code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz, pfa, pd,
-          doppler_uncertainty, segments, sps, differential,
+          code, code_len, chip_rate, symbol_rate, sample_rate, m, cn0_dbhz,
+          pfa, pd, doppler_uncertainty, segments, sps, differential,
           refine_max_error_db, refine_samples_per_symbol,
           refine_design_margin_db, refine_n_fft, refine_zero_pad,
           refine_sequential, refine_max_n_blocks, carrier_freq_hz,
@@ -83,8 +83,11 @@ dp_async_dsss_pool_create (
      its input's own are at most one a sample (a symbol spans at least one
      chip of at least one sample). */
   s->sym_extra = (size_t)ceil ((double)code_len * symbol_rate / chip_rate) + 1;
-  s->period    = code_len * spc;
-  s->carry     = dp_xcalloc (s->period, sizeof *s->carry);
+  /* One receiver block: a code period in whole samples (its floor when the
+     period is not whole; the receivers' partials close on their code
+     NCOs' phase, so the block need not be exactly a period). */
+  s->period = s->rx[0]->tsamps;
+  s->carry  = dp_xcalloc (s->period, sizeof *s->carry);
   /* The ghost rule's clock is the controller's: one step a code period. */
   s->lattice_hz   = chip_rate / (2.0 * (double)code_len);
   s->ghost_window = (size_t)llround (ASYNC_DSSS_POOL_GHOST_WINDOW_S * chip_rate

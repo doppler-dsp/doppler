@@ -242,7 +242,7 @@ import numpy as np
 from doppler.dsss import DsssReceiver
 
 code = np.random.default_rng(1).integers(0, 2, 127).astype(np.uint8)
-rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0)
+rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, sample_rate=6.0e6)
 x = np.zeros(1024, dtype=np.complex64)   # no real signal here -- just show the call
 syms = rx.steps(x)   # empty while searching; demodulated symbols once locked
 rx.tracking          # 0 = searching, 1 = locked and demodulating

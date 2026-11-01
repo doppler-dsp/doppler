@@ -86,7 +86,7 @@ extern "C"
 
   dp_async_dsss_pool_state_t *dp_async_dsss_pool_create (
       const uint8_t *code, size_t code_len, size_t n_receivers,
-      double chip_rate, double symbol_rate, size_t spc, int m,
+      double chip_rate, double symbol_rate, double sample_rate, int m,
       double cn0_dbhz, double pfa, double pd, double doppler_uncertainty,
       size_t segments, size_t sps, int differential,
       double refine_max_error_db, size_t refine_samples_per_symbol,

@@ -118,7 +118,7 @@ DOPPLER_UNCERTAINTY = 0.95 * SPAN_HZ
 MAX_FRAMES = 64  # safety cap on frames pushed while searching for a hit
 
 
-def _circ_dist(a: int, b: int, m: int) -> int:
+def _circ_dist(a: float, b: float, m: int) -> float:
     """Circular distance between ``a`` and ``b`` modulo ``m``."""
     d = abs(a - b) % m
     return min(d, m - d)
@@ -262,7 +262,12 @@ def run_trial(
         bin_to_signed(dop_bin, a.doppler_bins)
     ) * a.doppler_res_hz
     dop_bin_dist = _circ_dist(dop_bin, row_true, a.doppler_bins)
-    code_dist_samples = _circ_dist(code_phase, col_ref, a.code_bins)
+    # code_phase and col_ref (the engine's own clean-run hit) are both lag
+    # COLUMNS, code_bins/lag_bins of a sample each on the padded lag grid:
+    # wrap at lag_bins, then convert the distance to samples.
+    code_dist_samples = (
+        _circ_dist(code_phase, col_ref, a.lag_bins) * a.code_bins / a.lag_bins
+    )
     on_true_cell = dop_bin_dist <= 1 and code_dist_samples <= spc
 
     record.update(

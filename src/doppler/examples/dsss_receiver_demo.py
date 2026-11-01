@@ -110,6 +110,7 @@ def _new_receiver() -> DsssReceiver:
             CODE,
             chip_rate=CHIP_RATE,
             symbol_rate=SYM_RATE,
+            sample_rate=FS,
             cn0_dbhz=55.0,
             doppler_uncertainty=100.0,
             segments=4,

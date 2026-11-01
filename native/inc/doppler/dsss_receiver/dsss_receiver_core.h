@@ -51,7 +51,7 @@
  * // "Just works": only the signal's own physical parameters are required.
  * dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create(
  *     code, code_len, 3.0e6, 2100.0,   // chip_rate, symbol_rate
- *     2, 2,                            // spc, m (BPSK)
+ *     6.0e6, 2,                        // sample_rate, m (BPSK)
  *     55.0, 1e-3, 0.9, 100.0,          // cn0_dbhz, pfa, pd,
  *                                      // doppler_uncertainty
  *     4, 8,                            // segments, sps
@@ -219,8 +219,13 @@ extern "C"
    *                             straight to the embedded Acquisition's
    *                             own `symbol_rate` (diagnostic there; see
    *                             `dp_acq_create_continuous()`).
-   * @param spc                  Samples/chip (front-end oversample);
-   *                             default 2 (fs = 2x chip_rate).
+   * @param sample_rate          Input sample rate, Hz: a whole number of
+   *                             samples a chip (to a part in 1e9), at
+   *                             least one, or 0 for two a chip (the
+   *                             default). A fractional rate is refused:
+   *                             this receiver's code loop and carrier
+   *                             stage run whole-sample code periods
+   *                             (AsyncDsssReceiver takes any).
    * @param m                    PSK order, 2/4/8; default 2 (BPSK).
    * @param cn0_dbhz             Design C/N0 for acquisition sizing, dB-Hz;
    *                             default 55.0.
@@ -245,7 +250,8 @@ extern "C"
    * @return A new receiver in the searching state, owned by the caller
    *         (free with dp_dsss_receiver_destroy()); NULL when @p code is
    *         NULL, a parameter is outside its domain (@p m not 2/4/8,
-   *         @p spc < 1, @p sps < 2, a non-positive or non-finite rate, a
+   *         @p sample_rate not a whole number of samples a chip of at
+   *         least one, @p sps < 2, a non-positive or non-finite rate, a
    *         symbol rate above the chip rate, a code/segments pair the Dll
    *         refuses), or the embedded Acquisition refuses its own
    *         parameters (@p pfa, @p pd, @p cn0_dbhz, ...). An allocation
@@ -271,7 +277,7 @@ extern "C"
    * ...          + 1j * rng.standard_normal(pre + n))
    * >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
    * ...      + noise.astype(np.complex64))
-   * >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,
+   * >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, sample_rate=fs,
    * ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
    * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
    * >>> syms = np.concatenate([s for s in syms if len(s)])
@@ -289,7 +295,8 @@ extern "C"
    */
   dp_dsss_receiver_state_t *
   dp_dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
-                        double symbol_rate, size_t spc, int m, double cn0_dbhz,
+                        double symbol_rate, double sample_rate, int m,
+                        double cn0_dbhz,
                         double pfa, double pd, double doppler_uncertainty,
                         size_t segments, size_t sps, int differential);
 
@@ -313,7 +320,8 @@ extern "C"
    * >>> from doppler.dsss import DsssReceiver
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+   * ...                   sample_rate=6.0e6)
    * >>> rx.reset()                 # abort any lock, hunt from scratch
    * >>> (rx.tracking, rx.chip_phase)   # back to searching, all cleared
    * (0, 0.0)
@@ -371,7 +379,7 @@ extern "C"
    * ...          + 1j * rng.standard_normal(pre + n))
    * >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
    * ...      + noise.astype(np.complex64))
-   * >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,
+   * >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, sample_rate=fs,
    * ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
    * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
    * >>> syms = np.concatenate([s for s in syms if len(s)])
@@ -416,7 +424,8 @@ extern "C"
    * >>> from doppler.dsss import DsssReceiver
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+   * ...                   sample_rate=6.0e6)
    * >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it
    * >>> rx.tracking                # still searching, on the pinned grid
    * 0
@@ -454,7 +463,8 @@ extern "C"
    * >>> from doppler.dsss import DsssReceiver
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+   * ...                   sample_rate=6.0e6)
    * >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
    * ...                       alpha=0.1, n_up=5, n_down=3)
    * >>> rx.tracking                # a no-op until a hit builds the Dll
@@ -505,7 +515,8 @@ extern "C"
    * >>> from doppler.dsss import DsssReceiver
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+   * ...                   sample_rate=6.0e6)
    * >>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain
    * >>> rx.segments                       # tracking grid updated in place
    * 6

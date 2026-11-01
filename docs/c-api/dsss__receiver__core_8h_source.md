@@ -76,7 +76,8 @@ extern "C"
 
   dp_dsss_receiver_state_t *
   dp_dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
-                        double symbol_rate, size_t spc, int m, double cn0_dbhz,
+                        double symbol_rate, double sample_rate, int m,
+                        double cn0_dbhz,
                         double pfa, double pd, double doppler_uncertainty,
                         size_t segments, size_t sps, int differential);
 

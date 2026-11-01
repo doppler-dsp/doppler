@@ -63,11 +63,17 @@
 #define SIZING_CN0 60.0 /* high enough that the sizer picks n_noncoh = 1 */
 #define PFA 1e-3
 #define PD 0.9
+#define LB 2048u  /* lag_bins: NX is not 7-smooth, so the next pow2  */
 #define TAU0 777u /* injected code phase, samples                   */
 #define TILE 5u   /* injected tile (window hypothesis)              */
 #define NBIN 4    /* tile-distance bins: 0, 1, 2, >=3                */
 
 #define GOLD_BOUND_DB (20.0 * log10 (65.0 / 1023.0)) /* -23.94 dB */
+/* The same-tile floor this harness measured on the padded lag grid
+   (2026-11-01, 2048 columns of the 2046-sample period): the Gold bound on
+   whole- and half-chip lags, read 0.75 dB higher between samples by the
+   zero-padded interpolation. A REGRESSION PIN, not a derived bound. */
+#define FLOOR_PIN_DB (-23.19)
 
 static double
 db (double lin)
@@ -88,6 +94,14 @@ typedef struct
                           phase (|dc| > one chip): the floor a
                           second emitter at another code phase
                           actually competes with                    */
+  /* Rule 2's own claim, cell by cell (clean runs only): every off-zone
+     cell of the peak's tile and the two beside it against
+     dp_acq_sidelobe_ratio() at that cell, the least margin and where. */
+  double min_margin_db;          /* model minus cell, dB; the least     */
+  double margin_cell_db;         /* that cell, dB below the peak        */
+  double margin_model_db;        /* its model value                     */
+  size_t margin_row, margin_col; /* where                               */
+  size_t margin_cells;           /* cells compared                      */
   size_t n_noncoh;
   size_t window_bins;
 } floor_t;
@@ -97,6 +111,13 @@ typedef struct
  * amplitude, with an optional sign flip at mid-epoch every epoch (the async
  * data's worst case) and optional noise at cn0_dbhz (0 = none). `present`
  * = 0 pushes the noise alone, for the reference-rise row. */
+/* The per-cell model pass: ~6,100 dp_acq_sidelobe_ratio() calls a run,
+   against one hit, so its cache makes them three row sweeps (one a tile)
+   and lookups: milliseconds. The --check runs it on the two clean emitters
+   it gates; the full sweep runs it on the data-transition one, which is
+   printed, not gated (doppler#2734). */
+static int with_margins;
+
 static int
 measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
          double cn0_dbhz, int present, uint32_t seed, floor_t *out)
@@ -122,6 +143,19 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
     }
   const size_t nx = a->code_bins;
   const size_t W  = a->window_bins;
+  /* The surface is read on lag_bins columns (2048 for this 2046-sample
+     period: the padded lag grid), a column code_bins/lag_bins of a sample. */
+  const size_t lb = a->lag_bins;
+  /* One chip, SPC samples, in columns: a column 2 away is 1.998 samples
+     off (inside the chip), 3 away is 2.997 (outside). */
+  const long zc = (long)(SPC * lb / nx);
+  if (lb != LB)
+    {
+      DP_TEST_ERR ("engine read %zu lag columns; the checks expect %u\n", lb,
+                   LB);
+      dp_acq_destroy (a);
+      return 1;
+    }
   const double fs = chip_rate * (double)SPC;
 
   /* Tile TILE's own frequency plus a fraction of a tile: the same fold the
@@ -173,7 +207,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   float complex *buf = raw + TAU0;
 
   acq_result_t hit[2];
-  (void)dp_acq_push (a, buf, nx, hit, 2);
+  const size_t nh = dp_acq_push (a, buf, nx, hit, 2);
 
   /* The engine's surface, as gated on. */
   const float *m  = a->mag_buf;
@@ -181,8 +215,8 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   for (size_t k = 1; k < a->n_surf; k++)
     if (m[k] > m[pk])
       pk = k;
-  out->peak_row  = pk / nx;
-  out->peak_col  = pk % nx;
+  out->peak_row  = pk / lb;
+  out->peak_col  = pk % lb;
   out->peak_mag  = m[pk];
   out->noise_est = a->noise_est;
   out->test_stat = a->test_stat;
@@ -193,19 +227,19 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   double mx_other  = 0.0;
   for (size_t k = 0; k < a->n_surf; k++)
     {
-      size_t row = k / nx, col = k % nx;
+      size_t row = k / lb, col = k % lb;
       long   dr = (long)row - (long)out->peak_row;
       if (dr < 0)
         dr = -dr;
       long dc = (long)col - (long)out->peak_col;
       if (dc < 0)
         dc = -dc;
-      if ((size_t)dc > nx / 2)
-        dc = (long)nx - dc; /* code phase is circular */
+      if ((size_t)dc > lb / 2)
+        dc = (long)lb - dc; /* code phase is circular */
       /* The exclusion zone: one tile either side AND one chip either side.
          A cell is excluded only if it is inside BOTH, which is the zone's
          definition; outside it every cell is a candidate second peak. */
-      if (dr <= 1 && dc <= (long)SPC)
+      if (dr <= 1 && dc <= zc)
         continue;
       int b = dr >= 3 ? 3 : (int)dr;
       if (m[k] > mx[b])
@@ -214,7 +248,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
       cnt[b]++;
       if (m[k] > mx_all)
         mx_all = m[k];
-      if (dc > (long)SPC && m[k] > mx_other)
+      if (dc > zc && m[k] > mx_other)
         mx_other = m[k];
     }
   for (int b = 0; b < NBIN; b++)
@@ -225,6 +259,55 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
     }
   out->max_all_db   = db (mx_all / out->peak_mag);
   out->max_other_db = db (mx_other / out->peak_mag);
+
+  /* Rule 2's claim is per cell: what this emitter's sidelobe reads at a
+     cell must sit under the model's value FOR THAT CELL, not only at the
+     worst one. Every off-zone cell of the peak's tile and its two
+     neighbours, against dp_acq_sidelobe_ratio() there. Clean runs only:
+     with noise a cell is the sidelobe plus noise, which rule 2's gate,
+     not the model, covers. */
+  out->min_margin_db = INFINITY;
+  out->margin_cells  = 0;
+  if (with_margins && present && !(cn0_dbhz > 0.0) && nh > 0)
+    {
+      /* Rule 2 scales the model by the emitter's statistic ON ITS OWN LAG
+         (acq_result_t::test_stat_peak: the straddle between two lag columns
+         put back), not by the peak as read, so a cell is compared on that
+         scale too. */
+      const double       on_lag = out->peak_mag * (double)hit[0].test_stat_peak
+                                  / (double)hit[0].test_stat;
+      const size_t       rows   = a->n_surf / lb;
+      const acq_result_t from
+          = { .doppler_bin = out->peak_row, .code_phase = out->peak_col };
+      for (long d = -1; d <= 1; d++)
+        {
+          const size_t row
+              = (size_t)((long)out->peak_row + (long)rows + d) % rows;
+          for (size_t col = 0; col < lb; col++)
+            {
+              long dc = (long)col - (long)out->peak_col;
+              if (dc < 0)
+                dc = -dc;
+              if ((size_t)dc > lb / 2)
+                dc = (long)lb - dc;
+              if (dc <= zc) /* the zone: every row here is within one */
+                continue;
+              const acq_result_t to
+                  = { .doppler_bin = row, .code_phase = col };
+              const double cell  = db (m[row * lb + col] / on_lag);
+              const double model = db (dp_acq_sidelobe_ratio (a, &from, &to));
+              out->margin_cells++;
+              if (model - cell < out->min_margin_db)
+                {
+                  out->min_margin_db   = model - cell;
+                  out->margin_cell_db  = cell;
+                  out->margin_model_db = model;
+                  out->margin_row      = row;
+                  out->margin_col      = col;
+                }
+            }
+        }
+    }
 
   free (raw);
   DP_CHECK_MSG (!dp_wfm_synth_data_ended (syn),
@@ -244,17 +327,53 @@ main (int argc, char **argv)
   if (check)
     {
       floor_t f;
+      with_margins = 1;
       DP_REQUIRE (measure (code, 5.0e6, 0.0, 0, 0.0, 1, 1u, &f) == 0);
       /* The synth's chip 0 sits TAU0 samples before the epoch start, so the
-         engine reports the code phase nx - TAU0 (its own convention: the
-         offset of the replica's start within the pushed epoch). */
+         engine reports the code phase nx - TAU0 samples (its own convention:
+         the offset of the replica's start within the pushed epoch), on the
+         lag column nearest it: lag_bins = 2048 columns of NX/2048 samples. */
       DP_CHECK (f.peak_row == TILE);
-      DP_CHECK (f.peak_col == (NX - TAU0) % NX);
-      /* Same tile, other lags, centred, no data: the Gold three-valued bound
-         exactly -- integer-chip lags ARE {-1,-65,63}/1023 and half-chip
-         lags are their means. */
-      DP_CHECK_NEAR (f.max_db[0], GOLD_BOUND_DB, 0.3);
-      printf ("  same-tile max %.2f dB vs Gold %.2f; reference %.1f dB below "
+      DP_CHECK (f.peak_col
+                == (size_t)lround ((double)((NX - TAU0) % NX) * LB / NX) % LB);
+      /* Same tile, other lags, centred, no data. Until the padded lag grid
+         (the commit that read an awkward period on it, #2731) every column
+         was a whole or half-chip lag and the floor was the Gold three-valued
+         bound exactly ({-1,-65,63}/1023 and their means). Now the surface
+         is read on lag_bins = 2048 columns of a 2046-sample period, and
+         between samples the zero-padded interpolation reads above it:
+         -23.19 dB against Gold's -23.94.
+
+         1. RULE 2, CELL BY CELL: every off-zone cell of the emitter's tile
+            and the two beside it sits under dp_acq_sidelobe_ratio() at that
+            cell, on rule 2's own scale (the emitter's statistic on its own
+            lag). Measured least margin +0.65 dB centred, +0.61 dB half a
+            tile off, over 6,129 cells each: the model is a sampled maximum,
+            not a proven bound, and this is its measured margin. With a data
+            transition inside the epoch it does NOT hold: a cell reads 20.4
+            dB above its model, which assumes one clean period. That is the
+            D = 1 data gap (doppler#2734); the full sweep prints it, not
+            gated.
+         2. A REGRESSION PIN on the floor itself, +-0.3 dB, so a surface
+            that degrades by more than that is red even where the model has
+            room. */
+      floor_t half;
+      DP_REQUIRE (measure (code, 5.0e6, 0.5, 0, 0.0, 1, 1u, &half) == 0);
+      const floor_t *row[2] = { &f, &half };
+      const char *name[2] = { "centred, no data", "half a tile off, no data" };
+      for (size_t i = 0; i < 2; i++)
+        {
+          printf ("  %-26s %zu cells, least margin %+.2f dB at (%zu,%zu): "
+                  "cell %.2f, model %.2f\n",
+                  name[i], row[i]->margin_cells, row[i]->min_margin_db,
+                  row[i]->margin_row, row[i]->margin_col,
+                  row[i]->margin_cell_db, row[i]->margin_model_db);
+          DP_CHECK (row[i]->margin_cells > 6000);
+          DP_CHECK_MSG (row[i]->min_margin_db > 0.0,
+                        "every clean cell sits under rule 2's model");
+        }
+      DP_CHECK_NEAR (f.max_db[0], FLOOR_PIN_DB, 0.3);
+      printf ("  same-tile max %.2f dB, Gold %.2f; reference %.1f dB below "
               "peak\n",
               f.max_db[0], GOLD_BOUND_DB, db (f.noise_est / f.peak_mag));
       DP_TEST_END ("validate_acq_emitter_floor");
@@ -288,6 +407,21 @@ main (int argc, char **argv)
                   f.rms_db[3], f.max_other_db, db (f.noise_est / f.peak_mag),
                   f.test_stat);
         }
+
+  /* Rule 2's model against a data transition inside the epoch: one clean
+     period does not bound it (doppler#2734). Printed, not gated. */
+  {
+    floor_t d;
+    with_margins = 1;
+    if (measure (code, 5.0e6, 0.0, 1, 0.0, 1, 1u, &d))
+      return 1;
+    with_margins = 0;
+    printf ("\nrule 2's model, centred, a transition in the epoch: least "
+            "margin %+.2f dB over %zu cells at (%zu,%zu): cell %.2f, model "
+            "%.2f (doppler#2734)\n",
+            d.min_margin_db, d.margin_cells, d.margin_row, d.margin_col,
+            d.margin_cell_db, d.margin_model_db);
+  }
 
   /* The reference with noise, emitter present and absent: what a strong
      emitter does to the threshold every weaker one is gated against. */

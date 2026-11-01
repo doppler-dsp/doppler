@@ -81,8 +81,9 @@ main (void)
         x[pre_silence + idx] += (float)si * csign[cph];
       }
 
-    dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create (
-        CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+    dp_dsss_receiver_state_t *rx
+        = dp_dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, (1.0e6) * (spc),
+                                   2, 45.0, 1e-2, 0.9, 500.0, 4, 8, 0);
     float _Complex *out = malloc (BENCH_N * sizeof *out);
     size_t          pos = 0;
     /* stream until locked (search cost not timed) */

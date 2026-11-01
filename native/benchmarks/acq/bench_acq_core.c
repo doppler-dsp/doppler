@@ -198,14 +198,30 @@ main (void)
 
           acq_result_t hits[4];
           size_t       nh = dp_acq_push (a, buf, n_in, hits, 4); /* warm-up */
+          /* The lag column nearest the injected phase: on a padded lag
+             grid a column is code_bins / lag_bins of a sample. */
+          const size_t want_col
+              = (size_t)lround ((double)INJECT_PHASE * (double)a->lag_bins
+                                / (double)a->code_bins)
+                % a->lag_bins;
           int ok = (nh == 1 && hits[0].doppler_bin == cfg->inject_window * D
-                    && hits[0].code_phase == INJECT_PHASE);
+                    && hits[0].code_phase == want_col);
           printf ("n_noncoh=%3zu D=%zu threads=%d pd_predicted=%.4f  "
                   "detect=%s  doppler_bin=%zu code_phase=%zu "
                   "cn0_dbhz_est=%.2f\n",
                   nc, D, a->threads, a->pd_predicted, ok ? "yes" : "NO",
                   nh ? hits[0].doppler_bin : 0, nh ? hits[0].code_phase : 0,
                   nh ? hits[0].cn0_dbhz_est : 0.0f);
+          /* A row that misses its own emitter times a search that found
+             nothing: refuse it rather than print NO and time it anyway. */
+          if (!ok)
+            {
+              (void)fprintf (stderr,
+                             "bench_acq: the injected emitter was not "
+                             "detected on its cell (want col %zu)\n",
+                             want_col);
+              return 1;
+            }
 
           double times[ITERATIONS];
           for (int r = 0; r < ITERATIONS; r++)

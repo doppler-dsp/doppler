@@ -214,12 +214,12 @@ def test_telemetry_probes_and_the_surface_tap():
     hit_id = tlm.probe_id("acq.hit")
     assert np.all(recs["value"][recs["probe"] == hit_id] == 1.0)
 
-    s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)
+    s = np.empty(a.surface_rows * a.lag_bins, dtype=np.float32)
     assert a.surface(s) == s.size
     # a hit is (doppler_bin, code_phase, peak_mag, noise_est, test_stat,
     # cn0_dbhz_est, samples_consumed)
     assert a.surface_at == hits[-1][6]
-    surf = s.reshape(a.surface_rows, a.code_bins)
+    surf = s.reshape(a.surface_rows, a.lag_bins)
     row, col = np.unravel_index(np.argmax(surf), surf.shape)
     assert (row, col) == (hits[-1][0], hits[-1][1])
     # to a float rounding: the SIMD build's fast-math may normalise the
@@ -228,11 +228,13 @@ def test_telemetry_probes_and_the_surface_tap():
     assert a.peak_conc > 0.5
 
     hz = np.empty(a.surface_rows)
-    ch = np.empty(a.code_bins)
+    ch = np.empty(a.lag_bins)
     assert a.surface_doppler_hz(hz) == hz.size
     assert a.surface_chip_phase(ch) == ch.size
     assert hz[0] == 0.0 and hz[1] == CHIP_RATE / SF and hz[-1] == -hz[1]
-    assert ch[0] == 0.0 and ch[col] == (SF - col / SPC) % SF
+    # column c is a lag of c * code_bins / lag_bins samples
+    assert ch[0] == 0.0
+    assert ch[col] == pytest.approx((SF - col * SF / a.lag_bins) % SF)
 
     # too small a buffer, and nothing kept once the tap is off
     assert a.surface(np.empty(3, dtype=np.float32)) == 0
@@ -303,7 +305,7 @@ def test_the_roll_per_thread_is_bit_identical():
     a.set_threads(1)
     assert a.threads == 1
     ref_hits = a.push(x)
-    ref = np.empty(a.surface_rows * a.code_bins, np.float32)
+    ref = np.empty(a.surface_rows * a.lag_bins, np.float32)
     assert a.surface(ref) == ref.size
     for n in (2, 4, 8, 0):
         a.set_threads(n)

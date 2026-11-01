@@ -1494,8 +1494,8 @@ def build(write: bool = True) -> Report:
     )
     R.summary(
         "\n- The runs behind §2 are `native/validation/spectrogram_certify.c`"
-        ", emitted as CSV; the pins are `native/tests/test_spectrogram_core"
-        ".c`."
+        ", emitted as CSV; the pins are "
+        "`native/tests/spectrogram/test_spectrogram_core.c`."
     )
     if write:
         R.emit(HERE / "results.md")

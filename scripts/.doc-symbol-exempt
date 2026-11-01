@@ -7,7 +7,6 @@
 # were current is a defect, not an entry: fix the page.
 
 # §11.1 records that the cell flavor was deleted with the pool (#2516).
-docs/design/async-dsss-receiver.md dp_async_dsss_receiver_create_cell
 # Names not built: DP_EOS is an open proposal (the reserved reason keyword,
 # §4a), dp_interrupt_t an alternative the design weighed and closed.
 docs/design/end-of-capture.md DP_EOS

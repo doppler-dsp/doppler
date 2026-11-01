@@ -5,11 +5,11 @@ doppler measures coverage with **clang source-based coverage**
 defining property — every algorithm is in C exactly once — so the same
 `native/src/<obj>/<obj>_core.c` is exercised by three harnesses:
 
-| Harness                                | reaches `_core.c` via               |
-| -------------------------------------- | ----------------------------------- |
-| C tests (`native/tests/test_*_core.c`) | link the `<obj>_core` OBJECT lib    |
-| Python tests (`src/doppler/**/tests/`) | load the `.so` (ext binding → core) |
-| Rust tests (`ffi/rust/`)               | link `libdoppler.a`                 |
+| Harness                                   | reaches `_core.c` via               |
+| ----------------------------------------- | ----------------------------------- |
+| C tests (`native/tests/**/test_*_core.c`) | link the `<obj>_core` OBJECT lib    |
+| Python tests (`src/doppler/**/tests/`)    | load the `.so` (ext binding → core) |
+| Rust tests (`ffi/rust/`)                  | link `libdoppler.a`                 |
 
 Because one `DOPPLER_COVERAGE` build instruments those OBJECT files **once**,
 every consumer carries instrumentation; each harness emits `.profraw`,

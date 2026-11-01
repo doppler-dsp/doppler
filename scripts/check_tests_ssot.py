@@ -206,19 +206,23 @@ def _tracked(*dirs: pathlib.Path) -> set[pathlib.Path]:
     if out.returncode != 0:  # not a checkout (a tarball, say) — scan it all
         found: set[pathlib.Path] = set()
         for d in dirs:
-            found |= set(d.glob("*.c")) | set(d.glob("*.h"))
+            found |= set(d.rglob("*.c")) | set(d.rglob("*.h"))
         return found
     return {ROOT / line for line in out.stdout.split() if line}
 
 
 def sources(*dirs: pathlib.Path) -> list[pathlib.Path]:
-    """Every tracked `.c` and `.h` under `dirs` (default `native/tests/`)."""
+    """Every tracked `.c` and `.h` under `dirs` (default `native/tests/`).
+
+    Recursive: jm's mirrored layout puts each object's test under
+    `native/tests/<obj>/`, so a flat glob would see only the harness.
+    """
     dirs = dirs or (TESTS,)
     keep = _tracked(*dirs)
     out: list[pathlib.Path] = []
     for d in dirs:
         out += [
-            p for p in list(d.glob("*.c")) + list(d.glob("*.h")) if p in keep
+            p for p in list(d.rglob("*.c")) + list(d.rglob("*.h")) if p in keep
         ]
     return sorted(out)
 
@@ -1019,6 +1023,18 @@ def ratchet(base: str) -> list[str]:
         text = show_at(ROOT, base, rel)
         return 0 if text is None else count_assertions(text)
 
+    def moved_to(name: str) -> pathlib.Path | None:
+        """The one file named `name` anywhere under native/tests/, or None.
+
+        A test that moved directories (jm's mirrored layout put each under
+        `native/tests/<obj>/`) keeps its name, so a file missing at its base
+        path is looked up by name. Without this every moved file was
+        skipped as a deletion, and the ratchet compared nothing across the
+        move -- exactly when a badly resolved rebase can drop assertions.
+        """
+        hits = sorted(TESTS.rglob(name))
+        return hits[0] if len(hits) == 1 else None
+
     bad = []
     for rel in (f for f in listing if f.endswith(".c")):
         was = show_at(ROOT, base, rel)
@@ -1026,7 +1042,10 @@ def ratchet(base: str) -> list[str]:
             continue
         now = ROOT / rel
         if not now.exists():
-            continue  # deletion is a visible act, not a silent loss
+            found = moved_to(pathlib.Path(rel).name)
+            if found is None:
+                continue  # deletion is a visible act, not a silent loss
+            now = found
         before, after = (
             count_assertions(was),
             count_assertions(now.read_text()),
@@ -1045,6 +1064,9 @@ def ratchet(base: str) -> list[str]:
             continue  # stated, permanent removal
         drel = f"{TESTS.relative_to(ROOT)}/{dest}"
         dpath = ROOT / drel
+        if not dpath.exists() and (hit := moved_to(dest)) is not None:
+            # The destination is named bare and may have moved since.
+            dpath = hit
         if not dpath.exists():
             bad.append(
                 f"{rel}: excused as moved to {dest}, which does not exist"
@@ -1052,7 +1074,11 @@ def ratchet(base: str) -> list[str]:
             continue
         lost_here = before - after
         moved = lost_here - removed
-        gained = count_assertions(dpath.read_text()) - at_base(drel)
+        # The base had the destination at ONE of the two paths (flat, or
+        # where it sits now), so the other reads zero and the sum is it.
+        here = dpath.relative_to(ROOT).as_posix()
+        then = at_base(drel) + (at_base(here) if here != drel else 0)
+        gained = count_assertions(dpath.read_text()) - then
         if gained < moved:
             bad.append(
                 f"{rel}: -{lost_here} assertions ({removed} stated removed), "
@@ -1069,9 +1095,9 @@ RAW_STDERR = re.compile(r"fprintf\s*\(\s*stderr\b")
 
 
 def raw_stderr() -> list[str]:
-    """Every raw stderr write in native/tests/*.c, except dp_test.h itself."""
+    """Every raw stderr write in native/tests/**/*.c, except dp_test.h."""
     hits: list[str] = []
-    for path in sorted(TESTS.glob("*.c")):
+    for path in sorted(TESTS.rglob("*.c")):
         if path == HEADER:
             continue
         for number, line in enumerate(path.read_text().splitlines(), 1):

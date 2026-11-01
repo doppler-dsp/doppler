@@ -160,8 +160,9 @@ def _publish_tree(root, c_rows, *, with_c=True, sources=("fir", "rs")):
     """A repo-shaped tmp tree: bench sources, and one local snapshot pair."""
     bench = root / "native" / "benchmarks"
     bench.mkdir(parents=True)
-    for x in sources:
-        (bench / f"bench_{x}_core.c").write_text("")
+    for x in sources:  # the mirrored layout: native/benchmarks/<x>/
+        (bench / x).mkdir()
+        (bench / x / f"bench_{x}_core.c").write_text("")
     hist = root / "benchmarks" / "history"
     hist.mkdir(parents=True)
     (hist / "T1.json").write_text('{"benchmarks": []}')
@@ -248,8 +249,10 @@ def _fake_interleaved(inter, monkeypatch, tmp_path, c_names):
     """Stub every slow or machine-bound step; the C passes record c_names."""
     bench = tmp_path / "native" / "benchmarks"
     bench.mkdir(parents=True)
+    # The mirrored layout the tree uses: native/benchmarks/<x>/bench_<x>_core.c
     for x in ("fir", "rs"):
-        (bench / f"bench_{x}_core.c").write_text("")
+        (bench / x).mkdir()
+        (bench / x / f"bench_{x}_core.c").write_text("")
     published = tmp_path / "published"
     monkeypatch.setattr(inter, "BENCH_SRC", str(bench))
     monkeypatch.setattr(inter, "PUBLISHED", str(published))

@@ -30,8 +30,8 @@ target_link_libraries(ddcr_core PUBLIC
     hbdecim_r2c_core)
 
 add_executable(test_ddcr_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_ddcr_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_ddcr_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/ddcr/test_ddcr_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/ddcr/test_ddcr_symbols.c)
 target_link_libraries(test_ddcr_core
                       PRIVATE ddcr_core lo_core
     RateConverter_core
@@ -45,12 +45,13 @@ target_link_libraries(test_ddcr_core
     hbdecim_r2c_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_ddcr_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_ddcr_core COMMAND test_ddcr_core)
 
 add_executable(
   bench_ddcr_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_ddcr_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/ddcr/bench_ddcr_core.c)
 target_link_libraries(bench_ddcr_core
                       PRIVATE ddcr_core lo_core
     RateConverter_core

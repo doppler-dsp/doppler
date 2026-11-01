@@ -1056,7 +1056,8 @@ def review(d: Data) -> None:
         "FIXED",
         "The non-coherent trio — `det_threshold_noncoherent`, "
         "`det_pd_noncoherent`, `det_n_noncoh` — had **zero** mentions in "
-        "`native/tests/test_detection_core.c`. The coverage existed, in "
+        "`native/tests/detection/test_detection_core.c`. The coverage "
+        "existed, in "
         "`test_detection.py`, which is real evidence in the wrong language "
         "for an object whose header is the SSOT — and these three are what "
         "`acq_core.c` sizes its entire (coherent depth, look count) split "

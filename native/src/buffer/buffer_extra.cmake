@@ -5,8 +5,10 @@
 # interrupt flag, whose one definition lives in the core. These targets embed
 # objects rather than linking libdoppler, so they need it named here.
 add_executable(test_buffer_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_buffer_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/buffer/test_buffer_core.c
                $<TARGET_OBJECTS:dp_interrupt_obj>)
+target_include_directories(test_buffer_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
 # Threads: the end-of-stream ordering can only be exercised with a consumer
 # already spinning while the producer writes and closes.
 find_package(Threads REQUIRED)
@@ -18,7 +20,7 @@ add_test(NAME test_buffer_core COMMAND test_buffer_core)
 # The framed face (DECLARE_DP_BUFFER_FRAMES) is header-only like the ring it
 # sits on, so its test lives beside test_buffer_core for the same reason.
 add_executable(test_framer_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_framer_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/buffer/test_framer_core.c
                $<TARGET_OBJECTS:dp_interrupt_obj>)
 target_include_directories(test_framer_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

@@ -2,10 +2,10 @@
 
 Run: pytest src/doppler/detection/benchmarks/bench_syncword.py --benchmark-only
 
-`native/benchmarks/bench_syncword_core.c` measures the kernel and its scaling
-with marker length. What only this face can show is what a Python receiver
-actually pays: the per-call binding cost, and whether it matters against a
-search window a synchroniser would really sweep.
+`native/benchmarks/syncword/bench_syncword_core.c` measures the kernel and its
+scaling with marker length. What only this face can show is what a Python
+receiver actually pays: the per-call binding cost, and whether it matters
+against a search window a synchroniser would really sweep.
 
 The searches are for a marker that is NOT in the stream, which is the case a
 receiver hunting for lock is in — every offset examined, no early exit.

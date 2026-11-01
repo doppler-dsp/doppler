@@ -19,17 +19,18 @@ target_include_directories(
                        ${CMAKE_SOURCE_DIR}/native/inc/doppler/acc_cf64)
 
 add_executable(test_acc_cf64_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_acc_cf64_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_acc_cf64_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/acc_cf64/test_acc_cf64_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/acc_cf64/test_acc_cf64_symbols.c)
 target_link_libraries(test_acc_cf64_core
                       PRIVATE acc_cf64_core ${JM_MATH_LIBRARY})
 target_include_directories(test_acc_cf64_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_acc_cf64_core COMMAND test_acc_cf64_core)
 
 add_executable(
   bench_acc_cf64_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_acc_cf64_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/acc_cf64/bench_acc_cf64_core.c)
 target_link_libraries(bench_acc_cf64_core
                       PRIVATE acc_cf64_core ${JM_MATH_LIBRARY})
 target_include_directories(

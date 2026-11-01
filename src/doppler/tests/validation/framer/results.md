@@ -24,7 +24,7 @@ The framed face of the ring (`DECLARE_DP_BUFFER_FRAMES`): any chunk in, fixed an
 Design and API, not restated here:
 
 - `native/inc/doppler/buffer/buffer.h` — the SSOT for every claim below
-- `native/tests/test_framer_core.c` — the C pins
+- `native/tests/buffer/test_framer_core.c` — the C pins
 - [The Ring Buffer](../../../../../docs/design/ring-buffer.md) — the framer's section, and the ring it is a face of
 - the spectrogram program it was built for, tracked in #1894
 - `native/validation/framer_certify.c` — the runs below
@@ -190,4 +190,4 @@ Claims a caller may rely on, asserted by this run.
 
 - **6 findings**, 0 of them gaps or confirmed defects — none left
 - **19/19 limits** hold
-- The runs behind §2 are `native/validation/framer_certify.c`, emitted as CSV; the pins are `native/tests/test_framer_core.c`.
+- The runs behind §2 are `native/validation/framer_certify.c`, emitted as CSV; the pins are `native/tests/buffer/test_framer_core.c`.

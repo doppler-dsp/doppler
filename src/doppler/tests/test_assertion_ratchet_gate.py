@@ -134,3 +134,38 @@ def test_removes_is_not_read_from_the_reason(
     merely states a number must not."""
     bad = _run(gate, 0, 3, "a.c -> b.c  -1: one pinned a deleted function")
     assert bad and "went nowhere" in bad[0], bad
+
+
+@pytest.mark.parametrize(("n", "red"), [(4, False), (3, True)])
+def test_a_file_that_moved_directory_is_still_compared(
+    gate: tuple[Path, ModuleType], n: int, red: bool
+) -> None:
+    """jm's mirrored layout moves `native/tests/a.c` to
+    `native/tests/<obj>/a.c`. The base path then no longer exists, and the
+    ratchet used to read that as a deletion and compare nothing, so a move
+    that also dropped an assertion passed. It is now found by name."""
+    tests, mod = gate
+    (tests / "a.c").unlink()
+    (tests / "obj").mkdir()
+    (tests / "obj" / "a.c").write_text(_body(n), encoding="utf-8")
+    bad: list[str] = mod.ratchet("HEAD")
+    assert bool(bad) is red, bad
+
+
+@pytest.mark.parametrize(("b", "red"), [(4, False), (3, True)])
+def test_a_move_destination_that_moved_directory_is_found(
+    gate: tuple[Path, ModuleType], b: int, red: bool
+) -> None:
+    """An entry names its destination bare (`a.c -> b.c`). When b.c has
+    since moved under a directory, the move is still checked against it,
+    rather than failing as a destination that does not exist."""
+    tests, mod = gate
+    (tests / "a.c").write_text(_body(0), encoding="utf-8")
+    (tests / "b.c").unlink()
+    (tests / "obj").mkdir()
+    (tests / "obj" / "b.c").write_text(_body(b), encoding="utf-8")
+    (tests / ".assertion-ratchet-ignore").write_text(
+        "a.c -> b.c  split out\n", encoding="utf-8"
+    )
+    bad: list[str] = mod.ratchet("HEAD")
+    assert bool(bad) is red, bad

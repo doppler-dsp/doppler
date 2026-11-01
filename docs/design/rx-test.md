@@ -1012,7 +1012,7 @@ Ordered so that nothing depends on an unpinned measurement:
 
 1. ~~**Pin the trio**~~ **DONE** (§5.1). `dp_ber_align_detect`,
     `dp_ber_evm_db`, `dp_snr_m2m4_db` — known-answer tests plus sabotage, and
-    `native/tests/test_snr_core.c` for the module that had none.
+    `native/tests/snr/test_snr_core.c` for the module that had none.
 1. ~~**Test the five untested harness headers**~~ **DONE** (§5.2) — all five,
     plus `dp_test.h`, the foundation the original list did not include and the
     one that mattered most. `dp_rx_test.h` is the only member still without a

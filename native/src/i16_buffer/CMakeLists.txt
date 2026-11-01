@@ -22,18 +22,19 @@ target_link_libraries(i16_buffer_core INTERFACE
     dp_interrupt_guard_core)
 
 add_executable(test_i16_buffer_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_i16_buffer_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_i16_buffer_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/i16_buffer/test_i16_buffer_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/i16_buffer/test_i16_buffer_symbols.c)
 target_link_libraries(test_i16_buffer_core
                       PRIVATE i16_buffer_core dp_interrupt_guard_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_i16_buffer_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_i16_buffer_core COMMAND test_i16_buffer_core)
 
 add_executable(
   bench_i16_buffer_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_i16_buffer_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/i16_buffer/bench_i16_buffer_core.c)
 target_link_libraries(bench_i16_buffer_core
                       PRIVATE i16_buffer_core dp_interrupt_guard_core
     ${JM_MATH_LIBRARY})

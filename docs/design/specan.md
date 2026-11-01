@@ -220,7 +220,7 @@ stream stops first. A negative `n` raises `ValueError`.
 
 ## How it is checked
 
-All in `native/tests/test_specan_core.c`, over eleven RBWs from a 2048-point
+All in `native/tests/specan/test_specan_core.c`, over eleven RBWs from a 2048-point
 window (250 Hz) to the 16-point minimum (60 kHz, padded 32×). Four of them
 (250, 500, 1000 and 2000 Hz at `fs_out` = 256 kHz) are exactly the
 `fs_out/2^k` case.

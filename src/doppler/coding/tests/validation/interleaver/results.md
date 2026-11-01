@@ -27,7 +27,7 @@ Design and API, not restated here:
 | `native/inc/doppler/interleaver/interleaver_core.h` | the SSOT for every claim below |
 | `native/inc/doppler/dp_interleave.h` | the permutation itself, and why the unit is a parameter |
 | [Interleaving](../../../../../../docs/design/interleaving.md) | what it buys, the three ways to get it wrong, where it sits in a frame |
-| `native/tests/test_interleaver_core.c` | the object's C certification |
+| `native/tests/interleaver/test_interleaver_core.c` | the object's C certification |
 | `native/tests/test_dp_interleave.c` | the permutation's C certification, against its index map |
 | `native/validation/interleave_burst_gain.c` | the coding gain in C, over the same RS(255,223) |
 | `src/doppler/examples/interleave_burst_demo.py` | the runnable demonstration, with the bound asserted |

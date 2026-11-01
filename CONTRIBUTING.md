@@ -168,17 +168,17 @@ make jm-apply
 This syncs the pinned jm and regenerates everything the manifest owns.
 For a new object it also creates the hand-owned stubs once:
 
-| file                                        | owner                     |
-| ------------------------------------------- | ------------------------- |
-| `native/inc/doppler/boxcar/boxcar_core.h`   | **you** (created once)    |
-| `native/src/boxcar/boxcar_core.c`           | **you** (created once)    |
-| `native/tests/test_boxcar_core.c`           | **you** (skeleton)        |
-| `native/benchmarks/bench_boxcar_core.c`     | **you** (skeleton)        |
-| `native/src/filter/filter_ext_boxcar.c`     | jm (`/* jm:generated */`) |
-| `native/src/filter/filter_ext.c`            | jm                        |
-| `native/src/{boxcar,filter}/CMakeLists.txt` | jm                        |
-| `src/doppler/filter/filter.pyi`             | jm                        |
-| `src/doppler/filter/__init__.py`            | jm                        |
+| file                                           | owner                     |
+| ---------------------------------------------- | ------------------------- |
+| `native/inc/doppler/boxcar/boxcar_core.h`      | **you** (created once)    |
+| `native/src/boxcar/boxcar_core.c`              | **you** (created once)    |
+| `native/tests/boxcar/test_boxcar_core.c`       | **you** (skeleton)        |
+| `native/benchmarks/boxcar/bench_boxcar_core.c` | **you** (skeleton)        |
+| `native/src/filter/filter_ext_boxcar.c`        | jm (`/* jm:generated */`) |
+| `native/src/filter/filter_ext.c`               | jm                        |
+| `native/src/{boxcar,filter}/CMakeLists.txt`    | jm                        |
+| `src/doppler/filter/filter.pyi`                | jm                        |
+| `src/doppler/filter/__init__.py`               | jm                        |
 
 `make jm-apply` syncs the dev group without the project, which removes the
 editable `doppler-dsp` from the venv: run `make pyext` before the next
@@ -216,7 +216,7 @@ make test-python TEST_PATHS=src/doppler/filter/tests/test_boxcar.py
 make test-stubs                                # the header @code doctests
 ```
 
-C tests go in `native/tests/test_<obj>_core.c`; Python integration tests
+C tests go in `native/tests/<obj>/test_<obj>_core.c`; Python integration tests
 in `src/doppler/<module>/tests/`. A serializable object is tested in both
 harnesses: a C round-trip with `DP_STATE_ROUNDTRIP_TEST` from
 `native/tests/dp_state_test.h`, and an entry in the Python matrix

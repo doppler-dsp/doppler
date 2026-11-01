@@ -468,7 +468,7 @@ def build(write: bool = True) -> Report:
     R.md(
         "- `native/inc/doppler/buffer/buffer.h` — the SSOT for every claim "
         "below\n"
-        "- `native/tests/test_framer_core.c` — the C pins\n"
+        "- `native/tests/buffer/test_framer_core.c` — the C pins\n"
         "- [The Ring Buffer](../../../../../docs/design/ring-buffer.md) — the "
         "framer's section, and the ring it is a face of\n"
         "- the spectrogram program it was built for, tracked in #1894\n"
@@ -683,7 +683,8 @@ def build(write: bool = True) -> Report:
     )
     R.summary(
         "\n- The runs behind §2 are `native/validation/framer_certify.c`, "
-        "emitted as CSV; the pins are `native/tests/test_framer_core.c`."
+        "emitted as CSV; the pins are "
+        "`native/tests/buffer/test_framer_core.c`."
     )
     if write:
         R.emit(HERE / "results.md")

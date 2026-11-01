@@ -10,7 +10,7 @@ guaranteed to do under any input, and — the part that took measurement
 rather than reading — what it cannot know.
 
 The contract itself lives in `native/inc/doppler/agc/agc_core.h`, and the C-level
-evidence in `native/tests/test_agc_core.c`. This page does not restate
+evidence in `native/tests/agc/test_agc_core.c`. This page does not restate
 either; it explains the reasoning they assume.
 
 Related: [MPSK Receiver](mpsk.md), [Telemetry](telemetry.md),

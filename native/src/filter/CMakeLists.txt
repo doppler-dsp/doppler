@@ -38,7 +38,7 @@ add_custom_command(TARGET filter POST_BUILD
 endif()
 
 add_executable(test_filter_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_filter_core.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/filter/test_filter_core.c)
 target_link_libraries(test_filter_core PRIVATE
     filter_core
     fir_core
@@ -47,7 +47,8 @@ target_link_libraries(test_filter_core PRIVATE
     resample_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_filter_core
-    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_filter_core COMMAND test_filter_core)
 
 # Your own CMake for this directory goes in filter_extra.cmake beside this

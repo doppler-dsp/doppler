@@ -195,7 +195,7 @@ ______________________________________________________________________
     `nats://` endpoints. Add integration tests in
     `src/doppler/stream/tests/test_stream.py` parametrized over `tcp://` vs
     `nats://`.
-- **C tests:** `native/tests/test_stream_nats_core.c` — connect, pub/sub
+- **C tests:** `native/tests/stream/test_stream_nats_core.c` — connect, pub/sub
     round-trip, chunked >1 MB block reassembly, JetStream work-queue
     load-balance + ack, `natsMsg` lifetime (no leak/double-free). These need a live
     broker (unlike the in-process ZMQ tests).
@@ -261,7 +261,7 @@ ______________________________________________________________________
 - `native/src/stream/stream_ext.c` + `src/doppler/stream/tests/test_stream.py` —
     Python integration tests over `tcp://` vs `nats://`
 - `native/src/wfm/wfm_sink.c` — `nats://` sink path
-- `native/tests/test_stream_nats_core.c` — **new** C tests
+- `native/tests/stream/test_stream_nats_core.c` — **new** C tests
 - `deploy/helm/**`, `deploy/keda/**`, `deploy/docker/**` — **new** k8s/autoscale
 - `.github/workflows/ci.yml` — `nats-server -js` service for stream tests
 - `Dockerfile` / `docker-compose.yml` — NATS-based images + local dev

@@ -11,8 +11,8 @@ turns for a lower noise floor, and the one whose price they want to know.
 `analyze_complex` is measured beside `analyze` because it is a different
 transform, not a wrapper: a real capture folds, a complex one does not.
 
-The C benchmark (``native/benchmarks/bench_tonemeas_core.c``) sweeps the
-same three sizes over the same stimulus; the gap between the two faces is
+The C benchmark (``native/benchmarks/tonemeas/bench_tonemeas_core.c``) sweeps
+the same three sizes over the same stimulus; the gap between the two faces is
 the binding's per-call overhead, which is what a Python benchmark is for.
 """
 

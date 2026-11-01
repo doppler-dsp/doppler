@@ -41,7 +41,7 @@ add_custom_command(TARGET ccsds POST_BUILD
 endif()
 
 add_executable(test_ccsds_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_ccsds_core.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/ccsds/test_ccsds_core.c)
 target_link_libraries(test_ccsds_core PRIVATE
     ccsds_core
     ccsds_tm_core
@@ -53,11 +53,12 @@ target_link_libraries(test_ccsds_core PRIVATE
     gold_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_ccsds_core
-    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_ccsds_core COMMAND test_ccsds_core)
 
 add_executable(bench_ccsds_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_ccsds_core.c)
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/ccsds/bench_ccsds_core.c)
 target_link_libraries(bench_ccsds_core PRIVATE
     ccsds_core
     ccsds_tm_core

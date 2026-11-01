@@ -13,7 +13,7 @@ add_library(rs_core OBJECT
 target_include_directories(rs_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 add_executable(test_rs_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_rs_core.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/rs/test_rs_core.c)
 # No ccsds_tm: this test's external truth is the code's own distance -- E
 # errors corrected, E+1 never recovered -- which holds for every
 # configuration.
@@ -27,7 +27,7 @@ add_test(NAME test_rs_core COMMAND test_rs_core)
 # The benchmark. Hand-registered because `rs` is a c_dep and not one of jm's
 # components -- see the note in native/src/conv/CMakeLists.txt.
 add_executable(bench_rs_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_rs_core.c)
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/rs/bench_rs_core.c)
 target_link_libraries(bench_rs_core PRIVATE rs_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_rs_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc

@@ -27,7 +27,7 @@ limits.
 
 **The AGC's limits are the binding's, not the algorithm's.** doppler is
 a C library, so every claim here is certified in
-`native/tests/test_agc_core.c` §1-§24 first; the report measures the same
+`native/tests/agc/test_agc_core.c` §1-§24 first; the report measures the same
 properties through `doppler.agc.AGC` to prove the binding delivers them.
 See `docs/dev/contributing/validation.md` for the order and why it is not
 negotiable.

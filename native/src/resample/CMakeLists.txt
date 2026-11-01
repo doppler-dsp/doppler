@@ -46,7 +46,7 @@ add_custom_command(TARGET resample POST_BUILD
 endif()
 
 add_executable(test_resample_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_resample_core.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/resample/test_resample_core.c)
 target_link_libraries(test_resample_core PRIVATE
     resample_core
     Resampler_core
@@ -63,7 +63,8 @@ target_link_libraries(test_resample_core PRIVATE
     dp_tlm_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_resample_core
-    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_resample_core COMMAND test_resample_core)
 
 # Your own CMake for this directory goes in resample_extra.cmake beside this

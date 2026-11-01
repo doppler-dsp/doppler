@@ -21,18 +21,19 @@ target_link_libraries(agc_core PUBLIC
     dp_tlm_core)
 
 add_executable(test_agc_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_agc_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_agc_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/agc/test_agc_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/agc/test_agc_symbols.c)
 target_link_libraries(test_agc_core
                       PRIVATE agc_core dp_tlm_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_agc_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_agc_core COMMAND test_agc_core)
 
 add_executable(
   bench_agc_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_agc_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/agc/bench_agc_core.c)
 target_link_libraries(bench_agc_core
                       PRIVATE agc_core dp_tlm_core
     ${JM_MATH_LIBRARY})

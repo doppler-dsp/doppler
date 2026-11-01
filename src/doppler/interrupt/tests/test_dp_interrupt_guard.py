@@ -1,7 +1,7 @@
 """The Python face of the interrupt facility.
 
-The C tests (`native/tests/test_dp_interrupt_guard_core.c`) pin the
-bookkeeping; these pin what the binding delivers of it, which is a
+The C tests (`native/tests/dp_interrupt_guard/test_dp_interrupt_guard_core.c`)
+pin the bookkeeping; these pin what the binding delivers of it, which is a
 different claim. Both exist because the guard's logic used to live in the
 binding, where only this half could reach it.
 """

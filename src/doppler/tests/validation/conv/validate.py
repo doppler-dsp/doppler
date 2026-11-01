@@ -28,7 +28,7 @@ number is acceptable.
 
 The campaign's order still holds and came first:
 `native/inc/doppler/conv/conv_core.h`
-is the SSOT, `native/tests/test_conv_core.c` certifies it in C, and §1's
+is the SSOT, `native/tests/conv/test_conv_core.c` certifies it in C, and §1's
 claim table is the inventory that produced four new C sections.
 """
 
@@ -443,7 +443,7 @@ def build(write: bool = True) -> Report:
     R.md(
         "- `native/inc/doppler/conv/conv_core.h` — the SSOT for every claim "
         "below\n"
-        "- `native/tests/test_conv_core.c` — the C certification\n"
+        "- `native/tests/conv/test_conv_core.c` — the C certification\n"
         "- [The Viterbi Decoder](../../../../../docs/design/viterbi.md) — "
         "the trellis, the branch metric, the traceback depth and node "
         "synchronization\n"

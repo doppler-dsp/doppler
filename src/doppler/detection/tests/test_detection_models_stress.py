@@ -85,8 +85,8 @@ def test_the_chi_square_gate_really_is_the_looser_one():
     chi-square gate lets through materially more than it priced.
 
     Asserted as an inequality rather than a ratio — the 41x itself is pinned
-    exactly in `native/tests/test_detection_core.c`, where no draw count is
-    involved and it cannot be a statistical accident.
+    exactly in `native/tests/detection/test_detection_core.c`, where no draw
+    count is involved and it cannot be a statistical accident.
     """
     pfa = 3e-2
     n = 16

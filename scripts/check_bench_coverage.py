@@ -82,7 +82,7 @@ Rules
 1. COVERAGE -- every `native/inc/<c>/` with a C test has a C benchmark.
    A module umbrella header with no test of its own is exempt by
    construction: its objects carry the tests and the benchmarks.
-2. BUILDABILITY -- every `native/benchmarks/bench_<x>_core.c` for a
+2. BUILDABILITY -- every `native/benchmarks/<x>/bench_<x>_core.c` for a
    NON-component has a CMake target, since jm generates one only for
    components and nothing can run what CMake does not declare. `jm bench`
    then runs them by discovering the built targets (just-makeit#1023).
@@ -382,6 +382,11 @@ def jm_components() -> set[str]:
 def _attribute(path: Path, prefix: str, names: set[str]) -> str | None:
     """Which component does `<prefix>_<stem>.c` belong to?
 
+    By FILENAME, wherever the file sits: jm's mirrored layout puts most TUs
+    under `native/{tests,benchmarks}/<dir>/`, but a module-level or composed
+    one (`test_framer_core.c` under `buffer/`) does not share its directory's
+    name, so the directory is not the attribution.
+
     LONGEST match, and that is the whole subtlety. A glob is wrong here:
     `bench_mpsk_*.c` matches `bench_mpsk_receiver_core.c`, so the first
     version of this gate credited the `mpsk` constellation kernels with
@@ -404,7 +409,7 @@ def tested(names: set[str]) -> set[str]:
     component tested in five files is more thoroughly exercised than one
     tested in a single file, not less.
     """
-    got = {_attribute(p, "test", names) for p in TESTS.glob("test_*.c")}
+    got = {_attribute(p, "test", names) for p in TESTS.rglob("test_*.c")}
     return got - {None}
 
 
@@ -416,7 +421,7 @@ def benched(names: set[str]) -> set[str]:
     target because it needs a live NATS broker, and that is measurement
     that happens -- which is the only thing this gate is asking about.
     """
-    got = {_attribute(p, "bench", names) for p in BENCH.glob("bench_*.c")}
+    got = {_attribute(p, "bench", names) for p in BENCH.rglob("bench_*.c")}
     return got - {None}
 
 
@@ -459,13 +464,14 @@ def main() -> int:
         if d in have_bench or d in ALLOW:
             continue
         failures.append(
-            f"{d}: has C tests (native/tests/test_{d}_*.c) and no benchmark. "
-            f"Write native/benchmarks/bench_{d}_core.c, or add {d} to ALLOW "
+            f"{d}: has C tests (native/tests/**/test_{d}_*.c) and no "
+            f"benchmark. Write native/benchmarks/{d}/bench_{d}_core.c, or "
+            f"add {d} to ALLOW "
             "in this file with the reason it cannot be measured."
         )
 
     # Rule 2 -- benchmarked implies run.
-    for p in sorted(BENCH.glob("bench_*_core.c")):
+    for p in sorted(BENCH.rglob("bench_*_core.c")):
         name = p.name[len("bench_") : -len("_core.c")]
         if name in comps:
             continue  # jm builds and runs it
@@ -481,7 +487,7 @@ def main() -> int:
     # calls `jm_bench_add` writes an empty array, so the component vanishes
     # from the snapshot while every other signal (the file exists, the target
     # builds, jm runs it, `jm status --check` is clean) says it is covered.
-    for p in sorted(BENCH.glob("bench_*.c")):
+    for p in sorted(BENCH.rglob("bench_*.c")):
         comp = _attribute(p, "bench", names)
         if comp is None or comp in HOLLOW_ALLOW:
             continue
@@ -525,7 +531,7 @@ def main() -> int:
     # which nothing opens -- the binary runs, prints its table, and vanishes.
     # Two of the four never-run benchmarks had exactly this, undetectable
     # until something executed them.
-    for p in sorted(BENCH.glob("bench_*_core.c")):
+    for p in sorted(BENCH.rglob("bench_*_core.c")):
         comp = _attribute(p, "bench", names)
         if comp is None:
             continue
@@ -559,7 +565,7 @@ def main() -> int:
     for comp in sorted(ALLOW):
         if comp in have_bench:
             failures.append(
-                f"{comp}: is in ALLOW but native/benchmarks/bench_{comp}"
+                f"{comp}: is in ALLOW but native/benchmarks/**/bench_{comp}"
                 "_*.c now exists. Delete its line — the ratchet may only "
                 "shrink."
             )
@@ -573,8 +579,11 @@ def main() -> int:
     # A ratchet may only shrink: an entry for a component that now records a
     # measurement, or has no benchmark at all, is stale and must be deleted.
     for comp in sorted(HOLLOW_ALLOW):
-        p = BENCH / f"bench_{comp}_core.c"
-        if p.exists() and _ADD_CALL.search(p.read_text(encoding="utf-8")):
+        # Found by name, not by a flat path: under jm's mirrored layout the
+        # file is native/benchmarks/<dir>/, and a flat path that never
+        # exists would let a stale entry pass forever.
+        p = next(BENCH.rglob(f"bench_{comp}_core.c"), None)
+        if p and _ADD_CALL.search(p.read_text(encoding="utf-8")):
             failures.append(
                 f"{comp}: is in HOLLOW_ALLOW but bench_{comp}_core.c now "
                 "records a measurement. Delete its line — the ratchet may "
@@ -628,7 +637,7 @@ def main() -> int:
     n_extra = len(
         {
             p.name[len("bench_") : -len("_core.c")]
-            for p in BENCH.glob("bench_*_core.c")
+            for p in BENCH.rglob("bench_*_core.c")
         }
         - comps
     )

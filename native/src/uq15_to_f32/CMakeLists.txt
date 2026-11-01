@@ -19,17 +19,18 @@ target_include_directories(
                           ${CMAKE_SOURCE_DIR}/native/inc/doppler/uq15_to_f32)
 
 add_executable(test_uq15_to_f32_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_uq15_to_f32_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_uq15_to_f32_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/uq15_to_f32/test_uq15_to_f32_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/uq15_to_f32/test_uq15_to_f32_symbols.c)
 target_link_libraries(test_uq15_to_f32_core
                       PRIVATE uq15_to_f32_core ${JM_MATH_LIBRARY})
 target_include_directories(test_uq15_to_f32_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_uq15_to_f32_core COMMAND test_uq15_to_f32_core)
 
 add_executable(
   bench_uq15_to_f32_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_uq15_to_f32_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/uq15_to_f32/bench_uq15_to_f32_core.c)
 target_link_libraries(bench_uq15_to_f32_core
                       PRIVATE uq15_to_f32_core ${JM_MATH_LIBRARY})
 target_include_directories(

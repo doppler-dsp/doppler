@@ -353,7 +353,7 @@ ______________________________________________________________________
 
 ## Step 6 — Write C tests
 
-Open `native/tests/test_<component>_core.c` (generated skeleton) and add
+Open `native/tests/<component>/test_<component>_core.c` (generated skeleton) and add
 test cases using the [Unity](https://github.com/ThrowTheSwitch/Unity) test
 framework that the project ships:
 
@@ -610,7 +610,7 @@ ______________________________________________________________________
 ## Step 10b — The C benchmark, and when you must write it yourself
 
 For an **object**, this step is free: `jm apply` scaffolds
-`native/benchmarks/bench_<component>_core.c` in Step 3, generates its CMake
+`native/benchmarks/<component>/bench_<component>_core.c` in Step 3, generates its CMake
 target, and `jm bench` builds and runs it because the object is one of jm's
 components.
 

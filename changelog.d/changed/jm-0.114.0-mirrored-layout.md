@@ -1,3 +1,5 @@
-- **just-makeit pin 0.112.0 → 0.114.0: a destroyed object raises instead of
-    reaching C with a NULL handle.** Every generated method now checks the
-    handle first and raises `RuntimeError("destroyed")` after `close()`.
+- **just-makeit pin 0.112.0 → 0.114.0: each object's C test and benchmark
+    now sits in a directory named for it.** `layout = "mirrored"` moved 311
+    files to `native/tests/<obj>/` and `native/benchmarks/<obj>/`, beside
+    `native/inc/doppler/<obj>/`. Generated methods also raise
+    `RuntimeError("destroyed")` after `close()` instead of reaching C.

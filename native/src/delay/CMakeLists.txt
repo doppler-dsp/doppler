@@ -19,17 +19,18 @@ target_include_directories(
                     ${CMAKE_SOURCE_DIR}/native/inc/doppler/delay)
 
 add_executable(test_delay_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_delay_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_delay_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/delay/test_delay_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/delay/test_delay_symbols.c)
 target_link_libraries(test_delay_core
                       PRIVATE delay_core ${JM_MATH_LIBRARY})
 target_include_directories(test_delay_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_delay_core COMMAND test_delay_core)
 
 add_executable(
   bench_delay_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_delay_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/delay/bench_delay_core.c)
 target_link_libraries(bench_delay_core
                       PRIVATE delay_core ${JM_MATH_LIBRARY})
 target_include_directories(

@@ -25,8 +25,8 @@ target_link_libraries(wfm_reader_core PUBLIC
     wfm_draw_core)
 
 add_executable(test_wfm_reader_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/wfm_reader/test_wfm_reader_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/wfm_reader/test_wfm_reader_symbols.c)
 target_link_libraries(test_wfm_reader_core
                       PRIVATE wfm_reader_core dp_interrupt_guard_core
     wfm_cjson_core
@@ -35,12 +35,13 @@ target_link_libraries(test_wfm_reader_core
     wfm_draw_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_wfm_reader_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_wfm_reader_core COMMAND test_wfm_reader_core)
 
 add_executable(
   bench_wfm_reader_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_reader_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/wfm_reader/bench_wfm_reader_core.c)
 target_link_libraries(bench_wfm_reader_core
                       PRIVATE wfm_reader_core dp_interrupt_guard_core
     wfm_cjson_core

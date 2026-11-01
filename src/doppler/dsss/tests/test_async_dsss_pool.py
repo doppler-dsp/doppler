@@ -2,8 +2,9 @@
 status record, symbols, the threads mutator and reset.
 
 The controller's rules (exclusions, ranks, duplicates, releases) and their
-sabotages are the C suite's, ``native/tests/test_async_dsss_pool_core.c``;
-the state round trip is in the shared matrix,
+sabotages are the C suite's,
+``native/tests/async_dsss_pool/test_async_dsss_pool_core.c``; the state round
+trip is in the shared matrix,
 ``src/doppler/tests/test_state_serialization.py``. This file checks what the
 binding adds: the Python face reaches each of those C entry points.
 """

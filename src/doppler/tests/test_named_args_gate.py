@@ -1074,7 +1074,7 @@ def test_the_real_trees_helpers_are_discovered() -> None:
     assert errs == [], errs
     gated = g._enumerators(names)
     want = {
-        "native/tests/test_spectrogram_core.c": {
+        "native/tests/spectrogram/test_spectrogram_core.c": {
             "ref_psd": (3, {1: _W}),
             "ref_row": (4, {1: _M}),
             "oneshot": (7, {0: _M, 3: _W}),
@@ -1089,7 +1089,9 @@ def test_the_real_trees_helpers_are_discovered() -> None:
             "oracle": (6, {0: _M, 3: _W}),
             "partition": (11, {0: _M, 3: _W}),
         },
-        "native/benchmarks/bench_spectrogram_core.c": {"add": (8, {7: _M})},
+        "native/benchmarks/spectrogram/bench_spectrogram_core.c": {
+            "add": (8, {7: _M})
+        },
     }
     for rel, rows in want.items():
         text = (REPO / rel).read_text(encoding="utf-8")

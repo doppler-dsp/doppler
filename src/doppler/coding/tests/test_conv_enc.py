@@ -1,6 +1,6 @@
 """Binding-level tests for ``doppler.coding.ConvEncoder``.
 
-The ALGORITHM is pinned in C: ``native/tests/test_conv_core.c`` holds the
+The ALGORITHM is pinned in C: ``native/tests/conv/test_conv_core.c`` holds the
 encoder to its IMPULSE RESPONSE — drive a 1 and output ``j`` must trace
 ``poly[j]``, which is what a generator polynomial *means* — and
 ``test_conv_enc_core.c`` holds the object to the kernel it calls. Repeating

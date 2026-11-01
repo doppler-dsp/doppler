@@ -19,9 +19,9 @@
 7 native/src/acquire/acquire_ext_acq.c
 1 native/src/track/track_ext_dll.c
 1 native/tests/.assertion-ratchet-ignore
-4 native/tests/test_acq_core.c
-2 native/tests/test_dll_core.c
-4 native/tests/test_mpsk_core.c
+4 native/tests/acq/test_acq_core.c
+2 native/tests/dll/test_dll_core.c
+4 native/tests/mpsk/test_mpsk_core.c
 1 native/validation/acq_block_coherent.c
 3 native/validation/ratesync_scurve.c
 9 objects/acq.toml

@@ -23,20 +23,21 @@ target_link_libraries(frame_meter_core PUBLIC
     detection_core)
 
 add_executable(test_frame_meter_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_frame_meter_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_frame_meter_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/frame_meter/test_frame_meter_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/frame_meter/test_frame_meter_symbols.c)
 target_link_libraries(test_frame_meter_core
                       PRIVATE frame_meter_core ber_core
     ber_meter_core
     detection_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_frame_meter_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_frame_meter_core COMMAND test_frame_meter_core)
 
 add_executable(
   bench_frame_meter_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_frame_meter_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/frame_meter/bench_frame_meter_core.c)
 target_link_libraries(bench_frame_meter_core
                       PRIVATE frame_meter_core ber_core
     ber_meter_core

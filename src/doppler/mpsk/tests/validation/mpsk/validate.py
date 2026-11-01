@@ -11,7 +11,7 @@ which runs this same `build(write=False)`.
 
 The order is the campaign's, not this file's:
 `native/inc/doppler/mpsk/mpsk_core.h` is the SSOT,
-`native/tests/test_mpsk_core.c` certifies it in C, and
+`native/tests/mpsk/test_mpsk_core.c` certifies it in C, and
 `native/validation/mpsk_diff_penalty.c` measures the differential penalty
 by Monte Carlo. This file measures the same properties through
 `doppler.mpsk` to show the binding delivers them.
@@ -182,7 +182,7 @@ def section_object() -> None:
         "`mpsk_gray_decode` are inline in the header with no binding, and "
         "the decision `ahat` — whose `Im(y·conj(ahat))` is the "
         "decision-directed carrier error — is a C-only output. They are "
-        "certified in `native/tests/test_mpsk_core.c`; nothing below "
+        "certified in `native/tests/mpsk/test_mpsk_core.c`; nothing below "
         "measures them, and a report that did not say so would be "
         "claiming coverage it does not have."
     )

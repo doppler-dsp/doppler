@@ -19,17 +19,18 @@ target_include_directories(
                   ${CMAKE_SOURCE_DIR}/native/inc/doppler/cic)
 
 add_executable(test_cic_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_cic_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_cic_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/cic/test_cic_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/cic/test_cic_symbols.c)
 target_link_libraries(test_cic_core
                       PRIVATE cic_core ${JM_MATH_LIBRARY})
 target_include_directories(test_cic_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_cic_core COMMAND test_cic_core)
 
 add_executable(
   bench_cic_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_cic_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/cic/bench_cic_core.c)
 target_link_libraries(bench_cic_core
                       PRIVATE cic_core ${JM_MATH_LIBRARY})
 target_include_directories(

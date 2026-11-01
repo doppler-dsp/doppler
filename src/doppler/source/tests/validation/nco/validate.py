@@ -236,8 +236,8 @@ def section_summary() -> None:
                 "the three output mappings and their `_ctrl` variants",
             ],
             [
-                "[`native/tests/test_nco_core.c`]"
-                "(../../../../../../native/tests/test_nco_core.c)",
+                "[`native/tests/nco/test_nco_core.c`]"
+                "(../../../../../../native/tests/nco/test_nco_core.c)",
                 "the gate: point assertions, with `volatile` where "
                 "constant-folding would hide the bug",
             ],

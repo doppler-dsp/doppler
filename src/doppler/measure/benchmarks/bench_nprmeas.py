@@ -5,8 +5,8 @@ Run: pytest src/doppler/measure/benchmarks/bench_nprmeas.py --benchmark-only
 `analyze` is a whole-capture measurement: window, FFT, then integrate the
 active band and the notch (less the guard) and take their ratio. So the
 row is one capture per call, swept over capture size as the C benchmark
-(``native/benchmarks/bench_nprmeas_core.c``) does; the gap between the two
-faces is the binding's per-call overhead. `MSa_s` is capture samples over
+(``native/benchmarks/nprmeas/bench_nprmeas_core.c``) does; the gap between the
+two faces is the binding's per-call overhead. `MSa_s` is capture samples over
 the minimum time per capture.
 
 The stimulus is notched noise -- the signal NPR is defined on -- with a

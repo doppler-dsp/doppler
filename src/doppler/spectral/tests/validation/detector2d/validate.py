@@ -656,7 +656,8 @@ def review(d: Data) -> None:
         "F4",
         "C-ONLY",
         "Two entry points have no Python face and are certified in "
-        "`native/tests/test_detector2d_core.c`: `dp_detector2d_set_ref` (F2 "
+        "`native/tests/detector2d/test_detector2d_core.c`: "
+        "`dp_detector2d_set_ref` (F2 "
         "above) and `dp_detector2d_set_threshold` — the `threshold` property "
         "is read-only from Python, so a caller who wants to re-gate a "
         "running detector must rebuild it or drop to C. The last-dump "

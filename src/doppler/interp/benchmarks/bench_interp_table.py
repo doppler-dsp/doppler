@@ -4,9 +4,9 @@ Run: pytest src/doppler/interp/benchmarks/bench_interp_table.py
      --benchmark-only
 
 The same shape as the C benchmark
-(``native/benchmarks/bench_interp_table_core.c``): a 1024-entry complex
-table, 64k lookups per call, one row per method. The gap between the two
-faces is the binding's per-call overhead.
+(``native/benchmarks/interp_table/bench_interp_table_core.c``): a 1024-entry
+complex table, 64k lookups per call, one row per method. The gap between the
+two faces is the binding's per-call overhead.
 
 The lookup points are spread across the table rather than a ramp: a
 monotone sweep keeps every lookup in the same cache line and measures the

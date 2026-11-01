@@ -1666,7 +1666,7 @@ no preamble, sync word or unique word to resolve against.
     smaller than 2x at low SNR. Gated on one cell by
     `validate_mpsk_diff_penalty --check`.
 - **A second copy of the decision rule in the test suite** — *resolved.*
-    `native/tests/test_carrier_mpsk_core.c` carried a private
+    `native/tests/carrier_mpsk/test_carrier_mpsk_core.c` carried a private
     `nearest_label()` — an O(M) correlation search — instead of calling
     `mpsk_slice`, so the carrier-loop test scored against its own slicer
     rather than the library's, with no gate able to notice a disagreement.

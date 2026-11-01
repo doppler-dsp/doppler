@@ -372,7 +372,7 @@ def check_lifecycle(path: Path) -> list[str]:
     tests = ROOT / "native" / "tests"
     pinned = any(
         pat.search(t.read_text(encoding="utf-8", errors="ignore"))
-        for t in tests.glob("*.c")
+        for t in tests.rglob("*.c")
     )
 
     # A TOOL is certified on different evidence, and the discriminator is a

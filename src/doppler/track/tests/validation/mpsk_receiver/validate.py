@@ -2228,8 +2228,8 @@ def build(write: bool = True) -> Report:
     )
     R.md(
         "- C pins: "
-        "[`native/tests/test_mpsk_receiver_core.c`]"
-        "(../../../../../../native/tests/test_mpsk_receiver_core.c)"
+        "[`native/tests/mpsk_receiver/test_mpsk_receiver_core.c`]"
+        "(../../../../../../native/tests/mpsk_receiver/test_mpsk_receiver_core.c)"
     )
     R.md(
         "- The standard battery: "

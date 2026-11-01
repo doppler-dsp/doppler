@@ -27,8 +27,8 @@ target_link_libraries(despreader_core PUBLIC
     detection_core)
 
 add_executable(test_despreader_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_despreader_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_despreader_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/despreader/test_despreader_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/despreader/test_despreader_symbols.c)
 target_link_libraries(test_despreader_core
                       PRIVATE despreader_core costas_core
     lo_core
@@ -39,12 +39,13 @@ target_link_libraries(test_despreader_core
     detection_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_despreader_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_despreader_core COMMAND test_despreader_core)
 
 add_executable(
   bench_despreader_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_despreader_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/despreader/bench_despreader_core.c)
 target_link_libraries(bench_despreader_core
                       PRIVATE despreader_core costas_core
     lo_core

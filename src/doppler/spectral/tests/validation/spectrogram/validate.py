@@ -1159,7 +1159,7 @@ def build(write: bool = True) -> Report:
     R.md(
         "- `native/inc/doppler/spectrogram/spectrogram_core.h`: the SSOT "
         "for every claim below\n"
-        "- `native/tests/test_spectrogram_core.c`: the C pins\n"
+        "- `native/tests/spectrogram/test_spectrogram_core.c`: the C pins\n"
         "- [The Spectrogram](../../../../../docs/design/spectrogram.md): "
         "the design, and "
         "[its measurement record](../../../../../docs/design/"

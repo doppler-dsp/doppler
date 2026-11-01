@@ -19,17 +19,18 @@ target_include_directories(
                   ${CMAKE_SOURCE_DIR}/native/inc/doppler/nco)
 
 add_executable(test_nco_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_nco_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_nco_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/nco/test_nco_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/nco/test_nco_symbols.c)
 target_link_libraries(test_nco_core
                       PRIVATE nco_core ${JM_MATH_LIBRARY})
 target_include_directories(test_nco_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_nco_core COMMAND test_nco_core)
 
 add_executable(
   bench_nco_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_nco_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/nco/bench_nco_core.c)
 target_link_libraries(bench_nco_core
                       PRIVATE nco_core ${JM_MATH_LIBRARY})
 target_include_directories(

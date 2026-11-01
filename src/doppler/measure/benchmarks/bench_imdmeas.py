@@ -5,9 +5,9 @@ Run: pytest src/doppler/measure/benchmarks/bench_imdmeas.py --benchmark-only
 `analyze` is a whole-capture measurement: window, FFT, locate the two
 tones, then search the 2nd- and 3rd-order product bins. So the row is one
 capture per call, swept over capture size as the C benchmark
-(``native/benchmarks/bench_imdmeas_core.c``) does, over the same stimulus;
-the gap between the two faces is the binding's per-call overhead. `MSa_s`
-is capture samples over the minimum time per capture.
+(``native/benchmarks/imdmeas/bench_imdmeas_core.c``) does, over the same
+stimulus; the gap between the two faces is the binding's per-call overhead.
+`MSa_s` is capture samples over the minimum time per capture.
 
 The stimulus carries deliberate 3rd-order products, so the product search
 finds real spurs rather than the noise floor -- which would time the same

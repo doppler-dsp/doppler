@@ -4,8 +4,8 @@ Run: pytest src/doppler/accumulator/benchmarks/bench_acc_trace.py
      --benchmark-only
 
 The same rows as the C benchmark
-(``native/benchmarks/bench_acc_trace_core.c``), over the same shape: a
-4096-bin trace (a typical analyzer FFT) fed 16 frames per round, one row per
+(``native/benchmarks/acc_trace/bench_acc_trace_core.c``), over the same shape:
+a 4096-bin trace (a typical analyzer FFT) fed 16 frames per round, one row per
 reduction mode, plus the ``value`` read-out. The gap between the two faces is
 the binding's per-call overhead, which is what a Python benchmark is for.
 

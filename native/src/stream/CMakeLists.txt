@@ -48,7 +48,7 @@ target_include_directories(test_stream_wire PRIVATE
 add_test(NAME test_stream_wire COMMAND test_stream_wire)
 
   add_executable(test_stream_nats_core
-      ${CMAKE_SOURCE_DIR}/native/tests/test_stream_nats_core.c)
+      ${CMAKE_SOURCE_DIR}/native/tests/stream/test_stream_nats_core.c)
   target_link_libraries(test_stream_nats_core PRIVATE
       $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
       dp_tlm_core timing_core
@@ -59,6 +59,7 @@ add_test(NAME test_stream_wire COMMAND test_stream_wire)
   # already links nats_vendor_static; this only lets it see the header.
   target_include_directories(test_stream_nats_core PRIVATE
       ${CMAKE_SOURCE_DIR}/native/inc
+      ${CMAKE_SOURCE_DIR}/native/tests
       ${CMAKE_SOURCE_DIR}/vendor/nats.c/src)
   add_test(NAME test_stream_nats_core COMMAND test_stream_nats_core)
   set_tests_properties(test_stream_nats_core PROPERTIES

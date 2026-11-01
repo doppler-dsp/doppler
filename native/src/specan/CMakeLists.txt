@@ -35,8 +35,8 @@ target_link_libraries(specan_core PUBLIC
     acc_trace_core)
 
 add_executable(test_specan_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_specan_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_specan_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/specan/test_specan_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/specan/test_specan_symbols.c)
 target_link_libraries(test_specan_core
                       PRIVATE specan_core ddc_core
     lo_core
@@ -55,12 +55,13 @@ target_link_libraries(test_specan_core
     acc_trace_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_specan_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_specan_core COMMAND test_specan_core)
 
 add_executable(
   bench_specan_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_specan_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/specan/bench_specan_core.c)
 target_link_libraries(bench_specan_core
                       PRIVATE specan_core ddc_core
     lo_core

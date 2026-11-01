@@ -273,7 +273,7 @@ class TestReadDict:
     """Grouping by probe name — the split that every consumer used to write.
 
     The regrouping itself is C (``dp_tlm_demux``, proven in
-    ``native/tests/test_dp_tlm_core.c``); what is checked here is the
+    ``native/tests/dp_tlm/test_dp_tlm_core.c``); what is checked here is the
     marshalling the binding adds: the key set, the two value shapes, and that
     it drains exactly as ``read()`` does.
     """

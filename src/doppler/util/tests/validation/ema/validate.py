@@ -12,7 +12,7 @@ records is asserted by
 
 The order is the campaign's, not this file's:
 `native/inc/doppler/util/util_core.h` is the SSOT,
-`native/tests/test_util_core.c`
+`native/tests/util/test_util_core.c`
 §1-§8 certifies it in C, and this measures the same properties through
 `doppler.util` to show the binding delivers them — plus the two
 statistical laws (§2.5, §2.6) that no C assertion covers because they are
@@ -191,7 +191,7 @@ def section_object() -> None:
         "- `native/inc/doppler/util/util_core.h` — the SSOT for every claim "
         "below (`ema_step`, `ema_alpha_decim`)"
     )
-    R.md("- `native/tests/test_util_core.c` §1-§8 — the C certification")
+    R.md("- `native/tests/util/test_util_core.c` §1-§8 — the C certification")
     R.md(
         "- [EMA design](../../../../../../docs/design/ema.md) — why this "
         "algebraic form, why the boundaries are contract, and why an EMA "

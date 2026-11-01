@@ -4,7 +4,7 @@ Run: pytest src/doppler/wfm/benchmarks/bench_pn.py --benchmark-only
 
 Six rows, ``generate[<lfsr>,len=<n>]``: 64k bits per call, Galois and
 Fibonacci at register widths 11, 15 and 23 -- the grid the C benchmark
-(``native/benchmarks/bench_pn_core.c``) times. Its finding is that all six
+(``native/benchmarks/pn/bench_pn_core.c``) times. Its finding is that all six
 cost the same, because the limit is the serial per-bit feedback chain, not
 the realization or the width; the Python rows say whether the binding
 keeps that true.

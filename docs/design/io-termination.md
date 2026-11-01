@@ -172,7 +172,7 @@ retire. The C face is untouched — every `dp_*` symbol keeps its name — so
 no C caller moves.
 
 The cost worth naming: a declared component owes a benchmark, and `make lint` requires one. The guard pays it —
-`native/benchmarks/bench_dp_interrupt_guard_core.c` and
+`native/benchmarks/dp_interrupt_guard/bench_dp_interrupt_guard_core.c` and
 `src/doppler/interrupt/benchmarks/bench_dp_interrupt_guard.py` — where
 the undeclared primitive had none and nothing noticed, because an
 undeclared component is invisible to that gate too.

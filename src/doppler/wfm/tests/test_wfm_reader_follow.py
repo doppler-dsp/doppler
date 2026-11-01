@@ -3,9 +3,9 @@
 `docs/design/end-of-capture.md` is a contract about *waiting*: a reader
 following a capture that is still being written must tell "nothing yet" apart
 from "the end", and must be stoppable while it waits. All of that was pinned
-in C (`native/tests/test_wfm_reader_core.c`) and none of it in Python, which
-is phase 5 of that design's own lifecycle table -- the binding, and the stop
-path through it.
+in C (`native/tests/wfm_reader/test_wfm_reader_core.c`) and none of it in
+Python, which is phase 5 of that design's own lifecycle table -- the binding,
+and the stop path through it.
 
 The stop path could not work before doppler#976 was fixed. `read_follow()`'s
 predicate is `dp_interrupted`, installed by the binding, and the flag

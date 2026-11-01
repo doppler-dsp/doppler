@@ -15,7 +15,7 @@ writing it is the right one, and why that is not a matter of taste.
 The contract lives in `native/inc/doppler/util/util_core.h` (`dp_ema_step`,
 `dp_ema_alpha_decim`; `ema_step`/`ema_alpha_decim` from `doppler.util`) and
 the C-level evidence in
-`native/tests/test_util_core.c`. This page does not restate either; it
+`native/tests/util/test_util_core.c`. This page does not restate either; it
 explains the reasoning they assume.
 
 Related: [Automatic Gain Control](agc.md), [The NCO](nco.md).

@@ -26,7 +26,7 @@ A stream of any-size chunks in, rows of `nfft`-bin spectra out, one row every `h
 Design and API, not restated here:
 
 - `native/inc/doppler/spectrogram/spectrogram_core.h`: the SSOT for every claim below
-- `native/tests/test_spectrogram_core.c`: the C pins
+- `native/tests/spectrogram/test_spectrogram_core.c`: the C pins
 - [The Spectrogram](../../../../../docs/design/spectrogram.md): the design, and [its measurement record](../../../../../docs/design/spectrogram-measurements.md)
 - [The guide](../../../../../docs/guide/spectrogram.md) and `native/examples/spectrogram_demo.c`, its tested C twin
 - [PSD's certification](../../../spectral/tests/validation/psd/results.md), the kernel every row is
@@ -383,4 +383,4 @@ Claims a caller may rely on, asserted by this run.
 
 - **12 findings**, 1 of them gaps or confirmed defects: F7
 - **36/36 limits** hold
-- The runs behind §2 are `native/validation/spectrogram_certify.c`, emitted as CSV; the pins are `native/tests/test_spectrogram_core.c`.
+- The runs behind §2 are `native/validation/spectrogram_certify.c`, emitted as CSV; the pins are `native/tests/spectrogram/test_spectrogram_core.c`.

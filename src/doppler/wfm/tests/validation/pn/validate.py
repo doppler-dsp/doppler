@@ -30,7 +30,7 @@ Two things are measured that the C test cannot reach:
   an m-sequence is the sequence anyone wants.
 
 The order is the campaign's: `native/inc/doppler/pn/pn_core.h` is the SSOT and
-`native/tests/test_pn_core.c` certifies it in C.
+`native/tests/pn/test_pn_core.c` certifies it in C.
 """
 
 from __future__ import annotations
@@ -276,7 +276,7 @@ def section_object() -> None:
         "design is "
         "[docs/design/wfmgen.md](../../../../../../docs/design/wfmgen.md); "
         "the API is `native/inc/doppler/pn/pn_core.h`, certified in C by "
-        "`native/tests/test_pn_core.c`."
+        "`native/tests/pn/test_pn_core.c`."
     )
     R.md()
     R.md(
@@ -633,7 +633,7 @@ def review(d: Data) -> None:
         "F3",
         "C-ONLY",
         "**Three claims the Python face cannot reach**, now pinned in "
-        "`native/tests/test_pn_core.c`. (1) `poly = 0` emitting zeros "
+        "`native/tests/pn/test_pn_core.c`. (1) `poly = 0` emitting zeros "
         "forever once the seed shifts out -- the binding resolves the "
         "default before `dp_pn_create` sees it, so Python cannot observe "
         "the unresolved behaviour the header warns about, and it is "

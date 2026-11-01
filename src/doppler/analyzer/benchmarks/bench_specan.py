@@ -19,7 +19,7 @@ the transform it claims. `retune` is its own row --
 it is what a sweeping or scrolling display calls between blocks, and it
 claims not to rebuild the plan.
 
-The C benchmark (``native/benchmarks/bench_specan_core.c``) measures the
+The C benchmark (``native/benchmarks/specan/bench_specan_core.c``) measures the
 same rows over the same block shape; the gap between the two faces is the
 binding's per-call overhead, which is what a Python benchmark is for. Its
 tone is 0.031 cycles/sample; this one's is 2032/65536 (below), the same work

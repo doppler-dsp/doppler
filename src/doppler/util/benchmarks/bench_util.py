@@ -3,7 +3,7 @@
 Run: pytest src/doppler/util/benchmarks/bench_util.py --benchmark-only
 
 **What this can and cannot tell you.** A single `ema_step` call is three
-flops; the C benchmark (`native/benchmarks/bench_util_core.c`) measures it
+flops; the C benchmark (`native/benchmarks/util/bench_util_core.c`) measures it
 at ~1.8 ns. Anything measured here is therefore dominated by the CPython
 call boundary, not by the arithmetic — which is exactly the useful
 finding: it is the number that says *do not drive an EMA one sample at a

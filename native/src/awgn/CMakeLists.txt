@@ -19,17 +19,18 @@ target_include_directories(
                    ${CMAKE_SOURCE_DIR}/native/inc/doppler/awgn)
 
 add_executable(test_awgn_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_awgn_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_awgn_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/awgn/test_awgn_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/awgn/test_awgn_symbols.c)
 target_link_libraries(test_awgn_core
                       PRIVATE awgn_core ${JM_MATH_LIBRARY})
 target_include_directories(test_awgn_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_awgn_core COMMAND test_awgn_core)
 
 add_executable(
   bench_awgn_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_awgn_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/awgn/bench_awgn_core.c)
 target_link_libraries(bench_awgn_core
                       PRIVATE awgn_core ${JM_MATH_LIBRARY})
 target_include_directories(

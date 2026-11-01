@@ -30,7 +30,7 @@ Four pages already own parts of this, and none is restated here:
 | [`docs/gallery/lockdet.md`](../../../../../../docs/gallery/lockdet.md) | the mechanics, runnable: hysteresis, verify counts, and the non-finite rule |
 | `native/inc/doppler/lockdet/lockdet_core.h` | the contract itself |
 
-Evidence sits in three places. `native/tests/test_lockdet_core.c` asks whether each claim still holds per look; `native/validation/lockdet_verify.c` measures the probabilistic contract in C; this report measures the same properties through the binding, so a caller reading `LockDet` gets the object the header describes.
+Evidence sits in three places. `native/tests/lockdet/test_lockdet_core.c` asks whether each claim still holds per look; `native/validation/lockdet_verify.c` measures the probabilistic contract in C; this report measures the same properties through the binding, so a caller reading `LockDet` gets the object the header describes.
 
 ## 2. Characterisation
 

@@ -2,8 +2,8 @@
 
 Run: pytest src/doppler/coding/benchmarks/bench_rs_codec.py --benchmark-only
 
-`native/benchmarks/bench_rs_codec_core.c` measures the object in C — the
-table build, the cost of placing a systematic codeword, and decode at both
+`native/benchmarks/rs_codec/bench_rs_codec_core.c` measures the object in C —
+the table build, the cost of placing a systematic codeword, and decode at both
 ends of the correction range. What only this face can show is what a Python
 caller pays on top: the per-call binding, and the allocation `encode` and
 `syndromes` do that the in-place `decode` does not.

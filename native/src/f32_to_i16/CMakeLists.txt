@@ -19,17 +19,18 @@ target_include_directories(
                          ${CMAKE_SOURCE_DIR}/native/inc/doppler/f32_to_i16)
 
 add_executable(test_f32_to_i16_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_f32_to_i16_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_f32_to_i16_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/f32_to_i16/test_f32_to_i16_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/f32_to_i16/test_f32_to_i16_symbols.c)
 target_link_libraries(test_f32_to_i16_core
                       PRIVATE f32_to_i16_core ${JM_MATH_LIBRARY})
 target_include_directories(test_f32_to_i16_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_f32_to_i16_core COMMAND test_f32_to_i16_core)
 
 add_executable(
   bench_f32_to_i16_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_f32_to_i16_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/f32_to_i16/bench_f32_to_i16_core.c)
 target_link_libraries(bench_f32_to_i16_core
                       PRIVATE f32_to_i16_core ${JM_MATH_LIBRARY})
 target_include_directories(

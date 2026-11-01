@@ -7,8 +7,8 @@ called it, so the carrier tracker inside every M-PSK receiver reached the
 Python snapshot in no row at all (doppler#1010).
 
 Six rows over one 64k block per M, the same sweep as the C twin
-(``native/benchmarks/bench_carrier_mpsk_core.c``): M in {2, 4, 8}, because
-the slicer and discriminator are not the same work at each, and the FLL
+(``native/benchmarks/carrier_mpsk/bench_carrier_mpsk_core.c``): M in {2, 4, 8},
+because the slicer and discriminator are not the same work at each, and the FLL
 assist on or off, because ``bn_fll > 0`` adds a frequency discriminator that
 is paid on every symbol, not only while unlocked. Same loop tuning, same
 ``tsamps``, same 0.001 cycles/sample residual, so the faces are comparable

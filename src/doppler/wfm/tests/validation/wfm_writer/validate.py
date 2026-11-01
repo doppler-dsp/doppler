@@ -11,8 +11,8 @@ records is asserted by
 `build(write=False)`.
 
 The order is the campaign's: `native/inc/doppler/wfm_writer/wfm_writer_core.h`
-is the SSOT and `native/tests/test_wfm_writer_core.c` certifies it in C.
-This file measures the same properties through `doppler.wfm.Writer`.
+is the SSOT and `native/tests/wfm_writer/test_wfm_writer_core.c` certifies it
+in C. This file measures the same properties through `doppler.wfm.Writer`.
 
 **The truth here is the file on disk, read by numpy.** A capture writer's
 whole job is that the bytes it produced mean what the header says, so
@@ -180,7 +180,8 @@ def section_object() -> None:
         "[docs/design/wfmgen.md](../../../../../../docs/design/wfmgen.md); "
         "the API is `native/inc/doppler/wfm_writer/wfm_writer_core.h`, "
         "certified in "
-        "C by `native/tests/test_wfm_writer_core.c`. Neither is restated "
+        "C by `native/tests/wfm_writer/test_wfm_writer_core.c`. Neither is "
+        "restated "
         "here."
     )
     R.md()

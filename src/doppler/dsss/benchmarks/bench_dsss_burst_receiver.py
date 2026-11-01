@@ -20,9 +20,9 @@ file's.
 The chain's parts carry the SAME two rows over the SAME stimulus
 (`_burst_stimulus.py`), so this number can be read against them rather than
 in isolation. The C benchmark
-(``native/benchmarks/bench_dsss_burst_receiver_core.c``) measures the same
-split; the gap between the two faces is the binding's per-call overhead,
-which is what a Python benchmark is for.
+(``native/benchmarks/dsss_burst_receiver/bench_dsss_burst_receiver_core.c``)
+measures the same split; the gap between the two faces is the binding's
+per-call overhead, which is what a Python benchmark is for.
 """
 
 import numpy as np

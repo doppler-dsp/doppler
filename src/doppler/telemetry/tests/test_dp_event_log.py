@@ -1,11 +1,11 @@
 """Integration tests for the ``EventLog`` binding.
 
-The C tests (``native/tests/test_dp_event_log_core.c``) own the document's
-content — which keys are omitted, what an edge is worth, that a staged field is
-consumed by exactly one event. These own the *binding*: that the arguments
-cross, that a refusal is a Python exception rather than a status code nobody
-reads, and that the object behaves like a Python object (a context manager, a
-property, ``os.PathLike``).
+The C tests (``native/tests/dp_event_log/test_dp_event_log_core.c``) own the
+document's content — which keys are omitted, what an edge is worth, that a
+staged field is consumed by exactly one event. These own the *binding*: that
+the arguments cross, that a refusal is a Python exception rather than a status
+code nobody reads, and that the object behaves like a Python object (a context
+manager, a property, ``os.PathLike``).
 """
 
 import json

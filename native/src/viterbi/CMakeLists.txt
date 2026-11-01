@@ -21,18 +21,19 @@ target_link_libraries(viterbi_core PUBLIC
     conv_core)
 
 add_executable(test_viterbi_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_viterbi_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_viterbi_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/viterbi/test_viterbi_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/viterbi/test_viterbi_symbols.c)
 target_link_libraries(test_viterbi_core
                       PRIVATE viterbi_core conv_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_viterbi_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_viterbi_core COMMAND test_viterbi_core)
 
 add_executable(
   bench_viterbi_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_viterbi_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/viterbi/bench_viterbi_core.c)
 target_link_libraries(bench_viterbi_core
                       PRIVATE viterbi_core conv_core
     ${JM_MATH_LIBRARY})

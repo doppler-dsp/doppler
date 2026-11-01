@@ -6,8 +6,8 @@ use, so every measurement piece lives in the library with a binding — and a
 binding nobody exercises from Python is a capability nobody is testing.
 
 What is checked here is the binding and the counting rules ACROSS it, not the
-arithmetic (`native/tests/test_frame_meter_core.c` pins that, by mutation).
-The state round-trip is bespoke rather than an entry in
+arithmetic (`native/tests/frame_meter/test_frame_meter_core.c` pins that, by
+mutation). The state round-trip is bespoke rather than an entry in
 `src/doppler/tests/test_state_serialization.py`, because that matrix drives
 block-`execute` objects and this one is a push accumulator — the same carve-out
 `acq` gets.

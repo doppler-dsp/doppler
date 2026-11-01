@@ -19,17 +19,18 @@ target_include_directories(
                           ${CMAKE_SOURCE_DIR}/native/inc/doppler/loop_filter)
 
 add_executable(test_loop_filter_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_loop_filter_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_loop_filter_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/loop_filter/test_loop_filter_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/loop_filter/test_loop_filter_symbols.c)
 target_link_libraries(test_loop_filter_core
                       PRIVATE loop_filter_core ${JM_MATH_LIBRARY})
 target_include_directories(test_loop_filter_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_loop_filter_core COMMAND test_loop_filter_core)
 
 add_executable(
   bench_loop_filter_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_loop_filter_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/loop_filter/bench_loop_filter_core.c)
 target_link_libraries(bench_loop_filter_core
                       PRIVATE loop_filter_core ${JM_MATH_LIBRARY})
 target_include_directories(

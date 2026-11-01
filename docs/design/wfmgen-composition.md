@@ -320,7 +320,7 @@ arm is the fractional timing delay.
 
 So fractional sps is not a feature to design. It is a constructor argument on
 an object already in the tree, already serializable, already benchmarked
-(`native/benchmarks/bench_RateConverter_core.c`). What is missing is a scene
+(`native/benchmarks/RateConverter/bench_RateConverter_core.c`). What is missing is a scene
 that can name it.
 
 ### Drift is the control port, driven open-loop

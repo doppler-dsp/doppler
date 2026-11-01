@@ -49,7 +49,7 @@ add_custom_command(TARGET acquire POST_BUILD
 endif()
 
 add_executable(test_acquire_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_acquire_core.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/acquire/test_acquire_core.c)
 target_link_libraries(test_acquire_core PRIVATE
     acquire_core
     carrier_acq_core
@@ -69,11 +69,12 @@ target_link_libraries(test_acquire_core PRIVATE
     dp_tlm_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_acquire_core
-    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_acquire_core COMMAND test_acquire_core)
 
 add_executable(bench_acquire_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_acquire_core.c)
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/acquire/bench_acquire_core.c)
 target_link_libraries(bench_acquire_core PRIVATE
     acquire_core
     carrier_acq_core

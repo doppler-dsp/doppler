@@ -5,8 +5,8 @@ Run: make bench-python PYTEST_SELECT="-k viterbi"
 Two axes, because the decoder's cost has two terms that scale differently:
 the butterfly is 2**(k-1) states per input bit, and the traceback walks
 `depth` survivors per decision. The C benchmark
-(``native/benchmarks/bench_viterbi_core.c``) sweeps both; this one measures
-what a Python caller actually pays, block call overhead included.
+(``native/benchmarks/viterbi/bench_viterbi_core.c``) sweeps both; this one
+measures what a Python caller actually pays, block call overhead included.
 """
 
 import numpy as np

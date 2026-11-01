@@ -24,8 +24,8 @@ type = "uint8_t[]"
 
 [[dll.init_params]]
 name = "sps"
-type = "size_t"
-default = "2"
+type = "double"
+default = "2.0"
 
 [[dll.init_params]]
 name = "init_chip"

@@ -277,11 +277,11 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static const char *const _enum_AsyncDsssReceiver_async_dsss_rx_state[] = {
-  "searching", "refining", "tracking", "reserved", "lost", NULL,
+  "searching", "refining", "tracking", "idle", "lost", NULL,
 };
 static const int _enum_AsyncDsssReceiver_async_dsss_rx_state_c[] = {
   ASYNC_DSSS_RX_SEARCHING, ASYNC_DSSS_RX_REFINING, ASYNC_DSSS_RX_TRACKING,
-  ASYNC_DSSS_RX_RESERVED,  ASYNC_DSSS_RX_LOST,
+  ASYNC_DSSS_RX_IDLE,      ASYNC_DSSS_RX_LOST,
 };
 static inline const char *
 _enum_AsyncDsssReceiver_async_dsss_rx_state_name (long v)

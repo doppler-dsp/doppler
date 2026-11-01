@@ -32,6 +32,7 @@
  * and the state round trip.
  */
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/carrier_acq/carrier_acq_core.h" /* its blob magic, for forging */
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/gold/gold_core.h" /* the specification Gold-1023 for the Es/N0-floor sweep   */
@@ -2552,10 +2553,10 @@ _test_seeded_blob_round_trip (void)
       free (blobs);
       dp_async_dsss_receiver_destroy (rs);
     }
-  /* A state no receiver can be in: 3 is reserved (the deleted cell mode's
-     idle, kept because the values are persisted) and 5 is past the last.
-     Forged into a valid blob, each is refused and rb is left as it was.
-     Sabotage: drop either refusal in set_state() -> red. */
+  /* A state this receiver cannot be in: 3 is idle, which only a pooled
+     receiver reaches (rb is not pooled), and 5 is past the last. Forged
+     into a valid blob, each is refused and rb is left as it was. Sabotage:
+     drop either refusal in set_state() -> red. */
   {
     async_dsss_receiver_extra_t *ex
         = (async_dsss_receiver_extra_t *)((char *)blob
@@ -2563,7 +2564,7 @@ _test_seeded_blob_round_trip (void)
     const uint8_t was = ex->state;
     for (int k = 0; k < 2; k++)
       {
-        ex->state = k == 0 ? (uint8_t)ASYNC_DSSS_RX_RESERVED : 5u;
+        ex->state = k == 0 ? (uint8_t)ASYNC_DSSS_RX_IDLE : 5u;
         DP_CHECK (dp_async_dsss_receiver_set_state (rb, blob)
                   == DP_ERR_INVALID);
         DP_CHECK (dp_async_dsss_receiver_get_tracking (rb) == 1);
@@ -4024,6 +4025,105 @@ _test_near_far_range_holds_with_many_signals (void)
   return 0;
 }
 
+/* The pool's two modes (docs/design/async-dsss-receiver.md §5, §6): one
+ * search-only receiver and one pooled receiver fed the same stream in calls
+ * of 3,001 samples -- not a code period, so a dwell ends inside a call and
+ * its pick is carried to the call's end -- the pick seeding the idle one
+ * after each call, as the controller does. The search-only receiver never
+ * leaves its search and reports a pick; the pooled one runs no search of its
+ * own (its engine never moves) until it is seeded from that pick, then tracks.
+ * Reset sends the pooled one back to idle, and turning pooled off restarts its
+ * search. Sabotage, each red: report the pick's phase at the dwell's end
+ * instead of the call's (it misses the capture's chip clock at the call's end,
+ * which the refine would otherwise pull in and hide); leave a pooled receiver
+ * searching for itself (its engine moves); seed a search-only receiver itself
+ * (it leaves its search). */
+static int
+_test_pooled_and_search_only (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double    fs = SLOW_CR * SLOW_SPC;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (code, 1023, SLOW_SPC, fs, fs / SLOW_RS, 1500.0, 55.0, 900,
+                   777, 41, &x, &n, &data);
+  dp_async_dsss_receiver_state_t *srch = _slow_rx (code, 47.0, 5000.0, 0, 0);
+  dp_async_dsss_receiver_state_t *rx   = _slow_rx (code, 47.0, 5000.0, 0, 0);
+  DP_REQUIRE (srch && rx);
+  DP_CHECK (dp_async_dsss_receiver_set_search_only (srch, 1) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_set_search_only (
+                srch, ASYNC_DSSS_RX_MAX_PEAKS + 1)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_set_pooled (rx, true) == DP_OK);
+  DP_CHECK (rx->state == ASYNC_DSSS_RX_IDLE);
+  static float _Complex out[8192];
+  const size_t P      = 3001;
+  size_t       seeded = 0, picks = 0;
+  for (size_t off = 0; off + P <= n; off += P)
+    {
+      (void)dp_async_dsss_receiver_steps (srch, x + off, P, out, 8192);
+      (void)dp_async_dsss_receiver_steps (rx, x + off, P, out, 8192);
+      double       ph[4], dop[4], cn0[4];
+      const size_t k
+          = dp_async_dsss_receiver_take_picks (srch, ph, dop, cn0, 4);
+      /* The pick's phase is at the call's end: the capture's chip clock
+         there, (end - 777) / 2 chips from the code's start (777 samples
+         of lead-in, two a chip, no dilation without a carrier). */
+      if (k && picks == 0)
+        {
+          const double end = (double)(off + P);
+          DP_CHECK (
+              _chip_dist (ph[0], fmod ((end - 777.0) / 2.0, 1023.0), 1023.0)
+              <= 0.5);
+        }
+      picks += k;
+      if (k && rx->state == ASYNC_DSSS_RX_IDLE)
+        {
+          DP_CHECK (dp_acq_position (rx->acq) == 0); /* never searched */
+          DP_CHECK (dp_async_dsss_receiver_seed (rx, ph[0], dop[0], cn0[0])
+                    == DP_OK);
+          seeded = off;
+        }
+    }
+  DP_CHECK (picks >= 1);
+  DP_CHECK (srch->state == ASYNC_DSSS_RX_SEARCHING);
+  DP_CHECK (seeded > 0);
+  DP_CHECK_MSG (rx->state == ASYNC_DSSS_RX_TRACKING,
+                "a pooled receiver seeded from the pick does not track");
+  DP_CHECK (dp_acq_position (rx->acq) == 0);
+  dp_async_dsss_receiver_reset (rx);
+  DP_CHECK (rx->state == ASYNC_DSSS_RX_IDLE);
+  /* Both mutators travel (#2022): a fresh receiver restored from each
+     blob is pooled and idle, or search-only with the same pick count.
+     Sabotage: drop either field from get_state() -> red. */
+  {
+    dp_async_dsss_receiver_state_t *fresh
+        = _slow_rx (code, 47.0, 5000.0, 0, 0);
+    DP_REQUIRE (fresh != NULL);
+    void *blob = malloc (dp_async_dsss_receiver_state_bytes (rx));
+    dp_async_dsss_receiver_get_state (rx, blob);
+    DP_CHECK (dp_async_dsss_receiver_set_state (fresh, blob) == DP_OK);
+    DP_CHECK (fresh->pooled && fresh->state == ASYNC_DSSS_RX_IDLE);
+    free (blob);
+    (void)dp_async_dsss_receiver_set_search_only (srch, 3);
+    blob = malloc (dp_async_dsss_receiver_state_bytes (srch));
+    dp_async_dsss_receiver_get_state (srch, blob);
+    DP_CHECK (dp_async_dsss_receiver_set_state (fresh, blob) == DP_OK);
+    DP_CHECK (fresh->pick_want == 3 && !fresh->pooled);
+    free (blob);
+    dp_async_dsss_receiver_destroy (fresh);
+  }
+  DP_CHECK (dp_async_dsss_receiver_set_pooled (rx, false) == DP_OK);
+  DP_CHECK (rx->state == ASYNC_DSSS_RX_SEARCHING);
+  dp_async_dsss_receiver_destroy (srch);
+  dp_async_dsss_receiver_destroy (rx);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* Two equal emitters on ONE carrier stack their sidelobes on one cell
  * (doppler#2556, review 5630513120). On a deep block over a code-only
  * window an emitter's Doppler-offset sidelobes are fixed cells on its own
@@ -4441,6 +4541,7 @@ main (void)
   DP_CHECK (_test_ranked_search_takes_no_sidelobe () == 0);
   DP_CHECK (_test_refining_reports_the_seed_phase () == 0);
   DP_CHECK (_test_nested_trace_version_refused () == 0);
+  DP_CHECK (_test_pooled_and_search_only () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

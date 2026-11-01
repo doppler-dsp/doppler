@@ -69,8 +69,14 @@ _Composed receiver state._ [More...](#detailed-description)
 |  int | [**m**](#variable-m)  <br> |
 |  int | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_excl**](#variable-n_excl)  <br> |
+|  size\_t | [**n\_picks**](#variable-n_picks)  <br> |
 |  double | [**pd**](#variable-pd)  <br> |
 |  double | [**pfa**](#variable-pfa)  <br> |
+|  double | [**pick\_cn0**](#variable-pick_cn0)  <br> |
+|  double | [**pick\_doppler**](#variable-pick_doppler)  <br> |
+|  double | [**pick\_phase**](#variable-pick_phase)  <br> |
+|  size\_t | [**pick\_want**](#variable-pick_want)  <br> |
+|  bool | [**pooled**](#variable-pooled)  <br> |
 |  size\_t | [**rank**](#variable-rank)  <br> |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
 |  bool | [**reacquire**](#variable-reacquire)  <br> |
@@ -766,6 +772,24 @@ set\_exclusions(): code phases held.
 
 
 
+### variable n\_picks 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::n_picks;
+```
+
+
+
+Picks waiting for take\_picks(). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable pd 
 
 ```C++
@@ -793,6 +817,94 @@ double dp_async_dsss_receiver_state_t::pfa;
 
 
 Also CarrierAcquisition's own pfa. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pick\_cn0 
+
+```C++
+double dp_async_dsss_receiver_state_t::pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];
+```
+
+
+
+its C/N0, dB-Hz. 
+
+
+        
+
+<hr>
+
+
+
+### variable pick\_doppler 
+
+```C++
+double dp_async_dsss_receiver_state_t::pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS];
+```
+
+
+
+its Doppler, Hz. 
+
+
+        
+
+<hr>
+
+
+
+### variable pick\_phase 
+
+```C++
+double dp_async_dsss_receiver_state_t::pick_phase[ASYNC_DSSS_RX_MAX_PEAKS];
+```
+
+
+
+each pick's code phase, chips, at the sample after the call that found it  seed()'s convention for a receiver fed the same samples. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pick\_want 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::pick_want;
+```
+
+
+
+set\_search\_only(): picks a dwell reports instead of seeding itself; 0 = a normal receiver. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pooled 
+
+```C++
+bool dp_async_dsss_receiver_state_t::pooled;
+```
+
+
+
+set\_pooled(): not holding means idle, not searching (§6 of the design page). 
  
 
 

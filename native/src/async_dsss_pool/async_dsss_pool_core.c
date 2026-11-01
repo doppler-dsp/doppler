@@ -5,6 +5,7 @@
  *        docs/design/async-dsss-receiver.md §8 for why.
  */
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
@@ -29,7 +30,9 @@ effective_threads (int threads, size_t n_receivers)
 }
 
 /* Rebuild the workers for `threads`. One worker is serial: no helpers,
-   and dp_pool_run() runs every task inline on the caller. */
+   and dp_pool_run() runs every task inline on the caller. The search
+   takes the same count for its own tiles (§5: it spreads them across the
+   cores), and runs before the receivers, never beside them. */
 static void
 build_workers (dp_async_dsss_pool_state_t *s, int threads)
 {
@@ -37,6 +40,8 @@ build_workers (dp_async_dsss_pool_state_t *s, int threads)
   s->threads    = threads;
   const int eff = effective_threads (threads, s->n_receivers);
   s->workers    = eff > 1 ? dp_pool_create (eff) : NULL;
+  if (s->search)
+    (void)dp_async_dsss_receiver_set_threads (s->search, threads);
 }
 
 dp_async_dsss_pool_state_t *
@@ -77,7 +82,24 @@ dp_async_dsss_pool_create (
       /* N engines each starting a pool of every core would oversubscribe
          N-fold: the parallelism is across receivers instead. */
       (void)dp_async_dsss_receiver_set_threads (s->rx[i], 1);
+      /* No search of its own: idle until the controller seeds it (§6). */
+      (void)dp_async_dsss_receiver_set_pooled (s->rx[i], true);
     }
+  /* The one search (§5): a receiver of the same parameters that reports
+     each dwell's picks instead of seeding itself, one task beside the
+     receivers. */
+  s->search = dp_async_dsss_receiver_create (
+      code, code_len, chip_rate, symbol_rate, sample_rate, m, cn0_dbhz, pfa,
+      pd, doppler_uncertainty, segments, sps, differential,
+      refine_max_error_db, refine_samples_per_symbol, refine_design_margin_db,
+      refine_n_fft, refine_zero_pad, refine_sequential, refine_max_n_blocks,
+      carrier_freq_hz, lost_confirm_s, reacquire, code_only_s, doppler_rate);
+  if (!s->search)
+    {
+      dp_async_dsss_pool_destroy (s);
+      return NULL;
+    }
+  (void)dp_async_dsss_receiver_set_search_only (s->search, n_receivers);
   /* A call that completes a carried code period emits that period's
      symbols beyond its input's own (dp_async_dsss_receiver_steps()), and
      its input's own are at most one a sample (a symbol spans at least one
@@ -111,6 +133,7 @@ dp_async_dsss_pool_destroy (dp_async_dsss_pool_state_t *s)
   if (s->rx)
     for (size_t i = 0; i < s->n_receivers; i++)
       dp_async_dsss_receiver_destroy (s->rx[i]);
+  dp_async_dsss_receiver_destroy (s->search);
   free (s->rx);
   free (s->n_sym);
   free (s->sym_buf);
@@ -126,11 +149,14 @@ dp_async_dsss_pool_reset (dp_async_dsss_pool_state_t *s)
 {
   for (size_t i = 0; i < s->n_receivers; i++)
     {
-      dp_async_dsss_receiver_reset (s->rx[i]);
-      (void)dp_async_dsss_receiver_set_exclusions (s->rx[i], NULL, 0);
-      (void)dp_async_dsss_receiver_set_rank (s->rx[i], 0);
+      dp_async_dsss_receiver_reset (s->rx[i]); /* pooled: back to idle */
       s->n_sym[i] = 0;
     }
+  dp_async_dsss_receiver_reset (s->search);
+  (void)dp_async_dsss_receiver_set_exclusions (s->search, NULL, 0);
+  (void)dp_async_dsss_receiver_set_search_only (s->search, s->n_receivers);
+  s->searching          = false;
+  s->search_periods     = 0;
   s->samples            = 0;
   s->carry_len          = 0;
   s->released_lost      = 0;
@@ -325,25 +351,34 @@ control (dp_async_dsss_pool_state_t *s)
             break;
           }
     }
-  /* Exclusions: every other holder's phase. Ranks: searchers in index
-     order; a holder's is 0, ready for its next search. */
-  size_t holders = 0, rank = 0;
+  /* Seeds: the search's picks of the period just fed, strongest first,
+     into the idle receivers in index order (§8). Its exclusions were
+     every holder at the period's start, so no pick is a signal held. */
+  double       ph[ASYNC_DSSS_RX_MAX_PEAKS], dop[ASYNC_DSSS_RX_MAX_PEAKS];
+  double       cn0[ASYNC_DSSS_RX_MAX_PEAKS];
+  const size_t n_picks = dp_async_dsss_receiver_take_picks (
+      s->search, ph, dop, cn0, ASYNC_DSSS_RX_MAX_PEAKS);
+  for (size_t k = 0, i = 0; k < n_picks && i < n; i++)
+    if (st[i].state == ASYNC_DSSS_RX_IDLE
+        && dp_async_dsss_receiver_seed (s->rx[i], ph[k], dop[k], cn0[k])
+               == DP_OK)
+      {
+        st[i] = dp_async_dsss_receiver_status (s->rx[i]);
+        k++;
+      }
+  /* The search's levers for the next period: every holder's phase as its
+     exclusions, the seeded ones included, and a pick for each receiver
+     still idle. */
+  double excl[ASYNC_DSSS_POOL_MAX_RECEIVERS];
+  size_t holders = 0, idle = 0;
   for (size_t i = 0; i < n; i++)
     {
-      double excl[ASYNC_DSSS_POOL_MAX_RECEIVERS];
-      size_t n_excl = 0;
-      for (size_t j = 0; j < n; j++)
-        if (j != i && holds (st[j].state))
-          excl[n_excl++] = st[j].chip_phase;
-      (void)dp_async_dsss_receiver_set_exclusions (s->rx[i], excl, n_excl);
       if (holds (st[i].state))
-        {
-          holders++;
-          (void)dp_async_dsss_receiver_set_rank (s->rx[i], 0);
-        }
-      else
-        (void)dp_async_dsss_receiver_set_rank (s->rx[i], rank++);
+        excl[holders++] = st[i].chip_phase;
+      idle += st[i].state == ASYNC_DSSS_RX_IDLE;
     }
+  (void)dp_async_dsss_receiver_set_exclusions (s->search, excl, holders);
+  (void)dp_async_dsss_receiver_set_search_only (s->search, idle ? idle : 1);
   return holders;
 }
 
@@ -368,13 +403,34 @@ count_holders (const dp_async_dsss_pool_state_t *s)
   return h;
 }
 
-/* One whole code period to every receiver, then the controller. */
+/* One whole code period to the search while any receiver is idle (§5:
+   with every receiver holding there is nobody to hand a detection to, so
+   it stops, and restarts on the period one is free), its tiles fanned
+   across the workers; then to every receiver, across the workers when at
+   least two hold a signal -- an idle receiver costs nothing, so fanning
+   idle ones out would pay a join for no work; then the controller. */
 static void
 feed_period (dp_async_dsss_pool_state_t *s, const float _Complex *x)
 {
+  size_t idle = 0;
+  for (size_t i = 0; i < s->n_receivers; i++)
+    idle += s->rx[i]->state == ASYNC_DSSS_RX_IDLE;
+  if (idle && !s->searching)
+    dp_async_dsss_receiver_reset (s->search); /* a fresh search, aligned */
+  s->searching = idle > 0;
+  if (idle)
+    {
+      float _Complex none[1];
+      (void)dp_async_dsss_receiver_steps (s->search, x, s->period, none, 0);
+      s->search_periods++;
+    }
   s->feed_x = x;
   s->feed_n = s->period;
-  dp_pool_run (s->workers, s->n_receivers, feed_one, s);
+  if (s->n_receivers - idle >= 2)
+    dp_pool_run (s->workers, s->n_receivers, feed_one, s);
+  else
+    for (size_t i = 0; i < s->n_receivers; i++)
+      feed_one (i, s);
   s->feed_x = NULL;
   (void)control (s);
 }
@@ -576,6 +632,8 @@ typedef struct
   uint64_t carry_len;
   uint64_t released_ghost;
   uint64_t hist_pos;
+  uint64_t searching;      /* v5: 0 or 1, the search fed last period */
+  uint64_t search_periods; /* v5: periods the search was fed          */
 } async_dsss_pool_extra_t;
 
 /* The ghost rule's history in the blob: each ring's length, then every
@@ -603,7 +661,7 @@ dp_async_dsss_pool_state_bytes (const dp_async_dsss_pool_state_t *s)
              + s->period * sizeof *s->carry + hist_bytes (s);
   for (size_t i = 0; i < s->n_receivers; i++)
     n += dp_async_dsss_receiver_state_bytes (s->rx[i]);
-  return n;
+  return n + dp_async_dsss_receiver_state_bytes (s->search);
 }
 
 void
@@ -620,6 +678,8 @@ dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *s, void *blob)
     .carry_len          = (uint64_t)s->carry_len,
     .released_ghost     = s->released_ghost,
     .hist_pos           = (uint64_t)s->hist_pos,
+    .searching          = (uint64_t)(s->searching != 0),
+    .search_periods     = s->search_periods,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
   /* The whole buffer, its unused tail zeros (create, reset and every
@@ -636,6 +696,7 @@ dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *s, void *blob)
   dp_w_bytes (&_w, s->cl_hist, cells * sizeof *s->cl_hist);
   for (size_t i = 0; i < s->n_receivers; i++)
     DP_W_CHILD (&_w, dp_async_dsss_receiver, s->rx[i]);
+  DP_W_CHILD (&_w, dp_async_dsss_receiver, s->search);
 }
 
 /* The decode, child by child into the live receivers: a refusal part way
@@ -651,6 +712,7 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
   dp_r_bytes (&_r, &extra, sizeof extra);
   if (extra.n_receivers != (uint64_t)s->n_receivers || extra.threads < 0
       || extra.threads > INT_MAX || extra.carry_len >= (uint64_t)s->period
+      || extra.searching > 1
       || (s->tlm
           && effective_threads ((int)extra.threads, s->n_receivers) != 1))
     return DP_ERR_INVALID;
@@ -691,6 +753,15 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
     }
   for (size_t i = 0; i < s->n_receivers; i++)
     DP_R_CHILD (&_r, dp_async_dsss_receiver, s->rx[i]);
+  DP_R_CHILD (&_r, dp_async_dsss_receiver, s->search);
+  /* The pool's own: every receiver pooled, the search search-only and
+     never holding. */
+  for (size_t i = 0; i < n; i++)
+    if (!s->rx[i]->pooled || s->rx[i]->pick_want)
+      return DP_ERR_INVALID;
+  if (s->search->pooled || !s->search->pick_want
+      || s->search->state != ASYNC_DSSS_RX_SEARCHING)
+    return DP_ERR_INVALID;
   /* A ring is one unbroken track, so it is held only by a tracking
      receiver: checked on the receivers just restored. */
   for (size_t i = 0; i < n; i++)
@@ -705,6 +776,8 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
   s->released_duplicate = extra.released_duplicate;
   s->released_ghost     = extra.released_ghost;
   s->hist_pos           = (size_t)extra.hist_pos;
+  s->searching          = extra.searching != 0;
+  s->search_periods     = extra.search_periods;
   memcpy (s->car_hist, car, n * w * sizeof *s->car_hist);
   memcpy (s->cl_hist, cl, n * w * sizeof *s->cl_hist);
   for (size_t i = 0; i < s->n_receivers; i++)

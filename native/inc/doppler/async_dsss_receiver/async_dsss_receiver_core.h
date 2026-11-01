@@ -237,11 +237,12 @@ typedef enum
   ASYNC_DSSS_RX_SEARCHING = 0, /**< the embedded search is running.        */
   ASYNC_DSSS_RX_REFINING  = 1, /**< the refine stage.                      */
   ASYNC_DSSS_RX_TRACKING  = 2, /**< the live chain holds the signal.       */
-  /* 3 was the deleted cell mode's idle. The values are persisted (a blob,
-     a telemetry capture), so it stays reserved: no state reaches it, and a
-     blob that names it is refused. */
-  ASYNC_DSSS_RX_RESERVED = 3, /**< reserved (was cell mode's idle); never
-                                   reached, refused in a blob.          */
+  ASYNC_DSSS_RX_IDLE = 3, /**< a pooled receiver waiting for a seed: it
+                               consumes samples and does not search
+                               (set_pooled(); docs/design/
+                               async-dsss-receiver.md §6). A blob that
+                               names it on a receiver that is not
+                               pooled is refused.                     */
   ASYNC_DSSS_RX_LOST     = 4, /**< released, waiting for reset().         */
 } async_dsss_rx_state_t;
 
@@ -455,6 +456,18 @@ typedef enum
     size_t   n_excl; /**< set_exclusions(): code phases held.            */
     double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; /**< those phases, chips,
                           in [0, code_len), the status() convention.     */
+    bool     pooled;     /**< set_pooled(): not holding means idle, not
+                              searching (§6 of the design page).        */
+    size_t   pick_want;  /**< set_search_only(): picks a dwell reports
+                              instead of seeding itself; 0 = a normal
+                              receiver.                                  */
+    size_t   n_picks;    /**< Picks waiting for take_picks().           */
+    double   pick_phase[ASYNC_DSSS_RX_MAX_PEAKS]; /**< each pick's code
+                              phase, chips, at the sample after the call
+                              that found it -- seed()'s convention for
+                              a receiver fed the same samples.          */
+    double   pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS]; /**< its Doppler, Hz. */
+    double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     /**< its C/N0, dB-Hz. */
     uint64_t refused_hits;         /**< Searching hits the seed domain refused
                                         as seeds, since create or reset. In
                                         the blob with state_samples, so a
@@ -1620,12 +1633,19 @@ typedef enum
                                  input index.                            */
     uint64_t srch_n;        /**< v14: search samples since it.           */
     uint64_t srch_hist_len; /**< v14: the hand-off history's live count. */
+    uint64_t pooled;        /**< v15: set_pooled()'s value (#2022).      */
+    uint64_t pick_want;     /**< v15: set_search_only()'s value.         */
+    uint64_t n_picks;       /**< v15: picks not yet taken ...            */
+    double   pick_phase[ASYNC_DSSS_RX_MAX_PEAKS];   /**< ... their phases, */
+    double   pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS]; /**< Dopplers and    */
+    double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     /**< C/N0s, the unused
+                                 tails zeroed.                           */
   } async_dsss_receiver_extra_t;
 
 /** @brief Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob. */
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 /** @brief Layout version of the AsyncDsssReceiver blob (history below). */
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 14u /* v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 15u /* v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   /**
    * @brief Size in bytes of the blob dp_async_dsss_receiver_get_state()

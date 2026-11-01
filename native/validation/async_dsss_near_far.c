@@ -57,9 +57,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define FLOOR_ESN0_DB 5.0 /* the specification's floor (design §2.1)   */
-#define CODE_ONLY 450u    /* the deep frame: code-only symbols ...       */
-#define FRAME 500u        /* ... of every FRAME                          */
+/* The specification's floor, docs/design/async-dsss-receiver.md §2.1. */
+#define FLOOR_ESN0_DB 5.0
+#define CODE_ONLY 450u /* the deep frame: code-only symbols ...       */
+#define FRAME 500u     /* ... of every FRAME                          */
 
 typedef struct
 {

@@ -61,6 +61,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md) _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/design/async-dsss-receiver.md §5-§8)._    
             * **dir** [**async\_dsss\_receiver**](dir_565c73e0c8995e904663dd9fb6485ceb.md)     
                 * **file** [**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md) _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcquisition refine -&gt; Costas/Dll/RateConverter/ MpskReceiver track, one object._     
+                * **file** [**async\_dsss\_receiver\_private.h**](async__dsss__receiver__private_8h.md) _A receiver's roles inside an AsyncDsssPool: pooled (idle until seeded) and search-only (the controller's one search)._     
             * **dir** [**awgn**](dir_6240b6c8e1c7fd073a984e370d89f937.md)     
                 * **file** [**awgn\_core.h**](awgn__core_8h.md) _Additive White Gaussian Noise generator._     
             * **dir** [**ber**](dir_742028dd4040117c60c3f886fa044d64.md)     

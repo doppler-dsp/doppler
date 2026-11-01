@@ -1428,8 +1428,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "cn0_dbhz=50.0)\n"
     ">>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream\n"
     ">>> a.reset()                 # drop it before it can bias a detection\n"
-    ">>> a.push(burst)[0][:2]      # (Doppler bin, code phase)\n"
-    "(0, 17)\n" },
+    ">>> a.push(burst)[0][:2]      # (Doppler bin, code phase column)\n"
+    "(0, 18)\n" },
 
   { "push", (PyCFunction)AcquisitionObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"
@@ -1483,8 +1483,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)\n"
     ">>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)\n"
     "...        * carrier).astype(np.complex64)\n"
-    ">>> a.push(sig)[0][:2]              # (Doppler-window bin, code phase)\n"
-    "(1, 17)\n" },
+    ">>> a.push(sig)[0][:2]              # (Doppler-window bin, lag column)\n"
+    "(1, 18)\n" },
   { "configure_search_raw",
     (PyCFunction)(void *)AcquisitionObj_configure_search_raw,
     METH_VARARGS | METH_KEYWORDS,
@@ -1541,7 +1541,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "(1, 4)\n"
     ">>> burst = np.tile(np.roll(s0, 17), 4).astype(np.complex64)\n"
     ">>> a.push(burst)[0][:2]      # detects at the pinned grid\n"
-    "(0, 17)\n" },
+    "(0, 18)\n" },
   { "set_max_peaks", (PyCFunction)(void *)AcquisitionObj_set_max_peaks,
     METH_VARARGS | METH_KEYWORDS,
     "set_max_peaks(n) -> None\n"
@@ -1944,8 +1944,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> sc = np.empty(a.surface_rows * a.lag_bins, dtype=np.complex64)\n"
     ">>> a.surface_complex(sc) == sc.size\n"
     "True\n"
-    ">>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's code phase\n"
-    "17\n" },
+    ">>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's lag column\n"
+    "18\n" },
   { "block_prompt", (PyCFunction)(void *)AcquisitionObj_block_prompt,
     METH_VARARGS | METH_KEYWORDS,
     "block_prompt(tile, col, out) -> int\n"
@@ -2234,7 +2234,11 @@ static PyTypeObject AcquisitionObjType = {
     ">>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
     "cn0_dbhz=50.0)\n"
     ">>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)\n"
-    "(0, 17)\n"
+    "(0, 18)\n"
+    ">>> (a.code_bins, a.lag_bins)  # 124 samples, read on 128 columns\n"
+    "(124, 128)\n"
+    ">>> round(18 * a.code_bins / a.lag_bins, 2)  # column 18, in samples\n"
+    "17.44\n"
     ">>> a.coherent_bins            # no window given: one epoch\n"
     "1\n"
     ">>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "

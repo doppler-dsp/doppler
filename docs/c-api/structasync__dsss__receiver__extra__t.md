@@ -50,6 +50,12 @@ _The receiver's own fields in its state blob, after the envelope and before the 
 |  double | [**lock\_num**](#variable-lock_num)  <br> |
 |  uint64\_t | [**n**](#variable-n)  <br> |
 |  uint64\_t | [**n\_excl**](#variable-n_excl)  <br> |
+|  uint64\_t | [**n\_picks**](#variable-n_picks)  <br> |
+|  double | [**pick\_cn0**](#variable-pick_cn0)  <br> |
+|  double | [**pick\_doppler**](#variable-pick_doppler)  <br> |
+|  double | [**pick\_phase**](#variable-pick_phase)  <br> |
+|  uint64\_t | [**pick\_want**](#variable-pick_want)  <br> |
+|  uint64\_t | [**pooled**](#variable-pooled)  <br> |
 |  uint64\_t | [**rank**](#variable-rank)  <br> |
 |  uint64\_t | [**refine\_min\_blocks**](#variable-refine_min_blocks)  <br> |
 |  uint64\_t | [**refine\_samples\_fed**](#variable-refine_samples_fed)  <br> |
@@ -361,6 +367,113 @@ uint64_t async_dsss_receiver_extra_t::n_excl;
 
 
 v13: set\_exclusions()'s count ... 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_picks 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::n_picks;
+```
+
+
+
+v15: picks not yet taken ... 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pick\_cn0 
+
+```C++
+double async_dsss_receiver_extra_t::pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];
+```
+
+
+
+C/N0s, the unused tails zeroed. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pick\_doppler 
+
+```C++
+double async_dsss_receiver_extra_t::pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS];
+```
+
+
+
+Dopplers and 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pick\_phase 
+
+```C++
+double async_dsss_receiver_extra_t::pick_phase[ASYNC_DSSS_RX_MAX_PEAKS];
+```
+
+
+
+... their phases, 
+
+
+        
+
+<hr>
+
+
+
+### variable pick\_want 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::pick_want;
+```
+
+
+
+v15: set\_search\_only()'s value. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable pooled 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::pooled;
+```
+
+
+
+v15: set\_pooled()'s value (#2022). 
  
 
 

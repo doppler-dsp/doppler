@@ -3200,7 +3200,7 @@ class AsyncDsssReceiver:
         """The searcher's slow-time depth D: epochs per coherent block."""
 
     @property
-    def lifecycle(self) -> Literal["searching", "refining", "tracking", "reserved", "lost"]:
+    def lifecycle(self) -> Literal["searching", "refining", "tracking", "idle", "lost"]:
         """Where the receiver is in its lifecycle, by name: `"searching"`,
         `"refining"`, `"tracking"` or `"lost"` (released, waiting for
         `reset()`). The same state as `status().state`, which carries it as the
@@ -3518,11 +3518,11 @@ class AsyncDsssPool:
 
         Hands every whole code period it completes to every receiver (header
         step 1), keeps each one's symbols for symbols(), and after each period
-        releases the lost, resolves duplicates, releases ghosts and hands out
-        exclusions and ranks (step 2). The samples past the last whole period
-        are kept for the next push. Accepts any block size, and state carries
-        across calls: the result is a function of the stream, not of its
-        blocking.
+        releases the lost, resolves duplicates, releases ghosts, seeds the idle
+        receivers and sets the search's levers (step 3). The samples past the
+        last whole period are kept for the next push. Accepts any block size,
+        and state carries across calls: the result is a function of the stream,
+        not of its blocking.
 
         Parameters
         ----------
@@ -3554,7 +3554,7 @@ class AsyncDsssPool:
 
         dp_async_dsss_receiver_status() of that receiver, as of the last whole
         code period fed, after the controller's step on it: a receiver the
-        controller released reads searching. A receiver past the pool returns a
+        controller released reads idle. A receiver past the pool returns a
         zeroed record with `state` ASYNC_DSSS_POOL_NO_RECEIVER.
 
         Parameters
@@ -3576,8 +3576,8 @@ class AsyncDsssPool:
         >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
         ...                      symbol_rate=2700.0, sample_rate=6.138e6,
         ...                      doppler_uncertainty=500.0, threads=1)
-        >>> (pool.status(0).state, pool.status(2).state)  # 2 is past the pool
-        (0, -1)
+        >>> (pool.status(0).state, pool.status(2).state)  # 3 idle; 2 is past
+        (3, -1)
 
         """
 
@@ -3588,11 +3588,11 @@ class AsyncDsssPool:
     ) -> NDArray[np.complex64]:
         """The symbols receiver receiver emitted during the last push().
 
-        Empty for a receiver that was searching, refining or lost throughout
-        the push, and for a receiver past the pool. Tracking emits symbols
-        whether or not they are a signal's (dp_async_dsss_receiver_steps()):
-        read status().locked for that. A push replaces them, and set_state()
-        and reset() clear them.
+        Empty for a receiver that was idle, refining or lost throughout the
+        push, and for a receiver past the pool. Tracking emits symbols whether
+        or not they are a signal's (dp_async_dsss_receiver_steps()): read
+        status().locked for that. A push replaces them, and set_state() and
+        reset() clear them.
 
         Parameters
         ----------
@@ -3616,7 +3616,7 @@ class AsyncDsssPool:
         ...                      symbol_rate=2700.0, sample_rate=6.138e6,
         ...                      doppler_uncertainty=500.0, threads=1)
         >>> _ = pool.push(np.zeros(2046, dtype=np.complex64))
-        >>> pool.symbols(0).size                    # searching: nothing yet
+        >>> pool.symbols(0).size                    # idle: nothing yet
         0
 
         """
@@ -3633,8 +3633,9 @@ class AsyncDsssPool:
         """
 
     def reset(self) -> None:
-        """Every receiver back to searching, with no exclusions and rank 0; the
-        clock, the release counts and the ghost history back to 0.
+        """Every receiver back to idle and the search to no exclusions; the
+        clock, the release counts, the search's period count and the ghost
+        history back to 0.
 
         Examples
         --------

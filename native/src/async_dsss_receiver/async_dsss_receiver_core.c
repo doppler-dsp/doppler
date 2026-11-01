@@ -1,4 +1,5 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/util/util_core.h"
 #include <limits.h>
@@ -1315,6 +1316,8 @@ dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state)
   free (state);
 }
 
+static int adr_unheld (const dp_async_dsss_receiver_state_t *s);
+
 void
 dp_async_dsss_receiver_reset (dp_async_dsss_receiver_state_t *state)
 {
@@ -1325,7 +1328,7 @@ dp_async_dsss_receiver_reset (dp_async_dsss_receiver_state_t *state)
   adr_rebuild_refine_chain (state, 0.0, 0.0);
   adr_rebuild_track_chain (state, 0.0, 0.0, state->segments, state->sps,
                            state->n);
-  adr_enter (state, ASYNC_DSSS_RX_SEARCHING);
+  adr_enter (state, adr_unheld (state));
   state->seed_chip_phase     = 0.0;
   state->seed_doppler_hz_est = 0.0;
   state->doppler_hz_est      = 0.0;
@@ -1424,7 +1427,8 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
   /* Only a receiver with nothing to lose takes a seed: a searching one.
    * Lost is deliberately refused too -- reset() releases it, so a stale
    * hold is never silently overwritten. */
-  if (state->state != ASYNC_DSSS_RX_SEARCHING)
+  if (state->state != ASYNC_DSSS_RX_SEARCHING
+      && state->state != ASYNC_DSSS_RX_IDLE)
     return DP_ERR_INVALID;
   if (!dp_async_dsss_receiver_seed_ok (state, chip_phase, doppler_hz_est))
     return DP_ERR_INVALID;
@@ -1470,6 +1474,56 @@ adr_release_clock (dp_async_dsss_receiver_state_t *s, size_t x_len)
     adr_enter (s, ASYNC_DSSS_RX_LOST);
 }
 
+/* The state a receiver that holds nothing is in: its own search, or, pooled,
+ * idle until the controller seeds it (docs/design/async-dsss-receiver.md
+ * §6). */
+static int
+adr_unheld (const dp_async_dsss_receiver_state_t *s)
+{
+  return s->pooled ? ASYNC_DSSS_RX_IDLE : ASYNC_DSSS_RX_SEARCHING;
+}
+
+/* A search-only receiver's dwell (set_search_only()): the pick for ranks 0
+ * … pick_want - 1, each survivor kept with its phase at the sample after
+ * this call. The hits' phases are carried there from the dwell's end, t,
+ * by adr_pick()'s own shift; the exclusions, read at this call's first
+ * sample in0 (the controller sets them between calls), are carried there
+ * too, nominally -- a holder's own Doppler dilation over one call is a
+ * hundredth of a chip at 20 ppm, far inside the one-chip key. */
+static void
+adr_collect_picks (dp_async_dsss_receiver_state_t *s, const acq_result_t *hits,
+                   size_t n_hits, double t, uint64_t in0)
+{
+  const double L     = (double)s->code_len;
+  const double end   = (double)s->samples_in; /* the sample after the call */
+  const double ex_sh = (end - (double)in0) / s->spc;
+  double       saved[ASYNC_DSSS_RX_MAX_EXCLUSIONS];
+  memcpy (saved, s->excl, sizeof saved);
+  for (size_t k = 0; k < s->n_excl; k++)
+    s->excl[k] = dp_fmod_pos (s->excl[k] + ex_sh, L);
+  const size_t rank = s->rank;
+  for (size_t r = 0; r < s->pick_want && s->n_picks < ASYNC_DSSS_RX_MAX_PEAKS;
+       r++)
+    {
+      acq_handoff_t ho;
+      s->rank = r;
+      if (!adr_pick (s, hits, n_hits, (end - t) / s->spc, &ho))
+        break;
+      if (!dp_async_dsss_receiver_seed_ok (s, ho.chip_phase,
+                                           ho.doppler_hz_est))
+        {
+          s->refused_hits++;
+          continue;
+        }
+      s->pick_phase[s->n_picks]   = ho.chip_phase;
+      s->pick_doppler[s->n_picks] = ho.doppler_hz_est;
+      s->pick_cn0[s->n_picks]     = ho.cn0_dbhz_est;
+      s->n_picks++;
+    }
+  s->rank = rank;
+  memcpy (s->excl, saved, sizeof saved);
+}
+
 /* steps()'s body. A hit, a refused hand-over or a decided refine hands the
  * rest of the call to itself here, so a call may pass through several
  * states; the public steps() below reports once, after all of them. */
@@ -1485,6 +1539,8 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
     state->both_down_samples += x_len; /* since the flags dropped */
   if (state->state == ASYNC_DSSS_RX_LOST)
     return 0; /* consumed and discarded: the feeding loop has no case */
+  if (state->state == ASYNC_DSSS_RX_IDLE)
+    return 0; /* a pooled receiver waits for the controller's seed */
 
   if (state->state == ASYNC_DSSS_RX_SEARCHING)
     {
@@ -1567,6 +1623,14 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
             i0 = back;
           if (i0 > (double)state->samples_in)
             i0 = (double)state->samples_in;
+          if (state->pick_want)
+            {
+              /* The controller's search: report, never seed (§5). */
+              adr_collect_picks (state, hits, n_hits, t, in0);
+              state->srch_n += taken;
+              yp += taken;
+              continue;
+            }
           acq_handoff_t ho;
           const int     picked
               = adr_pick (state, hits, n_hits, (i0 - t) / state->spc, &ho);
@@ -1718,7 +1782,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           state->seed_doppler_hz_est = 0.0;
           state->doppler_hz_est      = 0.0;
           adr_restart_search (state, state->samples_in - tail_len);
-          adr_enter (state, ASYNC_DSSS_RX_SEARCHING);
+          adr_enter (state, adr_unheld (state));
           return adr_steps (state, tail, tail_len, out, max_out);
         }
       adr_rebuild_track_chain (state, handover_chip_phase,
@@ -1778,6 +1842,52 @@ dp_async_dsss_receiver_set_threads (dp_async_dsss_receiver_state_t *state,
                                     int                             n)
 {
   return dp_acq_set_threads (state->acq, n);
+}
+
+int
+dp_async_dsss_receiver_set_pooled (dp_async_dsss_receiver_state_t *state,
+                                   bool                            on)
+{
+  state->pooled = on;
+  if (on && state->state == ASYNC_DSSS_RX_SEARCHING)
+    adr_enter (state, ASYNC_DSSS_RX_IDLE);
+  else if (!on && state->state == ASYNC_DSSS_RX_IDLE)
+    {
+      adr_restart_search (state, state->samples_in);
+      adr_enter (state, ASYNC_DSSS_RX_SEARCHING);
+    }
+  return DP_OK;
+}
+
+int
+dp_async_dsss_receiver_set_search_only (dp_async_dsss_receiver_state_t *state,
+                                        size_t n_picks)
+{
+  if (n_picks > ASYNC_DSSS_RX_MAX_PEAKS)
+    return DP_ERR_INVALID;
+  state->pick_want = n_picks;
+  if (n_picks == 0)
+    state->n_picks = 0;
+  return DP_OK;
+}
+
+size_t
+dp_async_dsss_receiver_take_picks (dp_async_dsss_receiver_state_t *state,
+                                   double *chip_phase, double *doppler_hz,
+                                   double *cn0_dbhz, size_t max)
+{
+  const size_t n = state->n_picks < max ? state->n_picks : max;
+  for (size_t k = 0; k < n; k++)
+    {
+      chip_phase[k] = state->pick_phase[k];
+      doppler_hz[k] = state->pick_doppler[k];
+      cn0_dbhz[k]   = state->pick_cn0[k];
+    }
+  state->n_picks = 0;
+  memset (state->pick_phase, 0, sizeof state->pick_phase);
+  memset (state->pick_doppler, 0, sizeof state->pick_doppler);
+  memset (state->pick_cn0, 0, sizeof state->pick_cn0);
+  return n;
 }
 
 int
@@ -2120,8 +2230,14 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .srch_origin         = s->srch_origin,
     .srch_n              = s->srch_n,
     .srch_hist_len       = (uint64_t)s->srch_hist_len,
+    .pooled              = (uint64_t)(s->pooled != 0),
+    .pick_want           = (uint64_t)s->pick_want,
+    .n_picks             = (uint64_t)s->n_picks,
   };
   memcpy (extra.excl, s->excl, sizeof extra.excl); /* tail kept zeroed */
+  memcpy (extra.pick_phase, s->pick_phase, sizeof extra.pick_phase);
+  memcpy (extra.pick_doppler, s->pick_doppler, sizeof extra.pick_doppler);
+  memcpy (extra.pick_cn0, s->pick_cn0, sizeof extra.pick_cn0);
   dp_w_bytes (&_w, &extra, sizeof extra);
   DP_W_CHILD (&_w, dp_acq, s->acq);
   DP_W_CHILD (&_w, dp_costas, &s->car_frozen);
@@ -2160,8 +2276,11 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.n != (uint64_t)s->n
       || extra.refine_segments != (uint64_t)s->refine_segments
       || extra.car_carry_len >= (uint64_t)s->tsamps
-      || extra.state > ASYNC_DSSS_RX_LOST
-      || extra.state == ASYNC_DSSS_RX_RESERVED || extra.align_pending > 1
+      || extra.state > ASYNC_DSSS_RX_LOST || extra.pooled > 1
+      || (extra.state == ASYNC_DSSS_RX_IDLE && !extra.pooled)
+      || (extra.state == ASYNC_DSSS_RX_SEARCHING && extra.pooled)
+      || extra.pick_want > ASYNC_DSSS_RX_MAX_PEAKS
+      || extra.n_picks > ASYNC_DSSS_RX_MAX_PEAKS || extra.align_pending > 1
       || extra.threads < 1 || extra.threads > INT_MAX
       || extra.rank >= ASYNC_DSSS_RX_MAX_PEAKS
       || extra.n_excl > ASYNC_DSSS_RX_MAX_EXCLUSIONS
@@ -2173,6 +2292,16 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
     if (i < extra.n_excl
             ? !(extra.excl[i] >= 0.0 && extra.excl[i] < (double)s->code_len)
             : extra.excl[i] != 0.0)
+      return DP_ERR_INVALID;
+  /* Only what the picks can hold: folded phases, the seed domain's
+     Dopplers, a zeroed tail. */
+  for (size_t i = 0; i < ASYNC_DSSS_RX_MAX_PEAKS; i++)
+    if (i < extra.n_picks
+            ? !dp_async_dsss_receiver_seed_ok (s, extra.pick_phase[i],
+                                               extra.pick_doppler[i])
+                  || !isfinite (extra.pick_cn0[i])
+            : (extra.pick_phase[i] != 0.0 || extra.pick_doppler[i] != 0.0
+               || extra.pick_cn0[i] != 0.0))
       return DP_ERR_INVALID;
   /* A reacquire receiver never enters lost (its release resets it to
      searching), so lost is no state it can be in, and nothing would take
@@ -2227,6 +2356,12 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   s->srch_origin   = extra.srch_origin;
   s->srch_n        = extra.srch_n;
   s->srch_hist_len = (size_t)extra.srch_hist_len;
+  s->pooled        = extra.pooled != 0;
+  s->pick_want     = (size_t)extra.pick_want;
+  s->n_picks       = (size_t)extra.n_picks;
+  memcpy (s->pick_phase, extra.pick_phase, sizeof s->pick_phase);
+  memcpy (s->pick_doppler, extra.pick_doppler, sizeof s->pick_doppler);
+  memcpy (s->pick_cn0, extra.pick_cn0, sizeof s->pick_cn0);
   /* set_threads()'s value (#2022): the same request the writer's last
      call made, which on a machine with as many cores runs as many. */
   if (extra.threads != (int64_t)s->acq->threads)

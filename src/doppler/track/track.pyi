@@ -758,7 +758,7 @@ class Dll:
     code : NDArray[np.uint8]
         Spreading code (0/1 chips), one period; copied internally.
     sps : float, default 2.0
-        Samples per chip (default 2), any positive value: the partials close on
+        Samples per chip (default 2), finite and >= 1: the partials close on
         the code NCO's phase, so a code period need not be a whole number of
         samples (11 MSa/s over 5 Mcps is 2.2).
     init_chip : float, default 0.0
@@ -783,9 +783,9 @@ class Dll:
     ------
     ValueError
         If construction fails. The exception message is ``Dll: invalid
-        parameter (need a non-empty code, segments >= 1, a finite init_chip, bn
-        >= 0 and zeta > 0 both finite, whose loop gains come out finite, and 0
-        < spacing < len(code)/2)``.
+        parameter (need a non-empty code, a finite sps >= 1, segments >= 1, a
+        finite init_chip, bn >= 0 and zeta > 0 both finite, whose loop gains
+        come out finite, and 0 < spacing < len(code)/2)``.
 
     Examples
     --------

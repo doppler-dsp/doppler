@@ -84,7 +84,7 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 |  double | [**dp\_despreader\_get\_lock\_metric**](#function-dp_despreader_get_lock_metric) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_The embedded Costas loop's lock statistic: the EMA of \|Re P\|/\|P\| over the prompt correlations, 1 when locked._ `carrier_locked` _is the de-chattered decision made on it._ |
 |  double | [**dp\_despreader\_get\_norm\_freq**](#function-dp_despreader_get_norm_freq) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_The carrier loop's tracked frequency, cycles/sample._  |
 |  void | [**dp\_despreader\_get\_state**](#function-dp_despreader_get_state) (const [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, void \* blob) <br>_Serialize both loops and the running bit-sync state into_ `blob` _. The code copy and telemetry attachment do not travel._ |
-|  void | [**dp\_despreader\_init**](#function-dp_despreader_init) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* ch, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Initialise a despreader in place; BORROWS_ `code` _._ |
+|  int | [**dp\_despreader\_init**](#function-dp_despreader_init) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* ch, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Initialise a despreader in place; BORROWS_ `code` _._ |
 |  void | [**dp\_despreader\_reset**](#function-dp_despreader_reset) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state) <br>_Re-seed both loops to the create-time frequency/phase; keep config._  |
 |  int | [**dp\_despreader\_set\_bn\_carrier**](#function-dp_despreader_set_bn_carrier) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br>_Retune the carrier loop bandwidth, keeping zeta (_ [_**dp\_costas\_set\_bn()**_](costas__core_8h.md#function-dp_costas_set_bn) _)._ |
 |  int | [**dp\_despreader\_set\_bn\_code**](#function-dp_despreader_set_bn_code) ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) \* state, double val) <br>_Retune the code loop bandwidth, keeping zeta (_ [_**dp\_dll\_set\_bn()**_](dll__core_8h.md#function-dp_dll_set_bn) _)._ |
@@ -807,7 +807,7 @@ void dp_despreader_get_state (
 
 _Initialise a despreader in place; BORROWS_ `code` _._
 ```C++
-void dp_despreader_init (
+int dp_despreader_init (
     dp_despreader_state_t * ch,
     const uint8_t * code,
     size_t code_len,
@@ -828,7 +828,7 @@ void dp_despreader_init (
 The by-value counterpart to [**dp\_despreader\_create()**](despreader__core_8h.md#function-dp_despreader_create): the caller retains ownership of `code` (it is not copied or freed). Seeds the carrier NCO at `init_norm_freq` and the code phase at `init_chip` (the acquisition estimate). The carrier loop's update period is one code period (`code_len * sps` samples).
 
 
-Unguarded, as the by-value path: the caller checks the code loop's arguments with [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok) (`code_len`, `init_chip`, `bn_code`, `zeta`, `spacing`, one segment) first, as [**dp\_despreader\_create()**](despreader__core_8h.md#function-dp_despreader_create) does. Outside it the code loop reads past the code (doppler#2103). Likewise the carrier loop's (`bn_carrier`, `zeta`) with [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) at one update a symbol, or its gains go NaN (doppler#2112).
+Guarded like [**dp\_despreader\_create()**](despreader__core_8h.md#function-dp_despreader_create), and writing nothing on a refusal: the code loop's arguments go through [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok) (`code_len`, `init_chip`, `bn_code`, `zeta`, `spacing`, one segment; outside it the loop reads past the code, doppler#2103), the carrier loop's (`bn_carrier`, `zeta`) through [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) at one update a symbol (or its gains go NaN, doppler#2112), and `bn_fll` through [**dp\_loop\_filter\_fll\_bn\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_fll_bn_ok). The bit-sync histogram, allocated when `periods_per_bit` &gt; 1, is allocated first, so a failure leaves `ch` as it was too.
 
 
 
@@ -848,6 +848,13 @@ Unguarded, as the by-value path: the caller checks the code loop's arguments wit
 * `zeta` Damping factor for both loops. 
 * `spacing` DLL early/late tap offset, chips. 
 * `periods_per_bit` Code periods per data bit (1 = one bit per period). 
+
+
+
+**Returns:**
+
+DP\_OK; DP\_ERR\_INVALID for an argument outside the loops' own domains, or DP\_ERR\_MEMORY when the bit-sync histogram cannot be allocated  either way with nothing written. 
+
 
 
 

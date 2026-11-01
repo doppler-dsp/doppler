@@ -186,11 +186,28 @@ main (void)
               < 1e-9); /* seeded */
     DP_CHECK (dp_despreader_get_code_rate (c) == 1.0);
     dp_despreader_state_t v;
-    dp_despreader_init (&v, code, sf, sps, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707,
-                        0.5, 1);
+    DP_CHECK (dp_despreader_init (&v, code, sf, sps, 0.001, 0.0, 0.05, 0.005,
+                                  0.0, 0.707, 0.5, 1)
+              == DP_OK);
     DP_CHECK (v.car.lf.kp == c->car.lf.kp);
     DP_CHECK (v.code.sf == sf && v.code.owns_code == 0);
     free (v.flip_hist);
+    /* The by-value door refuses as create does, writing nothing: a NaN
+       spacing (the Dll's), a NaN carrier bandwidth (the filter's). */
+    static const double bad_sp[] = { NAN, 0.5 }, bad_bn[] = { 0.05, NAN };
+    for (size_t k = 0; k < 2; k++)
+      {
+        dp_despreader_state_t w;
+        memset (&w, 0x5a, sizeof w);
+        const int rc
+            = dp_despreader_init (&w, code, sf, sps, 0.001, 0.0, bad_bn[k],
+                                  0.005, 0.0, 0.707, bad_sp[k], 1);
+        const unsigned char *b         = (const unsigned char *)&w;
+        int                  untouched = 1;
+        for (size_t i = 0; i < sizeof w; i++)
+          untouched &= b[i] == 0x5a;
+        DP_CHECK (rc == DP_ERR_INVALID && untouched);
+      }
     dp_despreader_destroy (c);
   }
 

@@ -36,12 +36,13 @@ adr_partials_per_symbol (size_t segments, double chip_rate, size_t code_len,
    refusal (doppler#2103). */
 static int
 adr_track_chain_ok (size_t code_len, double chip_rate, double symbol_rate,
-                    size_t segments, size_t sps)
+                    size_t segments, size_t sps, double spc)
 {
   const double partials
       = adr_partials_per_symbol (segments, chip_rate, code_len, symbol_rate);
   return sps >= 2
-         && dp_dll_params_ok (code_len, 0.0, ASYNC_DSSS_RX_DLL_BN,
+         /* the Dll's samples a chip, not the SymbolSync's sps a symbol */
+         && dp_dll_params_ok (code_len, spc, 0.0, ASYNC_DSSS_RX_DLL_BN,
                               ASYNC_DSSS_RX_DLL_ZETA,
                               ASYNC_DSSS_RX_DLL_SPACING, segments)
          && symbol_rate <= chip_rate && partials <= DLL_AID_MAX_PERIOD
@@ -1144,11 +1145,11 @@ dp_async_dsss_receiver_create (
   {
     const size_t refine_segments = dp_dll_lookback_segments (
         (size_t)floor ((double)code_len * spc + 1e-9), refine_max_error_db);
-    if (!dp_dll_params_ok (code_len, 0.0, ASYNC_DSSS_RX_DLL_BN,
+    if (!dp_dll_params_ok (code_len, spc, 0.0, ASYNC_DSSS_RX_DLL_BN,
                            ASYNC_DSSS_RX_DLL_ZETA,
                            ASYNC_DSSS_RX_REFINE_DLL_SPACING, refine_segments)
         || !adr_track_chain_ok (code_len, chip_rate, symbol_rate, segments,
-                                sps))
+                                sps, spc))
       return NULL;
   }
 
@@ -1989,7 +1990,7 @@ dp_async_dsss_receiver_configure_chain_raw (
      #2421). A negative `n` is refused before the cast. */
   if (n < 0 || !mpsk_rx_m_out_ok ((double)sps, (size_t)n, 0)
       || !adr_track_chain_ok (state->code_len, state->chip_rate,
-                              state->symbol_rate, segments, sps))
+                              state->symbol_rate, segments, sps, state->spc))
     return -1;
 
   /* Read before the rebuild, while sps is still the old grid's: the sum

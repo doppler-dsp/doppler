@@ -1,7 +1,6 @@
-- **`Dll` takes any positive samples a chip, not only whole ones.** Its
-    partials close on the code NCO's phase and its taps sit at each
-    sample's dwell centre, so a code period need not be a whole number of
-    samples: at 2.2 samples a chip (11 MSa/s over 5 Mcps) it tracks to
-    0.0011 chip, as at 2. `sps` is a float in Python and a `double` in
-    `dp_dll_create()`/`dp_dll_init()`: Python and C source callers are
-    unchanged, but the C ABI changes (rebuild against the new header).
+- **`Dll` takes any finite samples a chip of at least one, not only whole
+    ones.** Its partials close on the code NCO's phase, so a period need not
+    be whole samples: at 2.2 a chip (11 MSa/s over 5 Mcps) it tracks to
+    0.0011 chip, as at 2. `sps` is a float in Python and a `double` in C
+    (the ABI changes: rebuild), and NaN, inf or under 1 is refused, by
+    `dp_dll_create()` and by `dp_dll_init()`, which now returns `int`.

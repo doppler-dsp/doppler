@@ -19,25 +19,53 @@ bitsync_reset (dp_despreader_state_t *ch)
   ch->have_prev     = 0;
 }
 
-void
+/* Both loops are embedded by value, so their arguments meet each one's own
+   domain before either door writes anything (doppler#2103): the code
+   loop's Dll (a NaN spacing read code[2^62] on the first sample), and the
+   carrier loop's filter, which Costas runs at one update a symbol (a NaN
+   bn_carrier gave NaN gains), and its FLL assist, which Costas and
+   CarrierMpsk refuse through the same predicate (#2112, #2646). sps 0
+   means 1, as it always has. */
+static int
+despreader_args_ok (const uint8_t *code, size_t code_len, size_t sps,
+                    double init_chip, double bn_carrier, double bn_code,
+                    double bn_fll, double zeta, double spacing)
+{
+  return code
+         && dp_dll_params_ok (code_len, (double)(sps ? sps : 1), init_chip,
+                              bn_code, zeta, spacing, 1)
+         && dp_loop_filter_params_ok (bn_carrier, zeta, 1.0)
+         && dp_loop_filter_fll_bn_ok (bn_fll);
+}
+
+int
 dp_despreader_init (dp_despreader_state_t *ch, const uint8_t *code,
                     size_t code_len, size_t sps, double init_norm_freq,
                     double init_chip, double bn_carrier, double bn_code,
                     double bn_fll, double zeta, double spacing,
                     size_t periods_per_bit)
 {
+  if (!despreader_args_ok (code, code_len, sps, init_chip, bn_carrier, bn_code,
+                           bn_fll, zeta, spacing))
+    return DP_ERR_INVALID;
+  /* The one allocation, before anything is written: a failure leaves @p ch
+     as it was, never half-built (bits() would read a NULL histogram). */
+  const size_t ppb  = periods_per_bit ? periods_per_bit : 1;
+  size_t      *hist = NULL;
+  if (ppb > 1 && !(hist = calloc (ppb, sizeof (*hist))))
+    return DP_ERR_MEMORY;
   size_t tsamps = (code_len ? code_len : 1) * (sps ? sps : 1);
   /* one carrier-loop update per code period (the integrate-and-dump window) */
   dp_costas_init (&ch->car, bn_carrier, zeta, init_norm_freq, tsamps, bn_fll);
-  dp_dll_init (&ch->code, code, code_len, sps, init_chip, bn_code, zeta,
-               spacing);
+  /* Checked above (despreader_args_ok()), so the Dll cannot refuse. */
+  (void)dp_dll_init (&ch->code, code, code_len, (double)(sps ? sps : 1),
+                     init_chip, bn_code, zeta, spacing);
   ch->code_copy       = NULL;
   ch->tlm_ctx         = NULL; /* start detached (stack-embed safe) */
-  ch->periods_per_bit = periods_per_bit ? periods_per_bit : 1;
-  ch->flip_hist       = NULL;
-  if (ch->periods_per_bit > 1)
-    ch->flip_hist = calloc (ch->periods_per_bit, sizeof (*ch->flip_hist));
+  ch->periods_per_bit = ppb;
+  ch->flip_hist       = hist;
   bitsync_reset (ch);
+  return DP_OK;
 }
 
 dp_despreader_state_t *
@@ -46,16 +74,9 @@ dp_despreader_create (const uint8_t *code, size_t code_len, size_t sps,
                       double bn_carrier, double bn_code, double bn_fll,
                       double zeta, double spacing, size_t periods_per_bit)
 {
-  /* Both loops are embedded by value through unguarded inits, so their
-     arguments meet each one's own domain here (doppler#2103): the code
-     loop's Dll (a NaN spacing read code[2^62] on the first sample), and the
-     carrier loop's filter, which Costas runs at one update a symbol (a NaN
-     bn_carrier gave NaN gains), and its FLL assist, which Costas and
-     CarrierMpsk refuse through the same predicate (#2112, #2646). */
-  if (!code
-      || !dp_dll_params_ok (code_len, init_chip, bn_code, zeta, spacing, 1)
-      || !dp_loop_filter_params_ok (bn_carrier, zeta, 1.0)
-      || !dp_loop_filter_fll_bn_ok (bn_fll))
+  /* Every argument checked before anything is allocated. */
+  if (!despreader_args_ok (code, code_len, sps, init_chip, bn_carrier, bn_code,
+                           bn_fll, zeta, spacing))
     return NULL;
   dp_despreader_state_t *ch = calloc (1, sizeof (*ch));
   if (!ch)
@@ -67,9 +88,15 @@ dp_despreader_create (const uint8_t *code, size_t code_len, size_t sps,
       return NULL;
     }
   memcpy (copy, code, code_len);
-  dp_despreader_init (ch, copy, code_len, sps, init_norm_freq, init_chip,
-                      bn_carrier, bn_code, bn_fll, zeta, spacing,
-                      periods_per_bit);
+  if (dp_despreader_init (ch, copy, code_len, sps, init_norm_freq, init_chip,
+                          bn_carrier, bn_code, bn_fll, zeta, spacing,
+                          periods_per_bit)
+      != DP_OK)
+    {
+      free (copy);
+      free (ch);
+      return NULL;
+    }
   ch->code_copy = copy; /* despreader owns the code (dll borrows it) */
   return ch;
 }

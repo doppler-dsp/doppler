@@ -349,7 +349,8 @@ typedef enum
 
     /* Config carried across every chain rebuild. */
     double spc;          /**< Samples per chip, sample_rate / chip_rate:
-                              any positive value (config).            */
+                              at least one, not necessarily whole
+                              (config).                               */
     int    m;            /**< PSK order, 2/4/8 (config).                */
     int    differential; /**< MpskReceiver's differential demap flag
                               (config).                               */

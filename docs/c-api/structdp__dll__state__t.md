@@ -1345,7 +1345,7 @@ double dp_dll_state_t::sps;
 
 
 
-samples per chip, any positive value. 
+samples per chip, finite and &gt;= 1. 
  
 
 

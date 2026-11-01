@@ -1382,7 +1382,7 @@ double dp_async_dsss_receiver_state_t::spc;
 
 
 
-Samples per chip, sample\_rate / chip\_rate: any positive value (config). 
+Samples per chip, sample\_rate / chip\_rate: at least one, not necessarily whole (config). 
  
 
 

@@ -130,7 +130,7 @@ typedef struct {
     dp_nco_state_t code_nco;    /**< fixed-point code-phase NCO (phase/phase_inc).*/
     const uint8_t *code;     /**< spreading code, one period (0/1 chips).  */
     size_t sf;               /**< code length (chips per period).          */
-    double sps;              /**< samples per chip, any positive value.    */
+    double sps;              /**< samples per chip, finite and >= 1.       */
     double inv_sps;          /**< 1 / sps (per-sample chip advance scale).  */
     double inv_tsamps;       /**< 1 / (sf*sps) -- the nominal phase_inc,
                                   cycles/sample; precomputed once (sf/sps are
@@ -383,23 +383,25 @@ dll_replica_word(const dp_dll_state_t *s, uint32_t w)
  * dp_dll_state_t initialises it here and retains ownership of @p code (it is not
  * copied or freed). @p code must hold @p code_len chips for the loop's lifetime.
  *
- * Unguarded, as the by-value path: the caller checks its arguments with
- * dp_dll_params_ok() (one segment) first. Outside it the loop's gains go NaN
- * or its taps read past the code (doppler#2103).
+ * Guarded like dp_dll_create(), on one segment: an argument outside
+ * dp_dll_params_ok() is refused and @p s is left untouched (outside it the
+ * loop's gains go NaN or its taps read past the code, doppler#2103).
  *
  * @param s          State to initialise.  Must be non-NULL.
  * @param code       Spreading code (0/1 chips), one period; borrowed.
  * @param code_len   Code length (chips per period); with the floats, inside
  *                   dp_dll_params_ok().
- * @param sps        Samples per chip, any positive value: the partials
- *                   close on the code NCO's phase, so a code period need
- *                   not be a whole number of samples.
+ * @param sps        Samples per chip, finite and >= 1: the partials close on
+ *                   the code NCO's phase, so a code period need not be a
+ *                   whole number of samples.
  * @param init_chip  Seed code phase, chips.
  * @param bn         Loop noise bandwidth, normalised to the code-period rate.
  * @param zeta       Damping factor (1.0 = critical; 0.707 usual).
  * @param spacing    Early/late tap offset, chips (0.5 = half-chip).
+ * @return DP_OK, or DP_ERR_INVALID with nothing written for an argument
+ *         outside dp_dll_params_ok().
  */
-void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, double sps,
+int dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, double sps,
               double init_chip, double bn, double zeta, double spacing);
 
 /**
@@ -625,7 +627,7 @@ dll_update(dp_dll_state_t *s)
  *
  * @param code       Spreading code (0/1 chips), one period; copied internally.
  * @param code_len   Code length (chips per period).
- * @param sps        Samples per chip (default 2), any positive value: the
+ * @param sps        Samples per chip (default 2), finite and >= 1: the
  *                   partials close on the code NCO's phase, so a code
  *                   period need not be a whole number of samples (11 MSa/s
  *                   over 5 Mcps is 2.2).
@@ -643,7 +645,8 @@ dll_update(dp_dll_state_t *s)
  *                   downstream SymbolSync when the symbol rate is near the code
  *                   rate, so choose >= 2 for symbol-timing recovery.
  * @return Heap-allocated state, or NULL on allocation failure or an
- *         argument outside dp_dll_params_ok(): an empty code, `segments` 0,
+ *         argument outside dp_dll_params_ok(): an empty code, `sps` under
+ *         1 or not finite, `segments` 0,
  *         a non-finite `init_chip`, `bn` and `zeta` outside
  *         dp_loop_filter_params_ok(), or a `spacing` outside
  *         (0, `code_len`/2) (doppler#2103).
@@ -685,6 +688,8 @@ dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, double sps, 
  * calls it first and refuses with its own error (doppler#2103).
  *
  * @param code_len   Code length, chips per period; >= 1.
+ * @param sps        Samples a chip; finite and >= 1 (fewer aliases the code
+ *                   NCO).
  * @param init_chip  Initial prompt code phase, chips; any finite value.
  * @param bn         Loop noise bandwidth, normalized to the code-period
  *                   rate.
@@ -694,7 +699,7 @@ dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, double sps, 
  * @param segments   Partial correlations per code period; >= 1.
  * @return 1 inside the domain, 0 outside it (a NaN is outside).
  */
-int dp_dll_params_ok(size_t code_len, double init_chip, double bn, double zeta, double spacing, size_t segments);
+int dp_dll_params_ok(size_t code_len, double sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
 /**
  * @brief The longest symbol period, in partials, the symbol aid takes.

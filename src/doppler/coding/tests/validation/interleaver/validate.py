@@ -12,7 +12,7 @@ records is asserted by
 
 The order is the campaign's, not this file's:
 `native/inc/doppler/interleaver/interleaver_core.h` is the SSOT,
-`native/tests/test_interleaver_core.c` certifies it in C, and
+`native/tests/interleaver/test_interleaver_core.c` certifies it in C, and
 `native/validation/interleave_burst_gain.c` measures the coding gain over
 a real outer code. This file measures the same properties through
 `doppler.coding.Interleaver` and `Deinterleaver` to show the binding
@@ -204,7 +204,7 @@ def section_object() -> None:
                 "sits in a frame",
             ],
             [
-                "`native/tests/test_interleaver_core.c`",
+                "`native/tests/interleaver/test_interleaver_core.c`",
                 "the object's C certification",
             ],
             [

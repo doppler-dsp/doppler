@@ -11,8 +11,8 @@ records is asserted by
 `build(write=False)`.
 
 The order is the campaign's: `native/inc/doppler/wfm_reader/wfm_reader_core.h`
-is the SSOT and `native/tests/test_wfm_reader_core.c` certifies it in C.
-This file measures the same properties through `doppler.wfm.Reader`.
+is the SSOT and `native/tests/wfm_reader/test_wfm_reader_core.c` certifies it
+in C. This file measures the same properties through `doppler.wfm.Reader`.
 
 **The truth is the bytes, decoded by numpy.** `Reader`'s job is to invert
 the wire format, so scoring it against `Writer` alone would ask whether
@@ -156,7 +156,8 @@ def section_object() -> None:
         "[docs/design/wfmgen.md](../../../../../../docs/design/wfmgen.md); "
         "the API is `native/inc/doppler/wfm_reader/wfm_reader_core.h`, "
         "certified in "
-        "C by `native/tests/test_wfm_reader_core.c`. Neither is restated "
+        "C by `native/tests/wfm_reader/test_wfm_reader_core.c`. Neither is "
+        "restated "
         "here."
     )
     R.md()

@@ -181,7 +181,7 @@ class Data:
 
 # ═════════════════════════════════════════════════ 1. OBJECT SUMMARY
 CLAIM_MAP: list[tuple[str, str]] = [
-    # (claim, coverage in native/tests/test_lo_core.c)
+    # (claim, coverage in native/tests/lo/test_lo_core.c)
     ("output is a 65536-entry float sine LUT indexed by phase >> 16", "§3"),
     ("the quarter-cycle offset LUT_QTR maps sin to cos", "§3 §6, literals"),
     ("output is emitted BEFORE the phase is incremented", "§3, literals"),
@@ -268,8 +268,8 @@ def section_summary() -> None:
                 "configured rate and its control port",
             ],
             [
-                "[`native/tests/test_lo_core.c`]"
-                "(../../../../../../native/tests/test_lo_core.c)",
+                "[`native/tests/lo/test_lo_core.c`]"
+                "(../../../../../../native/tests/lo/test_lo_core.c)",
                 "the gate: point assertions, plus the six sections this "
                 "audit added (§16–§21)",
             ],

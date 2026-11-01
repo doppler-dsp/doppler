@@ -34,7 +34,7 @@ the engine's coherent depth is sized from the specification's bound
 (§2.1). **5 dB** is the floor the receiver is held to at the specification's
 geometry: its BER is under 5% at 5 dB and over 10% at 4 dB, with the
 self-referenced EVM and the blind M2M4 SNR agreeing (`_test_awgn_esn0_floor`
-in `native/tests/test_async_dsss_receiver_core.c`). §3.3 gives how far that
+in `native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c`). §3.3 gives how far that
 BER sits from the bound.
 
 **The code loop and the demodulator's carrier loop are sized to a loop SNR
@@ -280,7 +280,7 @@ At the specification's geometry (Gold-1023, 3.069 Mcps, 2,700 sym/s
 asynchronous BPSK, two samples a chip, no Doppler) the receiver holds a BER
 under 5% at Es/N0 10, 8 and 5 dB, the specification's floor, and exceeds 10% at
 4 dB, with the self-referenced EVM and the blind M2M4 SNR corroborating:
-`_test_awgn_esn0_floor` in `native/tests/test_async_dsss_receiver_core.c`.
+`_test_awgn_esn0_floor` in `native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c`.
 Against the bound, `Q(sqrt(2 Es/N0))`, the BER of a receiver that has settled
 sits 0.65 to 0.89 dB from it from 5 to 8 dB, and every burst of the sweep
 settled. A hand-over can still miss (F3), and a burst that did not settle
@@ -333,7 +333,7 @@ what follows it is symbol timing, then bits.
 code period (§3.3), so it is blind to the carrier's phase but not to a residual
 frequency: a residual `Δf` costs a window of `T` seconds `sinc²(Δf·T)` of its
 power, **−3.9 dB** at half a `1/T` bin, and a whole cycle per period nulls it
-(`native/tests/test_dll_core.c` §6d). So the receiver runs its carrier loop
+(`native/tests/dll/test_dll_core.c` §6d). So the receiver runs its carrier loop
 upstream. Its Costas loop wipes the carrier from the input, is steered from the
 Dll's partials, once per code period on a squaring combine of that period's
 partials, and hands the same estimate to the code loop as its rate aid,
@@ -374,7 +374,7 @@ variance inflates Pfa. `dp_dll_configure_lock()` sizes the reference's EMA
 for an estimator SNR (`dp_det_ema_alpha()`); left to derive it from `N`, it
 holds the reference's spread to an eighth of the statistic's own
 `1/sqrt(N)`, floored at about 33 dB, which is `1/α = max(1024, 32·N)`
-(`native/tests/test_dll_core.c` §7). It is a cumulative-mean bootstrap until
+(`native/tests/dll/test_dll_core.c` §7). It is a cumulative-mean bootstrap until
 `1/α` looks have accrued and a fixed-α EMA after, so the floor is unbiased
 from the first look rather than seed-dominated through a warm-up of `1/α`
 looks. The decision is verify-counted (`lockdet`): declared after
@@ -482,7 +482,7 @@ discriminator still reads (`dp_dll_take_error()` sums it), the filter takes
 no update, the lock detector keeps looking, a new rate aid takes effect at
 once, and `code_rate`, the `.rate` probe and every status record that
 carries it report the rate the held NCO runs at
-(`native/tests/test_dll_core.c`, `coast_reports_the_held_rate`, at one and
+(`native/tests/dll/test_dll_core.c`, `coast_reports_the_held_rate`, at one and
 four segments). When the receiver holds it is §10's.
 
 ### 3.7 The symbol period lifts the look to symbol scale
@@ -514,12 +514,12 @@ cold start and follows a drifting symbol clock by itself. A look that
 overlaps the previous one is not a look and is not counted: overlapping
 looks read the same noise several times, and on noise they returned the
 code flag about once a second after a departure, restarting §10's clock
-(`native/tests/test_dll_core.c` §6b′; the record's §12.15).
+(`native/tests/dll/test_dll_core.c` §6b′; the record's §12.15).
 
 **The code discriminator runs on the same window**, steering once per
 symbol on the early/prompt/late sums over the winner, its filter re-timed to
 the symbol interval so `bn` keeps its per-epoch meaning and the tracked rate
-is continuous whether the aid is on or off (`native/tests/test_dll_core.c`
+is continuous whether the aid is on or off (`native/tests/dll/test_dll_core.c`
 §6c). Against the per-epoch loop it pulls in faster and is tighter at high
 C/N0, and at the 40 dB-Hz floor, where the noise sets the jitter and the
 window's unused partials cost more than its coherence buys, it costs a
@@ -535,7 +535,7 @@ configuration, `n_looks` from `det_n_noncoh` for Pd 0.99 at Pfa 1e-3 over
 the window at its `cn0_dbhz`, and the drop count from
 `det_verify_count(0.01, 1e-6)` — three consecutive misses against the DLL's
 fixed two — so the verify hysteresis is a budget rather than a constant.
-Pinned by `native/tests/test_dll_core.c` §6b (the default per-partial
+Pinned by `native/tests/dll/test_dll_core.c` §6b (the default per-partial
 detector up under half the time, the aided one over 95%, the chosen phase
 within one partial of the truth) and §6c (the loop steers on the window,
 the two modes' step transients agree, the rate is continuous across the
@@ -652,9 +652,9 @@ static Doppler, and the refine is what closes it.
     [async-dsss-parallel.md](async-dsss-parallel.md) §6.
 - **Steady tracking allocates nothing** (§11.5).
 
-Every part is pinned in `native/tests/test_async_dsss_receiver_core.c`,
+Every part is pinned in `native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c`,
 `src/doppler/dsss/tests/test_async_dsss_receiver.py`,
-`native/tests/test_dll_core.c` and `src/doppler/track/tests/test_dll.py`.
+`native/tests/dll/test_dll_core.c` and `src/doppler/track/tests/test_dll.py`.
 
 ______________________________________________________________________
 
@@ -781,7 +781,7 @@ default, disables the clock; `reacquire` refuses a
 confirm time under one input sample. Size it past the longest fade the
 link must ride, and with `reacquire` past the pull-in to symbol lock.
 Pinned by
-`native/tests/test_async_dsss_receiver_core.c`
+`native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c`
 (`_test_lost_after_switch_off`, `_test_reacquire_after_switch_off`,
 `_test_reacquire_is_symbol_lock_alone`,
 `_test_reacquire_clock_restarts_on_lock`,

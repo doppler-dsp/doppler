@@ -974,7 +974,7 @@ Two things the build found:
     follows within 100 Hz.
 
 \*Note, 2026-10-17: the pool's receivers are cell receivers (9ddb8a3af). The row-coordinate
-pin is [`test_async_dsss_pool_core.c:289–292`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/tests/test_async_dsss_pool_core.c#L289-L292). `_test_table_holds_the_locked_doppler`, the
+pin is [`test_async_dsss_pool_core.c:289–292`](https://github.com/doppler-dsp/doppler/blob/35d8049a2/native/tests/async_dsss_pool/test_async_dsss_pool_core.c#L289-L292). `_test_table_holds_the_locked_doppler`, the
 test that reproduced #1261, was deleted in 9ddb8a3af.
 
 **Next:** the lifecycle soak (§12.14) — the shipped synth with the

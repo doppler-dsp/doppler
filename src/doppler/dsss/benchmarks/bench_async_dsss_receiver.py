@@ -10,7 +10,7 @@ no row at all (doppler#1010).
 The receiver changes what it is doing partway through a capture — search,
 then refine, then track — so the rows split the two regimes a caller sizes
 against, the same split as the C twin
-(``native/benchmarks/bench_async_dsss_receiver_core.c``):
+(``native/benchmarks/async_dsss_receiver/bench_async_dsss_receiver_core.c``):
 
 - ``cold`` — a FRESH receiver over a whole 1M-sample capture in one call:
   acquisition, refinement, then tracking. What a burst-mode caller pays per

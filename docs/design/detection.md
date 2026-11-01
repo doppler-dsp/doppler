@@ -294,7 +294,7 @@ returned before, fails *open* — every sample clears a zero threshold — and f
 takes `p_look` on the closed `[0, 1]`: an impossible or a certain look is a
 real configuration with the answer in the last two rows, so only a value past
 either end is rejected (`-1`, and `NaN` from `det_verify_delay`). Each row is
-pinned per helper in `native/tests/test_detection_core.c`.
+pinned per helper in `native/tests/detection/test_detection_core.c`.
 
 `-1` and `INT_MAX` are both "not achievable", and they differ because one is
 a count that a caller may clamp and the other is a dwell that a caller must

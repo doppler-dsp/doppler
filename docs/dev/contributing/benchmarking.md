@@ -165,7 +165,7 @@ make bench BENCH_ARGS="--c-only conv rs"
 
 A filtered run cannot become a release's numbers by either publish path.
 `make bench-publish` and `make bench-interleaved` both refuse a C snapshot
-that lacks any of the tree's `native/benchmarks/bench_*_core.c` (a bench
+that lacks any of the tree's `native/benchmarks/**/bench_*_core.c` (a bench
 that crashed records nothing, so this catches that too), and
 `make bench-interleaved` refuses a set `BENCH_ARGS` before it builds,
 because its inner `make bench` runs would inherit it. It also refuses

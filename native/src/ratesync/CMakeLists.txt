@@ -36,8 +36,8 @@ target_link_libraries(ratesync_core PUBLIC
     pn_core)
 
 add_executable(test_ratesync_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_ratesync_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_ratesync_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/ratesync/test_ratesync_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/ratesync/test_ratesync_symbols.c)
 target_link_libraries(test_ratesync_core
                       PRIVATE ratesync_core ber_core
     RateConverter_core
@@ -57,12 +57,13 @@ target_link_libraries(test_ratesync_core
     pn_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_ratesync_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_ratesync_core COMMAND test_ratesync_core)
 
 add_executable(
   bench_ratesync_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_ratesync_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/ratesync/bench_ratesync_core.c)
 target_link_libraries(bench_ratesync_core
                       PRIVATE ratesync_core ber_core
     RateConverter_core

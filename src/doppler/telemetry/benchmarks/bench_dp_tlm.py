@@ -2,7 +2,7 @@
 
 Run: pytest src/doppler/telemetry/benchmarks/bench_dp_tlm.py --benchmark-only
 
-The C benchmark (``native/benchmarks/bench_dp_tlm_core.c``) times
+The C benchmark (``native/benchmarks/dp_tlm/bench_dp_tlm_core.c``) times
 ``dp_tlm_emit`` inlined into a C loop. This face cannot: Python's ``emit``
 is the VALIDATING out-of-line twin (it refuses an unregistered id), called
 once per event across the binding — so these rows are the price of

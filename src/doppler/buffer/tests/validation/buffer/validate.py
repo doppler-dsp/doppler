@@ -12,7 +12,7 @@ which runs this same `build(write=False)`.
 The order is the campaign's, not this file's:
 `native/inc/doppler/buffer/buffer.h`
 was read first and every claim in its prose mapped onto
-`native/tests/test_buffer_core.c`; the uncovered ones got C tests, each
+`native/tests/buffer/test_buffer_core.c`; the uncovered ones got C tests, each
 proven by sabotage; only then was this written. That matters more for the
 ring than for most objects, because its hardest claims cannot be reached
 from Python at all. A ring is a contract between TWO threads about two
@@ -137,8 +137,8 @@ def section_object() -> None:
         "(../../../../../../docs/design/ring-buffer-measurements.md). The "
         "contract itself is the prose in "
         "`native/inc/doppler/buffer/buffer.h`, "
-        "pinned by `native/tests/test_buffer_core.c` and, for the "
-        "element-typed face, `native/tests/test_<w>_buffer_core.c`."
+        "pinned by `native/tests/buffer/test_buffer_core.c` and, for the "
+        "element-typed face, `native/tests/<w>_buffer/test_<w>_buffer_core.c`."
     )
     R.md()
     R.md(

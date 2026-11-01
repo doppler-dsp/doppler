@@ -1,10 +1,10 @@
 """U8ToF32 -- the offset-binary uint8 (RTL-SDR ``cu8``) converter.
 
-The C test (``native/tests/test_u8_to_f32_core.c``) owns the arithmetic over
-all 256 codes. These tests own what the binding adds on top: the ``mode``
-string, the numpy block path and ``out=``, and the two relationships a
-Python caller relies on -- the tie to ``I8ToF32`` and the complex view of an
-interleaved I/Q buffer.
+The C test (``native/tests/u8_to_f32/test_u8_to_f32_core.c``) owns the
+arithmetic over all 256 codes. These tests own what the binding adds on top:
+the ``mode`` string, the numpy block path and ``out=``, and the two
+relationships a Python caller relies on -- the tie to ``I8ToF32`` and the
+complex view of an interleaved I/Q buffer.
 """
 
 import numpy as np

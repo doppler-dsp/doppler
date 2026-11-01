@@ -6,9 +6,9 @@ Run: pytest src/doppler/ber/benchmarks/bench_frame_meter.py --benchmark-only
 from Python the row is a loop of ``add`` calls and the figure is what one
 frame outcome costs through the binding -- which is the number a Python
 receiver loop pays, and the reason this row exists beside the C one. The
-C benchmark (``native/benchmarks/bench_frame_meter_core.c``) times the same
-loop in C and the interval accessors besides; ``fer`` is kept here because
-it is the call a sweep makes once per point.
+C benchmark (``native/benchmarks/frame_meter/bench_frame_meter_core.c``) times
+the same loop in C and the interval accessors besides; ``fer`` is kept here
+because it is the call a sweep makes once per point.
 
 - ``add`` — 4096 frame outcomes, every 97th a CRC failure.
 - ``fer`` — the exact interval over those outcomes.

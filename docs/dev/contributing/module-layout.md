@@ -36,10 +36,14 @@ native/src/<component>/
 └── CMakeLists.txt             # auto-managed by just-makeit (<component>_core)
 
 native/tests/
-└── test_<component>_core.c  # C unit tests (scaffold, one per object)
+├── dp_*_test.h              # the shared harness family (hand-owned)
+└── <component>/
+    └── test_<component>_core.c  # C unit tests (scaffold, one per object)
 
 native/benchmarks/
-└── bench_<component>_core.c # C benchmarks (scaffold, one per object)
+├── jm_bench.h, dp_bench.h   # the bench scaffold (vendored / hand-owned)
+└── <component>/
+    └── bench_<component>_core.c # C benchmarks (scaffold, one per object)
 
 src/doppler/<module>/
 ├── __init__.py              # re-export only — see rules below (scaffold)
@@ -226,7 +230,7 @@ ______________________________________________________________________
 ## `benchmarks/bench_<component>.py` rules
 
 Every object ships a Python benchmark alongside its C benchmark
-(`native/benchmarks/bench_<component>_core.c`). Python benchmarks use
+(`native/benchmarks/<component>/bench_<component>_core.c`). Python benchmarks use
 [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) so results are
 saved as JSON snapshots in `benchmarks/history/` (local scratch,
 git-ignored); each release's committed numbers are measured into

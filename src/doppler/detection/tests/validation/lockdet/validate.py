@@ -12,7 +12,7 @@ same `build(write=False)`.
 
 The order is the campaign's, not this file's:
 `native/inc/doppler/lockdet/lockdet_core.h` is the SSOT,
-`native/tests/test_lockdet_core.c` certifies it in C, and
+`native/tests/lockdet/test_lockdet_core.c` certifies it in C, and
 `native/validation/lockdet_verify.c` measures the probabilistic contract
 by Monte Carlo. This file measures the same properties through
 `doppler.detection.LockDet` to show the binding delivers them.
@@ -144,7 +144,8 @@ def section_object() -> None:
         ],
     )
     R.md(
-        "Evidence sits in three places. `native/tests/test_lockdet_core.c` "
+        "Evidence sits in three places. "
+        "`native/tests/lockdet/test_lockdet_core.c` "
         "asks whether each claim still holds per look; "
         "`native/validation/lockdet_verify.c` measures the probabilistic "
         "contract in C; this report measures the same properties through "

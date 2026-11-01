@@ -25,7 +25,7 @@ mistake it for a guarantee.
 
 1. **The C header is the SSOT.** Read `native/inc/doppler/<obj>/<obj>_core.h`
     first and enumerate every claim its prose makes.
-1. **Map each claim onto `native/tests/test_<obj>_core.c`** — pinned,
+1. **Map each claim onto `native/tests/<obj>/test_<obj>_core.c`** — pinned,
     pinned only at literals, or absent. The uncovered rows dictate the C
     tests to write. Write them, and **prove each by sabotage** before
     trusting it.
@@ -275,7 +275,7 @@ sweep. To regenerate one object without the C half, run
 - [ ] **Update the C test and the Python example to carry whatever the
     validation established** — a new limit, a corrected rule, a number a
     caller has to choose by. A finding that reaches only the report reaches
-    nobody: the report is evidence, while `native/tests/test_<obj>_core.c`
+    nobody: the report is evidence, while `native/tests/<obj>/test_<obj>_core.c`
     is what keeps the property true and `src/doppler/examples/<obj>_demo.py`
     is where a user meets it. Both are already gated (`ctest`, and
     `test_examples.py` runs every example and requires it to self-validate

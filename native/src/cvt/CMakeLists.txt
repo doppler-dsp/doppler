@@ -48,7 +48,7 @@ add_custom_command(TARGET cvt POST_BUILD
 endif()
 
 add_executable(test_cvt_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_cvt_core.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/cvt/test_cvt_core.c)
 target_link_libraries(test_cvt_core PRIVATE
     cvt_core
     f32_to_i8_core
@@ -67,11 +67,12 @@ target_link_libraries(test_cvt_core PRIVATE
     adc_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_cvt_core
-    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_cvt_core COMMAND test_cvt_core)
 
 add_executable(bench_cvt_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_cvt_core.c)
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/cvt/bench_cvt_core.c)
 target_link_libraries(bench_cvt_core PRIVATE
     cvt_core
     f32_to_i8_core

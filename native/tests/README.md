@@ -1,7 +1,10 @@
 # doppler's C test harness
 
 Every `test_*.c` here is a plain C program: it asserts, it counts, it exits
-non-zero if anything failed. CTest runs them. There is no framework, and the
+non-zero if anything failed. An object's test sits in a directory named for
+it, mirroring its header (`native/tests/fir/` beside
+`native/inc/doppler/fir/`, jm's `layout = "mirrored"`); the harness headers
+and the tests of the top-level `dp_*.h` stay here at the root. CTest runs them. There is no framework, and the
 shared parts live in the `dp_*_test.h` family rather than in each file.
 
 ## The family
@@ -235,7 +238,7 @@ follows `dp_*` draws and that file's generator chain was private all the way
 down. A private generator does not just risk being wrong; it hides the other
 rules from the code that uses it.
 
-**No silent loss of coverage.** No `native/tests/*.c` may end up with fewer
+**No silent loss of coverage.** No `native/tests/**/*.c` may end up with fewer
 assertions than `$(ASSERT_BASE)` (default `origin/main`) has. A migration or a
 badly resolved rebase can drop assertions while everything stays green: the
 file compiles, the survivors pass, `ctest` reports 100%. Read the count, not

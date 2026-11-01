@@ -7,9 +7,9 @@ Run:  python -m doppler.acquire.tests.validation.burst_capture.validate
 Phase 8 of `docs/dev/contributing/adding-algorithms.md`, for the object
 designed in `docs/design/burst-capture.md`. The order that produced it is the
 mandated one: `burst_capture_core.h`'s prose claims first, mapped onto
-`native/tests/test_burst_capture_core.c` as pinned / pinned-only-at-literals /
-absent, the uncovered ones written and each proven by sabotage — and only then
-this file.
+`native/tests/burst_capture/test_burst_capture_core.c` as pinned /
+pinned-only-at-literals / absent, the uncovered ones written and each proven by
+sabotage — and only then this file.
 
 **What is deliberately NOT re-derived here.** The detection statistics belong
 to [`acq`](../acq/results.md) and reach this object through
@@ -146,7 +146,7 @@ def section_object() -> None:
     design = "../../../../../../docs/design/burst-capture.md"
     R.md(f"- Design: [`burst-capture.md`]({design})")
     R.md("- Header: `native/inc/doppler/burst_capture/burst_capture_core.h`")
-    R.md("- C tests: `native/tests/test_burst_capture_core.c`")
+    R.md("- C tests: `native/tests/burst_capture/test_burst_capture_core.c`")
     R.md(
         "- Characterization: "
         "`src/doppler/acquire/tests/characterization/burst_capture/`"

@@ -332,7 +332,7 @@ dp_viterbi_state_t * dp_viterbi_create (
 The array IS the code: its length gives the number of outputs per input bit, so `[0o171, 0o133]` is a rate-1/2 code and a three-element array is rate 1/3. `k` is the constraint length, which sets the trellis to `2^(k-1)` states — the dominant term in what a decode costs.
 
 
-`depth` is the traceback depth in information bits. The conventional rule of thumb is `5*(k-1)` or more; a longer depth is safer at low Es/N0 and costs only the traceback walk, not the add-compare-selects (measured in `native/benchmarks/bench_viterbi_core.c`).
+`depth` is the traceback depth in information bits. The conventional rule of thumb is `5*(k-1)` or more; a longer depth is safer at low Es/N0 and costs only the traceback walk, not the add-compare-selects (measured in `native/benchmarks/viterbi/bench_viterbi_core.c`).
 
 
 

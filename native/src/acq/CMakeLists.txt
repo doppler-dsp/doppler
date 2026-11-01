@@ -41,8 +41,8 @@ if(TARGET ${PROJECT_NAME}_lib_static)
 endif()
 
 add_executable(test_acq_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_acq_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_acq_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/acq/test_acq_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/acq/test_acq_symbols.c)
 target_link_libraries(test_acq_core
                       PRIVATE acq_core Threads::Threads
     corr2d_core
@@ -53,12 +53,13 @@ target_link_libraries(test_acq_core
     cvt_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_acq_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_acq_core COMMAND test_acq_core)
 
 add_executable(
   bench_acq_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_acq_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/acq/bench_acq_core.c)
 target_link_libraries(bench_acq_core
                       PRIVATE acq_core Threads::Threads
     corr2d_core

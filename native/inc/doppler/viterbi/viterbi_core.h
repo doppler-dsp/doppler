@@ -76,7 +76,7 @@ typedef struct
  * @p depth is the traceback depth in information bits. The conventional
  * rule of thumb is `5*(k-1)` or more; a longer depth is safer at low Es/N0
  * and costs only the traceback walk, not the add-compare-selects (measured
- * in `native/benchmarks/bench_viterbi_core.c`).
+ * in `native/benchmarks/viterbi/bench_viterbi_core.c`).
  *
  * @code
  * >>> import numpy as np

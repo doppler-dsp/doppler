@@ -8,8 +8,8 @@
  * combined chip-by-chip into a single 1023-chip (length=10) Gold code. The
  * two m-sequences form a genuine "preferred pair" — their XOR family has a
  * strict three-valued periodic autocorrelation/cross-correlation set
- * {-1, -65, 63} (verified: see native/tests/test_gold_core.c). Register A's
- * initial condition is "User dependent" per the standard — varying it walks
+ * {-1, -65, 63} (verified: see native/tests/gold/test_gold_core.c).
+ * Register A's initial condition is "User dependent" per the standard — varying it walks
  * the 2^length-1 XOR members of the family (1023 at length=10; the seed
  * must be nonzero). The family itself has 2^length+1 members: those plus
  * the two constituent m-sequences, which this generator does not emit because

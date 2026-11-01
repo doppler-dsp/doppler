@@ -21,18 +21,19 @@ target_link_libraries(syncword_core PUBLIC
     detection_core)
 
 add_executable(test_syncword_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_syncword_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_syncword_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/syncword/test_syncword_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/syncword/test_syncword_symbols.c)
 target_link_libraries(test_syncword_core
                       PRIVATE syncword_core detection_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_syncword_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_syncword_core COMMAND test_syncword_core)
 
 add_executable(
   bench_syncword_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_syncword_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/syncword/bench_syncword_core.c)
 target_link_libraries(bench_syncword_core
                       PRIVATE syncword_core detection_core
     ${JM_MATH_LIBRARY})

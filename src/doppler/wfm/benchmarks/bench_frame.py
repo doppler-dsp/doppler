@@ -2,9 +2,10 @@
 
 Run: pytest src/doppler/wfm/benchmarks/bench_frame.py --benchmark-only
 
-The frame is the C benchmark's (``native/benchmarks/bench_frame_core.c``):
-a 32-bit alternating preamble repeated 4 times, a 64-bit sync word, a
-1024-bit payload and a CRC-16 -- 1232 bits. Three rows:
+The frame is the C benchmark's
+(``native/benchmarks/frame/bench_frame_core.c``): a 32-bit alternating preamble
+repeated 4 times, a 64-bit sync word, a 1024-bit payload and a CRC-16 -- 1232
+bits. Three rows:
 
 - ``bits[1]``  — one frame per call.
 - ``bits[16]`` — sixteen per call. Against ``bits[1]`` the gap is the

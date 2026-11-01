@@ -102,7 +102,7 @@ add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
 # link line matches the test's; the composer reuses synth, which pulls in
 # lo/awgn/pn.
 add_executable(bench_wfm_compose_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_compose_core.c)
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/wfm_compose/bench_wfm_compose_core.c)
 target_link_libraries(bench_wfm_compose_core PRIVATE
     wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
@@ -307,15 +307,15 @@ find_package(Threads REQUIRED)
 # SetConsoleCtrlHandler port (#1360) -- the stream tests have linked it there
 # since #1575 -- so they run on every platform.
 add_executable(test_timing_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_timing_core.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/timing/test_timing_core.c)
 target_link_libraries(test_timing_core PRIVATE timing_core
     $<TARGET_OBJECTS:dp_interrupt_obj>)
 target_include_directories(test_timing_core PRIVATE
-    ${CMAKE_SOURCE_DIR}/native/inc)
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_timing_core COMMAND test_timing_core)
 
 add_executable(bench_timing_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_timing_core.c)
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/timing/bench_timing_core.c)
 target_link_libraries(bench_timing_core PRIVATE timing_core ${DP_MATH_LIBRARY}
     $<TARGET_OBJECTS:dp_interrupt_obj>)
 target_include_directories(bench_timing_core PRIVATE

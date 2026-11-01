@@ -26,8 +26,8 @@ target_link_libraries(symsync_core PUBLIC
     dp_tlm_core)
 
 add_executable(test_symsync_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_symsync_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_symsync_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/symsync/test_symsync_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/symsync/test_symsync_symbols.c)
 target_link_libraries(test_symsync_core
                       PRIVATE symsync_core nco_core
     farrow_core
@@ -37,12 +37,13 @@ target_link_libraries(test_symsync_core
     dp_tlm_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_symsync_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_symsync_core COMMAND test_symsync_core)
 
 add_executable(
   bench_symsync_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_symsync_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/symsync/bench_symsync_core.c)
 target_link_libraries(bench_symsync_core
                       PRIVATE symsync_core nco_core
     farrow_core

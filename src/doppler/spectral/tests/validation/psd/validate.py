@@ -15,7 +15,7 @@ through the same window computed in double from its published definition —
 an implementation that shares nothing with doppler's but the input — plus the
 closed forms the header states (ENBW, the dB/Hz offset, Parseval). Statistical
 sections size every bound from the estimator's own spread at z = 5, the same
-derivations `native/tests/test_psd_core.c` carries beside its assertions.
+derivations `native/tests/psd/test_psd_core.c` carries beside its assertions.
 """
 
 from __future__ import annotations
@@ -302,7 +302,7 @@ def section_object() -> None:
     R.md(
         "Step 1 of `docs/dev/contributing/validation.md`: every claim of "
         f"`psd_core.h` at this tree ({n_entry} entry points, counted from "
-        "the header), mapped onto `native/tests/test_psd_core.c` as "
+        "the header), mapped onto `native/tests/psd/test_psd_core.c` as "
         "**pinned**, **pinned only at literals** (asserted at one example "
         "where the claim is general) or **absent**. The C sections T1-T18 "
         "came in parts a and b (#1955, #1956), the refusals with #1959, and "
@@ -1494,7 +1494,7 @@ def review(d: Data) -> None:
         "`dp_psd_kernel_t`, filled by `dp_psd_kernel_init`, and the frame "
         "calls `dp_psd_frame_power`, `dp_psd_frame_db` and "
         "`dp_psd_frame_linear` (#1963) that take it — has no Python "
-        "binding. It is certified in `native/tests/test_psd_core.c`: the "
+        "binding. It is certified in `native/tests/psd/test_psd_core.c`: the "
         "bare-kernel block (its refusals leave nothing allocated, free is "
         "safe after any outcome, and a bare kernel's frames equal a PSD's "
         "under every window); one frame equals "

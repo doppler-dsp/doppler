@@ -28,7 +28,7 @@ Two things are measured that the C test does not:
   the C cross-correlation check compares (§2.1).
 
 The order is the campaign's: `native/inc/doppler/gold/gold_core.h` is the SSOT
-and `native/tests/test_gold_core.c` certifies it in C.
+and `native/tests/gold/test_gold_core.c` certifies it in C.
 """
 
 from __future__ import annotations
@@ -138,7 +138,7 @@ def section_object() -> None:
         "selects a family member. The design is "
         "[docs/design/wfmgen.md](../../../../../../docs/design/wfmgen.md); "
         "the API is `native/inc/doppler/gold/gold_core.h`, certified in C by "
-        "`native/tests/test_gold_core.c`."
+        "`native/tests/gold/test_gold_core.c`."
     )
     R.md()
     R.md(

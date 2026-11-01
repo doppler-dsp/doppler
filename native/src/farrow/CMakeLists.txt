@@ -19,17 +19,18 @@ target_include_directories(
                      ${CMAKE_SOURCE_DIR}/native/inc/doppler/farrow)
 
 add_executable(test_farrow_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_farrow_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_farrow_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/farrow/test_farrow_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/farrow/test_farrow_symbols.c)
 target_link_libraries(test_farrow_core
                       PRIVATE farrow_core ${JM_MATH_LIBRARY})
 target_include_directories(test_farrow_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_farrow_core COMMAND test_farrow_core)
 
 add_executable(
   bench_farrow_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_farrow_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/farrow/bench_farrow_core.c)
 target_link_libraries(bench_farrow_core
                       PRIVATE farrow_core ${JM_MATH_LIBRARY})
 target_include_directories(

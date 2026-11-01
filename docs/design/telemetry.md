@@ -290,7 +290,7 @@ one dotted level a child, and adds the probes only the composition can publish.
     from a wrapper around that recursive body, and a call reports once.
 - **Name every probe in the header, and pin the list.** The header's
     `set_telemetry()` doc lists each probe with its cadence and its units, and
-    `_test_tlm_names_documented` in `native/tests/test_async_dsss_receiver_core.c`
+    `_test_tlm_names_documented` in `native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c`
     fails when a registered name falls outside that list. A caller reads the
     header, not the source.
 

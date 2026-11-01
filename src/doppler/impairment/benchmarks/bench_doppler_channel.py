@@ -10,8 +10,8 @@ output, and a carrier read from it rather than from a closed form.
 Run: pytest src/doppler/impairment/benchmarks/bench_doppler_channel.py
      --benchmark-only
 
-The C side (``native/benchmarks/bench_doppler_channel_core.c``) is the number
-to quote: this one includes the binding's array setup.
+The C side (``native/benchmarks/doppler_channel/bench_doppler_channel_core.c``)
+is the number to quote: this one includes the binding's array setup.
 
 Each row asserts it produced a full block, because a refused or short call
 returns an empty array and benchmarks very fast. The channel is not reset

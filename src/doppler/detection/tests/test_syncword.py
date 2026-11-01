@@ -1,7 +1,7 @@
 """SyncFinder — the binding, and the thing it makes possible.
 
-`native/tests/test_syncword_core.c` holds the kernel: generality across
-marker lengths, first-below-threshold, the polarity arithmetic, and the
+`native/tests/syncword/test_syncword_core.c` holds the kernel: generality
+across marker lengths, first-below-threshold, the polarity arithmetic, and the
 false-alarm formula against an exhaustive count. None of that is repeated
 here — two files agreeing about one kernel is not two checks.
 

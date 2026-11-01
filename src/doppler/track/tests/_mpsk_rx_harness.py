@@ -20,7 +20,7 @@ In particular
   point than the one sent and contributes too small an error vector. The
   metric therefore flatters by an amount set by the SER — measured on QPSK,
   2.45 dB at Es/N0 = 3 dB, 1.06 at 6, 0.44 at 9, 0.20 at 12, 0.11 at 15,
-  0.04 at 21 (`native/tests/test_ber_core.c` pins both halves). Every EVM
+  0.04 at 21 (`native/tests/ber/test_ber_core.c` pins both halves). Every EVM
   assertion here runs at 12 dB or above, where the flattery is inside the
   margin; a test at a lower operating point must widen its lower bound or it
   will read the estimator's own bias as a receiver beating physics.

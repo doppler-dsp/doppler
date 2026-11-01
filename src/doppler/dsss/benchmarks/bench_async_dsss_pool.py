@@ -4,9 +4,9 @@ receivers, from Python.
 Run: pytest src/doppler/dsss/benchmarks/bench_async_dsss_pool.py
      --benchmark-only
 
-The C twin (``native/benchmarks/bench_async_dsss_pool_core.c``) asks what
-the workers buy; this row is what a Python caller pays per epoch for a pool
-of three on one thread, the binding's call and the controller's step
+The C twin (``native/benchmarks/async_dsss_pool/bench_async_dsss_pool_core.c``)
+asks what the workers buy; this row is what a Python caller pays per epoch for
+a pool of three on one thread, the binding's call and the controller's step
 included. The pool is fed noise, so every receiver searches all along, and
 the row asserts that it did: a false alarm's refine would be timed as
 search.

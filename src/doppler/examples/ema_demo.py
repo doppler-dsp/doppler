@@ -22,7 +22,7 @@ things that decision is actually about, each measured rather than asserted.
    catastrophically, by 26865 ulps at `alpha = 1e-5`.
 
 Every panel is a claim from `docs/design/ema.md` and
-`native/tests/test_util_core.c`, drawn at the Python face to show the
+`native/tests/util/test_util_core.c`, drawn at the Python face to show the
 binding delivers what the C certifies.
 
 Saves a three-panel plot to ema_memory.png:

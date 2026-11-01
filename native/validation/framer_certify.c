@@ -21,7 +21,7 @@
  * not another path through the same code, so a defect the framer's own paths
  * share cannot hide.
  *
- * ## What it adds to `native/tests/test_framer_core.c`
+ * ## What it adds to `native/tests/buffer/test_framer_core.c`
  *
  * The test pins each claim at a size a person can read. This runs the same
  * claims at the scale a statistic needs: a couple of hundred thousand samples

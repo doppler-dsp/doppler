@@ -1,9 +1,9 @@
 """Benchmark for the Python event-log face.
 
-The C benchmark (``native/benchmarks/bench_dp_event_log_core.c``) owns the
-per-event cost of the render, the write and the flush. This one answers the
-question a Python caller has instead: what does the *binding* add, and is a
-transition still cheap enough to write from the thread that is pushing
+The C benchmark (``native/benchmarks/dp_event_log/bench_dp_event_log_core.c``)
+owns the per-event cost of the render, the write and the flush. This one
+answers the question a Python caller has instead: what does the *binding* add,
+and is a transition still cheap enough to write from the thread that is pushing
 samples?
 
 Run::

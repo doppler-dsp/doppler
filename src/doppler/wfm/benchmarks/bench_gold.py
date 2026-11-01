@@ -4,7 +4,7 @@ Run: pytest src/doppler/wfm/benchmarks/bench_gold.py --benchmark-only
 
 One row, ``generate``: 64k chips per call from the CCSDS default pair, the
 same configuration and block the C benchmark
-(``native/benchmarks/bench_gold_core.c``) times. The gap between the faces
+(``native/benchmarks/gold/bench_gold_core.c``) times. The gap between the faces
 is the binding's per-call overhead.
 
 The row asserts what a Gold code is, on the very chips it timed: periodic

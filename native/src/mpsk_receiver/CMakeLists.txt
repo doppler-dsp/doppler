@@ -42,8 +42,8 @@ target_link_libraries(mpsk_receiver_core PUBLIC
     pn_core)
 
 add_executable(test_mpsk_receiver_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_mpsk_receiver_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_mpsk_receiver_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/mpsk_receiver/test_mpsk_receiver_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/mpsk_receiver/test_mpsk_receiver_symbols.c)
 target_link_libraries(test_mpsk_receiver_core
                       PRIVATE mpsk_receiver_core wfm_dsp_core
     ber_core
@@ -69,12 +69,13 @@ target_link_libraries(test_mpsk_receiver_core
     pn_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_mpsk_receiver_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_mpsk_receiver_core COMMAND test_mpsk_receiver_core)
 
 add_executable(
   bench_mpsk_receiver_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_mpsk_receiver_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/mpsk_receiver/bench_mpsk_receiver_core.c)
 target_link_libraries(bench_mpsk_receiver_core
                       PRIVATE mpsk_receiver_core wfm_dsp_core
     ber_core

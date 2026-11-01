@@ -1,10 +1,10 @@
 """Benchmark for the Python capture face.
 
 What is measured here is the BOUNDARY, not the emit path — the C benchmark
-(``native/benchmarks/bench_dp_tlm_capture_core.c``) owns the per-record cost
-in isolation. The question this one answers is the one a Python caller
-actually has: what does wrapping an existing block loop in a capture cost,
-end to end, through the binding?
+(``native/benchmarks/dp_tlm_capture/bench_dp_tlm_capture_core.c``) owns the
+per-record cost in isolation. The question this one answers is the one a Python
+caller actually has: what does wrapping an existing block loop in a capture
+cost, end to end, through the binding?
 
 Run::
 

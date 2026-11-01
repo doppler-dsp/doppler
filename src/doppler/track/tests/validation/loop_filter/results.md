@@ -26,7 +26,7 @@ Three bodies of evidence stand behind this report and each answers a different q
 
 | evidence | answers |
 |---|---|
-| `native/tests/test_loop_filter_core.c` §1-§11 | does each claim in the header still hold, per update |
+| `native/tests/loop_filter/test_loop_filter_core.c` §1-§11 | does each claim in the header still hold, per update |
 | `native/validation/loop_filter_noise_bw.c` | does `bn` deliver a loop of bandwidth `bn` — a property of the whole closed loop that no single-step assertion sees |
 | this report | does the binding deliver the same object, and what may a caller design to |
 

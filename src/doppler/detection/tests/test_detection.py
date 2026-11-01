@@ -4,8 +4,8 @@ Covers correctness at the Python API layer: return types, special cases,
 numerical accuracy, monotonicity, roundtrips, and equivalence between the
 envelope and power detector variants.
 
-The C-level unit tests in native/tests/test_detection_core.c already check
-many numerical values; these tests extend coverage to the Python binding,
+The C-level unit tests in native/tests/detection/test_detection_core.c already
+check many numerical values; these tests extend coverage to the Python binding,
 to a wider range of pfa / dwell / snr combinations, and to properties that
 are best expressed as parametrized invariants.
 """

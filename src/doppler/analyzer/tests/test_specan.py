@@ -45,7 +45,7 @@ def test_natural_params_derive_a_sane_grid():
     sa = Specan(fs=FS, span=SPAN, rbw=RBW, center=0.0)
     assert sa.fs_out == pytest.approx(SPAN * 1.28)
     # docs/design/specan.md: nfft is a power of two >= 512 and is the window
-    # (the full rule set is pinned in native/tests/test_specan_core.c).
+    # (the full rule set is pinned in native/tests/specan/test_specan_core.c).
     assert sa.nfft & (sa.nfft - 1) == 0
     assert sa.nfft >= 512
     assert sa.n == sa.nfft

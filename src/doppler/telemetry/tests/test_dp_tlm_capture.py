@@ -1,9 +1,9 @@
 """Integration tests for the Python face of the lossless capture.
 
-The C suite (``native/tests/test_dp_tlm_capture_core.c``) owns the losslessness
-proof itself — the saturation test that emits exactly the per-block bound and
-asserts nothing is dropped. What is checked HERE is everything the binding
-adds on top of it, because none of it exists in C:
+The C suite (``native/tests/dp_tlm_capture/test_dp_tlm_capture_core.c``) owns
+the losslessness proof itself — the saturation test that emits exactly the
+per-block bound and asserts nothing is dropped. What is checked HERE is
+everything the binding adds on top of it, because none of it exists in C:
 
 * the two flavours and what distinguishes them (``MemoryCapture`` can hand its
   records back; ``Capture`` writes a file and therefore cannot),

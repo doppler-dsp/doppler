@@ -19,17 +19,18 @@ target_include_directories(
                   ${CMAKE_SOURCE_DIR}/native/inc/doppler/fir)
 
 add_executable(test_fir_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_fir_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_fir_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/fir/test_fir_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/fir/test_fir_symbols.c)
 target_link_libraries(test_fir_core
                       PRIVATE fir_core ${JM_MATH_LIBRARY})
 target_include_directories(test_fir_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_fir_core COMMAND test_fir_core)
 
 add_executable(
   bench_fir_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_fir_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/fir/bench_fir_core.c)
 target_link_libraries(bench_fir_core
                       PRIVATE fir_core ${JM_MATH_LIBRARY})
 target_include_directories(

@@ -25,8 +25,8 @@ target_link_libraries(spectrogram_core PUBLIC
 # The generated symbols table (test_spectrogram_symbols.c) names every function
 # the Python binding calls; linking it makes an undefined one fail the build.
 add_executable(test_spectrogram_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_spectrogram_core.c
-    ${CMAKE_SOURCE_DIR}/native/tests/test_spectrogram_symbols.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/spectrogram/test_spectrogram_core.c
+    ${CMAKE_SOURCE_DIR}/native/tests/spectrogram/test_spectrogram_symbols.c)
 target_link_libraries(test_spectrogram_core PRIVATE
     spectrogram_core psd_core fft_core spectral_core acc_trace_core
     f32_buffer_core dp_interrupt_guard_core ${DP_MATH_LIBRARY})
@@ -38,7 +38,7 @@ add_test(NAME test_spectrogram_core COMMAND test_spectrogram_core)
 # The benchmark. Hand-registered because this file is hand-written (above),
 # so jm generates no bench target for the object.
 add_executable(bench_spectrogram_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_spectrogram_core.c)
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/spectrogram/bench_spectrogram_core.c)
 target_link_libraries(bench_spectrogram_core PRIVATE
     spectrogram_core psd_core fft_core spectral_core acc_trace_core
     f32_buffer_core dp_interrupt_guard_core ${DP_MATH_LIBRARY})

@@ -25,8 +25,8 @@ target_link_libraries(carrier_nda_core PUBLIC
     dp_tlm_core)
 
 add_executable(test_carrier_nda_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_carrier_nda_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_carrier_nda_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/carrier_nda/test_carrier_nda_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/carrier_nda/test_carrier_nda_symbols.c)
 target_link_libraries(test_carrier_nda_core
                       PRIVATE carrier_nda_core lo_core
     loop_filter_core
@@ -35,12 +35,13 @@ target_link_libraries(test_carrier_nda_core
     dp_tlm_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_carrier_nda_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_carrier_nda_core COMMAND test_carrier_nda_core)
 
 add_executable(
   bench_carrier_nda_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_carrier_nda_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/carrier_nda/bench_carrier_nda_core.c)
 target_link_libraries(bench_carrier_nda_core
                       PRIVATE carrier_nda_core lo_core
     loop_filter_core

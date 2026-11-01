@@ -24,8 +24,8 @@ target_link_libraries(costas_core PUBLIC
     dp_tlm_core)
 
 add_executable(test_costas_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_costas_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_costas_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/costas/test_costas_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/costas/test_costas_symbols.c)
 target_link_libraries(test_costas_core
                       PRIVATE costas_core lo_core
     lockdet_core
@@ -33,12 +33,13 @@ target_link_libraries(test_costas_core
     dp_tlm_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_costas_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_costas_core COMMAND test_costas_core)
 
 add_executable(
   bench_costas_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_costas_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/costas/bench_costas_core.c)
 target_link_libraries(bench_costas_core
                       PRIVATE costas_core lo_core
     lockdet_core

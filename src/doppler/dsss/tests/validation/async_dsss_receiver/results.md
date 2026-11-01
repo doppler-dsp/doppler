@@ -24,7 +24,7 @@ The design is [`docs/design/async-dsss-receiver.md`](../../../../../../docs/desi
 
 **Operating point (the specification).** A 1,023-chip Gold code (CCSDS #365) at 3.069 Mcps, two samples a chip (6.138 MSa/s), asynchronous BPSK data at 2,700 sym/s. The searching flavor, at the binding's defaults except two: its design C/N0 is the true one, and its search covers +/-1/T_E (+/-3 kHz). **BPSK only**: m = 4 and 8 are accepted by the object and not certified here (the owner's scope, 2026-10-19).
 
-The header's lock and lifecycle claims, each pinned in `native/tests/test_async_dsss_receiver_core.c` and each seen to fail under a sabotage of the code it guards, the order `docs/dev/contributing/validation.md` requires:
+The header's lock and lifecycle claims, each pinned in `native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c` and each seen to fail under a sabotage of the code it guards, the order `docs/dev/contributing/validation.md` requires:
 
 | claim (header) | C test |
 |---|---|

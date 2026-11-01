@@ -45,7 +45,7 @@ add_custom_command(TARGET spectral POST_BUILD
 endif()
 
 add_executable(test_spectral_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_spectral_core.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/spectral/test_spectral_core.c)
 target_link_libraries(test_spectral_core PRIVATE
     spectral_core
     fft_core
@@ -61,7 +61,8 @@ target_link_libraries(test_spectral_core PRIVATE
     dp_interrupt_guard_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_spectral_core
-    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_spectral_core COMMAND test_spectral_core)
 
 # Your own CMake for this directory goes in spectral_extra.cmake beside this

@@ -1,12 +1,12 @@
 """Binding-level tests for ``doppler.viterbi.Viterbi``.
 
-The ALGORITHM is pinned in C — ``native/tests/test_viterbi_core.c`` sweeps k
-from 3 to 9 and n from 1 to 3, measures the code's published free distance and
-holds the node-synchronization metric to the channel's symbol error rate.
-Repeating any of that here would only re-measure the same kernel through a
-narrower door.  What only Python can see is the DOOR: what the constructor
-accepts and refuses, what dtype and length come back, and that ``reset`` and
-the context manager reach the C functions they claim to.
+The ALGORITHM is pinned in C — ``native/tests/viterbi/test_viterbi_core.c``
+sweeps k from 3 to 9 and n from 1 to 3, measures the code's published free
+distance and holds the node-synchronization metric to the channel's symbol
+error rate. Repeating any of that here would only re-measure the same kernel
+through a narrower door.  What only Python can see is the DOOR: what the
+constructor accepts and refuses, what dtype and length come back, and that
+``reset`` and the context manager reach the C functions they claim to.
 
 The one numeric claim below needs no encoder and no golden vector.  The
 identity code — ``k = 2``, ``n = 1``, ``poly = [0b10]`` — taps only the newest

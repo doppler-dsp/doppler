@@ -17,7 +17,7 @@ single blended figure over both would answer neither.
 Both rows publish MSa/s and Msym/s, and Msym/s is the one to size a link
 with: the loop runs per input SAMPLE and delivers per SYMBOL, so `sps`
 moves the two in opposite directions. The C twin
-(``native/benchmarks/bench_ratesync_core.c``) measures the same two
+(``native/benchmarks/ratesync/bench_ratesync_core.c``) measures the same two
 detectors over the same block length and prints the same reading, so the
 faces are comparable and the gap between them is the binding's per-call
 overhead — which is what a Python benchmark is for.

@@ -12,8 +12,8 @@ records is asserted by
 
 The order is the campaign's, not this file's:
 `native/inc/doppler/loop_filter/loop_filter_core.h` is the SSOT,
-`native/tests/test_loop_filter_core.c` §1-§11 certifies it in C, and
-`native/validation/loop_filter_noise_bw.c` measures the one property no
+`native/tests/loop_filter/test_loop_filter_core.c` §1-§11 certifies it in C,
+and `native/validation/loop_filter_noise_bw.c` measures the one property no
 single-step assertion can see. This file measures the same properties
 through `doppler.track.LoopFilter` to show the binding delivers them, and
 adds the settling law a caller actually designs to.
@@ -273,7 +273,7 @@ def section_object() -> None:
         ["evidence", "answers"],
         [
             [
-                "`native/tests/test_loop_filter_core.c` §1-§11",
+                "`native/tests/loop_filter/test_loop_filter_core.c` §1-§11",
                 "does each claim in the header still hold, per update",
             ],
             [

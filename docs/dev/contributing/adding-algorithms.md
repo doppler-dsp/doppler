@@ -134,7 +134,7 @@ ______________________________________________________________________
 | 1   | **Why**        | `docs/design/<algo>.md`                                    | this page                                                                                                                  | review only                                                             |
 | 2   | **Declare**    | `objects/<obj>.toml`, a `just-makeit.toml` entry           | [Adding a Module](adding-a-module.md)                                                                                      | `make drift-check`                                                      |
 | 3   | **Implement**  | `native/inc/doppler/<obj>/<obj>_core.h` + `_core.c`        | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)                                             | `ctest`                                                                 |
-| 4   | **Pin**        | `native/tests/test_<obj>_core.c`                           | [Object Validation](validation.md) step 2                                                                                  | `ctest`, `make tests-ssot`                                              |
+| 4   | **Pin**        | `native/tests/<obj>/test_<obj>_core.c`                     | [Object Validation](validation.md) step 2                                                                                  | `ctest`, `make tests-ssot`                                              |
 | 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment                 | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md)                                           | `make drift-check`, `make test-stubs`                                   |
 | 6   | **Instrument** | the state triplet, telemetry probes                        | [state serialization](../../design/state-serialization.md), [telemetry](../../design/telemetry.md#instrumenting-an-object) | `check_serializable.py`, the state matrix, the object's probe-list test |
 | 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/`   | [Object Validation](validation.md)                                                                                         | `make validate-c`, `make characterize`                                  |
@@ -556,12 +556,12 @@ ______________________________________________________________________
 The single most confusing thing about this repo for a newcomer, and it is
 worth memorising:
 
-| where                            | answers                             | scope                    | run by                                              |
-| -------------------------------- | ----------------------------------- | ------------------------ | --------------------------------------------------- |
-| `native/tests/test_<obj>_core.c` | does this claim still hold?         | one assertion per claim  | `ctest`, every push                                 |
-| `native/validation/<obj>_*.c`    | how does the C-only surface behave? | full sweep, C-only reach | `make validate-c`; `ctest` runs a subset            |
-| `tests/validation/<obj>/`        | what may a caller rely on?          | the certified envelope   | `make validate-check` + the limits test, every push |
-| `tests/characterization/<subj>/` | how does it behave everywhere?      | minutes of Monte Carlo   | `make characterize`, deliberately                   |
+| where                                  | answers                             | scope                    | run by                                              |
+| -------------------------------------- | ----------------------------------- | ------------------------ | --------------------------------------------------- |
+| `native/tests/<obj>/test_<obj>_core.c` | does this claim still hold?         | one assertion per claim  | `ctest`, every push                                 |
+| `native/validation/<obj>_*.c`          | how does the C-only surface behave? | full sweep, C-only reach | `make validate-c`; `ctest` runs a subset            |
+| `tests/validation/<obj>/`              | what may a caller rely on?          | the certified envelope   | `make validate-check` + the limits test, every push |
+| `tests/characterization/<subj>/`       | how does it behave everywhere?      | minutes of Monte Carlo   | `make characterize`, deliberately                   |
 
 The split between rows three and four is a cost decision: a validator runs
 twice on every push, so a sweep that needs minutes to say anything taxes

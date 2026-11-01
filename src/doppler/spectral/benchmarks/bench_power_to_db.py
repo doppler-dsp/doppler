@@ -4,7 +4,7 @@ Run: pytest src/doppler/spectral/benchmarks/bench_power_to_db.py \
 --benchmark-only
 
 The same conversion as the C row ``power_to_db_f32[4096]`` in
-``native/benchmarks/bench_spectral_core.c``, at three lengths, beside
+``native/benchmarks/spectral/bench_spectral_core.c``, at three lengths, beside
 numpy's ``10 * log10`` over the same float32 power. PSD and the Spectrogram
 read every dB through this function, so its row is the dB share of a dB
 spectrum; numpy's row is what a caller converting power rows by hand would

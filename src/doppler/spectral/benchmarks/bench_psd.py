@@ -2,7 +2,7 @@
 
 Run: pytest src/doppler/spectral/benchmarks/bench_psd.py --benchmark-only
 
-The same rows as the C benchmark (``native/benchmarks/bench_psd_core.c``):
+The same rows as the C benchmark (``native/benchmarks/psd/bench_psd_core.c``):
 for each of three FFT sizes, ``accumulate`` (cf32) and ``accumulate_real``
 (f32) over a 64k block, and the ``power_onesided`` read-out. Accumulation
 and read-out are separate rows because they do not run equally often: a

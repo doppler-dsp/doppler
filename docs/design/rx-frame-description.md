@@ -282,10 +282,10 @@ There is one more, internal call: `DsssBurstReceiver` composing `BurstDemod`
 ```sh
 git grep -lE 'BurstDemod|DsssBurstReceiver' -- '*.py' \
   | xargs grep -cE 'crc16\('
-git grep -cE 'dp_crc16_ccitt *\(' -- native/tests/test_burst_demod_core.c \
-  native/tests/test_dsss_burst_receiver_core.c \
-  native/benchmarks/bench_burst_demod_core.c \
-  native/benchmarks/bench_dsss_burst_receiver_core.c
+git grep -cE 'dp_crc16_ccitt *\(' -- native/tests/burst_demod/test_burst_demod_core.c \
+  native/tests/dsss_burst_receiver/test_dsss_burst_receiver_core.c \
+  native/benchmarks/burst_demod/bench_burst_demod_core.c \
+  native/benchmarks/dsss_burst_receiver/bench_dsss_burst_receiver_core.c
 ```
 
 **16** `crc16(` calls in 8 Python files and **11** `dp_crc16_ccitt` calls in

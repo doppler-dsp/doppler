@@ -1,8 +1,8 @@
 """`DsssBurstReceiver` — the Python face of the composed burst chain.
 
-The C test (`native/tests/test_dsss_burst_receiver_core.c`) owns the
-geometry derivations and the refine stage's behaviour; this file owns what
-the binding exposes -- and one end-to-end decode, because "a burst goes in
+The C test (`native/tests/dsss_burst_receiver/test_dsss_burst_receiver_core.c`)
+owns the geometry derivations and the refine stage's behaviour; this file owns
+what the binding exposes -- and one end-to-end decode, because "a burst goes in
 and payload bits come out" is the claim a Python caller actually makes.
 
 Deliberately not a copy of the C test. Testing at both layers is the

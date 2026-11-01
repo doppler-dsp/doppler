@@ -19,17 +19,18 @@ target_include_directories(
                           ${CMAKE_SOURCE_DIR}/native/inc/doppler/interleaver)
 
 add_executable(test_interleaver_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_interleaver_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_interleaver_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/interleaver/test_interleaver_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/interleaver/test_interleaver_symbols.c)
 target_link_libraries(test_interleaver_core
                       PRIVATE interleaver_core ${JM_MATH_LIBRARY})
 target_include_directories(test_interleaver_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_interleaver_core COMMAND test_interleaver_core)
 
 add_executable(
   bench_interleaver_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_interleaver_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/interleaver/bench_interleaver_core.c)
 target_link_libraries(bench_interleaver_core
                       PRIVATE interleaver_core ${JM_MATH_LIBRARY})
 target_include_directories(

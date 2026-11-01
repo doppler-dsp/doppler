@@ -1,9 +1,9 @@
 """ReedSolomon — the binding, and the code the caller actually named.
 
-`native/tests/test_rs_codec_core.c` holds the object: that the five arguments
-reach the arithmetic, that a systematic codeword is placed correctly, that
-every length is refused rather than read past, and that the `*_max_out`
-bounds equal what the methods write. `native/tests/test_rs_core.c` holds the
+`native/tests/rs_codec/test_rs_codec_core.c` holds the object: that the five
+arguments reach the arithmetic, that a systematic codeword is placed correctly,
+that every length is refused rather than read past, and that the `*_max_out`
+bounds equal what the methods write. `native/tests/rs/test_rs_core.c` holds the
 CODE — the field, the distance, the decoder's radius. Neither is repeated
 here.
 

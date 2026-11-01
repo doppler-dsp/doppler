@@ -29,8 +29,8 @@ target_link_libraries(wfm_synth_core PUBLIC
     gold_core)
 
 add_executable(test_wfm_synth_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_synth_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_synth_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/wfm_synth/test_wfm_synth_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/wfm_synth/test_wfm_synth_symbols.c)
 target_link_libraries(test_wfm_synth_core
                       PRIVATE wfm_synth_core lo_core
     awgn_core
@@ -43,12 +43,13 @@ target_link_libraries(test_wfm_synth_core
     gold_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_wfm_synth_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_wfm_synth_core COMMAND test_wfm_synth_core)
 
 add_executable(
   bench_wfm_synth_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_synth_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/wfm_synth/bench_wfm_synth_core.c)
 target_link_libraries(bench_wfm_synth_core
                       PRIVATE wfm_synth_core lo_core
     awgn_core

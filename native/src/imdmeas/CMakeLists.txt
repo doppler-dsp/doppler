@@ -24,8 +24,8 @@ target_link_libraries(imdmeas_core PUBLIC
     acc_trace_core)
 
 add_executable(test_imdmeas_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_imdmeas_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_imdmeas_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/imdmeas/test_imdmeas_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/imdmeas/test_imdmeas_symbols.c)
 target_link_libraries(test_imdmeas_core
                       PRIVATE imdmeas_core fft_core
     spectral_core
@@ -33,12 +33,13 @@ target_link_libraries(test_imdmeas_core
     acc_trace_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_imdmeas_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_imdmeas_core COMMAND test_imdmeas_core)
 
 add_executable(
   bench_imdmeas_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_imdmeas_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/imdmeas/bench_imdmeas_core.c)
 target_link_libraries(bench_imdmeas_core
                       PRIVATE imdmeas_core fft_core
     spectral_core

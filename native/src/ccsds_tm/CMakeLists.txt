@@ -118,7 +118,7 @@ add_test(NAME test_ccsds_tm_frame COMMAND test_ccsds_tm_frame)
 # scripts/check_bench_coverage.py fails `make lint` if the target, the
 # measurement, or the JSON name it writes under goes wrong.
 add_executable(bench_ccsds_tm_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_ccsds_tm_core.c)
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/ccsds_tm/bench_ccsds_tm_core.c)
 target_link_libraries(bench_ccsds_tm_core PRIVATE
     ccsds_tm_core conv_core rs_core wfm_frame_core cvt_core pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_ccsds_tm_core PRIVATE

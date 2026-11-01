@@ -388,7 +388,9 @@ def missing_components(c_report: dict, bench_dir: str = BENCH_SRC) -> list:
     """The tree's C benchmarks a C snapshot did not record, sorted.
 
     The full set is derived, never written down: every
-    ``native/benchmarks/bench_<x>_core.c`` is component ``x``, and jm names
+    ``native/benchmarks/**/bench_<x>_core.c`` is component ``x`` (recursive:
+    jm's mirrored layout files each under ``native/benchmarks/<x>/``, and a
+    flat glob there saw five of a hundred and passed), and jm names
     each row it records ``x::<entry>``. (v0.65.0's published C snapshot held
     every one of them, so nothing in the tree is legitimately absent.) A
     snapshot short of that set came from a filtered or broken run -- ``make
@@ -398,8 +400,9 @@ def missing_components(c_report: dict, bench_dir: str = BENCH_SRC) -> list:
 
     >>> import os, tempfile
     >>> d = tempfile.mkdtemp()
-    >>> for x in ("fir", "rs"):
-    ...     open(os.path.join(d, f"bench_{x}_core.c"), "w").close()
+    >>> open(os.path.join(d, "bench_fir_core.c"), "w").close()
+    >>> os.mkdir(os.path.join(d, "rs"))
+    >>> open(os.path.join(d, "rs", "bench_rs_core.c"), "w").close()
     >>> missing_components({"benchmarks": [{"name": "fir::step"}]}, d)
     ['rs']
     >>> rows = [{"name": "fir::step"}, {"name": "rs::decode"}]
@@ -408,7 +411,9 @@ def missing_components(c_report: dict, bench_dir: str = BENCH_SRC) -> list:
     """
     want = {
         os.path.basename(p)[len("bench_") : -len("_core.c")]
-        for p in glob.glob(os.path.join(bench_dir, "bench_*_core.c"))
+        for p in glob.glob(
+            os.path.join(bench_dir, "**", "bench_*_core.c"), recursive=True
+        )
     }
     have = {b["name"].split("::")[0] for b in c_report.get("benchmarks", [])}
     return sorted(want - have)

@@ -623,8 +623,8 @@ def section_summary() -> None:
                 "argument and the Measured table",
             ],
             [
-                "[`native/tests/test_ratesync_core.c`]"
-                "(../../../../../../native/tests/test_ratesync_core.c)",
+                "[`native/tests/ratesync/test_ratesync_core.c`]"
+                "(../../../../../../native/tests/ratesync/test_ratesync_core.c)",
                 "the gate: §1-§7 from the object's first landing, §8-§19 "
                 "added by this audit and each proved by sabotage",
             ],

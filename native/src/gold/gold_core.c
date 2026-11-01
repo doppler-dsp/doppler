@@ -12,7 +12,7 @@
  * register, and the CCSDS-fixed (taps_a, taps_b) pair is a genuine
  * "preferred pair" — the XOR family has a strict three-valued
  * autocorrelation/cross-correlation set (verified in
- * native/tests/test_gold_core.c). Output chips are 0/1 (uint8); map to ±1
+ * native/tests/gold/test_gold_core.c). Output chips are 0/1 (uint8); map to ±1
  * downstream.
  */
 

@@ -12,7 +12,7 @@ records is asserted by
 
 The order is the campaign's, not this file's:
 `native/inc/doppler/wfm_synth/wfm_synth_core.h` is the SSOT and
-`native/tests/test_wfm_synth_core.c` certifies it in C. This file
+`native/tests/wfm_synth/test_wfm_synth_core.c` certifies it in C. This file
 measures the same properties through `doppler.wfm._SynthEngine` — the
 raw engine the `Synth`/`Segment`/`Composer` ladder is built on — to show
 the binding delivers them.
@@ -249,7 +249,8 @@ def section_object() -> None:
         "[docs/design/wfmgen.md](../../../../../../docs/design/wfmgen.md); "
         "the API is "
         "`native/inc/doppler/wfm_synth/wfm_synth_core.h`, certified in C by "
-        "`native/tests/test_wfm_synth_core.c`. Neither is restated here."
+        "`native/tests/wfm_synth/test_wfm_synth_core.c`. Neither is restated "
+        "here."
     )
     R.md()
     R.md(

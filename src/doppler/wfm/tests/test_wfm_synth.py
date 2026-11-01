@@ -591,7 +591,7 @@ def test_carrier_freq_truncates_toward_zero():
     zero
     -- not to nearest. freq=51 Hz at fs=21e6 is a case where truncation and
     round-to-nearest differ (freq=50 Hz at the same fs does not -- see
-    native/tests/test_lo_core.c's own cases for both): the truncated
+    native/tests/lo/test_lo_core.c's own cases for both): the truncated
     increment leaves the carrier low by ~0.63 of a quantization step,
     past the half-step a round would guarantee -- and strictly never high.
     Truncation is deliberate: a bare C99 float->uint cast is bit-identical
@@ -625,7 +625,7 @@ def test_carrier_freq_truncates_toward_zero():
 def test_step_matches_steps_bit_exact():
     """Synth.step() (inline per-sample) must reproduce Synth.steps()
     (block) bit-exactly -- the same guarantee this project's C-level
-    LO/NCO test suite already locks in (native/tests/test_lo_core.c)."""
+    LO/NCO test suite already locks in (native/tests/lo/test_lo_core.c)."""
     a = Synth(type="tone", fs=1e6, freq=12345.6, snr=100.0)
     b = Synth(type="tone", fs=1e6, freq=12345.6, snr=100.0)
     ref = a.steps(257)

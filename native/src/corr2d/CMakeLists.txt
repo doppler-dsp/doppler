@@ -37,20 +37,21 @@ if(TARGET ${PROJECT_NAME}_lib_static)
 endif()
 
 add_executable(test_corr2d_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_corr2d_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_corr2d_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/corr2d/test_corr2d_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/corr2d/test_corr2d_symbols.c)
 target_link_libraries(test_corr2d_core
                       PRIVATE corr2d_core Threads::Threads
     fft2d_core
     fft_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_corr2d_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_corr2d_core COMMAND test_corr2d_core)
 
 add_executable(
   bench_corr2d_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_corr2d_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/corr2d/bench_corr2d_core.c)
 target_link_libraries(bench_corr2d_core
                       PRIVATE corr2d_core Threads::Threads
     fft2d_core

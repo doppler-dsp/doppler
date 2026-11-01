@@ -28,8 +28,8 @@ target_link_libraries(burst_demod_core PUBLIC
     mpsk_core)
 
 add_executable(test_burst_demod_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_burst_demod_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/test_burst_demod_symbols.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/burst_demod/test_burst_demod_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/burst_demod/test_burst_demod_symbols.c)
 target_link_libraries(test_burst_demod_core
                       PRIVATE burst_demod_core ppe_core
     fft_core
@@ -41,12 +41,13 @@ target_link_libraries(test_burst_demod_core
     mpsk_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_burst_demod_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_burst_demod_core COMMAND test_burst_demod_core)
 
 add_executable(
   bench_burst_demod_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_burst_demod_core.c)
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/burst_demod/bench_burst_demod_core.c)
 target_link_libraries(bench_burst_demod_core
                       PRIVATE burst_demod_core ppe_core
     fft_core

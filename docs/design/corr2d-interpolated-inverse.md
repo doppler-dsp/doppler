@@ -294,7 +294,7 @@ them as `ny` independent length-`nx` row spectra instead of one flat 2-D
 spectrum. Same byte count, same layout, so `dp_corr2d_state_bytes`/
 `get_state`/`set_state` needed zero changes.
 
-**Measured** (see `native/benchmarks/bench_corr2d_core.c`,
+**Measured** (see `native/benchmarks/corr2d/bench_corr2d_core.c`,
 `ny=16, nx=2046` — the acquisition grid from §1/`dsss-acquisition.md` §7):
 single-row (fast path) ~86 MSa/s vs. multi-row (general path) ~54 MSa/s at
 that grid. The much larger end-to-end win is in the small-grid regime
@@ -305,7 +305,7 @@ it 3-5x — `dp_corr2d_execute` was ~75% of `dp_acq_push`'s per-frame cost, spli
 almost evenly between the forward and inverse FFT2, confirming the row
 axis really was paying for a full transform pair every frame.
 
-**Tests** (`native/tests/test_corr2d_core.c`): every pre-existing test
+**Tests** (`native/tests/corr2d/test_corr2d_core.c`): every pre-existing test
 already used a single-row reference, so they all exercise the fast path
 automatically (free regression coverage). Added: a brute-force dense-signal
 correctness check for *both* paths (existing coverage was impulse/shift-
@@ -407,7 +407,7 @@ five 20-call means:
 | `DelayDoppler`, 4 threads, `out=`                  | 4.7 ms  |
 | `DelayDoppler`, 20 threads, `out=`                 | 1.5 ms  |
 
-The C rows are `native/benchmarks/bench_corr2d_core.c`'s `delay_doppler_*`
+The C rows are `native/benchmarks/corr2d/bench_corr2d_core.c`'s `delay_doppler_*`
 rows. The Python rows are `src/doppler/spectral/benchmarks/bench_delay_doppler.py`.
 
 ## See also

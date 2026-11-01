@@ -38,7 +38,7 @@
 # backreference is what tells the two apart. Do not add such a line: an entry
 # for correct code reads as debt and dilutes the ratchet.
 
-an inline linear-congruential step::native/tests/test_psd_core.c::*st = *st * 6364136223846793005ULL + 1442695040888963407ULL; | Fills a spectral estimate with uniform [-1, 1]; dp_rng_test.h's own "where a new generator goes" note sanctioned this as the single-caller exception, and there turned out to be four. Migrating moves the noise the PSD statistics are tuned against.
-an inline linear-congruential step::native/tests/test_nprmeas_core.c::_rng = _rng * 1664525u + 1013904223u; | Notched broadband noise for the NPR fixture; the notch depth assertions are tuned against this stream.
-an inline linear-congruential step::native/tests/test_tonemeas_core.c::_rng = _rng * 1664525u + 1013904223u; | Uniform white noise in [-a, a] for the tone fixture; the SFDR/ENOB assertions are tuned against this stream.
+an inline linear-congruential step::native/tests/psd/test_psd_core.c::*st = *st * 6364136223846793005ULL + 1442695040888963407ULL; | Fills a spectral estimate with uniform [-1, 1]; dp_rng_test.h's own "where a new generator goes" note sanctioned this as the single-caller exception, and there turned out to be four. Migrating moves the noise the PSD statistics are tuned against.
+an inline linear-congruential step::native/tests/nprmeas/test_nprmeas_core.c::_rng = _rng * 1664525u + 1013904223u; | Notched broadband noise for the NPR fixture; the notch depth assertions are tuned against this stream.
+an inline linear-congruential step::native/tests/tonemeas/test_tonemeas_core.c::_rng = _rng * 1664525u + 1013904223u; | Uniform white noise in [-a, a] for the tone fixture; the SFDR/ENOB assertions are tuned against this stream.
 an inline linear-congruential step::native/validation/mpsk_diff_penalty.c::ds = ds * 6364136223846793005ull + 1442695040888963407ull; | The differential-symbol source for a PUBLISHED coherent-vs-differential penalty. Moving the stream moves that figure, so the migration owes a re-verification rather than a rebuild.

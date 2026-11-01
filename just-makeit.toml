@@ -10,6 +10,11 @@ build = "cmake"
 # and include together. Names we spelled ourselves (fn =, create_fn, our
 # macros) and every Python name are untouched.
 c_prefix = "dp"
+# layout (jm#2425, 0.114.0): every per-object file lives under a directory
+# named for its object, mirroring native/inc/doppler/<obj>/ --
+# native/tests/<obj>/test_<obj>_core.c, native/benchmarks/<obj>/... -- so
+# finding an object's test is the same lookup as finding its header.
+layout = "mirrored"
 # c_style / c_format_command (gh-265, gh-745): jm formats the C it generates
 # with the project's OWN pinned clang-format, so its render and the committed
 # bytes agree instead of differing by style forever.

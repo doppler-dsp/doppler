@@ -58,7 +58,7 @@ Base commit `1c918681`.
 
 ### 6.1 The cost of assembling every frame
 
-The rows are in `native/benchmarks/bench_frame_core.c`. `frame` is a jm
+The rows are in `native/benchmarks/frame/bench_frame_core.c`. `frame` is a jm
 component, so `make bench` runs them. A round is 32 frames, there are
 200 rounds, and each row reports the minimum. The payload is
 `LEN = 1784` bits, which is a CADU's 223 octets, and it goes into two

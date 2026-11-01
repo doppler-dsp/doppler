@@ -429,7 +429,8 @@ def section_object() -> None:
     R.md()
     R.md(
         "The header's lock and lifecycle claims, each pinned in "
-        "`native/tests/test_async_dsss_receiver_core.c` and each seen to "
+        "`native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c` "
+        "and each seen to "
         "fail under a sabotage of the code it guards, the order "
         "`docs/dev/contributing/validation.md` requires:"
     )

@@ -637,8 +637,8 @@ def section_summary() -> None:
                 "why the verify count is not derived from it",
             ],
             [
-                "[`native/tests/test_carrier_nda_core.c`]"
-                "(../../../../../../native/tests/test_carrier_nda_core.c)",
+                "[`native/tests/carrier_nda/test_carrier_nda_core.c`]"
+                "(../../../../../../native/tests/carrier_nda/test_carrier_nda_core.c)",
                 "the gate: sections 1-9 from the object's own landing, 14 "
                 "and 15 added by this audit and each proved by sabotage",
             ],

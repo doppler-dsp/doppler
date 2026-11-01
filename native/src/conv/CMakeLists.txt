@@ -14,7 +14,7 @@ add_library(conv_core OBJECT
 target_include_directories(conv_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 add_executable(test_conv_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_conv_core.c)
+    ${CMAKE_SOURCE_DIR}/native/tests/conv/test_conv_core.c)
 # No ccsds_tm: the test's external truth is the impulse response, which is
 # what a generator polynomial means and is checkable for every configuration.
 # Holding the CCSDS numbers to the standard is test_ccsds_tm_conv.c's job.
@@ -38,7 +38,7 @@ add_test(NAME test_conv_core COMMAND test_conv_core)
 # scripts/check_bench_coverage.py keeps the rest honest: the target exists,
 # it records a measurement, and it writes JSON under a collectable name.
 add_executable(bench_conv_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_conv_core.c)
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/conv/bench_conv_core.c)
 target_link_libraries(bench_conv_core PRIVATE conv_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_conv_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc

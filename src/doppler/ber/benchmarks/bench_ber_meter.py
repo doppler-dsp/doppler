@@ -17,8 +17,8 @@ errors -- so the scorer takes its error branch rather than a stream that
 never does, and the row can assert the exact count it must find. A meter
 that quietly stopped counting would otherwise just get faster.
 
-The C benchmark (``native/benchmarks/bench_ber_meter_core.c``) times the
-same two calls with the same geometry; the gap between the faces is the
+The C benchmark (``native/benchmarks/ber_meter/bench_ber_meter_core.c``) times
+the same two calls with the same geometry; the gap between the faces is the
 binding's per-call overhead, which is what a Python benchmark is for.
 """
 

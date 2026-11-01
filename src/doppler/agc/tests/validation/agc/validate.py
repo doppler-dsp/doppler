@@ -11,7 +11,7 @@ which runs this same `build(write=False)`.
 
 The order is the campaign's, not this file's:
 `native/inc/doppler/agc/agc_core.h`
-is the SSOT, `native/tests/test_agc_core.c` §1-§24 certifies it in C, and
+is the SSOT, `native/tests/agc/test_agc_core.c` §1-§24 certifies it in C, and
 this measures the same properties through `doppler.agc.AGC` to show the
 binding delivers them. Claims that cannot be reached from Python are
 reported C-ONLY with the C section that covers them, never skipped.
@@ -150,7 +150,7 @@ def section_object() -> None:
     R.md("Design and API, not restated here:")
     R.md()
     R.md("- `native/inc/doppler/agc/agc_core.h` — the SSOT for every claim")
-    R.md("- `native/tests/test_agc_core.c` §1-§24 — the C certification")
+    R.md("- `native/tests/agc/test_agc_core.c` §1-§24 — the C certification")
     R.md(
         "- [AGC design](../../../../../../docs/design/agc.md) — why the "
         "filter is in dB and the detector is not, and what the loop "

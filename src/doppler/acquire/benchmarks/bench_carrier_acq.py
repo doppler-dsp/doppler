@@ -18,10 +18,11 @@ mode tests after every block and never stops, so all 64k are folded and
 searched: the sustained price of LISTENING, and the only case where MSa/s is
 honest over the whole block. The price of a DECISION -- a BPSK carrier found
 on its first block, credited with the samples folded -- is the C twin's
-``detect`` row (``native/benchmarks/bench_carrier_acq_core.c``), on the
-stimulus this file's ``detect`` rows used. They were cut here (doppler#2386):
-a decision at 20 dB is one block folded and tested, which costs what one
-``search`` block costs (334.6 us against 5.642 ms / 16 = 352.6 us at pad 4).
+``detect`` row (``native/benchmarks/carrier_acq/bench_carrier_acq_core.c``), on
+the stimulus this file's ``detect`` rows used. They were cut here
+(doppler#2386): a decision at 20 dB is one block folded and tested, which costs
+what one ``search`` block costs (334.6 us against 5.642 ms / 16 = 352.6 us at
+pad 4).
 
 The block length is a power of two (``RESOLUTION_HZ = FS / 4096``) on
 purpose: the transform is ``next_pow_two(n_fft * zero_pad)``, so a

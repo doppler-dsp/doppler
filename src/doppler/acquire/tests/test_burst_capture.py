@@ -1,10 +1,10 @@
 """BurstCapture through its Python face.
 
-The C suite (`native/tests/test_burst_capture_core.c`) owns the algorithm's
-claims. What is asserted here is what only the BINDING can get wrong: that
-the windows come back as an array a caller can index, that the event record's
-fields land in the right columns, and that the state triplet round-trips
-through `bytes`.
+The C suite (`native/tests/burst_capture/test_burst_capture_core.c`) owns the
+algorithm's claims. What is asserted here is what only the BINDING can get
+wrong: that the windows come back as an array a caller can index, that the
+event record's fields land in the right columns, and that the state triplet
+round-trips through `bytes`.
 """
 
 import numpy as np

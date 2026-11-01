@@ -560,7 +560,8 @@ def review(d: Data) -> None:
         "The forwarding of `dp_burst_acq_destroy(NULL)` and the rejection "
         "of a "
         "NULL or zero-length code are certified in "
-        "`native/tests/test_burst_acq_core.c`: neither is reachable from "
+        "`native/tests/burst_acq/test_burst_acq_core.c`: neither is reachable "
+        "from "
         "Python, where the binding owns lifetime and the array conversion "
         "refuses a malformed code before the C is entered.",
     )

@@ -880,7 +880,7 @@ ______________________________________________________________________
     service-boundary goals this extends to bursts
 - [DSSS use cases](../dev/contributing/dsss-use-cases.md) — the burst regime's
     geometry and why the 2-D roll fits it
-- [DSSS acquisition](dsss-acquisition.md) — the detector's own architecture
+- [DSSS acquisition](acq-surface.md) — the detector's own architecture
 - [State serialization](state-serialization.md) — the triplet the composition
     inherits from its parts
 - [A known reference resolves the ambiguity](mpsk.md#a-known-reference-resolves-the-ambiguity-and-why-that-comes-first)

@@ -112,7 +112,7 @@ there is no `doppler_resolution` and no `max_noncoh`.
 **`doppler_bins` is the whole Doppler grid** a hit's `doppler_bin` indexes:
 the coherent depth `coherent_bins` times the frequency windows the engine
 rolls one epoch's spectrum across when the uncertainty is wider than one
-epoch's span ([`dsss-acquisition.md`](dsss-acquisition.md) §4).
+epoch's span ([`acq-surface.md`](acq-surface.md) §3).
 Non-coherent looks are a separate axis. On the continuous door `n_noncoh`
 is auto-selected to meet `pd` at `pfa` and read-only, bounded only by a
 safety valve (`ACQ_N_NONCOH_SAFETY_CEILING`, 256 looks) because the
@@ -206,7 +206,7 @@ code epoch.
 **The slow-time depth `D > 1` is safe only inside a pure-code window.**
 Coherent combining across data aliases the data's own spectrum across the
 Doppler axis and mislocks structurally
-([`dsss-acquisition.md`](dsss-acquisition.md)). Inside a window of code
+([`acq-surface.md`](acq-surface.md) §9). Inside a window of code
 alone there is nothing to alias. The engine does not know any emitter's
 window phase, so it sums **non-overlapping blocks of `D` epochs**, one
 coherent surface per block, detected per block. A whole block always lands
@@ -229,7 +229,7 @@ frequency windows, the alias check a pick near a window's edge gets
 (`acq_resolve_tile_alias`), and the roll per thread on persistent workers
 are current engine behavior, and the pool's search runs on them. Their design text is §2.3 at
 [`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md)
-until it moves to [`dsss-acquisition.md`](dsss-acquisition.md)
+until it moves to [`acq-surface.md`](acq-surface.md)
 ([#2500](https://github.com/doppler-dsp/doppler/issues/2500)).
 
 ### 2.4 The searcher is watched, not trusted
@@ -847,7 +847,7 @@ already-listed code phase. `det_peak_list`
 (`native/inc/doppler/detector/det_private.h`) is the one primitive under
 both detectors, and §7.2's pick reads it. Its design is §7.1 at
 [`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md)
-until it moves to [`dsss-acquisition.md`](dsss-acquisition.md)
+until it moves to [`acq-surface.md`](acq-surface.md)
 ([#2500](https://github.com/doppler-dsp/doppler/issues/2500)).
 
 ### 7.2 The pick
@@ -1165,8 +1165,8 @@ ______________________________________________________________________
 - [the measurement record](async-dsss-receiver-measurements.md) — every run
     behind the numbers here, under the same section numbers, the pool as
     built's included.
-- [`dsss-acquisition.md`](dsss-acquisition.md) — the acquisition engine
-    under §2: the windowing, the CFAR vocabulary, the roadmap.
+- [`acq-surface.md`](acq-surface.md) — the acquisition engine
+    under §2: the windowing, the CFAR gate, what is open.
 - [`dsss-burst-receiver.md`](dsss-burst-receiver.md) — the burst chain,
     which shares §2.2's `acq_handoff_t`.
 - [`burst-bank.md`](burst-bank.md) — the burst bank this page's continuous

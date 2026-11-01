@@ -1,12 +1,17 @@
-# The acquisition surface: equations and operations
+# The acquisition surface: the DSSS search engine
 
-What the continuous search engine (`dp_acq_create_continuous()`,
-`native/src/acq/acq_core.c`) computes, from the input samples to a hand-off,
-written as equations. Every step names the function that performs it. The
-architecture, the trade space and the roadmap are
-[dsss-acquisition.md](dsss-acquisition.md); the receiver that drives this
-engine is [async-dsss-receiver.md](async-dsss-receiver.md). This page is the
-one home of the surface's arithmetic.
+The design of the DSSS search engine (`dp_acq_*`,
+`native/src/acq/acq_core.c`), the one C engine behind both
+`dp_acq_create_continuous()` (`Acquisition`) and `dp_acq_create_burst()`
+(`BurstAcquisition`). §1–§8 write what the continuous engine computes, from
+the input samples to a hand-off, as equations, each step naming the
+function that performs it; §9 is the two front doors and what the burst
+door does differently; §10–§16 are the architecture, the trade space, the
+false-alarm accounting, the fan-out and the cost; §17 is what is open. The
+receiver that drives the continuous engine is
+[async-dsss-receiver.md](async-dsss-receiver.md); how to use both classes
+is the [DSSS acquisition guide](../guide/dsss-acquisition.md). This page is
+the one home of the engine's design.
 
 ## 1. Notation
 
@@ -489,7 +494,7 @@ limit is the code's own ambiguity, below.
 **What it means for a search that does not take the strongest peak.** The
 strongest peak is the emitter, so a search that takes the first of the list
 is unaffected. A search that skips peaks (a rank above 0, or exclusions:
-[async-dsss-parallel.md](async-dsss-parallel.md) §3) can reach one of the
+[async-dsss-receiver.md](async-dsss-receiver.md) §7.2) can reach one of the
 emitter's own sidelobes and take it as a second emitter. The zone and the
 twin rule do not reach it, being one chip wide. So no list rule that keys on
 the lag alone separates a second emitter from the first one's sidelobe when
@@ -539,11 +544,480 @@ draws from them. `make acq-surface-record` re-runs it and rewrites the tables:
 
 <!-- acq-surface:stamp:end -->
 
+## 9. Two front doors, one engine
+
+The engine has two public constructors, and each fixes a mode at
+construction rather than offering a per-call knob. The reason is the one
+fact about slow time that §4 states: a coherent slow-time transform
+resolves Doppler only *within* one native span $\pm f_E/2$. More depth
+subdivides that span; it never widens it. And on a continuous,
+data-modulated signal a coherent axis across epochs that carry data
+aliases the data's own transitions across the whole Doppler axis: the data
+spectrum, sampled at close to one sample per symbol, lands broadband energy
+in every row, and the wrong row wins outright. That is a structural
+mislock, not a graceful loss of gain, and the engine closes it at the
+constructor instead of pricing it as a tunable trade
+([the guide's worked proof](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)).
+
+|               | `dp_acq_create_continuous()` (`Acquisition`)                            | `dp_acq_create_burst()` (`BurstAcquisition`)                                 |
+| ------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| signal        | a continuous, data-modulated code                                       | a burst opening with a repeated, data-free preamble                          |
+| reference     | the code's chips, held `spc` samples each (§2)                          | one period of the preamble, as samples (§9.1)                                |
+| Doppler       | always window-tiled (§3), $W = 1$ when $\Delta \le f_E/2$               | one native span; tiled the same way when $\Delta$ exceeds it                 |
+| depth $D$     | from `code_only_epochs` and `doppler_rate` (§4), 1 by default           | the smallest in $[1, \text{reps}]$ whose burst $P_d$ (`pd_burst`) meets `pd` |
+| looks $K$     | auto-selected to meet `pd`, at most `ACQ_N_NONCOH_SAFETY_CEILING` (256) | always 1                                                                     |
+| Doppler rate  | caps $D$; one rate hypothesis                                           | caps $D$; `rate_hypotheses` de-chirps the block at $n$ rates (§4)            |
+| short of `pd` | best effort, `underpowered` set                                         | the depth with the most `pd_burst`, `underpowered` set                       |
+
+**Continuous.** Coherent gain comes only from epochs the caller declares
+code-only (`code_only_epochs`), inside a tile, in blocks that a data
+transition cannot enter (§4's first bound). Everything else is
+non-coherent looks, which square away the data's sign. `symbol_rate`
+survives as a diagnostic only. The ceiling of 256 looks is a safety valve:
+the semi-analytical $P_d$ model the engine sizes against turns unreliable
+past a few hundred looks. It is not a physical sensitivity limit and not a
+public knob.
+
+**Burst.** A burst has one preamble, so a second look adds noise and
+arrives a frame late (#1181, #1503): the burst engine never adds one. Its
+burst $P_d$ is the preamble landing at any offset against stream-aligned
+dwells, detected when any one of them is. Untiled, it frames $D$ epochs
+$D \times N$, transforms down the columns for Doppler, correlates each row
+against the reference through `corr2d`, and CFAR-gates the surface (the
+file doc of `acq_core.h`). With a stated design C/N0 and an uncertainty
+wider than one span, it tiles as the continuous door does and chooses the
+depth inside every tile.
+
+**`doppler_rate` caps, never floors.** On both doors it bounds the depth at
+$f_E / \sqrt{2 \dot f}$ (§4), so it can only lower $D$. A depth past it
+smears the carrier across slow-time rows, which the $P_d$ model does not
+carry. On 16 repetitions of Zadoff-Chu 127 under a 1.5 MHz/s ramp
+(`native/validation/acq_template_pd.c`, 3000 trials), an engine told
+nothing is sized at $D = 10$, predicts 0.91 and delivers 0.85; told the
+rate, it caps at $D = 4$, reports `underpowered`, predicts 0.42 and
+delivers 0.45 (#1482). With `rate_hypotheses` $n > 1$ the burst engine
+applies the bound to the residual rate, $R/(n-1)$, so $D$ can grow by up to
+$\sqrt{n-1}$, and a dwell costs about $n$ slow-time passes
+([burst-capture.md §11.5](burst-capture.md)).
+
+### 9.1 Any repeated preamble, not only a code
+
+Nothing in the burst engine's surface is specific to a PN code. It frames
+the stream by one period of the reference, correlates each repetition
+circularly, transforms slow time, and tiles a wide uncertainty by whole-bin
+spectral shifts. All of that holds for **any periodic complex reference**.
+`dp_acq_create_burst()` takes the samples themselves (#1470, #1478): a PN
+code is passed as its chips by `bin_to_nrz()`, held `spc` samples each, and
+one chip is one sample (`sf = n`, `spc = 1`, `chip_rate = fs`), so
+`code_phase` is the delay into the repetition in samples.
+
+**What the engine asks of the waveform** is two numbers about its
+autocorrelation $R$. A code has both analytically, from the triangle one
+chip wide. A template gets both from one FFT at construction
+(`acq_shape_t`):
+
+| quantity       | used for                                            | a code      | a template                                                                       |
+| -------------- | --------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| `zone`         | the peak list's exclusion and the twin rule's reach | `spc`       | the first null: the first lag where `\|R\|` stops falling by more than 1e-6·R(0) |
+| delay straddle | the Pd model's half-sample prior                    | `1 − δ/spc` | band-limited `\|R(δ)\|/R(0)`; an even length's Nyquist bin contributes `cos(πδ)` |
+
+**A burst engine uses the right-hand column for everything, codes
+included.** The "a code" column is an ideal rectangular pulse's: continuous
+chips correlated against each other. A sampled, band-limited chain never
+sees that, and against a rectangular-chip Monte-Carlo the triangle's delay
+straddle under-predicted $P_d$ by 0.03–0.10 at 4 samples a chip and up to
+0.40 at 1; the samples model sits at +0.00 to +0.08, never optimistic.
+Only the continuous engine, which takes chips, keeps the analytic column
+(#1495). The two agree where they should: a 31-chip code handed over as
+samples gets zone 4 = `spc`, and a 7-chip code honestly gets 3, because its
+sidelobe floor (1/7) reaches the sampled triangle a lag early. The 1e-6
+tolerance exists because a perfect sequence's off-peak lags are rounding
+(≈3e-9 of R(0) for a float Zadoff-Chu); without it the minimum lands
+wherever the FFT's last digit fell.
+
+**The rotation loss keeps its `sinc`, and for a chirp that is
+pessimistic.** The $P_d$ model derates the peak for rotation within one
+repetition by `sinc(u)`, the ambiguity function's zero-delay cut (§8). For a
+constant envelope that cut is exactly the Dirichlet; for a shaped template
+it is within 0.007 dB of `sinc(u)` over $u \in [0, \tfrac12]$, even for RRC
+QPSK at 4.7 dB PAPR, so no rotation table is kept. The detector takes the
+maximum over delay, though, and a chirp's peak slides along its ridge
+instead of shrinking, so the zero-delay cut overstates its loss.
+
+**Scale.** The template is scaled to unit RMS, the scale a code's ±1
+reference has, so `peak_mag` and `noise_est` are in the signal's units.
+`cn0_dbhz` is the preamble's mean power over `fs`; at `fs = 1` it is the
+per-sample SNR in dB and Doppler is in cycles/sample. Any finite `cn0_dbhz`
+is a design point, negative included, and NaN (`ACQ_CN0_NONE`) means none
+(#1484).
+
+**`pd_predicted` is measured, not only modelled**
+(`native/validation/acq_template_pd.c`: Doppler uniform over the span,
+continuous delay, AWGN, $D = 8$, one look, 3000 trials a row, measured −
+predicted at the C/N0 where the model predicts 0.3 / 0.6 / 0.9):
+
+| preamble                     | Δ Pd                  | mean \|delay error\| | reads as                             |
+| ---------------------------- | --------------------- | -------------------- | ------------------------------------ |
+| code, 31 chips × 4 (control) | +0.08                 | 0.4 samples          | the harness reproduces the code case |
+| random-phase QPSK, 96        | +0.04 / +0.05 / +0.04 | 0.2–0.3              | conservative                         |
+| Zadoff-Chu, 127              | +0.04 / +0.05 / +0.05 | 0.7–2.5              | conservative                         |
+| chirp, 128                   | +0.08 / +0.12 / +0.08 | 0.3                  | conservative: the ridge slide above  |
+| QPSK 96, 5-tap low-passed    | +0.06 / +0.10 / +0.05 | 0.3–0.4              | conservative                         |
+
+Every class keeps the "never optimistic" contract. The shaped template broke
+it (#1483) until the model priced the CFAR reference the gate divides by
+(#1501): that
+reference is the mean magnitude of the whole surface, peak included, and a
+template's correlation energy off its peak lands in it.
+
+Delay–Doppler coupling is measured, not corrected: a hit's delay is off by
+0.3 samples on average for a chirp and up to 2.6 for Zadoff-Chu, whose
+Doppler sensitivity moves the peak by whole samples. The exact start, and
+which repetition the burst starts in, are the capture's to resolve, not the
+detector's ([burst-capture.md](burst-capture.md)).
+
+## 10. One surface, several decompositions
+
+Every method here computes, or approximates, one object: the
+**cross-ambiguity function (CAF)**, the correlation surface over delay
+(code phase) and Doppler that §8 writes as $\chi$, extended by a
+Doppler-rate axis when there are dynamics. The methods differ only in how
+they sweep Doppler and how they handle a phase that is not linear. They are
+decompositions of one surface, each efficient in a different regime:
+
+| method                         | wins when                                             | Doppler step       | in the engine                                                 |
+| ------------------------------ | ----------------------------------------------------- | ------------------ | ------------------------------------------------------------- |
+| reframe + slow-time FFT        | Doppler within one span, a data-free coherent window  | $f_E/D$            | the burst door's core (§9)                                    |
+| spectral shift (the tiling)    | one epoch, wide uncertainty, no coherent combining    | $f_E$              | the continuous door at $D = 1$ (§3)                           |
+| spectral shift + slow-time FFT | a code-only window of $\ge 2D - 1$ epochs inside data | $f_E/D$            | the continuous door at $D > 1$, and a tiled burst engine (§4) |
+| Doppler-rate de-chirp          | acceleration, or a long coherent block                | adds rate rows     | the burst door's `rate_hypotheses` (§4)                       |
+| sub-block chop                 | wide Doppler with coherent integration intact         | $f_E/D$, span $K$× | not built (§17)                                               |
+| direct mix-and-correlate       | reference truth                                       | any                | test ground truth only                                        |
+
+**The spectral shift is the mixer bank's integer-bin case.** Shifting the
+epoch spectrum by $q$ bins is exactly mixing by $q f_E$ (§3), so one shared
+forward transform serves every hypothesis. Where coherent integration over
+more than one epoch is available, a slow-time transform does everything the
+shift does plus a finer step plus the coherent gain, which is why the burst
+door keeps reframing as its core and tiles only when the uncertainty
+outgrows one span. On a continuous data-modulated signal that integration
+is not available to any method (§9), so the coherent advantage disappears
+and the shift's one forward transform per epoch is the cheaper
+realization: about 1.2–1.55× faster than an equivalent tuned-mixer bank in
+a frequency-bank benchmark (the file doc of `acq_core.h`). On that door the
+shift is the whole $D = 1$ search, not a front end to a richer kernel.
+
+**Sub-block chopping** would cut each epoch into $K$ pieces: the slow-time
+rate rises to $K f_E$, so the native span widens to $\pm K f_E/2$ (one
+long FFT of length $DK$) at the same resolution, and the within-segment
+rotation limit loosens $K$×. The price is partial-correlation loss, each
+sub-block seeing $1/K$ of the code (weaker autocorrelation, worse
+cross-correlation sidelobes), a few dB for $K \le 8$. It is the principled
+alternative to a very wide mixer bank, and it is not built.
+
+**The de-chirp** multiplies the slow-time series by $e^{-j \pi a_h t^2}$
+per rate hypothesis before the transform (§4, `acq_rate_table()`), an
+independent outer axis around the coherent kernel. Its grid falls out of
+the coherent-time budget (§15).
+
+## 11. The trade space
+
+Coherent time $T_{coh} = D T_E$ is the master knob. It adds gain
+$10 \log_{10}(DN)$, and four ceilings bound it, whichever bites first:
+(a) the Doppler residual, the within-segment `sinc` of §3; (b) the data-bit
+period; (c) oscillator coherence; (d) the Doppler rate,
+$\dot f\, T_{coh}^2 = O(1)$. Past (a), (c) or (d) gain degrades smoothly.
+Past (b) it does not: the data's spectrum aliases across the whole Doppler
+axis and a specific wrong row wins (§9). That is why (b) is enforced by the
+constructor and not left to a sizing rule.
+
+**Non-coherent looks** pick up where coherent time runs out: robust to the
+phase between looks (Doppler walk, bit flips, oscillator drift), gaining
+about $5 \log_{10} K$ in the weak limit against coherent's $10 \log_{10}$.
+The shortfall is the squaring loss, the price of phase robustness.
+
+| axis               | raises                            | costs                              | coupled to                           | parallel       |
+| ------------------ | --------------------------------- | ---------------------------------- | ------------------------------------ | -------------- |
+| depth $D$          | gain $10 \log_{10}(DN)$           | latency; ceilings (a)–(d)          | rate grid ($\propto T_{coh}^2$), $K$ | within a tile  |
+| looks $K$          | weak-signal reach                 | squaring loss ($\sim 5 \log_{10}$) | the $T_{coh}$ ceiling                | sums           |
+| tiles $W$          | Doppler span                      | linear compute                     | edge loss (§3)                       | **tile axis**  |
+| rate hypotheses    | dynamics tolerance                | linear compute                     | $1/T_{coh}^2$                        | per hypothesis |
+| `spc`              | code-phase resolution, anti-alias | compute $\propto N$                | $N$, $f_S$                           | —              |
+| $P_{fa}$↓ / $P_d$↑ | confidence                        | larger $DK$                        | the gate $\eta$                      | —              |
+
+**The coherent / non-coherent split** is the central choice: take $D$ as
+large as the binding ceiling allows, then $K$ to close the remaining $P_d$
+gap. On the continuous door that is literally the sizing: $D$ from §4,
+then the smallest $K$ that meets `pd` (`acq_ascend_n_noncoh()`). The
+detection module supplies the primitives: `det_threshold()` for $K = 1$,
+`det_threshold_noncoherent()` and `det_pd_noncoherent()` for the order-$K$
+statistic, `det_n_noncoh()` for the look count, all over the generalized
+`marcum_q()` and validated against Monte-Carlo to under 1%
+([detection.md](detection.md)). `cn0_dbhz` becomes the per-sample amplitude
+$\sqrt{10^{\text{cn0}/10} / f_S}$ at construction.
+
+## 12. What `pfa` means for a peak detector
+
+**Sum along one axis, maximum along the other.** A cell's value is a *sum*
+of $K$ independent looks at the same hypothesis (§5), and the detector's
+decision is a *maximum* over cells. The sum runs along time; the maximum
+runs along the surface. They set different halves of the threshold.
+
+**The sum sets the per-cell distribution.** Under H0 each look contributes
+$\sigma^2 \chi^2_2 / 2$, so the accumulated cell is
+$(\sigma^2/2)\, \chi^2_{2K}$, and the per-cell exceedance $p(\eta)$ has a
+different shape for every $K$: hence `det_threshold()` for $K = 1$ and
+`det_threshold_noncoherent()`, whose tail is $Q_K(0, b)$, for $K > 1$.
+Summing independent looks of one field concentrates the marginal and
+leaves the surface's spatial correlation alone.
+
+**The maximum sets how many chances the noise gets.** Given $p$, a surface
+of $M$ independent cells gives the Šidák split of §5. For the native
+surface of a critically sampled DFT that is a good model: adjacent bins of
+a white-noise transform are very nearly uncorrelated, and a maximum over
+the native rows delivers 0.94–0.99× the target.
+
+**The gate reads the interpolated maximum; the report reads the native
+one.** `acq_compute_stat()` and `acq_compute_stat_nc()` compute two maxima.
+`peak` ranges over the interpolated surface and sets `test_stat`: that is
+where the scalloping loss is recovered (§4's padding) and what decides
+whether the gate fires. `nat` is restricted to native rows and sets the
+reported `doppler_bin`, because every consumer scales it by
+`doppler_res_hz` and a half-bin row would make the estimate jitter by a bin
+on noise.
+
+**Why interpolation moves the H0 tail.** The sampled surface samples a
+continuous, band-limited function, and zero padding samples it more finely
+without adding information. The maximum is monotone in sampling density,
+so $P(\max > \eta)$ rises with the padding factor $I$, and it saturates at
+the continuous supremum's rate, set by the surface's bandwidth, not by the
+number of points. Interpolation recovers the noise peaks between bins for
+the same reason it recovers the signal's. Write the tail as
+
+$$P(\sup > \eta) \approx N_{\text{eff}}\, p(\eta) \quad \text{for small } p$$
+
+where $N_{\text{eff}}$, the effective number of independent looks, is a
+property of the surface's correlation, not of its grid; then
+realized / target $\approx N_{\text{eff}}(I) / N_{\text{eff}}(1)$.
+
+**The shipped bound.** The split is over the cells the maximum ranges over:
+`acq_band_cells()`, every searched row of the interpolated surface times
+`code_bins`, times the rate hypotheses, the one count every site that
+prices a gate uses (#2218). The band is searched to its edge at every
+depth, so every counted row is searched (#1183). Counting each
+interpolated row as an independent look over-counts by what its
+correlation is worth, so this is a **never-exceed bound**. Measured on the
+burst engine `validate_acq_rate_pd` builds (Zadoff-Chu 127 × 16, $f_S = 1$,
+`pfa` = 1e-3, one rate hypothesis, 1e6 noise dwells a row), as multiples of
+the target, read off the same dwells:
+
+| $D$ | interpolated max, native $M$ | native-only max | interpolated max, $M \cdot I$ (shipped) |
+| --: | ---------------------------: | --------------: | --------------------------------------: |
+|   2 |                        1.90× |           0.98× |                                       — |
+|   3 |                        1.86× |           0.94× |                                  0.947× |
+|   5 |                        1.92× |           0.97× |                                  0.946× |
+|   7 |                        1.93× |           0.99× |                                  0.945× |
+
+A PN m-sequence at $D = 5$ reads 1.88×, 0.98× and 0.969×. So each
+interpolated row is nearly a full extra look in the deep tail: a half-bin
+row's correlation with its native neighbors is about 0.64, which a cell
+probability near 1e-6 all but ignores. The bound costs the gate
+$\Delta\eta/\eta \approx \ln(1/\text{ratio})/\eta^2$: about 0.015 dB at the
+burst engine's 0.95×, and at most about 0.12 dB where native cells are
+themselves correlated (an oversampled code). The $P_d$ model
+(`acq_mean_pd`) derates slow-time scalloping over the interpolated bin the
+peak search samples, and stays conservative because the Marcum form does
+not credit the maximum over an interpolated surface under H1.
+
+Rate hypotheses are the same question on another axis: each is priced as
+an independent look at each cell, but neighbors are strongly correlated, so
+the delivered rate falls to 0.60, 0.52 and 0.22 of the target at
+$n$ = 3, 5 and 9 (#2287).
+
+**Where this is enforced.**
+
+- `test_acq_core.c` pins `pfa_cell` to the band mask's in-band cell count
+    on every grid shape, and `make lint-acq-pfa-split` holds every
+    `dp_det_pfa_cell` call under `native/src/acq/` to `acq_band_cells`.
+- The certification measures the delivered rate against the target
+    (finding F7, FIXED) and holds it with a shrink-only ratchet, 1.4× over
+    60,000 frames: a backstop that an on-target detector trips about 0.1% of
+    the time and the native pricing (1.76× on that engine) escapes about 2%.
+- `validate_acq_rate_pd_pfa`, in CI's sweep-validators job, holds the
+    burst engine's per-dwell rows at the design point, each not
+    significantly above target: $n$ = 1, 3 and auto over 100,000 dwells, 5
+    and 9 over 20,000 (#2324). Only $n = 1$ detects a doubled rate; 3 and
+    auto are backstops.
+- `validate_acq_block_coherent --check` holds the continuous engine's
+    per-block rate at the configured one over 400 blocks; the native pricing
+    put back fired 127 of 400, past the band's edge (104) by about 2.5σ.
+
+## 13. State, carry and fan-out
+
+**State.** The engine owns a ring (leftover samples and the stream
+offset), its accumulators and its plans; everything that survives a push
+serializes through the standard triplet, `dp_acq_state_bytes()` /
+`dp_acq_get_state()` / `dp_acq_set_state()`, and `dp_acq_run()` is the
+pure-transducer form over it ([acq-fn.md](acq-fn.md),
+[state-serialization.md](state-serialization.md)). A blob resumes
+bit-for-bit in a fresh engine; config that sizes it (the rate-hypothesis
+count among it) is a reject key. A finer tile-level kernel with a separate
+carry (`acq_caf_tile`, `acq_nc_accumulate`) was proposed and not built: the
+serialized engine gives the same hand-off.
+
+**Inside one engine,** the tiles are independent after the shared forward
+transform (§4), so the per-epoch tile loop and, at $D > 1$, the block-end
+column loop run on a persistent worker pool (`dp_acq_set_threads()`,
+`Acquisition.set_threads()`, read back as `threads`). Each tile owns its
+inverse plan and scratch, and the per-cell passes that decide a surface
+merge serially in tile order, so the result is bit-identical at any thread
+count. A continuous engine with more than one tile starts with a pool of
+the machine's online cores; a burst engine and a single-tile one run
+serially.
+
+**Across engines,** shards are independent: coarse-Doppler channels, rate
+hypotheses, time blocks. `push` releases the GIL (`nogil = true` in
+`objects/acq.toml`), so thread-per-shard scales, about 3.4× on 8 cores and
+4.9× on 12, memory-bandwidth bound past a few cores (`bench_acq.py`).
+Per-shard memory is small (a surface of $WDI \times N$ floats), so
+thousands of shards fit in RAM. `src/doppler/dsss/orchestrator.py`
+(`Acquirer`, `CoarseChannel`) is that fan-out: a thread pool over
+coarse-Doppler shards with a bit-identical `get_state`/`set_state` hand-off
+to another process or pod. Orchestration across shards stays the caller's
+job; the C ABI is the parallel substrate.
+
+## 14. Compute cost
+
+**The burst framing is 2-D-FFT bound.** One coherent block at
+$L = 1023$, `spc` = 2 ($N = 2046$), $D = 10$ (ring write, slow-time FFT,
+single-row `corr2d`, CFAR) costs about 0.62 ms, about 33 MSa/s a core, and
+a bare `corr2d.execute` on the same grid is 95–100% of that
+(`bench_acq.py`, `bench_corr2d.py`). Effort belongs in the transform, not
+the glue. Two levers in the transform have shipped:
+
+- **The single-row fast path.** The reference is one row, so its spectrum
+    is invariant along the row axis and `corr2d`'s forward-accumulate-inverse
+    round trip along that axis is an exact identity. `corr2d` skips it,
+    replacing the $D \times N$ 2-D pair with $D$ length-$N$ 1-D transforms
+    ([corr2d-interpolated-inverse.md §9](corr2d-interpolated-inverse.md)).
+    The composed `DsssReceiver`'s search went from about 28–59 MSa/s to about
+    133 MSa/s, matching its tracking throughput.
+- **The decoupled inverse.** Zero-padding the product spectrum to any
+    $N'$ and inverting at $N'$ gives the band-limited interpolation of the
+    circular correlation, peak preserved, on a finer code-phase grid. So the
+    inverse length is free to be FFT-friendly, with no correlation loss
+    ([corr2d-interpolated-inverse.md](corr2d-interpolated-inverse.md)).
+
+**FFT size is a ~5× lever, and the forward transform holds it.** Plans and
+work buffers are built at create; nothing in push allocates. The fast SIMD
+backend (pffft) runs only when a length is a multiple of 16 and 5-smooth
+(`pffft_cf32_ok()`); otherwise the transform falls back to the
+promote-to-double pocketfft path, slow on large primes. Measured on the
+2-D grid: $10 \times 2046$ at about 21 MSa/s against a pffft-friendly
+$16 \times 2000$ at about 102 MSa/s. The inverse is free (above), but the
+forward transform must be at the code period for the correlation to stay
+circular: zero-padding the signal in time makes it linear, with edge loss
+near the wrap. Today the engine takes an integer `spc`, so the period is
+$N = L \cdot$`spc`, and canonical code lengths are $2^n - 1$ (127, 511,
+1023, 2047): no integer `spc` makes that period smooth. Sub-block chopping
+(§10) would make the forward lengths free too.
+
+**What it means for a wide search.** The worked case below needs
+$f_S$ = 2 MSa/s per coarse channel, so one core sustains about 16 channels
+and a 12-core box about 120. A 400-channel ±100 kHz search therefore needs
+3–4 such boxes, a pod fan-out (§13), or sub-block $K \approx 4$ to cut the
+bank to about 100 channels.
+
+## 15. Large Doppler and dynamics: a worked case
+
+A LEO-like downlink: $R_C$ = 1 Mcps, $L = 1000$ ($T_E$ = 1 ms), `spc` = 2
+($f_S$ = 2 MSa/s, $N = 2000$), Doppler ±100 kHz, Doppler rate ±500 Hz/s
+(the nadir-pass bound $\dot f_{max} = (f_c/c)(v^2/h)$ at a representative
+S-band carrier and about 800 km gives about 579 Hz/s; see
+[async-dsss-receiver.md](async-dsss-receiver.md) §1).
+
+**Wide Doppler.** The native span is ±500 Hz. A coarse mixer bank at a
+500 Hz step (50% overlap) needs 400 channels for the 200 kHz range at
+under 1 dB edge loss, or 200 abutting 1 kHz channels at about 4 dB. Sub-block
+$K = 4$ would widen each to ±2 kHz and cut the bank to about 100 channels
+at a few dB of partial-correlation loss. Pick by the loss budget.
+
+**Coherent depth.** $D = 10$: $T_{coh}$ = 10 ms, resolution 100 Hz.
+
+**The Doppler-rate grid.** A residual rate $\dot f_r$ leaves an edge phase
+$\pi \dot f_r (T_{coh}/2)^2$. Holding it under a quarter cycle:
+
+$$\dot f_r \le \frac{2}{T_{coh}^2}, \qquad \Delta \dot f \approx \frac{4}{T_{coh}^2}, \qquad R = \frac{\text{rate span}}{\Delta \dot f}$$
+
+| $D$ | $T_{coh}$ | $\Delta \dot f$ | $R$ for ±500 Hz/s |
+| --- | --------- | --------------- | ----------------- |
+| 10  | 10 ms     | 40 kHz/s        | **1**             |
+| 50  | 50 ms     | 1.6 kHz/s       | **1**             |
+| 100 | 100 ms    | 400 Hz/s        | **~3**            |
+
+Dynamics stay absorbed out to 50 ms of coherent time; only at 100 ms is a
+rate grid needed at all, and then a small one. The $T_{coh}^2$ scaling
+still makes a rate grid real for long coherent integration on weak
+signals, which is why `doppler_rate` caps $D$ (§9) and the rest of the
+budget goes to looks. The worst row is 400 coarse × 3 rate ≈ 1200
+independent tiles per 100 ms.
+
+**Code Doppler** (chip-rate dilation) walks the code phase by
+$(v/c) R_C T_{coh}$ chips. With a carrier set
+(`dp_acq_set_carrier_freq_hz()`), the continuous engine aligns each
+block's epochs by the hypothesis' dilation (§4) and advances the hand-off's
+chip phase by it (§7); the burst path does not compensate it (§17).
+
+## 16. Tradeoffs
+
+- **Squaring loss.** Non-coherent looks buy phase robustness and
+    weak-signal reach at about $5 \log_{10} K$ against $10 \log_{10}$
+    coherent. They are what is left when coherence runs out, not a free
+    sensitivity dial.
+- **Mixer-bank channel count.** Simple and lossless, but linear in span:
+    ±100 kHz is hundreds of channels. The fan-out makes that cheap; the
+    orchestration is the work.
+- **Sub-block partial-correlation loss** (if built): a wider native span
+    for fewer channels, paid in correlation gain and sidelobe level, a few dB
+    for $K \le 8$.
+- **Interpolation moves the H0 tail, and the threshold prices it** (§12):
+    a never-exceed bound, a few percent conservative.
+
+## 17. Open
+
+- **The interpolated surface's $N_{\text{eff}}$**
+    ([#1064](https://github.com/doppler-dsp/doppler/issues/1064)): the
+    measured $N_{\text{eff}}(I)/N_{\text{eff}}(1)$ per grid geometry would
+    recover the 0.015–0.12 dB the bound of §12 spends. Its rate axis, where
+    the bound delivers 0.22–0.60 of the target, is
+    [#2287](https://github.com/doppler-dsp/doppler/issues/2287).
+- **Time compression on the burst path**
+    ([#1481](https://github.com/doppler-dsp/doppler/issues/1481)): no
+    code-Doppler compensation, and it bites wideband templates hardest.
+- **Sub-block chopping** (§10): the $K$ knob, a span of $\pm K f_E/2$ on a
+    swept-Doppler signal at resolution invariant in $K$, with the
+    partial-correlation loss and the channel-count reduction against the
+    mixer bank measured. No issue tracks it.
+- **A pod-level merge of partial surfaces.** The orchestrator hands off
+    whole engine state; reducing serialized partial non-coherent surfaces
+    across processes, in any order, to a result bit-identical to one
+    process is not built. No issue tracks it.
+- **A verification dwell** (declare, then confirm, as in a Tong detector)
+    to cut false alarms. No issue tracks it.
+
 ## Related
 
-- [dsss-acquisition.md](dsss-acquisition.md): the acquisition architecture,
-    the cross-ambiguity surface's decompositions, and the trade space
+- [DSSS acquisition guide](../guide/dsss-acquisition.md): how to use
+    `BurstAcquisition` and `Acquisition`, and the coarse-mix widening loop
+- [acq-fn.md](acq-fn.md): the pure-functional kernel and the serializable
+    state behind the fan-out of §13
+- [detection.md](detection.md): `det_threshold`, `det_pd`, `marcum_q`, the
+    order-$K$ primitives of §5 and §11
+- [corr2d-interpolated-inverse.md](corr2d-interpolated-inverse.md): the
+    decoupled inverse and the single-row fast path of §14
+- [Gallery: 2-D Acquisition](../gallery/detection2d.md): the `CorrDetector2D`
+    surface the burst framing builds on
 - [async-dsss-receiver.md](async-dsss-receiver.md): the receiver that runs
     this engine, its depth and its dwell alignment (§2.3)
-- [async-dsss-parallel.md](async-dsss-parallel.md): the parallel design that
-    ranks and excludes peaks (§3)
+- [async-dsss-receiver.md](async-dsss-receiver.md) §7: the pool's pick,
+    which ranks and excludes peaks

@@ -67,7 +67,8 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 |  size\_t | [**dp\_Resampler\_execute\_max\_out**](#function-dp_resampler_execute_max_out) ([**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Output-capacity hint for_ [_**dp\_Resampler\_execute()**_](Resampler__core_8h.md#function-dp_resampler_execute) _._ |
 |  size\_t | [**dp\_Resampler\_get\_consumed**](#function-dp_resampler_get_consumed) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Input samples the last execute() or execute\_ctrl() took._  |
 |  double | [**dp\_Resampler\_get\_ctrl\_acc**](#function-dp_resampler_get_ctrl_acc) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_The control accumulator's fractional phase, in [0, 1)._  |
-|  double | [**dp\_Resampler\_get\_delay**](#function-dp_resampler_get_delay) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Group delay of the interpolator, in input samples._  |
+|  double | [**dp\_Resampler\_get\_delay**](#function-dp_resampler_get_delay) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Group delay of the interpolator, in input samples: the delay of execute\_ctrl() at every rate, and of execute() at rate &gt;= 1._  |
+|  double | [**dp\_Resampler\_get\_execute\_delay**](#function-dp_resampler_get_execute_delay) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Group delay of execute(), in input samples, on the path its rate runs (_ [_**dp\_resamp\_get\_execute\_delay()**_](resamp__core_8h.md#function-dp_resamp_get_execute_delay) _)._ |
 |  size\_t | [**dp\_Resampler\_get\_num\_phases**](#function-dp_resampler_get_num_phases) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._  |
 |  size\_t | [**dp\_Resampler\_get\_num\_taps**](#function-dp_resampler_get_num_taps) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Taps per polyphase branch. Total prototype filter length is num\_phases \* num\_taps - 1. The built-in bank uses 19 taps per branch._  |
 |  double | [**dp\_Resampler\_get\_rate**](#function-dp_resampler_get_rate) (const [**dp\_Resampler\_state\_t**](Resampler__core_8h.md#typedef-dp_resampler_state_t) \* state) <br>_Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately. On the same side of 1.0 the delay line and phase accumulator are preserved, so in-stream rate changes are glitch-free. Crossing 1.0 switches the engine between its interpolation and decimation modes (the doctest below goes 0.5 -&gt; 1.5); the mode taking over was never advanced, so the crossing resets the state as reset() does, and the output from there on is what a fresh Resampler at the new rate gives. A rate that is not finite and &gt; 0 raises ValueError and leaves the rate as it was._  |
@@ -548,7 +549,7 @@ Control-accumulator phase as a fraction of one input interval.
 
 ### function dp\_Resampler\_get\_delay 
 
-_Group delay of the interpolator, in input samples._ 
+_Group delay of the interpolator, in input samples: the delay of execute\_ctrl() at every rate, and of execute() at rate &gt;= 1._ 
 ```C++
 double dp_Resampler_get_delay (
     const dp_Resampler_state_t * state
@@ -557,7 +558,7 @@ double dp_Resampler_get_delay (
 
 
 
-The prototype's centre plus the one input the pipeline holds back ([**dp\_resamp\_get\_delay()**](resamp__core_8h.md#function-dp_resamp_get_delay)): output `k` carries the input at `k / rate + (accumulated ctrl) - delay`. 10.5 for the built-in bank.
+The prototype's centre plus the one input the pipeline holds back ([**dp\_resamp\_get\_delay()**](resamp__core_8h.md#function-dp_resamp_get_delay)): output `k` carries the input at `k / rate + (accumulated ctrl) - delay`. 10.5 for the built-in bank. Below unity execute() runs the decimator instead, whose delay is [**dp\_Resampler\_get\_execute\_delay()**](Resampler__core_8h.md#function-dp_resampler_get_execute_delay)'s.
 
 
 
@@ -565,6 +566,54 @@ The prototype's centre plus the one input the pipeline holds back ([**dp\_resamp
 >>> from doppler.resample import Resampler
 >>> Resampler(rate=1.0).delay
 10.5
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Pointer to a valid dp\_Resampler\_state\_t. 
+
+
+
+**Returns:**
+
+Group delay in input samples. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_Resampler\_get\_execute\_delay 
+
+_Group delay of execute(), in input samples, on the path its rate runs (_ [_**dp\_resamp\_get\_execute\_delay()**_](resamp__core_8h.md#function-dp_resamp_get_execute_delay) _)._
+```C++
+double dp_Resampler_get_execute_delay (
+    const dp_Resampler_state_t * state
+) 
+```
+
+
+
+At rate &gt;= 1 it is the delay property's. Below unity execute() runs the decimator, whose delay is `8.5 / rate` input samples for the built-in bank: output `k` of execute() carries the input at `k / rate - execute_delay` from a fresh stream. A caller mapping a position found on the output back to the input subtracts this.
+
+
+
+```C++
+>>> from doppler.resample import Resampler
+>>> Resampler(rate=1.0).execute_delay
+10.5
+>>> Resampler(rate=0.5).execute_delay
+17.0
 ```
 
 

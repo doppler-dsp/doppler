@@ -277,7 +277,15 @@ class Resampler:
 
     @property
     def delay(self) -> float:
-        """Group delay of the interpolator, in input samples."""
+        """Group delay of the interpolator, in input samples: the delay of
+        execute_ctrl() at every rate, and of execute() at rate >= 1.
+        """
+
+    @property
+    def execute_delay(self) -> float:
+        """Group delay of execute(), in input samples, on the path its rate
+        runs (dp_resamp_get_execute_delay()).
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

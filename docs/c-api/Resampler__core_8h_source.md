@@ -77,6 +77,8 @@ extern "C"
 
   double dp_Resampler_get_delay (const dp_Resampler_state_t *state);
 
+  double dp_Resampler_get_execute_delay (const dp_Resampler_state_t *state);
+
 #ifdef __cplusplus
 }
 #endif

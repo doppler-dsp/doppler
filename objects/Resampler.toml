@@ -91,4 +91,8 @@ type = "size_t"
 name = "delay"
 type = "double"
 
+[[Resampler.properties]]
+name = "execute_delay"
+type = "double"
+
 # gh-428 manual_stub: hand-written .pyi symbol (see status_allow rationale).

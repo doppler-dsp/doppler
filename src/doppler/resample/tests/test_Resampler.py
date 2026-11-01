@@ -390,3 +390,22 @@ def test_consumed_says_where_to_resume(ctrl):
         off += r.consumed
     assert len(parts) > 1  # the default buffer did stop early
     np.testing.assert_array_equal(np.concatenate(parts), ref)
+
+
+@pytest.mark.parametrize("rate", [0.5, 0.91, 2.0])
+def test_execute_delay_is_what_execute_delays(rate):
+    """``execute_delay`` is the delay execute() applies, measured from a
+    slow tone's phase: output k carries the input at k / rate - delay.
+    Below unity execute() runs the decimator, so it is ``8.5 / rate``
+    (17.0 at 0.5), not ``delay``'s 10.5, which is execute_ctrl()'s; at
+    and above unity the two agree. Measured to 0.007 samples."""
+    r = Resampler(rate=rate)
+    f = 0.002
+    x = np.exp(2j * np.pi * f * np.arange(40000)).astype(np.complex64)
+    y = r.execute(x)
+    k = np.arange(len(y))
+    mid = slice(len(y) // 4, 3 * len(y) // 4)
+    ph = np.angle(np.mean(y[mid] / np.exp(2j * np.pi * f * k[mid] / rate)))
+    assert abs(-ph / (2 * np.pi * f) - r.execute_delay) < 0.02
+    if rate >= 1.0:
+        assert r.execute_delay == r.delay

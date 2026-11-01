@@ -365,11 +365,14 @@ extern "C"
   size_t dp_Resampler_get_num_taps (const dp_Resampler_state_t *state);
 
   /**
-   * @brief Group delay of the interpolator, in input samples.
+   * @brief Group delay of the interpolator, in input samples: the delay of
+   *        execute_ctrl() at every rate, and of execute() at rate >= 1.
    *
    * The prototype's centre plus the one input the pipeline holds back
    * (dp_resamp_get_delay()): output `k` carries the input at
    * `k / rate + (accumulated ctrl) - delay`. 10.5 for the built-in bank.
+   * Below unity execute() runs the decimator instead, whose delay is
+   * dp_Resampler_get_execute_delay()'s.
    *
    * @code
    * >>> from doppler.resample import Resampler
@@ -381,6 +384,29 @@ extern "C"
    * @return Group delay in input samples.
    */
   double dp_Resampler_get_delay (const dp_Resampler_state_t *state);
+
+  /**
+   * @brief Group delay of execute(), in input samples, on the path its
+   *        rate runs (dp_resamp_get_execute_delay()).
+   *
+   * At rate >= 1 it is the delay property's. Below unity execute() runs
+   * the decimator, whose delay is `8.5 / rate` input samples for the
+   * built-in bank: output `k` of execute() carries the input at
+   * `k / rate - execute_delay` from a fresh stream. A caller mapping a
+   * position found on the output back to the input subtracts this.
+   *
+   * @code
+   * >>> from doppler.resample import Resampler
+   * >>> Resampler(rate=1.0).execute_delay
+   * 10.5
+   * >>> Resampler(rate=0.5).execute_delay
+   * 17.0
+   * @endcode
+   *
+   * @param state  Pointer to a valid dp_Resampler_state_t.
+   * @return Group delay in input samples.
+   */
+  double dp_Resampler_get_execute_delay (const dp_Resampler_state_t *state);
 
 #ifdef __cplusplus
 }

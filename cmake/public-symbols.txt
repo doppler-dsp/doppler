@@ -77,6 +77,7 @@ dp_Resampler_execute_max_out function
 dp_Resampler_get_consumed function
 dp_Resampler_get_ctrl_acc function
 dp_Resampler_get_delay function
+dp_Resampler_get_execute_delay function
 dp_Resampler_get_num_phases function
 dp_Resampler_get_num_taps function
 dp_Resampler_get_rate function

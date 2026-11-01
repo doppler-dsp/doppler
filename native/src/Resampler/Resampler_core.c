@@ -124,3 +124,9 @@ dp_Resampler_get_delay (const dp_Resampler_state_t *state)
 {
   return dp_resamp_get_delay (state);
 }
+
+double
+dp_Resampler_get_execute_delay (const dp_Resampler_state_t *state)
+{
+  return dp_resamp_get_execute_delay (state);
+}

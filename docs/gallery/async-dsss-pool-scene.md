@@ -8,10 +8,10 @@ on the air at once. Each has its own code phase, its own level (within ±8 dB of
 the others) and its own Doppler: a start and a rate, as from its own motion. The
 Doppler stretches the chip clock as well as the carrier.
 
-Every receiver searches the whole carrier range for itself. The pool's
-controller only keeps them apart: it gives each searching receiver the code
-phases the others hold, and a rank, so two receivers never take one signal. It
-also frees a receiver whose emitter has left.
+The pool's controller runs one search over the whole carrier range while any
+receiver is idle. It leaves out the code phases the receivers hold and seeds
+each idle receiver from its picks, strongest first, so two receivers never take
+one signal. A receiver whose emitter has left returns to idle.
 
 ## What the run shows
 
@@ -70,9 +70,15 @@ and assert the claims above from the pool's own reports.
     receiver still holding an emitter that has just left, until its release
     fires. F's band runs alone from 2.2 s until C has left.
 1. **Symbol lock** (bottom): one row per receiver, coloured by the emitter it
-    holds where `status().locked` is up. Grey is a receiver holding a signal
-    without symbol lock: coming up after a hand-off, or going down after its
-    emitter left. A gap is a receiver searching.
+    holds where `status().locked` is up. Light grey is a receiver assigned a
+    signal and not yet symbol-locked: the pull-in after the controller seeds
+    it. Hatched is a receiver that held a signal and lost symbol lock: its
+    emitter left. Once code lock drops too, both loops coast: each is reset
+    to its state at the last moment both locks were up and runs on at that
+    rate, its error read but not applied, while the receiver waits out
+    `lost_confirm_s` before the release
+    ([design §10](../design/async-dsss-receiver.md)). It does not search. A
+    gap is an idle receiver, waiting for the controller's search to seed it.
 
 ## Reproduce
 

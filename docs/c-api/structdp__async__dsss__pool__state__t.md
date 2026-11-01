@@ -54,6 +54,9 @@ _AsyncDsssPool state._ [More...](#detailed-description)
 |  uint64\_t | [**released\_lost**](#variable-released_lost)  <br> |
 |  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \*\* | [**rx**](#variable-rx)  <br> |
 |  uint64\_t | [**samples**](#variable-samples)  <br> |
+|  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* | [**search**](#variable-search)  <br> |
+|  uint64\_t | [**search\_periods**](#variable-search_periods)  <br> |
+|  bool | [**searching**](#variable-searching)  <br> |
 |  float \_Complex \* | [**sym\_buf**](#variable-sym_buf)  <br> |
 |  size\_t | [**sym\_cap**](#variable-sym_cap)  <br> |
 |  size\_t | [**sym\_extra**](#variable-sym_extra)  <br> |
@@ -408,7 +411,8 @@ dp_async_dsss_receiver_state_t** dp_async_dsss_pool_state_t::rx;
 
 
 
-The receivers, n\_receivers. 
+The receivers, n\_receivers: pooled, so idle until seeded (set\_pooled()). 
+ 
 
 
         
@@ -426,6 +430,60 @@ uint64_t dp_async_dsss_pool_state_t::samples;
 
 
 Input samples pushed since create or reset: the pool's shared clock. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable search 
+
+```C++
+dp_async_dsss_receiver_state_t* dp_async_dsss_pool_state_t::search;
+```
+
+
+
+The controller's one search: a search-only receiver (set\_search\_only()) fed the same periods while any receiver is idle. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable search\_periods 
+
+```C++
+uint64_t dp_async_dsss_pool_state_t::search_periods;
+```
+
+
+
+Periods the search was fed since create or reset: what one search cost. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable searching 
+
+```C++
+bool dp_async_dsss_pool_state_t::searching;
+```
+
+
+
+Whether the search was fed the last period: it restarts when it resumes. 
  
 
 

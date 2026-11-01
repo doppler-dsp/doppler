@@ -144,8 +144,9 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
 @final
 class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int, int]):
     """One AsyncDsssPool receiver's status record, read after the controller's
-    step: state (0 searching, 1 refining, 2 tracking, 4 lost), the live
-    estimates, both lock flags, and the two clocks in input samples.
+    step: state (1 refining, 2 tracking, 3 idle, 4 lost; a pooled receiver
+    never searches), the live estimates, both lock flags, and the two clocks in
+    input samples.
 
     Attributes
     ----------
@@ -2892,8 +2893,8 @@ class AsyncDsssReceiver:
         caller set for that block (dp_tlm_set_now()):
 
         - "<prefix>.state" -- where the call left the receiver, the
-          ASYNC_DSSS_RX_* value: 0 searching, 1 refining, 2 tracking, 4 lost
-          (status().state);
+          ASYNC_DSSS_RX_* value: 0 searching, 1 refining, 2 tracking, 3 idle (a
+          pooled receiver holding nothing), 4 lost (status().state);
         - "<prefix>.handover_hz" -- the Doppler the chain was built from, Hz
           (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the
           seed's while refining, the refined value from the hand-over on, and 0
@@ -3213,7 +3214,7 @@ class AsyncDsssReceiver:
         """The searcher's slow-time depth D: epochs per coherent block."""
 
     @property
-    def lifecycle(self) -> Literal["searching", "refining", "tracking", "reserved", "lost"]:
+    def lifecycle(self) -> Literal["searching", "refining", "tracking", "idle", "lost"]:
         """Where the receiver is in its lifecycle, by name: `"searching"`,
         `"refining"`, `"tracking"` or `"lost"` (released, waiting for
         `reset()`). The same state as `status().state`, which carries it as the
@@ -3461,8 +3462,10 @@ class AsyncDsssPool:
         Doppler rate bound, Hz/s.
     threads : int, default 0
         Workers push() steps the receivers on, the calling thread included: 1 =
-        serial, 0 = the online cores (default). Never more than n_receivers
-        run.
+        serial, 0 = the online cores (default). The receivers' step uses at
+        most n_receivers of them; the controller's search runs before them,
+        serially (fanning its tiles out was measured not to pay,
+        async-dsss-receiver.md §5).
 
     Raises
     ------
@@ -3531,11 +3534,11 @@ class AsyncDsssPool:
 
         Hands every whole code period it completes to every receiver (header
         step 1), keeps each one's symbols for symbols(), and after each period
-        releases the lost, resolves duplicates, releases ghosts and hands out
-        exclusions and ranks (step 2). The samples past the last whole period
-        are kept for the next push. Accepts any block size, and state carries
-        across calls: the result is a function of the stream, not of its
-        blocking.
+        releases the lost, resolves duplicates, releases ghosts, seeds the idle
+        receivers and sets the search's levers (step 3). The samples past the
+        last whole period are kept for the next push. Accepts any block size,
+        and state carries across calls: the result is a function of the stream,
+        not of its blocking.
 
         Parameters
         ----------
@@ -3567,7 +3570,7 @@ class AsyncDsssPool:
 
         dp_async_dsss_receiver_status() of that receiver, as of the last whole
         code period fed, after the controller's step on it: a receiver the
-        controller released reads searching. A receiver past the pool returns a
+        controller released reads idle. A receiver past the pool returns a
         zeroed record with `state` ASYNC_DSSS_POOL_NO_RECEIVER.
 
         Parameters
@@ -3589,8 +3592,8 @@ class AsyncDsssPool:
         >>> pool = AsyncDsssPool(code, n_receivers=2, chip_rate=3.069e6,
         ...                      symbol_rate=2700.0, sample_rate=6.138e6,
         ...                      doppler_uncertainty=500.0, threads=1)
-        >>> (pool.status(0).state, pool.status(2).state)  # 2 is past the pool
-        (0, -1)
+        >>> (pool.status(0).state, pool.status(2).state)  # 3 idle; 2 is past
+        (3, -1)
 
         """
 
@@ -3601,11 +3604,11 @@ class AsyncDsssPool:
     ) -> NDArray[np.complex64]:
         """The symbols receiver receiver emitted during the last push().
 
-        Empty for a receiver that was searching, refining or lost throughout
-        the push, and for a receiver past the pool. Tracking emits symbols
-        whether or not they are a signal's (dp_async_dsss_receiver_steps()):
-        read status().locked for that. A push replaces them, and set_state()
-        and reset() clear them.
+        Empty for a receiver that was idle, refining or lost throughout the
+        push, and for a receiver past the pool. Tracking emits symbols whether
+        or not they are a signal's (dp_async_dsss_receiver_steps()): read
+        status().locked for that. A push replaces them, and set_state() and
+        reset() clear them.
 
         Parameters
         ----------
@@ -3629,7 +3632,7 @@ class AsyncDsssPool:
         ...                      symbol_rate=2700.0, sample_rate=6.138e6,
         ...                      doppler_uncertainty=500.0, threads=1)
         >>> _ = pool.push(np.zeros(2046, dtype=np.complex64))
-        >>> pool.symbols(0).size                    # searching: nothing yet
+        >>> pool.symbols(0).size                    # idle: nothing yet
         0
 
         """
@@ -3646,8 +3649,9 @@ class AsyncDsssPool:
         """
 
     def reset(self) -> None:
-        """Every receiver back to searching, with no exclusions and rank 0; the
-        clock, the release counts and the ghost history back to 0.
+        """Every receiver back to idle and the search to no exclusions; the
+        clock, the release counts, the search's period count and the ghost
+        history back to 0.
 
         Examples
         --------

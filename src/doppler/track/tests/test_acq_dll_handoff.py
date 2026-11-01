@@ -80,21 +80,25 @@ def _acquire(x):
 
 def test_acquisition_hit_seeds_dll_exactly():
     """the hit's chip_phase seed matches the true instantaneous code
-    phase at hand-off exactly (well within the phase-inversion formula's
-    intrinsic half-chip resolution -- a wrong sign inversion would miss by
-    roughly half a code period instead)."""
+    phase at hand-off to within half a lag column -- the surface's own
+    resolution. A 2046-sample period is not 7-smooth, so the lag axis is
+    read on 2048 columns of 2046/2048 samples each, and the hit reports
+    its peak column's lag. A wrong sign inversion would miss by roughly
+    half a code period instead."""
     x = _make_signal(cn0_dbhz=75.0, n_sym=1500, seed=6)
     hit, hitpos, acq = _acquire(x)
     assert hit is not None, "acquisition failed to find the continuous code"
+    assert acq.lag_bins != acq.code_bins, "the padded grid is the case"
 
     chip_phase = hit[7]
     s0 = hitpos + acq.code_bins * acq.doppler_bins
     ridx0 = s0 - int(PRE_SILENCE)
     true_phase0 = (ridx0 / SPC) % SF
     err = ((chip_phase - true_phase0 + SF / 2) % SF) - SF / 2
-    assert abs(err) < 0.1, (
+    half_col = 0.5 * acq.code_bins / acq.lag_bins / SPC  # chips
+    assert abs(err) <= half_col, (
         f"hand-off phase disagrees with the true code phase by {err:.2f} "
-        "chips -- should be exact"
+        f"chips -- more than half a lag column ({half_col:.3f} chips)"
     )
 
 

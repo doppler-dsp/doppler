@@ -4,32 +4,6 @@
 #include <stdint.h>
 #include <string.h>
 
-/* 1-D spectral zero-pad: q (length m >= n) is the band-limited (Dirichlet)
- * interpolation of p (length n) — low half [0..n/2] at the front, zeros in the
- * middle, high half at the end, with the Nyquist bin split for even n.
- * m == n is a copy.  Matches scipy.signal.resample to machine precision. */
-static void
-corr_zeropad_1d (const float _Complex *p, size_t n, float _Complex *q,
-                 size_t m)
-{
-  if (m == n)
-    {
-      memcpy (q, p, n * sizeof (*q));
-      return;
-    }
-  memset (q, 0, m * sizeof (*q));
-  size_t h = n / 2;
-  for (size_t k = 0; k <= h; k++)
-    q[k] = p[k];
-  for (size_t k = h + 1; k < n; k++)
-    q[m - n + k] = p[k];
-  if (n % 2 == 0)
-    {
-      q[h] *= 0.5f;
-      q[m - h] = q[h];
-    }
-}
-
 dp_corr_state_t *
 dp_corr_create (const float _Complex *ref, size_t n, size_t dwell,
                 int nthreads, size_t n_out)
@@ -191,8 +165,8 @@ dp_corr_execute (dp_corr_state_t *state, const float _Complex *in, size_t n_in,
       const float _Complex *src = state->accum;
       if (state->n_out != state->n)
         {
-          corr_zeropad_1d (state->accum, state->n, state->work_pad,
-                           state->n_out);
+          dp_fft_pad_spectrum (state->accum, state->n, state->work_pad,
+                               state->n_out);
           src = state->work_pad;
         }
       /* Emission stops at the caller's capacity (jm gh-138). This block

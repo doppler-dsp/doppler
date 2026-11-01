@@ -1621,6 +1621,45 @@ main (void)
       dp_resamp_destroy (ref);
     }
 
+  /* ---- §3b: dp_resamp_execute()'s delay below unity is its accessor's ----
+     The free form decimates there through the transposed form, at the
+     OUTPUT rate, so its delay is (centre - 1) output samples, 8.5 / rate
+     input samples for the built-in bank, not the interpolating structure's
+     10.5 input samples (which the ctrl and push forms keep at every rate):
+     the async DSSS receiver's hand-off, reading the decimator's timeline
+     through dp_resamp_get_delay(), landed 1.2 to 6.5 input samples off.
+     Measured here on the output timeline itself: a slow tone x[i] = e^{j 2 pi
+     f i}, whose output k sits at input index k / rate - delay, so the delay is
+     the phase of y[k] e^{-j 2 pi f k/rate} over 2 pi f. Sabotage, red: return
+     dp_resamp_get_delay() on this path (all four ratios). */
+  {
+    static const double rates[] = { 0.90998, 0.80078, 0.66732, 0.50049 };
+    const size_t        n       = 60000;
+    const double        f       = 0.003; /* cycles per input sample */
+    float _Complex     *x       = malloc (n * sizeof *x);
+    float _Complex     *y       = malloc (n * sizeof *y);
+    DP_REQUIRE (x && y);
+    for (size_t i = 0; i < n; i++)
+      x[i] = (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
+    for (size_t k = 0; k < sizeof rates / sizeof rates[0]; k++)
+      {
+        resamp_state_t *r = dp_resamp_create (rates[k]);
+        DP_REQUIRE (r != NULL);
+        const size_t ny     = dp_resamp_execute (r, x, n, y, n);
+        double _Complex acc = 0.0;
+        for (size_t j = 1000; j + 1000 < ny; j++)
+          acc += (double _Complex)y[j]
+                 * cexp (-I * 2.0 * M_PI * f * (double)j / rates[k]);
+        const double d = -carg (acc) / (2.0 * M_PI * f);
+        DP_TEST_ERR ("  decimator at %.5f: delay %.4f, accessor %.4f\n",
+                     rates[k], d, dp_resamp_get_execute_delay (r));
+        DP_CHECK (fabs (d - dp_resamp_get_execute_delay (r)) < 0.02);
+        dp_resamp_destroy (r);
+      }
+    free (y);
+    free (x);
+  }
+
   /* ---- a resampled pure tone must still be a pure tone ----
      THE gate for the accumulator.  Running the decimator's accumulator on
      the interpolator's structure reads -12 to -17 dB here; the correct rule

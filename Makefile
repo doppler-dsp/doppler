@@ -1118,6 +1118,7 @@ $(UV) run python scripts/check_docstring_coverage.py --check
 $(UV) run python scripts/check_nav_index.py
 $(UV) run python scripts/check_wfmgen_flag_docs.py
 $(UV) run python scripts/gen_related_pages.py --check
+$(MAKE) -s user-docs-check
 $(UV) run python scripts/gen_readme.py --check
 $(UV) run python scripts/gen_install_scripts.py --check
 $(UV) run python scripts/gen_wfm_defaults.py --check
@@ -1864,7 +1865,7 @@ LOCAL_TARGETS = specan record-demo parallel-record-write acq-surface-record \
                 ccsds-isolation-check instrumented-sweep-check mem-guard-check \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
-                gallery-scripts-check bench-commits-check \
+                gallery-scripts-check user-docs-check bench-commits-check \
                 nats-vendor-fresh-check \
                 ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
@@ -1975,8 +1976,8 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       doc-symbols-check state-versions-check \
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check mem-guard-check \
-      design-pages-check gallery-scripts-check bench-commits-check \
-      validate-spellings-check \
+      design-pages-check gallery-scripts-check user-docs-check \
+      bench-commits-check validate-spellings-check \
       drift-check doxygen-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
@@ -2459,6 +2460,16 @@ plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness
 # one script must name no plot but that script's, while the default run still
 # renders every characterization. One script stands for all of them, because
 # the recipe treats them alike; the first is derived rather than named.
+# Phase 9 of adding-algorithms.md, gated: every public class has an API
+# entry, a guide mention and an example, and every example is a gallery
+# script or says in src/doppler/examples/.no-figure why it is not. Today's
+# gaps sit in docs/.user-docs-exempt, which only shrinks (compared with
+# USER_DOCS_BASE). On `lint` and in docs-check's invariants.
+USER_DOCS_BASE ?= origin/main
+user-docs-check: ## Verify every class has API, guide and example, and every example a gallery decision
+	@$(UV) run python scripts/check_user_docs.py --base $(USER_DOCS_BASE) \
+	     $(GALLERY_SCRIPTS)
+
 gallery-scripts-check: ## Verify every committed gallery plot has a script `make gallery` runs
 	@$(UV) run python scripts/check_gallery_scripts.py $(GALLERY_SCRIPTS)
 	@$(UV) run python scripts/check_gallery_scripts.py \

@@ -1,10 +1,12 @@
 # Design
 
-Architecture decisions, API contracts, and the algorithm rationale behind
-shipped features — for anyone who wants the "why" and "how it works"
-underneath a feature they're already using, not just contributors. (Repo
-layout and forward-looking roadmaps live under [Contributing](../dev/index.md)
-instead.)
+Why doppler is the way it is: the architecture decisions, API contracts and
+algorithm rationale behind each feature. These pages are written for the
+people building doppler, and power users who want to dig deeper are welcome.
+They are not where a user meets a feature: to *use* one, start at its
+[guide](../guide/index.md), its [gallery](../gallery/index.md) page or its
+[API](../api/index.md) entry. (Repo layout and forward-looking roadmaps live
+under [Contributing](../dev/index.md).)
 
 - [API Taxonomy](api-taxonomy.md) — the DSP building-block hierarchy and its
     naming axis, plus concrete rename proposals

@@ -1,0 +1,7 @@
+# Examples that deliberately have no gallery figure, one
+# "script.py: reason" per line. A reason is mandatory, and an entry naming
+# no script, or a script that IS in GALLERY_SCRIPTS, fails
+# scripts/check_user_docs.py. Every other example is a gallery script.
+#
+# This is a decision, not a debt: it may grow when a new example has
+# nothing worth plotting. Undecided examples sit in docs/.user-docs-exempt.

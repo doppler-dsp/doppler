@@ -64,20 +64,24 @@ def public_defs(path: str) -> list[str]:
     return out
 
 
-def discover() -> list[tuple[str, list[str]]]:
-    """``[(module_dotted_name, [public_symbols])]`` via static parsing."""
+def discover(pkg_dir: str = PKG_DIR) -> list[tuple[str, list[str]]]:
+    """``[(module_dotted_name, [public_symbols])]`` via static parsing.
+
+    ``pkg_dir`` defaults to this checkout's ``src/doppler``; a gate's test
+    passes a synthetic tree's instead.
+    """
     mods: list[tuple[str, list[str]]] = []
-    for entry in sorted(os.listdir(PKG_DIR)):
+    for entry in sorted(os.listdir(pkg_dir)):
         if entry in SKIP_TOP or entry.startswith("_"):
             continue
-        init = os.path.join(PKG_DIR, entry, "__init__.py")
+        init = os.path.join(pkg_dir, entry, "__init__.py")
         if not os.path.isfile(init):
             continue
         allv = all_list(init)
         if allv:
             mods.append((f"doppler.{entry}", allv))
     for name, rel in EXTRA_MODULES:
-        p = os.path.join(PKG_DIR, rel)
+        p = os.path.join(pkg_dir, rel)
         if os.path.exists(p):
             mods.append((name, public_defs(p)))
     return mods

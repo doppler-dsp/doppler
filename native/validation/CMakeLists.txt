@@ -469,10 +469,10 @@ add_test(NAME validate_async_dsss_receiver_release
 # Symbol lock through a signal's life at the parallel receivers' operating
 # point, 3.069 Mcps with the receiver's own search over +/-1/T_E: arrival to
 # tracking and to symbol lock, and lock through a dropout and after a loss
-# (docs/design/async-dsss-parallel.md §3, §5). The emitter is the shipped
+# (docs/design/async-dsss-receiver.md §6). The emitter is the shipped
 # continuous-DSSS synth with the harness's own data bits, so every event is
 # measured mid-data; the noise the shipped awgn. `--emit` is the record's
-# data (docs/design/async-dsss-parallel-measurements/).
+# data (docs/design/async-dsss-receiver-measurements/).
 add_executable(validate_async_dsss_receiver_lock
                ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_receiver_lock.c)
 target_include_directories(validate_async_dsss_receiver_lock

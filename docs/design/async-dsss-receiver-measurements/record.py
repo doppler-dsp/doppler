@@ -1,6 +1,6 @@
-"""Render the parallel receivers' measurement record from its runs.
+"""Render the pool's measurement runs (§6 and §9) from their data.
 
-The record (``docs/design/async-dsss-parallel-measurements.md``) quotes two
+The record (``docs/design/async-dsss-receiver-measurements.md``) quotes two
 runs of shipped tools, at one commit, and keeps both beside this file:
 
 - the lock validator, ``native/validation/async_dsss_receiver_lock.c``, its
@@ -22,8 +22,8 @@ stamp (``stories-meta.json``), and draws each capture with
 here. The captures stay in ``build/``; the figures are what is committed.
 
 Every table in the record is this file's output, and so is every number
-the design page (``docs/design/async-dsss-parallel.md``) quotes from it:
-both pages hold them between ``<!-- async-dsss-parallel:<block>:start -->``
+the design page (``docs/design/async-dsss-receiver.md``) quotes from it:
+both pages hold them between ``<!-- async-dsss-pool:<block>:start -->``
 and ``:end`` markers, so a cell cannot be edited by hand, or left behind by
 a re-run, without ``--check`` failing. The blocks and the
 ``--write``/``--check`` machinery are ``../_record_blocks.py``'s. Data from
@@ -60,9 +60,9 @@ from _record_blocks import table
 
 DATA = Path(__file__).resolve().parent
 ROOT = DATA.parents[2]
-RECORD = DATA.parent / "async-dsss-parallel-measurements.md"
-DESIGN = DATA.parent / "async-dsss-parallel.md"
-SCRIPT = "docs/design/async-dsss-parallel-measurements/record.py"
+RECORD = DATA.parent / "async-dsss-receiver-measurements.md"
+DESIGN = DATA.parent / "async-dsss-receiver.md"
+SCRIPT = "docs/design/async-dsss-receiver-measurements/record.py"
 SOURCE = ROOT / "native/validation/async_dsss_receiver_lock.c"
 VALIDATOR = ROOT / "build/native/validation/validate_async_dsss_receiver_lock"
 BENCH_ARGS = "--c-only acq async_dsss_receiver async_dsss_pool"
@@ -407,7 +407,7 @@ def stamp(lock: Any, meta: dict[str, Any], bench_: dict[str, Any]) -> str:
             f"under {QUIET_LOAD:g}, rows kept by `record.py`",
         ],
         [
-            "lifecycle stories (§3.2)",
+            "lifecycle stories (§6.2)",
             f"{sm['date_utc']} UTC, {sm['wall_s']:.0f} s",
             f"`{sm['machine']}`: {sm['cpu_model']} "
             f"({sm['cpu_threads']} threads)",
@@ -757,7 +757,7 @@ def stories_block(lock: Any, meta: Any, bench_: Any) -> str:
         for s in lock["story"]
     ]
     figs = [
-        f"![{s['name']}](async-dsss-parallel-measurements/{s['name']}.png)"
+        f"![{s['name']}](async-dsss-receiver-measurements/{s['name']}.png)"
         for s in lock["story"]
     ]
     head = [
@@ -808,8 +808,8 @@ if __name__ == "__main__":
         sys.exit(stories())
     sys.exit(
         blocks.main_pages(
-            "async-dsss-parallel",
-            "async-dsss-parallel",
+            "async-dsss-pool",
+            "async-dsss-pool",
             SCRIPT,
             render,
             __doc__ or "",

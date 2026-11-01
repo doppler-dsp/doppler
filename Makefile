@@ -1138,7 +1138,7 @@ $(UV) run python scripts/check_out_param_guard.py
 $(UV) run python scripts/check_c_api_link_refs.py
 $(UV) run python docs/design/spectrogram-measurements/u1u4.py --check
 $(UV) run python docs/design/spectrogram-measurements/b2094.py --check
-$(UV) run python docs/design/async-dsss-parallel-measurements/record.py --check
+$(UV) run python docs/design/async-dsss-receiver-measurements/record.py --check
 $(UV) run python docs/design/acq-surface-measurements/record.py --check
 $(UV) run python docs/design/corr2d-hypotheses-measurements/prototype.py --check
 $(UV) run python docs/design/corr2d-hypotheses-measurements/record.py --check
@@ -1811,7 +1811,7 @@ endef
 # Named here so they land in `.PHONY` and in generated `help`, and so the same
 # gates cover them: criterion 2 is "help lists EVERY target", not "every
 # standard target" — a local target help omits is exactly as invisible.
-LOCAL_TARGETS = specan record-demo parallel-record-write acq-surface-record \
+LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 corr2d-hypotheses-record \
                 gallery blazing \
                 gen-c-api just-build docs-invariants \
@@ -2335,8 +2335,8 @@ record-demo: ## Re-record the specan demo frames (docs/specan/frames.json)
 	    --frames 120 --rbw 4000 \
 	    -o docs/specan/frames.json
 
-parallel-record-write: ## Re-render the parallel record's blocks from its data
-	$(UV) run python docs/design/async-dsss-parallel-measurements/record.py \
+pool-record-write: ## Re-render the async DSSS pool's record blocks from its data
+	$(UV) run python docs/design/async-dsss-receiver-measurements/record.py \
 	    --write
 
 # docs/design/acq-surface.md §8 is one run of validate_acq_surface. The run

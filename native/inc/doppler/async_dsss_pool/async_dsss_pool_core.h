@@ -1,7 +1,7 @@
 /**
  * @file async_dsss_pool_core.h
  * @brief AsyncDsssPool -- N AsyncDsssReceivers on one stream under a
- *        controller (docs/design/async-dsss-parallel.md §4).
+ *        controller (docs/design/async-dsss-receiver.md §5-§8).
  *
  * Every receiver is a whole AsyncDsssReceiver: it searches the full
  * Doppler range for itself, seeds itself, refines, tracks and releases.

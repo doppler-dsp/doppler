@@ -20,7 +20,7 @@ the data's output, never an edit.
 
 Three records render this way: the Spectrogram's
 (``spectrogram-measurements/``, its runs through ``_record.py``), the
-parallel receivers' (``async-dsss-parallel-measurements/record.py``) and
+parallel receivers' (``async-dsss-receiver-measurements/record.py``) and
 the acquisition surface's (``acq-surface-measurements/record.py``). This
 module is what they share, so they cannot disagree on what a block is, how
 one is checked, or how a run is stamped (``run_stamp``, ``toolchain``,

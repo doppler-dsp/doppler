@@ -98,9 +98,9 @@ test_wfm_dsp.c -> test_wfm_frame.c  #853 item 11: the hand-computed DSSS
   nchips edge cases joined that file's chip-count table.
 test_async_dsss_receiver_core.c  -124: the cell mode (`CellAsyncDsssReceiver`,
   `dp_async_dsss_receiver_create_cell`) was deleted with the old
-  `AsyncDsssPool` it served; the parallel design
-  (docs/design/async-dsss-parallel.md) seeds no receiver from a central
-  searcher. What went: the cell-only tests (seed-and-decode, lifecycle and
+  `AsyncDsssPool` it served; the design of
+  the time seeded no receiver from a central searcher (now
+  docs/design/async-dsss-receiver.md §5, which seeds them again). What went: the cell-only tests (seed-and-decode, lifecycle and
   args, pull-in past the bound, holds and decodes, holds through a
   switch-off, the two ramps, its round trip, the forged-cell refusal) and the
   cell rows inside shared tests (its refine-floor refusal, its release row,

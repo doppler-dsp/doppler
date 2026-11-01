@@ -69,6 +69,6 @@ python -m doppler.examples.async_dsss_pool_demo out.png
 ```
 
 The design is in
-[the parallel async DSSS design](../design/async-dsss-parallel.md).
+[the async DSSS design](../design/async-dsss-receiver.md), §5-§9.
 
 Source: [`async_dsss_pool_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/async_dsss_pool_demo.py).

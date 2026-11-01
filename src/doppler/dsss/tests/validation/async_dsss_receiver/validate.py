@@ -412,8 +412,8 @@ def section_object() -> None:
         "(../../../../../../docs/design/async-dsss-receiver.md); the "
         "contract is the header, `native/inc/doppler/async_dsss_receiver/"
         "async_dsss_receiver_core.h`. The parallel design it serves is "
-        "[`docs/design/async-dsss-parallel.md`]"
-        "(../../../../../../docs/design/async-dsss-parallel.md)."
+        "[`docs/design/async-dsss-receiver.md`]"
+        "(../../../../../../docs/design/async-dsss-receiver.md)."
     )
     R.md()
     R.md(

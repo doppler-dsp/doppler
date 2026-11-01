@@ -20,8 +20,8 @@ What the run shows:
   skips the signals already held cannot tell a second signal far below a
   stronger one from that one's sidelobes. On a one-epoch search a signal
   10 dB below a stronger one is taken first in about two streams in three,
-  and 13 dB below in about one in three (design ``async-dsss-parallel.md``
-  §3). F, 13 dB below C, waits here and is taken once C leaves.
+  and 13 dB below in about one in three (design ``async-dsss-receiver.md``
+  §7.2). F, 13 dB below C, waits here and is taken once C leaves.
 
 The pool is fed one code epoch per push. The checks and the figure read
 only what the pool reports: each receiver's ``status()`` after every push.
@@ -200,7 +200,7 @@ def run(x: np.ndarray) -> dict:
 
 # --8<-- [start:validate]
 # The level gap past which a one-epoch search is not expected to take the
-# weaker signal: docs/design/async-dsss-parallel.md §3 takes it first in
+# weaker signal: docs/design/async-dsss-receiver.md §7.2 takes it first in
 # 65% of streams at -10 dB, 36% at -13 dB and 1% at -16 dB.
 MASK_DB = 10.0
 SETTLE_S = 0.5  # time allowed from arrival (or unmasking) to a hold

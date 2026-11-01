@@ -9,7 +9,7 @@
  * the depth the Doppler rate allows: 3 ksym/s with a 500-symbol data-free
  * block (code_only_s) and a 500 Hz/s Doppler rate (doppler_rate), D = 150
  * code periods at 5 Mcps (the rate's 154 rounded to a 7-smooth length,
- * docs/design/async-dsss-parallel.md §7), so a tile resolves D Doppler rows
+ * docs/design/async-dsss-receiver.md §9), so a tile resolves D Doppler rows
  * in slow time. Two spans:
  *
  * - native: one slow-time tile, +/- 1 / (2 T_E) = +/- 2,444 Hz;
@@ -21,7 +21,7 @@
  * The rows ask two questions. n=1 against n=4 on one thread: does a pool of
  * N idle receivers cost one search or N? Every searching receiver builds
  * the same surface on the same block grid (the ranks depend on it,
- * docs/design/async-dsss-parallel.md §3), so anything above one search is
+ * docs/design/async-dsss-receiver.md §5), so anything above one search is
  * repeated work. And n=4 on 4 threads against one: what do the workers buy
  * back, given push() joins them once every code period?
  *

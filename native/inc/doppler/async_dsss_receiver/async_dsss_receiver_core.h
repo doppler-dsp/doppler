@@ -8,9 +8,8 @@
  * tracking on the hit's coarse Doppler estimate, this object refines the
  * estimate between the two, closing the low-Es/N0 pull-in gap a coarse-only
  * estimate leaves at large static Doppler offsets. Its design of record is
- * docs/design/async-dsss-parallel.md: N of these receivers, always on,
- * each searching and tracking by itself under a controller that only
- * watches. The despreader, the states and the release under it are
+ * docs/design/async-dsss-receiver.md: the receiver (§1-§4) and its place
+ * in an AsyncDsssPool (§5-§9). The despreader, the states and the release under it are
  * docs/design/async-dsss-receiver.md. Its states are the
  * `ASYNC_DSSS_RX_*` values below, also `status().state`:
  *
@@ -50,7 +49,7 @@
  *     `lost_confirm_s = 0` (the default) never enters
  *     it. With `reacquire` the release is symbol lock alone and returns the
  *     receiver to searching instead, so it never reads lost
- *     (docs/design/async-dsss-parallel.md §3). While the confirm interval
+ *     (docs/design/async-dsss-receiver.md §10). While the confirm interval
  *     runs the
  *     loops HOLD what they settled on with both flags up rather than run on
  *     noise (dp_dll_set_coast(); docs/design/async-dsss-receiver.md §10;
@@ -612,7 +611,7 @@ typedef enum
    *                                   release rule above.
    * @param code_only_s  Seconds of code-only signal the waveform holds at
    *                     any chip phase (a symbol-free window; design
-   *                     async-dsss-parallel.md §4), >= 0 and finite. The
+   *                     async-dsss-receiver.md §2.3), >= 0 and finite. The
    *                     receiver hands its searcher `code_only_epochs =
    *                     floor(code_only_s * chip_rate / code_len) - 1`
    *                     (at least 1), and the searcher's slow-time depth
@@ -971,7 +970,7 @@ typedef enum
    * @brief One consistent picture of what the receiver is doing, by value.
    *
    * The status record of docs/design/async-dsss-receiver.md §11.3: a
-   * holder -- the controller of docs/design/async-dsss-parallel.md §4 --
+   * holder -- the controller of docs/design/async-dsss-receiver.md §8 --
    * reads it on demand, because the exclusions it hands the other
    * receivers are keyed on this receiver's CURRENT code phase, not on its
    * seed, and gets every field from one call between `steps()` calls,
@@ -1198,7 +1197,7 @@ typedef enum
    * at. What it costs is near-far: a second signal much more than
    * dp_acq_dsl_db() below a stronger one (-16.95 dB on the specification Gold-1023
    * search) is not taken while the stronger one is on the air
-   * (async-dsss-parallel.md §3). Searchers
+   * (async-dsss-receiver.md §7.2). Searchers
    * that share a stream and its block grid (get_coherent_bins()) and hold
    * ranks 0..k-1 therefore take k different signals in one dwell. Takes
    * effect at the next dwell. A mutator's value, so it travels in the state

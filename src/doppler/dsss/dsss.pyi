@@ -2376,12 +2376,12 @@ class AsyncDsssReceiver:
         false: the release rule above.
     code_only_s : float, default 0.0
         Seconds of code-only signal the waveform holds at any chip phase (a
-        symbol-free window; design async-dsss-parallel.md §4), >= 0 and finite.
-        The receiver hands its searcher `code_only_epochs = floor(code_only_s *
-        chip_rate / code_len) - 1` (at least 1), and the searcher's slow-time
-        depth follows: `coherent_bins = D`, at most `(code_only_epochs + 1)/2`,
-        rounded down to a 7-smooth length (dp_acq_create_continuous()). Default
-        0: no window, D = 1.
+        symbol-free window; design async-dsss-receiver.md §2.3), >= 0 and
+        finite. The receiver hands its searcher `code_only_epochs =
+        floor(code_only_s * chip_rate / code_len) - 1` (at least 1), and the
+        searcher's slow-time depth follows: `coherent_bins = D`, at most
+        `(code_only_epochs + 1)/2`, rounded down to a 7-smooth length
+        (dp_acq_create_continuous()). Default 0: no window, D = 1.
     doppler_rate : float, default 0.0
         Doppler rate in Hz/s, >= 0 and finite, that the slow-time depth is
         bounded against: at most `f_epoch / sqrt(2 * doppler_rate)` epochs
@@ -3034,7 +3034,7 @@ class AsyncDsssReceiver:
         it costs is near-far: a second signal much more than dp_acq_dsl_db()
         below a stronger one (-16.95 dB on the specification Gold-1023 search)
         is not taken while the stronger one is on the air
-        (async-dsss-parallel.md §3). Searchers that share a stream and its
+        (async-dsss-receiver.md §7.2). Searchers that share a stream and its
         block grid (get_coherent_bins()) and hold ranks 0..k-1 therefore take k
         different signals in one dwell. Takes effect at the next dwell. A
         mutator's value, so it travels in the state blob (#2022).

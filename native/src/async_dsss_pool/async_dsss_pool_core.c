@@ -2,7 +2,7 @@
  * @file async_dsss_pool_core.c
  * @brief AsyncDsssPool: N receivers, one controller. See
  *        async_dsss_pool_core.h for the rules and
- *        docs/design/async-dsss-parallel.md §4 for why.
+ *        docs/design/async-dsss-receiver.md §8 for why.
  */
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include <limits.h>

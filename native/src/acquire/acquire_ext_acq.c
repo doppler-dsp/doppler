@@ -872,6 +872,18 @@ Acquisition_getprop_code_bins (AcquisitionObject *self,
       (unsigned long long)self->handle->code_bins);
 }
 static PyObject *
+Acquisition_getprop_lag_bins (AcquisitionObject *self,
+                              void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->lag_bins);
+}
+static PyObject *
 Acquisition_getprop_doppler_bins (AcquisitionObject *self,
                                   void              *Py_UNUSED (closure))
 {
@@ -1166,7 +1178,7 @@ Acquisition_getprop_surface_rows (AcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)((self->handle->n_surf / self->handle->code_bins)));
+      (unsigned long long)((self->handle->n_surf / self->handle->lag_bins)));
 }
 static PyObject *
 Acquisition_getprop_surface_at (AcquisitionObject *self,
@@ -1225,8 +1237,15 @@ static PyGetSetDef Acquisition_getset[] = {
     "set with set_carrier_freq_hz().\n",
     NULL },
   { "code_bins", (getter)Acquisition_getprop_code_bins, NULL,
-    "Code-phase hypotheses searched: one code period in samples, sample_rate "
-    "* sf / chip_rate.\n",
+    "One code period in samples, sample_rate * sf / chip_rate: the length of "
+    "every forward transform and of a raw epoch.\n",
+    NULL },
+  { "lag_bins", (getter)Acquisition_getprop_lag_bins, NULL,
+    "Code-phase columns of the surface. Equal to code_bins unless code_bins "
+    "is not 7-smooth; then the correlation is read on the next power of two, "
+    "an exact interpolation that keeps the inverse transforms fast. Column c "
+    "is a lag of c * code_bins / lag_bins samples; surface_chip_phase() gives "
+    "each column in chips.\n",
     NULL },
   { "doppler_bins", (getter)Acquisition_getprop_doppler_bins, NULL,
     "Native Doppler bins this engine searches: the window-tile count times "
@@ -1316,7 +1335,7 @@ static PyGetSetDef Acquisition_getset[] = {
   { "surface_rows", (getter)Acquisition_getprop_surface_rows, NULL,
     "Rows of the surface `surface()` returns: the Doppler axis in surface "
     "units (tiles x interpolated slow-time rows); its columns are "
-    "`code_bins`.\n",
+    "`lag_bins`.\n",
     NULL },
   { "surface_at", (getter)Acquisition_getprop_surface_at, NULL,
     "`samples_consumed` of the dwell whose surface `surface()` returns (0 "
@@ -1765,7 +1784,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "\n"
     "Copies the surface the last dwell was decided on into out, row-major\n"
     "`surface_rows` (Doppler: tiles, or interpolated slow-time rows) by\n"
-    "`code_bins` (code phase), every cell divided by the same CFAR reference\n"
+    "`lag_bins` (code phase), every cell divided by the same CFAR reference\n"
     "the gate used — so a cell reads as its own test statistic, to a float\n"
     "rounding (the SIMD build's fast-math may take a reciprocal in this loop\n"
     "and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on\n"
@@ -1778,12 +1797,12 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "out : npt.NDArray[np.float32]\n"
-    "    At least `surface_rows * code_bins` floats.\n"
+    "    At least `surface_rows * lag_bins` floats.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Cells written (`surface_rows * code_bins`), or 0 when no dwell has\n"
+    "    Cells written (`surface_rows * lag_bins`), or 0 when no dwell has\n"
     "    been decided with `keep_surface` set, or out is too small.\n"
     "\n"
     "Examples\n"
@@ -1798,11 +1817,13 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> a.keep_surface = 1\n"
     ">>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)\n"
     ">>> _ = a.push(x)\n"
-    ">>> s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)\n"
+    ">>> s = np.empty(a.surface_rows * a.lag_bins, dtype=np.float32)\n"
     ">>> a.surface(s) == s.size\n"
     "True\n"
-    ">>> s.reshape(a.surface_rows, a.code_bins).shape == (a.surface_rows, "
-    "1022)\n"
+    ">>> a.code_bins, a.lag_bins  # 1022 is 2 x 7 x 73: read on 1024 lags\n"
+    "(1022, 1024)\n"
+    ">>> s.reshape(a.surface_rows, a.lag_bins).shape == (a.surface_rows, "
+    "1024)\n"
     "True\n" },
   { "surface_doppler_hz",
     (PyCFunction)(void *)AcquisitionObj_surface_doppler_hz,
@@ -1855,12 +1876,12 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "out : npt.NDArray[np.float64]\n"
-    "    At least `code_bins` doubles.\n"
+    "    At least `lag_bins` doubles.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Values written (`code_bins`), or 0 if out is too small.\n"
+    "    Values written (`lag_bins`), or 0 if out is too small.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1871,10 +1892,10 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
     ">>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, "
     "cn0_dbhz=50.0)\n"
-    ">>> c = np.empty(a.code_bins, dtype=np.float64)\n"
-    ">>> a.surface_chip_phase(c) == a.code_bins\n"
+    ">>> c = np.empty(a.lag_bins, dtype=np.float64)\n"
+    ">>> a.surface_chip_phase(c) == a.lag_bins\n"
     "True\n"
-    ">>> bool(c[0] == 0.0 and c[1] == 510.5)\n"
+    ">>> bool(c[0] == 0.0 and c[1] == 511 - 511 / 1024)\n"
     "True\n" },
   { "surface_complex", (PyCFunction)(void *)AcquisitionObj_surface_complex,
     METH_VARARGS | METH_KEYWORDS,
@@ -1884,7 +1905,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "phase per cell, before the magnitude the gate reads.\n"
     "\n"
     "Copies the coherent sum the last dwell was decided on into out,\n"
-    "row-major `surface_rows` x `code_bins` like dp_acq_surface(), in the\n"
+    "row-major `surface_rows` x `lag_bins` like dp_acq_surface(), in the\n"
     "correlation's own units rather than the gate's. A cell's phase is the\n"
     "carrier at the block's middle, relative to its tile's centre; its\n"
     "neighbours along the code axis are complex early and late arms, so a\n"
@@ -1897,12 +1918,12 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "out : npt.NDArray[np.complex64]\n"
-    "    At least `surface_rows * code_bins` complex floats.\n"
+    "    At least `surface_rows * lag_bins` complex floats.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Cells written (`surface_rows * code_bins`), or 0 when no dwell has\n"
+    "    Cells written (`surface_rows * lag_bins`), or 0 when no dwell has\n"
     "    been decided, the path is non-coherent, or out is too small.\n"
     "\n"
     "Examples\n"
@@ -1920,10 +1941,10 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "dump\n"
     "1\n"
     ">>> _ = a.push(np.roll(s0, 17).astype(np.complex64))\n"
-    ">>> sc = np.empty(a.surface_rows * a.code_bins, dtype=np.complex64)\n"
+    ">>> sc = np.empty(a.surface_rows * a.lag_bins, dtype=np.complex64)\n"
     ">>> a.surface_complex(sc) == sc.size\n"
     "True\n"
-    ">>> int(np.argmax(np.abs(sc)) % a.code_bins)   # the peak's code phase\n"
+    ">>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's code phase\n"
     "17\n" },
   { "block_prompt", (PyCFunction)(void *)AcquisitionObj_block_prompt,
     METH_VARARGS | METH_KEYWORDS,
@@ -1950,7 +1971,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "    Tile index, `0 … window_bins-1` (native FFT order, the order the\n"
     "    surface's rows are cut in).\n"
     "col : int\n"
-    "    Code-phase column, `0 … code_bins-1`.\n"
+    "    Code-phase column, `0 … lag_bins-1`.\n"
     "out : npt.NDArray[np.complex64]\n"
     "    At least `coherent_bins` complex floats.\n"
     "\n"

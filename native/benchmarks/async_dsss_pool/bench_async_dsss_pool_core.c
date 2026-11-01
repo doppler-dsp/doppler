@@ -129,9 +129,9 @@ main (void)
   for (int k = 0; k < N_ROWS; k++)
     {
       p[k] = dp_async_dsss_pool_create (
-          code, CODE_LEN, rows[k].n_rx, chip, sym, spc, 2, cn0, 1e-3, 0.9,
-          rows[k].span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
-          2.0, false, CODE_ONLY_S, DOPPLER_RATE, rows[k].threads);
+          code, CODE_LEN, rows[k].n_rx, chip, sym, chip * (double)spc, 2, cn0,
+          1e-3, 0.9, rows[k].span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
+          100000, 0.0, 2.0, false, CODE_ONLY_S, DOPPLER_RATE, rows[k].threads);
       rc[k] = dp_RateConverter_create (fs / fs_in, 0);
       if (!p[k] || !rc[k])
         {

@@ -11,7 +11,7 @@ no_state = "true"
 no_step = "true"
 class_name = "AsyncDsssPool"
 create_error = "ValueError"
-create_error_message = "AsyncDsssPool: invalid parameter (need 1 <= n_receivers <= 16, threads >= 0, and every parameter AsyncDsssReceiver takes: a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input sample with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0)"
+create_error_message = "AsyncDsssPool: invalid parameter (need 1 <= n_receivers <= 16, threads >= 0, and every parameter AsyncDsssReceiver takes: a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, sample_rate >= chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above sample_rate / 2, lost_confirm_s >= 0 (and at least one input sample with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0)"
 serializable = "true"
 extra_link_libs = ["Threads::Threads", "wfm_dsp_core", "gold_core"]
 depends_on = [
@@ -58,9 +58,9 @@ type = "double"
 default = "1000.0"
 
 [[async_dsss_pool.init_params]]
-name = "spc"
-type = "size_t"
-default = "2"
+name = "sample_rate"
+type = "double"
+default = "0.0"
 
 [[async_dsss_pool.init_params]]
 name = "m"

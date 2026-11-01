@@ -50,7 +50,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   static char       *kwlist[]            = { "code",
                                              "chip_rate",
                                              "symbol_rate",
-                                             "spc",
+                                             "sample_rate",
                                              "m",
                                              "cn0_dbhz",
                                              "pfa",
@@ -75,8 +75,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   PyObject          *code_obj            = NULL;
   double             chip_rate           = 1000000.0;
   double             symbol_rate         = 1000.0;
-  PyObject          *spc_obj             = NULL;
-  unsigned long long spc_raw             = 2;
+  double             sample_rate         = 0.0;
   int                m                   = 2;
   double             cn0_dbhz            = 55.0;
   double             pfa                 = 1e-3;
@@ -105,34 +104,14 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   double             doppler_rate                  = 0.0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|ddOiddddOOidOdOOpOddpdd", kwlist, &code_obj,
-          &chip_rate, &symbol_rate, &spc_obj, &m, &cn0_dbhz, &pfa, &pd,
+          args, kwds, "O|dddiddddOOidOdOOpOddpdd", kwlist, &code_obj,
+          &chip_rate, &symbol_rate, &sample_rate, &m, &cn0_dbhz, &pfa, &pd,
           &doppler_uncertainty, &segments_obj, &sps_obj, &differential,
           &refine_max_error_db, &refine_samples_per_symbol_obj,
           &refine_design_margin_db, &refine_n_fft_obj, &refine_zero_pad_obj,
           &refine_sequential_raw, &refine_max_n_blocks_obj, &carrier_freq_hz,
           &lost_confirm_s, &reacquire_raw, &code_only_s, &doppler_rate))
     return -1;
-  if (spc_obj != NULL)
-    {
-      PyObject *_ix = PyNumber_Index (spc_obj);
-      if (_ix == NULL)
-        {
-          return -1;
-        }
-      spc_raw = PyLong_AsUnsignedLongLong (_ix);
-      if ((spc_raw == (unsigned long long)-1 && PyErr_Occurred ())
-          || spc_raw > (unsigned long long)SIZE_MAX)
-        {
-          PyErr_Format (PyExc_OverflowError,
-                        "spc: %S is out of range for size_t [0, %llu]", _ix,
-                        (unsigned long long)SIZE_MAX);
-          Py_DECREF (_ix);
-          return -1;
-        }
-      Py_DECREF (_ix);
-    }
-  size_t spc = (size_t)spc_raw;
   if (segments_obj != NULL)
     {
       PyObject *_ix = PyNumber_Index (segments_obj);
@@ -270,24 +249,24 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
   self->handle    = dp_async_dsss_receiver_create (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, chip_rate,
-      symbol_rate, spc, m, cn0_dbhz, pfa, pd, doppler_uncertainty, segments,
-      sps, differential, refine_max_error_db, refine_samples_per_symbol,
-      refine_design_margin_db, refine_n_fft, refine_zero_pad,
-      refine_sequential, refine_max_n_blocks, carrier_freq_hz, lost_confirm_s,
-      reacquire, code_only_s, doppler_rate);
+      symbol_rate, sample_rate, m, cn0_dbhz, pfa, pd, doppler_uncertainty,
+      segments, sps, differential, refine_max_error_db,
+      refine_samples_per_symbol, refine_design_margin_db, refine_n_fft,
+      refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
+      lost_confirm_s, reacquire, code_only_s, doppler_rate);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
                        "AsyncDsssReceiver: invalid parameter (need a code of "
                        "at least 2 chips, a finite chip_rate > 0, a finite "
-                       "symbol_rate > 0 and <= chip_rate, spc >= 1, m in "
-                       "{2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 "
-                       "or finite and above chip_rate * spc / 2, "
-                       "lost_confirm_s >= 0 (and at least one input sample "
-                       "with reacquire), refine_samples_per_symbol >= 1, "
-                       "refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of "
-                       "at most 2^20 Dll partials, segments * chip_rate / "
+                       "symbol_rate > 0 and <= chip_rate, sample_rate >= "
+                       "chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, "
+                       "carrier_freq_hz 0 or finite and above sample_rate / "
+                       "2, lost_confirm_s >= 0 (and at least one input "
+                       "sample with reacquire), refine_samples_per_symbol >= "
+                       "1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol "
+                       "of at most 2^20 Dll partials, segments * chip_rate / "
                        "(code_len * symbol_rate) <= 1048576; and for the "
                        "searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, "
                        "a finite doppler_uncertainty >= 0)");
@@ -538,8 +517,7 @@ AsyncDsssReceiverObj_seed (AsyncDsssReceiverObject *self, PyObject *args,
                     "seed refused: the receiver already holds an assignment "
                     "(refining, tracking or lost -- reset() releases it), or "
                     "chip_phase is outside [0, code_len), or doppler_hz_est "
-                    "is not finite and below chip_rate * spc / 2 in "
-                    "magnitude",
+                    "is not finite and below sample_rate / 2 in magnitude",
                     (long long)_rc);
       return NULL;
     }
@@ -1733,7 +1711,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)\n"
     "...      + noise.astype(np.complex64))\n"
     ">>> rx = AsyncDsssReceiver(\n"
-    "...     code, chip_rate=chip, symbol_rate=sym, spc=spc,\n"
+    "...     code, chip_rate=chip, symbol_rate=sym, sample_rate=fs,\n"
     "...     cn0_dbhz=cn0, doppler_uncertainty=500.0)\n"
     ">>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]\n"
     ">>> syms = np.concatenate([s for s in syms if len(s)])\n"
@@ -1802,8 +1780,9 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "    If the C call returns a non-zero status. The exception message is\n"
     "    ``seed refused: the receiver already holds an assignment (refining,\n"
     "    tracking or lost -- reset() releases it), or chip_phase is outside\n"
-    "    [0, code_len), or doppler_hz_est is not finite and below chip_rate\n"
-    "    * spc / 2 in magnitude``, with the return code appended (gh-869).\n"
+    "    [0, code_len), or doppler_hz_est is not finite and below\n"
+    "    sample_rate / 2 in magnitude``, with the return code appended\n"
+    "    (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1812,7 +1791,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6,\n"
-    "...                        symbol_rate=2700.0, spc=2)\n"
+    "...                        symbol_rate=2700.0, sample_rate=6.138e6)\n"
     ">>> rx.seed(chip_phase=512.25, doppler_hz_est=-1500.0,\n"
     "...         cn0_dbhz_est=48.0)\n"
     ">>> (rx.refining, rx.doppler_hz, rx.cn0_dbhz_est)\n"
@@ -1862,7 +1841,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6,\n"
-    "...                        symbol_rate=2700.0, spc=2)\n"
+    "...                        symbol_rate=2700.0, sample_rate=6.138e6)\n"
     ">>> st = rx.status()\n"
     ">>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # searching\n"
     "(0, 0.0, 0, 0)\n"
@@ -1909,7 +1888,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
-    "...                        spc=2, doppler_uncertainty=500.0)\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
     ">>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it\n"
     ">>> rx.refining                # still searching, on the pinned grid\n"
     "0\n" },
@@ -1950,7 +1930,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "--------\n"
     ">>> from doppler.dsss import AsyncDsssReceiver\n"
     ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
-    "...                        symbol_rate=1e6 / 28.0, spc=4, "
+    "...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, "
     "cn0_dbhz=60.0)\n"
     ">>> rx.refine_min_blocks                     # the default floor\n"
     "7\n"
@@ -1999,7 +1979,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
-    "...                        spc=2, doppler_uncertainty=500.0)\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
     ">>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,\n"
     "...                       alpha=0.1, n_up=5, n_down=3)\n"
     ">>> rx.tracking                       # replaced at the next chain "
@@ -2056,7 +2037,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
-    "...                        spc=2, doppler_uncertainty=500.0)\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
     ">>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain\n"
     ">>> rx.segments                       # tracking grid updated in place\n"
     "6\n" },
@@ -2077,7 +2059,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
-    "...                        spc=2, doppler_uncertainty=500.0)\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
     ">>> rx.reset()                 # abort any lock, hunt from scratch\n"
     ">>> (rx.tracking, rx.refining, rx.chip_phase)   # all cleared\n"
     "(0, 0, 0.0)\n" },
@@ -2181,7 +2164,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
-    "...                        spc=2, doppler_uncertainty=500.0)\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
     ">>> tlm = Telemetry(1 << 12)\n"
     ">>> rx.set_telemetry(tlm, \"rx\")\n"
     ">>> sorted(p for p in tlm.probe_names if p.startswith(\"rx.c\"))\n"
@@ -2225,7 +2209,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "--------\n"
     ">>> from doppler.dsss import AsyncDsssReceiver\n"
     ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
-    "...                        symbol_rate=1e6 / 28.0, spc=4, "
+    "...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, "
     "cn0_dbhz=60.0)\n"
     ">>> rx.set_threads(1)\n"
     ">>> rx.threads\n"
@@ -2244,23 +2228,36 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "(set_exclusions()). The survivors are ranked from 0. A dwell with no\n"
     "peak at this rank hands nothing off and the search goes on.\n"
     "\n"
-    "The sidelobe rule: a strong signal's list also holds its code's\n"
-    "Doppler-offset sidelobes, up to dp_acq_dsl_db() below it and hundreds\n"
-    "of chips from its phase (design acq-surface.md §8). A peak counts as a\n"
-    "second signal only if its test_stat exceeds the stronger signals'\n"
-    "bound, times that level, by more than the detector's own gate\n"
-    "(dp_acq_gate_stat()). The bound is the strongest signal's test_stat; on\n"
-    "a deep block (get_coherent_bins() > 1) it is the sum of the stronger\n"
-    "signals on the peak's own Doppler row, modulo the epoch rate, when that\n"
-    "is larger, since their fixed sidelobes can stack on one cell. So the\n"
-    "range does not narrow with the number of signals on the air\n"
-    "(doppler#2554). A sidelobe then passes only when the noise on it alone\n"
-    "would have cleared the gate, the rate the search already runs at. What\n"
-    "it costs is near-far: a second signal much more than dp_acq_dsl_db()\n"
-    "below a stronger one (-16.95 dB on the specification Gold-1023 search)\n"
-    "is not taken while the stronger one is on the air\n"
-    "(async-dsss-receiver.md §7.2). Searchers that share a stream and its\n"
-    "block grid (get_coherent_bins()) and hold ranks 0..k-1 therefore take k\n"
+    "The sidelobe rule, per cell: a strong signal's list also holds its\n"
+    "code's Doppler-offset sidelobes, up to dp_acq_dsl_db() below it and\n"
+    "hundreds of chips from its phase (design acq-surface.md §8). A peak\n"
+    "counts as a second signal only if its test_stat exceeds what the\n"
+    "stronger signals' sidelobes can read AT ITS CELL by more than the\n"
+    "detector's own gate (dp_acq_gate_stat()). Each stronger signal reads\n"
+    "its statistic on its own lag (acq_result_t::test_stat_peak) times the\n"
+    "code's cross-ambiguity from it to this cell (dp_acq_sidelobe_ratio()),\n"
+    "which reaches dp_acq_dsl_db() only at the worst cells. The bound is the\n"
+    "strongest of these; on a deep block (get_coherent_bins() > 1) it is the\n"
+    "sum over the stronger signals on the peak's own Doppler row, modulo the\n"
+    "epoch rate, when that is larger, since their fixed sidelobes can stack\n"
+    "on one cell, and each is floored at dp_acq_dsl_db() until a strong\n"
+    "signal's data splatter is modelled (doppler#2730). So the range does\n"
+    "not narrow with the number of signals on the air (doppler#2554), and a\n"
+    "sidelobe passes only when the noise on it alone would have cleared the\n"
+    "gate, the rate the search already runs at. A second signal is taken\n"
+    "well past dp_acq_dsl_db() below a stronger one at most cells: on a\n"
+    "one-epoch search, measured, in every stream to 10 dB below and in a\n"
+    "fifth of them at 20 dB (design async-dsss-receiver.md §7.2, the\n"
+    "near-far limit). The model is one clean code period: when a data\n"
+    "transition falls inside the stronger signal's epoch -- common, 55% of\n"
+    "epochs at the specification's 1.8 epochs a symbol -- its sidelobes read\n"
+    "far above it at some cells (20.4 dB at one, measured by\n"
+    "native/validation/acq_emitter_floor.c), and only the gate stands\n"
+    "between them and a false second signal. Over the operating range the\n"
+    "gate held (the near-far sweep, data on both, took no sidelobe); past\n"
+    "it, or on a one-epoch search of a much stronger signal, it is not\n"
+    "bounded (doppler#2734). Searchers that share a stream and its block\n"
+    "grid (get_coherent_bins()) and hold ranks 0..k-1 therefore take k\n"
     "different signals in one dwell. Takes effect at the next dwell. A\n"
     "mutator's value, so it travels in the state blob (#2022).\n"
     "\n"
@@ -2280,7 +2277,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "--------\n"
     ">>> from doppler.dsss import AsyncDsssReceiver\n"
     ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
-    "...                        symbol_rate=1e6 / 28.0, spc=4, "
+    "...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, "
     "cn0_dbhz=60.0)\n"
     ">>> rx.set_rank(1)\n"
     ">>> rx.rank\n"
@@ -2318,7 +2315,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.dsss import AsyncDsssReceiver\n"
     ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
-    "...                        symbol_rate=1e6 / 28.0, spc=4, "
+    "...                        symbol_rate=1e6 / 28.0, sample_rate=4e6, "
     "cn0_dbhz=60.0)\n"
     ">>> rx.set_exclusions(np.array([2.5, 9.0]))   # 9 folds to 2\n"
     ">>> rx.n_exclusions\n"
@@ -2435,8 +2432,15 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "symbol_rate : float, default 1000.0\n"
     "    Data-symbol rate, Hz: finite, > 0, at most `chip_rate`, and at most\n"
     "    2^20 Dll partials per symbol at `segments`.\n"
-    "spc : int, default 2\n"
-    "    Samples/chip; default 2.\n"
+    "sample_rate : float, default 0.0\n"
+    "    The rate of the samples pushed, Hz: any ratio to chip_rate of at "
+    "least\n"
+    "    one, or 0 for two samples a chip (the default). Refine and tracking "
+    "run\n"
+    "    at this rate. The search runs at it too when one code period is a "
+    "whole\n"
+    "    number of samples (dp_acq_search_period()); a fractional period is\n"
+    "    resampled, for the search alone, to a power of two.\n"
     "m : int, default 2\n"
     "    PSK order, 2/4/8; default 2 (BPSK).\n"
     "cn0_dbhz : float, default 55.0\n"
@@ -2557,19 +2561,18 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "``AsyncDsssReceiver:\n"
     "    invalid parameter (need a code of at least 2 chips, a finite "
     "chip_rate\n"
-    "    > 0, a finite symbol_rate > 0 and <= chip_rate, spc >= 1, m in "
-    "{2,4,8},\n"
-    "    segments >= 1, sps >= 2, carrier_freq_hz 0 or finite and above\n"
-    "    chip_rate * spc / 2, lost_confirm_s >= 0 (and at least one input "
-    "sample\n"
-    "    with reacquire), refine_samples_per_symbol >= 1, refine_n_fft >= 1,\n"
-    "    refine_zero_pad >= 1, a symbol of at most 2^20 Dll partials, "
-    "segments *\n"
-    "    chip_rate / (code_len * symbol_rate) <= 1048576; and for the "
-    "searcher a\n"
-    "    finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite "
-    "doppler_uncertainty\n"
-    "    >= 0)``.\n"
+    "    > 0, a finite symbol_rate > 0 and <= chip_rate, sample_rate >=\n"
+    "    chip_rate, m in {2,4,8}, segments >= 1, sps >= 2, carrier_freq_hz 0 "
+    "or\n"
+    "    finite and above sample_rate / 2, lost_confirm_s >= 0 (and at least "
+    "one\n"
+    "    input sample with reacquire), refine_samples_per_symbol >= 1,\n"
+    "    refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20 "
+    "Dll\n"
+    "    partials, segments * chip_rate / (code_len * symbol_rate) <= "
+    "1048576;\n"
+    "    and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a\n"
+    "    finite doppler_uncertainty >= 0)``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -2578,7 +2581,8 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
-    "...                        spc=2, doppler_uncertainty=500.0)\n"
+    "...                        sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0)\n"
     ">>> (rx.tracking, rx.refining, rx.lost)       # searching\n"
     "(0, 0, 0)\n",
   .tp_methods = AsyncDsssReceiverObj_methods,

@@ -76,13 +76,26 @@ DURATION_S = N_SYM / SYM_RATE
 LEAD_IN = 20 * TE + 737  # noise alone first; not a whole number of epochs
 DRAWS = range(1, 9)  # one noise seed per draw
 
-#: The two regimes of a pass, as (Doppler at the start, Hz; rate, Hz/s).
-#: The TCA crossing starts below zero so the ramp crosses zero mid-capture.
+#: The two regimes of a pass, as (Doppler at the start, Hz; rate, Hz/s),
+#: then the same two in ppm of CARRIER_HZ, the unit the channel takes. The
+#: TCA crossing starts below zero so the ramp crosses zero mid-capture.
+#: The ppm are LITERALS, the C twin's own: a Hz-to-ppm division written in
+#: each face rounds differently (the C twin's -ffast-math folds it to one
+#: multiply, a ulp away), and a ulp of Doppler moved a bit error between
+#: the twins on x86. Checked against the Hz below.
 REGIMES = {
-    "TCA crossing": (-0.5 * DOPPLER_RATE_HZ_S * DURATION_S, DOPPLER_RATE_HZ_S),
-    "+50 kHz extremum": (CARRIER_UNCERTAINTY_HZ, 0.0),
-    "-50 kHz extremum": (-CARRIER_UNCERTAINTY_HZ, 0.0),
+    "TCA crossing": (
+        -0.5 * DOPPLER_RATE_HZ_S * DURATION_S,
+        DOPPLER_RATE_HZ_S,
+        -0.2222222222222222,
+        0.2,
+    ),
+    "+50 kHz extremum": (CARRIER_UNCERTAINTY_HZ, 0.0, 20.0, 0.0),
+    "-50 kHz extremum": (-CARRIER_UNCERTAINTY_HZ, 0.0, -20.0, 0.0),
 }
+for _hz, _rate, _ppm, _ppm_s in REGIMES.values():
+    assert abs(_ppm * CARRIER_HZ * 1e-6 - _hz) < 1e-6
+    assert abs(_ppm_s * CARRIER_HZ * 1e-6 - _rate) < 1e-9
 
 GOLD = np.asarray(Gold().generate(SF), np.uint8)
 #: The payload, one bit per symbol: doppler's own PN, so the truth the BER is
@@ -90,26 +103,26 @@ GOLD = np.asarray(Gold().generate(SF), np.uint8)
 PAYLOAD = PN(seed=1, length=15).generate(N_SYM + 64)
 
 
-def make_capture(start_hz: float, rate_hz_s: float, seed: int) -> np.ndarray:
+def make_capture(start_ppm: float, rate_ppm_s: float, seed: int) -> np.ndarray:
     """The capture: noise alone, then the payload on the Gold code through
     coupled Doppler, with noise throughout.
 
     :class:`~doppler.wfm.Synth` in continuous DSSS mode spreads
     :data:`PAYLOAD` at :data:`SYM_RATE`, clean.
     :class:`~doppler.impairment.DopplerChannel` then applies the Doppler that
-    starts at ``start_hz`` and changes at ``rate_hz_s``: it resamples the
-    signal to stretch the chip clock and rotates the carrier, both from the
-    one ppm figure, ``Hz / CARRIER_HZ``. The noise is
+    starts at ``start_ppm`` of :data:`CARRIER_HZ` and changes at
+    ``rate_ppm_s``: it resamples the signal to stretch the chip clock and
+    rotates the carrier, both from the one ppm figure. The noise is
     :class:`~doppler.source.AWGN`, added after the channel, with the
     per-component sigma :func:`~doppler.wfm.wfm_awgn_amplitude` gives for the
     Es/N0 over one symbol's ``FS / SYM_RATE`` samples.
 
     Parameters
     ----------
-    start_hz : float
-        Carrier Doppler at the first signal sample, Hz.
-    rate_hz_s : float
-        Its rate of change, Hz/s.
+    start_ppm : float
+        Doppler at the first signal sample, ppm of :data:`CARRIER_HZ`.
+    rate_ppm_s : float
+        Its rate of change, ppm/s.
     seed : int
         The noise draw.
 
@@ -134,8 +147,8 @@ def make_capture(start_hz: float, rate_hz_s: float, seed: int) -> np.ndarray:
     channel = DopplerChannel(
         fs=FS,
         carrier_hz=CARRIER_HZ,
-        doppler_ppm=start_hz / CARRIER_HZ * 1e6,
-        doppler_rate_ppm_s=rate_hz_s / CARRIER_HZ * 1e6,
+        doppler_ppm=start_ppm,
+        doppler_rate_ppm_s=rate_ppm_s,
     )
     x = np.concatenate(
         [np.zeros(LEAD_IN, np.complex64), channel.execute(clean)]
@@ -199,7 +212,7 @@ def receive(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         code=GOLD,
         chip_rate=CHIP_RATE,
         symbol_rate=SYM_RATE,
-        spc=SPC,
+        sample_rate=FS,
         cn0_dbhz=CN0_DBHZ,
         doppler_uncertainty=CARRIER_UNCERTAINTY_HZ,
         carrier_freq_hz=CARRIER_HZ,
@@ -352,14 +365,16 @@ def check(
 # --8<-- [end:validate]
 
 
-def run_regime(start_hz: float, rate_hz_s: float):
+def run_regime(
+    start_hz: float, rate_hz_s: float, start_ppm: float, rate_ppm_s: float
+):
     """Every draw of one regime, scored into one meter. Also returns the first
     locked draw's symbols, rows and score, for the figure."""
     meter = BerMeter(m=2)
     meter.set_truth(PAYLOAD)
     draws, first = [], None
     for seed in DRAWS:
-        symbols, rows = receive(make_capture(start_hz, rate_hz_s, seed))
+        symbols, rows = receive(make_capture(start_ppm, rate_ppm_s, seed))
         draws.append(score(meter, symbols, rows))
         if first is None and draws[-1]["locked"]:
             first = (symbols, rows, draws[-1])
@@ -373,8 +388,8 @@ def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
     import matplotlib.pyplot as plt
 
     results = {}
-    for name, (start_hz, rate_hz_s) in REGIMES.items():
-        summary, draws, first = run_regime(start_hz, rate_hz_s)
+    for name, regime in REGIMES.items():
+        summary, draws, first = run_regime(*regime)
         results[name] = (summary, draws, first)
         b = summary["ber"]
         print(
@@ -390,7 +405,7 @@ def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
 
     fig, ((a, b), (c, d)) = plt.subplots(2, 2, figsize=(11, 8.5))
     syms, rows, shown = results["TCA crossing"][2]
-    start_hz, rate_hz_s = REGIMES["TCA crossing"]
+    start_hz, rate_hz_s = REGIMES["TCA crossing"][:2]
     t = ((np.arange(len(rows)) + 1) * TE - LEAD_IN) / FS
     tracking = rows["state"] == "tracking"
 

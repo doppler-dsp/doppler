@@ -413,6 +413,19 @@ peak:
 | half a tile off centre, no data    | −18.2                               | −9.5 (two tiles away)                                                | **−16.1**                              | −28.8          |
 | half a tile off, a transition      | −14.6                               | **0.0** — twins two *and* three-plus tiles away                      | **−12.8** (5 Mcps), **−11.9** (2 Mcps) | −25.2          |
 
+\*Note, 2026-11-01 (#2731): since the padded lag grid (#2731's
+`feat(acq,dsss)!` commit) the surface is read on 2,048 columns of the
+2,046-sample period, and the first row's same-tile floor reads **−23.2**,
+not the Gold −23.9: between samples the zero-padded interpolation reads
+above the sampled bound. The `--check` now holds every off-zone cell of the
+emitter's tile and the two beside it under the engine's per-cell model
+(`dp_acq_sidelobe_ratio()`), on rule 2's scale: least margin +0.65 dB
+centred and +0.61 dB half a tile off, over 6,129 cells each. With a data
+transition in the epoch the model, one clean period, does not bound the
+surface (a cell reads 20.4 dB above it; doppler#2734). It pins the floor at
+−23.19 ± 0.3 dB as a regression pin. The table above is the 2026-09-02 run
+on whole samples.
+
 The two chip rates agree to 0.1 dB except in the last row, where the
 lower rate's narrower tiles spread the split emitter further. With noise,
 one strong emitter moves the CFAR reference by 0.18 dB at 55 dB-Hz and by

@@ -29,6 +29,8 @@
 #include "dp_test.h"
 #include <float.h>
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -433,6 +435,44 @@ _acq_pfa_split_check (void)
   DP_REQUIRE (c != NULL && c->window_bins > 1 && c->interp > 1);
   DP_CHECK (c->pfa_cell == dp_det_pfa_cell (1e-2, (double)band_cells (c, 0)));
   dp_acq_destroy (c);
+  return 0;
+}
+
+/* The searched band's bin count at a prior on, just over and just under a
+ * whole number of bins (acq_ceil_bins, the one rounding every prior-sized
+ * count takes). At D = 8 the prior in bins is the ceil's argument: k bins
+ * either side is 2k + 1 searched bins. Exactly k must give 2k + 1 on every
+ * compiler (the division may land a ULP above k: GCC 13 on aarch64 read
+ * 2k + 3 before the guard); a millionth of a bin over must give 2k + 3, so
+ * the guard is not a fudge that swallows a real excess; and a hair under
+ * must give 2k + 1. */
+static int
+_acq_searched_bins_boundary_check (void)
+{
+  const size_t spc = 4, sf = 31, reps = 8;
+  const double crate = 1.0e6, bin_hz = crate / (double)sf / (double)reps;
+  for (size_t k = 1; k <= 2; k++)
+    {
+      const struct
+      {
+        double scale;
+        size_t want;
+      } at[] = { { 1.0, 2 * k + 1 },
+                 { 1.0 + 1e-6, 2 * k + 3 },
+                 { 1.0 - 1e-12, 2 * k + 1 } };
+      for (size_t i = 0; i < sizeof at / sizeof at[0]; i++)
+        {
+          dp_acq_state_t *a = burst_from_code (
+              CODE31, sf, reps, spc, crate, ACQ_CN0_NONE,
+              (double)k * bin_hz * at[i].scale, 1e-3, 0.9, 0, 0.0);
+          DP_REQUIRE (a != NULL);
+          DP_REQUIRE (dp_acq_configure_search_raw (a, reps, 1) == 0);
+          DP_CHECK_MSG (a->searched_bins == at[i].want,
+                        "a prior of k bins searches 2k+1; a real excess "
+                        "searches 2k+3");
+          dp_acq_destroy (a);
+        }
+    }
   return 0;
 }
 
@@ -2222,11 +2262,56 @@ ci_acq_stream (int kind, const float _Complex *tmpl, size_t frame_n,
   return x;
 }
 
+/* Two runs' hits, field by field, each floating-point field by its bytes
+ * (so -0.0 and +0.0 still differ). Not a memcmp of the records:
+ * acq_result_t carries trailing padding since test_stat_peak (60 bytes of
+ * members, 8-byte aligned), and a padding byte holds whatever the stack
+ * did -- zeroed by GCC 15's initializers, not by GCC 13's, so a memcmp was
+ * green on one compiler and red on the other with identical hits. */
+static int
+acq_results_equal (const void *pa, const void *pb, size_t n)
+{
+  const acq_result_t *a = (const acq_result_t *)pa;
+  const acq_result_t *b = (const acq_result_t *)pb;
+#define ACQ_SAME_BITS(f) (memcmp (&a[i].f, &b[i].f, sizeof a[i].f) == 0)
+  for (size_t i = 0; i < n; i++)
+    if (a[i].doppler_bin != b[i].doppler_bin
+        || a[i].code_phase != b[i].code_phase
+        || a[i].samples_consumed != b[i].samples_consumed
+        || !ACQ_SAME_BITS (peak_mag) || !ACQ_SAME_BITS (noise_est)
+        || !ACQ_SAME_BITS (test_stat) || !ACQ_SAME_BITS (cn0_dbhz_est)
+        || !ACQ_SAME_BITS (chip_phase) || !ACQ_SAME_BITS (doppler_rate_hz_s)
+        || !ACQ_SAME_BITS (test_stat_peak))
+      return 0;
+#undef ACQ_SAME_BITS
+  return 1;
+}
+/* The layout acq_results_equal() was written against, every field's offset
+   and the size: a field added, removed or moved fails the build here until
+   the comparison is checked against it. (The comparison names fields, so a
+   reorder alone cannot fool it; a new field could, and that moves an
+   offset or the size: the named _pad at 60 leaves no unnamed padding for
+   a small field to hide in.) The offsets are the 64-bit layout every CI leg
+   builds; a 32-bit size_t moves them, so the pin is 64-bit only. */
+#if SIZE_MAX > 0xffffffffu
+#define ACQ_AT(f, o) (offsetof (acq_result_t, f) == (o))
+_Static_assert (ACQ_AT (doppler_bin, 0) && ACQ_AT (code_phase, 8)
+                    && ACQ_AT (peak_mag, 16) && ACQ_AT (noise_est, 20)
+                    && ACQ_AT (test_stat, 24) && ACQ_AT (cn0_dbhz_est, 28)
+                    && ACQ_AT (samples_consumed, 32) && ACQ_AT (chip_phase, 40)
+                    && ACQ_AT (doppler_rate_hz_s, 48)
+                    && ACQ_AT (test_stat_peak, 56) && ACQ_AT (_pad, 60)
+                    && sizeof (acq_result_t) == 64,
+                "acq_result_t changed: compare the new field in "
+                "acq_results_equal");
+#undef ACQ_AT
+#endif
+
 /* The hits are a function of the input stream, not of how push() calls
  * cut it: a partial frame, a dwell's coherent sum, its non-coherent
  * looks and the stream position every hit is stamped with
- * (samples_consumed) are all carried between calls. acq_result_t has no
- * padding, so the harness's default memcmp is the exact comparison. */
+ * (samples_consumed) are all carried between calls. Compared field by
+ * field (acq_results_equal), never as bytes. */
 static int
 _acq_chunk_invariance_check (void)
 {
@@ -2261,6 +2346,7 @@ _acq_chunk_invariance_check (void)
         .arg      = (void *)&cfg,
         .in_size  = sizeof (float _Complex),
         .out_size = sizeof (acq_result_t),
+        .equal    = acq_results_equal,
         .out_cap  = 4 * (len / frame_n + 1),
         .frame_n  = frame_n,
       };
@@ -2396,8 +2482,7 @@ _acq_resume_check (void)
           DP_CHECK (wrong_stop == 0);
           DP_CHECK (stalls == 0);
           DP_CHECK (overfull == 0);
-          DP_CHECK (n_got == n_want
-                    && memcmp (got, want, n_want * sizeof *want) == 0);
+          DP_CHECK (n_got == n_want && acq_results_equal (got, want, n_want));
           dp_acq_destroy (d);
         }
 
@@ -2416,8 +2501,7 @@ _acq_resume_check (void)
         DP_CHECK (stalls == 0);
         DP_CHECK (wrong_stop == 0);
         DP_CHECK (overfull == 0);
-        DP_CHECK (n_got == n_ref
-                  && memcmp (got, want, n_ref * sizeof *want) == 0);
+        DP_CHECK (n_got == n_ref && acq_results_equal (got, want, n_ref));
         dp_acq_destroy (ref);
         dp_acq_destroy (d);
       }
@@ -2477,7 +2561,7 @@ _acq_resume_check (void)
                                       got + n1, all + 16 - n1);
         DP_CHECK (dp_acq_consumed (d) == len - took);
         DP_CHECK (n_ref > 0 && n1 + n2 == n_ref
-                  && memcmp (got, ref, n_ref * sizeof *ref) == 0);
+                  && acq_results_equal (got, ref, n_ref));
         /* A refused state_in runs nothing, so it took nothing: a resume
            loop adding consumed() must not add the previous call's. */
         DP_CHECK (dp_acq_consumed (d) > 0);
@@ -3098,6 +3182,7 @@ main (void)
   (void)_acq_band_edge_check ();
   (void)_acq_band_mask_check ();
   (void)_acq_pfa_split_check ();
+  (void)_acq_searched_bins_boundary_check ();
   (void)_acq_wideband_check ();
   (void)_acq_wideband_coherent_center_check ();
   (void)_acq_wideband_default_depth_check ();
@@ -4210,6 +4295,20 @@ main (void)
     DP_CHECK (dp_acq_period_samples (31) == 64);
     DP_CHECK (dp_acq_period_samples (1) == 2);
     DP_CHECK (dp_acq_period_samples (0) == 0);
+    /* The caller's own period whenever it is whole, smooth or not -- an
+       awkward length is the lag axis's to pad (lag_bins), not a reason to
+       resample -- else the power of two: 4 a chip of 7 chips keeps 28, 2 a
+       chip of 1,023 chips keeps 2,046 (2 * 3 * 11 * 31), 2 a chip of 31
+       keeps 62; 11 MSa/s over 5 Mcps (2,250.6) takes 2,048. Sabotage, red:
+       restore the smoothness test (the 1,023 case takes 2,048). */
+    DP_CHECK (dp_acq_search_period (7, 4.0e6, 1.0e6) == 28);
+    DP_CHECK (dp_acq_search_period (1023, 2.0 * 3.069e6, 3.069e6) == 2046);
+    DP_CHECK (dp_acq_search_period (1023, 11.0e6, 5.0e6) == 2048);
+    DP_CHECK (dp_acq_search_period (31, 2.0e6, 1.0e6) == 62);
+    DP_CHECK (dp_acq_search_period (1023, 0.0, 5.0e6) == 0);
+    /* An infinite rate is outside the domain, not a fractional period. */
+    DP_CHECK (dp_acq_search_period (1023, INFINITY, 5.0e6) == 0);
+    DP_CHECK (dp_acq_search_period (1023, 11.0e6, INFINITY) == 0);
 
     uint8_t          gold[1023];
     dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
@@ -4248,8 +4347,221 @@ main (void)
     acq_handoff_t ho;
     dp_acq_build_handoff (a, &hit[0], 1023, &ho);
     DP_CHECK (fabs (ho.chip_phase - (1023.0 - LAG * 1023.0 / 2048.0)) < 1e-9);
+    DP_CHECK (a->lag_bins == 2048); /* a power of two is not padded */
     free (x);
     dp_acq_destroy (a);
+
+    /* The padded lag axis: 2 samples a chip gives 2,046 samples a period,
+       not 7-smooth, so the surface is read on 2,048 lags -- the forward
+       transform at 2,046, the inverse zero-padded. Column c is lag
+       c * 2046 / 2048 samples, and the hand-off maps the hit's column to
+       chips on that axis: every delay lands within half a column (a
+       quarter chip) of the truth, at every tenth sample of the period.
+       A 7-smooth period is not padded (CODE7 at 28). A burst engine never
+       pads. Sabotage, each red: skip the tile's pad (its inverse reads
+       the unpadded bins), build the narrow correlator without nx_out, map
+       the column by code_bins instead of lag_bins in
+       acq_handoff_chip_phase (up to a chip of drift across the period).
+       The Nyquist split is test_fft_core's to pin. */
+    /* Both transform paths pad: the narrow engine through corr2d's
+       decoupled inverse, a tiled one (doppler_uncertainty past the native
+       span) through each tile's own inverse. */
+    const double fs2 = 2.0 * cr;
+    for (int tiled = 0; tiled <= 1; tiled++)
+      {
+        dp_acq_state_t *b = dp_xnn (dp_acq_create_continuous (
+            gold, 1023, fs2, cr, 3000.0, 60.0, tiled ? 7000.0 : 0.0, 1e-3, 0.9,
+            0, 1, 0.0));
+        DP_REQUIRE (b->code_bins == 2046);
+        DP_REQUIRE ((b->window_bins > 1) == tiled);
+        DP_CHECK (b->lag_bins == 2048);
+        float _Complex *y     = dp_xmalloc (2046 * REPS * sizeof *y);
+        size_t          bad   = 0;
+        double          worst = 0.0;
+        for (size_t lag = 0; lag < 2046; lag += 10)
+          {
+            for (size_t k = 0; k < 2046 * REPS; k++)
+              {
+                const size_t m = (k + 2046 - lag) % 2046;
+                y[k]           = (gold[m / 2] & 1u) ? -1.0f : 1.0f;
+              }
+            dp_acq_reset (b);
+            if (dp_acq_push (b, y, 2046 * REPS, hit, 4) < 1)
+              {
+                bad++;
+                continue;
+              }
+            dp_acq_build_handoff (b, &hit[0], 1023, &ho);
+            /* the chip phase a delay of `lag` samples carries */
+            double want = fmod (1023.0 - (double)lag / 2.0, 1023.0);
+            double d    = fabs (ho.chip_phase - want);
+            worst       = fmax (worst, fmin (d, 1023.0 - d));
+          }
+        DP_CHECK (bad == 0);
+        DP_CHECK (worst <= 0.25 + 1e-9);
+        free (y);
+        dp_acq_destroy (b);
+      }
+
+    static const uint8_t code7[7] = { 1, 1, 1, 0, 0, 1, 0 };
+    dp_acq_state_t      *c7       = dp_xnn (dp_acq_create_continuous (
+        code7, 7, 4.0e6, 1.0e6, 1000.0, 60.0, 0.0, 1e-3, 0.9, 0, 1, 0.0));
+    DP_CHECK (c7->code_bins == 28 && c7->lag_bins == 28);
+    dp_acq_destroy (c7);
+    /* dp_acq_sidelobe_ratio bounds every sidelobe one emitter puts on the
+       surface. One noise-free emitter, delayed off the lag grid (2,046
+       samples on 2,048 columns), on a three-tile search, twice: one epoch
+       deep with the emitter 0.45 of a tile off its tile's centre, and two
+       deep (a six-row axis whose wrap row, +-1.5 tiles, belongs to both
+       outer tiles) with it at +1.45 tiles, by that edge. The surface is
+       read in the gate's units, a cell as its statistic; its 20 strongest
+       cells on native rows past the emitter's mainlobe are its worst
+       sidelobes, and each must read no more than the ratio times the
+       emitter's on-lag statistic. With no noise the CFAR reference is the
+       sidelobe floor, so none of them clears the gate to be listed -- the
+       surface is where they are. Sabotage, each red: apply the Doppler
+       before the delay (it wraps at the period), give a cell only the
+       tiles its unfolded frequency touches (the wrap row reads one), or
+       drop test_stat_peak's straddle (the bound reads low). */
+    {
+      const double fe = fs2 / 2046.0; /* the epoch rate: a tile */
+      const struct
+      {
+        size_t co, D;
+        double fd;
+      } sc[2] = { { 1, 1, 0.45 }, { 3, 2, 1.45 } };
+      for (int c = 0; c < 2; c++)
+        {
+          dp_acq_state_t *w = dp_xnn (dp_acq_create_continuous (
+              gold, 1023, fs2, cr, 3000.0, 60.0, 1.2 * fe, 1e-3, 0.9, 0,
+              sc[c].co, 0.0));
+          DP_REQUIRE (w->window_bins == 3 && w->coherent_bins == sc[c].D);
+          w->keep_surface     = 1;
+          const size_t    n_x = 2046 * 8;
+          float _Complex *xs  = dp_xmalloc (n_x * sizeof *xs);
+          for (size_t k = 0; k < n_x; k++)
+            {
+              const size_t m  = (k + 2046 - 1371) % 2046;
+              const double ph = 2.0 * M_PI * sc[c].fd * fe * (double)k / fs2;
+              xs[k]           = ((gold[m / 2] & 1u) ? -1.0f : 1.0f)
+                                * (float _Complex)cexp (I * ph);
+            }
+          acq_result_t hs[4];
+          DP_REQUIRE (dp_acq_push (w, xs, n_x, hs, 4) >= 1);
+          const size_t cols = w->lag_bins, rows = w->n_surf / cols;
+          const size_t nat = w->window_bins * w->coherent_bins;
+          float       *sf  = dp_xmalloc (rows * cols * sizeof *sf);
+          DP_REQUIRE (dp_acq_surface (w, sf, rows * cols) == rows * cols);
+          size_t checked = 0, over = 0;
+          for (int t = 0; t < 20; t++)
+            {
+              size_t best = rows * cols;
+              for (size_t k = 0; k < rows * cols; k++)
+                {
+                  size_t d = k % cols > hs[0].code_phase
+                                 ? k % cols - hs[0].code_phase
+                                 : hs[0].code_phase - k % cols;
+                  d        = d > cols / 2 ? cols - d : d;
+                  /* the mainlobe, a half row, or already taken */
+                  if (d <= 4 || (k / cols) % w->interp || sf[k] < 0.0f)
+                    continue;
+                  if (best == rows * cols || sf[k] > sf[best])
+                    best = k;
+                }
+              DP_REQUIRE (best < rows * cols);
+              /* the surface row's native bin: the same frequency */
+              const long fi
+                  = dp_fftfreq_index (best / cols, rows) / (long)w->interp;
+              acq_result_t cell = { .code_phase = best % cols };
+              cell.doppler_bin
+                  = (size_t)((fi % (long)nat + (long)nat) % (long)nat);
+              const double bound = dp_acq_sidelobe_ratio (w, &hs[0], &cell)
+                                   * (double)hs[0].test_stat_peak;
+              over += (double)sf[best] > bound * (1.0 + 1e-3);
+              checked++;
+              sf[best] = -1.0f;
+            }
+          DP_CHECK (checked == 20);
+          DP_CHECK (over == 0);
+          free (sf);
+          free (xs);
+          dp_acq_destroy (w);
+        }
+    }
+
+    /* Its cache returns what an empty cache would, bit for bit: 34 hits
+       (more than ACQ_SIDELOBE_SLOTS, so the round robin evicts and fills
+       again) read twice against a cell on every native row, against an
+       engine whose cache is emptied before every read. On both grids above:
+       one epoch deep, and two deep, where the wrap row both outer tiles
+       read is one of the rows. Then each is regridded to one tile, one
+       epoch (configure_search_raw): the one-deep grid keeps D and the
+       resolution, so a hit's cell and tile are the same key on another
+       grid. Sabotage, each red: drop acq_regrid()'s reset, or key a slot
+       on the hit alone. */
+    {
+      const double fe    = fs2 / 2046.0;
+      const size_t co[2] = { 1, 3 }, nfrom = ACQ_SIDELOBE_SLOTS + 2;
+      size_t       same = 0, reads = 0;
+      for (int c = 0; c < 2; c++)
+        {
+          dp_acq_state_t *eng[2];
+          for (int e = 0; e < 2; e++)
+            eng[e] = dp_xnn (
+                dp_acq_create_continuous (gold, 1023, fs2, cr, 3000.0, 60.0,
+                                          1.2 * fe, 1e-3, 0.9, 0, co[c], 0.0));
+          dp_acq_state_t *w = eng[0], *fresh = eng[1];
+          DP_REQUIRE (w->window_bins == 3
+                      && w->coherent_bins == (size_t)c + 1);
+          for (int grid = 0; grid < 2; grid++)
+            {
+              const size_t rows = w->window_bins * w->coherent_bins;
+              for (int pass = 0; pass < 2; pass++)
+                for (size_t k = 0; k < nfrom; k++)
+                  for (size_t j = 0; j < rows; j++)
+                    {
+                      /* after the regrid, newest first: the slots the
+                         old grid left are read before they are evicted */
+                      const size_t       i = grid ? nfrom - 1 - k : k;
+                      const acq_result_t from
+                          = { .doppler_bin = i % rows,
+                              .code_phase  = (137 * i + 11) % w->lag_bins };
+                      const acq_result_t to
+                          = { .doppler_bin = j,
+                              .code_phase  = (911 * j + 5) % w->lag_bins };
+                      fresh->sl_cn = fresh->sl_cnext = 0;
+                      const double want
+                          = dp_acq_sidelobe_ratio (fresh, &from, &to);
+                      same += dp_acq_sidelobe_ratio (w, &from, &to) == want;
+                      reads++;
+                    }
+              if (grid == 0)
+                for (int e = 0; e < 2; e++)
+                  {
+                    DP_REQUIRE (dp_acq_configure_search_raw (eng[e], 1, 1)
+                                == 0);
+                    DP_REQUIRE (eng[e]->window_bins == 1
+                                && eng[e]->coherent_bins == 1);
+                  }
+            }
+          for (int e = 0; e < 2; e++)
+            dp_acq_destroy (eng[e]);
+        }
+      /* per grid pair: two passes over 34 hits, at 3 then 1 row (D = 1)
+         and 6 then 1 (D = 2) */
+      DP_CHECK (reads == 2 * nfrom * (3 + 1 + 6 + 1));
+      DP_CHECK_MSG (same == reads,
+                    "a cached sidelobe ratio is the uncached one");
+    }
+
+    /* A burst engine keeps its template's length, smooth or not. */
+    float _Complex tm[62];
+    for (size_t k = 0; k < 62; k++)
+      tm[k] = (gold[k / 2] & 1u) ? -1.0f : 1.0f;
+    dp_acq_state_t *bu = dp_xnn (dp_acq_create_burst (
+        tm, 62, 4, 2.0e6, 60.0, 0.0, 1e-3, 0.9, 0, 0.0, 1));
+    DP_CHECK (bu->code_bins == 62 && bu->lag_bins == 62);
+    dp_acq_destroy (bu);
   }
 
   /* A coupled carrier and the Doppler prior (doppler#2103). */

@@ -74,7 +74,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despre
 |  int | [**dp\_dsss\_receiver\_configure\_chain\_raw**](#function-dp_dsss_receiver_configure_chain_raw) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, size\_t segments, size\_t sps, int n) <br>_Pin the despread/resample/demod grid directly, bypassing the create-time_ `segments` _/_`sps` _defaults._ |
 |  void | [**dp\_dsss\_receiver\_configure\_lock\_raw**](#function-dp_dsss_receiver_configure_lock_raw) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, size\_t n\_looks, double alpha, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the embedded Dll's code-lock detector directly. Forwards to_ `dp_dll_configure_lock_raw()` _, which also clears the in-flight lock statistic and drops lock. Only meaningful once tracking has begun: while searching it tunes the placeholder Dll, which the next hit replaces, so the setting is lost (as it is on reset() and configure\_chain\_raw()). The detector is the hysteretic lockdet over the DLL's per-N-look CFAR statistic —_`up_thresh` _/_`down_thresh` _set the declare/drop levels and_`n_up` _/_`n_down` _the consecutive-look verify counts, trading declare latency against false-alarm rate._ |
 |  int | [**dp\_dsss\_receiver\_configure\_search\_raw**](#function-dp_dsss_receiver_configure_search_raw) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded Acquisition's search grid directly. Forwards to_ `dp_acq_configure_search_raw()` _— the escape hatch under this object's own_`symbol_rate` _-driven auto-sizing, for a power user who wants a specific_`(doppler_bins, n_noncoh)` _instead. Pinning exits the continuous engine's wideband window-tiling mode, re-derives its thresholds and resets it, discarding any search in flight. While tracking the engine is idle, so the pinned grid governs the search that resumes after the next_`reset()` _._ |
-|  [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* | [**dp\_dsss\_receiver\_create**](#function-dp_dsss_receiver_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential) <br>_Create a DSSS receiver in the searching state._  |
+|  [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* | [**dp\_dsss\_receiver\_create**](#function-dp_dsss_receiver_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, double sample\_rate, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential) <br>_Create a DSSS receiver in the searching state._  |
 |  void | [**dp\_dsss\_receiver\_destroy**](#function-dp_dsss_receiver_destroy) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Destroy a receiver and release all four children._  |
 |  double | [**dp\_dsss\_receiver\_get\_chip\_phase**](#function-dp_dsss_receiver_get_chip_phase) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Dll's live tracked code phase (chips); 0.0 while searching._  |
 |  double | [**dp\_dsss\_receiver\_get\_cn0\_dbhz\_est**](#function-dp_dsss_receiver_get_cn0_dbhz_est) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_C/N0 estimate from the winning acquisition hit._  |
@@ -149,7 +149,7 @@ Per `[[feedback_despread_resample_demod_separation]]` (this story's own hard-won
 // "Just works": only the signal's own physical parameters are required.
 dp_dsss_receiver_state_t *rx = dp_dsss_receiver_create(
     code, code_len, 3.0e6, 2100.0,   // chip_rate, symbol_rate
-    2, 2,                            // spc, m (BPSK)
+    6.0e6, 2,                        // sample_rate, m (BPSK)
     55.0, 1e-3, 0.9, 100.0,          // cn0_dbhz, pfa, pd,
                                      // doppler_uncertainty
     4, 8,                            // segments, sps
@@ -207,7 +207,8 @@ The new grid is checked before anything is rebuilt, and refused with the receive
 >>> from doppler.dsss import DsssReceiver
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
->>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+>>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+...                   sample_rate=6.0e6)
 >>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain
 >>> rx.segments                       # tracking grid updated in place
 6
@@ -258,7 +259,8 @@ void dp_dsss_receiver_configure_lock_raw (
 >>> from doppler.dsss import DsssReceiver
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
->>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+>>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+...                   sample_rate=6.0e6)
 >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
 ...                       alpha=0.1, n_up=5, n_down=3)
 >>> rx.tracking                # a no-op until a hit builds the Dll
@@ -307,7 +309,8 @@ int dp_dsss_receiver_configure_search_raw (
 >>> from doppler.dsss import DsssReceiver
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
->>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+>>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+...                   sample_rate=6.0e6)
 >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it
 >>> rx.tracking                # still searching, on the pinned grid
 0
@@ -333,7 +336,7 @@ dp_dsss_receiver_state_t * dp_dsss_receiver_create (
     size_t code_len,
     double chip_rate,
     double symbol_rate,
-    size_t spc,
+    double sample_rate,
     int m,
     double cn0_dbhz,
     double pfa,
@@ -359,7 +362,7 @@ Only `code`/`chip_rate`/`symbol_rate` describe the signal itself — everything 
 * `code_len` Chips in `code` (the spreading factor). 
 * `chip_rate` Chip rate, Hz. Required. 
 * `symbol_rate` Data-symbol rate, Hz. Required — passed straight to the embedded Acquisition's own `symbol_rate` (diagnostic there; see `dp_acq_create_continuous()`). 
-* `spc` Samples/chip (front-end oversample); default 2 (fs = 2x chip\_rate). 
+* `sample_rate` Input sample rate, Hz: a whole number of samples a chip (to a part in 1e9), at least one, or 0 for two a chip (the default). A fractional rate is refused: this receiver's code loop and carrier stage run whole-sample code periods (AsyncDsssReceiver takes any). 
 * `m` PSK order, 2/4/8; default 2 (BPSK). 
 * `cn0_dbhz` Design C/N0 for acquisition sizing, dB-Hz; default 55.0. 
 * `pfa` Acquisition false-alarm target; default 1e-3. 
@@ -373,7 +376,7 @@ Only `code`/`chip_rate`/`symbol_rate` describe the signal itself — everything 
 
 **Returns:**
 
-A new receiver in the searching state, owned by the caller (free with [**dp\_dsss\_receiver\_destroy()**](dsss__receiver__core_8h.md#function-dp_dsss_receiver_destroy)); NULL when `code` is NULL, a parameter is outside its domain (`m` not 2/4/8, `spc` &lt; 1, `sps` &lt; 2, a non-positive or non-finite rate, a symbol rate above the chip rate, a code/segments pair the Dll refuses), or the embedded Acquisition refuses its own parameters (`pfa`, `pd`, `cn0_dbhz`, ...). An allocation failure aborts the process rather than returning NULL. 
+A new receiver in the searching state, owned by the caller (free with [**dp\_dsss\_receiver\_destroy()**](dsss__receiver__core_8h.md#function-dp_dsss_receiver_destroy)); NULL when `code` is NULL, a parameter is outside its domain (`m` not 2/4/8, `sample_rate` not a whole number of samples a chip of at least one, `sps` &lt; 2, a non-positive or non-finite rate, a symbol rate above the chip rate, a code/segments pair the Dll refuses), or the embedded Acquisition refuses its own parameters (`pfa`, `pd`, `cn0_dbhz`, ...). An allocation failure aborts the process rather than returning NULL. 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import DsssReceiver
@@ -395,7 +398,7 @@ A new receiver in the searching state, owned by the caller (free with [**dp\_dss
 ...          + 1j * rng.standard_normal(pre + n))
 >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
 ...      + noise.astype(np.complex64))
->>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,
+>>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, sample_rate=fs,
 ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
 >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
 >>> syms = np.concatenate([s for s in syms if len(s)])
@@ -839,7 +842,8 @@ void dp_dsss_receiver_reset (
 >>> from doppler.dsss import DsssReceiver
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
->>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+>>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0,
+...                   sample_rate=6.0e6)
 >>> rx.reset()                 # abort any lock, hunt from scratch
 >>> (rx.tracking, rx.chip_phase)   # back to searching, all cleared
 (0, 0.0)
@@ -983,7 +987,7 @@ Number of symbols written (0 while searching, or while tracking with not yet a f
 ...          + 1j * rng.standard_normal(pre + n))
 >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
 ...      + noise.astype(np.complex64))
->>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,
+>>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, sample_rate=fs,
 ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
 >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
 >>> syms = np.concatenate([s for s in syms if len(s)])

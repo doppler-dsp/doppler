@@ -100,7 +100,11 @@ dp_w_bytes (dp_writer_t *w, const void *src, size_t n)
       w->err = 1;
       return;
     }
-  memcpy (w->buf + w->off, src, n);
+  /* A zero-length field may come from a NULL buffer (a resampler-free
+     receiver's empty search history); memcpy with NULL is undefined even
+     for 0 bytes, so a zero-length copy is skipped. */
+  if (n)
+    memcpy (w->buf + w->off, src, n);
   w->off += n;
 }
 
@@ -203,7 +207,8 @@ dp_r_bytes (dp_reader_t *r, void *dst, size_t n)
       r->err = 1;
       return;
     }
-  memcpy (dst, r->buf + r->off, n);
+  if (n) /* NULL dst with n == 0, as dp_w_bytes() */
+    memcpy (dst, r->buf + r->off, n);
   r->off += n;
 }
 

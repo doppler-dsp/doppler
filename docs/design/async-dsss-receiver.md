@@ -865,19 +865,37 @@ controller to the one search's. The engine is asked for 16 peaks a dwell.
     the offset between the emitter and each tile it is not in, up to
     $-16.95$ dB below it for the Gold-1023 search, hundreds of chips from
     its phase, dwell after dwell (`acq-surface.md` §8, doppler#2526). A
-    peak counts as a second signal only if its statistic exceeds the
-    stronger signals' bound, times that sidelobe level, by more than the
-    detector's own gate. The bound is the strongest signal's statistic; on
-    a deep block it is the sum over the stronger signals on the peak's own
+    peak counts as a second signal only if its statistic exceeds what the
+    stronger signals' sidelobes can read **at its own cell** by more than
+    the detector's own gate. Each stronger signal contributes its
+    statistic on its own lag (`test_stat_peak`: a straddle between two lag
+    columns put back, since its sidelobes keep their level) times the
+    code's ambiguity from it to that cell (`dp_acq_sidelobe_ratio()`,
+    computed the way the surface is made, over what the hits leave
+    unknown). That is the worst sidelobe level only at the worst cells;
+    bounded by it everywhere, as it was until 2026-11-01, a signal at the
+    design floor was never taken beside any stronger one its sidelobes
+    could reach. The contributions combine as before: the strongest one;
+    on a deep block, the sum over the stronger signals on the peak's own
     Doppler row (modulo the epoch rate) and its neighbours when that is
-    larger, because a signal's Doppler-offset sidelobes are fixed cells on
-    its own row in every tile and two signals on one row can stack theirs
-    on one cell. On a one-epoch search a row is a whole tile, so the
-    strongest alone bounds it (doppler#2554, doppler#2556). The level is
-    computed once (`dp_acq_dsl_db()`), at create, so the sweep never stalls
-    a push. Noise riding on a sidelobe lifts it by no more than the noise's
-    own magnitude, so a sidelobe passes only when that noise alone would
-    have cleared the gate: the false-alarm rate the search already runs at.
+    larger, because two signals on one row can stack their sidelobes on
+    one cell (doppler#2554, doppler#2556). A deep block keeps the worst
+    sidelobe level (`dp_acq_dsl_db()`, read at create) as a floor under
+    each ratio: with data inside the block a strong signal's own data
+    splatter adds to a cell beyond its ambiguity, and is not modelled yet
+    (doppler#2730). Noise riding on a sidelobe lifts it by no more than
+    the noise's own magnitude, so a sidelobe passes only when that noise
+    alone would have cleared the gate: the false-alarm rate the search
+    already runs at. **One epoch deep, the model is one clean code
+    period**, and a data transition falls inside the stronger signal's
+    epoch in 55% of epochs at the specification's 1.8 epochs a symbol.
+    Then its sidelobes read far above the model at some cells: 20.4 dB at
+    one, measured (`native/validation/acq_emitter_floor.c`; a clean
+    emitter's cells all sit under it, by 0.61 dB at least). Only the gate
+    stands between such a cell and a false second signal. Over the
+    operating range the gate held, since the near-far sweep with data on
+    both signals took no sidelobe; past it the pick is not bounded
+    (doppler#2734).
 1. **Exclusions.** A peak within a chip of a code phase another receiver
     holds, refining or tracking, at any Doppler, is that receiver's signal.
     Keying on carrier as well seeded duplicate receivers (record §12.14).
@@ -889,16 +907,37 @@ receiver takes the first. The rule lives once, in the receiver's core, and
 the controller calls it (`async_dsss_receiver_core.h`).
 
 That sets the **near-far limit**: a second signal is taken while a stronger
-one is on the air only if it clears the stronger one's sidelobe level by
-the gate. Measured at the 3.069 Mcps point, the stronger signal at 47–70
-dB-Hz: the share of streams whose search takes the weaker signal first,
-among those where it alone is found (review 5606641242 on doppler#2525):
+one is on the air only if it clears what the stronger one's sidelobes reach
+at its cell by the gate. The operating range is the floor (Es/N0 5 dB) to
+20 dB above it, so the case that bounds it is the weaker signal at the
+floor, where its statistic is closest to the gate. Measured at the 3.069
+Mcps point with the weaker signal there and the stronger one above it,
+both carrying data, at random code phases and carriers
+(`native/validation/async_dsss_near_far.c`): the share of streams whose
+rank-1 search takes the second signal. A stream whose two signals landed
+within 50 chips of each other is dropped as invalid (it tests the zone,
+not rule 2), so a row's count is of the valid streams. At +0 dB "taken"
+includes a swap, the rank-1 search taking the nominally stronger signal
+because the weaker read stronger (14 of 32 at $D = 1$, 9 of 15 at
+$D = 90$); from +4 dB there are none, and the validator gates that.
 
-| weaker signal, below the stronger | $D = 1$ | $D = 90$ |
-| --------------------------------- | ------- | -------- |
-| $-10$ dB                          | 65%     | 100%     |
-| $-13$ dB                          | 36%     | 80%      |
-| $-16$ dB                          | 1%      | 35%      |
+<!-- async-dsss-pool:design-near-far:start -->
+
+| stronger, above the weaker | $D = 1$, weaker taken | $D = 90$, weaker taken |
+| -------------------------- | --------------------- | ---------------------- |
+| +0 dB                      | 32 of 32 (0.89–1.00)  | 15 of 15 (0.80–1.00)   |
+| +4 dB                      | 39 of 39 (0.91–1.00)  | 20 of 20 (0.84–1.00)   |
+| +8 dB                      | 37 of 37 (0.91–1.00)  | 18 of 18 (0.82–1.00)   |
+| +10 dB                     | 37 of 37 (0.91–1.00)  | 19 of 19 (0.83–1.00)   |
+| +12 dB                     | 34 of 35 (0.85–0.99)  | 17 of 17 (0.82–1.00)   |
+| +14 dB                     | 36 of 40 (0.77–0.96)  | 12 of 20 (0.39–0.78)   |
+| +16 dB                     | 28 of 36 (0.62–0.88)  | 8 of 18 (0.25–0.66)    |
+| +18 dB                     | 13 of 32 (0.26–0.58)  | 0 of 17 (0.00–0.18)    |
+| +20 dB                     | 7 of 34 (0.10–0.37)   | 0 of 17 (0.00–0.18)    |
+
+Sidelobes taken, with or without the weaker emitter, over every row: 0. Run `validate_async_dsss_near_far --emit` at `b15233152`, 2026-11-01 20:05 UTC on `zen-x2elite-x`, 1343.6 s.
+
+<!-- async-dsss-pool:design-near-far:end -->
 
 A signal below the limit is found once the stronger one leaves. Removing
 the stronger one's replica before the search (cancellation) is what would
@@ -965,7 +1004,7 @@ rate. The clock rule the receiver obeys is §11.3.
 
 ## 9. What it costs
 
-**The pinned bench** (`native/benchmarks/bench_async_dsss_pool_core.c`, the
+**The pinned bench** (`native/benchmarks/async_dsss_pool/bench_async_dsss_pool_core.c`, the
 `async_dsss_pool::push[...]` rows): the §1 specification at 11 MSa/s
 through the front end, D = 150, noise alone so every receiver searches, one
 push a dwell. The load is CPU time per second of signal, 1 being exactly

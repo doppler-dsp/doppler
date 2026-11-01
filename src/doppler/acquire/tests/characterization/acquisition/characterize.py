@@ -130,7 +130,7 @@ def make_engine(cn0_dbhz: float, spc: int) -> Acquisition:
     symbol_rate)."""
     return Acquisition(
         CODE,
-        spc=spc,
+        sample_rate=spc * CHIP_RATE,
         chip_rate=CHIP_RATE,
         cn0_dbhz=max(cn0_dbhz, 30.0),
         doppler_uncertainty=DOPPLER_UNCERTAINTY,

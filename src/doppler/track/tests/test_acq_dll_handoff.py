@@ -60,7 +60,7 @@ def _acquire(x):
         warnings.simplefilter("ignore", UserWarning)
         acq = Acquisition(
             CODE,
-            spc=SPC,
+            sample_rate=SPC * CHIP_RATE,
             chip_rate=CHIP_RATE,
             cn0_dbhz=55.0,
             doppler_uncertainty=100.0,

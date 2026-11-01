@@ -120,7 +120,6 @@ extern "C"
     size_t interp; 
     size_t frame_n; 
     size_t sf;      
-    size_t spc;     
     acq_shape_t shape; 
     size_t reps;    
     size_t
@@ -258,8 +257,10 @@ extern "C"
                                  double doppler_rate,
                                  size_t rate_hypotheses);
 
+  size_t dp_acq_period_samples (size_t code_len);
+
   dp_acq_state_t *dp_acq_create_continuous (const uint8_t *code, size_t code_len,
-                                      size_t spc, double chip_rate,
+                                      double sample_rate, double chip_rate,
                                       double symbol_rate, double cn0_dbhz,
                                       double doppler_uncertainty, double pfa,
                                       double pd, int noise_mode,
@@ -368,7 +369,7 @@ extern "C"
   double dp_acq_gate_stat (const dp_acq_state_t *state);
 
   void dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
-                          size_t code_len, size_t spc, acq_handoff_t *out);
+                          size_t code_len, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
    * ─────────────────

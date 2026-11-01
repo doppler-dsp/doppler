@@ -101,9 +101,9 @@ static int
 measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
          double cn0_dbhz, int present, uint32_t seed, floor_t *out)
 {
-  dp_acq_state_t *a
-      = dp_acq_create_continuous (code, SF, SPC, chip_rate, SYMBOL_RATE,
-                                  SIZING_CN0, DU, PFA, PD, 0, 1, 0.0);
+  dp_acq_state_t *a = dp_acq_create_continuous (
+      code, SF, chip_rate * (double)SPC, chip_rate, SYMBOL_RATE, SIZING_CN0,
+      DU, PFA, PD, 0, 1, 0.0);
   if (!a)
     {
       DP_TEST_ERR ("dp_acq_create_continuous failed\n");

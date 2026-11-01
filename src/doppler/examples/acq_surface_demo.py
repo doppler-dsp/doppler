@@ -95,7 +95,7 @@ def watch() -> dict:
     probe series -- everything the figure and the asserts need."""
     acq = Acquisition(
         CODE,
-        spc=SPC,
+        sample_rate=SPC * CHIP_RATE,
         chip_rate=CHIP_RATE,
         symbol_rate=SYM_RATE,
         cn0_dbhz=DESIGN_CN0_DBHZ,

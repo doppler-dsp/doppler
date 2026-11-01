@@ -12,7 +12,7 @@ raw cf32  →  ring  →  reframe (doppler_bins, code_bins)  →  slow-time Dopp
 
 Construction is **physics-only**: you state the waveform (for `BurstAcquisition`
 the preamble's samples and their rate `fs`; for `Acquisition` the `code`,
-`chip_rate` and `spc`), the sensitivity (`cn0_dbhz`), and a target
+`chip_rate` and the `sample_rate` it is fed at), the sensitivity (`cn0_dbhz`), and a target
 **(Pfa, Pd)**.
 The engine sizes its own search grid — the coherent depth and the threshold
 (and, on the continuous `Acquisition`, the non-coherent looks) — from the [detection theory](../api/python-detection.md) and streams
@@ -384,8 +384,11 @@ they are not knobs:
     that is `sps`). Its length is the period `n`.
 - **`fs`** — the sample rate (Hz) those samples are at. It sets the Doppler
     **span** `±fs/(2n)`. You only move it by resampling the front end.
-- (`Acquisition`, the continuous engine, still takes `code`, `chip_rate` and
-    `spc` and builds the samples itself.)
+- (`Acquisition`, the continuous engine, takes `code`, `chip_rate` and
+    `sample_rate` and builds the samples itself. One code period is then
+    `sample_rate · len(code) / chip_rate` samples, which must be a whole
+    number; a power of two, such as 2,048 for a 1,023-chip code, makes the
+    search fastest.)
 
 The genuine receiver / operator knobs:
 
@@ -487,7 +490,7 @@ doppler_uncertainty = 5000.0   # Hz, your link's Doppler budget
 
 acq = Acquisition(
     code, chip_rate=chip_rate, cn0_dbhz=52,
-    spc=4, doppler_uncertainty=doppler_uncertainty,
+    sample_rate=4 * chip_rate, doppler_uncertainty=doppler_uncertainty,
     symbol_rate=symbol_rate,  # diagnostic only -- see below
     pfa=1e-3, pd=0.9,
 )

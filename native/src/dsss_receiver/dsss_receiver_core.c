@@ -375,8 +375,8 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
   /* The searcher checks its own domain (pfa, pd, C/N0 ...), so its refusal
      is this create's, not an abort under dp_xnn (doppler#2103). */
   obj->acq = dp_acq_create_continuous (
-      obj->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0);
+      obj->code, code_len, chip_rate * (double)spc, chip_rate, symbol_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0);
   if (!obj->acq)
     {
       free (obj->code);
@@ -491,8 +491,7 @@ dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
        * window_bins is the active mechanism, always --
        * dp_acq_build_handoff()'s only supported mode. */
       acq_handoff_t ho;
-      dp_acq_build_handoff (state->acq, &hit, state->code_len, state->spc,
-                            &ho);
+      dp_acq_build_handoff (state->acq, &hit, state->code_len, &ho);
 
       dsss_rx_rebuild_chain (state, ho.chip_phase, ho.doppler_hz_est,
                              state->segments, state->sps, state->n);

@@ -113,7 +113,6 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  void \* | [**sink\_ctx**](#variable-sink_ctx)  <br> |
 |  uint32\_t | [**sink\_decim**](#variable-sink_decim)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**slow\_fft**](#variable-slow_fft)  <br> |
-|  size\_t | [**spc**](#variable-spc)  <br> |
 |  float \* | [**stat\_surface**](#variable-stat_surface)  <br> |
 |  double | [**straddle\_loss**](#variable-straddle_loss)  <br> |
 |  uint64\_t | [**surface\_at**](#variable-surface_at)  <br> |
@@ -344,7 +343,7 @@ size_t dp_acq_state_t::code_bins;
 
 
 
-One segment in samples = sf\*spc. 
+One code period in samples, fs \* sf / chip\_rate: the length of every fast-time transform. 
  
 
 
@@ -681,8 +680,7 @@ double dp_acq_state_t::fs;
 
 
 
-Sample rate (Hz) = chip\_rate \* spc. 
- 
+Sample rate (Hz) = chip\_rate \* code\_bins / sf. 
 
 
         
@@ -1554,24 +1552,6 @@ dp_fft_state_t* dp_acq_state_t::slow_fft;
 
 
 Length-coherent\_bins forward FFT (slow time). 
-
-
-        
-
-<hr>
-
-
-
-### variable spc 
-
-```C++
-size_t dp_acq_state_t::spc;
-```
-
-
-
-Samples per chip (chip-rate oversample factor). 
- 
 
 
         

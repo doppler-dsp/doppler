@@ -148,9 +148,9 @@ main (void)
            * the internal safety-valve ceiling -- see the file doc comment
            * above. */
           dp_acq_state_t *a = dp_acq_create_continuous (
-              code, SF, SPC, cfg->chip_rate, SYMBOL_RATE, CN0_DBHZ, cfg->du,
-              PFA, pd_target, 0, cfg->code_only_epochs,
-              cfg->code_only_epochs > 1 ? 500.0 : 0.0);
+              code, SF, cfg->chip_rate * (double)SPC, cfg->chip_rate,
+              SYMBOL_RATE, CN0_DBHZ, cfg->du, PFA, pd_target, 0,
+              cfg->code_only_epochs, cfg->code_only_epochs > 1 ? 500.0 : 0.0);
           if (!a)
             {
               fprintf (stderr, "dp_acq_create_continuous failed at pd=%.3f\n",

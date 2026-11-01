@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](async__dsss__pool__core_8h_source.md)
 
-_AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/design/async-dsss-parallel.md §4)._[More...](#detailed-description)
+_AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/design/async-dsss-receiver.md §5-§8)._[More...](#detailed-description)
 
 * `#include "doppler/clib_common.h"`
 * `#include "doppler/jm_perf.h"`

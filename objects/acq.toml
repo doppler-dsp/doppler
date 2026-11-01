@@ -53,10 +53,15 @@ fragment = "generated"
 name = "code"
 type = "uint8_t[]"
 
+# The rate of the samples pushed. One code period is then
+# sample_rate * len(code) / chip_rate samples, which must be a whole number
+# of at least len(code): the search's transforms are that long, and a smooth
+# one (acq_period_samples) is what makes them fast. The placeholder is four
+# samples a chip at the default chip rate.
 [[acq.init_params]]
-name = "spc"
-type = "size_t"
-default = "4"
+name = "sample_rate"
+type = "double"
+default = "4000000.0"
 
 [[acq.init_params]]
 name = "chip_rate"
@@ -183,7 +188,7 @@ doc = "RF carrier the Doppler is physically coupled to, Hz (0.0 = uncoupled); se
 name = "code_bins"
 type = "size_t"
 field = true
-doc = "Code-phase hypotheses searched (= sf*spc, one code period)."
+doc = "Code-phase hypotheses searched: one code period in samples, sample_rate * sf / chip_rate."
 
 # Unified property: whichever mechanism is active. Always window_bins for this
 # (continuous) engine -- coherent_bins is pinned to 1 -- but written with the
@@ -207,12 +212,6 @@ name = "sf"
 type = "size_t"
 field = true
 doc = "Chips per PN segment, inferred from len(code)."
-
-[[acq.properties]]
-name = "spc"
-type = "size_t"
-field = true
-doc = "Samples per chip (chip-rate oversample factor)."
 
 [[acq.properties]]
 name = "n_noncoh"
@@ -278,7 +277,7 @@ doc = "Mean amplitude derating of the correlation peak from grid straddle (slow-
 name = "fs"
 type = "double"
 field = true
-doc = "Sample rate (Hz) = chip_rate * spc."
+doc = "Sample rate (Hz) the engine searches at: chip_rate * code_bins / sf."
 
 [[acq.properties]]
 name = "chip_rate"

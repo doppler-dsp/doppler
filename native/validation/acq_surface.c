@@ -190,7 +190,7 @@ static void
 chi_open (chi_t *x, const uint8_t *code, const dp_acq_state_t *a)
 {
   x->n       = a->code_bins;
-  x->spc     = a->spc;
+  x->spc     = a->code_bins / a->sf; /* whole samples a chip, as built */
   x->w_tiles = a->window_bins;
   if (x->w_tiles > 16)
     {
@@ -398,8 +398,8 @@ static dp_acq_state_t *
 engine (const uint8_t *code, int deep)
 {
   dp_acq_state_t *a = dp_acq_create_continuous (
-      code, SF, SPC, CHIP_RATE, SYM_RATE, CN0_SIZED, U_HZ, PFA, PD, 0,
-      deep ? CODE_ONLY_EPOCHS : 1, deep ? DOPPLER_RATE : 0.0);
+      code, SF, CHIP_RATE * (double)SPC, CHIP_RATE, SYM_RATE, CN0_SIZED, U_HZ,
+      PFA, PD, 0, deep ? CODE_ONLY_EPOCHS : 1, deep ? DOPPLER_RATE : 0.0);
   if (!a || dp_acq_set_max_peaks (a, MAX_PEAKS) != 0)
     {
       (void)fprintf (stderr, "validate_acq_surface: the engine refused the "
@@ -445,12 +445,12 @@ list_stream (const uint8_t *code, int deep, double f_hz, double cn0,
         {
           o->lists++;
           acq_handoff_t h0;
-          dp_acq_build_handoff (a, &h[0], SF, SPC, &h0);
+          dp_acq_build_handoff (a, &h[0], SF, &h0);
           int any = 0;
           for (size_t i = 1; i < k; i++)
             {
               acq_handoff_t hi;
-              dp_acq_build_handoff (a, &h[i], SF, SPC, &hi);
+              dp_acq_build_handoff (a, &h[i], SF, &hi);
               if (chip_dist (hi.chip_phase, h0.chip_phase) > 1.0)
                 {
                   const double v

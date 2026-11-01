@@ -33,6 +33,9 @@ extern "C"
 
   size_t dp_fft_smooth_floor (size_t n);
 
+  void dp_fft_pad_spectrum (const float _Complex *p, size_t n,
+                            float _Complex *q, size_t m);
+
   void dp_fft_destroy (dp_fft_state_t *state);
 
   void dp_fft_reset (dp_fft_state_t *state);

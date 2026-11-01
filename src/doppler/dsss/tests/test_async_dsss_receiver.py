@@ -230,7 +230,7 @@ def test_lifecycle_walks_every_state():
 
 
 def test_reacquire_returns_to_searching_never_lost():
-    # The parallel design's release (async-dsss-parallel.md section 3): the
+    # The pool's release (async-dsss-receiver.md section 10): the
     # emitter gone past the interval, the receiver searches again by
     # itself, with no reset(). The behavior's own test is the C one; this
     # is the keyword reaching it.

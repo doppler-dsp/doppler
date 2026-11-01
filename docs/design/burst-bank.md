@@ -406,10 +406,11 @@ belongs in the bank's C benchmark from the first commit.
     sizing contract and hold/release.
 - [`dsss-acquisition.md`](dsss-acquisition.md) — the engine, and the
     2026-09-01 note on the full-band search.
-- [`async-dsss-parallel.md`](async-dsss-parallel.md) §1 — the continuous
+- [`async-dsss-receiver.md`](async-dsss-receiver.md) §1.1 — the continuous
     case (the C++ application's waveform, many emitters on one code), which
     lived here as §11 until 2026-09-02, then in
-    [`async-dsss-receiver.md`](async-dsss-receiver.md) §5, now retired. This
+    [`async-dsss-receiver.md`](async-dsss-receiver.md) §5 (retired at
+    `4a4c437d0`; the signals are now its §1.1). This
     page is bursts.
 - [`state-serialization.md`](state-serialization.md) — the envelope the
     bank's blob adopts.

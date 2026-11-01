@@ -10,8 +10,8 @@
  * (docs/design/async-dsss-receiver.md) configuration the certification
  * measures, with its own search over
  * +/-1/T_E, fed noise alone from the shipped awgn. That is the per-sample
- * cost the parallel design multiplies (docs/design/async-dsss-parallel.md:
- * every receiver searches the whole range), and the row is recorded only if
+ * cost a pool of searching receivers multiplied
+ * (docs/design/async-dsss-receiver.md §9), and the row is recorded only if
  * the receiver searched for every sample fed -- a false alarm's refine, even
  * one refused back to search, would be timed as the search.
  *

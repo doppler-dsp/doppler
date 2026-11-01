@@ -1322,18 +1322,17 @@ _test_lost_after_switch_off (void)
   return 0;
 }
 
-/* reacquire, the parallel design's release (async-dsss-parallel.md section
- * 3): a searching receiver created with it releases on symbol lock alone
- * and goes back to SEARCHING by itself -- never lost, never waiting for
- * reset() -- and locks the next signal that arrives. Three phases on one
- * object: the signal (it tracks and decodes), the emitter switched off
- * past the confirm interval (it returns to searching, and keeps searching:
- * samples are consumed, nothing is emitted), and the signal back (it
- * acquires and decodes again). The same object without reacquire goes
- * lost on the same tail, which is the flag's whole difference. And
- * reacquire with no confirm interval is refused at create: its release is
- * the only way back to searching. Sabotage: enter lost instead of
- * resetting -> phase 2 red; never release -> phase 2 red. */
+/* reacquire, the pool's release (async-dsss-receiver.md section 10): a
+ * searching receiver created with it releases on symbol lock alone and goes
+ * back to SEARCHING by itself -- never lost, never waiting for reset() -- and
+ * locks the next signal that arrives. Three phases on one object: the signal
+ * (it tracks and decodes), the emitter switched off past the confirm interval
+ * (it returns to searching, and keeps searching: samples are consumed, nothing
+ * is emitted), and the signal back (it acquires and decodes again). The same
+ * object without reacquire goes lost on the same tail, which is the flag's
+ * whole difference. And reacquire with no confirm interval is refused at
+ * create: its release is the only way back to searching. Sabotage: enter lost
+ * instead of resetting -> phase 2 red; never release -> phase 2 red. */
 static int
 _test_reacquire_after_switch_off (void)
 {
@@ -3508,7 +3507,7 @@ _test_tlm_names_documented (void)
   return 0;
 }
 
-/* The design point of docs/design/async-dsss-parallel.md: the specification
+/* The earlier design point of docs/design/async-dsss-receiver.md (§1): the
  * Gold-1023 receiver at 3.069 Mchip/s and 2700 symbols/s, two samples a chip.
  */
 #define SLOW_CR 3.069e6
@@ -3805,7 +3804,7 @@ _chip_dist (double a, double b, double l)
   return d > l / 2 ? l - d : d;
 }
 
-/* The controller's levers (design async-dsss-parallel.md §3): two
+/* The controller's levers (design async-dsss-receiver.md §7.2): two
  * searchers on one stream at ranks 0 and 1 take the two signals, the
  * stronger at rank 0, in the SAME dwell; an excluded code phase is never
  * taken, so rank 0 with A excluded takes B; and a dwell with no peak at the

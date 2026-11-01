@@ -260,7 +260,7 @@ a dwell's.
 
 ### 9.3 What was measured (2026-11-01) — the pinned bench, before the one search
 
-`native/benchmarks/bench_async_dsss_pool_core.c` at `f4b8ced42`, built
+`native/benchmarks/async_dsss_pool/bench_async_dsss_pool_core.c` at `f4b8ced42`, built
 Release (`-O3 -DNDEBUG`, native off) and run by
 `make bench BENCH_ARGS="--c-only async_dsss_pool"` on `zen-x2elite-x`
 (aarch64, WSL2). The §1 point: the CCSDS default Gold code

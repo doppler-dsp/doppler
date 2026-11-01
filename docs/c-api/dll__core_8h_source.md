@@ -47,7 +47,7 @@ typedef struct {
     dp_nco_state_t code_nco;    
     const uint8_t *code;     
     size_t sf;               
-    size_t sps;              
+    double sps;              
     double inv_sps;          
     double inv_tsamps;       
     double inv_tsamps2;      
@@ -188,7 +188,7 @@ dll_replica_word(const dp_dll_state_t *s, uint32_t w)
  * see nco_norm_freq_to_inc()'s own doc comment for why duplicates of this
  * conversion keep drifting). */
 
-void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
+void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, double sps,
               double init_chip, double bn, double zeta, double spacing);
 
 JM_FORCEINLINE uint32_t
@@ -258,7 +258,7 @@ dll_update(dp_dll_state_t *s)
     dll_steer(s, (double)me * me, (double)ml * ml, (double)mp * mp);
 }
 
-dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
+dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, double sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
 int dp_dll_params_ok(size_t code_len, double init_chip, double bn, double zeta, double spacing, size_t segments);
 

@@ -1118,7 +1118,7 @@ $(UV) run python scripts/check_docstring_coverage.py --check
 $(UV) run python scripts/check_nav_index.py
 $(UV) run python scripts/check_wfmgen_flag_docs.py
 $(UV) run python scripts/gen_related_pages.py --check
-$(MAKE) -s user-docs-check
+$(UV) run python scripts/check_user_docs.py --no-ratchet $(GALLERY_SCRIPTS)
 $(UV) run python scripts/gen_readme.py --check
 $(UV) run python scripts/gen_install_scripts.py --check
 $(UV) run python scripts/gen_wfm_defaults.py --check
@@ -2464,7 +2464,8 @@ plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness
 # entry, a guide mention and an example, and every example is a gallery
 # script or says in src/doppler/examples/.no-figure why it is not. Today's
 # gaps sit in docs/.user-docs-exempt, which only shrinks (compared with
-# USER_DOCS_BASE). On `lint` and in docs-check's invariants.
+# USER_DOCS_BASE). On `lint`; docs-check's invariants run it with
+# --no-ratchet, because the Docs job checks out no base ref.
 USER_DOCS_BASE ?= origin/main
 user-docs-check: ## Verify every class has API, guide and example, and every example a gallery decision
 	@$(UV) run python scripts/check_user_docs.py --base $(USER_DOCS_BASE) \

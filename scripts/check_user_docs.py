@@ -38,6 +38,10 @@ per line. It is a RATCHET: compared with the merge base, it may only
 shrink, and an entry whose gap has closed (or whose class is gone) fails
 as stale, so the list is always exactly the work left.
 
+The shrink-only comparison needs the base ref, so it runs on ``make lint``.
+docs-check, whose CI job checks out no base, passes ``--no-ratchet`` and
+checks coverage and staleness only.
+
 Usage
 -----
     python scripts/check_user_docs.py [--root DIR] [--base REF] GALLERY...
@@ -270,7 +274,11 @@ def gaps(
 
     errors: list[str] = []
     nf_path = root / NO_FIGURE
-    no_fig = parse_no_figure(nf_path.read_text()) if nf_path.exists() else {}
+    no_fig = (
+        parse_no_figure(nf_path.read_text(encoding="utf-8"))
+        if nf_path.exists()
+        else {}
+    )
     for name, why in sorted(no_fig.items()):
         if name not in examples:
             errors.append(f"{NO_FIGURE}: {name} names no example script")
@@ -290,6 +298,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--root", type=Path, default=ROOT)
     ap.add_argument("--base", default="origin/main")
+    ap.add_argument(
+        "--no-ratchet",
+        action="store_true",
+        help="check coverage only; for a checkout with no base ref (the "
+        "docs job). The ratchet's home is `make lint`.",
+    )
     ap.add_argument("gallery", nargs="*", help="the GALLERY_SCRIPTS paths")
     a = ap.parse_args()
     root = a.root.resolve()
@@ -298,7 +312,7 @@ def main() -> int:
     found, errors = gaps(root, gallery)
 
     ex_path = root / EXEMPT
-    ex_text = ex_path.read_text() if ex_path.exists() else ""
+    ex_text = ex_path.read_text(encoding="utf-8") if ex_path.exists() else ""
     entries = parse_entries(ex_text)
     listed = set()
     for key, rule, _why in entries:
@@ -315,7 +329,7 @@ def main() -> int:
             "gone); delete the line"
         )
 
-    if in_git_repo(root):
+    if not a.no_ratchet and in_git_repo(root):
         try:
             grown = added_since_base(
                 root,

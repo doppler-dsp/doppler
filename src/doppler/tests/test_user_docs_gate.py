@@ -29,7 +29,7 @@ NO_FIGURE = f"{EX}/.no-figure"
 def _w(root: Path, rel: str, text: str) -> None:
     p = root / rel
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
 
 
 def _fixture(root: Path) -> Path:
@@ -181,3 +181,45 @@ def test_the_exempt_list_only_shrinks(tmp_path: Path) -> None:
     r = _run(root, "widget_demo.py")
     assert r.returncode == 1
     assert "is new; the list only shrinks" in r.stderr
+
+
+def test_no_ratchet_skips_only_the_base_comparison(tmp_path: Path) -> None:
+    """The docs job has no base ref: it still checks coverage."""
+    root = _fixture(tmp_path)
+    _w(root, "scripts/check_user_docs.py", "# the gate, present at base\n")
+    _w(root, EXEMPT, "# empty at base\n")
+    _git(root, "init", "-q")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "base")
+    _w(root, "docs/guide/widgets.md", "# Widgets\n")
+    _w(root, EXEMPT, "doppler.sig.Widget guide: I would rather not\n")
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--root",
+            str(root),
+            "--no-ratchet",
+            f"{EX}/widget_demo.py",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    _w(root, EXEMPT, "")
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--root",
+            str(root),
+            "--no-ratchet",
+            f"{EX}/widget_demo.py",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r.returncode == 1
+    assert "doppler.sig.Widget: no guide" in r.stderr

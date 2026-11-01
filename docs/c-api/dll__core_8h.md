@@ -91,11 +91,11 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  void | [**dp\_dll\_get\_state**](#function-dp_dll_get_state) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _._ |
 |  size\_t | [**dp\_dll\_get\_symbol\_window**](#function-dp_dll_get_symbol_window) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._ |
 |  void | [**dp\_dll\_hold\_here**](#function-dp_dll_hold_here) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Mark the point a coast returns to: this rate and this filter._  |
-|  void | [**dp\_dll\_init**](#function-dp_dll_init) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, const uint8\_t \* code, size\_t code\_len, double sps, double init\_chip, double bn, double zeta, double spacing) <br>_Initialise a DLL in place (no allocation); BORROWS_ `code` _._ |
+|  int | [**dp\_dll\_init**](#function-dp_dll_init) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, const uint8\_t \* code, size\_t code\_len, double sps, double init\_chip, double bn, double zeta, double spacing) <br>_Initialise a DLL in place (no allocation); BORROWS_ `code` _._ |
 |  void | [**dp\_dll\_lock\_epoch**](#function-dp_dll_lock_epoch) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Per-epoch lock-detector housekeeping: re-draw the noise offset._  |
 |  void | [**dp\_dll\_lock\_look**](#function-dp_dll_lock_look) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, double norm) <br>_Fold one look into the lock detector; clear the offset tap._  |
 |  size\_t | [**dp\_dll\_lookback\_segments**](#function-dp_dll_lookback_segments) (size\_t tsamps, double max\_error\_db) <br>_Derive a principled_ `segments` _count from a max tolerable async-lookback correlation-power loss, instead of hand-picking one._ |
-|  int | [**dp\_dll\_params\_ok**](#function-dp_dll_params_ok) (size\_t code\_len, double init\_chip, double bn, double zeta, double spacing, size\_t segments) <br>_The DLL's one domain predicate: the arguments_ [_**dp\_dll\_create()**_](dll__core_8h.md#function-dp_dll_create) _builds a loop from._ |
+|  int | [**dp\_dll\_params\_ok**](#function-dp_dll_params_ok) (size\_t code\_len, double sps, double init\_chip, double bn, double zeta, double spacing, size\_t segments) <br>_The DLL's one domain predicate: the arguments_ [_**dp\_dll\_create()**_](dll__core_8h.md#function-dp_dll_create) _builds a loop from._ |
 |  void | [**dp\_dll\_reset**](#function-dp_dll_reset) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Re-seed the loop to its create-time code phase; keep config._  |
 |  int | [**dp\_dll\_set\_bn**](#function-dp_dll_set_bn) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double val) <br>_Set the loop bandwidth, keeping zeta._  |
 |  void | [**dp\_dll\_set\_coast**](#function-dp_dll_set_coast) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, int coast) <br>_Hold the loop (1) or run it (0, the default)._  |
@@ -649,7 +649,7 @@ An early/prompt/late DLL that tracks the code phase of a repeating spreading seq
 
 * `code` Spreading code (0/1 chips), one period; copied internally. 
 * `code_len` Code length (chips per period). 
-* `sps` Samples per chip (default 2), any positive value: the partials close on the code NCO's phase, so a code period need not be a whole number of samples (11 MSa/s over 5 Mcps is 2.2). 
+* `sps` Samples per chip (default 2), finite and &gt;= 1: the partials close on the code NCO's phase, so a code period need not be a whole number of samples (11 MSa/s over 5 Mcps is 2.2). 
 * `init_chip` Seed code phase, chips (default 0.0). 
 * `bn` Loop noise bandwidth (default 0.01). 
 * `zeta` Damping factor (default 0.707). 
@@ -660,7 +660,7 @@ An early/prompt/late DLL that tracks the code phase of a repeating spreading seq
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure or an argument outside [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok): an empty code, `segments` 0, a non-finite `init_chip`, `bn` and `zeta` outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), or a `spacing` outside (0, `code_len`/2) (doppler#2103). 
+Heap-allocated state, or NULL on allocation failure or an argument outside [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok): an empty code, `sps` under 1 or not finite, `segments` 0, a non-finite `init_chip`, `bn` and `zeta` outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), or a `spacing` outside (0, `code_len`/2) (doppler#2103). 
 
 
 
@@ -1101,7 +1101,7 @@ Call while the loop is known to be on its signal; dp\_dll\_set\_coast(1) restore
 
 _Initialise a DLL in place (no allocation); BORROWS_ `code` _._
 ```C++
-void dp_dll_init (
+int dp_dll_init (
     dp_dll_state_t * s,
     const uint8_t * code,
     size_t code_len,
@@ -1118,7 +1118,7 @@ void dp_dll_init (
 The by-value counterpart to [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create): a tracking channel that embeds a [**dp\_dll\_state\_t**](structdp__dll__state__t.md) initialises it here and retains ownership of `code` (it is not copied or freed). `code` must hold `code_len` chips for the loop's lifetime.
 
 
-Unguarded, as the by-value path: the caller checks its arguments with [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok) (one segment) first. Outside it the loop's gains go NaN or its taps read past the code (doppler#2103).
+Guarded like [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create), on one segment: an argument outside [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok) is refused and `s` is left untouched (outside it the loop's gains go NaN or its taps read past the code, doppler#2103).
 
 
 
@@ -1129,11 +1129,18 @@ Unguarded, as the by-value path: the caller checks its arguments with [**dp\_dll
 * `s` State to initialise. Must be non-NULL. 
 * `code` Spreading code (0/1 chips), one period; borrowed. 
 * `code_len` Code length (chips per period); with the floats, inside [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok). 
-* `sps` Samples per chip, any positive value: the partials close on the code NCO's phase, so a code period need not be a whole number of samples. 
+* `sps` Samples per chip, finite and &gt;= 1: the partials close on the code NCO's phase, so a code period need not be a whole number of samples. 
 * `init_chip` Seed code phase, chips. 
 * `bn` Loop noise bandwidth, normalised to the code-period rate. 
 * `zeta` Damping factor (1.0 = critical; 0.707 usual). 
 * `spacing` Early/late tap offset, chips (0.5 = half-chip). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID with nothing written for an argument outside [**dp\_dll\_params\_ok()**](dll__core_8h.md#function-dp_dll_params_ok). 
+
 
 
 
@@ -1251,6 +1258,7 @@ _The DLL's one domain predicate: the arguments_ [_**dp\_dll\_create()**_](dll__c
 ```C++
 int dp_dll_params_ok (
     size_t code_len,
+    double sps,
     double init_chip,
     double bn,
     double zeta,
@@ -1273,6 +1281,7 @@ int dp_dll_params_ok (
 
 
 * `code_len` Code length, chips per period; &gt;= 1. 
+* `sps` Samples a chip; finite and &gt;= 1 (fewer aliases the code NCO). 
 * `init_chip` Initial prompt code phase, chips; any finite value. 
 * `bn` Loop noise bandwidth, normalized to the code-period rate. 
 * `zeta` Damping factor. 

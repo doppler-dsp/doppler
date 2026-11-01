@@ -188,7 +188,7 @@ dll_replica_word(const dp_dll_state_t *s, uint32_t w)
  * see nco_norm_freq_to_inc()'s own doc comment for why duplicates of this
  * conversion keep drifting). */
 
-void dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, double sps,
+int dp_dll_init(dp_dll_state_t *s, const uint8_t *code, size_t code_len, double sps,
               double init_chip, double bn, double zeta, double spacing);
 
 JM_FORCEINLINE uint32_t
@@ -260,7 +260,7 @@ dll_update(dp_dll_state_t *s)
 
 dp_dll_state_t *dp_dll_create(const uint8_t *code, size_t code_len, double sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
-int dp_dll_params_ok(size_t code_len, double init_chip, double bn, double zeta, double spacing, size_t segments);
+int dp_dll_params_ok(size_t code_len, double sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
 #define DLL_AID_MAX_PERIOD 1048576.0
 

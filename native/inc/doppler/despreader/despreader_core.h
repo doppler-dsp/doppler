@@ -85,13 +85,15 @@ extern "C"
    * estimate). The carrier loop's update period is one code period
    * (`code_len * sps` samples).
    *
-   * Unguarded, as the by-value path: the caller checks the code loop's
-   * arguments with dp_dll_params_ok() (@p code_len, @p init_chip,
-   * @p bn_code, @p zeta, @p spacing, one segment) first, as
-   * dp_despreader_create() does. Outside it the code loop reads past the
-   * code (doppler#2103). Likewise the carrier loop's (@p bn_carrier,
-   * @p zeta) with dp_loop_filter_params_ok() at one update a symbol, or its
-   * gains go NaN (doppler#2112).
+   * Guarded like dp_despreader_create(), and writing nothing on a refusal:
+   * the code loop's arguments go through dp_dll_params_ok() (@p code_len,
+   * @p init_chip, @p bn_code, @p zeta, @p spacing, one segment; outside it
+   * the loop reads past the code, doppler#2103), the carrier loop's
+   * (@p bn_carrier, @p zeta) through dp_loop_filter_params_ok() at one
+   * update a symbol (or its gains go NaN, doppler#2112), and @p bn_fll
+   * through dp_loop_filter_fll_bn_ok(). The bit-sync histogram, allocated
+   * when @p periods_per_bit > 1, is allocated first, so a failure leaves
+   * @p ch as it was too.
    *
    * @param ch              State to initialise.  Must be non-NULL.
    * @param code            Spreading code (0/1 chips), one period; borrowed.
@@ -106,8 +108,11 @@ extern "C"
    * @param spacing         DLL early/late tap offset, chips.
    * @param periods_per_bit      Code periods per data bit (1 = one bit per
    * period).
+   * @return DP_OK; DP_ERR_INVALID for an argument outside the loops' own
+   *         domains, or DP_ERR_MEMORY when the bit-sync histogram cannot be
+   *         allocated -- either way with nothing written.
    */
-  void dp_despreader_init (dp_despreader_state_t *ch, const uint8_t *code,
+  int dp_despreader_init (dp_despreader_state_t *ch, const uint8_t *code,
                         size_t code_len, size_t sps, double init_norm_freq,
                         double init_chip, double bn_carrier, double bn_code,
                         double bn_fll, double zeta, double spacing,

@@ -94,10 +94,10 @@ DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "Dll: invalid parameter (need a non-empty code, "
-                       "segments >= 1, a finite init_chip, bn >= 0 and zeta "
-                       "> 0 both finite, whose loop gains come out finite, "
-                       "and 0 < spacing < len(code)/2)");
+                       "Dll: invalid parameter (need a non-empty code, a "
+                       "finite sps >= 1, segments >= 1, a finite init_chip, "
+                       "bn >= 0 and zeta > 0 both finite, whose loop gains "
+                       "come out finite, and 0 < spacing < len(code)/2)");
       return -1;
     }
   return 0;
@@ -1652,7 +1652,7 @@ static PyTypeObject DllObjType = {
     "code : NDArray[np.uint8]\n"
     "    Spreading code (0/1 chips), one period; copied internally.\n"
     "sps : float, default 2.0\n"
-    "    Samples per chip (default 2), any positive value: the partials close "
+    "    Samples per chip (default 2), finite and >= 1: the partials close "
     "on\n"
     "    the code NCO's phase, so a code period need not be a whole number "
     "of\n"
@@ -1683,11 +1683,11 @@ static PyTypeObject DllObjType = {
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is ``Dll: invalid\n"
-    "    parameter (need a non-empty code, segments >= 1, a finite init_chip, "
-    "bn\n"
-    "    >= 0 and zeta > 0 both finite, whose loop gains come out finite, and "
-    "0\n"
-    "    < spacing < len(code)/2)``.\n"
+    "    parameter (need a non-empty code, a finite sps >= 1, segments >= 1, "
+    "a\n"
+    "    finite init_chip, bn >= 0 and zeta > 0 both finite, whose loop "
+    "gains\n"
+    "    come out finite, and 0 < spacing < len(code)/2)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

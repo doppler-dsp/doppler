@@ -1,0 +1,28 @@
+{
+ "stamp_schema": 2,
+ "date_utc": "2026-11-01 20:05",
+ "machine": "zen-x2elite-x",
+ "cpu_model": "unknown",
+ "cpu_threads": 18,
+ "commit": "b15233152",
+ "dirty": false,
+ "load_before": [
+  0.99,
+  3.77,
+  6.73
+ ],
+ "toolchain": {
+  "compiler": "GNU 15.2.0",
+  "compiler_path": "/usr/bin/cc",
+  "libc": "glibc 2.43",
+  "build_type": "Release",
+  "c_flags": "-O3 -DNDEBUG",
+  "native": "OFF"
+ },
+ "load_after": [
+  2.67,
+  2.97,
+  3.77
+ ],
+ "wall_s": 1343.6
+}

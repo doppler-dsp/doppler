@@ -908,6 +908,20 @@ rank-1 search takes the second signal.
 
 <!-- async-dsss-pool:design-near-far:start -->
 
+| stronger, above the weaker | $D = 1$, weaker taken | $D = 90$, weaker taken |
+| -------------------------- | --------------------- | ---------------------- |
+| +0 dB                      | 32 of 32 (0.89–1.00)  | 15 of 15 (0.80–1.00)   |
+| +4 dB                      | 39 of 39 (0.91–1.00)  | 20 of 20 (0.84–1.00)   |
+| +8 dB                      | 37 of 37 (0.91–1.00)  | 18 of 18 (0.82–1.00)   |
+| +10 dB                     | 37 of 37 (0.91–1.00)  | 19 of 19 (0.83–1.00)   |
+| +12 dB                     | 34 of 35 (0.85–0.99)  | 17 of 17 (0.82–1.00)   |
+| +14 dB                     | 36 of 40 (0.77–0.96)  | 12 of 20 (0.39–0.78)   |
+| +16 dB                     | 28 of 36 (0.62–0.88)  | 8 of 18 (0.25–0.66)    |
+| +18 dB                     | 13 of 32 (0.26–0.58)  | 0 of 17 (0.00–0.18)    |
+| +20 dB                     | 7 of 34 (0.10–0.37)   | 0 of 17 (0.00–0.18)    |
+
+Sidelobes taken, with or without the weaker emitter, over every row: 0. Run `validate_async_dsss_near_far --emit` at `b15233152`, 2026-11-01 20:05 UTC on `zen-x2elite-x`, 1343.6 s.
+
 <!-- async-dsss-pool:design-near-far:end -->
 
 A signal below the limit is found once the stronger one leaves. Removing
@@ -975,7 +989,7 @@ rate. The clock rule the receiver obeys is §11.3.
 
 ## 9. What it costs
 
-**The pinned bench** (`native/benchmarks/bench_async_dsss_pool_core.c`, the
+**The pinned bench** (`native/benchmarks/async_dsss_pool/bench_async_dsss_pool_core.c`, the
 `async_dsss_pool::push[...]` rows): the §1 specification at 11 MSa/s
 through the front end, D = 150, noise alone so every receiver searches, one
 push a dwell. The load is CPU time per second of signal, 1 being exactly

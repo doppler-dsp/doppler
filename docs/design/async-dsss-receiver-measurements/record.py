@@ -196,7 +196,9 @@ def load_near_far() -> tuple[list[dict[str, str]], dict[str, Any]]:
     if meta["dirty"]:
         raise SystemExit("record data from a dirty tree is refused")
     rows = _csv_blocks((DATA / "near_far.csv").read_text(encoding="utf-8"))
-    return rows["near_far"], meta
+    # The run prints its readable table to the same stream, between the
+    # block's rows; a CSV row names a depth.
+    return [r for r in rows["near_far"] if r["depth"] in ("one", "deep")], meta
 
 
 def design_near_far(rows: list[dict[str, str]], meta: dict[str, Any]) -> str:

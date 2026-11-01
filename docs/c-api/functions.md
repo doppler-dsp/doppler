@@ -1464,6 +1464,7 @@
 * **dp\_resamp\_execute\_ctrl\_push** ([**resamp\_core.h**](resamp__core_8h.md))
 * **dp\_resamp\_get\_ctrl\_acc** ([**resamp\_core.h**](resamp__core_8h.md))
 * **dp\_resamp\_get\_delay** ([**resamp\_core.h**](resamp__core_8h.md))
+* **dp\_resamp\_get\_execute\_delay** ([**resamp\_core.h**](resamp__core_8h.md))
 * **dp\_resamp\_get\_num\_phases** ([**resamp\_core.h**](resamp__core_8h.md))
 * **dp\_resamp\_get\_num\_taps** ([**resamp\_core.h**](resamp__core_8h.md))
 * **dp\_resamp\_get\_rate** ([**resamp\_core.h**](resamp__core_8h.md))

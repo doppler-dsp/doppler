@@ -385,15 +385,43 @@ dp_resamp_get_num_taps (const resamp_state_t *s)
   return s->num_taps;
 }
 
+/* The prototype's centre over the phases: 9.5 for the built-in bank, in
+   the units of the rate the filter runs at. resamp_build_bank makes the
+   length odd, so halflen is exact. */
+static double
+resamp_centre (const resamp_state_t *s)
+{
+  size_t proto   = (s->num_phases * s->num_taps) | 1u;
+  size_t halflen = proto / 2;
+  return (double)halflen / (double)s->num_phases;
+}
+
+double
+dp_resamp_get_execute_delay (const resamp_state_t *s)
+{
+  /* Interpolating (rate >= 1) dp_resamp_execute() runs the interpolating
+     structure: dp_resamp_get_delay(), centre + 1 input samples. Decimating
+     (rate < 1) it runs decim_execute(), the transposed form, at the OUTPUT
+     rate: an input is accumulated into the current interval's dump, which
+     emits as the interval closes, one output period ahead of the centre --
+     centre - 1 output samples, (centre - 1) / rate input samples, 8.5 /
+     rate for the built-in bank. The async DSSS receiver's hand-off read
+     the decimator's timeline through dp_resamp_get_delay() and landed 1.2
+     to 6.5 input samples off (measured: 9.34 at rate 0.910, 16.98 at
+     0.500). */
+  return s->upsample ? dp_resamp_get_delay (s)
+                     : (resamp_centre (s) - 1.0) / s->rate;
+}
+
 double
 dp_resamp_get_delay (const resamp_state_t *s)
 {
   /* The prototype's centre (resamp_build_bank makes the length odd, so
      halflen is exact) over the phases, plus the one input the pipeline
-     holds back: the output is formed before the offered sample loads. */
-  size_t proto   = (s->num_phases * s->num_taps) | 1u;
-  size_t halflen = proto / 2;
-  return (double)halflen / (double)s->num_phases + 1.0;
+     holds back: the output is formed before the offered sample loads. The
+     interpolating structure's, which the ctrl and push forms run at every
+     rate (dp_resamp_get_execute_delay() is the free form's). */
+  return resamp_centre (s) + 1.0;
 }
 
 double

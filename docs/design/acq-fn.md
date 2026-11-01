@@ -1,7 +1,7 @@
 # Design — pure-functional acquisition kernel (elastic fleet)
 
 **Status:** model + naming locked; build sequenced below. Companion to
-[`dsss-acquisition.md`](dsss-acquisition.md) (roadmap) and the
+[`acq-surface.md`](acq-surface.md) (the engine's design) and the
 [acquisition guide](../guide/dsss-acquisition.md).
 
 ## Mental model — two kernels, two faces

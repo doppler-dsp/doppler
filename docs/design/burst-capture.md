@@ -817,7 +817,7 @@ against 0.624). Each family's Pfa is held too.
 finding, since fixed: the engine read **1.97e-3** a dwell against a target of
 1e-3, because its gate was priced over the native cells while its maximum
 runs over the Doppler-interpolated surface (#2218, the mechanism in
-[DSSS acquisition §9.1](dsss-acquisition.md#91-what-pfa-means-for-a-peak-detector)).
+[the acquisition surface §12](acq-surface.md#12-what-pfa-means-for-a-peak-detector)).
 Priced over the surface, it reads 0.95e-3. And the tiled grid is covered by
 the C tests (rate found, either sign, in a tile off the centre) but not by the
 Monte-Carlo above.
@@ -849,7 +849,7 @@ the earlier layout (version 5) is refused.
 - [`DsssBurstReceiver`](dsss-burst-receiver.md) — the composition this comes
     out of; §11 is the decision record, §3 the measurements the refine stage
     rests on
-- [DSSS acquisition](dsss-acquisition.md) — the detector's own architecture
+- [DSSS acquisition](acq-surface.md) — the detector's own architecture
 - [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md) —
     the phase order this document is phase 1 of
 - [State serialization](state-serialization.md) — the triplet this object owes

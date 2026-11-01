@@ -498,7 +498,12 @@ def test_config_burst_never_autosplits():
     assert a.eta_nc == 0.0  # the non-coherent gate is unused
     assert a.pd_burst < PD and a.underpowered  # and says so
     cont = Acquisition(
-        CODE, spc=SPS, chip_rate=CHIP_RATE, cn0_dbhz=cn0, pfa=PFA, pd=PD
+        CODE,
+        sample_rate=SPS * CHIP_RATE,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=cn0,
+        pfa=PFA,
+        pd=PD,
     )
     assert cont.n_noncoh > 1  # the continuous engine still splits
 

@@ -256,6 +256,7 @@
 * **dp\_acq\_dsl\_db** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_gate\_stat** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_get\_state** ([**acq\_core.h**](acq__core_8h.md))
+* **dp\_acq\_period\_samples** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_position** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_psl\_db** ([**acq\_core.h**](acq__core_8h.md))
 * **dp\_acq\_push** ([**acq\_core.h**](acq__core_8h.md))

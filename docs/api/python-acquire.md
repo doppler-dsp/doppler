@@ -46,7 +46,7 @@ independent of `dwell_target`.
 
 `Acquisition` searches a continuous spread-spectrum signal (a code that repeats
 forever, data riding on it) over the joint (Doppler × code-phase) grid. It
-takes the `code`, `chip_rate` and `spc`, always tiles the Doppler uncertainty
+takes the `code`, `chip_rate` and the `sample_rate` it is fed at, always tiles the Doppler uncertainty
 with frequency windows, and sizes its non-coherent looks from
 `(cn0_dbhz, pfa, pd)` using `doppler.detection`; its coherent depth is set by
 the code-only epochs you declare (`code_only_epochs`) and capped by

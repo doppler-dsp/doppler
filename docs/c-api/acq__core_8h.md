@@ -81,18 +81,19 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | ---: | :--- |
 |  size\_t | [**dp\_acq\_block\_prompt**](#function-dp_acq_block_prompt) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t tile, size\_t col, float \_Complex \* out, size\_t n\_out) <br>_One cell's column of the last whole block: the per-epoch complex correlations at a code phase, the despread stream at epoch rate._  |
 |  size\_t | [**dp\_acq\_block\_raw**](#function-dp_acq_block_raw) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last whole block's raw samples, as pushed._  |
-|  void | [**dp\_acq\_build\_handoff**](#function-dp_acq_build_handoff) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**dp\_acq\_push()**_](acq__core_8h.md#function-dp_acq_push) _hit into a wire-ready hand-off record._ |
+|  void | [**dp\_acq\_build\_handoff**](#function-dp_acq_build_handoff) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**dp\_acq\_push()**_](acq__core_8h.md#function-dp_acq_push) _hit into a wire-ready hand-off record._ |
 |  int | [**dp\_acq\_carrier\_freq\_ok**](#function-dp_acq_carrier_freq_ok) (double carrier\_freq\_hz, double sample\_rate\_hz) <br>_Whether_ `carrier_freq_hz` _is a carrier the code can be coupled to at_`sample_rate_hz:` _0 (uncoupled), or finite and above half the sample rate._ |
 |  double \_Complex | [**dp\_acq\_cell\_corr**](#function-dp_acq_cell_corr) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t col, double f\_hz, double t0) <br>_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._  |
 |  void | [**dp\_acq\_cell\_corr\_grid**](#function-dp_acq_cell_corr_grid) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_epochs, size\_t col, const double \* f\_hz, size\_t n\_f, double t0, double \_Complex \* out) <br>[_**dp\_acq\_cell\_corr()**_](acq__core_8h.md#function-dp_acq_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._ |
 |  int | [**dp\_acq\_configure\_search\_raw**](#function-dp_acq_configure_search_raw) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
 |  size\_t | [**dp\_acq\_consumed**](#function-dp_acq_consumed) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_acq\_push()**_](acq__core_8h.md#function-dp_acq_push) _took._ |
 |  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_burst**](#function-dp_acq_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate, size\_t rate\_hypotheses) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
-|  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_continuous**](#function-dp_acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
+|  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**dp\_acq\_create\_continuous**](#function-dp_acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, double sample\_rate, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
 |  void | [**dp\_acq\_destroy**](#function-dp_acq_destroy) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Destroy and free an engine._  |
 |  double | [**dp\_acq\_dsl\_db**](#function-dp_acq_dsl_db) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The search's Doppler-offset sidelobe level, dB: 20\*log10 of the largest lag of the code's periodic ambiguity outside the mainlobe, at any Doppler offset the grid's tiles can put between an emitter and a tile, relative to the emitter's own peak (_ [_**acq\_shape\_t::dsl**_](structacq__shape__t.md#variable-dsl) _)._ |
 |  double | [**dp\_acq\_gate\_stat**](#function-dp_acq_gate_stat) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The gate a dwell's statistic must clear to be a hit, in the units of_ [_**acq\_result\_t::test\_stat**_](structacq__result__t.md#variable-test_stat) _:_`threshold` _on the coherent path (one look),_`eta_nc` _on the non-coherent one. A dwell hits when its strongest cell's statistic exceeds this, and every listed peak's statistic does too. Both statistics are linear in the cell's amplitude, so a list consumer can compare a peak's excess over another's against it in the same units. Configuration: fixed by the thresholds the grid was sized with._ |
 |  void | [**dp\_acq\_get\_state**](#function-dp_acq_get_state) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dp\_acq\_state\_bytes()**_](acq__core_8h.md#function-dp_acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
+|  size\_t | [**dp\_acq\_period\_samples**](#function-dp_acq_period_samples) (size\_t code\_len) <br>_The samples one code period should be searched at: the smallest power of two that holds at least two samples a chip._  |
 |  uint64\_t | [**dp\_acq\_position**](#function-dp_acq_position) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The engine's stream position: every sample its pushes have taken, framed ones and the carry, since create, reset, a regrid or set\_state's restore._  |
 |  double | [**dp\_acq\_psl\_db**](#function-dp_acq_psl_db) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**acq\_shape\_t::psl**_](structacq__shape__t.md#variable-psl) _)._ |
 |  size\_t | [**dp\_acq\_push**](#function-dp_acq_push) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
@@ -278,7 +279,7 @@ Values written (`coherent_bins`), or 0 at `coherent_bins == 1` (no block is gath
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,
+>>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=60.0,
 ...                 doppler_uncertainty=40e3, code_only_epochs=7)
 >>> b.coherent_bins                    # (7 + 1) // 2
 4
@@ -342,7 +343,7 @@ Samples written (`coherent_bins * code_bins`), or 0 at `coherent_bins == 1`, whi
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,
+>>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=60.0,
 ...                 doppler_uncertainty=40e3, code_only_epochs=7)
 >>> blk = np.tile(np.roll(s0, 17), b.coherent_bins).astype(np.complex64)
 >>> _ = b.push(blk)
@@ -372,7 +373,6 @@ void dp_acq_build_handoff (
     const dp_acq_state_t * state,
     const acq_result_t * hit,
     size_t code_len,
-    size_t spc,
     acq_handoff_t * out
 ) 
 ```
@@ -392,8 +392,7 @@ Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`
 
   * `state` The engine `hit` came from (non-NULL, built via [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous)). 
   * `hit` One hit from [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push) (non-NULL). 
-  * `code_len` Spreading-code length (chips) — the same value passed to whichever acq\_create\_\*() built `state`. 
-  * `spc` Samples/chip — likewise. 
+  * `code_len` Spreading-code length (chips): a hit's lag, in samples of the engine's `code_bins`-sample period, becomes a phase in these units (`code_len / code_bins` chips a sample). For a code engine it is the code's length; a burst engine built from a code held k samples a chip passes the code's length too. 
   * `out` Written on return (non-NULL). 
 
 
@@ -582,7 +581,7 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+>>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> a.configure_search_raw(doppler_bins=1, n_noncoh=4)  # pin the grid
 >>> a.doppler_bins, a.n_noncoh
 (1, 4)
@@ -750,7 +749,7 @@ _Create a continuous-mode acquisition engine: always wideband window-tiling, all
 dp_acq_state_t * dp_acq_create_continuous (
     const uint8_t * code,
     size_t code_len,
-    size_t spc,
+    double sample_rate,
     double chip_rate,
     double symbol_rate,
     double cn0_dbhz,
@@ -776,7 +775,7 @@ window-tiling mode")  unconditionally, so `window_bins = 1` when `doppler_uncert
 
 * `code` PN chips (0/1), length `code_len`. 
 * `code_len` Number of chips supplied (= sf, the spreading factor). 
-* `spc` Samples per chip (&gt;= 1). 
+* `sample_rate` The rate of the samples pushed, Hz. One code period is then `n = sample_rate * code_len / chip_rate` samples, which must be a whole number of at least `code_len:` the search's transforms are n points long, so a smooth n (a power of two, [**dp\_acq\_period\_samples()**](acq__core_8h.md#function-dp_acq_period_samples)) is what makes them fast. When n is a multiple of `code_len` each chip is held n / code\_len samples; otherwise each sample takes the chip its centre falls in, and the correlation shape is measured from that replica. 
 * `chip_rate` Chip rate in Hz (&gt; 0). 
 * `symbol_rate` Continuous data-symbol rate in Hz; &lt;= 0 means no known clock. Diagnostic only (exposed via [**dp\_acq\_state\_t::epochs\_per\_symbol**](structdp__acq__state__t.md#variable-epochs_per_symbol)), doesn't feed sizing: this engine never coherently combines regardless of the data-modulation clock. 
 * `cn0_dbhz` Carrier-to-noise density in dB-Hz: any finite value. A continuous engine needs one  its non-coherent looks cannot be chosen without a target. 
@@ -801,12 +800,12 @@ Heap-allocated state, or NULL on bad arguments / allocation failure.
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
 >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
->>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+>>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
 (0, 17)
 >>> a.coherent_bins            # no window given: one epoch
 1
->>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+>>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
 ...                 code_only_epochs=7)
 >>> b.coherent_bins            # (7 + 1) // 2: a whole block fits
 4
@@ -891,8 +890,8 @@ int main (void)
   dp_gold_generate (g, 1023, code, 1023); // the specification Gold-1023 code
   dp_gold_destroy (g);
   dp_acq_state_t *a = dp_acq_create_continuous (
-      code, 1023, 2, 3.069e6, 2700.0, 47.0, 5000.0, 1e-3, 0.9, 0, 1,
-      0.0);
+      code, 1023, 2 * 3.069e6, 3.069e6, 2700.0, 47.0, 5000.0, 1e-3, 0.9,
+      0, 1, 0.0);
   printf ("%.1f %.1f\n", dp_acq_psl_db (a), dp_acq_dsl_db (a));
   // -23.9 -16.9
   dp_acq_destroy (a);
@@ -961,6 +960,43 @@ void dp_acq_get_state (
 
 * `state` Must be non-NULL. 
 * `blob` Destination; at least [**dp\_acq\_state\_bytes()**](acq__core_8h.md#function-dp_acq_state_bytes) bytes. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_acq\_period\_samples 
+
+_The samples one code period should be searched at: the smallest power of two that holds at least two samples a chip._ 
+```C++
+size_t dp_acq_period_samples (
+    size_t code_len
+) 
+```
+
+
+
+The search's fast-time transform is one code period long, so its length decides its speed: 2 \* 1023 = 2,046 = 2 \* 3 \* 11 \* 31 runs 5x slower than 2,048 (docs/design/async-dsss-receiver.md). An object that resamples its input for the search resamples to `chip_rate * dp_acq_period_samples(code_len) / code_len`, and builds the engine at that rate. Two samples a chip is the least a code loop's early and late taps need.
+
+
+
+
+**Parameters:**
+
+
+* `code_len` Chips in one code period (&gt;= 1). 
+
+
+
+**Returns:**
+
+The period in samples, a power of two: 2048 for 1023 or 1024 chips, 64 for 31; 0 for `code_len` 0 or one whose period would not fit a size\_t. 
+
 
 
 
@@ -1130,7 +1166,7 @@ Number of events written (0 … max\_results).
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+>>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
 ...                 doppler_uncertainty=40e3)
 >>> fs = 1e6 * 4                    # sample rate = chip_rate * spc
 >>> t = np.arange(a.code_bins * a.n_noncoh)
@@ -1299,7 +1335,7 @@ Discards any buffered samples that have not yet completed a frame and clears the
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
 >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
->>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+>>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream
 >>> a.reset()                 # drop it before it can bias a detection
 >>> a.push(burst)[0][:2]      # (Doppler bin, code phase)
@@ -1405,7 +1441,7 @@ Config, not running state: it is not in the state blob, so a resumed engine want
 >>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
->>> a = Acquisition(code, spc=2, chip_rate=5e6, symbol_rate=2700.0,
+>>> a = Acquisition(code, sample_rate=1e7, chip_rate=5e6, symbol_rate=2700.0,
 ...                 cn0_dbhz=45.0, doppler_uncertainty=50e3)
 >>> a.carrier_freq_hz
 0.0
@@ -1457,7 +1493,7 @@ One (the default) is the classic detector  the maximum of the surface, gated. Mo
 >>> import numpy as np
 >>> from doppler.acquire import Acquisition
 >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
->>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,
+>>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, symbol_rate=1e3,
 ...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
 >>> a.max_peaks
 1
@@ -1588,7 +1624,7 @@ DP\_OK; DP\_ERR\_INVALID for an overlong `prefix`, a `decim` of 0, or a probe ta
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
->>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+>>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> tlm = Telemetry(1 << 12)
 >>> a.set_telemetry(tlm, "acq")
 >>> sorted(tlm.probe_names)[:3]
@@ -1644,7 +1680,7 @@ DP\_OK. The count actually running is `threads`.
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
->>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,
+>>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0,
 ...                 doppler_uncertainty=4000.0)
 >>> a.threads >= 1               # a pool, sized to the machine
 True
@@ -1734,7 +1770,7 @@ Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided 
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
->>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+>>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> a.keep_surface = 1
 >>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)
 >>> _ = a.push(x)
@@ -1792,7 +1828,7 @@ Values written (`code_bins`), or 0 if `out` is too small.
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
->>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+>>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> c = np.empty(a.code_bins, dtype=np.float64)
 >>> a.surface_chip_phase(c) == a.code_bins
 True
@@ -1849,7 +1885,7 @@ Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided,
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=70.0)
+>>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=70.0)
 >>> a.n_noncoh                 # one look: the dwell is the coherent dump
 1
 >>> _ = a.push(np.roll(s0, 17).astype(np.complex64))
@@ -1907,7 +1943,7 @@ Values written (`surface_rows`), or 0 if `out` is too small.
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
->>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,
+>>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0,
 ...                 doppler_uncertainty=4000.0)
 >>> f = np.empty(a.surface_rows, dtype=np.float64)
 >>> a.surface_doppler_hz(f) == a.surface_rows

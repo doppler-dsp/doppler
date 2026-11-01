@@ -130,9 +130,10 @@ def test_state_roundtrip_resume():
 # ── Cross-class: Acquisition and BurstAcquisition share one engine ─────────
 
 
-def _continuous_acq(**kw):
-    kw.setdefault("spc", SPC)
+def _continuous_acq(spc=SPC, **kw):
+    # Samples a chip is the caller's sample rate over the chip rate.
     kw.setdefault("chip_rate", CHIP_RATE)
+    kw.setdefault("sample_rate", kw["chip_rate"] * spc)
     kw.setdefault("symbol_rate", 1000.0)
     kw.setdefault("cn0_dbhz", CN0_DBHZ)
     kw.setdefault("doppler_uncertainty", 0.0)

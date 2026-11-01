@@ -798,10 +798,10 @@ _test_ghost_is_released (void)
       if (k < 2 || h[0].samples_consumed != b + te)
         continue;
       acq_handoff_t h0, hi;
-      dp_acq_build_handoff (pr->acq, &h[0], 1023, POOL_SPC, &h0);
+      dp_acq_build_handoff (pr->acq, &h[0], 1023, &h0);
       for (size_t i = 1; i < k && !seeded; i++)
         {
-          dp_acq_build_handoff (pr->acq, &h[i], 1023, POOL_SPC, &hi);
+          dp_acq_build_handoff (pr->acq, &h[i], 1023, &hi);
           if (_chip_dist (hi.chip_phase, h0.chip_phase, 1023.0) > 1.0)
             {
               DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[1], hi.chip_phase,

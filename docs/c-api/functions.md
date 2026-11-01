@@ -168,6 +168,7 @@
 * **dp\_Resampler\_get\_consumed** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **dp\_Resampler\_get\_ctrl\_acc** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **dp\_Resampler\_get\_delay** ([**Resampler\_core.h**](Resampler__core_8h.md))
+* **dp\_Resampler\_get\_execute\_delay** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **dp\_Resampler\_get\_num\_phases** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **dp\_Resampler\_get\_num\_taps** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **dp\_Resampler\_get\_rate** ([**Resampler\_core.h**](Resampler__core_8h.md))

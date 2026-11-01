@@ -632,6 +632,17 @@ Resampler_getprop_delay (ResamplerObject *self, void *Py_UNUSED (closure))
     }
   return PyFloat_FromDouble (dp_Resampler_get_delay (self->handle));
 }
+static PyObject *
+Resampler_getprop_execute_delay (ResamplerObject *self,
+                                 void            *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_Resampler_get_execute_delay (self->handle));
+}
 
 static PyGetSetDef Resampler_getset[] = {
   { "rate", (getter)Resampler_getprop_rate, (setter)Resampler_setprop_rate,
@@ -666,7 +677,13 @@ static PyGetSetDef Resampler_getset[] = {
     "num_taps - 1. The built-in bank uses 19 taps per branch.\n",
     NULL },
   { "delay", (getter)Resampler_getprop_delay, NULL,
-    "Group delay of the interpolator, in input samples.\n", NULL },
+    "Group delay of the interpolator, in input samples: the delay of "
+    "execute_ctrl() at every rate, and of execute() at rate >= 1.\n",
+    NULL },
+  { "execute_delay", (getter)Resampler_getprop_execute_delay, NULL,
+    "Group delay of execute(), in input samples, on the path its rate runs "
+    "(dp_resamp_get_execute_delay()).\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 

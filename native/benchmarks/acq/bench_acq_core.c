@@ -11,7 +11,7 @@
  * two ends):
  *   native      one window, no Doppler search: the floor.
  *   op<R>_U<u>  the continuous async-DSSS operating range's four corners
- *               (docs/design/async-dsss-receiver.md section 6.1): chip rate
+ *               (docs/design/async-dsss-receiver.md section 1): chip rate
  *               2 or 5 Mcps, uncertainty +/-5 or +/-50 kHz. The searcher's
  *               cost per sample scales with the tile count, so the 2 Mcps,
  *               +/-50 kHz corner is its worst case.

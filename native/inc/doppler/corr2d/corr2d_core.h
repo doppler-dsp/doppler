@@ -73,7 +73,7 @@ typedef struct {
    * accum -> ztmp (rows) -> work_pad (cols), then inverse(work_pad).  Fast
    * path (nx_out != nx only, ny_out == ny is required for fast_path at all):
    * zeropad goes accum -> work_pad directly, one row at a time, via
-   * corr2d_zeropad_1d; ztmp/zcol/zcolout are unused (2-axis-pad only). */
+   * dp_fft_pad_spectrum(); ztmp/zcol/zcolout are unused (2-axis-pad only). */
   float _Complex *work_pad;  /**< Zero-padded product, (ny_out, nx_out) or,
                                  fast path, (ny, nx_out).                   */
   float _Complex *ztmp;      /**< Row-padded intermediate, (ny, nx_out).

@@ -109,6 +109,50 @@ extern "C"
    */
   size_t dp_fft_smooth_floor (size_t n);
 
+  /**
+   * @brief Zero-pad a spectrum from @p n bins to @p m >= @p n, so that its
+   *        inverse transform interpolates the length-@p n sequence.
+   *
+   * The low half of @p p (bins 0 … n/2) goes to the start of @p q, the high
+   * (negative-frequency) half to its end, and the bins between are zero.
+   * For an even @p n the Nyquist bin belongs to both halves, so it is split
+   * in two: half at +n/2, half at m - n/2. That makes the length-@p m
+   * inverse of @p q, at every m/n-th output, exactly the length-@p n
+   * inverse of @p p -- unnormalised inverse transforms, as dp_fft gives --
+   * and the outputs between are its band-limited interpolation (it matches
+   * scipy.signal.resample to machine precision). A circular correlation
+   * stays circular: this is how a code-period correlation is read on a
+   * finer, or a faster, lag grid without changing what it computes.
+   * @p m == @p n is a copy.
+   *
+   * @param p  Input spectrum, @p n bins in FFT order.
+   * @param n  Bins in @p p.
+   * @param q  Output, @p m bins; must not overlap @p p.
+   * @param m  Bins in @p q, at least @p n.
+   * @code
+   * #include <assert.h>
+   * #include <complex.h>
+   * #include <math.h>
+   * #include "doppler/fft/fft_core.h"
+   * int main (void)
+   * {
+   *   // a 6-sample sequence read on an 8-point grid
+   *   float _Complex x[6] = { 1, 2, 3, 2, 1, 0 }, X[6], Q[8], y[8];
+   *   dp_fft_state_t *f = dp_fft_create (6, -1, 1);
+   *   dp_fft_state_t *g = dp_fft_create (8, +1, 1);
+   *   dp_fft_execute_cf32 (f, x, 6, X, 6);
+   *   dp_fft_pad_spectrum (X, 6, Q, 8);
+   *   dp_fft_execute_cf32 (g, Q, 8, y, 8);
+   *   assert (fabsf (crealf (y[0]) / 6 - 1.0f) < 1e-5f); // lag 0 kept
+   *   dp_fft_destroy (f);
+   *   dp_fft_destroy (g);
+   *   return 0;
+   * }
+   * @endcode
+   */
+  void dp_fft_pad_spectrum (const float _Complex *p, size_t n,
+                            float _Complex *q, size_t m);
+
   /** @brief Destroy and free an fft instance. @param state May be NULL. */
   void dp_fft_destroy (dp_fft_state_t *state);
 

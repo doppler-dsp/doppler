@@ -10,47 +10,21 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-/* 1-D spectral zero-pad: q (length m >= n) is the band-limited (Dirichlet)
- * interpolation of p (length n) — low half [0..n/2] at the front, zeros in the
- * middle, high half at the end, with the Nyquist bin split for even n.
- * m == n is a copy.  Matches scipy.signal.resample to machine precision. */
-static void
-corr2d_zeropad_1d (const float _Complex *p, size_t n, float _Complex *q,
-                   size_t m)
-{
-  if (m == n)
-    {
-      memcpy (q, p, n * sizeof (*q));
-      return;
-    }
-  memset (q, 0, m * sizeof (*q));
-  size_t h = n / 2;
-  for (size_t k = 0; k <= h; k++)
-    q[k] = p[k];
-  for (size_t k = h + 1; k < n; k++)
-    q[m - n + k] = p[k];
-  if (n % 2 == 0)
-    {
-      q[h] *= 0.5f;
-      q[m - h] = q[h];
-    }
-}
-
 /* 2-D spectral zero-pad (ny,nx) -> (ny_out,nx_out), axis-separable: pad rows
  * (nx -> nx_out) into ztmp, then columns (ny -> ny_out) into out.  The
- * even-axis Nyquist split is handled per axis by corr2d_zeropad_1d. */
+ * even-axis Nyquist split is handled per axis by dp_fft_pad_spectrum(). */
 static void
 corr2d_zeropad_2d (const dp_corr2d_state_t *s, const float _Complex *p,
                    float _Complex *out)
 {
   for (size_t i = 0; i < s->ny; i++)
-    corr2d_zeropad_1d (p + i * s->nx, s->nx, s->ztmp + i * s->nx_out,
-                       s->nx_out);
+    dp_fft_pad_spectrum (p + i * s->nx, s->nx, s->ztmp + i * s->nx_out,
+                         s->nx_out);
   for (size_t j = 0; j < s->nx_out; j++)
     {
       for (size_t i = 0; i < s->ny; i++)
         s->zcol[i] = s->ztmp[i * s->nx_out + j];
-      corr2d_zeropad_1d (s->zcol, s->ny, s->zcolout, s->ny_out);
+      dp_fft_pad_spectrum (s->zcol, s->ny, s->zcolout, s->ny_out);
       for (size_t i = 0; i < s->ny_out; i++)
         out[i * s->nx_out + j] = s->zcolout[i];
     }
@@ -455,7 +429,7 @@ corr2d_row_inverse (const dp_corr2d_state_t *s, size_t t,
     dp_fft_execute_cf32 (s->row_inv[t], a, nx, d, nx);
   else
     {
-      corr2d_zeropad_1d (a, nx, pad, nxo);
+      dp_fft_pad_spectrum (a, nx, pad, nxo);
       dp_fft_execute_cf32 (s->row_inv[t], pad, nxo, d, nxo);
     }
   const float inv_nx = 1.0f / (float)nx;

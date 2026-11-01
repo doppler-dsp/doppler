@@ -275,5 +275,46 @@ main (void)
     DP_CHECK (dp_fft_smooth_floor (94) == 90);
   }
 
+  /* dp_fft_pad_spectrum: a sequence's spectrum padded k-fold and inverted
+     gives the sequence back at every k-th output, exactly (unnormalised
+     inverses, so both are n times it), and m == n is a copy. Even and odd
+     n: the even one has a Nyquist bin, split between +n/2 and -n/2. The
+     split changes nothing ON the grid (both halves land on the same
+     value there); BETWEEN points it is what keeps a real sequence's
+     interpolation real, so the input is real and every output's imaginary
+     part is checked. Sabotage, each red: keep the whole Nyquist bin at
+     +n/2 (the even row's imaginary parts), shift the high half by
+     m - n - 1 (both rows). */
+  {
+    const size_t ns[2] = { 6, 7 };
+    for (int t = 0; t < 2; t++)
+      {
+        const size_t n = ns[t], m = 3 * n;
+        float _Complex x[7], X[7], Q[21], y[21];
+        dp_fft_state_t *f = dp_fft_create (n, -1, 1);
+        dp_fft_state_t *g = dp_fft_create (m, +1, 1);
+        DP_REQUIRE (f && g);
+        for (size_t k = 0; k < n; k++)
+          x[k] = (float)(3 * k * k % 7) - 2.5f; /* X[n/2] = -3 at n = 6 */
+        dp_fft_execute_cf32 (f, x, n, X, n);
+        if (n % 2 == 0)
+          DP_REQUIRE (cabsf (X[n / 2]) > 1.0f); /* the split has work */
+        dp_fft_pad_spectrum (X, n, Q, m);
+        dp_fft_execute_cf32 (g, Q, m, y, m);
+        double err = 0.0;
+        for (size_t k = 0; k < n; k++)
+          err = fmax (err, cabs (y[3 * k] - (float)n * x[k]));
+        DP_CHECK (err < 1e-4);
+        double im = 0.0;
+        for (size_t k = 0; k < m; k++)
+          im = fmax (im, fabs (cimagf (y[k])));
+        DP_CHECK (im < 1e-4);
+        dp_fft_pad_spectrum (X, n, Q, n);
+        DP_CHECK (memcmp (Q, X, n * sizeof *X) == 0);
+        dp_fft_destroy (f);
+        dp_fft_destroy (g);
+      }
+  }
+
   DP_TEST_END ("test_fft_core");
 }

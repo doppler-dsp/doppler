@@ -42,6 +42,29 @@ dp_fft_smooth_floor (size_t n)
   return 0;
 }
 
+void
+dp_fft_pad_spectrum (const float _Complex *p, size_t n, float _Complex *q,
+                     size_t m)
+{
+  if (m == n)
+    {
+      memcpy (q, p, n * sizeof (*q));
+      return;
+    }
+  memset (q, 0, m * sizeof (*q));
+  const size_t h = n / 2;
+  for (size_t k = 0; k <= h; k++)
+    q[k] = p[k];
+  for (size_t k = h + 1; k < n; k++)
+    q[m - n + k] = p[k];
+  if (n % 2 == 0)
+    {
+      /* The Nyquist bin is both +n/2 and -n/2: half to each. */
+      q[h] *= 0.5f;
+      q[m - h] = q[h];
+    }
+}
+
 dp_fft_state_t *
 dp_fft_create (size_t n, int sign, int nthreads)
 {

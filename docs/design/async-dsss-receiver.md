@@ -758,7 +758,7 @@ take a hit.
 ## 6. A receiver in the pool
 
 A pooled `AsyncDsssReceiver` has three states: **idle**, refining and
-tracking (§4). Idle is the reserved state value 3 (`ASYNC_DSSS_RX_RESERVED`,
+tracking (§4). Idle is state value 3 (`ASYNC_DSSS_RX_IDLE`,
 §11.1), the value the pool as built's cell receivers used for the same
 thing. A seed from the controller (`seed()`, §2.2's three fields) starts the
 refine at the seed's sample; a release (§10, with `reacquire`) returns the

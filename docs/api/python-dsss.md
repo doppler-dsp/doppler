@@ -295,7 +295,7 @@ copy of the enum:
 ```pycon
 >>> from doppler.dsss import ASYNC_DSSS_RX_STATE
 >>> ASYNC_DSSS_RX_STATE
-{0: 'searching', 1: 'refining', 2: 'tracking', 3: 'reserved', 4: 'lost'}
+{0: 'searching', 1: 'refining', 2: 'tracking', 3: 'idle', 4: 'lost'}
 
 ```
 

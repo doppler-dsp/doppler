@@ -189,9 +189,9 @@ its rank (`set_rank()`, 0 = the strongest, the default), or nothing that
 dwell. With no exclusions at rank 0 that is the one-peak detector's pick.
 An uncertainty wider than one epoch's span, `±1/(2·T_E)`,
 is covered by the engine's roll across frequency windows, which it fans
-across every online core unless `set_threads()` says otherwise; a pool's
-one search may use every core, since no receiver of the pool runs a search
-of its own (§5). The search is bit-identical at any thread count. What
+across its tiles' worth of online cores unless `set_threads()` says
+otherwise; a pool's one search runs serially (§5). The search is
+bit-identical at any thread count. What
 searching costs is §9.
 
 **Every dwell starts on the block grid of the receiver's own input count.**
@@ -722,9 +722,12 @@ holds the signals of §1.1 on one code.
 - **The controller steps at dwell boundaries.** Its levers, the seeds and
     the exclusions, act at the next dwell, so it runs once a dwell, after
     the search decides; between two boundaries the receivers run the whole
-    segment in parallel, one per worker, and the search spreads its tiles
-    across the cores (§2.3). The result does not depend on the thread count
-    or on how a caller blocks its pushes.
+    segment in parallel, one per worker. The search runs before them,
+    serially: fanning its tiles across the cores cost 1.5× at ±50 kHz and
+    D = 150, 8× one epoch deep, and 1.6× on the pool's scene example
+    (8.1 s serial against 13.0 s; doppler#2744). The
+    result does not depend on the thread count or on how a caller blocks
+    its pushes.
 - **Each receiver makes its code phase and carrier estimate available**,
     through `status()` (§11.3).
 
@@ -759,7 +762,7 @@ take a hit.
 ## 6. A receiver in the pool
 
 A pooled `AsyncDsssReceiver` has three states: **idle**, refining and
-tracking (§4). Idle is the reserved state value 3 (`ASYNC_DSSS_RX_RESERVED`,
+tracking (§4). Idle is state value 3 (`ASYNC_DSSS_RX_IDLE`,
 §11.1), the value the pool as built's cell receivers used for the same
 thing. A seed from the controller (`seed()`, §2.2's three fields) starts the
 refine at the seed's sample; a release (§10, with `reacquire`) returns the

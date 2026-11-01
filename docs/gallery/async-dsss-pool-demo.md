@@ -7,12 +7,12 @@ stream. Four emitters on one Gold code reach it at different times, code phases
 and carriers. A, B and C arrive one after another, B leaves, and D arrives after
 it.
 
-Every receiver searches the whole carrier range for itself. The pool's
-controller only keeps them apart: it gives each searching receiver the code
-phases the others hold, so a search never takes a signal already held, and a
-rank, so two receivers that decide in the same dwell take different signals.
-When a receiver's emitter leaves, its release rule fires, the controller resets
-it, and it searches again.
+The pool's controller runs one search over the whole carrier range while any
+receiver is idle. It leaves out the code phases the receivers hold, so the
+search never takes a signal already held, and seeds each idle receiver from
+its picks, strongest first, so no two receivers take one signal. When a
+receiver's emitter leaves, its release rule fires, the receiver returns to
+idle, and the search seeds it again.
 
 ## What the run shows
 
@@ -20,7 +20,7 @@ it, and it searches again.
     exactly one receiver, and no two receivers hold one signal.
 - **A departure frees a receiver.** After B leaves, its receiver is released
     once both of its lock detectors have stayed down for `lost_confirm_s`, and it
-    searches again.
+    returns to idle for the controller's search to seed again.
 - **The freed receiver takes the newcomer.** D is taken by the receiver B freed,
     without disturbing the two that track A and C.
 
@@ -57,7 +57,7 @@ assert the claims above from the pool's own reports.
     until its release fires.
 1. **Receiver 1 over time** (middle): B's symbols, then the noise it emits
     after B leaves, while its symbol lock is down and before the release, then
-    nothing while it searches, then D's symbols. The symbol lock,
+    nothing while it is idle, then D's symbols. The symbol lock,
     `status().locked`, says when the symbols are a signal's.
 1. **Each receiver's last 600 symbols** (bottom): A, D and C, one BPSK
     constellation each.

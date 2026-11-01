@@ -1087,7 +1087,11 @@ extern "C"
    * >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
    * >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
    * >>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
-   * (0, 17)
+   * (0, 18)
+   * >>> (a.code_bins, a.lag_bins)  # 124 samples, read on 128 columns
+   * (124, 128)
+   * >>> round(18 * a.code_bins / a.lag_bins, 2)  # column 18, in samples
+   * 17.44
    * >>> a.coherent_bins            # no window given: one epoch
    * 1
    * >>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
@@ -1175,8 +1179,8 @@ extern "C"
    * >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
    * >>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream
    * >>> a.reset()                 # drop it before it can bias a detection
-   * >>> a.push(burst)[0][:2]      # (Doppler bin, code phase)
-   * (0, 17)
+   * >>> a.push(burst)[0][:2]      # (Doppler bin, code phase column)
+   * (0, 18)
    *
    * @endcode
    */
@@ -1218,7 +1222,7 @@ extern "C"
    * (1, 4)
    * >>> burst = np.tile(np.roll(s0, 17), 4).astype(np.complex64)
    * >>> a.push(burst)[0][:2]      # detects at the pinned grid
-   * (0, 17)
+   * (0, 18)
    *
    * @endcode
    */
@@ -1341,7 +1345,9 @@ extern "C"
    * cores when it has more than one tile; a burst engine, and a
    * single-tile one, run serially. This sets the count: 0 auto-selects the
    * online core count, 1 runs everything on the calling thread, n runs on
-   * n workers (the caller included). The workers are created here, once,
+   * n workers (the caller included) -- but never more than `window_bins`:
+   * every fan hands out one tile a task, so a worker past that only wakes
+   * and waits. The workers are created here, once,
    * and parked between pushes; nothing is created per push. The surface
    * is bit-identical at every count -- the tiles are independent after the
    * one forward transform and each writes its own rows -- so this changes
@@ -1563,8 +1569,8 @@ extern "C"
    * >>> sc = np.empty(a.surface_rows * a.lag_bins, dtype=np.complex64)
    * >>> a.surface_complex(sc) == sc.size
    * True
-   * >>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's code phase
-   * 17
+   * >>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's lag column
+   * 18
    *
    * @endcode
    */
@@ -1821,8 +1827,8 @@ extern "C"
    * >>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)
    * >>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)
    * ...        * carrier).astype(np.complex64)
-   * >>> a.push(sig)[0][:2]              # (Doppler-window bin, code phase)
-   * (1, 17)
+   * >>> a.push(sig)[0][:2]              # (Doppler-window bin, lag column)
+   * (1, 18)
    *
    * @endcode
    */
@@ -2146,9 +2152,9 @@ extern "C"
    * cell, are lookups: ACQ_SIDELOBE_SLOTS (hit, tile) rows, keyed on the
    * hit's cell and the tile, round-robin when full, and emptied by every
    * regrid (each slot was read on the grid it was filled on). A pick
-   * reads many cells against its few stronger hits, dwell after dwell, and
-   * the pool's scene example runs in 25 s against 54 uncached. The plans,
-   * buffers and cache are made on the first call and kept on @p state.
+   * reads many cells against its few stronger hits, dwell after dwell, so
+   * nearly every read is a lookup. The plans, buffers and cache are made
+   * on the first call and kept on @p state.
    *
    * @param state  The engine both hits came from (non-NULL).
    * @param from   The hit whose emitter's sidelobes are bounded.

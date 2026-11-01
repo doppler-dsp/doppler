@@ -2475,7 +2475,16 @@ dp_acq_set_threads (dp_acq_state_t *st, int n)
   st->threads = 1;
   if (n == 1 || st->window_bins <= 1)
     return DP_OK; /* serial: nothing to fan, or asked not to */
-  st->pool    = dp_pool_create (n);
+  /* Never more workers than tiles: every fan hands out one tile a task, so
+     a worker past window_bins only wakes and waits, every epoch. At 0 (the
+     online cores) on a three-tile search that was 15 idle workers of 18,
+     and the pool's scene example spent 26 s of 35 in the kernel. */
+  long want = n > 0 ? n : dp_cpu_count ();
+  if (want > (long)st->window_bins)
+    want = (long)st->window_bins;
+  if (want <= 1)
+    return DP_OK;
+  st->pool    = dp_pool_create ((int)want);
   st->threads = dp_pool_threads (st->pool);
   return DP_OK;
 }

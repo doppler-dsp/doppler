@@ -592,7 +592,7 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 (1, 4)
 >>> burst = np.tile(np.roll(s0, 17), 4).astype(np.complex64)
 >>> a.push(burst)[0][:2]      # detects at the pinned grid
-(0, 17)
+(0, 18)
 ```
  
 
@@ -807,7 +807,11 @@ Heap-allocated state, or NULL on bad arguments / allocation failure.
 >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
 >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
-(0, 17)
+(0, 18)
+>>> (a.code_bins, a.lag_bins)  # 124 samples, read on 128 columns
+(124, 128)
+>>> round(18 * a.code_bins / a.lag_bins, 2)  # column 18, in samples
+17.44
 >>> a.coherent_bins            # no window given: one epoch
 1
 >>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
@@ -1178,8 +1182,8 @@ Number of events written (0 … max\_results).
 >>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)
 >>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)
 ...        * carrier).astype(np.complex64)
->>> a.push(sig)[0][:2]              # (Doppler-window bin, code phase)
-(1, 17)
+>>> a.push(sig)[0][:2]              # (Doppler-window bin, lag column)
+(1, 18)
 ```
  
 
@@ -1343,8 +1347,8 @@ Discards any buffered samples that have not yet completed a frame and clears the
 >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream
 >>> a.reset()                 # drop it before it can bias a detection
->>> a.push(burst)[0][:2]      # (Doppler bin, code phase)
-(0, 17)
+>>> a.push(burst)[0][:2]      # (Doppler bin, code phase column)
+(0, 18)
 ```
  
 
@@ -1704,7 +1708,7 @@ int dp_acq_set_threads (
 
 
 
-A continuous engine is created with a pool of the machine's online cores when it has more than one tile; a burst engine, and a single-tile one, run serially. This sets the count: 0 auto-selects the online core count, 1 runs everything on the calling thread, n runs on n workers (the caller included). The workers are created here, once, and parked between pushes; nothing is created per push. The surface is bit-identical at every count  the tiles are independent after the one forward transform and each writes its own rows  so this changes the cost of a push and nothing about its result. Setup path, never hot; not while another thread is inside push().
+A continuous engine is created with a pool of the machine's online cores when it has more than one tile; a burst engine, and a single-tile one, run serially. This sets the count: 0 auto-selects the online core count, 1 runs everything on the calling thread, n runs on n workers (the caller included)  but never more than `window_bins`: every fan hands out one tile a task, so a worker past that only wakes and waits. The workers are created here, once, and parked between pushes; nothing is created per push. The surface is bit-identical at every count  the tiles are independent after the one forward transform and each writes its own rows  so this changes the cost of a push and nothing about its result. Setup path, never hot; not while another thread is inside push().
 
 
 
@@ -1773,7 +1777,7 @@ One emitter puts its code's cross-ambiguity on every cell of the surface. This c
 The cell's fast-time mixing frequency is its tile's centre (a multiple of the epoch rate, chip\_rate / sf; DC on a single-tile engine): within a tile the slow-time transform only lowers a sidelobe that sits off the emitter's own row, and no credit is taken for that. The value is a SAMPLED maximum, not a proven bound: the cross-ambiguity varies on a one-sample scale, and between the five lag and nine Doppler points it reads, it can sit higher than any of them. What holds it is measurement: native/validation/acq\_emitter\_floor.c holds every cell of a clean emitter's tile and the two beside it under it, on the scale rule 2 uses (the emitter's statistic on its own lag): least margin +0.61 dB over 6,129 cells, on the Gold-1023 floor. With a data transition inside the epoch it does not bound the surface (a cell reads 20.4 dB above it: the model is one clean period, doppler#2734), and async\_dsss\_near\_far.c takes no sidelobe over the operating range, where the gate covers that. It is the code's worst sidelobe ([**dp\_acq\_dsl\_db()**](acq__core_8h.md#function-dp_acq_dsl_db)) only at the worst cells: most cells sit well below it, which is the room a weak emitter beside a strong one needs. Times `from's` statistic on its own lag ([**acq\_result\_t::test\_stat\_peak**](structacq__result__t.md#variable-test_stat_peak)), it is the statistic `from's` sidelobe can read at `to`.
 
 
-Cost: the first read against a hit, in a tile, sweeps that hit's whole row there: 5 inverse transforms of code\_bins (the lag points), then per lag and Doppler point one forward of code\_bins and one inverse of lag\_bins (45), every complex exponential a resynced recurrence. Every column is kept, so later reads against the same hit and tile, any cell, are lookups: ACQ\_SIDELOBE\_SLOTS (hit, tile) rows, keyed on the hit's cell and the tile, round-robin when full, and emptied by every regrid (each slot was read on the grid it was filled on). A pick reads many cells against its few stronger hits, dwell after dwell, and the pool's scene example runs in 25 s against 54 uncached. The plans, buffers and cache are made on the first call and kept on `state`.
+Cost: the first read against a hit, in a tile, sweeps that hit's whole row there: 5 inverse transforms of code\_bins (the lag points), then per lag and Doppler point one forward of code\_bins and one inverse of lag\_bins (45), every complex exponential a resynced recurrence. Every column is kept, so later reads against the same hit and tile, any cell, are lookups: ACQ\_SIDELOBE\_SLOTS (hit, tile) rows, keyed on the hit's cell and the tile, round-robin when full, and emptied by every regrid (each slot was read on the grid it was filled on). A pick reads many cells against its few stronger hits, dwell after dwell, so nearly every read is a lookup. The plans, buffers and cache are made on the first call and kept on `state`.
 
 
 
@@ -1995,8 +1999,8 @@ Cells written (`surface_rows * lag_bins`), or 0 when no dwell has been decided, 
 >>> sc = np.empty(a.surface_rows * a.lag_bins, dtype=np.complex64)
 >>> a.surface_complex(sc) == sc.size
 True
->>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's code phase
-17
+>>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's lag column
+18
 ```
  
 

@@ -228,7 +228,8 @@ Python: the only probes it carries are its AGC's, and the receiver that builds
 it reports them, as `MpskReceiver`'s `.agc.*`.
 
 `AsyncDsssReceiver`'s `.state` is its lifecycle as the C integer: 0
-searching, 1 refining, 2 tracking, 4 lost (3 is reserved). `.handover_hz` is the
+searching, 1 refining, 2 tracking, 3 idle (a pooled receiver holding
+nothing), 4 lost. `.handover_hz` is the
 Doppler its chain was built from, not the live carrier, which
 `status().doppler_hz` reads; `.car.freq` and `.car.nco` are the carrier
 loop's own view of it in cycles a sample at the input rate. The

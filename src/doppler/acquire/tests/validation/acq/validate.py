@@ -484,7 +484,7 @@ def _sec_modes(d: Data) -> None:
             "continuous, no uncertainty",
             Acquisition(
                 code,
-                spc=SPC,
+                sample_rate=SPC * CHIP_RATE,
                 chip_rate=CHIP_RATE,
                 symbol_rate=2000.0,
                 cn0_dbhz=70.0,
@@ -495,7 +495,7 @@ def _sec_modes(d: Data) -> None:
             "continuous, wide uncertainty",
             Acquisition(
                 code,
-                spc=SPC,
+                sample_rate=SPC * CHIP_RATE,
                 chip_rate=CHIP_RATE,
                 symbol_rate=2000.0,
                 cn0_dbhz=70.0,
@@ -524,7 +524,7 @@ def _sec_modes(d: Data) -> None:
     d.burst_uses_coherent = strong.doppler_bins < weak.doppler_bins
     cont = Acquisition(
         code,
-        spc=SPC,
+        sample_rate=SPC * CHIP_RATE,
         chip_rate=CHIP_RATE,
         symbol_rate=2000.0,
         cn0_dbhz=70.0,

@@ -36,9 +36,10 @@ PD = 0.9
 CN0_DBHZ = 50.0  # comfortably powered (not underpowered) at doppler_bins=1
 
 
-def _acq(**kw):
-    kw.setdefault("spc", SPC)
+def _acq(spc=SPC, **kw):
+    # Samples a chip is the caller's sample rate over the chip rate.
     kw.setdefault("chip_rate", CHIP_RATE)
+    kw.setdefault("sample_rate", kw["chip_rate"] * spc)
     kw.setdefault("symbol_rate", 1000.0)
     kw.setdefault("cn0_dbhz", CN0_DBHZ)
     kw.setdefault("doppler_uncertainty", 0.0)
@@ -331,7 +332,12 @@ def test_carrier_and_prior_refusals_are_raised():
     from doppler.wfm import Gold
 
     code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-    kw = {"spc": 2, "chip_rate": 5e6, "symbol_rate": 2700.0, "cn0_dbhz": 45.0}
+    kw = {
+        "sample_rate": 2 * 5e6,
+        "chip_rate": 5e6,
+        "symbol_rate": 2700.0,
+        "cn0_dbhz": 45.0,
+    }
     a = Acquisition(code, doppler_uncertainty=50e3, **kw)
     a.set_carrier_freq_hz(2.5e9)
     with pytest.raises(ValueError, match="set_carrier_freq_hz failed"):

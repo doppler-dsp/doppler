@@ -166,6 +166,7 @@ dp_acq_destroy function
 dp_acq_dsl_db function
 dp_acq_gate_stat function
 dp_acq_get_state function
+dp_acq_period_samples function
 dp_acq_position function
 dp_acq_psl_db function
 dp_acq_push function

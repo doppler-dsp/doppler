@@ -421,7 +421,8 @@ extern "C"
                              epoch, the continuous engine's default.        */
     size_t window_bins; /**< Wideband frequency-window hypotheses (1 =
                               disabled/native — see the file doc comment).   */
-    size_t code_bins; /**< One segment in samples = sf*spc.                 */
+    size_t code_bins; /**< One code period in samples, fs * sf / chip_rate:
+                           the length of every fast-time transform.      */
     size_t n; /**< NATIVE grid size in samples: coherent_bins * window_bins *
                    code_bins (both may exceed 1: D rows inside each tile).
                    This is the INPUT frame and the count of statistically
@@ -444,7 +445,6 @@ extern "C"
                           epoch's worth — window_bins hypotheses come from
                           ONE shared epoch, not from consuming more input).  */
     size_t sf;      /**< Chips per PN segment (= len(code)).              */
-    size_t spc;     /**< Samples per chip (chip-rate oversample factor).  */
     acq_shape_t shape; /**< The preamble's correlation shape (zone, delay
                             straddle); config, filled by the constructor. */
     size_t reps;    /**< Max coherent code repetitions (the ceiling); always
@@ -459,7 +459,7 @@ extern "C"
     det_noise_mode_t noise_mode; /**< CFAR aggregation mode. */
 
     double chip_rate; /**< Chip rate (Hz).                               */
-    double fs;        /**< Sample rate (Hz) = chip_rate * spc.           */
+    double fs;        /**< Sample rate (Hz) = chip_rate * code_bins / sf. */
     double cn0_dbhz;  /**< Design C/N0 the search is sized for (dB-Hz);
                            NaN (ACQ_CN0_NONE) means none was given.     */
     double
@@ -900,6 +900,25 @@ extern "C"
                                  size_t rate_hypotheses);
 
   /**
+   * @brief The samples one code period should be searched at: the smallest
+   *        power of two that holds at least two samples a chip.
+   *
+   * The search's fast-time transform is one code period long, so its
+   * length decides its speed: 2 * 1023 = 2,046 = 2 * 3 * 11 * 31 runs 5x
+   * slower than 2,048 (docs/design/async-dsss-receiver.md). An object that
+   * resamples its input for the search resamples to
+   * `chip_rate * dp_acq_period_samples(code_len) / code_len`, and builds
+   * the engine at that rate. Two samples a chip is the least a code loop's
+   * early and late taps need.
+   *
+   * @param code_len Chips in one code period (>= 1).
+   * @return The period in samples, a power of two: 2048 for 1023 or 1024
+   *         chips, 64 for 31; 0 for @p code_len 0 or one whose period would
+   *         not fit a size_t.
+   */
+  size_t dp_acq_period_samples (size_t code_len);
+
+  /**
    * @brief Create a continuous-mode acquisition engine: always wideband
    *        window-tiling, allowing a block-coherent depth inside the
    *        tiles to accommodate waveforms with code-only windows.
@@ -925,7 +944,16 @@ extern "C"
    *
    * @param code        PN chips (0/1), length @p code_len.
    * @param code_len    Number of chips supplied (= sf, the spreading factor).
-   * @param spc         Samples per chip (>= 1).
+   * @param sample_rate The rate of the samples pushed, Hz. One code period
+   *                    is then `n = sample_rate * code_len / chip_rate`
+   *                    samples, which must be a whole number of at least
+   *                    @p code_len: the search's transforms are n points
+   *                    long, so a smooth n (a power of two,
+   *                    dp_acq_period_samples()) is what makes them fast.
+   *                    When n is a multiple of @p code_len each chip is held
+   *                    n / code_len samples; otherwise each sample takes the
+   *                    chip its centre falls in, and the correlation shape
+   *                    is measured from that replica.
    * @param chip_rate   Chip rate in Hz (> 0).
    * @param symbol_rate Continuous data-symbol rate in Hz; <= 0 means no
    *                    known clock. Diagnostic only (exposed via
@@ -958,12 +986,12 @@ extern "C"
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
    * >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
-   * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
    * >>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
    * (0, 17)
    * >>> a.coherent_bins            # no window given: one epoch
    * 1
-   * >>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+   * >>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
    * ...                 code_only_epochs=7)
    * >>> b.coherent_bins            # (7 + 1) // 2: a whole block fits
    * 4
@@ -971,7 +999,7 @@ extern "C"
    * @endcode
    */
   dp_acq_state_t *dp_acq_create_continuous (const uint8_t *code, size_t code_len,
-                                      size_t spc, double chip_rate,
+                                      double sample_rate, double chip_rate,
                                       double symbol_rate, double cn0_dbhz,
                                       double doppler_uncertainty, double pfa,
                                       double pd, int noise_mode,
@@ -1045,7 +1073,7 @@ extern "C"
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
    * >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
-   * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
    * >>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream
    * >>> a.reset()                 # drop it before it can bias a detection
    * >>> a.push(burst)[0][:2]      # (Doppler bin, code phase)
@@ -1085,7 +1113,7 @@ extern "C"
    * ...                      length=5).generate(31)).astype(np.uint8)
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
-   * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
    * >>> a.configure_search_raw(doppler_bins=1, n_noncoh=4)  # pin the grid
    * >>> a.doppler_bins, a.n_noncoh
    * (1, 4)
@@ -1124,7 +1152,7 @@ extern "C"
    * >>> import numpy as np
    * >>> from doppler.acquire import Acquisition
    * >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
-   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,
+   * >>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, symbol_rate=1e3,
    * ...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
    * >>> a.max_peaks
    * 1
@@ -1169,7 +1197,7 @@ extern "C"
    * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
-   * >>> a = Acquisition(code, spc=2, chip_rate=5e6, symbol_rate=2700.0,
+   * >>> a = Acquisition(code, sample_rate=1e7, chip_rate=5e6, symbol_rate=2700.0,
    * ...                 cn0_dbhz=45.0, doppler_uncertainty=50e3)
    * >>> a.carrier_freq_hz
    * 0.0
@@ -1230,7 +1258,7 @@ extern "C"
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
-   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,
+   * >>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0,
    * ...                 doppler_uncertainty=4000.0)
    * >>> a.threads >= 1               # a pool, sized to the machine
    * True
@@ -1284,7 +1312,7 @@ extern "C"
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
-   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
    * >>> tlm = Telemetry(1 << 12)
    * >>> a.set_telemetry(tlm, "acq")
    * >>> sorted(tlm.probe_names)[:3]
@@ -1324,7 +1352,7 @@ extern "C"
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
-   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
    * >>> a.keep_surface = 1
    * >>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)
    * >>> _ = a.push(x)
@@ -1356,7 +1384,7 @@ extern "C"
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
-   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,
+   * >>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0,
    * ...                 doppler_uncertainty=4000.0)
    * >>> f = np.empty(a.surface_rows, dtype=np.float64)
    * >>> a.surface_doppler_hz(f) == a.surface_rows
@@ -1386,7 +1414,7 @@ extern "C"
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
-   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
    * >>> c = np.empty(a.code_bins, dtype=np.float64)
    * >>> a.surface_chip_phase(c) == a.code_bins
    * True
@@ -1427,7 +1455,7 @@ extern "C"
    * ...                      length=5).generate(31)).astype(np.uint8)
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
-   * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=70.0)
+   * >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=70.0)
    * >>> a.n_noncoh                 # one look: the dwell is the coherent dump
    * 1
    * >>> _ = a.push(np.roll(s0, 17).astype(np.complex64))
@@ -1546,7 +1574,7 @@ extern "C"
    * ...                      length=5).generate(31)).astype(np.uint8)
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
-   * >>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,
+   * >>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=60.0,
    * ...                 doppler_uncertainty=40e3, code_only_epochs=7)
    * >>> b.coherent_bins                    # (7 + 1) // 2
    * 4
@@ -1593,7 +1621,7 @@ extern "C"
    * ...                      length=5).generate(31)).astype(np.uint8)
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
-   * >>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,
+   * >>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=60.0,
    * ...                 doppler_uncertainty=40e3, code_only_epochs=7)
    * >>> blk = np.tile(np.roll(s0, 17), b.coherent_bins).astype(np.complex64)
    * >>> _ = b.push(blk)
@@ -1685,7 +1713,7 @@ extern "C"
    * ...                      length=5).generate(31)).astype(np.uint8)
    * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
    * ...     np.complex64)
-   * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+   * >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
    * ...                 doppler_uncertainty=40e3)
    * >>> fs = 1e6 * 4                    # sample rate = chip_rate * spc
    * >>> t = np.arange(a.code_bins * a.n_noncoh)
@@ -1894,8 +1922,8 @@ extern "C"
    *   dp_gold_generate (g, 1023, code, 1023); // the specification Gold-1023 code
    *   dp_gold_destroy (g);
    *   dp_acq_state_t *a = dp_acq_create_continuous (
-   *       code, 1023, 2, 3.069e6, 2700.0, 47.0, 5000.0, 1e-3, 0.9, 0, 1,
-   *       0.0);
+   *       code, 1023, 2 * 3.069e6, 3.069e6, 2700.0, 47.0, 5000.0, 1e-3, 0.9,
+   *       0, 1, 0.0);
    *   printf ("%.1f %.1f\n", dp_acq_psl_db (a), dp_acq_dsl_db (a));
    *   // -23.9 -16.9
    *   dp_acq_destroy (a);
@@ -1956,13 +1984,16 @@ extern "C"
    * @param state    The engine @p hit came from (non-NULL, built via
    *                 dp_acq_create_continuous()).
    * @param hit      One hit from dp_acq_push() (non-NULL).
-   * @param code_len Spreading-code length (chips) — the same value passed
-   *                 to whichever acq_create_*() built @p state.
-   * @param spc      Samples/chip — likewise.
+   * @param code_len Spreading-code length (chips): a hit's lag, in samples
+   *                 of the engine's `code_bins`-sample period, becomes a
+   *                 phase in these units (`code_len / code_bins` chips a
+   *                 sample). For a code engine it is the code's length; a
+   *                 burst engine built from a code held k samples a chip
+   *                 passes the code's length too.
    * @param out      Written on return (non-NULL).
    */
   void dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
-                          size_t code_len, size_t spc, acq_handoff_t *out);
+                          size_t code_len, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
    * ─────────────────

@@ -939,7 +939,7 @@ adr_pick (const dp_async_dsss_receiver_state_t *s, const acq_result_t *hits,
   for (size_t i = 0; i < n_hits; i++)
     {
       acq_handoff_t ho;
-      dp_acq_build_handoff (s->acq, &hits[i], s->code_len, s->spc, &ho);
+      dp_acq_build_handoff (s->acq, &hits[i], s->code_len, &ho);
       int drop = 0;
       for (size_t j = 0; j < n_seen && !drop; j++)
         drop = adr_same_code_phase (ho.chip_phase, seen[j], s->code_len);
@@ -1051,9 +1051,9 @@ dp_async_dsss_receiver_create (
   /* The searcher checks its own domain (pfa, pd, C/N0 ...), so its refusal
      is this create's, not an abort under dp_xnn (doppler#2103). */
   obj->acq = dp_acq_create_continuous (
-      obj->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, code_only_epochs,
-      doppler_rate);
+      obj->code, code_len, chip_rate * (double)spc, chip_rate, symbol_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */,
+      code_only_epochs, doppler_rate);
   if (!obj->acq)
     {
       free (obj->code);

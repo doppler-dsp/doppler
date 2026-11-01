@@ -52,10 +52,10 @@ acq_cn0_dbhz_from_amp_snr (float amp_snr, double fs)
  * mapping, kept in one place so the surface axis and the hand-off cannot
  * drift apart. */
 static inline double
-acq_chip_phase_of_col (size_t col, size_t code_len, size_t spc)
+acq_chip_phase_of_col (size_t col, size_t code_len, size_t code_bins)
 {
   const double cl = (double)code_len;
-  return dp_fmod_pos (cl - (double)col / (double)spc, cl);
+  return dp_fmod_pos (cl - (double)col * cl / (double)code_bins, cl);
 }
 
 /* The chip phase a hit seeds a code loop with, in Dll's convention: the
@@ -71,9 +71,10 @@ acq_chip_phase_of_col (size_t col, size_t code_len, size_t spc)
  * is no drift to advance by, so the phase is the inverted lag alone. */
 static double
 acq_handoff_chip_phase (const dp_acq_state_t *state, size_t doppler_bin,
-                        size_t code_phase, size_t code_len, size_t spc)
+                        size_t code_phase, size_t code_len)
 {
-  double phase = acq_chip_phase_of_col (code_phase, code_len, spc);
+  double phase
+      = acq_chip_phase_of_col (code_phase, code_len, state->code_bins);
   if (state->carrier_freq_hz > 0.0)
     {
       const double doppler_hz  = acq_bin_doppler_hz (state, doppler_bin);
@@ -152,7 +153,8 @@ acq_band_cells (size_t D, size_t sb, size_t window_bins, size_t cb)
  * a bin was undetectable at ANY C/N0 (gh-1002).
  *
  * WHAT IS PADDED IS THE SLOW-TIME TRANSFORM, NOT THE CODE. The code axis
- * (`code_bins = sf*spc`) is untouched: corr2d's correlation along it is
+ * (`code_bins`, one code period in samples) is untouched: corr2d's
+ * correlation along it is
  * CIRCULAR, so zero-padding the replica or the epoch in time would not be an
  * interpolation at all -- it would change the correlation being computed
  * (corr2d's own header states this: the forward FFT2 must stay at the
@@ -756,7 +758,7 @@ acq_report_peaks (dp_acq_state_t *st, const float *surf,
         .test_stat        = stat,
         .cn0_dbhz_est     = acq_cn0_dbhz_from_amp_snr (amp_snr, st->fs),
         .samples_consumed = st->samples_consumed,
-        .chip_phase       = acq_handoff_chip_phase (st, r, c, st->sf, st->spc),
+        .chip_phase       = acq_handoff_chip_phase (st, r, c, st->sf),
         .doppler_rate_hz_s
         = acq_rate_count (st) > 1
               ? acq_rate_of (st->doppler_rate, st->rate_hyps, st->rate_best_h)
@@ -2042,13 +2044,13 @@ acq_auto_rate_hypotheses (dp_acq_state_t *st, double pfa, double pd,
  * public entry points, each fixing @p reps/@p symbol_rate/`continuous` to its
  * own mode, never a per-call knob (see the file doc comment).
  *
- * It knows the waveform only as one period of @p replica (`sf * spc`
- * samples) and its correlation @p shape: the unit the rates are counted in
- * is a chip for a code, and the arithmetic is the same whatever that unit
- * is. */
+ * It knows the waveform only as one period of @p replica (@p n_period
+ * samples, sf chips) and its correlation @p shape: the unit the rates are
+ * counted in is a chip for a code, and the arithmetic is the same whatever
+ * that unit is. */
 static dp_acq_state_t *
 acq_acq_create_impl (const float _Complex *replica, size_t sf,
-                     const acq_shape_t *shape, size_t reps, size_t spc,
+                     const acq_shape_t *shape, size_t reps, size_t n_period,
                      double chip_rate, double symbol_rate, double cn0_dbhz,
                      double doppler_uncertainty, double pfa, double pd,
                      int noise_mode, int continuous, size_t code_only_epochs,
@@ -2069,7 +2071,7 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
    * instead of being an out-of-range error. It must be finite, though: a
    * NaN or an infinity reached the searched-bin and window counts through
    * a float-to-size conversion (doppler#2103). */
-  if (!replica || sf < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
+  if (!replica || sf < 1 || n_period < sf || reps < 1 || !(chip_rate > 0.0)
       || !(isfinite (cn0_dbhz) || (!continuous && isnan (cn0_dbhz)))
       || !(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0)
       || !(doppler_uncertainty >= 0.0 && isfinite (doppler_uncertainty))
@@ -2083,13 +2085,12 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
     return NULL;
 
   st->sf    = sf;
-  st->spc   = spc;
   st->shape = *shape;
-  acq_off_peak (replica, sf * spc, &st->shape);
+  acq_off_peak (replica, n_period, &st->shape);
   st->reps                = reps;
-  st->code_bins           = sf * spc;
+  st->code_bins           = n_period;
   st->chip_rate           = chip_rate;
-  st->fs                  = chip_rate * (double)spc;
+  st->fs                  = chip_rate * (double)n_period / (double)sf;
   st->cn0_dbhz            = cn0_dbhz;
   st->doppler_span_hz     = span;
   st->pd                  = pd;
@@ -2148,46 +2149,91 @@ fail:
   return NULL;
 }
 
-/* A PN code as the builder's waveform: one period of oversampled BPSK
- * (chip 0 -> +1, chip 1 -> -1, each held for `spc` samples) and the
- * triangle's shape. sf is the code length. The CONTINUOUS engine's only:
- * a burst engine takes its preamble as samples (dp_acq_create_burst()). */
+/* A PN code as the builder's waveform: one period of BPSK (chip 0 -> +1,
+ * chip 1 -> -1) over @p n_period samples, and its correlation shape. sf is
+ * the code length. The CONTINUOUS engine's only: a burst engine takes its
+ * preamble as samples (dp_acq_create_burst()).
+ *
+ * A whole number of samples a chip holds each chip that many samples and
+ * takes the triangle's analytic shape, exactly as an integer oversample
+ * always has. Any other period gives each sample the chip its centre falls
+ * in, `floor((k + 1/2) * code_len / n_period)`, which is what sampling the
+ * chip waveform at that rate yields; its chips are then not all the same
+ * length, so the shape is measured from the replica itself
+ * (acq_shape_of_template()), as a burst engine's is. */
 static dp_acq_state_t *
 acq_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
-                       size_t spc, double chip_rate, double symbol_rate,
+                       size_t n_period, double chip_rate, double symbol_rate,
                        double cn0_dbhz, double doppler_uncertainty, double pfa,
                        double pd, int noise_mode, int continuous,
                        size_t code_only_epochs, double doppler_rate)
 {
-  if (!code || code_len < 1 || spc < 1)
+  if (!code || code_len < 1 || n_period < code_len)
     return NULL;
   float _Complex *replica
-      = (float _Complex *)dp_xmalloc (code_len * spc * sizeof *replica);
-  for (size_t c = 0; c < code_len; c++)
+      = (float _Complex *)dp_xmalloc (n_period * sizeof *replica);
+  for (size_t k = 0; k < n_period; k++)
     {
-      float sign = (code[c] & 1u) ? -1.0f : 1.0f;
-      for (size_t s = 0; s < spc; s++)
-        replica[c * spc + s] = sign;
+      const size_t c
+          = (size_t)(((double)k + 0.5) * (double)code_len / (double)n_period);
+      replica[k] = (code[c < code_len ? c : code_len - 1] & 1u) ? -1.0f : 1.0f;
     }
-  const acq_shape_t shape = acq_shape_of_chips (spc);
-  dp_acq_state_t   *st    = acq_acq_create_impl (
-      replica, code_len, &shape, reps, spc, chip_rate, symbol_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, noise_mode, continuous, code_only_epochs,
-      doppler_rate, /* rate_hypotheses= */ 1);
+  acq_shape_t shape;
+  if (n_period % code_len == 0)
+    shape = acq_shape_of_chips (n_period / code_len);
+  else
+    acq_shape_of_template (replica, n_period, &shape);
+  dp_acq_state_t *st = acq_acq_create_impl (
+      replica, code_len, &shape, reps, n_period, chip_rate, symbol_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, continuous,
+      code_only_epochs, doppler_rate, /* rate_hypotheses= */ 1);
   free (replica);
   return st;
 }
 
-dp_acq_state_t *
-dp_acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
-                          double chip_rate, double symbol_rate,
-                          double cn0_dbhz, double doppler_uncertainty,
-                          double pfa, double pd, int noise_mode,
-                          size_t code_only_epochs, double doppler_rate)
+size_t
+dp_acq_period_samples (size_t code_len)
 {
+  if (code_len == 0 || code_len > SIZE_MAX / 4)
+    return 0;
+  size_t n = 1;
+  while (n < 2 * code_len)
+    n <<= 1;
+  return n;
+}
+
+/* The samples one period of a code_len-chip code spans at sample_rate, or
+   0 when that is not a whole number (to a part in 1e9) of at least
+   code_len: the search's transforms are that long, and a fractional period
+   has no grid to correlate on. */
+static size_t
+acq_period_at (size_t code_len, double sample_rate, double chip_rate)
+{
+  if (code_len < 1 || !(sample_rate > 0.0) || !isfinite (sample_rate)
+      || !(chip_rate > 0.0) || !isfinite (chip_rate))
+    return 0;
+  const double n = sample_rate * (double)code_len / chip_rate;
+  const double r = nearbyint (n);
+  if (!(r >= (double)code_len) || r > (double)(SIZE_MAX / 2)
+      || fabs (n - r) > 1e-9 * r)
+    return 0;
+  return (size_t)r;
+}
+
+dp_acq_state_t *
+dp_acq_create_continuous (const uint8_t *code, size_t code_len,
+                          double sample_rate, double chip_rate,
+                          double symbol_rate, double cn0_dbhz,
+                          double doppler_uncertainty, double pfa, double pd,
+                          int noise_mode, size_t code_only_epochs,
+                          double doppler_rate)
+{
+  const size_t n_period = acq_period_at (code_len, sample_rate, chip_rate);
+  if (n_period == 0)
+    return NULL;
   return acq_create_from_chips (
-      code, code_len, /* reps= */ 1, spc, chip_rate, symbol_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, noise_mode,
+      code, code_len, /* reps= */ 1, n_period, chip_rate, symbol_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
       /* continuous= */ 1, code_only_epochs, doppler_rate);
 }
 
@@ -2221,9 +2267,9 @@ dp_acq_create_burst (const float _Complex *tmpl, size_t n, size_t reps,
 
   acq_shape_t shape;
   acq_shape_of_template (replica, n, &shape);
-  /* One chip = one sample: sf = n, spc = 1, chip_rate = fs. */
+  /* One chip = one sample: sf = n, a period of n samples, chip_rate = fs. */
   dp_acq_state_t *st = acq_acq_create_impl (
-      replica, n, &shape, reps, /* spc= */ 1, fs, /* symbol_rate= */ 0.0,
+      replica, n, &shape, reps, /* n_period= */ n, fs, /* symbol_rate= */ 0.0,
       cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
       /* continuous= */ 0, 1, doppler_rate, rate_hypotheses);
   free (replica);
@@ -2699,7 +2745,7 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
            * "negative" row correctly represents a negative-frequency
            * roll instead of silently aliasing back into the positive
            * side (window_bins is always << nx: window_bins tiles the
-           * requested uncertainty, nx = sf*spc is the full code
+           * requested uncertainty, nx = code_bins is the full code
            * length). */
           dp_fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec, nx);
           const size_t D   = st->coherent_bins;
@@ -2840,14 +2886,14 @@ dp_acq_dsl_db (dp_acq_state_t *state)
 
 void
 dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
-                      size_t code_len, size_t spc, acq_handoff_t *out)
+                      size_t code_len, acq_handoff_t *out)
 {
   /* Shared with the wideband search's own row->roll mapping — see
      dp_fftfreq_index()'s doc comment for the sign inversion that a second,
      drifted copy of this formula used to cause here. */
   double doppler_hz = acq_bin_doppler_hz (state, hit->doppler_bin);
   double phase      = acq_handoff_chip_phase (state, hit->doppler_bin,
-                                              hit->code_phase, code_len, spc);
+                                              hit->code_phase, code_len);
 
   *out = (acq_handoff_t){
     .samples_consumed = hit->samples_consumed,
@@ -2942,7 +2988,7 @@ dp_acq_surface_chip_phase (dp_acq_state_t *state, double *out, size_t n_out)
   if (n_out < cols)
     return 0;
   for (size_t c = 0; c < cols; c++)
-    out[c] = acq_chip_phase_of_col (c, state->sf, state->spc);
+    out[c] = acq_chip_phase_of_col (c, state->sf, state->code_bins);
   return cols;
 }
 size_t

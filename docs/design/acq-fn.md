@@ -102,7 +102,7 @@ main (void)
                                 double, double, double, double, double, int,
                                 double, size_t)
       = dp_acq_create_burst;
-  dp_acq_state_t *(*create_cont) (const uint8_t *, size_t, size_t, double,
+  dp_acq_state_t *(*create_cont) (const uint8_t *, size_t, double, double,
                                double, double, double, double, double, int,
                                size_t, double)
       = dp_acq_create_continuous;

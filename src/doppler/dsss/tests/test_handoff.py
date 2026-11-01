@@ -33,7 +33,7 @@ def _search(x, carrier_hz):
         warnings.simplefilter("ignore", UserWarning)
         acq = Acquisition(
             _h.CODE,
-            spc=SPC,
+            sample_rate=SPC * _h.CHIP_RATE,
             chip_rate=_h.CHIP_RATE,
             cn0_dbhz=55.0,
             doppler_uncertainty=100e3,

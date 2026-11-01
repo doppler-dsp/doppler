@@ -138,8 +138,8 @@ engine_open (const uint8_t *code, double chip_rate, size_t epochs, double pfa)
 {
   size_t          W = epochs ? epochs : code_only_epochs_for (chip_rate);
   dp_acq_state_t *a = dp_acq_create_continuous (
-      code, SF, SPC, chip_rate, SYMBOL_RATE, SIZING_CN0, DU, pfa, PD, 0, W,
-      epochs ? 0.0 : RATE);
+      code, SF, chip_rate * (double)SPC, chip_rate, SYMBOL_RATE, SIZING_CN0,
+      DU, pfa, PD, 0, W, epochs ? 0.0 : RATE);
   if (a)
     a->keep_surface = 1;
   return a;
@@ -377,11 +377,11 @@ measure_dilated (const uint8_t *code, dp_acq_state_t *a, double ppm,
                                              .code_phase  = a->peak_col };
   acq_handoff_t ho;
   DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
-  dp_acq_build_handoff (a, &h, SF, SPC, &ho);
+  dp_acq_build_handoff (a, &h, SF, &ho);
   out->doppler_hz_est = ho.doppler_hz_est;
   out->chip_raw       = ho.chip_phase;
   DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
-  dp_acq_build_handoff (a, &h, SF, SPC, &ho);
+  dp_acq_build_handoff (a, &h, SF, &ho);
   out->chip_adv = ho.chip_phase;
   DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
   free (s);
@@ -438,7 +438,7 @@ measure_edge (const uint8_t *code, dp_acq_state_t *a, double hz,
       for (size_t h = 0; h < nh; h++)
         {
           acq_handoff_t ho;
-          dp_acq_build_handoff (a, &hit[h], SF, SPC, &ho);
+          dp_acq_build_handoff (a, &hit[h], SF, &ho);
           const double err = fabs (ho.doppler_hz_est - hz);
           (*n_hits)++;
           if (err > 0.5 * span)

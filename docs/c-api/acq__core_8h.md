@@ -102,12 +102,14 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  double \_Complex | [**dp\_acq\_rate\_phasor**](#function-dp_acq_rate_phasor) (double rate, double t) <br>_The de-chirp phasor_ `exp(-j*pi*rate*t^2)` _for a rate in Hz/s at time_`t` _seconds from the block's middle._ |
 |  void | [**dp\_acq\_reset**](#function-dp_acq_reset) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Drain the input ring and reset the coherent accumulator._  |
 |  size\_t | [**dp\_acq\_run**](#function-dp_acq_run) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const void \* state\_in, void \* state\_out, const float \_Complex \* in, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._ |
+|  size\_t | [**dp\_acq\_search\_period**](#function-dp_acq_search_period) (size\_t code\_len, double sample\_rate, double chip\_rate) <br>_The samples one code period is searched at, for a caller feeding_ `sample_rate:` _its own period when that is already fast, else_[_**dp\_acq\_period\_samples()**_](acq__core_8h.md#function-dp_acq_period_samples) _._ |
 |  int | [**dp\_acq\_set\_carrier\_freq\_hz**](#function-dp_acq_set_carrier_freq_hz) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, double carrier\_freq\_hz) <br>_Couple the code clock to the carrier: the chip rate dilates by_ `doppler_hz / carrier_freq_hz` _, and the engine accounts for it._ |
 |  int | [**dp\_acq\_set\_max\_peaks**](#function-dp_acq_set_max_peaks) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
 |  int | [**dp\_acq\_set\_state**](#function-dp_acq_set_state) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const void \* blob) <br>_Restore cross-call state from_ `blob` _into_`state` _(replacing it)._ |
 |  void | [**dp\_acq\_set\_surface\_sink**](#function-dp_acq_set_surface_sink) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, [**acq\_surface\_sink\_fn**](acq__core_8h.md#typedef-acq_surface_sink_fn) fn, void \* ctx, uint32\_t decim) <br>_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (design §2.4)._ |
 |  int | [**dp\_acq\_set\_telemetry**](#function-dp_acq_set_telemetry) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the engine's probes on it (design §2.4)._  |
 |  int | [**dp\_acq\_set\_threads**](#function-dp_acq_set_threads) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, int n) <br>_Set how many threads the searcher fans its tiles across (design §2.3: a roll per thread on persistent workers)._  |
+|  double | [**dp\_acq\_sidelobe\_ratio**](#function-dp_acq_sidelobe_ratio) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* from, const [**acq\_result\_t**](structacq__result__t.md) \* to) <br>_How far up the sidelobes of the emitter behind one hit can reach at another hit's cell, relative to that emitter's own peak._  |
 |  size\_t | [**dp\_acq\_state\_bytes**](#function-dp_acq_state_bytes) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob: the envelope and the engine's position, the framer's snapshot of the carry, the non-coherent sum (n\_noncoh &gt; 1), the last dwell's twins, and a tiled block's epochs._ |
 |  size\_t | [**dp\_acq\_surface**](#function-dp_acq_surface) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \* out, size\_t n\_out) <br>_The last decided dwell's surface, in the gate's own units._  |
 |  size\_t | [**dp\_acq\_surface\_chip\_phase**](#function-dp_acq_surface_chip_phase) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's code-phase axis: the chip phase of each column._  |
@@ -168,7 +170,7 @@ Acquires a signal built from a repeated sequence  a spread-spectrum code (the co
 Pipeline (owned end to end, one object): push(raw cf32) -&gt; ring buffer -&gt; reframe to (coherent\_bins, code\_bins) -&gt; slow-time Doppler FFT (FFT along the segment axis) -&gt; 2-D code correlation against a single-row reference (corr2d) -&gt; argmax + CFAR noise estimate -&gt; threshold gate -&gt; [**acq\_result\_t**](structacq__result__t.md).
 
 
-The fast-time axis (code\_bins = sf\*spc columns) is the circular code matched filter; the slow-time axis (coherent\_bins rows, one row per code repetition) is the coherent Doppler search. A carrier offset f (cycles/sample) lands the peak at row = round(f\*code\_bins\*coherent\_bins) mod coherent\_bins, column = code phase.
+The fast-time axis (code\_bins samples, one code period) is the circular code matched filter, read on lag\_bins columns: code\_bins itself, or, on a continuous engine whose period is not 7-smooth, the next power of two  the cross-spectrum zero-padded before the inverse, an exact interpolation of the same circular correlation at a fraction of the cost of inverses of an awkward length (lag\_bins' doc). The slow-time axis (coherent\_bins rows, one row per code repetition) is the coherent Doppler search. A carrier offset f (cycles/sample) lands the peak at row = round(f\*code\_bins\*coherent\_bins) mod coherent\_bins, column = code phase.
 
 
 **Two mode-fixed public constructors, one shared engine.** A coherent slow-time Doppler FFT can only ever resolve frequency _within_ one native span `chip_rate/(2*sf)` — more coherent depth subdivides that SAME fixed range more finely, it never widens it — and for a continuous (async, data-modulated) signal, a multi-epoch coherent axis wide enough to matter aliases the data's own bit transitions across the whole Doppler-bin axis (a structural mislock, not a graceful SNR loss — see docs/design/acq-surface.md §9). So the two constructors fix a mode each, never a per-call knob:
@@ -262,7 +264,7 @@ The block-coherent engine gathers every tile's correlation row for `coherent_bin
 
 * `state` Must be non-NULL. 
 * `tile` Tile index, `0 … window_bins-1` (native FFT order, the order the surface's rows are cut in). 
-* `col` Code-phase column, `0 … code_bins-1`. 
+* `col` Code-phase column, `0 … lag_bins-1`. 
 * `out` At least `coherent_bins` complex floats. 
 * `n_out` Capacity of `out`. 
 
@@ -383,7 +385,7 @@ Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`
 
 
 
-* **Chip phase**: `hit's` `code_phase` is a correlation LAG (0 … code\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - code_phase/spc, code_len)`, folded non-negative.
+* **Chip phase**: `hit's` `code_phase` is a correlation LAG (0 … lag\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - code_phase * code_len / lag_bins, code_len)`, folded non-negative.
 * **Doppler**: `state` is assumed built via [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous) (`window_bins` tiles of `coherent_bins` each, the only mode this function supports), so `hit`'s `doppler_bin` indexes the uniform grid of `window_bins * coherent_bins` bins, mapped to a signed bin by `dp_fftfreq_index()` — the SAME helper the search uses — and scaled by `state->doppler_res_hz`.
 * **The dwell's dilation** (doppler#1254): a hit is decided on a non-coherent sum over `n_noncoh` looks, and the code phase it reports is that sum's peak  the phase at the MIDDLE of the dwell, not at its end, when the chip clock is dilated by the same Doppler the hit reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz` chips per chip). The seed a code loop wants is the phase at the next sample, so with the carrier set ([**dp\_acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-dp_acq_set_carrier_freq_hz)) the phase is advanced by the drift over HALF the dwell, `doppler_hz_est / carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips (a coherent block's epochs are aligned to its middle by the same setting, so the block's peak is its middle too). At the specification's 20 ppm the continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs  0.9 chip, measured directly, past the refine Dll's; without this the floor's hand-offs never refined. Uncoupled (0.0): no advance. 
 
@@ -392,7 +394,7 @@ Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`
 
   * `state` The engine `hit` came from (non-NULL, built via [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous)). 
   * `hit` One hit from [**dp\_acq\_push()**](acq__core_8h.md#function-dp_acq_push) (non-NULL). 
-  * `code_len` Spreading-code length (chips): a hit's lag, in samples of the engine's `code_bins`-sample period, becomes a phase in these units (`code_len / code_bins` chips a sample). For a code engine it is the code's length; a burst engine built from a code held k samples a chip passes the code's length too. 
+  * `code_len` Spreading-code length (chips): a hit's lag, in columns of the engine's `lag_bins`-column period, becomes a phase in these units (`code_len / lag_bins` chips a column). For a code engine it is the code's length; a burst engine built from a code held k samples a chip passes the code's length too. 
   * `out` Written on return (non-NULL). 
 
 
@@ -1401,6 +1403,47 @@ Number of events written (0 … max\_results).
 
 
 
+### function dp\_acq\_search\_period 
+
+_The samples one code period is searched at, for a caller feeding_ `sample_rate:` _its own period when that is already fast, else_[_**dp\_acq\_period\_samples()**_](acq__core_8h.md#function-dp_acq_period_samples) _._
+```C++
+size_t dp_acq_search_period (
+    size_t code_len,
+    double sample_rate,
+    double chip_rate
+) 
+```
+
+
+
+The caller's period, `sample_rate * code_len / chip_rate`, is kept when it is a whole number of samples (to a part in 1e9), at least `code_len`, and 7-smooth ([**dp\_fft\_smooth\_floor()**](fft__core_8h.md#function-dp_fft_smooth_floor) leaves it as it is): the transforms then run on pocketfft's own radices, and searching the samples as they come needs no resampler. Otherwise  a fractional period (11 MSa/s over 5 Mcps for 1,023 chips is 2,250.6), or one with a larger prime (2 \* 1,023 = 2 \* 3 \* 11 \* 31)  it is the power of two [**dp\_acq\_period\_samples()**](acq__core_8h.md#function-dp_acq_period_samples) derives, and the caller resamples to `chip_rate * period / code_len`. 4 samples a chip of a 7-chip code keeps 28; 2 a chip of 1,023 chips takes 2,048.
+
+
+
+
+**Parameters:**
+
+
+* `code_len` Chips in one code period (&gt;= 1). 
+* `sample_rate` The caller's sample rate, Hz (&gt; 0). 
+* `chip_rate` Chip rate, Hz (&gt; 0). 
+
+
+
+**Returns:**
+
+The period in samples; 0 for an argument outside the domain. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_acq\_set\_carrier\_freq\_hz 
 
 _Couple the code clock to the carrier: the chip rate dilates by_ `doppler_hz / carrier_freq_hz` _, and the engine accounts for it._
@@ -1700,6 +1743,61 @@ True
 
 
 
+### function dp\_acq\_sidelobe\_ratio 
+
+_How far up the sidelobes of the emitter behind one hit can reach at another hit's cell, relative to that emitter's own peak._ 
+```C++
+double dp_acq_sidelobe_ratio (
+    dp_acq_state_t * state,
+    const acq_result_t * from,
+    const acq_result_t * to
+) 
+```
+
+
+
+One emitter puts its code's cross-ambiguity on every cell of the surface. This computes that row the way the surface itself is made: one period of the replica, carrying `from's` Doppler less the cell's tile centre and delayed by `from's` lag (a phase ramp, so a lag between two samples is exact), its spectrum times the replica's conjugate, zero-padded to lag\_bins and inverted ([**dp\_fft\_pad\_spectrum()**](fft__core_8h.md#function-dp_fft_pad_spectrum)), read at `to's` column. The emitter's own peak is the same product's zero lag at its residual from its own tile's centre. The ratio is the most it can be over what the hits do not pin down:
+
+
+
+* `from's` lag is known to half a lag column either side of its column: five points across that are read;
+* `from's` Doppler is known to half a native row either side: nine points across that row are read, its own residual moving with each;
+* a cell on a tile edge, or on the combined axis's wrap, is read in every tile it touches.
+
+
+
+
+The cell's fast-time mixing frequency is its tile's centre (a multiple of the epoch rate, chip\_rate / sf; DC on a single-tile engine): within a tile the slow-time transform only lowers a sidelobe that sits off the emitter's own row, and no credit is taken for that. So the value bounds the sidelobe at `to's` cell from above, and it is the code's worst sidelobe ([**dp\_acq\_dsl\_db()**](acq__core_8h.md#function-dp_acq_dsl_db)) only at the worst cells: most cells sit well below it, which is the room a weak emitter beside a strong one needs. Times `from's` statistic on its own lag ([**acq\_result\_t::test\_stat\_peak**](structacq__result__t.md#variable-test_stat_peak)), it is the statistic `from's` sidelobe can read at `to`.
+
+
+Cost: per pair of hits, about 18 forward transforms of code\_bins and 90 inverses of lag\_bins  under a millisecond at a 2,046-sample period, and per pair, not per sample. The plans and buffers are made on the first call and kept on `state`.
+
+
+
+
+**Parameters:**
+
+
+* `state` The engine both hits came from (non-NULL). 
+* `from` The hit whose emitter's sidelobes are bounded. 
+* `to` The hit whose cell they are bounded at. 
+
+
+
+**Returns:**
+
+The ratio, from 0 to 1. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_acq\_state\_bytes 
 
 _Byte size of_ `state's` _blob: the envelope and the engine's position, the framer's snapshot of the carry, the non-coherent sum (n\_noncoh &gt; 1), the last dwell's twins, and a tiled block's epochs._
@@ -1747,7 +1845,7 @@ size_t dp_acq_surface (
 
 
 
-Copies the surface the last dwell was decided on into `out`, row-major `surface_rows` (Doppler: tiles, or interpolated slow-time rows) by `code_bins` (code phase), every cell divided by the same CFAR reference the gate used — so a cell reads as its own test statistic, to a float rounding (the SIMD build's fast-math may take a reciprocal in this loop and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on the non-coherent path) is a flat plane on a plot. The engine keeps this only while `keep_surface` is set (a caller sets it, or [**dp\_acq\_set\_surface\_sink()**](acq__core_8h.md#function-dp_acq_set_surface_sink) does): set it, push, then read. `surface_at` says which dwell it is; a time-decimated record is the caller reading every k-th dwell, or a sink with `decim`.
+Copies the surface the last dwell was decided on into `out`, row-major `surface_rows` (Doppler: tiles, or interpolated slow-time rows) by `lag_bins` (code phase), every cell divided by the same CFAR reference the gate used — so a cell reads as its own test statistic, to a float rounding (the SIMD build's fast-math may take a reciprocal in this loop and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on the non-coherent path) is a flat plane on a plot. The engine keeps this only while `keep_surface` is set (a caller sets it, or [**dp\_acq\_set\_surface\_sink()**](acq__core_8h.md#function-dp_acq_set_surface_sink) does): set it, push, then read. `surface_at` says which dwell it is; a time-decimated record is the caller reading every k-th dwell, or a sink with `decim`.
 
 
 
@@ -1756,14 +1854,14 @@ Copies the surface the last dwell was decided on into `out`, row-major `surface_
 
 
 * `state` Must be non-NULL. 
-* `out` At least `surface_rows * code_bins` floats. 
+* `out` At least `surface_rows * lag_bins` floats. 
 * `n_out` Capacity of `out`. 
 
 
 
 **Returns:**
 
-Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided with `keep_surface` set, or `out` is too small. 
+Cells written (`surface_rows * lag_bins`), or 0 when no dwell has been decided with `keep_surface` set, or `out` is too small. 
 ```C++
 >>> import numpy as np
 >>> from doppler.acquire import Acquisition
@@ -1774,10 +1872,12 @@ Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided 
 >>> a.keep_surface = 1
 >>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)
 >>> _ = a.push(x)
->>> s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)
+>>> s = np.empty(a.surface_rows * a.lag_bins, dtype=np.float32)
 >>> a.surface(s) == s.size
 True
->>> s.reshape(a.surface_rows, a.code_bins).shape == (a.surface_rows, 1022)
+>>> a.code_bins, a.lag_bins  # 1022 is 2 x 7 x 73: read on 1024 lags
+(1022, 1024)
+>>> s.reshape(a.surface_rows, a.lag_bins).shape == (a.surface_rows, 1024)
 True
 ```
  
@@ -1814,14 +1914,14 @@ One value per surface column, in chips, the same mapping [**dp\_acq\_build\_hand
 
 
 * `state` Must be non-NULL. 
-* `out` At least `code_bins` doubles. 
+* `out` At least `lag_bins` doubles. 
 * `n_out` Capacity of `out`. 
 
 
 
 **Returns:**
 
-Values written (`code_bins`), or 0 if `out` is too small. 
+Values written (`lag_bins`), or 0 if `out` is too small. 
 ```C++
 >>> import numpy as np
 >>> from doppler.acquire import Acquisition
@@ -1829,10 +1929,10 @@ Values written (`code_bins`), or 0 if `out` is too small.
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
 >>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
->>> c = np.empty(a.code_bins, dtype=np.float64)
->>> a.surface_chip_phase(c) == a.code_bins
+>>> c = np.empty(a.lag_bins, dtype=np.float64)
+>>> a.surface_chip_phase(c) == a.lag_bins
 True
->>> bool(c[0] == 0.0 and c[1] == 510.5)
+>>> bool(c[0] == 0.0 and c[1] == 511 - 511 / 1024)
 True
 ```
  
@@ -1860,7 +1960,7 @@ size_t dp_acq_surface_complex (
 
 
 
-Copies the coherent sum the last dwell was decided on into `out`, row-major `surface_rows` x `code_bins` like [**dp\_acq\_surface()**](acq__core_8h.md#function-dp_acq_surface), in the correlation's own units rather than the gate's. A cell's phase is the carrier at the block's middle, relative to its tile's centre; its neighbours along the code axis are complex early and late arms, so a tracker can form the coherent discriminator `Re(conj(P) (L - E)) / |P|^2`, which the magnitude surface cannot (docs/design/async-dsss-receiver-measurements.md §12.21). Coherent path only: a non-coherent dwell (`n_noncoh > 1`) is a power sum with no phase, and reads 0.
+Copies the coherent sum the last dwell was decided on into `out`, row-major `surface_rows` x `lag_bins` like [**dp\_acq\_surface()**](acq__core_8h.md#function-dp_acq_surface), in the correlation's own units rather than the gate's. A cell's phase is the carrier at the block's middle, relative to its tile's centre; its neighbours along the code axis are complex early and late arms, so a tracker can form the coherent discriminator `Re(conj(P) (L - E)) / |P|^2`, which the magnitude surface cannot (docs/design/async-dsss-receiver-measurements.md §12.21). Coherent path only: a non-coherent dwell (`n_noncoh > 1`) is a power sum with no phase, and reads 0.
 
 
 
@@ -1869,14 +1969,14 @@ Copies the coherent sum the last dwell was decided on into `out`, row-major `sur
 
 
 * `state` Must be non-NULL. 
-* `out` At least `surface_rows * code_bins` complex floats. 
+* `out` At least `surface_rows * lag_bins` complex floats. 
 * `n_out` Capacity of `out`. 
 
 
 
 **Returns:**
 
-Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided, the path is non-coherent, or `out` is too small. 
+Cells written (`surface_rows * lag_bins`), or 0 when no dwell has been decided, the path is non-coherent, or `out` is too small. 
 ```C++
 >>> import numpy as np
 >>> from doppler.acquire import Acquisition
@@ -1889,10 +1989,10 @@ Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided,
 >>> a.n_noncoh                 # one look: the dwell is the coherent dump
 1
 >>> _ = a.push(np.roll(s0, 17).astype(np.complex64))
->>> sc = np.empty(a.surface_rows * a.code_bins, dtype=np.complex64)
+>>> sc = np.empty(a.surface_rows * a.lag_bins, dtype=np.complex64)
 >>> a.surface_complex(sc) == sc.size
 True
->>> int(np.argmax(np.abs(sc)) % a.code_bins)   # the peak's code phase
+>>> int(np.argmax(np.abs(sc)) % a.lag_bins)   # the peak's code phase
 17
 ```
  

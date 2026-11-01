@@ -493,6 +493,23 @@ add_test(NAME validate_async_dsss_receiver_lock_telemetry
          COMMAND validate_async_dsss_receiver_lock --telemetry
                  ${CMAKE_CURRENT_BINARY_DIR} --check)
 
+# How far below a stronger emitter a weaker one is still taken, the weak
+# one at the specification's floor and the strong one up to 20 dB above it,
+# one epoch deep and on the deep frame (docs/design/async-dsss-receiver.md
+# §7.2). The spot check gates that no sidelobe is ever taken and that D = 1
+# takes the weak emitter at 10 and 20 dB; the sweep is the near-far table.
+add_executable(validate_async_dsss_near_far
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_near_far.c)
+target_include_directories(validate_async_dsss_near_far
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_async_dsss_near_far
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_async_dsss_near_far
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_near_far
+         COMMAND validate_async_dsss_near_far --check)
+
 # The same receiver's bit error rate against the BPSK bound, as an
 # implementation loss in dB, on the same stimulus
 # (async_dsss_receiver_common.h). `--emit` is the record's data

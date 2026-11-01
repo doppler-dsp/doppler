@@ -97,8 +97,18 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**seed\_chip\_phase**](#variable-seed_chip_phase)  <br> |
 |  double | [**seed\_doppler\_hz\_est**](#variable-seed_doppler_hz_est)  <br> |
 |  size\_t | [**segments**](#variable-segments)  <br> |
-|  size\_t | [**spc**](#variable-spc)  <br> |
+|  double | [**spc**](#variable-spc)  <br> |
 |  size\_t | [**sps**](#variable-sps)  <br> |
+|  float \_Complex \* | [**srch\_buf**](#variable-srch_buf)  <br> |
+|  size\_t | [**srch\_cap**](#variable-srch_cap)  <br> |
+|  float \_Complex \* | [**srch\_hist**](#variable-srch_hist)  <br> |
+|  size\_t | [**srch\_hist\_cap**](#variable-srch_hist_cap)  <br> |
+|  size\_t | [**srch\_hist\_len**](#variable-srch_hist_len)  <br> |
+|  uint64\_t | [**srch\_n**](#variable-srch_n)  <br> |
+|  uint64\_t | [**srch\_origin**](#variable-srch_origin)  <br> |
+|  double | [**srch\_ratio**](#variable-srch_ratio)  <br> |
+|  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**srch\_rs**](#variable-srch_rs)  <br> |
+|  size\_t | [**srch\_warm**](#variable-srch_warm)  <br> |
 |  int | [**state**](#variable-state)  <br> |
 |  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
 |  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
@@ -197,7 +207,7 @@ bool dp_async_dsss_receiver_state_t::align_pending;
 
 
 
-Running: the searcher was reset and discards input to the next multiple of `coherent_bins * code_len * spc` before its next dwell starts. 
+Running: the searcher was reset and discards search samples to the next multiple of `coherent_bins * code_bins` before its next dwell starts. 
  
 
 
@@ -1255,12 +1265,12 @@ The live-tracking Dll's partial correlations per code period (refine\_segments i
 ### variable spc 
 
 ```C++
-size_t dp_async_dsss_receiver_state_t::spc;
+double dp_async_dsss_receiver_state_t::spc;
 ```
 
 
 
-Samples per chip (config). 
+Samples per chip, sample\_rate / chip\_rate: any positive value (config). 
  
 
 
@@ -1279,6 +1289,186 @@ size_t dp_async_dsss_receiver_state_t::sps;
 
 
 MpskReceiver's samples per symbol. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_buf 
+
+```C++
+float _Complex* dp_async_dsss_receiver_state_t::srch_buf;
+```
+
+
+
+Owned scratch: one call's input, resampled. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_cap 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::srch_cap;
+```
+
+
+
+Capacity of srch\_buf, samples. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_hist 
+
+```C++
+float _Complex* dp_async_dsss_receiver_state_t::srch_hist;
+```
+
+
+
+Owned: the last input samples. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_hist\_cap 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::srch_hist_cap;
+```
+
+
+
+ceil(resampler delay) + 3; 0 at the search rate. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_hist\_len 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::srch_hist_len;
+```
+
+
+
+Running: live samples held. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_n 
+
+```C++
+uint64_t dp_async_dsss_receiver_state_t::srch_n;
+```
+
+
+
+Running: search samples produced since srch\_origin. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_origin 
+
+```C++
+uint64_t dp_async_dsss_receiver_state_t::srch_origin;
+```
+
+
+
+Running: input index (of samples\_in) the resampler last restarted at. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_ratio 
+
+```C++
+double dp_async_dsss_receiver_state_t::srch_ratio;
+```
+
+
+
+Search rate over input rate. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_rs 
+
+```C++
+resamp_state_t* dp_async_dsss_receiver_state_t::srch_rs;
+```
+
+
+
+Owned search-path resampler, or NULL at the search rate already. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable srch\_warm 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::srch_warm;
+```
+
+
+
+Search samples a restarted resampler fills with its filter's start-up: no dwell starts before them. 0 at the search rate. 
  
 
 

@@ -75,6 +75,7 @@
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
+#include "dp_stats_test.h"
 #include "dp_swept_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -182,20 +183,6 @@ cn0_for (size_t rh, double target)
         lo = mid + 1;
     }
   return -30.0 + 0.25 * (double)lo;
-}
-
-/* Wilson score interval for k successes in n trials, 95%. Unlike the normal
-   approximation it stays inside [0, 1] and is honest at k = 0, which the
-   false-alarm rows live at. */
-static void
-wilson (double k, double n, double *lo, double *hi)
-{
-  const double z = 1.959964, p = k / n, z2 = z * z;
-  const double c = (p + z2 / (2.0 * n)) / (1.0 + z2 / n);
-  const double h
-      = z * sqrt (p * (1.0 - p) / n + z2 / (4.0 * n * n)) / (1.0 + z2 / n);
-  *lo = c - h < 0.0 ? 0.0 : c - h;
-  *hi = c + h > 1.0 ? 1.0 : c + h;
 }
 
 typedef struct
@@ -306,8 +293,8 @@ measure_pd (size_t rh, int midpoint, double cn0, int trials, uint32_t seed)
     }
   r.eng = (double)eng / trials;
   r.cap = (double)hits / trials;
-  wilson (eng, trials, &r.eng_lo, &r.eng_hi);
-  wilson (hits, trials, &r.cap_lo, &r.cap_hi);
+  dp_wilson (eng, trials, &r.eng_lo, &r.eng_hi);
+  dp_wilson (hits, trials, &r.cap_lo, &r.cap_hi);
   dp_awgn_destroy (g);
   free (out);
   free (per);
@@ -386,7 +373,7 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed,
       r.dwells += 64.0;
     }
   r.pfa = r.hits / r.dwells;
-  wilson (r.hits, r.dwells, &r.lo, &r.hi);
+  dp_wilson (r.hits, r.dwells, &r.lo, &r.hi);
   dp_awgn_destroy (g);
   free (nz);
   dp_acq_destroy (a);

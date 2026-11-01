@@ -154,7 +154,7 @@ typedef enum
     uint8_t *code;     
     size_t   code_len; 
     /* Config carried across every chain rebuild. */
-    size_t spc;          
+    double spc;          
     int    m;            
     int    differential; 
     size_t segments; 
@@ -185,6 +185,29 @@ typedef enum
     double   doppler_rate; 
     uint64_t samples_in;   
     bool     align_pending; 
+    /* The search's own rate. The engine runs at the rate where one code
+     * period is dp_acq_period_samples(code_len) samples (a power of two:
+     * its transforms are that long); refine and tracking run at the
+     * caller's. `srch_rs` resamples the input to it while searching and
+     * is NULL when the caller already feeds that rate. Search sample j
+     * since the resampler last restarted carries input index
+     * `srch_origin + j / srch_ratio - dp_resamp_get_execute_delay()` (resamp's own
+     * contract), which is how a hit's position is mapped back. */
+    resamp_state_t *srch_rs;     
+    double          srch_ratio;  
+    float _Complex *srch_buf;    
+    size_t          srch_cap;    
+    uint64_t        srch_origin; 
+    uint64_t        srch_n;      
+    /* The hand-off maps a hit to input index t, which the resampler's lag
+     * puts a few samples BEHIND the call that reports it. The last
+     * srch_hist_cap input samples are kept while searching, so the live
+     * chain starts at ceil(t) exactly whatever the chunking (#2042's
+     * invariance). Empty at the search rate. */
+    float _Complex *srch_hist;     
+    size_t          srch_hist_cap; 
+    size_t          srch_hist_len; 
+    size_t          srch_warm;     
     size_t   rank;   
     size_t   n_excl; 
     double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; 
@@ -223,7 +246,8 @@ typedef enum
 
   dp_async_dsss_receiver_state_t *dp_async_dsss_receiver_create (
       const uint8_t *code, size_t code_len, double chip_rate,
-      double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
+      double symbol_rate, double sample_rate, int m, double cn0_dbhz,
+      double pfa,
       double pd, double doppler_uncertainty, size_t segments, size_t sps,
       int differential, double refine_max_error_db,
       size_t refine_samples_per_symbol, double refine_design_margin_db,
@@ -387,10 +411,13 @@ typedef enum
     uint64_t rank;          
     uint64_t n_excl;        
     double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; 
+    uint64_t srch_origin;   
+    uint64_t srch_n;        
+    uint64_t srch_hist_len; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 13u /* v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 14u /* v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

@@ -72,6 +72,7 @@ _Per-instance 1-D FFT using pocketfft directly._ [More...](#detailed-description
 |  size\_t | [**dp\_fft\_execute\_inplace\_cf32\_max\_out**](#function-dp_fft_execute_inplace_cf32_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Output capacity for_ [_**dp\_fft\_execute\_inplace\_cf32()**_](fft__core_8h.md#function-dp_fft_execute_inplace_cf32) _._ |
 |  size\_t | [**dp\_fft\_execute\_inplace\_cf64**](#function-dp_fft_execute_inplace_cf64) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state, const double \_Complex \* in, size\_t n\_in, double \_Complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache. Semantically identical to_[_**dp\_fft\_execute\_cf64()**_](fft__core_8h.md#function-dp_fft_execute_cf64) _for separate_`in` _/_`out` _pointers; use this variant when the caller already owns_`out` _and wants the result there without a second allocation._ |
 |  size\_t | [**dp\_fft\_execute\_inplace\_cf64\_max\_out**](#function-dp_fft_execute_inplace_cf64_max_out) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_Output capacity for_ [_**dp\_fft\_execute\_inplace\_cf64()**_](fft__core_8h.md#function-dp_fft_execute_inplace_cf64) _._ |
+|  void | [**dp\_fft\_pad\_spectrum**](#function-dp_fft_pad_spectrum) (const float \_Complex \* p, size\_t n, float \_Complex \* q, size\_t m) <br>_Zero-pad a spectrum from_ `n` _bins to_`m` _&gt;=_`n` _, so that its inverse transform interpolates the length-_`n` _sequence._ |
 |  void | [**dp\_fft\_reset**](#function-dp_fft_reset) ([**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* state) <br>_No-op reset: an FFT keeps no running state between calls._  |
 |  size\_t | [**dp\_fft\_smooth\_floor**](#function-dp_fft_smooth_floor) (size\_t n) <br>_The largest 7-smooth length at most_ `n:` _the longest transform no longer than_`n` _whose only prime factors are 2, 3, 5 and 7._ |
 
@@ -696,6 +697,63 @@ size_t dp_fft_execute_inplace_cf64_max_out (
 
 state-&gt;n, the number of bins one call writes. 
 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_fft\_pad\_spectrum 
+
+_Zero-pad a spectrum from_ `n` _bins to_`m` _&gt;=_`n` _, so that its inverse transform interpolates the length-_`n` _sequence._
+```C++
+void dp_fft_pad_spectrum (
+    const float _Complex * p,
+    size_t n,
+    float _Complex * q,
+    size_t m
+) 
+```
+
+
+
+The low half of `p` (bins 0 … n/2) goes to the start of `q`, the high (negative-frequency) half to its end, and the bins between are zero. For an even `n` the Nyquist bin belongs to both halves, so it is split in two: half at +n/2, half at m - n/2. That makes the length-`m` inverse of `q`, at every m/n-th output, exactly the length-`n` inverse of `p`  unnormalised inverse transforms, as dp\_fft gives  and the outputs between are its band-limited interpolation (it matches scipy.signal.resample to machine precision). A circular correlation stays circular: this is how a code-period correlation is read on a finer, or a faster, lag grid without changing what it computes. `m` == `n` is a copy.
+
+
+
+
+**Parameters:**
+
+
+* `p` Input spectrum, `n` bins in FFT order. 
+* `n` Bins in `p`. 
+* `q` Output, `m` bins; must not overlap `p`. 
+* `m` Bins in `q`, at least `n`. 
+```C++
+#include <assert.h>
+#include <complex.h>
+#include <math.h>
+#include "doppler/fft/fft_core.h"
+int main (void)
+{
+  // a 6-sample sequence read on an 8-point grid
+  float _Complex x[6] = { 1, 2, 3, 2, 1, 0 }, X[6], Q[8], y[8];
+  dp_fft_state_t *f = dp_fft_create (6, -1, 1);
+  dp_fft_state_t *g = dp_fft_create (8, +1, 1);
+  dp_fft_execute_cf32 (f, x, 6, X, 6);
+  dp_fft_pad_spectrum (X, 6, Q, 8);
+  dp_fft_execute_cf32 (g, Q, 8, y, 8);
+  assert (fabsf (crealf (y[0]) / 6 - 1.0f) < 1e-5f); // lag 0 kept
+  dp_fft_destroy (f);
+  dp_fft_destroy (g);
+  return 0;
+}
+```
+ 
 
 
 

@@ -333,11 +333,11 @@ configure_geometry (dp_dll_state_t *s, size_t code_len, double sps,
                     double init_chip, double bn, double zeta, double spacing)
 {
   s->sf = code_len ? code_len : 1;
-  /* Any positive samples a chip: the partials close on the code NCO's
-     phase, never on a sample count, so a period need not be a whole number
-     of samples (a non-positive or non-finite value falls back to 1, as 0
-     always has). */
-  s->sps     = (sps > 0.0 && isfinite (sps)) ? sps : 1.0;
+  /* Any samples a chip of at least one: the partials close on the code
+     NCO's phase, never on a sample count, so a period need not be a whole
+     number of samples. Both doors refuse outside dp_dll_params_ok() before
+     reaching here, so this takes the value as given. */
+  s->sps     = sps;
   s->inv_sps = 1.0 / s->sps;
   /* sf/sps are create-time invariants (no setter changes them after
      this), so their reciprocals are computed exactly once, here --
@@ -363,11 +363,13 @@ configure_geometry (dp_dll_state_t *s, size_t code_len, double sps,
                                0.0 /* auto EMA bandwidth */);
 }
 
-void
+int
 dp_dll_init (dp_dll_state_t *s, const uint8_t *code, size_t code_len,
              double sps, double init_chip, double bn, double zeta,
              double spacing)
 {
+  if (!dp_dll_params_ok (code_len, sps, init_chip, bn, zeta, spacing, 1))
+    return DP_ERR_INVALID;
   configure_geometry (s, code_len, sps, init_chip, bn, zeta, spacing);
   /* In-place init of a caller-owned (possibly stack) state:
      dp_loop_filter_init preserves the integrator (it doubles as a
@@ -414,6 +416,7 @@ dp_dll_init (dp_dll_state_t *s, const uint8_t *code, size_t code_len,
    * garbage telemetry pointer into the emit gates. */
   memset (&s->tlm, 0, sizeof s->tlm);
   seed (s);
+  return DP_OK;
 }
 
 /* Allocate the segments>1 chunk/lookback buffers (seven arrays, length
@@ -474,7 +477,8 @@ dp_dll_create (const uint8_t *code, size_t code_len, double sps,
 {
   /* Every argument checked before anything is allocated (doppler#2103). */
   if (!code
-      || !dp_dll_params_ok (code_len, init_chip, bn, zeta, spacing, segments))
+      || !dp_dll_params_ok (code_len, sps, init_chip, bn, zeta, spacing,
+                            segments))
     return NULL;
   dp_dll_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
@@ -719,7 +723,7 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
      predicate create uses, on the blob's own values. chip_pos stands in for
      create's init_chip: it is the running phase, and the predicate refuses
      it when non-finite. */
-  if (!dp_dll_params_ok (t.sf, t.chip_pos, t.bn, t.zeta, t.spacing,
+  if (!dp_dll_params_ok (t.sf, t.sps, t.chip_pos, t.bn, t.zeta, t.spacing,
                          t.segments))
     return DP_ERR_INVALID;
   /* The filters are restored VERBATIM, gains included, so resume is bit-exact
@@ -827,11 +831,14 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
 }
 
 int
-dp_dll_params_ok (size_t code_len, double init_chip, double bn, double zeta,
-                  double spacing, size_t segments)
+dp_dll_params_ok (size_t code_len, double sps, double init_chip, double bn,
+                  double zeta, double spacing, size_t segments)
 {
-  return code_len >= 1 && segments >= 1 && isfinite (init_chip)
-         && dp_loop_filter_params_ok (bn, zeta, 1.0) && spacing > 0.0
+  /* sps >= 1: one sample a chip at least -- under it the code NCO steps
+     more than a chip a sample and aliases; NaN and inf fail it too. */
+  return code_len >= 1 && sps >= 1.0 && isfinite (sps) && segments >= 1
+         && isfinite (init_chip) && dp_loop_filter_params_ok (bn, zeta, 1.0)
+         && spacing > 0.0
          && spacing < 0.5 * (double)code_len; /* NaN fails the comparisons */
 }
 

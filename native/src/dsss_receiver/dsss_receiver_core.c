@@ -362,8 +362,8 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
             ? (size_t)whole
             : 0;
   if (!code
-      || !dp_dll_params_ok (code_len, 0.0, DSSS_RX_DLL_BN, DSSS_RX_DLL_ZETA,
-                            DSSS_RX_DLL_SPACING, segments)
+      || !dp_dll_params_ok (code_len, (double)spc, 0.0, DSSS_RX_DLL_BN,
+                            DSSS_RX_DLL_ZETA, DSSS_RX_DLL_SPACING, segments)
       || !(chip_rate > 0.0 && isfinite (chip_rate))
       || !(symbol_rate > 0.0 && isfinite (symbol_rate)) || spc < 1
       || (m != 2 && m != 4 && m != 8)

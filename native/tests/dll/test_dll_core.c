@@ -325,6 +325,63 @@ bad_floats_are_refused (void)
           dp_dll_destroy (d);
         }
     }
+  /* Samples a chip: a double since fractional rates track, so a NaN, an
+     infinity, zero, a negative or under one sample a chip (the code NCO
+     would step more than a chip a sample) is refused rather than quietly
+     run at 1. */
+  static const struct
+  {
+    double      sps;
+    const char *what;
+  } bad_sps[] = {
+    { NAN, "a NaN sps" },
+    { INFINITY, "an infinite sps" },
+    { 0.0, "a zero sps" },
+    { -2.0, "a negative sps" },
+    { 0.5, "half a sample a chip" },
+  };
+  for (size_t k = 0; k < sizeof bad_sps / sizeof *bad_sps; k++)
+    {
+      dp_dll_state_t *d
+          = dp_dll_create (code, 31, bad_sps[k].sps, 0.0, 0.01, 0.707, 0.5, 4);
+      if (d)
+        {
+          DP_TEST_ERR ("  bad sps accepted by create: %s\n", bad_sps[k].what);
+          fails++;
+          dp_dll_destroy (d);
+        }
+    }
+  /* dp_dll_init(), the by-value door, holds the same rule: refused with
+     nothing written. */
+  for (size_t k = 0; k < sizeof bad_sps / sizeof *bad_sps; k++)
+    {
+      dp_dll_state_t v;
+      memset (&v, 0x5a, sizeof v);
+      const int rc
+          = dp_dll_init (&v, code, 31, bad_sps[k].sps, 0.0, 0.01, 0.707, 0.5);
+      const unsigned char *b         = (const unsigned char *)&v;
+      int                  untouched = 1;
+      for (size_t i = 0; i < sizeof v; i++)
+        untouched &= b[i] == 0x5a;
+      if (rc != DP_ERR_INVALID || !untouched)
+        {
+          DP_TEST_ERR ("  bad sps accepted by init: %s\n", bad_sps[k].what);
+          fails++;
+        }
+    }
+  /* The edges inside the domain are taken: one sample a chip, and a
+     fractional rate (11 MSa/s over 5 Mcps). */
+  for (int k = 0; k < 2; k++)
+    {
+      dp_dll_state_t *g
+          = dp_dll_create (code, 31, k ? 2.2 : 1.0, 0.0, 0.01, 0.707, 0.5, 4);
+      if (!g)
+        {
+          DP_TEST_ERR ("  create refused sps %.1f\n", k ? 2.2 : 1.0);
+          fails++;
+        }
+      dp_dll_destroy (g);
+    }
   /* The edges inside the domain are taken. */
   dp_dll_state_t *e
       = dp_dll_create (code, 31, 2, 7.25, 0.0, 0.707, half - 0.1, 4);

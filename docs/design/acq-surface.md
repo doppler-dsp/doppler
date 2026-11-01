@@ -561,6 +561,19 @@ if its statistic stands higher than the stronger emitters' sidelobes can
 reach, their statistic times that level, and it still clears the detector's
 gate. The mechanism and its numbers are #2525's, in its design text.
 
+**Decided (2026-11-01): per cell.** With the operating range set at the
+floor to 20 dB above it, a level that holds everywhere took no weaker
+emitter at the floor beside any stronger one its sidelobes could reach.
+The owner ruled that the bound is per cell: each stronger emitter's
+statistic on its own lag (`test_stat_peak`, §3.1) times its ambiguity to
+the candidate's cell, `dp_acq_sidelobe_ratio()`, which computes that cell
+the way the surface is made and over what the hits leave unknown (the lag
+column, the native row, every tile the cell touches). It is this level at
+the worst cells and well below it at most. On a deep block the level
+stays a floor under the per-cell value until a strong emitter's data
+splatter is modelled (#2730). What the receiver's pick takes with it is
+[async-dsss-receiver.md](async-dsss-receiver.md) §7.2's near-far table.
+
 **Where the numbers come from.** Every table in this section is the output
 of one run of the validator `native/validation/acq_surface.c`
 (`validate_acq_surface --emit`), kept beside this page in

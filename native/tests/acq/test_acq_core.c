@@ -4143,6 +4143,13 @@ main (void)
       }
     DP_CHECK (dp_acq_set_threads (c, 0) == DP_OK && c->threads >= 1
               && c->threads <= (int)c->window_bins);
+    /* ... and after a regrid to one tile the cap still holds: serial, no
+       pool (#2746) -- not the workers the tiled grid had. Two asked for
+       explicitly, so the premise holds on a one-core box too. */
+    DP_REQUIRE (dp_acq_set_threads (c, 2) == DP_OK && c->threads == 2);
+    DP_REQUIRE (dp_acq_configure_search_raw (c, 1, 1) == 0);
+    DP_CHECK_MSG (c->window_bins == 1 && c->threads == 1 && c->pool == NULL,
+                  "a regrid to one tile re-applies the thread cap");
     free (got);
     free (ref);
     free (x);
@@ -4502,27 +4509,43 @@ main (void)
     /* Its cache returns what an empty cache would, bit for bit: 34 hits
        (more than ACQ_SIDELOBE_SLOTS, so the round robin evicts and fills
        again) read twice against a cell on every native row, against an
-       engine whose cache is emptied before every read. On both grids above:
-       one epoch deep, and two deep, where the wrap row both outer tiles
-       read is one of the rows. Then each is regridded to one tile, one
-       epoch (configure_search_raw): the one-deep grid keeps D and the
-       resolution, so a hit's cell and tile are the same key on another
-       grid. Sabotage, each red: drop acq_regrid()'s reset, or key a slot
-       on the hit alone. */
+       engine whose cache is emptied before every read. Three tiled grids:
+       continuous one deep and two deep (the wrap row both outer tiles read
+       is one of its rows), and a burst engine at least two deep. Each is then
+       regridded to one tile (configure_search_raw), newest hits first:
+       - continuous two deep -> one deep: D and the resolution change;
+       - burst, D KEPT: the resolution is unchanged and the 0 Hz
+         tile survives, but a row r >= D/2 moves from +r to r - D bins
+         (#2746) -- the case a key on the grid's resolution missed.
+       The one-deep continuous pair is no pin: rows and tiles read the same
+       on both grids, so a stale slot equals a fresh one there. Sabotage:
+       drop acq_regrid()'s reset (the D = 2 and burst cases go red), or key
+       a slot on the hit alone (red). */
     {
       const double fe    = fs2 / 2046.0;
-      const size_t co[2] = { 1, 3 }, nfrom = ACQ_SIDELOBE_SLOTS + 2;
-      size_t       same = 0, reads = 0;
-      for (int c = 0; c < 2; c++)
+      const size_t nfrom = ACQ_SIDELOBE_SLOTS + 2;
+      float _Complex tm2[2046];
+      for (size_t k = 0; k < 2046; k++)
+        tm2[k] = (gold[k / 2] & 1u) ? -1.0f : 1.0f;
+      for (int c = 0; c < 3; c++)
         {
           dp_acq_state_t *eng[2];
           for (int e = 0; e < 2; e++)
             eng[e] = dp_xnn (
-                dp_acq_create_continuous (gold, 1023, fs2, cr, 3000.0, 60.0,
-                                          1.2 * fe, 1e-3, 0.9, 0, co[c], 0.0));
+                c < 2 ? dp_acq_create_continuous (gold, 1023, fs2, cr, 3000.0,
+                                                  60.0, 1.2 * fe, 1e-3, 0.9, 0,
+                                                  c == 0 ? 1 : 3, 0.0)
+                      : dp_acq_create_burst (tm2, 2046, 4, fs2, 45.0, 1.2 * fe,
+                                             1e-3, 0.9, 0, 0.0, 1));
           dp_acq_state_t *w = eng[0], *fresh = eng[1];
+          const size_t    D0 = w->coherent_bins;
+          /* one deep, two deep, and a burst grid deep enough that rows
+             r >= D/2 exist to move */
           DP_REQUIRE (w->window_bins == 3
-                      && w->coherent_bins == (size_t)c + 1);
+                      && (c < 2 ? D0 == (size_t)c + 1 : D0 >= 2));
+          /* the grid one tile keeps: one deep, or (burst) the same D */
+          const size_t d1   = c == 2 ? w->coherent_bins : 1;
+          size_t       same = 0, reads = 0;
           for (int grid = 0; grid < 2; grid++)
             {
               const size_t rows = w->window_bins * w->coherent_bins;
@@ -4548,20 +4571,22 @@ main (void)
               if (grid == 0)
                 for (int e = 0; e < 2; e++)
                   {
-                    DP_REQUIRE (dp_acq_configure_search_raw (eng[e], 1, 1)
+                    DP_REQUIRE (dp_acq_configure_search_raw (eng[e], d1, 1)
                                 == 0);
                     DP_REQUIRE (eng[e]->window_bins == 1
-                                && eng[e]->coherent_bins == 1);
+                                && eng[e]->coherent_bins == d1);
                   }
             }
           for (int e = 0; e < 2; e++)
             dp_acq_destroy (eng[e]);
+          /* two passes over 34 hits, at 3*D rows, then D1 */
+          DP_CHECK (reads == 2 * nfrom * (3 * D0 + d1));
+          if (same != reads)
+            DP_TEST_ERR ("sidelobe cache: grid %d, %zu of %zu stale\n", c,
+                         reads - same, reads);
+          DP_CHECK_MSG (same == reads,
+                        "a cached sidelobe ratio is the uncached one");
         }
-      /* per grid pair: two passes over 34 hits, at 3 then 1 row (D = 1)
-         and 6 then 1 (D = 2) */
-      DP_CHECK (reads == 2 * nfrom * (3 + 1 + 6 + 1));
-      DP_CHECK_MSG (same == reads,
-                    "a cached sidelobe ratio is the uncached one");
     }
 
     /* A burst engine keeps its template's length, smooth or not. */

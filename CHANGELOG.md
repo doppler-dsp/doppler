@@ -75,6 +75,13 @@ ______________________________________________________________________
     samples a chip at whatever `chip_rate` is -- the old `spc=2` -- and
     `AsyncDsssReceiver` and `AsyncDsssPool` default the same way.
 
+- **Four state blobs change version, so a blob saved by v0.78.0 is refused,
+    not reinterpreted.** `Acquisition` goes to v7 (the padded lag grid), PSD to
+    v3 (the periodic window), `AsyncDsssPool` to v5 (the controller's one
+    search) and `AsyncDsssReceiver` from v13 to v15 (pooled, search-only
+    picks and the search resampler). Re-run from a fresh object, or save
+    again under 0.79.0.
+
 ### Added
 
 - **Every public class now owes its user story, and a gate holds it.**
@@ -86,7 +93,8 @@ ______________________________________________________________________
 
 ### Changed
 
-- **A wide `Acquisition` dwell takes 28% less time.** The pick's
+- **A wide `Acquisition` dwell takes 28% less time on the pinned aarch64
+    pool bench.** The pick's
     masked argmax over the surface was a scalar loop, 37% of a ±50 kHz
     `AsyncDsssPool` push. It now finds each block's largest candidate in a
     vectorizable pass and runs the loop only where a block can move the

@@ -23,7 +23,8 @@
  * (docs/design/async-dsss-receiver.md §5) and an idle receiver runs none,
  * so it should be one, whatever N is. And n=4 on 4 threads against one:
  * what do the workers buy back, given push() joins them once every code
- * period?
+ * period? At the full span that includes the search's own tile fan, on the
+ * pool's thread count (#2773).
  *
  * Fed noise alone from the shipped awgn, so every receiver stays idle and
  * the search runs all along; a row is recorded only if every receiver was
@@ -46,7 +47,7 @@
 #define ITERATIONS 10
 #define CODE_ONLY_S (500.0 / 3000.0) /* 500 data-free symbols */
 #define DOPPLER_RATE 500.0           /* Hz/s, the design's bound */
-#define N_ROWS 5
+#define N_ROWS 6
 
 typedef struct
 {
@@ -119,6 +120,7 @@ main (void)
     { "push[native,n=4,threads=4]", 4, tile / 2.0, 4 },
     { "push[full,n=1,threads=1]", 1, 50e3, 1 },
     { "push[full,n=4,threads=1]", 4, 50e3, 1 },
+    { "push[full,n=4,threads=4]", 4, 50e3, 4 },
   };
 
   /* The CCSDS default Gold code, as wfm.Gold() makes it. */

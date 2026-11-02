@@ -193,7 +193,8 @@ dwell. With no exclusions at rank 0 that is the one-peak detector's pick.
 An uncertainty wider than one epoch's span, `±1/(2·T_E)`,
 is covered by the engine's roll across frequency windows, which it fans
 across its tiles' worth of online cores unless `set_threads()` says
-otherwise; a pool's one search runs serially (§5). The search is
+otherwise; a pool's one search takes the pool's own thread count (§5).
+The search is
 bit-identical at any thread count. What
 searching costs is §9.
 
@@ -725,11 +726,12 @@ holds the signals of §1.1 on one code.
 - **The controller steps at dwell boundaries.** Its levers, the seeds and
     the exclusions, act at the next dwell, so it runs once a dwell, after
     the search decides; between two boundaries the receivers run the whole
-    segment in parallel, one per worker. The search runs before them,
-    serially: fanning its tiles across the cores cost 1.5× at ±50 kHz and
-    D = 150, 8× one epoch deep, and 1.6× on the pool's scene example
-    (8.1 s serial against 13.0 s; async-dsss-receiver-measurements.md §9.6,
-    doppler#2744). The
+    segment in parallel, one per worker. The search runs before them, on
+    the pool's thread count, at most one worker a Doppler tile. On bare
+    metal that takes a full-span dwell to 0.35-0.58 of the serial time at 2
+    to 8 workers. On WSL2 it costs the scene example 1.8× and an all-cores
+    pool 1.27×, a trade doppler#2775 owns
+    (async-dsss-receiver-measurements.md §9.7). The
     result does not depend on the thread count or on how a caller blocks
     its pushes.
 - **Each receiver makes its code phase and carrier estimate available**,

@@ -383,6 +383,59 @@ capped at `window_bins`: the fan won by 4% at D = 150 (204.7 against
 196.2 ns). Why the fan loses now, and what a standalone engine's default
 should be, is doppler#2744.
 
+### 9.7 What was measured (2026-11-02) — the search fanned, on two machines
+
+This entry corrects §9.6, which measured one machine. It is not rendered
+from committed data: every row below is a table from the two-commit A/B tool (#2770,
+K = 5, `BENCH_ARGS="--c-only async_dsss_pool"`, B / A of each side's best
+pass) or an alternated timing of the pool's scene example, and both are in
+#2773.
+
+- **S** is main (`13d0cba44`) plus full-span pool rows at 2, 4, 8 and all
+    threads, with the search serial.
+- **R** is S with the search on the pool's requested count, capped at one
+    worker a tile. It is what #2773 ships.
+
+| workload                                          | bench box (`cachyos-x8664-ai465`, bare metal) R / S | WSL2 dev box R / S                           |
+| ------------------------------------------------- | --------------------------------------------------- | -------------------------------------------- |
+| pool, ±50 kHz (21 tiles), 2 / 4 / 8 threads       | 0.580 / 0.399 / 0.349                               | 0.664 / 0.708 / 0.807                        |
+| pool, ±50 kHz, all cores                          | 0.347                                               | **1.271**                                    |
+| pool, any row at 1 thread                         | TIE                                                 | TIE                                          |
+| scene example (±5 kHz, 5 tiles, one-epoch pushes) | 0.96 (6.79–7.04 s against 7.10–7.44 s)              | **≈1.8** (12.92–13.80 s against 7.07–7.57 s) |
+
+**One epoch deep (D = 1).** The same pair with the pool bench at D = 1 (no
+code-only window, no rate), K = 5. Each push is one epoch, so each wake-up
+hands out one lag inverse a tile.
+
+| D = 1 workload                 | bench box R / S | WSL2 R / S        |
+| ------------------------------ | --------------- | ----------------- |
+| pool, ±50 kHz, 4 / all threads | 0.473 / 0.466   | **1.867 / 5.165** |
+| pool, 3 tiles, 4 / all threads | 0.841 / 0.854   | **3.527 / 3.257** |
+| pool, any row at 1 thread      | TIE             | TIE               |
+
+**What it changes.** §9.6's "the fan loses" was one machine's answer. On
+bare metal the fan wins on every row and on the scene. On WSL2 it wins at 2
+to 8 workers on the full span, but loses where each wake-up hands out
+little work: the per-epoch stage, one lag inverse a tile, on the scene, at
+all cores, and at D = 1, by up to 5.2×. With the D = 1 rows in view, the
+owner held R (2026-11-02) for #2775's rule per stage: fan the heavy
+block-end column stage, and keep the per-epoch stage serial.
+
+**A cap on tile count was measured and rejected.** C is R with at most one
+worker per 4 tiles in `dp_acq_set_threads`:
+
+- it fixed WSL2: all cores 0.702, the scene tied;
+- but acq's own rows lost: `op5M_U5k_D150_t4_nc1` went **1.696×** slower
+    (3 tiles, D = 150, now serial) and `op5M_U50k_D150_t8_nc1` 1.019×.
+
+The work per tile, not the tile count, decides the fan. That is #2775's
+proposal, a rule per stage.
+
+**A caution for WSL2 verdicts.** On WSL2, rows whose code is the same on
+both sides read up to 6.5% apart. That is a checkout bias above
+the A/B tool's 1% floor (doppler#2769), so WSL2 is read here only for
+the large effects.
+
 ______________________________________________________________________
 
 ### 12.1 What was measured (2026-09-02) — step 8, the budget

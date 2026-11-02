@@ -31,10 +31,11 @@ effective_threads (int threads, size_t n_receivers)
 
 /* Rebuild the workers for `threads`. One worker is serial: no helpers,
    and dp_pool_run() runs every task inline on the caller. The workers step
-   the receivers; the search runs before them, serially. Fanning its tiles
-   across the cores was measured to cost, not pay: 1.5x at +-50 kHz and
-   D = 150, 8x one epoch deep, and 1.6x on the pool's scene example
-   (async-dsss-receiver-measurements.md §9.6, doppler#2744). */
+   the receivers; the search runs before them, on the requested count, and
+   dp_acq_set_threads() caps that at one worker a tile. On bare metal the
+   fan takes a full-span dwell to 0.35-0.58 of the serial time at 2-8
+   workers; on WSL2 it costs the scene example 1.8x and an all-cores pool
+   1.27x, which #2775 owns (async-dsss-receiver-measurements.md §9.7). */
 static void
 build_workers (dp_async_dsss_pool_state_t *s, int threads)
 {
@@ -43,7 +44,7 @@ build_workers (dp_async_dsss_pool_state_t *s, int threads)
   const int eff = effective_threads (threads, s->n_receivers);
   s->workers    = eff > 1 ? dp_pool_create (eff) : NULL;
   if (s->search)
-    (void)dp_async_dsss_receiver_set_threads (s->search, 1);
+    (void)dp_async_dsss_receiver_set_threads (s->search, threads);
 }
 
 dp_async_dsss_pool_state_t *
@@ -770,8 +771,10 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
   for (size_t i = 0; i < n; i++)
     if (len[i] && s->rx[i]->state != ASYNC_DSSS_RX_TRACKING)
       return DP_ERR_INVALID;
-  if ((int)extra.threads != s->threads)
-    build_workers (s, (int)extra.threads);
+  /* Always, not only when the count moved: the search's child blob carries
+     the count its writer RESOLVED (its cores, its tiles), and the rule has
+     to be applied on this machine (#2776). */
+  build_workers (s, (int)extra.threads);
   memcpy (s->carry, carry, s->period * sizeof *s->carry);
   s->carry_len          = (size_t)extra.carry_len;
   s->samples            = extra.samples;

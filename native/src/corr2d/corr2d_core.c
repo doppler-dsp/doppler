@@ -365,7 +365,12 @@ dp_corr2d_set_state (dp_corr2d_state_t *s, const void *blob)
     return corr2d_set_state_dd (s, blob);
   DP_SET_OPEN (CORR2D_STATE_MAGIC, CORR2D_STATE_VERSION,
                dp_corr2d_state_bytes (s));
-  s->count = (size_t)dp_r_u64 (&_r);
+  /* Decoded and checked before anything is written, as the delay-Doppler
+     flavor's is: a count at or past the dwell never dumps (#2142). */
+  const uint64_t count = dp_r_u64 (&_r);
+  if (count >= s->dwell)
+    return DP_ERR_INVALID;
+  s->count = (size_t)count;
   dp_r_cf32 (&_r, s->accum, s->n);
   return DP_OK;
 }

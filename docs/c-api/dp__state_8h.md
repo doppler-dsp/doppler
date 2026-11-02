@@ -69,6 +69,7 @@ _The standard state_ **bytes interface** _for doppler._[More...](#detailed-descr
 |  uint32\_t | [**dp\_r\_u32**](#function-dp_r_u32) ([**dp\_reader\_t**](structdp__reader__t.md) \* r) <br> |
 |  uint64\_t | [**dp\_r\_u64**](#function-dp_r_u64) ([**dp\_reader\_t**](structdp__reader__t.md) \* r) <br> |
 |  [**dp\_reader\_t**](structdp__reader__t.md) | [**dp\_reader\_init**](#function-dp_reader_init) (const void \* blob, size\_t cap) <br> |
+|  int | [**dp\_ring\_head\_ok**](#function-dp_ring_head_ok) (size\_t head, size\_t cap) <br>_A dual-write delay ring's head, as a blob may carry it: in range._  |
 |  int | [**dp\_state\_validate**](#function-dp_state_validate) (const void \* blob, size\_t expect\_bytes, uint32\_t magic, uint16\_t version) <br>_Validate a blob's envelope before trusting its payload._  |
 |  void | [**dp\_w\_bytes**](#function-dp_w_bytes) ([**dp\_writer\_t**](structdp__writer__t.md) \* w, const void \* src, size\_t n) <br> |
 |  void | [**dp\_w\_cf32**](#function-dp_w_cf32) ([**dp\_writer\_t**](structdp__writer__t.md) \* w, const float \_Complex \* p, size\_t n) <br> |
@@ -109,12 +110,14 @@ _The standard state_ **bytes interface** _for doppler._[More...](#detailed-descr
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DP\_DEFINE\_POD\_STATE**](dp__state_8h.md#define-dp_define_pod_state) (pfx, STATE\_T, MAGIC, VERSION) `/* multi line expression */`<br>_Define the whole-struct state triplet for a pointer-free POD object._  |
-| define  | [**DP\_DEFINE\_POD\_STATE\_CHECKED**](dp__state_8h.md#define-dp_define_pod_state_checked) (pfx, STATE\_T, MAGIC, VERSION, OK) `/* multi line expression */`<br>_DP\_DEFINE\_POD\_STATE whose restore refuses a payload the object's own predicate rejects._  |
-| define  | [**DP\_DEFINE\_POD\_STATE\_TLM**](dp__state_8h.md#define-dp_define_pod_state_tlm) (pfx, STATE\_T, MAGIC, VERSION, MEMBER) `/* multi line expression */`<br>_Whole-struct POD triplet for an object carrying a live telemetry attachment (or any other non-state member that must not travel in the blob)._  |
+| define  | [**DP\_DEFINE\_POD\_STATE**](dp__state_8h.md#define-dp_define_pod_state) (pfx, STATE\_T, MAGIC, VERSION) `[**DP\_DEFINE\_POD\_STATE\_CHECKED**](dp__state_8h.md#define-dp_define_pod_state_checked) (pfx, STATE\_T, MAGIC, VERSION, [**DP\_POD\_ANY\_OK**](dp__state_8h.md#define-dp_pod_any_ok))`<br>_DP\_DEFINE\_POD\_STATE\_CHECKED with no predicate._  |
+| define  | [**DP\_DEFINE\_POD\_STATE\_CHECKED**](dp__state_8h.md#define-dp_define_pod_state_checked) (pfx, STATE\_T, MAGIC, VERSION, OK) `/* multi line expression */`<br>_Define the whole-struct state triplet for a pointer-free POD object, refusing a snapshot its object could never hold._  |
+| define  | [**DP\_DEFINE\_POD\_STATE\_TLM**](dp__state_8h.md#define-dp_define_pod_state_tlm) (pfx, STATE\_T, MAGIC, VERSION, MEMBER) `/* multi line expression */`<br>_DP\_DEFINE\_POD\_STATE\_TLM\_CHECKED with no predicate._  |
+| define  | [**DP\_DEFINE\_POD\_STATE\_TLM\_CHECKED**](dp__state_8h.md#define-dp_define_pod_state_tlm_checked) (pfx, STATE\_T, MAGIC, VERSION, MEMBER, OK) `/* multi line expression */`<br>_Whole-struct POD triplet for an object carrying a live telemetry attachment (or any other non-state member that must not travel in the blob), refusing a snapshot its object could never hold._  |
 | define  | [**DP\_DEFINE\_RUN**](dp__state_8h.md#define-dp_define_run) (pfx, STATE\_T, IN\_T, OUT\_T) `/* multi line expression */`<br>_Define the standard_ `<pfx>_run` _pure-transducer wrapper._ |
 | define  | [**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) (a, b, c, d) `/* multi line expression */`<br> |
 | define  | [**DP\_GET\_OPEN**](dp__state_8h.md#define-dp_get_open) (MAGIC, VERSION, BYTES) `/* multi line expression */`<br> |
+| define  | [**DP\_POD\_ANY\_OK**](dp__state_8h.md#define-dp_pod_any_ok) (p) `((void)(p), 1)`<br> |
 | define  | [**DP\_R\_CHILD**](dp__state_8h.md#define-dp_r_child) (r, pfx, child\_ptr) `/* multi line expression */`<br> |
 | define  | [**DP\_SET\_OPEN**](dp__state_8h.md#define-dp_set_open) (MAGIC, VERSION, BYTES) `/* multi line expression */`<br> |
 | define  | [**DP\_STATE\_ENDIAN**](dp__state_8h.md#define-dp_state_endian)  `1u /\* little-endian (x86-64, arm64 — doppler targets) \*/`<br> |
@@ -305,6 +308,45 @@ static inline dp_reader_t dp_reader_init (
 
 
 Start a reader at offset 0 over `blob` of `cap` bytes. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ring\_head\_ok 
+
+_A dual-write delay ring's head, as a blob may carry it: in range._ 
+```C++
+static inline int dp_ring_head_ok (
+    size_t head,
+    size_t cap
+) 
+```
+
+
+
+Every dual-write ring (`buf[2 * cap]`, written at `head` and `head + cap`, read as the window `&buf[head]`) keeps `head < cap`. A blob's head is the one field such a ring indexes with, and the envelope never reads it, so a set\_state checks it here before writing anything (#2142, #2111).
+
+
+
+
+**Parameters:**
+
+
+* `head` The head decoded from the blob. 
+* `cap` The ring's capacity, which create() fixed. 
+
+
+
+**Returns:**
+
+Non-zero when `head` indexes the ring. 
+
+
+
 
 
         
@@ -566,19 +608,19 @@ Start a writer at offset 0 over `blob` of `cap` bytes.
 
 ### define DP\_DEFINE\_POD\_STATE 
 
-_Define the whole-struct state triplet for a pointer-free POD object._ 
+_DP\_DEFINE\_POD\_STATE\_CHECKED with no predicate._ 
 ```C++
 #define DP_DEFINE_POD_STATE (
     pfx,
     STATE_T,
     MAGIC,
     VERSION
-) `/* multi line expression */`
+) `DP_DEFINE_POD_STATE_CHECKED (pfx, STATE_T, MAGIC, VERSION, DP_POD_ANY_OK )`
 ```
 
 
 
-Generates `<pfx>_state_bytes/get_state/set_state` that snapshot the entire `STATE_T` after the envelope. Correct only when the struct holds no pointers (the snapshot would capture a stale address): the running state _and_ the derived config are serialized, and config restores identically into an identically-built instance. For a struct with pointers or a composition, hand-write the triplet (pack running fields / delegate to children) instead. 
+Correct only for an object none of whose values a blob can make dangerous or unreachable; an object whose blob can carry such a value needs the checked form with a real predicate. 
 
 
         
@@ -589,7 +631,7 @@ Generates `<pfx>_state_bytes/get_state/set_state` that snapshot the entire `STAT
 
 ### define DP\_DEFINE\_POD\_STATE\_CHECKED 
 
-_DP\_DEFINE\_POD\_STATE whose restore refuses a payload the object's own predicate rejects._ 
+_Define the whole-struct state triplet for a pointer-free POD object, refusing a snapshot its object could never hold._ 
 ```C++
 #define DP_DEFINE_POD_STATE_CHECKED (
     pfx,
@@ -602,7 +644,13 @@ _DP\_DEFINE\_POD\_STATE whose restore refuses a payload the object's own predica
 
 
 
-The envelope never reads a payload field, so a whole-struct snapshot with one field forged keeps its size and passes dp\_state\_validate(). This form decodes the payload into a temporary `STATE_T`, calls `int OK (const STATE_T *)` on it, and commits it over `s` only when the predicate returns non-zero; otherwise set\_state returns `DP_ERR_INVALID` and `s` is byte-identical to before (doppler#2641). `OK` is the same rule create() applies, stated over a stored struct (for example [**dp\_loop\_filter\_state\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_state_ok)). 
+Generates `<pfx>_state_bytes/get_state/set_state` that snapshot the entire `STATE_T` after the envelope. Correct only when the struct holds no pointers (the snapshot would capture a stale address): the running state _and_ the derived config are serialized, and config restores identically into an identically-built instance. For a struct with pointers or a composition, hand-write the triplet (pack running fields / delegate to children) instead.
+
+
+The envelope checks the blob's size, magic, version and endianness, never a payload field, so a blob with one field forged keeps its size and passes it (#2142: boxcar's `pos` then wrote past its ring). set\_state therefore decodes the payload into a zeroed temporary, calls the predicate `int OK (const STATE_T *)` on it  true for every state create() and the object's own methods can reach, and the same rule create() applies, stated over a stored struct (for example [**dp\_loop\_filter\_state\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_state_ok), #2641)  and commits over `s` only when it holds. Otherwise set\_state returns `DP_ERR_INVALID` and `s` is byte-identical to before.
+
+
+A composition that embeds a checked child by value ANDs the child's predicate into its own, or a forged child field gets in through it. 
 
 
         
@@ -613,7 +661,7 @@ The envelope never reads a payload field, so a whole-struct snapshot with one fi
 
 ### define DP\_DEFINE\_POD\_STATE\_TLM 
 
-_Whole-struct POD triplet for an object carrying a live telemetry attachment (or any other non-state member that must not travel in the blob)._ 
+_DP\_DEFINE\_POD\_STATE\_TLM\_CHECKED with no predicate._ 
 ```C++
 #define DP_DEFINE_POD_STATE_TLM (
     pfx,
@@ -621,12 +669,33 @@ _Whole-struct POD triplet for an object carrying a live telemetry attachment (or
     MAGIC,
     VERSION,
     MEMBER
+) `DP_DEFINE_POD_STATE_TLM_CHECKED (pfx, STATE_T, MAGIC, VERSION, MEMBER,      \ DP_POD_ANY_OK )`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_DEFINE\_POD\_STATE\_TLM\_CHECKED 
+
+_Whole-struct POD triplet for an object carrying a live telemetry attachment (or any other non-state member that must not travel in the blob), refusing a snapshot its object could never hold._ 
+```C++
+#define DP_DEFINE_POD_STATE_TLM_CHECKED (
+    pfx,
+    STATE_T,
+    MAGIC,
+    VERSION,
+    MEMBER,
+    OK
 ) `/* multi line expression */`
 ```
 
 
 
-Identical to DP\_DEFINE\_POD\_STATE except that `MEMBER` — a struct member holding live pointers/ids (e.g. an object's `tlm` attachment) — is zeroed in the serialized copy (deterministic blobs, no leaked address) and kept live across set\_state (a restore must not clobber the receiving instance's attachment with the sender's stale one). 
+Identical to DP\_DEFINE\_POD\_STATE\_CHECKED except that `MEMBER`  a struct member holding live pointers/ids (e.g. an object's `tlm` attachment)  is zeroed in the serialized copy (deterministic blobs, no leaked address) and kept live across set\_state (a restore must not clobber the receiving instance's attachment with the sender's stale one). 
 
 
         
@@ -694,6 +763,25 @@ FourCC type tag, e.g. DP\_FOURCC('A','C','Q','R'). Stored little-end-first so th
 
 
 Open a hand-written get\_state: declare writer `_w` and stamp the header. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_POD\_ANY\_OK 
+
+```C++
+#define DP_POD_ANY_OK (
+    p
+) `((void)(p), 1)`
+```
+
+
+
+A POD predicate that accepts every snapshot: the unchecked form's. 
 
 
         

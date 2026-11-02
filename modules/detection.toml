@@ -1,0 +1,371 @@
+[module.detection]
+doc = """
+Detection primitives: a portable lock detector (LockDet) applying level and time hysteresis to any scalar lock metric.
+
+Examples
+--------
+>>> from doppler.detection import LockDet
+>>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=2)
+>>> [d.step(2.0), d.step(2.0)]
+[0, 1]
+
+"""
+# syncword joins lockdet here rather than in wfm: `det_threshold(pfa)`,
+# `det_pd` and `det_dwell` are this module's existing shape -- a detector and
+# the arithmetic for choosing its threshold -- and a sync-marker correlator
+# is that same family. doppler#897 found the threshold of THIS detector had
+# no arithmetic beside it at all, so `SyncFinder.pfa` / `.max_errors_for`
+# land where a caller already looks for `det_threshold`.
+#
+# It stays free of any one standard: the object takes the marker, and CCSDS
+# reaches it through `doppler.wfm.ccsds_asm_bits()` -- wfm already links
+# ccsds_tm (frame's `depends_on`), and detection must not.
+objects = ["lockdet", "syncword"]
+
+[[module.detection.functions]]
+name = "marcum_q"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "m"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "a"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "b"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_threshold"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_pd"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "dwell"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "threshold"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_dwell"
+return_type = "int"
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pd_min"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "max_dwell"
+type = "int"
+
+[[module.detection.functions]]
+name = "det_snr"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "dwell"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "pd_min"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_threshold_noncoherent"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n_noncoh"
+type = "int"
+
+[[module.detection.functions]]
+name = "det_q_inv"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "p"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_dwell_gauss"
+return_type = "int"
+
+[[module.detection.functions.params]]
+name = "mean"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "var"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pd"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_threshold_gauss"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "mean"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pd"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_ema_alpha"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "snr_in_db"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "snr_out_db"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_verify_count"
+return_type = "int"
+
+[[module.detection.functions.params]]
+name = "p_look"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "p_target"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_verify_delay"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "p_look"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n"
+type = "int"
+
+[[module.detection.functions]]
+name = "det_threshold_f"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n"
+type = "int"
+
+[[module.detection.functions]]
+name = "det_pd_noncoherent"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n_coh"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "n_noncoh"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "threshold"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_n_noncoh"
+return_type = "int"
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n_coh"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "pd_min"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "max_n_noncoh"
+type = "int"
+
+[[module.detection.functions]]
+name = "det_threshold_power"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_pd_power"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "snr_power"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "dwell"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "power_threshold"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_dwell_power"
+return_type = "int"
+
+[[module.detection.functions.params]]
+name = "snr_power"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pd_min"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "max_dwell"
+type = "int"
+
+[[module.detection.functions]]
+name = "det_snr_power"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "dwell"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "pd_min"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_pfa_cell"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n_cells"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_cn0_to_snr"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "cn0_dbhz"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "fs"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_snr_to_cn0"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "fs"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_pd_cfar"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "dwell"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "threshold"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "k"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "leak"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "leak_cells"
+type = "double"

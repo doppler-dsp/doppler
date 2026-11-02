@@ -1,0 +1,20 @@
+# Propagation impairments: things that TRANSFORM a signal on its way from
+# transmitter to receiver, as opposed to source's awgn/lo/nco, which GENERATE
+# one. DopplerChannel is the first; multipath/fading/phase-noise belong here
+# when they land. doppler_channel.toml's depends_on link=true (gh-225) links
+# resamp_core into the impairment .so — the dilation is dp_resamp_execute_ctrl,
+# not a hand-rolled resampler.
+[module.impairment]
+doc = """
+Channel impairments: a DopplerChannel applying carrier offset, delay, and additive white Gaussian noise to a signal for test and simulation.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.impairment import DopplerChannel
+>>> ch = DopplerChannel(fs=1e6, carrier_hz=1e5, doppler_ppm=10.0)
+>>> bool(ch.execute(np.ones(64, np.complex64)).size > 0)
+True
+
+"""
+objects = ["doppler_channel"]

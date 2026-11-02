@@ -160,11 +160,18 @@ jm method mysrc steps --module mymodule \
 
 ### Step 2 — register in the module manifest
 
+Each module has its own manifest, `modules/<module>.toml`, which
+`just-makeit.toml` includes (`include = ["objects/*.toml", "modules/*.toml"]`):
+
 ```toml
-# just-makeit.toml
+# modules/mymodule.toml
 [module.mymodule]
 objects = ["existing_obj", "myobj"]
 ```
+
+A script that reads module tables goes through jm's own loader,
+`just_makeit._config.load(ROOT)`, never a `tomllib` parse of the root file,
+which finds no modules at all.
 
 ### Step 3 — apply
 

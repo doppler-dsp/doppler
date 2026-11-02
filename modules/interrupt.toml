@@ -1,0 +1,13 @@
+[module.interrupt]
+doc = """
+Stopping a run: the one flag every blocking wait in doppler consults, and the scoped guard that arms it.
+
+Examples
+--------
+>>> from doppler.interrupt import Interrupt
+>>> it = Interrupt([])
+>>> it.interrupted()
+0
+
+"""
+objects = ["dp_interrupt_guard"]

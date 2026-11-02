@@ -1,0 +1,111 @@
+[module.sample_clock]
+# timing_core's pace() consults dp_interrupted() so a paced loop can be
+# stopped; this extension embeds its objects rather than linking
+# libdoppler, so it needs the primitive's definitions too. Declared as a
+# `link = true` dependency rather than spliced as a raw
+# `$<TARGET_OBJECTS:>` genexpr, because jm can only see the linkage it
+# WROTE -- and `dp_interrupt_guard` is `process_global`, so a module jm
+# cannot see linking it is a module that silently keeps its own flag
+# (doppler#976). The core carries dp_interrupt.c's storage and accessors.
+kind            = "handle"
+backing         = "dp_sample_clock"
+handle_type     = "dp_sample_clock_t"
+header          = "doppler/timing/timing_core.h"
+package         = "wfm"
+type_name       = "SampleClock"
+init_fn         = "dp_sample_clock_init"
+# gh-794: publish the handle's pointer so a capture can be CONSTRUCTED over
+# this clock (its `clock` init-param is a gh-790 capsule param). A clock is
+# exactly the long-lived borrowed resource that shape exists for -- and the
+# capture must borrow it rather than copy fs/t0, so the two cannot drift.
+# Borrowed, non-owning, NULL destructor; the closed-handle guard still applies.
+capsule         = "doppler.wfm.dp_sample_clock"
+# Empty close_fn: the clock owns no internal resources, so teardown is jm's
+# free(self->h) alone (no <backing>_close finalizer). init_fn makes jm own the
+# malloc/free.
+close_fn        = ""
+
+[[module.sample_clock.depends_on]]
+name = "dp_interrupt_guard"
+link = true
+
+[[module.sample_clock.depends_on]]
+name = "timing"
+link = true
+[[module.sample_clock.create_args]]
+name = "fs"
+type = "double"
+
+[[module.sample_clock.create_args]]
+name = "resync"
+type = "int"
+default = "0"
+kwonly = true
+[[module.sample_clock.methods]]
+name = "pace"
+fn = "dp_sample_clock_pace"
+returns = "double"
+nogil = true
+
+[[module.sample_clock.methods.args]]
+name = "count"
+type = "size_t"
+
+[[module.sample_clock.methods]]
+name = "stamp"
+fn = "dp_sample_clock_stamp"
+returns = "uint64_t"
+
+[[module.sample_clock.methods]]
+name = "stamp_at"
+fn = "dp_sample_clock_stamp_at"
+returns = "uint64_t"
+
+[[module.sample_clock.methods.args]]
+name = "n"
+type = "uint64_t"
+
+[[module.sample_clock.methods]]
+name = "track"
+fn = "dp_sample_clock_track"
+returns = "int"
+
+[[module.sample_clock.methods.args]]
+name = "observed_timestamp_ns"
+type = "uint64_t"
+
+[[module.sample_clock.methods.args]]
+name = "n_at_observation"
+type = "uint64_t"
+
+[[module.sample_clock.methods.args]]
+name = "tolerance_ns"
+type = "uint64_t"
+
+[[module.sample_clock.methods]]
+name = "reset"
+fn = "dp_sample_clock_reset"
+
+[[module.sample_clock.methods]]
+name = "resync"
+fn = "dp_sample_clock_resync"
+[[module.sample_clock.getters]]
+fn = "dp_sample_clock_stats"
+out = "dp_sample_clock_t"
+cache = false
+
+[[module.sample_clock.getters.fields]]
+name = "samples"
+from = "n"
+type = "uint64_t"
+
+[[module.sample_clock.getters.fields]]
+name = "underruns"
+from = "underruns"
+type = "uint64_t"
+
+[[module.sample_clock.getters.fields]]
+name = "max_lateness"
+from = "max_late_ns"
+type = "double"
+scale = "1e-9"

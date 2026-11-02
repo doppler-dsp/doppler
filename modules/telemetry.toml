@@ -1,0 +1,18 @@
+[module.telemetry]
+doc = """
+Telemetry: lightweight in-band probes (Telemetry) that record loop internals -- error, control, lock -- to a sink for offline analysis, and the run's events (EventLog) as SigMF annotations beside them.
+
+Examples
+--------
+>>> from doppler.telemetry import Telemetry
+>>> t = Telemetry()
+>>> t.probe('loop.err')
+0
+
+"""
+objects = ["dp_tlm", "dp_tlm_capture", "dp_event_log"]
+
+# EventLog joins them because the run's EVENTS and the run's TELEMETRY have one
+# owner: the holder that stamps both off the same sample clock, and gets one
+# SigMF sidecar indexing both --- the events as annotations, the telemetry as a
+# `doppler:telemetry` global pointing at the record file (design 8.1).

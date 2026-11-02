@@ -13,12 +13,15 @@ that had to show it did not slow a row wrote a scratch harness for it
    on odd ones, so neither side is systematically first, pinned to the
    fastest core class (``bench_report.fastest_cpus``) as a release run is;
 3. per row, keep each pass's best round (``stats.min``), then report for
-   each side the min of those K values and its spread (max - min over K),
-   and the ratio B / A;
-4. call a row a TIE when the two mins differ by no more than the larger of
-   the two spreads -- the run's own noise, measured, not a threshold picked
-   in advance -- SLOWER when B's min exceeds A's by more than that, and
-   FASTER when it is below by more.
+   each side the min of those K values, its band (second-best minus best
+   pass), and the ratio B / A;
+4. call a row a TIE when the two mins differ by no more than the
+   tolerance: the larger of the two bands -- the run's own noise on the
+   min -- and never less than 1% of A's min (``FLOOR``, the bias a null
+   A/A run of one commit measured); SLOWER when B's min exceeds A's by more
+   than that, and FASTER when it is below by more. The band ignores a single
+   slow pass on purpose: the full max - min would let one outlier hide a
+   regression (#2771).
 
 It exits 1 when any row is SLOWER, or when a row A measured is missing from
 B (a gate cannot pass on a row it never saw), and writes nothing under
@@ -40,6 +43,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bench_interleaved import (
@@ -51,9 +55,17 @@ from bench_interleaved import (
 )
 from bench_report import fastest_cpus, machine_not_ready
 
-#: The two worktrees, apart from bench-interleaved's so the tools never
-#: share a checkout.
-WORKTREES = {"A": "/tmp/doppler-bench-ab-A", "B": "/tmp/doppler-bench-ab-B"}
+
+def worktree_path(side: str) -> str:
+    """A fresh path for one side's worktree, unique to this run.
+
+    A fixed path let two concurrent runs remove each other's checkout
+    (#2771). The directory is made and removed again so `git worktree add`
+    can create it; the name stays this run's.
+    """
+    d = tempfile.mkdtemp(prefix=f"doppler-bench-ab-{side}-")
+    os.rmdir(d)
+    return d
 
 
 def best_rounds(snaps: list) -> dict:
@@ -85,11 +97,47 @@ def best_rounds(snaps: list) -> dict:
     return out
 
 
+#: The smallest difference, as a fraction of A's min, that is a verdict.
+#: Below it two worktrees of the SAME commit already differ: a null A/A run
+#: on the bench box (cachyos-x8664-ai465, K = 5, 2026-11-02) read every B
+#: pass of two rows above A's best, 0.36% and 0.54% apart, a steady bias of
+#: the checkout (its path, its environment) that no band over passes sees.
+#: 1% is about twice that. A real slowdown under 1% reads as a TIE.
+FLOOR = 0.01
+
+
+def band(x: list) -> float:
+    """One side's noise band: its second-best pass minus its best.
+
+    The gate compares mins, so the noise that matters is how far the min
+    itself moves from pass to pass, which the gap between the two best
+    passes estimates. The full max - min over K does not: one slow pass (a
+    cron job, a thermal step) widens it to whatever that pass cost, and a
+    50% regression then hides inside it (#2771). At K = 2 the two are the
+    same, so `main` asks for K >= 3. One pass has no band.
+
+    >>> band([1.0, 1.0, 1.0, 1.0, 3.0])  # the outlier is ignored
+    0.0
+    >>> round(band([1.02, 1.00, 1.05]), 6)
+    0.02
+    >>> band([1.0])
+    0.0
+    """
+    if len(x) < 2:
+        return 0.0
+    lo = sorted(x)
+    return lo[1] - lo[0]
+
+
 def verdict(a: list, b: list) -> dict:
     """Compare one row's K best rounds on each side.
 
-    TIE when the two mins differ by no more than the larger spread, the
-    noise this very run measured; otherwise SLOWER or FASTER for B.
+    TIE when the two mins differ by no more than the tolerance: the larger
+    of the two sides' bands (`band`: second-best minus best pass, the noise
+    this very run measured on the min), and never less than `FLOOR` of A's
+    min, the bias two checkouts of one commit already show. Otherwise
+    SLOWER or FASTER for B. `spread_a` and `spread_b` keep each side's
+    full max - min for the reader.
 
     >>> v = verdict([1.00, 1.02, 1.01], [1.01, 1.03, 1.00])
     >>> v["verdict"], round(v["ratio"], 3)
@@ -98,24 +146,30 @@ def verdict(a: list, b: list) -> dict:
     'SLOWER'
     >>> verdict([1.20, 1.21], [1.00, 1.01])["verdict"]
     'FASTER'
-    >>> verdict([1.0], [1.0])["spread"]  # one pass has no spread: exact
+    >>> verdict([1, 1, 1, 1, 3], [1.5] * 5)["verdict"]  # one outlier pass
+    'SLOWER'
+    >>> verdict([1.0] * 5, [1.005] * 5)["verdict"]  # under the 1% floor
+    'TIE'
+    >>> verdict([1.0], [1.0])["band"]  # one pass has no band
     0.0
     """
     ma, mb = min(a), min(b)
-    sa, sb = max(a) - ma, max(b) - mb
-    spread = max(sa, sb)
-    if mb - ma > spread:
+    width = max(band(a), band(b), FLOOR * ma)
+    if mb - ma > width:
         v = "SLOWER"
-    elif ma - mb > spread:
+    elif ma - mb > width:
         v = "FASTER"
     else:
         v = "TIE"
     return {
         "a": ma,
         "b": mb,
-        "spread_a": sa,
-        "spread_b": sb,
-        "spread": spread,
+        "band": max(band(a), band(b)),
+        "tol": width,
+        "spread_a": max(a) - ma,
+        "spread_b": max(b) - mb,
+        "passes_a": list(a),
+        "passes_b": list(b),
         "ratio": mb / ma,
         "verdict": v,
     }
@@ -165,10 +219,10 @@ def render(result: dict) -> str:
 
     >>> table = render({"x": verdict([1e-6], [2e-6])})
     >>> print(table)  # doctest: +NORMALIZE_WHITESPACE
-    row  A us  B us  B/A  spread us  verdict
-    x    1.000 2.000 2.000 0.000     SLOWER
+    row  A us  B us  B/A  tol us  verdict
+    x    1.000 2.000 2.000 0.010   SLOWER
     """
-    head = ("row", "A us", "B us", "B/A", "spread us", "verdict")
+    head = ("row", "A us", "B us", "B/A", "tol us", "verdict")
     lines = []
     for row, v in result.items():
         if "ratio" in v:
@@ -178,7 +232,7 @@ def render(result: dict) -> str:
                     f"{v['a'] * 1e6:.3f}",
                     f"{v['b'] * 1e6:.3f}",
                     f"{v['ratio']:.3f}",
-                    f"{v['spread'] * 1e6:.3f}",
+                    f"{v['tol'] * 1e6:.3f}",
                     v["verdict"],
                 )
             )
@@ -187,6 +241,44 @@ def render(result: dict) -> str:
     widths = [max(len(r[i]) for r in [head, *lines]) for i in range(6)]
     fmt = "  ".join(f"{{:<{w}}}" for w in widths)
     return "\n".join(fmt.format(*r).rstrip() for r in [head, *lines])
+
+
+def dirty_head(ref: str, commit: str) -> str:
+    """Why `ref` cannot be measured as named, or "" if it can.
+
+    A worktree is checked out from the COMMIT, so `B=HEAD` with uncommitted
+    changes measures the committed tree and silently drops the edit
+    (#2771). Refuse only a ref SPELLED as the checkout (``HEAD`` or ``@``)
+    whose tracked files differ from it. A branch name or a sha names a
+    commit, and means it even when it is HEAD's: `A=main` on a dirty main
+    is a fair question. Untracked files are not part of a build.
+
+    >>> dirty_head("main", "abc1234")  # a name, not the checkout: no git
+    ''
+    """
+    if ref not in ("HEAD", "@"):
+        return ""
+    head = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=REPO,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+    if commit != head:
+        return ""
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=REPO,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+    if not dirty:
+        return ""
+    return (
+        f"{ref} is the checkout's HEAD ({commit}) and its tracked files "
+        "have uncommitted changes, which a worktree would not see: commit "
+        "them, or name the commit you mean"
+    )
 
 
 def _resolve(ref: str) -> str:
@@ -214,21 +306,30 @@ def main(argv=None) -> int:
     )
     ap.add_argument("--json", help="also write the result here")
     args = ap.parse_args(argv)
-    if args.k < 2:
-        print("bench-ab: K must be at least 2, or no row has a spread")
+    if args.k < 3:
+        # The band is second-best minus best. At K = 2 that is max - min,
+        # which one slow pass widens enough to hide a regression (#2771).
+        print(
+            "bench-ab: K must be at least 3, or one outlier pass sets the band"
+        )
         return 2
 
     commits = {"A": _resolve(args.a), "B": _resolve(args.b)}
+    for ref in (args.a, args.b):
+        why = dirty_head(ref, _resolve(ref))
+        if why:
+            print(f"bench-ab: {why}")
+            return 2
     print(
         f"A = {args.a} ({commits['A']}), B = {args.b} ({commits['B']}), "
         f"K = {args.k}, {args.build} build",
         flush=True,
     )
     # Both sides run under the same conditions, interleaved, so drift
-    # cancels; an unready machine widens the spread rather than biasing
+    # cancels; an unready machine widens the bands rather than biasing
     # one side. Say so instead of refusing.
     for p in machine_not_ready():
-        print(f"  warning: {p} (the spreads will be wider)")
+        print(f"  warning: {p} (the bands will be wider)")
 
     wts = {}
     try:
@@ -236,7 +337,7 @@ def main(argv=None) -> int:
             wts[side] = setup_worktree(
                 args.build,
                 commits[side],
-                wt=WORKTREES[side],
+                wt=worktree_path(side),
                 cmake_args=BUILD_ARGS[args.build],
             )
         cpus = fastest_cpus()

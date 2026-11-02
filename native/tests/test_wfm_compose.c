@@ -1905,11 +1905,12 @@ names_hash (const char *why, uint64_t h)
   return why && strstr (why, t) != NULL;
 }
 
-/* F7 (payload-data-source.md 4.8): the record carries what each data
-   source SENT -- frames, fill, idle frames, the bits read and a file's
-   hash -- and a replay identifies a file by that content. A changed file,
-   same length or not, is refused naming both hashes; a record of stdin
-   replays only from a file given again, checked the same way. */
+/* Step 7 of the payload data source (#1619, payload-data-source.md 4.8):
+   the record carries what each data source SENT -- frames, fill, idle
+   frames, the bits read and a file's hash -- and a replay identifies a
+   file by that content. A changed file, same length or not, is refused
+   naming both hashes; a record of stdin replays only from a file given
+   again, checked the same way. */
 static int
 test_a_record_replays_its_data_by_hash (void)
 {

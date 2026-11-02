@@ -1257,7 +1257,7 @@ def build(write: bool = True) -> Report:
                 "push with that room writes exactly that many",
                 "§4",
                 "#1975: a capped `rows_for`; the framer's `frames_in` "
-                "forgetting the owed hop, wrapping, capped (F1-F3)",
+                "forgetting the owed hop, wrapping, capped",
                 "§2.3",
             ],
             [

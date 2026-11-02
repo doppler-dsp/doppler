@@ -610,7 +610,7 @@ def build(write: bool = True) -> Report:
             "**Feed the decoder soft decisions or do not code at all.** "
             "Below Eb/N0 ~3.5 dB a hard-decision Viterbi is worse than an "
             "uncoded link, because the rate costs 3.01 dB of Eb that a "
-            "two-level input does not buy back (§2.2, F3).",
+            "two-level input does not buy back (§2.2).",
             "**Node sync decides on a margin near 0.22, not 0.5.** A "
             "maximum-likelihood search decodes a misaligned stream to the "
             "nearest codeword rather than to noise, so a threshold placed "

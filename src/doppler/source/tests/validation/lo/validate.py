@@ -665,8 +665,9 @@ def characterise() -> Data:
         f"`{inc_cfg}` and the ctrl port gives `{adv_ctrl}`, a delta of "
         f"`{adv_ctrl - inc_cfg}`. The port used to be float32 while the "
         f"configured rate was double, so the same request landed 7 words "
-        f"apart depending on which face it entered by — the NCO's F2 "
-        f"verbatim, inherited along with the port. Both are `double` now "
+        f"apart depending on which face it entered by — the NCO's own "
+        f"float32 ctrl port verbatim, inherited along with the port. Both "
+        f"are `double` now "
         f"(**F5**), which also makes `dp_lo_steps_ctrl` agree with the "
         f"inline `lo_step_ctrl` that always took one."
     )
@@ -1025,7 +1026,8 @@ def review(d: Data) -> None:
         f"described the pre-gh-138 contract. FIXED in both files — and "
         f"checking the sibling found the IDENTICAL pair in "
         f"nco_core.{{h,c}}, four copies of one false claim, all four now "
-        f"corrected (see the NCO report's F9, and its new §17 pinning the "
+        f"corrected (see the NCO report's finding on the same pair, and "
+        f"its new §17 pinning the "
         f"behaviour on each of the three NCO output mappings).",
     )
     R.find(
@@ -1033,7 +1035,8 @@ def review(d: Data) -> None:
         "FIXED",
         f"the ctrl port was float32 while the configured rate was double, "
         f"so one requested 0.1 landed on two different phase words (delta "
-        f"7) — inherited from the NCO (its F2) along with the port itself, "
+        f"7) — inherited from the NCO, whose ctrl port was float32 too, "
+        f"along with the port itself, "
         f"and the LO is the face a carrier loop actually steers. "
         f"dp_lo_steps_ctrl now takes `double`, the width the conversion works "
         f"in and the one lo_step_ctrl always used, so the block and inline "

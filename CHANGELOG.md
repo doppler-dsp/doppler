@@ -13,6 +13,153 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.79.0] - 2026-11-02
+
+### Breaking
+
+- **`Acquisition` reads an awkward code period on a power-of-two lag grid.**
+    A period that is not 7-smooth (2,046 samples: 1,023 chips at two a chip)
+    is read on `lag_bins` columns, the next power of two, by zero-padding
+    each tile's cross-spectrum (`dp_fft_pad_spectrum()`, now public). A
+    continuous hit's `code_phase` is a lag column, not a sample, `surface()`
+    is `surface_rows` x `lag_bins`, `acq_result_t` gains `test_stat_peak`
+    (rebuild), and the state blob is version 7 (`acq-surface.md`).
+
+- **`Acquisition` takes the `sample_rate` it is fed at; `spc` is gone.** One
+    code period is `sample_rate * len(code) / chip_rate` samples, which must
+    be a whole number, and need no longer be a whole number of samples a
+    chip. Pass `sample_rate=spc * chip_rate` for the old behaviour. In C,
+    `dp_acq_create_continuous()` takes `sample_rate` in place of `spc`,
+    `dp_acq_build_handoff()` drops its `spc` argument, and the `spc` field
+    is removed. A C caller still passing `spc` there compiles (the integer
+    converts to a `double` rate) and gets NULL: pass the rate. In Python a
+    positional `spc` lands in `sample_rate` and raises a `ValueError` naming
+    the domain.
+
+- **A pooled receiver with nothing to hold reads state 3, `"idle"`, not 0,
+    `"searching"`.** The pool's controller owns the search, so a pooled
+    receiver never searches: `PoolReceiverStatus.state` and the `.state`
+    telemetry probe read 3 (`ASYNC_DSSS_RX_IDLE`, formerly reserved) while
+    it waits for a seed. Code that took `state == 0` as "free" should test
+    `state == 3`.
+
+- **`AsyncDsssReceiver` and `AsyncDsssPool` take `sample_rate`; `spc` is
+    gone.** Any rate of at least one sample a chip: a whole code period at
+    that rate is searched as is, and a fractional one (11 MSa/s over 5 Mcps)
+    is resampled once, to a power-of-two period, for the search alone --
+    the refine and the tracking loops run on the caller's own samples, the
+    hand-off mapped across the two timebases. Pass `sample_rate=spc *   chip_rate` for the old behaviour. While refining, `status().chip_phase`
+    now includes the code's nominal advance, so it matches a tracking
+    receiver's at any feed size.
+
+- **`dp_despreader_init()` returns `int` and refuses what `create` refuses.**
+    The by-value door now checks the code loop's and carrier loop's domains
+    (`dp_dll_params_ok()`, `dp_loop_filter_params_ok()`,
+    `dp_loop_filter_fll_bn_ok()`) and returns `DP_ERR_INVALID`, or
+    `DP_ERR_MEMORY` when its bit-sync histogram cannot be allocated, with
+    nothing written either way. It used to build a loop with NaN gains. C
+    callers that ignored it still compile; check it.
+
+- **`Dll` takes any finite samples a chip of at least one, not only whole
+    ones.** Its partials close on the code NCO's phase, so a period need not
+    be whole samples: at 2.2 a chip (11 MSa/s over 5 Mcps) it tracks to
+    0.0011 chip, as at 2. `sps` is a float in Python and a `double` in C
+    (the ABI changes: rebuild), and NaN, inf or under 1 is refused, by
+    `dp_dll_create()` and by `dp_dll_init()`, which now returns `int`.
+
+- **`DsssReceiver` takes `sample_rate`; `spc` is gone.** A whole number of
+    samples a chip, at least one, as before; a fractional rate is refused
+    (`AsyncDsssReceiver` takes any). `sample_rate=0`, the default, is two
+    samples a chip at whatever `chip_rate` is -- the old `spc=2` -- and
+    `AsyncDsssReceiver` and `AsyncDsssPool` default the same way.
+
+### Added
+
+- **Every public class now owes its user story, and a gate holds it.**
+    `make user-docs-check` (on `lint` and docs-check) requires an API entry,
+    a guide mention and an example for each class, and a gallery figure or a
+    written reason for each example. The 140 gaps that predate it sit in
+    `docs/.user-docs-exempt`, which only shrinks. See
+    [Adding an algorithm](docs/dev/contributing/adding-algorithms.md), phase 9.
+
+### Changed
+
+- **A wide `Acquisition` dwell takes 28% less time.** The pick's
+    masked argmax over the surface was a scalar loop, 37% of a ±50 kHz
+    `AsyncDsssPool` push. It now finds each block's largest candidate in a
+    vectorizable pass and runs the loop only where a block can move the
+    pick, giving the same cell. On the pinned pool bench (aarch64) the
+    ±50 kHz rows went from 241.8 to 174.4 ns a sample, and the one-tile rows
+    from 30.3 to 27.2.
+
+- **`dp_acq_set_threads()` starts no more workers than the search has
+    tiles.** Every fan hands each tile one task, so a worker past
+    `window_bins` only woke and waited each epoch. At 0, the online cores, a
+    three-tile search ran 18 workers, 15 of them idle. The engine's
+    `threads` (`Acquisition.threads`) now reads the capped count.
+
+- **A second emitter beside a stronger one is judged at its own cell.**
+    `AsyncDsssReceiver`'s pick took a peak as a second emitter only if it
+    cleared the stronger one's worst sidelobe anywhere (-17 dB on the
+    1,023-chip Gold code) by the gate, so at the design floor a weaker
+    emitter was never taken beside a stronger one. It now bounds each peak
+    by what the stronger emitter's sidelobes can read at that cell
+    (`dp_acq_sidelobe_ratio()`), from its statistic on its own lag (the new
+    `test_stat_peak` on each hit). On a deep block the worst sidelobe stays
+    a floor until a strong emitter's data splatter is modelled (#2730).
+
+- **`AsyncDsssPool`'s search runs serially at any `threads`.** `threads`
+    now steps the receivers only. Fanning the search's tiles across the
+    cores cost 1.5x at ±50 kHz and 8x one epoch deep, and made the pool's
+    scene example 1.6x slower (13.0 s against 8.1 s), with the same result.
+    A standalone engine still fans by default: doppler#2744.
+
+- **just-makeit pin 0.112.0 → 0.114.0: each object's C test and benchmark
+    now sits in a directory named for it.** `layout = "mirrored"` moved 311
+    files to `native/tests/<obj>/` and `native/benchmarks/<obj>/`, beside
+    `native/inc/doppler/<obj>/`. Generated methods also raise
+    `RuntimeError("destroyed")` after `close()` instead of reaching C.
+
+- **PSD windows each frame with the periodic (DFT-even) form**
+    ([#2053](https://github.com/doppler-dsp/doppler/issues/2053)), so every
+    PSD reading moves, and with it the Spectrogram, the measure objects and
+    the analyzer: Hann's ENBW is exactly 1.5 bins and a bin-centred Hann
+    tone leaks nothing past its neighbours. The window functions themselves
+    stay symmetric, for filter design.
+
+- **A validation finding is cited by its key and numbered when the report
+    renders** ([#2059](https://github.com/doppler-dsp/doppler/issues/2059)).
+    `R.find(key, ...)` assigns the number and `R.ref(key)` resolves to it, so
+    dropping a finding cannot re-point a citation; #2056 left five that way.
+    `make lint-finding-citations` refuses a typed number outside a report and
+    a cited key no report records. Six reports renumber findings that were
+    out of order.
+
+### Fixed
+
+- **`AsyncDsssPool` runs one search, not one per idle receiver.** Every idle
+    receiver used to search for itself, building the same surface on the
+    same samples, so a pool of N cost N searches (3.4 to 4.0 for four on
+    the pinned bench). The controller now owns one search and seeds idle
+    receivers from its picks, strongest first; the search runs only while a
+    receiver is idle. A pool of four idle receivers now costs what one
+    does.
+
+- **`dp_resamp_get_delay()` named the wrong delay for a decimating
+    `dp_resamp_execute()`.** Below a rate of one, execute runs the
+    transposed structure, whose delay is (centre - 1) / rate input samples
+    (9.34 at rate 0.91, 16.98 at 0.50), not the 10.5 the ctrl and push
+    forms have at every rate. `dp_resamp_get_execute_delay()` gives the
+    execute path's own; `dp_resamp_get_delay()` keeps naming the ctrl and
+    push forms'.
+
+- **`Resampler.execute_delay` gives `execute()`'s own delay.** Below a rate
+    of one `execute()` runs the decimator, whose group delay is `8.5 / rate`
+    input samples (17.0 at 0.5), but `delay` reports the interpolator's 10.5
+    at every rate: it is `execute_ctrl()`'s. A caller mapping a position on
+    a decimated output back to its input subtracts `execute_delay`. The C
+    face is `dp_Resampler_get_execute_delay()`.
+
 ## [0.78.0] - 2026-10-31
 
 ### Added
@@ -18194,6 +18341,7 @@ ______________________________________________________________________
 [0.76.0]: https://github.com/doppler-dsp/doppler/compare/v0.75.0...v0.76.0
 [0.77.0]: https://github.com/doppler-dsp/doppler/compare/v0.76.0...v0.77.0
 [0.78.0]: https://github.com/doppler-dsp/doppler/compare/v0.77.0...v0.78.0
+[0.79.0]: https://github.com/doppler-dsp/doppler/compare/v0.78.0...v0.79.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.78.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.79.0...HEAD

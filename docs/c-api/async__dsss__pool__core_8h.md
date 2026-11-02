@@ -267,7 +267,7 @@ Every parameter after `n_receivers` and before `threads` is [**dp\_async\_dsss\_
 * `reacquire` The receiver's own release-to-search. 
 * `code_only_s` Code-only window, s: sets the slow-time depth D. 
 * `doppler_rate` Doppler rate bound, Hz/s. 
-* `threads` Workers push() steps the receivers on, the calling thread included: 1 = serial, 0 = the online cores (default). The receivers' step uses at most `n_receivers` of them; the controller's search runs before them on the same request, at most one worker a Doppler tile (async-dsss-receiver.md §5). 
+* `threads` Workers push() steps the receivers on, the calling thread included: 1 = serial, 0 = the online cores (default). The receivers' step uses at most `n_receivers` of them; the controller's search runs before them on the same request, at most one worker a Doppler tile, with its once-an-epoch stages inline and its once-a-block ones fanned when a block is more than one epoch (async-dsss-receiver.md §5). 
 
 
 

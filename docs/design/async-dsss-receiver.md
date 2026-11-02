@@ -727,13 +727,15 @@ holds the signals of §1.1 on one code.
     the exclusions, act at the next dwell, so it runs once a dwell, after
     the search decides; between two boundaries the receivers run the whole
     segment in parallel, one per worker. The search runs before them, on
-    the pool's thread count, at most one worker a Doppler tile. On bare
-    metal that takes a full-span dwell to 0.35-0.58 of the serial time at 2
-    to 8 workers. On WSL2 it costs the scene example 1.8× and an all-cores
-    pool 1.27×, a trade doppler#2775 owns
-    (async-dsss-receiver-measurements.md §9.7). The
-    result does not depend on the thread count or on how a caller blocks
-    its pushes.
+    the pool's thread count, at most one worker a Doppler tile. It fans the
+    stages that run once a block, and only when a block is more than one
+    epoch; the stages that run once an epoch run inline, where a wake-up
+    hands out one lag inverse a tile. On bare metal that takes a full-span
+    dwell to 0.52-0.68 of the serial time at 2 workers to all cores, on
+    WSL2 to 0.47-0.66, and every one-epoch row ties serial on both. A
+    standalone `acq` keeps its per-epoch fan, which pays on bare metal
+    (async-dsss-receiver-measurements.md §9.8). The result does not depend
+    on the thread count or on how a caller blocks its pushes.
 - **Each receiver makes its code phase and carrier estimate available**,
     through `status()` (§11.3).
 

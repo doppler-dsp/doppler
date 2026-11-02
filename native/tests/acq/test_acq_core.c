@@ -4071,6 +4071,9 @@ main (void)
     DP_CHECK (c->window_bins == 3 && c->coherent_bins == D);
     DP_REQUIRE (dp_acq_set_max_peaks (c, 4) == 0);
     DP_CHECK_MSG (c->threads >= 1, "a tiled engine starts with a pool");
+    /* A standalone engine fans its per-epoch stages too (#2775); only a
+       composition clears it. Sabotage: create's default 0 -> red. */
+    DP_CHECK_MSG (c->epoch_fan == 1, "the per-epoch stages fan by default");
     DP_CHECK (c->tile_inv != NULL && c->tile_slow != NULL);
     dp_acq_state_t *one
         = dp_acq_create_continuous (CODE7, sf, crate * (double)spc, crate, 0.0,
@@ -4140,6 +4143,15 @@ main (void)
                     && hgot[h].code_phase == href[h].code_phase
                     && hgot[h].peak_mag == href[h].peak_mag
                     && hgot[h].test_stat == href[h].test_stat);
+        /* The per-epoch stages inline, the per-block ones fanned (the
+           pool's search, #2775): the same bytes. */
+        c->epoch_fan = 0;
+        dp_acq_reset (c);
+        DP_CHECK (dp_acq_push (c, x, n, hgot, 16) == nref);
+        DP_CHECK (dp_acq_surface (c, got, c->n_surf) == c->n_surf);
+        DP_CHECK_MSG (memcmp (ref, got, c->n_surf * sizeof *ref) == 0,
+                      "the surface is byte-identical with the epoch fan off");
+        c->epoch_fan = 1;
       }
     DP_CHECK (dp_acq_set_threads (c, 0) == DP_OK && c->threads >= 1
               && c->threads <= (int)c->window_bins);

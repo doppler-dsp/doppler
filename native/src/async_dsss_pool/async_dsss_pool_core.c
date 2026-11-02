@@ -104,6 +104,12 @@ dp_async_dsss_pool_create (
       return NULL;
     }
   (void)dp_async_dsss_receiver_set_search_only (s->search, n_receivers);
+  /* The search fans its per-block stages and runs its per-epoch ones
+     inline (doppler#2775): on WSL2 the per-epoch fan cost this pool
+     1.9-3.5x at D = 1, and inline it ties serial everywhere. A standalone
+     engine keeps the fan, which pays there on bare metal. */
+  if (s->search->acq)
+    s->search->acq->epoch_fan = 0;
   /* A call that completes a carried code period emits that period's
      symbols beyond its input's own (dp_async_dsss_receiver_steps()), and
      its input's own are at most one a sample (a symbol spans at least one

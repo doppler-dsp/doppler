@@ -85,7 +85,6 @@ native/src/interp_table/interp_table_core.c 2
 native/src/lo/lo_core.c 1
 native/src/lockdet/lockdet_core.c 1
 native/src/loop_filter/loop_filter_core.c 1
-native/src/measure/measure_min_samples.c 1
 native/src/mpsk_receiver/mpsk_receiver_core.c 1
 native/src/nco/nco_core.c 1
 native/src/nprmeas/nprmeas_core.c 2

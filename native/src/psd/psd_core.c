@@ -70,7 +70,10 @@ dp_psd_kernel_init (dp_psd_kernel_t *k, size_t n, int window, float beta,
   k->n              = n;
   k->nfft           = nfft;
   k->full_scale     = full_scale;
-  k->w              = (float *)malloc (n * sizeof (float));
+  /* n + 1, not n: the periodic window is filled at n + 1 points and read
+   * at the first n (see below).  n + 1 cannot wrap: the refusal above
+   * holds n * pad, so n, under 2^62. */
+  k->w     = (float *)malloc ((n + 1) * sizeof (float));
   k->frame = (float _Complex *)malloc (nfft * sizeof (float _Complex));
   k->spec  = (float _Complex *)malloc (nfft * sizeof (float _Complex));
   k->pwr   = (float *)malloc (nfft * sizeof (float));
@@ -80,15 +83,21 @@ dp_psd_kernel_init (dp_psd_kernel_t *k, size_t n, int window, float beta,
       return DP_ERR_MEMORY;
     }
 
+  /* The PERIODIC (DFT-even) window, which spectral estimation uses (#2053):
+   * the symmetric window of n + 1 points with its last sample dropped
+   * (Harris 1978; scipy's get_window(..., fftbins=True)).  The library's
+   * window functions stay symmetric, the form filter design wants, so this
+   * is the one place the periodic form is made, and the PSD and the
+   * Spectrogram both read it from here.  w[n] is scratch and never read. */
   if (window == DP_PSD_WINDOW_KAISER)
-    dp_kaiser_window (k->w, n, beta);
+    dp_kaiser_window (k->w, n + 1, beta);
   else if (window == DP_PSD_WINDOW_BLACKMAN_HARRIS)
-    dp_blackman_harris_window (k->w, n);
+    dp_blackman_harris_window (k->w, n + 1);
   else if (window == DP_PSD_WINDOW_RECT)
     for (size_t i = 0; i < n; i++) /* rectangular: no spectral library entry */
       k->w[i] = 1.0f;
   else
-    dp_hann_window (k->w, n);
+    dp_hann_window (k->w, n + 1);
 
   double cg = 0.0, s2 = 0.0;
   for (size_t i = 0; i < n; i++)
@@ -96,12 +105,12 @@ dp_psd_kernel_init (dp_psd_kernel_t *k, size_t n, int window, float beta,
       cg += (double)k->w[i];
       s2 += (double)k->w[i] * (double)k->w[i];
     }
-  /* Every reading divides by cg^2 (or s2): a window that sums to zero --
-   * the symmetric Hann at n = 2 is [0, 0] -- would read NaN, or the -200 dB
-   * floor for any input, so it is refused here (#1911 (f)).  So is one that
-   * is not a finite number: a Kaiser beta of NaN, or one large enough that
-   * I0 overflows, makes every tap NaN.  Not a threshold on the size:
-   * Blackman-Harris at n = 2 sums to 1.2e-4, tiny but valid. */
+  /* Every reading divides by cg^2 (or s2): a window that does not sum to a
+   * positive finite number would read NaN, or the -200 dB floor for any
+   * input, so it is refused here (#1911 (f)).  A Kaiser beta of NaN, or one
+   * large enough that I0 overflows, makes every tap NaN.  (The periodic
+   * Hann at n = 2 is [0, 1], gain 1, and builds; the symmetric [0, 0] it
+   * replaced was the case that first needed this.) */
   if (!(cg > 0.0 && isfinite (cg)))
     {
       dp_psd_kernel_free (k);

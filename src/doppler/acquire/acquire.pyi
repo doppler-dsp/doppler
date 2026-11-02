@@ -19,8 +19,8 @@ class CarrierAcquisition:
     resolution_hz : float, default 0.0
         Desired FFT frequency resolution, Hz. <= 0.0 is a sentinel meaning
         "auto": symbol_rate_hz/10.0. The block is
-        round(sample_rate_hz/resolution_hz) samples, floored at 3 -- the
-        shortest whose default Hann window has any gain.
+        round(sample_rate_hz/resolution_hz) samples, floored at 3 -- a block of
+        1 or 2 gives no usable estimate (#1959).
     zero_pad : int, default 4
         PSD zero-pad factor (>= 1); see psd_core.h.
     window : Literal["hann", "kaiser", "blackman-harris"], default "hann"

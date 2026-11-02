@@ -127,7 +127,7 @@ double dp_psd_sfdr(dp_psd_state_t *state, float min_db);
  * refused, since the carried frame means something different at another hop.
  * Window, plan, scratch, n, nfft and hop are config, rebuilt by create. */
 #define PSD_STATE_MAGIC DP_FOURCC ('P','S','D',' ')
-#define PSD_STATE_VERSION 2u
+#define PSD_STATE_VERSION 3u
 size_t dp_psd_state_bytes (const dp_psd_state_t *state);
 void dp_psd_get_state (const dp_psd_state_t *state, void *blob);
 int dp_psd_set_state (dp_psd_state_t *state, const void *blob);

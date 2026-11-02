@@ -4,12 +4,15 @@
  * Plans a capture for the auto-Kaiser window the measurement objects use: the
  * dynamic-range target (override, else ADC bits, else a deep default) selects
  * the Kaiser beta via the Kaiser-Schafer formula, and that window's ENBW
- * (measured by spectral_core's kaiser_enbw on a reference window) sets the
- * bins-per-RBW.  RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
+ * sets the bins-per-RBW.  The ENBW is the one a PSD kernel computes for its
+ * own (periodic, #2053) window at a reference length, so the plan reads the
+ * window the measurement will actually apply rather than a second copy of
+ * it.  RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
  * A non-positive target_rbw defaults to span/1000 (span = fs/2 real, fs cplx).
  */
 #include "doppler/measure/measure_core.h"
 
+#include "doppler/psd/psd_core.h"
 #include "doppler/spectral/spectral_core.h"
 
 #include <math.h>
@@ -31,17 +34,22 @@ dp_measure_min_samples (double fs, double target_rbw, size_t bits,
   double dr   = measure_resolve_dr (dynamic_range_db, bits);
   double beta = dp_kaiser_beta_for_sidelobe (dr);
 
-  /* Measure the chosen window's ENBW from a reference window. */
+  /* The chosen window's ENBW, read from a PSD kernel at a reference length:
+   * the measurement objects window through that kernel, so this is their
+   * window and not a lookalike. */
   enum
   {
     REF = 1024
   };
-  float *w = (float *)malloc (REF * sizeof (float));
-  if (!w)
-    return 0;
-  dp_kaiser_window (w, REF, (float)beta);
-  double enbw = (double)dp_kaiser_enbw (w, REF);
-  free (w);
+  dp_psd_kernel_t k = { 0 };
+  if (dp_psd_kernel_init (&k, REF, DP_PSD_WINDOW_KAISER, (float)beta, 1, 1.0)
+      != DP_OK)
+    {
+      dp_psd_kernel_free (&k);
+      return 0;
+    }
+  double enbw = k.enbw;
+  dp_psd_kernel_free (&k);
 
   return (size_t)ceil (enbw * fs / target_rbw);
 }

@@ -115,7 +115,8 @@ bessel_i0 (double x)
  * @brief ENBW in bins, n * sum(w^2) / sum(w)^2, from each window's
  * textbook definition in double -- not read back from the object, so the
  * noise model below is independent of the code it checks. PSD's windows are
- * the symmetric forms (n - 1 in the cosine; see #2053).
+ * the periodic (DFT-even) forms, written here over n, not n - 1, as Harris
+ * 1978 defines them (#2053).
  */
 static double
 enbw_of (int window, size_t n)
@@ -123,13 +124,13 @@ enbw_of (int window, size_t n)
   double s1 = 0.0, s2 = 0.0;
   for (size_t i = 0; i < n; i++)
     {
-      const double x = 2.0 * M_PI * (double)i / (double)(n - 1);
+      const double x = 2.0 * M_PI * (double)i / (double)n;
       double       w = 1.0; /* rect */
       if (window == DP_PSD_WINDOW_HANN)
         w = 0.5 - 0.5 * cos (x);
       else if (window == DP_PSD_WINDOW_KAISER)
         {
-          const double r = 2.0 * (double)i / (double)(n - 1) - 1.0;
+          const double r = 2.0 * (double)i / (double)n - 1.0;
           w = bessel_i0 (8.0 * sqrt (1.0 - r * r)) / bessel_i0 (8.0);
         }
       else if (window == DP_PSD_WINDOW_BLACKMAN_HARRIS)

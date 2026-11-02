@@ -66,11 +66,12 @@ dp_carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
 
   if (resolution_hz <= 0.0)
     resolution_hz = symbol_rate_hz / 10.0;
-  /* Floored at 3, the shortest block whose window has gain under every
-   * window offered: the symmetric Hann (the default) is all zeros at 2,
-   * which PSD refuses, and a caller wrapping this create in dp_xnn --
-   * AsyncDsssReceiver does, with refine_n_fft as the block -- aborted on
-   * it (#1959, #1985).  At 2 the estimate was NaN anyway. */
+  /* Floored at 3.  The floor was first needed because PSD's Hann was then
+   * the symmetric form, all zeros at 2, which PSD refused, and a caller
+   * wrapping this create in dp_xnn -- AsyncDsssReceiver does, with
+   * refine_n_fft as the block -- aborted on it (#1959, #1985).  PSD's
+   * Hann is periodic now, [0, 1] at 2 (#2053), but a 2-point block still
+   * resolves nothing useful, so the floor stays. */
   size_t n_fft = (size_t)llround (sample_rate_hz / resolution_hz);
   if (n_fft < 3)
     n_fft = 3;

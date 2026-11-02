@@ -198,18 +198,34 @@ main (void)
         dp_psd_destroy (e);
       }
 
-    /* (f) a window with zero coherent gain: the symmetric Hann at n = 2 is
-     * [0, 0], and every reading divides by sum(w)^2.  It read -200 dB from
-     * psd_db and NaN from psd_dbhz for any input.  Blackman-Harris at n = 2
-     * sums to 1.2e-4 and Hann at n = 3 to 1: tiny or small, not zero. */
-    DP_CHECK (dp_psd_create (2, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
-                             ACC_TRACE_MEAN, 0.1)
-              == NULL);
+    /* (f) a window with zero coherent gain: every reading divides by
+     * sum(w)^2, so one read -200 dB from psd_db and NaN from psd_dbhz for
+     * any input.  The case #1911 found was the symmetric Hann at n = 2,
+     * [0, 0].  PSD's Hann is periodic now (#2053), [0, 1] at n = 2, so it
+     * has gain, exactly 1, and is accepted: a unit DC frame windows to
+     * [0, 1], whose two bins carry |X|^2 = 1 each, so both read exactly
+     * 0 dB (1.0 is exact through every step, and dp_power_to_db_f32 is
+     * exact at 1).  Blackman-Harris at n = 2 is [6e-5, 1]: tiny first tap,
+     * gain 1.00006.  The refusal itself is pinned by the non-finite Kaiser
+     * beta below. */
+    dp_psd_state_t *h2 = dp_psd_create (2, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                        1.0, 0, ACC_TRACE_MEAN, 0.1);
+    DP_REQUIRE (h2 != NULL);
+    DP_CHECK (h2->k.w[0] == 0.0f && h2->k.w[1] == 1.0f);
+    DP_CHECK (h2->k.cg == 1.0 && h2->k.s2 == 1.0 && h2->enbw == 2.0);
+    {
+      const float _Complex one[2] = { 1.0f, 1.0f };
+      float db2[2]                = { NAN, NAN };
+      dp_psd_accumulate (h2, one, 2);
+      DP_CHECK (dp_psd_psd_db (h2, db2, 2) == 2);
+      DP_CHECK (db2[0] == 0.0f && db2[1] == 0.0f);
+    }
+    dp_psd_destroy (h2);
     dp_psd_state_t *bh2 = dp_psd_create (2, 1.0, DP_PSD_WINDOW_BLACKMAN_HARRIS,
                                          0.0f, 1, 1.0, 0, ACC_TRACE_MEAN, 0.1);
     dp_psd_state_t *h3  = dp_psd_create (3, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
                                          1.0, 0, ACC_TRACE_MEAN, 0.1);
-    DP_CHECK (bh2 != NULL && bh2->k.cg > 0.0);
+    DP_CHECK (bh2 != NULL && fabs (bh2->k.cg - 1.00006) < 1e-6);
     DP_CHECK (h3 != NULL && h3->k.cg > 0.0);
     dp_psd_destroy (bh2);
     dp_psd_destroy (h3);
@@ -519,13 +535,30 @@ main (void)
       }
   }
 
-  /* ── ENBW: Hann ~1.5 bins; Kaiser(beta=8) wider ─────────────────────── */
+  /* ── ENBW: Hann exactly 1.5 bins for n >= 3; Kaiser(beta=8) wider ──────
+   * The periodic Hann's cosine completes whole periods over n samples, so
+   * for n >= 3 sum(w) = n/2 and sum(w^2) = 3n/8 (cos^2 is 1/2 + cos(2x)/2,
+   * whose sum vanishes once n > 2), and ENBW = n (3n/8) / (n/2)^2 = 1.5
+   * with no dependence on n.  The window is stored in float32, which moves
+   * ENBW by at most 2.3e-8 over these n (measured; 7 is the worst), so
+   * 1e-6 holds it.  The symmetric Hann reads 1.5 n / (n - 1) once n > 3,
+   * 1.524 at 64, and 3.0 at 3, where it is [0, 1, 0]: red by four orders
+   * of that tolerance. */
   {
+    static const size_t hn[] = { 3, 4, 7, 64, 100 };
+    for (size_t j = 0; j < sizeof hn / sizeof hn[0]; j++)
+      {
+        dp_psd_state_t *hj
+            = dp_psd_create (hn[j], 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.1);
+        DP_REQUIRE (hj != NULL);
+        DP_CHECK (fabs (hj->enbw - 1.5) < 1e-6);
+        dp_psd_destroy (hj);
+      }
     dp_psd_state_t *h = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
                                        1.0, 0, ACC_TRACE_MEAN, 0.1);
     dp_psd_state_t *k = dp_psd_create (N, 1.0, DP_PSD_WINDOW_KAISER, 8.0f, 1,
                                        1.0, 0, ACC_TRACE_MEAN, 0.1);
-    DP_CHECK (fabs (h->enbw - 1.5) < 0.05);
     DP_CHECK (k->enbw
               > h->enbw); /* a Kaiser(8) main lobe is wider than Hann */
     dp_psd_destroy (h);
@@ -1206,16 +1239,16 @@ main (void)
   /* T16: SFDR is the carrier minus the strongest spur, and 0 with fewer than
    * two peaks.  Bin-centred tones at 0 dB and -20 dB under Hann, placed half
    * the transform apart (bins -16 and +16).  Each tone's own neighbours sit
-   * symmetrically at -6 dB, so find_peaks' parabolic correction vanishes; and
-   * at N/2 apart the OTHER tone's leakage is symmetric about it too.  That
-   * placement matters and was measured, with a double-precision model of
-   * this readout (window, FFT, cg^2, find_peaks): at bins 6 and 20 the
-   * carrier's -82 dBc leakage moves the spur by 5.1e-3 dB, at -16/+16 the
-   * model reads 20 dB to 4e-15.  What is left is the float32 FFT: an error
-   * of ~c log2(nfft) u ||X|| (see T8), which on a spur at 0.1 of the
-   * carrier is ~4e-5 relative, 4e-4 dB.  Tolerance 2e-3 dB.  A single tone
-   * leaves one peak above -30 dB (its main-lobe skirt is monotonic, not a
-   * peak): exactly 0. */
+   * symmetrically at -6 dB, so find_peaks' parabolic correction vanishes.
+   * The placement mattered under the symmetric Hann, whose bin-centred tone
+   * leaked -82 dBc from bin 6 into bin 20 and moved a spur there by
+   * 5.1e-3 dB; the periodic Hann (#2053) puts nothing beyond a tone's two
+   * neighbours (T16b), so neither tone reaches the other, and -16/+16 is
+   * kept as a placement that never depended on that.  What is left is the
+   * float32 FFT: an error of ~c log2(nfft) u ||X|| (see T8), which on a
+   * spur at 0.1 of the carrier is ~4e-5 relative, 4e-4 dB.  Tolerance
+   * 2e-3 dB.  A single tone leaves one peak above -30 dB (its two
+   * neighbours are a monotonic skirt, not peaks): exactly 0. */
   {
     dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
                                        1.0, 0, ACC_TRACE_MEAN, 0.0);
@@ -1233,6 +1266,55 @@ main (void)
     DP_CHECK (dp_psd_sfdr (o, -30.0f) == 0.0);
     dp_psd_destroy (w);
     dp_psd_destroy (o);
+  }
+
+  /* T16b: the periodic Hann is DFT-even (#2053).  It is
+   * 1/2 - e^{+j 2 pi k/n}/4 - e^{-j 2 pi k/n}/4, so on the n-point grid its
+   * transform is three bins: n/2 at 0 and -n/4 at +-1.  A bin-centred unit
+   * tone therefore reads 0 dB in its bin, 20 log10(1/2) = -6.02 dB in each
+   * neighbour, and nothing in any other bin.
+   *
+   * "Nothing" is float rounding, bounded: the tone, the window and their
+   * product are each rounded to float32 (3u a sample), and the FFT adds
+   * c log2(n) u (T8; c = 5), so ||dX|| <= (c log2 n + 3) u ||X||, and no
+   * one bin carries more than ||dX||^2.  Against the tone bin's cg^2,
+   * ||X||^2 = n s2 = enbw cg^2 (Parseval), so every bin past the
+   * neighbours reads at most 10 log10(((c log2 n + 3) u)^2 enbw) dBc,
+   * -112.3 dBc at n = 64; measured, the worst is -144.4.  The symmetric
+   * Hann leaked -82 dBc from bin 6 into bin 20, 30 dB above this bound,
+   * and more into the bins nearer the tone.  The three bins that do carry
+   * the tone hold their level to the dB conversion's pin (they are 1 and
+   * 1/4 to float rounding, where its error is near zero).  Tones at bins 6
+   * and -21: one either side of DC, one near the edge of the band. */
+  {
+    dp_psd_state_t *w = dp_psd_create (N, 1.0, DP_PSD_WINDOW_HANN, 0.0f, 1,
+                                       1.0, 0, ACC_TRACE_MEAN, 0.0);
+    DP_REQUIRE (w != NULL);
+    const double     e    = (5.0 * log2 ((double)N) + 3.0) * ldexp (1.0, -24);
+    const double     lim  = 10.0 * log10 (e * e * w->enbw);
+    static const int tk[] = { 6, -21 };
+    for (size_t j = 0; j < sizeof tk / sizeof tk[0]; j++)
+      {
+        float _Complex x[64];
+        float db[64];
+        fill_tone (x, N, tk[j]);
+        dp_psd_frame_db (&w->k, x, db);
+        const size_t c    = (size_t)((long)N / 2 + tk[j]);
+        const double half = 20.0 * log10 (0.5);
+        DP_CHECK (fabs (db[c]) < DP_P2DB_PIN_DB);
+        DP_CHECK (fabs (db[c - 1] - half) < DP_P2DB_PIN_DB);
+        DP_CHECK (fabs (db[c + 1] - half) < DP_P2DB_PIN_DB);
+        double worst = -INFINITY;
+        for (size_t i = 0; i < N; i++)
+          if (i + 1 < c || i > c + 1)
+            worst = fmax (worst, (double)db[i] - (double)db[c]);
+        if (worst > lim)
+          printf ("T16b bin %d: %.1f dBc beyond the neighbours (bound "
+                  "%.1f)\n",
+                  tk[j], worst, lim);
+        DP_CHECK (worst <= lim);
+      }
+    dp_psd_destroy (w);
   }
 
   /* T17: create's remaining arguments.  beta shapes only the Kaiser window:
@@ -1574,8 +1656,9 @@ main (void)
   /* ── the kernel on its own: refusals, free, and the same frames ─────────
      dp_psd_kernel_t is what PSD and the Spectrogram each hold by value. A
      bare kernel refuses what dp_psd_create refuses for it, leaves nothing
-     allocated on a refusal (one is refused AFTER allocating: Hann at n = 2
-     has no gain), is freeable on any outcome and from a zero init, and turns
+     allocated on a refusal (one is refused AFTER allocating: a NaN Kaiser
+     beta makes the window non-finite, which only filling it can show), is
+     freeable on any outcome and from a zero init, and turns
      a frame into exactly the bins a PSD's own kernel does. */
   {
     enum
@@ -1600,9 +1683,6 @@ main (void)
               == DP_ERR_INVALID); /* n * pad too large to size */
     DP_CHECK (dp_psd_kernel_init (&k, KN, DP_PSD_WINDOW_KAISER, NAN, 1, 1.0)
               == DP_ERR_INVALID); /* non-finite window: after allocating */
-    DP_CHECK (k.w == NULL && k.fft == NULL);
-    DP_CHECK (dp_psd_kernel_init (&k, 2, DP_PSD_WINDOW_HANN, 0.0f, 1, 1.0)
-              == DP_ERR_INVALID); /* no gain: refused after allocating */
     DP_CHECK (k.w == NULL && k.frame == NULL && k.spec == NULL && k.pwr == NULL
               && k.fft == NULL); /* ...and freed */
     dp_psd_kernel_free (&k);     /* freeable after it */
@@ -1829,26 +1909,28 @@ main (void)
    *
    * Blackman-Harris, the 4-term minimum window, from its PUBLISHED
    * coefficients (Harris 1978, Table 1, where the periodic window's ENBW is
-   * tabulated as 2.00 bins).  doppler's window is the symmetric one (it
-   * divides by N-1): the periodic (N-1)-point window plus one end sample
-   * w0 = a0 - a1 + a2 - a3.  Every cosine product in w^2 has a frequency of
-   * at most 6 cycles, so for N-1 > 6 its sum over the period vanishes and
-   *   sum(w)   = (N-1) a0 + w0
-   *   sum(w^2) = (N-1) P  + w0^2,   P = a0^2 + (a1^2 + a2^2 + a3^2) / 2
-   * exactly (measured: the double closed form and a double-precision window
-   * agree to 1e-15).  Tolerance: the window is stored in float32, and that
-   * rounding moves ENBW by 4e-9 at N = 64 and 3e-9 at N = 100 (measured);
-   * 1e-6 absolute is 250x that, and still 19x tighter than a coefficient
-   * off in its 5th digit (a2 = 0.14128 -> 0.1413 moves ENBW by 1.9e-5). */
+   * tabulated as 2.00 bins).  PSD's window is that periodic one (#2053):
+   * w(k) = a0 - a1 cos(2 pi k/N) + a2 cos(4 pi k/N) - a3 cos(6 pi k/N).
+   * Every cosine in w, and every product in w^2, has a frequency of at most
+   * 6 cycles per N samples, so for N > 6 each sums to zero over the N
+   * samples and
+   *   sum(w)   = N a0
+   *   sum(w^2) = N P,   P = a0^2 + (a1^2 + a2^2 + a3^2) / 2
+   * exactly, so ENBW = N (N P) / (N a0)^2 = P / a0^2 = 2.00435 at every
+   * N > 6 -- Harris's 2.00 itself.  Tolerance: the window is stored in
+   * float32, and that rounding moves ENBW by at most 1.5e-8 at these N
+   * (measured, at 64); 1e-6 absolute is 66x that, still 19x tighter than a
+   * coefficient off in its 5th digit (a2 = 0.14128 -> 0.1413 moves ENBW by
+   * 1.9e-5), and 30000x tighter than the symmetric window, which read
+   * 2.036 at N = 64.  7 is the shortest N the closed form holds at (at 6
+   * the 6-cycle term aliases to DC, and ENBW reads 5.3e-4 high). */
   {
     const double a0 = 0.35875, a1 = 0.48829, a2 = 0.14128, a3 = 0.01168;
-    const double P  = a0 * a0 + (a1 * a1 + a2 * a2 + a3 * a3) / 2.0;
-    const double w0 = a0 - a1 + a2 - a3;
+    const double P = a0 * a0 + (a1 * a1 + a2 * a2 + a3 * a3) / 2.0;
     DP_CHECK (fabs (P / (a0 * a0) - 2.00) < 0.005); /* Harris's 2.00 */
-    static const size_t ns[] = { 64, 100 };
-    for (size_t j = 0; j < 2; j++)
+    static const size_t ns[] = { 7, 64, 100 };
+    for (size_t j = 0; j < sizeof ns / sizeof ns[0]; j++)
       {
-        const double    n = (double)ns[j];
         dp_psd_state_t *r
             = dp_psd_create (ns[j], 1.0, DP_PSD_WINDOW_RECT, 0.0f, 1, 1.0, 0,
                              ACC_TRACE_MEAN, 0.0);
@@ -1857,17 +1939,15 @@ main (void)
                              1, 1.0, 0, ACC_TRACE_MEAN, 0.0);
         DP_REQUIRE (r != NULL && bh != NULL);
         DP_CHECK (r->enbw == 1.0);
-        const double want = n * ((n - 1.0) * P + w0 * w0)
-                            / (((n - 1.0) * a0 + w0) * ((n - 1.0) * a0 + w0));
-        DP_CHECK (fabs (bh->enbw - want) < 1e-6);
+        DP_CHECK (fabs (bh->enbw - P / (a0 * a0)) < 1e-6);
         dp_psd_destroy (r);
         dp_psd_destroy (bh);
       }
   }
 
-  /* T18: the transform length is next_pow_two(n * pad).  Rectangular so a
-   * tiny n stays a well-defined window (a symmetric Hann of 2 points is all
-   * zeros). */
+  /* T18: the transform length is next_pow_two(n * pad).  Rectangular, the
+   * window whose taps do not depend on n, so the cases need nothing of the
+   * window at n = 2. */
   {
     static const struct
     {

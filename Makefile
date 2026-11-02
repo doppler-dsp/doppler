@@ -1885,7 +1885,8 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 check-wheel-tags release-wheel-tags \
                 release-smoke-packages \
                 bench-python bench-rx \
-                bench-preflight bench-interleaved bench-publish bench-docs \
+                bench-preflight bench-interleaved bench-ab bench-publish \
+                bench-docs \
                 bench-labels-fix \
                 bench-stream bench-report bench-restamp \
                 docker-runtime docker-sdk docker-downstream docker-stream \
@@ -5174,6 +5175,26 @@ endif
 	  echo $$? > $(BENCH_RUN_RC).tmp; } 2>&1 \
 	  | tee $(BENCH_RUN_DIR)/$(VERSION).log; \
 	  mv $(BENCH_RUN_RC).tmp $(BENCH_RUN_RC); exit $$(cat $(BENCH_RUN_RC))
+
+# The A/B gate a performance PR is held to (#2759): A and B built at one set of
+# flags in throwaway worktrees, alternated K times, and per row min-of-K, each
+# side's spread, the ratio and a verdict. A row ties when the two mins differ
+# by no more than the larger spread; it exits 1 on any SLOWER row, or on a row
+# A measured and B did not. BENCH_ARGS narrows the suite as it does for
+# `make bench`. Writes nothing under benchmarks/published/. By hand: nothing
+# in CI runs it (a bench box and minutes).
+bench-ab: ## A/B two commits, per row min-of-K + spread (A= B= [K=] [BUILD=])
+ifndef A
+	@echo "usage: make bench-ab A=<ref> B=<ref> [K=5] [BUILD=portable|native]"
+	@echo "       [JSON=out.json] [BENCH_ARGS=...]"
+	@exit 2
+endif
+ifndef B
+	@echo "usage: make bench-ab A=<ref> B=<ref> [K=5] [BUILD=portable|native]"
+	@exit 2
+endif
+	$(UV) run python scripts/bench_ab.py $(A) $(B) $(if $(K),-k $(K),) \
+	    $(if $(BUILD),--build $(BUILD),) $(if $(JSON),--json $(JSON),)
 
 bench-publish: ## Stamp one build's numbers for a release (VERSION= BUILD=)
 ifndef VERSION

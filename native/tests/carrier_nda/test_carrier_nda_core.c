@@ -27,8 +27,11 @@
 #include "doppler/dp_complex.h"
 #include "doppler/mpsk/mpsk_core.h"
 #include "dp_rng_test.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -790,6 +793,109 @@ main (void)
           }
         dp_carrier_nda_destroy (c);
       }
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged arm or verdict is refused, the object untouched          *
+   * ---------------------------------------------------------------- */
+  {
+    /* The boxcar arm is embedded by value, so its forged pos wrote past the
+       struct exactly as a standalone boxcar's did; the lock verdict is 0/1. */
+    dp_carrier_nda_state_t *s
+        = dp_carrier_nda_create (0.01, 0.707, 0.01, 8, 4, 4);
+    DP_CHECK (s != NULL);
+    const size_t pos_off  = sizeof (dp_state_hdr_t)
+                            + offsetof (dp_carrier_nda_state_t, arm)
+                            + offsetof (dp_boxcar_state_t, pos);
+    const size_t lock_off = sizeof (dp_state_hdr_t)
+                            + offsetof (dp_carrier_nda_state_t, lockdet)
+                            + offsetof (dp_lockdet_state_t, locked);
+    const size_t past     = BOXCAR_MAX_LEN;
+    const int    seven    = 7;
+    DP_STATE_FORGE_TEST (dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION, pos_off, &past,
+                         sizeof past);
+    DP_STATE_FORGE_TEST (dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION, lock_off, &seven,
+                         sizeof seven);
+    /* The embedded loop filter's gains are the ones its bn, zeta and t give
+       (folded by 1/2pi): a forged NaN or absurd gain is refused, as
+       LoopFilter's own restore refuses it (#2641). */
+    const size_t kp_off = sizeof (dp_state_hdr_t)
+                          + offsetof (dp_carrier_nda_state_t, lf)
+                          + offsetof (dp_loop_filter_state_t, kp);
+    const double nan_g  = NAN;
+    const double big_g  = 1e6;
+    DP_STATE_FORGE_TEST (dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION, kp_off, &nan_g,
+                         sizeof nan_g);
+    DP_STATE_FORGE_TEST (dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION, kp_off, &big_g,
+                         sizeof big_g);
+    /* A zeroed filter (t = 0 too) is no state an NDA can hold: nothing
+       embeds one, and create and set_bn always configure it. A zeroed
+       filter alone would also break bn == lf.bn, so the forge zeroes the
+       retained bn and zeta with it: lf..zeta is one contiguous run, written
+       back with only those three zeroed, and only the bare loop-filter
+       predicate is left to refuse it. */
+    {
+      const size_t H = sizeof (dp_state_hdr_t);
+      const size_t a = offsetof (dp_carrier_nda_state_t, lf);
+      const size_t e
+          = offsetof (dp_carrier_nda_state_t, zeta) + sizeof (double);
+      unsigned char *blob = malloc (dp_carrier_nda_state_bytes (s));
+      unsigned char  run[sizeof (dp_carrier_nda_state_t)];
+      DP_REQUIRE (blob != NULL && e - a <= sizeof run);
+      dp_carrier_nda_get_state (s, blob);
+      memcpy (run, blob + H + a, e - a);
+      memset (run, 0, sizeof (dp_loop_filter_state_t));
+      memset (run + offsetof (dp_carrier_nda_state_t, bn) - a, 0,
+              2 * sizeof (double));
+      DP_STATE_FORGE_TEST (dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC,
+                           CARRIER_NDA_STATE_VERSION, H + a, run, e - a);
+      free (blob);
+    }
+    /* The retained bn and zeta the getters report are the loop's own. */
+    const double bn2 = 0.02, z2 = 0.5;
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        sizeof (dp_state_hdr_t) + offsetof (dp_carrier_nda_state_t, zeta), &z2,
+        sizeof z2);
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        sizeof (dp_state_hdr_t) + offsetof (dp_carrier_nda_state_t, bn), &bn2,
+        sizeof bn2);
+    /* The order is one create() takes (#2022). */
+    const int m3 = 3;
+    DP_STATE_FORGE_TEST (
+        dp_carrier_nda, s, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+        sizeof (dp_state_hdr_t) + offsetof (dp_carrier_nda_state_t, m), &m3,
+        sizeof m3);
+    dp_carrier_nda_destroy (s);
+  }
+
+  /* The shared round trip, on a driven object. a and b come from create()
+   * with nothing driven into either. b is then stepped, so its state differs
+   * from a's, and the single DP_STATE_ROUNDTRIP_TEST call runs its
+   * determinism, fidelity, every-byte and envelope-reject legs against that
+   * driven b. Two fresh objects would make the fidelity leg unable to fail
+   * (#2142). */
+  {
+    dp_carrier_nda_state_t *a
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    dp_carrier_nda_state_t *b
+        = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    DP_CHECK (a != NULL && b != NULL);
+    if (a && b)
+      {
+        float _Complex x[256], y[256];
+        for (size_t i = 0; i < 256; i++)
+          x[i] = (0.3f + 0.01f * (float)i) + I * (0.2f - 0.003f * (float)i);
+        (void)dp_carrier_nda_steps (b, x, 256, y, 256);
+        DP_STATE_ROUNDTRIP_TEST (dp_carrier_nda, a, b);
+      }
+    dp_carrier_nda_destroy (a);
+    dp_carrier_nda_destroy (b);
   }
 
   DP_TEST_END ("test_carrier_nda_core");

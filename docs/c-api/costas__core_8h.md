@@ -883,7 +883,7 @@ int dp_costas_set_state (
 
 
 
-Restores every field, config included, but keeps the receiver's own telemetry attachment. On rejection `state` is untouched.
+Restores every field, config included, but keeps the receiver's own telemetry attachment. The payload is decoded into a temporary and checked first, so on rejection `state` is untouched.
 
 
 
@@ -898,7 +898,7 @@ Restores every field, config included, but keeps the receiver's own telemetry at
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID on a magic, version, endian or size mismatch. 
+DP\_OK, or DP\_ERR\_INVALID on a magic, version, endian or size mismatch or a payload the object's check refuses. 
 
 
 

@@ -125,11 +125,36 @@ dp_costas_tlm_flush (const dp_costas_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_nco, dp_costas_get_nco_freq (s));
 }
 
+/* A snapshot this object could hold: its embedded loop filter's gains are
+ * the ones its bn, zeta and t give (the check LoopFilter's own restore
+ * makes), its detector's verdict is 0 or 1 (dp_lockdet_state_ok, #2142), and
+ * the rest is below. */
+static int
+costas_state_ok (const dp_costas_state_t *s)
+{
+  /* Everything create() and the setters refuse is refused here too, by the
+     same predicates (#2022). A receiver holds its Costas loops all-zero
+     until it seeds them, and that state round-trips, so `tsamps` is at
+     least 1 OR the loop filter is the all-zero one: embedded_ok without
+     state_ok is exactly the all-zero struct. The retained bn/zeta the
+     getters report equal the loop's own, and the FLL assist is one
+     set_bn_fll() would take, with its derived gain (0 for the zero state). */
+  const int seeded = s->tsamps >= 1;
+  const int lf_ok  = seeded ? dp_loop_filter_state_ok (&s->lf)
+                            : dp_loop_filter_embedded_ok (&s->lf)
+                                  && !dp_loop_filter_state_ok (&s->lf);
+  return lf_ok && s->bn == s->lf.bn && s->zeta == s->lf.zeta
+         && dp_loop_filter_fll_bn_ok (s->bn_fll) && s->k_fll == 4.0 * s->bn_fll
+         && dp_lockdet_state_ok (&s->lock);
+}
+
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
- * telemetry attachment zeroed in blobs and kept live across restore
- * (see DP_DEFINE_POD_STATE_TLM in dp_state.h). */
-DP_DEFINE_POD_STATE_TLM (dp_costas, dp_costas_state_t, COSTAS_STATE_MAGIC,
-                         COSTAS_STATE_VERSION, tlm)
+ * telemetry attachment zeroed in blobs and kept live across restore, and a
+ * snapshot costas_state_ok() rejects refused untouched (see
+ * DP_DEFINE_POD_STATE_TLM_CHECKED in dp_state.h). */
+DP_DEFINE_POD_STATE_TLM_CHECKED (dp_costas, dp_costas_state_t,
+                                 COSTAS_STATE_MAGIC, COSTAS_STATE_VERSION, tlm,
+                                 costas_state_ok)
 
 int
 dp_costas_configure (dp_costas_state_t *state, double bn, double zeta)

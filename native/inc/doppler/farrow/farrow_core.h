@@ -78,15 +78,36 @@ typedef struct {
  * @param s      State to initialise (e.g. embedded by value).  Must be
  *               non-NULL.
  * @param order  FARROW_LINEAR, FARROW_PARABOLIC or FARROW_CUBIC.  Not
- *               validated here (dp_farrow_create() is the checked
- *               door): any other value is evaluated as cubic by
- *               farrow_eval().
+ *               refused here (dp_farrow_create() is the checked door):
+ *               farrow_eval() reads any other value as cubic, so init
+ *               stores exactly that.  The state then carries an order
+ *               dp_farrow_state_ok() accepts, and a round trip of a
+ *               stream built from an out-of-range order does not fail on
+ *               restore.
  */
 JM_FORCEINLINE void
 farrow_init (dp_farrow_state_t *s, int order)
 {
     s->d[0] = s->d[1] = s->d[2] = s->d[3] = 0.0f;
-    s->order = order;
+    s->order = (order == FARROW_LINEAR || order == FARROW_PARABOLIC)
+                   ? order
+                   : FARROW_CUBIC;
+}
+
+/**
+ * @brief A Farrow state a blob may carry: one of the three orders.
+ *
+ * dp_farrow_create() refuses any other order, so a blob carrying one is
+ * forged, not a state (#2142). farrow_eval() would read it as cubic. Every
+ * set_state that carries a Farrow, by itself or embedded, refuses it.
+ *
+ * @param s  Decoded Farrow state. Must be non-NULL.
+ * @return Non-zero when `order` is FARROW_LINEAR, _PARABOLIC or _CUBIC.
+ */
+JM_FORCEINLINE int
+dp_farrow_state_ok (const dp_farrow_state_t *s)
+{
+    return s->order >= FARROW_LINEAR && s->order <= FARROW_CUBIC;
 }
 
 /**

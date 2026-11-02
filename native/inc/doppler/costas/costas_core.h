@@ -297,12 +297,13 @@ void dp_costas_get_state(const dp_costas_state_t *state, void *blob);
  * @brief Restore a state written by dp_costas_get_state().
  *
  * Restores every field, config included, but keeps the receiver's own
- * telemetry attachment. On rejection @p state is untouched.
+ * telemetry attachment. The payload is decoded into a temporary and
+ * checked first, so on rejection @p state is untouched.
  *
  * @param state  Must be non-NULL.
  * @param blob   Blob from dp_costas_get_state().
  * @return DP_OK, or DP_ERR_INVALID on a magic, version, endian or size
- *         mismatch.
+ *         mismatch or a payload the object's check refuses.
  */
 int dp_costas_set_state(dp_costas_state_t *state, const void *blob);
 

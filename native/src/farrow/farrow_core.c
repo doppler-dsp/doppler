@@ -29,10 +29,11 @@ dp_farrow_reset (dp_farrow_state_t *state)
   state->d[0] = state->d[1] = state->d[2] = state->d[3] = 0.0f;
 }
 
-/* Serializable state — whole-struct POD snapshot, pointer-free (see
- * DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (dp_farrow, dp_farrow_state_t, FARROW_STATE_MAGIC,
-                     FARROW_STATE_VERSION)
+/* Serializable state — whole-struct POD snapshot, pointer-free, refusing an
+ * order create() would refuse (see DP_DEFINE_POD_STATE_CHECKED in
+ * dp_state.h). */
+DP_DEFINE_POD_STATE_CHECKED (dp_farrow, dp_farrow_state_t, FARROW_STATE_MAGIC,
+                             FARROW_STATE_VERSION, dp_farrow_state_ok)
 
 size_t
 dp_farrow_get_group_delay (const dp_farrow_state_t *state)

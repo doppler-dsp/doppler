@@ -177,42 +177,39 @@ dp_carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lockdet.locked);
 }
 
+/* A snapshot this object could hold: its embedded loop filter's gains are
+ * the ones its bn, zeta and t give, its boxcar arm writes `ring[pos]`
+ * (dp_boxcar_state_ok) and its lock detector's verdict is 0 or 1
+ * (dp_lockdet_state_ok). A forged arm wrote past the struct (#2142).
+ *
+ * config_loop() folds 1/2pi into the filter's gains, so the stored ones are
+ * the loop filter's own divided by it. The question dp_loop_filter_state_ok
+ * answers is about the filter's own gains, so it is asked of a copy with the
+ * fold undone, rather than a second gains check living here. It is the bare
+ * predicate: nothing embeds a carrier_nda by value, and every path that sets
+ * the filter (create, set_bn) goes through dp_loop_filter_configure's domain
+ * check, so a zeroed filter is a forgery that freezes the loop, not an
+ * unseeded embedding. */
+static int
+carrier_nda_state_ok (const dp_carrier_nda_state_t *s)
+{
+  dp_loop_filter_state_t lf = s->lf;
+  lf.kp /= CARRIER_NDA_INV_2PI;
+  lf.ki /= CARRIER_NDA_INV_2PI;
+  /* `m` is the order create() takes, and the retained bn/zeta the getters
+     report are the loop's own, as config_loop() stores them (#2022). */
+  return (s->m == 2 || s->m == 4 || s->m == 8) && dp_loop_filter_state_ok (&lf)
+         && s->bn == s->lf.bn && s->zeta == s->lf.zeta
+         && dp_boxcar_state_ok (&s->arm) && dp_lockdet_state_ok (&s->lockdet);
+}
+
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
- * telemetry attachment zeroed in blobs and kept live across restore. */
-size_t
-dp_carrier_nda_state_bytes (const dp_carrier_nda_state_t *s)
-{
-  (void)s;
-  return sizeof (dp_state_hdr_t) + sizeof (dp_carrier_nda_state_t);
-}
-
-void
-dp_carrier_nda_get_state (const dp_carrier_nda_state_t *s, void *blob)
-{
-  dp_carrier_nda_state_t c = *s;
-  memset (&c.tlm, 0, sizeof c.tlm);
-  dp_writer_t w = dp_writer_init (blob, dp_carrier_nda_state_bytes (s));
-  dp_w_hdr (&w, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
-            dp_carrier_nda_state_bytes (s));
-  dp_w_bytes (&w, &c, sizeof c);
-}
-
-int
-dp_carrier_nda_set_state (dp_carrier_nda_state_t *s, const void *blob)
-{
-  int rc
-      = dp_state_validate (blob, dp_carrier_nda_state_bytes (s),
-                           CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION);
-  if (rc != DP_OK)
-    return rc;
-  dp_carrier_nda_state_t c;
-  dp_reader_t r = dp_reader_init (blob, dp_carrier_nda_state_bytes (s));
-  r.off         = sizeof (dp_state_hdr_t);
-  dp_r_bytes (&r, &c, sizeof c);
-  c.tlm = s->tlm; /* keep the live attachment */
-  *s    = c;
-  return DP_OK;
-}
+ * telemetry attachment zeroed in blobs and kept live across restore, and a
+ * snapshot carrier_nda_state_ok() rejects refused untouched. */
+DP_DEFINE_POD_STATE_TLM_CHECKED (dp_carrier_nda, dp_carrier_nda_state_t,
+                                 CARRIER_NDA_STATE_MAGIC,
+                                 CARRIER_NDA_STATE_VERSION, tlm,
+                                 carrier_nda_state_ok)
 
 /* Output bound: emitted samples == input length (the de-rotated stream). */
 size_t

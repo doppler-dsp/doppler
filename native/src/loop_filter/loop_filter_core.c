@@ -100,6 +100,16 @@ dp_loop_filter_state_ok (const dp_loop_filter_state_t *s)
   return fabs (s->kp - kp) <= tol_kp && fabs (s->ki - ki) <= tol_ki;
 }
 
+/* An embedded filter before its owner's init has run is all-zero, and its
+ * owner's blob carries it that way; see the header. */
+int
+dp_loop_filter_embedded_ok (const dp_loop_filter_state_t *s)
+{
+  const int zero = s->kp == 0.0 && s->ki == 0.0 && s->integ == 0.0
+                   && s->bn == 0.0 && s->zeta == 0.0 && s->t == 0.0;
+  return zero || dp_loop_filter_state_ok (s);
+}
+
 dp_loop_filter_state_t *
 dp_loop_filter_create (double bn, double zeta, double t)
 {

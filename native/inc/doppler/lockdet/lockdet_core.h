@@ -56,6 +56,7 @@
  * dp_lockdet_state_t d;
  * dp_lockdet_init (&d, 1.5, 1.2, 2, 3);       // declare: 2 looks > 1.5
  * dp_lockdet_reset (&d);                      // cnt = 0, locked = 0
+ * double metric = 2.0;                      // one lock-metric look
  * int locked = dp_lockdet_step (&d, metric);  // one look -> current flag
  * @endcode
  */
@@ -84,6 +85,28 @@ extern "C"
     uint32_t cnt;       /**< running consecutive-look verify counter.     */
     int locked;         /**< current decision (1 = locked).               */
   } dp_lockdet_state_t;
+
+  /**
+   * @brief A lock-detector state a blob may carry: a decision that is 0
+   *        or 1.
+   *
+   * step() only ever stores 0 or 1, so a decision of 7 is a forged blob,
+   * not a state: it surfaced as `locked` and read back through every
+   * embedder (#2142). The by-value embedders that refuse a snapshot this
+   * rejects are carrier_nda, costas and symsync. dll, ratesync, mpsk_receiver
+   * and the async sym_lockdet do not yet; they are on #2142's checklist.
+   * The counts are not checked:
+   * init() clamps them to >= 1, but an embedding holds the all-zero state
+   * until its init runs, and that round-trips (a count of 0 steps as 1).
+   *
+   * @param s  Decoded detector state. Must be non-NULL.
+   * @return Non-zero when `locked` is 0 or 1.
+   */
+  JM_FORCEINLINE int
+  dp_lockdet_state_ok (const dp_lockdet_state_t *s)
+  {
+    return s->locked == 0 || s->locked == 1;
+  }
 
   /**
    * @brief Initialise a lock detector in place (no allocation).
@@ -196,14 +219,15 @@ extern "C"
   /**
    * @brief Restore a state written by dp_lockdet_get_state().
    *
-   * The envelope is validated first; on rejection @p state is untouched.
+   * The envelope is validated and the payload decoded into a temporary and
+   * checked (dp_lockdet_state_ok) first; on rejection @p state is untouched.
    * Being a whole-struct snapshot, it also restores the sender's
    * thresholds and run lengths.
    *
    * @param state  Must be non-NULL.
    * @param blob   Blob from dp_lockdet_get_state().
    * @return DP_OK, or DP_ERR_INVALID on a magic, version, endian or size
-   *         mismatch.
+   *         mismatch or a payload the object's check refuses.
    */
   int dp_lockdet_set_state(dp_lockdet_state_t *state, const void *blob);
 

@@ -339,9 +339,10 @@ class Acquisition:
         One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
     code_only_epochs : int, default 1
         Whole code-only epochs a waveform's code-only window holds at any chip
-        phase (floor(W_symbols * chips_per_symbol / sf) - 1; design §2.1) --
-        the engine allows a coherent depth to accommodate such waveforms. 1 =
-        no window: a coherent depth of 1.
+        phase (floor(W_symbols * chips_per_symbol / sf) - 1;
+        docs/design/async-dsss-receiver.md §2.1) -- the engine allows a
+        coherent depth to accommodate such waveforms. 1 = no window: a coherent
+        depth of 1.
     doppler_rate : float, default 0.0
         Doppler rate in Hz/s the coherent depth is bounded against (the drift
         over one block stays inside half a slow-time row); 0 leaves the window
@@ -479,7 +480,7 @@ class Acquisition:
         ...     np.complex64)
         >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
         ...                 doppler_uncertainty=40e3)
-        >>> fs = 1e6 * 4                    # sample rate = chip_rate * spc
+        >>> fs = 4e6                        # the sample_rate passed above
         >>> t = np.arange(a.code_bins * a.n_noncoh)
         >>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)
         >>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)
@@ -607,7 +608,8 @@ class Acquisition:
         window tile's epochs are shifted along the code axis by the drift the
         tile's own frequency implies before the slow-time transform (inside a
         coherent block of D epochs), and the hand-off advances the hit's code
-        phase by the drift over half the dwell (design section 12.11, 12.12).
+        phase by the drift over half the dwell
+        (docs/design/async-dsss-receiver-measurements.md §12.11, §12.12).
         Config, not running state: not in the state blob, so a resumed engine
         wants it set again. 0.0 (the default) = uncoupled, the engine as it ran
         without it. Raises ValueError for a carrier that is neither 0 nor
@@ -666,8 +668,9 @@ class Acquisition:
         """
 
     def set_threads(self, n: int) -> None:
-        """Set how many threads the searcher fans its tiles across (design
-        §2.3: a roll per thread on persistent workers).
+        """Set how many threads the searcher fans its tiles across
+        (docs/design/acq-surface.md §13: a roll per thread on persistent
+        workers).
 
         A continuous engine is created with a pool of the machine's online
         cores when it has more than one tile; a burst engine, and a single-tile
@@ -717,7 +720,7 @@ class Acquisition:
         decim: int = 1,
     ) -> None:
         """Attach (or detach) a telemetry context and register the engine's
-        probes on it (design §2.4).
+        probes on it (docs/design/async-dsss-receiver.md §2.4).
 
         Registers ten probes, emitted once per DECIDED dwell (a coherent dump,
         or the dwell that completes `n_noncoh` looks) and further thinned by
@@ -948,16 +951,16 @@ class Acquisition:
         correlations at a code phase, the despread stream at epoch rate.
 
         The block-coherent engine gathers every tile's correlation row for
-        `coherent_bins` epochs before its slow-time transform (file doc, design
-        §2.3). This copies the `coherent_bins` values at column col of tile
-        tile into out, in epoch order: each epoch's complex prompt at that code
-        phase, rolled to the tile's centre frequency and shifted to the block's
-        middle by the tile's code-rate hypothesis, so the phase is continuous
-        along the column for an emitter at the tile's centre and rotates at its
-        offset from it. At an emitter's cell this is what a despreader
-        produces, one value per epoch, phase included
-        (docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a
-        block is whole, until the next epoch is pushed.
+        `coherent_bins` epochs before its slow-time transform (file doc,
+        docs/design/acq-surface.md §4). This copies the `coherent_bins` values
+        at column col of tile tile into out, in epoch order: each epoch's
+        complex prompt at that code phase, rolled to the tile's centre
+        frequency and shifted to the block's middle by the tile's code-rate
+        hypothesis, so the phase is continuous along the column for an emitter
+        at the tile's centre and rotates at its offset from it. At an emitter's
+        cell this is what a despreader produces, one value per epoch, phase
+        included (docs/design/async-dsss-receiver-measurements.md §12.21).
+        Valid once a block is whole, until the next epoch is pushed.
 
         Parameters
         ----------
@@ -1141,9 +1144,9 @@ class Acquisition:
 
     @property
     def coherent_bins(self) -> int:
-        """The block-coherent depth D inside every window tile (design §2.3):
-        epochs per block and Doppler rows per tile. 1 without a code-only
-        window.
+        """The block-coherent depth D inside every window tile
+        (docs/design/acq-surface.md §4): epochs per block and Doppler rows per
+        tile. 1 without a code-only window.
         """
 
     @property
@@ -1252,9 +1255,9 @@ class Acquisition:
     @property
     def threads(self) -> int:
         """Workers the searcher fans its tiles across, the calling thread
-        included (design §2.3); 1 = serial. Set with set_threads(); a
-        continuous engine with more than one tile starts at the machine's
-        online core count.
+        included (docs/design/acq-surface.md §13); 1 = serial. Set with
+        set_threads(); a continuous engine with more than one tile starts at
+        the machine's online core count.
         """
 
     @property
@@ -1285,7 +1288,7 @@ class Acquisition:
     @property
     def n_held(self) -> int:
         """Picks of the last decided dwell held as same-code-phase twins rather
-        than listed (design §7.1).
+        than listed (docs/design/async-dsss-receiver.md §7.1).
         """
 
     @property
@@ -1295,8 +1298,8 @@ class Acquisition:
         over the total power of its code-phase column across every Doppler row
         and tile. Near 1 for a clean single emitter, even one straddling two
         tiles; about 0.5 when a data transition splits it into twins two or
-        more tiles away; lower when a coherent block straddles data (design
-        §2.4).
+        more tiles away; lower when a coherent block straddles data
+        (docs/design/async-dsss-receiver.md §2.4).
         """
 
     def destroy(self) -> None:

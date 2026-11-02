@@ -3497,7 +3497,8 @@ main (void)
     dp_acq_destroy (a);
   }
 
-  /* ── observability (design §2.4): probes, the surface tap, its axes
+  /* ── observability (docs/design/async-dsss-receiver.md §2.4): probes, the
+   * surface tap, its axes
    * ────── A continuous engine tiled over +-200 kHz (3 tiles at 7 chips
    * x 2), one noise-free emitter on tile +1 at code phase 5. Every claim
    * below is one the header makes: the surface's maximum IS the dwell's
@@ -3586,7 +3587,9 @@ main (void)
                   "the surface's maximum is the dwell's test statistic");
     DP_CHECK (am / nx == c->peak_row && am % nx == c->peak_col);
     DP_CHECK_MSG (c->peak_conc > 0.5f, "one clean emitter: concentrated");
-    /* The complex intermediates (design §12.21). This engine decides on
+    /* The complex intermediates
+       (docs/design/async-dsss-receiver-measurements.md §12.21). This
+       engine decides on
        seven looks, so its dwell is a power sum and the complex surface
        rightly reads 0; a coherent engine's is the same cells before the
        magnitude -- its modulus the gate's own `mag_buf` to a rounding,
@@ -3799,7 +3802,9 @@ main (void)
     dp_acq_destroy (c);
   }
 
-  /* ── block-coherent depth inside the tiles (design §2.1/§2.3)
+  /* ── block-coherent depth inside the tiles
+   * (docs/design/async-dsss-receiver.md §2.1, docs/design/acq-surface.md
+   * §4)
    * ─────────── A continuous engine tiled over +-200 kHz (3 tiles at 7
    * chips x 2) with a 7-epoch pure-code window: D = (7+1)/2 = 4 epochs
    * per block, 4 rows per tile, one combined Doppler grid of 12 native
@@ -3807,7 +3812,8 @@ main (void)
    * two bounds; where an emitter one row above tile +1 is reported and
    * what the hand-off makes of it; the CFAR cell count; a mid-block
    * state split; and a block that straddles a data transition -- a low
-   * concentration at the same code phase, as §2.4 promises. */
+   * concentration at the same code phase, as
+   * docs/design/async-dsss-receiver.md §2.4 promises. */
   {
     const size_t spc = 2, sf = 7, nx = sf * spc, tiles = 3, D = 4;
     const double crate = 1.0e6, f_epoch = crate / (double)sf;
@@ -4042,7 +4048,8 @@ main (void)
     dp_acq_destroy (c);
   }
 
-  /* ── the roll per thread (design §2.3): bit-identical at any count
+  /* ── the roll per thread (docs/design/acq-surface.md §13): bit-identical
+   * at any count
    * ──── The tiled block engine of the section above with TWO emitters
    * -- the same one, and a weaker one on another tile at another code
    * phase, a list of four to take both -- the surface and the hits at 1,

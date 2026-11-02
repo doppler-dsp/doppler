@@ -43,10 +43,10 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | ---: | :--- |
 | struct | [**acq\_extra\_t**](structacq__extra__t.md) <br>_Per-object extra header for an engine's cross-call state._  |
 | struct | [**acq\_handoff\_t**](structacq__handoff__t.md) <br>_Wire-ready hand-off record built from one_ [_**acq\_result\_t**_](structacq__result__t.md) _hit._ |
-| struct | [**acq\_part\_t**](structacq__part__t.md) <br>_One tile's share of a decided surface (design §2.3): the surface is cut into_ `window_bins` _chunks of whole rows, and the per-cell passes after the fan_ _the magnitude, the CFAR reference, the mask copy, each scan of the peak list_ _run per chunk into one of these, merged serially in tile order. The merge is bit-identical at any thread count because the chunks never move._ |
+| struct | [**acq\_part\_t**](structacq__part__t.md) <br>_One tile's share of a decided surface (docs/design/acq-surface.md §13): the surface is cut into_ `window_bins` _chunks of whole rows, and the per-cell passes after the fan_ _the magnitude, the CFAR reference, the mask copy, each scan of the peak list_ _run per chunk into one of these, merged serially in tile order. The merge is bit-identical at any thread count because the chunks never move._ |
 | struct | [**acq\_result\_t**](structacq__result__t.md) <br>_One acquisition detection event._  |
 | struct | [**acq\_shape\_t**](structacq__shape__t.md) <br>_What the engine knows about the SHAPE of the repeated preamble, beyond its samples (doppler#1470)._  |
-| struct | [**acq\_tlm\_t**](structacq__tlm__t.md) <br>_Telemetry attachment: a borrowed context + this engine's probe ids (design §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_acq\_set\_state()**_](acq__core_8h.md#function-dp_acq_set_state) _like the borrowed code._ |
+| struct | [**acq\_tlm\_t**](structacq__tlm__t.md) <br>_Telemetry attachment: a borrowed context + this engine's probe ids (docs/design/async-dsss-receiver.md §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_acq\_set\_state()**_](acq__core_8h.md#function-dp_acq_set_state) _like the borrowed code._ |
 | struct | [**dp\_acq\_state\_t**](structdp__acq__state__t.md) <br>_Streaming acquisition-engine state._  |
 
 
@@ -106,9 +106,9 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  int | [**dp\_acq\_set\_carrier\_freq\_hz**](#function-dp_acq_set_carrier_freq_hz) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, double carrier\_freq\_hz) <br>_Couple the code clock to the carrier: the chip rate dilates by_ `doppler_hz / carrier_freq_hz` _, and the engine accounts for it._ |
 |  int | [**dp\_acq\_set\_max\_peaks**](#function-dp_acq_set_max_peaks) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
 |  int | [**dp\_acq\_set\_state**](#function-dp_acq_set_state) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const void \* blob) <br>_Restore cross-call state from_ `blob` _into_`state` _(replacing it)._ |
-|  void | [**dp\_acq\_set\_surface\_sink**](#function-dp_acq_set_surface_sink) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, [**acq\_surface\_sink\_fn**](acq__core_8h.md#typedef-acq_surface_sink_fn) fn, void \* ctx, uint32\_t decim) <br>_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (design §2.4)._ |
-|  int | [**dp\_acq\_set\_telemetry**](#function-dp_acq_set_telemetry) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the engine's probes on it (design §2.4)._  |
-|  int | [**dp\_acq\_set\_threads**](#function-dp_acq_set_threads) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, int n) <br>_Set how many threads the searcher fans its tiles across (design §2.3: a roll per thread on persistent workers)._  |
+|  void | [**dp\_acq\_set\_surface\_sink**](#function-dp_acq_set_surface_sink) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, [**acq\_surface\_sink\_fn**](acq__core_8h.md#typedef-acq_surface_sink_fn) fn, void \* ctx, uint32\_t decim) <br>_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (docs/design/async-dsss-receiver.md §2.4)._ |
+|  int | [**dp\_acq\_set\_telemetry**](#function-dp_acq_set_telemetry) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the engine's probes on it (docs/design/async-dsss-receiver.md §2.4)._  |
+|  int | [**dp\_acq\_set\_threads**](#function-dp_acq_set_threads) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, int n) <br>_Set how many threads the searcher fans its tiles across (docs/design/acq-surface.md §13: a roll per thread on persistent workers)._  |
 |  double | [**dp\_acq\_sidelobe\_ratio**](#function-dp_acq_sidelobe_ratio) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* from, const [**acq\_result\_t**](structacq__result__t.md) \* to) <br>_How far up the sidelobes of the emitter behind one hit can reach at another hit's cell, relative to that emitter's own peak._  |
 |  size\_t | [**dp\_acq\_state\_bytes**](#function-dp_acq_state_bytes) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob: the envelope and the engine's position, the framer's snapshot of the carry, the non-coherent sum (n\_noncoh &gt; 1), the last dwell's twins, and a tiled block's epochs._ |
 |  size\_t | [**dp\_acq\_surface**](#function-dp_acq_surface) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \* out, size\_t n\_out) <br>_The last decided dwell's surface, in the gate's own units._  |
@@ -186,16 +186,16 @@ The fast-time axis (code\_bins samples, one code period) is the circular code ma
 
 
 
-Both convert C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))). Every reported detection inverts this same relationship to report an estimated C/N0 ([**acq\_result\_t::cn0\_dbhz\_est**](structacq__result__t.md#variable-cn0_dbhz_est)) — a bandwidth/integration-time-independent figure of merit directly comparable to `cn0_dbhz`, unlike a raw per-sample or coherently-integrated ratio (both scale with `spc/ reps and` so aren't portable across configurations).
+Both convert C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / fs)), where fs is the sample rate: the burst door's `fs`, the continuous door's `sample_rate`. Every reported detection inverts this same relationship to report an estimated C/N0 ([**acq\_result\_t::cn0\_dbhz\_est**](structacq__result__t.md#variable-cn0_dbhz_est)) — a bandwidth/integration-time-independent figure of merit directly comparable to `cn0_dbhz`, unlike a raw per-sample or coherently-integrated ratio (both scale with the sample rate and the coherent depth, and so aren't portable across configurations).
 
 
 **Wideband window-tiling mode**: instead of coherent combining, tiles the requested uncertainty with `window_bins = 2*ceil((du - span)/(2*span)) + 1` (`du = doppler_uncertainty`, `span = chip_rate/(2*sf)`; always odd, so the coverage is symmetric) parallel frequency-window hypotheses, each one native span wide, searched every epoch from a SINGLE shared forward FFT of that epoch: hypothesis r's spectrum is the shared FFT circularly rolled by r bins (exact — the window spacing IS this code\_bins-point FFT's own bin spacing) against one fixed precomputed replica spectrum, then inverse-FFT'd — `window_bins` inverse FFTs plus the one shared forward FFT per epoch, not `window_bins` independent down-conversions. Empirically the cheaper of the two realizations benchmarked for this (a frequency-bank benchmark): ~1.2x-1.55x faster than an equivalent tuned-mixer bank, measured with real doppler.spectral.FFT. SNR margin in this mode comes entirely from auto-selected non-coherent looks (magnitude-squared accumulation, immune to data-modulation sign flips) rather than coherent depth, sized against an internal safety-valve ceiling rather than a caller-supplied cap (the semi-analytical Pd model this engine sizes against grows unreliable past a few hundred looks — not a public knob to tune around that). `doppler_bin` in [**acq\_result\_t**](structacq__result__t.md) reports the frequency-window index (0 … window\_bins-1, native FFT-bin ordering) instead of a slow-time-FFT row when this mode is active at coherent\_bins=1, where `doppler_res_hz` is the per-window spacing (chip\_rate/sf). A burst engine sized to a coherent depth D &gt; 1 inside the tiles (a stated design C/N0) indexes the combined grid instead: `window_bins*D` bins of `chip_rate/(sf*D)`, folded over acq\_grid\_bins().
 
 
-**Block-coherent depth inside the tiles** (docs/design/async-dsss-receiver.md §2.3): the engine allows a coherent depth, to accommodate waveforms with code-only windows. Given `code_only_epochs > 1`  the whole code-only epochs such a window holds at any chip phase  it runs a coherent depth `D` inside every tile: the per-tile epoch correlations are gathered for `D` epochs, then a zero-padded slow-time FFT per code-phase column turns each tile into `D` Doppler rows `chip_rate/(sf*D)` apart, detected per block. Blocks are non-overlapping and the engine does not know any emitter's window phase, so `D` is at most `(code_only_epochs+1)/2` (a whole block always lands inside the window) and, when `doppler_rate` is given, at most `f_epoch/sqrt(2*doppler_rate)` (the drift over a block stays inside half a row), rounded down to a 7-smooth length ([**dp\_fft\_smooth\_floor()**](fft__core_8h.md#function-dp_fft_smooth_floor)): `D` is a slow-time FFT length, and a prime factor of 13 or more costs pocketfft its slow path (doppler#2457). The Doppler axis is then ONE uniform grid of `window_bins*coherent_bins` bins of `doppler_res_hz = chip_rate/(sf*D)` over the tiled span, in native FFT-bin order (0 = DC, ascending, then wrapping negative): `doppler_bin` indexes it, and [**dp\_acq\_build\_handoff()**](acq__core_8h.md#function-dp_acq_build_handoff) folds it with dp\_fftfreq\_index() over that count. A block that straddles data spreads that emitter over its rows, `10*log10(D)` below an aligned block, at its own code phase  the `conc` probe (§2.4) reads it. `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as described above. A tile de-rotates by its own centre, so an emitter on the edge between two tiles reads the same in both (within 0.03 dB) and the slow-time transform folds it to the same row index of each: every listed peak is therefore asked at its ROW's frequency before it is reported  the block's raw epochs correlated with the replica at the pick's code phase, mixed by the row's frequency and by that one span down and up, the winner reported (design §2.3, docs/design/async-dsss-receiver-measurements.md §12.18, doppler#1270).
+**Block-coherent depth inside the tiles** (docs/design/async-dsss-receiver.md §2.3): the engine allows a coherent depth, to accommodate waveforms with code-only windows. Given `code_only_epochs > 1`  the whole code-only epochs such a window holds at any chip phase  it runs a coherent depth `D` inside every tile: the per-tile epoch correlations are gathered for `D` epochs, then a zero-padded slow-time FFT per code-phase column turns each tile into `D` Doppler rows `chip_rate/(sf*D)` apart, detected per block. Blocks are non-overlapping and the engine does not know any emitter's window phase, so `D` is at most `(code_only_epochs+1)/2` (a whole block always lands inside the window) and, when `doppler_rate` is given, at most `f_epoch/sqrt(2*doppler_rate)` (the drift over a block stays inside half a row), rounded down to a 7-smooth length ([**dp\_fft\_smooth\_floor()**](fft__core_8h.md#function-dp_fft_smooth_floor)): `D` is a slow-time FFT length, and a prime factor of 13 or more costs pocketfft its slow path (doppler#2457). The Doppler axis is then ONE uniform grid of `window_bins*coherent_bins` bins of `doppler_res_hz = chip_rate/(sf*D)` over the tiled span, in native FFT-bin order (0 = DC, ascending, then wrapping negative): `doppler_bin` indexes it, and [**dp\_acq\_build\_handoff()**](acq__core_8h.md#function-dp_acq_build_handoff) folds it with dp\_fftfreq\_index() over that count. A block that straddles data spreads that emitter over its rows, `10*log10(D)` below an aligned block, at its own code phase  the `conc` probe (docs/design/async-dsss-receiver.md §2.4) reads it. `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as described above. A tile de-rotates by its own centre, so an emitter on the edge between two tiles reads the same in both (within 0.03 dB) and the slow-time transform folds it to the same row index of each: every listed peak is therefore asked at its ROW's frequency before it is reported  the block's raw epochs correlated with the replica at the pick's code phase, mixed by the row's frequency and by that one span down and up, the winner reported (docs/design/acq-surface.md §6, docs/design/async-dsss-receiver-measurements.md §12.18, doppler#1270).
 
 
-**A roll per thread** (design §2.3): the tiles are independent after the one forward transform, so the per-epoch tile loop and, at `D > 1`, the block-end column loop run across a persistent pool of workers ([**dp\_parallel.h**](dp__parallel_8h.md)'s `dp_pool_*`), created once with the engine and parked between pushes. Each tile owns its inverse plan and scratch, so the result is bit-identical at any thread count. The per-cell passes that decide a surface  the magnitude, the CFAR reference, the working mask and every scan of the peak list  run per tile too, each into a slot of its own, and are merged serially in tile order (a mean of the tiles' means over equal cells, the first of the tiles' first maxima), so the serial remainder is per tile, not per cell. [**dp\_acq\_set\_threads()**](acq__core_8h.md#function-dp_acq_set_threads) sets the count.
+**A roll per thread** (docs/design/acq-surface.md §13): the tiles are independent after the one forward transform, so the per-epoch tile loop and, at `D > 1`, the block-end column loop run across a persistent pool of workers ([**dp\_parallel.h**](dp__parallel_8h.md)'s `dp_pool_*`), created once with the engine and parked between pushes. Each tile owns its inverse plan and scratch, so the result is bit-identical at any thread count. The per-cell passes that decide a surface  the magnitude, the CFAR reference, the working mask and every scan of the peak list  run per tile too, each into a slot of its own, and are merged serially in tile order (a mean of the tiles' means over equal cells, the first of the tiles' first maxima), so the serial remainder is per tile, not per cell. [**dp\_acq\_set\_threads()**](acq__core_8h.md#function-dp_acq_set_threads) sets the count.
 
 
 
@@ -257,7 +257,7 @@ size_t dp_acq_block_prompt (
 
 
 
-The block-coherent engine gathers every tile's correlation row for `coherent_bins` epochs before its slow-time transform (file doc, design §2.3). This copies the `coherent_bins` values at column `col` of tile `tile` into `out`, in epoch order: each epoch's complex prompt at that code phase, rolled to the tile's centre frequency and shifted to the block's middle by the tile's code-rate hypothesis, so the phase is continuous along the column for an emitter at the tile's centre and rotates at its offset from it. At an emitter's cell this is what a despreader produces, one value per epoch, phase included (docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a block is whole, until the next epoch is pushed.
+The block-coherent engine gathers every tile's correlation row for `coherent_bins` epochs before its slow-time transform (file doc, docs/design/acq-surface.md §4). This copies the `coherent_bins` values at column `col` of tile `tile` into `out`, in epoch order: each epoch's complex prompt at that code phase, rolled to the tile's centre frequency and shifted to the block's middle by the tile's code-rate hypothesis, so the phase is continuous along the column for an emitter at the tile's centre and rotates at its offset from it. At an emitter's cell this is what a despreader produces, one value per epoch, phase included (docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a block is whole, until the next epoch is pushed.
 
 
 
@@ -770,7 +770,7 @@ dp_acq_state_t * dp_acq_create_continuous (
 
 
 Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR, and ALWAYS tiles `window_bins = 2*ceil((doppler_uncertainty - span) / (2*span)) + 1` parallel frequency-window hypotheses, with `span = chip_rate/(2*sf)` one native span (see the file doc comment's "Wideband
-window-tiling mode")  unconditionally, so `window_bins = 1` when `doppler_uncertainty` is no wider than one native span. A continuous, data-modulated signal's own bit transitions make coherent multi-epoch combining across DATA a structural aliasing mislock (see docs/design/acq-surface.md §9), so the depth is bounded by what a waveform's code-only window holds: `coherent_bins = D = min((code_only_epochs+1)/2, f_epoch/sqrt(2*doppler_rate))`, at least 1, rounded down to a 7-smooth length ([**dp\_fft\_smooth\_floor()**](fft__core_8h.md#function-dp_fft_smooth_floor): 94 runs as 90), run in non-overlapping D-epoch blocks inside every tile (file doc, design §2.3). With `code_only_epochs` = 1 it is 1 and the engine is exactly the epoch-by-epoch search. Sensitivity margin beyond the depth comes from auto-selected non-coherent looks over blocks (up to the internal [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)).
+window-tiling mode")  unconditionally, so `window_bins = 1` when `doppler_uncertainty` is no wider than one native span. A continuous, data-modulated signal's own bit transitions make coherent multi-epoch combining across DATA a structural aliasing mislock (see docs/design/acq-surface.md §9), so the depth is bounded by what a waveform's code-only window holds: `coherent_bins = D = min((code_only_epochs+1)/2, f_epoch/sqrt(2*doppler_rate))`, at least 1, rounded down to a 7-smooth length ([**dp\_fft\_smooth\_floor()**](fft__core_8h.md#function-dp_fft_smooth_floor): 94 runs as 90), run in non-overlapping D-epoch blocks inside every tile (file doc, docs/design/acq-surface.md §4). With `code_only_epochs` = 1 it is 1 and the engine is exactly the epoch-by-epoch search. Sensitivity margin beyond the depth comes from auto-selected non-coherent looks over blocks (up to the internal [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)).
 
 
 
@@ -788,7 +788,7 @@ window-tiling mode")  unconditionally, so `window_bins = 1` when `doppler_uncert
 * `pfa` Target system (max-of-N) false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1). 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
-* `code_only_epochs` Whole code-only epochs a waveform's code-only window holds at any chip phase (design §2.1: `floor(W_symbols * chips_per_symbol / sf) - 1`); 1 (&gt;= 1) means no window and a depth of 1. 
+* `code_only_epochs` Whole code-only epochs a waveform's code-only window holds at any chip phase (docs/design/async-dsss-receiver.md §2.1: `floor(W_symbols * chips_per_symbol / sf) - 1`); 1 (&gt;= 1) means no window and a depth of 1. 
 * `doppler_rate` Doppler rate in Hz/s the depth is bounded against (&gt;= 0); 0 leaves the window as the only bound. 
 
 
@@ -1177,7 +1177,7 @@ Number of events written (0 … max\_results).
 ...     np.complex64)
 >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
 ...                 doppler_uncertainty=40e3)
->>> fs = 1e6 * 4                    # sample rate = chip_rate * spc
+>>> fs = 4e6                        # the sample_rate passed above
 >>> t = np.arange(a.code_bins * a.n_noncoh)
 >>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)
 >>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)
@@ -1601,7 +1601,7 @@ DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or its n/n\_noncoh/max\_peaks
 
 ### function dp\_acq\_set\_surface\_sink 
 
-_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (design §2.4)._
+_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (docs/design/async-dsss-receiver.md §2.4)._
 ```C++
 void dp_acq_set_surface_sink (
     dp_acq_state_t * state,
@@ -1637,7 +1637,7 @@ Sets `keep_surface`, so [**dp\_acq\_surface()**](acq__core_8h.md#function-dp_acq
 
 ### function dp\_acq\_set\_telemetry 
 
-_Attach (or detach) a telemetry context and register the engine's probes on it (design §2.4)._ 
+_Attach (or detach) a telemetry context and register the engine's probes on it (docs/design/async-dsss-receiver.md §2.4)._ 
 ```C++
 int dp_acq_set_telemetry (
     dp_acq_state_t * state,
@@ -1698,7 +1698,7 @@ DP\_OK; DP\_ERR\_INVALID for an overlong `prefix`, a `decim` of 0, or a probe ta
 
 ### function dp\_acq\_set\_threads 
 
-_Set how many threads the searcher fans its tiles across (design §2.3: a roll per thread on persistent workers)._ 
+_Set how many threads the searcher fans its tiles across (docs/design/acq-surface.md §13: a roll per thread on persistent workers)._ 
 ```C++
 int dp_acq_set_threads (
     dp_acq_state_t * state,
@@ -2142,7 +2142,7 @@ NaN, because every finite value is a real design point  including a negative one
 
 
 
-Columns the block-end transform gathers per pass (design §2.3, #1243): a cache line holds 8 cf32 cells, so a chunk of 32 columns reads four lines per slow-time row of the block and writes four per surface row, where a column at a time read and wrote one line per CELL. 
+Columns the block-end transform gathers per pass (docs/design/acq-surface.md §4, #1243): a cache line holds 8 cf32 cells, so a chunk of 32 columns reads four lines per slow-time row of the block and writes four per surface row, where a column at a time read and wrote one line per CELL. 
 
 
         

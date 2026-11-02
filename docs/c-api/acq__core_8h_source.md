@@ -162,9 +162,10 @@ extern "C"
     float _Complex *blk; 
     float _Complex *blk_raw; 
     size_t blk_epoch;    
-    /* The roll per thread (design §2.3): the tiles are independent after
-       the one forward transform, so the per-epoch tile loop and the
-       block-end column loop run through a persistent pool. The scratch is
+    /* The roll per thread (docs/design/acq-surface.md §13): the tiles are
+       independent after the one forward transform, so the per-epoch tile
+       loop and the block-end column loop run through a persistent pool.
+       The scratch is
        PER TILE, not per thread -- a pocketfft plan carries its own work
        buffers, and a tile lands on whichever worker takes it -- so the
        serial and the fanned paths run the same code on the same buffers
@@ -220,7 +221,8 @@ extern "C"
     uint32_t   *twin_row;  
     uint32_t   *twin_col;  
     size_t      n_twins;   
-    /* Observability (design §2.4): attach-on-demand, nothing in blobs. */
+    /* Observability (docs/design/async-dsss-receiver.md §2.4):
+       attach-on-demand, nothing in blobs. */
     acq_tlm_t tlm;       
     int       keep_surface; 
     float *stat_surface; 

@@ -412,7 +412,7 @@ name = "lifecycle"
 type = "int"
 enum = "async_dsss_rx_state"
 expr = "self->handle->state"
-doc = """Where the receiver is in its lifecycle, by name: `"searching"`, `"refining"`, `"tracking"` or `"lost"` (released, waiting for `reset()`). The same state as `status().state`, which carries it as the C integer. With `reacquire` a release goes back to `"searching"` and never reads `"lost"`."""
+doc = """Where the receiver is in its lifecycle, by name: `"searching"`, `"refining"`, `"tracking"`, `"idle"` (a pooled receiver with no search of its own, waiting for the pool's controller to seed it) or `"lost"` (released, waiting for `reset()`). The same state as `status().state`, which carries it as the C integer. With `reacquire` a release goes back to `"searching"`, or to `"idle"` when pooled, and never reads `"lost"`."""
 
 [[async_dsss_receiver.properties]]
 name = "tracking"

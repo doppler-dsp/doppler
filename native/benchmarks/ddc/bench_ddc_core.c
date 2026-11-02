@@ -42,10 +42,10 @@
 #define BLOCK 32768
 #define N_RATE 5
 
-/* The fifth rate is the continuous async-DSSS operating point (13 MSa/s in,
-   twice a 5 Mcps chip rate out, the pool as built's point, retired from
-   docs/design/async-dsss-receiver.md §9):
-   a ratio with no integer factor, so the cascade is the polyphase
+/* The fifth rate is the continuous async-DSSS operating point of the pool
+   as built (13 MSa/s in, twice a 5 Mcps chip rate out; its front-end row
+   in docs/design/async-dsss-receiver-measurements.md §12.1): a ratio with
+   no integer factor, so the cascade is the polyphase
    arbitrary resampler alone -- the dearest sample the front end makes,
    chosen for exactly that reason. */
 static const double rates[N_RATE] = { 0.5, 0.25, 0.1, 0.05, 10.0 / 13.0 };

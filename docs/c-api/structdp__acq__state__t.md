@@ -372,7 +372,7 @@ size_t dp_acq_state_t::code_only_epochs;
 
 
 
-Whole code-only epochs a waveform's code-only window holds at any chip phase (§2.1); 1 = no window, D = 1. 
+Whole code-only epochs a waveform's code-only window holds at any chip phase (docs/design/async-dsss-receiver.md §2.1); 1 = no window, D = 1. 
  
 
 

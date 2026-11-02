@@ -124,6 +124,10 @@ _PROTECTED = (
     re.compile(r"issues/\d+"),
 )
 
+#: Every protected form as one alternation, so `_structural` holds them in
+#: ONE pass, in the order they appear on the line.
+_PROTECTED_ANY = re.compile("|".join(p.pattern for p in _PROTECTED))
+
 #: A numeric literal, as a report prints one: `8`, `-0.35`, `.5`, `1.29e-02`.
 _NUMBER = re.compile(r"[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?")
 
@@ -357,8 +361,13 @@ def _structural(text: str) -> str:
             # consuming the list in the same order.
             return _HOLD
 
-        for pat in _PROTECTED:
-            line = pat.sub(_hold, line)
+        # ONE pass over every protected form, so the spans are held in
+        # the order they appear. A pass per form held them grouped by form
+        # and restored them left to right, so a line reading "gh-750 ...
+        # §2.9" printed "§2.9 ... gh-750" in the STALE diff. The comparison
+        # was unaffected (both sides scrambled alike); the diff a reader is
+        # shown was wrong.
+        line = _PROTECTED_ANY.sub(_hold, line)
         line = _NUMBER.sub(_MASK, line)
         if held:
             it = iter(held)

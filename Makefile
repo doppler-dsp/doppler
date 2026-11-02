@@ -5178,12 +5178,14 @@ endif
 
 # The A/B gate a performance PR is held to (#2759): A and B built at one set of
 # flags in throwaway worktrees, alternated K times, and per row min-of-K, each
-# side's spread, the ratio and a verdict. A row ties when the two mins differ
-# by no more than the larger spread; it exits 1 on any SLOWER row, or on a row
-# A measured and B did not. BENCH_ARGS narrows the suite as it does for
+# side's band (second-best minus best pass), the ratio and a verdict. A row
+# ties when the two mins differ by no more than the larger band, and never
+# less than 1% of A's min; it exits 1 on any SLOWER row, or on a row A
+# measured and B did not. K is at least 3 (docs/dev/contributing/
+# benchmarking.md). BENCH_ARGS narrows the suite as it does for
 # `make bench`. Writes nothing under benchmarks/published/. By hand: nothing
 # in CI runs it (a bench box and minutes).
-bench-ab: ## A/B two commits, per row min-of-K + spread (A= B= [K=] [BUILD=])
+bench-ab: ## A/B two commits, per row min-of-K, band and verdict (A= B= [K>=3] [BUILD=])
 ifndef A
 	@echo "usage: make bench-ab A=<ref> B=<ref> [K=5] [BUILD=portable|native]"
 	@echo "       [JSON=out.json] [BENCH_ARGS=...]"

@@ -293,9 +293,12 @@ regressions whose sign reversed locally, and being `continue-on-error` it
 could not be trusted either way. The jm pin therefore lives in `ci.yml` alone
 (plus `just-makeit.toml`'s `jm_version` and `pyproject.toml`'s dev-group pin).
 
-Benchmarking did not go away: `make bench-interleaved` is the sound
-comparison (alternating repeats across two worktrees), and `make bench-save` /
-`make bench-compare` remain for the Python microbenchmarks. See
+Benchmarking did not go away. To ask whether a change is slower, run
+`make bench-ab A=<commit> B=<commit>`: it alternates K passes of two
+commits' builds and gives each row a verdict (#2770). `make bench-interleaved`
+answers a different question: portable against native builds of ONE commit,
+for a release's published set. `make bench-save` / `make bench-compare`
+remain for the Python microbenchmarks. See
 `docs/dev/contributing/benchmarking.md`.
 
 ______________________________________________________________________

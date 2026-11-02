@@ -312,8 +312,16 @@ def _build_info(worktree):
     return compiler, " ".join(dict.fromkeys(FLAG_RE.findall(cmd)))
 
 
-def setup_worktree(build, commit):
-    wt = f"/tmp/doppler-bench-{build}"
+def setup_worktree(build, commit, wt=None, cmake_args=None):
+    """Check `commit` out into a throwaway worktree and build it.
+
+    `build` names the flags (`BUILD_ARGS`) unless `cmake_args` gives them,
+    and the worktree is `/tmp/doppler-bench-<build>` unless `wt` names
+    another -- bench_ab.py builds two commits at one set of flags, so it
+    passes both. Returns the worktree path.
+    """
+    wt = wt or f"/tmp/doppler-bench-{build}"
+    args = BUILD_ARGS[build] if cmake_args is None else cmake_args
     _run(
         ["git", "worktree", "remove", "--force", wt], REPO, capture_output=True
     )
@@ -325,7 +333,7 @@ def setup_worktree(build, commit):
     )
     print(f"[{build}] building in {wt} ...", flush=True)
     _run(
-        ["make", "pyext", "CMAKE_ARGS=" + " ".join(BUILD_ARGS[build])],
+        ["make", "pyext", "CMAKE_ARGS=" + " ".join(args)],
         wt,
         check=True,
         stdout=subprocess.DEVNULL,
@@ -364,10 +372,13 @@ def bench_once(wt, cpus=None):
             f"(exit {r.returncode}); its stderr is above"
         )
     hist = os.path.join(wt, "benchmarks", "history")
-    pj = max(
-        (f for f in glob.glob(hist + "/*.json") if not f.endswith("-c.json")),
-        key=os.path.getmtime,
-    )
+    py = [f for f in glob.glob(hist + "/*.json") if not f.endswith("-c.json")]
+    if not py:
+        # `BENCH_ARGS=--c-only ...` (make bench-ab) writes no Python
+        # snapshot; the C one is the newest there is.
+        cj = max(glob.glob(hist + "/*-c.json"), key=os.path.getmtime)
+        return {"benchmarks": []}, json.load(open(cj))
+    pj = max(py, key=os.path.getmtime)
     tag = os.path.basename(pj)[: -len(".json")]
     return json.load(open(pj)), json.load(open(f"{hist}/{tag}-c.json"))
 

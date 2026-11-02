@@ -876,9 +876,17 @@ def module_of(suite: str, component: str, obj2mod: dict, modules) -> str:
 
 
 def read_manifest(root: str = ".") -> tuple[dict, list]:
-    """({object: module}, [modules]) from just-makeit.toml."""
-    with open(os.path.join(root, MANIFEST), "rb") as fh:
-        mods = _toml.load(fh).get("module", {})
+    """({object: module}, [modules]) from just-makeit.toml and the
+    fragments it includes (jm's own reader: a `[module.X]` lives in
+    `modules/<name>.toml`)."""
+    from just_makeit import _config as jm_config
+
+    mods = jm_config.load(Path(root)).get("module", {})
+    if not mods:
+        # every row would read "no family", or none would be checked
+        raise SystemExit(
+            f"bench_report: {root}'s manifest yields no [module.X] table"
+        )
     obj2mod = {
         o: m
         for m, v in mods.items()

@@ -1,0 +1,122 @@
+[module.wfm_sink]
+kind            = "handle"
+backing         = "wfm_stream_sink"
+handle_type     = "wfm_stream_sink_t"
+header          = "doppler/wfm/wfm_sink.h"
+package         = "wfm"
+type_name       = "StreamSink"
+context_manager = true
+close_fn        = "dp_wfm_stream_sink_close"
+create_fn       = "dp_wfm_stream_sink_open"
+# dp_tlm_core: stream_core_obj's tlm_sink.c references dp_tlm_read.
+# dp_interrupt_obj: stream_core.c's deprecated dp_stream_interrupt* forward
+# to the core primitive, and this extension embeds stream objects rather
+# than linking libdoppler, so it needs the definitions too.
+extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "dp_tlm_core", "nats_vendor_static", "Threads::Threads"]
+
+# The interrupt primitive, DECLARED rather than spliced -- see
+# [module.sample_clock]. It is `process_global`, and jm generates the
+# rendezvous only into modules whose link line it wrote.
+[[module.wfm_sink.depends_on]]
+name = "dp_interrupt_guard"
+link = true
+
+[[module.wfm_sink.depends_on]]
+name = "wfm_sink"
+link = true
+[[module.wfm_sink.create_args]]
+name = "endpoint"
+type = "const char *"
+
+[[module.wfm_sink.create_args]]
+name = "sample_type"
+type = "int"
+enum = "stype"
+default = "cf32"
+kwonly = true
+doc = 'The wire type. The integer types use full-scale +/-1.0.'
+[[module.wfm_sink.methods]]
+name = "send"
+fn = "dp_wfm_stream_sink_send"
+# A refused block never left the process (a reconnect stops taking
+# publishes at 8 MiB pending; a drained sink refuses outright), so the
+# binding RAISES, as Publisher.send does, rather than hand back a status
+# both in-tree callers ignored (#2011). `status_return`: with an array
+# argument jm otherwise reads the C return as a count.
+returns = "int"
+status_return = true
+error = "OSError"
+error_message = "the stream refused the block; it never left this process"
+nogil = true
+
+[[module.wfm_sink.methods.args]]
+name = "iq"
+type = "float _Complex[]"
+
+[[module.wfm_sink.methods.args]]
+name = "fs"
+type = "double"
+
+[[module.wfm_sink.methods.args]]
+name = "fc"
+type = "double"
+
+[[module.wfm_sink.methods]]
+name = "send_eos"
+fn = "dp_wfm_stream_sink_send_eos"
+# `returns` is the C signature; `error = "OSError"` makes the binding RAISE
+# rather than hand the status back, so the stub is `-> None`. It read `-> int`
+# until the 0.67.1 pin: jm honoured `error` in the annotation only on the
+# arg-carrying branch, so this zero-arg method disagreed with the `drain`
+# below that declares the identical pair. just-makeit#1116, fixed in jm 0.67
+# and verified here -- the regenerated stub says `-> None`.
+returns = "int"
+error = "OSError"
+
+[[module.wfm_sink.methods]]
+name = "drain"
+fn = "dp_wfm_stream_sink_drain"
+# returns="int", NOT status_return: on a HANDLE method jm rejects
+# status_return outright ("error requires an `int` status return"). The
+# object-method form in objects/dp_tlm_capture.toml is the other spelling.
+# The `Raises` half of just-makeit#1111 is fixed as of the 0.67.1 pin (0.66.1)
+# and the stub now carries one; `error_message` is honoured there too, though
+# neither method here declares one.
+returns = "int"
+error = "OSError"
+
+[[module.wfm_sink.methods.args]]
+name = "timeout_ms"
+type = "int"
+default = "0"
+
+[[module.wfm_sink.methods]]
+name = "track_clipping"
+fn = "dp_wfm_stream_sink_track_clipping"
+
+[[module.wfm_sink.methods.args]]
+name = "on"
+type = "int"
+default = "1"
+[[module.wfm_sink.getters]]
+[[module.wfm_sink.getters.fields]]
+name = "clip_fraction"
+getter = "dp_wfm_stream_sink_clip_fraction"
+type = "double"
+
+# `returns` types the `tmp` the `expr` below operates on, and jm REFUSES an
+# `expr` field without it (gh-333: defaulting `tmp` to the decoded `type`
+# truncates the getter's value before the expr runs, silently).
+[[module.wfm_sink.getters.fields]]
+name = "peak_dbfs"
+getter = "dp_wfm_stream_sink_peak"
+type = "double"
+returns = "double"
+expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY"
+
+[[module.wfm_sink.getters.fields]]
+name = "clipped"
+getter = "dp_wfm_stream_sink_peak"
+type = "bool"
+returns = "double"
+expr = "tmp > 1.0 && self->sample_type >= 2"

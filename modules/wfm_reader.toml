@@ -1,0 +1,5 @@
+[module.wfm_reader]
+objects = ["wfm_reader"]
+# gh-523: an object module can now live in an existing subpackage, so Reader
+# stays at doppler.wfm.Reader rather than minting a top-level package.
+package = "wfm"

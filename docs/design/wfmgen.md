@@ -208,8 +208,8 @@ ones the tool exists for, are the least gated of all.
 
 ## One surface table
 
-A parameter is declared **once**, in the manifest (`just-makeit.toml`,
-`[module.wfm_compose.source]` and `segment`), and every face is generated
+A parameter is declared **once**, in the manifest
+(`modules/wfm_compose.toml`, `[module.wfm_compose.source]` and `segment`), and every face is generated
 from that declaration. jm already generates the Python face from it, and
 `scripts/gen_wfm_defaults.py` the C defaults; the rest follows the second
 path, because it is doppler's own and needs no new jm mechanism.

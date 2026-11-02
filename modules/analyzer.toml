@@ -1,0 +1,22 @@
+[module.analyzer]
+doc = """
+Spectrum analysis: Specan renders a windowed, averaged power spectral density (dBFS) over a chosen span and resolution bandwidth, mirroring a hardware spectrum analyser's span / RBW / averaging controls.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.analyzer import Specan
+>>> sp = Specan(fs=1.024e6, span=200e3, rbw=2e3, src_center=0.0,
+...             center=0.0, offset_db=0.0, full_scale=1.0, bits=0,
+...             window="kaiser", navg=1)
+>>> sp.execute(np.ones(4096, np.complex64)).shape
+(201,)
+
+"""
+objects = ["specan"]
+# Specan composes the Ddc cascade + the PSD averaging-PSD core; specan.toml's
+# depends_on link=true (gh-225) links every composed OBJECT core into the
+# analyzer .so (and, after the jm#271 CMakeLists reconcile, specan's own C
+# test/bench).
+# libm is not declared: jm resolves it by path on every generated link line
+# (gh-1305), and a bare `m` here is `m.lib` on Windows, which does not exist.

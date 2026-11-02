@@ -1,0 +1,16 @@
+[module.buffer]
+doc = """
+Sample buffering: lock-free ring buffers for handing IQ blocks between producer and consumer stages.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.buffer import F32Buffer
+>>> b = F32Buffer(16)
+>>> b.write(np.ones(4, np.complex64))
+True
+>>> b.wait(4).shape
+(4,)
+
+"""
+objects = ["f32_buffer", "f64_buffer", "i16_buffer"]

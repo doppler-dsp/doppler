@@ -44,6 +44,9 @@ SCAN_DIRS = (
     # The jm manifests: hand-written, and a comment in one carried a retired
     # restore contract for months after the code had moved (#1894).
     "objects",
+    # ... and since jm 0.114's fragment layout, every [module.X] table: 35
+    # hand-written files that fell out of the scan the day they moved here.
+    "modules",
     "examples",
     "example-projects",
     "src/doppler",

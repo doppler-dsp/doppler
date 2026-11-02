@@ -1,0 +1,178 @@
+# ── wfm_plan: "prepare once, materialize many" stimulus engine ───────────────
+# Constructed from a spec-JSON string (Composer.to_json()); render/at return a
+# cf32 array sized from the handle (dp_wfm_plan_len) — the jm 0.25.0 string-arg +
+# out_len_fn handle features. The core (wfm_plan.c) is compiled into
+# wfm_compose_core, so the .so links the SAME cores as the composer module.
+[module.wfm_plan]
+kind            = "handle"
+backing         = "wfm_plan"
+header          = "doppler/wfm/wfm_plan.h"
+package         = "wfm"
+type_name       = "Plan"
+context_manager = true
+close_fn        = "dp_wfm_plan_destroy"
+create_fn       = "dp_wfm_plan_prepare"
+extra_link_libs = ["wfm_draw_core", "wfm_cjson_core"]
+
+# The Plan cache renders through the composer's wfm_render_* path, which
+# reaches the Doppler channel (gh-942) even though Plan itself refuses a
+# PERSIST source — the PER_INSTANCE case is cached like any other.
+[[module.wfm_plan.depends_on]]
+name = "doppler_channel"
+link = true
+
+[[module.wfm_plan.depends_on]]
+name = "wfm_compose"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "wfm_dsp"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "wfm_frame"
+link = true
+# cvt: a Field in hex expands through dp_hex_to_bin inside wfm_frame.c, and an
+# OBJECT library does not carry its dependencies' objects to its consumers.
+[[module.wfm_plan.depends_on]]
+name = "cvt"
+link = true
+
+# ccsds_tm (+ conv/rs, which it configures): wfm_synth_bridge.c assembles a
+# framed source through dp_wfm_frame_assemble, and the coding stages a source may
+# select are CCSDS's picks. wfm_frame.c cannot call them -- ccsds_tm depends
+# on it -- so they arrive as a kernel table and every consumer must carry the
+# objects.
+[[module.wfm_plan.depends_on]]
+name = "ccsds_tm"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "conv"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "rs"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "gold"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "wfm_synth"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "lo"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "awgn"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "pn"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "fir"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "resamp"
+link = true
+
+# General render: a small JSON override object → cf32 array (length from the
+# handle). Baseline (empty object) reproduces a full compose bit-for-bit.
+[[module.wfm_plan.create_args]]
+name = "spec_json"
+type = "string"
+
+# link=true cores (jm appends _core): wfm_compose_core carries wfm_plan.o +
+# the composer/json/resolve; the rest are the synth engine it reuses.
+[[module.wfm_plan.methods]]
+name = "render"
+fn = "dp_wfm_plan_render"
+returns = "float _Complex[]"
+out_len_fn = "dp_wfm_plan_len"
+nogil = true
+[[module.wfm_plan.methods.args]]
+name = "overrides_json"
+type = "string"
+
+# Scalar fast-path for the hot SNR/Monte-Carlo loop (no JSON parse).
+[[module.wfm_plan.methods]]
+name = "at"
+fn = "dp_wfm_plan_at"
+returns = "float _Complex[]"
+out_len_fn = "dp_wfm_plan_len"
+nogil = true
+[[module.wfm_plan.methods.args]]
+name = "snr"
+type = "double"
+# uint32_t, not the C signature's uint64_t: every seed a Plan feeds is 32-bit
+# and dp_wfm_plan_at() refuses a larger one (#2645), so the binding refuses it
+# at the parse (OverflowError) instead of returning an empty draw.
+[[module.wfm_plan.methods.args]]
+name = "seed"
+type = "uint32_t"
+
+# #1695: a scene with no noise has no floor for an snr to move. at() and a
+# render "snr" return 0 in C; this is the face that says why, raised before
+# the draw. The message is DP_WFM_PLAN_WHY_NO_NOISE (wfm_plan.h) verbatim --
+# test_plan.py holds the two to one sentence.
+[[module.wfm_plan.methods]]
+name = "check_snr"
+fn = "dp_wfm_plan_check_snr"
+returns = "int"
+error = "ValueError"
+error_message = "this scene carries no noise, so the Plan has no noise floor for snr to move: give a source a finite snr (below 100 dB) and an snr_mode"
+
+# #2645: an override render() cannot honour (unknown key, a per-source array
+# of the wrong length, a non-number entry, a seed outside 0..2^32-1) renders
+# nothing in C. This is the face that raises, before the draw; the C
+# dp_wfm_plan_check_overrides_why() names the specific reason.
+[[module.wfm_plan.methods]]
+name = "check_overrides"
+fn = "dp_wfm_plan_check_overrides"
+returns = "int"
+error = "ValueError"
+error_message = "overrides refused: only the keys gains, phases, enable (each an array of n_sources numbers; enable may hold bools), snr (a number) and seed (an integer in 0..4294967295)"
+[[module.wfm_plan.methods.args]]
+name = "overrides_json"
+type = "string"
+
+# Scalar introspection (no-arg → scalar): the Python wrapper reads anchor_seed
+# for render()'s default seed and n_sources to size override arrays.
+[[module.wfm_plan.methods]]
+name = "length"
+fn = "dp_wfm_plan_len"
+returns = "size_t"
+[[module.wfm_plan.methods]]
+name = "n_sources"
+fn = "dp_wfm_plan_n_sources"
+returns = "size_t"
+[[module.wfm_plan.methods]]
+name = "anchor_seed"
+fn = "dp_wfm_plan_anchor_seed"
+returns = "uint64_t"
+
+# Zero-binding save/restore (jm gh-565): a prepared Plan persists to bytes/file
+# and reconstructs a fresh handle, skipping prepare()'s DSP. All I/O in C.
+# save() -> bytes: out_len_fn sizes the blob, fn fills a temp buffer.
+[[module.wfm_plan.methods]]
+name = "save"
+fn = "dp_wfm_plan_save"
+out_len_fn = "dp_wfm_plan_save_bytes"
+returns = "bytes"
+# dump(path) -> None: path arg (os.fspath -> const char*), int return raises
+# OSError on a non-zero result (a failed write) -- keeps file I/O in C.
+[[module.wfm_plan.methods]]
+name = "dump"
+fn = "dp_wfm_plan_dump"
+returns = "int"
+error = "OSError"
+[[module.wfm_plan.methods.args]]
+name = "path"
+type = "path"
+
+# Module-level alternate constructors: reconstruct a fresh Plan from a blob or a
+# file. A mismatched DSP fingerprint transparently rebuilds (never wrong).
+[[module.wfm_plan.factories]]
+name = "PlanFromBlob"
+create_fn = "dp_wfm_plan_restore"
+init_params = [{ name = "blob", type = "bytes" }]
+[[module.wfm_plan.factories]]
+name = "PlanFromFile"
+create_fn = "dp_wfm_plan_load"
+init_params = [{ name = "path", type = "path" }]

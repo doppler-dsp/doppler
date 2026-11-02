@@ -1,0 +1,38 @@
+[module.filter]
+doc = """
+FIR filtering: a direct-form complex or real FIR (FIR) and an O(1) boxcar moving average (MovingAverage).
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.filter import MovingAverage
+>>> MovingAverage(2).steps(np.ones(3, np.complex64)).real.tolist()
+[0.5, 1.0, 1.0]
+
+"""
+objects = ["fir", "boxcar"]
+# resample_core: kaiser_num_taps/kaiser_beta (FIR-design sizing/beta) for
+# design_lowpass. spectral_core: kaiser_window (formula-agnostic generator).
+extra_link_libs = ["spectral_core", "resample_core"]
+
+[[module.filter.functions]]
+name = "design_lowpass"
+doc = "Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps (Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps)."
+out_type = "float"
+variable_output = true
+out_size = "dp_kaiser_num_taps(1, atten_db, fpass / 2.0, fstop / 2.0) | 1"
+
+[[module.filter.functions.params]]
+name = "fpass"
+type = "double"
+default = "0.4"
+
+[[module.filter.functions.params]]
+name = "fstop"
+type = "double"
+default = "0.6"
+
+[[module.filter.functions.params]]
+name = "atten_db"
+type = "double"
+default = "60.0"

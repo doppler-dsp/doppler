@@ -1,4 +1,7 @@
-- **just-makeit pin 0.114.0 → 0.114.2.** The releases that make jm's
-    fragment migration lossless: 0.114.1 for values (a migrated project
-    re-applies to nothing, and the package `__init__.py` merge keeps its
-    re-exports), 0.114.2 for comments (just-makeit gh-2437).
+- **just-makeit pin 0.114.0 → 0.114.2, and each module's manifest is its
+    own file.** `make jm-migrate-fragments` moved every `[module.X]` table
+    out of `just-makeit.toml` into `modules/<name>.toml`, beside
+    `objects/`. 0.114.1 made the move lossless for values: no new
+    `jm status` entry, and every package's `__all__` unchanged. 0.114.2
+    made it lossless for comments: each table takes its own comments to
+    its fragment, byte for byte (just-makeit gh-2437).

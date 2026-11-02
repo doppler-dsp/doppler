@@ -1,0 +1,159 @@
+[module.util]
+doc = """
+Shared utilities used across the doppler modules: the numeric helpers, and
+`fromto`, the path from a calling script to where it writes.
+
+Examples
+--------
+>>> from doppler.util import square_clip
+>>> square_clip(2 + 0j, 1.0)
+(1+0j)
+
+"""
+objects = []
+
+# `fromto` is path arithmetic, not DSP, so it is plain Python in
+# src/doppler/util/paths.py: there is no C algorithm for a binding to wrap,
+# and the caller's __file__ is only reachable from Python.
+[module.util.reexports]
+paths = ["fromto"]
+
+[[module.util.functions]]
+name = "square_clip"
+doc = "Square-clip a complex sample: clip the real and imaginary parts independently to [-lin, lin] (a square region in the IQ plane)."
+return_type = "float _Complex"
+
+[[module.util.functions.params]]
+name = "y"
+type = "float _Complex"
+
+[[module.util.functions.params]]
+name = "lin"
+type = "float"
+
+[[module.util.functions]]
+name = "next_pow_two"
+doc = "Smallest power of two greater than or equal to n. The transform-sizing primitive: zero-padded FFT lengths, ring capacities and grow-on-demand buffers all want the same rounding, and five identical private copies of it were in the tree before this one. Saturating rather than wrapping -- 0 is returned when the answer exceeds SIZE_MAX, because a doubling loop run past the top shifts to zero and spins forever."
+return_type = "size_t"
+
+[[module.util.functions.params]]
+name = "n"
+type = "size_t"
+
+[[module.util.functions]]
+name = "saturate"
+doc = "Saturate a value into [lo, hi], total over every double including NaN and both infinities. The NaN destination is a parameter because which end is safe is domain knowledge: a gain control guarding a measured power wants the ceiling, a lock statistic wants the floor. Use it at the boundary where an untrusted value first becomes persistent state -- the input of an EMA, accumulator or integrator."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "v"
+type = "double"
+
+[[module.util.functions.params]]
+name = "lo"
+type = "double"
+
+[[module.util.functions.params]]
+name = "hi"
+type = "double"
+
+[[module.util.functions.params]]
+name = "nan_to"
+type = "double"
+
+[[module.util.functions]]
+name = "ema_step"
+doc = "One step of a first-order exponential moving average, state + alpha*(x - state). The canonical EMA for the library: it was written out four times in two different algebraic forms before this existed, and duplicated implementations drift. The incremental form is the more accurate of the two everywhere the library operates, by a margin that grows as the average lengthens; alpha == 1 (pass-through) and alpha == 0 (frozen) are both exact. NOT total in x -- a non-finite observation poisons the state permanently, because an EMA remembers, so saturate() belongs on this function's input."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "state"
+type = "double"
+
+[[module.util.functions.params]]
+name = "x"
+type = "double"
+
+[[module.util.functions.params]]
+name = "alpha"
+type = "double"
+
+[[module.util.functions]]
+name = "ema_alpha_decim"
+doc = "The EMA coefficient that advances d samples in one step, 1 - (1 - alpha)^d. A decimated loop updates once per chunk of d samples and must not thereby change its own time constant. Computed through expm1/log1p because the direct expression cancels catastrophically for small alpha -- 26865 ulps off at alpha 1e-5, d 1 -- and being exact at d == 1 is what lets the decimated and per-sample paths be compared bit-for-bit."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "alpha"
+type = "double"
+
+[[module.util.functions.params]]
+name = "d"
+type = "size_t"
+
+[[module.util.functions]]
+name = "complement_power"
+doc = "1 - (1 - p)^x for p in [0, 1] and real x >= 0, computed through expm1/log1p so it stays accurate when p is small. The one kernel behind two library quantities: the EMA coefficient that advances d samples (ema_alpha_decim, x = d) and the per-cell false-alarm probability that splits a search's Pfa over n independent cells (det_pfa_cell, x = 1/n)."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "p"
+type = "double"
+
+[[module.util.functions.params]]
+name = "x"
+type = "double"
+
+[[module.util.functions]]
+name = "sinc"
+doc = "Normalized sinc, sin(pi u)/(pi u), with sinc(0) = 1: the amplitude response of a rectangular window, so the straddle loss of a signal u bins off a DFT bin's centre."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "u"
+type = "double"
+
+[[module.util.functions]]
+name = "mean_sinc"
+doc = "The mean of sinc(u) over u in [0, umax]: the average amplitude loss of a signal whose offset from the nearest bin centre is uniform over umax bins. 1 for umax <= 0. 64-interval Simpson (simpson_weights) over segments of at most half a bin: within 3e-10 at any umax."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "umax"
+type = "double"
+
+[[module.util.functions]]
+name = "simpson_weights"
+doc = "Fill w with composite Simpson weights for the MEAN of a function over an interval: sum(w[i] * f(a + i*(b - a)/(n - 1))) approximates the mean of f over [a, b], for n = len(w) odd and at least 3. The weights sum to 1. Raises for any other length."
+return_type = "int"
+check_return = true
+
+[[module.util.functions.params]]
+name = "w"
+type = "double[]"
+out = true
+
+[[module.util.functions]]
+name = "midpoint_nodes"
+doc = "Fill u with the midpoint-rule nodes on [0, 1], u[k] = (k + 1/2)/n for n = len(u): the points a uniform average over n equal cells is evaluated at, each weighted 1/n."
+
+[[module.util.functions.params]]
+name = "u"
+type = "double[]"
+out = true
+
+[[module.util.functions]]
+name = "gauss_hermite"
+doc = "Fill z and p with the n-point Gauss-Hermite rule for a STANDARD NORMAL: sum(p[i] * f(z[i])) approximates E[f(Z)], Z ~ N(0, 1), exactly for any polynomial f of degree up to 2n - 1. For X ~ N(mu, sigma^2) evaluate f(mu + sigma * z[i]). Nodes ascend and the weights sum to 1. z and p must be the same length n >= 1; raises otherwise."
+return_type = "int"
+check_return = true
+
+[[module.util.functions.params]]
+name = "z"
+type = "double[]"
+out = true
+
+[[module.util.functions.params]]
+name = "p"
+type = "double[]"
+out = true

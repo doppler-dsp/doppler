@@ -1,0 +1,150 @@
+[module.spectral]
+doc = """
+Spectral transforms: reusable FFT and FFT2D engines (fixed length, pocketfft plans cached at construction) plus Corr / Corr2D cross-correlators and PSD power-spectrum estimators.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.spectral import FFT
+>>> f = FFT(n=1024)
+>>> X = f.execute_cf32(np.ones(1024, np.complex64))
+>>> bool(abs(X[0].real - 1024) < 1)
+True
+
+"""
+objects = ["fft", "fft2d", "corr", "corr2d", "detector", "detector2d", "psd", "spectrogram"]
+# psd_core composes acc_trace_core (the AccTrace averager); its OBJECT symbols
+# are linked into the spectral .so via psd.toml's depends_on link=true (gh-225).
+
+[[module.spectral.functions]]
+name = "kaiser_enbw"
+return_type = "float"
+
+[[module.spectral.functions.params]]
+name = "w"
+type = "float[]"
+
+[[module.spectral.functions]]
+name = "kaiser_window"
+
+[[module.spectral.functions.params]]
+name = "w"
+type = "float[]"
+out = true
+
+[[module.spectral.functions.params]]
+name = "beta"
+type = "float"
+
+[[module.spectral.functions]]
+name = "kaiser_beta_for_sidelobe"
+return_type = "double"
+
+[[module.spectral.functions.params]]
+name = "atten_db"
+type = "double"
+
+[[module.spectral.functions]]
+name = "hann_window"
+
+[[module.spectral.functions.params]]
+name = "w"
+type = "float[]"
+out = true
+
+[[module.spectral.functions]]
+name = "blackman_harris_window"
+
+[[module.spectral.functions.params]]
+name = "w"
+type = "float[]"
+out = true
+
+[[module.spectral.functions]]
+name = "magnitude_db_cf32"
+out_type = "float"
+
+[[module.spectral.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.spectral.functions.params]]
+name = "lin_floor"
+type = "float"
+
+[[module.spectral.functions.params]]
+name = "offset_db"
+type = "float"
+
+[[module.spectral.functions]]
+name = "magnitude_db_cf64"
+out_type = "float"
+
+[[module.spectral.functions.params]]
+name = "x"
+type = "double _Complex[]"
+
+[[module.spectral.functions.params]]
+name = "lin_floor"
+type = "double"
+
+[[module.spectral.functions.params]]
+name = "offset_db"
+type = "float"
+
+[[module.spectral.functions]]
+name = "find_peaks_f32"
+return_type = "dp_peak_t"
+max_results_param = "n_peaks"
+
+[[module.spectral.functions.result_fields]]
+name = "freq_norm"
+type = "float"
+
+[[module.spectral.functions.result_fields]]
+name = "amplitude_db"
+type = "float"
+
+[[module.spectral.functions.params]]
+name = "db"
+type = "float[]"
+
+[[module.spectral.functions.params]]
+name = "n_peaks"
+type = "size_t"
+
+[[module.spectral.functions.params]]
+name = "min_db"
+type = "float"
+
+[[module.spectral.functions]]
+name = "obw_from_power"
+return_type = "double"
+
+[[module.spectral.functions.params]]
+name = "pwr"
+type = "double[]"
+
+[[module.spectral.functions.params]]
+name = "fs"
+type = "double"
+
+[[module.spectral.functions.params]]
+name = "frac"
+type = "double"
+
+[[module.spectral.functions]]
+name = "noise_floor_db"
+return_type = "double"
+
+[[module.spectral.functions.params]]
+name = "db"
+type = "float[]"
+
+[[module.spectral.functions]]
+name = "power_to_db_f32"
+out_type = "float"
+
+[[module.spectral.functions.params]]
+name = "lin"
+type = "float[]"

@@ -1,0 +1,64 @@
+[module.resample]
+doc = """
+Sample-rate conversion: polyphase resampling (Resampler, RateConverter), halfband decimation (HalfbandDecimator), CIC decimation, and Farrow fractional resampling.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.resample import Resampler
+>>> Resampler(rate=2.0).execute(np.ones(100, np.complex64)).size
+200
+
+"""
+objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter", "farrow", "hbdecim_q15"]
+extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]
+# Composed cores reach the resample .so via per-object depends_on link=true
+# (gh-225): RateConverter → resamp/fir, HalfbandDecimator → hbdecim/hbdecim_r2c
+# (the latter for the HalfbandDecimatorR2C extra_type). cic is in-module and
+# resample_core is the module's own core (both auto-linked).
+# libm is not declared: jm resolves it by path on every generated link line
+# (gh-1305), and a bare `m` here is `m.lib` on Windows, which does not exist.
+
+[[module.resample.functions]]
+name = "ciccompmf"
+out_type = "float64[M]"
+
+[[module.resample.functions.params]]
+name = "N"
+type = "uint32_t"
+
+[[module.resample.functions.params]]
+name = "R"
+type = "uint32_t"
+
+[[module.resample.functions.params]]
+name = "M"
+type = "uint32_t"
+
+[[module.resample.functions]]
+name = "kaiser_beta"
+return_type = "double"
+
+[[module.resample.functions.params]]
+name = "atten"
+type = "double"
+
+[[module.resample.functions]]
+name = "kaiser_num_taps"
+return_type = "int"
+
+[[module.resample.functions.params]]
+name = "num_phases"
+type = "int"
+
+[[module.resample.functions.params]]
+name = "atten"
+type = "double"
+
+[[module.resample.functions.params]]
+name = "pb"
+type = "double"
+
+[[module.resample.functions.params]]
+name = "sb"
+type = "double"

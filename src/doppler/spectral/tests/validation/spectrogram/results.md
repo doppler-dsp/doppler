@@ -45,7 +45,7 @@ The campaign's order is header first. *Pin* is the section of the C test that as
 | C4 | fewer than `nfft` samples are held once a push returns | §5, §6 | #2043: one frame past the room (K1) | §2.1, §2.2 |
 | C5 | a short output never loses input: whole rows only, `floor(max_out / nfft)` of them, nothing written to an output too small for one, and input that completes no row taken whole even with `max_out` 0 | §4, §6, §11 | #1975: the 0/0 rule (S1); stop at `rows == room` (S2). #2043: one float written with no row (M1), the tail left untaken (M2), one float past the last row (T1) | §2.2 |
 | C6 | `push_max_out(n)` is the room that makes a push take all `n`, and saturates at `SIZE_MAX` | §4 | #1975: `push_max_out` wrapping | §2.1, §2.3 |
-| C7 | `rows_for(n)` is the carry plus `n` cut into frames, and a push with that room writes exactly that many | §4 | #1975: a capped `rows_for`; the framer's `frames_in` forgetting the owed hop, wrapping, capped (F1-F3) | §2.3 |
+| C7 | `rows_for(n)` is the carry plus `n` cut into frames, and a push with that room writes exactly that many | §4 | #1975: a capped `rows_for`; the framer's `frames_in` forgetting the owed hop, wrapping, capped | §2.3 |
 | C8 | `consumed` is `n_in` unless the output ran out, and 0 after create, reset, flush and set_state | §6, §7, §8, §10 | #1975: the `consumed` resets | §2.1, §2.4, §2.5 |
 | C9 | `flush` writes the grid row iff a sample is uncovered, then restarts as after reset, so a second flush writes nothing | §7 | #1975: a stale flush row. #2043: the row cut off the grid (M3) | §2.4 |
 | C10 | `pending` is the samples no written row covers | §7, §8 | #2043: pending off by one (M4) | §2.1, §2.4 |

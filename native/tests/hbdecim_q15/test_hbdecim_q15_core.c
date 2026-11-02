@@ -11,6 +11,8 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -188,6 +190,34 @@ main (void)
     DP_CHECK (memcmp (ref, got, 2 * nref * sizeof *ref) == 0);
     dp_hbdecim_q15_destroy (a);
     dp_hbdecim_q15_destroy (b);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged head or flag is refused, the object untouched          *
+   * ---------------------------------------------------------------- */
+  {
+    /* Blob: [hdr][even_head u64][odd_head u64][has_pending u32]... */
+    dp_hbdecim_q15_state_t *s = dp_hbdecim_q15_create (25, H25_stub);
+    DP_CHECK (s != NULL);
+    if (s)
+      {
+        const size_t   eh  = sizeof (dp_state_hdr_t);
+        const size_t   oh  = eh + sizeof (uint64_t);
+        const size_t   hp  = oh + sizeof (uint64_t);
+        const uint64_t cap = (uint64_t)s->cap;
+        const uint32_t two = 2;
+        DP_STATE_FORGE_TEST (dp_hbdecim_q15, s, HBDECIM_Q15_STATE_MAGIC,
+                             HBDECIM_Q15_STATE_VERSION, eh, &cap, sizeof cap);
+        DP_STATE_FORGE_TEST (dp_hbdecim_q15, s, HBDECIM_Q15_STATE_MAGIC,
+                             HBDECIM_Q15_STATE_VERSION, oh, &cap, sizeof cap);
+        DP_STATE_FORGE_TEST (dp_hbdecim_q15, s, HBDECIM_Q15_STATE_MAGIC,
+                             HBDECIM_Q15_STATE_VERSION, hp, &two, sizeof two);
+        /* ...and the last index inside the ring is a state. */
+        const uint64_t last = cap - 1;
+        DP_STATE_ACCEPT_TEST (dp_hbdecim_q15, s, eh, &last, sizeof last);
+        DP_STATE_ACCEPT_TEST (dp_hbdecim_q15, s, oh, &last, sizeof last);
+        dp_hbdecim_q15_destroy (s);
+      }
   }
 
   DP_TEST_END ("test_hbdecim_q15_core");

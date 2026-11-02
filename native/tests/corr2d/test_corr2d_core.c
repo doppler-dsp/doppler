@@ -406,6 +406,20 @@ _test_delay_doppler (void)
       free (cb);
       free (db);
     }
+    /* A count at or past the dwell would never dump (`++count == dwell` is
+       never true again until it wraps), exactly as for the delay-Doppler
+       flavor; the Corr2D restore refuses it too, the object untouched
+       (#2142). The count is the first payload word. */
+    {
+      const uint64_t past = 3; /* this Corr2D's dwell */
+      DP_STATE_FORGE_TEST (dp_corr2d, c, CORR2D_STATE_MAGIC,
+                           CORR2D_STATE_VERSION, sizeof (dp_state_hdr_t),
+                           &past, sizeof past);
+      /* ...and dwell - 1, one look short of a dump, is a state. */
+      const uint64_t edge = past - 1;
+      DP_STATE_ACCEPT_TEST (dp_corr2d, c, sizeof (dp_state_hdr_t), &edge,
+                            sizeof edge);
+    }
     dp_corr2d_destroy (c);
 
     /* Reject keys at an equal blob size: ny_out 8 vs 6 (the map), ny 4 vs

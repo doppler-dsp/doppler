@@ -34,7 +34,7 @@ effective_threads (int threads, size_t n_receivers)
    the receivers; the search runs before them, serially. Fanning its tiles
    across the cores was measured to cost, not pay: 1.5x at +-50 kHz and
    D = 150, 8x one epoch deep, and 1.6x on the pool's scene example
-   (doppler#2744). */
+   (async-dsss-receiver-measurements.md §9.6, doppler#2744). */
 static void
 build_workers (dp_async_dsss_pool_state_t *s, int threads)
 {

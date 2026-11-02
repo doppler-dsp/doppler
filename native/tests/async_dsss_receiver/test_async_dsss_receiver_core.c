@@ -3653,6 +3653,30 @@ _test_threads_change_nothing_but_cost (void)
   DP_CHECK (memcmp (ba, bb, nbytes) == 0);
   free (ba);
   free (bb);
+  /* A regrid to one tile re-applies the cap (#2746), and the blob carries
+     what then runs: the 4-thread, five-tile receiver saves threads = 1 and
+     restores as 1 into a receiver on the same one-tile grid. Sabotage:
+     drop the re-cap in dp_acq_configure_search_raw -> it saves 4. */
+  DP_REQUIRE (dp_async_dsss_receiver_configure_search_raw (b, 1, 1) == 0);
+  DP_CHECK_EQ_INT (dp_async_dsss_receiver_get_threads (b), 1);
+  {
+    const size_t   nr   = dp_async_dsss_receiver_state_bytes (b);
+    unsigned char *blob = malloc (nr);
+    DP_REQUIRE (blob != NULL);
+    dp_async_dsss_receiver_get_state (b, blob);
+    DP_CHECK_EQ_INT (
+        (int)((async_dsss_receiver_extra_t *)(blob + sizeof (dp_state_hdr_t)))
+            ->threads,
+        1);
+    dp_async_dsss_receiver_state_t *c
+        = _slow_rx (code, 45.0, 5000.0, 0.0, 0.0);
+    DP_REQUIRE (c != NULL);
+    DP_REQUIRE (dp_async_dsss_receiver_configure_search_raw (c, 1, 1) == 0);
+    DP_CHECK_EQ_INT (dp_async_dsss_receiver_set_state (c, blob), DP_OK);
+    DP_CHECK_EQ_INT (dp_async_dsss_receiver_get_threads (c), 1);
+    dp_async_dsss_receiver_destroy (c);
+    free (blob);
+  }
   free (sa);
   free (sb);
   free (x);

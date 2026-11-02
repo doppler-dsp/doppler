@@ -349,9 +349,15 @@ Run `make bench BENCH_ARGS="--c-only async_dsss_pool"` once the load fell under 
 
 Transcribed from one interactive A/B run, like §9.4, not rendered from
 committed data; the harness source and every round's output are in
-doppler#2744. A is #2731 at a018c8c6b with round 6's sidelobe-cache reset
-(the search serial); B is the same tree with the one line reverted that
-makes it serial, so the search fans its tiles across the cores. Both Release
+doppler#2744. A is the code #2731 merged: `acq_core.c` is byte-identical at
+`230f72b29` on main (rebase-merged from `e031d1338`), and
+`async_dsss_pool_core.c` differs only in the comment above
+`build_workers`. A has the search serial. B is the same tree with the one
+line reverted that makes it serial,
+`dp_async_dsss_receiver_set_threads (s->search, threads)`, so the search
+fans its tiles across the cores. Each library is `make build`'s
+`libdoppler.a`, copied aside, and the harness is linked to each with the
+`cc` line in doppler#2744. Both Release
 `libdoppler.a`, linked to one scratch harness and run A B A B A B on
 `zen-x2elite-x` (18 threads): a pool of 4 receivers, all idle, fed 300-epoch
 pushes of noise, the minimum of 3 pushes, in ns a sample; the cell is the

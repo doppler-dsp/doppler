@@ -1716,7 +1716,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, "
     "cn0_dbhz=50.0,\n"
     "...                 doppler_uncertainty=4000.0)\n"
-    ">>> a.threads >= 1               # a pool, sized to the machine\n"
+    ">>> a.threads >= 1               # at most one worker a tile\n"
     "True\n"
     ">>> a.set_threads(1)\n"
     ">>> a.threads\n"

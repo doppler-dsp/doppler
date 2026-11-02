@@ -1787,7 +1787,8 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
   st->n_surf        = new_n_surf;
   /* Every sidelobe slot was read on the old grid: its rows' Doppler, its
      tiles and its resolution all follow D, window_bins and interp, so none
-     survives a regrid (configure_search_raw forces one tile and keeps D). */
+     survives a regrid (configure_search_raw forces one tile, and may change
+     D as well). */
   st->sl_cn = st->sl_cnext = 0;
   /* A new surface size: the kept surface (acq_surface) is re-made lazily
      at the next decided dwell. */
@@ -2392,6 +2393,10 @@ dp_acq_configure_search_raw (dp_acq_state_t *st, size_t doppler_bins,
    * matching its documented contract of pinning the classic grid directly. */
   if (acq_regrid (st, doppler_bins, n_noncoh, 1, NULL) != 0)
     return -1;
+  /* One tile now, so the pool's cap (no more workers than tiles) says
+     serial; re-apply it, or a three-tile engine keeps reading 3 threads
+     and a receiver blob carries the stale count (#2746). */
+  (void)dp_acq_set_threads (st, st->threads);
 
   const double snr = acq_design_snr (st->cn0_dbhz, st->fs);
   acq_commit_thresholds (st, st->pfa, st->pd, snr, st->doppler_uncertainty);

@@ -58,6 +58,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  int | [**dsl\_ready**](#variable-dsl_ready)  <br> |
 |  size\_t | [**dsl\_window\_bins**](#variable-dsl_window_bins)  <br> |
 |  uint64\_t | [**dwells**](#variable-dwells)  <br> |
+|  int | [**epoch\_fan**](#variable-epoch_fan)  <br> |
 |  double | [**epochs\_per\_symbol**](#variable-epochs_per_symbol)  <br> |
 |  float | [**eta**](#variable-eta)  <br> |
 |  float | [**eta\_nc**](#variable-eta_nc)  <br> |
@@ -584,6 +585,24 @@ uint64_t dp_acq_state_t::dwells;
 
 
 dwells decided since create/reset 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable epoch\_fan 
+
+```C++
+int dp_acq_state_t::epoch_fan;
+```
+
+
+
+1 (create's default): every tile stage fans on the pool. 0: the stages that run once an epoch run inline, and the per-block ones fan only when a block is more than one epoch. The result is bit-identical either way; only the cost moves. async\_dsss\_pool clears it on its search (doppler#2775): on bare metal the per-epoch fan pays even at one tile a worker, while on a host with a costly wake-up (WSL2) it costs that pool 1.9-3.5x at D = 1, so no tile count decides it. 
  
 
 

@@ -3467,8 +3467,9 @@ class AsyncDsssPool:
         Workers push() steps the receivers on, the calling thread included: 1 =
         serial, 0 = the online cores (default). The receivers' step uses at
         most n_receivers of them; the controller's search runs before them on
-        the same request, at most one worker a Doppler tile
-        (async-dsss-receiver.md §5).
+        the same request, at most one worker a Doppler tile, with its
+        once-an-epoch stages inline and its once-a-block ones fanned when a
+        block is more than one epoch (async-dsss-receiver.md §5).
 
     Raises
     ------

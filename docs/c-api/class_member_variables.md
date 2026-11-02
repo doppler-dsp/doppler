@@ -289,6 +289,7 @@
 * **excl** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
 * **errors** ([**ber\_interval\_t**](structber__interval__t.md), [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md), [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md), [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md), [**node\_sync\_t**](structnode__sync__t.md), [**syncword\_hit\_t**](structsyncword__hit__t.md))
 * **epoch** ([**burst\_capture\_detection\_t**](structburst__capture__detection__t.md))
+* **epoch\_fan** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **epochs\_per\_symbol** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **eta** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **eta\_nc** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))

@@ -269,8 +269,10 @@ extern "C"
    *                     (default). The receivers' step uses at most
    *                     @p n_receivers of them; the controller's search
    *                     runs before them on the same request, at most one
-   *                     worker a Doppler tile (async-dsss-receiver.md
-   *                     §5).
+   *                     worker a Doppler tile, with its once-an-epoch
+   *                     stages inline and its once-a-block ones fanned
+   *                     when a block is more than one epoch
+   *                     (async-dsss-receiver.md §5).
    * @return A new pool, every receiver idle; NULL on an invalid
    *         argument, or one any receiver refuses.
    * @note Caller must call dp_async_dsss_pool_destroy() when done.

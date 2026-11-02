@@ -924,8 +924,10 @@ column loop run on a persistent worker pool (`dp_acq_set_threads()`,
 inverse plan and scratch, and the per-cell passes that decide a surface
 merge serially in tile order, so the result is bit-identical at any thread
 count. A continuous engine with more than one tile starts with a pool of
-the machine's online cores; a burst engine and a single-tile one run
-serially.
+the machine's online cores, capped at one worker a tile (a worker past the
+tile count only wakes and waits), and a regrid to one tile
+(`configure_search_raw`) drops it to serial; a burst engine and a
+single-tile one run serially.
 
 **Across engines,** shards are independent: coarse-Doppler channels, rate
 hypotheses, time blocks. `push` releases the GIL (`nogil = true` in

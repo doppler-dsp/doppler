@@ -41,6 +41,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -332,13 +333,26 @@ def setup_worktree(build, commit, wt=None, cmake_args=None):
         capture_output=True,
     )
     print(f"[{build}] building in {wt} ...", flush=True)
-    _run(
+    r = _run(
         ["make", "pyext", "CMAKE_ARGS=" + " ".join(args)],
         wt,
-        check=True,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
     )
+    if r.returncode != 0:
+        # The worktree is this call's to remove: a caller that never got
+        # its path back cannot (#2771), and the build's stderr is the one
+        # place that says why it failed.
+        sys.stderr.write(r.stderr[-4000:])
+        _run(
+            ["git", "worktree", "remove", "--force", wt],
+            REPO,
+            capture_output=True,
+        )
+        raise SystemExit(
+            f"bench: `make pyext` failed for {commit} in {wt} "
+            f"(exit {r.returncode}); its stderr tail is above"
+        )
     return wt
 
 
@@ -358,6 +372,10 @@ def bench_once(wt, cpus=None):
     or writes no JSON (just-makeit#2189). Thrown away, a release run died
     on a bare CalledProcessError naming `make bench` and nothing else.
     """
+    # Every snapshot this pass writes is newer than this. One second of
+    # slack covers a filesystem that keeps whole-second mtimes; a pass
+    # takes far longer than that, so the last pass's file stays older.
+    since = time.time() - 1.0
     r = _run(
         ["make", "bench"],
         wt,
@@ -371,16 +389,44 @@ def bench_once(wt, cpus=None):
             f"bench-interleaved: `make bench` failed in {wt} "
             f"(exit {r.returncode}); its stderr is above"
         )
-    hist = os.path.join(wt, "benchmarks", "history")
-    py = [f for f in glob.glob(hist + "/*.json") if not f.endswith("-c.json")]
-    if not py:
-        # `BENCH_ARGS=--c-only ...` (make bench-ab) writes no Python
-        # snapshot; the C one is the newest there is.
-        cj = max(glob.glob(hist + "/*-c.json"), key=os.path.getmtime)
-        return {"benchmarks": []}, json.load(open(cj))
-    pj = max(py, key=os.path.getmtime)
-    tag = os.path.basename(pj)[: -len(".json")]
-    return json.load(open(pj)), json.load(open(f"{hist}/{tag}-c.json"))
+    py, c = fresh_snapshots(os.path.join(wt, "benchmarks", "history"), since)
+    return (json.load(open(py)) if py else {"benchmarks": []}), json.load(
+        open(c)
+    )
+
+
+def fresh_snapshots(hist: str, since: float):
+    """(python_path or None, c_path) this pass wrote under `hist`.
+
+    Only a snapshot newer than `since` counts. An older one is a previous
+    pass's: counted again, it would shrink a row's band, and the pass would
+    look measured when it was not (#2771). A pass with no new C snapshot is
+    refused by name; a pass with no new Python one is a C-only run
+    (``BENCH_ARGS=--c-only ...``, as make bench-ab passes), and gets None.
+    A new Python snapshot is paired with its own C one, by tag.
+    """
+
+    def new(paths):
+        return [f for f in paths if os.path.getmtime(f) >= since]
+
+    py = new(
+        f for f in glob.glob(hist + "/*.json") if not f.endswith("-c.json")
+    )
+    if py:
+        pj = max(py, key=os.path.getmtime)
+        cj = pj[: -len(".json")] + "-c.json"
+        if not os.path.exists(cj) or os.path.getmtime(cj) < since:
+            raise SystemExit(
+                f"bench-interleaved: {pj} has no C snapshot beside it"
+            )
+        return pj, cj
+    c = new(glob.glob(hist + "/*-c.json"))
+    if not c:
+        raise SystemExit(
+            f"bench-interleaved: `make bench` exited 0 but wrote no new "
+            f"snapshot under {hist}; refusing to count an old one"
+        )
+    return None, max(c, key=os.path.getmtime)
 
 
 def _merge_best(snaps):

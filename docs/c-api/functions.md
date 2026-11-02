@@ -444,6 +444,7 @@
 * **dp\_boxcar\_set\_gain** ([**boxcar\_core.h**](boxcar__core_8h.md))
 * **dp\_boxcar\_set\_state** ([**boxcar\_core.h**](boxcar__core_8h.md))
 * **dp\_boxcar\_state\_bytes** ([**boxcar\_core.h**](boxcar__core_8h.md))
+* **dp\_boxcar\_state\_ok** ([**boxcar\_core.h**](boxcar__core_8h.md))
 * **dp\_boxcar\_step** ([**boxcar\_core.h**](boxcar__core_8h.md))
 * **dp\_boxcar\_steps** ([**boxcar\_core.h**](boxcar__core_8h.md))
 * **dp\_\_buf\_alloc** ([**buffer.h**](buffer_8h.md))

@@ -53,7 +53,8 @@ dp_boxcar_steps (dp_boxcar_state_t *s, const float _Complex *x,
     out[i] = dp_boxcar_step (s, x[i]);
 }
 
-/* Serializable state — pointer-free POD whole-struct snapshot
- * (see DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (dp_boxcar, dp_boxcar_state_t, BOXCAR_STATE_MAGIC,
-                     BOXCAR_STATE_VERSION)
+/* Serializable state — pointer-free POD whole-struct snapshot, refusing a
+ * snapshot dp_boxcar_state_ok() rejects (see DP_DEFINE_POD_STATE_CHECKED in
+ * dp_state.h). */
+DP_DEFINE_POD_STATE_CHECKED (dp_boxcar, dp_boxcar_state_t, BOXCAR_STATE_MAGIC,
+                             BOXCAR_STATE_VERSION, dp_boxcar_state_ok)

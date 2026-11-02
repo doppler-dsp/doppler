@@ -22,10 +22,11 @@
  * continuous engine whose period is not 7-smooth, the next power of two --
  * the cross-spectrum zero-padded before the inverse, an exact interpolation
  * of the same circular correlation at a fraction of the cost of inverses of
- * an awkward length (lag_bins' doc). The slow-time axis (coherent_bins rows, one row per code
- * repetition) is the coherent Doppler search.  A carrier offset f
- * (cycles/sample) lands the peak at row = round(f*code_bins*coherent_bins)
- * mod coherent_bins, column = code phase.
+ * an awkward length (lag_bins' doc). The slow-time axis (coherent_bins
+ * rows, one row per code repetition) is the coherent Doppler search.  A
+ * carrier offset f (cycles/sample) lands the peak at
+ * row = round(f*code_bins*coherent_bins) mod coherent_bins, column = code
+ * phase.
  *
  * **Two mode-fixed public constructors, one shared engine.** A coherent
  * slow-time Doppler FFT can only ever resolve frequency *within* one native
@@ -56,12 +57,13 @@
  *   Sensitivity margin comes entirely from auto-selected non-coherent looks.
  *
  * Both convert C/N0 to a per-sample amplitude SNR
- * (snr = sqrt(10^(cn0_dbhz/10) / (chip_rate*spc))).  Every reported detection
- * inverts this same relationship to report an estimated C/N0
+ * (snr = sqrt(10^(cn0_dbhz/10) / fs)), where fs is the sample rate: the
+ * burst door's @p fs, the continuous door's @p sample_rate.  Every reported
+ * detection inverts this same relationship to report an estimated C/N0
  * (acq_result_t::cn0_dbhz_est) — a bandwidth/integration-time-independent
  * figure of merit directly comparable to @p cn0_dbhz, unlike a raw per-sample
- * or coherently-integrated ratio (both scale with @p spc/@p reps and so
- * aren't portable across configurations).
+ * or coherently-integrated ratio (both scale with the sample rate and the
+ * coherent depth, and so aren't portable across configurations).
  *
  * **Wideband window-tiling mode**: instead of coherent combining, tiles the
  * requested uncertainty with `window_bins = 2*ceil((du - span)/(2*span)) + 1`
@@ -109,7 +111,8 @@
  * wrapping negative): `doppler_bin` indexes it, and dp_acq_build_handoff()
  * folds it with dp_fftfreq_index() over that count. A block that straddles
  * data spreads that emitter over its rows, `10*log10(D)` below an aligned
- * block, at its own code phase -- the `conc` probe (§2.4) reads it.
+ * block, at its own code phase -- the `conc` probe
+ * (docs/design/async-dsss-receiver.md §2.4) reads it.
  * `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as
  * described above. A tile de-rotates by its own centre, so an emitter on
  * the edge between two tiles reads the same in both (within 0.03 dB) and
@@ -117,12 +120,13 @@
  * listed peak is therefore asked at its ROW's frequency before it is
  * reported -- the block's raw epochs correlated with the replica at the
  * pick's code phase, mixed by the row's frequency and by that one span
- * down and up, the winner reported (design §2.3,
+ * down and up, the winner reported (docs/design/acq-surface.md §6,
  * docs/design/async-dsss-receiver-measurements.md §12.18,
  * doppler#1270).
  *
- * **A roll per thread** (design §2.3): the tiles are independent after the
- * one forward transform, so the per-epoch tile loop and, at `D > 1`, the
+ * **A roll per thread** (docs/design/acq-surface.md §13): the tiles are
+ * independent after the one forward transform, so the per-epoch tile loop
+ * and, at `D > 1`, the
  * block-end column loop run across a persistent pool of workers
  * (dp_parallel.h's `dp_pool_*`), created once with the engine and parked
  * between pushes. Each tile owns its inverse plan and scratch, so the
@@ -294,8 +298,9 @@ extern "C"
 
   /**
    * @brief Telemetry attachment: a borrowed context + this engine's probe
-   *        ids (design §2.4). NULL ctx (the default) means detached — the
-   *        one probe site is then a single predicted-not-taken branch per
+   *        ids (docs/design/async-dsss-receiver.md §2.4). NULL ctx (the
+   *        default) means detached — the one probe site is then a single
+   *        predicted-not-taken branch per
    *        decided dwell. Never in a state blob; preserved across
    *        dp_acq_set_state() like the borrowed code.
    */
@@ -326,10 +331,11 @@ extern "C"
                                        uint64_t samples_consumed);
 
   /**
-   * @brief One tile's share of a decided surface (design §2.3): the
-   *        surface is cut into `window_bins` chunks of whole rows, and the
-   *        per-cell passes after the fan -- the magnitude, the CFAR
-   *        reference, the mask copy, each scan of the peak list -- run per
+   * @brief One tile's share of a decided surface
+   *        (docs/design/acq-surface.md §13): the surface is cut into
+   *        `window_bins` chunks of whole rows, and the per-cell passes
+   *        after the fan -- the magnitude, the CFAR reference, the mask
+   *        copy, each scan of the peak list -- run per
    *        chunk into one of these, merged serially in tile order. The
    *        merge is bit-identical at any thread count because the chunks
    *        never move.
@@ -537,7 +543,8 @@ extern "C"
                                      symbol_rate <= 0.                    */
     size_t code_only_epochs; /**< Whole code-only epochs a waveform's
                                   code-only window holds at any chip phase
-                                  (§2.1); 1 = no window, D = 1.          */
+                                  (docs/design/async-dsss-receiver.md
+                                  §2.1); 1 = no window, D = 1.           */
     double doppler_rate; /**< Doppler rate the depth is bounded against
                               (Hz/s); 0 = no bound from the rate.       */
     size_t rate_hyps;    /**< Doppler-rate hypotheses searched (>= 1); 1 =
@@ -565,9 +572,10 @@ extern "C"
                                   blk is.                                */
     size_t blk_epoch;    /**< Epochs gathered in the current block
                               (0 … coherent_bins-1).                    */
-    /* The roll per thread (design §2.3): the tiles are independent after
-       the one forward transform, so the per-epoch tile loop and the
-       block-end column loop run through a persistent pool. The scratch is
+    /* The roll per thread (docs/design/acq-surface.md §13): the tiles are
+       independent after the one forward transform, so the per-epoch tile
+       loop and the block-end column loop run through a persistent pool.
+       The scratch is
        PER TILE, not per thread -- a pocketfft plan carries its own work
        buffers, and a tile lands on whichever worker takes it -- so the
        serial and the fanned paths run the same code on the same buffers
@@ -686,7 +694,8 @@ extern "C"
     uint32_t   *twin_col;  /**< max_peaks: last dwell's picks, code phases */
     size_t      n_twins;   /**< picks carried over from the last dwell     */
 
-    /* Observability (design §2.4): attach-on-demand, nothing in blobs. */
+    /* Observability (docs/design/async-dsss-receiver.md §2.4):
+       attach-on-demand, nothing in blobs. */
     acq_tlm_t tlm;       /**< telemetry attachment; ctx NULL = detached      */
     int       keep_surface; /**< 1 = normalise every decided dwell into
                                  `stat_surface` for acq_surface(); set by a
@@ -764,7 +773,8 @@ extern "C"
  *  always be reported whole. */
 #define ACQ_MAX_PEAKS 64u
 
-/** Columns the block-end transform gathers per pass (design §2.3, #1243):
+/** Columns the block-end transform gathers per pass
+ *  (docs/design/acq-surface.md §4, #1243):
  *  a cache line holds 8 cf32 cells, so a chunk of 32 columns reads four
  *  lines per slow-time row of the block and writes four per surface row,
  *  where a column at a time read and wrote one line per CELL. */
@@ -1036,9 +1046,10 @@ extern "C"
    * min((code_only_epochs+1)/2, f_epoch/sqrt(2*doppler_rate))`, at least 1,
    * rounded down to a 7-smooth length (dp_fft_smooth_floor(): 94 runs as
    * 90), run in non-overlapping D-epoch blocks inside every tile (file doc,
-   * design §2.3). With @p code_only_epochs = 1 it is 1 and the engine is
-   * exactly the epoch-by-epoch search. Sensitivity margin beyond the depth
-   * comes from auto-selected non-coherent looks over blocks (up to the
+   * docs/design/acq-surface.md §4). With @p code_only_epochs = 1 it is 1
+   * and the engine is exactly the epoch-by-epoch search. Sensitivity
+   * margin beyond the depth comes from auto-selected non-coherent looks
+   * over blocks (up to the
    * internal @ref ACQ_N_NONCOH_SAFETY_CEILING).
    *
    * @param code        PN chips (0/1), length @p code_len.
@@ -1069,7 +1080,8 @@ extern "C"
    * @param pd          Target detection probability (0,1).
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
    * @param code_only_epochs  Whole code-only epochs a waveform's code-only
-   *                    window holds at any chip phase (design §2.1:
+   *                    window holds at any chip phase
+   *                    (docs/design/async-dsss-receiver.md §2.1:
    *                    `floor(W_symbols * chips_per_symbol / sf) - 1`); 1
    *                    (>= 1) means no window and a depth of 1.
    * @param doppler_rate  Doppler rate in Hz/s the depth is bounded against
@@ -1339,7 +1351,8 @@ extern "C"
 
   /**
    * @brief Set how many threads the searcher fans its tiles across
-   *        (design §2.3: a roll per thread on persistent workers).
+   *        (docs/design/acq-surface.md §13: a roll per thread on
+   *        persistent workers).
    *
    * A continuous engine is created with a pool of the machine's online
    * cores when it has more than one tile; a burst engine, and a
@@ -1376,7 +1389,8 @@ extern "C"
   int dp_acq_set_threads (dp_acq_state_t *state, int n);
   /**
    * @brief Attach (or detach) a telemetry context and register the
-   *        engine's probes on it (design §2.4).
+   *        engine's probes on it (docs/design/async-dsss-receiver.md
+   *        §2.4).
    *
    * Registers ten probes, emitted once per DECIDED dwell (a coherent dump,
    * or the dwell that completes `n_noncoh` looks) and further thinned by
@@ -1653,9 +1667,9 @@ extern "C"
    *
    * The block-coherent engine gathers every tile's correlation row for
    * `coherent_bins` epochs before its slow-time transform (file doc,
-   * design §2.3). This copies the `coherent_bins` values at column
-   * @p col of tile @p tile into @p out, in epoch order: each epoch's
-   * complex prompt at that code phase, rolled to the tile's centre
+   * docs/design/acq-surface.md §4). This copies the `coherent_bins` values
+   * at column @p col of tile @p tile into @p out, in epoch order: each
+   * epoch's complex prompt at that code phase, rolled to the tile's centre
    * frequency and shifted to the block's middle by the tile's code-rate
    * hypothesis, so the phase is continuous along the column for an
    * emitter at the tile's centre and rotates at its offset from it. At
@@ -1746,7 +1760,7 @@ extern "C"
   /**
    * @brief Attach (or detach) a C surface sink: every @p decim-th decided
    *        dwell's surface, in test-statistic units, handed to @p fn on the
-   *        pushing thread (design §2.4).
+   *        pushing thread (docs/design/async-dsss-receiver.md §2.4).
    *
    * Sets `keep_surface`, so dp_acq_surface() reads the same dwell afterwards.
    * The pointer handed to @p fn is the engine's and is valid only for the
@@ -1822,7 +1836,7 @@ extern "C"
    * ...     np.complex64)
    * >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
    * ...                 doppler_uncertainty=40e3)
-   * >>> fs = 1e6 * 4                    # sample rate = chip_rate * spc
+   * >>> fs = 4e6                        # the sample_rate passed above
    * >>> t = np.arange(a.code_bins * a.n_noncoh)
    * >>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)
    * >>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)

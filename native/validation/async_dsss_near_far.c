@@ -10,7 +10,7 @@
  * that leaves a caller, at the operating point of the certification
  * (async_dsss_receiver_common.h: Gold-1023 at 3.069 Mcps, two samples a
  * chip, 2,700 sym/s): the weak emitter W at the floor, Es/N0 5 dB (39.3
- * dB-Hz, docs/design/async-dsss-receiver.md §2.1), the strong one S clean
+ * dB-Hz, docs/design/async-dsss-receiver.md §1), the strong one S clean
  * and `delta` dB above it, both carrying data, at independent random code
  * phases and carriers inside the native span. Every receiver is sized for
  * the floor.
@@ -60,7 +60,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The specification's floor, docs/design/async-dsss-receiver.md §2.1. */
+/* The specification's floor, docs/design/async-dsss-receiver.md §1. */
 #define FLOOR_ESN0_DB 5.0
 #define CODE_ONLY 450u /* the deep frame: code-only symbols ...       */
 #define FRAME 500u     /* ... of every FRAME                          */

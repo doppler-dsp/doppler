@@ -88,7 +88,7 @@ _A receiver's roles inside an AsyncDsssPool: pooled (idle until seeded) and sear
 ## Detailed Description
 
 
-Not part of the receiver's public API: these are the pool's plumbing (docs/design/async-dsss-receiver.md §5, §6), declared here so the pool and the receiver's own test reach them and no caller is promised them. The pool is the one user, and it sets both at create. Both values still travel in the receiver's blob (v15)  a pooled receiver restores pooled and idle, a search restores its pick count  pinned by test\_async\_dsss\_receiver\_core's round trip. 
+The pool's plumbing (docs/design/async-dsss-receiver.md §5, §6), kept out of [**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md) so the receiver's documented API does not carry them. They are still exported: this header sits under native/inc, so it is installed and its symbols are in cmake/public-symbols.txt, which is what lets the pool, a separate component, link to them. No caller is promised them; the pool is the one user, and it sets both at create. Both values still travel in the receiver's blob (v15)  a pooled receiver restores pooled and idle, a search restores its pick count  pinned by test\_async\_dsss\_receiver\_core's round trip. 
 
 
     

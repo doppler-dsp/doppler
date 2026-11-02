@@ -88,8 +88,9 @@ dp_async_dsss_pool_create (
       (void)dp_async_dsss_receiver_set_pooled (s->rx[i], true);
     }
   /* The one search (§5): a receiver of the same parameters that reports
-     each dwell's picks instead of seeding itself, one task beside the
-     receivers. */
+     each dwell's picks instead of seeding itself. Each period it runs
+     first, its tiles fanned across the workers, and the receivers after
+     it (feed_period()). */
   s->search = dp_async_dsss_receiver_create (
       code, code_len, chip_rate, symbol_rate, sample_rate, m, cn0_dbhz, pfa,
       pd, doppler_uncertainty, segments, sps, differential,

@@ -3216,10 +3216,12 @@ class AsyncDsssReceiver:
     @property
     def lifecycle(self) -> Literal["searching", "refining", "tracking", "idle", "lost"]:
         """Where the receiver is in its lifecycle, by name: `"searching"`,
-        `"refining"`, `"tracking"` or `"lost"` (released, waiting for
-        `reset()`). The same state as `status().state`, which carries it as the
-        C integer. With `reacquire` a release goes back to `"searching"` and
-        never reads `"lost"`.
+        `"refining"`, `"tracking"`, `"idle"` (a pooled receiver with no search
+        of its own, waiting for the pool's controller to seed it) or `"lost"`
+        (released, waiting for `reset()`). The same state as `status().state`,
+        which carries it as the C integer. With `reacquire` a release goes back
+        to `"searching"`, or to `"idle"` when pooled, and never reads
+        `"lost"`.
         """
 
     @property

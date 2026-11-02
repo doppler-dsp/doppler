@@ -1493,9 +1493,11 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "The searcher's slow-time depth D: epochs per coherent block.\n", NULL },
   { "lifecycle", (getter)AsyncDsssReceiver_getprop_lifecycle, NULL,
     "Where the receiver is in its lifecycle, by name: `\"searching\"`, "
-    "`\"refining\"`, `\"tracking\"` or `\"lost\"` (released, waiting for "
-    "`reset()`). The same state as `status().state`, which carries it as the "
-    "C integer. With `reacquire` a release goes back to `\"searching\"` and "
+    "`\"refining\"`, `\"tracking\"`, `\"idle\"` (a pooled receiver with no "
+    "search of its own, waiting for the pool's controller to seed it) or "
+    "`\"lost\"` (released, waiting for `reset()`). The same state as "
+    "`status().state`, which carries it as the C integer. With `reacquire` a "
+    "release goes back to `\"searching\"`, or to `\"idle\"` when pooled, and "
     "never reads `\"lost\"`.\n",
     NULL },
   { "tracking", (getter)AsyncDsssReceiver_getprop_tracking, NULL,

@@ -10,11 +10,13 @@
  * if it reads differently from every kept sibling, and a sweep keeps its
  * two ends):
  *   native      one window, no Doppler search: the floor.
- *   op<R>_U<u>  the continuous async-DSSS operating range's four corners
- *               (docs/design/async-dsss-receiver.md section 1): chip rate
- *               2 or 5 Mcps, uncertainty +/-5 or +/-50 kHz. The searcher's
- *               cost per sample scales with the tile count, so the 2 Mcps,
- *               +/-50 kHz corner is its worst case.
+ *   op<R>_U<u>  the continuous async-DSSS operating range's four corners,
+ *               as the pool as built set it and as its budget measured
+ *               them (docs/design/async-dsss-receiver-measurements.md
+ *               §12.1): chip rate 2 or 5 Mcps, uncertainty +/-5 or
+ *               +/-50 kHz. The searcher's cost per sample scales with
+ *               the tile count, so the 2 Mcps, +/-50 kHz corner is its
+ *               worst case.
  *   _t<n>       the same push fanned across n threads: 1 and 8, the ends.
  *   _D<d>       the block-coherent depth
  *               (docs/design/async-dsss-receiver-measurements.md §12.8).

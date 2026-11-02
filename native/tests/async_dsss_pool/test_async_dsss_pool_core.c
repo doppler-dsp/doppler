@@ -132,6 +132,11 @@ _test_create_domain (void)
      serial again -> 1 at two, red. */
   const int tiles = (int)p->search->acq->window_bins;
   DP_REQUIRE (tiles >= 2);
+  /* The search runs its per-epoch stages inline (#2775): the fan costs a
+     pool 1.9-3.5x at D = 1 on WSL2. Sabotage: drop the pool's clear ->
+     red. */
+  DP_CHECK_MSG (p->search->acq->epoch_fan == 0,
+                "the pool's search keeps its per-epoch stages inline");
   DP_REQUIRE (dp_async_dsss_pool_set_threads (p, 2) == 0);
   DP_CHECK (dp_async_dsss_receiver_get_threads (p->search) == 2);
   DP_REQUIRE (dp_async_dsss_pool_set_threads (p, 1) == 0);
@@ -160,6 +165,7 @@ _test_create_domain (void)
       DP_REQUIRE (q != NULL);
       DP_REQUIRE (dp_async_dsss_pool_set_state (q, blob) == DP_OK);
       DP_CHECK (dp_async_dsss_receiver_get_threads (q->search) == 2);
+      DP_CHECK (q->search->acq->epoch_fan == 0);
       dp_async_dsss_pool_destroy (q);
       free (blob);
     }

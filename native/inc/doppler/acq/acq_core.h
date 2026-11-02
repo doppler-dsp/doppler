@@ -583,6 +583,16 @@ extern "C"
     dp_pool_t       *pool;      /**< NULL or one thread = serial          */
     int              threads;   /**< workers the pool runs on, the caller
                                      included; 1 without a pool          */
+    int epoch_fan; /**< 1 (create's default): every tile stage fans on the
+                        pool. 0: the stages that run once an epoch run
+                        inline, and the per-block ones fan only when a
+                        block is more than one epoch. The result is
+                        bit-identical either way; only the cost moves.
+                        async_dsss_pool clears it on its search
+                        (doppler#2775): on bare metal the per-epoch fan
+                        pays even at one tile a worker, while on a host
+                        with a costly wake-up (WSL2) it costs that pool
+                        1.9-3.5x at D = 1, so no tile count decides it.  */
     dp_fft_state_t *sl_fwd; /**< dp_acq_sidelobe_ratio()'s forward plan
                                  (code_bins), made on its first call  */
     dp_fft_state_t *sl_inv; /**< ... its inverse (lag_bins)            */

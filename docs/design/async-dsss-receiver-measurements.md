@@ -436,6 +436,47 @@ both sides read up to 6.5% apart. That is a checkout bias above
 the A/B tool's 1% floor (doppler#2769), so WSL2 is read here only for
 the large effects.
 
+### 9.8 What was measured (2026-11-03) — the per-epoch fan, by caller
+
+This entry corrects §9.7's last finding: neither the tile count nor the work
+per tile decides the per-epoch fan. The same workload gets opposite verdicts
+on the two machines. From §9.7's own rows and #2775's split:
+
+| workload                                | tiles a worker | bench box                          | WSL2       |
+| --------------------------------------- | -------------- | ---------------------------------- | ---------- |
+| acq `op5M_U5k_D150_t4_nc1`, inline      | 1              | **1.191×** (split), **1.696×** (C) | 0.555      |
+| pool, 3 tiles, D = 1, 4 threads, fanned | 1              | 0.841                              | **3.527×** |
+| pool, ±50 kHz, D = 1, 4 threads, fanned | 5.25           | 0.473                              | **1.867×** |
+
+Bare metal wants the fan at one tile a worker, and WSL2 refuses it at five.
+What separates them is the host's wake-up cost, which no rule over the
+workload can see (doppler#2778 proposes measuring it).
+
+So the fan is the caller's: `dp_acq_state_t.epoch_fan`, on by default. A
+standalone `acq` fans every stage, as before. The pool clears it on its
+search, which then runs its once-an-epoch stages inline and fans its
+once-a-block ones only at D > 1. `make bench-ab` against main at
+`140c7e1df`, B / A of each side's best pass:
+
+| workload                                    | bench box, K = 5 then K = 7 | WSL2, K = 5 then K = 7 |
+| ------------------------------------------- | --------------------------- | ---------------------- |
+| pool, ±50 kHz, D = 150, 2 / 4 / all threads | 0.681 / 0.544 / 0.521       | 0.660 / 0.532 / 0.472  |
+| pool, 3 tiles, D = 150, all threads         | 0.707                       | 0.800                  |
+| pool, every D = 1 row                       | TIE (0.988–0.999)           | TIE or FASTER          |
+| acq, every row                              | TIE or FASTER, both runs    | see below              |
+
+The bench box's one flag, `native_nc90` at 1.012 on a 1% band, read 1.005
+on the rerun. WSL2 flagged a different acq row on each run
+(`op2M_U50k_D60_t4_nc1` 1.075 and `op5M_U5k_D150_t4_nc1` 1.076, then
+`op5M_U50k_D150_t8_nc1` 1.090, which had read 0.970), and none twice. A
+standalone engine runs main's stages, and `dp_acq_state_t` keeps its size
+and every offset (`epoch_fan` fills the padding after `threads`), so only
+code layout moved. The owner ruled on repeats: a WSL2 row blocks only when
+it is slower twice.
+
+The pool's code is the split's, so the scene timing is §9.7's split run on
+the same code: tied on the bench box (7.09–7.46 s), 0.96–0.98 on WSL2.
+
 ______________________________________________________________________
 
 ### 12.1 What was measured (2026-09-02) — step 8, the budget

@@ -255,6 +255,26 @@ acq_chunk (const dp_acq_state_t *st, size_t r, size_t *k0, size_t *k1)
 /* The first pass over a decided surface: the magnitude (when asked), the
  * working mask from the band mask, the reference and the first maximum
  * among the band's cells, all of this chunk. */
+/* Which pool a tile stage fans on (#2775). A stage that runs every epoch
+   (the roll, the non-coherent sum, and the decision and column stages at
+   D = 1) fans unless the engine's epoch_fan is off; a per-block stage at
+   D > 1 hands each wake-up a block's worth of work and always fans.
+   epoch_fan is a composition's call, not a tile count: the same 3-tile
+   D = 1 pool fans to 0.84 of serial on bare metal and to 3.5x on WSL2
+   (async-dsss-receiver-measurements.md §9.7). Inline or fanned, every
+   tile owns its rows and scratch, so the result is bit-identical. */
+static dp_pool_t *
+acq_epoch_pool (const dp_acq_state_t *st)
+{
+  return st->epoch_fan ? st->pool : NULL;
+}
+
+static dp_pool_t *
+acq_block_pool (const dp_acq_state_t *st)
+{
+  return st->coherent_bins > 1 ? st->pool : acq_epoch_pool (st);
+}
+
 static void
 acq_tile_decide (size_t r, void *ctx)
 {
@@ -333,7 +353,7 @@ acq_scan_surface (dp_acq_state_t *st, const float *surf, int magnitude)
   const int  fan_ref = st->noise_mode != DET_NOISE_MEDIAN && st->noise_lo == 0
                        && st->noise_hi == st->n_surf - 1;
   acq_scan_t sc      = { st, surf, magnitude, fan_ref };
-  dp_pool_run (st->pool, st->window_bins, acq_tile_decide, &sc);
+  dp_pool_run (acq_block_pool (st), st->window_bins, acq_tile_decide, &sc);
   if (!fan_ref)
     return det_noise_estimate (surf, st->noise_lo, st->noise_hi,
                                st->noise_scratch, st->noise_mode);
@@ -376,7 +396,7 @@ acq_list_peaks (dp_acq_state_t *st, const float *surf, float gate)
         break;
       det_peak_zone (st->peak_mask, rows, nx, best / nx, best % nx, st->interp,
                      acq_zone_cols (st));
-      dp_pool_run (st->pool, st->window_bins, acq_tile_pick, &sc);
+      dp_pool_run (acq_block_pool (st), st->window_bins, acq_tile_pick, &sc);
       best = acq_merge_best (st, surf);
     }
   if (st->n_peaks == 0 && best < st->n_surf)
@@ -2226,7 +2246,8 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
      continuous engine fans its tiles
      across the machine's online cores by default; a burst engine and a
      single-tile one run serially. dp_acq_set_threads() changes it. */
-  st->threads = 1;
+  st->threads   = 1;
+  st->epoch_fan = 1;
   if (continuous && st->window_bins > 1)
     (void)dp_acq_set_threads (st, 0);
   dp_acq_reset (st); /* binds the framer at the grid just chosen */
@@ -2714,7 +2735,7 @@ acq_make_surface (dp_acq_state_t *st, const float _Complex *frame,
   if (st->window_bins > 1)
     {
       fan->h = h;
-      dp_pool_run (st->pool, st->window_bins, acq_tile_block, fan);
+      dp_pool_run (acq_block_pool (st), st->window_bins, acq_tile_block, fan);
       return st->n;
     }
   /* Slow-time Doppler FFT: FFT along the ny segment axis, per column.
@@ -2884,7 +2905,8 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
           /* The roll per thread: every tile of this epoch across the
              pool (serially when there is none) -- each into its own
              row of the surface at D == 1, of the block otherwise. */
-          dp_pool_run (st->pool, st->window_bins, acq_tile_epoch, &fan);
+          dp_pool_run (acq_epoch_pool (st), st->window_bins, acq_tile_epoch,
+                       &fan);
           if (D > 1)
             {
               if (++st->blk_epoch < D)
@@ -2935,7 +2957,8 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
        * (per chunk, on the pool); gate the order-N_nc statistic once
        * n_noncoh looks are in. */
       acq_scan_t acc = { st, NULL, 0, 0 };
-      dp_pool_run (st->pool, st->window_bins, acq_tile_nc_acc, &acc);
+      dp_pool_run (acq_epoch_pool (st), st->window_bins, acq_tile_nc_acc,
+                   &acc);
       if (++st->nc_count < st->n_noncoh)
         continue; /* still accumulating looks */
 

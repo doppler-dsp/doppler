@@ -98,6 +98,29 @@ extern "C"
   }
 
   /**
+   * @brief A boxcar state a blob may carry: a window that fits, a write
+   *        index inside it.
+   *
+   * dp_boxcar_step() writes `ring[pos]` BEFORE it wraps `pos`, so a `pos`
+   * at or past `BOXCAR_MAX_LEN` writes past the struct, and a `len` above it
+   * lets `pos` walk there (#2142). set_state, and any composition that
+   * embeds a boxcar by value, refuses a snapshot this rejects.
+   *
+   * The all-zero state (`len == 0`, `pos == 0`) passes: an embedding holds
+   * it until its init runs, and it round-trips like any other. Stepping it
+   * writes `ring[0]` only.
+   *
+   * @param s  Decoded boxcar state. Must be non-NULL.
+   * @return Non-zero when `len <= BOXCAR_MAX_LEN` and `pos` is below `len`
+   *         (below 1 when `len` is 0).
+   */
+  JM_FORCEINLINE int
+  dp_boxcar_state_ok (const dp_boxcar_state_t *s)
+  {
+    return s->len <= BOXCAR_MAX_LEN && s->pos < (s->len ? s->len : 1);
+  }
+
+  /**
    * @brief Set the output gain; refresh the cached scale.
    * @param s     Boxcar state. Must be non-NULL.
    * @param gain  New output gain (folded into `scale = gain / len`).
@@ -222,12 +245,14 @@ extern "C"
    * @brief Restore state from a blob written by dp_boxcar_get_state().
    *
    * The whole struct, including the configured length and gain, is replaced
-   * by the snapshot; nothing is changed if the envelope is rejected.
+   * by the snapshot, but only when it is one dp_boxcar_state_ok() accepts:
+   * the payload is decoded into a temporary first, so nothing is changed if
+   * the envelope or the payload is refused.
    *
    * @param s     Boxcar state to overwrite. Must be non-NULL.
    * @param blob  Source blob of dp_boxcar_state_bytes() bytes.
    * @return DP_OK, or DP_ERR_INVALID if the envelope (magic, version,
-   *         endianness, size) does not match.
+   *         endianness, size) does not match or the payload is refused.
    */
   int dp_boxcar_set_state (dp_boxcar_state_t *s, const void *blob);
 

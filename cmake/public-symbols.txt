@@ -345,6 +345,7 @@ dp_boxcar_reset function
 dp_boxcar_set_gain function
 dp_boxcar_set_state function
 dp_boxcar_state_bytes function
+dp_boxcar_state_ok function
 dp_boxcar_step function
 dp_boxcar_steps function
 dp_bpsk_map function

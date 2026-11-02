@@ -164,7 +164,8 @@ typedef struct {
  *
  * Plans a capture for the same auto-Kaiser window the measurement objects use:
  * the dynamic-range target (from @p dynamic_range_db, else @p bits) selects the
- * Kaiser beta, whose ENBW (measured via kaiser_enbw) sets the bins-per-RBW.
+ * Kaiser beta, whose ENBW (read from a PSD kernel at a reference length, so
+ * it is the analysers' own periodic window, #2053) sets the bins-per-RBW.
  * RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
  *
  * @param fs                Sample rate (Hz, > 0).

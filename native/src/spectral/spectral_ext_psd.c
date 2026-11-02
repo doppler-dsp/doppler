@@ -188,9 +188,8 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
                        "* pad within the largest FFT, finite fs > 0, bits <= "
                        "64, hop in 1..n (0 = n), a finite full_scale > 0 "
                        "when bits = 0, a window whose taps sum to a finite "
-                       "nonzero value (not hann at n = 2, nor a NaN or "
-                       "overflowing kaiser beta), and in exp mode 0 < alpha "
-                       "<= 1)");
+                       "positive value (not a NaN or overflowing kaiser "
+                       "beta), and in exp mode 0 < alpha <= 1)");
       return -1;
     }
   return 0;
@@ -1975,11 +1974,10 @@ static PyTypeObject PSDObjType = {
     "FFT,\n"
     "    finite fs > 0, bits <= 64, hop in 1..n (0 = n), a finite full_scale "
     "> 0\n"
-    "    when bits = 0, a window whose taps sum to a finite nonzero value "
+    "    when bits = 0, a window whose taps sum to a finite positive value "
     "(not\n"
-    "    hann at n = 2, nor a NaN or overflowing kaiser beta), and in exp "
-    "mode 0\n"
-    "    < alpha <= 1)``.\n"
+    "    a NaN or overflowing kaiser beta), and in exp mode 0 < alpha <= "
+    "1)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

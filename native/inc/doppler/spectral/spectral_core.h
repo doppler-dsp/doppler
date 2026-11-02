@@ -102,6 +102,9 @@ void dp_kaiser_window(float *w, size_t w_len, float beta);
    * Computes w(k) = 0.5*(1 - cos(2π k/(N-1))) for k = 0..N-1.  The window
    * tapers smoothly to zero at both endpoints, providing ~31 dB first-sidelobe
    * rejection.  Takes no shape parameter; use Kaiser for adjustable roll-off.
+   * This is the symmetric form, which filter design wants; PSD and the
+   * objects built on it apply the periodic form (the window of N + 1 points,
+   * the last dropped), see dp_psd_kernel_init().
    *
    * @param w      Output buffer modified in-place; must be length >= 1.
    * @param w_len  Number of elements in @p w.

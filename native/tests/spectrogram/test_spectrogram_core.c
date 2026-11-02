@@ -1309,21 +1309,31 @@ main (void)
                 == NULL);
       DP_CHECK (dp_spectrogram_create (8, 4, window_past_rect, 0.0f, mode)
                 == NULL);
-      /* The window is dp_psd_kernel_init's to refuse, and it refuses one that
-         sums to zero: the symmetric Hann at nfft 2 is [0, 0], so every row
-         would read NaN (#1911 (f)). */
-      DP_CHECK (dp_spectrogram_create (2, 1, DP_PSD_WINDOW_HANN, 0.0f, mode)
+      /* The window is dp_psd_kernel_init's to refuse, and it refuses one
+         that is not finite: a NaN Kaiser beta makes every row read NaN
+         (#1911 (f)). That case was once the symmetric Hann at nfft 2,
+         [0, 0]; the kernel's Hann is periodic now, [0, 1] there, so it has
+         gain and is accepted below (#2053). */
+      DP_CHECK (dp_spectrogram_create (8, 4, DP_PSD_WINDOW_KAISER, NAN, mode)
                 == NULL);
-      /* ...and accepts the edges: the smallest nfft (with a window that has
-         energy there), hop == 1, hop == nfft. Columns: nfft, hop, window. */
-      static const size_t ok[][3] = { { 2, 1, DP_PSD_WINDOW_RECT },
-                                      { 2, 2, DP_PSD_WINDOW_RECT },
-                                      { 8, 1, DP_PSD_WINDOW_HANN },
-                                      { 8, 8, DP_PSD_WINDOW_HANN } };
+      /* ...and accepts the edges: the smallest nfft under every window,
+         hop == 1, hop == nfft, and Kaiser at an ordinary beta beside the
+         refused one. Columns: nfft, hop, window. */
+      static const size_t ok[][3] = {
+        { 2, 1, DP_PSD_WINDOW_HANN },
+        { 2, 2, DP_PSD_WINDOW_HANN },
+        { 2, 1, DP_PSD_WINDOW_KAISER },
+        { 2, 1, DP_PSD_WINDOW_BLACKMAN_HARRIS },
+        { 2, 1, DP_PSD_WINDOW_RECT },
+        { 2, 2, DP_PSD_WINDOW_RECT },
+        { 8, 1, DP_PSD_WINDOW_HANN },
+        { 8, 8, DP_PSD_WINDOW_HANN },
+        { 8, 4, DP_PSD_WINDOW_KAISER },
+      };
       for (size_t i = 0; i < sizeof ok / sizeof *ok; i++)
         {
           dp_spectrogram_state_t *s = dp_spectrogram_create (
-              ok[i][0], ok[i][1], (int)ok[i][2], 0.0f, mode);
+              ok[i][0], ok[i][1], (int)ok[i][2], 8.0f, mode);
           DP_CHECK (s != NULL);
           dp_spectrogram_destroy (s);
         }

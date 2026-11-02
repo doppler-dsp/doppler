@@ -123,8 +123,11 @@ def main() -> None:
     freqs = (np.arange(NFFT) - NFFT // 2) * (FS / NFFT)  # DC-centred bin freqs
 
     # ── AccTrace directly: raw vs mean vs max-hold (panel 2) ────────────────
-    win = np.empty(NFFT, dtype=np.float32)
-    kaiser_window(win, KAISER_BETA)
+    # PSD windows with the PERIODIC form: the symmetric window of NFFT + 1
+    # points with the last dropped (#2053). kaiser_window is symmetric.
+    win1 = np.empty(NFFT + 1, dtype=np.float32)
+    kaiser_window(win1, KAISER_BETA)
+    win = win1[:NFFT]
     cg2 = float(win.sum()) ** 2  # coherent-gain normalisation (matches PSD)
     fft = FFT(NFFT, -1)
     acc_mean = AccTrace(n=NFFT, mode="mean")

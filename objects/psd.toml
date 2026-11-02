@@ -20,7 +20,7 @@ serializable = "true"
 fragment = "generated"
 create_fn = "dp_psd_create_hop"
 create_error = "ValueError"
-create_error_message = "PSD: invalid parameter (need n >= 2, pad >= 1 with n * pad within the largest FFT, finite fs > 0, bits <= 64, hop in 1..n (0 = n), a finite full_scale > 0 when bits = 0, a window whose taps sum to a finite nonzero value (not hann at n = 2, nor a NaN or overflowing kaiser beta), and in exp mode 0 < alpha <= 1)"
+create_error_message = "PSD: invalid parameter (need n >= 2, pad >= 1 with n * pad within the largest FFT, finite fs > 0, bits <= 64, hop in 1..n (0 = n), a finite full_scale > 0 when bits = 0, a window whose taps sum to a finite positive value (not a NaN or overflowing kaiser beta), and in exp mode 0 < alpha <= 1)"
 
 [[psd.init_params]]
 name = "n"

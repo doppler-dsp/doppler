@@ -58,7 +58,7 @@ default = "0"
 name = "window"
 type = "enum:psd_window"
 default = "hann"
-doc = 'The window every frame is shaped by, as PSD takes them. A window that sums to zero at this nfft (the symmetric Hann at nfft = 2) is refused.'
+doc = 'The window every frame is shaped by, as PSD takes them. Applied in its periodic form, as PSD applies it. A window whose taps do not sum to a positive finite number (a NaN or overflowing Kaiser beta) is refused.'
 [[spectrogram.init_params]]
 name = "beta"
 type = "float"

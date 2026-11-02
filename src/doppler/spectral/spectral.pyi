@@ -3056,9 +3056,8 @@ class PSD:
         If construction fails. The exception message is ``PSD: invalid
         parameter (need n >= 2, pad >= 1 with n * pad within the largest FFT,
         finite fs > 0, bits <= 64, hop in 1..n (0 = n), a finite full_scale > 0
-        when bits = 0, a window whose taps sum to a finite nonzero value (not
-        hann at n = 2, nor a NaN or overflowing kaiser beta), and in exp mode 0
-        < alpha <= 1)``.
+        when bits = 0, a window whose taps sum to a finite positive value (not
+        a NaN or overflowing kaiser beta), and in exp mode 0 < alpha <= 1)``.
 
     Examples
     --------
@@ -3560,8 +3559,9 @@ class Spectrogram:
         stream; the default. Less than nfft overlaps the frames. A hop above
         nfft would leave samples no row covers, so it is refused.
     window : Literal["hann", "kaiser", "blackman-harris", "rect"], default "hann"
-        The window every frame is shaped by, as PSD takes them. A window that
-        sums to zero at this nfft (the symmetric Hann at nfft = 2) is refused.
+        The window every frame is shaped by, as PSD takes them. Applied in its
+        periodic form, as PSD applies it. A window whose taps do not sum to a
+        positive finite number (a NaN or overflowing Kaiser beta) is refused.
         One of ``"hann"``, ``"kaiser"``, ``"blackman-harris"``, ``"rect"``.
 
         - ``"hann"`` — Hann: the default.
@@ -4033,7 +4033,10 @@ def hann_window(w: npt.NDArray[np.float32]) -> None:
     """Fill w with a Hann (raised-cosine) window. Computes w(k) = 0.5*(1 -
     cos(2π k/(N-1))) for k = 0..N-1. The window tapers smoothly to zero at
     both endpoints, providing ~31 dB first-sidelobe rejection. Takes no
-    shape parameter; use Kaiser for adjustable roll-off.
+    shape parameter; use Kaiser for adjustable roll-off. This is the
+    symmetric form, which filter design wants; PSD and the objects built on
+    it apply the periodic form (the window of N + 1 points, the last
+    dropped), see dp_psd_kernel_init().
 
     Parameters
     ----------

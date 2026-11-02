@@ -138,7 +138,10 @@ is seeded complex Gaussian noise of total power L dBFS, **256 frames** per
 window and level, because one frame's median scatters by about 0.2 dB. The
 run is seeded and untimed, so a re-run of the same build reads the same
 values. Intel Core Ultra 7 355 under WSL2, GCC 15.2.0, on main 1ea1cca0b plus
-this entry's commits. The harness measures and decides nothing; until the
+this entry's commits; re-run the same way on the #2053 branch once PSD's
+windows became periodic, which is the run the leakage paragraph and the table
+below report (the floor itself did not move). The harness measures and
+decides nothing; until the
 certification (#1941's A4, step 5) turns these numbers into limits, nothing
 asserts them.
 
@@ -149,16 +152,20 @@ reads L to four decimals under every window, from −120 to −200. At −201,
 −200 dBFS and digital silence make the same row, bit for bit.
 
 **What else a tone row shows is the window's leakage.** PSD's windows are
-symmetric (length N − 1 in the cosine), so they are not orthogonal on the
-N-point grid ([#2053](https://github.com/doppler-dsp/doppler/issues/2053)): an
-on-bin tone under Hann leaks −6.0 dBc into bins ±1, then −69.7, −78.2 and
-−83.7 dBc into ±2, ±3 and ±4. At −120 dBFS the first three pairs are above
-the clamp and ±4 is under it, so exactly 7 bins of 1024 rise off the floor
-(1017 at −200). Blackman-Harris's main lobe spans ±3 bins, so it raises the
-same 7, and Kaiser β 8's sidelobes on the grid raise 25: both counts are
-what a symmetric window's DFT predicts above −80 dBc. Only the rectangular
-window is orthogonal on the grid, and only its tone bin rises (1023 at
-−200).
+periodic (DFT-even, length N in the cosine,
+[#2053](https://github.com/doppler-dsp/doppler/issues/2053)). Hann and
+Blackman-Harris are sums of cosines that complete whole periods over the
+frame, so an on-bin tone under Hann reads −6.0 dBc in bins ±1 and nothing
+further out but float rounding (−155.7 dBc at most, out to ±20), and under
+Blackman-Harris −3.3, −14.1 and −35.8 dBc in ±1, ±2 and ±3, then rounding
+(−153.7 at most). At −120 dBFS that lifts exactly 3 bins of 1024 off the floor
+under Hann (1021 at −200) and 7 under Blackman-Harris (1017). Kaiser β 8 is
+not a sum of cosines and leaks into every bin, −4.9, −22.3 and −59.7 dBc at
+±1 to ±3 and below −80 dBc only from ±13, so it lifts 25. The rectangular
+window's transform is one bin, and only its tone bin rises (1023 at −200).
+Each count is what the leakage puts above −80 dBc. Under the symmetric
+windows PSD used before, Hann leaked −69.7, −78.2 and −83.7 dBc into ±2 to
+±4 and lifted 7.
 
 **Wideband noise reaches the floor sooner, by about `10·log10(nfft)`.** A
 frame of complex noise spreads its power over the bins. Against PSD's tone
@@ -175,10 +182,10 @@ everywhere:
 
 | L, dBFS | Hann            | Kaiser β 8      | Blackman-Harris | rect            |
 | ------- | --------------- | --------------- | --------------- | --------------- |
-| −150    | 7.2 (7.0)       | 6.4 (6.3)       | 5.0 (5.2)       | 10.8 (10.4)     |
-| −160    | 67.1 (67.5)     | 60.7 (61.0)     | 51.0 (51.0)     | 99.8 (99.7)     |
-| −170    | 505.9 (506.3)   | 470.9 (469.9)   | 411.1 (409.3)   | 658.5 (656.2)   |
-| −175    | 905.3 (905.5)   | 876.1 (877.2)   | 821.1 (820.1)   | 983.4 (983.8)   |
+| −150    | 7.2 (7.0)       | 6.5 (6.3)       | 5.0 (5.2)       | 10.8 (10.4)     |
+| −160    | 67.2 (67.6)     | 60.7 (61.1)     | 51.0 (51.0)     | 99.8 (99.7)     |
+| −170    | 506.2 (506.6)   | 471.2 (470.2)   | 411.4 (409.6)   | 658.5 (656.2)   |
+| −175    | 905.5 (905.8)   | 876.3 (877.4)   | 821.5 (820.5)   | 983.4 (983.8)   |
 | −180    | 1022.8 (1022.9) | 1021.9 (1021.8) | 1017.8 (1017.8) | 1024.0 (1024.0) |
 
 *Bins of 1024 reading exactly −200 dB: the mean of 256 frames, and the
@@ -188,7 +195,7 @@ So noise of total power −180 dBFS leaves, on average, about 1 bin of 1024
 above the floor under Hann, 2 under Kaiser, 6 under Blackman-Harris and none
 under rect, and at −190 none under any window. These are averages, not
 bounds: one frame scatters around them (up to 15 bins at the clamp at
-−150, where the mean is 7). The offset is `10·log10(ENBW/n)`, so the level at
+−150 under Kaiser, where the mean is 6.5). The offset is `10·log10(ENBW/n)`, so the level at
 which noise vanishes rises 3 dB with each doubling of `nfft`. That follows
 from the formula; this entry does not measure other sizes.
 

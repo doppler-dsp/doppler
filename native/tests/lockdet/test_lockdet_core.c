@@ -1,6 +1,9 @@
 #include "doppler/lockdet/lockdet_core.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -256,6 +259,32 @@ main (void)
     DP_CHECK (dst->n_up == 3 && dst->n_down == 2);
     dp_lockdet_destroy (src);
     dp_lockdet_destroy (dst);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged verdict is refused, the object untouched *
+   * ---------------------------------------------------------------- */
+  {
+    /* step() stores only 0 or 1. */
+    dp_lockdet_state_t *d = dp_lockdet_create (1.5, 1.2, 2, 3);
+    DP_CHECK (d != NULL);
+    const size_t lk
+        = sizeof (dp_state_hdr_t) + offsetof (dp_lockdet_state_t, locked);
+    const int bad_locked[] = { 7, -1, 2 };
+    for (size_t i = 0; i < sizeof bad_locked / sizeof *bad_locked; i++)
+      DP_STATE_FORGE_TEST (dp_lockdet, d, LOCKDET_STATE_MAGIC,
+                           LOCKDET_STATE_VERSION, lk, &bad_locked[i],
+                           sizeof bad_locked[i]);
+
+    /* The all-zero state is a state: an embedding holds it until its init
+       runs (counts 0, which step as 1). It must round-trip. */
+    dp_lockdet_state_t zero;
+    memset (&zero, 0, sizeof zero);
+    unsigned char blob[sizeof (dp_state_hdr_t) + sizeof zero];
+    DP_CHECK (dp_lockdet_state_bytes (&zero) == sizeof blob);
+    dp_lockdet_get_state (&zero, blob);
+    DP_CHECK (dp_lockdet_set_state (d, blob) == DP_OK);
+    dp_lockdet_destroy (d);
   }
 
   DP_TEST_END ("test_lockdet_core");

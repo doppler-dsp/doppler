@@ -15,6 +15,8 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -459,6 +461,57 @@ main (void)
                   && c->zeta == 1.0);
         dp_symsync_destroy (c);
       }
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged order or verdict is refused, the object untouched *
+   * ---------------------------------------------------------------- */
+  {
+    /* The embedded Farrow and detector are checked by their own
+       predicates; create() refuses an order outside the three. */
+    DP_CHECK (dp_symsync_create (4, 0.01, 0.707, FARROW_CUBIC + 1,
+                                 SYMSYNC_TED_GARDNER)
+              == NULL);
+    dp_symsync_state_t *s = dp_symsync_create (4, 0.01, 0.707, FARROW_CUBIC,
+                                               SYMSYNC_TED_GARDNER);
+    DP_CHECK (s != NULL);
+    const size_t od    = sizeof (dp_state_hdr_t)
+                         + offsetof (dp_symsync_state_t, farrow)
+                         + offsetof (dp_farrow_state_t, order);
+    const size_t lk    = sizeof (dp_state_hdr_t)
+                         + offsetof (dp_symsync_state_t, lock)
+                         + offsetof (dp_lockdet_state_t, locked);
+    const int    nine  = 9;
+    const int    seven = 7;
+    DP_STATE_FORGE_TEST (dp_symsync, s, SYMSYNC_STATE_MAGIC,
+                         SYMSYNC_STATE_VERSION, od, &nine, sizeof nine);
+    DP_STATE_FORGE_TEST (dp_symsync, s, SYMSYNC_STATE_MAGIC,
+                         SYMSYNC_STATE_VERSION, lk, &seven, sizeof seven);
+    /* The embedded loop filter's gains are the ones its bn, zeta and t give
+       (#2641): a forged NaN gain is refused, as LoopFilter's restore does. */
+    const size_t kp_off = sizeof (dp_state_hdr_t)
+                          + offsetof (dp_symsync_state_t, lf)
+                          + offsetof (dp_loop_filter_state_t, kp);
+    const double nan_g  = NAN;
+    DP_STATE_FORGE_TEST (dp_symsync, s, SYMSYNC_STATE_MAGIC,
+                         SYMSYNC_STATE_VERSION, kp_off, &nan_g, sizeof nan_g);
+    /* avgs = 0 is unreachable (init always sets it to 1 or more), and it
+       makes lock_sum/avgs infinite, so it is refused (#2142). */
+    const size_t av
+        = sizeof (dp_state_hdr_t) + offsetof (dp_symsync_state_t, avgs);
+    const size_t zero = 0;
+    DP_STATE_FORGE_TEST (dp_symsync, s, SYMSYNC_STATE_MAGIC,
+                         SYMSYNC_STATE_VERSION, av, &zero, sizeof zero);
+    /* A zeroed loop filter is a forgery here, not an unseeded embedding:
+       nothing embeds a symsync, and a zero filter freezes the timing loop,
+       so the bare predicate refuses it. */
+    dp_loop_filter_state_t lf0;
+    memset (&lf0, 0, sizeof lf0);
+    DP_STATE_FORGE_TEST (
+        dp_symsync, s, SYMSYNC_STATE_MAGIC, SYMSYNC_STATE_VERSION,
+        sizeof (dp_state_hdr_t) + offsetof (dp_symsync_state_t, lf), &lf0,
+        sizeof lf0);
+    dp_symsync_destroy (s);
   }
 
   DP_TEST_END ("test_symsync_core");

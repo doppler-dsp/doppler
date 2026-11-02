@@ -50,10 +50,12 @@ dp_lockdet_reset (dp_lockdet_state_t *state)
   state->locked = 0;
 }
 
-/* Serializable state — pointer-free POD whole-struct snapshot
- * (see DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (dp_lockdet, dp_lockdet_state_t, LOCKDET_STATE_MAGIC,
-                     LOCKDET_STATE_VERSION)
+/* Serializable state — pointer-free POD whole-struct snapshot, refusing a
+ * snapshot dp_lockdet_state_ok() rejects (see DP_DEFINE_POD_STATE_CHECKED in
+ * dp_state.h). */
+DP_DEFINE_POD_STATE_CHECKED (dp_lockdet, dp_lockdet_state_t,
+                             LOCKDET_STATE_MAGIC, LOCKDET_STATE_VERSION,
+                             dp_lockdet_state_ok)
 
 void
 dp_lockdet_steps (dp_lockdet_state_t *state, const double *x, int *out,

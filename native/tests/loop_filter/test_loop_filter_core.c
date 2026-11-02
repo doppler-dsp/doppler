@@ -536,5 +536,26 @@ main (void)
     dp_loop_filter_destroy (a);
   }
 
+  /* dp_loop_filter_embedded_ok(): an embedding's all-zero struct (its owner
+     has not run init) is accepted, a seeded filter is accepted, and anything
+     else must still match its own bn, zeta and t. The standalone predicate
+     refuses the zero struct, which is why the two exist. */
+  {
+    dp_loop_filter_state_t z;
+    memset (&z, 0, sizeof z);
+    DP_CHECK (dp_loop_filter_embedded_ok (&z));
+    DP_CHECK (!dp_loop_filter_state_ok (&z));
+    dp_loop_filter_state_t s;
+    dp_loop_filter_init (&s, 0.01, 0.707, 1.0);
+    DP_CHECK (dp_loop_filter_embedded_ok (&s));
+    s.kp = NAN;
+    DP_CHECK (!dp_loop_filter_embedded_ok (&s));
+    dp_loop_filter_init (&s, 0.01, 0.707, 1.0);
+    z.integ = 1.0; /* not all-zero, and not a live filter either */
+    DP_CHECK (!dp_loop_filter_embedded_ok (&z));
+    s.ki = 0.0; /* gains that do not match this bn, zeta, t */
+    DP_CHECK (!dp_loop_filter_embedded_ok (&s));
+  }
+
   DP_TEST_END ("test_loop_filter_core");
 }

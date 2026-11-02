@@ -129,7 +129,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method), its per-fr
 | Type | Name |
 | ---: | :--- |
 | define  | [**PSD\_STATE\_MAGIC**](psd__core_8h.md#define-psd_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('P','S','D',' ')`<br>_Envelope magic ("PSD ") identifying a PSD state blob._  |
-| define  | [**PSD\_STATE\_VERSION**](psd__core_8h.md#define-psd_state_version)  `2u`<br>_Layout version of the PSD state blob._  |
+| define  | [**PSD\_STATE\_VERSION**](psd__core_8h.md#define-psd_state_version)  `3u`<br>_Layout version of the PSD state blob. v3: the averaged power was windowed with the periodic form (#2053); a v2 blob's average was taken under the symmetric one, so it is refused rather than folded into a different estimate. The layout is unchanged._  |
 
 ## Detailed Description
 
@@ -177,6 +177,9 @@ enum psd__core_8h_1adc29c2ff13d900c2f185ee95427fb06c {
 };
 ```
 
+
+
+Every one is applied in its PERIODIC (DFT-even) form: the symmetric window of n + 1 points with its last sample dropped, the form spectral estimation uses (#2053). It spans n sample intervals, not n - 1, so Hann's ENBW is exactly 1.5 bins for n &gt;= 3 and a bin-centred Hann tone leaks into no bin beyond its two neighbours. The library's own window functions ([**dp\_hann\_window()**](spectral__core_8h.md#function-dp_hann_window) and its siblings) stay symmetric, the form filter design wants; [**dp\_psd\_kernel\_init()**](psd__core_8h.md#function-dp_psd_kernel_init) is the one place the periodic form is made.
 
 
 HANN is 0, so a zeroed configuration is Hann. The Python faces name the same windows "hann", "kaiser", "blackman-harris" and "rect", bound to these constants by name (just-makeit.toml, `[[enum]] psd_window`); carrier acquisition's face names its subset (`carrier_acq_window`). 
@@ -400,7 +403,7 @@ dp_psd_state_t * dp_psd_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL on invalid argument or OOM. A window whose coherent gain sum(w) is 0  Hann at n = 2, whose symmetric form is all zeros  is refused too: every reading divides by it. So is an `n` or `n` \* `pad` too large for its buffers to be sized, rather than wrapped to a small one. 
+Heap-allocated state, or NULL on invalid argument or OOM. A window whose coherent gain sum(w) is not a positive finite number  a NaN Kaiser beta, or one large enough that I0 overflows  is refused too: every reading divides by it. So is an `n` or `n` \* `pad` too large for its buffers to be sized, rather than wrapped to a small one. 
 
 
 
@@ -471,7 +474,7 @@ Frame k covers stream samples k\*hop through k\*hop + n - 1. A hop equal to n gi
 
 **Returns:**
 
-Heap-allocated state, or NULL on invalid argument or OOM. A window whose coherent gain sum(w) is 0  Hann at n = 2, whose symmetric form is all zeros  is refused too: every reading divides by it. So is an `n` or `n` \* `pad` too large for its buffers to be sized, rather than wrapped to a small one. 
+Heap-allocated state, or NULL on invalid argument or OOM. A window whose coherent gain sum(w) is not a positive finite number  a NaN Kaiser beta, or one large enough that I0 overflows  is refused too: every reading divides by it. So is an `n` or `n` \* `pad` too large for its buffers to be sized, rather than wrapped to a small one. 
 
 
 
@@ -749,7 +752,7 @@ int dp_psd_kernel_init (
 
 **Returns:**
 
-DP\_OK; DP\_ERR\_INVALID for an argument out of range, a window with no gain at n (Hann at 2) or an n \* pad too large to size; DP\_ERR\_MEMORY when an allocation fails. 
+DP\_OK; DP\_ERR\_INVALID for an argument out of range, a window with whose taps do not sum to a positive finite number (a NaN or overflowing Kaiser beta) or an n \* pad too large to size; DP\_ERR\_MEMORY when an allocation fails. 
 
 
 
@@ -1377,9 +1380,9 @@ _Envelope magic ("PSD ") identifying a PSD state blob._
 
 ### define PSD\_STATE\_VERSION 
 
-_Layout version of the PSD state blob._ 
+_Layout version of the PSD state blob. v3: the averaged power was windowed with the periodic form (#2053); a v2 blob's average was taken under the symmetric one, so it is refused rather than folded into a different estimate. The layout is unchanged._ 
 ```C++
-#define PSD_STATE_VERSION `2u`
+#define PSD_STATE_VERSION `3u`
 ```
 
 

@@ -127,8 +127,9 @@ typedef struct
  *                frames. A hop above nfft would leave samples no row covers,
  *                so it is refused.
  * @param window  The window: "hann", "kaiser", "blackman-harris" or "rect",
- *                as PSD takes them. It also refuses a window that sums to
- *                zero at this nfft (the symmetric Hann at nfft = 2).
+ *                as PSD takes them, in the same periodic form. It also
+ *                refuses a window whose taps do not sum to a positive
+ *                finite number (a NaN or overflowing Kaiser beta).
  * @param beta    Kaiser beta (ignored for the other windows).
  * @param mode    Row units: "power" (linear rows, the default) or "db" (dBFS
  *                rows, asked for by name). Any other value is refused.

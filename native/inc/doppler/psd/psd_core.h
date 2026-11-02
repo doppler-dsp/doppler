@@ -57,6 +57,14 @@ extern "C" {
  *        kernel), a subset for carrier acquisition (dp_carrier_acq_create()
  *        says which).
  *
+ * Every one is applied in its PERIODIC (DFT-even) form: the symmetric window
+ * of n + 1 points with its last sample dropped, the form spectral estimation
+ * uses (#2053). It spans n sample intervals, not n - 1, so Hann's ENBW is
+ * exactly 1.5 bins for n >= 3 and a bin-centred Hann tone leaks into no bin
+ * beyond its two neighbours. The library's own window functions
+ * (dp_hann_window() and its siblings) stay symmetric, the form filter design
+ * wants; dp_psd_kernel_init() is the one place the periodic form is made.
+ *
  * HANN is 0, so a zeroed configuration is Hann. The Python faces name the
  * same windows "hann", "kaiser", "blackman-harris" and "rect", bound to these
  * constants by name (just-makeit.toml, `[[enum]] psd_window`); carrier
@@ -114,7 +122,8 @@ typedef struct {
  * @param pad         Zero-pad factor (>= 1); nfft = next_pow_two(n * pad).
  * @param full_scale  Amplitude that reads 0 dBFS; finite and > 0.
  * @return DP_OK; DP_ERR_INVALID for an argument out of range, a window with
- *         no gain at n (Hann at 2) or an n * pad too large to size;
+ *         whose taps do not sum to a positive finite number (a NaN or
+ *         overflowing Kaiser beta) or an n * pad too large to size;
  *         DP_ERR_MEMORY when an allocation fails.
  */
 int dp_psd_kernel_init(dp_psd_kernel_t *k, size_t n, int window, float beta,
@@ -169,8 +178,9 @@ typedef struct {
  *                    create refuses anything else, so this does too.
  *                    Ignored, and so not checked, in the other modes.
  * @return Heap-allocated state, or NULL on invalid argument or OOM. A window
- *         whose coherent gain sum(w) is 0 -- Hann at n = 2, whose symmetric
- *         form is all zeros -- is refused too: every reading divides by it.
+ *         whose coherent gain sum(w) is not a positive finite number -- a
+ *         NaN Kaiser beta, or one large enough that I0 overflows -- is
+ *         refused too: every reading divides by it.
  *         So is an @p n or @p n * @p pad too large for its buffers to be
  *         sized, rather than wrapped to a small one.
  * @note Caller must call dp_psd_destroy() when done.
@@ -223,8 +233,9 @@ dp_psd_state_t *dp_psd_create(size_t n, double fs, int window, float beta,
  *                    n would leave samples between frames that are never
  *                    kept, so it is refused.
  * @return Heap-allocated state, or NULL on invalid argument or OOM. A window
- *         whose coherent gain sum(w) is 0 -- Hann at n = 2, whose symmetric
- *         form is all zeros -- is refused too: every reading divides by it.
+ *         whose coherent gain sum(w) is not a positive finite number -- a
+ *         NaN Kaiser beta, or one large enough that I0 overflows -- is
+ *         refused too: every reading divides by it.
  *         So is an @p n or @p n * @p pad too large for its buffers to be
  *         sized, rather than wrapped to a small one.
  * @note Caller must call dp_psd_destroy() when done.
@@ -610,8 +621,11 @@ double dp_psd_sfdr(dp_psd_state_t *state, float min_db);
  * Window, plan, scratch, n, nfft and hop are config, rebuilt by create. */
 /** @brief Envelope magic ("PSD ") identifying a PSD state blob. */
 #define PSD_STATE_MAGIC DP_FOURCC ('P','S','D',' ')
-/** @brief Layout version of the PSD state blob. */
-#define PSD_STATE_VERSION 2u
+/** @brief Layout version of the PSD state blob.
+ * v3: the averaged power was windowed with the periodic form (#2053); a v2
+ * blob's average was taken under the symmetric one, so it is refused rather
+ * than folded into a different estimate.  The layout is unchanged. */
+#define PSD_STATE_VERSION 3u
 /**
  * @brief Size in bytes of the blob dp_psd_get_state() writes.
  * @param state  Must be non-NULL.

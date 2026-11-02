@@ -11,6 +11,7 @@
 #include <float.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1779,6 +1780,130 @@ main (void)
                               > 0.5 * fabs (r) / (sf * sf) * (RN - 2),
                           "the far end's frequency differs from the near's");
           }
+      }
+  }
+
+  /* ---------------------------------------------------------------- *
+   * #2142: a forged field is refused, the object untouched           *
+   * ---------------------------------------------------------------- */
+  /* The blob's fixed fields, from the header: sym_pos (u32), cur_re/cur_im
+     (f32 x2), bit_idx and sym_read_idx (u64), chirp_ph (f64), chirp_n,
+     chip_n and sym_idx (u64), cur_data/primed/data_ended (one byte each),
+     the DSSS window (u64 x2), then the six child-presence bytes. */
+  {
+    const size_t H = sizeof (dp_state_hdr_t);
+    enum
+    {
+      AT_SYM_POS      = 0,
+      AT_CUR_RE       = 4,
+      AT_SYM_READ_IDX = 4 + 4 + 4 + 8,
+      AT_CODE_ONLY    = 4 + 4 + 4 + 8 + 8 + 8 + 8 + 8 + 8 + 3,
+      AT_PRES         = AT_CODE_ONLY + 16
+    };
+
+    /* The kernel reads symbols[sym_read_idx] BEFORE it wraps it. */
+    dp_wfm_synth_state_t *s = dp_wfm_synth_create (
+        WFM_SYNTH_SYMBOLS, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0, 0, 0.0);
+    DP_CHECK (s != NULL);
+    if (s)
+      {
+        /* With no symbols set the index must be 0. */
+        const uint64_t one = 1;
+        DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                             WFM_SYNTH_STATE_VERSION, H + AT_SYM_READ_IDX,
+                             &one, sizeof one);
+        const float _Complex syms[3] = { 1.0f, -1.0f, 1.0f };
+        DP_CHECK (dp_wfm_synth_set_symbols (s, syms, 3) == 0);
+        const uint64_t bad_idx[] = { 3, UINT64_MAX };
+        for (size_t i = 0; i < sizeof bad_idx / sizeof *bad_idx; i++)
+          DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                               WFM_SYNTH_STATE_VERSION, H + AT_SYM_READ_IDX,
+                               &bad_idx[i], sizeof bad_idx[i]);
+        dp_wfm_synth_destroy (s);
+      }
+
+    /* sym_pos indexes the one-symbol chip buffer, so a blob or a setter may
+       only place it in [0, nsps), and nsps may not be 0. A refusal leaves the
+       synth byte-identical (DP_STATE_FORGE_TEST proves that for the blob; the
+       setters are checked by their return and by reading the field back). */
+    s = dp_wfm_synth_create (WFM_SYNTH_SYMBOLS, 1000000.0, 0.0, 100.0, 0, 1, 8,
+                             7, 0, 0, 0.0);
+    DP_CHECK (s != NULL);
+    if (s)
+      {
+        const int      nsps = dp_wfm_synth_get_nsps (s);
+        const uint32_t bad_pos[]
+            = { (uint32_t)nsps, (uint32_t)-1u, 0x7FFFFFFFu, 0x80000000u };
+        for (size_t i = 0; i < sizeof bad_pos / sizeof *bad_pos; i++)
+          DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                               WFM_SYNTH_STATE_VERSION, H + AT_SYM_POS,
+                               &bad_pos[i], sizeof bad_pos[i]);
+
+        /* A child-presence byte must agree with the config. Flipping the FIR
+           flag is refused, and refused BEFORE the first write: the blob below
+           also changes a scalar that commits (cur_re), so a commit ahead of
+           the presence check leaves the synth changed. */
+        const uint8_t flip = s->fir ? 0 : 1;
+        DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                             WFM_SYNTH_STATE_VERSION, H + AT_PRES, &flip,
+                             sizeof flip);
+        {
+          const float    cre = 0.5f;
+          const size_t   nb  = dp_wfm_synth_state_bytes (s);
+          unsigned char *g = malloc (nb), *f = malloc (nb);
+          unsigned char *pre = malloc (nb), *post = malloc (nb);
+          DP_CHECK (g && f && pre && post);
+          if (g && f && pre && post)
+            {
+              dp_wfm_synth_get_state (s, g);
+              memcpy (f, g, nb);
+              memcpy (f + H + AT_CUR_RE, &cre, sizeof cre);
+              memcpy (f + H + AT_PRES, &flip, sizeof flip);
+              dp_wfm_synth_get_state (s, pre);
+              DP_CHECK (dp_wfm_synth_set_state (s, f) == DP_ERR_INVALID);
+              dp_wfm_synth_get_state (s, post);
+              DP_CHECK (memcmp (pre, post, nb) == 0);
+            }
+          free (g);
+          free (f);
+          free (pre);
+          free (post);
+        }
+
+        /* the setters: refused values change nothing */
+        DP_CHECK (dp_wfm_synth_set_sym_pos (s, 3) == DP_OK);
+        DP_CHECK (dp_wfm_synth_set_sym_pos (s, nsps) == DP_ERR_INVALID);
+        DP_CHECK (dp_wfm_synth_set_sym_pos (s, -1) == DP_ERR_INVALID);
+        DP_CHECK (dp_wfm_synth_get_sym_pos (s) == 3);
+        DP_CHECK (dp_wfm_synth_set_sym_pos (s, nsps - 1) == DP_OK);
+        DP_CHECK (dp_wfm_synth_get_sym_pos (s) == nsps - 1);
+
+        /* nsps may not be 0 (divide by zero in the kernel), nor drop to or
+           below the current sym_pos */
+        DP_CHECK (dp_wfm_synth_set_nsps (s, 0) == DP_ERR_INVALID);
+        DP_CHECK (dp_wfm_synth_set_nsps (s, -4) == DP_ERR_INVALID);
+        DP_CHECK (dp_wfm_synth_get_nsps (s) == nsps);
+        DP_CHECK (dp_wfm_synth_set_nsps (s, nsps - 1) == DP_ERR_INVALID);
+        DP_CHECK (dp_wfm_synth_set_sym_pos (s, 0) == DP_OK);
+        DP_CHECK (dp_wfm_synth_set_nsps (s, 2) == DP_OK);
+        DP_CHECK (dp_wfm_synth_get_nsps (s) == 2);
+        dp_wfm_synth_destroy (s);
+      }
+
+    /* The DSSS window: a start past a non-zero end is what
+       dp_wfm_synth_set_dsss_window refuses, so a blob carrying one is refused
+       too, and refused before any other field commits. */
+    s = dp_wfm_synth_create (WFM_SYNTH_DSSS, 1000000.0, 0.0, 100.0, 1, 9, 4, 7,
+                             0, 0, 0.0);
+    DP_CHECK (s != NULL);
+    if (s)
+      {
+        DP_CHECK (dp_wfm_synth_set_dsss_window (s, 1, 3) == 0);
+        const uint64_t past_end = 4;
+        DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                             WFM_SYNTH_STATE_VERSION, H + AT_CODE_ONLY,
+                             &past_end, sizeof past_end);
+        dp_wfm_synth_destroy (s);
       }
   }
 

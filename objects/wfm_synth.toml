@@ -280,11 +280,13 @@ default = "0"
 name = "nsps"
 type = "int"
 default = "8"
+opaque = true
 
 [[wfm_synth.state]]
 name = "sym_pos"
 type = "int"
 default = "0"
+opaque = true
 
 [[wfm_synth.state]]
 name = "cur_re"
@@ -415,6 +417,35 @@ default = "galois"
 name = "f_end"
 type = "double"
 default = "0.0"
+
+# set_nsps and set_sym_pos refuse a value (#2142), which a state field's
+# generated accessor cannot: jm declares that setter void and calls it as a
+# bare statement, so a refusal would be dropped and the assignment would
+# succeed in Python. The fields are opaque (no generated accessor) and the
+# four accessors are declared here instead, the setters with status_return.
+[[wfm_synth.methods]]
+name = "get_nsps"
+arg_type = "void"
+return_type = "int"
+
+[[wfm_synth.methods]]
+name = "set_nsps"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [{ name = "val", type = "int" }]
+
+[[wfm_synth.methods]]
+name = "get_sym_pos"
+arg_type = "void"
+return_type = "int"
+
+[[wfm_synth.methods]]
+name = "set_sym_pos"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [{ name = "val", type = "int" }]
 
 [[wfm_synth.methods]]
 name = "set_chirp_span"

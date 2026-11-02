@@ -36,12 +36,19 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 /* A pool on the Gold-1023 design point; the receiver tests' _slow_rx()
    numbers, n receivers, the release rule off unless asked. */
 static dp_async_dsss_pool_state_t *
-_pool (const uint8_t *code, size_t n, double lost_confirm_s, int threads)
+_pool_span (const uint8_t *code, size_t n, double lost_confirm_s, int threads,
+            double span_hz)
 {
   return dp_async_dsss_pool_create (
       code, 1023, n, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0,
-      1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
+      1e-3, 0.9, span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
       lost_confirm_s, false, 0.0, 0.0, threads);
+}
+
+static dp_async_dsss_pool_state_t *
+_pool (const uint8_t *code, size_t n, double lost_confirm_s, int threads)
+{
+  return _pool_span (code, n, lost_confirm_s, threads, 500.0);
 }
 
 /* Two emitters on one Gold code, ~400 chips apart: A at 200 Hz carries the
@@ -109,9 +116,8 @@ _test_create_domain (void)
   DP_REQUIRE (p != NULL);
   DP_CHECK (p->n_receivers == ASYNC_DSSS_POOL_MAX_RECEIVERS);
   dp_async_dsss_pool_destroy (p);
-  /* A search over several Doppler tiles (+/-5 kHz, tiles 3 kHz apart)
-     would start an engine pool of every core on its own; in a pool it
-     runs one thread. */
+  /* A search over several Doppler tiles (+/-5 kHz, tiles 3 kHz apart),
+     inside a pool. */
   p = dp_async_dsss_pool_create (code, 1023, 2, POOL_CR, POOL_RS,
                                  POOL_CR * (double)POOL_SPC, 2, 60.0, 1e-3,
                                  0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8,
@@ -119,12 +125,44 @@ _test_create_domain (void)
   DP_REQUIRE (p != NULL && p->rx[0]->acq->window_bins > 1);
   for (size_t i = 0; i < p->n_receivers; i++)
     DP_CHECK (dp_async_dsss_receiver_get_threads (p->rx[i]) == 1);
-  /* The search runs serially at any pool thread count (its tile fan was
-     measured not to pay, async-dsss-receiver.md §5), and stays so across
-     set_threads(). */
+  /* The search runs on the pool's own thread count, capped at one worker a
+     tile (#2773, async-dsss-receiver.md §5): two asked for runs on two
+     (asked explicitly, so this holds on a one-core box), one on one, and
+     the online cores on no more than its tiles. Sabotage: the search
+     serial again -> 1 at two, red. */
+  const int tiles = (int)p->search->acq->window_bins;
+  DP_REQUIRE (tiles >= 2);
+  DP_REQUIRE (dp_async_dsss_pool_set_threads (p, 2) == 0);
+  DP_CHECK (dp_async_dsss_receiver_get_threads (p->search) == 2);
+  DP_REQUIRE (dp_async_dsss_pool_set_threads (p, 1) == 0);
   DP_CHECK (dp_async_dsss_receiver_get_threads (p->search) == 1);
   DP_REQUIRE (dp_async_dsss_pool_set_threads (p, 0) == 0);
-  DP_CHECK (dp_async_dsss_receiver_get_threads (p->search) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_threads (p->search) >= 1
+            && dp_async_dsss_receiver_get_threads (p->search) <= tiles);
+  /* set_state applies the rule on the READER, whatever count the writer's
+     search resolved: a writer on 2 whose search was left on 3 (as one on
+     another machine resolves its own cores) restores, on a pool asking for
+     2, to 2. Sabotage: rebuild only when the pool's count moved -> the
+     child blob's 3 survives, red. */
+  if (tiles >= 3)
+    {
+      DP_REQUIRE (dp_async_dsss_pool_set_threads (p, 2) == 0);
+      DP_REQUIRE (dp_async_dsss_receiver_set_threads (p->search, 3) == 0);
+      DP_REQUIRE (dp_async_dsss_receiver_get_threads (p->search) == 3);
+      const size_t   nb   = dp_async_dsss_pool_state_bytes (p);
+      unsigned char *blob = malloc (nb);
+      DP_REQUIRE (blob != NULL);
+      dp_async_dsss_pool_get_state (p, blob);
+      dp_async_dsss_pool_state_t *q = dp_async_dsss_pool_create (
+          code, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 60.0,
+          1e-3, 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
+          0.0, false, 0.0, 0.0, 2);
+      DP_REQUIRE (q != NULL);
+      DP_REQUIRE (dp_async_dsss_pool_set_state (q, blob) == DP_OK);
+      DP_CHECK (dp_async_dsss_receiver_get_threads (q->search) == 2);
+      dp_async_dsss_pool_destroy (q);
+      free (blob);
+    }
   DP_CHECK (dp_async_dsss_pool_get_threads (p) >= 1);
   DP_CHECK (dp_async_dsss_pool_get_threads (p)
             <= (int)ASYNC_DSSS_POOL_MAX_RECEIVERS);
@@ -385,9 +423,11 @@ _test_lost_is_released (void)
 }
 
 /* The thread count changes nothing but the cost: one worker and three
-   give the same state, byte for byte, and the same symbols. Sabotage:
-   share one output row across receivers -> the symbols differ; run the
-   controller inside the workers -> the order, and so the bytes, vary. */
+   give the same state, byte for byte, and the same symbols. The search
+   spans +-5 kHz, several Doppler tiles, so on three workers it fans its
+   tiles too (#2776) and that is compared as well. Sabotage: share one
+   output row across receivers -> the symbols differ; run the controller
+   inside the workers -> the order, and so the bytes, vary. */
 static int
 _test_threads_change_nothing (void)
 {
@@ -395,9 +435,10 @@ _test_threads_change_nothing (void)
   dp_dsss_gold_1023 (code);
   size_t                      n;
   float _Complex             *x = _two_emitters (code, &n);
-  dp_async_dsss_pool_state_t *a = _pool (code, 3, 0.0, 1);
-  dp_async_dsss_pool_state_t *b = _pool (code, 3, 0.0, 3);
+  dp_async_dsss_pool_state_t *a = _pool_span (code, 3, 0.0, 1, 5000.0);
+  dp_async_dsss_pool_state_t *b = _pool_span (code, 3, 0.0, 3, 5000.0);
   DP_REQUIRE (a && b);
+  DP_REQUIRE (b->search->acq->window_bins > 1); /* a fan to compare */
   DP_REQUIRE (dp_async_dsss_pool_get_threads (a) == 1);
   /* At most the receivers, and at most the box: 3 on a box of 3 or more. */
   DP_CHECK (dp_async_dsss_pool_get_threads (b) <= 3);

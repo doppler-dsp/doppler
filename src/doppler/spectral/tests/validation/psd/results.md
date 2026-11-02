@@ -36,7 +36,7 @@ Step 1 of `docs/dev/contributing/validation.md`: every claim of `psd_core.h` at 
 | header claim | C pin | verdict | here |
 |---|---|---|---|
 | create refuses n < 2, pad 0, a non-finite or non-positive fs or full_scale, a window index outside 0-3, bits > 64, an exp alpha outside (0, 1], a window with no gain, n·pad past 2^60 | lifecycle block; #1911 refusals block | pinned | §2.10 (b) (c) (f) (i); the rest C-ONLY |
-| a Kaiser `beta` past I0's overflow (about 2.25e5) or NaN is refused: its taps are NaN, or at an odd n every tap is 0 | #1911 refusals block | pinned | §2.10 (f) (the zero taps); NaN C-ONLY |
+| a Kaiser `beta` past I0's overflow (about 2.3e5) or NaN is refused: its taps are NaN, or at an odd n every tap is 0 | #1911 refusals block | pinned | §2.10 (f) (the zero taps); NaN C-ONLY |
 | every window is the periodic (DFT-even) form; Hann at n = 2 is `[0, 1]`, which has gain | #1911 refusals block (f) | pinned | §2.10 (f) |
 | a bin-centred Hann tone reads zero beyond its two neighbouring bins, to float rounding | T16b | pinned | §2.6 |
 | `alpha` is read and checked in exp mode only; mean, max-hold and min-hold accept any | #1911 refusals block | pinned | C-ONLY |

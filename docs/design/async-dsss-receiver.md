@@ -283,7 +283,8 @@ under 5% at Es/N0 10, 8 and 5 dB, the specification's floor, and exceeds 10% at
 `_test_awgn_esn0_floor` in `native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c`.
 Against the bound, `Q(sqrt(2 Es/N0))`, the BER of a receiver that has settled
 sits 0.65 to 0.89 dB from it from 5 to 8 dB, and every burst of the sweep
-settled. A hand-over can still miss (F3), and a burst that did not settle
+settled. A hand-over can still miss (finding `handoff_can_miss_the_carrier`),
+and a burst that did not settle
 would be counted beside the loss. Both are measured, with the loss's
 interval, in the
 [certification record](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)

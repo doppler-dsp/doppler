@@ -214,7 +214,8 @@ dp_dsss_burst_receiver_reset (dp_dsss_burst_receiver_state_t *state)
   /* Every read-back together. These ARE the event (§4), and a stale
    * doppler_hz_est beside a cleared preamble_start describes a burst that
    * was never demodulated -- the silent failure burst_demod's own report
-   * (F4) found in exactly this shape. */
+   * (finding `reset_called_no_either_language`) found in exactly this
+   * shape. */
   state->preamble_start     = 0;
   state->doppler_hz_est     = 0.0;
   state->doppler_res_hz     = 0.0;

@@ -145,6 +145,16 @@ repos:
         language: system
         pass_filenames: false
 
+      # A finding is cited by key or claim, never by number (#2059): the
+      # number is assigned by position and re-points when one is dropped,
+      # and a cited key must be one some validate.py still records.
+      - id: finding-citations
+        name: findings are cited by key, and every key exists
+        entry: make -s lint-finding-citations
+        language: system
+        pass_filenames: false
+        types_or: [c, c++, python, markdown, toml, cmake, rust]
+
       # A benchmark's monotonic clock is jm_bench_now_ns(), in the vendored
       # jm_bench.h. 85 benchmarks carried a private elapsed_sec() and opened
       # CLOCK_MONOTONIC themselves -- which the UCRT does not have, so none of

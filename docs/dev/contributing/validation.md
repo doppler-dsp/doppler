@@ -200,17 +200,19 @@ executive summary's status line and
 a positive result — "the header's figure is confirmed correct" — reports a
 clean object as carrying open defects, which is the same
 finished-work-in-the-backlog problem `issue-link-check` exists to stop. The
-mpsk report shipped that way for one commit; RateSync's F7 (a lock
-indicator that cannot distinguish an under-driven loop, left open as
-gh-661) is the shape `CONFIRMED` is actually for.
+mpsk report shipped that way for one commit; RateSync's finding
+`locked_not_separate_scaling` (a lock indicator that cannot distinguish an
+under-driven loop, left open as gh-661) is the shape `CONFIRMED` is actually
+for.
 
-**An open finding must cite the issue tracking it** — `gh-N` or `#N`, in
-the finding's own text. This is the repo's carve-out rule applied where
-carve-outs are actually recorded: a gap that lives only inside a report is
-invisible to everyone not reading that report. agc's F6 (59.9 dB applied to
-a noise floor) and RateSync's F17 (the DTTL's low-SNR claim, unmeasurable
-by a validator that adds no noise) both sat that way until gh-750 and
-gh-751.
+**An open finding must cite the issue tracking it** — `gh-N` or `#N`, in the
+finding's own text. This is the repo's carve-out rule applied where carve-outs
+are actually recorded: a gap that lives only inside a report is invisible to
+everyone not reading that report. agc's finding
+`object_no_notion_signal_presence` (59.9 dB applied to a noise floor) and
+RateSync's finding `dttl_low_snr_claim_unmeasurable` (the DTTL's low-SNR
+claim, unmeasurable by a validator that adds no noise) both sat that way until
+gh-750 and gh-751.
 
 It also happens to be the test for the misuse above: **a result that holds
 has no issue to cite, because there is nothing to fix.** If you cannot name
@@ -434,6 +436,38 @@ becomes a silent no-op. Full rationale:
     verdict, and the report is where it belongs. Truncating to a first
     sentence (`txt.split(".")[0]`) both hides the reasoning and cuts any
     sentence containing a decimal mid-reference.
+- **Cite a finding by its key, never its number.**
+    `R.find(key, verdict, text)` numbers findings by position, so a number
+    typed into prose re-points the moment a finding before it is dropped:
+    #2056 dropped one and left five citations pointing at the wrong finding,
+    none caught (#2059). A key says what the finding is
+    (`pfa_over_delivered`): snake_case, at most 32 characters, once per
+    report. Prose, a table cell, another finding's text and the takeaways
+    write `R.ref(key)`, which `render()` resolves to the current number, so a
+    citation may come before the finding it names; `render()` refuses a typed
+    `F<n>` and a key no `find()` records. A figure is drawn into a PNG that
+    `render()` never sees, so a title takes `R.number(key)`, called after
+    `review()`, and `cli()` refuses to save a figure whose text still carries
+    a `ref`.
+- **Outside a report, cite the key or the claim.** A C test's comment, a
+    header, a design page, an example and a validator's own comments have no
+    render step. They write the word *finding* (or *findings*) and then the
+    key in backticks, as in "acq's finding `pfa_over_delivered`" or
+    "findings `pfa_over_delivered` and `shaped_pd_optimistic`", or they say
+    the claim in words. Only that form is a citation; a backticked name
+    anywhere else is code. A key resolves only within its own report, so
+    another report's finding is cited by key outside a report and by its
+    claim inside one. `make lint-finding-citations`
+    (`scripts/check_finding_citations.py`) holds both directions over every
+    tracked source and page: no typed `F<n>`, and every cited key is one some
+    `validate.py` records, so a renamed or dropped finding cannot leave its
+    citations pointing at nothing. A key is unique across every report, so
+    an outside citation names exactly one finding, and a validator's own
+    `ref()`/`number()` keys must be ones it records: `number()` runs only
+    when figures are drawn, which no CI run does. Generated files, released history and
+    GitHub's issue titles are skipped; the framework's own files may type a
+    number to explain the numbering, and their citations are still resolved.
+    Both rules read one declaration, `src/doppler/tests/_finding_keys.py`.
 - **Emit `![...](plot.png)` from the section, never from `plots()`.**
     `plots()` runs only when `write=True`, so markdown emitted there is
     absent from the `--check` render — and `make validate-check` is then

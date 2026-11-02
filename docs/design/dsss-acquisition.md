@@ -739,7 +739,7 @@ priced: these rows now sit under the target, not over it).
 - `test_acq_core.c` pins `pfa_cell` to the band mask's in-band cell count on
     every grid shape.
 - The certification measures the delivered rate against the target (§2.5,
-    finding **F7**, now FIXED) and holds it with a ratchet that may only
+    finding `pfa_over_delivered`, now FIXED) and holds it with a ratchet that may only
     shrink: 1.4× over 60,000 frames. That is a backstop to the pin above: an
     on-target detector trips it about 0.1% of the time, and the native
     pricing, which measures 1.76× on that engine (21 seeds), escapes it about

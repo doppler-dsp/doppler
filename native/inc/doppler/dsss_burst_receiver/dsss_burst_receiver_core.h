@@ -165,7 +165,8 @@ typedef struct {
   /* ── The completed bursts of the LAST push ───────────────────────────
    * Scratch, deliberately NOT serialized: it describes the most recent
    * push() only, so keeping it out of the blob is what lets state_bytes()
-   * stay a pure function of configuration (finding F5). Grows on demand,
+   * stay a pure function of configuration (the certification's finding
+   * `state_bytes_not_pure_function`). Grows on demand,
    * because the count scales with the caller's block size, not with any
    * configuration. */
   dsss_br_event_t *ev;     /**< One record per burst returned.             */

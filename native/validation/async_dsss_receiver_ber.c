@@ -27,8 +27,9 @@
  *     demodulator, and the receiver's symbol lock sustained; a burst with
  *     no settled window is counted as unsettled, not scored. So the loss
  *     is the loss OVER THE BURSTS THAT SETTLED, and the bursts that do not
- *     are gated on their own: their count is a ratchet per point (F3, a
- *     known defect), and none may be one handed over inside the carrier
+ *     are gated on their own: their count is a ratchet per point (the
+ *     report's finding `handoff_can_miss_the_carrier`, a known defect), and
+ *     none may be one handed over inside the carrier
  *     loop's reliable pull-in, where the hand-over cannot be the reason.
  *   - ALIGNED. The lag and the BPSK phase are DETECTED against a marker of
  *     the burst's own truth, under a false-alarm gate, past the settling
@@ -83,7 +84,8 @@
 
 /* A burst that never settles is not scored, so the loss above is
    conditional on settling and cannot see a receiver that stops settling.
-   F3 is why some do not: a first hand-off that lands off the carrier and,
+   The report's finding `handoff_can_miss_the_carrier` is why some do
+   not: a first hand-off that lands off the carrier and,
    with `reacquire` off, never pulls in. It is a known defect (#2409), and
    where the searching path's pull-in edge lies is that issue's question.
    In the committed sweep every burst settles, handed over at most 329 Hz
@@ -330,7 +332,8 @@ main (int argc, char **argv)
           n_unsettled[e] += !bu.settled;
           n_slipped[e] += (size_t)bu.slipped;
           /* Unsettled though handed over inside the reliable pull-in -- or
-             with no hand-over at all (NaN fails the `>`): not F3. */
+             with no hand-over at all (NaN fails the `>`): not the
+             report's finding `handoff_can_miss_the_carrier`. */
           n_inside[e] += !bu.settled
                          && !(fabs (bu.handover_err_hz) > PULLIN_RELIABLE_HZ);
           if (bu.settled)
@@ -381,7 +384,7 @@ main (int argc, char **argv)
                     "lower limit)");
       DP_CHECK_MSG (n_unsettled[e] <= unsettled_max[ix[e]],
                     "no more bursts fail to settle than the ratchet allows "
-                    "(F3, #2409)");
+                    "(#2409)");
       DP_CHECK_MSG (n_inside[e] == 0,
                     "no burst handed over inside the carrier loop's reliable "
                     "pull-in fails to settle");

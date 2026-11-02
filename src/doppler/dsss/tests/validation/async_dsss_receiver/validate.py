@@ -789,7 +789,8 @@ def characterise(d: Blocks, sw: Blocks, bsw: Blocks) -> None:
         )
         + f" {n_unset} had no settled window and are not scored: symbol lock "
         f"was not sustained, or came too late in the burst to leave one. "
-        f"That is F3, a known defect, so their count is a ratchet: the "
+        f"That is {R.ref('handoff_can_miss_the_carrier')}, a known defect, so "
+        "their count is a ratchet: the "
         f"committed count at the sweep's seeds plus one for another "
         f"toolchain's draws, which may only shrink ({ratchet})."
         + (
@@ -812,7 +813,7 @@ def characterise(d: Blocks, sw: Blocks, bsw: Blocks) -> None:
         "and its loss is over that meter's ideal (`dp_ber_evm_ideal_db()`), "
         "as in 2.2. The blind M2M4 reads "
         + _span([float(r["m2m4_db"]) - float(r["esn0_db"]) for r in ber])
-        + " from the applied Es/N0 (F5)."
+        + f" from the applied Es/N0 ({R.ref('evm_agrees_with_error_rate')})."
     )
     R.md()
 
@@ -821,7 +822,7 @@ def review(sw: Blocks, bsw: Blocks) -> None:
     R.md("## 3. Review — findings, with verdicts")
     R.md()
     R.find(
-        "F1",
+        "steps_max_out_not_a_bound",
         "GAP",
         "`steps_max_out()` returns 0, which is not a bound: a call that "
         "completes a carried code period emits that whole period's symbols, "
@@ -830,7 +831,7 @@ def review(sw: Blocks, bsw: Blocks) -> None:
         "point (0.9 symbols a period) it never binds. Tracked as #2469.",
     )
     R.find(
-        "F2",
+        "differential_is_inert",
         "GAP",
         "`differential` is inert here: it reaches MpskReceiver's `bits()` "
         "demap, and this object returns soft symbols only "
@@ -842,7 +843,7 @@ def review(sw: Blocks, bsw: Blocks) -> None:
     d5, d10 = _at(sw["dropout"], 5.0), _at(sw["dropout"], 10.0)
     miss10 = sum(1 for r in d10 if not r["settled"])
     R.find(
-        "F3",
+        "handoff_can_miss_the_carrier",
         "CONFIRMED",
         f"A first hand-off can land off the carrier and never pull in. With "
         f"`reacquire` off (the binding's default, and this harness's), the "
@@ -868,7 +869,7 @@ def review(sw: Blocks, bsw: Blocks) -> None:
         "#2409.",
     )
     R.find(
-        "F4",
+        "lock_and_release_c_only",
         "C-ONLY",
         "The lock detector's hysteresis, the release clock's edges and the "
         "hand-over domain are certified symbol by symbol and sample by "
@@ -883,7 +884,7 @@ def review(sw: Blocks, bsw: Blocks) -> None:
     bursts = bsw["burst"]
     n_set = sum(1 for r in bursts if r["settled"])
     R.find(
-        "F5",
+        "evm_agrees_with_error_rate",
         "FIXED",
         f"Over the {n_set} of {len(bursts)} bursts that settled, the error "
         f"rate sits {min(loss):.2f} to {max(loss):.2f} dB from the BPSK "
@@ -1004,7 +1005,8 @@ def limits(d: Blocks, sw: Blocks) -> None:
         R.limit(
             n_u <= int(r["unsettled_max"]),
             f"{tag} at most {int(r['unsettled_max'])} of the bursts fail to "
-            f"settle ({n_u} here; F3, a ratchet that may only shrink)",
+            f"settle ({n_u} here; {R.ref('handoff_can_miss_the_carrier')}, a "
+            "ratchet that may only shrink)",
         )
         R.limit(
             int(r["unsettled_inside"]) == 0,
@@ -1039,7 +1041,8 @@ def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
         f"{max(loss):.2f} dB from the BPSK bound; where it goes is "
         f"section 2.7 (2.6). "
         + (
-            f"The other {len(bursts) - n_set} never settled (F3)."
+            f"The other {len(bursts) - n_set} never settled "
+            f"({R.ref('handoff_can_miss_the_carrier')})."
             if n_set < len(bursts)
             else "Every burst settled."
         ),
@@ -1059,12 +1062,13 @@ def _takeaways(sw: Blocks, bsw: Blocks) -> list[str]:
         f"locked, and {sum(1 for r in d10 if not r['settled'])} of "
         f"{len(d10)} dropout draws at 10 dB and "
         f"{sum(1 for r in d5 if not r['settled'])} of {len(d5)} at 5 dB "
-        f"never settled (F3, #2409).",
+        f"never settled ({R.ref('handoff_can_miss_the_carrier')}, #2409).",
         f"**The lock flag means something:** {len(fl)} receivers on noise "
         f"declared it {sum(int(r['declares']) for r in fl)} times, and a "
         f"signal that leaves drops it within {max(drops):.0f} ms (2.5).",
         "**Size `out` with care above one symbol a code period:** "
-        "`steps_max_out()` is not yet a bound (F1, #2469). At the "
+        "`steps_max_out()` is not yet a bound "
+        f"({R.ref('steps_max_out_not_a_bound')}, #2469). At the "
         "specification's operating point it never binds.",
     ]
 

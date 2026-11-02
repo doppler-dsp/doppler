@@ -122,7 +122,7 @@ def _band_limited_impulse(nx: int, frac: float) -> np.ndarray:
     bins as high positive frequencies rather than the negative ones they are,
     which is not a spectrum any correlation surface has — and produces two
     equal peaks straddling a null at the true position, which reads exactly
-    like a broken interpolator. See §3 F3.
+    like a broken interpolator. See §3 finding `sub_bin_pinned_integer`.
     """
     j = np.arange(nx)[:, None]
     k = np.arange(nx)[None, :]
@@ -232,7 +232,7 @@ def section_object() -> None:
                 "bit-identical at every count",
                 "C (`_test_delay_doppler`, `_test_batch` at 1, 2, 7) + "
                 "Python §2.10",
-                "F4",
+                R.ref("nthreads_now_honored"),
             ],
             [
                 "`execute_max_out()` is `ny*nx`; emission stops at `max_out`",
@@ -759,7 +759,7 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     R.find(
-        "F1",
+        "dp_corr2d_reset_pinned_vacuously",
         "FIXED",
         "`dp_corr2d_reset` was pinned **vacuously**, which is the shape "
         "`docs/dev/contributing/validation.md` warns about by name. The C "
@@ -772,7 +772,7 @@ def review(d: Data) -> None:
         "vacuity demonstrated rather than argued.",
     )
     R.find(
-        "F2",
+        "even_nyquist_bin_split_corr2d",
         "FIXED",
         "The even-`n` Nyquist-bin split in `corr2d_zeropad_1d` — whose "
         "comment claims it matches `scipy.signal.resample` to machine "
@@ -783,7 +783,7 @@ def review(d: Data) -> None:
         "realness (§2.5): 5.5e-08 with the split against 6.3e-03 without.",
     )
     R.find(
-        "F3",
+        "sub_bin_pinned_integer",
         "FIXED",
         "Sub-bin interpolation was pinned only at INTEGER shifts, where the "
         "native grid already lands on the answer. Now swept at quarter-bin "
@@ -798,7 +798,7 @@ def review(d: Data) -> None:
         "everywhere — the correlator was right and the stimulus was wrong.",
     )
     R.find(
-        "F4",
+        "nthreads_now_honored",
         "BY DESIGN",
         "`nthreads` was once documented *accepted for API compatibility; "
         "ignored*, and this finding said so. Since #2666 it is real: the "
@@ -812,7 +812,7 @@ def review(d: Data) -> None:
         "sabotage of exactly that goes red.",
     )
     R.find(
-        "F6",
+        "dwell_check_incomplete",
         "FIXED",
         '`dp_corr2d_create` documented `dwell` as *"must be >= 1"* and '
         "enforced only the output-grid rule, so `dwell = 0` built an "
@@ -832,7 +832,7 @@ def review(d: Data) -> None:
         "Sabotage-proven: removing the check takes the new C section red.",
     )
     R.find(
-        "F5",
+        "three_claims_no_python_face",
         "C-ONLY",
         "Three claims have no Python face and are certified in "
         "`native/tests/corr2d/test_corr2d_core.c` instead: "
@@ -1387,16 +1387,19 @@ def build(write: bool = True) -> Report:
             f"{d.native_grid_worst:.2f} (§2.4). Build the test stimulus "
             f"over SIGNED frequencies — a `0..nx-1` sweep produces a "
             f"double peak that reads like a broken interpolator and is not "
-            f"(F3).",
+            f"({R.ref('sub_bin_pinned_integer')}).",
             "**Three claims are C-ONLY**, including `set_ref`'s contract "
             "that a fast-path object refuses a reference that is no longer "
             "single-row. A Python-only audit of this object would report a "
-            "clean bill of health for the surface that matters least (F5).",
+            "clean bill of health for the surface that matters least "
+            f"({R.ref('three_claims_no_python_face')}).",
             "**Two of the pins it arrived with could not fail**: `reset` "
             "was asserted on an object that was already reset, and the "
             "Nyquist split was covered by nothing at all. Both were found "
             "by breaking the code and watching the suite stay green, which "
-            "is the only way that class of gap surfaces (F1, F2).",
+            "is the only way that class of gap surfaces "
+            f"({R.ref('dp_corr2d_reset_pinned_vacuously')}, "
+            f"{R.ref('even_nyquist_bin_split_corr2d')}).",
             "**A batch makes the same maps as execute(), and leaves the "
             "dwell alone.** H frames in one call give maps bit-identical to "
             "H fresh dwell-1 objects on every path and thread count, the "

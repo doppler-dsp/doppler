@@ -40,6 +40,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from doppler.tests._finding_keys import (
+    KEY,
+    KEY_MAX,
+    REF,
+    REF_RE,
+    TYPED_F,
+)
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -84,9 +91,10 @@ if TYPE_CHECKING:
 #: so they reach depths a deployed link never would, and the floor has to
 #: respect that rather than link-realistic intuition.
 #:
-#: This is the mirror of the sentinel trap F4 records at the other end,
-#: where `ber_evm_db`'s 0.0 dB "no lock" answer read as data in a table.
-#: Both ends of the scale need saying in words rather than digits.
+#: This is the mirror of the sentinel trap RateSync's finding
+#: `bn_identical_claim` records at the other end, where `ber_evm_db`'s 0.0 dB
+#: "no lock" answer read as data in a table. Both ends of the scale need
+#: saying in words rather than digits.
 EVM_FLOOR_DB = -150.0
 
 #: The review phase's whole vocabulary, and which verdicts count as OPEN.
@@ -119,6 +127,11 @@ OPEN_VERDICTS = ("GAP", "CONFIRMED")
 #: section or a re-pointed citation through the gate silently.
 _PROTECTED = (
     re.compile(r"§\d+(?:\.\d+)?"),
+    # A finding's number is structure too: `find()` assigns it by position,
+    # so a dropped or reordered finding renumbers the ones after it. Masked,
+    # `F3` and `F4` both read `F«n»` and a renumbered report passed as up
+    # to date (#2059).
+    re.compile(r"\bF\d+\b"),
     re.compile(r"gh-\d+"),
     re.compile(r"#\d+"),
     re.compile(r"issues/\d+"),
@@ -430,7 +443,11 @@ class Report:
     findings : list of (tag, verdict, text)
         Phase 2's judgements. `verdict` is one of BY DESIGN, GAP,
         CONFIRMED, FIXED or C-ONLY; the first two counts in the summary
-        treat GAP and CONFIRMED as open.
+        treat GAP and CONFIRMED as open. `tag` is the finding's citation
+        token (see `ref`), which renders as its number.
+    keys : dict of str to str
+        Each finding's key and the number `find()` assigned it, ``F1`` for
+        the first recorded, in recording order.
     limits : list of (ok, claim)
         Phase 3's envelope. Every one of these is asserted by a pytest
         case, so a False here fails CI rather than only reading badly.
@@ -447,6 +464,7 @@ class Report:
 
     lines: list[str] = field(default_factory=list)
     findings: list[tuple[str, str, str]] = field(default_factory=list)
+    keys: dict[str, str] = field(default_factory=dict)
     limits: list[tuple[bool, str]] = field(default_factory=list)
     write: bool = True
     head: list[str] = field(default_factory=list)
@@ -479,8 +497,17 @@ class Report:
         self.md()
 
     # ── phases 2 and 3 ───────────────────────────────────────────────
-    def find(self, tag: str, verdict: str, text: str) -> None:
+    def find(self, key: str, verdict: str, text: str) -> None:
         """Record one review finding, render it, and echo it.
+
+        `key` names the finding (``"pad_zero_was_one"``): snake_case, at
+        most `KEY_MAX` characters, once per report. Its number is assigned
+        here, by position, ``F1`` for the first one recorded. Anything that
+        cites it -- prose, a table cell, another finding, the executive
+        summary -- writes ``R.ref(key)``, and `render()` resolves every
+        citation at once, so dropping or reordering a finding cannot leave
+        a citation pointing at another (#2059). A number typed into the
+        text is refused there.
 
         All three from one call, deliberately. Recording and rendering used
         to be separate, and only recording was ever wired up: every report
@@ -489,20 +516,87 @@ class Report:
         in this function's console output, which nothing keeps.
 
         The reports cross-reference into that void: the EMA's claim table
-        says "recorded as §3 F6" and the AGC's says "see §3 F4", pointing
-        at a section with no content. Phase 2 of
-        ``docs/dev/contributing/validation.md`` is the review, and the artifact
-        that is
-        supposed to carry it carried a heading.
+        said "recorded as §3" and a finding's number, and the AGC's "see
+        §3" and another, pointing at a section with no content. Phase 2 of
+        ``docs/dev/contributing/validation.md`` is the review, and the
+        artifact that is supposed to carry it carried a heading.
 
         Every ``find()`` is called from a validator's ``review()``, right
         after the section 3 heading, so appending here lands in the right
         place with no ordering rule for authors to remember.
         """
+        if len(key) > KEY_MAX or not KEY.fullmatch(key):
+            raise ValueError(
+                f"finding key {key!r} is not a snake_case name of at most "
+                f"{KEY_MAX} characters: a finding is keyed by what it is, "
+                f"and find() assigns its number"
+            )
+        if key in self.keys:
+            raise ValueError(f"finding key {key!r} is recorded twice")
+        self.keys[key] = f"F{len(self.findings) + 1}"
+        tag = self.ref(key)
         self.findings.append((tag, verdict, text))
         self.md(f"- **{tag} · {verdict}** — {text}")
         self.md()
-        print(f"  [{verdict:^10}] {tag}: {text[:96]}")
+        print(f"  [{verdict:^10}] {self.keys[key]}: {text[:96]}")
+
+    def ref(self, key: str) -> str:
+        """Cite a finding by key; `render()` writes its number.
+
+        A citation may come before the finding it names -- the claim
+        inventory in section 1 cites section 3's findings -- because
+        nothing is resolved until the whole report exists. A key no
+        `find()` records is refused at `render()`.
+
+        Only text that reaches `render()` may carry the token. A figure's
+        title is drawn into a PNG, which takes `number` instead; `cli()`
+        refuses to save a figure that carries one.
+
+        Examples
+        --------
+        >>> r = Report(write=False)
+        >>> r.md(f"see {r.ref('pad_zero_was_one')}")
+        >>> r.find("pad_zero_was_one", "FIXED", "pad = 0 is refused")
+          [  FIXED   ] F1: pad = 0 is refused
+        >>> r.render().splitlines()[0]
+        'see F1'
+        """
+        return REF.format(key)
+
+    def number(self, key: str) -> str:
+        """A recorded finding's number, for text `render()` never sees.
+
+        A figure's title is drawn into a PNG, so a `ref` token there would
+        be printed as it stands. Call this after the finding is recorded
+        (figures are drawn after `review()`); before, it raises rather
+        than guess.
+
+        Raises
+        ------
+        KeyError
+            If no `find()` has recorded `key` yet.
+
+        Examples
+        --------
+        >>> r = Report(write=False)
+        >>> r.find("pad_zero_was_one", "FIXED", "pad = 0 is refused")
+          [  FIXED   ] F1: pad = 0 is refused
+        >>> r.number("pad_zero_was_one")
+        'F1'
+        """
+        if key not in self.keys:
+            raise KeyError(
+                f"finding {key!r} is not recorded yet: draw the figure "
+                f"after review(), or cite it with ref() in the report"
+            )
+        return self.keys[key]
+
+    def _label(self, tag: str) -> str:
+        """A finding's tag as a problem message names it: ``F3 (`key`)``."""
+        m = REF_RE.fullmatch(tag)
+        if not m:
+            return tag
+        return f"{self.keys.get(m.group(1), '?')} (`{m.group(1)}`)"
 
     def limit(self, ok: bool, claim: str) -> bool:
         """Record one envelope claim and whether it holds."""
@@ -679,22 +773,44 @@ class Report:
         """
         problems: list[str] = []
 
+        # A finding is cited by key and numbered at render (#2059), so
+        # before resolution no finding number is in the text at all: one
+        # here was typed, and goes stale the moment a finding before it is
+        # dropped. Both directions: nothing typed, and every key cited is
+        # one some find() recorded. The message names the report and the
+        # key, never the raw token, which no author wrote.
+        heading = re.match(r"# (.+?) — validation report", text)
+        name = f"the {heading.group(1)}" if heading else "this"
+        for typed in sorted(set(TYPED_F.findall(text))):
+            problems.append(
+                f"{typed} is typed into {name} report — cite the "
+                f"finding as R.ref(key), which render() resolves to its "
+                f"number"
+            )
+        for key in sorted(set(REF_RE.findall(text))):
+            if key not in self.keys:
+                problems.append(
+                    f"{name} report cites finding {key!r} with R.ref(), "
+                    f"but no find() records that key"
+                )
+
         # A verdict outside the vocabulary is not a typo the reader can
         # see: `open_findings` matches exact strings, so anything else is
         # counted as CLOSED. It fails in the direction that hides work.
         for tag, verdict, _ in self.findings:
             if verdict not in VERDICTS:
                 problems.append(
-                    f"{tag} has verdict {verdict!r}, which is not one of "
-                    f"{', '.join(VERDICTS)} — an unknown verdict is "
-                    f"silently counted as not open"
+                    f"{self._label(tag)} has verdict {verdict!r}, which is "
+                    f"not one of {', '.join(VERDICTS)} — an unknown verdict "
+                    f"is silently counted as not open"
                 )
 
         # An open finding is a defect the object still carries, and the
         # repo's rule is that a carve-out gets FILED rather than explained
         # in prose. Enforced here because a gap recorded only inside a
         # report is invisible to everyone not reading that report -- agc's
-        # F6 (59.9 dB applied to a noise floor) sat that way until gh-750.
+        # finding `object_no_notion_signal_presence` (59.9 dB applied to a
+        # noise floor) sat that way until gh-750.
         #
         # It is also what catches a POSITIVE result mislabelled as open:
         # "the header's figure is confirmed correct" has no issue to cite,
@@ -705,7 +821,8 @@ class Report:
                 r"gh-\d+|#\d+|issues/\d+", body
             ):
                 problems.append(
-                    f"{tag} is {verdict} — an open finding must cite the "
+                    f"{self._label(tag)} is {verdict} — an open finding "
+                    f"must cite the "
                     f"issue tracking it (gh-N or #N). If there is nothing "
                     f"to file, it is not open: a result that holds is a "
                     f"limit, not a finding"
@@ -773,7 +890,7 @@ class Report:
                 "the report is internally inconsistent:\n  - "
                 + "\n  - ".join(problems)
             )
-        return text
+        return REF_RE.sub(lambda m: self.keys[m.group(1)], text)
 
     def emit(self, path: Path) -> None:
         """Write the report, unless this run is measurement-only."""
@@ -995,6 +1112,55 @@ def assert_renders(report: Report) -> None:
         raise AssertionError(str(exc)) from exc
 
 
+@contextmanager
+def figures_refuse_refs() -> Iterator[None]:
+    """Refuse to save a figure whose text carries a `Report.ref` token.
+
+    `render()` resolves every ``R.ref(key)`` in the report, but a figure is
+    drawn into a PNG it never sees: a title written with `ref` would print
+    the raw ``[[F:key]]`` into a committed image, and no gate reads pixels.
+    A figure cites a finding through `Report.number` instead.
+
+    So, for as long as this is active, every `Figure.savefig` -- and so
+    every ``plt.savefig`` -- first reads every text artist the figure holds
+    (titles, axis labels, annotations, legend entries) and raises if one
+    carries a token. `cli()` wraps every writing run in it, which covers
+    the 42 ``fig.savefig`` call sites in the validators without any of
+    them naming it. Without matplotlib there is nothing to guard.
+
+    Raises
+    ------
+    ValueError
+        From the `savefig` call, naming the key and the text that carries
+        it.
+    """
+    try:
+        from matplotlib.figure import Figure
+        from matplotlib.text import Text
+    except ImportError:
+        yield
+        return
+    save = Figure.savefig
+
+    def guarded(fig, *args, **kwargs):
+        for artist in fig.findobj(Text):
+            m = REF_RE.search(artist.get_text())
+            if m:
+                raise ValueError(
+                    f"a figure's text cites finding {m.group(1)!r} with "
+                    f"R.ref(), which only render() resolves, so the PNG "
+                    f"would show the raw token: {artist.get_text()!r}. A "
+                    f"figure takes R.number(key)"
+                )
+        return save(fig, *args, **kwargs)
+
+    Figure.savefig = guarded
+    try:
+        yield
+    finally:
+        Figure.savefig = save
+
+
 def cli(build, here: Path) -> int:
     """Run one object's `build()` as a script, or as a staleness check.
 
@@ -1039,7 +1205,11 @@ def cli(build, here: Path) -> int:
     import sys
 
     check = "--check" in sys.argv[1:]
-    report = build(write=not check)
+    if check:
+        report = build(write=False)
+    else:
+        with figures_refuse_refs():
+            report = build(write=True)
     out = here / "results.md"
 
     if check:

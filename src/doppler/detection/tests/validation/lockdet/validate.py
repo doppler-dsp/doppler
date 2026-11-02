@@ -439,7 +439,8 @@ def review(d: Data) -> None:
         "differently-tuned detector silently re-tunes it to the source's "
         "thresholds and verify counts (§2.6). Correct for the documented "
         "use — an identically-built instance — and worth knowing for any "
-        "other. The same consequence LoopFilter records as its F8.",
+        "other. LoopFilter's report records the same consequence for its "
+        "own restore.",
     )
     R.find(
         "F5",

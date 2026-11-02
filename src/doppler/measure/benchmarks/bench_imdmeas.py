@@ -23,7 +23,8 @@ from doppler.source import LO
 #: The C benchmark's sweep, so the two faces read against each other.
 CAPTURES = (4_096, 16_384, 65_536)
 
-F1, F2 = 0.101, 0.123
+#: The two tones, low and high: the analysis reports them as f1 and f2.
+F_LO, F_HI = 0.101, 0.123
 A_TONE, A_IM3 = 0.4, 0.002
 #: Both IM3 products are planted at A_IM3, so IMD3 = 20*log10(A_IM3/A_TONE)
 #: = -46.02 dBc by construction.
@@ -34,10 +35,10 @@ def _two_tone(n):
     """Two tones plus planted products at 2*f1-f2 and 2*f2-f1, built from
     `source.LO`'s sine rail."""
     x = (
-        A_TONE * LO(F1).steps(n).imag
-        + A_TONE * LO(F2).steps(n).imag
-        + A_IM3 * LO(2 * F1 - F2).steps(n).imag
-        + A_IM3 * LO(2 * F2 - F1).steps(n).imag
+        A_TONE * LO(F_LO).steps(n).imag
+        + A_TONE * LO(F_HI).steps(n).imag
+        + A_IM3 * LO(2 * F_LO - F_HI).steps(n).imag
+        + A_IM3 * LO(2 * F_HI - F_LO).steps(n).imag
     )
     return x.astype(np.float32)
 
@@ -49,10 +50,10 @@ def test_bench_analyze(benchmark, n):
 
     r = benchmark(m.analyze, x)
 
-    assert r.f1 == pytest.approx(F1, abs=1.0 / n)
-    assert r.f2 == pytest.approx(F2, abs=1.0 / n)
-    assert r.imd3_lo_freq == pytest.approx(2 * F1 - F2, abs=1.0 / n)
-    assert r.imd3_hi_freq == pytest.approx(2 * F2 - F1, abs=1.0 / n)
+    assert r.f1 == pytest.approx(F_LO, abs=1.0 / n)
+    assert r.f2 == pytest.approx(F_HI, abs=1.0 / n)
+    assert r.imd3_lo_freq == pytest.approx(2 * F_LO - F_HI, abs=1.0 / n)
+    assert r.imd3_hi_freq == pytest.approx(2 * F_HI - F_LO, abs=1.0 / n)
     assert r.imd3_dbc == pytest.approx(IMD3_DBC, abs=0.5), (
         f"IMD3 {r.imd3_dbc:.2f} dBc, built as {IMD3_DBC:.2f} -- this row "
         "would be timing a failed analysis"

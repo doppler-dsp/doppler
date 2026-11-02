@@ -436,7 +436,7 @@ int dp_hbdecim_r2c_set_state (
 
 
 
-The envelope (magic, version, endianness, size) is validated before anything is written; on rejection `r` is unchanged.
+The envelope (magic, version, endianness, size) is validated, and the payload's ring heads and flags checked, before anything is written; on rejection `r` is unchanged.
 
 
 
@@ -451,7 +451,7 @@ The envelope (magic, version, endianness, size) is validated before anything is 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or payload check refuses. 
 
 
 

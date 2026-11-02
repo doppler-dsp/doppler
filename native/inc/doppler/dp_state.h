@@ -316,51 +316,50 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
   }
 
 /**
- * @brief Define the whole-struct state triplet for a pointer-free POD object.
+ * @brief A dual-write delay ring's head, as a blob may carry it: in range.
  *
- * Generates `<pfx>_state_bytes/get_state/set_state` that snapshot the entire
- * `STATE_T` after the envelope.  Correct only when the struct holds no pointers
- * (the snapshot would capture a stale address): the running state *and* the
- * derived config are serialized, and config restores identically into an
- * identically-built instance.  For a struct with pointers or a composition,
- * hand-write the triplet (pack running fields / delegate to children) instead.
+ * Every dual-write ring (`buf[2 * cap]`, written at `head` and `head + cap`,
+ * read as the window `&buf[head]`) keeps `head < cap`. A blob's head is
+ * the one field such a ring indexes with, and the envelope never reads it,
+ * so a set_state checks it here before writing anything (#2142, #2111).
+ *
+ * @param head  The head decoded from the blob.
+ * @param cap   The ring's capacity, which create() fixed.
+ * @return Non-zero when @p head indexes the ring.
  */
-#define DP_DEFINE_POD_STATE(pfx, STATE_T, MAGIC, VERSION)                     \
-  size_t pfx##_state_bytes (const STATE_T *s)                                 \
-  {                                                                           \
-    (void)s;                                                                  \
-    return sizeof (dp_state_hdr_t) + sizeof (STATE_T);                        \
-  }                                                                           \
-  void pfx##_get_state (const STATE_T *s, void *blob)                         \
-  {                                                                           \
-    dp_writer_t _w = dp_writer_init (blob, pfx##_state_bytes (s));            \
-    dp_w_hdr (&_w, (MAGIC), (VERSION), pfx##_state_bytes (s));                \
-    dp_w_bytes (&_w, s, sizeof *s);                                           \
-  }                                                                           \
-  int pfx##_set_state (STATE_T *s, const void *blob)                         \
-  {                                                                           \
-    int _rc = dp_state_validate (blob, pfx##_state_bytes (s), (MAGIC),        \
-                                 (VERSION));                                  \
-    if (_rc != DP_OK)                                                         \
-      return _rc;                                                             \
-    dp_reader_t _r = dp_reader_init (blob, pfx##_state_bytes (s));            \
-    _r.off         = sizeof (dp_state_hdr_t);                                 \
-    dp_r_bytes (&_r, s, sizeof *s);                                           \
-    return DP_OK;                                                             \
-  }
+static inline int
+dp_ring_head_ok (size_t head, size_t cap)
+{
+  return head < cap;
+}
+
+/** A POD predicate that accepts every snapshot: the unchecked form's. */
+#define DP_POD_ANY_OK(p) ((void)(p), 1)
 
 /**
- * @brief DP_DEFINE_POD_STATE whose restore refuses a payload the object's own
- *        predicate rejects.
+ * @brief Define the whole-struct state triplet for a pointer-free POD object,
+ *        refusing a snapshot its object could never hold.
  *
- * The envelope never reads a payload field, so a whole-struct snapshot with
- * one field forged keeps its size and passes dp_state_validate().  This form
- * decodes the payload into a temporary `STATE_T`, calls
- * `int OK (const STATE_T *)` on it, and commits it over @p s only when the
- * predicate returns non-zero; otherwise set_state returns `DP_ERR_INVALID`
- * and @p s is byte-identical to before (doppler#2641).  `OK` is the same
- * rule create() applies, stated over a stored struct (for example
- * dp_loop_filter_state_ok()).
+ * Generates `<pfx>_state_bytes/get_state/set_state` that snapshot the entire
+ * `STATE_T` after the envelope.  Correct only when the struct holds no
+ * pointers (the snapshot would capture a stale address): the running state
+ * *and* the derived config are serialized, and config restores identically
+ * into an identically-built instance.  For a struct with pointers or a
+ * composition, hand-write the triplet (pack running fields / delegate to
+ * children) instead.
+ *
+ * The envelope checks the blob's size, magic, version and endianness, never
+ * a payload field, so a blob with one field forged keeps its size and passes
+ * it (#2142: boxcar's `pos` then wrote past its ring).  set_state therefore
+ * decodes the payload into a zeroed temporary, calls the predicate
+ * `int OK (const STATE_T *)` on it -- true for every state create() and the
+ * object's own methods can reach, and the same rule create() applies, stated
+ * over a stored struct (for example dp_loop_filter_state_ok(), #2641) -- and
+ * commits over @p s only when it holds.  Otherwise set_state returns
+ * `DP_ERR_INVALID` and @p s is byte-identical to before.
+ *
+ * A composition that embeds a checked child by value ANDs the child's
+ * predicate into its own, or a forged child field gets in through it.
  */
 #define DP_DEFINE_POD_STATE_CHECKED(pfx, STATE_T, MAGIC, VERSION, OK)         \
   size_t pfx##_state_bytes (const STATE_T *s)                                 \
@@ -380,7 +379,7 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
                                  (VERSION));                                  \
     if (_rc != DP_OK)                                                         \
       return _rc;                                                             \
-    STATE_T     _c;                                                           \
+    STATE_T     _c = { 0 };                                                   \
     dp_reader_t _r = dp_reader_init (blob, pfx##_state_bytes (s));            \
     _r.off         = sizeof (dp_state_hdr_t);                                 \
     dp_r_bytes (&_r, &_c, sizeof _c);                                         \
@@ -391,17 +390,28 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
   }
 
 /**
+ * @brief DP_DEFINE_POD_STATE_CHECKED with no predicate.
+ *
+ * Correct only for an object none of whose values a blob can make dangerous
+ * or unreachable; an object whose blob can carry such a value needs the
+ * checked form with a real predicate.
+ */
+#define DP_DEFINE_POD_STATE(pfx, STATE_T, MAGIC, VERSION)                     \
+  DP_DEFINE_POD_STATE_CHECKED (pfx, STATE_T, MAGIC, VERSION, DP_POD_ANY_OK)
+
+/**
  * @brief Whole-struct POD triplet for an object carrying a live telemetry
  *        attachment (or any other non-state member that must not travel in
- *        the blob).
+ *        the blob), refusing a snapshot its object could never hold.
  *
- * Identical to DP_DEFINE_POD_STATE except that @p MEMBER — a struct member
- * holding live pointers/ids (e.g. an object's `tlm` attachment) — is zeroed
- * in the serialized copy (deterministic blobs, no leaked address) and kept
- * live across set_state (a restore must not clobber the receiving
+ * Identical to DP_DEFINE_POD_STATE_CHECKED except that @p MEMBER -- a struct
+ * member holding live pointers/ids (e.g. an object's `tlm` attachment) -- is
+ * zeroed in the serialized copy (deterministic blobs, no leaked address) and
+ * kept live across set_state (a restore must not clobber the receiving
  * instance's attachment with the sender's stale one).
  */
-#define DP_DEFINE_POD_STATE_TLM(pfx, STATE_T, MAGIC, VERSION, MEMBER)         \
+#define DP_DEFINE_POD_STATE_TLM_CHECKED(pfx, STATE_T, MAGIC, VERSION, MEMBER, \
+                                        OK)                                   \
   size_t pfx##_state_bytes (const STATE_T *s)                                 \
   {                                                                           \
     (void)s;                                                                  \
@@ -421,14 +431,21 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
                                  (VERSION));                                  \
     if (_rc != DP_OK)                                                         \
       return _rc;                                                             \
-    STATE_T _c;                                                               \
+    STATE_T     _c = { 0 };                                                   \
     dp_reader_t _r = dp_reader_init (blob, pfx##_state_bytes (s));            \
     _r.off         = sizeof (dp_state_hdr_t);                                 \
     dp_r_bytes (&_r, &_c, sizeof _c);                                         \
+    if (!OK (&_c))                                                            \
+      return DP_ERR_INVALID;                                                  \
     _c.MEMBER = s->MEMBER; /* keep the live attachment */                     \
     *s = _c;                                                                  \
     return DP_OK;                                                             \
   }
+
+/** @brief DP_DEFINE_POD_STATE_TLM_CHECKED with no predicate. */
+#define DP_DEFINE_POD_STATE_TLM(pfx, STATE_T, MAGIC, VERSION, MEMBER)         \
+  DP_DEFINE_POD_STATE_TLM_CHECKED (pfx, STATE_T, MAGIC, VERSION, MEMBER,      \
+                                   DP_POD_ANY_OK)
 
 /* ── field-wise scaffolding ─────────────────────────────────────────────── */
 /** @def DP_GET_OPEN

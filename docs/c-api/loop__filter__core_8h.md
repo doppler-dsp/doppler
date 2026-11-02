@@ -62,6 +62,7 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 |  int | [**dp\_loop\_filter\_configure**](#function-dp_loop_filter_configure) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._ |
 |  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* | [**dp\_loop\_filter\_create**](#function-dp_loop_filter_create) (double bn, double zeta, double t) <br>_Create a loop\_filter instance, validating its arguments._  |
 |  void | [**dp\_loop\_filter\_destroy**](#function-dp_loop_filter_destroy) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Destroy a loop\_filter instance and release all memory._  |
+|  int | [**dp\_loop\_filter\_embedded\_ok**](#function-dp_loop_filter_embedded_ok) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* s) <br>_Whether a filter EMBEDDED by value is one its owner could hold: the all-zero struct of an embedding not yet seeded, or one_ [_**dp\_loop\_filter\_state\_ok()**_](loop__filter__core_8h.md#function-dp_loop_filter_state_ok) _accepts._ |
 |  int | [**dp\_loop\_filter\_fll\_bn\_ok**](#function-dp_loop_filter_fll_bn_ok) (double bn\_fll) <br>_The domain of a first-order FLL-assist bandwidth:_ `bn_fll >= 0` _with a finite gain_`4 * bn_fll` _._ |
 |  void | [**dp\_loop\_filter\_get\_state**](#function-dp_loop_filter_get_state) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _. Writes the whole struct: gains, integrator, bn, zeta and t._ |
 |  void | [**dp\_loop\_filter\_init**](#function-dp_loop_filter_init) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Initialise a loop filter in place (no allocation)._  |
@@ -271,6 +272,43 @@ void dp_loop_filter_destroy (
 
 
 * `state` May be NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_loop\_filter\_embedded\_ok 
+
+_Whether a filter EMBEDDED by value is one its owner could hold: the all-zero struct of an embedding not yet seeded, or one_ [_**dp\_loop\_filter\_state\_ok()**_](loop__filter__core_8h.md#function-dp_loop_filter_state_ok) _accepts._
+```C++
+int dp_loop_filter_embedded_ok (
+    const dp_loop_filter_state_t * s
+) 
+```
+
+
+
+A composition that holds a loop filter by value holds it all-zero until its init runs (a receiver keeps its Costas loops that way until it seeds them), and its blob carries them zeroed; that state round-trips, so a composition's restore must not refuse it. [**dp\_loop\_filter\_state\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_state_ok) alone does (a zero interval is outside the domain) and stays the predicate for a standalone filter, which create() never leaves zero. Anything else still has to match its own bn, zeta and t, so a forged NaN or infinite gain is refused.
+
+
+
+
+**Parameters:**
+
+
+* `s` The embedded filter. 
+
+
+
+**Returns:**
+
+1 if `s` is all-zero or [**dp\_loop\_filter\_state\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_state_ok), 0 otherwise. 
+
 
 
 

@@ -17,8 +17,10 @@
 #include "doppler/carrier_mpsk/carrier_mpsk_core.h"
 #include "doppler/dp_complex.h"
 #include "dp_rng_test.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -332,6 +334,66 @@ main (void)
     free (rx);
     free (outA);
     free (outB);
+  }
+
+  /* The embedded loop filter's gains are the ones its bn, zeta and t give
+     (#2641, #2142): a forged NaN or absurd gain is refused, the object
+     untouched, as LoopFilter's own restore refuses it. */
+  {
+    dp_carrier_mpsk_state_t *c
+        = dp_carrier_mpsk_create (0.01, 0.707, 0.01, 16, 0.0, 4);
+    DP_CHECK (c != NULL);
+    const size_t kp_off = sizeof (dp_state_hdr_t)
+                          + offsetof (dp_carrier_mpsk_state_t, lf)
+                          + offsetof (dp_loop_filter_state_t, kp);
+    const double nan_g  = NAN;
+    const double big_g  = 1e6;
+    DP_STATE_FORGE_TEST (dp_carrier_mpsk, c, CARRIER_MPSK_STATE_MAGIC,
+                         CARRIER_MPSK_STATE_VERSION, kp_off, &nan_g,
+                         sizeof nan_g);
+    DP_STATE_FORGE_TEST (dp_carrier_mpsk, c, CARRIER_MPSK_STATE_MAGIC,
+                         CARRIER_MPSK_STATE_VERSION, kp_off, &big_g,
+                         sizeof big_g);
+
+    /* What create() and the setters refuse, a blob may not carry (#2022):
+       an order other than 2/4/8, a zero-sample symbol, retained bn/zeta
+       that are not the loop's, an FLL assist set_bn_fll() refuses, and a
+       derived FLL gain that is not 4 * bn_fll. Each forge changes one
+       field. Nothing embeds a carrier_mpsk, so the all-zero state is
+       refused too. */
+    const size_t H      = sizeof (dp_state_hdr_t);
+    const int    m3     = 3;
+    const size_t zero_t = 0;
+    const double bn2 = 0.02, z2 = 0.5, kf = 1.0;
+    DP_STATE_FORGE_TEST (dp_carrier_mpsk, c, CARRIER_MPSK_STATE_MAGIC,
+                         CARRIER_MPSK_STATE_VERSION,
+                         H + offsetof (dp_carrier_mpsk_state_t, m), &m3,
+                         sizeof m3);
+    DP_STATE_FORGE_TEST (dp_carrier_mpsk, c, CARRIER_MPSK_STATE_MAGIC,
+                         CARRIER_MPSK_STATE_VERSION,
+                         H + offsetof (dp_carrier_mpsk_state_t, tsamps),
+                         &zero_t, sizeof zero_t);
+    DP_STATE_FORGE_TEST (dp_carrier_mpsk, c, CARRIER_MPSK_STATE_MAGIC,
+                         CARRIER_MPSK_STATE_VERSION,
+                         H + offsetof (dp_carrier_mpsk_state_t, bn), &bn2,
+                         sizeof bn2);
+    DP_STATE_FORGE_TEST (dp_carrier_mpsk, c, CARRIER_MPSK_STATE_MAGIC,
+                         CARRIER_MPSK_STATE_VERSION,
+                         H + offsetof (dp_carrier_mpsk_state_t, zeta), &z2,
+                         sizeof z2);
+    /* A NaN assist would also break k_fll == 4 * bn_fll, so the forge
+       keeps the pair consistent ({-0.5, -2.0}, adjacent in the struct):
+       only set_bn_fll's own rule refuses a negative bandwidth. */
+    const double fll_pair[2] = { -0.5, -2.0 };
+    DP_STATE_FORGE_TEST (dp_carrier_mpsk, c, CARRIER_MPSK_STATE_MAGIC,
+                         CARRIER_MPSK_STATE_VERSION,
+                         H + offsetof (dp_carrier_mpsk_state_t, bn_fll),
+                         fll_pair, sizeof fll_pair);
+    DP_STATE_FORGE_TEST (dp_carrier_mpsk, c, CARRIER_MPSK_STATE_MAGIC,
+                         CARRIER_MPSK_STATE_VERSION,
+                         H + offsetof (dp_carrier_mpsk_state_t, k_fll), &kf,
+                         sizeof kf);
+    dp_carrier_mpsk_destroy (c);
   }
 
   /* A bad loop parameter is refused at create and by every setter, and a

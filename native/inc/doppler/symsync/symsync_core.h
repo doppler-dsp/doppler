@@ -415,7 +415,8 @@ extern "C"
    * @param order  Enum index; 0=linear…2=cubic.
    * @param ted  Enum index; 0=gardner, 1=dttl (BPSK/QPSK only).
    * @return Heap-allocated state, or NULL when dp_loop_filter_params_ok()
-   *         refuses (bn, zeta) or allocation fails.
+   *         refuses (bn, zeta), @p order is outside 0..2, or allocation
+   *         fails.
    * @note Caller must call dp_symsync_destroy() when done.
    */
   dp_symsync_state_t *dp_symsync_create (size_t sps, double bn, double zeta,

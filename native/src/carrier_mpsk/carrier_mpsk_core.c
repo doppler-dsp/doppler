@@ -72,10 +72,29 @@ dp_carrier_mpsk_reset (dp_carrier_mpsk_state_t *state)
   seed (state, state->seed_norm_freq);
 }
 
-/* Serializable state — pointer-free POD whole-struct snapshot
- * (see DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (dp_carrier_mpsk, dp_carrier_mpsk_state_t,
-                     CARRIER_MPSK_STATE_MAGIC, CARRIER_MPSK_STATE_VERSION)
+/* A snapshot this object could hold: everything create() and the setters
+ * refuse is refused here too, by the same predicates (#2022, #2142). That is
+ * an order create() takes (m), a symbol of at least one sample, a loop
+ * filter whose gains are the ones its bn, zeta and t give (#2641), the
+ * retained bn/zeta the getters report equal to the loop's own, and an FLL
+ * assist set_bn_fll() would take, with its derived gain. Nothing embeds a
+ * carrier_mpsk by value, so the all-zero state is not one it holds, and the
+ * bare dp_loop_filter_state_ok() applies. */
+static int
+carrier_mpsk_state_ok (const dp_carrier_mpsk_state_t *s)
+{
+  return (s->m == 2 || s->m == 4 || s->m == 8) && s->tsamps >= 1
+         && dp_loop_filter_state_ok (&s->lf) && s->bn == s->lf.bn
+         && s->zeta == s->lf.zeta && dp_loop_filter_fll_bn_ok (s->bn_fll)
+         && s->k_fll == 4.0 * s->bn_fll;
+}
+
+/* Serializable state — pointer-free POD whole-struct snapshot, refusing a
+ * snapshot carrier_mpsk_state_ok() rejects (see DP_DEFINE_POD_STATE_CHECKED
+ * in dp_state.h). */
+DP_DEFINE_POD_STATE_CHECKED (dp_carrier_mpsk, dp_carrier_mpsk_state_t,
+                             CARRIER_MPSK_STATE_MAGIC,
+                             CARRIER_MPSK_STATE_VERSION, carrier_mpsk_state_ok)
 
 int
 dp_carrier_mpsk_configure (dp_carrier_mpsk_state_t *state, double bn,

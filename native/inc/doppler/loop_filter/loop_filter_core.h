@@ -178,6 +178,25 @@ extern "C"
   int dp_loop_filter_state_ok(const dp_loop_filter_state_t *s);
 
   /**
+   * @brief Whether a filter EMBEDDED by value is one its owner could hold:
+   *        the all-zero struct of an embedding not yet seeded, or one
+   *        dp_loop_filter_state_ok() accepts.
+   *
+   * A composition that holds a loop filter by value holds it all-zero until
+   * its init runs (a receiver keeps its Costas loops that way until it seeds
+   * them), and its blob carries them zeroed; that state round-trips, so a
+   * composition's restore must not refuse it. dp_loop_filter_state_ok()
+   * alone does (a zero interval is outside the domain) and stays the
+   * predicate for a standalone filter, which create() never leaves zero.
+   * Anything else still has to match its own bn, zeta and t, so a forged NaN
+   * or infinite gain is refused.
+   *
+   * @param s  The embedded filter.
+   * @return 1 if @p s is all-zero or dp_loop_filter_state_ok(), 0 otherwise.
+   */
+  int dp_loop_filter_embedded_ok(const dp_loop_filter_state_t *s);
+
+  /**
    * @brief Create a loop_filter instance, validating its arguments.
    *
    * This is the untrusted boundary — the Python constructor passes a

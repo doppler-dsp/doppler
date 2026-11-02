@@ -379,7 +379,7 @@ Validates (bn, zeta), allocates, then runs [**dp\_symsync\_init()**](symsync__co
 
 **Returns:**
 
-Heap-allocated state, or NULL when [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) refuses (bn, zeta) or allocation fails. 
+Heap-allocated state, or NULL when [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) refuses (bn, zeta), `order` is outside 0..2, or allocation fails. 
 
 
 

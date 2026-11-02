@@ -24,5 +24,6 @@
   2.97,
   3.77
  ],
- "wall_s": 1343.6
+ "wall_s": 1343.6,
+ "note": "b15233152 is a pre-squash commit of #2731, not an ancestor of the merged head; its rule-2 code (adr_pick, adr_sidelobe_bound, dp_acq_sidelobe_ratio, acq_sidelobe_row, acq_peak_on_lag) is byte-identical to the squashed commit's, so the data stands (doppler#2735)."
 }

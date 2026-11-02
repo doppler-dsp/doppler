@@ -1,0 +1,115 @@
+{
+ "stamp_schema": 2,
+ "datetime": "2026-11-02T01:06:18.148042+00:00",
+ "machine_info": {
+  "node": "zen-x2elite-x",
+  "system": "Linux",
+  "release": "6.18.54.1-microsoft-standard-WSL2",
+  "machine": "aarch64",
+  "cpu": {
+   "count": 18
+  }
+ },
+ "commit_info": {
+  "id": "dbfc4736beb97760c15366e8a788f880f4caf56d",
+  "branch": "fix/async-dsss-pool-batching",
+  "dirty": true
+ },
+ "tracked_clean": true,
+ "load_before": [
+  1.98,
+  4.68,
+  5.0
+ ],
+ "load_after": [
+  1.83,
+  4.51,
+  4.94
+ ],
+ "toolchain": {
+  "compiler": "GNU 15.2.0",
+  "compiler_path": "/usr/bin/cc",
+  "libc": "glibc 2.43",
+  "build_type": "Release",
+  "c_flags": "-O3 -DNDEBUG",
+  "native": "OFF"
+ },
+ "benchmarks": [
+  {
+   "name": "async_dsss_pool::push[native,n=1,threads=1]",
+   "unit": "sample",
+   "stats": {
+    "min": 0.009218402,
+    "max": 0.010492002,
+    "mean": 0.009718882100000001,
+    "median": 0.0096890525,
+    "iterations": 337590,
+    "rounds": 10,
+    "min_per_unit": 2.730650196984508e-08,
+    "mean_per_unit": 2.8789010634201252e-08,
+    "max_per_unit": 3.1079125566515593e-08
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[native,n=4,threads=1]",
+   "unit": "sample",
+   "stats": {
+    "min": 0.009241302,
+    "max": 0.010465903,
+    "mean": 0.0099240825,
+    "median": 0.010088802000000001,
+    "iterations": 337590,
+    "rounds": 10,
+    "min_per_unit": 2.7374335732693503e-08,
+    "mean_per_unit": 2.9396849728961167e-08,
+    "max_per_unit": 3.100181581207974e-08
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[native,n=4,threads=4]",
+   "unit": "sample",
+   "stats": {
+    "min": 0.009260403,
+    "max": 0.013064803000000002,
+    "mean": 0.010110402300000002,
+    "median": 0.009960552000000001,
+    "iterations": 337590,
+    "rounds": 10,
+    "min_per_unit": 2.7430916200124414e-08,
+    "mean_per_unit": 2.994876121923043e-08,
+    "max_per_unit": 3.8700207352113514e-08
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[full,n=1,threads=1]",
+   "unit": "sample",
+   "stats": {
+    "min": 0.059052413000000005,
+    "max": 0.066921215,
+    "mean": 0.0626880041,
+    "median": 0.06313026399999999,
+    "iterations": 337590,
+    "rounds": 10,
+    "min_per_unit": 1.749234663349033e-07,
+    "mean_per_unit": 1.85692716312687e-07,
+    "max_per_unit": 1.982322195562665e-07
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[full,n=4,threads=1]",
+   "unit": "sample",
+   "stats": {
+    "min": 0.059029613,
+    "max": 0.06502751500000001,
+    "mean": 0.062182864000000004,
+    "median": 0.06270041400000001,
+    "iterations": 337590,
+    "rounds": 10,
+    "min_per_unit": 1.7485592878935987e-07,
+    "mean_per_unit": 1.8419640392191714e-07,
+    "max_per_unit": 1.9262275245119822e-07
+   }
+  }
+ ],
+ "note": "dbfc4736b is #2731's head before its round-3 review fixes, which touch no timed path (create-time checks, docs, a named padding field in former padding); rebase-merge rewrites the commit either way (doppler#2735)."
+}

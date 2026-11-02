@@ -18,6 +18,15 @@ with ``--emit``: ``near_far.csv`` and ``near-far-meta.json``, taken by
 ``nearfar``. It stands on its own commit (it was measured after the lock
 sweep), and the design page's near-far table (§7.2) is its block.
 
+A fifth is the pinned pool bench alone, ``make bench BENCH_ARGS="--c-only
+async_dsss_pool"``: ``pool-bench.json``, taken by ``poolbench`` at its own
+clean commit, the "now" of §9.5 and of the table in
+``docs/design/async-dsss-receiver.md`` §9. Its "before",
+``pool-bench-before.json``, is the one run here that cannot be re-taken:
+it was kept from a jm bench snapshot taken on main's d431a56cd with this
+branch's bench uncommitted on top,
+with a dirty tree, and §9.3 says so beside its table (doppler#2735).
+
 A third run draws the record's figures: the same validator's lifecycle
 stories, ``--telemetry DIR --emit``, three receivers each through an
 arrival trial of the sweep, three fades and a departure. ``stories`` runs
@@ -32,7 +41,8 @@ both pages hold them between ``<!-- async-dsss-pool:<block>:start -->``
 and ``:end`` markers, so a cell cannot be edited by hand, or left behind by
 a re-run, without ``--check`` failing. The blocks and the
 ``--write``/``--check`` machinery are ``../_record_blocks.py``'s. Data from
-a dirty tree, or two runs at different commits, is refused.
+a dirty tree, or two runs at different commits, is refused, but for the one
+pool-bench "before" above.
 
 Usage::
 
@@ -40,6 +50,7 @@ Usage::
     python record.py bench              # the benches, quiet -> bench.json
     python record.py stories            # the lifecycle stories -> *.png
     python record.py nearfar            # the near-far sweep -> near_far.*
+    python record.py poolbench          # the pool bench -> pool-bench.json
     python record.py                    # print the blocks
     python record.py --write            # rewrite them in both pages
     python record.py --check            # fail when they differ (the gate)
@@ -74,6 +85,22 @@ VALIDATOR = ROOT / "build/native/validation/validate_async_dsss_receiver_lock"
 NF_SOURCE = ROOT / "native/validation/async_dsss_near_far.c"
 NF_VALIDATOR = ROOT / "build/native/validation/validate_async_dsss_near_far"
 BENCH_ARGS = "--c-only acq async_dsss_receiver async_dsss_pool"
+#: The pinned pool bench alone (native/benchmarks/async_dsss_pool/
+#: bench_async_dsss_pool_core.c): its rows, timed at 11 MSa/s in with the
+#: front end inside the push, by search span, receivers and threads.
+POOL_BENCH_ARGS = "--c-only async_dsss_pool"
+POOL_BENCH = (
+    (
+        "one tile (±2,444 Hz), 1, 1",
+        "async_dsss_pool::push[native,n=1,threads=1]",
+    ),
+    ("one tile, 4, 1", "async_dsss_pool::push[native,n=4,threads=1]"),
+    ("one tile, 4, 4", "async_dsss_pool::push[native,n=4,threads=4]"),
+    ("±50 kHz, 1, 1", "async_dsss_pool::push[full,n=1,threads=1]"),
+    ("±50 kHz, 4, 1", "async_dsss_pool::push[full,n=4,threads=1]"),
+)
+POOL_FS_IN = 11e6
+POOL_PER_UNIT = ("min_per_unit", "mean_per_unit", "max_per_unit")
 STORIES_DIR = ROOT / "build/lifecycle-stories"
 #: Each story figure's panels, top down: the receiver's own symbol-lock
 #: metric and decision; the carrier loop's command and flag; the code
@@ -224,6 +251,7 @@ def design_near_far(rows: list[dict[str, str]], meta: dict[str, Any]) -> str:
         f"row: {side}. Run `{NF_VALIDATOR.name} --emit` at "
         f"`{meta['commit']}`, {meta['date_utc']} UTC on "
         f"`{meta['machine']}`, {meta['wall_s']} s."
+        + (f" {meta['note']}" if meta.get("note") else "")
     )
     return table(head, out) + "\n\n" + note
 
@@ -279,6 +307,74 @@ def bench() -> int:
     The bench's own load is recorded either side of it, so a row timed
     while the machine was busy says so in the record's stamp.
     """
+    got = _bench_snapshot(BENCH_ARGS)
+    if isinstance(got, int):
+        return got
+    return take_bench(*got)
+
+
+def pool_bench() -> int:
+    """The pinned pool bench alone, at a clean commit, into
+    pool-bench.json: the rows §9.5 and docs/design/async-dsss-receiver.md
+    §9 render as "now"."""
+    if blocks.git(ROOT, "status", "--porcelain", "--untracked-files=no"):
+        raise SystemExit("pool bench: tracked changes; commit first")
+    got = _bench_snapshot(POOL_BENCH_ARGS)
+    if isinstance(got, int):
+        return got
+    return keep_pool_bench(*got, tracked_clean=True)
+
+
+def keep_pool_bench(
+    snapshot: Path,
+    before: list[float],
+    after: list[float],
+    *,
+    tracked_clean: bool,
+) -> int:
+    """Keep a pool-bench snapshot's rows in pool-bench.json. `dirty` is
+    jm's (`git status --porcelain`, which counts untracked files, so an
+    editor's own directories mark every run dirty); `tracked_clean` is the
+    record's own test, no tracked file changed (run_stamp()), checked by
+    pool_bench() before the run starts."""
+    snap = json.loads(snapshot.read_text(encoding="utf-8"))
+    if not tracked_clean:
+        raise SystemExit("pool bench: tracked changes; commit first")
+    keep = ("min", "max", "mean", "median", "iterations", "rounds")
+    rows = [
+        {
+            "name": r["name"],
+            "unit": r["extra_info"]["unit"],
+            "stats": {
+                **{k: r["stats"][k] for k in keep},
+                **{k: r["stats"][k] for k in POOL_PER_UNIT},
+            },
+        }
+        for r in snap["benchmarks"]
+        if r["name"].startswith("async_dsss_pool::push[")
+    ]
+    out = {
+        "stamp_schema": blocks.STAMP_SCHEMA,
+        "datetime": snap["datetime"],
+        "machine_info": snap["machine_info"],
+        "commit_info": snap["commit_info"],
+        "tracked_clean": tracked_clean,
+        "load_before": before,
+        "load_after": after,
+        "toolchain": blocks.toolchain(ROOT / "build"),
+        "benchmarks": rows,
+    }
+    (DATA / "pool-bench.json").write_text(
+        json.dumps(out, indent=1) + "\n", encoding="utf-8"
+    )
+    print(f"pool bench: {len(rows)} rows kept from {snapshot.name}")
+    return 0
+
+
+def _bench_snapshot(args: str) -> tuple[Path, list[float], list[float]] | int:
+    """Wait for a quiet machine, run `make bench BENCH_ARGS=args`, and
+    return its one new C snapshot with the load either side (or make's
+    exit code)."""
     t0 = time.monotonic()
     while os.getloadavg()[0] > QUIET_LOAD:
         if time.monotonic() - t0 > QUIET_WAIT_S:
@@ -288,7 +384,7 @@ def bench() -> int:
         time.sleep(15)
     before, start = blocks.load_avg(), time.time()
     rc = subprocess.run(
-        ["make", "bench", f"BENCH_ARGS={BENCH_ARGS}"], cwd=ROOT
+        ["make", "bench", f"BENCH_ARGS={args}"], cwd=ROOT
     ).returncode
     if rc != 0:
         return rc
@@ -300,7 +396,7 @@ def bench() -> int:
     ]
     if len(snaps) != 1:
         raise SystemExit(f"bench: {len(snaps)} new C snapshots, not one")
-    return take_bench(snaps[0], before, after)
+    return snaps[0], before, after
 
 
 def take_bench(snapshot: Path, before: list[float], after: list[float]) -> int:
@@ -840,6 +936,103 @@ def stories_block(lock: Any, meta: Any, bench_: Any) -> str:
     return "\n\n".join([table(head, rows), *figs])
 
 
+def load_pool_bench() -> tuple[dict[str, Any], dict[str, Any]]:
+    """The pool bench before the one search (kept from its snapshot: a
+    commit on main with this branch's bench uncommitted, which cannot be
+    re-taken exactly) and
+    now (pool_bench(): clean, with its toolchain)."""
+    before = json.loads(
+        (DATA / "pool-bench-before.json").read_text(encoding="utf-8")
+    )
+    now = json.loads((DATA / "pool-bench.json").read_text(encoding="utf-8"))
+    blocks.require_toolchain("pool-bench.json", now)
+    if not now.get("tracked_clean"):
+        raise SystemExit("record data from a dirty tree is refused")
+    return before, now
+
+
+def _pool_ns(data: dict[str, Any]) -> dict[str, float]:
+    """ns an input sample, the minimum over rounds, by bench row."""
+    by = {b["name"]: b for b in data["benchmarks"]}
+    out = {}
+    for _, name in POOL_BENCH:
+        if name not in by:
+            raise SystemExit(f"{name}: not in the pool bench data")
+        out[name] = by[name]["stats"]["min_per_unit"] * 1e9
+    return out
+
+
+def _pool_table(data: dict[str, Any]) -> str:
+    ns = _pool_ns(data)
+    rows = [
+        [
+            label,
+            f"`{name.split('::')[1]}`",
+            f"{ns[name]:.2f}",
+            f"{ns[name] * 1e-9 * POOL_FS_IN:.2f}",
+        ]
+        for label, name in POOL_BENCH
+    ]
+    return table(
+        [
+            "search span, receivers, threads",
+            "bench row",
+            "ns a sample, min",
+            "load (1 = real time)",
+        ],
+        rows,
+    )
+
+
+def pool_bench_before(before: dict[str, Any], now: dict[str, Any]) -> str:
+    mi = before["machine_info"]
+    return (
+        _pool_table(before)
+        + f"\n\nRun at `{before['commit_info']['id'][:9]}`, a commit on "
+        "main, with this branch's bench uncommitted on top (a "
+        f"dirty tree), {before['datetime'][:16].replace('T', ' ')} UTC on "
+        f"`{mi['node']}` ({mi['cpu'].get('count')} threads): it cannot be "
+        "re-taken exactly (doppler#2735). Kept from its jm bench snapshot as "
+        "`pool-bench-before.json`; the toolchain was not recorded."
+    )
+
+
+def pool_bench_now(before: dict[str, Any], now: dict[str, Any]) -> str:
+    mi = now["machine_info"]
+    return (
+        _pool_table(now)
+        + f'\n\nRun `make bench BENCH_ARGS="{POOL_BENCH_ARGS}"` once the load '
+        f"fell under {QUIET_LOAD:g}, rows kept by `record.py`, at "
+        f"`{now['commit_info']['id'][:9]}`, no tracked change, "
+        f"{now['datetime'][:16].replace('T', ' ')} UTC on `{mi['node']}` "
+        f"({mi['cpu'].get('count')} threads), load "
+        f"{now['load_before'][0]:.1f} / {now['load_after'][0]:.1f}; "
+        f"{blocks.tc_cell(now)}. {now['note']}"
+    )
+
+
+def design_pool_bench(before: dict[str, Any], now: dict[str, Any]) -> str:
+    b, n = _pool_ns(before), _pool_ns(now)
+    rows = [
+        [
+            label,
+            f"{b[name]:.1f}",
+            f"{n[name]:.1f}",
+            f"{n[name] * 1e-9 * POOL_FS_IN:.2f}",
+        ]
+        for label, name in POOL_BENCH
+    ]
+    return table(
+        [
+            "search span, receivers, threads",
+            "ns a sample, before",
+            "ns a sample, now",
+            "load now",
+        ],
+        rows,
+    )
+
+
 BLOCKS = {
     "stamp": stamp,
     "stories": stories_block,
@@ -863,11 +1056,17 @@ DESIGN_BLOCKS = {
 def render() -> dict[Path, dict[str, str]]:
     data = load()
     nf = load_near_far()
+    pb = load_pool_bench()
     return {
-        RECORD: {name: f(*data) for name, f in BLOCKS.items()},
+        RECORD: {
+            **{name: f(*data) for name, f in BLOCKS.items()},
+            "pool-bench-before": pool_bench_before(*pb),
+            "pool-bench": pool_bench_now(*pb),
+        },
         DESIGN: {
             **{name: f(*data) for name, f in DESIGN_BLOCKS.items()},
             "design-near-far": design_near_far(*nf),
+            "design-pool-bench": design_pool_bench(*pb),
         },
     }
 
@@ -877,6 +1076,8 @@ if __name__ == "__main__":
         sys.exit(measure())
     if len(sys.argv) > 1 and sys.argv[1] == "bench":
         sys.exit(bench())
+    if len(sys.argv) > 1 and sys.argv[1] == "poolbench":
+        sys.exit(pool_bench())
     if len(sys.argv) > 1 and sys.argv[1] == "stories":
         sys.exit(stories())
     if len(sys.argv) > 1 and sys.argv[1] == "nearfar":

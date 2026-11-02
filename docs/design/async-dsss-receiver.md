@@ -87,7 +87,7 @@ bin of the $N$-point transform, $1/T_E$ wide, whatever $N$ is.
 **Why a power of two.** Every search transform is one code period long. At
 two samples a chip that is $2 \times 1023 = 2 \cdot 3 \cdot 11 \cdot 31$,
 and pocketfft has no radix-31 or fast radix-11 pass: profiling one dwell of
-the one-tile search put about 90% of it in FFT passes and 62% in the
+the one-tile search put about 83% of it in FFT passes and 62% in the
 generic radix-31 and the radix-11 passes, and a 2,046-point transform takes
 9.89 µs against 1.99 µs at 2,048 (record §9.4). `spc` is removed from
 `Acquisition`, `AsyncDsssReceiver` and `AsyncDsssPool`, a breaking change
@@ -728,7 +728,8 @@ holds the signals of §1.1 on one code.
     segment in parallel, one per worker. The search runs before them,
     serially: fanning its tiles across the cores cost 1.5× at ±50 kHz and
     D = 150, 8× one epoch deep, and 1.6× on the pool's scene example
-    (8.1 s serial against 13.0 s; doppler#2744). The
+    (8.1 s serial against 13.0 s; async-dsss-receiver-measurements.md §9.6,
+    doppler#2744). The
     result does not depend on the thread count or on how a caller blocks
     its pushes.
 - **Each receiver makes its code phase and carrier estimate available**,
@@ -941,7 +942,7 @@ $D = 90$); from +4 dB there are none, and the validator gates that.
 | +18 dB                     | 13 of 32 (0.26–0.58)  | 0 of 17 (0.00–0.18)    |
 | +20 dB                     | 7 of 34 (0.10–0.37)   | 0 of 17 (0.00–0.18)    |
 
-Sidelobes taken, with or without the weaker emitter, over every row: 0. Run `validate_async_dsss_near_far --emit` at `b15233152`, 2026-11-01 20:05 UTC on `zen-x2elite-x`, 1343.6 s.
+Sidelobes taken, with or without the weaker emitter, over every row: 0. Run `validate_async_dsss_near_far --emit` at `b15233152`, 2026-11-01 20:05 UTC on `zen-x2elite-x`, 1343.6 s. b15233152 is a pre-squash commit of #2731, not an ancestor of the merged head; its rule-2 code (adr_pick, adr_sidelobe_bound, dp_acq_sidelobe_ratio, acq_sidelobe_row, acq_peak_on_lag) is byte-identical to the squashed commit's, so the data stands (doppler#2735).
 
 <!-- async-dsss-pool:design-near-far:end -->
 
@@ -1012,33 +1013,38 @@ rate. The clock rule the receiver obeys is §11.3.
 
 **The pinned bench** (`native/benchmarks/async_dsss_pool/bench_async_dsss_pool_core.c`, the
 `async_dsss_pool::push[...]` rows): the §1 specification at 11 MSa/s
-through the front end, D = 150, noise alone so every receiver searches, one
-push a dwell. The load is CPU time per second of signal, 1 being exactly
-real time; measured on `zen-x2elite-x` at the bench's own commit, before
-this design is built (record §9.3):
+through the front end, D = 150, noise alone so every receiver is idle and
+the controller searches, one push a dwell. ns an input sample, before the
+one search (record §9.3) and now (record §9.5); the load is CPU time per
+second of signal, 1 being exactly real time:
 
-| search span, receivers, threads | ns a sample | load |
-| ------------------------------- | ----------- | ---- |
-| one tile (±2,444 Hz), 1, 1      | 37.1        | 0.41 |
-| one tile, 4, 1                  | 126.8       | 1.39 |
-| one tile, 4, 4                  | 101.8       | 1.12 |
-| ±50 kHz, 1, 1                   | 317.2       | 3.49 |
-| ±50 kHz, 4, 1                   | 1264.0      | 13.9 |
+<!-- async-dsss-pool:design-pool-bench:start -->
 
-Two findings, and the design answers each:
+| search span, receivers, threads | ns a sample, before | ns a sample, now | load now |
+| ------------------------------- | ------------------- | ---------------- | -------- |
+| one tile (±2,444 Hz), 1, 1      | 37.1                | 27.3             | 0.30     |
+| one tile, 4, 1                  | 126.8               | 27.4             | 0.30     |
+| one tile, 4, 4                  | 101.8               | 27.4             | 0.30     |
+| ±50 kHz, 1, 1                   | 317.2               | 174.9            | 1.92     |
+| ±50 kHz, 4, 1                   | 1264.0              | 174.9            | 1.92     |
 
-1. **Four searching receivers cost 3.4 to 4.0 searches**, and four threads
-    buy little back, because every receiver builds the same surface and
-    the workers were joined once a code period. The earlier cost argument,
-    that every state fits one CPU so every receiver can search the whole
-    range itself, priced one receiver and never multiplied by N. §5's one
-    search costs one, and the controller steps once a dwell.
-1. **One search is FFT-bound on its transform length.** The one-tile
-    search is about 90% FFT passes, 62% of it in the radix-31 and radix-11
-    passes of the 2,046-point period (record §9.4). §1.2's power-of-two
-    period answers it: the transform is 5x faster at 2,048 points.
+<!-- async-dsss-pool:design-pool-bench:end -->
 
-The same rows measure the design once it is built.
+Before, four receivers cost 3.4 to 4.0 searches, and four threads bought
+little back: every receiver built the same surface, and the workers were
+joined once a code period. The earlier cost argument, that every state fits
+one CPU so every receiver can search the whole range itself, priced one
+receiver and never multiplied by N. Two changes answer it:
+
+1. **The controller owns one search** (§5): a pool of N idle receivers
+    costs one search, so the rows no longer scale with N.
+1. **The search is cheaper.** It was FFT-bound on its transform length:
+    the one-tile search was about 83% FFT passes, 62% of it in the
+    radix-31 and radix-11 passes of the 2,046-point period (record §9.4).
+    The lag axis is now read on a padded power-of-two grid (§1.2), and the
+    decision pass's peak scan skips blocks that cannot move the pick;
+    sharing the slow-time transform across tiles is the next step, parked
+    (doppler#2732).
 
 **What the pool as built taught.** Its push was one receiver's plus a
 central searcher's that never stopped, because a new emitter may appear at

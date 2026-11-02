@@ -1259,9 +1259,9 @@ static PyGetSetDef Acquisition_getset[] = {
     "hit's `doppler_bin` indexes.\n",
     NULL },
   { "coherent_bins", (getter)Acquisition_getprop_coherent_bins, NULL,
-    "The block-coherent depth D inside every window tile (design §2.3): "
-    "epochs per block and Doppler rows per tile. 1 without a code-only "
-    "window.\n",
+    "The block-coherent depth D inside every window tile "
+    "(docs/design/acq-surface.md §4): epochs per block and Doppler rows per "
+    "tile. 1 without a code-only window.\n",
     NULL },
   { "sf", (getter)Acquisition_getprop_sf, NULL,
     "Chips per PN segment, inferred from len(code).\n", NULL },
@@ -1328,8 +1328,9 @@ static PyGetSetDef Acquisition_getset[] = {
     NULL },
   { "threads", (getter)Acquisition_getprop_threads, NULL,
     "Workers the searcher fans its tiles across, the calling thread included "
-    "(design §2.3); 1 = serial. Set with set_threads(); a continuous engine "
-    "with more than one tile starts at the machine's online core count.\n",
+    "(docs/design/acq-surface.md §13); 1 = serial. Set with set_threads(); a "
+    "continuous engine with more than one tile starts at the machine's online "
+    "core count.\n",
     NULL },
   { "keep_surface", (getter)Acquisition_getprop_keep_surface,
     (setter)Acquisition_setprop_keep_surface,
@@ -1350,7 +1351,7 @@ static PyGetSetDef Acquisition_getset[] = {
     "Picks in the last decided dwell, held twins included.\n", NULL },
   { "n_held", (getter)Acquisition_getprop_n_held, NULL,
     "Picks of the last decided dwell held as same-code-phase twins rather "
-    "than listed (design §7.1).\n",
+    "than listed (docs/design/async-dsss-receiver.md §7.1).\n",
     NULL },
   { "peak_conc", (getter)Acquisition_getprop_peak_conc, NULL,
     "Concentration of the last dwell's strongest peak: the power of its main "
@@ -1358,7 +1359,8 @@ static PyGetSetDef Acquisition_getset[] = {
     "total power of its code-phase column across every Doppler row and tile. "
     "Near 1 for a clean single emitter, even one straddling two tiles; about "
     "0.5 when a data transition splits it into twins two or more tiles away; "
-    "lower when a coherent block straddles data (design §2.4).\n",
+    "lower when a coherent block straddles data "
+    "(docs/design/async-dsss-receiver.md §2.4).\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -1483,7 +1485,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
     "cn0_dbhz=50.0,\n"
     "...                 doppler_uncertainty=40e3)\n"
-    ">>> fs = 1e6 * 4                    # sample rate = chip_rate * spc\n"
+    ">>> fs = 4e6                        # the sample_rate passed above\n"
     ">>> t = np.arange(a.code_bins * a.n_noncoh)\n"
     ">>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)\n"
     ">>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)\n"
@@ -1615,7 +1617,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "window tile's epochs are shifted along the code axis by the drift the "
     "tile's own frequency implies before the slow-time transform (inside a "
     "coherent block of D epochs), and the hand-off advances the hit's code "
-    "phase by the drift over half the dwell (design section 12.11, 12.12). "
+    "phase by the drift over half the dwell "
+    "(docs/design/async-dsss-receiver-measurements.md §12.11, §12.12). "
     "Config, not running state: not in the state blob, so a resumed engine "
     "wants it set again. 0.0 (the default) = uncoupled, the engine as it ran "
     "without it. Raises ValueError for a carrier that is neither 0 nor finite "
@@ -1675,8 +1678,9 @@ static PyMethodDef AcquisitionObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "set_threads(n) -> None\n"
     "\n"
-    "Set how many threads the searcher fans its tiles across (design\n"
-    "§2.3: a roll per thread on persistent workers).\n"
+    "Set how many threads the searcher fans its tiles across\n"
+    "(docs/design/acq-surface.md §13: a roll per thread on persistent\n"
+    "workers).\n"
     "\n"
     "A continuous engine is created with a pool of the machine's online\n"
     "cores when it has more than one tile; a burst engine, and a single-tile\n"
@@ -1722,7 +1726,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "set_telemetry(tlm, prefix, decim) -> None\n"
     "\n"
     "Attach (or detach) a telemetry context and register the engine's\n"
-    "probes on it (design §2.4).\n"
+    "probes on it (docs/design/async-dsss-receiver.md §2.4).\n"
     "\n"
     "Registers ten probes, emitted once per DECIDED dwell (a coherent dump,\n"
     "or the dwell that completes `n_noncoh` looks) and further thinned by\n"
@@ -1961,16 +1965,16 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "correlations at a code phase, the despread stream at epoch rate.\n"
     "\n"
     "The block-coherent engine gathers every tile's correlation row for\n"
-    "`coherent_bins` epochs before its slow-time transform (file doc, design\n"
-    "§2.3). This copies the `coherent_bins` values at column col of tile\n"
-    "tile into out, in epoch order: each epoch's complex prompt at that code\n"
-    "phase, rolled to the tile's centre frequency and shifted to the block's\n"
-    "middle by the tile's code-rate hypothesis, so the phase is continuous\n"
-    "along the column for an emitter at the tile's centre and rotates at its\n"
-    "offset from it. At an emitter's cell this is what a despreader\n"
-    "produces, one value per epoch, phase included\n"
-    "(docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a\n"
-    "block is whole, until the next epoch is pushed.\n"
+    "`coherent_bins` epochs before its slow-time transform (file doc,\n"
+    "docs/design/acq-surface.md §4). This copies the `coherent_bins` values\n"
+    "at column col of tile tile into out, in epoch order: each epoch's\n"
+    "complex prompt at that code phase, rolled to the tile's centre\n"
+    "frequency and shifted to the block's middle by the tile's code-rate\n"
+    "hypothesis, so the phase is continuous along the column for an emitter\n"
+    "at the tile's centre and rotates at its offset from it. At an emitter's\n"
+    "cell this is what a despreader produces, one value per epoch, phase\n"
+    "included (docs/design/async-dsss-receiver-measurements.md §12.21).\n"
+    "Valid once a block is whole, until the next epoch is pushed.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -2207,11 +2211,11 @@ static PyTypeObject AcquisitionObjType = {
     "code_only_epochs : int, default 1\n"
     "    Whole code-only epochs a waveform's code-only window holds at any "
     "chip\n"
-    "    phase (floor(W_symbols * chips_per_symbol / sf) - 1; design §2.1) "
-    "--\n"
-    "    the engine allows a coherent depth to accommodate such waveforms. 1 "
-    "=\n"
-    "    no window: a coherent depth of 1.\n"
+    "    phase (floor(W_symbols * chips_per_symbol / sf) - 1;\n"
+    "    docs/design/async-dsss-receiver.md §2.1) -- the engine allows a\n"
+    "    coherent depth to accommodate such waveforms. 1 = no window: a "
+    "coherent\n"
+    "    depth of 1.\n"
     "doppler_rate : float, default 0.0\n"
     "    Doppler rate in Hz/s the coherent depth is bounded against (the "
     "drift\n"

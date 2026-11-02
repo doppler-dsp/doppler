@@ -36,7 +36,7 @@ ______________________________________________________________________
 In numbers: one code epoch $T_E$ is 1,023 chips at 5 Mcps, 204.6 µs, so
 $1/T_E$ is 4,887.6 Hz, one search tile's width, and ±50 kHz is 21 tiles.
 A symbol spans 1.63 epochs. Es/N0 ≥ 5 dB at 3,000 sym/s is C/N0 ≥ 39.8
-dB-Hz. The default data-free block is 167 ms, 815 epochs.
+dB-Hz. The default data-free block is 167 ms, 814 whole epochs.
 
 Many of the numbers below were measured at the earlier specification point,
 3.069 Mcps and 2,700 sym/s at two samples a chip (an epoch of 333.3 µs and
@@ -89,8 +89,10 @@ two samples a chip that is $2 \times 1023 = 2 \cdot 3 \cdot 11 \cdot 31$,
 and pocketfft has no radix-31 or fast radix-11 pass: profiling one dwell of
 the one-tile search put about 90% of it in FFT passes and 62% in the
 generic radix-31 and the radix-11 passes, and a 2,046-point transform takes
-9.89 µs against 1.99 µs at 2,048 (record §9.4). `spc` is removed from every
-object that took it, a breaking change made before 1.0.
+9.89 µs against 1.99 µs at 2,048 (record §9.4). `spc` is removed from
+`Acquisition`, `AsyncDsssReceiver` and `AsyncDsssPool`, a breaking change
+made before 1.0. The burst objects (`DsssBurstReceiver`, `BurstDemod`)
+keep it.
 
 ______________________________________________________________________
 
@@ -103,11 +105,12 @@ constructors over one `dp_acq_state_t`
 (`native/inc/doppler/acq/acq_core.h`), each exposing only the parameters
 that mean something for it rather than one class with a `mode` and
 per-parameter "ignored here" caveats. State, auto-sizing, `push()` and
-serialization are shared. `Acquisition` takes the code, `spc`, `chip_rate`,
-`symbol_rate`, a design `cn0_dbhz`, a one-sided `doppler_uncertainty`,
-`pfa`, `pd`, a CFAR `noise_mode`, and the two inputs that size its coherent
-depth, `code_only_epochs` and `doppler_rate`. Everything else it derives;
-there is no `doppler_resolution` and no `max_noncoh`.
+serialization are shared. `Acquisition` takes the code, `sample_rate`,
+`chip_rate`, `symbol_rate`, a design `cn0_dbhz`, a one-sided
+`doppler_uncertainty`, `pfa`, `pd`, a CFAR `noise_mode`, and the two inputs
+that size its coherent depth, `code_only_epochs` and `doppler_rate`.
+Everything else it derives; there is no `doppler_resolution` and no
+`max_noncoh`.
 
 **`doppler_bins` is the whole Doppler grid** a hit's `doppler_bin` indexes:
 the coherent depth `coherent_bins` times the frequency windows the engine

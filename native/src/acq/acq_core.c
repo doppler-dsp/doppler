@@ -38,8 +38,9 @@
  * the exact inverse of acq_create()'s sizing transform
  * (snr = sqrt(10^(cn0_dbhz/10) / fs)) -- so the reported figure is directly
  * comparable to the caller's own cn0_dbhz argument regardless of chip_rate
- * or spc, unlike a raw per-sample or coherently-integrated ratio (both scale
- * with the frame geometry and so aren't portable across configurations).
+ * or sample rate, unlike a raw per-sample or coherently-integrated ratio
+ * (both scale with the frame geometry and so aren't portable across
+ * configurations).
  * amp_snr is always > 0 here: every call site sits behind a
  * test_stat > threshold gate, and threshold/eta_nc are always positive. */
 static inline float
@@ -161,16 +162,19 @@ acq_band_cells (size_t D, size_t sb, size_t window_bins, size_t cb)
  * the code's own autocorrelation-sidelobe floor, so a burst sitting at half
  * a bin was undetectable at ANY C/N0 (gh-1002).
  *
- * WHAT IS PADDED IS THE SLOW-TIME TRANSFORM, NOT THE CODE. The code axis
- * (`code_bins`, one code period in samples) is untouched: corr2d's
- * correlation along it is
- * CIRCULAR, so zero-padding the replica or the epoch in time would not be an
+ * THIS FACTOR PADS THE SLOW-TIME TRANSFORM. The padded sequence is the
+ * per-column series of epochs, whose transform is an ordinary spectral
+ * estimate, and lengthening that transform samples the same DTFT more
+ * finely. The code axis is never padded in TIME: the correlation along it
+ * is CIRCULAR, so zero-padding the replica or the epoch would not be an
  * interpolation at all -- it would change the correlation being computed
  * (corr2d's own header states this: the forward FFT2 must stay at the
- * code-period size). The padded sequence is the per-column series of epochs,
- * whose transform is an ordinary spectral estimate, and lengthening that
- * transform samples the same DTFT more finely. Verified alongside: the
- * reported code_phase is exact at every lag across a whole period.
+ * code-period size). The forward transform stays at `code_bins`; what a
+ * padded lag axis pads is the CROSS-SPECTRUM, zero-padded from `code_bins`
+ * to `lag_bins` bins before the inverse (dp_fft_pad_spectrum), which
+ * interpolates the same circular correlation (lag_bins' doc in
+ * acq_core.h). Verified alongside: the reported code_phase is exact at
+ * every lag across a whole period.
  *
  * It is done HERE and NOT via corr2d's `ny_out`. corr2d sees a single-row
  * reference (a code replica with no Doppler content) and takes its fast
@@ -224,7 +228,8 @@ acq_native_row (const dp_acq_state_t *st, const float *surf, size_t row,
  * Every pass that reads or writes a whole surface after the fan -- the
  * magnitude of the coherent dump, the CFAR reference, the working mask's
  * copy of the band mask, each scan of the peak list, the non-coherent
- * accumulate -- runs per CHUNK on the pool (design §2.3, #1243): the
+ * accumulate -- runs per CHUNK on the pool (docs/design/acq-surface.md
+ * §13, #1243): the
  * surface is `window_bins` chunks of whole rows, cells [r*len, (r+1)*len),
  * one per tile, and a body writes only its chunk's cells and its own
  * acq_part_t slot. The merges are serial in chunk order, so the result is
@@ -387,7 +392,8 @@ acq_list_peaks (dp_acq_state_t *st, const float *surf, float gate)
  * every tile and every slow-time row. One emitter's splatter (a data
  * transition's twins two or more tiles away, a coherent block straddling
  * data spread over its rows) then reads as a low concentration at ONE code
- * phase, where a second emitter is a second column (design §2.4). `power`
+ * phase, where a second emitter is a second column
+ * (docs/design/async-dsss-receiver.md §2.4). `power`
  * says whether `surf` already holds power (the non-coherent accumulator) or
  * amplitude. */
 static float
@@ -1491,7 +1497,8 @@ acq_auto_config_continuous (const dp_acq_state_t *st, size_t D, double pfa,
  * coherent_bins (see the comment below), so it alone fully captures the
  * code -- unaffected by new_freq_bins growing new_n, since the fill loop
  * below only ever touches indices [0, cb). */
-/* The per-tile scratch of the fan (design §2.3): an inverse plan and a
+/* The per-tile scratch of the fan (docs/design/acq-surface.md §13): an
+ * inverse plan and a
  * product buffer per tile, plus a slow-time plan and column scratch per
  * tile at D > 1. Per TILE, not per thread: a pocketfft plan carries its own
  * work buffers and a tile lands on whichever worker takes it, and the same
@@ -2214,7 +2221,8 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
   acq_commit_thresholds (st, pfa, pd, snr, doppler_uncertainty);
   if (dp_acq_set_max_peaks (st, 1) != 0)
     goto fail;
-  /* The roll per thread (§2.3): a tiled continuous engine fans its tiles
+  /* The roll per thread (docs/design/acq-surface.md §13): a tiled
+     continuous engine fans its tiles
      across the machine's online cores by default; a burst engine and a
      single-tile one run serially. dp_acq_set_threads() changes it. */
   st->threads = 1;
@@ -3234,7 +3242,7 @@ dp_acq_build_handoff (const dp_acq_state_t *state, const acq_result_t *hit,
   };
 }
 
-/* ── Observability (design §2.4) ──────────────────────────────────────── */
+/* ── Observability (docs/design/async-dsss-receiver.md §2.4) ─────────── */
 int
 dp_acq_set_telemetry (dp_acq_state_t *state, dp_tlm_t *tlm, const char *prefix,
                       uint32_t decim)

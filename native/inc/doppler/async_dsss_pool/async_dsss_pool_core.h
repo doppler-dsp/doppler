@@ -268,9 +268,9 @@ extern "C"
    *                     thread included: 1 = serial, 0 = the online cores
    *                     (default). The receivers' step uses at most
    *                     @p n_receivers of them; the controller's search
-   *                     runs before them, serially (fanning its tiles
-   *                     out was measured not to pay,
-   *                     async-dsss-receiver.md §5).
+   *                     runs before them on the same request, at most one
+   *                     worker a Doppler tile (async-dsss-receiver.md
+   *                     §5).
    * @return A new pool, every receiver idle; NULL on an invalid
    *         argument, or one any receiver refuses.
    * @note Caller must call dp_async_dsss_pool_destroy() when done.

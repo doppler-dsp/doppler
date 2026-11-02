@@ -147,6 +147,24 @@ dp_wfm_synth_create (int type, double fs, double freq, double snr,
   return obj;
 }
 
+/* Whether this engine can run type `t`, with the polyphase shaper attached
+   or not: the one rule set_wtype and set_state both ask, so a type the
+   setter refuses cannot arrive in a blob either (#2095). A pn/bpsk/qpsk step
+   reads the PN source, and so does the shaper for every type but symbols,
+   bits and dsss (wfm_synth_next_symbol). create() builds that source only
+   for those three types, and for dsss when its length has an MLS
+   polynomial. */
+static int
+wfm_synth_runnable (const dp_wfm_synth_state_t *s, int t, int shaped)
+{
+  if (t < WFM_SYNTH_TONE || t > WFM_SYNTH_DSSS)
+    return 0;
+  const int reads_pn = (t >= WFM_SYNTH_PN && t <= WFM_SYNTH_QPSK)
+                       || (shaped && t != WFM_SYNTH_SYMBOLS
+                           && t != WFM_SYNTH_BITS && t != WFM_SYNTH_DSSS);
+  return !reads_pn || s->pn != NULL;
+}
+
 int
 dp_wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
                       size_t ntaps)
@@ -525,7 +543,8 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
      at the checkpoint, rather than a blob that resumes the wrong data. */
   if (dp_wfm_synth_state_refusal (s))
     return 0;
-  size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* sym_pos      */
+  size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* wtype        */
+             + sizeof (uint32_t)                         /* sym_pos      */
              + 2 * sizeof (float)                        /* cur_re/im    */
              + sizeof (uint64_t)                         /* bit_idx      */
              + sizeof (uint64_t)                         /* sym_read_idx */
@@ -560,6 +579,7 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
     return; /* refused: state_bytes said 0 */
   DP_GET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
                dp_wfm_synth_state_bytes (s));
+  dp_w_u32 (&_w, (uint32_t)s->wtype);
   dp_w_u32 (&_w, (uint32_t)s->sym_pos);
   dp_w_f32 (&_w, &s->cur_re, 1);
   dp_w_f32 (&_w, &s->cur_im, 1);
@@ -613,6 +633,10 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
      bytes read only blob bytes and config. Children restore after this
      commit, so a child that refuses leaves these fields restored; that is
      #2104. */
+  /* The type is a mutator's value (set_wtype), so it travels (#2095). It is
+     checked with set_wtype's own predicate against the shaper this target
+     holds (the child set is checked below, and must match). */
+  const int wtype   = (int)dp_r_u32 (&_r);
   const int sym_pos = (int)dp_r_u32 (&_r);
   float     cur_re, cur_im;
   dp_r_f32 (&_r, &cur_re, 1);
@@ -637,7 +661,8 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
   const uint64_t frame     = dp_r_u64 (&_r);
   uint8_t pres[6] = { 0 }; /* dp_r_bytes writes nothing on an errored reader */
   dp_r_bytes (&_r, pres, 6);
-  if (sym_read_idx >= (s->n_symbols ? s->n_symbols : 1)
+  if (!wfm_synth_runnable (s, wtype, s->shaper != NULL)
+      || sym_read_idx >= (s->n_symbols ? s->n_symbols : 1)
       || !dp_wfm_synth_sym_pos_ok (sym_pos, s->nsps)
       || (frame && code_only > frame))
     return DP_ERR_INVALID;
@@ -650,6 +675,7 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
       || (pres[4] != 0) != (s->pn != NULL)
       || (pres[5] != 0) != (s->refill != NULL))
     return DP_ERR_INVALID;
+  s->wtype             = wtype;
   s->sym_pos           = sym_pos;
   s->cur_re            = cur_re;
   s->cur_im            = cur_im;
@@ -1129,10 +1155,18 @@ dp_wfm_synth_get_wtype (const dp_wfm_synth_state_t *state)
   return state->wtype;
 }
 
-void
+int
 dp_wfm_synth_set_wtype (dp_wfm_synth_state_t *state, int val)
 {
+  /* A type no step path knows, or one whose generator create() did not
+     build: the PN/BPSK/QPSK steps read state->pn, which exists only on an
+     engine created as one of those (or as dsss), so switching a tone engine
+     to PN dereferenced NULL on the next step (#2095). Refused, with the
+     state unchanged. */
+  if (!wfm_synth_runnable (state, val, state->shaper != NULL))
+    return DP_ERR_INVALID;
   state->wtype = val;
+  return DP_OK;
 }
 
 int

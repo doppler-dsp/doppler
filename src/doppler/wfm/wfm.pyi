@@ -447,6 +447,64 @@ class _SynthEngine:
 
         """
 
+    def get_wtype(self) -> int:
+        """Return the active waveform type discriminant. Maps to the
+        WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp,
+        6=bits, 7=symbols, 8=dsss. Use this to inspect which synthesis path is
+        active at runtime.
+
+        Returns
+        -------
+        int
+            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS), the
+            create-time `type` unless overridden.
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type="tone", fs=1e6, freq=1e3, snr=100.0)
+        >>> s.get_wtype()
+        0
+
+        """
+
+    def set_wtype(self, val: int) -> None:
+        """Override the waveform type discriminant in-place. Changing wtype
+        does not reinitialise sub-objects (no PN, LO, AWGN or pattern is
+        created or freed), so a type that would read a PN source this engine
+        lacks is refused: PN, BPSK and QPSK read it, and so does every type but
+        symbols, bits and dsss once set_rrc has attached a shaper. create()
+        builds the source only for PN, BPSK and QPSK, and for dsss when its
+        length has an MLS polynomial. A value that is not a waveform type is
+        refused too. set_state asks the same rule of the type a blob carries.
+
+        Parameters
+        ----------
+        val : int
+            New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_wtype failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type="tone", fs=1e6, freq=1e3, snr=100.0)
+        >>> s.set_wtype(1)
+        >>> s.get_wtype()
+        1
+        >>> s.set_wtype(2)
+        Traceback (most recent call last):
+            ...
+        ValueError: set_wtype failed (rc=-4)
+        >>> s.get_wtype()
+        1
+
+        """
+
     def get_nsps(self) -> int:
         """Return the samples-per-symbol count. For symbol types (PN, BPSK,
         QPSK, bits, symbols, dsss chips) each symbol is held for nsps
@@ -856,30 +914,6 @@ class _SynthEngine:
         True
 
         """
-    def get_wtype(self) -> int:
-        """Return the active waveform type discriminant. Maps to the
-        WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp,
-        6=bits, 7=symbols, 8=dsss. Use this to inspect which synthesis path is
-        active at runtime.
-
-        Returns
-        -------
-        int
-            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS), the
-            create-time `type` unless overridden.
-        """
-
-    def set_wtype(self, value: int, /) -> None:
-        """Override the waveform type discriminant in-place. Changing wtype
-        does not reinitialise sub-objects (no PN, LO, AWGN or pattern is
-        created or freed, and the value is not validated); use with care.
-
-        Parameters
-        ----------
-        value : int
-            Input.
-        """
-
     def get_cur_re(self) -> float:
         """Return the real part of the current held symbol. For modulated types
         this is the I component latched at the last symbol boundary (±1 for

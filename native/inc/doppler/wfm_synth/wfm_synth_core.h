@@ -1271,19 +1271,45 @@ void dp_wfm_synth_sweep_ends(double fs, double f_mid, double rate, size_t n,
  * @param state  Must be non-NULL.
  * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS),
  *         the create-time `type` unless overridden.
+ *
+ * @code
+ * >>> from doppler.wfm import _SynthEngine
+ * >>> s = _SynthEngine(type="tone", fs=1e6, freq=1e3, snr=100.0)
+ * >>> s.get_wtype()
+ * 0
+ * @endcode
  */
 int dp_wfm_synth_get_wtype(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Override the waveform type discriminant in-place.
  * Changing wtype does not reinitialise sub-objects (no PN, LO, AWGN or
- * pattern is created or freed, and the value is not validated); use with
- * care.
+ * pattern is created or freed), so a type that would read a PN source this
+ * engine lacks is refused: PN, BPSK and QPSK read it, and so does every type
+ * but symbols, bits and dsss once set_rrc has attached a shaper. create()
+ * builds the source only for PN, BPSK and QPSK, and for dsss when its length
+ * has an MLS polynomial. A value that is not a waveform type is refused too.
+ * set_state asks the same rule of the type a blob carries.
  *
  * @param state  Must be non-NULL.
  * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
+ * @return DP_OK, or DP_ERR_INVALID with @p state unchanged.
+ *
+ * @code
+ * >>> from doppler.wfm import _SynthEngine
+ * >>> s = _SynthEngine(type="tone", fs=1e6, freq=1e3, snr=100.0)
+ * >>> s.set_wtype(1)
+ * >>> s.get_wtype()
+ * 1
+ * >>> s.set_wtype(2)
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: set_wtype failed (rc=-4)
+ * >>> s.get_wtype()
+ * 1
+ * @endcode
  */
-void dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the samples-per-symbol count.
@@ -1436,8 +1462,10 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
    length, so the version alone refuses it; a noisy one is also refused by
    its length). v5: + the DSSS window (code_only_symbols, frame_symbols),
    dp_wfm_synth_set_dsss_window's value (#2022); a v4 blob is shorter, so
-   its length refuses it as well as its version. */
-#define WFM_SYNTH_STATE_VERSION 5u
+   its length refuses it as well as its version. v6: + wtype, the first
+   payload word, set_wtype's value (#2095); a v5 blob is shorter, so its
+   length refuses it as well as its version. */
+#define WFM_SYNTH_STATE_VERSION 6u
 /**
  * @brief Size of this synth's serialized state blob.
  *

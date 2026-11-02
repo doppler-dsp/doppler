@@ -1,0 +1,93 @@
+{
+ "stamp_schema": 1,
+ "note": "The pinned pool bench before the controller owned the one search (#2731), kept from the jm bench snapshot 20261101T115041Z-c.json. Taken at d431a56cd, main's v0.78.0 changelog commit, with this branch's bench uncommitted on top (a dirty tree), so it cannot be re-taken exactly. Schema 1: the toolchain was not recorded.",
+ "datetime": "2026-11-01T11:50:50.485734+00:00",
+ "machine_info": {
+  "node": "zen-x2elite-x",
+  "cpu": {
+   "count": 18
+  }
+ },
+ "commit_info": {
+  "id": "d431a56cd3b84049a4fe6c354d42a23a0583e40e",
+  "branch": "fix/async-dsss-pool-batching",
+  "dirty": true
+ },
+ "benchmarks": [
+  {
+   "name": "async_dsss_pool::push[native,n=1,threads=1]",
+   "unit": "sample",
+   "stats": {
+    "min": 0.012534708,
+    "max": 0.020547614000000002,
+    "mean": 0.014500109500000002,
+    "median": 0.013916459,
+    "iterations": 337590,
+    "rounds": 10,
+    "min_per_unit": 3.712997422909447e-08,
+    "mean_per_unit": 4.295183358511805e-08,
+    "max_per_unit": 6.086558843567642e-08
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[native,n=4,threads=1]",
+   "unit": "sample",
+   "stats": {
+    "min": 0.042820729,
+    "max": 0.054532233000000006,
+    "mean": 0.0467580411,
+    "median": 0.046000581,
+    "iterations": 337590,
+    "rounds": 10,
+    "min_per_unit": 1.26842409431559e-07,
+    "mean_per_unit": 1.3850540922420688e-07,
+    "max_per_unit": 1.6153391095707813e-07
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[native,n=4,threads=4]",
+   "unit": "sample",
+   "stats": {
+    "min": 0.034364524,
+    "max": 0.048703633,
+    "mean": 0.041281597700000006,
+    "median": 0.0401073755,
+    "iterations": 337590,
+    "rounds": 10,
+    "min_per_unit": 1.0179366687401878e-07,
+    "mean_per_unit": 1.222832361740573e-07,
+    "max_per_unit": 1.4426858911697623e-07
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[full,n=1,threads=1]",
+   "unit": "sample",
+   "stats": {
+    "min": 0.10709057300000001,
+    "max": 0.11710927900000001,
+    "mean": 0.11164786460000001,
+    "median": 0.11009242000000001,
+    "iterations": 337590,
+    "rounds": 10,
+    "min_per_unit": 3.1722080926567734e-07,
+    "mean_per_unit": 3.3072029562487044e-07,
+    "max_per_unit": 3.4689795017624934e-07
+   }
+  },
+  {
+   "name": "async_dsss_pool::push[full,n=4,threads=1]",
+   "unit": "sample",
+   "stats": {
+    "min": 0.426701887,
+    "max": 0.46122421,
+    "mean": 0.44134863310000005,
+    "median": 0.4365206890000001,
+    "iterations": 337590,
+    "rounds": 10,
+    "min_per_unit": 1.2639648301193755e-06,
+    "mean_per_unit": 1.3073510266891794e-06,
+    "max_per_unit": 1.366225924938535e-06
+   }
+  }
+ ]
+}

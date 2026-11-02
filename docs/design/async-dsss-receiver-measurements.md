@@ -260,7 +260,7 @@ a dwell's.
 
 ### 9.3 What was measured (2026-11-01) — the pinned bench, before the one search
 
-`native/benchmarks/async_dsss_pool/bench_async_dsss_pool_core.c` at `f4b8ced42`, built
+`native/benchmarks/async_dsss_pool/bench_async_dsss_pool_core.c`, built
 Release (`-O3 -DNDEBUG`, native off) and run by
 `make bench BENCH_ARGS="--c-only async_dsss_pool"` on `zen-x2elite-x`
 (aarch64, WSL2). The §1 point: the CCSDS default Gold code
@@ -272,20 +272,31 @@ dwell, 337,590 input samples; 10 rounds after 2 lead dwells, the minimum
 kept, every receiver asserted to have searched every sample. ns per input
 sample, and the load at 11 MSa/s (1 is exactly real time):
 
-| row                          | ns a sample | load |
-| ---------------------------- | ----------- | ---- |
-| `push[native,n=1,threads=1]` | 37.13       | 0.41 |
-| `push[native,n=4,threads=1]` | 126.84      | 1.40 |
-| `push[native,n=4,threads=4]` | 101.79      | 1.12 |
-| `push[full,n=1,threads=1]`   | 317.22      | 3.49 |
-| `push[full,n=4,threads=1]`   | 1263.96     | 13.9 |
+<!-- async-dsss-pool:pool-bench-before:start -->
+
+| search span, receivers, threads | bench row                    | ns a sample, min | load (1 = real time) |
+| ------------------------------- | ---------------------------- | ---------------- | -------------------- |
+| one tile (±2,444 Hz), 1, 1      | `push[native,n=1,threads=1]` | 37.13            | 0.41                 |
+| one tile, 4, 1                  | `push[native,n=4,threads=1]` | 126.84           | 1.40                 |
+| one tile, 4, 4                  | `push[native,n=4,threads=4]` | 101.79           | 1.12                 |
+| ±50 kHz, 1, 1                   | `push[full,n=1,threads=1]`   | 317.22           | 3.49                 |
+| ±50 kHz, 4, 1                   | `push[full,n=4,threads=1]`   | 1263.96          | 13.90                |
+
+Run at `d431a56cd`, a commit on main, with this branch's bench uncommitted on top (a dirty tree), 2026-11-01 11:50 UTC on `zen-x2elite-x` (18 threads): it cannot be re-taken exactly (doppler#2735). Kept from its jm bench snapshot as `pool-bench-before.json`; the toolchain was not recorded.
+
+<!-- async-dsss-pool:pool-bench-before:end -->
 
 Four receivers cost 3.42 searches at one tile and 3.98 at ±50 kHz. An
 earlier run of the same rows at one epoch deep (no `code_only_s`, D = 1)
-gave 20.7, 60.8, 88.6, 121.2 and 450.8 ns: there four threads were slower
-than one.
+gave 20.7, 60.8, 88.6, 121.2 and 450.8 ns, there four threads slower than
+one; that run's output was not kept.
 
 ### 9.4 What was measured (2026-11-01) — where one search's time goes
+
+Both tables in this section are transcribed from one interactive run whose
+output was not kept, at the same pre-rebase commit as §9.3: unlike every
+other table on this page they are not rendered from committed data, and
+cannot be re-taken at that code (doppler#2735).
 
 One receiver alone, the one-tile search of §9.3 (D = 150), no front end, fed
 one dwell from Python on `zen-x2elite-x`: 11.60 ms a dwell, 37.8 ns a
@@ -313,6 +324,58 @@ cf32, the best of five runs of 2,000:
 | 4,096  | 2^12            | 3.99           | 0.97       |
 | 150    | 2 · 3 · 5²      | 0.42           | 2.78       |
 | 160    | 2^5 · 5         | 0.26           | 1.61       |
+
+### 9.5 What was measured (2026-11-01) — the pinned bench, one search
+
+The same bench and rows as §9.3, after the controller took the one search
+(#2731) and the decision pass's peak scan was cut: a pool of N idle
+receivers runs one search, so the rows no longer scale with N.
+
+<!-- async-dsss-pool:pool-bench:start -->
+
+| search span, receivers, threads | bench row                    | ns a sample, min | load (1 = real time) |
+| ------------------------------- | ---------------------------- | ---------------- | -------------------- |
+| one tile (±2,444 Hz), 1, 1      | `push[native,n=1,threads=1]` | 27.31            | 0.30                 |
+| one tile, 4, 1                  | `push[native,n=4,threads=1]` | 27.37            | 0.30                 |
+| one tile, 4, 4                  | `push[native,n=4,threads=4]` | 27.43            | 0.30                 |
+| ±50 kHz, 1, 1                   | `push[full,n=1,threads=1]`   | 174.92           | 1.92                 |
+| ±50 kHz, 4, 1                   | `push[full,n=4,threads=1]`   | 174.86           | 1.92                 |
+
+Run `make bench BENCH_ARGS="--c-only async_dsss_pool"` once the load fell under 2, rows kept by `record.py`, at `dbfc4736b`, no tracked change, 2026-11-02 01:06 UTC on `zen-x2elite-x` (18 threads), load 2.0 / 1.8; GNU 15.2.0; glibc 2.43; build Release, flags -O3 -DNDEBUG, native OFF. dbfc4736b is #2731's head before its round-3 review fixes, which touch no timed path (create-time checks, docs, a named padding field in former padding); rebase-merge rewrites the commit either way (doppler#2735).
+
+<!-- async-dsss-pool:pool-bench:end -->
+
+### 9.6 What was measured (2026-11-02) — the search fanned, or serial
+
+Transcribed from one interactive A/B run, like §9.4, not rendered from
+committed data; the harness source and every round's output are in
+doppler#2744. A is #2731 at a018c8c6b with round 6's sidelobe-cache reset
+(the search serial); B is the same tree with the one line reverted that
+makes it serial, so the search fans its tiles across the cores. Both Release
+`libdoppler.a`, linked to one scratch harness and run A B A B A B on
+`zen-x2elite-x` (18 threads): a pool of 4 receivers, all idle, fed 300-epoch
+pushes of noise, the minimum of 3 pushes, in ns a sample; the cell is the
+median of the three rounds.
+
+| geometry         | pool threads | A, serial search | B, fanned search |
+| ---------------- | ------------ | ---------------- | ---------------- |
+| ±50 kHz, D = 150 | 1            | 190.7            | 195.4            |
+| ±50 kHz, D = 150 | 0 (all)      | 194.0            | 286.7            |
+| ±50 kHz, D = 1   | 0 (all)      | 44.8             | 352.6            |
+| 3 tiles, D = 1   | 0 (all)      | 10.5             | 107.3            |
+
+The pool's scene example (one-epoch pushes), B A B A, rebuilding the
+extension each time: 12.96 and 13.65 s fanned, 8.09 and 8.10 s serial, the
+figure byte for byte the same. At one pool thread the two are the same code,
+and they read the same.
+
+This harness is not §9.5's bench: one receiver against four, the bench's own
+stimulus and build, so its 174.92 ns and this table's 190.7 are different
+quantities, not a drift. It also corrects an earlier reading of the same
+harness, taken once and not interleaved, before `dp_acq_set_threads` was
+capped at `window_bins`: the fan won by 4% at D = 150 (204.7 against
+196.2 ns). Why the fan loses now, and what a standalone engine's default
+should be, is doppler#2744.
 
 ______________________________________________________________________
 

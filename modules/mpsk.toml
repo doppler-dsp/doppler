@@ -1,0 +1,107 @@
+[module.mpsk]
+doc = """
+M-ary PSK mapping: hard and soft, including differential, symbol map/demap for BPSK, QPSK, and 8-PSK constellations.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.mpsk import mpsk_map, mpsk_demap
+>>> bits = np.array([0, 1, 1, 0], np.uint8)
+>>> np.array_equal(mpsk_demap(mpsk_map(bits, 4), 4), bits)
+True
+
+"""
+objects = []
+
+# M-PSK constellation map/demap (Gray-coded; BPSK/QPSK/8PSK). Element-wise free
+# functions (one symbol-label byte <-> one cf32 point) + differential variants
+# (array-sequential). Inline slice/constellation helpers live in mpsk_core.h for
+# the carrier loop + receiver to compose. Docstrings (incl. @code doctests) are
+# synthesized from the mpsk_core.h Doxygen.
+[[module.mpsk.functions]]
+name = "mpsk_map"
+out_type = "float _Complex"
+
+[[module.mpsk.functions.params]]
+name = "sym"
+type = "uint8_t[]"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[module.mpsk.functions]]
+name = "mpsk_demap"
+out_type = "uint8_t"
+
+[[module.mpsk.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[module.mpsk.functions]]
+name = "mpsk_diff_map"
+out_type = "float _Complex"
+
+[[module.mpsk.functions.params]]
+name = "sym"
+type = "uint8_t[]"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[module.mpsk.functions]]
+name = "mpsk_diff_demap"
+out_type = "uint8_t"
+
+[[module.mpsk.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+# Soft (LLR) demapping -- the constellation's other decision, and the input a
+# Viterbi wants. `llr` is a caller-provided out-param rather than a returned
+# array because jm's `out_type` binding sizes a function's output 1:1 with its
+# input array and this one expands by log2(M); `kaiser_window` is the existing
+# precedent for that shape. See docs/design/mpsk-soft.md.
+[[module.mpsk.functions]]
+name = "mpsk_soft_demap"
+
+[[module.mpsk.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.mpsk.functions.params]]
+name = "llr"
+type = "float[]"
+out = true
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[module.mpsk.functions.params]]
+name = "n0"
+type = "float"
+default = "1.0"
+
+[[module.mpsk.functions]]
+name = "mpsk_bits_per_symbol"
+return_type = "int"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"

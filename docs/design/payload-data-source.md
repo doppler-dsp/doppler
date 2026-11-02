@@ -228,7 +228,7 @@ file, and `-` means stdin, the Unix convention.
 
 **The pair is one declaration.** Both given is refused, naming the pair,
 on every face. The `data` row carries the one exclusion key
-(`exclusive` in `just-makeit.toml`), and `gen_wfm_defaults.py` derives
+(`exclusive` in `modules/wfm_compose.toml`), and `gen_wfm_defaults.py` derives
 from it the surface table's exclusion (`wfm_surface.h`), the CLI refusal,
 the JSON reader's refusal, the help text and the schema's
 `"not": {"required": [...]}`. Neither given, on a frame

@@ -13,7 +13,8 @@ enumerates (and never goes stale on) the actual file list.
 ```text
 doppler/
 │
-├── just-makeit.toml                    jm manifest: modules and their object lists
+├── just-makeit.toml                    jm manifest: project keys, enums, codecs, apps
+├── modules/<module>.toml               one per module: its objects, functions, re-exports
 ├── objects/<obj>.toml                  jm interface fragments — the DECLARATIVE SOURCE
 │
 │   ── THE C CORE (hand-written + jm-generated glue) ──

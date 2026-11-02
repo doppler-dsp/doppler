@@ -193,12 +193,14 @@ ______________________________________________________________________
 
 ## Step 2 — Register in the module manifest
 
-New module, new object: add it to `just-makeit.toml`'s module block (a
-brand-new module needs this; adding an object to an *existing* module is
-already handled by `--module <name>` in Step 1):
+New module, new object: give the module its own manifest,
+`modules/<module>.toml` (a brand-new module needs this; adding an object to
+an *existing* module is already handled by `--module <name>` in Step 1).
+`just-makeit.toml` includes every `modules/*.toml`, so the new file is read
+with no further edit:
 
 ```toml
-# just-makeit.toml
+# modules/mymodule.toml
 [module.mymodule]
 objects = ["myobj"]
 ```

@@ -56,9 +56,7 @@ def _generator() -> ModuleType:
 GEN = _generator()
 ROWS = [
     r
-    for r in GEN.surface_rows(
-        GEN.tomllib.loads(GEN.MANIFEST.read_text(encoding="utf-8"))
-    )
+    for r in GEN.surface_rows(GEN._manifest())
     # A bespoke row (the frame) is read by each face's own code, and its
     # value is a whole object rather than one flag's text: pinned by
     # test_frame_source.py, not driven here.

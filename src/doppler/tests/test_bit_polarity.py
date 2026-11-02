@@ -96,7 +96,10 @@ def _discover() -> Iterator[str]:
                 for name, m in {**methods, **own}.items():
                     if name not in skip and _method_emits(m, obj_in):
                         yield f"{view['class_name']}.{name}"
-    jm = tomllib.loads((ROOT / "just-makeit.toml").read_text("utf-8"))
+    # the root and every fragment it includes: modules/<name>.toml
+    from just_makeit import _config as jm_config
+
+    jm = jm_config.load(ROOT)
     for mod, mcfg in jm.get("module", {}).items():
         for f in mcfg.get("functions", []) if isinstance(mcfg, dict) else []:
             if _function_emits(f):

@@ -668,7 +668,8 @@ def characterise() -> Data:
         f"apart depending on which face it entered by — the NCO's own "
         f"float32 ctrl port verbatim, inherited along with the port. Both "
         f"are `double` now "
-        f"(**F5**), which also makes `dp_lo_steps_ctrl` agree with the "
+        f"(**{R.ref('lo_ctrl_port_was_float32')}**), which also makes "
+        "`dp_lo_steps_ctrl` agree with the "
         f"inline `lo_step_ctrl` that always took one."
     )
     R.md()
@@ -704,7 +705,8 @@ def characterise() -> Data:
         f"and the measured contiguous zero-advance run is `{plateau:.4g}` "
         f"({plateau * 1e9:.3f} ppb) over {best}/{dead_span.size} scanned "
         f"controls — one LSB, the floor. On the float32 port it was "
-        f"22.4 ppb, 96x wider (**F6**)."
+        "22.4 ppb, 96x wider "
+        f"(**{R.ref('lo_ctrl_cancel_stops_phase_inc')}**)."
     )
     R.md()
     R.md(f"![ctrl law]({'ctrl_law.png'})")
@@ -898,7 +900,8 @@ def characterise() -> Data:
         f"the advertised maximum, correct to the last one: the C kernel "
         f"clamps to the caller's `max_out` (jm gh-138) and the Python "
         f"binding grows its buffer on demand. `steps_max_out()` is a "
-        f"pre-allocation hint, not a limit — see **F4**."
+        "pre-allocation hint, not a limit — see "
+        f"**{R.ref('both_max_doc_lines_stale')}**."
     )
     R.md()
 
@@ -955,7 +958,7 @@ def review(d: Data) -> None:
     R.md()
 
     R.find(
-        "F1",
+        "dbc_sfdr_claim_typical_value",
         "FIXED",
         f"the '~96 dBc SFDR' claim was the TYPICAL value stated as though "
         f"it were a bound. Measured: "
@@ -978,7 +981,7 @@ def review(d: Data) -> None:
         f"index to 14 bits takes it to 84.06 dBc and turns the gate red.",
     )
     R.find(
-        "F2",
+        "comment_beside_lo_step_ctrl",
         "FIXED",
         "the comment beside lo_step_ctrl said nco_norm_freq_to_inc "
         "'rounds, not truncates'. It truncates, deliberately, and "
@@ -994,7 +997,7 @@ def review(d: Data) -> None:
         "for why; §21 is what stops it drifting again.",
     )
     R.find(
-        "F3",
+        "lo_core_ifdef_avx512f_blocks",
         "FIXED",
         "lo_core.c's two `#ifdef __AVX512F__` blocks were dead in every "
         "configuration doppler ships, and divergent where they are not. "
@@ -1014,7 +1017,7 @@ def review(d: Data) -> None:
         "occurrences to 7.",
     )
     R.find(
-        "F4",
+        "both_max_doc_lines_stale",
         "FIXED",
         f"both max_out doc lines were stale. lo_core.h called "
         f"steps_max_out() 'maximum samples per call' and lo_core.c said "
@@ -1031,7 +1034,7 @@ def review(d: Data) -> None:
         f"behaviour on each of the three NCO output mappings).",
     )
     R.find(
-        "F5",
+        "lo_ctrl_port_was_float32",
         "FIXED",
         f"the ctrl port was float32 while the configured rate was double, "
         f"so one requested 0.1 landed on two different phase words (delta "
@@ -1044,18 +1047,19 @@ def review(d: Data) -> None:
         f"now {advance(0.0, 0.1) - LO(0.1).phase_inc}.",
     )
     R.find(
-        "F6",
+        "lo_ctrl_cancel_stops_phase_inc",
         "BY DESIGN",
         f"a ctrl cancelling phase_inc stops the LO over a plateau rather "
         f"than at a knife edge, and always will: below one phase-word LSB "
         f"the conversion truncates to zero. What was a defect is how wide "
         f"— 22.4 ppb, one float32 quantum, the port's precision rather "
-        f"than the accumulator's. With F5 landed it measures "
+        f"than the accumulator's. With {R.ref('lo_ctrl_port_was_float32')} "
+        "landed it measures "
         f"{d.plateau * 1e9:.3f} ppb against an LSB of {LSB * 1e9:.3f} ppb: "
         f"96x narrower and now at the floor.",
     )
     R.find(
-        "F7",
+        "lo_nco_accumulator_plus_lut",
         "BY DESIGN",
         "the LO is the NCO accumulator plus a LUT, and that is measured, "
         "not assumed: phase_inc agrees over 13 probe frequencies "
@@ -1071,7 +1075,7 @@ def review(d: Data) -> None:
     rl = ll.settle(d.loop_lo[ramp_name]).residual
     ri = ll.settle(d.loop_ideal[ramp_name]).residual
     R.find(
-        "F8",
+        "lut_costs_half_phase_bin",
         "BY DESIGN",
         f"the LUT costs half a phase bin in a closed carrier loop, "
         f"and no bandwidth. Same loop, same filter, same drives: settling "
@@ -1084,7 +1088,7 @@ def review(d: Data) -> None:
         f"the loop-facing one.",
     )
     R.find(
-        "F9",
+        "whole_inline_composition_api",
         "C-ONLY",
         "the whole inline composition API — dp_lo_init, lo_step, "
         "lo_step_ctrl, dp_lo_sin_lut — has no binding, and lo_step_ctrl had "
@@ -1455,20 +1459,25 @@ def build(write: bool = True) -> Report:
         [
             "**The 96 dBc SFDR is typical, not a bound.** It holds over "
             "random frequencies and falls to ~92 dBc on the rational ones a "
-            "real configuration is most likely to pick (§2.1, F1). Budget the "
+            "real configuration is most likely to pick (§2.1, "
+            f"{R.ref('dbc_sfdr_claim_typical_value')}). Budget the "
             "floor, not the average.",
             "**The LUT costs half a phase bin in a closed loop, and no "
-            "bandwidth** (§2.5, F8): same filter, same drives, settling "
+            f"bandwidth** (§2.5, {R.ref('lut_costs_half_phase_bin')}): same "
+            "filter, same drives, settling "
             "identical to the ideal oscillator. Choosing LO over NCO is a "
             "spur question, not a loop question.",
             "**A control that cancels `phase_inc` stops the LO over a "
             "plateau, not at a knife edge** — below one phase-word LSB the "
-            "conversion truncates to zero (F6). A stopped oscillator in a "
+            "conversion truncates to zero "
+            f"({R.ref('lo_ctrl_cancel_stops_phase_inc')}). A stopped "
+            "oscillator in a "
             "strobe-driven loop is terminal, because no strobe means no "
             "update.",
             "**The inline composition API is C-only** — `dp_lo_init`, "
             "`lo_step`, "
-            "`lo_step_ctrl`, `dp_lo_sin_lut` have no binding (F9), so a "
+            "`lo_step_ctrl`, `dp_lo_sin_lut` have no binding "
+            f"({R.ref('whole_inline_composition_api')}), so a "
             "Python-side audit cannot see the surface a composing "
             "receiver actually uses.",
         ],

@@ -1968,7 +1968,8 @@ main (void)
   }
 
   /* T19: every reader and every *_max_out is sized by nfft, not n (#1911
-   * (a), F4).  At pad = 1, nfft == n, so a reader or a hint that used n
+   * (a), the certification's finding `header_described_code_uses_nfft`).
+   * At pad = 1, nfft == n, so a reader or a hint that used n
    * passed every test above; here n = 64 and pad = 2 give nfft = 128.  Each
    * hint must equal its reader's documented length, and each reader, given
    * room for twice that, must write exactly that many finite floats and

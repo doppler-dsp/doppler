@@ -308,7 +308,8 @@ these rather than confirm them. Each now has an answer in the validation
 report:
 
 1. **Is `bn` the loop's noise bandwidth?** **Yes, measured** (report §2.2–§2.4,
-    F1–F3). The delivered bandwidth is always slightly wide, by a closed-form
+    findings `bn_loop_noise_bandwidth_claim`, `bandwidth_error_is_law` and
+    `t_drops_out_of_error`). The delivered bandwidth is always slightly wide, by a closed-form
     `16·zeta²/(4·zeta²+1)² · (bn·t)`, and only the product `bn·t` matters.
 1. ~~**What happens outside the declared domain.**~~ **Answered, and the
     answer became a fix.** `t = 0` produced a dead loop indistinguishable
@@ -325,7 +326,7 @@ report:
     mid-track retune is *transient-free* in the tracking sense is a
     closed-loop claim this object's report does not make.
 1. **Restore into a differently-configured instance** — §7. **Measured**
-    (report §2.9, F8): the restore carries the source's configuration and
+    (report §2.9, finding `restore_carries_config`): the restore carries the source's configuration and
     retunes the target.
 
 ______________________________________________________________________

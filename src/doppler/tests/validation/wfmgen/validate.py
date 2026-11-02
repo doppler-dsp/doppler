@@ -239,13 +239,14 @@ def build(write: bool = True) -> Report:
                 "`check_wfmgen_flag_docs.py`",
                 "**runs** — 52 flags documented, 51 exercised; the one "
                 "left, `-o`, is short and the gate reads long flags only "
-                "(F4)",
+                f"({R.ref('flags_unexercised')})",
             ],
             [
                 "2",
                 "Identical from four APIs, byte-for-byte",
                 "drift-check, flag matrix, C example, doc fences",
-                "**PARTIAL — 2 of 4 legs** before this pass; see §2 and F1",
+                "**PARTIAL — 2 of 4 legs** before this pass; see §2 and "
+                f"{R.ref('leg_goal_pinned_no')}",
             ],
             [
                 "3",
@@ -284,7 +285,8 @@ def build(write: bool = True) -> Report:
                 "drift-check, enum tables, flag docs/matrix",
                 "**runs** — and since #853 item 9 it holds for every face: "
                 "the CLI table, `--help`, the JSON reader and the schema are "
-                "generated from one surface table (F9)",
+                "generated from one surface table "
+                f"({R.ref('design_page_said_goal_held')})",
             ],
             [
                 "9",
@@ -341,7 +343,9 @@ def build(write: bool = True) -> Report:
     )
     R.md()
     R.md(
-        "The inventory found three defects, all fixed here (F6-F8). The "
+        "The inventory found three defects, all fixed here "
+        f"({R.ref('seed_poly_gold_tap_wider')}-"
+        f"{R.ref('impossible_case_claimed')}). The "
         "sabotages -- a SEED or tap above REG allowed, `why` copied per "
         "call, `*1` written back, the NUL left out of the fits check, "
         "`from_json(NULL)` with no reason, LITTLE ignored, a refusal "
@@ -445,7 +449,7 @@ def build(write: bool = True) -> Report:
     R.md("## 3. Review")
     R.md()
     R.find(
-        "F1",
+        "leg_goal_pinned_no",
         "FIXED",
         "**The C leg of goal 2 was pinned by nothing.** The design page "
         "calls the C API primary and promises all four render identically; "
@@ -462,7 +466,7 @@ def build(write: bool = True) -> Report:
         "wrong PN default takes exactly `pn`/`bpsk`/`qpsk` red.",
     )
     R.find(
-        "F2",
+        "defaults_restated_twice",
         "FIXED",
         "**The defaults goal 2 depends on are declared once and restated "
         "twice, two of them as enum indices** (#1142). `just-makeit.toml` "
@@ -490,7 +494,7 @@ def build(write: bool = True) -> Report:
         "stayed `1` and silently meant the new second entry.",
     )
     R.find(
-        "F3",
+        "goal2_evidence_could_run_nothing",
         "FIXED",
         "**The only evidence for goal 2 could report green having run "
         "nothing.** `test_compose.py` carried a sixth, private copy of the "
@@ -504,7 +508,7 @@ def build(write: bool = True) -> Report:
         "`FileNotFoundError` naming the path.",
     )
     R.find(
-        "F4",
+        "flags_unexercised",
         "FIXED",
         "**Fourteen of the 67 flags were documented and exercised by "
         "nothing.** The flag-docs gate printed two numbers and only the "
@@ -519,7 +523,7 @@ def build(write: bool = True) -> Report:
         "docs.",
     )
     R.find(
-        "F5",
+        "limits_gate_not_discover_glob",
         "FIXED",
         "**The limits gate does not discover by glob, though the process "
         "page twice says it does** (#1144). `make validate-check` globs; the "
@@ -540,7 +544,7 @@ def build(write: bool = True) -> Report:
         "the campaign's own infrastructure.",
     )
     R.find(
-        "F6",
+        "seed_poly_gold_tap_wider",
         "FIXED",
         "**A SEED, POLY or Gold tap wider than REG was silently masked** "
         "(#1624, found by this inventory). `wfm_frame.h` says REG is the "
@@ -555,7 +559,7 @@ def build(write: bool = True) -> Report:
         "register so its draws stay the recorded ones.",
     )
     R.find(
-        "F7",
+        "frame_from_json_null_no_reason",
         "FIXED",
         "**`dp_wfm_frame_from_json(NULL, &why)` refused with no reason.** "
         "The header promises a static reason on every failure; the NULL "
@@ -565,20 +569,21 @@ def build(write: bool = True) -> Report:
         "held by nobody. Now pinned directly, the NULL reason red first.",
     )
     R.find(
-        "F8",
+        "impossible_case_claimed",
         "FIXED",
         "**A header claim described a case that cannot happen.** "
         "`dp_wfm_field_bits` said a sizing call checks the grammar only, so "
         "'a Gold pair that is not a preferred pair' sizes and then fails to "
         "render. `dp_gold_create` checks no such thing, and after D12 and "
-        "F6 every text the grammar accepts renders -- the branch that "
+        f"{R.ref('seed_poly_gold_tap_wider')} every text the grammar accepts "
+        "renders -- the branch that "
         "reported the failure was dead code with a sentence attached. The "
         "claim is now the true one, *every accepted text renders*, pinned "
         "over every accepted table row in C and every accepted text of the "
         "corpus (§2.3); the dead branch is gone.",
     )
     R.find(
-        "F9",
+        "design_page_said_goal_held",
         "FIXED",
         "**The design page said goal 8 held for two faces.** #853 item 9 "
         "generated the CLI option table, `--help`, the JSON reader, the "
@@ -642,9 +647,11 @@ def build(write: bool = True) -> Report:
             "its legs are measured rather than asserted** (§2.1). It was "
             "pinned at two of four; the C leg — the API the design page "
             "calls PRIMARY — was covered by a test that composes one scene "
-            "twice in one process, which is determinism, not agreement (F1).",
+            "twice in one process, which is determinism, not agreement "
+            f"({R.ref('leg_goal_pinned_no')}).",
             "**A default now has one home, and an enum-valued one follows its "
-            "NAME** (F2, #1142, now fixed). The values goal 2 depends on were "
+            f"NAME** ({R.ref('defaults_restated_twice')}, #1142, now fixed). "
+            "The values goal 2 depends on were "
             "declared in `just-makeit.toml`, restated by hand in `wfmgen.c`, "
             "and absent from a C caller's zero-initialised struct, with no "
             "gate comparing them — two of them as enum INDICES, so prepending "
@@ -652,13 +659,15 @@ def build(write: bool = True) -> Report:
             "failing. They are generated from the manifest now, and the "
             "byte-parity limits in §2.1 are what proved the change altered "
             "no waveform.",
-            "**A skip and a pass read the same in a log** (F3). The single "
+            "**A skip and a pass read the same in a log** "
+            f"({R.ref('goal2_evidence_could_run_nothing')}). The single "
             "test carrying goal 2's evidence could skip itself, via a "
             "private copy of a locator that already existed and fails "
             "loudly. Prefer the shared one; a private copy is not a "
             "harmless duplicate when it changes the failure mode.",
             "**A validator used to be gated only if someone remembered to "
-            "register it** (F5, #1144, now fixed). `validation.md` promised "
+            f"register it** ({R.ref('limits_gate_not_discover_glob')}, #1144, "
+            "now fixed). `validation.md` promised "
             "both gates discover by glob and only the staleness one did, so "
             "this report rendered, passed two gates, and had its limits "
             "asserted by nobody for one commit. Both glob now — but the "
@@ -669,14 +678,17 @@ def build(write: bool = True) -> Report:
             "prose claims across the parser, the fixed frame, the JSON "
             "frame reader and `bytes_to_bin`, 19 of them held by nobody "
             "before this pass and 109 pinned now. The inventory found a "
-            "silent-mask defect in the grammar (F6, #1624), a refusal with "
-            "no reason (F7) and a header sentence about a case that cannot "
-            "happen (F8).",
+            "silent-mask defect in the grammar "
+            f"({R.ref('seed_poly_gold_tap_wider')}, #1624), a refusal with "
+            f"no reason ({R.ref('frame_from_json_null_no_reason')}) and a "
+            "header sentence about a case that cannot "
+            f"happen ({R.ref('impossible_case_claimed')}).",
             "**The phase-7 corpus is a committed harness now** (§2.3), "
             "and this report runs its subset rather than quoting a scratch "
             "run. On the parser it was recorded against, the recorded seed "
             "reproduces the record's 259 037 round trips exactly; since "
-            "F6 each drawn seed is reduced into its register, so the texts "
+            f"{R.ref('seed_poly_gold_tap_wider')} each drawn seed is reduced "
+            "into its register, so the texts "
             "differ where a seed was out of range and the draws do not.",
             "**The five-scene matrix is four distinct waveforms** (§2.2): "
             "`pn` and `bpsk` are byte-identical at these defaults, so the "

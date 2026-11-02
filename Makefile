@@ -265,7 +265,8 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                why-param header-file-blocks doc-claims public-symbols \
                curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
-               ring-internals named-args acq-pfa-split
+               ring-internals named-args acq-pfa-split \
+               finding-citations
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -470,6 +471,17 @@ LINT_lgamma-reentrant = $(UV) run python scripts/check_lgamma_sites.py
 # the sizer or the non-coherent ascend fired the engine at about twice its
 # pfa and passed every test (doppler#2218).
 LINT_acq-pfa-split = $(UV) run python scripts/check_acq_pfa_split.py
+
+# A validation finding is cited by its key or its claim, never by its number
+# (#2059). A report numbers findings by position and resolves `R.ref(key)` at
+# render, refusing a typed number there; a C test, header, page or example has
+# no render step, so a number in it re-points silently when a finding before
+# it is dropped -- #2056 left five such citations. Both directions: no typed
+# number anywhere tracked, and every `finding \`key\`` names a key some
+# validate.py records, so a renamed finding cannot leave a citation behind.
+# Registration-free (git ls-files). Plain python3: stdlib only, the patterns
+# loaded by path from the one declaration Report also imports.
+LINT_finding-citations = python3 scripts/check_finding_citations.py
 
 # Path.read_text() without an encoding decodes with the locale codec, which
 # is cp1252 on Windows: the first Windows run of the suite lost three test

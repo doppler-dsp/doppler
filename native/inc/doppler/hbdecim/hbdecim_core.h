@@ -163,13 +163,15 @@ extern "C"
   /**
    * @brief Restore mutable state from @p blob (same num_taps).
    *
-   * The envelope (magic, version, endianness, size) is validated before
-   * anything is written; on rejection @p r is unchanged.  Coefficients
+   * The envelope (magic, version, endianness, size) is validated, and the
+   * payload's ring heads and flags checked, before anything is written; on
+   * rejection @p r is unchanged.  Coefficients
    * are not in the blob and are kept from create.
    *
    * @param r     State built with the same num_taps as the source.
    * @param blob  Blob from dp_hbdecim_get_state().
-   * @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects.
+   * @return DP_OK, or DP_ERR_INVALID if the blob's envelope or payload
+   *         check refuses.
    */
   int dp_hbdecim_set_state (hbdecim_state_t *r, const void *blob);
 

@@ -1828,6 +1828,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 gallery blazing \
                 gen-c-api just-build docs-invariants \
                 jm-apply jm-apply-downstream jm-adopt jm-revendor \
+                jm-migrate-fragments \
                 jm-upgrade changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
                 gen-c-api-check python-executable-check \
@@ -3844,6 +3845,26 @@ jm-adopt: ## JM_ADOPT_ARGS='<obj>... [--accept-additions] | --check --all' — f
 	    echo "       make jm-adopt JM_ADOPT_ARGS='--check --all'"; exit 2; }
 	$(UV) sync --group dev --no-install-project
 	$(UV) run just-makeit adopt $(JM_ADOPT_ARGS)
+
+# `jm migrate-to-fragments` moves every `[module.X]` table out of
+# just-makeit.toml into its own modules/<name>.toml, beside objects/, and
+# leaves the manifest with [project] and its include globs. Every `[obj]`
+# already lives in objects/, so the module tables are what it moves. It
+# rewrites the hand-owned manifest, so it is a target: the make-SSOT hook
+# blocks the bare tool.
+#
+# It takes NO flags, unlike jm-adopt, because there is nothing to choose: the
+# command has one form, it is idempotent (a second run moves nothing), and
+# it is safe only from 0.114.1, the first jm whose migration leaves nothing
+# for `apply` to do and whose __init__ merge keeps a package's reexports --
+# before it, an apply after this dropped 23 names from doppler.wfm.__all__.
+# A by-hand target, run once per project; nothing in CI calls it. Follow it
+# with `make jm-apply` and `make drift-check`, which must both be no-ops.
+jm-migrate-fragments: ## Move each [module.X] to modules/<name>.toml
+	$(UV) sync --group dev --no-install-project
+	$(UV) run just-makeit migrate-to-fragments
+	@echo "jm-migrate-fragments: done. Next: make jm-apply (expect no"
+	@echo "  change), make drift-check, then make pyext before any test."
 
 # The write half of check_jm_status.py's vendored-header question: delete each
 # jm_*.h that is behind the pin, and `just-makeit apply` writes the pinned

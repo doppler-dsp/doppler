@@ -113,11 +113,15 @@ def public_classes(root: Path) -> dict[str, str]:
 
 
 def record_names(root: Path) -> set[str]:
-    """Every ``record_name`` the jm manifests declare."""
-    files = [
-        root / "just-makeit.toml",
-        *sorted((root / "objects").glob("*.toml")),
-    ]
+    """Every ``record_name`` the jm manifests declare.
+
+    The files are jm's own answer, ``manifest_files``: the root and every
+    fragment its ``include`` names (``objects/``, ``modules/``), so a new
+    fragment directory is read without an edit here.
+    """
+    from just_makeit import _config as jm_config
+
+    files = jm_config.manifest_files(root)
     out: set[str] = set()
     for f in files:
         if f.exists():

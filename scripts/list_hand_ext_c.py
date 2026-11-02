@@ -8,8 +8,13 @@ exclusion left it formatted by nobody -- until ``jm apply``, whose
 ``c_style`` pass walks all of ``native/src`` and rewrote it under whoever
 ran it next (``buffer_ext.c``, after doppler#1432).
 
-Derived from ``just-makeit.toml`` rather than listed: the day a module is
-migrated its ``no_generate`` key goes, and it leaves this set by itself.
+Derived from the jm manifest -- ``just-makeit.toml`` and the
+``modules/<name>.toml`` fragments it includes -- rather than listed: the day
+a module is migrated its ``no_generate`` key goes, and it leaves this set by
+itself. A manifest that yields no module at all is refused (exit 1): an
+empty list is a correct answer once every binding is generated, but no
+modules means the read failed, and an empty list then would leave every
+hand-written ``_ext.c`` unformatted while lint stayed green.
 
 Examples
 --------
@@ -18,19 +23,22 @@ Examples
 """
 
 import pathlib
-import sys
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - the 3.9/3.10 CI matrix jobs
-    import tomli as tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 def main() -> None:
-    manifest = tomllib.loads((ROOT / "just-makeit.toml").read_text())
-    for name, mod in sorted(manifest.get("module", {}).items()):
+    # jm's own reader: a `[module.X]` lives in `modules/<name>.toml`, which
+    # a parse of the root file alone would not see.
+    from just_makeit import _config as jm_config
+
+    modules = jm_config.load(ROOT).get("module", {})
+    if not modules:
+        raise SystemExit(
+            "list_hand_ext_c: the manifest yields no [module.X] table; "
+            "refusing to report an empty list"
+        )
+    for name, mod in sorted(modules.items()):
         if mod.get("no_generate") != "true":
             continue
         path = pathlib.Path("native/src") / name / f"{name}_ext.c"

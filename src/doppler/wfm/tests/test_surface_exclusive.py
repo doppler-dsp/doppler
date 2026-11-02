@@ -54,9 +54,7 @@ def _generator():
 
 
 GEN = _generator()
-ROWS = GEN.surface_rows(
-    GEN.tomllib.loads(GEN.MANIFEST.read_text(encoding="utf-8"))
-)
+ROWS = GEN.surface_rows(GEN._manifest())
 
 
 def _pair(a: str, b: str) -> dict:
@@ -204,7 +202,7 @@ def test_the_data_pair_is_one_declaration_with_a_surface_only_row():
 
 
 def _man():
-    return GEN.tomllib.loads(GEN.MANIFEST.read_text(encoding="utf-8"))
+    return GEN._manifest()
 
 
 def test_a_surface_only_row_must_name_a_real_member():

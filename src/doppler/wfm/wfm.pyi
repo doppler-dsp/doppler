@@ -447,6 +447,117 @@ class _SynthEngine:
 
         """
 
+    def get_nsps(self) -> int:
+        """Return the samples-per-symbol count. For symbol types (PN, BPSK,
+        QPSK, bits, symbols, dsss chips) each symbol is held for nsps
+        consecutive output samples. For tone/noise/chirp this field is present
+        but unused by the synthesis path.
+
+        Returns
+        -------
+        int
+            Samples per symbol: the create-time `sps` clamped to >= 1, or
+            whatever dp_wfm_synth_set_nsps() last stored.
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type="qpsk", sps=8, snr=100.0)
+        >>> s.get_nsps()
+        8
+
+        """
+
+    def set_nsps(self, val: int) -> None:
+        """Override the samples-per-symbol count in-place. Does not flush the
+        symbol-position counter (sym_pos). A hold at or below the current
+        sym_pos is refused, so when changing sps mid-stream set sym_pos first
+        (0 is always legal), then this: refusing the other order keeps sym_pos
+        inside the hold. Does not rebuild an attached RRC shaper (whose taps
+        and polyphase split were fixed for the nsps at dp_wfm_synth_set_rrc()
+        time) or rescale the noise.
+
+        Parameters
+        ----------
+        val : int
+            New nsps value: at least 1, and above the current sym_pos.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_nsps failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type="qpsk", sps=8, snr=100.0)
+        >>> s.set_nsps(4)
+        >>> s.get_nsps()
+        4
+        >>> s.set_nsps(0)
+        Traceback (most recent call last):
+            ...
+        ValueError: set_nsps failed (rc=-4)
+
+        """
+
+    def get_sym_pos(self) -> int:
+        """Return the current position within the current symbol (0..nsps-1).
+        Reaches nsps and wraps to 0 each time a new symbol is latched from the
+        active source (PN LFSR, bit pattern, symbol stream or DSSS chip).
+        Useful for frame alignment: sym_pos==0 on a step boundary means the
+        very next sample begins a fresh symbol. Not advanced on the
+        polyphase-shaper path (power-of-two sps with RRC), nor for
+        tone/noise/chirp.
+
+        Returns
+        -------
+        int
+            Symbol position counter (0 <= sym_pos < nsps); 0 after create.
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type="qpsk", sps=8, snr=100.0)
+        >>> s.get_sym_pos()
+        0
+        >>> _ = s.steps(3)
+        >>> s.get_sym_pos()
+        3
+
+        """
+
+    def set_sym_pos(self, val: int) -> None:
+        """Override the symbol-position counter in-place. Injecting 0 forces
+        the next dp_wfm_synth_step() to latch a new symbol; any other value
+        fast-forwards into the middle of the current symbol hold.
+
+        Parameters
+        ----------
+        val : int
+            New sym_pos value: 0 <= val < nsps.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_sym_pos failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type="qpsk", sps=8, snr=100.0)
+        >>> s.set_sym_pos(3)
+        >>> s.get_sym_pos()
+        3
+        >>> s.set_sym_pos(8)
+        Traceback (most recent call last):
+            ...
+        ValueError: set_sym_pos failed (rc=-4)
+
+        """
+
     def set_chirp_span(self, span: int) -> None:
         """Pin a chirp's sweep to `span` samples (no-op for non-chirp). Only
         the first non-zero pin takes effect; until then a chirp holds its start
@@ -762,58 +873,6 @@ class _SynthEngine:
         """Override the waveform type discriminant in-place. Changing wtype
         does not reinitialise sub-objects (no PN, LO, AWGN or pattern is
         created or freed, and the value is not validated); use with care.
-
-        Parameters
-        ----------
-        value : int
-            Input.
-        """
-
-    def get_nsps(self) -> int:
-        """Return the samples-per-symbol count. For symbol types (PN, BPSK,
-        QPSK, bits, symbols, dsss chips) each symbol is held for nsps
-        consecutive output samples. For tone/noise/chirp this field is present
-        but unused by the synthesis path.
-
-        Returns
-        -------
-        int
-            Samples per symbol: the create-time `sps` clamped to >= 1, or
-            whatever dp_wfm_synth_set_nsps() last stored.
-        """
-
-    def set_nsps(self, value: int, /) -> None:
-        """Override the samples-per-symbol count in-place. Does not flush the
-        symbol-position counter (sym_pos); set sym_pos=0 as well when changing
-        sps mid-stream. Not validated, and does not rebuild an attached RRC
-        shaper (whose taps and polyphase split were fixed for the nsps at
-        dp_wfm_synth_set_rrc() time) or rescale the noise.
-
-        Parameters
-        ----------
-        value : int
-            Input.
-        """
-
-    def get_sym_pos(self) -> int:
-        """Return the current position within the current symbol (0..nsps-1).
-        Reaches nsps and wraps to 0 each time a new symbol is latched from the
-        active source (PN LFSR, bit pattern, symbol stream or DSSS chip).
-        Useful for frame alignment: sym_pos==0 on a step boundary means the
-        very next sample begins a fresh symbol. Not advanced on the
-        polyphase-shaper path (power-of-two sps with RRC), nor for
-        tone/noise/chirp.
-
-        Returns
-        -------
-        int
-            Symbol position counter (0 <= sym_pos < nsps); 0 after create.
-        """
-
-    def set_sym_pos(self, value: int, /) -> None:
-        """Override the symbol-position counter in-place. Injecting 0 forces
-        the next dp_wfm_synth_step() to latch a new symbol; any other value
-        fast-forwards into the middle of the current symbol hold.
 
         Parameters
         ----------

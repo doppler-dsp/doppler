@@ -1294,20 +1294,42 @@ void dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
  * @param state  Must be non-NULL.
  * @return Samples per symbol: the create-time `sps` clamped to >= 1, or
  *         whatever dp_wfm_synth_set_nsps() last stored.
+ *
+ * @code
+ * >>> from doppler.wfm import _SynthEngine
+ * >>> s = _SynthEngine(type="qpsk", sps=8, snr=100.0)
+ * >>> s.get_nsps()
+ * 8
+ * @endcode
  */
 int dp_wfm_synth_get_nsps(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Override the samples-per-symbol count in-place.
- * Does not flush the symbol-position counter (sym_pos); set sym_pos=0
- * as well when changing sps mid-stream.  Not validated, and does not
- * rebuild an attached RRC shaper (whose taps and polyphase split were
- * fixed for the nsps at dp_wfm_synth_set_rrc() time) or rescale the noise.
+ * Does not flush the symbol-position counter (sym_pos). A hold at or below
+ * the current sym_pos is refused, so when changing sps mid-stream set
+ * sym_pos first (0 is always legal), then this: refusing the other order
+ * keeps sym_pos inside the hold. Does not rebuild an attached RRC shaper
+ * (whose taps and polyphase split were fixed for the nsps at
+ * dp_wfm_synth_set_rrc() time) or rescale the noise.
  *
  * @param state  Must be non-NULL.
- * @param val    New nsps value (>= 1).
+ * @param val    New nsps value: at least 1, and above the current sym_pos.
+ * @return DP_OK, or DP_ERR_INVALID with @p state unchanged.
+ *
+ * @code
+ * >>> from doppler.wfm import _SynthEngine
+ * >>> s = _SynthEngine(type="qpsk", sps=8, snr=100.0)
+ * >>> s.set_nsps(4)
+ * >>> s.get_nsps()
+ * 4
+ * >>> s.set_nsps(0)
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: set_nsps failed (rc=-4)
+ * @endcode
  */
-void dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the current position within the current symbol (0..nsps-1).
@@ -1319,6 +1341,16 @@ void dp_wfm_synth_set_nsps(dp_wfm_synth_state_t *state, int val);
  *
  * @param state  Must be non-NULL.
  * @return Symbol position counter (0 <= sym_pos < nsps); 0 after create.
+ *
+ * @code
+ * >>> from doppler.wfm import _SynthEngine
+ * >>> s = _SynthEngine(type="qpsk", sps=8, snr=100.0)
+ * >>> s.get_sym_pos()
+ * 0
+ * >>> _ = s.steps(3)
+ * >>> s.get_sym_pos()
+ * 3
+ * @endcode
  */
 int dp_wfm_synth_get_sym_pos(const dp_wfm_synth_state_t *state);
 
@@ -1328,9 +1360,22 @@ int dp_wfm_synth_get_sym_pos(const dp_wfm_synth_state_t *state);
  * other value fast-forwards into the middle of the current symbol hold.
  *
  * @param state  Must be non-NULL.
- * @param val    New sym_pos value (0 <= val < nsps).
+ * @param val    New sym_pos value: 0 <= val < nsps.
+ * @return DP_OK, or DP_ERR_INVALID with @p state unchanged.
+ *
+ * @code
+ * >>> from doppler.wfm import _SynthEngine
+ * >>> s = _SynthEngine(type="qpsk", sps=8, snr=100.0)
+ * >>> s.set_sym_pos(3)
+ * >>> s.get_sym_pos()
+ * 3
+ * >>> s.set_sym_pos(8)
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: set_sym_pos failed (rc=-4)
+ * @endcode
  */
-void dp_wfm_synth_set_sym_pos(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_sym_pos(dp_wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the real part of the current held symbol.

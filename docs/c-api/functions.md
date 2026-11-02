@@ -90,6 +90,7 @@
 * **dp\_r\_u32** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_r\_u64** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_reader\_init** ([**dp\_state.h**](dp__state_8h.md))
+* **dp\_ring\_head\_ok** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_state\_validate** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_w\_bytes** ([**dp\_state.h**](dp__state_8h.md))
 * **dp\_w\_cf32** ([**dp\_state.h**](dp__state_8h.md))

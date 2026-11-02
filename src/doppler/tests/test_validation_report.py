@@ -307,3 +307,14 @@ def test_a_changed_verdict_is_staleness():
     fixed = _report(("F1", "FIXED", "repaired here"))
     fixed.summary()
     assert _structural(gap.render()) != _structural(fixed.render())
+
+
+def test_protected_spans_keep_their_places():
+    """Masking keeps every protected span where it stood, in line order.
+
+    Held one form at a time, the spans came back grouped by form, so a
+    STALE diff printed `§2.1` where the issue number had been. The
+    comparison never noticed (both sides scrambled alike); the reader did.
+    """
+    line = "- see gh-750 and §2.1, then #12 (issues/13) and §3"
+    assert _structural(line) == line

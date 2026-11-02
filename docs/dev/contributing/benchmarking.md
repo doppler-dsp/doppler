@@ -565,6 +565,39 @@ The `-c.json` files share the same top-level schema as the Python files
 (`machine_info`, `commit_info`, `benchmarks`, `datetime`) so the same
 tooling works on both.
 
+### Comparing two commits: `make bench-ab`
+
+A performance PR has to show that B is at least as fast as A on every row
+it touches. `make bench-compare` cannot settle that (the two snapshots were
+taken minutes apart, and the drift lands on one side), and
+`make bench-interleaved` measures portable against native builds of ONE
+commit. `make bench-ab` is the A/B:
+
+<!-- docs-snippet: no-exec=builds two worktrees and runs the suite K times on a bench box -->
+
+```sh
+make bench-ab A=origin/main B=HEAD K=5 BENCH_ARGS="--c-only async_dsss_pool"
+```
+
+It builds A and B at the same flags (`BUILD=portable`, the default, or
+`native`) in two throwaway worktrees, and alternates them K times (A then B
+on even passes, B then A on odd), pinned to the fastest core class. Per row
+it reports each side's min of the K best rounds, its spread (max − min over
+K), and the ratio B / A, and gives a verdict:
+
+| verdict | when                                                  | fails the run |
+| ------- | ----------------------------------------------------- | ------------- |
+| TIE     | the two mins differ by no more than the larger spread | no            |
+| FASTER  | B's min is below A's by more than that                | no            |
+| SLOWER  | B's min is above A's by more than that                | **yes**       |
+| MISSING | A measured the row and B did not                      | **yes**       |
+| NEW     | only B measured it                                    | no            |
+
+The tie band is the run's own measured noise, not a threshold picked in
+advance, so a noisy machine widens it rather than flipping a verdict.
+`JSON=out.json` keeps the table for a PR body. It writes nothing under
+`benchmarks/published/`, and nothing in CI runs it.
+
 ______________________________________________________________________
 
 ## See also

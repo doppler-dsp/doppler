@@ -1378,7 +1378,7 @@ extern "C"
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
    * >>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0,
    * ...                 doppler_uncertainty=4000.0)
-   * >>> a.threads >= 1               # a pool, sized to the machine
+   * >>> a.threads >= 1               # at most one worker a tile
    * True
    * >>> a.set_threads(1)
    * >>> a.threads

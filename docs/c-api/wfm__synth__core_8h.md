@@ -104,7 +104,7 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_synth\_set\_state**](#function-dp_wfm_synth_set_state) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const void \* blob) <br>_Restore running state from a blob made by_ [_**dp\_wfm\_synth\_get\_state()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_get_state) _._ |
 |  int | [**dp\_wfm\_synth\_set\_sym\_pos**](#function-dp_wfm_synth_set_sym_pos) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the symbol-position counter in-place. Injecting 0 forces the next_ [_**dp\_wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-dp_wfm_synth_step) _to latch a new symbol; any other value fast-forwards into the middle of the current symbol hold._ |
 |  int | [**dp\_wfm\_synth\_set\_symbols**](#function-dp_wfm_synth_set_symbols) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, const float \_Complex \* symbols, size\_t n) <br>_Attach a complex-symbol stream to a type=symbols synth (no-op else)._  |
-|  void | [**dp\_wfm\_synth\_set\_wtype**](#function-dp_wfm_synth_set_wtype) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects (no PN, LO, AWGN or pattern is created or freed, and the value is not validated); use with care._  |
+|  int | [**dp\_wfm\_synth\_set\_wtype**](#function-dp_wfm_synth_set_wtype) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state, int val) <br>_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects (no PN, LO, AWGN or pattern is created or freed), so a type that would read a PN source this engine lacks is refused: PN, BPSK and QPSK read it, and so does every type but symbols, bits and dsss once set\_rrc has attached a shaper. create() builds the source only for PN, BPSK and QPSK, and for dsss when its length has an MLS polynomial. A value that is not a waveform type is refused too. set\_state asks the same rule of the type a blob carries._  |
 |  size\_t | [**dp\_wfm\_synth\_state\_bytes**](#function-dp_wfm_synth_state_bytes) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Size of this synth's serialized state blob._  |
 |  const char \* | [**dp\_wfm\_synth\_state\_refusal**](#function-dp_wfm_synth_state_refusal) (const [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Why the synth's state cannot be serialized, or NULL when it can._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**dp\_wfm\_synth\_step**](#function-dp_wfm_synth_step) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
@@ -154,7 +154,7 @@ _Synth component API._ [More...](#detailed-description)
 | define  | [**WFM\_DSSS\_ENDED**](wfm__synth__core_8h.md#define-wfm_dsss_ended)  `2u`<br> |
 | define  | [**WFM\_SYNTH\_SNR\_CLEAN**](wfm__synth__core_8h.md#define-wfm_synth_snr_clean)  `100.0`<br> |
 | define  | [**WFM\_SYNTH\_STATE\_MAGIC**](wfm__synth__core_8h.md#define-wfm_synth_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('W','F','M','S')`<br> |
-| define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `5u`<br> |
+| define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `6u`<br> |
 
 ## Detailed Description
 
@@ -592,10 +592,17 @@ int dp_wfm_synth_get_wtype (
 
 **Returns:**
 
-Integer waveform type index (WFM\_SYNTH\_TONE .. WFM\_SYNTH\_DSSS), the create-time `type` unless overridden. 
+Integer waveform type index (WFM\_SYNTH\_TONE .. WFM\_SYNTH\_DSSS), the create-time `type` unless overridden.
 
 
 
+```C++
+>>> from doppler.wfm import _SynthEngine
+>>> s = _SynthEngine(type="tone", fs=1e6, freq=1e3, snr=100.0)
+>>> s.get_wtype()
+0
+```
+ 
 
 
         
@@ -1385,9 +1392,9 @@ True
 
 ### function dp\_wfm\_synth\_set\_wtype 
 
-_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects (no PN, LO, AWGN or pattern is created or freed, and the value is not validated); use with care._ 
+_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects (no PN, LO, AWGN or pattern is created or freed), so a type that would read a PN source this engine lacks is refused: PN, BPSK and QPSK read it, and so does every type but symbols, bits and dsss once set\_rrc has attached a shaper. create() builds the source only for PN, BPSK and QPSK, and for dsss when its length has an MLS polynomial. A value that is not a waveform type is refused too. set\_state asks the same rule of the type a blob carries._ 
 ```C++
-void dp_wfm_synth_set_wtype (
+int dp_wfm_synth_set_wtype (
     dp_wfm_synth_state_t * state,
     int val
 ) 
@@ -1404,6 +1411,27 @@ void dp_wfm_synth_set_wtype (
 * `val` New wtype value (WFM\_SYNTH\_TONE .. WFM\_SYNTH\_DSSS). 
 
 
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID with `state` unchanged.
+
+
+
+```C++
+>>> from doppler.wfm import _SynthEngine
+>>> s = _SynthEngine(type="tone", fs=1e6, freq=1e3, snr=100.0)
+>>> s.set_wtype(1)
+>>> s.get_wtype()
+1
+>>> s.set_wtype(2)
+Traceback (most recent call last):
+    ...
+ValueError: set_wtype failed (rc=-4)
+>>> s.get_wtype()
+1
+```
+ 
 
 
         
@@ -2062,7 +2090,7 @@ Magic of a synth state blob's envelope ("WFMS").
 ### define WFM\_SYNTH\_STATE\_VERSION 
 
 ```C++
-#define WFM_SYNTH_STATE_VERSION `5u`
+#define WFM_SYNTH_STATE_VERSION `6u`
 ```
 
 
@@ -2070,7 +2098,7 @@ Magic of a synth state blob's envelope ("WFMS").
 Layout version of the synth state blob; any other version is refused.
 
 
-v2: + continuous-DSSS chip/symbol clocks; v3: + data\_ended, the pulled frame and the refill's sub-blob (doppler#1681); v4: the embedded AWGN blob is v2, which carries its seed and amplitude, so the synth blob grew (#2084). A v3 blob is refused by its version (a clean one has the same length, so the version alone refuses it; a noisy one is also refused by its length). v5: + the DSSS window (code\_only\_symbols, frame\_symbols), dp\_wfm\_synth\_set\_dsss\_window's value (#2022); a v4 blob is shorter, so its length refuses it as well as its version. 
+v2: + continuous-DSSS chip/symbol clocks; v3: + data\_ended, the pulled frame and the refill's sub-blob (doppler#1681); v4: the embedded AWGN blob is v2, which carries its seed and amplitude, so the synth blob grew (#2084). A v3 blob is refused by its version (a clean one has the same length, so the version alone refuses it; a noisy one is also refused by its length). v5: + the DSSS window (code\_only\_symbols, frame\_symbols), dp\_wfm\_synth\_set\_dsss\_window's value (#2022); a v4 blob is shorter, so its length refuses it as well as its version. v6: + wtype, the first payload word, set\_wtype's value (#2095); a v5 blob is shorter, so its length refuses it as well as its version. 
 
 
         

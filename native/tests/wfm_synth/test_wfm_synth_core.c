@@ -960,14 +960,15 @@ main (void)
                              "given one resumes the framed stream");
 
       /* ...and is checked by the setter's own rule. The window's two u64s
-         follow the fixed fields: sym_pos (u32), cur_re/cur_im (f32 x2), six
-         u64 counters, then cur_data/primed/data_ended (one byte each). */
-      const size_t at_win = sizeof (dp_state_hdr_t) + 4 + 8 + 6 * 8 + 3;
+         follow the fixed fields: wtype and sym_pos (u32 x2, wtype since
+         v6), cur_re/cur_im (f32 x2), six u64 counters, then
+         cur_data/primed/data_ended (one byte each). */
+      const size_t at_win = sizeof (dp_state_hdr_t) + 4 + 4 + 8 + 6 * 8 + 3;
       uint64_t     got_w = 0, got_f = 0;
       memcpy (&got_w, (unsigned char *)blob + at_win, 8);
       memcpy (&got_f, (unsigned char *)blob + at_win + 8, 8);
-      DP_CHECK_MSG (got_w == W && got_f == F,
-                    "the window sits where the forge below writes it");
+      DP_REQUIRE_MSG (got_w == W && got_f == F,
+                      "the window sits where the forge below writes it");
       const uint64_t bad_w = (uint64_t)F + 1u; /* exceeds a non-zero frame */
       memcpy ((unsigned char *)blob + at_win, &bad_w, 8);
       DP_CHECK_MSG (dp_wfm_synth_set_state (d, blob) == DP_ERR_INVALID,
@@ -1441,12 +1442,16 @@ main (void)
     DP_REQUIRE_MSG (ac != NULL, "accessors: create");
     DP_CHECK (dp_wfm_synth_get_wtype (ac) == WFM_SYNTH_QPSK);
     DP_CHECK (dp_wfm_synth_get_nsps (ac) == 4);
-    dp_wfm_synth_set_wtype (ac, WFM_SYNTH_BPSK);
+    DP_CHECK (dp_wfm_synth_set_wtype (ac, WFM_SYNTH_BPSK) == DP_OK);
     DP_CHECK (dp_wfm_synth_get_wtype (ac) == WFM_SYNTH_BPSK);
-    dp_wfm_synth_set_wtype (ac, WFM_SYNTH_QPSK);
-    dp_wfm_synth_set_nsps (ac, 2);
+    DP_CHECK (dp_wfm_synth_set_wtype (ac, WFM_SYNTH_QPSK) == DP_OK);
+    /* Not a waveform type: refused, and the type stays (#2095). */
+    DP_CHECK (dp_wfm_synth_set_wtype (ac, 99) == DP_ERR_INVALID);
+    DP_CHECK (dp_wfm_synth_set_wtype (ac, -1) == DP_ERR_INVALID);
+    DP_CHECK (dp_wfm_synth_get_wtype (ac) == WFM_SYNTH_QPSK);
+    DP_CHECK (dp_wfm_synth_set_nsps (ac, 2) == DP_OK);
     DP_CHECK (dp_wfm_synth_get_nsps (ac) == 2);
-    dp_wfm_synth_set_nsps (ac, 4);
+    DP_CHECK (dp_wfm_synth_set_nsps (ac, 4) == DP_OK);
     /* sym_pos runs 0..nsps−1 and wraps: after k steps from a fresh reset it
        reads k mod nsps, and sym_pos == 0 means the NEXT sample starts a
        fresh symbol — which is what the doc comment offers for framing. */
@@ -1784,20 +1789,130 @@ main (void)
   }
 
   /* ---------------------------------------------------------------- *
+   * #2095: set_wtype refuses a type the engine cannot run                 *
+   * ---------------------------------------------------------------- */
+  {
+    /* A tone engine built no PN source, so PN, BPSK and QPSK are refused
+       rather than read through a NULL generator on the next step: that
+       step segfaulted (#2095). The engine keeps its type and still runs. */
+    {
+      dp_wfm_synth_state_t *tone = dp_wfm_synth_create (
+          WFM_SYNTH_TONE, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+      DP_REQUIRE_MSG (tone != NULL, "accessors: tone create");
+      float _Complex out[16];
+      for (int t = WFM_SYNTH_PN; t <= WFM_SYNTH_QPSK; t++)
+        DP_CHECK (dp_wfm_synth_set_wtype (tone, t) == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_get_wtype (tone) == WFM_SYNTH_TONE);
+      dp_wfm_synth_steps (tone, out, 16); /* right after the refusals */
+      /* The accepted side, pinned: every type that reads no PN source. */
+      for (int t = WFM_SYNTH_CHIRP; t <= WFM_SYNTH_DSSS; t++)
+        DP_CHECK (dp_wfm_synth_set_wtype (tone, t) == DP_OK);
+      DP_CHECK (dp_wfm_synth_set_wtype (tone, WFM_SYNTH_NOISE) == DP_OK);
+      DP_CHECK (dp_wfm_synth_set_wtype (tone, WFM_SYNTH_TONE) == DP_OK);
+      dp_wfm_synth_steps (tone, out, 16);
+
+      /* With a shaper attached, every type but symbols/bits/dsss reads the
+         PN source too (wfm_synth_next_symbol), so a shaped engine without
+         one refuses tone, noise and chirp as well. Two ways to get there:
+         a tone engine switched to bits, then set_rrc; and an engine created
+         as symbols, then set_rrc. Both segfaulted on the next step. */
+      const float taps[1] = { 1.0f };
+      DP_CHECK (dp_wfm_synth_set_wtype (tone, WFM_SYNTH_BITS) == DP_OK);
+      DP_CHECK (dp_wfm_synth_set_rrc (tone, taps, 1) == DP_OK);
+      DP_CHECK (tone->shaper != NULL); /* the path under test exists */
+      DP_CHECK (dp_wfm_synth_set_wtype (tone, WFM_SYNTH_TONE)
+                == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_get_wtype (tone) == WFM_SYNTH_BITS);
+      dp_wfm_synth_steps (tone, out, 16);
+      dp_wfm_synth_destroy (tone);
+
+      dp_wfm_synth_state_t *sy = dp_wfm_synth_create (
+          WFM_SYNTH_SYMBOLS, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+      DP_REQUIRE_MSG (sy != NULL, "accessors: symbols create");
+      DP_CHECK (dp_wfm_synth_set_rrc (sy, taps, 1) == DP_OK);
+      DP_CHECK (sy->shaper != NULL);
+      DP_CHECK (dp_wfm_synth_set_wtype (sy, WFM_SYNTH_TONE) == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_set_wtype (sy, WFM_SYNTH_NOISE)
+                == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_set_wtype (sy, WFM_SYNTH_CHIRP)
+                == DP_ERR_INVALID);
+      DP_CHECK (dp_wfm_synth_set_wtype (sy, WFM_SYNTH_DSSS) == DP_OK);
+      dp_wfm_synth_steps (sy, out, 16);
+      dp_wfm_synth_destroy (sy);
+
+      /* A dsss engine whose length has an MLS polynomial has a PN source,
+         so PN is accepted there. */
+      dp_wfm_synth_state_t *ds = dp_wfm_synth_create (
+          WFM_SYNTH_DSSS, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+      DP_REQUIRE_MSG (ds != NULL, "accessors: dsss create");
+      DP_CHECK (ds->pn != NULL);
+      DP_CHECK (dp_wfm_synth_set_wtype (ds, WFM_SYNTH_PN) == DP_OK);
+      dp_wfm_synth_steps (ds, out, 16);
+      dp_wfm_synth_destroy (ds);
+    }
+  }
+
+  /* The type travels in the blob (#2095): a type set_wtype accepted is the
+     type a restore gives, and a blob naming a type the target cannot run is
+     refused with the target byte-identical. */
+  {
+    dp_wfm_synth_state_t *src = dp_wfm_synth_create (
+        WFM_SYNTH_TONE, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+    dp_wfm_synth_state_t *dst = dp_wfm_synth_create (
+        WFM_SYNTH_TONE, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+    DP_REQUIRE_MSG (src != NULL && dst != NULL, "wtype blob: create");
+    DP_CHECK (dp_wfm_synth_set_wtype (src, WFM_SYNTH_CHIRP) == DP_OK);
+    void *blob = malloc (dp_wfm_synth_state_bytes (src));
+    DP_REQUIRE_MSG (blob != NULL, "wtype blob: alloc");
+    dp_wfm_synth_get_state (src, blob);
+    DP_CHECK (dp_wfm_synth_set_state (dst, blob) == DP_OK);
+    DP_CHECK (dp_wfm_synth_get_wtype (dst) == WFM_SYNTH_CHIRP);
+    free (blob);
+    dp_wfm_synth_destroy (src);
+    /* The forged word is the first payload word, where wtype is written. */
+    const size_t   H     = sizeof (dp_state_hdr_t);
+    const uint32_t bad[] = { (uint32_t)WFM_SYNTH_PN,
+                             (uint32_t)WFM_SYNTH_BPSK,
+                             (uint32_t)WFM_SYNTH_QPSK,
+                             99u,
+                             UINT32_MAX,
+                             0x80000000u };
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++)
+      DP_STATE_FORGE_TEST (dp_wfm_synth, dst, WFM_SYNTH_STATE_MAGIC,
+                           WFM_SYNTH_STATE_VERSION, H, &bad[i], sizeof bad[i]);
+    dp_wfm_synth_destroy (dst);
+
+    /* With a shaper attached every type but symbols, bits and dsss reads the
+       PN source, so a forge to TONE is refused on a shaped engine that has
+       none, though a tone engine takes the same word. */
+    const float           taps[1] = { 1.0f };
+    dp_wfm_synth_state_t *sh      = dp_wfm_synth_create (
+        WFM_SYNTH_SYMBOLS, 1e6, 1e3, 100.0, 1, 5, 4, 7, 0, 0, 0.0);
+    DP_REQUIRE_MSG (sh != NULL, "wtype blob: symbols create");
+    DP_CHECK (dp_wfm_synth_set_rrc (sh, taps, 1) == DP_OK);
+    DP_CHECK (sh->shaper != NULL && sh->pn == NULL);
+    const uint32_t tone = (uint32_t)WFM_SYNTH_TONE;
+    DP_STATE_FORGE_TEST (dp_wfm_synth, sh, WFM_SYNTH_STATE_MAGIC,
+                         WFM_SYNTH_STATE_VERSION, H, &tone, sizeof tone);
+    dp_wfm_synth_destroy (sh);
+  }
+
+  /* ---------------------------------------------------------------- *
    * #2142: a forged field is refused, the object untouched           *
    * ---------------------------------------------------------------- */
-  /* The blob's fixed fields, from the header: sym_pos (u32), cur_re/cur_im
-     (f32 x2), bit_idx and sym_read_idx (u64), chirp_ph (f64), chirp_n,
-     chip_n and sym_idx (u64), cur_data/primed/data_ended (one byte each),
-     the DSSS window (u64 x2), then the six child-presence bytes. */
+  /* The blob's fixed fields, from the header: wtype and sym_pos (u32),
+     cur_re/cur_im (f32 x2), bit_idx and sym_read_idx (u64), chirp_ph (f64),
+     chirp_n, chip_n and sym_idx (u64), cur_data/primed/data_ended (one byte
+     each), the DSSS window (u64 x2), then the six child-presence bytes. */
   {
     const size_t H = sizeof (dp_state_hdr_t);
     enum
     {
-      AT_SYM_POS      = 0,
-      AT_CUR_RE       = 4,
-      AT_SYM_READ_IDX = 4 + 4 + 4 + 8,
-      AT_CODE_ONLY    = 4 + 4 + 4 + 8 + 8 + 8 + 8 + 8 + 8 + 3,
+      AT_WTYPE        = 0, /* v6: set_wtype's value leads the payload */
+      AT_SYM_POS      = 4,
+      AT_CUR_RE       = 4 + 4,
+      AT_SYM_READ_IDX = 4 + 4 + 4 + 4 + 8,
+      AT_CODE_ONLY    = 4 + 4 + 4 + 4 + 6 * 8 + 3, /* after six u64 counters */
       AT_PRES         = AT_CODE_ONLY + 16
     };
 

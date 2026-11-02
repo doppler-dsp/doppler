@@ -482,7 +482,7 @@ void dp_wfm_synth_sweep_ends(double fs, double f_mid, double rate, size_t n,
 
 int dp_wfm_synth_get_wtype(const dp_wfm_synth_state_t *state);
 
-void dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
+int dp_wfm_synth_set_wtype(dp_wfm_synth_state_t *state, int val);
 
 int dp_wfm_synth_get_nsps(const dp_wfm_synth_state_t *state);
 
@@ -508,7 +508,7 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
  * bits are config restored by create, but a PULLED frame is state: with a
  * refill the blob carries it and nests the refill's own sub-blob. */
 #define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
-#define WFM_SYNTH_STATE_VERSION 5u
+#define WFM_SYNTH_STATE_VERSION 6u
 size_t dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *state);
 void dp_wfm_synth_get_state (const dp_wfm_synth_state_t *state, void *blob);
 int dp_wfm_synth_set_state (dp_wfm_synth_state_t *state, const void *blob);

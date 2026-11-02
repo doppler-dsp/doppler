@@ -220,38 +220,6 @@ _SynthEngine_steps (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-_SynthEngine_get_wtype (_SynthEngineObject *self,
-                        PyObject           *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromLong ((long)dp_wfm_synth_get_wtype (self->handle));
-}
-
-static PyObject *
-_SynthEngine_set_wtype (_SynthEngineObject *self, PyObject *args)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  int v = 0;
-  if (!PyArg_ParseTuple (args, "i", &v))
-    return NULL;
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  dp_wfm_synth_set_wtype (self->handle, v);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
 _SynthEngine_get_cur_re (_SynthEngineObject *self,
                          PyObject           *Py_UNUSED (ignored))
 {
@@ -314,6 +282,52 @@ _SynthEngine_set_cur_im (_SynthEngineObject *self, PyObject *args)
   dp_wfm_synth_set_cur_im (self->handle, v);
   Py_RETURN_NONE;
 }
+static PyObject *
+_SynthEngine_get_wtype (_SynthEngineObject *self,
+                        PyObject           *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int y = dp_wfm_synth_get_wtype (self->handle);
+  return PyLong_FromLong ((long)y);
+}
+
+static PyObject *
+_SynthEngine_set_wtype (_SynthEngineObject *self, PyObject *args,
+                        PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "val", NULL };
+  int          val       = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "i", _kwlist, &val))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_wfm_synth_set_wtype (self->handle, val);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_wtype failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyObject *
 _SynthEngine_get_nsps (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
 {
@@ -750,15 +764,6 @@ static PyMethodDef _SynthEngine_methods[] = {
     "[(1+0j), (1+0j), (1+0j), (1+0j)]\n"
     "\n" },
 
-  { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
-    "Return the active waveform type discriminant. Maps to the WFM_SYNTH_* "
-    "enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols, "
-    "8=dsss. Use this to inspect which synthesis path is active at "
-    "runtime.\n" },
-  { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,
-    "Override the waveform type discriminant in-place. Changing wtype does "
-    "not reinitialise sub-objects (no PN, LO, AWGN or pattern is created or "
-    "freed, and the value is not validated); use with care.\n" },
   { "get_cur_re", (PyCFunction)_SynthEngine_get_cur_re, METH_NOARGS,
     "Return the real part of the current held symbol. For modulated types "
     "this is the I component latched at the last symbol boundary (±1 for "
@@ -776,6 +781,63 @@ static PyMethodDef _SynthEngine_methods[] = {
   { "set_cur_im", (PyCFunction)_SynthEngine_set_cur_im, METH_VARARGS,
     "Override the held-symbol imaginary (Q) component in-place. Takes effect "
     "on the next dp_wfm_synth_step() within the current symbol hold.\n" },
+  { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
+    "get_wtype() -> int\n"
+    "\n"
+    "Return the active waveform type discriminant. Maps to the\n"
+    "WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp,\n"
+    "6=bits, 7=symbols, 8=dsss. Use this to inspect which synthesis path is\n"
+    "active at runtime.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS), the\n"
+    "    create-time `type` unless overridden.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import _SynthEngine\n"
+    ">>> s = _SynthEngine(type=\"tone\", fs=1e6, freq=1e3, snr=100.0)\n"
+    ">>> s.get_wtype()\n"
+    "0\n" },
+  { "set_wtype", (PyCFunction)(void *)_SynthEngine_set_wtype,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_wtype(val) -> None\n"
+    "\n"
+    "Override the waveform type discriminant in-place. Changing wtype\n"
+    "does not reinitialise sub-objects (no PN, LO, AWGN or pattern is\n"
+    "created or freed), so a type that would read a PN source this engine\n"
+    "lacks is refused: PN, BPSK and QPSK read it, and so does every type but\n"
+    "symbols, bits and dsss once set_rrc has attached a shaper. create()\n"
+    "builds the source only for PN, BPSK and QPSK, and for dsss when its\n"
+    "length has an MLS polynomial. A value that is not a waveform type is\n"
+    "refused too. set_state asks the same rule of the type a blob carries.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "val : int\n"
+    "    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_wtype failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wfm import _SynthEngine\n"
+    ">>> s = _SynthEngine(type=\"tone\", fs=1e6, freq=1e3, snr=100.0)\n"
+    ">>> s.set_wtype(1)\n"
+    ">>> s.get_wtype()\n"
+    "1\n"
+    ">>> s.set_wtype(2)\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: set_wtype failed (rc=-4)\n"
+    ">>> s.get_wtype()\n"
+    "1\n" },
   { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS,
     "get_nsps() -> int\n"
     "\n"

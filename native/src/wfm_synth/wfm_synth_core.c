@@ -315,6 +315,29 @@ dp_wfm_synth_sym_pos_ok (int sym_pos, int nsps)
   return nsps >= 1 && sym_pos >= 0 && sym_pos < nsps;
 }
 
+/* The continuous-DSSS clock a blob may carry (#2745). After chip_n chips the
+   kernel has opened symbol sym_idx on its edge, so dp_wfm_dsss_cont_edge
+   (sym_idx) <= chip_n - 1 < dp_wfm_dsss_cont_edge (sym_idx + 1): that is the
+   whole relation, and it is the same clock the kernel runs. It is checked
+   after two cheap bounds, because cont_edge walks chip by chip from a seed
+   and a forged sym_idx never ends that walk (the double quotient stops
+   changing past 2^53, and the out-of-range cast is UB): chip_n stays where a
+   double holds it exactly, and sym_idx stays within a symbol of chip_n / cps.
+   *next_edge is the derived value the commit installs. */
+static int
+dp_wfm_synth_clock_ok (uint64_t chip_n, uint64_t sym_idx, double cps,
+                       uint64_t *next_edge)
+{
+  if (chip_n == 0)
+    return sym_idx == 0;
+  if (chip_n > ((uint64_t)1 << 53)
+      || (double)sym_idx > (double)chip_n / cps + 1.0)
+    return 0;
+  *next_edge = dp_wfm_dsss_cont_edge (sym_idx + 1u, cps);
+  return dp_wfm_dsss_cont_edge (sym_idx, cps) <= chip_n - 1u
+         && chip_n - 1u < *next_edge;
+}
+
 const char *
 dp_wfm_synth_state_refusal (const dp_wfm_synth_state_t *state)
 {
@@ -666,6 +689,12 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
       || !dp_wfm_synth_sym_pos_ok (sym_pos, s->nsps)
       || (frame && code_only > frame))
     return DP_ERR_INVALID;
+  /* the symbol clock, against the chips emitted (#2745) */
+  uint64_t next_edge = s->next_edge;
+  if (s->chips_per_symbol > 0.0
+      && !dp_wfm_synth_clock_ok (chip_n, sym_idx, s->chips_per_symbol,
+                                 &next_edge))
+    return DP_ERR_INVALID;
   /* the blob's child set must match this instance's config (same wtype,
      and a frame source if and only if this synth pulls from one). */
   if ((pres[0] != 0) != (s->fir != NULL)
@@ -693,8 +722,7 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
   /* Derived, so not in the blob: the next symbol's edge, from the one
      symbol clock (chip 0 recomputes it in the kernel). */
   if (s->chips_per_symbol > 0.0 && s->chip_n)
-    s->next_edge
-        = dp_wfm_dsss_cont_edge (s->sym_idx + 1u, s->chips_per_symbol);
+    s->next_edge = next_edge;
   if (s->fir)
     DP_R_CHILD (&_r, dp_fir, s->fir);
   if (s->shaper)

@@ -79,6 +79,20 @@ prod_worst_rel_err (const float _Complex *a, const float _Complex *b,
   return worst;
 }
 
+/* The symbol a continuous-DSSS stream is on after chip_n chips: the one the
+   kernel would hold, found from the one symbol clock. */
+static uint64_t
+clock_sym_after (uint64_t chip_n, double cps)
+{
+  const uint64_t c = chip_n - 1u;
+  uint64_t       k = (uint64_t)((double)c / cps);
+  while (dp_wfm_dsss_cont_edge (k + 1u, cps) <= c)
+    k++;
+  while (dp_wfm_dsss_cont_edge (k, cps) > c)
+    k--;
+  return k;
+}
+
 int
 main (void)
 {
@@ -1912,6 +1926,8 @@ main (void)
       AT_SYM_POS      = 4,
       AT_CUR_RE       = 4 + 4,
       AT_SYM_READ_IDX = 4 + 4 + 4 + 4 + 8,
+      AT_CHIP_N       = 4 + 4 + 4 + 4 + 4 * 8, /* after four u64/f64 */
+      AT_SYM_IDX      = AT_CHIP_N + 8,
       AT_CODE_ONLY    = 4 + 4 + 4 + 4 + 6 * 8 + 3, /* after six u64 counters */
       AT_PRES         = AT_CODE_ONLY + 16
     };
@@ -2004,6 +2020,72 @@ main (void)
         DP_CHECK (dp_wfm_synth_get_nsps (s) == 2);
         dp_wfm_synth_destroy (s);
       }
+
+    /* The continuous-DSSS symbol clock (#2745). set_state re-derives
+       next_edge from sym_idx through dp_wfm_dsss_cont_edge, which walks chip
+       by chip and never ends for a huge k, so a forged sym_idx used to hang
+       it. Each forge below changes ONE of chip_n / sym_idx; a hang would
+       stall the run (ctest has no timeout yet: #2786). The untouched blob is
+       the positive control the macro runs itself. */
+    {
+      const uint8_t code[31]
+          = { 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0,
+              1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1 };
+      s = dp_wfm_synth_create (WFM_SYNTH_DSSS, 1000000.0, 0.0, 3.0, 1, 9, 2, 7,
+                               0, 0, 0.0);
+      DP_CHECK (s != NULL);
+      if (s)
+        {
+          DP_CHECK (dp_wfm_synth_set_dsss_cont (s, code, 31, 2.7,
+                                                WFM_DSSS_DATA_PRBS, NULL, 0)
+                    == 0);
+          float _Complex tmp[400];
+          dp_wfm_synth_steps (s, tmp, 400);
+          DP_REQUIRE_MSG (s->chip_n > 100 && s->sym_idx > 10,
+                          "the synth has run far enough to carry a clock");
+          const uint64_t sym = s->sym_idx;
+          const uint64_t bad_sym[]
+              = { UINT64_MAX,        (uint64_t)1 << 62, (uint64_t)1 << 53,
+                  s->chip_n + 1000u, /* past chip_n / cps + 1 */
+                  sym + 1u,          /* inside the bound, off the clock */
+                  sym - 1u };
+          for (size_t i = 0; i < sizeof bad_sym / sizeof *bad_sym; i++)
+            DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                                 WFM_SYNTH_STATE_VERSION, H + AT_SYM_IDX,
+                                 &bad_sym[i], sizeof bad_sym[i]);
+          const uint64_t bad_chip[]
+              = { (uint64_t)1 << 60, UINT64_MAX, ((uint64_t)1 << 53) + 1u,
+                  0u /* sym_idx is not 0 */ };
+          for (size_t i = 0; i < sizeof bad_chip / sizeof *bad_chip; i++)
+            DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                                 WFM_SYNTH_STATE_VERSION, H + AT_CHIP_N,
+                                 &bad_chip[i], sizeof bad_chip[i]);
+
+          /* The limit itself, as a genuine-shaped (chip_n, sym_idx) pair
+             (they are adjacent in the blob): 2^53 chips is accepted and the
+             stream steps on promptly, 2^53 + 1 is refused. Only refusals
+             were pinned there before, and the termination argument at the
+             limit had been read, never run. */
+          {
+            const double   cps   = 2.7;
+            const uint64_t lim   = (uint64_t)1 << 53;
+            uint64_t       ok[2] = { lim, clock_sym_after (lim, cps) };
+            uint64_t bad[2] = { lim + 1u, clock_sym_after (lim + 1u, cps) };
+            uint64_t mid[2] = { lim / 2u, clock_sym_after (lim / 2u, cps) };
+            DP_STATE_ACCEPT_TEST (dp_wfm_synth, s, H + AT_CHIP_N, mid,
+                                  sizeof mid);
+            DP_STATE_ACCEPT_TEST (dp_wfm_synth, s, H + AT_CHIP_N, ok,
+                                  sizeof ok);
+            DP_STATE_FORGE_TEST (dp_wfm_synth, s, WFM_SYNTH_STATE_MAGIC,
+                                 WFM_SYNTH_STATE_VERSION, H + AT_CHIP_N, bad,
+                                 sizeof bad);
+            float _Complex more[64];
+            dp_wfm_synth_steps (s, more, 64); /* returns, or the run stalls */
+            DP_CHECK (s->chip_n > lim);
+          }
+          dp_wfm_synth_destroy (s);
+        }
+    }
 
     /* The DSSS window: a start past a non-zero end is what
        dp_wfm_synth_set_dsss_window refuses, so a blob carrying one is refused

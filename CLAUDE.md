@@ -169,9 +169,10 @@ Each module has its own manifest, `modules/<module>.toml`, which
 objects = ["existing_obj", "myobj"]
 ```
 
-A script that reads module tables goes through jm's own loader,
-`just_makeit._config.load(ROOT)`, never a `tomllib` parse of the root file,
-which finds no modules at all.
+A script that reads module tables goes through jm's public loader,
+`just_makeit.load_manifest(ROOT)` (and `just_makeit.components()` for the
+component list), never a `tomllib` parse of the root file, which finds no
+modules at all.
 
 ### Step 3 — apply
 

@@ -836,7 +836,7 @@ dev = [
     { name = "diff-cover", marker = "python_full_version >= '3.10'", specifier = "==10.6.0" },
     { name = "doppler-dsp", extras = ["specan-web"] },
     { name = "jsonschema", specifier = ">=4.18" },
-    { name = "just-makeit", specifier = "==0.115.0" },
+    { name = "just-makeit", specifier = "==0.116.0" },
     { name = "matplotlib", marker = "python_full_version == '3.9.*'", specifier = "<3.10" },
     { name = "matplotlib", marker = "python_full_version >= '3.10'", specifier = ">=3.10.9" },
     { name = "mdformat", marker = "python_full_version >= '3.10'", specifier = "==1.0.0" },
@@ -1308,14 +1308,14 @@ wheels = [
 
 [[package]]
 name = "just-makeit"
-version = "0.115.0"
+version = "0.116.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "tomlkit" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/90/262eaf58f84351845014764461b96726983227870a1ac8ae54864d338045/just_makeit-0.115.0-py3-none-any.whl", hash = "sha256:79df2d616dec03a5a9859399ea5412509060d8efa058cbb28dffdce3271d35bf", size = 2025849, upload-time = "2026-11-03T17:32:14.632Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/13/6c807318121d081777e4d3fcd170d62d0c5668b07651729912068d38e9a0/just_makeit-0.116.0-py3-none-any.whl", hash = "sha256:9867c3b56484c4375be9e12bfc538e4445c58226cd32a8b8557fce623dc61bb0", size = 2027462, upload-time = "2026-11-03T22:39:46.064Z" },
 ]
 
 [[package]]

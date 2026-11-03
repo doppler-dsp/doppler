@@ -30,6 +30,7 @@
 #include "doppler/jm_perf.h"
 #include "doppler/wfm/wfm_compose.h"
 #include "doppler/wfm/wfm_plan_dsp_hash.h" /* WFM_PLAN_DSP_HASH_U64 (configure-time) */
+#include "doppler/wfm/wfm_private.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 
 #include "cJSON.h"
@@ -179,8 +180,7 @@ scale_into (float _Complex *restrict out, size_t len, float g, double phase,
         for (size_t i = 0; i < len; i++)
           out[i] = g * cache[i];
       else
-        for (size_t i = 0; i < len; i++)
-          out[i] += g * cache[i];
+        wfm_add_scaled (out, cache, len, g);
     }
   else
     {
@@ -267,8 +267,7 @@ add_noise (dp_wfm_synth_state_t *syn, float _Complex *out, size_t n,
   if (!tmp)
     return;
   dp_wfm_synth_noise_steps (syn, tmp, n);
-  for (size_t i = 0; i < n; i++)
-    out[i] += gain * tmp[i];
+  wfm_add_scaled (out, tmp, n, gain); /* the one accumulate (wfm_private.h) */
   free (tmp);
 }
 
@@ -319,8 +318,7 @@ plan_feed (void *ctx, float _Complex *dst, size_t n, int signal)
           f->tmp_cap = n;
         }
       dp_wfm_synth_noise_steps (f->noise, f->tmp, n);
-      for (size_t i = 0; i < n; i++)
-        dst[i] += 1.0f * f->tmp[i];
+      wfm_add_scaled (dst, f->tmp, n, 1.0f);
     }
 }
 

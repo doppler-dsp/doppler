@@ -1988,6 +1988,7 @@
 * **wfm\_rrc\_ntaps** ([**wfm\_dsp.h**](wfm__dsp_8h.md))
 * **wfm\_meta\_path** ([**wfm\_path.h**](wfm__path_8h.md))
 * **wfm\_swap\_ext** ([**wfm\_path.h**](wfm__path_8h.md))
+* **wfm\_add\_scaled** ([**wfm\_private.h**](wfm__private_8h.md))
 * **wfm\_surface\_row\_is\_set** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **wfm\_j1950\_to\_unix\_ns** ([**wfm\_time.h**](wfm__time_8h.md))
 * **wfm\_j1950\_to\_unix\_sec** ([**wfm\_time.h**](wfm__time_8h.md))

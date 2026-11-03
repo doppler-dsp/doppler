@@ -590,12 +590,220 @@ test_data_source_scene (void)
   return data_scene_matches_compose (0) || data_scene_matches_compose (1);
 }
 
+/* ── Plan == compose on every kind of source that carries its own noise ──
+ *
+ * A lone source with a real snr is BUNDLED: the synth adds the noise itself
+ * when it composes, and a Plan rebuilds the stream from a cached noiseless
+ * signal plus the noise stream. They are the same bits only if both add the
+ * noise through the one accumulate (wfm_private.h): written inline as
+ * `sig*carrier + noise` the synth fuses it on an FMA compiler and a Plan
+ * cannot (doppler#2789, which the qpsk case alone caught at one of the
+ * synth's six mix sites). So every synth path that mixes and adds noise has a
+ * source here -- constant symbol (tone, chirp, noise), sps-hold PSK, the
+ * polyphase shaper, the direct FIR on PSK, bits and symbols, user bits and
+ * symbols, and a Doppler channel's feed -- and each is compared bit for bit.
+ */
+/* Compose `json` pulling the whole run in as few calls as the buffer
+ * allows: a single-source segment hands one steps() call the whole request,
+ * which is the block a Plan builds its cache with. (compose_n pulls 257 at a
+ * time; a filter's vector body and scalar tail fuse differently at different
+ * block sizes, a separate matter from the noise add this test is about.) */
+static size_t
+compose_whole (const char *json, float _Complex *out, size_t cap)
+{
+  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json (json);
+  if (!c)
+    return 0;
+  size_t total = 0, got;
+  while (total < cap
+         && (got = dp_wfm_compose_execute (c, out + total, cap - total)) > 0)
+    total += got;
+  dp_wfm_compose_destroy (c);
+  return total;
+}
+
+static const uint8_t PAR_BITS[128]
+    = { 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0,
+        1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+        0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1,
+        0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0,
+        1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0,
+        1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1 };
+static const float _Complex PAR_SYMS[4]
+    = { 0.6f + 0.8f * I, -0.28f + 0.96f * I, -0.8f - 0.6f * I,
+        0.352f - 0.936f * I }; /* off the dyadic grid: inexact products */
+
+static void
+par_source (unsigned k, wfm_source_t *s, const char **name)
+{
+  memset (s, 0, sizeof *s);
+  s->snr       = 9.0; /* real snr -> bundled */
+  s->level     = -3.0;
+  s->seed      = 11u + k;
+  s->sps       = 8;
+  s->pn_length = 7;
+  s->freq      = 1.2e5;
+  switch (k)
+    {
+    case 0:
+      *name   = "tone (constant symbol)";
+      s->type = 0;
+      break;
+    case 1:
+      *name   = "noise";
+      s->type = 1;
+      break;
+    case 2:
+      *name    = "chirp";
+      s->type  = 5;
+      s->f_end = 3e5;
+      s->span  = 512;
+      break;
+    case 3:
+      *name   = "qpsk, sps-hold";
+      s->type = 4;
+      break;
+    case 4:
+      *name       = "qpsk, polyphase shaper";
+      s->type     = 4;
+      s->pulse    = 1;
+      s->rrc_beta = 0.35;
+      s->rrc_span = 4;
+      break;
+    case 5:
+      *name       = "qpsk, direct FIR";
+      s->type     = 4;
+      s->sps      = 6;
+      s->pulse    = 1;
+      s->rrc_beta = 0.35;
+      s->rrc_span = 4;
+      break;
+    case 6:
+      *name         = "user bits, sps-hold";
+      s->type       = 6;
+      s->modulation = 1;
+      s->sps        = 4;
+      s->data       = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                                   .bits = PAR_BITS,
+                                   .len  = sizeof PAR_BITS };
+      break;
+    case 7:
+      *name         = "user bits, FIR";
+      s->type       = 6;
+      s->modulation = 1;
+      s->sps        = 6;
+      s->pulse      = 1;
+      s->rrc_beta   = 0.35;
+      s->rrc_span   = 4;
+      s->data       = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                                   .bits = PAR_BITS,
+                                   .len  = sizeof PAR_BITS };
+      break;
+    case 8:
+      *name        = "user symbols, sps-hold";
+      s->type      = 7;
+      s->sps       = 4;
+      s->symbols   = (float _Complex *)PAR_SYMS;
+      s->n_symbols = 4;
+      break;
+    case 9:
+      *name        = "user symbols, FIR";
+      s->type      = 7;
+      s->sps       = 6;
+      s->pulse     = 1;
+      s->rrc_beta  = 0.35;
+      s->rrc_span  = 4;
+      s->symbols   = (float _Complex *)PAR_SYMS;
+      s->n_symbols = 4;
+      break;
+    case 10:
+      *name   = "qpsk, one sample a symbol";
+      s->type = 4;
+      s->sps  = 1;
+      break;
+    default:
+      *name         = "qpsk through a Doppler channel";
+      s->type       = 4;
+      s->doppler    = 5.0;
+      s->carrier_hz = 2.2e9;
+      break;
+    }
+}
+
+#define PAR_KINDS 12u
+#define PAR_CAP 16384u
+
+static int
+test_every_source_kind_renders_as_it_composes (void)
+{
+  float _Complex *ref = malloc (PAR_CAP * sizeof *ref);
+  float _Complex *got = malloc (PAR_CAP * sizeof *got);
+  DP_REQUIRE_MSG (ref && got, "kinds: alloc");
+  int bad = 0; /* every kind is compared; one failing must not hide another */
+  for (unsigned k = 0; k < PAR_KINDS; k++)
+    {
+      wfm_source_t s;
+      const char  *name = "";
+      par_source (k, &s, &name);
+      /* a noise source alone is no scene: it rides on a clean tone, as the
+         noise floor of the segment */
+      wfm_source_t two[2];
+      two[0]            = (wfm_source_t){ .type      = 0,
+                                          .freq      = 1e5,
+                                          .snr       = 100.0,
+                                          .seed      = 3,
+                                          .sps       = 8,
+                                          .pn_length = 7,
+                                          .level     = -6.0 };
+      two[1]            = s;
+      wfm_segment_t seg = (s.type == 1) ? (wfm_segment_t){ .sources     = two,
+                                                           .n_sources   = 2,
+                                                           .fs          = 1e6,
+                                                           .num_samples = L }
+                                        : (wfm_segment_t){ .sources     = &s,
+                                                           .n_sources   = 1,
+                                                           .fs          = 1e6,
+                                                           .num_samples = L };
+      /* a finite bit pattern sets its own length: a count beside it is
+         refused */
+      if (s.type == 6)
+        seg.num_samples = 0;
+      char *json = dp_wfm_spec_to_json (&seg, 1, 0, 0, 0, 0.0);
+      char  msg[160];
+      snprintf (msg, sizeof msg, "kinds[%s]: spec_to_json", name);
+      DP_REQUIRE_MSG (json, msg);
+      const size_t nc = compose_whole (json, ref, PAR_CAP);
+      snprintf (msg, sizeof msg, "kinds[%s]: compose produced samples", name);
+      DP_REQUIRE_MSG (nc > 0, msg);
+      wfm_plan_t *p = dp_wfm_plan_prepare (json);
+      snprintf (msg, sizeof msg, "kinds[%s]: prepare", name);
+      DP_REQUIRE_MSG (p, msg);
+      memset (got, 0, PAR_CAP * sizeof *got);
+      const size_t np = dp_wfm_plan_render (p, "{}", got);
+      snprintf (msg, sizeof msg, "kinds[%s]: same length", name);
+      DP_REQUIRE_MSG (np == nc, msg);
+      snprintf (msg, sizeof msg,
+                "KINDS[%s]: render({}) == compose, bit-for-bit", name);
+      if (memcmp (ref, got, nc * sizeof *ref) != 0)
+        {
+          DP_TEST_ERR ("FAIL: %s\n", msg);
+          bad = 1;
+        }
+      dp_wfm_plan_destroy (p);
+      free (json);
+    }
+  free (ref);
+  free (got);
+  return bad;
+}
+
 int
 main (void)
 {
   if (test_noise_anchor_position () || test_background_fold ()
       || test_background_must_be_prefix ()
       || test_background_bundled_is_not_folded ()
+      || test_every_source_kind_renders_as_it_composes ()
       || test_framed_scene_matches_compose () || test_data_source_scene ())
     return 1;
   if (test_parallel_build_bit_exact ())

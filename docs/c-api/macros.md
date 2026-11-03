@@ -437,6 +437,7 @@
 * **WFM\_FRAME\_MAX\_STAGES** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **WFM\_FRAME\_NAME\_MAX** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **WFM\_KW\_MAX\_TAG** ([**wfm\_keywords.h**](wfm__keywords_8h.md))
+* **WFM\_NOINLINE** ([**wfm\_private.h**](wfm__private_8h.md))
 * **WFM\_SURFACE\_HELP\_AMPLITUDE** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **WFM\_SURFACE\_HELP\_BITS** ([**wfm\_surface.h**](wfm__surface_8h.md))
 * **WFM\_SURFACE\_HELP\_CODED** ([**wfm\_surface.h**](wfm__surface_8h.md))

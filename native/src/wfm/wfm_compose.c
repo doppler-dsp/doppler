@@ -19,6 +19,7 @@
  */
 #include "doppler/wfm/wfm_compose.h"
 #include "doppler/wfm/wfm_dsp.h" /* dp_wfm_rrc_taps / wfm_rrc_ntaps for pulse shaping */
+#include "doppler/wfm/wfm_private.h"
 #include "wfm_draw.h" /* the shared ranged-draw hash (one definition) */
 
 #include <math.h>
@@ -998,8 +999,7 @@ render_gap (dp_wfm_compose_state_t *s, float _Complex *out, size_t k)
     {
       dp_wfm_render_noise_steps (s->rend[sx], s->scratch, k);
       float gs = s->gain[sx];
-      for (size_t j = 0; j < k; j++)
-        out[j] += gs * s->scratch[j];
+      wfm_add_scaled (out, s->scratch, k, gs);
     }
 }
 
@@ -1104,8 +1104,7 @@ execute (dp_wfm_compose_state_t *state, float _Complex *out, size_t max,
                 {
                   dp_wfm_render_steps (state->rend[sx], state->scratch, k);
                   float gs = state->gain[sx];
-                  for (size_t j = 0; j < k; j++)
-                    out[i + j] += gs * state->scratch[j];
+                  wfm_add_scaled (out + i, state->scratch, k, gs);
                 }
             }
           /* A data stream that ended inside this chunk ends the ON phase on

@@ -177,6 +177,25 @@ def test_the_family_comes_from_the_manifest(tmp_path: Path) -> None:
     assert _row(data, "c:costas::steps")["fam"] == "track"
 
 
+def test_the_family_comes_from_the_fragments(tmp_path: Path) -> None:
+    """doppler's own layout: the root names only `include`, and each
+    `[module.X]` lives in `modules/<name>.toml`. A reader of the root alone
+    finds no module and refuses."""
+    tree = _tree(tmp_path, {"v0.71.0": [_c("costas::steps", 1e-3, 4096)]})
+    (tree / "just-makeit.toml").write_text(
+        'include = ["objects/*.toml", "modules/*.toml"]\n\n'
+        '[project]\nname = "bench"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+    (tree / "modules").mkdir()
+    for mod, obj in (("accumulator", "acc_f32"), ("track", "costas")):
+        (tree / "modules" / f"{mod}.toml").write_text(
+            f'[module.{mod}]\nobjects = ["{obj}"]\n', encoding="utf-8"
+        )
+    data = _load().page_data(str(tree))
+    assert _row(data, "c:costas::steps")["fam"] == "track"
+
+
 def test_a_component_nothing_claims_is_refused(tmp_path: Path) -> None:
     tree = _tree(
         tmp_path,

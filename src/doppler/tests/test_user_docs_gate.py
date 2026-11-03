@@ -126,6 +126,46 @@ def test_a_record_type_owes_only_its_api_entry(tmp_path: Path) -> None:
     assert "WidgetStats: no example" not in r.stderr
 
 
+def test_a_record_name_in_a_fragment_is_a_record(tmp_path: Path) -> None:
+    """doppler's own layout: the root holds only `include`, and the record
+    lives on a method in `objects/`. A reader of the root alone sees no
+    record and owes ``WidgetStats`` a guide entry and an example."""
+    root = _fixture(tmp_path)
+    _w(
+        root,
+        "just-makeit.toml",
+        'include = ["objects/*.toml", "modules/*.toml"]\n\n'
+        '[project]\nname = "sig"\nversion = "0.1.0"\n',
+    )
+    _w(root, "modules/sig.toml", '[module.sig]\nobjects = ["widget"]\n')
+    _w(
+        root,
+        "objects/widget.toml",
+        '[widget]\n\n[[widget.methods]]\nname = "stats"\n'
+        'single = true\nrecord_name = "WidgetStats"\n',
+    )
+    r = _run(root, "widget_demo.py")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_manifest_with_no_record_is_refused(tmp_path: Path) -> None:
+    """No record at all would check every record type as a class, so an
+    empty answer is a refusal, not an empty set."""
+    root = _fixture(tmp_path)
+    _w(root, "just-makeit.toml", '[project]\nname = "sig"\n')
+    r = _run(root, "widget_demo.py")
+    assert r.returncode != 0
+    assert "declares no record_name" in r.stderr
+
+
+def test_a_missing_manifest_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    (root / "just-makeit.toml").unlink()
+    r = _run(root, "widget_demo.py")
+    assert r.returncode != 0
+    assert "check_user_docs: the manifest" in r.stderr
+
+
 def test_an_example_needs_a_gallery_decision(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
     r = _run(root)

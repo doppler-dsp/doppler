@@ -2717,15 +2717,6 @@ class PersistentBurstCapture:
         0, 0 <= rate_hypotheses <= 64 (0 = auto; doppler_rate nonzero unless
         1), 0 < pfa < 1, 0 < pd < 1)``.
 
-    Warns
-    -----
-    UserWarning
-        Emitted after construction when ``underpowered`` holds: ``BurstCapture:
-        the search cannot meet the requested pd at this cn0_dbhz and geometry
-        (pd_burst < pd). It still builds a best-effort grid, so the symptom is
-        bursts that are never captured rather than an error. Lower pd, raise
-        cn0_dbhz, or give the preamble more repetitions.``.
-
     Examples
     --------
     >>> import numpy as np, tempfile, os

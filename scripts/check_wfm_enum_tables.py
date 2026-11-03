@@ -96,18 +96,19 @@ from pathlib import Path
 from _gitbase import BaseUnreadableError, in_git_repo, resolve_base, show_at
 from _layout import GLUE_FRAGMENT, INC_DIR, header
 
-# `tomllib` is 3.11+. Every OTHER gate under scripts/ that a test in
-# src/doppler/tests/ drives is stdlib-only and so runs on the floor Python,
-# because those tests invoke the script with `sys.executable` -- which, in the
-# `Python 3.9`/`3.10` CI matrix jobs, IS 3.9/3.10. This one reads the manifest,
-# so it needs a TOML parser, and a bare `import tomllib` failed both those jobs
-# with ModuleNotFoundError while passing every 3.11+ job and every local run.
-# `tomli` is the same parser under its pre-stdlib name, marker-gated in the dev
-# group so it installs only where the stdlib lacks one.
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised by the 3.9/3.10 CI matrix jobs
-    import tomli as tomllib
+
+def _manifest(root: Path) -> dict:
+    """The merged manifest: the root and every fragment its `include` names.
+
+    Through jm's public reader, not a parse of the root file: jm accepts an
+    `[[enum]]` in an included fragment (its merge adds any top-level key the
+    root lacks), so a root-only read would miss it (doppler#2751). Raises
+    jm's `FileNotFoundError` / `ValueError`.
+    """
+    from just_makeit import load_manifest
+
+    return load_manifest(root)
+
 
 #: Where the one C home lives, and the manifest that owns its contents. Both
 #: are relative to `--root` so the gate can be exercised over a seeded tree --
@@ -543,9 +544,8 @@ def enum_names(root: Path) -> tuple[dict[str, dict[int, str]], list[str]]:
         enum: {v: n for n, v in pairs if v is not None}
         for _, enum, pairs in bound
     }
-    manifest = root / MANIFEST_REL
-    if manifest.is_file():
-        data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    if (root / MANIFEST_REL).is_file():
+        data = _manifest(root)
         for view, (_, pairs, names) in _views(data, bound).items():
             out[view] = {
                 v: n for n, v in pairs if n in names and v is not None
@@ -756,7 +756,10 @@ def check(root: Path, base: str = "origin/main") -> list[str]:
     defines = {
         m.group(1): int(m.group(2)) for m in _DEFINE_RE.finditer(header)
     }
-    data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    try:
+        data = _manifest(root)
+    except ValueError as e:
+        return [f"{MANIFEST_REL}: jm refuses it: {e}"]
     enums = {e["name"]: list(e["values"]) for e in data.get("enum", [])}
 
     for t in tables:
@@ -924,7 +927,7 @@ def main() -> int:
     root = args.root.resolve()
     n = len(_tables((root / NAMES_H_REL).read_text(encoding="utf-8")))
     bound = bound_enums(root)[0]
-    data = tomllib.loads((root / MANIFEST_REL).read_text(encoding="utf-8"))
+    data = _manifest(root)
     v = len(_views(data, bound))
     print(
         f"wfm-enum-tables: OK — {n} table(s) match their [[enum]],"

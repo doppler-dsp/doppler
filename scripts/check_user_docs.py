@@ -55,10 +55,14 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from _gitbase import BaseUnreadableError, added_since_base, in_git_repo
 from _pydocs import EXTRA_MODULES, discover
 from gen_related_pages import DIRECTIVE_RE, _mentioned_tokens
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 ROOT = Path(__file__).resolve().parent.parent
 EXEMPT = "docs/.user-docs-exempt"
@@ -68,7 +72,6 @@ SELF = "scripts/check_user_docs.py"
 
 CLASS_RULES = ("api", "guide", "example")
 RECORD_RULES = ("api",)
-RECORD_RE = re.compile(r'^\s*record_name\s*=\s*"(\w+)"', re.MULTILINE)
 ENTRY_RE = re.compile(r"^(\S+)\s+(api|guide|example|gallery):\s*(\S.*)$")
 
 FIX = {
@@ -112,20 +115,44 @@ def public_classes(root: Path) -> dict[str, str]:
     return out
 
 
+def _record_values(node: object) -> Iterator[str]:
+    """Every ``record_name`` value anywhere under a manifest table."""
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k == "record_name" and isinstance(v, str):
+                yield v
+            else:
+                yield from _record_values(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _record_values(v)
+
+
 def record_names(root: Path) -> set[str]:
-    """Every ``record_name`` the jm manifests declare.
+    """Every ``record_name`` the jm manifest declares.
 
-    The files are jm's own answer, ``manifest_files``: the root and every
+    Read through jm's public ``load_manifest``: the root merged with every
     fragment its ``include`` names (``objects/``, ``modules/``), so a new
-    fragment directory is read without an edit here.
-    """
-    from just_makeit import _config as jm_config
+    fragment directory is read without an edit here, and a ``record_name``
+    in a comment is not one.
 
-    files = jm_config.manifest_files(root)
-    out: set[str] = set()
-    for f in files:
-        if f.exists():
-            out.update(RECORD_RE.findall(f.read_text(encoding="utf-8")))
+    Refuses rather than returning an empty set: a missing or unusable
+    manifest, or one declaring no record at all, would otherwise check
+    every record type as a class and report a clean tree for the wrong
+    reason (doppler#2751).
+    """
+    from just_makeit import load_manifest
+
+    try:
+        manifest = load_manifest(root)
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"check_user_docs: the manifest: {e}") from e
+    out = set(_record_values(manifest))
+    if not out:
+        raise SystemExit(
+            f"check_user_docs: {root}'s manifest declares no record_name; "
+            "refusing to check every record type as a class"
+        )
     return out
 
 

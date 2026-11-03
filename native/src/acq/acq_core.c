@@ -1524,24 +1524,48 @@ acq_auto_config_continuous (const dp_acq_state_t *st, size_t D, double pfa,
  * work buffers and a tile lands on whichever worker takes it, and the same
  * buffers serve the serial path, so the surface is bit-identical either
  * way. Fixed sizes from validated arguments: abort-on-OOM. */
+/* The five per-tile tables, held apart from the engine while they are built
+ * so a failed regrid has nothing of the engine to undo (#2761): the new set
+ * is adopted only at the commit, and an unadopted one is released whole. */
+typedef struct
+{
+  size_t           n; /* tiles */
+  dp_fft_state_t **inv;
+  float _Complex **prod;
+  dp_fft_state_t **slow;
+  float _Complex **col;
+  size_t         **rows;
+} acq_tiles_t;
+
+/* Release a set, whole or part-built (every slot a build had not reached is
+ * NULL). */
+static void
+acq_tiles_release (acq_tiles_t *tl)
+{
+  for (size_t t = 0; tl->inv && t < tl->n; t++)
+    {
+      if (tl->inv[t])
+        dp_fft_destroy (tl->inv[t]);
+      if (tl->slow && tl->slow[t])
+        dp_fft_destroy (tl->slow[t]);
+      free (tl->prod ? tl->prod[t] : NULL);
+      free (tl->col ? tl->col[t] : NULL);
+      free (tl->rows ? tl->rows[t] : NULL);
+    }
+  free (tl->inv);
+  free (tl->prod);
+  free (tl->slow);
+  free (tl->col);
+  free (tl->rows);
+  memset (tl, 0, sizeof *tl);
+}
+
 static void
 acq_tiles_free (dp_acq_state_t *st)
 {
-  for (size_t t = 0; st->tile_inv && t < st->window_bins; t++)
-    {
-      if (st->tile_inv[t])
-        dp_fft_destroy (st->tile_inv[t]);
-      if (st->tile_slow && st->tile_slow[t])
-        dp_fft_destroy (st->tile_slow[t]);
-      free (st->tile_prod ? st->tile_prod[t] : NULL);
-      free (st->tile_col ? st->tile_col[t] : NULL);
-      free (st->tile_rows ? st->tile_rows[t] : NULL);
-    }
-  free (st->tile_inv);
-  free (st->tile_prod);
-  free (st->tile_slow);
-  free (st->tile_col);
-  free (st->tile_rows);
+  acq_tiles_t tl = { st->window_bins, st->tile_inv, st->tile_prod,
+                     st->tile_slow,   st->tile_col, st->tile_rows };
+  acq_tiles_release (&tl);
   st->tile_inv  = NULL;
   st->tile_prod = NULL;
   st->tile_slow = NULL;
@@ -1550,44 +1574,43 @@ acq_tiles_free (dp_acq_state_t *st)
 }
 
 static int
-acq_tiles_alloc (dp_acq_state_t *st, size_t tiles, size_t cb, size_t lb,
+acq_tiles_alloc (acq_tiles_t *tl, size_t tiles, size_t cb, size_t lb,
                  size_t dI)
 {
-  st->tile_inv
-      = (dp_fft_state_t **)dp_xcalloc (tiles, sizeof (dp_fft_state_t *));
-  st->tile_prod
-      = (float _Complex **)dp_xcalloc (tiles, sizeof (float _Complex *));
+  tl->n    = tiles;
+  tl->inv  = (dp_fft_state_t **)dp_xcalloc (tiles, sizeof (dp_fft_state_t *));
+  tl->prod = (float _Complex **)dp_xcalloc (tiles, sizeof (float _Complex *));
   if (dI > 1)
     {
-      st->tile_slow
+      tl->slow
           = (dp_fft_state_t **)dp_xcalloc (tiles, sizeof (dp_fft_state_t *));
-      st->tile_col
+      tl->col
           = (float _Complex **)dp_xcalloc (tiles, sizeof (float _Complex *));
-      st->tile_rows = (size_t **)dp_xcalloc (tiles, sizeof (size_t *));
+      tl->rows = (size_t **)dp_xcalloc (tiles, sizeof (size_t *));
     }
   for (size_t t = 0; t < tiles; t++)
     {
-      st->tile_inv[t] = dp_fft_create (lb, +1, 1);
-      if (!st->tile_inv[t])
+      tl->inv[t] = dp_fft_create (lb, +1, 1);
+      if (!tl->inv[t])
         return -1;
       /* The product at the period's cb bins, then (padded lag axis only)
          the same spectrum zero-padded to lb bins for the inverse. */
-      st->tile_prod[t] = (float _Complex *)dp_xmalloc (
-          (lb == cb ? cb : cb + lb) * sizeof (float _Complex));
+      tl->prod[t] = (float _Complex *)dp_xmalloc ((lb == cb ? cb : cb + lb)
+                                                  * sizeof (float _Complex));
       if (dI > 1)
         {
-          st->tile_slow[t] = dp_fft_create (dI, -1, 1);
-          if (!st->tile_slow[t])
+          tl->slow[t] = dp_fft_create (dI, -1, 1);
+          if (!tl->slow[t])
             return -1;
           /* a chunk of columns in (zero tails: the pad is the
              interpolation, and acq_tile_block never writes past D), then
              the chunk out */
-          st->tile_col[t] = (float _Complex *)dp_xcalloc (
-              2 * ACQ_COL_CHUNK * dI, sizeof (float _Complex));
+          tl->col[t] = (float _Complex *)dp_xcalloc (2 * ACQ_COL_CHUNK * dI,
+                                                     sizeof (float _Complex));
           /* where the tile's slow-time rows land on the combined axis */
-          st->tile_rows[t] = (size_t *)dp_xmalloc (dI * sizeof (size_t));
+          tl->rows[t] = (size_t *)dp_xmalloc (dI * sizeof (size_t));
           for (size_t i = 0; i < dI; i++)
-            st->tile_rows[t][i] = acq_block_row (t, tiles, i, dI);
+            tl->rows[t][i] = acq_block_row (t, tiles, i, dI);
         }
     }
   return 0;
@@ -1633,6 +1656,8 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
   float _Complex    *new_wide_prod     = NULL;
   float _Complex    *new_blk           = NULL;
   float _Complex    *new_blk_raw       = NULL;
+  acq_part_t        *new_parts         = NULL;
+  acq_tiles_t        new_tiles         = { 0 };
   if (grid_changed)
     {
       /* Single-row reference: row 0 (indices [0, cb)) carries one period
@@ -1710,6 +1735,16 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
                   new_db * cb * sizeof (float _Complex));
             }
         }
+      /* The partial slots (one per tile) and the per-tile scratch follow
+         the grid, built here with the rest so a plan that will not build
+         fails with the engine untouched (#2761). A serial engine (one
+         tile) has no scratch and runs the classic path. */
+      new_parts = (acq_part_t *)dp_xmalloc (new_freq_bins * sizeof *new_parts);
+      if (new_freq_bins > 1
+          && acq_tiles_alloc (&new_tiles, new_freq_bins, cb, lb,
+                              new_db * new_interp)
+                 != 0)
+        goto fail;
     }
 
   if (new_frame_n > new_ring_cap)
@@ -1773,21 +1808,14 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
       st->blk       = new_blk;
       st->blk_raw   = new_blk_raw;
       st->blk_epoch = 0;
-      /* The per-tile scratch follows the grid; a serial engine (one tile)
-         has none and runs the classic path. The partial slots are one per
-         tile in either case. */
       free (st->parts);
-      st->parts = (acq_part_t *)dp_xmalloc (new_freq_bins * sizeof *st->parts);
+      st->parts = new_parts;
       acq_tiles_free (st);
-      if (new_freq_bins > 1
-          && acq_tiles_alloc (st, new_freq_bins, cb, lb, new_db * new_interp)
-                 != 0)
-        {
-          acq_tiles_free (st);
-          st->coherent_bins = new_db;
-          st->window_bins   = new_freq_bins;
-          return -1;
-        }
+      st->tile_inv  = new_tiles.inv;
+      st->tile_prod = new_tiles.prod;
+      st->tile_slow = new_tiles.slow;
+      st->tile_col  = new_tiles.col;
+      st->tile_rows = new_tiles.rows;
     }
   if (new_ring)
     {
@@ -1844,6 +1872,8 @@ fail:
   free (new_wide_prod);
   free (new_blk);
   free (new_blk_raw);
+  free (new_parts);
+  acq_tiles_release (&new_tiles);
   if (new_ring)
     dp_f32_destroy (new_ring);
   return -1;

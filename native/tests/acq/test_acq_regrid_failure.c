@@ -1,0 +1,135 @@
+/*
+ * test_acq_regrid_failure.c -- a regrid that fails commits nothing (#2761).
+ *
+ * acq_regrid builds every replacement first and adopts them at one commit,
+ * so a plan that will not build must leave the engine as it was: the old
+ * grid (n, interp, n_surf, n_noncoh, coherent_bins, window_bins, the ring),
+ * the old buffers, and a sidelobe cache that is still valid for the grid in
+ * effect. The per-tile scratch used to be built AFTER the commit, so its
+ * failure left the new D and window_bins over the old surface, stale
+ * n/interp/n_surf/n_noncoh, and a leaked ring and accumulator.
+ *
+ * Only the constructor reaches a widening regrid today, and a failed
+ * constructor destroys the engine, so no public call can show this. This
+ * test therefore compiles acq_core.c into itself to call the static
+ * acq_regrid on a LIVE engine, and renames the plans acq_core.c itself
+ * builds (a macro over dp_fft_create, so only that file's calls change, and
+ * the correlator's own plans, which abort on failure, stay real) to fail the
+ * Nth one. It sweeps N over EVERY plan the regrid builds, the last ones being
+ * the per-tile plans, and after each failure requires the engine to match a
+ * fresh one -- fields, buffers, and what an execute returns.
+ */
+#include "doppler/fft/fft_core.h"
+
+/* acq_fft_hook.c: the counted, failable stand-in for the plan builder. The
+   build renames dp_fft_create to it for THIS file only (-D on the target),
+   which is what puts acq_core.c's plans, and nothing the correlator builds,
+   under the counter. */
+extern int g_calls;   /* plans acq_core.c has built since the last arm */
+extern int g_fail_at; /* the call that fails; 0 = none */
+
+#include "../../src/acq/acq_core.c"
+
+#include "dp_preamble_test.h"
+#include "dp_test.h"
+
+static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
+#define SPC 2
+
+static dp_acq_state_t *
+make_engine (void)
+{
+  float _Complex *pre = dp_code_preamble (CODE7, 7, SPC);
+  dp_acq_state_t *a = dp_acq_create_burst (pre, 7 * SPC, 8, 1.0e6 * SPC, 45.0,
+                                           0.0, 1e-2, 0.9, 0, 0.0, 1);
+  free (pre);
+  return a;
+}
+
+/* What an execute returns: the hits over a fixed stream. */
+static size_t
+run_hits (dp_acq_state_t *a, acq_result_t *h, size_t cap)
+{
+  float _Complex *pre = dp_code_preamble (CODE7, 7, SPC);
+  const size_t    L   = 3 * a->n + 5;
+  float _Complex *s   = malloc (L * sizeof *s);
+  for (size_t k = 0; k < L; k++)
+    s[k] = pre[k % (7 * SPC)];
+  free (pre);
+  size_t nh = dp_acq_run (a, NULL, NULL, s, L, h, cap);
+  free (s);
+  return nh;
+}
+
+typedef struct
+{
+  size_t n, interp, n_surf, n_noncoh, coherent_bins, window_bins, ring_cap,
+      frame_n, sl_cn, sl_cnext;
+  void *corr, *ref, *parts, *ring, *nc_surface, *tile_inv, *tile_slow;
+} snap_t;
+
+static snap_t
+snap (const dp_acq_state_t *s)
+{
+  snap_t t = { s->n,        s->interp,        s->n_surf,
+               s->n_noncoh, s->coherent_bins, s->window_bins,
+               s->ring_cap, s->frame_n,       s->sl_cn,
+               s->sl_cnext, s->corr,          s->ref,
+               s->parts,    s->ring,          s->nc_surface,
+               s->tile_inv, s->tile_slow };
+  return t;
+}
+
+#define NEW_D 4
+#define NEW_NC 2
+#define NEW_WINDOW 3
+
+int
+main (void)
+{
+  /* How many plans a successful widening regrid builds. */
+  dp_acq_state_t *probe = make_engine ();
+  DP_REQUIRE_MSG (probe, "engine");
+  g_calls   = 0;
+  g_fail_at = 0;
+  DP_REQUIRE_MSG (acq_regrid (probe, NEW_D, NEW_NC, NEW_WINDOW, NULL) == 0,
+                  "the widening regrid succeeds unarmed");
+  const int total = g_calls;
+  DP_REQUIRE_MSG (probe->window_bins == NEW_WINDOW && probe->tile_inv,
+                  "it built the per-tile plans");
+  DP_REQUIRE_MSG (total > 2 * NEW_WINDOW, "and counted every plan it built");
+  dp_acq_destroy (probe);
+
+  dp_acq_state_t *fresh = make_engine ();
+  acq_result_t    want[16];
+  const size_t    nw = run_hits (fresh, want, 16);
+  DP_REQUIRE_MSG (nw >= 1, "the stream is acquired (a real comparison)");
+  dp_acq_destroy (fresh);
+
+  for (int k = 1; k <= total; k++)
+    {
+      dp_acq_state_t *live = make_engine ();
+      DP_REQUIRE_MSG (live, "engine");
+      const snap_t before = snap (live);
+      g_calls             = 0;
+      g_fail_at           = k;
+      const int rc        = acq_regrid (live, NEW_D, NEW_NC, NEW_WINDOW, NULL);
+      g_fail_at           = 0;
+      DP_CHECK_MSG (rc == -1, "the Nth plan failing fails the regrid");
+      const snap_t after = snap (live);
+      DP_CHECK_MSG (memcmp (&before, &after, sizeof before) == 0,
+                    "a failed regrid leaves the grid and every buffer as "
+                    "they were");
+      acq_result_t got[16];
+      const size_t ng   = run_hits (live, got, 16);
+      int          same = ng == nw;
+      for (size_t i = 0; same && i < ng; i++)
+        same = got[i].doppler_bin == want[i].doppler_bin
+               && got[i].code_phase == want[i].code_phase
+               && got[i].test_stat == want[i].test_stat;
+      DP_CHECK_MSG (same, "an execute after the failed regrid matches a "
+                          "fresh engine");
+      dp_acq_destroy (live);
+    }
+  DP_TEST_END ("test_acq_regrid_failure");
+}

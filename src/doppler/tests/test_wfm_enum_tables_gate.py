@@ -165,6 +165,27 @@ def test_a_consistent_tree_passes(tmp_path: Path) -> None:
     assert "2 table(s)" in r.stdout
 
 
+def test_an_enum_in_a_fragment_is_read(tmp_path: Path) -> None:
+    """jm merges a fragment's `[[enum]]` into the manifest when the root
+    declares none, so the root alone is not the manifest: in the fragment
+    layout a root-only reader finds no `[[enum]]` and reports every table
+    as unowned. Future-proofing, not a live bug: doppler's own layout gate
+    (`test_manifest_layout.py`) keeps `[[enum]]` in the root today."""
+    _seed(
+        tmp_path,
+        manifest='include = ["objects/*.toml", "modules/*.toml"]\n\n'
+        '[project]\nname = "wfm"\nversion = "0.1.0"\n',
+    )
+    frag = tmp_path / "modules" / "wfm.toml"
+    frag.parent.mkdir()
+    frag.write_text(
+        "[module.wfm]\nobjects = []\n\n" + _MANIFEST, encoding="utf-8"
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stdout
+    assert "2 table(s)" in r.stdout
+
+
 def test_a_reordered_table_fails(tmp_path: Path) -> None:
     """Rule 2, the whole point: order IS the value."""
     _seed(

@@ -97,9 +97,9 @@ def _discover() -> Iterator[str]:
                     if name not in skip and _method_emits(m, obj_in):
                         yield f"{view['class_name']}.{name}"
     # the root and every fragment it includes: modules/<name>.toml
-    from just_makeit import _config as jm_config
+    from just_makeit import load_manifest
 
-    jm = jm_config.load(ROOT)
+    jm = load_manifest(ROOT)
     for mod, mcfg in jm.get("module", {}).items():
         for f in mcfg.get("functions", []) if isinstance(mcfg, dict) else []:
             if _function_emits(f):

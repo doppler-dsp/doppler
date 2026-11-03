@@ -877,11 +877,14 @@ def module_of(suite: str, component: str, obj2mod: dict, modules) -> str:
 
 def read_manifest(root: str = ".") -> tuple[dict, list]:
     """({object: module}, [modules]) from just-makeit.toml and the
-    fragments it includes (jm's own reader: a `[module.X]` lives in
-    `modules/<name>.toml`)."""
-    from just_makeit import _config as jm_config
+    fragments it includes (jm's public reader, `load_manifest`: a
+    `[module.X]` lives in `modules/<name>.toml`)."""
+    from just_makeit import load_manifest
 
-    mods = jm_config.load(Path(root)).get("module", {})
+    try:
+        mods = load_manifest(Path(root)).get("module", {})
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"bench_report: {root}'s manifest: {e}") from e
     if not mods:
         # every row would read "no family", or none would be checked
         raise SystemExit(

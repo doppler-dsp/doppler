@@ -97,3 +97,17 @@ def test_the_waiver_list_is_exactly_what_the_real_snapshot_holds():
     fails), and a waiver for a figure that has gone is stale (it fails)."""
     g = _gate()
     assert set(g.implausible()) == set(g.IMPLAUSIBLE_ALLOW)
+
+
+def test_a_manifest_with_no_components_is_refused(tmp_path, monkeypatch):
+    """Rule 1 checks each component; with none it would check nothing and
+    pass, so an empty manifest is a refusal, not a clean bill (#2751)."""
+    import pytest
+
+    (tmp_path / "just-makeit.toml").write_text(
+        '[project]\nname = "x"\nversion = "0.1.0"\n', encoding="utf-8"
+    )
+    gate = _gate()
+    monkeypatch.setattr(gate, "ROOT", tmp_path)
+    with pytest.raises(SystemExit, match="names no components"):
+        gate.jm_components()

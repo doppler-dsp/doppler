@@ -28,11 +28,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 def main() -> None:
-    # jm's own reader: a `[module.X]` lives in `modules/<name>.toml`, which
-    # a parse of the root file alone would not see.
-    from just_makeit import _config as jm_config
+    # jm's public reader: a `[module.X]` lives in `modules/<name>.toml`,
+    # which a parse of the root file alone would not see.
+    from just_makeit import load_manifest
 
-    modules = jm_config.load(ROOT).get("module", {})
+    try:
+        modules = load_manifest(ROOT).get("module", {})
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"list_hand_ext_c: the manifest: {e}") from e
     if not modules:
         raise SystemExit(
             "list_hand_ext_c: the manifest yields no [module.X] table; "

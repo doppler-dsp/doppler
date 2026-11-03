@@ -282,6 +282,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**wfm\_names.h**](wfm__names_8h.md) _The one C home for the waveform enum name tables._     
                 * **file** [**wfm\_path.h**](wfm__path_8h.md) _Sibling-path construction shared by the wfm reader and writer._     
                 * **file** [**wfm\_plan.h**](wfm__plan_8h.md) _"Prepare once, materialize many" stimulus engine._     
+                * **file** [**wfm\_private.h**](wfm__private_8h.md) _Shared internals of the wfm composer, the Plan and the synth._     
                 * **file** [**wfm\_sink.h**](wfm__sink_8h.md) _NATS PUB sink for generated IQ (Phase B)._     
                 * **file** [**wfm\_surface.h**](wfm__surface_8h.md) _The wfm field surface table: every source and segment field a non-Python face reads or writes by name._     
                 * **file** [**wfm\_time.h**](wfm__time_8h.md) _The one BLUE timecode &lt;-&gt; UNIX epoch conversion._     

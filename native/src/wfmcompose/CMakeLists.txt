@@ -28,6 +28,7 @@ set(WFM_PLAN_DSP_SOURCES
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_synth_bridge.c # dsss attach
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_dsp.c          # rrc_taps / spreading
     ${CMAKE_SOURCE_DIR}/native/src/wfm_synth/wfm_synth_core.c
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm/wfm_private.h # the noise/source add
     ${CMAKE_SOURCE_DIR}/native/src/fir/fir_core.c
     ${CMAKE_SOURCE_DIR}/native/src/lo/lo_core.c
     ${CMAKE_SOURCE_DIR}/native/src/nco/nco_core.c

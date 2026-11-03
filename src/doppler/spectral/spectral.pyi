@@ -1699,9 +1699,9 @@ class DelayDoppler:
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``Corr2D: invalid
-        parameter (need dwell >= 1, and ny_out and nx_out each 0 or at least
-        the ref extent)``.
+        If construction fails. The exception message is ``DelayDoppler: invalid
+        parameter (need a non-empty code, ny >= 1, dwell >= 1, and ny_out 0 or
+        at least ny)``.
 
     Examples
     --------

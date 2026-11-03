@@ -4087,12 +4087,10 @@ class BpskReceiver:
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``MpskReceiver: invalid
-        parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
-        real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
-        m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0 and zeta > 0 both finite, whose loop gains
-        come out finite, 0 < bn_agc_ratio < 1)``.
+        If construction fails. The exception message is ``BpskReceiver:
+        sample_rate_hz and symbol_rate_hz must both be > 0, |carrier_freq_hz|
+        must be under sample_rate_hz/2, and sample_rate_hz/symbol_rate_hz must
+        leave at least the derived m_out samples per symbol``.
 
     Examples
     --------
@@ -4744,12 +4742,11 @@ class MpskReceiverR:
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``MpskReceiver: invalid
-        parameter (need m in {2,4,8}, sps >= m_out -- sps > 2*m_out on the
-        real-input MpskReceiverR, whose cascade runs behind a 2:1 halfband,
-        m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a
-        power of two >= 2, bn >= 0 and zeta > 0 both finite, whose loop gains
-        come out finite, 0 < bn_agc_ratio < 1)``.
+        If construction fails. The exception message is ``MpskReceiverR:
+        invalid parameter (need m in {2,4,8}, sps > 2*m_out, m_out even in [2,
+        8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2,
+        bn >= 0 and zeta > 0 both finite, whose loop gains come out finite, 0 <
+        bn_agc_ratio < 1)``.
 
     Examples
     --------

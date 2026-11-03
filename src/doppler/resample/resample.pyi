@@ -1248,6 +1248,15 @@ class MatchedRateConverter:
         invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps
         > 0, num_phases a power of two >= 2)``.
 
+    Warns
+    -----
+    UserWarning
+        Emitted after construction when ``narrow_pulse`` holds: ``pulse="iandd"
+        with pulse_sps < 4: the rectangle is one symbol wide, so its matched
+        filter is a 2-3 tap sum here and barely opens the eye (measured on the
+        timing loop this feeds: lock statistic -0.34 at 2 samples/symbol
+        against +0.95 at 4). Use pulse_sps >= 4, or pulse="rrc".``.
+
     Examples
     --------
     Create with defaults:

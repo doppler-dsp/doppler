@@ -464,20 +464,19 @@ static PyMethodDef RawCaptureObj_methods[] = {
   { "__enter__", (PyCFunction)RawCaptureObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
-    "Lets a Capture be used in a `with` statement so its C resources are\n"
+    "Lets a RawCapture be used in a `with` statement so its C resources are\n"
     "released deterministically on exit rather than at collection time.\n"
     "\n"
     "Returns\n"
     "-------\n"
-    "Capture\n"
+    "RawCapture\n"
     "    This same object, not a copy.\n" },
   { "__exit__", (PyCFunction)RawCaptureObj_exit, METH_VARARGS,
-    "Exit a context manager, releasing the Capture.\n"
+    "Exit a context manager, releasing the RawCapture.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -495,7 +494,29 @@ static PyTypeObject RawCaptureObjType = {
   .tp_basicsize                           = sizeof (RawCaptureObject),
   .tp_dealloc                             = (destructor)RawCaptureObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "RawCapture type.\n",
+  .tp_doc                                 = "RawCapture component.\n"
+                                            "\n"
+                                            "Parameters\n"
+                                            "----------\n"
+                                            "path : str | os.PathLike\n"
+                                            "    path constructor parameter (required).\n"
+                                            "sample_type : Literal[\"cf32\", \"cf64\", \"ci32\", \"ci16\", "
+                                            "\"ci8\"], default \"ci16\"\n"
+                                            "    One of ``\"cf32\"``, ``\"cf64\"``, ``\"ci32\"``, "
+                                            "``\"ci16\"``, ``\"ci8\"``.\n"
+                                            "endian : Literal[\"le\", \"be\"], default \"le\"\n"
+                                            "    One of ``\"le\"``, ``\"be\"``.\n"
+                                            "fs : float, default 1.0\n"
+                                            "    fs constructor parameter.\n"
+                                            "fc : float, default 0.0\n"
+                                            "    fc constructor parameter.\n"
+                                            "\n"
+                                            "Raises\n"
+                                            "------\n"
+                                            "ValueError\n"
+                                            "    If construction fails. The exception message is ``cannot "
+                                            "open capture:\n"
+                                            "    no such file, or an unrecognised file type``.\n",
   .tp_methods                             = RawCaptureObj_methods,
   .tp_getset                              = RawCapture_getset,
   .tp_new                                 = RawCaptureObj_new,

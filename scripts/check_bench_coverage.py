@@ -374,13 +374,10 @@ def jm_components() -> set[str]:
     (just-makeit#1023), so this is not the set it runs; it is the set whose
     targets jm writes, and rule 2 holds the rest to having one by hand.
     """
-    from just_makeit import load_manifest
-
-    # Private until jm makes "which top-level keys are components" public
-    # (just-makeit#2452): the module `objects` lists are not it in general
-    # (a standalone object is in none; doppler has none today, but nothing
-    # gates that), and restating jm's reserved sections would drift.
-    from just_makeit._config import components
+    # jm's own definition of "which top-level keys are components"
+    # (just-makeit#2452). The module `objects` lists are not it in general:
+    # a standalone object is in none.
+    from just_makeit import components, load_manifest
 
     comps = set(components(load_manifest(ROOT)))
     # An empty set would make rule 1 pass without checking anything.

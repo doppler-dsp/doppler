@@ -12,3 +12,25 @@
 target_link_libraries(test_acq_core PRIVATE
     wfm_synth_core lo_core awgn_core pn_core fir_core resamp_core
     wfm_dsp_core wfm_frame_core cvt_core gold_core)
+
+# A regrid that fails must commit nothing (#2761). The test compiles
+# acq_core.c INTO itself, because acq_regrid is static (a widening regrid is
+# reachable only from the constructor, where a failure ends the engine), and
+# renames the plan builder for that one translation unit so the Nth plan
+# acq_core.c builds can be made to fail. The failable builder lives in its own
+# file, which the rename is undone for, so it calls the real one.
+add_executable(test_acq_regrid_failure
+    ${CMAKE_SOURCE_DIR}/native/tests/acq/test_acq_regrid_failure.c
+    ${CMAKE_SOURCE_DIR}/native/tests/acq/acq_fft_hook.c)
+target_compile_definitions(test_acq_regrid_failure PRIVATE
+    dp_fft_create=acq_test_fft_create)
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/native/tests/acq/acq_fft_hook.c
+    PROPERTIES COMPILE_OPTIONS "-Udp_fft_create")
+target_link_libraries(test_acq_regrid_failure PRIVATE
+    Threads::Threads corr2d_core fft2d_core fft_core detection_core
+    dp_tlm_core cvt_core ${JM_MATH_LIBRARY})
+target_include_directories(test_acq_regrid_failure PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/inc/doppler/acq
+    ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_acq_regrid_failure COMMAND test_acq_regrid_failure)

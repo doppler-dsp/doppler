@@ -64,7 +64,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from _gitbase import BaseUnreadableError, added_since_base, in_git_repo
-from _pydocs import EXTRA_MODULES, discover
+from _pydocs import kinds
 from gen_related_pages import DIRECTIVE_RE, _mentioned_tokens
 
 if TYPE_CHECKING:
@@ -91,34 +91,14 @@ FIX = {
 }
 
 
-def _class_names(paths: list[Path]) -> set[str]:
-    """Top-level ``class`` names across these sources and stubs."""
-    out: set[str] = set()
-    for p in paths:
-        try:
-            tree = ast.parse(p.read_text(encoding="utf-8"))
-        except (OSError, SyntaxError):
-            continue
-        out.update(n.name for n in tree.body if isinstance(n, ast.ClassDef))
-    return out
-
-
 def public_classes(root: Path) -> dict[str, str]:
     """``{dotted name: bare name}`` for every exported class."""
-    pkg = root / "src" / "doppler"
-    extra = dict(EXTRA_MODULES)
-    out: dict[str, str] = {}
-    for mod, syms in discover(str(pkg)):
-        if mod in extra:
-            files = [pkg / extra[mod]]
-        else:
-            d = pkg / mod.split(".", 1)[1]
-            files = sorted(d.glob("*.py")) + sorted(d.glob("*.pyi"))
-        classes = _class_names(files)
-        for s in syms:
-            if s in classes and not s.startswith("_"):
-                out[f"{mod}.{s}"] = s
-    return out
+    return {
+        f"{mod}.{s}": s
+        for mod, ks in kinds(str(root / "src" / "doppler")).items()
+        for s, k in ks.items()
+        if k == "class" and not s.startswith("_")
+    }
 
 
 def _record_values(node: object) -> Iterator[str]:

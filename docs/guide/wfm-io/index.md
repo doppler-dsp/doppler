@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # Capture I/O
 
 A **capture** is a file of IQ samples plus whatever metadata the file type can

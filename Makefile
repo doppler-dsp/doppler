@@ -1131,7 +1131,7 @@ $(UV) run python scripts/check_nav_index.py
 $(UV) run python scripts/check_wfmgen_flag_docs.py
 $(UV) run python scripts/gen_related_pages.py --check
 $(UV) run python scripts/gen_domains.py --check
-$(UV) run python scripts/check_user_docs.py --no-ratchet $(GALLERY_SCRIPTS)
+$(MAKE) -s user-docs-check USER_DOCS_FLAGS=--no-ratchet
 $(UV) run python scripts/gen_readme.py --check
 $(UV) run python scripts/gen_install_scripts.py --check
 $(UV) run python scripts/gen_wfm_defaults.py --check
@@ -2484,9 +2484,10 @@ plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness
 # USER_DOCS_BASE). On `lint`; docs-check's invariants run it with
 # --no-ratchet, because the Docs job checks out no base ref.
 USER_DOCS_BASE ?= origin/main
+USER_DOCS_FLAGS ?=
 user-docs-check: ## Verify every class has API, guide and example, and every example a gallery decision
 	@$(UV) run python scripts/check_user_docs.py --base $(USER_DOCS_BASE) \
-	     $(GALLERY_SCRIPTS)
+	     $(USER_DOCS_FLAGS) $(GALLERY_SCRIPTS)
 
 gallery-scripts-check: ## Verify every committed gallery plot has a script `make gallery` runs
 	@$(UV) run python scripts/check_gallery_scripts.py $(GALLERY_SCRIPTS)

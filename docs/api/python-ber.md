@@ -150,6 +150,8 @@ ______________________________________________________________________
 
 ::: doppler.ber.FrameMeter
 
+::: doppler.ber.BerInterval
+
 ::: doppler.ber.ber_theory_ser
 
 ::: doppler.ber.ber_theory_ber

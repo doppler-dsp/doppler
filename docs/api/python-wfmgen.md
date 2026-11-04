@@ -272,6 +272,18 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## `Gold` — a CCSDS Gold-code generator
+
+`Gold` XORs two same-length LFSRs that free-run in lock-step, so its period
+is `2**length - 1` and varying `seed_a` walks the members of the Gold family
+while register B stays fixed. Use it when a code needs the bounded
+cross-correlation of a Gold family, as in DSSS; `PN` above is the single
+m-sequence.
+
+::: doppler.wfm.Gold
+
+______________________________________________________________________
+
 ## `compose` — multi-segment composition, writers, and a NATS sink
 
 The composition layer is the Python face of the C `wfmgen` composer

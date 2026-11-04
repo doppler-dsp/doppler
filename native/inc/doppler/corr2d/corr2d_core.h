@@ -143,8 +143,10 @@ typedef struct {
                                    (docs/design/acq-surface.md §18.1),
                                    one slot per worker.  Delay-Doppler
                                    only; internal.                        */
-  float _Complex  *dd_fine;   /**< The map's slow-time output, ny_out x
-                                   nx, bin-major.  Delay-Doppler only.    */
+  float _Complex  *dd_fine;   /**< The map's scratch when it runs whole
+                                   (slow first, or one slow row);
+                                   NULL when it runs rows first, fused
+                                   into the row stage.  Delay-Doppler.    */
   size_t          *dd_rows;   /**< Output row of slow row i: the
                                    centered (i + ny_out/2) mod ny_out.    */
   int              dd_fused;  /**< 1 when the map runs rows first (its
@@ -161,9 +163,8 @@ typedef struct {
   float _Complex  *bat_pad;   /**< Per-worker row zero-pad, nworkers x ny x
                                    nx_out; fast path with nx_out > nx only. */
   float _Complex  *bat_map;   /**< Per-worker maps, nworkers x n_out.    */
-  float _Complex  *bat_fine;  /**< Per-worker slow-time output for the
-                                   delay-Doppler map, nworkers x ny_out x
-                                   nx.  Delay-Doppler only.               */
+  float _Complex  *bat_fine;  /**< Per-worker @ref dd_fine for batches;
+                                   NULL when the map runs rows first.     */
 } dp_corr2d_state_t;
 
 /**

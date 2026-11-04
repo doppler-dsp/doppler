@@ -14,7 +14,7 @@ SRC = ROOT / "native" / "src" / "corr2d" / "corr2d_core.c"
 
 SABOTAGES = [
     (
-        "slow first: offset sign",
+        "shared: offset sign in the table",
         "off[j]        = (int32_t)(((r % fw) + fw) % fw);",
         "off[j]        = (int32_t)(((-r % fw) + fw) % fw);",
     ),
@@ -39,6 +39,16 @@ SABOTAGES = [
         "slow first: row table shifted",
         "row1 ? row1 : out + tl->rows[i] * L);",
         "row1 ? row1 : out + tl->rows[(i + 1) % m->g.di] * L);",
+    ),
+    (
+        "the rule: a tie to slow first",
+        "return g->di <= 1 || rows <= slow ? DP__DD_ROWS_FIRST",
+        "return g->di <= 1 || rows < slow ? DP__DD_ROWS_FIRST",
+    ),
+    (
+        "refusal: a fine grid at one slow row accepted",
+        "|| (g->di == 1 && g->f > 1) /* one slow row has no fine grid */",
+        "|| 0 /* sabotage */",
     ),
     (
         "rows first: ramp phase sign",

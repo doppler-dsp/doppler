@@ -175,7 +175,7 @@ float _Complex* dp_corr2d_state_t::bat_fine;
 
 
 
-Per-worker slow-time output for the delay-Doppler map, nworkers x ny\_out x nx. Delay-Doppler only. 
+Per-worker [**dd\_fine**](structdp__corr2d__state__t.md#variable-dd_fine) for batches; NULL when the map runs rows first. 
  
 
 
@@ -298,7 +298,7 @@ float _Complex* dp_corr2d_state_t::dd_fine;
 
 
 
-The map's slow-time output, ny\_out x nx, bin-major. Delay-Doppler only. 
+The map's scratch when it runs whole (slow first, or one slow row); NULL when it runs rows first, fused into the row stage. Delay-Doppler. 
  
 
 

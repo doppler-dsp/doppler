@@ -1616,6 +1616,36 @@ acq_tiles_alloc (acq_tiles_t *tl, size_t tiles, size_t cb, size_t lb,
   return 0;
 }
 
+/* Run the caller's request (threads_req) on the grid in effect. Never more
+   workers than tiles: every fan hands out one tile a task, so a worker past
+   window_bins only wakes and waits, every epoch. At 0 (the online cores) on
+   a three-tile search that was 15 idle workers of 18, and the pool's scene
+   example spent 26 s of 35 in the kernel. A count already running is kept,
+   so a regrid that leaves the cap where it was does not rebuild the pool. */
+static void
+acq_apply_threads (dp_acq_state_t *st)
+{
+  const int n    = st->threads_req;
+  long      want = 1;
+  if (n != 1 && st->window_bins > 1)
+    {
+      want = n > 0 ? n : dp_cpu_count ();
+      if (want > (long)st->window_bins)
+        want = (long)st->window_bins;
+    }
+  if (want < 1)
+    want = 1;
+  if (want == st->threads && (want == 1) == (st->pool == NULL))
+    return;
+  dp_pool_destroy (st->pool);
+  st->pool    = NULL;
+  st->threads = 1;
+  if (want <= 1)
+    return;
+  st->pool    = dp_pool_create ((int)want);
+  st->threads = dp_pool_threads (st->pool);
+}
+
 static int
 acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
             size_t new_freq_bins, const float _Complex *replica)
@@ -1846,6 +1876,10 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
   st->frame_n      = new_frame_n;
   st->noise_lo     = 0;
   st->noise_hi     = new_n_surf - 1;
+  /* The tile count may have moved, so the cap on the caller's request may
+     have too: narrowing to one tile runs serially, and widening again comes
+     back to the request, not to that 1 (#2746, #2797). */
+  acq_apply_threads (st);
   return 0;
 
 fail:
@@ -2263,6 +2297,12 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
                              &best_nc, &best_window_bins);
     }
 
+  /* The roll per thread (docs/design/acq-surface.md §13): a continuous
+     engine asks for the machine's online cores, which acq_regrid caps at
+     one worker a tile, so a single-tile one runs serially; a burst engine
+     asks for one. dp_acq_set_threads() changes the request. */
+  st->threads     = 1;
+  st->threads_req = continuous ? 0 : 1;
   if (acq_regrid (st, best_d, best_nc, best_window_bins, replica) != 0)
     goto fail;
   /* dsl is defined on THIS grid; dp_acq_dsl_db() computes it on first
@@ -2272,14 +2312,7 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
   acq_commit_thresholds (st, pfa, pd, snr, doppler_uncertainty);
   if (dp_acq_set_max_peaks (st, 1) != 0)
     goto fail;
-  /* The roll per thread (docs/design/acq-surface.md §13): a tiled
-     continuous engine fans its tiles
-     across the machine's online cores by default; a burst engine and a
-     single-tile one run serially. dp_acq_set_threads() changes it. */
-  st->threads   = 1;
   st->epoch_fan = 1;
-  if (continuous && st->window_bins > 1)
-    (void)dp_acq_set_threads (st, 0);
   dp_acq_reset (st); /* binds the framer at the grid just chosen */
   return st;
 
@@ -2444,10 +2477,6 @@ dp_acq_configure_search_raw (dp_acq_state_t *st, size_t doppler_bins,
    * matching its documented contract of pinning the classic grid directly. */
   if (acq_regrid (st, doppler_bins, n_noncoh, 1, NULL) != 0)
     return -1;
-  /* One tile now, so the pool's cap (no more workers than tiles) says
-     serial; re-apply it, or a three-tile engine keeps reading 3 threads
-     and a receiver blob carries the stale count (#2746). */
-  (void)dp_acq_set_threads (st, st->threads);
 
   const double snr = acq_design_snr (st->cn0_dbhz, st->fs);
   acq_commit_thresholds (st, st->pfa, st->pd, snr, st->doppler_uncertainty);
@@ -2534,22 +2563,8 @@ dp_acq_destroy (dp_acq_state_t *st)
 int
 dp_acq_set_threads (dp_acq_state_t *st, int n)
 {
-  dp_pool_destroy (st->pool);
-  st->pool    = NULL;
-  st->threads = 1;
-  if (n == 1 || st->window_bins <= 1)
-    return DP_OK; /* serial: nothing to fan, or asked not to */
-  /* Never more workers than tiles: every fan hands out one tile a task, so
-     a worker past window_bins only wakes and waits, every epoch. At 0 (the
-     online cores) on a three-tile search that was 15 idle workers of 18,
-     and the pool's scene example spent 26 s of 35 in the kernel. */
-  long want = n > 0 ? n : dp_cpu_count ();
-  if (want > (long)st->window_bins)
-    want = (long)st->window_bins;
-  if (want <= 1)
-    return DP_OK;
-  st->pool    = dp_pool_create ((int)want);
-  st->threads = dp_pool_threads (st->pool);
+  st->threads_req = n;
+  acq_apply_threads (st);
   return DP_OK;
 }
 

@@ -131,6 +131,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
 |  int | [**threads**](#variable-threads)  <br> |
+|  int | [**threads\_req**](#variable-threads_req)  <br> |
 |  float | [**threshold**](#variable-threshold)  <br> |
 |  float \_Complex \*\* | [**tile\_col**](#variable-tile_col)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**tile\_inv**](#variable-tile_inv)  <br> |
@@ -1886,6 +1887,23 @@ int dp_acq_state_t::threads;
 
 workers the pool runs on, the caller included; 1 without a pool 
  
+
+
+        
+
+<hr>
+
+
+
+### variable threads\_req 
+
+```C++
+int dp_acq_state_t::threads_req;
+```
+
+
+
+what the caller asked for: set\_threads()'s n, 0 = the online cores. `threads` is this capped at one worker a tile; every regrid re-applies it, so narrowing to one tile and widening again comes back to min(threads\_req, tiles), not to the 1 the narrow grid ran on (doppler#2797). 
 
 
         

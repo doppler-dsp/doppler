@@ -583,6 +583,12 @@ extern "C"
     dp_pool_t       *pool;      /**< NULL or one thread = serial          */
     int              threads;   /**< workers the pool runs on, the caller
                                      included; 1 without a pool          */
+    int threads_req; /**< what the caller asked for: set_threads()'s n,
+                          0 = the online cores. `threads` is this capped
+                          at one worker a tile; every regrid re-applies
+                          it, so narrowing to one tile and widening again
+                          comes back to min(threads_req, tiles), not to
+                          the 1 the narrow grid ran on (doppler#2797). */
     int epoch_fan; /**< 1 (create's default): every tile stage fans on the
                         pool. 0: the stages that run once an epoch run
                         inline, and the per-block ones fan only when a
@@ -1370,8 +1376,11 @@ extern "C"
    * online core count, 1 runs everything on the calling thread, n runs on
    * n workers (the caller included) -- but never more than `window_bins`:
    * every fan hands out one tile a task, so a worker past that only wakes
-   * and waits. The workers are created here, once,
-   * and parked between pushes; nothing is created per push. The surface
+   * and waits. The request is kept, and every regrid re-applies it, so
+   * an engine narrowed to one tile and widened again runs on
+   * min(n, tiles), not on the 1 the narrow grid ran on. The workers are
+   * created here, once, and parked between pushes; nothing is created per
+   * push. The surface
    * is bit-identical at every count -- the tiles are independent after the
    * one forward transform and each writes its own rows -- so this changes
    * the cost of a push and nothing about its result. Setup path, never

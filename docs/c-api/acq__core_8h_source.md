@@ -172,6 +172,7 @@ extern "C"
        and the surface is bit-identical either way. */
     dp_pool_t       *pool;      
     int              threads;   
+    int threads_req; 
     int epoch_fan; 
     dp_fft_state_t *sl_fwd; 
     dp_fft_state_t *sl_inv; 

@@ -1708,7 +1708,7 @@ int dp_acq_set_threads (
 
 
 
-A continuous engine is created with a pool of the machine's online cores when it has more than one tile; a burst engine, and a single-tile one, run serially. This sets the count: 0 auto-selects the online core count, 1 runs everything on the calling thread, n runs on n workers (the caller included)  but never more than `window_bins`: every fan hands out one tile a task, so a worker past that only wakes and waits. The workers are created here, once, and parked between pushes; nothing is created per push. The surface is bit-identical at every count  the tiles are independent after the one forward transform and each writes its own rows  so this changes the cost of a push and nothing about its result. Setup path, never hot; not while another thread is inside push().
+A continuous engine is created with a pool of the machine's online cores when it has more than one tile; a burst engine, and a single-tile one, run serially. This sets the count: 0 auto-selects the online core count, 1 runs everything on the calling thread, n runs on n workers (the caller included)  but never more than `window_bins`: every fan hands out one tile a task, so a worker past that only wakes and waits. The request is kept, and every regrid re-applies it, so an engine narrowed to one tile and widened again runs on min(n, tiles), not on the 1 the narrow grid ran on. The workers are created here, once, and parked between pushes; nothing is created per push. The surface is bit-identical at every count  the tiles are independent after the one forward transform and each writes its own rows  so this changes the cost of a push and nothing about its result. Setup path, never hot; not while another thread is inside push().
 
 
 

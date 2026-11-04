@@ -1,3 +1,5 @@
+<!-- domain: acquire -->
+
 # The acquisition surface — the measurement record
 
 *The dated record behind [the design page](acq-surface.md). The design page

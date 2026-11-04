@@ -1532,6 +1532,438 @@ _acq_ramp_odd_period_check (void)
   return 0;
 }
 
+/* ── The map's equivalence (#2752 step 2.2, docs/design/acq-surface.md
+ *    §18.4)
+ * ────────────────────────────────────────────────────────────────────
+ *
+ * acq's decided complex surface, cell for cell, against the delay-Doppler
+ * map's definition (§18.1) evaluated in double precision by direct DFTs:
+ * the oracle today's two paths and the one map that replaces them must
+ * both meet. For one block of D epochs x_k (N samples each), tile q of W
+ * (signed index s_q, roll s_q mod N) and rate hypothesis h:
+ *
+ *   P_k[j]   = X_k[(j + roll) mod N] conj(T[j]) ramp_qk[j]
+ *   row_k[l] = IDFT_L(pad_L(P_k))[l]
+ *   Z[i, l]  = sum_k chirp_h[k] row_k[l] e^{-j 2 pi k i / DI}
+ *
+ * written to surface row m(q, i) = (s_q DI + i') mod (W DI), i' the signed
+ * slow row. X_k and T are the epoch's and the template's N-point DFTs,
+ * pad_L splits an even N's Nyquist bin like dp_fft_pad_spectrum, ramp_qk is
+ * the exact code-rate ramp exp(-j 2 pi s_k j' / N) over the signed bins j',
+ * s_k = (k - (D-1)/2) s_q fs / carrier (a carrier set, D > 1, a tiled
+ * engine), and chirp_h is the rate de-chirp at the block's middle.
+ *
+ * Nothing here is acq's code: the transforms are direct sums, the ramp and
+ * the de-chirp are their closed forms, and only the engine's template, its
+ * grid and its public rate grid (dp_acq_rate_hypothesis/_phasor) are read. */
+
+/* The bound's constant, in the map's units (a correlation, scale 1/N):
+   |d| <= EQ_C eps_f32 (log2 N + log2 L + log2 DI) sqrt(D) |x|_2 |r|_2 over
+   the block x and the template r. Measured over this file's scenes and
+   EQ_SEEDS draws each, D = 1 to 150, the worst scene needs 0.050 (at
+   D = 1; it falls to 0.022 at D = 150); 0.1 is twice that. The sqrt(D)
+   stays: without it the constant a scene needs grows with D, to 0.27 at
+   D = 150, because a coherent peak and its rounding both grow as D. */
+#define EQ_C 0.1
+/* A carrier scene's peak against the reference's, dB either way. The map
+   reads the ramp on a grid 4 times finer than the padded slow-time rows
+   (§18.1) and loses what that rounding costs: at most 0.086 dB over 33
+   tones and three dilations on the prototype (record §18.2), and 0.028 dB
+   on this file's carrier scenes on the rounded-ramp scratch engine (record
+   §18.5). 0.2 dB is 2.3 times the worst. Not a bound derived from the
+   grid: a tone between rows reads the slow-time kernel on its slope, where
+   the same rounding costs more than on its top. */
+#define EQ_PEAK_DB 0.2
+#define EQ_SEEDS 8
+
+/* Today's scale per path, the one place 2.3 changes: the narrow path's
+   corr2d inverse divides by N, the wideband path's tile inverse does not.
+   The map's decided scale (§18.1) is 1/N on both. */
+static double
+eq_today_scale (const dp_acq_state_t *st)
+{
+  return st->window_bins > 1 ? 1.0 : 1.0 / (double)st->code_bins;
+}
+
+/* The rate hypotheses the engine runs for a block (acq: none below D = 3). */
+static size_t
+eq_rate_count (const dp_acq_state_t *st)
+{
+  return st->coherent_bins > 2 ? st->rate_hyps : 1;
+}
+
+/* e^{-j 2 pi m / M} for m in [0, M): the direct DFTs' twiddles. */
+static double _Complex *
+eq_twiddles (size_t M)
+{
+  double _Complex *w = malloc (M * sizeof *w);
+  if (w)
+    for (size_t m = 0; m < M; m++)
+      w[m] = cexp (-2.0 * M_PI * I * (double)m / (double)M);
+  return w;
+}
+
+/* The map's definition for engine `st`, block `x` (D * N samples, the
+   epochs in stream order) and rate hypothesis `h`, at the map's own scale
+   times eq_today_scale(), into `out` (n_surf cells, acq's row-major
+   layout). Returns 0, or -1 when an allocation fails. */
+static int
+eq_map_reference (const dp_acq_state_t *st, const float _Complex *x, size_t h,
+                  double _Complex *out)
+{
+  const size_t     N = st->code_bins, L = st->lag_bins, D = st->coherent_bins;
+  const size_t     W  = st->window_bins > 1 ? st->window_bins : 1;
+  const size_t     DI = D * st->interp, rows = W * DI;
+  const double     scale = eq_today_scale (st);
+  double _Complex *wN = eq_twiddles (N), *wL = eq_twiddles (L),
+                  *wS = eq_twiddles (DI);
+  double _Complex *T = calloc (N, sizeof *T), *X = calloc (D * N, sizeof *X);
+  double _Complex *P     = calloc (L, sizeof *P),
+                  *row   = calloc (D * L, sizeof *row);
+  double _Complex *chirp = calloc (D, sizeof *chirp);
+  int              rc    = -1;
+  if (!wN || !wL || !wS || !T || !X || !P || !row || !chirp)
+    goto done;
+  for (size_t j = 0; j < N; j++)
+    {
+      double _Complex t = 0.0;
+      for (size_t n = 0; n < N; n++)
+        t += (double _Complex)st->ref[n] * wN[(j * n) % N];
+      T[j] = conj (t);
+      for (size_t k = 0; k < D; k++)
+        {
+          double _Complex s = 0.0;
+          for (size_t n = 0; n < N; n++)
+            s += (double _Complex)x[k * N + n] * wN[(j * n) % N];
+          X[k * N + j] = s;
+        }
+    }
+  const size_t R  = eq_rate_count (st);
+  const double Te = (double)st->sf / st->chip_rate;
+  for (size_t k = 0; k < D; k++)
+    chirp[k] = R > 1 ? dp_acq_rate_phasor (
+                           dp_acq_rate_hypothesis (st->doppler_rate, R, h),
+                           ((double)k - 0.5 * (double)(D - 1)) * Te)
+                     : 1.0;
+  for (size_t q = 0; q < W; q++)
+    {
+      const long   sq   = dp_fftfreq_index (q, W);
+      const size_t roll = (size_t)(((sq % (long)N) + (long)N) % (long)N);
+      const int    ramp = W > 1 && D > 1 && st->carrier_freq_hz > 0.0 && sq;
+      const double d    = ramp ? (double)sq * st->fs / st->carrier_freq_hz : 0;
+      for (size_t k = 0; k < D; k++)
+        {
+          const double s = ((double)k - 0.5 * (double)(D - 1)) * d;
+          /* P_k, padded to L the way dp_fft_pad_spectrum pads. */
+          for (size_t l = 0; l < L; l++)
+            P[l] = 0.0;
+          for (size_t j = 0; j < N; j++)
+            {
+              const long jp     = dp_fftfreq_index (j, N);
+              double _Complex v = X[k * N + (j + roll) % N] * T[j];
+              if (ramp)
+                v *= cexp (-2.0 * M_PI * I * s * (double)jp / (double)N);
+              if (L == N)
+                P[j] = v;
+              else if (N % 2 == 0 && (size_t)labs (jp) == N / 2)
+                {
+                  P[N / 2] += 0.5 * v; /* the Nyquist bin, half each side */
+                  P[L - N / 2] += 0.5 * v;
+                }
+              else
+                P[jp >= 0 ? (size_t)jp : L - (size_t)(-jp)] = v;
+            }
+          for (size_t l = 0; l < L; l++)
+            {
+              double _Complex z = 0.0;
+              for (size_t j = 0; j < L; j++)
+                z += P[j] * conj (wL[(j * l) % L]);
+              row[k * L + l] = z;
+            }
+        }
+      for (size_t i = 0; i < DI; i++)
+        {
+          const long   m = sq * (long)DI + dp_fftfreq_index (i, DI);
+          const size_t dst
+              = (size_t)(((m % (long)rows) + (long)rows) % (long)rows);
+          for (size_t l = 0; l < L; l++)
+            {
+              double _Complex z = 0.0;
+              for (size_t k = 0; k < D; k++)
+                z += chirp[k] * row[k * L + l] * wS[(k * i) % DI];
+              out[dst * L + l] = scale * z;
+            }
+        }
+    }
+  rc = 0;
+done:
+  free (wN);
+  free (wL);
+  free (wS);
+  free (T);
+  free (X);
+  free (P);
+  free (row);
+  free (chirp);
+  return rc;
+}
+
+/* One scene: an engine, its block's samples and what the test learned. */
+typedef struct
+{
+  const char *name;
+  double      c_flat;    /* c with the bound's sqrt(D) dropped */
+  double      c_sqrt;    /* c with it: the bound EQ_C holds */
+  double      peak_db;   /* 20 log10 |acq peak| / |reference peak| */
+  int         same_cell; /* acq's peak cell is the reference's */
+  int         hit_ok;    /* the first hit sits on that cell */
+} eq_scene_t;
+
+/* Push one block of `x` (D * N samples) into a reset engine, read its
+   decided complex surface and score it against the reference for the
+   hypothesis the engine kept. Returns 0, or -1 when the engine decided no
+   coherent surface or an allocation failed. */
+static int
+eq_score (dp_acq_state_t *st, const float _Complex *x, eq_scene_t *sc)
+{
+  const size_t N = st->code_bins, L = st->lag_bins, D = st->coherent_bins;
+  const size_t DI = D * st->interp, n = st->n_surf, cols = L;
+  dp_acq_reset (st);
+  acq_result_t     hit[4];
+  const size_t     nh   = dp_acq_push (st, x, D * N, hit, 4);
+  float _Complex  *got  = malloc (n * sizeof *got);
+  double _Complex *want = malloc (n * sizeof *want);
+  if (!got || !want || dp_acq_surface_complex (st, got, n) != n
+      || eq_map_reference (st, x, st->rate_best_h, want) != 0)
+    {
+      free (got);
+      free (want);
+      return -1;
+    }
+  double worst = 0.0, xx = 0.0, rr = 0.0;
+  size_t ga = 0, wa = 0;
+  for (size_t k = 0; k < n; k++)
+    {
+      const double e = cabs ((double _Complex)got[k] - want[k]);
+      if (e > worst)
+        worst = e;
+      if (cabsf (got[k]) > cabsf (got[ga]))
+        ga = k;
+      if (cabs (want[k]) > cabs (want[wa]))
+        wa = k;
+    }
+  for (size_t k = 0; k < D * N; k++)
+    xx += cabsf (x[k]) * cabsf (x[k]);
+  for (size_t k = 0; k < N; k++)
+    rr += cabsf (st->ref[k]) * cabsf (st->ref[k]);
+  const double eps = 1.1920928955078125e-07;
+  /* In the map's units, a correlation (scale 1/N): today's output is
+     eq_today_scale() * N of that, so the bound carries the same factor. */
+  const double flat
+      = eq_today_scale (st) * (double)N * eps
+        * (log2 ((double)N) + log2 ((double)L) + log2 ((double)DI)) * sqrt (xx)
+        * sqrt (rr);
+  sc->c_flat    = worst / flat;
+  sc->c_sqrt    = worst / (flat * sqrt ((double)D));
+  sc->peak_db   = 20.0 * log10 (cabsf (got[ga]) / cabs (want[wa]));
+  sc->same_cell = ga == wa;
+  /* A hit reports the native row (acq_native_row): an interpolated pick
+     reads as row / interp, the strongest native row within its zone. */
+  const size_t rows = n / cols, wr = wa / cols, wc = wa % cols;
+  size_t dr = nh ? (hit[0].doppler_bin * st->interp + rows - wr) % rows : rows;
+  if (dr > rows / 2)
+    dr = rows - dr;
+  sc->hit_ok = nh >= 1 && hit[0].code_phase == wc && dr <= st->interp;
+  free (got);
+  free (want);
+  return 0;
+}
+
+/* The code at `spc` samples a chip, its chip clock dilated by (1 + f/fc)
+   when a carrier fc is given (the code Doppler that rides a carrier
+   Doppler f), times a tone at f, plus seeded noise of power 2 sigma^2. */
+static float _Complex *
+eq_signal (const uint8_t *code, size_t sf, double spc, size_t len, double f,
+           double fs, double fc, double sigma, uint32_t *rng)
+{
+  float _Complex *x = malloc (len * sizeof *x);
+  if (!x)
+    return NULL;
+  const double dil = fc > 0.0 ? 1.0 + f / fc : 1.0;
+  for (size_t k = 0; k < len; k++)
+    {
+      const size_t chip = (size_t)floor ((double)k * dil / spc) % sf;
+      const double ph   = 2.0 * M_PI * f * (double)k / fs;
+      x[k] = ((code[chip] & 1u) ? -1.0f : 1.0f) * (float _Complex)cexp (I * ph)
+             + (float)sigma * dp_cgauss (rng);
+    }
+  return x;
+}
+
+/* Scene table: every regime the map must cover (§18.4). The engines are
+ * small so the direct reference stays cheap. A scene without a carrier is
+ * held cell by cell to the bound (EQ_C); a carrier scene to its hit and its
+ * peak (EQ_PEAK_DB), not its cells, because the map rounds the ramp to a grid
+ * F times finer (§18.1) and no float bound covers that. Both are held to the
+ * reference's peak cell and the first hit on it. The constant is printed
+ * with and without the bound's sqrt(D), so the D dependence stays in view.
+ * Sabotage (acq_core.c, one at a time): the ramp's sign, the slow-time
+ * pad (interp 1 where it is 2), the tile's surface row (acq_block_row's
+ * tile index unsigned) -> red. */
+static int
+_acq_map_equivalence_check (void)
+{
+  const double span31 = 1.0e6 / (2.0 * 31.0), span7 = 1.0e6 / (2.0 * 7.0);
+  enum
+  {
+    NS = 12
+  };
+  eq_scene_t sc[NS];
+  memset (sc, 0, sizeof sc);
+  uint32_t rng     = 0x2752u;
+  size_t   ns      = 0;
+  double   worst_c = 0.0, worst_db = 0.0;
+
+  for (size_t s = 0; s < NS; s++)
+    {
+      dp_acq_state_t *a = NULL;
+      double          f = 0.0, fc = 0.0, spc = 2.0;
+      const uint8_t  *code   = CODE31;
+      size_t          sf     = 31;
+      size_t          pin_db = 0;
+      switch (s)
+        {
+        case 0: /* narrow, D = 1 */
+        case 1: /* narrow, D = 4: the slow-time pad */
+          sc[s].name = s == 0 ? "narrow D=1" : "narrow D=4";
+          a = burst_from_code (CODE31, 31, 16, 2, 1.0e6, ACQ_CN0_NONE, 0.0,
+                               1e-3, 0.9, 0, 0.0);
+          pin_db = s == 0 ? 1 : 4;
+          f      = 0.3 * span31;
+          break;
+        case 2: /* narrow, rate hypotheses */
+          sc[s].name = "narrow rates";
+          a = burst_with_rates (CODE31, 31, 16, 2, 1.0e6, ACQ_CN0_NONE, 0.0,
+                                1e-3, 0.9, 0, 2.0e7, 3);
+          f = 0.2 * span31;
+          break;
+        case 3: /* wideband, D = 1 */
+          sc[s].name = "tiles D=1";
+          a          = burst_from_code (CODE31, 31, 8, 2, 1.0e6, ACQ_CN0_NONE,
+                                        3.5 * span31, 1e-3, 0.9, 0, 0.0);
+          f          = 1.9 * span31;
+          break;
+        case 4: /* wideband, D > 1: a tone in a side tile, the hop's case */
+          sc[s].name = "tiles D>1 side";
+          code = CODE7, sf = 7;
+          a = burst_from_code (CODE7, 7, 8, 2, 1.0e6, 60.0, 3.5 * span7, 1e-3,
+                               0.9, 0, 0.0);
+          f = -2.4 * span7;
+          break;
+        case 5: /* wideband, padded lag axis (124 -> 128), D > 1 */
+          sc[s].name = "tiles padded";
+          a   = dp_acq_create_continuous (CODE31, 31, 4.0e6, 1.0e6, 0.0, 75.0,
+                                          3.5 * span31, 1e-3, 0.9, 0, 8, 0.0);
+          spc = 4.0;
+          f   = 2.2 * span31;
+          break;
+        case 6: /* wideband, rate hypotheses */
+          sc[s].name = "tiles rates";
+          code = CODE7, sf = 7;
+          a = burst_with_rates (CODE7, 7, 16, 2, 1.0e6, 60.0, 3.5 * span7,
+                                1e-3, 0.9, 0, 4.0e8, 3);
+          f = 1.7 * span7;
+          break;
+        case 7: /* a carrier, even period (124, padded) */
+          sc[s].name = "carrier even";
+          a   = dp_acq_create_continuous (CODE31, 31, 4.0e6, 1.0e6, 0.0, 75.0,
+                                          3.5 * span31, 1e-3, 0.9, 0, 8, 0.0);
+          spc = 4.0, fc = 1.0e7;
+          f = 2.2 * span31;
+          break;
+        case 8: /* a carrier, odd period (#2815: N = 31, read on 32 lags) */
+          sc[s].name = "carrier odd";
+          spc = 1.0, fc = 5.0e6;
+          a = dp_acq_create_continuous (CODE31, 31, 1.0e6, 1.0e6, 0.0, 75.0,
+                                        3.5 * span31 * 2.0, 1e-3, 0.9, 0, 8,
+                                        0.0);
+          f = 2.1 * span31 * 2.0;
+          break;
+        case 9: /* narrow, deep: D = 32 */
+          sc[s].name = "narrow D=32";
+          a = burst_from_code (CODE31, 31, 32, 2, 1.0e6, ACQ_CN0_NONE, 0.0,
+                               1e-3, 0.9, 0, 0.0);
+          pin_db = 32;
+          f      = 0.3 * span31;
+          break;
+        case 10: /* wideband, deep: D = 16 tiles */
+          sc[s].name = "tiles D=16";
+          a = dp_acq_create_continuous (CODE31, 31, 2.0e6, 1.0e6, 0.0, 75.0,
+                                        3.5 * span31, 1e-3, 0.9, 0, 31, 0.0);
+          f = -1.3 * span31;
+          break;
+        case 11: /* narrow, the depth acq runs at: D = 150 */
+          sc[s].name = "narrow D=150";
+          a = burst_from_code (CODE31, 31, 150, 2, 1.0e6, ACQ_CN0_NONE, 0.0,
+                               1e-3, 0.9, 0, 0.0);
+          pin_db = 150;
+          f      = 0.3 * span31;
+          break;
+        default:
+          DP_REQUIRE_MSG (0, "a scene without a case");
+        }
+      DP_REQUIRE_MSG (a != NULL, sc[s].name);
+      if (pin_db)
+        DP_REQUIRE (dp_acq_configure_search_raw (a, pin_db, 1) == 0);
+      DP_REQUIRE_MSG (a->n_noncoh == 1, "a coherent dwell, so a surface");
+      if (fc > 0.0)
+        DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, fc) == DP_OK);
+      /* EQ_SEEDS draws of the noise per scene; the scene keeps its worst. */
+      const size_t len = a->coherent_bins * a->code_bins;
+      sc[s].same_cell = sc[s].hit_ok = 1;
+      for (size_t seed = 0; seed < EQ_SEEDS; seed++)
+        {
+          eq_scene_t      one = sc[s];
+          float _Complex *x
+              = eq_signal (code, sf, spc, len, f, a->fs, fc, 0.2, &rng);
+          DP_REQUIRE (x != NULL);
+          DP_REQUIRE_MSG (eq_score (a, x, &one) == 0, sc[s].name);
+          free (x);
+          sc[s].c_flat  = fmax (sc[s].c_flat, one.c_flat);
+          sc[s].c_sqrt  = fmax (sc[s].c_sqrt, one.c_sqrt);
+          sc[s].peak_db = fabs (one.peak_db) > fabs (sc[s].peak_db)
+                              ? one.peak_db
+                              : sc[s].peak_db;
+          sc[s].same_cell &= one.same_cell;
+          sc[s].hit_ok &= one.hit_ok;
+        }
+      printf ("  map equivalence %-14s N=%3zu L=%3zu D=%2zu I=%zu W=%zu "
+              "R=%zu: c=%.3f (with sqrt(D): %.3f), peak %+.4f dB%s%s\n",
+              sc[s].name, a->code_bins, a->lag_bins, a->coherent_bins,
+              a->interp, a->window_bins, eq_rate_count (a), sc[s].c_flat,
+              sc[s].c_sqrt, sc[s].peak_db, sc[s].same_cell ? "" : " MOVED",
+              sc[s].hit_ok ? "" : " HIT-OFF");
+      DP_CHECK_MSG (sc[s].same_cell, sc[s].name);
+      DP_CHECK_MSG (sc[s].hit_ok, sc[s].name);
+      if (fc == 0.0)
+        {
+          DP_CHECK_MSG (sc[s].c_sqrt <= EQ_C, sc[s].name);
+          worst_c = fmax (worst_c, sc[s].c_sqrt);
+        }
+      else
+        {
+          DP_CHECK_MSG (fabs (sc[s].peak_db) <= EQ_PEAK_DB, sc[s].name);
+          worst_db = fmax (worst_db, fabs (sc[s].peak_db));
+        }
+      dp_acq_destroy (a);
+      ns++;
+    }
+  printf ("  map equivalence: %zu scenes, worst c %.3f (EQ_C %.2f), worst "
+          "carrier peak %.4f dB (EQ_PEAK_DB %.2f)\n",
+          ns, worst_c, (double)EQ_C, worst_db, (double)EQ_PEAK_DB);
+  return 0;
+}
+
 /* The wideband grid's real contract is COVERAGE, not bin count: every
  * Doppler in [-du, +du] must have a hypothesis within half a bin, and
  * the search and dp_acq_build_handoff() must agree on which one.
@@ -3267,6 +3699,7 @@ main (void)
   (void)_acq_tile_alias_hop_check ();
   (void)_acq_hit_chip_phase_check ();
   (void)_acq_ramp_odd_period_check ();
+  (void)_acq_map_equivalence_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_chunk_invariance_check ();
   (void)_acq_resume_check ();

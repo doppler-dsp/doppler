@@ -346,8 +346,20 @@ size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
  * the frequency domain and inverting once is exactly the per-frame inverse
  * summed, by linearity of the IFFT — valid because the dwell is **coherent**
  * (a complex sum); a non-coherent (magnitude) integration could not defer the
- * inverse.  The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns
- * a flat length-ny*nx ndarray, a no-dump returns None.
+ * inverse.
+ *
+ * **Layout.**  A frame is ny*nx complex samples in row-major order: row i is
+ * samples i*nx .. (i+1)*nx - 1.  For Corr2D that is a (ny, nx) image; for
+ * DelayDoppler it is the raw stream, ny code periods of nx = code_len samples
+ * back to back.  The map a dump produces is flat, n_out = ny_out * nx_out
+ * values (ny values with @p col_out), also row-major: reshape it to
+ * (ny_out, nx_out).  On a DelayDoppler, axis 0 is Doppler (centered, zero
+ * Doppler on row ny_out / 2) and axis 1 is delay (the lag, in samples).
+ *
+ * **Ownership.**  In Python, a call that dumps returns a new array when no
+ * `out=` is given, and a view of `out=` when one is (it must hold n_out; it is
+ * written on a dump only, and the next dump overwrites it).  A call that does
+ * not dump returns None and touches neither.
  *
  * @param state  Allocated 2-D correlator (non-NULL).
  * @param in     Input frame, flat row-major CF32, length ny*nx.
@@ -357,10 +369,10 @@ size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
  *               dump call.
  * @param max_out Capacity of @p out in elements. Emission stops there, so the
  *               return value is the number actually written.
- * @return n_out on a dump (or @p max_out if smaller), 0 otherwise (None in
- *         Python).  If @p n_in is not the required length the call is
- *         REFUSED with nothing read, written or counted: SIZE_MAX in C,
- *         ValueError in Python (#1925).
+ * @return Python: the map on a dump, None otherwise; a frame that is not
+ *         ny*nx samples is REFUSED with nothing read, written or counted, as a
+ *         ValueError (#1925).  C: n_out on a dump (or @p max_out if smaller),
+ *         0 otherwise, and SIZE_MAX for the refused frame.
  * @code
  * >>> from doppler.spectral import Corr2D
  * >>> import numpy as np
@@ -378,7 +390,12 @@ size_t dp_corr2d_execute(dp_corr2d_state_t *state, const float _Complex *in,
 
 /* ── Batches: many frames in one call (#2683) ──────────────────────────────
  *
- * A batch is H frames back to back, n_in = H * ny * nx.  Map h is exactly
+ * A batch is H frames back to back, n_in = H * ny * nx: frame h is samples
+ * h*ny*nx .. (h+1)*ny*nx - 1, each laid out as execute() takes it.  What a
+ * hypothesis or a frame IS, is the caller's: the batch only knows H.  Each
+ * map is n_out values (reshape to (ny_out, nx_out); Doppler is axis 0 and
+ * delay axis 1 on a DelayDoppler), and map h is row h of the (H, n_out)
+ * result.  Map h is exactly
  * what a fresh object with dwell 1 returns for frame h -- the same
  * arithmetic, bit for bit, on every path (general 2-D, single-row fast
  * path, col_out, delay-Doppler) and at every thread count.  A batch never
@@ -468,7 +485,8 @@ size_t dp_corr2d_execute_fold (dp_corr2d_state_t *state,
  *        H * n_out, H = n_in / (ny * nx).
  * @param state  Must be non-NULL.
  * @param n_in   Input samples about to be passed.
- * @return H * n_out, or SIZE_MAX if that overflows.
+ * @return The capacity `execute_all` needs for @p n_in samples: H * n_out
+ *         values (C: SIZE_MAX if that overflows).
  * @code
  * >>> import numpy as np
  * >>> from doppler.spectral import DelayDoppler
@@ -486,7 +504,16 @@ size_t dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state,
                                       size_t n_in);
 
 /**
- * @brief Every map of a batch, unreduced: map h at `out + h * n_out`.
+ * @brief Every map of a batch, unreduced: row h of the (H, n_out) result is
+ *        the map of frame h (in C, map h is at `out + h * n_out`).
+ *
+ * Python: `x` is the H frames back to back, a flat array of H * ny * nx
+ * samples (H >= 1; frame h is the samples from h * ny * nx up to, not including,
+ * (h + 1) * ny * nx).  With no
+ * `out=` each call returns a new array; with `out=` it returns a view of it, and the next call into the same `out=` overwrites that
+ * view.  `out=` is a 2-D complex64 array of shape (rows, n_out) with at least
+ * H rows (a shorter one is refused); the result is its first H rows.  The
+ * object's dwell is untouched.
  *
  * @param state    Must be non-NULL.
  * @param in       H frames back to back (CF32).
@@ -494,8 +521,10 @@ size_t dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state,
  * @param out      H * n_out values (CF32).
  * @param max_out  Capacity of @p out; at least
  *                 dp_corr2d_execute_all_max_out().
- * @return H * n_out, or SIZE_MAX (nothing written) for a refused batch.
- *         From Python, an (H, n_out) array, a view of `out=` when given.
+ * @return Python: the (H, n_out) array; a refused batch (empty, not a whole
+ *         number of frames, or an `out=` with fewer than H rows) is a
+ *         ValueError with nothing written.  C: H * n_out, or SIZE_MAX for the
+ *         refused batch.
  * @code
  * >>> import numpy as np
  * >>> from doppler.spectral import DelayDoppler
@@ -540,6 +569,9 @@ size_t dp_corr2d_execute_coherent_max_out (const dp_corr2d_state_t *state);
 /**
  * @brief The coherent sum of a batch's maps, inverted once.
  *
+ * Python: `x` is the H frames back to back, a flat array of H * ny * nx
+ * samples (H >= 1).
+ *
  * The frames' product spectra are summed and the sum is inverted, as a
  * dwell does: the result is bit-identical to what a fresh object with
  * dwell = H dumps for the same frames, and equal to the sum of the H maps
@@ -550,7 +582,11 @@ size_t dp_corr2d_execute_coherent_max_out (const dp_corr2d_state_t *state);
  * @param n_in     A nonzero multiple of ny * nx.
  * @param out      n_out values (CF32).
  * @param max_out  Capacity of @p out; at least n_out.
- * @return n_out, or SIZE_MAX (nothing written) for a refused batch.
+ * @return Python: the one map, a new (n_out,) array; a refused batch is a
+ *         ValueError with nothing written.  C: n_out, or SIZE_MAX for the
+ *         refused batch.  (Do not size `out=` from `execute_coherent_max_out`:
+ *         the binding asks `out=` for as many elements as the input has,
+ *         #2818.)
  * @code
  * >>> import numpy as np
  * >>> from doppler.spectral import DelayDoppler
@@ -594,6 +630,9 @@ size_t dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state);
  *        cell is the sum over h of that cell's `|map_h|^2`, summed in h
  *        order in float.
  *
+ * Python: `x` is the H frames back to back, a flat array of H * ny * nx
+ * samples (H >= 1).
+ *
  * Unlike the coherent sum, phase does not cancel: frames x and -x sum to
  * twice one map's power, where their coherent sum is zero.
  *
@@ -602,7 +641,10 @@ size_t dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state);
  * @param n_in     A nonzero multiple of ny * nx.
  * @param out      n_out powers (float).
  * @param max_out  Capacity of @p out; at least n_out.
- * @return n_out, or SIZE_MAX (nothing written) for a refused batch.
+ * @return Python: the (n_out,) float32 powers, a new array; a refused batch
+ *         is a ValueError with nothing written.  C: n_out, or SIZE_MAX for the
+ *         refused batch.  (Do not size `out=` from the `_max_out` call: the
+ *         binding asks `out=` for as many elements as the input has, #2818.)
  * @code
  * >>> import numpy as np
  * >>> from doppler.spectral import DelayDoppler
@@ -642,6 +684,9 @@ size_t dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state);
  * @brief The largest power over a batch's maps, cell by cell, and the map
  *        it came from.
  *
+ * Python: `x` is the H frames back to back, a flat array of H * ny * nx
+ * samples (H >= 1).
+ *
  * Each cell of @p out is the largest `|map_h|^2` that cell takes over the
  * maps, and the same cell of @p out1 is the h it came from.  A tie goes to
  * the lowest h: a later map replaces the running maximum only when it is
@@ -653,8 +698,10 @@ size_t dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state);
  * @param out      n_out powers (float).
  * @param out1     n_out map indices (uint32).
  * @param max_out  Capacity of each of @p out and @p out1; at least n_out.
- * @return n_out, or SIZE_MAX (nothing written) for a refused batch or
- *         H above 2^32.  From Python, the tuple (power, index).
+ * @return Python: the tuple (power, index), each (n_out,): float32 powers and
+ *         uint32 map indices, always new arrays (this call takes no `out=`);
+ *         a refused batch, or H above 2**32, is a ValueError.  C: n_out, or
+ *         SIZE_MAX with nothing written.
  * @code
  * >>> import numpy as np
  * >>> from doppler.spectral import DelayDoppler
@@ -695,6 +742,9 @@ size_t dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state,
  * @brief One record per map of a batch: its peak power, where the peak is,
  *        and its mean power.
  *
+ * Python: `x` is the H frames back to back, a flat array of H * ny * nx
+ * samples (H >= 1).
+ *
  * Entry h of each output describes map h: @p out its largest `|map|^2`,
  * @p out1 and @p out2 the row and column of that cell (the first in
  * row-major order on a tie), and @p out3 the mean `|map|^2` over its n_out
@@ -711,8 +761,10 @@ size_t dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state,
  * @param out2     H peak columns (uint32).
  * @param out3     H mean powers (float).
  * @param max_out  Capacity of each output; at least H.
- * @return H, or SIZE_MAX (nothing written) for a refused batch.  From
- *         Python, the tuple (peak, row, col, mean).
+ * @return Python: the tuple (peak, row, col, mean), each (H,): float32 peak
+ *         power, uint32 row and column, float32 mean power, always new arrays
+ *         (this call takes no `out=`); a refused batch is a ValueError.  C: H,
+ *         or SIZE_MAX with nothing written.
  * @code
  * >>> import numpy as np
  * >>> from doppler.spectral import DelayDoppler
@@ -835,7 +887,10 @@ size_t dp_corr2d_bank_power_max_max_out (dp_corr2d_state_t *state,
  * @param out       `n_out` powers.
  * @param out1      `n_out` hypothesis indices.
  * @param max_out   Capacity of each output; at least `n_out`.
- * @return `n_out`, or SIZE_MAX with nothing written.
+ * @return Python: the tuple (power, index), each (n_out,): float32 powers
+ *         and uint32 hypothesis indices, always new arrays (this call takes
+ *         no `out=`); a refusal is a ValueError.  C: `n_out`, or SIZE_MAX
+ *         with nothing written.
  * @code
  * >>> import numpy as np
  * >>> from doppler.spectral import DelayDoppler
@@ -915,10 +970,14 @@ size_t dp_corr2d_bank_detect_max_out (dp_corr2d_state_t *state,
  * @param out3         Rows.
  * @param out4         Columns.
  * @param max_out      Capacity of each output; at least `n_out`.
- * @return The record count (0 included), or SIZE_MAX with nothing written
- *         for anything dp_corr2d_bank_fold() refuses, `L_d == 0`, an
- *         @p L_r that @p L_d does not divide, a refined carrier past int32,
- *         or @p max_out below `n_out`.
+ * @return Python: the tuple (power, g, rate, row, col), one entry per
+ *         confirmed record (possibly none): float32 refined power, int32
+ *         refined carrier, uint32 rate, row and column, always new arrays
+ *         (this call takes no `out=`); anything below is a ValueError.  C: the
+ *         record count (0 included), or SIZE_MAX with nothing written for
+ *         anything dp_corr2d_bank_fold() refuses, `L_d == 0`, an @p L_r that
+ *         @p L_d does not divide, a refined carrier past int32, or @p max_out
+ *         below `n_out`.
  * @code
  * >>> import numpy as np
  * >>> from doppler.spectral import DelayDoppler

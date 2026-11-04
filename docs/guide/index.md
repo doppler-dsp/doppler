@@ -14,6 +14,7 @@ its gallery page.
 
 - [Acquiring a Repeated Preamble](acquisition.md) — finding bursts of any repeated preamble with `BurstCapture` and `BurstAcquisition`
 - [DSSS Burst Acquisition](dsss-acquisition.md) — acquiring a spread-spectrum preamble's code phase and Doppler with `BurstAcquisition`, and continuous signals with `Acquisition`
+- [Delay-Doppler Search](delay-doppler.md) — where a code is and how fast it is rotating: one map, batches of frames, and the hypothesis bank for an unknown carrier, with `DelayDoppler`
 - [Lock Detection Across doppler.track](lock-detection.md) — which `configure_lock` to call, and why, for every tracking loop
 - [Power Spectra & Measurements](spectral-psd.md) — PSD estimation, tone and NPR measurement
 - [Streaming Spectrograms](spectrogram.md) — any-size chunks in, every row of a waterfall out, the same rows however the stream is cut (C and Python)

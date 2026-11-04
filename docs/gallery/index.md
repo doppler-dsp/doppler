@@ -60,6 +60,7 @@ Those live on the [Examples](../examples/index.md) page instead.
 - [Monte Carlo](detection-sim.md) — 30,000-trial validation of the Marcum Q curves.
 - [Lock Detection: Verify Counts](lockdet.md) — level + time hysteresis vs. a naive comparator on a marginal signal.
 - [2-D Acquisition](detection2d.md) — GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR.
+- [Delay-Doppler Search](delay-doppler.md) — a delay-Doppler map, a coarse carrier bank and the refine that recovers its straddle loss, plus a batch of hypotheses in one call.
 - [DSSS Acquisition: Pd/Pfa](dsss-acq-characterization.md) — detection characterisation curves.
 - [Streaming Async Despreader](async-despread.md) — `Dll(segments)` despreading a Doppler-dilated code on an asynchronous data clock, unaided and with the carrier's rate aid.
 - [Full-Chain Lock-Up](receiver-lock.md) — `Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context.

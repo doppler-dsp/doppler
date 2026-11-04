@@ -999,9 +999,20 @@ class Corr2D:
         ny*nx). Accumulating in the frequency domain and inverting once is
         exactly the per-frame inverse summed, by linearity of the IFFT — valid
         because the dwell is **coherent** (a complex sum); a non-coherent
-        (magnitude) integration could not defer the inverse. The Python wrapper
-        accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny*nx
-        ndarray, a no-dump returns None.
+        (magnitude) integration could not defer the inverse.
+
+        **Layout.** A frame is ny*nx complex samples in row-major order: row i
+        is samples i*nx .. (i+1)*nx - 1. For Corr2D that is a (ny, nx) image;
+        for DelayDoppler it is the raw stream, ny code periods of nx = code_len
+        samples back to back. The map a dump produces is flat, n_out = ny_out *
+        nx_out values (ny values with col_out), also row-major: reshape it to
+        (ny_out, nx_out). On a DelayDoppler, axis 0 is Doppler (centered, zero
+        Doppler on row ny_out / 2) and axis 1 is delay (the lag, in samples).
+
+        **Ownership.** In Python, a call that dumps returns a new array when no
+        `out=` is given, and a view of `out=` when one is (it must hold n_out;
+        it is written on a dump only, and the next dump overwrites it). A call
+        that does not dump returns None and touches neither.
 
         Parameters
         ----------
@@ -1014,10 +1025,11 @@ class Corr2D:
         Returns
         -------
         NDArray[np.complex64] | None
-            n_out on a dump (or max_out if smaller), 0 otherwise (None in
-            Python). If n_in is not the required length the call is REFUSED
-            with nothing read, written or counted: SIZE_MAX in C, ValueError in
-            Python (#1925). None when the C call writes no output.
+            Python: the map on a dump, None otherwise; a frame that is not
+            ny*nx samples is REFUSED with nothing read, written or counted, as
+            a ValueError (#1925). C: n_out on a dump (or max_out if smaller), 0
+            otherwise, and SIZE_MAX for the refused frame. None when the C call
+            writes no output.
 
         Raises
         ------
@@ -1056,7 +1068,16 @@ class Corr2D:
         x: npt.NDArray[np.complex64],
         out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
-        """Every map of a batch, unreduced: map h at `out + h * n_out`.
+        """Every map of a batch, unreduced: row h of the (H, n_out) result is
+        the map of frame h (in C, map h is at `out + h * n_out`).
+
+        Python: `x` is the H frames back to back, a flat array of H * ny * nx
+        samples (H >= 1; frame h is the samples from h * ny * nx up to, not
+        including, (h + 1) * ny * nx). With no `out=` each call returns a new
+        array; with `out=` it returns a view of it, and the next call into the
+        same `out=` overwrites that view. `out=` is a 2-D complex64 array of
+        shape (rows, n_out) with at least H rows (a shorter one is refused);
+        the result is its first H rows. The object's dwell is untouched.
 
         Parameters
         ----------
@@ -1068,8 +1089,10 @@ class Corr2D:
         Returns
         -------
         NDArray[np.complex64]
-            H * n_out, or SIZE_MAX (nothing written) for a refused batch. From
-            Python, an (H, n_out) array, a view of `out=` when given.
+            Python: the (H, n_out) array; a refused batch (empty, not a whole
+            number of frames, or an `out=` with fewer than H rows) is a
+            ValueError with nothing written. C: H * n_out, or SIZE_MAX for the
+            refused batch.
 
         Raises
         ------
@@ -1110,7 +1133,8 @@ class Corr2D:
         Returns
         -------
         int
-            H * n_out, or SIZE_MAX if that overflows.
+            The capacity `execute_all` needs for n_in samples: H * n_out values
+            (C: SIZE_MAX if that overflows).
 
         Examples
         --------
@@ -1134,6 +1158,9 @@ class Corr2D:
     ) -> NDArray[np.complex64]:
         """The coherent sum of a batch's maps, inverted once.
 
+        Python: `x` is the H frames back to back, a flat array of H * ny * nx
+        samples (H >= 1).
+
         The frames' product spectra are summed and the sum is inverted, as a
         dwell does: the result is bit-identical to what a fresh object with
         dwell = H dumps for the same frames, and equal to the sum of the H maps
@@ -1149,7 +1176,11 @@ class Corr2D:
         Returns
         -------
         NDArray[np.complex64]
-            n_out, or SIZE_MAX (nothing written) for a refused batch.
+            Python: the one map, a new (n_out,) array; a refused batch is a
+            ValueError with nothing written. C: n_out, or SIZE_MAX for the
+            refused batch. (Do not size `out=` from `execute_coherent_max_out`:
+            the binding asks `out=` for as many elements as the input has,
+            #2818.)
 
         Raises
         ------
@@ -1208,6 +1239,9 @@ class Corr2D:
         is the sum over h of that cell's `|map_h|^2`, summed in h order in
         float.
 
+        Python: `x` is the H frames back to back, a flat array of H * ny * nx
+        samples (H >= 1).
+
         Unlike the coherent sum, phase does not cancel: frames x and -x sum to
         twice one map's power, where their coherent sum is zero.
 
@@ -1221,7 +1255,10 @@ class Corr2D:
         Returns
         -------
         NDArray[np.float32]
-            n_out, or SIZE_MAX (nothing written) for a refused batch.
+            Python: the (n_out,) float32 powers, a new array; a refused batch
+            is a ValueError with nothing written. C: n_out, or SIZE_MAX for the
+            refused batch. (Do not size `out=` from the `_max_out` call: the
+            binding asks `out=` for as many elements as the input has, #2818.)
 
         Raises
         ------
@@ -1280,6 +1317,9 @@ class Corr2D:
         """The largest power over a batch's maps, cell by cell, and the map it
         came from.
 
+        Python: `x` is the H frames back to back, a flat array of H * ny * nx
+        samples (H >= 1).
+
         Each cell of out is the largest `|map_h|^2` that cell takes over the
         maps, and the same cell of out1 is the h it came from. A tie goes to
         the lowest h: a later map replaces the running maximum only when it is
@@ -1293,8 +1333,10 @@ class Corr2D:
         Returns
         -------
         tuple[NDArray[np.float32], NDArray[np.uint32]]
-            n_out, or SIZE_MAX (nothing written) for a refused batch or H above
-            2^32. From Python, the tuple (power, index).
+            Python: the tuple (power, index), each (n_out,): float32 powers and
+            uint32 map indices, always new arrays (this call takes no `out=`);
+            a refused batch, or H above 2**32, is a ValueError. C: n_out, or
+            SIZE_MAX with nothing written.
 
         Raises
         ------
@@ -1328,6 +1370,9 @@ class Corr2D:
         """One record per map of a batch: its peak power, where the peak is,
         and its mean power.
 
+        Python: `x` is the H frames back to back, a flat array of H * ny * nx
+        samples (H >= 1).
+
         Entry h of each output describes map h: out its largest `|map|^2`, out1
         and out2 the row and column of that cell (the first in row-major order
         on a tie), and out3 the mean `|map|^2` over its n_out cells. A map is
@@ -1344,8 +1389,10 @@ class Corr2D:
         Returns
         -------
         tuple[NDArray[np.float32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.float32]]
-            H, or SIZE_MAX (nothing written) for a refused batch. From Python,
-            the tuple (peak, row, col, mean).
+            Python: the tuple (peak, row, col, mean), each (H,): float32 peak
+            power, uint32 row and column, float32 mean power, always new arrays
+            (this call takes no `out=`); a refused batch is a ValueError. C: H,
+            or SIZE_MAX with nothing written.
 
         Raises
         ------
@@ -1408,7 +1455,10 @@ class Corr2D:
         Returns
         -------
         tuple[NDArray[np.float32], NDArray[np.uint32]]
-            `n_out`, or SIZE_MAX with nothing written.
+            Python: the tuple (power, index), each (n_out,): float32 powers and
+            uint32 hypothesis indices, always new arrays (this call takes no
+            `out=`); a refusal is a ValueError. C: `n_out`, or SIZE_MAX with
+            nothing written.
 
         Raises
         ------
@@ -1504,7 +1554,11 @@ class Corr2D:
         Returns
         -------
         tuple[NDArray[np.float32], NDArray[np.int32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.uint32]]
-            The record count (0 included), or SIZE_MAX with nothing written for
+            Python: the tuple (power, g, rate, row, col), one entry per
+            confirmed record (possibly none): float32 refined power, int32
+            refined carrier, uint32 rate, row and column, always new arrays
+            (this call takes no `out=`); anything below is a ValueError. C: the
+            record count (0 included), or SIZE_MAX with nothing written for
             anything dp_corr2d_bank_fold() refuses, `L_d == 0`, an L_r that L_d
             does not divide, a refined carrier past int32, or max_out below
             `n_out`.
@@ -1767,9 +1821,20 @@ class DelayDoppler:
         ny*nx). Accumulating in the frequency domain and inverting once is
         exactly the per-frame inverse summed, by linearity of the IFFT — valid
         because the dwell is **coherent** (a complex sum); a non-coherent
-        (magnitude) integration could not defer the inverse. The Python wrapper
-        accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny*nx
-        ndarray, a no-dump returns None.
+        (magnitude) integration could not defer the inverse.
+
+        **Layout.** A frame is ny*nx complex samples in row-major order: row i
+        is samples i*nx .. (i+1)*nx - 1. For Corr2D that is a (ny, nx) image;
+        for DelayDoppler it is the raw stream, ny code periods of nx = code_len
+        samples back to back. The map a dump produces is flat, n_out = ny_out *
+        nx_out values (ny values with col_out), also row-major: reshape it to
+        (ny_out, nx_out). On a DelayDoppler, axis 0 is Doppler (centered, zero
+        Doppler on row ny_out / 2) and axis 1 is delay (the lag, in samples).
+
+        **Ownership.** In Python, a call that dumps returns a new array when no
+        `out=` is given, and a view of `out=` when one is (it must hold n_out;
+        it is written on a dump only, and the next dump overwrites it). A call
+        that does not dump returns None and touches neither.
 
         Parameters
         ----------
@@ -1782,10 +1847,11 @@ class DelayDoppler:
         Returns
         -------
         NDArray[np.complex64] | None
-            n_out on a dump (or max_out if smaller), 0 otherwise (None in
-            Python). If n_in is not the required length the call is REFUSED
-            with nothing read, written or counted: SIZE_MAX in C, ValueError in
-            Python (#1925). None when the C call writes no output.
+            Python: the map on a dump, None otherwise; a frame that is not
+            ny*nx samples is REFUSED with nothing read, written or counted, as
+            a ValueError (#1925). C: n_out on a dump (or max_out if smaller), 0
+            otherwise, and SIZE_MAX for the refused frame. None when the C call
+            writes no output.
 
         Raises
         ------
@@ -1824,7 +1890,16 @@ class DelayDoppler:
         x: npt.NDArray[np.complex64],
         out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
-        """Every map of a batch, unreduced: map h at `out + h * n_out`.
+        """Every map of a batch, unreduced: row h of the (H, n_out) result is
+        the map of frame h (in C, map h is at `out + h * n_out`).
+
+        Python: `x` is the H frames back to back, a flat array of H * ny * nx
+        samples (H >= 1; frame h is the samples from h * ny * nx up to, not
+        including, (h + 1) * ny * nx). With no `out=` each call returns a new
+        array; with `out=` it returns a view of it, and the next call into the
+        same `out=` overwrites that view. `out=` is a 2-D complex64 array of
+        shape (rows, n_out) with at least H rows (a shorter one is refused);
+        the result is its first H rows. The object's dwell is untouched.
 
         Parameters
         ----------
@@ -1836,8 +1911,10 @@ class DelayDoppler:
         Returns
         -------
         NDArray[np.complex64]
-            H * n_out, or SIZE_MAX (nothing written) for a refused batch. From
-            Python, an (H, n_out) array, a view of `out=` when given.
+            Python: the (H, n_out) array; a refused batch (empty, not a whole
+            number of frames, or an `out=` with fewer than H rows) is a
+            ValueError with nothing written. C: H * n_out, or SIZE_MAX for the
+            refused batch.
 
         Raises
         ------
@@ -1878,7 +1955,8 @@ class DelayDoppler:
         Returns
         -------
         int
-            H * n_out, or SIZE_MAX if that overflows.
+            The capacity `execute_all` needs for n_in samples: H * n_out values
+            (C: SIZE_MAX if that overflows).
 
         Examples
         --------
@@ -1902,6 +1980,9 @@ class DelayDoppler:
     ) -> NDArray[np.complex64]:
         """The coherent sum of a batch's maps, inverted once.
 
+        Python: `x` is the H frames back to back, a flat array of H * ny * nx
+        samples (H >= 1).
+
         The frames' product spectra are summed and the sum is inverted, as a
         dwell does: the result is bit-identical to what a fresh object with
         dwell = H dumps for the same frames, and equal to the sum of the H maps
@@ -1917,7 +1998,11 @@ class DelayDoppler:
         Returns
         -------
         NDArray[np.complex64]
-            n_out, or SIZE_MAX (nothing written) for a refused batch.
+            Python: the one map, a new (n_out,) array; a refused batch is a
+            ValueError with nothing written. C: n_out, or SIZE_MAX for the
+            refused batch. (Do not size `out=` from `execute_coherent_max_out`:
+            the binding asks `out=` for as many elements as the input has,
+            #2818.)
 
         Raises
         ------
@@ -1976,6 +2061,9 @@ class DelayDoppler:
         is the sum over h of that cell's `|map_h|^2`, summed in h order in
         float.
 
+        Python: `x` is the H frames back to back, a flat array of H * ny * nx
+        samples (H >= 1).
+
         Unlike the coherent sum, phase does not cancel: frames x and -x sum to
         twice one map's power, where their coherent sum is zero.
 
@@ -1989,7 +2077,10 @@ class DelayDoppler:
         Returns
         -------
         NDArray[np.float32]
-            n_out, or SIZE_MAX (nothing written) for a refused batch.
+            Python: the (n_out,) float32 powers, a new array; a refused batch
+            is a ValueError with nothing written. C: n_out, or SIZE_MAX for the
+            refused batch. (Do not size `out=` from the `_max_out` call: the
+            binding asks `out=` for as many elements as the input has, #2818.)
 
         Raises
         ------
@@ -2048,6 +2139,9 @@ class DelayDoppler:
         """The largest power over a batch's maps, cell by cell, and the map it
         came from.
 
+        Python: `x` is the H frames back to back, a flat array of H * ny * nx
+        samples (H >= 1).
+
         Each cell of out is the largest `|map_h|^2` that cell takes over the
         maps, and the same cell of out1 is the h it came from. A tie goes to
         the lowest h: a later map replaces the running maximum only when it is
@@ -2061,8 +2155,10 @@ class DelayDoppler:
         Returns
         -------
         tuple[NDArray[np.float32], NDArray[np.uint32]]
-            n_out, or SIZE_MAX (nothing written) for a refused batch or H above
-            2^32. From Python, the tuple (power, index).
+            Python: the tuple (power, index), each (n_out,): float32 powers and
+            uint32 map indices, always new arrays (this call takes no `out=`);
+            a refused batch, or H above 2**32, is a ValueError. C: n_out, or
+            SIZE_MAX with nothing written.
 
         Raises
         ------
@@ -2096,6 +2192,9 @@ class DelayDoppler:
         """One record per map of a batch: its peak power, where the peak is,
         and its mean power.
 
+        Python: `x` is the H frames back to back, a flat array of H * ny * nx
+        samples (H >= 1).
+
         Entry h of each output describes map h: out its largest `|map|^2`, out1
         and out2 the row and column of that cell (the first in row-major order
         on a tie), and out3 the mean `|map|^2` over its n_out cells. A map is
@@ -2112,8 +2211,10 @@ class DelayDoppler:
         Returns
         -------
         tuple[NDArray[np.float32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.float32]]
-            H, or SIZE_MAX (nothing written) for a refused batch. From Python,
-            the tuple (peak, row, col, mean).
+            Python: the tuple (peak, row, col, mean), each (H,): float32 peak
+            power, uint32 row and column, float32 mean power, always new arrays
+            (this call takes no `out=`); a refused batch is a ValueError. C: H,
+            or SIZE_MAX with nothing written.
 
         Raises
         ------
@@ -2176,7 +2277,10 @@ class DelayDoppler:
         Returns
         -------
         tuple[NDArray[np.float32], NDArray[np.uint32]]
-            `n_out`, or SIZE_MAX with nothing written.
+            Python: the tuple (power, index), each (n_out,): float32 powers and
+            uint32 hypothesis indices, always new arrays (this call takes no
+            `out=`); a refusal is a ValueError. C: `n_out`, or SIZE_MAX with
+            nothing written.
 
         Raises
         ------
@@ -2272,7 +2376,11 @@ class DelayDoppler:
         Returns
         -------
         tuple[NDArray[np.float32], NDArray[np.int32], NDArray[np.uint32], NDArray[np.uint32], NDArray[np.uint32]]
-            The record count (0 included), or SIZE_MAX with nothing written for
+            Python: the tuple (power, g, rate, row, col), one entry per
+            confirmed record (possibly none): float32 refined power, int32
+            refined carrier, uint32 rate, row and column, always new arrays
+            (this call takes no `out=`); anything below is a ValueError. C: the
+            record count (0 included), or SIZE_MAX with nothing written for
             anything dp_corr2d_bank_fold() refuses, `L_d == 0`, an L_r that L_d
             does not divide, a refined carrier past int32, or max_out below
             `n_out`.

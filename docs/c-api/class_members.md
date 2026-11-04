@@ -1026,6 +1026,7 @@
 * **threads** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_acq\_state\_t**](structdp__acq__state__t.md), [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
 * **threshold** ([**ber\_align\_t**](structber__align__t.md), [**dp\_acq\_state\_t**](structdp__acq__state__t.md), [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md), [**dp\_detector\_state\_t**](structdp__detector__state__t.md))
 * **taps** ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md), [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md), [**dp\_fir\_state\_t**](structdp__fir__state__t.md))
+* **threads\_req** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **tile\_col** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **tile\_inv** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))
 * **tile\_prod** ([**dp\_acq\_state\_t**](structdp__acq__state__t.md))

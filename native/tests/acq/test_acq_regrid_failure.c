@@ -18,6 +18,10 @@
  * Nth one. It sweeps N over EVERY plan the regrid builds, the last ones being
  * the per-tile plans, and after each failure requires the engine to match a
  * fresh one -- fields, buffers, and what an execute returns.
+ *
+ * The same reach serves a second contract: a regrid re-applies the caller's
+ * thread request at the new tile count, so narrowing to one tile and
+ * widening again comes back to min(request, tiles) (#2797).
  */
 #include "doppler/fft/fft_core.h"
 
@@ -84,9 +88,47 @@ snap (const dp_acq_state_t *s)
 #define NEW_NC 2
 #define NEW_WINDOW 3
 
+/* A regrid re-applies the caller's thread request, capped at the new tile
+   count (#2797). Only acq_regrid widens (a public narrowing exists, the
+   one-tile configure_search_raw, but nothing public widens again), so this
+   file is where a narrow-then-widen can be run on a live engine. Sabotage:
+   drop acq_apply_threads from acq_regrid, or apply `threads` in place of
+   `threads_req` -> the widened engine reads 1. */
+static int
+threads_follow_the_request (void)
+{
+  const int reqs[] = { 2, 4, 1 };
+  for (size_t i = 0; i < sizeof reqs / sizeof *reqs; i++)
+    {
+      const int       n = reqs[i];
+      const int       w = n < NEW_WINDOW ? n : NEW_WINDOW; /* min(N, tiles) */
+      dp_acq_state_t *a = make_engine ();
+      DP_REQUIRE_MSG (a && a->window_bins == 1, "a one-tile engine");
+      DP_CHECK (dp_acq_set_threads (a, n) == DP_OK);
+      DP_CHECK (a->threads == 1); /* one tile: serial, whatever asked */
+      DP_REQUIRE_MSG (acq_regrid (a, NEW_D, NEW_NC, NEW_WINDOW, NULL) == 0,
+                      "widen");
+      DP_CHECK (a->threads == w);
+      DP_REQUIRE_MSG (acq_regrid (a, NEW_D, NEW_NC, 1, NULL) == 0, "narrow");
+      DP_CHECK (a->threads == 1);
+      DP_CHECK_MSG (a->pool == NULL, "one tile runs without a pool");
+      DP_REQUIRE_MSG (acq_regrid (a, NEW_D, NEW_NC, NEW_WINDOW, NULL) == 0,
+                      "widen again");
+      DP_CHECK (a->threads == w);
+      DP_CHECK_MSG ((a->pool != NULL) == (w > 1),
+                    "a pool exactly when fanned");
+      DP_CHECK (a->threads_req == n);
+      dp_acq_destroy (a);
+    }
+  return 0;
+}
+
 int
 main (void)
 {
+  DP_CHECK_MSG (threads_follow_the_request () == 0,
+                "a regrid re-applies the thread request");
+
   /* How many plans a successful widening regrid builds. */
   dp_acq_state_t *probe = make_engine ();
   DP_REQUIRE_MSG (probe, "engine");

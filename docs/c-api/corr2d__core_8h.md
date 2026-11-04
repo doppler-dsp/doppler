@@ -656,7 +656,7 @@ size_t dp_corr2d_execute (
 **Layout.** A frame is ny\*nx complex samples in row-major order: row i is samples i\*nx .. (i+1)\*nx - 1. For Corr2D that is a (ny, nx) image; for DelayDoppler it is the raw stream, ny code periods of nx = code\_len samples back to back. The map a dump produces is flat, n\_out = ny\_out \* nx\_out values (ny values with `col_out`), also row-major: reshape it to (ny\_out, nx\_out). On a DelayDoppler, axis 0 is Doppler (centered, zero Doppler on row ny\_out / 2) and axis 1 is delay (the lag, in samples).
 
 
-**Ownership.** In Python, a call that dumps returns a new array when no `out=` is given, and a view of `out=` when one is (a 1-D array holding at least n\_out values; it is written on a dump only, and the next dump overwrites it). The binding also asks `out=` for as many elements as the input frame has (ny \* nx), which a `col_out` object, whose n\_out is ny, never needs: #2818. A call that does not dump returns None and touches neither.
+**Ownership.** In Python, a call that dumps returns a new array when no `out=` is given, and a view of `out=` when one is (a 1-D array holding at least n\_out values; it is written on a dump only, and the next dump overwrites it). A call that does not dump returns None and touches neither.
 
 
 
@@ -846,7 +846,7 @@ The frames' product spectra are summed and the sum is inverted, as a dwell does:
 
 **Returns:**
 
-Python: the one map, a new (n\_out,) array; a refused batch is a ValueError with nothing written. C: n\_out, or SIZE\_MAX for the refused batch. (Do not size `out=` from `execute_coherent_max_out`: the binding asks `out=` for as many elements as the input has, #2818.) 
+Python: the one map, a new (n\_out,) array; a refused batch is a ValueError with nothing written. C: n\_out, or SIZE\_MAX for the refused batch. 
 ```C++
 >>> import numpy as np
 >>> from doppler.spectral import DelayDoppler
@@ -1288,7 +1288,7 @@ Unlike the coherent sum, phase does not cancel: frames x and -x sum to twice one
 
 **Returns:**
 
-Python: the (n\_out,) float32 powers, a new array; a refused batch is a ValueError with nothing written. C: n\_out, or SIZE\_MAX for the refused batch. (Do not size `out=` from the `_max_out` call: the binding asks `out=` for as many elements as the input has, #2818.) 
+Python: the (n\_out,) float32 powers, a new array; a refused batch is a ValueError with nothing written. C: n\_out, or SIZE\_MAX for the refused batch. 
 ```C++
 >>> import numpy as np
 >>> from doppler.spectral import DelayDoppler

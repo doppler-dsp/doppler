@@ -1,0 +1,35 @@
+diff --git a/native/src/acq/acq_core.c b/native/src/acq/acq_core.c
+index 194a68ef1..195c31a0c 100644
+--- a/native/src/acq/acq_core.c
++++ b/native/src/acq/acq_core.c
+@@ -2688,7 +2688,29 @@ acq_tile_epoch (size_t r, void *ctx)
+       const double d = (double)signed_r * st->fs / st->carrier_freq_hz;
+       const double s = ((double)st->blk_epoch - 0.5 * (double)(D - 1)) * d;
+       const double w = -2.0 * M_PI * s / (double)nx;
+-      acq_ramp (prod, nx, w, 1, prod); /* over the signed bins */
++      /* SCRATCH (#2752 step 2.1, not for merge): ACQ_EMUL_F = F rounds each
++         bin's slow-time shift d j'/nx to the grid 1/(F dI) the shared map
++         reads, so this engine computes what the map will. Unset: today. */
++      static int emul_f = -1;
++      if (emul_f < 0)
++        {
++          const char *e = getenv ("ACQ_EMUL_F");
++          emul_f        = e ? atoi (e) : 0;
++        }
++      if (emul_f > 0)
++        {
++          const double fI = (double)emul_f * (double)(D * st->interp);
++          const double t  = (double)st->blk_epoch - 0.5 * (double)(D - 1);
++          for (size_t j = 0; j < nx; j++)
++            {
++              const double sh = d * (double)dp_fftfreq_index (j, nx)
++                                / (double)nx;            /* cycles/epoch */
++              const double q  = (double)lround (fI * sh) / fI; /* rounded */
++              prod[j] *= (float _Complex)cexp (-2.0 * M_PI * I * t * q);
++            }
++        }
++      else
++        acq_ramp (prod, nx, w, 1, prod); /* over the signed bins */
+     }
+   /* The inverse at lag_bins: the cross-spectrum zero-padded first when the
+      lag axis is padded (dp_fft_pad_spectrum: the circular correlation,

@@ -17,7 +17,7 @@
  * Reported: B's peak over A's (the loss), worst over f across a bin, and
  * the slow-stage cost on F*dI points for the full nx.
  *
- * usage: ramp_grid nx D I d F
+ * usage: ramp_grid nx D I d F [center=1] [tones=33]
  */
 #include "doppler/fft/fft_core.h"
 #include <complex.h>
@@ -51,10 +51,17 @@ ur (void)
 int
 main (int argc, char **argv)
 {
-  const size_t    nx = strtoul (argv[1], 0, 10), D = strtoul (argv[2], 0, 10);
-  const size_t    IP = strtoul (argv[3], 0, 10);
-  const double    d  = atof (argv[4]);
-  const size_t    F  = strtoul (argv[5], 0, 10);
+  const size_t nx = strtoul (argv[1], 0, 10), D = strtoul (argv[2], 0, 10);
+  const size_t IP = strtoul (argv[3], 0, 10);
+  const double d  = atof (argv[4]);
+  const size_t F  = strtoul (argv[5], 0, 10);
+  /* center = 1: the phase each bin's pick is multiplied by uses its ROUNDED
+     shift, which is what a slow-time transform with its origin at the
+     block's middle gives; 0: the exact shift (an origin at epoch 0), whose
+     rounding leaves a phase error of 2 pi c (rounded - exact) that differs
+     bin to bin. */
+  const int       center = argc > 6 ? atoi (argv[6]) : 1;
+  const int       nf     = argc > 7 ? atoi (argv[7]) : 33;
   const size_t    dI = D * IP, fI = F * dI;
   const double    c = 0.5 * (double)(D - 1);
   float _Complex *G = malloc (nx * sizeof *G);
@@ -71,8 +78,7 @@ main (int argc, char **argv)
   dp_fft_state_t *inv   = dp_fft_create (nx, +1, 1);
   dp_fft_state_t *sl    = dp_fft_create (dI, -1, 1);
   dp_fft_state_t *slF   = dp_fft_create (fI, -1, 1);
-  double          worst = 1.0, mean = 0.0, tslow = 1e30;
-  const int       nf = 9;
+  double          worst = 0.0, mean = 0.0, tslow = 1e30;
   for (int fi = 0; fi < nf; fi++)
     {
       /* a slow-time tone from a row center to the next one (a whole bin
@@ -129,27 +135,29 @@ main (int argc, char **argv)
             {
               const double sh
                   = (double)dI * d * (double)sb (j, nx) / (double)nx;
-              long n = lround ((double)F * ((double)i + sh));
-              n      = ((n % (long)fI) + (long)fI) % (long)fI;
+              const long r     = lround ((double)F * sh); /* fine rows */
+              long       n     = (long)(F * i) + r;
+              n                = ((n % (long)fI) + (long)fI) % (long)fI;
+              const double cyc = center ? (double)r / (double)fI
+                                        : d * (double)sb (j, nx) / (double)nx;
               pr[j]
                   = S[(size_t)n * nx + j]
-                    * (float _Complex)cexp (2.0 * M_PI * _Complex_I * c * d
-                                            * (double)sb (j, nx) / (double)nx);
+                    * (float _Complex)cexp (2.0 * M_PI * _Complex_I * c * cyc);
             }
           dp_fft_execute_cf32 (inv, pr, nx, row, nx);
           for (size_t m = 0; m < nx; m++)
             if (cabsf (row[m]) > pb)
               pb = cabsf (row[m]);
         }
-      const double ratio = pb / pa;
-      if (ratio < worst)
-        worst = ratio;
-      mean += ratio / nf;
+      const double loss = -20.0 * log10 (pb / pa); /* dB, + = B lower */
+      if (loss > worst)
+        worst = loss;
+      mean += loss / nf;
     }
-  printf ("nx=%zu D=%zu I=%zu d=%.4f F=%zu  max shift=%.2f rows  worst "
-          "loss=%.3f dB  mean loss=%.3f dB  shared slow (one tile's nx bins "
-          "on %zu pts)=%.2f ms\n",
-          nx, D, IP, d, F, (double)dI * d * 0.5, -20 * log10 (worst),
-          -20 * log10 (mean), fI, 1e3 * tslow);
+  printf ("nx=%zu D=%zu I=%zu d=%.4f F=%zu center=%d tones=%d  max shift="
+          "%.2f rows  worst loss=%.3f dB  mean loss=%.3f dB  slow on %zu pts "
+          "for nx bins=%.2f ms\n",
+          nx, D, IP, d, F, center, nf, (double)dI * d * 0.5, worst, mean, fI,
+          1e3 * tslow);
   return 0;
 }

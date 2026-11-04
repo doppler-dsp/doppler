@@ -1,0 +1,5 @@
+  trial 1: code lock off at 3.9 ms, symbol lock off at 22.3 ms; over 8 s of noise code lock returned 0 time(s), symbol lock 0
+  trial 2: code lock off at 3.7 ms, symbol lock off at 24.1 ms; over 8 s of noise code lock returned 0 time(s), symbol lock 0
+  cross: code lock off at 3.7 ms; over 8 s with the neighbour crossing at +0.6 s: code lock returned 10 time(s), symbol lock 0; chip rate over the last 2 s -0.00 chips/s (the neighbour's is +4.00)
+  cross-on: code lock off at -1000.0 ms, symbol lock off at 1063.1 ms, both off at -1000.0 ms (longest run 0 ms); back at the end: code 1, symbol 1; chip rate over the last 2 s +0.96 chips/s
+validate_async_dsss_receiver_release PASSED

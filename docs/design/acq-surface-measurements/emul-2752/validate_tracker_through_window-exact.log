@@ -1,0 +1,33 @@
+tracker through the window: Gold-1023 at 5 Mcps, spc 2, 2700 sym/s async BPSK, 450 code-only symbols of every 4950 (166.7 ms window, 1.83 s frame); seeded receiver, release at 2 s; block = one epoch (0.205 ms)
+
+=== static, C/N0 45 dB-Hz (Es/N0 10.7 dB) ===
+  seeded at 2.7 ms: chip 0.00, Doppler 0.0 Hz (truth 0.0), C/N0 45.7 dB-Hz
+  t=  4.09 s  tracking  dopp est       6.5 Hz  loop2 nco +0.000085  err +0.157  truth       0.0 Hz  code rate 1.000000  chip     0.00  lock 0.910/0.500  code 1 sym 1  win 0
+  seed 100: acquired at 2.7 ms, settled at 97.2 ms; 3 windows
+    window  blocks  code off   sym off    both off  longest both-off  lost  pull-in code   pull-in sym  | data: code off  sym off
+    1          814    0.0000    0.0000     0.0000         0.0 ms    no        0.0 ms        0.0 ms  |        0.0000    0.0000
+    2          815    0.0000    0.0000     0.0000         0.0 ms    no        0.0 ms        0.0 ms  |        0.0000    0.0000
+    3          814    0.0000    0.0000     0.0000         0.0 ms    no        0.0 ms        0.0 ms  |        0.0000    0.0000
+  1 of 1 trials settled; over 2443 window blocks: code lock off 0.0000, symbol lock off 0.0000, both off 0.0000, longest both-off run 0.0 ms, release fired: no; worst pull-in code 0.0 ms, symbol 0.0 ms; over 18736 data blocks: code off 0.0000, symbol off 0.0000
+
+=== offset, C/N0 45 dB-Hz (Es/N0 10.7 dB) ===
+  seeded at 3.1 ms: chip 1018.15, Doppler 48875.9 Hz (truth 50000.0), C/N0 44.2 dB-Hz
+  t=  4.09 s  tracking  dopp est   49992.4 Hz  loop2 nco -0.000424  err -0.804  truth   50000.0 Hz  code rate 1.000001  chip   403.95  lock 0.860/0.500  code 1 sym 1  win 0
+  seed 100: acquired at 3.1 ms, settled at 107.4 ms; 3 windows
+    window  blocks  code off   sym off    both off  longest both-off  lost  pull-in code   pull-in sym  | data: code off  sym off
+    1          814    0.0000    0.0000     0.0000         0.0 ms    no        0.0 ms        0.0 ms  |        0.0000    0.0000
+    2          815    0.0000    0.0000     0.0000         0.0 ms    no        0.0 ms        0.0 ms  |        0.0000    0.0000
+    3          814    0.0000    0.0000     0.0000         0.0 ms    no        0.0 ms        0.0 ms  |        0.0000    0.0000
+  1 of 1 trials settled; over 2443 window blocks: code lock off 0.0000, symbol lock off 0.0000, both off 0.0000, longest both-off run 0.0 ms, release fired: no; worst pull-in code 0.0 ms, symbol 0.0 ms; over 18736 data blocks: code off 0.0000, symbol off 0.0000
+
+=== rate, C/N0 45 dB-Hz (Es/N0 10.7 dB) ===
+  seeded at 3.1 ms: chip 1017.51, Doppler 0.0 Hz (truth 1.5), C/N0 44.7 dB-Hz
+  t=  4.09 s  tracking  dopp est      -8.5 Hz  loop2 nco +0.000221  err +0.435  truth    2046.0 Hz  code rate 1.000000  chip     3.11  lock 0.909/0.500  code 1 sym 1  win 0
+  seed 100: acquired at 3.1 ms, settled at 97.0 ms; 3 windows
+    window  blocks  code off   sym off    both off  longest both-off  lost  pull-in code   pull-in sym  | data: code off  sym off
+    1          814    0.0000    0.0000     0.0000         0.0 ms    no        0.0 ms        0.0 ms  |        0.0000    0.0000
+    2          815    0.0000    0.0000     0.0000         0.0 ms    no        0.0 ms        0.0 ms  |        0.0000    0.0000
+    3          814    0.0000    0.0000     0.0000         0.0 ms    no        0.0 ms        0.0 ms  |        0.0000    0.0000
+  1 of 1 trials settled; over 2443 window blocks: code lock off 0.0000, symbol lock off 0.0000, both off 0.0000, longest both-off run 0.0 ms, release fired: no; worst pull-in code 0.0 ms, symbol 0.0 ms; over 18736 data blocks: code off 0.0000, symbol off 0.0000
+
+validate_tracker_through_window PASSED

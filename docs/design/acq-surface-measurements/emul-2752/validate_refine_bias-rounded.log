@@ -1,0 +1,19 @@
+refine bias: Gold-1023 at 5 Mcps, spc 2, 2700 sym/s async BPSK at 45 dB-Hz (Es/N0 10.7 dB); static capture at a carrier offset of +-1500 Hz; seeded receiver, refine_n_fft 64 (bin 168.8 Hz at 10800 sps), the error of get_doppler_hz() at the hand-over; block = one epoch (0.205 ms)
+
+=== refine_max_error_db 0.5 dB ===
+--- bias vs seed error at the floor's dwell (margin 19 dB) ---
+    truth      seed err   dwell   handed    bias (mean)   sd         min        max   hand-over
+      +1500 Hz       +0 Hz      7   10/10        -6.3 Hz     61.8     -78.9    +132.2     41.7 ms
+      +1500 Hz    +1100 Hz      7   10/10        -2.5 Hz     61.8     -77.2    +138.3     41.7 ms
+      +1500 Hz    -1100 Hz      7   10/10        -3.4 Hz     68.9    -105.9    +153.1     42.1 ms
+    (11 look-back dumps per epoch, 53.8 kHz despread)
+
+=== refine_max_error_db 100 dB ===
+--- bias vs seed error at the floor's dwell (margin 19 dB) ---
+    truth      seed err   dwell   handed    bias (mean)   sd         min        max   hand-over
+      +1500 Hz       +0 Hz      7   10/10       -15.2 Hz     44.4     -73.2     +79.5     42.7 ms
+      +1500 Hz    +1100 Hz      7   10/10      +350.6 Hz    113.4    +175.5    +535.7     42.8 ms
+      +1500 Hz    -1100 Hz      7   10/10      -364.8 Hz    123.8    -672.0    -225.6     42.8 ms
+    (1 look-back dumps per epoch, 4.9 kHz despread)
+
+validate_refine_bias PASSED

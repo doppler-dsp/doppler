@@ -2,14 +2,14 @@
 
 A code delayed by 37 samples arrives on a carrier 1.3 code bins off
 nominal, in noise. A delay-Doppler map corrects no carrier within a code
-period, so an offset costs the Dirichlet factor of its distance from the
-grid: 3.9 dB at half a bin, 19 dB at 0.9 bin, a null at a whole bin. The
-bank searches the carrier:
-``bank_detect`` makes one map per carrier on a coarse grid (half bins),
-picks the candidates, refines each at its own cell on a fine grid (quarter
-bins), and keeps what clears the confirm threshold. Every carrier shares
-the frame's row transforms, so the coarse search costs half the fine one,
-and the refine recovers what the coarse grid's straddle lost
+period, so a carrier d bins off costs the Dirichlet factor of d: 3.9 dB at
+half a bin, 19 dB at 0.9 bin, a null at a whole bin. The bank searches the
+carrier, and loses only the factor of the residual to its nearest grid
+carrier: ``bank_detect`` makes one map per carrier on a coarse grid (half
+bins), picks the candidates, refines each at its own cell on a fine grid
+(quarter bins), and keeps what clears the confirm threshold. Every carrier
+shares the frame's row transforms, so the coarse search costs half the fine
+one, and the refine recovers what the coarse grid's straddle lost
 (``docs/design/corr2d-hypotheses.md`` section 6).
 
 The thresholds come from noise-only frames, as a detector's must. The C twin

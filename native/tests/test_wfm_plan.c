@@ -242,22 +242,29 @@ fill_src (wfm_source_t *s, unsigned k, int background)
   s->background = background;
 }
 
-/* Full-compose `json` into out[n]; returns the sample count collected. */
+/* Full-compose `json` into out[n], pulling `pull` samples a call (at most
+ * 257); returns the sample count collected. */
 static size_t
-compose_n (const char *json, float _Complex *out, size_t n)
+compose_pull (const char *json, float _Complex *out, size_t n, size_t pull)
 {
   dp_wfm_compose_state_t *c = dp_wfm_compose_from_json (json);
   if (!c)
     return 0;
   size_t total = 0, got;
   float _Complex buf[257];
-  while ((got = dp_wfm_compose_execute (c, buf, 257)) > 0 && total + got <= n)
+  while ((got = dp_wfm_compose_execute (c, buf, pull)) > 0 && total + got <= n)
     {
       memcpy (out + total, buf, got * sizeof *buf);
       total += got;
     }
   dp_wfm_compose_destroy (c);
   return total;
+}
+
+static size_t
+compose_n (const char *json, float _Complex *out, size_t n)
+{
+  return compose_pull (json, out, n, 257);
 }
 
 /* 240 payload bits: the segment's data source, which fills the frame's
@@ -603,25 +610,6 @@ test_data_source_scene (void)
  * polyphase shaper, the direct FIR on PSK, bits and symbols, user bits and
  * symbols, and a Doppler channel's feed -- and each is compared bit for bit.
  */
-/* Compose `json` pulling the whole run in as few calls as the buffer
- * allows: a single-source segment hands one steps() call the whole request,
- * which is the block a Plan builds its cache with. (compose_n pulls 257 at a
- * time; a filter's vector body and scalar tail fuse differently at different
- * block sizes, a separate matter from the noise add this test is about.) */
-static size_t
-compose_whole (const char *json, float _Complex *out, size_t cap)
-{
-  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json (json);
-  if (!c)
-    return 0;
-  size_t total = 0, got;
-  while (total < cap
-         && (got = dp_wfm_compose_execute (c, out + total, cap - total)) > 0)
-    total += got;
-  dp_wfm_compose_destroy (c);
-  return total;
-}
-
 static const uint8_t PAR_BITS[128]
     = { 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0,
         1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
@@ -681,8 +669,8 @@ par_source (unsigned k, wfm_source_t *s, const char **name)
     case 6:
       *name         = "user bits, sps-hold";
       s->type       = 6;
-      s->modulation = 1;
-      s->sps        = 4;
+      s->modulation = 2; /* qpsk: the irrational +-1/sqrt2 leg */
+      s->sps        = 8;
       s->data       = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
                                    .bits = PAR_BITS,
                                    .len  = sizeof PAR_BITS };
@@ -721,6 +709,19 @@ par_source (unsigned k, wfm_source_t *s, const char **name)
       s->type = 4;
       s->sps  = 1;
       break;
+    case 11:
+      *name   = "user bits qpsk, FIR";
+      s->type = 6;
+      s->modulation
+          = 2; /* complex symbols, so a fused product is not exactly 0 */
+      s->sps      = 6;
+      s->pulse    = 1;
+      s->rrc_beta = 0.35;
+      s->rrc_span = 4;
+      s->data     = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                                 .bits = PAR_BITS,
+                                 .len  = sizeof PAR_BITS };
+      break;
     default:
       *name         = "qpsk through a Doppler channel";
       s->type       = 4;
@@ -730,7 +731,7 @@ par_source (unsigned k, wfm_source_t *s, const char **name)
     }
 }
 
-#define PAR_KINDS 12u
+#define PAR_KINDS 13u
 #define PAR_CAP 16384u
 
 static int
@@ -772,9 +773,20 @@ test_every_source_kind_renders_as_it_composes (void)
       char  msg[160];
       snprintf (msg, sizeof msg, "kinds[%s]: spec_to_json", name);
       DP_REQUIRE_MSG (json, msg);
-      const size_t nc = compose_whole (json, ref, PAR_CAP);
+      const size_t nc = compose_n (json, ref, PAR_CAP);
       snprintf (msg, sizeof msg, "kinds[%s]: compose produced samples", name);
       DP_REQUIRE_MSG (nc > 0, msg);
+      /* the pull size is not a parameter of the scene: a second, odd one
+         must give the same bits as the first */
+      memset (got, 0, PAR_CAP * sizeof *got);
+      snprintf (msg, sizeof msg, "kinds[%s]: compose(257) == compose(61)",
+                name);
+      if (compose_pull (json, got, PAR_CAP, 61) != nc
+          || memcmp (ref, got, nc * sizeof *ref) != 0)
+        {
+          DP_TEST_ERR ("FAIL: %s\n", msg);
+          bad = 1;
+        }
       wfm_plan_t *p = dp_wfm_plan_prepare (json);
       snprintf (msg, sizeof msg, "kinds[%s]: prepare", name);
       DP_REQUIRE_MSG (p, msg);
@@ -783,7 +795,7 @@ test_every_source_kind_renders_as_it_composes (void)
       snprintf (msg, sizeof msg, "kinds[%s]: same length", name);
       DP_REQUIRE_MSG (np == nc, msg);
       snprintf (msg, sizeof msg,
-                "KINDS[%s]: render({}) == compose, bit-for-bit", name);
+                "kinds[%s]: render({}) == compose, bit-for-bit", name);
       if (memcmp (ref, got, nc * sizeof *ref) != 0)
         {
           DP_TEST_ERR ("FAIL: %s\n", msg);

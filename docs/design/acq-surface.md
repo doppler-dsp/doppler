@@ -1193,6 +1193,13 @@ That puts acq's wideband engines (21 and 53 tiles) on slow first, where
 for each, so their speed does not move. At `DelayDoppler`'s equal count,
 slow first measured about 20% slower for the gather alone (record §18.6).
 
+Callers run the map through its one driver, `dp__dd_map_run`, which applies
+the rule. There is one exception: the Corr2D bank on slow first calls the
+stages itself, so that one fraction's slow time serves every whole-bin
+carrier of that fraction. Its fold's order puts carriers outermost, so a
+fraction's carriers are never adjacent, and one call of the driver could not
+share slow time across them.
+
 **Rate hypotheses** (burst engines) repeat slow time and the rows for each
 hypothesis, where the wideband path repeats only its columns. From the
 same run's stage times at 3 tiles and $D = 150$, $R$ hypotheses cost

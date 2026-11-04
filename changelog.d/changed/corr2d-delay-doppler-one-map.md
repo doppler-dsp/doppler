@@ -5,3 +5,6 @@
     The maps are unchanged to float rounding. The bank without rate
     hypotheses runs about 20% faster on the dev box, and every other row
     ties (#2831, #2752).
+    `dp_corr2d_state_t`'s layout changes (the delay-Doppler fields), an ABI
+    change for code that allocates or reads it directly; every signature is
+    unchanged.

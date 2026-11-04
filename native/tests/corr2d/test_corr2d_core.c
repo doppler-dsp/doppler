@@ -1,3 +1,4 @@
+#include "../../src/corr2d/corr2d_map.h"
 #include "doppler/corr2d/corr2d_core.h"
 #include "doppler/dp_complex.h"
 #include "dp_rng_test.h"
@@ -1416,6 +1417,306 @@ _test_bank_detect (void)
   return 0;
 }
 
+/* ── The one delay-Doppler block map (#2752 step 2, corr2d_map.h) ──────────
+ *
+ * The primitive against its definition (docs/design/acq-surface.md §18.1),
+ * evaluated in double precision by direct sums, with nothing of the map's
+ * code in it: its own signed index, no fine grid, no tables. For tile q
+ * (roll, dilation dq) and slow row i of DI, with the rounded shift
+ * r_j = round(F DI dq j' / N) and c = (D - 1)/2:
+ *
+ *   V[j]   = C[j]/N e^{+j 2 pi c r_j/(F DI)}
+ *            sum_k w_k X_k[(j + roll) mod N] e^{-j 2 pi k (F i + r_j)/(F DI)}
+ *   row[l] = sum_m pad_L(V)[m] e^{+j 2 pi m l / L}
+ *
+ * written to the row the tile's table names. The map computes this through
+ * a shared slow-time transform on the fine grid and a wrapped offset table
+ * (dp__dd_ramp_table); the reference never wraps and never tabulates. */
+
+/* numpy's fftfreq index, written out here (not dp_fftfreq_index). */
+static long
+_bm_signed (size_t j, size_t n)
+{
+  return j <= (n - 1) / 2 ? (long)j : (long)j - (long)n;
+}
+
+/* pad_L of one spectrum the way dp_fft_pad_spectrum pads (an even N's
+   Nyquist bin split half each side), then the unnormalized inverse at L. */
+static void
+_bm_pad_inverse (const double _Complex *V, size_t N, size_t L,
+                 double _Complex *row)
+{
+  double _Complex *P = calloc (L, sizeof *P);
+  for (size_t j = 0; j < N; j++)
+    {
+      const long jp = _bm_signed (j, N);
+      if (L == N)
+        P[j] = V[j];
+      else if (N % 2 == 0 && (size_t)labs (jp) == N / 2)
+        {
+          P[N / 2] += 0.5 * V[j];
+          P[L - N / 2] += 0.5 * V[j];
+        }
+      else
+        P[jp >= 0 ? (size_t)jp : L - (size_t)(-jp)] = V[j];
+    }
+  for (size_t l = 0; l < L; l++)
+    {
+      double _Complex z = 0.0;
+      for (size_t m = 0; m < L; m++)
+        z += P[m] * cexp (2.0 * M_PI * I * (double)((m * l) % L) / (double)L);
+      row[l] = z;
+    }
+  free (P);
+}
+
+typedef struct
+{
+  size_t N, L, D, DI, F, W;
+  double dil;  /* dilation per tile step, samples an epoch (0: no ramp) */
+  int    rate; /* weight the epochs by a de-chirp */
+} _bm_case_t;
+
+/* dp__dd_map_run's fold: the one map, copied out. */
+static void
+_bm_keep (void *ctx, size_t r, const float _Complex *out)
+{
+  float _Complex **dst = (float _Complex **)ctx;
+  (void)r;
+  memcpy (dst[0], out, (size_t)(uintptr_t)dst[1] * sizeof *out);
+}
+
+/* One geometry: the map on `threads` workers in schedule `sched` against
+   the reference, and its bytes into `keep` (n_surf cells) so the caller can
+   compare thread counts and schedules. Returns the worst |map - ref| over
+   the largest |ref|. */
+static double
+_bm_run (const _bm_case_t *g, int threads, int sched, float _Complex *keep)
+{
+  const size_t    N = g->N, L = g->L, D = g->D, DI = g->DI, F = g->F, W = g->W;
+  const size_t    rows = W * DI;
+  uint32_t        rng  = 0x27520u + (uint32_t)(N * 131 + D * 7 + W);
+  float _Complex *x = malloc (D * N * sizeof *x), *C = malloc (N * sizeof *C);
+  float _Complex *w    = malloc (D * sizeof *w),
+                 *base = malloc (N * sizeof *base);
+  for (size_t k = 0; k < D * N; k++)
+    x[k] = _rand_cplx (&rng);
+  for (size_t j = 0; j < N; j++)
+    {
+      C[j]    = _rand_cplx (&rng);
+      base[j] = C[j] / (float)N;
+    }
+  for (size_t k = 0; k < D; k++)
+    {
+      const double t = (double)k - 0.5 * (double)(D - 1);
+      w[k] = g->rate ? (float _Complex)cexp (-I * M_PI * 0.013 * t * t) : 1.0f;
+    }
+  /* Tiles: rolls of both signs, a dilation each, and a row table that is a
+     scrambled permutation, so a map that writes rows in order is caught. */
+  size_t         *rowtab = malloc (rows * sizeof *rowtab);
+  int32_t        *off    = malloc (W * N * sizeof *off);
+  float _Complex *wt     = malloc (W * N * sizeof *wt);
+  dp__dd_tile_t  *tiles  = malloc (W * sizeof *tiles);
+  for (size_t r = 0; r < rows; r++)
+    rowtab[r] = (r * 7 + 3) % rows; /* 7 is coprime to every rows here */
+  const dp__dd_geom_t geom = { N, L, D, DI, F };
+  for (size_t q = 0; q < W; q++)
+    {
+      const long sq = _bm_signed (q, W);
+      tiles[q].roll = (size_t)(((sq % (long)N) + (long)N) % (long)N);
+      tiles[q].rows = rowtab + q * DI;
+      if (g->dil != 0.0)
+        {
+          dp__dd_ramp_table (&geom, (double)sq * g->dil, base, off + q * N,
+                             wt + q * N);
+          tiles[q].off = off + q * N;
+          tiles[q].wt  = wt + q * N;
+        }
+      else
+        {
+          tiles[q].off = NULL;
+          tiles[q].wt  = base;
+        }
+    }
+
+  dp_pool_t      *pool = threads > 1 ? dp_pool_create (threads) : NULL;
+  dp__dd_map_t   *map  = dp__dd_map_create (&geom, threads);
+  float _Complex *X    = malloc (D * N * sizeof *X);
+  float _Complex *S    = malloc (dp__dd_map_fine_len (map) * sizeof *S);
+  float _Complex *out  = malloc (rows * L * sizeof *out);
+  dp__dd_map_forward (map, pool, -1, x, X);
+  dp__dd_map_force (map, sched);
+  free (S);
+  S = malloc ((dp__dd_map_work_len (map, W, 1) + 1) * sizeof *S);
+  float _Complex *ctx[2] = { out, (float _Complex *)(uintptr_t)(rows * L) };
+  DP_CHECK (dp__dd_map_run (map, pool, -1, X, g->rate ? w : NULL, 1, tiles, W,
+                            S, out, _bm_keep, ctx)
+            == (DI > 1 ? sched : DP__DD_ROWS_FIRST));
+  memcpy (keep, out, rows * L * sizeof *out);
+
+  /* The reference. */
+  double _Complex *Xd  = malloc (D * N * sizeof *Xd);
+  double _Complex *V   = malloc (N * sizeof *V);
+  double _Complex *ref = malloc (L * sizeof *ref);
+  for (size_t k = 0; k < D; k++)
+    for (size_t j = 0; j < N; j++)
+      {
+        double _Complex s = 0.0;
+        for (size_t n = 0; n < N; n++)
+          s += (double _Complex)x[k * N + n]
+               * cexp (-2.0 * M_PI * I * (double)((j * n) % N) / (double)N);
+        Xd[k * N + j] = s;
+      }
+  const double fdi = (double)(F * DI), mid = 0.5 * (double)(D - 1);
+  double       worst = 0.0, top = 0.0;
+  for (size_t q = 0; q < W; q++)
+    {
+      const long   sq   = _bm_signed (q, W);
+      const size_t roll = tiles[q].roll;
+      for (size_t i = 0; i < DI; i++)
+        {
+          for (size_t j = 0; j < N; j++)
+            {
+              const double r
+                  = g->dil != 0.0 ? (double)lround (fdi * (double)sq * g->dil
+                                                    * (double)_bm_signed (j, N)
+                                                    / (double)N)
+                                  : 0.0;
+              double _Complex s = 0.0;
+              for (size_t k = 0; k < D; k++)
+                s += (g->rate ? (double _Complex)w[k] : 1.0)
+                     * Xd[k * N + (j + roll) % N]
+                     * cexp (-2.0 * M_PI * I * (double)k
+                             * ((double)(F * i) + r) / fdi);
+              V[j] = (double _Complex)C[j] / (double)N
+                     * cexp (2.0 * M_PI * I * mid * r / fdi) * s;
+            }
+          _bm_pad_inverse (V, N, L, ref);
+          const float _Complex *got = out + rowtab[q * DI + i] * L;
+          for (size_t l = 0; l < L; l++)
+            {
+              worst = fmax (worst, cabs ((double _Complex)got[l] - ref[l]));
+              top   = fmax (top, cabs (ref[l]));
+            }
+        }
+    }
+  dp__dd_map_destroy (map);
+  if (pool)
+    dp_pool_destroy (pool);
+  free (x), free (C), free (w), free (base), free (rowtab), free (off);
+  free (wt), free (tiles), free (X), free (S), free (out), free (Xd);
+  free (V), free (ref);
+  return top > 0.0 ? worst / top : 1.0;
+}
+
+static int
+_test_block_map (void)
+{
+  const _bm_case_t cases[] = {
+    /* odd N padded, interpolated, the fine grid, three tiles */
+    { 7, 8, 5, 10, DP__DD_MAP_FINE, 3, 0.37, 0 },
+    /* even N padded, deep, the fine grid, rates, five tiles */
+    { 12, 16, 16, 32, DP__DD_MAP_FINE, 5, 0.21, 1 },
+    /* no ramp: F = 1, rates, one tile (the narrow path, DelayDoppler) */
+    { 12, 12, 6, 12, 1, 1, 0.0, 1 },
+    /* D = 1: no slow time, S is X (a one-epoch block) */
+    { 9, 9, 1, 1, 1, 4, 0.0, 0 },
+    /* odd N, unpadded, the middle bin j' = (N - 1)/2 positive (#2815) */
+    { 9, 9, 4, 8, DP__DD_MAP_FINE, 3, 0.9, 0 },
+  };
+  for (size_t c = 0; c < sizeof cases / sizeof *cases; c++)
+    {
+      const _bm_case_t *g = &cases[c];
+      const size_t      n = g->W * g->DI * g->L;
+      float _Complex *a = malloc (n * sizeof *a), *b = malloc (n * sizeof *b);
+      float _Complex *r = malloc (n * sizeof *r);
+      DP_REQUIRE (a && b && r);
+      /* Both schedules, each against the definition, each the same bytes
+         at every thread count, and the two one function: equal to float
+         rounding, the rounded ramp included. */
+      for (int sch = DP__DD_SLOW_FIRST; sch <= DP__DD_ROWS_FIRST; sch++)
+        {
+          const double e1 = _bm_run (g, 1, sch, sch ? r : a);
+          printf ("  block map N=%zu L=%zu D=%zu DI=%zu F=%zu W=%zu %s: "
+                  "worst %.2e of the peak\n",
+                  g->N, g->L, g->D, g->DI, g->F, g->W,
+                  sch ? "rows first" : "slow first", e1);
+          DP_CHECK_MSG (e1 < 1e-5, "the block map is its definition");
+          for (int t = 2; t <= 7; t += 5)
+            {
+              (void)_bm_run (g, t, sch, b);
+              DP_CHECK_MSG (memcmp (sch ? r : a, b, n * sizeof *a) == 0,
+                            "the same bytes at every thread count");
+            }
+        }
+      double diff = 0.0, peak = 0.0;
+      for (size_t k = 0; k < n; k++)
+        {
+          diff = fmax (diff, cabsf (a[k] - r[k]));
+          peak = fmax (peak, cabsf (a[k]));
+        }
+      DP_CHECK_MSG (diff <= 1e-5 * peak, "the two schedules are one map");
+      free (a), free (b), free (r);
+    }
+
+  /* row1 is the row stage on one epoch: against the direct inverse of the
+     rolled, weighted spectrum. */
+  {
+    const size_t        N = 10, L = 16, roll = 7;
+    const dp__dd_geom_t g = { N, L, 1, 1, 1 };
+    dp__dd_map_t       *m = dp__dd_map_create (&g, 1);
+    DP_REQUIRE (m != NULL);
+    uint32_t rng = 0x2831u;
+    float _Complex X[10], wt[10], row[16];
+    double _Complex V[10], ref[16];
+    for (size_t j = 0; j < N; j++)
+      X[j] = _rand_cplx (&rng), wt[j] = _rand_cplx (&rng);
+    dp__dd_map_row1 (m, 0, X, roll, wt, row);
+    for (size_t j = 0; j < N; j++)
+      V[j] = (double _Complex)X[(j + roll) % N] * (double _Complex)wt[j];
+    _bm_pad_inverse (V, N, L, ref);
+    double worst = 0.0, top = 0.0;
+    for (size_t l = 0; l < L; l++)
+      {
+        worst = fmax (worst, cabs ((double _Complex)row[l] - ref[l]));
+        top   = fmax (top, cabs (ref[l]));
+      }
+    DP_CHECK_MSG (worst < 1e-5 * top, "row1 is one row of the map");
+    dp__dd_map_destroy (m);
+  }
+
+  /* The rule at its crossover. At N = L = 64, D = DI = 16, F = 1, one rate:
+     slow first costs N 16 log 16 + W 16 64 log 64 = 4096 + 6144 W, rows
+     first W 16 64 log 64 + W 64 16 log 16 = 10240 W, so they cross at
+     W = 1: a tie, which goes to rows first; W = 2 is slow first. A rate
+     more makes slow first pay its rows again and rows first only its
+     columns, so 12 rates at W = 2 are rows first. One slow row is rows
+     first. */
+  {
+    const dp__dd_geom_t x = { 64, 64, 16, 16, 1 };
+    DP_CHECK (dp__dd_schedule (&x, 1, 1) == DP__DD_ROWS_FIRST);
+    DP_CHECK (dp__dd_schedule (&x, 2, 1) == DP__DD_SLOW_FIRST);
+    DP_CHECK (dp__dd_schedule (&x, 2, 12) == DP__DD_ROWS_FIRST);
+    const dp__dd_geom_t one = { 64, 64, 1, 1, 1 };
+    DP_CHECK (dp__dd_schedule (&one, 50, 1) == DP__DD_ROWS_FIRST);
+  }
+
+  /* create refuses what it cannot build, without aborting. */
+  {
+    const dp__dd_geom_t bad[] = {
+      { 0, 8, 1, 1, 1 }, /* no bins          */
+      { 8, 7, 1, 1, 1 }, /* L < N            */
+      { 8, 8, 4, 3, 1 }, /* DI < D           */
+      { 8, 8, 4, 4, 3 }, /* F neither 1 nor 4 */
+    };
+    for (size_t k = 0; k < sizeof bad / sizeof *bad; k++)
+      DP_CHECK (dp__dd_map_create (&bad[k], 1) == NULL);
+    const dp__dd_geom_t ok = { 8, 8, 1, 1, 1 };
+    DP_CHECK (dp__dd_map_create (&ok, 0) == NULL);
+  }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -2204,6 +2505,7 @@ main (void)
   (void)_test_batch_ranking (); /* a REQUIRE failure is counted */
   (void)_test_bank ();
   (void)_test_bank_detect ();
+  (void)_test_block_map ();
 
   DP_TEST_END ("test_corr2d_core");
 }

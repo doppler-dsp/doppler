@@ -47,7 +47,7 @@ native/src/carrier_nda/carrier_nda_core.c 1
 native/src/cic/cic_core.c 1
 native/src/conv_enc/conv_enc_core.c 1
 native/src/corr/corr_core.c 5
-native/src/corr2d/corr2d_core.c 13  # caller-sized: a hypothesis bank's fraction spectra, phases and flags scale with its L, its maps with its rate count (#2683)
+native/src/corr2d/corr2d_core.c 23  # caller-sized: a hypothesis bank's fraction spectra, phases, flags and slow-time cache scale with its L and rate count (#2683, #2831); the delay-Doppler map's create fails cleanly so a caller's regrid can unwind (corr2d_map.h, #2831)
 native/src/costas/costas_core.c 1
 native/src/ddc/ddc_core.c 3
 native/src/ddcr/ddcr_core.c 1

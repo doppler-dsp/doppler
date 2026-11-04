@@ -1,4 +1,4 @@
-<!-- domain: track -->
+<!-- domain: track; summary: EVM, SER, lock time, false alarm and level invariance over random geometries. -->
 
 # M-PSK Receiver — Performance Characterisation
 

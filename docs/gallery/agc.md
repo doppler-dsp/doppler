@@ -1,4 +1,4 @@
-<!-- domain: agc -->
+<!-- domain: agc; summary: closed-loop power controller with decimated and per-sample loop updates. -->
 
 # AGC — Step Response
 

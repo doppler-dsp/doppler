@@ -1,4 +1,4 @@
-<!-- domain: spectral -->
+<!-- domain: spectral; summary: any-size chunks in, every row of a waterfall out, the same rows however the stream is cut (C and Python) -->
 
 # Streaming Spectrograms
 

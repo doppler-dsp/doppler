@@ -1,4 +1,4 @@
-<!-- domain: spectral -->
+<!-- domain: spectral; summary: coherent integration, 2-D template matching, streaming CFAR. -->
 
 # Correlation and Detection
 

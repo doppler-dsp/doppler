@@ -1,4 +1,4 @@
-<!-- domain: dsss -->
+<!-- domain: dsss; summary: acquiring a spread-spectrum preamble's code phase and Doppler with `BurstAcquisition`, and continuous signals with `Acquisition` -->
 
 # DSSS Burst Acquisition
 

@@ -1,4 +1,4 @@
-<!-- domain: track -->
+<!-- domain: track; summary: the second-order PI every tracking loop in the library embeds by value: where its gains come from, the unit condition its `bn` promise depends on, and what it deliberately does not bound -->
 
 # The Loop Filter
 

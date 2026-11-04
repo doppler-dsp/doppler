@@ -1,4 +1,4 @@
-<!-- domain: util -->
+<!-- domain: util; summary: the standard bytes interface for bit-exact checkpoint/resume -->
 
 # State Serialization — the standard bytes interface
 

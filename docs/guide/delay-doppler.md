@@ -1,4 +1,4 @@
-<!-- domain: spectral -->
+<!-- domain: spectral; summary: where a code is and how fast it is rotating: one map, batches of frames, and the hypothesis bank for an unknown carrier, with `DelayDoppler` -->
 
 # Delay-Doppler Search
 

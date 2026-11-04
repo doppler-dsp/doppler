@@ -19,7 +19,7 @@ Python module `doppler.mpsk`. Area: [Modulation](index.md#modulation).
 
 ## Gallery pages in this domain
 
-- [M-PSK constellation (Gray-coded map / demap)](../gallery/mpsk.md)
+- [M-PSK constellation (Gray-coded map / demap)](../gallery/mpsk.md) — M-PSK mapping and constellation rendering.
 
 ## Used in other domains
 

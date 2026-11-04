@@ -1,4 +1,4 @@
-<!-- domain: util -->
+<!-- domain: util; summary: the DSP building-block hierarchy and its naming axis, plus concrete rename proposals -->
 
 # API taxonomy: the DSP building-block hierarchy and its naming axis
 

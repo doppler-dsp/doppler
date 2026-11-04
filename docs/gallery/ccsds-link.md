@@ -1,4 +1,4 @@
-<!-- domain: ccsds -->
+<!-- domain: ccsds; summary: a frame as a list of fields and a list of stages, each carrying the span it covers: why a pipeline cannot express the one thing CCSDS's stages disagree about, and what an outer code reports on the receive side that a CRC cannot -->
 
 # A CCSDS CADU, as a Frame Description
 

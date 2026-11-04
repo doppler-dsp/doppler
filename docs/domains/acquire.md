@@ -19,20 +19,20 @@ Python module `doppler.acquire`. Area: [Synchronization](index.md#synchronizatio
 
 ## Guide pages in this domain
 
-- [Acquiring a Repeated Preamble](../guide/acquisition.md)
+- [Acquiring a Repeated Preamble](../guide/acquisition.md) — finding bursts of any repeated preamble with `BurstCapture` and `BurstAcquisition`
 
 ## Gallery pages in this domain
 
-- [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md)
+- [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md) — PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters. ## Synchronization Loops
 
 ## Design pages in this domain
 
-- [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md)
-- [BurstCapture: acquisition's output, turned into bursts](../design/burst-capture.md)
-- [CoarseChannel — is a channel an object, or a slice of the bank?](../design/coarse-channel.md)
-- [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md)
-- [The acquisition surface — the measurement record](../design/acq-surface-measurements.md)
-- [The acquisition surface: the DSSS search engine](../design/acq-surface.md)
+- [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md) — the coarse-Doppler bank as one C object: why its cross-channel claim rule belongs beside the capture's, the layout rule now that the engine searches to its edge, rings named by centre so a pod can hold one channel, and the unknowns the characterization measures
+- [BurstCapture: acquisition's output, turned into bursts](../design/burst-capture.md) — acquisition's output turned into aligned burst samples: why the period-resolving refine and the look-back need a home outside the receiver, why the object owns its own engine rather than taking foreign detections, and the one behaviour that changes
+- [CoarseChannel — is a channel an object, or a slice of the bank?](../design/coarse-channel.md) — question 1 of the bank design: is a channel its own object or a slice of the bank, judged against the two primary use cases (one process runs the whole bank; one pod runs one channel), with the trades and the work that answers it
+- [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md) — pure-functional acquisition kernel for the elastic fleet
+- [The acquisition surface — the measurement record](../design/acq-surface-measurements.md) — the dated runs behind the design page under the same section numbers: §18's prototypes of the one delay-Doppler map (slow time first, the code-rate ramp on a shared transform) and the bench-box baseline it must meet
+- [The acquisition surface: the DSSS search engine](../design/acq-surface.md) — the DSSS search engine's design, burst and continuous doors over one engine: its arithmetic as equations, from $x[n]$ and the code template $c[n]$ to a hand-off: the de-rotated per-tile correlation, the slow-time block, the CFAR gate, the peak list, and the code's ambiguity sidelobes that set a ranked search's near-far limit; then the architecture, the trade space, what `pfa` means for a peak detector, the fan-out, the compute cost and what is open
 
 ## Used in other domains
 

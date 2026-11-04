@@ -23,32 +23,32 @@ Python module `doppler.track`. Area: [Synchronization](index.md#synchronization)
 
 ## Guide pages in this domain
 
-- [Lock Detection Across doppler.track](../guide/lock-detection.md)
+- [Lock Detection Across doppler.track](../guide/lock-detection.md) — which `configure_lock` to call, and why, for every tracking loop
 
 ## Gallery pages in this domain
 
-- [Arbitrary-Rate Symbol Recovery](../gallery/ratesync.md)
-- [Carrier Loop Stress](../gallery/costas.md)
-- [Code Loop Tracking](../gallery/dll.md)
-- [Costas Loop — Theory Validation](../gallery/costas-theory.md)
-- [DLL Code Loop — Theory Validation](../gallery/dll-theory.md)
-- [Full-Chain Lock-Up](../gallery/receiver-lock.md)
-- [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md)
-- [M-PSK Carrier Loop — Theory Validation](../gallery/carrier-mpsk.md)
-- [M-PSK Receiver — Performance Characterisation](../gallery/mpsk-receiver-performance.md)
-- [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
-- [M-PSK Receiver — Sizing the Carrier Loop, and Riding a Doppler Profile](../gallery/mpsk-doppler-profile.md)
-- [NDA Carrier Loop — Theory Validation](../gallery/carrier-nda.md)
-- [Symbol Timing Recovery](../gallery/symsync.md)
-- [Timing Loop — Theory Validation](../gallery/symsync-theory.md)
+- [Arbitrary-Rate Symbol Recovery](../gallery/ratesync.md) — matched filtering and symbol timing in one dot product, at a non-integer samples-per-symbol.
+- [Carrier Loop Stress](../gallery/costas.md) — Costas loop pull-in under noise.
+- [Code Loop Tracking](../gallery/dll.md) — delay-locked loop code tracking.
+- [Costas Loop — Theory Validation](../gallery/costas-theory.md) — loop-filter design and steady-state behaviour.
+- [DLL Code Loop — Theory Validation](../gallery/dll-theory.md) — discriminator and loop-filter derivation.
+- [Full-Chain Lock-Up](../gallery/receiver-lock.md) — `Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context.
+- [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md) — level + time hysteresis vs. a naive comparator on a marginal signal.
+- [M-PSK Carrier Loop — Theory Validation](../gallery/carrier-mpsk.md) — decision-directed carrier recovery.
+- [M-PSK Receiver — Performance Characterisation](../gallery/mpsk-receiver-performance.md) — EVM, SER, lock time, false alarm and level invariance over random geometries.
+- [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md) — integrated carrier + timing + bit recovery.
+- [M-PSK Receiver — Sizing the Carrier Loop, and Riding a Doppler Profile](../gallery/mpsk-doppler-profile.md) — sizing bn_carrier for a predictable acquisition, and what a step and two ramps actually cost.
+- [NDA Carrier Loop — Theory Validation](../gallery/carrier-nda.md) — non-data-aided carrier recovery. ## Constellations & Receivers
+- [Symbol Timing Recovery](../gallery/symsync.md) — timing-error-detector-driven resampling.
+- [Timing Loop — Theory Validation](../gallery/symsync-theory.md) — the timing loop's transfer function.
 
 ## Design pages in this domain
 
-- [MPSK Receiver](../design/mpsk.md)
-- [Receiver Test Harness](../design/rx-test.md)
-- [Symbol Timing on a Rate Cascade](../design/ratesync-timing.md)
-- [SymbolSync Timing Lock Detector](../design/timing_lock_detector.md)
-- [The Loop Filter](../design/loop-filter.md)
+- [MPSK Receiver](../design/mpsk.md) — streaming M-PSK receiver architecture and carrier-recovery design, the constellation primitive it reuses (§9, soft decisions included), and the record of the collapse that made the real face a view (§12)
+- [Receiver Test Harness](../design/rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
+- [Symbol Timing on a Rate Cascade](../design/ratesync-timing.md) — RateSync: why the matched filter and the interpolator are one dot product, why `ctrl` is referenced to the terminal stage's rate, and why the T/2 parity resolves itself
+- [SymbolSync Timing Lock Detector](../design/timing_lock_detector.md) — SymbolSync's Gardner/DTTL lock statistic and sizing formula
+- [The Loop Filter](../design/loop-filter.md) — the second-order PI every tracking loop in the library embeds by value: where its gains come from, the unit condition its `bn` promise depends on, and what it deliberately does not bound
 
 ## Used in other domains
 

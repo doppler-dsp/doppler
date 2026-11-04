@@ -14,7 +14,7 @@ Python module `doppler.interrupt`. Area: [I/O](index.md#io).
 
 ## Design pages in this domain
 
-- [Ending a wait — one contract for network, memory and disk](../design/io-termination.md)
+- [Ending a wait — one contract for network, memory and disk](../design/io-termination.md) — one contract for network, memory and disk: why "no data right now" is indistinguishable from "no data ever" on all three, the interrupt primitive that already exists and is misnamed, and the end-of-stream marker that does not
 
 ## Used in other domains
 

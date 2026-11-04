@@ -1,4 +1,4 @@
-<!-- domain: dsss -->
+<!-- domain: dsss; summary: one packaged receiver through an emitter's life: searched, tracked through a fade, released when it departs, reset, and re-acquired on its return, read from its own state after every push -->
 
 # AsyncDsssReceiver: a signal's lifecycle
 

@@ -14,13 +14,13 @@ Python module `doppler.impairment`. Area: [Impairment](index.md#impairment).
 
 ## Gallery pages in this domain
 
-- [Doppler Channel — Clock Doppler as a Propagation Impairment](../gallery/doppler-channel.md)
-- [Doppler Channel — a Doppler Profile Driven by a Cosine](../gallery/doppler-channel-profile.md)
+- [Doppler Channel — Clock Doppler as a Propagation Impairment](../gallery/doppler-channel.md) — clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies. ## Filters & Resampling
+- [Doppler Channel — a Doppler Profile Driven by a Cosine](../gallery/doppler-channel-profile.md) — one cosine period as the Doppler: the carrier follows `fc·d(t)` to 1.4 Hz of 50 kHz, the code slip peaks at 2.5 chips (2.44 in theory) and returns to zero, and no straight line explains any of it.
 
 ## Design pages in this domain
 
-- [The Doppler channel — one parameter, both clocks and the carrier](../design/doppler-channel.md)
-- [The Doppler channel — the measurement record](../design/doppler-channel-measurements.md)
+- [The Doppler channel — one parameter, both clocks and the carrier](../design/doppler-channel.md) — one parameter drives the dilation and the carrier: why a Doppler shift is not a frequency offset, the scalar and the profile forms, how the carrier is read off the resampler so it cannot depend on chunking, and how the composer and the Plan share one renderer.
+- [The Doppler channel — the measurement record](../design/doppler-channel-measurements.md) — the dated record: the first profile that was withdrawn and why, the resampler's 32-bit step against the closed form, the gap that carried the signal, and the Plan's speed against `compose()`.
 
 ## Used in other domains
 

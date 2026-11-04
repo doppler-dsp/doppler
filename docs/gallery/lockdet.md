@@ -1,4 +1,4 @@
-<!-- domain: track -->
+<!-- domain: track; summary: level + time hysteresis vs. a naive comparator on a marginal signal. -->
 
 # Lock Detection: Verify Counts + Hysteresis
 

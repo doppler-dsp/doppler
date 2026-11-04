@@ -1,4 +1,4 @@
-<!-- domain: wfm -->
+<!-- domain: wfm; summary: one capture written to raw / CSV / BLUE / SigMF and read back. -->
 
 # Waveform I/O — One Capture, Four File Types
 

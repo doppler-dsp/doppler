@@ -20,12 +20,12 @@ Python module `doppler.telemetry`. Area: [I/O](index.md#io).
 
 ## Gallery pages in this domain
 
-- [Capturing All Receiver Telemetry](../gallery/mpsk-telemetry-capture.md)
-- [Telemetry: Many Emitters, One Consumer](../gallery/telemetry-fanin.md)
+- [Capturing All Receiver Telemetry](../gallery/mpsk-telemetry-capture.md) — every MpskReceiver probe captured and stored from one ring.
+- [Telemetry: Many Emitters, One Consumer](../gallery/telemetry-fanin.md) — three emitters fanning into one ring, one consumer.
 
 ## Design pages in this domain
 
-- [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
+- [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md) — zero-cost scalar taps (loop stress, AGC gain) for running pipelines
 
 ## Used in other domains
 

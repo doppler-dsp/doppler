@@ -1,4 +1,4 @@
-<!-- domain: spectral -->
+<!-- domain: spectral; summary: many frames in one call: every map, or a coherent, power-sum, power-max or per-map-peak reduction, on one C fold loop that never touches the dwell -->
 
 # Corr2D batches: many maps in one call
 

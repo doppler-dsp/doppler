@@ -16,8 +16,8 @@ Python module `doppler.buffer`. Area: [I/O](index.md#io).
 
 ## Design pages in this domain
 
-- [The ring buffer — measurements and the record](../design/ring-buffer-measurements.md)
-- [The ring buffer — one contiguous view of a stream](../design/ring-buffer.md)
+- [The ring buffer — measurements and the record](../design/ring-buffer-measurements.md) — the dated record: what the ring costs per sample, what the non-blocking surface adds, and the three premises that were wrong.
+- [The ring buffer — one contiguous view of a stream](../design/ring-buffer.md) — zero-copy, wrap-free, lock-free: what each promise means, the blocking and non-blocking surfaces, and the two streaming patterns.
 
 ## Used in other domains
 

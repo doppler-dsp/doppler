@@ -1,4 +1,4 @@
-<!-- domain: dsss -->
+<!-- domain: dsss; summary: continuous DSSS, from spec to object: the specification (5 Mcps, 11 MSa/s, 3 kbps, ±50 kHz) and the derived power-of-two code period, the acquisition hand-off, the asynchronous despreader, the receiver's states, the pool's one controller-owned search and its pick, what it costs, the release, and the status record a holder reads -->
 
 # AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object
 

@@ -1,4 +1,4 @@
-<!-- domain: wfm -->
+<!-- domain: wfm; summary: framed BPSK/QPSK from one `FrameDesc`, received by `MpskReceiver`, judged by `FrameDesc.check`. ## Measurement -->
 
 # A Framed Link, Checked by Its Description
 

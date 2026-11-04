@@ -1,4 +1,4 @@
-<!-- domain: track -->
+<!-- domain: track; summary: decision-directed carrier recovery. -->
 
 # M-PSK Carrier Loop — Theory Validation
 

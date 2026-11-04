@@ -1,4 +1,4 @@
-<!-- domain: stream -->
+<!-- domain: stream; summary: sample-accurate playback timing -->
 
 # Real-Time Pacing & Timestamping
 

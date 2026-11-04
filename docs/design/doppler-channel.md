@@ -1,4 +1,4 @@
-<!-- domain: impairment -->
+<!-- domain: impairment; summary: one parameter drives the dilation and the carrier: why a Doppler shift is not a frequency offset, the scalar and the profile forms, how the carrier is read off the resampler so it cannot depend on chunking, and how the composer and the Plan share one renderer. -->
 
 # The Doppler channel — one parameter, both clocks and the carrier
 

@@ -14,7 +14,7 @@ Python module `doppler.ccsds`. Area: [Coding](index.md#coding).
 
 ## Gallery pages in this domain
 
-- [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md)
+- [A CCSDS CADU, as a Frame Description](../gallery/ccsds-link.md) — a frame as a list of fields and a list of stages, each carrying the span it covers: why a pipeline cannot express the one thing CCSDS's stages disagree about, and what an outer code reports on the receive side that a CRC cannot
 
 ## Used in other domains
 

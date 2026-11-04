@@ -1,4 +1,4 @@
-<!-- domain: dsss -->
+<!-- domain: dsss; summary: three receivers, four emitters on one Gold code: each held by one receiver, a departure freeing its receiver, and the newcomer taking it, read from the pool's own status after every push. -->
 
 # AsyncDsssPool: emitters that come and go
 

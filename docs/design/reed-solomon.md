@@ -1,4 +1,4 @@
-<!-- domain: coding -->
+<!-- domain: coding; summary: the outer code as a description: the two offsets a textbook omits (`j0 != 1`, and a root stride that is not 1), why Chien iterates positions rather than field elements, and what a refusal is not -->
 
 # Reed-Solomon
 

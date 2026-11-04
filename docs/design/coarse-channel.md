@@ -1,4 +1,4 @@
-<!-- domain: acquire -->
+<!-- domain: acquire; summary: question 1 of the bank design: is a channel its own object or a slice of the bank, judged against the two primary use cases (one process runs the whole bank; one pod runs one channel), with the trades and the work that answers it -->
 
 # CoarseChannel — is a channel an object, or a slice of the bank?
 

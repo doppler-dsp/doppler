@@ -95,7 +95,9 @@ FAMILY = {"guide": "Guide", "gallery": "Gallery", "design": "Design"}
 # The domain is an HTML comment on the page's first line, not YAML front
 # matter: the markdown formatter (mdformat) has no front-matter plugin and
 # would rewrite a `---` block into a rule and a heading.
-DOMAIN_RE = re.compile(r"\A<!--\s*domain:\s*(\S+?)\s*-->")
+DOMAIN_RE = re.compile(
+    r"\A<!--\s*domain:\s*([^\s;]+?)\s*(?:;\s*summary:\s*(.+?))?\s*-->"
+)
 TITLE_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
 
 EXEMPT = "docs/.domain-guides-exempt"
@@ -142,6 +144,13 @@ def page_domain(path: Path) -> str | None:
     """The domain a page's first-line comment names, or None."""
     m = DOMAIN_RE.match(path.read_text(encoding="utf-8"))
     return m[1] if m else None
+
+
+def page_summary(path: Path) -> str:
+    """The one line a page declares for itself in its first-line marker
+    (``<!-- domain: spectral; summary: ... -->``), or ""."""
+    m = DOMAIN_RE.match(path.read_text(encoding="utf-8"))
+    return (m[2] or "") if m else ""
 
 
 def page_title(path: Path) -> str:
@@ -212,6 +221,11 @@ def problems(root: Path = ROOT) -> list[str]:
         elif dom not in doms:
             out.append(
                 f"{rel}: domain `{dom}` is not a module in {DOMAINS_TOML}"
+            )
+        elif not page_summary(path) and not in_subsection(root, path):
+            out.append(
+                f"{rel}: no summary; its index line is written from the "
+                f"page: `<!-- domain: {dom}; summary: <one line> -->`"
             )
     return out
 
@@ -459,10 +473,11 @@ def render(root: Path = ROOT) -> dict[str, str]:
         for fam in PAGE_DIRS:
             if mine.get(fam):
                 lines += [f"## {FAMILY[fam]} pages in this domain", ""]
-                lines += [
-                    f"- [{t}](../{rel})"
-                    for t, rel in sorted(mine[fam], key=lambda x: x[0])
-                ]
+                for t, rel in sorted(mine[fam], key=lambda x: x[0]):
+                    blurb = page_summary(root / "docs" / rel)
+                    lines.append(
+                        f"- [{t}](../{rel})" + (f" — {blurb}" if blurb else "")
+                    )
                 lines.append("")
         # pages of OTHER domains that mention this module's symbols
         elsewhere: dict[str, dict[str, str]] = defaultdict(dict)
@@ -676,7 +691,10 @@ def index_blocks(root: Path = ROOT) -> dict[str, str]:
             lines += [f"## {doms[m]['title']}", "", doms[m]["summary"], ""]
             for title, page in items:
                 link = os.path.relpath(page, fam).replace(os.sep, "/")
-                lines.append(f"- [{title}]({link})")
+                blurb = page_summary(root / "docs" / page)
+                lines.append(
+                    f"- [{title}]({link})" + (f" — {blurb}" if blurb else "")
+                )
             lines.append("")
         lines.append(IDX_END)
         text = (root / rel).read_text(encoding="utf-8")

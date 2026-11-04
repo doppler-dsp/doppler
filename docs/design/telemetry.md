@@ -1,4 +1,4 @@
-<!-- domain: telemetry -->
+<!-- domain: telemetry; summary: zero-cost scalar taps (loop stress, AGC gain) for running pipelines -->
 
 # Telemetry — zero-cost scalar taps for running pipelines
 

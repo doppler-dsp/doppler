@@ -25,7 +25,7 @@ Python module `doppler.ber`. Area: [Estimation](index.md#estimation).
 
 ## Gallery pages in this domain
 
-- [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md)
+- [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md) — `BerMeter` on AWGN: detected alignment, inverse binomial sampling, and the exact confidence interval.
 
 ## Used in other domains
 

@@ -52,7 +52,7 @@ typedef struct
 } dp__dd_geom_t;
 
 /** One tile: what the row stage reads for it and where it writes. */
-typedef struct
+typedef struct dp__dd_tile
 {
   size_t         roll;      /**< reads bin (j + roll) mod N               */
   const int32_t *off;       /**< N fine-row offsets in [0, F DI), or NULL
@@ -204,19 +204,28 @@ void dp__dd_ramp_table (const dp__dd_geom_t *g, double dq,
 #define DP__DD_ROWS_FIRST 1
 
 /**
- * @brief The schedule with the fewer transforms, counted as n log2 n each.
+ * @brief The schedule a map runs: rows first only when it counts clearly
+ *        fewer transforms, n log2 n each.
  *
- * Slow first costs, per rate, N transforms of F DI and W DI inverses of L;
- * rows first costs W D inverses once and, per rate, W L transforms of DI. A
- * tie goes to rows first, which reads its rows in place where slow first
- * gathers them; one slow row (DI = 1) is rows first.
+ * Slow first costs, per rate, N transforms of F DI and W DI inverses of L.
+ * Rows first costs W D inverses of L once -- not counted for a @p fused
+ * caller, which runs them inside a frame stage it runs anyway, on rows
+ * still in cache -- and, per rate, W L transforms of DI. Rows first runs
+ * only when it counts more than 1/16 fewer (the count's resolution); a
+ * tie within it goes to slow first, which measured faster at every
+ * near-equal count on acq's working sets
+ * (docs/design/acq-surface-measurements.md §18.6). One slow row (DI = 1) is
+ * rows first: there is no slow time to order.
  *
  * @param g        The map's shape.
  * @param n_tiles  W, the tiles one slow time serves.
  * @param n_rates  R, the rate hypotheses.
+ * @param fused    1 when the caller inverts each epoch inside a frame
+ *                 stage it already runs (DelayDoppler's row stage), else 0.
  * @return DP__DD_SLOW_FIRST or DP__DD_ROWS_FIRST.
  */
-int dp__dd_schedule (const dp__dd_geom_t *g, size_t n_tiles, size_t n_rates);
+int dp__dd_schedule (const dp__dd_geom_t *g, size_t n_tiles, size_t n_rates,
+                     int fused);
 
 /**
  * @brief Override the rule on a map, for tests that run both schedules.
@@ -230,9 +239,11 @@ void dp__dd_map_force (dp__dd_map_t *map, int schedule);
  * @param map      The map.
  * @param n_tiles  W.
  * @param n_rates  R.
+ * @param fused    As dp__dd_schedule()'s.
  * @return The forced schedule, else dp__dd_schedule()'s.
  */
-int dp__dd_map_pick (const dp__dd_map_t *map, size_t n_tiles, size_t n_rates);
+int dp__dd_map_pick (const dp__dd_map_t *map, size_t n_tiles, size_t n_rates,
+                     int fused);
 
 /**
  * @brief Rows first, stage 1: tile q's epoch k rolled, weighted, ramped by

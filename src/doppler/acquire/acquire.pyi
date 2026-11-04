@@ -606,16 +606,17 @@ class Acquisition:
         """Couple the code clock to the carrier: the chip rate dilates by
         doppler_hz / carrier_freq_hz, and the engine accounts for it -- every
         window tile's epochs are shifted along the code axis by the drift the
-        tile's own frequency implies before the slow-time transform (inside a
+        tile's own frequency implies, aligned to the block's middle (inside a
         coherent block of D epochs), and the hand-off advances the hit's code
         phase by the drift over half the dwell
-        (docs/design/async-dsss-receiver-measurements.md §12.11, §12.12).
-        Config, not running state: not in the state blob, so a resumed engine
-        wants it set again. 0.0 (the default) = uncoupled, the engine as it ran
-        without it. Raises ValueError for a carrier that is neither 0 nor
-        finite and above half the sample rate (fs / 2): every Doppler the
-        engine can report is below fs / 2, so above it |doppler / carrier| < 1
-        and the dilation stays finite.
+        (docs/design/async-dsss-receiver-measurements.md §12.11, §12.12). It
+        rides in the state blob, so a resumed engine carries it on, and setting
+        it rebuilds the one delay-Doppler map's ramp tables
+        (docs/design/acq-surface.md §18.2). 0.0 (the default) = uncoupled, the
+        engine as it ran without it. Raises ValueError for a carrier that is
+        neither 0 nor finite and above half the sample rate (fs / 2): every
+        Doppler the engine can report is below fs / 2, so above it |doppler /
+        carrier| < 1 and the dilation stays finite.
 
         A physically-coupled Doppler moves the code as well as the carrier --
         100 chips/s at 20 ppm of 5 Mcps -- and the engine's two long
@@ -624,20 +625,26 @@ class Acquisition:
         - **Inside a coherent block** of D epochs every tile's epoch
           correlations are shifted along the code axis by the drift the tile's
           own frequency implies, `f_tile / carrier` chips per chip, aligned to
-          the block's middle, before the slow-time transform (a linear phase on
-          each epoch's product, exact to a fraction of a sample). Measured at
-          the specification's 20 ppm with D = 154 (3.1 chips of drift across
-          the block): without it the block's peak is 13 dB down and 3 chips
-          wide and the depth detects nothing at 34 dB-Hz; with it the block
-          reads as a still one.
+          the block's middle (a linear phase on each epoch's product). The one
+          delay-Doppler map applies it at the block's end, read on a slow-time
+          grid 4 times finer and rounded, a loss of at most 0.09 dB measured
+          (docs/design/acq-surface.md §18.1); dp_acq_block_prompt() applies it
+          exactly. A change of carrier mid-block applies to the whole block.
+          Measured at the specification's 20 ppm with D = 154 (3.1 chips of
+          drift across the block): without it the block's peak is 13 dB down
+          and 3 chips wide and the depth detects nothing at 34 dB-Hz; with it
+          the block reads as a still one.
         - **The hand-off** (dp_acq_build_handoff()) advances the hit's code
           phase by the drift over half the dwell -- the non-coherent sum's peak
           is the phase at the dwell's middle, the seed is wanted at its end:
           0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
 
-        Config, not running state: it is not in the state blob, so a resumed
-        engine wants it set again by its holder, as at create. Default 0.0
-        (uncoupled) is the engine exactly as it ran without it.
+        A mutator's value (#2022): it rides in the state blob (v8), and a
+        restore takes it through this setter's rebuild, so a resumed engine
+        carries it on. Setting it rebuilds the map's fine grid and every tile's
+        ramp tables when they move (the regrid that re-applies the thread
+        request). Default 0.0 (uncoupled) is the engine exactly as it ran
+        without it.
 
         Parameters
         ----------

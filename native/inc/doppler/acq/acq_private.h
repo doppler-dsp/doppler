@@ -51,7 +51,7 @@ acq_rate_better (size_t h, float stat, float best)
  * span up -- summed over the block's epochs non-coherently (a data
  * transition inside an epoch costs every hypothesis the same), each
  * epoch's column walked by the hypothesis's own code rate as
- * acq_tile_epoch walks the tile's. Returns the native row that wins;
+ * the map's ramp walks the tile's. Returns the native row that wins;
  * the pick's own row when the engine is not block-coherent and tiled. */
 static inline size_t
 acq_resolve_tile_alias (const dp_acq_state_t *st, size_t row, size_t col)
@@ -75,7 +75,7 @@ acq_resolve_tile_alias (const dp_acq_state_t *st, size_t row, size_t col)
       const double f = f0 + (double)h * span;
       /* The code-rate walk of this hypothesis, samples per epoch: a
          positive Doppler runs the chip clock fast and the peak sits
-         EARLIER each epoch (acq_tile_epoch's convention). */
+         EARLIER each epoch (the map's ramp convention). */
       const double d  = st->carrier_freq_hz > 0.0
                             ? f / st->carrier_freq_hz * (double)nx
                             : 0.0;

@@ -123,8 +123,8 @@ $$X_k = \mathrm{FFT}\{x_k\}$$
 
 and a mix by $-\hat f_q$ is a circular shift of that spectrum by $q$ bins,
 $\mathrm{FFT}\{\tilde x_{k,q}\}[j] = X_k[(j + q) \bmod N]$, so every
-hypothesis costs one multiply and one inverse transform
-(`acq_tile_epoch()`):
+hypothesis costs one multiply and one inverse transform (the one
+delay-Doppler map's row stage, §18.1):
 
 $$z_{k,q} = \mathrm{IFFT}\Big\{X_k\big[(j + q) \bmod N\big]\, C_T[j]\Big\}$$
 
@@ -171,8 +171,8 @@ us against 9.32 us at 2,046, measured on the engine's own FFT, and there
 are $W$ of them an epoch against one forward. The surface is `surface_rows`
 by `lag_bins`; a hit's `code_phase` is a column, a lag of
 `code_phase * code_bins / lag_bins` samples, and the hand-off maps it to
-chips on that grid. On a narrow engine corr2d's decoupled inverse
-(`nx_out`) pads the same way.
+chips on that grid. The narrow engine runs the same map, so it pads the
+same way.
 
 What it changes downstream is the grid, not the correlation. An emitter
 whose delay lands between two columns reads up to a triangle's straddle
@@ -187,7 +187,7 @@ the padded engine's Pfa sits on its target at D = 1 and D = 150.
 Column $m$ of $z_{k,q}$ is a series at the epoch rate. When $D > 1$ the
 engine takes $D$ consecutive epochs, a **block** $k = bD + i'$ for
 $i' = 0 \ldots D-1$, and transforms each column over it, zero-padded to $DI$
-points (`acq_tile_block()`):
+points (the map's slow time, §18.1):
 
 $$Z_{b,q}[\,\cdot\,, m] = \mathrm{FFT}_{DI}\big\{z_{bD + i',\, q}[m]\big\}, \qquad i' = 0 \ldots D-1$$
 
@@ -217,14 +217,16 @@ $$Z_{b,q} = \mathrm{FFT}_{DI}\Big\{\mathrm{IFFT}\big\{X_k[(j + q) \bmod N]\, C_T
 Done naively, each hypothesis would mix the epochs in time and transform
 them forward itself: $WD$ forward transforms a block. Tiling computes
 $X_k$ once per epoch for every tile, and the mix becomes a free index
-shift, so a block costs $D$ forward, $WD$ inverse and $WN$ slow-time
-transforms:
+shift. Taken in this order (rows first, §18.1), a block costs $D$ forward,
+$WD$ inverse and $WN$ slow-time transforms:
 
 $$\underbrace{D \cdot N \log N}_{\text{forward, shared}} + \underbrace{W D \cdot N \log N}_{\text{inverse, per tile}} + \underbrace{W N \cdot D I \log (D I)}_{\text{slow time, per tile}}$$
 
-against $2WD \cdot N \log N + WN \cdot DI \log(DI)$ naively. The tiles are
-independent after the shared forward transform, which is why they fan
-across threads (`dp_acq_set_threads()`) with bit-identical results.
+against $2WD \cdot N \log N + WN \cdot DI \log(DI)$ naively. The slow-time
+transform is linear, so it can also come first, once a block for every
+tile: $N$ slow-time transforms and $W DI$ inverses. The engine takes
+whichever order its rule picks (§18.1), and either fans across threads
+(`dp_acq_set_threads()`) with bit-identical results.
 
 **The depth.** From the code-only window $E$ in whole epochs
 (`code_only_epochs`) and the Doppler rate $\dot f$ (`doppler_rate`)
@@ -920,13 +922,12 @@ count among it) is a reject key. A finer tile-level kernel with a separate
 carry (`acq_caf_tile`, `acq_nc_accumulate`) was proposed and not built: the
 serialized engine gives the same hand-off.
 
-**Inside one engine,** the tiles are independent after the shared forward
-transform (§4), so the per-epoch tile loop and, at $D > 1$, the block-end
-column loop run on a persistent worker pool (`dp_acq_set_threads()`,
-`Acquisition.set_threads()`, read back as `threads`). Each tile owns its
-inverse plan and scratch, and the per-cell passes that decide a surface
-merge serially in tile order, so the result is bit-identical at any thread
-count. A continuous engine with more than one tile starts with a pool of
+**Inside one engine,** each stage of the one map (§18.3) fans once a block
+on a persistent worker pool (`dp_acq_set_threads()`,
+`Acquisition.set_threads()`, read back as `threads`). Each worker slot owns
+its plans and scratch, every output row is one slot's same arithmetic, and
+the per-cell passes that decide a surface merge serially in tile order, so
+the result is bit-identical at any thread count. A continuous engine with more than one tile starts with a pool of
 the machine's online cores, capped at one worker a tile (a worker past the
 tile count only wakes and waits), and a regrid to one tile
 (`configure_search_raw`) drops it to serial; a burst engine and a
@@ -945,12 +946,12 @@ job; the C ABI is the parallel substrate.
 
 ## 14. Compute cost
 
-**The burst framing is 2-D-FFT bound.** One coherent block at
-$L = 1023$, `spc` = 2 ($N = 2046$), $D = 10$ (ring write, slow-time FFT,
-single-row `corr2d`, CFAR) costs about 0.62 ms, about 33 MSa/s a core, and
-a bare `corr2d.execute` on the same grid is 95–100% of that
-(`bench_acq.py`, `bench_corr2d.py`). Effort belongs in the transform, not
-the glue. Two levers in the transform have shipped:
+**The burst framing is FFT bound.** One coherent block is a handful of
+transform stages and a CFAR pass, and the transforms are nearly all of it
+(`bench_acq.py`, `bench_corr2d.py`; before the one map, a block at
+$L = 1023$, `spc` = 2, $D = 10$ cost about 0.62 ms, 95–100% of it the
+bare correlator). Effort belongs in the transform, not the glue. Two levers
+in the transform have shipped, and the one map (§18) is the third:
 
 - **The single-row fast path.** The reference is one row, so its spectrum
     is invariant along the row axis and `corr2d`'s forward-accumulate-inverse
@@ -1062,24 +1063,25 @@ chip phase by it (§7); the burst path does not compensate it (§17).
 - **A verification dwell** (declare, then confirm, as in a Tong detector)
     to cut false alarms. No issue tracks it.
 
-## 18. One delay-Doppler map (decided, not yet built)
+## 18. One delay-Doppler map
 
 *This section is the design of
-[#2752](https://github.com/doppler-dsp/doppler/issues/2752) step 2. It
-states what the engine will compute once the step lands; §3, §4, §13 and
-§14 state what it computes today, and are rewritten from this section when
-it does. The runs behind every number here are
+[#2752](https://github.com/doppler-dsp/doppler/issues/2752) step 2, built
+in step 2.3 ([#2831](https://github.com/doppler-dsp/doppler/issues/2831)).
+The runs behind every number here are
 [the measurement record's §18](acq-surface-measurements.md#18-one-delay-doppler-map).*
 
-**What changes.** Today the delay-Doppler map has three homes: acq's narrow
-path (`acq_make_surface`: slow time first, then a forward and an inverse
-transform for each of the $DI$ slow-time rows, through Corr2D's fast path),
-acq's wideband path (`acq_tile_epoch` and `acq_tile_block`: an inverse
-transform for each tile and epoch, then slow time for each tile and lag
-column), and Corr2D's `DelayDoppler` and hypothesis bank. Step 2 leaves
-one: a block map in `corr2d_core.c`, which both acq paths compose and which
-`DelayDoppler` and the bank run on. No intermediate state keeps two copies
-on main.
+**What it replaced.** The delay-Doppler map had three homes:
+
+- acq's narrow path, which took slow time first, then a forward and an
+    inverse transform for each of the $DI$ slow-time rows, through Corr2D's
+    fast path;
+- acq's wideband path, which ran an inverse transform for each tile and
+    epoch, then slow time for each tile and lag column;
+- Corr2D's `DelayDoppler` and hypothesis bank.
+
+Now there is one: a block map in `corr2d_core.c`, which both acq paths
+compose and which `DelayDoppler` and the bank run on.
 
 ### 18.1 The map
 
@@ -1177,21 +1179,30 @@ function and differ by float rounding alone. Both run the same stage code
 (the row gather, the pad and inverse, the slow transform), so there is
 still one implementation.
 
-One rule, `dp__dd_schedule` in `corr2d_map.h`, picks the order with fewer
-transforms, counted as $n \log_2 n$ each:
+One rule, `dp__dd_schedule (g, W, R, fused)` in `corr2d_map.h`, picks the
+order. It counts each transform as $n \log_2 n$:
 
 - slow first pays, per rate, $N$ slow transforms of $F\,DI$ points and
-    $W\,DI$ inverses;
-- rows first pays $W D$ inverses once and, per rate, $W L$ slow transforms of
-    $DI$ points;
-- a tie goes to rows first, which reads its rows in place where slow first
-    gathers them out of the bin-major slow-time output.
+    $W\,DI$ inverses of $L$;
+- rows first pays $W D$ inverses of $L$ once, and per rate $W L$ slow
+    transforms of $DI$ points. The inverses are left out for a `fused`
+    caller, one that inverts each epoch inside a frame stage it already
+    runs, on rows still in cache. Only `DelayDoppler`'s row stage does.
+- rows first runs only when it counts more than $1/16$ fewer. Within that
+    the count cannot tell the two apart, since $n \log_2 n$ ignores radix
+    and memory traffic, and the tie goes to slow first. One slow row
+    ($DI = 1$) has no slow time to order and is rows first.
 
-That puts acq's wideband engines (21 and 53 tiles) on slow first, where
-§18.1's table is measured. One tile, a few tiles at a small $D$,
-`DelayDoppler` and the bank with many rates go on rows first: today's order
-for each, so their speed does not move. At `DelayDoppler`'s equal count,
-slow first measured about 20% slower for the gather alone (record §18.6).
+The rule puts:
+
+- **acq's block-coherent engines on slow first:** every tile count measured,
+    3 to 53, and the 5-tile row without a carrier;
+- **`DelayDoppler` (fused) and the bank with 12 rates on rows first:** about
+    today's order there, and its speed;
+- **acq's 3- and 5-tile carrier rows on rows first** as well, where slow
+    first measured 6% and 14% faster
+    ([#2842](https://github.com/doppler-dsp/doppler/issues/2842); record
+    §18.6 has every pinned row both ways).
 
 Callers run the map through its one driver, `dp__dd_map_run`, which applies
 the rule. There is one exception: the Corr2D bank on slow first calls the

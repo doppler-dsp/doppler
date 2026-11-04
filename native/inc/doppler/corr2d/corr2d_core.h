@@ -233,8 +233,8 @@ dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t
  * coherent @p dwell accumulation of the product spectrum, inverse scaled by
  * `1/nx`), and on the dump the slow-time FFT runs down every delay column.
  * The library's one delay-Doppler map computes it (docs/design/acq-surface.md
- * §18), in whichever of its two orders has fewer transforms: here, one
- * code and one rate, the rows first, each row inverted as it is accumulated.
+ * §18) in the order its rule picks: here the rows first, each row inverted
+ * as it is accumulated, which is what makes the row stage fused.
  * In numpy terms, for one frame `x` (dwell 1):
  *
  *     C   = np.conj(np.fft.fft(code))
@@ -821,8 +821,8 @@ size_t dp_corr2d_execute_peaks (dp_corr2d_state_t *state,
  * share work: whole bins (g a multiple of L) are a roll of the row spectrum,
  * each fraction `g mod L` mixes and transforms the rows once for every whole
  * bin that shares it.  On DelayDoppler the one delay-Doppler map then runs
- * in whichever of its two orders has fewer transforms for the bank's
- * carriers per fraction and its rates (docs/design/acq-surface.md §18):
+ * in the order its rule picks for the bank's carriers per fraction and its
+ * rates (docs/design/acq-surface.md §18.1):
  * rows first inverts each carrier's rows once for all its rates and pays a
  * slow-time FFT per rate; slow first shares each fraction's slow time across
  * its whole-bin carriers and pays their rows per rate.  On Corr2D, whose

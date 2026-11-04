@@ -37,7 +37,6 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  uint8\_t \* | [**band\_mask**](#variable-band_mask)  <br> |
-|  float \_Complex \* | [**blk**](#variable-blk)  <br> |
 |  size\_t | [**blk\_epoch**](#variable-blk_epoch)  <br> |
 |  float \_Complex \* | [**blk\_raw**](#variable-blk_raw)  <br> |
 |  uint8\_t | [**burst**](#variable-burst)  <br> |
@@ -47,10 +46,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  size\_t | [**code\_bins**](#variable-code_bins)  <br> |
 |  size\_t | [**code\_only\_epochs**](#variable-code_only_epochs)  <br> |
 |  size\_t | [**coherent\_bins**](#variable-coherent_bins)  <br> |
-|  float \_Complex \* | [**colbuf**](#variable-colbuf)  <br> |
-|  float \_Complex \* | [**colout**](#variable-colout)  <br> |
 |  size\_t | [**consumed**](#variable-consumed)  <br> |
-|  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**corr**](#variable-corr)  <br> |
 |  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  double | [**doppler\_span\_hz**](#variable-doppler_span_hz)  <br> |
@@ -69,6 +65,14 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  int | [**keep\_surface**](#variable-keep_surface)  <br> |
 |  size\_t | [**lag\_bins**](#variable-lag_bins)  <br> |
 |  float \* | [**mag\_buf**](#variable-mag_buf)  <br> |
+|  struct dp\_\_dd\_map \* | [**map**](#variable-map)  <br> |
+|  size\_t | [**map\_f**](#variable-map_f)  <br> |
+|  int32\_t \* | [**map\_off**](#variable-map_off)  <br> |
+|  size\_t \* | [**map\_rows**](#variable-map_rows)  <br> |
+|  float \_Complex \* | [**map\_spec**](#variable-map_spec)  <br> |
+|  struct dp\_\_dd\_tile \* | [**map\_tiles**](#variable-map_tiles)  <br> |
+|  float \_Complex \* | [**map\_work**](#variable-map_work)  <br> |
+|  float \_Complex \* | [**map\_wt**](#variable-map_wt)  <br> |
 |  size\_t | [**max\_peaks**](#variable-max_peaks)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_held**](#variable-n_held)  <br> |
@@ -97,6 +101,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**pfa**](#variable-pfa)  <br> |
 |  double | [**pfa\_cell**](#variable-pfa_cell)  <br> |
 |  [**dp\_pool\_t**](structdp__pool__t.md) \* | [**pool**](#variable-pool)  <br> |
+|  float \_Complex \* | [**prompt\_scratch**](#variable-prompt_scratch)  <br> |
 |  float \_Complex \* | [**rate\_best**](#variable-rate_best)  <br> |
 |  size\_t | [**rate\_best\_cap**](#variable-rate_best_cap)  <br> |
 |  size\_t | [**rate\_best\_h**](#variable-rate_best_h)  <br> |
@@ -104,6 +109,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  size\_t | [**rate\_chirp\_d**](#variable-rate_chirp_d)  <br> |
 |  size\_t | [**rate\_hyps**](#variable-rate_hyps)  <br> |
 |  float \_Complex \* | [**ref**](#variable-ref)  <br> |
+|  float \_Complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
 |  size\_t | [**reps**](#variable-reps)  <br> |
 |  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
 |  size\_t | [**ring\_cap**](#variable-ring_cap)  <br> |
@@ -124,7 +130,6 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**sl\_inv**](#variable-sl_inv)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**sl\_inv\_cb**](#variable-sl_inv_cb)  <br> |
 |  float \_Complex \* | [**sl\_scratch**](#variable-sl_scratch)  <br> |
-|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**slow\_fft**](#variable-slow_fft)  <br> |
 |  float \* | [**stat\_surface**](#variable-stat_surface)  <br> |
 |  double | [**straddle\_loss**](#variable-straddle_loss)  <br> |
 |  uint64\_t | [**surface\_at**](#variable-surface_at)  <br> |
@@ -133,22 +138,11 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  int | [**threads**](#variable-threads)  <br> |
 |  int | [**threads\_req**](#variable-threads_req)  <br> |
 |  float | [**threshold**](#variable-threshold)  <br> |
-|  float \_Complex \*\* | [**tile\_col**](#variable-tile_col)  <br> |
-|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**tile\_inv**](#variable-tile_inv)  <br> |
-|  float \_Complex \*\* | [**tile\_prod**](#variable-tile_prod)  <br> |
-|  size\_t \*\* | [**tile\_rows**](#variable-tile_rows)  <br> |
-|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**tile\_slow**](#variable-tile_slow)  <br> |
 |  [**acq\_tlm\_t**](structacq__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  uint32\_t \* | [**twin\_col**](#variable-twin_col)  <br> |
 |  uint32\_t \* | [**twin\_row**](#variable-twin_row)  <br> |
 |  uint8\_t | [**underpowered**](#variable-underpowered)  <br> |
-|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**wide\_fwd**](#variable-wide_fwd)  <br> |
-|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**wide\_inv**](#variable-wide_inv)  <br> |
-|  float \_Complex \* | [**wide\_prod**](#variable-wide_prod)  <br> |
-|  float \_Complex \* | [**wide\_ref\_spec**](#variable-wide_ref_spec)  <br> |
-|  float \_Complex \* | [**wide\_spec**](#variable-wide_spec)  <br> |
 |  size\_t | [**window\_bins**](#variable-window_bins)  <br> |
-|  float \_Complex \* | [**yframe**](#variable-yframe)  <br> |
 
 
 
@@ -223,24 +217,6 @@ n\_surf; 1 = outside the searched band
 
 
 
-### variable blk 
-
-```C++
-float _Complex* dp_acq_state_t::blk;
-```
-
-
-
-window\_bins \* coherent\_bins \* lag\_bins: the block's per-tile epoch correlations; NULL unless both exceed 1. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable blk\_epoch 
 
 ```C++
@@ -267,7 +243,7 @@ float _Complex* dp_acq_state_t::blk_raw;
 
 
 
-coherent\_bins \* code\_bins: the block's raw epochs as pushed, for the tile-edge test of acq\_resolve\_tile\_alias(); NULL unless blk is. 
+coherent\_bins \* code\_bins: the block's raw epochs as pushed, which the map reads at the block's end (and the tile-edge test of acq\_resolve\_tile\_alias()); NULL unless the engine is tiled with D &gt; 1. 
  
 
 
@@ -402,41 +378,6 @@ Coherent depth = slow-time FFT length (&lt;= reps on a burst engine). In wideban
 
 
 
-### variable colbuf 
-
-```C++
-float _Complex* dp_acq_state_t::colbuf;
-```
-
-
-
-Gathered column scratch (coherent\_bins). 
-
-
-        
-
-<hr>
-
-
-
-### variable colout 
-
-```C++
-float _Complex* dp_acq_state_t::colout;
-```
-
-
-
-FFT'd column scratch (coherent\_bins). 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable consumed 
 
 ```C++
@@ -446,24 +387,6 @@ size_t dp_acq_state_t::consumed;
 
 
 Input samples the last push took. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable corr 
-
-```C++
-dp_corr2d_state_t* dp_acq_state_t::corr;
-```
-
-
-
-Single-row-ref correlator (dwell=1). 
  
 
 
@@ -792,6 +715,149 @@ float* dp_acq_state_t::mag_buf;
 
 
 
+### variable map 
+
+```C++
+struct dp__dd_map* dp_acq_state_t::map;
+```
+
+
+
+The map: its plans, a slot per worker. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable map\_f 
+
+```C++
+size_t dp_acq_state_t::map_f;
+```
+
+
+
+The ramp's fine grid: 4 when a carrier is set, the engine is tiled and D &gt; 1; else 1. 
+
+
+        
+
+<hr>
+
+
+
+### variable map\_off 
+
+```C++
+int32_t* dp_acq_state_t::map_off;
+```
+
+
+
+window\_bins x code\_bins rounded-ramp offsets; NULL when no tile ramps (map\_f == 1). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable map\_rows 
+
+```C++
+size_t* dp_acq_state_t::map_rows;
+```
+
+
+
+window\_bins x D\*interp: each slow row's surface row (acq\_block\_row). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable map\_spec 
+
+```C++
+float _Complex* dp_acq_state_t::map_spec;
+```
+
+
+
+The block's epoch spectra, coherent\_bins x code\_bins. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable map\_tiles 
+
+```C++
+struct dp__dd_tile* dp_acq_state_t::map_tiles;
+```
+
+
+
+window\_bins tiles: roll, ramp offsets, weights, rows. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable map\_work 
+
+```C++
+float _Complex* dp_acq_state_t::map_work;
+```
+
+
+
+The map's scratch for its schedule (dp\_\_dd\_map\_work\_len). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable map\_wt 
+
+```C++
+float _Complex* dp_acq_state_t::map_wt;
+```
+
+
+
+The tiles' weights: window\_bins x code\_bins with a ramp, else one shared code\_bins (ref\_spec / code\_bins). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable max\_peaks 
 
 ```C++
@@ -1048,7 +1114,7 @@ float _Complex* dp_acq_state_t::out_buf;
 
 
 
-corr2d dump output (n) — also the wideband mode's (window\_bins, code\_bins) grid. 
+The decided coherent surface (n\_surf): the one delay-Doppler map's output, rows of lag\_bins, scaled 1/code\_bins on every path (docs/design/acq-surface.md §18.1). 
  
 
 
@@ -1290,6 +1356,23 @@ NULL or one thread = serial
 
 
 
+### variable prompt\_scratch 
+
+```C++
+float _Complex* dp_acq_state_t::prompt_scratch;
+```
+
+
+
+[**dp\_acq\_block\_prompt()**](acq__core_8h.md#function-dp_acq_block_prompt)'s: an epoch's spectrum, its weights and a row (2 code\_bins + lag\_bins); made on first use. 
+
+
+        
+
+<hr>
+
+
+
 ### variable rate\_best 
 
 ```C++
@@ -1406,6 +1489,24 @@ float _Complex* dp_acq_state_t::ref;
 
 
 Single-row reference (n), owned. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable ref\_spec 
+
+```C++
+float _Complex* dp_acq_state_t::ref_spec;
+```
+
+
+
+conj(FFT(replica)), code\_bins: the template every tile's weights carry. 
  
 
 
@@ -1771,23 +1872,6 @@ its buffers: the replica's spectrum, a mixed signal, its spectrum and the delaye
 
 
 
-### variable slow\_fft 
-
-```C++
-dp_fft_state_t* dp_acq_state_t::slow_fft;
-```
-
-
-
-Length-coherent\_bins forward FFT (slow time). 
-
-
-        
-
-<hr>
-
-
-
 ### variable stat\_surface 
 
 ```C++
@@ -1930,95 +2014,6 @@ CFAR gate on test\_stat (theta); coherent path.
 
 
 
-### variable tile\_col 
-
-```C++
-float _Complex** dp_acq_state_t::tile_col;
-```
-
-
-
-window\_bins column scratch: a chunk of ACQ\_COL\_CHUNK columns of D\*interp (zero tails) in, then out; NULL at D == 1 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable tile\_inv 
-
-```C++
-dp_fft_state_t** dp_acq_state_t::tile_inv;
-```
-
-
-
-window\_bins inverse plans (lag\_bins) 
-
-
-        
-
-<hr>
-
-
-
-### variable tile\_prod 
-
-```C++
-float _Complex** dp_acq_state_t::tile_prod;
-```
-
-
-
-window\_bins product buffers: code\_bins bins, then lag\_bins padded ones when the lag axis is padded 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable tile\_rows 
-
-```C++
-size_t** dp_acq_state_t::tile_rows;
-```
-
-
-
-window\_bins tables of D\*interp: the surface row of each slow-time row of the tile (acq\_block\_row), once per grid rather than per cell; NULL at D == 1 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable tile\_slow 
-
-```C++
-dp_fft_state_t** dp_acq_state_t::tile_slow;
-```
-
-
-
-window\_bins slow-time plans (D\*interp), NULL at D == 1 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable tlm 
 
 ```C++
@@ -2088,95 +2083,6 @@ uint8_t dp_acq_state_t::underpowered;
 
 
 
-### variable wide\_fwd 
-
-```C++
-dp_fft_state_t* dp_acq_state_t::wide_fwd;
-```
-
-
-
-Forward FFT, length code\_bins. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable wide\_inv 
-
-```C++
-dp_fft_state_t* dp_acq_state_t::wide_inv;
-```
-
-
-
-Inverse FFT, length code\_bins. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable wide\_prod 
-
-```C++
-float _Complex* dp_acq_state_t::wide_prod;
-```
-
-
-
-Rolled-spectrum \* wide\_ref\_spec product, length code\_bins; reused per hypothesis. 
-
-
-        
-
-<hr>
-
-
-
-### variable wide\_ref\_spec 
-
-```C++
-float _Complex* dp_acq_state_t::wide_ref_spec;
-```
-
-
-
-conj(FFT(replica row)), length code\_bins. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable wide\_spec 
-
-```C++
-float _Complex* dp_acq_state_t::wide_spec;
-```
-
-
-
-FFT(raw epoch), length code\_bins; once/epoch. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable window\_bins 
 
 ```C++
@@ -2186,24 +2092,6 @@ size_t dp_acq_state_t::window_bins;
 
 
 Wideband frequency-window hypotheses (1 = disabled/native — see the file doc comment). 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable yframe 
-
-```C++
-float _Complex* dp_acq_state_t::yframe;
-```
-
-
-
-Slow-time-FFT'd frame (n) fed to corr. 
  
 
 

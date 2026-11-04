@@ -31,6 +31,7 @@
  * picks n_noncoh from it; the row name records the n_noncoh it chose. A
  * stricter target only lengthens the dwell, not the cost per input sample,
  * so one target is enough. */
+#include "../../src/corr2d/corr2d_map.h"
 #include "doppler/acq/acq_core.h"
 #include "doppler/dp_complex.h"
 #include "jm_bench.h"
@@ -193,6 +194,26 @@ static const acq_bench_cfg_t CFGS[] = {
     .code_only_epochs = 813,
     .threads          = 1,
     .carrier_hz       = CARRIER_HZ },
+  /* Five tiles, either side of the one map's crossover
+     (docs/design/acq-surface.md §18.1): without a carrier the rule picks
+     slow first (it crosses between three tiles and five at D = 150), with
+     one rows first (the fine grid moves the crossover past fifteen). So
+     the speed gate holds a row on each side near it. */
+  { .chip_rate        = 5.0e6,
+    .du               = 10000.0,
+    .label            = "op5M_U10k_D150_t1",
+    .expect_bins      = 5,
+    .inject_window    = 2,
+    .code_only_epochs = 813,
+    .threads          = 1 },
+  { .chip_rate        = 5.0e6,
+    .du               = 10000.0,
+    .label            = "op5M_U10k_D150_t1_fc",
+    .expect_bins      = 5,
+    .inject_window    = 2,
+    .code_only_epochs = 813,
+    .threads          = 1,
+    .carrier_hz       = CARRIER_HZ },
 };
 
 static uint32_t
@@ -349,12 +370,20 @@ main (void)
             off_col = a->lag_bins - off_col;
           int ok = (nh == 1 && hits[0].doppler_bin == cfg->inject_window * D
                     && off_col <= drift);
+          /* The schedule the one delay-Doppler map runs this row in
+             (docs/design/acq-surface.md §18.1), as the rule picks it. */
+          const int sch = dp__dd_map_pick (
+              a->map, a->window_bins > 1 ? a->window_bins : 1,
+              a->coherent_bins > 2 ? a->rate_hyps : 1, 0);
           printf ("n_noncoh=%3zu D=%zu threads=%d pd_predicted=%.4f  "
                   "detect=%s  doppler_bin=%zu code_phase=%zu "
-                  "cn0_dbhz_est=%.2f\n",
+                  "cn0_dbhz_est=%.2f  schedule=%s\n",
                   nc, D, a->threads, a->pd_predicted, ok ? "yes" : "NO",
                   nh ? hits[0].doppler_bin : 0, nh ? hits[0].code_phase : 0,
-                  nh ? hits[0].cn0_dbhz_est : 0.0f);
+                  nh ? hits[0].cn0_dbhz_est : 0.0f,
+                  a->coherent_bins * a->interp <= 1 ? "rows only (D = 1)"
+                  : sch == DP__DD_ROWS_FIRST        ? "rows first"
+                                                    : "slow first");
           /* A row that misses its own emitter times a search that found
              nothing: refuse it rather than print NO and time it anyway. */
           if (!ok)

@@ -364,6 +364,48 @@ go red (`schedules-2831/sabotage.log`): five in the shared ramp table and
 the slow-first stages, four in the rows-first stages, the rule's tie, and
 the refusal of a fine grid at one slow row (`_test_block_map`). The bench box decides the speed gate (§18.4).
 
+**Both schedules on every pinned row** (part B, with acq on the map;
+`schedules-2831/forced-both-ways.txt`). A scratch switch forced each
+schedule on every map, two runs each, min, ms. The pick is the rule's,
+`dp__dd_schedule` as shipped:
+
+| row                                  | tiles W | slow first | rows first | the rule picks                         |
+| ------------------------------------ | ------: | ---------: | ---------: | -------------------------------------- |
+| `op5M_U50k_D150_t1`                  |      21 |      36.29 |      59.29 | slow first                             |
+| `op5M_U50k_D150_t8`                  |      21 |      12.58 |      15.87 | slow first                             |
+| `op2M_U50k_D60_t1`                   |      53 |      33.58 |      54.67 | slow first                             |
+| `op2M_U50k_D60_t4`                   |      53 |      12.62 |      20.25 | slow first                             |
+| `op5M_U5k_D150_t1`                   |       3 |       8.95 |      10.79 | slow first (counts 0.08% apart: a tie) |
+| `op5M_U5k_D150_t4`                   |       3 |       6.56 |       7.92 | slow first                             |
+| `op5M_U10k_D150_t1`                  |       5 |      11.84 |      16.28 | slow first                             |
+| `op5M_U50k_D150_t1_fc`               |      21 |      41.85 |      68.92 | slow first                             |
+| `op2M_U50k_D60_t1_fc`                |      53 |      37.24 |      58.04 | slow first                             |
+| `op5M_U5k_D150_t1_fc`                |       3 |      10.63 |      11.32 | **rows first** (#2842)                 |
+| `op5M_U10k_D150_t1_fc`               |       5 |      14.61 |      16.72 | **rows first** (#2842)                 |
+| `delay_doppler_256x4096_1t`          |       1 |       5.71 |       4.33 | rows first (fused)                     |
+| `delay_doppler_256x4096_all`         |       1 |       2.67 |       2.00 | rows first (fused)                     |
+| `delay_doppler_32x1024_o64_1t`       |       1 |       0.18 |       0.14 | rows first (fused)                     |
+| `delay_doppler_32x1024_1t`           |       1 |       0.12 |       0.12 | rows first (fused)                     |
+| `bank_64x512_c12_l4_1t`              |       3 |       0.85 |       1.06 | slow first                             |
+| `bank_64x512_c6_l2_1t`               |       3 |       0.42 |       0.53 | slow first                             |
+| `bank_64x512_detect_l2_l4_1t`        |       3 |       0.56 |       0.69 | slow first                             |
+| `bank_64x512_c12_l4_r12_1t`          |       3 |       9.54 |       7.03 | rows first                             |
+| `bank_64x512_c12_corrected_batch_1t` |       1 |       1.43 |       1.35 | rows first (fused)                     |
+
+The D = 1 rows (`native`, the `op*_U*k` rows, `t8`) have no slow time: both
+schedules are the same rows. On the rows above, slow first wins every acq
+row, rows first wins `DelayDoppler` and the bank with rates, and the rule
+misses only the two carrier rows at three and five tiles.
+
+The first rule sent a tie to rows first and counted no `fused` input. It
+picked rows first for `op5M_U5k_D150_t1`, where the two counts sit 0.08%
+apart, and the row ran 1.056 of today. No single strided-traffic constant
+added to the count fits these rows: the 5-tile carrier row needs it above
+about 14, and the bank's 12-rate row below about 6. The likely reason is
+cache: acq's rows-first column stage sweeps a block of 7 to 12 MB, the
+bank's one of 256 kB. So the rule gained the structural `fused` input and a
+tie band (review ruling, #2831), and a working-set refinement is #2842.
+
 **A false alarm.** Halfway through, the bank's rated row aborted on its own
 check, reading hypothesis 44 for 68. A sabotage script had restored the
 source but not rebuilt it, so the binaries carried its last sabotage, a

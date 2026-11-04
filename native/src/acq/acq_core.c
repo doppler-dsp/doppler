@@ -13,6 +13,7 @@
  */
 
 #include "doppler/acq/acq_core.h"
+#include "../corr2d/corr2d_map.h"
 #include "doppler/acq/acq_private.h"
 /* det_private.h needs det_noise_mode_t (from detector2d_core.h, included
  * above) and supplies the header-only det_ring_create / det_noise_estimate
@@ -543,7 +544,7 @@ double _Complex dp_acq_cell_corr (const dp_acq_state_t *st,
   for (size_t m = 0; m < nx; m++)
     {
       /* The mixer: a recurrence from an exact start, resynced every 256
-         samples (acq_tile_epoch's pattern). */
+         samples (the ramp's pattern). */
       if ((m & 255) == 0)
         ph = cexp (-2.0 * M_PI * I * f_hz * (t0 + (double)m) / st->fs);
       else
@@ -1497,14 +1498,13 @@ acq_auto_config_continuous (const dp_acq_state_t *st, size_t D, double pfa,
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
-/* Rebuild every grid-dependent buffer/plan for (new_db, new_nc,
- * new_freq_bins): the slow-time FFT, the code correlator + its reference,
- * every per-frame scratch buffer (yframe/out_buf/colbuf/colout/mag_buf/
- * noise_scratch), the wideband roll-FFT buffers (wide_fwd/wide_inv/
- * wide_ref_spec/wide_spec/wide_prod — only when new_freq_bins > 1, see the
- * file doc comment's "Wideband mode" section), growing the ring if the new
- * frame no longer fits, and the non-coherent power accumulator if new_nc
- * crosses the 1 <-> >1 boundary.  Allocates the replacements FIRST and only
+/* Rebuild every grid-dependent buffer and plan for (new_db, new_nc,
+ * new_freq_bins, new_carrier): the reference, the surface and its scratch
+ * (out_buf/mag_buf/noise_scratch, the masks), a tiled block's raw epochs,
+ * the one delay-Doppler map with its tables (acq_map_build: rebuilt when
+ * the grid, the fine grid or a ramping carrier moves), growing the ring if
+ * the new frame no longer fits, and the non-coherent power accumulator if
+ * the grid or new_nc moves.  Allocates the replacements FIRST and only
  * frees/adopts them once every allocation needed has succeeded, so a failure
  * leaves `st` fully untouched at its prior grid (the contract
  * dp_acq_configure_search_raw() promises its caller).
@@ -1517,102 +1517,123 @@ acq_auto_config_continuous (const dp_acq_state_t *st, size_t D, double pfa,
  * coherent_bins (see the comment below), so it alone fully captures the
  * code -- unaffected by new_freq_bins growing new_n, since the fill loop
  * below only ever touches indices [0, cb). */
-/* The per-tile scratch of the fan (docs/design/acq-surface.md §13): an
- * inverse plan and a
- * product buffer per tile, plus a slow-time plan and column scratch per
- * tile at D > 1. Per TILE, not per thread: a pocketfft plan carries its own
- * work buffers and a tile lands on whichever worker takes it, and the same
- * buffers serve the serial path, so the surface is bit-identical either
- * way. Fixed sizes from validated arguments: abort-on-OOM. */
-/* The five per-tile tables, held apart from the engine while they are built
- * so a failed regrid has nothing of the engine to undo (#2761): the new set
- * is adopted only at the commit, and an unadopted one is released whole. */
+/* The one delay-Doppler map's side of a grid (docs/design/acq-surface.md
+ * §18): the map itself, the template's spectrum, the block's epoch spectra,
+ * the map's scratch for its schedule, and the tiles -- each one's roll, its
+ * rows on the combined axis (acq_block_row), its rounded-ramp offsets and
+ * its weights (the template at the one scale, 1/code_bins, ramped when the
+ * tile runs a code-rate hypothesis). Built apart from the engine and
+ * adopted only at the regrid's commit, so a map that will not build fails
+ * the regrid with the engine untouched (#2761). The sizes follow the grid,
+ * so a failure is reachable and returns -1, never aborts. */
 typedef struct
 {
-  size_t           n; /* tiles */
-  dp_fft_state_t **inv;
-  float _Complex **prod;
-  dp_fft_state_t **slow;
-  float _Complex **col;
-  size_t         **rows;
-} acq_tiles_t;
+  dp__dd_map_t   *map;
+  float _Complex *ref_spec;
+  float _Complex *spec;
+  float _Complex *work;
+  dp__dd_tile_t  *tiles;
+  size_t         *rows;
+  int32_t        *off;
+  float _Complex *wt;
+  size_t          f;
+} acq_map_t;
 
-/* Release a set, whole or part-built (every slot a build had not reached is
- * NULL). */
 static void
-acq_tiles_release (acq_tiles_t *tl)
+acq_map_release (acq_map_t *m)
 {
-  for (size_t t = 0; tl->inv && t < tl->n; t++)
-    {
-      if (tl->inv[t])
-        dp_fft_destroy (tl->inv[t]);
-      if (tl->slow && tl->slow[t])
-        dp_fft_destroy (tl->slow[t]);
-      free (tl->prod ? tl->prod[t] : NULL);
-      free (tl->col ? tl->col[t] : NULL);
-      free (tl->rows ? tl->rows[t] : NULL);
-    }
-  free (tl->inv);
-  free (tl->prod);
-  free (tl->slow);
-  free (tl->col);
-  free (tl->rows);
-  memset (tl, 0, sizeof *tl);
+  dp__dd_map_destroy (m->map);
+  free (m->ref_spec);
+  free (m->spec);
+  free (m->work);
+  free (m->tiles);
+  free (m->rows);
+  free (m->off);
+  free (m->wt);
+  memset (m, 0, sizeof *m);
 }
 
-static void
-acq_tiles_free (dp_acq_state_t *st)
+/* The map's fine grid: a code-rate ramp needs a carrier, a tiled engine
+   (tile 0's dilation is 0) and a block to ramp across (D > 1). */
+static size_t
+acq_map_f (double carrier, size_t D, size_t W)
 {
-  acq_tiles_t tl = { st->window_bins, st->tile_inv, st->tile_prod,
-                     st->tile_slow,   st->tile_col, st->tile_rows };
-  acq_tiles_release (&tl);
-  st->tile_inv  = NULL;
-  st->tile_prod = NULL;
-  st->tile_slow = NULL;
-  st->tile_col  = NULL;
-  st->tile_rows = NULL;
+  return carrier > 0.0 && W > 1 && D > 1 ? DP__DD_MAP_FINE : 1;
 }
 
 static int
-acq_tiles_alloc (acq_tiles_t *tl, size_t tiles, size_t cb, size_t lb,
-                 size_t dI)
+acq_map_build (const dp_acq_state_t *st, const float _Complex *ref, size_t D,
+               size_t W, size_t interp, double carrier, acq_map_t *m)
 {
-  tl->n    = tiles;
-  tl->inv  = (dp_fft_state_t **)dp_xcalloc (tiles, sizeof (dp_fft_state_t *));
-  tl->prod = (float _Complex **)dp_xcalloc (tiles, sizeof (float _Complex *));
-  if (dI > 1)
+  const size_t cb = st->code_bins, lb = st->lag_bins, DI = D * interp;
+  memset (m, 0, sizeof *m);
+  m->f                     = acq_map_f (carrier, D, W);
+  const dp__dd_geom_t geom = { cb, lb, D, DI, m->f };
+  m->map                   = dp__dd_map_create (&geom, 1);
+  m->ref_spec              = malloc (cb * sizeof *m->ref_spec);
+  m->spec                  = malloc (D * cb * sizeof *m->spec);
+  m->tiles                 = malloc (W * sizeof *m->tiles);
+  m->rows                  = malloc (W * DI * sizeof *m->rows);
+  m->wt                    = malloc ((m->f > 1 ? W : 1) * cb * sizeof *m->wt);
+  if (m->f > 1)
+    m->off = malloc (W * cb * sizeof *m->off);
+  dp_fft_state_t *fwd = dp_fft_create (cb, -1, 1);
+  if (!m->map || !m->ref_spec || !m->spec || !m->tiles || !m->rows || !m->wt
+      || (m->f > 1 && !m->off) || !fwd)
     {
-      tl->slow
-          = (dp_fft_state_t **)dp_xcalloc (tiles, sizeof (dp_fft_state_t *));
-      tl->col
-          = (float _Complex **)dp_xcalloc (tiles, sizeof (float _Complex *));
-      tl->rows = (size_t **)dp_xcalloc (tiles, sizeof (size_t *));
+      dp_fft_destroy (fwd);
+      acq_map_release (m);
+      return -1;
     }
-  for (size_t t = 0; t < tiles; t++)
+  const size_t wl
+      = dp__dd_map_work_len (m->map, W, acq_rate_count_at (st->rate_hyps, D));
+  m->work = malloc ((wl ? wl : 1) * sizeof *m->work);
+  if (!m->work)
     {
-      tl->inv[t] = dp_fft_create (lb, +1, 1);
-      if (!tl->inv[t])
-        return -1;
-      /* The product at the period's cb bins, then (padded lag axis only)
-         the same spectrum zero-padded to lb bins for the inverse. */
-      tl->prod[t] = (float _Complex *)dp_xmalloc ((lb == cb ? cb : cb + lb)
-                                                  * sizeof (float _Complex));
-      if (dI > 1)
+      dp_fft_destroy (fwd);
+      acq_map_release (m);
+      return -1;
+    }
+  /* conj(FFT(replica)), and the unramped weights at the one scale: the
+     template over code_bins (the inverse is unnormalized). Without a ramp
+     every tile shares them; with one, each tile's are its own, ramped. */
+  dp_fft_execute_cf32 (fwd, ref, cb, m->ref_spec, cb);
+  dp_fft_destroy (fwd);
+  float _Complex *base = m->f > 1 ? malloc (cb * sizeof *base) : m->wt;
+  if (!base)
+    {
+      acq_map_release (m);
+      return -1;
+    }
+  for (size_t j = 0; j < cb; j++)
+    {
+      m->ref_spec[j] = conjf (m->ref_spec[j]);
+      base[j]        = m->ref_spec[j] / (float)cb;
+    }
+  for (size_t q = 0; q < W; q++)
+    {
+      const long sq = dp_fftfreq_index (q, W);
+      for (size_t i = 0; i < DI; i++)
+        m->rows[q * DI + i] = acq_block_row (q, W, i, DI);
+      dp__dd_tile_t *t = &m->tiles[q];
+      t->roll          = (size_t)(((sq % (long)cb) + (long)cb) % (long)cb);
+      t->rows          = m->rows + q * DI;
+      t->off           = NULL;
+      t->wt            = m->wt;
+      if (m->f > 1)
         {
-          tl->slow[t] = dp_fft_create (dI, -1, 1);
-          if (!tl->slow[t])
-            return -1;
-          /* a chunk of columns in (zero tails: the pad is the
-             interpolation, and acq_tile_block never writes past D), then
-             the chunk out */
-          tl->col[t] = (float _Complex *)dp_xcalloc (2 * ACQ_COL_CHUNK * dI,
-                                                     sizeof (float _Complex));
-          /* where the tile's slow-time rows land on the combined axis */
-          tl->rows[t] = (size_t *)dp_xmalloc (dI * sizeof (size_t));
-          for (size_t i = 0; i < dI; i++)
-            tl->rows[t][i] = acq_block_row (t, tiles, i, dI);
+          /* The tile's code-rate hypothesis (doppler#1256): its frequency,
+             sq bins of fs/cb, dilates the chip clock by f/carrier, so the
+             code advances sq fs / carrier samples an epoch; the map reads
+             it on its fine grid about the block's middle (§18.1). */
+          const double dq = (double)sq * st->fs / carrier;
+          dp__dd_ramp_table (&geom, dq, base, m->off + q * cb, m->wt + q * cb);
+          t->off = m->off + q * cb;
+          t->wt  = m->wt + q * cb;
         }
     }
+  if (m->f > 1)
+    free (base);
   return 0;
 }
 
@@ -1635,6 +1656,11 @@ acq_apply_threads (dp_acq_state_t *st)
     }
   if (want < 1)
     want = 1;
+  /* The map's worker slots, one a chunk it may fan into: kept at least the
+     count asked for. A failed reserve leaves fewer slots, and the map fans
+     over the slots it has: slower, never wrong. */
+  if (st->map)
+    (void)dp__dd_map_reserve (st->map, (int)want);
   if (want == st->threads && (want == 1) == (st->pool == NULL))
     return;
   dp_pool_destroy (st->pool);
@@ -1648,7 +1674,8 @@ acq_apply_threads (dp_acq_state_t *st)
 
 static int
 acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
-            size_t new_freq_bins, const float _Complex *replica)
+            size_t new_freq_bins, const float _Complex *replica,
+            double new_carrier)
 {
   const size_t cb           = st->code_bins;
   const size_t lb           = st->lag_bins;
@@ -1661,121 +1688,65 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
     slow-time FFT and its own interpolated rows. */
   const size_t new_interp = acq_interp_for (new_db, new_freq_bins);
   /* The surface: every Doppler row (D * interp a tile) by lag_bins code
-     phases. The slow-time input of the narrow path, `yframe`, is the same
-     rows by code_bins samples, never more cells than the surface. */
+     phases. */
   const size_t new_n_surf = new_db * new_freq_bins * new_interp * lb;
+  /* The map follows the grid and, through its ramp, the carrier: a change
+     of carrier on an engine that ramps (or starts or stops ramping) moves
+     the fine grid and every tile's offsets and weights, and nothing else.
+     A carrier-only change rebuilds only the map; the dwell's running state
+     (the non-coherent looks, the kept surface, the sidelobe cache) stays. */
+  const size_t new_f    = acq_map_f (new_carrier, new_db, new_freq_bins);
+  const int map_changed = grid_changed || !st->map || new_f != st->map_f
+                          || (new_f > 1 && new_carrier != st->carrier_freq_hz);
+  const int state_reset = grid_changed || new_nc != st->n_noncoh;
 
-  dp_corr2d_state_t *new_corr          = NULL;
-  dp_fft_state_t    *new_fft           = NULL;
-  float _Complex    *new_ref           = NULL;
-  float _Complex    *new_yframe        = NULL;
-  float _Complex    *new_out           = NULL;
-  float _Complex    *new_colbuf        = NULL;
-  float _Complex    *new_colout        = NULL;
-  float             *new_mag           = NULL;
-  float             *new_scratch       = NULL;
-  uint8_t           *new_band          = NULL;
-  uint8_t           *new_pmask         = NULL;
-  float             *new_ncsurf        = NULL;
-  dp_f32_t          *new_ring          = NULL;
-  size_t             new_ring_cap      = st->ring_cap;
-  dp_fft_state_t    *new_wide_fwd      = NULL;
-  dp_fft_state_t    *new_wide_inv      = NULL;
-  float _Complex    *new_wide_ref_spec = NULL;
-  float _Complex    *new_wide_spec     = NULL;
-  float _Complex    *new_wide_prod     = NULL;
-  float _Complex    *new_blk           = NULL;
-  float _Complex    *new_blk_raw       = NULL;
-  acq_part_t        *new_parts         = NULL;
-  acq_tiles_t        new_tiles         = { 0 };
+  float _Complex *new_ref      = NULL;
+  float _Complex *new_out      = NULL;
+  float          *new_mag      = NULL;
+  float          *new_scratch  = NULL;
+  uint8_t        *new_band     = NULL;
+  uint8_t        *new_pmask    = NULL;
+  float          *new_ncsurf   = NULL;
+  dp_f32_t       *new_ring     = NULL;
+  size_t          new_ring_cap = st->ring_cap;
+  float _Complex *new_blk_raw  = NULL;
+  acq_part_t     *new_parts    = NULL;
+  acq_map_t       new_map      = { 0 };
   if (grid_changed)
     {
       /* Single-row reference: row 0 (indices [0, cb)) carries one period
        * of the replica -- the constructor's on the first grid, the one
-       * already held on every regrid after it -- the rest of the (possibly
-       * wideband-enlarged) buffer zero. */
+       * already held on every regrid after it. */
       new_ref = (float _Complex *)calloc (new_n_surf, sizeof (float _Complex));
       if (!new_ref)
         goto fail;
       memcpy (new_ref, replica ? replica : st->ref,
               cb * sizeof (float _Complex));
-
-      /* The correlator works on the INTERPOLATED row count: its single-row
-         fast path runs one length-cb FFT per row and never touches the row
-         axis, so more rows is simply more independent code correlations --
-         no double transform, and `ny_out` stays 0 deliberately (see
-         ACQ_DOPPLER_INTERP). */
-      new_corr = dp_corr2d_create (
-          new_ref, (new_freq_bins > 1) ? 1 : new_db * new_interp, cb, 1, 1, 0,
-          lb == cb ? 0 : lb,
-          -1); /* wideband mode never runs it: one row, not D * interp */
-      if (!new_corr)
-        goto fail;
-      /* Zero-padded slow-time transform: `new_db` real inputs into a
-         `new_db * interp`-point FFT is exact band-limited interpolation of
-         the Doppler axis. */
-      new_fft = dp_fft_create (new_db * new_interp, -1, 1);
-      if (!new_fft)
-        goto fail;
-
-      new_yframe
-          = (float _Complex *)malloc (new_n_surf * sizeof (float _Complex));
       new_out
           = (float _Complex *)malloc (new_n_surf * sizeof (float _Complex));
-      new_colbuf  = (float _Complex *)calloc (new_db * new_interp,
-                                              sizeof (float _Complex));
-      new_colout  = (float _Complex *)malloc (new_db * new_interp
-                                              * sizeof (float _Complex));
       new_mag     = (float *)malloc (new_n_surf * sizeof (float));
       new_scratch = (float *)malloc (new_n_surf * sizeof (float));
       /* The masks are fixed-size, trusted allocations: abort-on-OOM, no
          unwind path (clib_common.h). */
       new_band  = (uint8_t *)dp_xcalloc (new_n_surf, 1);
       new_pmask = (uint8_t *)dp_xmalloc (new_n_surf);
-      if (!new_yframe || !new_out || !new_colbuf || !new_colout || !new_mag
-          || !new_scratch)
+      if (!new_out || !new_mag || !new_scratch)
         goto fail;
-
-      if (new_freq_bins > 1)
-        {
-          new_wide_fwd = dp_fft_create (cb, -1, 1);
-          new_wide_inv = dp_fft_create (cb, +1, 1);
-          new_wide_ref_spec
-              = (float _Complex *)malloc (cb * sizeof (float _Complex));
-          new_wide_spec
-              = (float _Complex *)malloc (cb * sizeof (float _Complex));
-          new_wide_prod
-              = (float _Complex *)malloc (cb * sizeof (float _Complex));
-          if (!new_wide_fwd || !new_wide_inv || !new_wide_ref_spec
-              || !new_wide_spec || !new_wide_prod)
-            goto fail;
-          /* Precompute conj(FFT(replica)) once -- reused every epoch. */
-          dp_fft_execute_cf32 (new_wide_fwd, new_ref, cb, new_wide_ref_spec,
-                               cb);
-          for (size_t j = 0; j < cb; j++)
-            new_wide_ref_spec[j] = conjf (new_wide_ref_spec[j]);
-          /* The block: D epochs of every tile's correlation row, gathered
-             before the slow-time transform (file doc). A fixed size from
-             validated arguments: abort-on-OOM, no unwind path. */
-          if (new_db > 1)
-            {
-              new_blk = (float _Complex *)dp_xmalloc (
-                  new_freq_bins * new_db * lb * sizeof (float _Complex));
-              new_blk_raw = (float _Complex *)dp_xmalloc (
-                  new_db * cb * sizeof (float _Complex));
-            }
-        }
-      /* The partial slots (one per tile) and the per-tile scratch follow
-         the grid, built here with the rest so a plan that will not build
-         fails with the engine untouched (#2761). A serial engine (one
-         tile) has no scratch and runs the classic path. */
+      /* A tiled block's raw epochs, held until the block's end, when the
+         map runs on them (and acq_resolve_tile_alias asks about them). A
+         fixed size from validated arguments: abort-on-OOM. */
+      if (new_freq_bins > 1 && new_db > 1)
+        new_blk_raw = (float _Complex *)dp_xmalloc (new_db * cb
+                                                    * sizeof (float _Complex));
+      /* The partial slots (one per tile) follow the grid, built here with
+         the rest so nothing fails after the commit (#2761). */
       new_parts = (acq_part_t *)dp_xmalloc (new_freq_bins * sizeof *new_parts);
-      if (new_freq_bins > 1
-          && acq_tiles_alloc (&new_tiles, new_freq_bins, cb, lb,
-                              new_db * new_interp)
-                 != 0)
-        goto fail;
     }
+  if (map_changed
+      && acq_map_build (st, new_ref ? new_ref : st->ref, new_db, new_freq_bins,
+                        new_interp, new_carrier, &new_map)
+             != 0)
+    goto fail;
 
   if (new_frame_n > new_ring_cap)
     {
@@ -1786,7 +1757,7 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
     }
 
   /* Non-coherent power accumulator — only on the N_nc > 1 path. */
-  if (new_nc > 1)
+  if (state_reset && new_nc > 1)
     {
       new_ncsurf = (float *)calloc (new_n_surf, sizeof (float));
       if (!new_ncsurf)
@@ -1797,56 +1768,41 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
    * new. */
   if (grid_changed)
     {
-      if (st->corr)
-        dp_corr2d_destroy (st->corr);
-      if (st->slow_fft)
-        dp_fft_destroy (st->slow_fft);
-      if (st->wide_fwd)
-        dp_fft_destroy (st->wide_fwd);
-      if (st->wide_inv)
-        dp_fft_destroy (st->wide_inv);
       free (st->ref);
-      free (st->yframe);
       free (st->out_buf);
-      free (st->colbuf);
-      free (st->colout);
       free (st->mag_buf);
       free (st->noise_scratch);
       free (st->band_mask);
       free (st->peak_mask);
-      free (st->wide_ref_spec);
-      free (st->wide_spec);
-      free (st->wide_prod);
-      st->corr          = new_corr;
       st->band_mask     = new_band;
       st->peak_mask     = new_pmask;
-      st->slow_fft      = new_fft;
       st->ref           = new_ref;
-      st->yframe        = new_yframe;
       st->out_buf       = new_out;
-      st->colbuf        = new_colbuf;
-      st->colout        = new_colout;
       st->mag_buf       = new_mag;
       st->noise_scratch = new_scratch;
-      st->wide_fwd      = new_wide_fwd;
-      st->wide_inv      = new_wide_inv;
-      st->wide_ref_spec = new_wide_ref_spec;
-      st->wide_spec     = new_wide_spec;
-      st->wide_prod     = new_wide_prod;
-      free (st->blk);
       free (st->blk_raw);
-      st->blk       = new_blk;
       st->blk_raw   = new_blk_raw;
       st->blk_epoch = 0;
       free (st->parts);
       st->parts = new_parts;
-      acq_tiles_free (st);
-      st->tile_inv  = new_tiles.inv;
-      st->tile_prod = new_tiles.prod;
-      st->tile_slow = new_tiles.slow;
-      st->tile_col  = new_tiles.col;
-      st->tile_rows = new_tiles.rows;
     }
+  if (map_changed)
+    {
+      acq_map_t old = { st->map,      st->ref_spec,  st->map_spec,
+                        st->map_work, st->map_tiles, st->map_rows,
+                        st->map_off,  st->map_wt,    st->map_f };
+      acq_map_release (&old);
+      st->map       = new_map.map;
+      st->ref_spec  = new_map.ref_spec;
+      st->map_spec  = new_map.spec;
+      st->map_work  = new_map.work;
+      st->map_tiles = new_map.tiles;
+      st->map_rows  = new_map.rows;
+      st->map_off   = new_map.off;
+      st->map_wt    = new_map.wt;
+      st->map_f     = new_map.f;
+    }
+  st->carrier_freq_hz = new_carrier;
   if (new_ring)
     {
       if (st->ring)
@@ -1854,28 +1810,30 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
       st->ring     = new_ring;
       st->ring_cap = new_ring_cap;
     }
-  free (st->nc_surface);
-  st->nc_surface = new_ncsurf;
-
   st->coherent_bins = new_db;
   st->window_bins   = new_freq_bins;
   st->n_noncoh      = new_nc;
   st->n             = new_n;
   st->interp        = new_interp;
   st->n_surf        = new_n_surf;
-  /* Every sidelobe slot was read on the old grid: its rows' Doppler, its
-     tiles and its resolution all follow D, window_bins and interp, so none
-     survives a regrid (configure_search_raw forces one tile, and may change
-     D as well). */
-  st->sl_cn = st->sl_cnext = 0;
-  /* A new surface size: the kept surface (acq_surface) is re-made lazily
-     at the next decided dwell. */
-  free (st->stat_surface);
-  st->stat_surface = NULL;
-  st->surface_at   = 0;
-  st->frame_n      = new_frame_n;
-  st->noise_lo     = 0;
-  st->noise_hi     = new_n_surf - 1;
+  st->frame_n       = new_frame_n;
+  if (state_reset)
+    {
+      free (st->nc_surface);
+      st->nc_surface = new_ncsurf;
+      /* Every sidelobe slot was read on the old grid: its rows' Doppler, its
+         tiles and its resolution all follow D, window_bins and interp, so
+         none survives a regrid (configure_search_raw forces one tile, and
+         may change D as well). */
+      st->sl_cn = st->sl_cnext = 0;
+      /* A new surface size: the kept surface (acq_surface) is re-made
+         lazily at the next decided dwell. */
+      free (st->stat_surface);
+      st->stat_surface = NULL;
+      st->surface_at   = 0;
+      st->noise_lo     = 0;
+      st->noise_hi     = new_n_surf - 1;
+    }
   /* The tile count may have moved, so the cap on the caller's request may
      have too: narrowing to one tile runs serially, and widening again comes
      back to the request, not to that 1 (#2746, #2797). */
@@ -1883,31 +1841,16 @@ acq_regrid (dp_acq_state_t *st, size_t new_db, size_t new_nc,
   return 0;
 
 fail:
-  if (new_corr)
-    dp_corr2d_destroy (new_corr);
-  if (new_fft)
-    dp_fft_destroy (new_fft);
-  if (new_wide_fwd)
-    dp_fft_destroy (new_wide_fwd);
-  if (new_wide_inv)
-    dp_fft_destroy (new_wide_inv);
   free (new_ref);
-  free (new_yframe);
   free (new_out);
-  free (new_colbuf);
-  free (new_colout);
   free (new_mag);
   free (new_scratch);
   free (new_band);
   free (new_pmask);
   free (new_ncsurf);
-  free (new_wide_ref_spec);
-  free (new_wide_spec);
-  free (new_wide_prod);
-  free (new_blk);
   free (new_blk_raw);
   free (new_parts);
-  acq_tiles_release (&new_tiles);
+  acq_map_release (&new_map);
   if (new_ring)
     dp_f32_destroy (new_ring);
   return -1;
@@ -2303,7 +2246,9 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
      asks for one. dp_acq_set_threads() changes the request. */
   st->threads     = 1;
   st->threads_req = continuous ? 0 : 1;
-  if (acq_regrid (st, best_d, best_nc, best_window_bins, replica) != 0)
+  if (acq_regrid (st, best_d, best_nc, best_window_bins, replica,
+                  st->carrier_freq_hz)
+      != 0)
     goto fail;
   /* dsl is defined on THIS grid; dp_acq_dsl_db() computes it on first
      read. A sweep of pts x (2W - 1) transforms (0.15 s on the receivers'
@@ -2475,7 +2420,8 @@ dp_acq_configure_search_raw (dp_acq_state_t *st, size_t doppler_bins,
   /* This escape hatch always pins the NATIVE (doppler_bins, n_noncoh) grid
    * -- it exits wideband mode (window_bins back to 1) if that was active,
    * matching its documented contract of pinning the classic grid directly. */
-  if (acq_regrid (st, doppler_bins, n_noncoh, 1, NULL) != 0)
+  if (acq_regrid (st, doppler_bins, n_noncoh, 1, NULL, st->carrier_freq_hz)
+      != 0)
     return -1;
 
   const double snr = acq_design_snr (st->cn0_dbhz, st->fs);
@@ -2515,14 +2461,11 @@ dp_acq_destroy (dp_acq_state_t *st)
 {
   if (!st)
     return;
-  if (st->corr)
-    dp_corr2d_destroy (st->corr);
-  if (st->slow_fft)
-    dp_fft_destroy (st->slow_fft);
-  if (st->wide_fwd)
-    dp_fft_destroy (st->wide_fwd);
-  if (st->wide_inv)
-    dp_fft_destroy (st->wide_inv);
+  acq_map_t map = { st->map,      st->ref_spec,  st->map_spec,
+                    st->map_work, st->map_tiles, st->map_rows,
+                    st->map_off,  st->map_wt,    st->map_f };
+  acq_map_release (&map);
+  free (st->prompt_scratch);
   if (st->sl_fwd)
     dp_fft_destroy (st->sl_fwd);
   if (st->sl_inv)
@@ -2535,10 +2478,7 @@ dp_acq_destroy (dp_acq_state_t *st)
     dp_f32_destroy (st->ring);
   free (st->ref);
   free (st->blk_raw);
-  free (st->yframe);
   free (st->out_buf);
-  free (st->colbuf);
-  free (st->colout);
   free (st->rate_chirp);
   free (st->rate_best);
   free (st->mag_buf);
@@ -2549,13 +2489,8 @@ dp_acq_destroy (dp_acq_state_t *st)
   free (st->peaks);
   free (st->twin_row);
   free (st->twin_col);
-  free (st->wide_ref_spec);
-  free (st->wide_spec);
-  free (st->wide_prod);
   free (st->stat_surface);
-  free (st->blk);
   dp_pool_destroy (st->pool);
-  acq_tiles_free (st);
   free (st->parts);
   free (st);
 }
@@ -2600,7 +2535,6 @@ dp_acq_reset (dp_acq_state_t *st)
       = dp_f32_framer_init (&st->framer, st->ring, st->frame_n, st->frame_n);
   (void)bound;
   st->consumed = 0;
-  dp_corr2d_reset (st->corr);
   if (st->nc_surface)
     memset (st->nc_surface, 0, st->n_surf * sizeof (float));
   st->nc_count         = 0;
@@ -2623,10 +2557,10 @@ dp_acq_reset (dp_acq_state_t *st)
    `signed_bins`, numpy's fftfreq: an odd n's middle bin stays positive):
    a phasor recurrence resynced from an exact cexp() every 256 steps and
    where the signed index jumps. In place is allowed (x == out). The one
-   ramp: acq_tile_epoch()'s code-rate ramp and the per-cell rule-2 model
-   both run it; a private copy in the tile path mis-signed an odd period's
-   middle bin (#2815). One cexp() a sample made the rule-2 model a third of
-   a pool's run under libm alone. */
+   ramp: dp_acq_block_prompt()'s exact code-rate ramp and the per-cell rule-2
+   model both run it; a private copy in the tile path mis-signed an odd
+   period's middle bin (#2815). One cexp() a sample made the rule-2 model a
+   third of a pool's run under libm alone. */
 static void
 acq_ramp (const float _Complex *x, size_t n, double w, int signed_bins,
           float _Complex *out)
@@ -2644,113 +2578,6 @@ acq_ramp (const float _Complex *x, size_t n, double w, int signed_bins,
         }
       out[k] = x[k] * (float _Complex)ph;
       ph *= step;
-    }
-}
-
-/* One tile of one epoch (a body of the fan): roll the shared spectrum to
- * the tile's hypothesis against the fixed replica spectrum, one inverse
- * transform into the tile's own row -- of the surface at D == 1, of the
- * block otherwise. Reads shared state, writes only this tile's row and its
- * own scratch: no cross-tile race, bit-identical to the serial loop. */
-typedef struct
-{
-  dp_acq_state_t *st;
-  size_t          h; /* rate hypothesis the block-end transform applies */
-} acq_fan_t;
-
-static void
-acq_tile_epoch (size_t r, void *ctx)
-{
-  dp_acq_state_t *st = ((acq_fan_t *)ctx)->st;
-  const size_t    nx = st->code_bins, D = st->coherent_bins;
-  long            signed_r = dp_fftfreq_index (r, st->window_bins);
-  long            wrapped  = ((signed_r % (long)nx) + (long)nx) % (long)nx;
-  size_t          roll     = (size_t)wrapped;
-  float _Complex *prod     = st->tile_prod[r];
-  for (size_t j = 0; j < nx; j++)
-    prod[j] = st->wide_spec[(j + roll) % nx] * st->wide_ref_spec[j];
-  if (D > 1 && st->carrier_freq_hz > 0.0 && signed_r != 0)
-    {
-      /* The code-rate hypothesis of this tile (doppler#1256): its
-         frequency, signed_r bins of fs/nx, dilates the chip clock by
-         f/carrier, so the received code advances `signed_r * fs /
-         carrier` samples per epoch, and in the lag convention of this
-         surface (the roll the replica needs to meet the capture) epoch
-         k's correlation peak sits that much EARLIER than epoch k-1's --
-         measured, not derived: the other sign doubles the smear. Shift
-         every epoch's row to the block's middle -- a linear phase over
-         the SIGNED frequency index before the inverse transform, exact
-         for a fractional shift -- so the slow-time transform sums a
-         standing peak. The hand-off's half-dwell advance
-         (dp_acq_build_handoff) then reads the block's peak as its middle,
-         which it is. */
-      const double d = (double)signed_r * st->fs / st->carrier_freq_hz;
-      const double s = ((double)st->blk_epoch - 0.5 * (double)(D - 1)) * d;
-      const double w = -2.0 * M_PI * s / (double)nx;
-      acq_ramp (prod, nx, w, 1, prod); /* over the signed bins */
-    }
-  /* The inverse at lag_bins: the cross-spectrum zero-padded first when the
-     lag axis is padded (dp_fft_pad_spectrum: the circular correlation,
-     interpolated -- the roll and the code-rate ramp above act on the
-     period's own bins, so neither changes). */
-  const size_t    lb  = st->lag_bins;
-  float _Complex *row = (D > 1) ? st->blk + (r * D + st->blk_epoch) * lb
-                                : st->out_buf + r * lb;
-  if (lb != nx)
-    {
-      dp_fft_pad_spectrum (prod, nx, prod + nx, lb);
-      prod += nx;
-    }
-  dp_fft_execute_cf32 (st->tile_inv[r], prod, lb, row, lb);
-}
-
-/* One tile at the block's end (a body of the fan): per code-phase column,
- * the zero-padded slow-time transform of the tile's D epochs, scattered
- * onto the one combined Doppler axis -- the tile's row table, computed
- * once with the grid (acq_block_row), says where each slow-time row lands.
- * The columns go ACQ_COL_CHUNK at a time: a chunk is gathered row by row
- * out of the block into one contiguous column each (so a cache line of the
- * block serves eight columns instead of one), transformed column by
- * column, and scattered row by row onto the surface the same way. Each
- * column's input is the same D samples over the same zero tail as one
- * column at a time gave, so the transform is bit-identical. The tile's
- * rows of out_buf are its own. */
-static void
-acq_tile_block (size_t r, void *ctx)
-{
-  dp_acq_state_t *st = ((acq_fan_t *)ctx)->st;
-  const size_t    nx = st->lag_bins, D = st->coherent_bins;
-  const size_t    dI = D * st->interp;
-  /* The rate hypothesis' de-chirp over the block's epochs; NULL = none. */
-  const float _Complex *chirp
-      = acq_rate_count (st) > 1 ? st->rate_chirp + ((acq_fan_t *)ctx)->h * D
-                                : NULL;
-  const size_t         *rows = st->tile_rows[r];
-  float _Complex       *in = st->tile_col[r]; /* ACQ_COL_CHUNK columns of dI */
-  float _Complex       *out = in + ACQ_COL_CHUNK * dI;
-  const float _Complex *blk = st->blk + r * D * nx;
-  for (size_t j0 = 0; j0 < nx; j0 += ACQ_COL_CHUNK)
-    {
-      const size_t nc = nx - j0 < ACQ_COL_CHUNK ? nx - j0 : ACQ_COL_CHUNK;
-      for (size_t i = 0; i < D; i++)
-        {
-          const float _Complex *src = blk + i * nx + j0;
-          if (chirp)
-            for (size_t c = 0; c < nc; c++)
-              in[c * dI + i] = src[c] * chirp[i];
-          else
-            for (size_t c = 0; c < nc; c++)
-              in[c * dI + i] = src[c];
-        }
-      for (size_t c = 0; c < nc; c++)
-        dp_fft_execute_cf32 (st->tile_slow[r], in + c * dI, dI, out + c * dI,
-                             dI);
-      for (size_t i = 0; i < dI; i++)
-        {
-          float _Complex *dst = st->out_buf + rows[i] * nx + j0;
-          for (size_t c = 0; c < nc; c++)
-            dst[c] = out[c * dI + i];
-        }
     }
 }
 
@@ -2783,88 +2610,70 @@ acq_rate_table (dp_acq_state_t *st)
     }
 }
 
-/* One decided surface for rate hypothesis `h`, into out_buf; returns the
- * cells it holds. `frame` is the narrowband engine's D-epoch frame (the
- * framer's view, valid until its next call); a tiled engine ignores it and
- * transforms its gathered block, which stays whole until the next epoch is
- * written. The slow-time FFT and the correlator are the engine's own -- the
- * hypothesis only multiplies the slow-time axis, so with none (rate_hyps ==
- * 1) this is the engine exactly as it ran. */
-static size_t
-acq_make_surface (dp_acq_state_t *st, const float _Complex *frame,
-                  acq_fan_t *fan, size_t h)
+/* The rate search as the map's fold (dp__dd_map_run hands it each
+ * hypothesis' surface in out_buf, in order): each is tested against its OWN
+ * surface (a CFAR reference taken over a max of hypotheses would be biased
+ * up, and the gate is derived for one), the strongest statistic wins, and
+ * its surface is kept in a spare buffer (a copy, not another pass) unless it
+ * was the last one made. The per-cell Pfa was split over the hypotheses at
+ * sizing (acq_commit_thresholds), so the strongest is held to the one gate.
+ * Without hypotheses there is nothing to choose and the fold does nothing. */
+typedef struct
 {
-  if (st->window_bins > 1)
+  dp_acq_state_t *st;
+  size_t          R;
+  size_t          best_h;
+  float           best;
+} acq_rates_t;
+
+static void
+acq_rate_fold (void *ctx, size_t h, const float _Complex *out)
+{
+  acq_rates_t    *c  = (acq_rates_t *)ctx;
+  dp_acq_state_t *st = c->st;
+  (void)out; /* out_buf itself */
+  if (c->R < 2)
+    return;
+  acq_compute_stat (st);
+  if (acq_rate_better (h, st->test_stat, c->best))
     {
-      fan->h = h;
-      dp_pool_run (acq_block_pool (st), st->window_bins, acq_tile_block, fan);
-      return st->n;
+      c->best   = st->test_stat;
+      c->best_h = h;
+      if (h != c->R - 1)
+        memcpy (st->rate_best, st->out_buf,
+                st->n_surf * sizeof *st->rate_best);
     }
-  /* Slow-time Doppler FFT: FFT along the ny segment axis, per column.
-   * Unnormalised (matches numpy fft); corr2d supplies the only 1/n. */
-  const size_t          ny = st->coherent_bins, nx = st->code_bins;
-  const size_t          ny_f = ny * st->interp;
-  const float _Complex *chirp
-      = acq_rate_count (st) > 1 ? st->rate_chirp + h * ny : NULL;
-  for (size_t j = 0; j < nx; j++)
-    {
-      if (chirp)
-        for (size_t i = 0; i < ny; i++)
-          st->colbuf[i] = frame[i * nx + j] * chirp[i];
-      else
-        for (size_t i = 0; i < ny; i++)
-          st->colbuf[i] = frame[i * nx + j];
-      /* colbuf's tail stays zero from create: the pad is what
-         interpolates the Doppler axis, and it must not carry the
-         previous column's samples. */
-      dp_fft_execute_cf32 (st->slow_fft, st->colbuf, ny_f, st->colout, ny_f);
-      for (size_t i = 0; i < ny_f; i++)
-        st->yframe[i * nx + j] = st->colout[i];
-    }
-  return dp_corr2d_execute (st->corr, st->yframe, ny_f * nx, st->out_buf,
-                            st->n_surf);
 }
 
-/* A dwell's surface over the rate hypotheses: each is tested against its
- * OWN surface (a CFAR reference taken over a max of hypotheses would be
- * biased up, and the gate is derived for one), the strongest statistic
- * wins, and its surface is left in out_buf for the caller's ordinary
- * statistic and peak list. The per-cell Pfa was split over the hypotheses
- * at sizing (acq_commit_thresholds), so the strongest of them is held to
- * the one gate. The winner's surface is kept in a spare buffer (a copy, not
- * another pass) unless it was the last one made. */
+/* The block's decided surface, into out_buf, from its epoch spectra
+ * (map_spec): the one delay-Doppler map (docs/design/acq-surface.md §18) in
+ * the schedule its rule picks, every tile and every rate hypothesis, at the
+ * one scale (1/code_bins). The hypotheses only weight the slow-time axis,
+ * so with none (rate_hyps == 1) this is the plain map. Returns the cells
+ * the surface holds. */
 static size_t
-acq_rate_search (dp_acq_state_t *st, const float _Complex *frame,
-                 acq_fan_t *fan)
+acq_make_surface (dp_acq_state_t *st)
 {
-  const size_t R     = acq_rate_count (st);
-  size_t       n_out = 0, best_h = 0;
-  float        best = -1.0f;
-  if (st->rate_best_cap != st->n_surf)
+  const size_t R = acq_rate_count (st);
+  if (R > 1 && st->rate_best_cap != st->n_surf)
     {
       free (st->rate_best);
       st->rate_best     = dp_xmalloc (st->n_surf * sizeof *st->rate_best);
       st->rate_best_cap = st->n_surf;
     }
-  for (size_t h = 0; h < R; h++)
+  acq_rates_t c = { st, R, 0, -1.0f };
+  (void)dp__dd_map_run (st->map, acq_block_pool (st), -1, st->map_spec,
+                        R > 1 ? st->rate_chirp : NULL, R, st->map_tiles,
+                        st->window_bins > 1 ? st->window_bins : 1,
+                        st->map_work, st->out_buf, acq_rate_fold, &c);
+  if (R > 1)
     {
-      n_out = acq_make_surface (st, frame, fan, h);
-      acq_compute_stat (st);
-      if (acq_rate_better (h, st->test_stat, best))
-        {
-          best   = st->test_stat;
-          best_h = h;
-          /* Kept for the end, unless a later hypothesis overwrites it with
-             a better one: the last one made is already in out_buf. */
-          if (h != R - 1)
-            memcpy (st->rate_best, st->out_buf,
-                    st->n_surf * sizeof *st->rate_best);
-        }
+      if (c.best_h != R - 1)
+        memcpy (st->out_buf, st->rate_best,
+                st->n_surf * sizeof *st->rate_best);
+      st->rate_best_h = c.best_h;
     }
-  if (best_h != R - 1)
-    memcpy (st->out_buf, st->rate_best, st->n_surf * sizeof *st->rate_best);
-  st->rate_best_h = best_h;
-  return n_out;
+  return st->n_surf;
 }
 
 /* Would the NEXT frame end a dwell -- report a list? The twin of
@@ -2938,63 +2747,32 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
         break; /* the input is used up: the rest of a frame is the carry */
 
       size_t n_out;
-      if (wideband)
+      if (wideband && st->coherent_bins > 1)
         {
-          /* Wideband: one shared forward FFT of this epoch; roll its
-           * spectrum per hypothesis against the fixed replica spectrum,
-           * one inverse FFT per hypothesis, filling out_buf's
-           * window_bins rows -- see the file doc comment's "Wideband
-           * window-tiling mode" section and a frequency-bank
-           * benchmark (the benchmark this reuses, roll-FFT
-           * over a tuned-mixer bank).  Row r's REPORTED index uses the
-           * same native FFT-bin convention as the coherent_bins axis
-           * (0 = DC, ascending positive to window_bins/2, then
-           * wrapping negative) so doppler_bin/doppler_res_hz compose
-           * identically in either mode; the ACTUAL roll amount fed to
-           * the (j+roll)%nx indexing wraps modulo nx (the full
-           * code_bins-point transform), not modulo window_bins, so a
-           * "negative" row correctly represents a negative-frequency
-           * roll instead of silently aliasing back into the positive
-           * side (window_bins is always << nx: window_bins tiles the
-           * requested uncertainty, nx = code_bins is the full code
-           * length). */
-          dp_fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec, nx);
-          const size_t D   = st->coherent_bins;
-          acq_fan_t    fan = { st, 0 };
-          if (st->blk_raw)
-            memcpy (st->blk_raw + st->blk_epoch * nx, frame,
-                    nx * sizeof *frame);
-          /* The roll per thread: every tile of this epoch across the
-             pool (serially when there is none) -- each into its own
-             row of the surface at D == 1, of the block otherwise. */
-          dp_pool_run (acq_epoch_pool (st), st->window_bins, acq_tile_epoch,
-                       &fan);
-          if (D > 1)
-            {
-              if (++st->blk_epoch < D)
-                n_out = 0; /* mid-block: no surface yet */
-              else
-                {
-                  /* The block is whole: per tile, the slow-time
-                     transforms of its D epochs onto the one combined
-                     Doppler axis. The roll kept each epoch's phase
-                     continuous at the tile's centre, so the residual
-                     inside the tile is what the transform resolves. */
-                  st->blk_epoch = 0;
-                  n_out         = acq_rate_count (st) > 1
-                                      ? acq_rate_search (st, NULL, &fan)
-                                      : acq_make_surface (st, NULL, &fan, 0);
-                }
-            }
+          /* A tiled block: its epochs are held raw until its end, where
+             the one map runs on them, every stage once a block
+             (docs/design/acq-surface.md §18.2). Row r's reported index
+             uses the native FFT-bin convention on the combined axis
+             (acq_block_row), so doppler_bin and doppler_res_hz compose
+             as on the narrow axis. */
+          memcpy (st->blk_raw + st->blk_epoch * nx, frame, nx * sizeof *frame);
+          if (++st->blk_epoch < st->coherent_bins)
+            n_out = 0; /* mid-block: no surface yet */
           else
-            n_out = n;
+            {
+              st->blk_epoch = 0;
+              dp__dd_map_forward (st->map, acq_block_pool (st), -1,
+                                  st->blk_raw, st->map_spec);
+              n_out = acq_make_surface (st);
+            }
         }
       else
         {
-          acq_fan_t fan = { st, 0 };
-          n_out         = acq_rate_count (st) > 1
-                              ? acq_rate_search (st, frame, &fan)
-                              : acq_make_surface (st, frame, &fan, 0);
+          /* One frame is a whole block: one epoch on a tiled engine at
+             D = 1, the D epochs of a narrow one. */
+          dp__dd_map_forward (st->map, acq_block_pool (st), -1, frame,
+                              st->map_spec);
+          n_out = acq_make_surface (st);
         }
       st->samples_consumed += frame_n;
 
@@ -3056,8 +2834,17 @@ dp_acq_set_carrier_freq_hz (dp_acq_state_t *state, double carrier_freq_hz)
 {
   if (!dp_acq_carrier_freq_ok (carrier_freq_hz, state->fs))
     return DP_ERR_INVALID;
-  state->carrier_freq_hz = carrier_freq_hz;
-  return DP_OK;
+  if (carrier_freq_hz == state->carrier_freq_hz)
+    return DP_OK;
+  /* The map's fine grid and every tile's ramp follow the carrier, so it is
+     set through the regrid, which rebuilds only those (and re-applies the
+     requested threads, #2797). It is applied at the block's end, so a
+     change mid-block ramps the whole block with the new carrier. */
+  return acq_regrid (state, state->coherent_bins, state->n_noncoh,
+                     state->window_bins, NULL, carrier_freq_hz)
+                 == 0
+             ? DP_OK
+             : DP_ERR_MEMORY;
 }
 
 int
@@ -3408,20 +3195,49 @@ dp_acq_surface_complex (dp_acq_state_t *state, float _Complex *out,
 static int
 acq_block_whole (const dp_acq_state_t *state)
 {
-  return state->blk != NULL && state->samples_consumed > 0
+  return state->blk_raw != NULL && state->samples_consumed > 0
          && state->blk_epoch == 0;
 }
 size_t
 dp_acq_block_prompt (dp_acq_state_t *state, size_t tile, size_t col,
                      float _Complex *out, size_t n_out)
 {
-  const size_t D = state->coherent_bins, nx = state->lag_bins;
-  if (!acq_block_whole (state) || tile >= state->window_bins || col >= nx
+  const size_t D = state->coherent_bins, cb = state->code_bins;
+  const size_t lb = state->lag_bins;
+  if (!acq_block_whole (state) || tile >= state->window_bins || col >= lb
       || n_out < D)
     return 0;
-  const float _Complex *blk = state->blk + tile * D * nx;
+  if (!state->prompt_scratch)
+    {
+      state->prompt_scratch = malloc ((2 * cb + lb) * sizeof (float _Complex));
+      if (!state->prompt_scratch)
+        return 0;
+    }
+  float _Complex *wt = state->prompt_scratch, *row = wt + cb;
+  /* The block's epoch spectra, from its raw epochs: the same transform
+     the block's surface ran on, so this also holds after a restore. */
+  dp__dd_map_forward (state->map, NULL, 0, state->blk_raw, state->map_spec);
+  const dp__dd_tile_t *t  = &state->map_tiles[tile];
+  const long           sr = dp_fftfreq_index (tile, state->window_bins);
+  const double d = state->carrier_freq_hz > 0.0 && sr != 0
+                       ? (double)sr * state->fs / state->carrier_freq_hz
+                       : 0.0;
   for (size_t k = 0; k < D; k++)
-    out[k] = blk[k * nx + col];
+    {
+      /* The template at the one scale, ramped EXACTLY to epoch k about the
+         block's middle (the map's own row stage, at one epoch: the
+         surface reads the same ramp rounded to its fine grid). */
+      for (size_t j = 0; j < cb; j++)
+        wt[j] = state->ref_spec[j] / (float)cb;
+      if (d != 0.0)
+        {
+          const double s = ((double)k - 0.5 * (double)(D - 1)) * d;
+          acq_ramp (wt, cb, -2.0 * M_PI * s / (double)cb, 1, wt);
+        }
+      dp__dd_map_row1 (state->map, 0, state->map_spec + k * cb, t->roll, wt,
+                       row);
+      out[k] = row[col];
+    }
   return D;
 }
 size_t
@@ -3478,19 +3294,6 @@ acq_state_twins (void *blob, const dp_acq_state_t *st)
 }
 
 /* The block accumulator's cells, when the engine has one. */
-static size_t
-acq_blk_cells (const dp_acq_state_t *st)
-{
-  return st->blk ? st->window_bins * st->coherent_bins * st->lag_bins : 0;
-}
-
-static float _Complex *
-acq_state_blk (void *blob, const dp_acq_state_t *st)
-{
-  return (float _Complex *)((char *)acq_state_twins (blob, st)
-                            + 2 * st->max_peaks * sizeof (uint32_t));
-}
-
 /* The block's raw epochs (acq_resolve_tile_alias), after the block: a
    mid-block split must resume with the epochs the pick will be asked
    about, or the resumed engine decides a tile edge differently. */
@@ -3503,7 +3306,8 @@ acq_blk_raw_cells (const dp_acq_state_t *st)
 static float _Complex *
 acq_state_blk_raw (void *blob, const dp_acq_state_t *st)
 {
-  return acq_state_blk (blob, st) + acq_blk_cells (st);
+  return (float _Complex *)((char *)acq_state_twins (blob, st)
+                            + 2 * st->max_peaks * sizeof (uint32_t));
 }
 
 size_t
@@ -3513,7 +3317,6 @@ dp_acq_state_bytes (const dp_acq_state_t *st)
   if (st->n_noncoh > 1)
     b += st->n_surf * sizeof (float);
   b += 2 * st->max_peaks * sizeof (uint32_t);
-  b += acq_blk_cells (st) * sizeof (float _Complex);
   b += acq_blk_raw_cells (st) * sizeof (float _Complex);
   return b;
 }
@@ -3540,6 +3343,7 @@ dp_acq_get_state (const dp_acq_state_t *st, void *blob)
   ex.n_twins          = (uint32_t)st->n_twins;
   ex.blk_epoch        = (uint32_t)st->blk_epoch;
   ex.rate_hyps        = (uint32_t)st->rate_hyps;
+  ex.carrier_freq_hz  = st->carrier_freq_hz;
   dp_w_bytes (&w, &ex, sizeof ex);
 
   /* The carry: the framer's own snapshot, zero-padded to a fixed size. */
@@ -3566,21 +3370,9 @@ dp_acq_get_state (const dp_acq_state_t *st, void *blob)
      block's share of #1471). Nothing reads them before they are rewritten,
      so a restored engine's zeros change no output. */
   const size_t D = st->coherent_bins, nx = st->code_bins;
-  const size_t lb   = st->lag_bins; /* a block row is one inverse */
   const size_t live = st->blk_epoch          ? st->blk_epoch
                       : st->samples_consumed ? D
                                              : 0;
-  if (st->blk)
-    {
-      dp_writer_t bw
-          = dp_writer_init (acq_state_blk (blob, st),
-                            acq_blk_cells (st) * sizeof (float _Complex));
-      for (size_t r = 0; r < st->window_bins; r++)
-        {
-          dp_w_cf32 (&bw, st->blk + r * D * lb, live * lb);
-          dp_w_zeros (&bw, (D - live) * lb * sizeof (float _Complex));
-        }
-    }
   if (st->blk_raw)
     {
       dp_writer_t rw
@@ -3603,7 +3395,8 @@ dp_acq_set_state (dp_acq_state_t *st, const void *blob)
   if (ex.n != (uint64_t)st->n || ex.n_noncoh != (uint32_t)st->n_noncoh
       || ex.max_peaks != (uint32_t)st->max_peaks || ex.n_twins > ex.max_peaks
       || ex.blk_epoch >= (uint32_t)st->coherent_bins
-      || ex.rate_hyps != (uint32_t)st->rate_hyps)
+      || ex.rate_hyps != (uint32_t)st->rate_hyps
+      || !dp_acq_carrier_freq_ok (ex.carrier_freq_hz, st->fs))
     return DP_ERR_INVALID;
 
   /* The carry and the engine's position must name ONE stream point: the
@@ -3632,12 +3425,21 @@ dp_acq_set_state (dp_acq_state_t *st, const void *blob)
       || ex.nc_count != (st->n_noncoh > 1 ? dumps % st->n_noncoh : 0))
     return DP_ERR_INVALID;
 
+  /* The carrier is a mutator's value (#2022): restored through its
+     setter's rebuild (acq_regrid), never by writing the field, so a blob
+     taken at another carrier gets the fine grid and the tables it needs.
+     It is the last thing that can fail, and a failed regrid commits
+     nothing, so the engine is untouched either way. */
+  if (ex.carrier_freq_hz != st->carrier_freq_hz
+      && acq_regrid (st, st->coherent_bins, st->n_noncoh, st->window_bins,
+                     NULL, ex.carrier_freq_hz)
+             != 0)
+    return DP_ERR_MEMORY;
   /* Every check has passed; from here the blob is applied. The framer
      cannot refuse it now: state_frames ran set_state's own check. */
   (void)dp_f32_framer_set_state (&st->framer, acq_state_carry ((void *)blob));
 
   /* Then the rest of the live state. */
-  dp_corr2d_reset (st->corr);
   st->samples_consumed = ex.samples_consumed;
   st->nc_count         = ex.nc_count;
   st->consumed         = 0;
@@ -3658,9 +3460,6 @@ dp_acq_set_state (dp_acq_state_t *st, const void *blob)
       st->twin_col[k] = tw[2 * k + 1];
     }
   st->blk_epoch = ex.blk_epoch;
-  if (st->blk)
-    memcpy (st->blk, acq_state_blk ((void *)blob, st),
-            acq_blk_cells (st) * sizeof (float _Complex));
   if (st->blk_raw)
     memcpy (st->blk_raw, acq_state_blk_raw ((void *)blob, st),
             acq_blk_raw_cells (st) * sizeof (float _Complex));

@@ -153,7 +153,6 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | Type | Name |
 | ---: | :--- |
 | define  | [**ACQ\_CN0\_NONE**](acq__core_8h.md#define-acq_cn0_none)  `NAN`<br>_The design C/N0 that means "none given" (doppler#1484): a burst engine then sizes for the whole preamble, its_ `pd_predicted` _is NaN and it is never_`underpowered` _._ |
-| define  | [**ACQ\_COL\_CHUNK**](acq__core_8h.md#define-acq_col_chunk)  `32u`<br> |
 | define  | [**ACQ\_DELAY\_LOSS\_NODES**](acq__core_8h.md#define-acq_delay_loss_nodes)  `4`<br> |
 | define  | [**ACQ\_MAX\_PEAKS**](acq__core_8h.md#define-acq_max_peaks)  `64u`<br> |
 | define  | [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)  `256u`<br>_Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a public knob (no caller-facing equivalent of the retired_`max_noncoh` _parameter)._ |
@@ -162,7 +161,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | define  | [**ACQ\_SIDELOBE\_LAG\_PTS**](acq__core_8h.md#define-acq_sidelobe_lag_pts)  `5`<br> |
 | define  | [**ACQ\_SIDELOBE\_SLOTS**](acq__core_8h.md#define-acq_sidelobe_slots)  `32`<br> |
 | define  | [**ACQ\_STATE\_MAGIC**](acq__core_8h.md#define-acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'Q', 'R')`<br> |
-| define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `7u`<br> |
+| define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `8u`<br> |
 
 ## Detailed Description
 
@@ -1464,13 +1463,13 @@ int dp_acq_set_carrier_freq_hz (
 
 
 A physically-coupled Doppler moves the code as well as the carrier  100 chips/s at 20 ppm of 5 Mcps  and the engine's two long integrations both smear over it (doppler#1256, #1254):
-* **Inside a coherent block** of D epochs every tile's epoch correlations are shifted along the code axis by the drift the tile's own frequency implies, `f_tile / carrier` chips per chip, aligned to the block's middle, before the slow-time transform (a linear phase on each epoch's product, exact to a fraction of a sample). Measured at the specification's 20 ppm with D = 154 (3.1 chips of drift across the block): without it the block's peak is 13 dB down and 3 chips wide and the depth detects nothing at 34 dB-Hz; with it the block reads as a still one.
+* **Inside a coherent block** of D epochs every tile's epoch correlations are shifted along the code axis by the drift the tile's own frequency implies, `f_tile / carrier` chips per chip, aligned to the block's middle (a linear phase on each epoch's product). The one delay-Doppler map applies it at the block's end, read on a slow-time grid 4 times finer and rounded, a loss of at most 0.09 dB measured (docs/design/acq-surface.md §18.1); [**dp\_acq\_block\_prompt()**](acq__core_8h.md#function-dp_acq_block_prompt) applies it exactly. A change of carrier mid-block applies to the whole block. Measured at the specification's 20 ppm with D = 154 (3.1 chips of drift across the block): without it the block's peak is 13 dB down and 3 chips wide and the depth detects nothing at 34 dB-Hz; with it the block reads as a still one.
 * **The hand-off** ([**dp\_acq\_build\_handoff()**](acq__core_8h.md#function-dp_acq_build_handoff)) advances the hit's code phase by the drift over half the dwell  the non-coherent sum's peak is the phase at the dwell's middle, the seed is wanted at its end: 0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
 
 
 
 
-Config, not running state: it is not in the state blob, so a resumed engine wants it set again by its holder, as at create. Default 0.0 (uncoupled) is the engine exactly as it ran without it.
+A mutator's value (#2022): it rides in the state blob (v8), and a restore takes it through this setter's rebuild, so a resumed engine carries it on. Setting it rebuilds the map's fine grid and every tile's ramp tables when they move (the regrid that re-applies the thread request). Default 0.0 (uncoupled) is the engine exactly as it ran without it.
 
 
 
@@ -1485,7 +1484,7 @@ Config, not running state: it is not in the state blob, so a resumed engine want
 
 **Returns:**
 
-`DP_OK`, or `DP_ERR_INVALID` for a carrier outside [**dp\_acq\_carrier\_freq\_ok()**](acq__core_8h.md#function-dp_acq_carrier_freq_ok) at this engine's sample rate. 
+`DP_OK`, `DP_ERR_INVALID` for a carrier outside [**dp\_acq\_carrier\_freq\_ok()**](acq__core_8h.md#function-dp_acq_carrier_freq_ok) at this engine's sample rate, or `DP_ERR_MEMORY` when the rebuild cannot allocate (the engine is left as it was). 
 ```C++
 >>> import numpy as np
 >>> from doppler.acquire import Acquisition
@@ -2134,23 +2133,6 @@ NaN, because every finite value is a real design point  including a negative one
 
 
 
-### define ACQ\_COL\_CHUNK 
-
-```C++
-#define ACQ_COL_CHUNK `32u`
-```
-
-
-
-Columns the block-end transform gathers per pass (docs/design/acq-surface.md §4, #1243): a cache line holds 8 cf32 cells, so a chunk of 32 columns reads four lines per slow-time row of the block and writes four per surface row, where a column at a time read and wrote one line per CELL. 
-
-
-        
-
-<hr>
-
-
-
 ### define ACQ\_DELAY\_LOSS\_NODES 
 
 ```C++
@@ -2291,12 +2273,12 @@ FourCC type tag ("ACQR") stamped in an acquisition state blob.
 ### define ACQ\_STATE\_VERSION 
 
 ```C++
-#define ACQ_STATE_VERSION `7u`
+#define ACQ_STATE_VERSION `8u`
 ```
 
 
 
-Layout version of the acquisition state blob; a mismatch is rejected. v5: the carry is the framer's snapshot (fewer than frame\_n samples) instead of the ring's raw contents, zero-padded to ring\_cap. v6: [**acq\_extra\_t**](structacq__extra__t.md) carries the rate-hypothesis count. v7: a held twin's column is a lag column (lag\_bins), not a sample: on the padded lag grid the same bytes mean another code phase, and at D = 1 the blob's size does not change, so only the version tells. 
+Layout version of the acquisition state blob; a mismatch is rejected. v5: the carry is the framer's snapshot (fewer than frame\_n samples) instead of the ring's raw contents, zero-padded to ring\_cap. v6: [**acq\_extra\_t**](structacq__extra__t.md) carries the rate-hypothesis count. v7: a held twin's column is a lag column (lag\_bins), not a sample: on the padded lag grid the same bytes mean another code phase, and at D = 1 the blob's size does not change, so only the version tells. v8: the tiles' post-inverse block (blk) leaves the blob  the one delay-Doppler map runs from the raw epochs at the block's end  and [**acq\_extra\_t**](structacq__extra__t.md) carries the carrier. 
 
 
         

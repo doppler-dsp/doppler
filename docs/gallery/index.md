@@ -31,16 +31,16 @@ Compose, generate and stream any waveform: the Synth, scenes and Plans, codes, f
 - [A Framed Link, Checked by Its Description](framed-link.md)
 - [Composing a Scene — .sum(), .add(), and Headroom](wfm-composition.md)
 - [One Cache Slot for a Whole Background Field](plan-background.md)
-- [Waveform I/O — One Capture, Four File Types](wfm-io.md)
 - [type="symbols" — Bring Your Own Constellation](symbols.md)
+- [Waveform I/O — One Capture, Four File Types](wfm-io.md)
 - [wfmgen — One Engine, Every Waveform](wfmgen.md)
 
 ## Channel impairment
 
 What a channel does to a signal: a Doppler channel with clock Doppler, delay and noise.
 
-- [Doppler Channel — Clock Doppler as a Propagation Impairment](doppler-channel.md)
 - [Doppler Channel — a Doppler Profile Driven by a Cosine](doppler-channel-profile.md)
+- [Doppler Channel — Clock Doppler as a Propagation Impairment](doppler-channel.md)
 
 ## Rate conversion & resampling
 
@@ -163,7 +163,7 @@ In-band probes that record loop internals.
 Converters between float IQ and fixed-point integers.
 
 - [ADC Quantisation — 3–8 Bits](adc.md)
-- [Q15 vs UQ15 Quantization](q15-uq15.md)
 - [cvt Quantization Noise](cvt-quantization.md)
+- [Q15 vs UQ15 Quantization](q15-uq15.md)
 
 <!-- domain-index:end -->

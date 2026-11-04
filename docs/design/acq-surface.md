@@ -1197,15 +1197,22 @@ error does not grow with the shift.
 computes exactly what today's per-tile path computes with each bin's ramp
 rounded to the same grid, so an engine changed only in that rounding
 (`ACQ_EMUL_F`, a scratch build, not merged) runs the validators as the map
-will. Of the five that set a carrier (record §18.4):
+will (record §18.4):
 
 - `acq_block_coherent` passes. Its compensated rows lose 0.03–0.04 dB (its
     statistic 1457 against 1451 at $D = 150$, the row's worst −3.61 against
-    −3.65 dB).
-- `refine_bias` passes, unchanged except its timing line.
-- `async_dsss_receiver_release` and `tracker_through_window` pass with
-    byte-identical output: their engines never ramp (one tile, or $D = 1$).
-- `rx_dynamics` builds but is registered with no test, so nothing runs it.
+    −3.65 dB). It is the only validator whose engine ramps, so the
+    validators' carrier verdict rests on it alone.
+- `refine_bias`, `async_dsss_receiver_release` and `tracker_through_window`
+    set a carrier but never ramp (one tile, or $D = 1$): they pass with the
+    same output, `refine_bias` but for its timing line.
+- `rx_dynamics` passes both ways; it is the MPSK receiver and never calls
+    acq.
+- The C suites widen it: every check of `test_acq_core` passes, its tiled
+    carrier cases included, but the one that pins `block_prompt`'s rows to
+    the exact ramp, which the map keeps exact (§18.2); and
+    `test_async_dsss_receiver_core`, `test_async_dsss_pool_core` and
+    `test_burst_capture_core` pass.
 
 The Pd, near-far and rate validators (`acq_template_pd`,
 `async_dsss_near_far`, `acq_rate_pd`) set no carrier, so for them the map is
@@ -1239,9 +1246,16 @@ restored by `set_state`, and not a reject key: $F$ sizes the fine slow-time
 buffer, not the blob, which holds raw epochs. `dp_acq_set_carrier_freq_hz`,
 which only sets a field today, rebuilds the fine buffer and the per-tile
 offset and phase tables when $F$ or a $d_q$ moves, through `acq_regrid`,
-which re-applies the requested thread count (#2797). Its line in
-`scripts/.mutator-state-exempt` retires when `Acquisition` gets its row in
-the serialization matrix (#2078, family #2083).
+which re-applies the requested thread count (#2797). `dp_acq_set_state`,
+which today only copies fields, restores the carrier through that same
+rebuild, never by writing the field, so a restore that moves $F$ (a
+blob taken at a carrier, restored into a carrier-0 engine) gets the buffer
+and tables it needs. Step 2.3 pins it with a C test: a mid-block split at
+a carrier, restored into a carrier-0 engine, resumes bit-exact against the
+unsplit run, and is shown red by sabotage (restore the field without the
+rebuild). Its line in `scripts/.mutator-state-exempt` retires when
+`Acquisition` gets its row in the serialization matrix (#2078, family
+#2083).
 
 ### 18.3 Threading ([#2744](https://github.com/doppler-dsp/doppler/issues/2744))
 
@@ -1260,8 +1274,7 @@ that case as it is, decided by the caller's `epoch_fan` (#2775), with
 calibration to follow. At $D = 150$ #2744 measured the fanned search about
 1.5× slower (286.7 against 194.0 ns a sample), with a dispatch every epoch;
 here that becomes one dispatch per stage per block. The speed gate's
-threaded rows (`t4`, `t8`, `threads=4`) decide whether that closes #2744 for
-$D > 1$.
+threaded rows (`t4`, `t8`, `threads=4`) settle #2744 for $D > 1$.
 
 ### 18.4 Oracle and gate
 
@@ -1278,6 +1291,13 @@ $D > 1$.
         in the same cell, and each peak within 0.1 dB of today's (measured
         at most 0.09 dB on the prototype and 0.04 dB on
         `acq_block_coherent`).
+    - **Step 2.2 owes two things back to these numbers.** $c = 4$ is
+        fitted, and the $c$ each geometry needed falls about as
+        $1/\sqrt{D}$ (3.0 at $D = 10$, 1.4 at 60, 0.8 at 150), which says the
+        bound's $\sqrt{D}$ factor is spurious: 2.2 re-derives the bound's $D$
+        dependence on acq's own scenes before fixing $c$. And 0.1 dB leaves
+        0.01 dB over the worst loss measured, so 2.2 sets the carrier
+        tolerance from acq's own carrier scenes with a stated margin.
 - **The verdicts:** every acq and Corr2D C test, and every validator's
     `--check`, unchanged.
 - **The speed gate:** `make bench-ab` on the bench box, A = main and B = the

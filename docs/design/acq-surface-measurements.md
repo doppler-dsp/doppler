@@ -187,9 +187,20 @@ harness lines, is in `emul-2752/<name>-exact.log` and `-rounded.log`.
 | validator                     | unchanged | $F = 4$ | output                                                                                                                                                           |
 | ----------------------------- | --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `acq_block_coherent`          | pass      | pass    | 24 lines differ: the compensated rows' statistic 1457 → 1451 at $D = 150$ and 237 → 236 at $D = 16$; the row's worst −3.61 → −3.65 dB, its mean −2.45 → −2.48 dB |
-| `refine_bias`                 | pass      | pass    | only the timing line differs                                                                                                                                     |
+| `refine_bias`                 | pass      | pass    | only the timing line differs: it never ramps                                                                                                                     |
 | `async_dsss_receiver_release` | pass      | pass    | identical                                                                                                                                                        |
 | `tracker_through_window`      | pass      | pass    | identical                                                                                                                                                        |
-| `rx_dynamics`                 | —         | —       | built, registered with no test: nothing runs it                                                                                                                  |
+| `rx_dynamics`                 | pass      | pass    | the MPSK receiver: it never calls acq. Labelled `threaded`, not `sweep`, so it runs in `make test`, not `make test-sweep`                                        |
 
-The identical ones never ramp: their search has one tile or $D = 1$.
+The identical ones never ramp: their search has one tile or $D = 1$. So
+among the validators the carrier verdict rests on `acq_block_coherent`.
+
+The C suites, on the same build at $F = 4$ through
+`make test CTEST_SELECT="-R ^<name>$"`, widen it:
+
+| suite                           | $F = 4$                                                                                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test_acq_core`                 | every check passes, the tiled carrier cases included, but one: the #2815 pin of `block_prompt`'s rows against the exact ramp, which the map keeps exact |
+| `test_async_dsss_receiver_core` | pass                                                                                                                                                    |
+| `test_async_dsss_pool_core`     | pass                                                                                                                                                    |
+| `test_burst_capture_core`       | pass                                                                                                                                                    |

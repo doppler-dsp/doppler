@@ -95,6 +95,11 @@ variable_output = true
 # Kernel is told its write limit (jm gh-138): an under-reporting
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
+# A dump is exactly n_out values, so max_out(state) is exact and an out= of
+# that is enough; without this the binding also asked for as many elements as
+# the input frame has (ny * nx), which a col_out object (n_out = ny) never
+# needs (#2818).
+exact_max_out = true
 none_on_empty = true
 # n_in must equal the frame length; the C kernel REFUSES any other
 # with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
@@ -126,6 +131,10 @@ arg_type = "float _Complex"
 return_type = "float _Complex"
 variable_output = true
 pass_capacity = true
+# One map whatever the batch: max_out(state) is the exact size, not a bound the
+# input could exceed, so an out= of exactly that is enough (#2818). Without
+# this the binding also asked for as many elements as the input has.
+exact_max_out = true
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
 error_message = "execute_coherent: the input must be a whole, nonzero number of frames, and out= must hold one map"
@@ -137,6 +146,10 @@ arg_type = "float _Complex"
 return_type = "float"
 variable_output = true
 pass_capacity = true
+# One map whatever the batch: max_out(state) is the exact size, not a bound the
+# input could exceed, so an out= of exactly that is enough (#2818). Without
+# this the binding also asked for as many elements as the input has.
+exact_max_out = true
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
 error_message = "execute_power_sum: the input must be a whole, nonzero number of frames, and out= must hold one map"

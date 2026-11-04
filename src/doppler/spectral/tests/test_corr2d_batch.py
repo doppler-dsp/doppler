@@ -129,6 +129,29 @@ def test_a_short_out_is_a_value_error(make) -> None:
         obj.execute_all(x, out=np.empty((H - 1, obj.n_out), np.complex64))
     with pytest.raises(ValueError):
         obj.execute_coherent(x, out=np.empty(obj.n_out - 1, np.complex64))
+    with pytest.raises(ValueError):
+        obj.execute_power_sum(x, out=np.empty(obj.n_out - 1, np.float32))
+
+
+@pytest.mark.parametrize("make", MAKERS)
+@pytest.mark.parametrize(
+    ("method", "dtype"),
+    [("execute_coherent", np.complex64), ("execute_power_sum", np.float32)],
+)
+def test_a_one_map_out_needs_one_map_not_the_input(
+    make, method, dtype
+) -> None:
+    # The result is ONE map whatever the batch, so `out=` of exactly that
+    # (what *_max_out() reports) is enough: the binding used to ask for as
+    # many elements as the input had (#2818), which refused it.
+    obj = make()
+    x = _frames(H * obj.ny * obj.nx)
+    n_out = getattr(obj, method + "_max_out")()
+    assert n_out == obj.n_out and n_out < len(x)
+    out = np.empty(n_out, dtype)
+    got = getattr(obj, method)(x, out=out)
+    assert got.base is out or got is out
+    np.testing.assert_array_equal(got, getattr(obj, method)(x))
 
 
 @pytest.mark.parametrize("make", MAKERS)
@@ -162,3 +185,22 @@ def _kwargs(make, dwell: int) -> dict:
         "dwell": dwell,
         "nthreads": 2,
     }
+
+
+def test_execute_out_needs_one_dump_not_the_frame() -> None:
+    # A col_out object dumps ny values from an ny * nx frame: `out=` of the
+    # dump is enough. The binding used to ask for the frame's length (#2818).
+    ny, nx = 4, 8
+    ref = np.zeros((ny, nx), np.complex64)
+    ref[0, 0] = 1.0
+    obj = Corr2D(ref=ref, dwell=1, nthreads=1, col_out=0)
+    x = np.ones((ny, nx), np.complex64)
+    assert obj.execute_max_out() == ny < ny * nx
+    out = np.empty(ny, np.complex64)
+    got = obj.execute(x, out=out)
+    assert got.base is out
+    np.testing.assert_array_equal(
+        got, Corr2D(ref=ref, dwell=1, nthreads=1, col_out=0).execute(x)
+    )
+    with pytest.raises(ValueError):
+        obj.execute(x, out=np.empty(ny - 1, np.complex64))

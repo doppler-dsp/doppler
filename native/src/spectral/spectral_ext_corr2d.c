@@ -223,7 +223,7 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _omax    = dp_corr2d_execute_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _min_cap = _omax ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -290,7 +290,7 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_corr2d_execute_max_out (self->handle);
-  if (!_cap || _cap < _need)
+  if (!_cap)
     _cap = _need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
@@ -673,7 +673,7 @@ Corr2DObj_execute_coherent (Corr2DObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _omax    = dp_corr2d_execute_coherent_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _min_cap = _omax ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -747,7 +747,7 @@ Corr2DObj_execute_coherent (Corr2DObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_corr2d_execute_coherent_max_out (self->handle);
-  if (!_cap || _cap < _need)
+  if (!_cap)
     _cap = _need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
@@ -886,7 +886,7 @@ Corr2DObj_execute_power_sum (Corr2DObject *self, PyObject *args,
           return NULL;
         }
       size_t _omax    = dp_corr2d_execute_power_sum_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _min_cap = _omax ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -960,7 +960,7 @@ Corr2DObj_execute_power_sum (Corr2DObject *self, PyObject *args,
     }
   size_t _need = (size_t)n;
   size_t _cap  = dp_corr2d_execute_power_sum_max_out (self->handle);
-  if (!_cap || _cap < _need)
+  if (!_cap)
     _cap = _need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)

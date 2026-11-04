@@ -411,6 +411,24 @@ unit = "sample"
 definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 4 threads; throughput counts searched input samples."
 samples = 1
 
+["c:acq::op5M_U50k_D150_t1_fc_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 150, 1 thread, 2.2 GHz carrier"
+unit = "sample"
+definition = "The op5M_U50k_D150_t1 search with a 2.2 GHz carrier set, so every side tile runs its code-rate ramp over the block (the code's chip clock dilated by the Doppler over the carrier, as an emitter's is): the continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 150, on 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op2M_U50k_D60_t1_fc_nc1"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 60, 1 thread, 2.2 GHz carrier"
+unit = "sample"
+definition = "The op2M_U50k_D60_t1 search with a 2.2 GHz carrier set, so every side tile runs its code-rate ramp over the block: the continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 60, on 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U5k_D150_t1_fc_nc1"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 150, 1 thread, 2.2 GHz carrier"
+unit = "sample"
+definition = "The op5M_U5k_D150_t1 search with a 2.2 GHz carrier set, so both side tiles run their code-rate ramp over the block: the continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150, on 1 thread; throughput counts searched input samples."
+samples = 1
+
 ["c:psd::frame_linear[nfft=16384]"]
 name = "PSD frame, linear power, 16,384 points"
 unit = "frame"
@@ -719,6 +737,18 @@ samples = 1
 name = "Async DSSS pool, 4 receivers searching plus or minus 50 kHz, 4 threads"
 unit = "sample"
 definition = "The pool of the push[full,n=4,threads=1] row on four threads: four AsyncDsssReceivers searching plus or minus 50 kHz, a 1,023-chip Gold code at 5 Mcps captured at 11 MSa/s, through one RateConverter to 10 MSa/s (2 samples a chip) inside the timed push, 3,000 symbols a second, the search block-coherent over 150 code periods. The search fans its Doppler tiles across the pool's four workers, at most one a tile; one push is one dwell of noise, every receiver idle; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[full,n=1,threads=1,carrier]"]
+name = "Async DSSS pool, 1 receiver searching plus or minus 50 kHz, 2.2 GHz carrier"
+unit = "sample"
+definition = "The push[full,n=1,threads=1] row with a 2.2 GHz carrier set, so every side tile of the search runs its code-rate ramp over the block: one AsyncDsssReceiver searching plus or minus 50 kHz on one thread, a 1,023-chip Gold code at 5 Mcps captured at 11 MSa/s, through one RateConverter to 10 MSa/s inside the timed push, block-coherent over 150 code periods; one push is one dwell of noise; throughput counts input samples."
+samples = 1
+
+["c:async_dsss_pool::push[full,n=4,threads=4,carrier]"]
+name = "Async DSSS pool, 4 receivers searching plus or minus 50 kHz, 4 threads, 2.2 GHz carrier"
+unit = "sample"
+definition = "The push[full,n=4,threads=4] row with a 2.2 GHz carrier set, so every side tile of the search runs its code-rate ramp over the block: four AsyncDsssReceivers searching plus or minus 50 kHz on four threads, a 1,023-chip Gold code at 5 Mcps captured at 11 MSa/s, through one RateConverter to 10 MSa/s inside the timed push, block-coherent over 150 code periods; one push is one dwell of noise; throughput counts input samples."
 samples = 1
 
 ["c:dsss_burst_receiver::push_idle"]

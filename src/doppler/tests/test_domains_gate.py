@@ -337,3 +337,27 @@ def test_a_summary_reaches_the_index_and_the_domain_page() -> None:
     )
     assert line in gd.index_blocks(REPO)["docs/guide/index.md"]
     assert "guide/delay-doppler.md) — " in out["docs/domains/spectral.md"]
+
+
+@pytest.mark.parametrize(
+    ("marker", "needle"),
+    [
+        ("<!-- domain: sig; summary: a ## Heading -->", "holds `##`"),
+        ("<!-- domain: sig; summary: one\n two -->", "ONE line"),
+        ("<!-- domain: sig; summary: one --> two -->", "ONE line"),
+        ("<!-- domain: sig; summary: " + "x" * 301 + " -->", "keep it to"),
+    ],
+)
+def test_a_summary_is_one_short_index_line(
+    tmp_path: Path, marker: str, needle: str
+) -> None:
+    root = _fixture(tmp_path)
+    _w(root, "docs/guide/bad.md", marker + "\n\n# Bad\n")
+    r = _run(root)
+    assert r.returncode == 1
+    assert needle in r.stderr
+
+
+def test_no_summary_in_the_tree_swallows_a_heading() -> None:
+    gd = _gd()
+    assert [x for x in gd.problems(REPO) if "summary" in x] == []

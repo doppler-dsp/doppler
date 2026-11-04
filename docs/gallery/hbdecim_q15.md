@@ -1,4 +1,4 @@
-<!-- domain: resample; summary: fixed-point Q15 halfband 2:1 decimator for interleaved IQ int16. ## Down-Conversion (DDC) -->
+<!-- domain: resample; summary: fixed-point Q15 halfband 2:1 decimator for interleaved IQ int16. -->
 
 # HalfbandDecimatorQ15 — Fixed-Point Halfband Decimator
 

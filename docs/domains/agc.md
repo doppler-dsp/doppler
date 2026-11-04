@@ -15,7 +15,7 @@ Python module `doppler.agc`. Area: [Synchronization](index.md#synchronization).
 
 ## Gallery pages in this domain
 
-- [AGC Settling — a design chart](../gallery/agc-settling-design.md) — how long to wait, when `1/(4·loop_bw)` is only a floor. ## Telemetry
+- [AGC Settling — a design chart](../gallery/agc-settling-design.md) — how long to wait, when `1/(4·loop_bw)` is only a floor.
 - [AGC — Step Response](../gallery/agc.md) — closed-loop power controller with decimated and per-sample loop updates.
 
 ## Design pages in this domain

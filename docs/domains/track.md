@@ -38,7 +38,7 @@ Python module `doppler.track`. Area: [Synchronization](index.md#synchronization)
 - [M-PSK Receiver — Performance Characterisation](../gallery/mpsk-receiver-performance.md) — EVM, SER, lock time, false alarm and level invariance over random geometries.
 - [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md) — integrated carrier + timing + bit recovery.
 - [M-PSK Receiver — Sizing the Carrier Loop, and Riding a Doppler Profile](../gallery/mpsk-doppler-profile.md) — sizing bn_carrier for a predictable acquisition, and what a step and two ramps actually cost.
-- [NDA Carrier Loop — Theory Validation](../gallery/carrier-nda.md) — non-data-aided carrier recovery. ## Constellations & Receivers
+- [NDA Carrier Loop — Theory Validation](../gallery/carrier-nda.md) — non-data-aided carrier recovery.
 - [Symbol Timing Recovery](../gallery/symsync.md) — timing-error-detector-driven resampling.
 - [Timing Loop — Theory Validation](../gallery/symsync-theory.md) — the timing loop's transfer function.
 

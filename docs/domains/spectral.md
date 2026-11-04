@@ -42,7 +42,7 @@ Python module `doppler.spectral`. Area: [Spectral](index.md#spectral).
 ## Gallery pages in this domain
 
 - [2-D Acquisition Grid](../gallery/detection2d.md) — GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR.
-- [A Streaming Spectrogram](../gallery/spectrogram.md) — a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis. ## Quantization & Fixed-Point
+- [A Streaming Spectrogram](../gallery/spectrogram.md) — a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis.
 - [Correlation and Detection](../gallery/corr.md) — coherent integration, 2-D template matching, streaming CFAR.
 - [Delay-Doppler Search](../gallery/delay-doppler.md) — a delay-Doppler map, a coarse carrier bank and the refine that recovers its straddle loss, plus a batch of hypotheses in one call.
 - [Four WCDMA Carriers — PSD, band_power, AccTrace](../gallery/wcdma-carriers.md) — four RRC channels measured with `PSD` and `AccTrace`.

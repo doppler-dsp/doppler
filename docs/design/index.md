@@ -20,7 +20,7 @@ Oscillators and noise: the NCO, the LO and AWGN.
 
 Compose, generate and stream any waveform: the Synth, scenes and Plans, codes, frames, and the wfmgen tool.
 
-- [A Frame as a Description](frame-description.md) — a frame as a list of fields and a list of stages, each stage carrying the span it covers: why a chain of optional transforms is the representation that cannot express CCSDS, how a caller adds a stage doppler has never heard of, how far that openness actually reaches, and the Field: one text form for a run of bits, passed by every face
+- [A Frame as a Description](frame-description.md) — a frame as a list of fields and a list of stages, each carrying the span it covers: why a chain of optional transforms cannot express CCSDS, and how a caller adds a stage doppler has never heard of
 - [A Frame as a Description — the measurement record](frame-description-measurements.md) — the dated record behind it: the survey that counted seven spellings of a field, the prototype that proved one grammar lossless, and how the CCSDS sites were settled, under the same section letters
 - [A Receiver Built from a Frame Description](rx-frame-description.md) — `BurstDemod` and `DsssBurstReceiver` told the frame instead of its length: the sync word, the frame and burst lengths and the CRC verdict derived from one description, the callers that compute them by hand today, and the order of work
 - [Capture files — one reader, one writer, four containers](capture-files.md) — the file I/O subsystem underneath `Reader`/`Writer`: why the file type is decided by content, why one keyword codec serves both directions, why provenance is a value rather than a caveat, and what a streaming writer costs at close
@@ -29,7 +29,7 @@ Compose, generate and stream any waveform: the Synth, scenes and Plans, codes, f
 - [The Payload as a Data Source](payload-data-source.md) — a frame declares `data:LEN` and `--data` names where the bits come from (a file, a literal, stdin, a seeded stream): fill, idle frames, run length, what is deleted, and the unknowns
 - [The Payload as a Data Source — the measurement record](payload-data-source-measurements.md) — the chunker prototyped before any C, and the three rules it changed
 - [Waveform amplitude & composition](wfmgen-composition.md) — level/power conventions for wfmgen
-- [wfmgen — the waveform generator](wfmgen.md) — the spine for the tool: modulations, impairments and output streams from three interchangeable faces, what it promises and which gate keeps each promise, the seventeen primitives it composes rather than re-implements, and the eight things still unknown about it — including that it states no throughput and no certified envelope
+- [wfmgen — the waveform generator](wfmgen.md) — the spine for the tool: modulations, impairments and output streams from three interchangeable faces, which gate keeps each promise, and the eight things still unknown about it
 
 ## Channel impairment
 
@@ -77,7 +77,7 @@ Finding a signal before anything tracks it: bursts, preambles and carriers.
 - [CoarseChannel — is a channel an object, or a slice of the bank?](coarse-channel.md) — question 1 of the bank design: is a channel its own object or a slice of the bank, judged against the two primary use cases (one process runs the whole bank; one pod runs one channel), with the trades and the work that answers it
 - [Design — pure-functional acquisition kernel (elastic fleet)](acq-fn.md) — pure-functional acquisition kernel for the elastic fleet
 - [The acquisition surface — the measurement record](acq-surface-measurements.md) — the dated runs behind the design page under the same section numbers: §18's prototypes of the one delay-Doppler map (slow time first, the code-rate ramp on a shared transform) and the bench-box baseline it must meet
-- [The acquisition surface: the DSSS search engine](acq-surface.md) — the DSSS search engine's design, burst and continuous doors over one engine: its arithmetic as equations, from $x[n]$ and the code template $c[n]$ to a hand-off: the de-rotated per-tile correlation, the slow-time block, the CFAR gate, the peak list, and the code's ambiguity sidelobes that set a ranked search's near-far limit; then the architecture, the trade space, what `pfa` means for a peak detector, the fan-out, the compute cost and what is open
+- [The acquisition surface: the DSSS search engine](acq-surface.md) — the DSSS search engine's arithmetic as equations, from the de-rotated per-tile correlation to the CFAR gate and the peak list, then the architecture, what `pfa` means for a peak detector, the compute cost and what is open
 
 ## Tracking & synchronization
 
@@ -106,7 +106,7 @@ Pd, Pfa and threshold models, a lock detector and a sync-word finder.
 
 Despreading, polynomial-phase estimation and the DSSS receivers.
 
-- [AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object](async-dsss-receiver.md) — continuous DSSS, from spec to object: the specification (5 Mcps, 11 MSa/s, 3 kbps, ±50 kHz) and the derived power-of-two code period, the acquisition hand-off, the asynchronous despreader, the receiver's states, the pool's one controller-owned search and its pick, what it costs, the release, and the status record a holder reads
+- [AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object](async-dsss-receiver.md) — continuous DSSS, from spec to object: the derived code period, the acquisition hand-off, the asynchronous despreader, the receiver's states, the pool's one search, what it costs and the status record
 - [AsyncDsssReceiver and AsyncDsssPool — the measurement record](async-dsss-receiver-measurements.md) — the dated runs behind the design page under the same section numbers: the pool's lock, arrival and cost runs (§6, §9), the pinned bench and the search profile, and every step of the receiver's build (§12)
 - [DsssBurstReceiver: the burst chain, composed in C](dsss-burst-receiver.md) — the burst chain composed in C: the three-stage `search → refine → demod` shape, why the hand-off needs a never-late epoch, and what a burst `DetectionEvent` must carry to stand alone
 - [The Polynomial-Phase Estimator — the reasoning](ppe.md) — the feedforward frequency/chirp-rate estimate a burst gets exactly one of: why the search is two-dimensional and coherent, why the transform is 4x its input, and why the caller strips the modulation

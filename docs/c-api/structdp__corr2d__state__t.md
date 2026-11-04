@@ -38,14 +38,17 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 | ---: | :--- |
 |  float \_Complex \* | [**accum**](#variable-accum)  <br> |
 |  float \_Complex \* | [**bat\_acc**](#variable-bat_acc)  <br> |
+|  float \_Complex \* | [**bat\_fine**](#variable-bat_fine)  <br> |
 |  float \_Complex \* | [**bat\_map**](#variable-bat_map)  <br> |
 |  float \_Complex \* | [**bat\_pad**](#variable-bat_pad)  <br> |
 |  float \_Complex \* | [**bat\_work**](#variable-bat_work)  <br> |
-|  float \_Complex \* | [**col\_gather**](#variable-col_gather)  <br> |
 |  int | [**col\_out**](#variable-col_out)  <br> |
 |  float \_Complex \* | [**col\_ref**](#variable-col_ref)  <br> |
-|  float \_Complex \* | [**col\_spec**](#variable-col_spec)  <br> |
 |  size\_t | [**count**](#variable-count)  <br> |
+|  float \_Complex \* | [**dd\_fine**](#variable-dd_fine)  <br> |
+|  int | [**dd\_fused**](#variable-dd_fused)  <br> |
+|  struct dp\_\_dd\_map \* | [**dd\_map**](#variable-dd_map)  <br> |
+|  size\_t \* | [**dd\_rows**](#variable-dd_rows)  <br> |
 |  int | [**delay\_doppler**](#variable-delay_doppler)  <br> |
 |  double | [**doppler\_step**](#variable-doppler_step)  <br> |
 |  size\_t | [**dwell**](#variable-dwell)  <br> |
@@ -66,7 +69,6 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**row\_fwd**](#variable-row_fwd)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**row\_inv**](#variable-row_inv)  <br> |
 |  float \_Complex \* | [**row\_ref\_spec**](#variable-row_ref_spec)  <br> |
-|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**slow\_fft**](#variable-slow_fft)  <br> |
 |  float \_Complex \* | [**work\_fft**](#variable-work_fft)  <br> |
 |  float \_Complex \* | [**work\_pad**](#variable-work_pad)  <br> |
 |  float \_Complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
@@ -165,6 +167,24 @@ Per-worker accumulators, nworkers x n; zero between maps.
 
 
 
+### variable bat\_fine 
+
+```C++
+float _Complex* dp_corr2d_state_t::bat_fine;
+```
+
+
+
+Per-worker slow-time output for the delay-Doppler map, nworkers x ny\_out x nx. Delay-Doppler only. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable bat\_map 
 
 ```C++
@@ -217,24 +237,6 @@ Per-worker forward spectra, nworkers x n.
 
 
 
-### variable col\_gather 
-
-```C++
-float _Complex* dp_corr2d_state_t::col_gather;
-```
-
-
-
-Per-worker column tiles, nworkers x CORR2D\_COL\_TILE x ny\_out; rows ny.. ny\_out-1 of each column stay zero (the slow-time zero-pad). Delay-Doppler. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable col\_out 
 
 ```C++
@@ -270,24 +272,6 @@ conj(ref row 0) in the TIME domain, length nx; NULL when col\_out &lt; 0.
 
 
 
-### variable col\_spec 
-
-```C++
-float _Complex* dp_corr2d_state_t::col_spec;
-```
-
-
-
-Per-worker transformed tiles, same shape as [**col\_gather**](structdp__corr2d__state__t.md#variable-col_gather). 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable count 
 
 ```C++
@@ -297,6 +281,78 @@ size_t dp_corr2d_state_t::count;
 
 
 Frames accumulated (0 … dwell-1). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable dd\_fine 
+
+```C++
+float _Complex* dp_corr2d_state_t::dd_fine;
+```
+
+
+
+The map's slow-time output, ny\_out x nx, bin-major. Delay-Doppler only. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable dd\_fused 
+
+```C++
+int dp_corr2d_state_t::dd_fused;
+```
+
+
+
+1 when the map runs rows first (its rule at one tile, one rate): the dump frame's rows are inverted as they are accumulated. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable dd\_map 
+
+```C++
+struct dp__dd_map* dp_corr2d_state_t::dd_map;
+```
+
+
+
+The one delay-Doppler block map (docs/design/acq-surface.md §18.1), one slot per worker. Delay-Doppler only; internal. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable dd\_rows 
+
+```C++
+size_t* dp_corr2d_state_t::dd_rows;
+```
+
+
+
+Output row of slow row i: the centered (i + ny\_out/2) mod ny\_out. 
  
 
 
@@ -654,24 +710,6 @@ float _Complex* dp_corr2d_state_t::row_ref_spec;
 
 
 conj(FFT\_nx(ref row 0)), length nx. Fast-path replacement for ref\_spec. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable slow\_fft 
-
-```C++
-dp_fft_state_t** dp_corr2d_state_t::slow_fft;
-```
-
-
-
-Per-worker slow-time plans, length ny\_out. Delay-Doppler only. 
  
 
 

@@ -9,7 +9,7 @@ depends_on = ["fft2d_core"]
 serializable = "true"
 fragment = "generated"
 # dp_parallel.h's persistent pool is pthreads: the per-row correlations and
-# DelayDoppler's slow-time column FFTs fan out over `nthreads` workers.
+# DelayDoppler's map fans each of its stages out over `nthreads` workers.
 extra_link_libs = ["Threads::Threads"]
 # A NULL create means a parameter was refused, not OOM (gh-482).
 create_error = "ValueError"
@@ -17,7 +17,8 @@ create_error_message = "Corr2D: invalid parameter (need dwell >= 1, and ny_out a
 
 # The delay-Doppler flavor (#2666): the same single-row correlator, fed the
 # RAW stream -- `ny` code periods back to back -- with the slow-time FFT down
-# each delay column done in C at dump time. The constructor takes the 1-D
+# each delay column done in C at dump time, by the library's one
+# delay-Doppler map (docs/design/acq-surface.md §18). The constructor takes the 1-D
 # code instead of a (ny, nx) reference with the code in row 0, and `ny_out`
 # zero-pads the slow-time axis (band-limited Doppler interpolation). nx_out
 # and col_out do not apply: the delay axis is native and the whole map is

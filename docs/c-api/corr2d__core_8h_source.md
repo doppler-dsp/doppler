@@ -64,8 +64,8 @@ typedef struct {
   int             col_out;   
   float _Complex *col_ref;   
   float _Complex *work_trunc;
-  /* Worker fan-out (#2666).  The fast path's per-row stage and the
-   * delay-Doppler flavor's per-column stage are each a set of independent
+  /* Worker fan-out (#2666).  The fast path's per-row stage and each stage
+   * of the delay-Doppler flavor's map are each a set of independent
    * transforms, run over `nworkers` contiguous chunks on `pool`.  A pocketfft
    * plan keeps scratch of its own, so it cannot be shared between threads:
    * every worker owns one plan per stage, and chunk t always runs on plan t,
@@ -75,14 +75,16 @@ typedef struct {
   dp_fft_state_t **row_fwd;   
   dp_fft_state_t **row_inv;   
   /* Delay-Doppler flavor (dp_corr2d_create_delay_doppler).  The flavor is
-   * the fast path plus a slow-time FFT down every delay column at dump
-   * time; it is fixed at create() and changes what the state blob means,
-   * so the blob carries its own magic. */
+   * the fast path's accumulation plus the library's one delay-Doppler map
+   * at dump time (docs/design/acq-surface.md §18); it is fixed at create()
+   * and changes what the state blob means, so the blob carries its own
+   * magic. */
   int              delay_doppler; 
   double           doppler_step;  
-  dp_fft_state_t **slow_fft;  
-  float _Complex  *col_gather;
-  float _Complex  *col_spec;  
+  struct dp__dd_map *dd_map;  
+  float _Complex  *dd_fine;   
+  size_t          *dd_rows;   
+  int              dd_fused;  
   /* Batch scratch (dp_corr2d_execute_fold and the typed batch calls),
    * allocated on the first batch, one slot per worker.  A batch makes its
    * maps here and never touches accum or count, so it is not state and is
@@ -91,6 +93,7 @@ typedef struct {
   float _Complex  *bat_work;  
   float _Complex  *bat_pad;   
   float _Complex  *bat_map;   
+  float _Complex  *bat_fine;  
 } dp_corr2d_state_t;
 
 dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t nx,

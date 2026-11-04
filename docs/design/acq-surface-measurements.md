@@ -310,3 +310,61 @@ none:
 - pool: 70.8 against 60.3 ms and 43.3 against 32.2 ms (mean of 10).
 
 The speed gate measures them on the bench box.
+
+### 18.6 Two schedules of one map (step 2.3, Corr2D)
+
+*2026-11-04, the WSL2 dev box. Step 2.3
+([#2831](https://github.com/doppler-dsp/doppler/issues/2831)), PR A: the map
+in `corr2d_core.c`, with `DelayDoppler` and the bank on it.*
+
+**Slow time first alone lost where its transform count gives it nothing to
+win.** Against main, run alternately in one session, the map with slow time
+first only ran `DelayDoppler` 256 × 4096 at 21% slower on one thread and
+30% slower on all cores. It ran the bank with 12 rates 33% slower, and
+`delay_doppler_32x1024_o64` 20% slower. The bank without rates was 20–25%
+faster.
+
+**Where `DelayDoppler`'s time went** (a stage timer at 256 × 4096, one
+thread):
+
+- the 256 row transforms alone took 1.05 ms;
+- the map's row stage took 2.15 ms, so about 1.1 ms of it gathers each row
+    out of the bin-major slow-time output;
+- slow time took 1.35–1.58 ms.
+
+Today's order inverts each row while it is in cache and transposes once;
+slow time first transposes twice. Storing the slow-time output by fine row
+moved the transpose into slow time (2.0 ms) and gained nothing. Row groups
+of 16, 64 and 256 moved nothing either.
+
+**So the map has two schedules** (acq-surface.md §18.1, "Two schedules, one map"):
+
+- rows first, with the rounded ramp as a per-epoch phase, and
+    `DelayDoppler`'s dump frame inverting each row in its row stage;
+- the gather's branches hoisted out of its loop.
+
+With both, five interleaved runs (`schedules-2831/devbox-interleaved.txt`),
+ms:
+
+| row                                  | main      | map       |
+| ------------------------------------ | --------- | --------- |
+| `bank_64x512_c12_l4_1t`              | 1.10–1.12 | 0.84–0.86 |
+| `bank_64x512_c6_l2_1t`               | 0.53–0.55 | 0.41–0.42 |
+| `bank_64x512_detect_l2_l4_1t`        | 0.69–0.72 | 0.57–0.59 |
+| `bank_64x512_c12_l4_r12_1t`          | 6.92–7.22 | 6.91–7.18 |
+| `bank_64x512_c12_corrected_batch_1t` | 1.33–1.34 | 1.35–1.36 |
+| `delay_doppler_256x4096_1t`          | 4.54–5.04 | 4.50–4.69 |
+| `delay_doppler_256x4096_all`         | 2.02–2.17 | 2.01–2.43 |
+| `delay_doppler_32x1024_o64_1t`       | 0.14–0.15 | 0.14      |
+| `batch_64x512_h48_*` (8 rows)        | ties      | ties      |
+
+Each schedule matches the definition to 1.6e-7 of the peak on five
+geometries, and the two agree to within 1e-5 of it. Five sabotages turn the
+slow-first stages red and four turn the rows-first stages red
+(`_test_block_map`). The bench box decides the speed gate (§18.4).
+
+**A false alarm.** Halfway through, the bank's rated row aborted on its own
+check, reading hypothesis 44 for 68. A sabotage script had restored the
+source but not rebuilt it, so the binaries carried its last sabotage, a
+dropped rows-first weight. After a rebuild, both schedules match
+`execute()` on hand-corrected frames to 3e-5 of a 217 peak.

@@ -359,9 +359,10 @@ ms:
 | `batch_64x512_h48_*` (8 rows)        | ties      | ties      |
 
 Each schedule matches the definition to 1.6e-7 of the peak on five
-geometries, and the two agree to within 1e-5 of it. Five sabotages turn the
-slow-first stages red and four turn the rows-first stages red
-(`_test_block_map`). The bench box decides the speed gate (§18.4).
+geometries, and the two agree to within 1e-5 of it. Eleven sabotages each
+go red (`schedules-2831/sabotage.log`): five in the shared ramp table and
+the slow-first stages, four in the rows-first stages, the rule's tie, and
+the refusal of a fine grid at one slow row (`_test_block_map`). The bench box decides the speed gate (§18.4).
 
 **A false alarm.** Halfway through, the bank's rated row aborted on its own
 check, reading hypothesis 44 for 68. A sabotage script had restored the

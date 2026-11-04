@@ -1704,10 +1704,11 @@ _test_block_map (void)
   /* create refuses what it cannot build, without aborting. */
   {
     const dp__dd_geom_t bad[] = {
-      { 0, 8, 1, 1, 1 }, /* no bins          */
-      { 8, 7, 1, 1, 1 }, /* L < N            */
-      { 8, 8, 4, 3, 1 }, /* DI < D           */
-      { 8, 8, 4, 4, 3 }, /* F neither 1 nor 4 */
+      { 0, 8, 1, 1, 1 },               /* no bins          */
+      { 8, 7, 1, 1, 1 },               /* L < N            */
+      { 8, 8, 4, 3, 1 },               /* DI < D           */
+      { 8, 8, 4, 4, 3 },               /* F neither 1 nor 4 */
+      { 8, 8, 1, 1, DP__DD_MAP_FINE }, /* a fine grid at one slow row */
     };
     for (size_t k = 0; k < sizeof bad / sizeof *bad; k++)
       DP_CHECK (dp__dd_map_create (&bad[k], 1) == NULL);

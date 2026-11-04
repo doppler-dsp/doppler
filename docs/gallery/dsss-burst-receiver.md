@@ -1,4 +1,4 @@
-<!-- domain: dsss; summary: the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, byte-identical, then `BurstAcquisition -> refine -> BurstDemod` behind one `push()` and the frames checked against the description; the same answer at every block size, a burst split across two calls held rather than lost, and `refine_span` as the minimum burst spacing. -->
+<!-- domain: dsss; summary: the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, then `BurstAcquisition -> refine -> BurstDemod` behind one `push()`, the same answer at every block size -->
 
 # DsssBurstReceiver — the Composed Burst Chain
 

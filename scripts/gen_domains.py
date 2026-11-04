@@ -102,6 +102,8 @@ TITLE_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
 
 EXEMPT = "docs/.domain-guides-exempt"
 SELF = "scripts/gen_domains.py"
+# A summary is one index line, not a paragraph: today's longest is 275.
+SUMMARY_MAX = 300
 
 # Two generated runs of mkdocs.yml: the browse sections (Domains, Guides,
 # Gallery) and the Design group, which sits under Internals.
@@ -175,6 +177,31 @@ def pages(root: Path = ROOT) -> list[tuple[str, Path]]:
     return out
 
 
+def _marker_problems(rel: str, path: Path) -> list[str]:
+    """What is wrong with the first-line marker's SHAPE, apart from which
+    domain it names: it must be one line that ends at its own ``-->``, and
+    a summary must not carry a heading, a newline or a terminator, because
+    the index writes it into a list line (a ``##`` there swallowed the next
+    section's heading on nine pages) and may not run past SUMMARY_MAX."""
+    first = path.read_text(encoding="utf-8").split("\n", 1)[0]
+    if "domain:" not in first or not first.startswith("<!--"):
+        return []
+    if not first.rstrip().endswith("-->") or first.count("-->") != 1:
+        return [
+            f"{rel}: the domain marker must be ONE line ending at its "
+            "only `-->` (no newline or `-->` inside the summary)"
+        ]
+    summary = page_summary(path)
+    if "##" in summary:
+        return [f"{rel}: the summary holds `##`; it is one index line"]
+    if len(summary) > SUMMARY_MAX:
+        return [
+            f"{rel}: the summary is {len(summary)} characters; "
+            f"keep it to {SUMMARY_MAX}"
+        ]
+    return []
+
+
 def problems(root: Path = ROOT) -> list[str]:
     """Every domain finding, as one line each; empty when the tree is sound."""
     out: list[str] = []
@@ -212,6 +239,7 @@ def problems(root: Path = ROOT) -> list[str]:
             )
     for _fam, path in pages(root):
         rel = path.relative_to(root).as_posix()
+        out += _marker_problems(rel, path)
         dom = page_domain(path)
         if dom is None:
             out.append(

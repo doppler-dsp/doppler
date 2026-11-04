@@ -1,4 +1,4 @@
-<!-- domain: spectral; summary: a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis. ## Quantization & Fixed-Point -->
+<!-- domain: spectral; summary: a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis. -->
 
 # A Streaming Spectrogram
 

@@ -135,16 +135,25 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
   {
     R = 12
   };
-  /* Rate r's per-period de-chirp, exp(-j pi a_r t^2) with t in periods from
-     the frame's middle and a_r spread over +-0.01 cycles a period^2. */
+  /* Rate r's per-period de-chirp, exp(-j pi a_r t^2), t in periods from
+     the frame's middle. The cost depends on R alone, not on the rates: 12
+     is corr2d-hypotheses.md §5's geometry. The span, a_r over +-0.01
+     cycles a period^2, is chosen so that neighbouring rates differ by
+     about 6 rad at the frame's ends, so the row's check below can tell
+     them apart. */
+  enum
+  {
+    RATE_IN = 8 /* the rate xr carries, so the search has an answer */
+  };
   float _Complex *rates = malloc (R * ny * sizeof *rates);
+  float _Complex *xr    = malloc (n * sizeof *xr);
   for (size_t r = 0; r < R; r++)
     for (size_t i = 0; i < ny; i++)
       {
-        const double ar   = 0.01 * (2.0 * (double)r / (R - 1) - 1.0);
-        const double ti   = (double)i - 0.5 * (double)(ny - 1);
-        const double a    = -3.14159265358979323846 * ar * ti * ti;
-        rates[r * ny + i] = (float)cos (a) + (float)sin (a) * I;
+        const double ar = 0.01 * (2.0 * (double)r / (R - 1) - 1.0);
+        const double ti = (double)i - 0.5 * (double)(ny - 1);
+        rates[r * ny + i]
+            = cexpf (-I * (float)(3.14159265358979323846 * ar * ti * ti));
       }
   for (size_t j = 0; j < nx; j++)
     code[j] = (_xorshift32 (seed) & 1u) ? 1.0f : -1.0f;
@@ -165,6 +174,10 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
           copies[h * n + i * nx + p]
               = x[i * nx + p] * ((float)cos (a) + (float)sin (a) * I);
         }
+  /* x carrying rate RATE_IN: what the rated row searches */
+  for (size_t i = 0; i < ny; i++)
+    for (size_t p = 0; p < nx; p++)
+      xr[i * nx + p] = x[i * nx + p] * conjf (rates[RATE_IN * ny + i]);
   dp_corr2d_state_t *dd
       = dp_corr2d_create_delay_doppler (code, nx, ny, 1, 1, 0);
   /* a candidate threshold at half the coarse peak: one signal, one record */
@@ -193,13 +206,32 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
           else if (which == 2)
             dp_corr2d_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx, n);
           else if (which == 4)
-            dp_corr2d_bank_power_max (dd, x, n, 4, -4, 7, rates, R * ny, pw,
+            dp_corr2d_bank_power_max (dd, xr, n, 4, -4, 7, rates, R * ny, pw,
                                       idx, n);
           else
             recs = dp_corr2d_bank_detect (dd, x, n, 2, 4, -2, 3, t, t, NULL, 0,
                                           rp, rg, ra, rr, rc, n);
           bt[r]       = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
           best[which] = bt[r] < best[which] ? bt[r] : best[which];
+        }
+      if (which == 4)
+        {
+          /* The rows timed must have found the planted emitter: lag 77,
+             carrier g = +1 (a quarter bin, L = 4: h's carrier index
+             1 - (-4) = 5) and rate RATE_IN, so h = 5 R + RATE_IN. A map
+             that is fast because it is wrong aborts the bench. */
+          size_t k = 0;
+          for (size_t m = 1; m < n; m++)
+            k = pw[m] > pw[k] ? m : k;
+          if (k % nx != 77 || idx[k] != 5 * R + RATE_IN)
+            {
+              (void)fprintf (stderr,
+                             "bench_corr2d: the rated bank's peak is lag "
+                             "%zu, hypothesis %u, not lag 77, hypothesis "
+                             "%d\n",
+                             k % nx, (unsigned)idx[k], (int)(5 * R + RATE_IN));
+              exit (1);
+            }
         }
       jm_bench_add_unit (bench, name[which], bt, KREPS, n, JM_BENCH_SAMPLE);
       printf ("  %-36s %8.2f ms\n", name[which], best[which] * 1e3);
@@ -213,7 +245,7 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
           best[4] / best[1]);
   dp_corr2d_destroy (dd);
   free (code), free (x), free (copies), free (pw), free (idx), free (rp);
-  free (rg), free (ra), free (rr), free (rc), free (rates);
+  free (rg), free (ra), free (rr), free (rc), free (rates), free (xr);
 }
 
 int
@@ -308,8 +340,10 @@ main (void)
       { 32, 1024, 1, 0, "delay_doppler_32x1024_1t" },
       { 256, 4096, 1, 0, "delay_doppler_256x4096_1t" },
       { 256, 4096, 0, 0, "delay_doppler_256x4096_all" },
-      /* Doppler interpolated twofold: the one map (#2752 step 2.3) takes
-         slow time first and pays ny_out inverses where today pays ny. */
+      /* Doppler interpolated twofold, an arbitrary factor (any ny_out > ny
+         changes the count): the one map (#2752 step 2.3) takes slow time
+         first and pays ny_out inverses where today pays ny. Its input
+         carries a planted emitter, checked before timing. */
       { 32, 1024, 1, 64, "delay_doppler_32x1024_o64_1t" },
     };
     for (size_t c = 0; c < sizeof dd_cases / sizeof *dd_cases; c++)
@@ -325,9 +359,33 @@ main (void)
           code[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
         for (size_t k = 0; k < dn; k++)
           x[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+        /* The interpolated case: the code at lag 333, turning 10/64 of a
+           cycle a period, so its peak is Doppler bin 10 of the 64-row
+           grid, centered at row 10 + 32 = 42. */
+        if (dd_cases[c].ny_out)
+          for (size_t i = 0; i < dny; i++)
+            for (size_t p = 0; p < dnx; p++)
+              x[i * dnx + p] += 4.0f * code[(p + dnx - 333) % dnx]
+                                * cexpf (I
+                                         * (float)(2.0 * 3.14159265358979323846
+                                                   * 10.0 * (double)i / 64.0));
         dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
             code, dnx, dny, 1, dd_cases[c].nthreads, dd_cases[c].ny_out);
         dp_corr2d_execute (dd, x, dn, map, dno); /* warmup */
+        if (dd_cases[c].ny_out)
+          {
+            size_t k = 0;
+            for (size_t m = 1; m < dno; m++)
+              k = cabsf (map[m]) > cabsf (map[k]) ? m : k;
+            if (k / dnx != 42 || k % dnx != 333)
+              {
+                (void)fprintf (stderr,
+                               "bench_corr2d: %s peaks at row %zu, lag %zu, "
+                               "not row 42, lag 333\n",
+                               dd_cases[c].name, k / dnx, k % dnx);
+                return 1;
+              }
+          }
         double sum = 0.0;
         for (int r = 0; r < ITERATIONS; r++)
           {

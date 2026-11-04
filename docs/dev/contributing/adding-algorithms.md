@@ -460,20 +460,11 @@ predate the rule are listed in `docs/.user-docs-exempt`, which only shrinks.
 
 **An API entry a caller can work from.** The class has a `:::` directive or
 a heading on its module's API page, and its docstrings, written once in the
-header, answer what a caller has to know without reading the C:
-
-- the layout and axes of every array in and out — which axis is time,
-    Doppler or lag, and how frames sit end to end in a batch;
-- the shape each call returns, and its ordering;
-- **ownership** — whether a result is a fresh array, a view of `out=`, or a
-    buffer the next call overwrites;
-- what state a call reads or changes (a dwell, a phase, a counter), and what
-    it leaves alone;
-- what it refuses, in the face's own words: a Python docstring says what
-    raises, never `SIZE_MAX` or `out + h * n_out`.
-
-[Docstring Authoring](docstring-authoring.md) owns how; each `@code` block is
-a test, and is the first example a user copies.
+header, answer what a caller has to know without reading the C: the
+[caller checklist](docstring-authoring.md#caller-checklist) (array axes,
+shapes, ownership, the state a call touches, and its refusals in the face's
+own words). [Docstring Authoring](docstring-authoring.md) owns how; each
+`@code` block is a test, and is the first example a user copies.
 
 **A section in a guide, always.** A guide is where a user learns to *use* the
 class: what it is for, the one call that does the job, and the decisions a

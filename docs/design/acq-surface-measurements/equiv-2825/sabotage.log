@@ -1,0 +1,57 @@
+== ramp sign flipped (1 site(s)): RED; equivalence fails: ['carrier even+', 'carrier even-', 'carrier odd', "every tile's ramped row matches the exact signed-bin ramp"]; other checks failing: 0
+    map equivalence narrow rates   N= 62 L= 62 D=  7 I=2 W=1 tile=+0 R=3: c=0.118 (with sqrt(D): 0.045), peak -0.0000 dB
+    map equivalence tiles rates    N= 14 L= 14 D=  5 I=2 W=5 tile=+1 R=3: c=0.103 (with sqrt(D): 0.046), peak +0.0000 dB
+    map equivalence carrier even+  N=124 L=128 D= 16 I=2 W=5 tile=+1 R=1: c=1133751.668 (with sqrt(D): 283437.917), peak -10.5863 dB MOVED HIT-OFF
+    map equivalence carrier even-  N=124 L=128 D= 16 I=2 W=5 tile=-1 R=1: c=1137639.347 (with sqrt(D): 284409.837), peak -10.5800 dB MOVED HIT-OFF
+    map equivalence carrier odd    N= 31 L= 32 D= 16 I=2 W=7 tile=+2 R=1: c=1684550.930 (with sqrt(D): 421137.733), peak -9.5943 dB MOVED HIT-OFF
+    map equivalence: 13 scenes, worst c 0.050 (EQ_C 0.10), worst carrier peak 10.5863 dB (EQ_PEAK_DB 0.20)
+== no ramp (1 site(s)): RED; equivalence fails: ['carrier even+', 'carrier even-', 'carrier odd', "every tile's ramped row matches the exact signed-bin ramp"]; other checks failing: 0
+    map equivalence narrow rates   N= 62 L= 62 D=  7 I=2 W=1 tile=+0 R=3: c=0.118 (with sqrt(D): 0.045), peak -0.0000 dB
+    map equivalence tiles rates    N= 14 L= 14 D=  5 I=2 W=5 tile=+1 R=3: c=0.103 (with sqrt(D): 0.046), peak +0.0000 dB
+    map equivalence carrier even+  N=124 L=128 D= 16 I=2 W=5 tile=+1 R=1: c=676188.419 (with sqrt(D): 169047.105), peak -4.7429 dB
+    map equivalence carrier even-  N=124 L=128 D= 16 I=2 W=5 tile=-1 R=1: c=678033.531 (with sqrt(D): 169508.383), peak -4.7615 dB
+    map equivalence carrier odd    N= 31 L= 32 D= 16 I=2 W=7 tile=+2 R=1: c=1599007.193 (with sqrt(D): 399751.798), peak -14.3635 dB MOVED HIT-OFF
+    map equivalence: 13 scenes, worst c 0.050 (EQ_C 0.10), worst carrier peak 14.3635 dB (EQ_PEAK_DB 0.20)
+== ramp x1.5 (1 site(s)): RED; equivalence fails: ['carrier even+', 'carrier even-', 'carrier odd', "every tile's ramped row matches the exact signed-bin ramp"]; other checks failing: 0
+    map equivalence narrow rates   N= 62 L= 62 D=  7 I=2 W=1 tile=+0 R=3: c=0.118 (with sqrt(D): 0.045), peak -0.0000 dB
+    map equivalence tiles rates    N= 14 L= 14 D=  5 I=2 W=5 tile=+1 R=3: c=0.103 (with sqrt(D): 0.046), peak +0.0000 dB
+    map equivalence carrier even+  N=124 L=128 D= 16 I=2 W=5 tile=+1 R=1: c=315286.063 (with sqrt(D): 78821.516), peak -1.1585 dB
+    map equivalence carrier even-  N=124 L=128 D= 16 I=2 W=5 tile=-1 R=1: c=316585.757 (with sqrt(D): 79146.439), peak -1.1527 dB
+    map equivalence carrier odd    N= 31 L= 32 D= 16 I=2 W=7 tile=+2 R=1: c=1121874.940 (with sqrt(D): 280468.735), peak -8.2805 dB MOVED
+    map equivalence: 13 scenes, worst c 0.050 (EQ_C 0.10), worst carrier peak 8.2805 dB (EQ_PEAK_DB 0.20)
+== ramp tile |sq| (1 site(s)): RED; equivalence fails: ['carrier even-', "every tile's ramped row matches the exact signed-bin ramp"]; other checks failing: 0
+    map equivalence narrow rates   N= 62 L= 62 D=  7 I=2 W=1 tile=+0 R=3: c=0.118 (with sqrt(D): 0.045), peak -0.0000 dB
+    map equivalence tiles rates    N= 14 L= 14 D=  5 I=2 W=5 tile=+1 R=3: c=0.103 (with sqrt(D): 0.046), peak +0.0000 dB
+    map equivalence carrier even+  N=124 L=128 D= 16 I=2 W=5 tile=+1 R=1: c=358269.989 (with sqrt(D): 89567.497), peak -0.0000 dB
+    map equivalence carrier even-  N=124 L=128 D= 16 I=2 W=5 tile=-1 R=1: c=1137639.347 (with sqrt(D): 284409.837), peak -10.5800 dB MOVED HIT-OFF
+    map equivalence carrier odd    N= 31 L= 32 D= 16 I=2 W=7 tile=+2 R=1: c=607633.270 (with sqrt(D): 151908.317), peak -0.0000 dB
+    map equivalence: 13 scenes, worst c 0.050 (EQ_C 0.10), worst carrier peak 10.5800 dB (EQ_PEAK_DB 0.20)
+== ramp tile unsigned (1 site(s)): RED; equivalence fails: ['carrier even-', "every tile's ramped row matches the exact signed-bin ramp"]; other checks failing: 0
+    map equivalence narrow rates   N= 62 L= 62 D=  7 I=2 W=1 tile=+0 R=3: c=0.118 (with sqrt(D): 0.045), peak -0.0000 dB
+    map equivalence tiles rates    N= 14 L= 14 D=  5 I=2 W=5 tile=+1 R=3: c=0.103 (with sqrt(D): 0.046), peak +0.0000 dB
+    map equivalence carrier even+  N=124 L=128 D= 16 I=2 W=5 tile=+1 R=1: c=380666.107 (with sqrt(D): 95166.527), peak -0.0000 dB
+    map equivalence carrier even-  N=124 L=128 D= 16 I=2 W=5 tile=-1 R=1: c=1457792.767 (with sqrt(D): 364448.192), peak -13.3539 dB MOVED HIT-OFF
+    map equivalence carrier odd    N= 31 L= 32 D= 16 I=2 W=7 tile=+2 R=1: c=466797.164 (with sqrt(D): 116699.291), peak -0.0000 dB
+    map equivalence: 13 scenes, worst c 0.050 (EQ_C 0.10), worst carrier peak 13.3539 dB (EQ_PEAK_DB 0.20)
+== de-chirp conjugated (1 site(s)): RED; equivalence fails: ['narrow rates', 'tiles rates']; other checks failing: 4
+    map equivalence narrow rates   N= 62 L= 62 D=  7 I=2 W=1 tile=+0 R=3: c=562211.191 (with sqrt(D): 212495.856), peak +0.7695 dB
+    map equivalence tiles rates    N= 14 L= 14 D=  5 I=2 W=5 tile=+1 R=3: c=351591.697 (with sqrt(D): 157236.587), peak +0.2229 dB
+    map equivalence carrier even+  N=124 L=128 D= 16 I=2 W=5 tile=+1 R=1: c=0.199 (with sqrt(D): 0.050), peak -0.0000 dB
+    map equivalence carrier even-  N=124 L=128 D= 16 I=2 W=5 tile=-1 R=1: c=0.125 (with sqrt(D): 0.031), peak -0.0000 dB
+    map equivalence carrier odd    N= 31 L= 32 D= 16 I=2 W=7 tile=+2 R=1: c=0.226 (with sqrt(D): 0.057), peak -0.0000 dB
+    map equivalence: 13 scenes, worst c 212495.856 (EQ_C 0.10), worst carrier peak 0.0000 dB (EQ_PEAK_DB 0.20)
+== slow-time pad misplaced (2 site(s)): RED; equivalence fails: ['narrow D=150', 'narrow D=32', 'narrow D=4', 'narrow rates']; other checks failing: 0
+    map equivalence narrow rates   N= 62 L= 62 D=  7 I=2 W=1 tile=+0 R=3: c=2555802.017 (with sqrt(D): 966002.362), peak -0.0000 dB
+    map equivalence tiles rates    N= 14 L= 14 D=  5 I=2 W=5 tile=+1 R=3: c=0.103 (with sqrt(D): 0.046), peak +0.0000 dB
+    map equivalence carrier even+  N=124 L=128 D= 16 I=2 W=5 tile=+1 R=1: c=0.199 (with sqrt(D): 0.050), peak -0.0000 dB
+    map equivalence carrier even-  N=124 L=128 D= 16 I=2 W=5 tile=-1 R=1: c=0.125 (with sqrt(D): 0.031), peak -0.0000 dB
+    map equivalence carrier odd    N= 31 L= 32 D= 16 I=2 W=7 tile=+2 R=1: c=0.226 (with sqrt(D): 0.057), peak -0.0000 dB
+    map equivalence: 13 scenes, worst c 1053653.715 (EQ_C 0.10), worst carrier peak 0.0000 dB (EQ_PEAK_DB 0.20)
+== row map: slow row unsigned (1 site(s)): RED; equivalence fails: ["a negative row folds next to its tile's centre", 'carrier even-', 'tiles D=16', 'tiles D>1 side', 'tiles padded', 'tiles rates']; other checks failing: 7
+    map equivalence narrow rates   N= 62 L= 62 D=  7 I=2 W=1 tile=+0 R=3: c=0.118 (with sqrt(D): 0.045), peak -0.0000 dB
+    map equivalence tiles D>1 side N= 14 L= 14 D=  5 I=2 W=5 tile=-1 R=1: c=1994390.434 (with sqrt(D): 891918.517), peak +0.0000 dB MOVED
+    map equivalence tiles rates    N= 14 L= 14 D=  5 I=2 W=5 tile=+1 R=3: c=1751478.406 (with sqrt(D): 783284.955), peak +0.0000 dB MOVED
+    map equivalence carrier even+  N=124 L=128 D= 16 I=2 W=5 tile=+1 R=1: c=225197.766 (with sqrt(D): 56299.441), peak -0.0000 dB
+    map equivalence carrier even-  N=124 L=128 D= 16 I=2 W=5 tile=-1 R=1: c=1842979.139 (with sqrt(D): 460744.785), peak -0.0000 dB MOVED
+    map equivalence carrier odd    N= 31 L= 32 D= 16 I=2 W=7 tile=+2 R=1: c=415903.715 (with sqrt(D): 103975.929), peak -0.0000 dB
+    map equivalence: 13 scenes, worst c 891918.517 (EQ_C 0.10), worst carrier peak 0.0000 dB (EQ_PEAK_DB 0.20)

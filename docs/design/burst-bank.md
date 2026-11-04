@@ -1,4 +1,4 @@
-<!-- domain: acquire -->
+<!-- domain: acquire; summary: the coarse-Doppler bank as one C object: why its cross-channel claim rule belongs beside the capture's, the layout rule now that the engine searches to its edge, rings named by centre so a pod can hold one channel, and the unknowns the characterization measures -->
 
 # BurstBank — the coarse-Doppler bank as one C object
 

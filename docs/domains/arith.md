@@ -29,7 +29,7 @@ Python module `doppler.arith`. Area: [Numeric](index.md#numeric).
 
 ## Guide pages in this domain
 
-- [Getting Started with Fixed-Point Arithmetic](../guide/fixed-point.md)
+- [Getting Started with Fixed-Point Arithmetic](../guide/fixed-point.md) — Q15 / UQ15 types and quantization
 
 ## Used in other domains
 

@@ -1,4 +1,4 @@
-<!-- domain: wfm -->
+<!-- domain: wfm; summary: the disk third of that contract: spooling an endless stream to disk while reading it back, why Ctrl+C must reach the reader through the file rather than around it, and what owning both ends of the file buys -->
 
 # Ending a capture — spooling an endless stream to disk while reading it back
 

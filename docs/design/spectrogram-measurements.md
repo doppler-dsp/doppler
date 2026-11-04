@@ -1,4 +1,4 @@
-<!-- domain: spectral -->
+<!-- domain: spectral; summary: the dated record: PSD's kernel promoted byte-for-byte, a timing that turned out bimodal, and the prototype that found a bug in its own test -->
 
 # The Spectrogram — the measurement record
 

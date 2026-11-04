@@ -1,4 +1,4 @@
-<!-- domain: wfm -->
+<!-- domain: wfm; summary: the chunker prototyped before any C, and the three rules it changed -->
 
 # The Payload as a Data Source — the measurement record
 

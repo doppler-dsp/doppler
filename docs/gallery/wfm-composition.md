@@ -1,4 +1,4 @@
-<!-- domain: wfm -->
+<!-- domain: wfm; summary: sum, add, headroom; a SoI under a CW interferer over one noise floor. -->
 
 # Composing a Scene — `.sum()`, `.add()`, and Headroom
 

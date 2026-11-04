@@ -1,4 +1,4 @@
-<!-- domain: detection -->
+<!-- domain: detection; summary: 30,000-trial validation of the Marcum Q curves. -->
 
 # Monte Carlo vs Marcum Q Theory
 

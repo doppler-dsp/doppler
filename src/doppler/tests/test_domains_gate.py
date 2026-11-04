@@ -25,7 +25,7 @@ SCRIPT = REPO / "scripts" / "check_user_docs.py"
 EX = "src/doppler/examples"
 TOML = "docs/domains.toml"
 GUIDES = "docs/.domain-guides-exempt"
-FM = "<!-- domain: sig -->\n\n"
+FM = "<!-- domain: sig; summary: About widgets. -->\n\n"
 TABLE = (
     '[domain.sig]\ntitle = "Signal widgets (sig)"\narea = "sources"\n'
     'summary = "Widgets."\n'
@@ -307,3 +307,33 @@ def test_a_duplicated_marker_pair_is_refused() -> None:
     block = gd.nav_blocks(REPO)["design-nav"]
     with pytest.raises(SystemExit):
         gd.apply_nav(text + block, "design-nav", block)
+
+
+def test_a_page_without_a_summary_fails(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    _w(root, "docs/guide/bare.md", "<!-- domain: sig -->\n\n# Bare\n")
+    r = _run(root)
+    assert r.returncode == 1
+    assert "docs/guide/bare.md: no summary" in r.stderr
+
+
+def test_a_tool_page_owes_no_summary(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    for n in ("index", "a"):
+        _w(
+            root,
+            f"docs/guide/wfmgen/{n}.md",
+            "<!-- domain: sig -->\n\n# A\n",
+        )
+    r = _run(root)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_summary_reaches_the_index_and_the_domain_page() -> None:
+    gd = _gd()
+    out = gd.render(REPO)
+    line = "- [Delay-Doppler Search](delay-doppler.md) — " + gd.page_summary(
+        REPO / "docs/guide/delay-doppler.md"
+    )
+    assert line in gd.index_blocks(REPO)["docs/guide/index.md"]
+    assert "guide/delay-doppler.md) — " in out["docs/domains/spectral.md"]

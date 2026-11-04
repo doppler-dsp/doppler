@@ -1,4 +1,4 @@
-<!-- domain: track -->
+<!-- domain: track; summary: which `configure_lock` to call, and why, for every tracking loop -->
 
 # Lock Detection Across `doppler.track`
 

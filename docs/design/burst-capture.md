@@ -1,4 +1,4 @@
-<!-- domain: acquire -->
+<!-- domain: acquire; summary: acquisition's output turned into aligned burst samples: why the period-resolving refine and the look-back need a home outside the receiver, why the object owns its own engine rather than taking foreign detections, and the one behaviour that changes -->
 
 # `BurstCapture`: acquisition's output, turned into bursts
 

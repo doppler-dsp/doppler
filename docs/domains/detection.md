@@ -39,13 +39,13 @@ Python module `doppler.detection`. Area: [Estimation](index.md#estimation).
 
 ## Gallery pages in this domain
 
-- [Detection Theory Curves](../gallery/detection-curves.md)
-- [Monte Carlo vs Marcum Q Theory](../gallery/detection-sim.md)
+- [Detection Theory Curves](../gallery/detection-curves.md) — Pd vs SNR and dwell from closed-form Marcum Q.
+- [Monte Carlo vs Marcum Q Theory](../gallery/detection-sim.md) — 30,000-trial validation of the Marcum Q curves.
 
 ## Design pages in this domain
 
-- [Detection Sizing — the four laws behind one prefix](../design/detection.md)
-- [Lock Detection — the reasoning](../design/lock-detect.md)
+- [Detection Sizing — the four laws behind one prefix](../design/detection.md) — the four statistical laws behind one `det_` prefix: which one a statistic actually obeys, why non-coherent looks raise their own threshold, and the 41x an estimated noise reference costs
+- [Lock Detection — the reasoning](../design/lock-detect.md) — the sizing chain every lock detector shares, and the independence it assumes
 
 ## Used in other domains
 

@@ -1,4 +1,4 @@
-<!-- domain: cvt -->
+<!-- domain: cvt; summary: the three cvt formats overlaid at identical noise floor. ## Gain Control -->
 
 # cvt Quantization Noise
 

@@ -1,4 +1,4 @@
-<!-- domain: track -->
+<!-- domain: track; summary: timing-error-detector-driven resampling. -->
 
 # Symbol Timing Recovery
 

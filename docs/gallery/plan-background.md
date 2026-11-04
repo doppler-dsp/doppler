@@ -1,4 +1,4 @@
-<!-- domain: wfm -->
+<!-- domain: wfm; summary: `background=True` folds a static emitter population into a single pre-summed cache entry: 67x smaller, and the whole field becomes one overridable control. -->
 
 # One Cache Slot for a Whole Background Field
 

@@ -1,4 +1,4 @@
-<!-- domain: dsss -->
+<!-- domain: dsss; summary: `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator. -->
 
 # DsssReceiver — the Composed Continuous DSSS Receiver
 

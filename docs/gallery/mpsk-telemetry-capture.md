@@ -1,4 +1,4 @@
-<!-- domain: telemetry -->
+<!-- domain: telemetry; summary: every MpskReceiver probe captured and stored from one ring. -->
 
 # Capturing All Receiver Telemetry
 

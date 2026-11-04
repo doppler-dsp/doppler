@@ -1,4 +1,4 @@
-<!-- domain: measure -->
+<!-- domain: measure; summary: SNR / SINAD / THD / SFDR / ENOB from `ToneMeasure`. -->
 
 # Measurement Suite — ADC characterisation
 

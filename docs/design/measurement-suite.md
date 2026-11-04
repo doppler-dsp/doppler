@@ -1,4 +1,4 @@
-<!-- domain: measure -->
+<!-- domain: measure; summary: tone, NPR, and IMD metric internals -->
 
 # Measurement Suite — single-tone ADC / spectral metrics
 

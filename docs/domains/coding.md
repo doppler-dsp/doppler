@@ -18,14 +18,14 @@ Python module `doppler.coding`. Area: [Coding](index.md#coding).
 
 ## Gallery pages in this domain
 
-- [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md)
+- [Name Your Own Code — and What Happens Past the Radius](../gallery/coding.md) — a Reed-Solomon outer code and a convolutional inner code that are nobody's standard, run end to end; and what a bounded-distance decoder does past its radius, where a refusal is safe and a miscorrection is not
 
 ## Design pages in this domain
 
-- [Interleaving — spreading a burst across codewords](../design/interleaving.md)
-- [Reed-Solomon](../design/reed-solomon.md)
-- [The FEC Receive Half](../design/fec-receive.md)
-- [The Viterbi Decoder](../design/viterbi.md)
+- [Interleaving — spreading a burst across codewords](../design/interleaving.md) — the permutation, the three ways to reason about it wrongly, and the measured gain: E to E×depth, and the bound that still bites
+- [Reed-Solomon](../design/reed-solomon.md) — the outer code as a description: the two offsets a textbook omits (`j0 != 1`, and a root stride that is not 1), why Chien iterates positions rather than field elements, and what a refusal is not
+- [The FEC Receive Half](../design/fec-receive.md) — the Viterbi, the node sync it needs first, and the lock detector's two error probabilities: why the code's transparency means polarity cannot be resolved by the decoder
+- [The Viterbi Decoder](../design/viterbi.md) — the CCSDS inner code decoded: the trellis in the encoder's own terms, the branch metric it inherits, and why 5·K traceback is 17 % above the floor
 
 ## Used in other domains
 

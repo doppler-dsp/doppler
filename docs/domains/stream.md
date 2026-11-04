@@ -29,11 +29,11 @@ Python module `doppler.stream`. Area: [I/O](index.md#io).
 
 ## Guide pages in this domain
 
-- [Real-Time Pacing & Timestamping](../guide/timing.md)
+- [Real-Time Pacing & Timestamping](../guide/timing.md) — sample-accurate playback timing
 
 ## Design pages in this domain
 
-- [Streaming — one envelope, six roles, two planes](../design/streaming.md)
+- [Streaming — one envelope, six roles, two planes](../design/streaming.md) — the transport contract: the 64-byte `dp_header_t` envelope every role shares, how a frame too big for the broker is chunked and reassembled, the subjects and JetStream objects derived from an endpoint, and who owns which buffer
 
 ## Used in other domains
 

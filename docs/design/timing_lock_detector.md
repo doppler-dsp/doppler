@@ -1,4 +1,4 @@
-<!-- domain: track -->
+<!-- domain: track; summary: SymbolSync's Gardner/DTTL lock statistic and sizing formula -->
 
 # SymbolSync Timing Lock Detector
 

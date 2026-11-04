@@ -90,33 +90,28 @@ extern "C"
 
   typedef struct
   {
-    dp_corr2d_state_t *corr; 
-    dp_fft_state_t *slow_fft; 
     dp_f32_t    *ring;  
     dp_f32_framer_t framer; 
     size_t consumed;        
     float _Complex *ref; 
-    float _Complex *yframe;  
-    float _Complex *colbuf;  
-    float _Complex *colout;  
     float _Complex *out_buf; 
     float *mag_buf;       
     float *noise_scratch; 
     float *nc_surface;    
-    /* Wideband mode only (window_bins > 1) — see the file doc comment.
-     * Independent of corr/slow_fft/yframe/colbuf/colout above, which this
-     * mode does not run: a tiled engine's slow-time transform is the per-tile
-     * plans (tile_slow/tile_col). They are still ALLOCATED, at the sizes
-     * acq_regrid() gives them -- slow_fft and colbuf at coherent_bins *
-     * interp, a one-row correlator -- so with a depth inside the tiles they
-     * are not the trivial coherent_bins = 1 size. */
-    dp_fft_state_t *wide_fwd; 
-    dp_fft_state_t *wide_inv; 
-    float _Complex
-        *wide_ref_spec; 
-    float _Complex
-        *wide_spec; 
-    float _Complex *wide_prod; 
+    /* The one delay-Doppler map (docs/design/acq-surface.md §18; internal,
+     * native/src/corr2d/corr2d_map.h), built by acq_regrid() with the grid
+     * and run once a dwell's block is whole, on every path: one tile
+     * (narrow) or window_bins (wideband). */
+    struct dp__dd_map *map; 
+    float _Complex *ref_spec; 
+    float _Complex *map_spec; 
+    float _Complex *map_work; 
+    struct dp__dd_tile *map_tiles; 
+    size_t  *map_rows; 
+    int32_t *map_off;  
+    float _Complex *map_wt; 
+    size_t map_f;      
+    float _Complex *prompt_scratch; 
     size_t
         coherent_bins; 
     size_t window_bins; 
@@ -159,17 +154,14 @@ extern "C"
     size_t rate_best_cap;      
     size_t rate_best_h;  
     double carrier_freq_hz; 
-    float _Complex *blk; 
     float _Complex *blk_raw; 
     size_t blk_epoch;    
     /* The roll per thread (docs/design/acq-surface.md §13): the tiles are
        independent after the one forward transform, so the per-epoch tile
-       loop and the block-end column loop run through a persistent pool.
-       The scratch is
-       PER TILE, not per thread -- a pocketfft plan carries its own work
-       buffers, and a tile lands on whichever worker takes it -- so the
-       serial and the fanned paths run the same code on the same buffers
-       and the surface is bit-identical either way. */
+       map's stages run through a persistent pool, one fan a stage. The
+       map's scratch is per worker slot -- a pocketfft plan carries its own
+       work buffers -- and every output row is one slot's same arithmetic,
+       so the surface is bit-identical at any thread count. */
     dp_pool_t       *pool;      
     int              threads;   
     int threads_req; 
@@ -184,11 +176,6 @@ extern "C"
     double sl_ctile[ACQ_SIDELOBE_SLOTS]; 
     size_t sl_cn;    
     size_t sl_cnext; 
-    dp_fft_state_t    **tile_inv;  
-    float _Complex **tile_prod; 
-    dp_fft_state_t    **tile_slow; 
-    float _Complex **tile_col;  
-    size_t **tile_rows;         
     acq_part_t *parts;          
     float  threshold; 
     float  eta;       
@@ -256,14 +243,14 @@ extern "C"
     uint32_t blk_epoch; 
     uint32_t rate_hyps; 
     uint32_t _pad2;     
+    double carrier_freq_hz; 
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-#define ACQ_STATE_VERSION 7u
+#define ACQ_STATE_VERSION 8u
 
 #define ACQ_MAX_PEAKS 64u
 
-#define ACQ_COL_CHUNK 32u
 
 #define ACQ_RATE_HYPS_MAX 64u
 

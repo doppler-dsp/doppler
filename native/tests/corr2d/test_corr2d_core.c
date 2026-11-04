@@ -1687,18 +1687,29 @@ _test_block_map (void)
 
   /* The rule at its crossover. At N = L = 64, D = DI = 16, F = 1, one rate:
      slow first costs N 16 log 16 + W 16 64 log 64 = 4096 + 6144 W, rows
-     first W 16 64 log 64 + W 64 16 log 16 = 10240 W, so they cross at
-     W = 1: a tie, which goes to rows first; W = 2 is slow first. A rate
-     more makes slow first pay its rows again and rows first only its
-     columns, so 12 rates at W = 2 are rows first. One slow row is rows
-     first. */
+     first W 16 64 log 64 + W 64 16 log 16 = 10240 W, so they tie at W = 1,
+     and a tie goes to slow first; W = 2 is slow first too. A fused caller
+     drops rows first's W 16 64 log 64 inverses, 4096 W, so it is rows first
+     at W = 1. A rate more makes slow first pay its rows again and rows
+     first only its columns, so 12 rates at W = 2 are rows first. One slow
+     row is rows first. Sabotage: the tie to rows first, the band dropped,
+     or fused ignored -> red. */
   {
     const dp__dd_geom_t x = { 64, 64, 16, 16, 1 };
-    DP_CHECK (dp__dd_schedule (&x, 1, 1) == DP__DD_ROWS_FIRST);
-    DP_CHECK (dp__dd_schedule (&x, 2, 1) == DP__DD_SLOW_FIRST);
-    DP_CHECK (dp__dd_schedule (&x, 2, 12) == DP__DD_ROWS_FIRST);
+    DP_CHECK (dp__dd_schedule (&x, 1, 1, 0) == DP__DD_SLOW_FIRST);
+    DP_CHECK (dp__dd_schedule (&x, 1, 1, 1) == DP__DD_ROWS_FIRST);
+    DP_CHECK (dp__dd_schedule (&x, 2, 1, 0) == DP__DD_SLOW_FIRST);
+    DP_CHECK (dp__dd_schedule (&x, 2, 12, 0) == DP__DD_ROWS_FIRST);
     const dp__dd_geom_t one = { 64, 64, 1, 1, 1 };
-    DP_CHECK (dp__dd_schedule (&one, 50, 1) == DP__DD_ROWS_FIRST);
+    DP_CHECK (dp__dd_schedule (&one, 50, 1, 0) == DP__DD_ROWS_FIRST);
+    /* Inside the count's resolution: acq's 3-tile block at D = 150
+       (N 2046, L 2048, DI 300) counts rows first 0.08% fewer, a tie, so
+       slow first; with the fine grid (a carrier) slow first counts 44%
+       more, so rows first. Sabotage: drop the band -> red. */
+    const dp__dd_geom_t a3  = { 2046, 2048, 150, 300, 1 };
+    const dp__dd_geom_t a3f = { 2046, 2048, 150, 300, DP__DD_MAP_FINE };
+    DP_CHECK (dp__dd_schedule (&a3, 3, 1, 0) == DP__DD_SLOW_FIRST);
+    DP_CHECK (dp__dd_schedule (&a3f, 3, 1, 0) == DP__DD_ROWS_FIRST);
   }
 
   /* create refuses what it cannot build, without aborting. */

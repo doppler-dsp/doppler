@@ -12,12 +12,13 @@
  * Only the constructor reaches a widening regrid today, and a failed
  * constructor destroys the engine, so no public call can show this. This
  * test therefore compiles acq_core.c into itself to call the static
- * acq_regrid on a LIVE engine, and renames the plans acq_core.c itself
- * builds (a macro over dp_fft_create, so only that file's calls change, and
- * the correlator's own plans, which abort on failure, stay real) to fail the
- * Nth one. It sweeps N over EVERY plan the regrid builds, the last ones being
- * the per-tile plans, and after each failure requires the engine to match a
- * fresh one -- fields, buffers, and what an execute returns.
+ * acq_regrid on a LIVE engine, together with corr2d_core.c, whose one
+ * delay-Doppler map acq's regrid builds (#2752), and renames the plans
+ * those two files build (a macro over dp_fft_create, for this file only) to
+ * fail the Nth one. It sweeps N over EVERY plan the regrid builds -- the
+ * template's transform and the map's slot plans -- and after each failure
+ * requires the engine to match a fresh one: fields, buffers, and what an
+ * execute returns.
  *
  * The same reach serves a second contract: a regrid re-applies the caller's
  * thread request at the new tile count, so narrowing to one tile and
@@ -33,6 +34,7 @@ extern int g_calls;   /* plans acq_core.c has built since the last arm */
 extern int g_fail_at; /* the call that fails; 0 = none */
 
 #include "../../src/acq/acq_core.c"
+#include "../../src/corr2d/corr2d_core.c"
 
 #include "dp_preamble_test.h"
 #include "dp_test.h"
@@ -69,7 +71,8 @@ typedef struct
 {
   size_t n, interp, n_surf, n_noncoh, coherent_bins, window_bins, ring_cap,
       frame_n, sl_cn, sl_cnext;
-  void *corr, *ref, *parts, *ring, *nc_surface, *tile_inv, *tile_slow;
+  void *map, *ref, *parts, *ring, *nc_surface, *ref_spec, *map_work,
+      *map_tiles;
 } snap_t;
 
 static snap_t
@@ -78,9 +81,9 @@ snap (const dp_acq_state_t *s)
   snap_t t = { s->n,        s->interp,        s->n_surf,
                s->n_noncoh, s->coherent_bins, s->window_bins,
                s->ring_cap, s->frame_n,       s->sl_cn,
-               s->sl_cnext, s->corr,          s->ref,
+               s->sl_cnext, s->map,           s->ref,
                s->parts,    s->ring,          s->nc_surface,
-               s->tile_inv, s->tile_slow };
+               s->ref_spec, s->map_work,      s->map_tiles };
   return t;
 }
 
@@ -106,14 +109,20 @@ threads_follow_the_request (void)
       DP_REQUIRE_MSG (a && a->window_bins == 1, "a one-tile engine");
       DP_CHECK (dp_acq_set_threads (a, n) == DP_OK);
       DP_CHECK (a->threads == 1); /* one tile: serial, whatever asked */
-      DP_REQUIRE_MSG (acq_regrid (a, NEW_D, NEW_NC, NEW_WINDOW, NULL) == 0,
-                      "widen");
+      DP_REQUIRE_MSG (
+          acq_regrid (a, NEW_D, NEW_NC, NEW_WINDOW, NULL, a->carrier_freq_hz)
+              == 0,
+          "widen");
       DP_CHECK (a->threads == w);
-      DP_REQUIRE_MSG (acq_regrid (a, NEW_D, NEW_NC, 1, NULL) == 0, "narrow");
+      DP_REQUIRE_MSG (
+          acq_regrid (a, NEW_D, NEW_NC, 1, NULL, a->carrier_freq_hz) == 0,
+          "narrow");
       DP_CHECK (a->threads == 1);
       DP_CHECK_MSG (a->pool == NULL, "one tile runs without a pool");
-      DP_REQUIRE_MSG (acq_regrid (a, NEW_D, NEW_NC, NEW_WINDOW, NULL) == 0,
-                      "widen again");
+      DP_REQUIRE_MSG (
+          acq_regrid (a, NEW_D, NEW_NC, NEW_WINDOW, NULL, a->carrier_freq_hz)
+              == 0,
+          "widen again");
       DP_CHECK (a->threads == w);
       DP_CHECK_MSG ((a->pool != NULL) == (w > 1),
                     "a pool exactly when fanned");
@@ -134,12 +143,15 @@ main (void)
   DP_REQUIRE_MSG (probe, "engine");
   g_calls   = 0;
   g_fail_at = 0;
-  DP_REQUIRE_MSG (acq_regrid (probe, NEW_D, NEW_NC, NEW_WINDOW, NULL) == 0,
+  DP_REQUIRE_MSG (acq_regrid (probe, NEW_D, NEW_NC, NEW_WINDOW, NULL, 0.0)
+                      == 0,
                   "the widening regrid succeeds unarmed");
   const int total = g_calls;
-  DP_REQUIRE_MSG (probe->window_bins == NEW_WINDOW && probe->tile_inv,
-                  "it built the per-tile plans");
-  DP_REQUIRE_MSG (total > 2 * NEW_WINDOW, "and counted every plan it built");
+  DP_REQUIRE_MSG (probe->window_bins == NEW_WINDOW && probe->map,
+                  "it built the map");
+  /* The template's transform, then the map's one slot: forward, inverse,
+     and the two slow-time plans (slow first's, rows first's) at D > 1. */
+  DP_REQUIRE_MSG (total >= 5, "and counted every plan it built");
   dp_acq_destroy (probe);
 
   dp_acq_state_t *fresh = make_engine ();
@@ -155,8 +167,8 @@ main (void)
       const snap_t before = snap (live);
       g_calls             = 0;
       g_fail_at           = k;
-      const int rc        = acq_regrid (live, NEW_D, NEW_NC, NEW_WINDOW, NULL);
-      g_fail_at           = 0;
+      const int rc = acq_regrid (live, NEW_D, NEW_NC, NEW_WINDOW, NULL, 0.0);
+      g_fail_at    = 0;
       DP_CHECK_MSG (rc == -1, "the Nth plan failing fails the regrid");
       const snap_t after = snap (live);
       DP_CHECK_MSG (memcmp (&before, &after, sizeof before) == 0,

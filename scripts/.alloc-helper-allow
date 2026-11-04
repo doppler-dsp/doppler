@@ -32,7 +32,7 @@ native/src/acc_f32/acc_f32_core.c 1
 native/src/acc_q15/acc_q15_core.c 1
 native/src/acc_q8/acc_q8_core.c 1
 native/src/acc_trace/acc_trace_core.c 2
-native/src/acq/acq_core.c 12
+native/src/acq/acq_core.c 15  # grid-sized: a regrid builds the delay-Doppler map and its buffers before it commits, so a failure leaves the engine as it was (#2761, #2831); block_prompt's scratch is made on first use and its failure is a refusal
 native/src/adc/adc_core.c 1
 native/src/agc/agc_core.c 1
 native/src/app/wfmgen.c 2  # caller-sized: --frame/--from-file and --symbols-file size theirs from ftell on a user-named path and already return NULL (#1041)

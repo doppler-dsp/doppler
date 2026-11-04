@@ -426,38 +426,47 @@ extern "C"
    */
   typedef struct
   {
-    dp_corr2d_state_t *corr; /**< Single-row-ref correlator (dwell=1).          */
-    dp_fft_state_t *slow_fft; /**< Length-coherent_bins forward FFT (slow time). */
     dp_f32_t    *ring;  /**< The carry's storage: bound to @c framer,
                              freed by destroy.                          */
     dp_f32_framer_t framer; /**< Any chunk in, frame_n-sample frames out.  */
     size_t consumed;        /**< Input samples the last push took.         */
     float _Complex *ref; /**< Single-row reference (n), owned.              */
-    float _Complex *yframe;  /**< Slow-time-FFT'd frame (n) fed to corr.  */
-    float _Complex *colbuf;  /**< Gathered column scratch (coherent_bins). */
-    float _Complex *colout;  /**< FFT'd column scratch (coherent_bins).   */
-    float _Complex *out_buf; /**< corr2d dump output (n) — also the wideband
-                                 mode's (window_bins, code_bins) grid.       */
+    float _Complex *out_buf; /**< The decided coherent surface (n_surf):
+                                 the one delay-Doppler map's output,
+                                 rows of lag_bins, scaled 1/code_bins on
+                                 every path (docs/design/acq-surface.md
+                                 §18.1).                                 */
     float *mag_buf;       /**< |out_buf| (n).                                */
     float *noise_scratch; /**< Scratch for the median sort (n).              */
     float *nc_surface;    /**< Non-coherent |·|² accumulator (n); NULL
                                unless n_noncoh > 1.                          */
 
-    /* Wideband mode only (window_bins > 1) — see the file doc comment.
-     * Independent of corr/slow_fft/yframe/colbuf/colout above, which this
-     * mode does not run: a tiled engine's slow-time transform is the per-tile
-     * plans (tile_slow/tile_col). They are still ALLOCATED, at the sizes
-     * acq_regrid() gives them -- slow_fft and colbuf at coherent_bins *
-     * interp, a one-row correlator -- so with a depth inside the tiles they
-     * are not the trivial coherent_bins = 1 size. */
-    dp_fft_state_t *wide_fwd; /**< Forward FFT, length code_bins.               */
-    dp_fft_state_t *wide_inv; /**< Inverse FFT, length code_bins.               */
-    float _Complex
-        *wide_ref_spec; /**< conj(FFT(replica row)), length code_bins.     */
-    float _Complex
-        *wide_spec; /**< FFT(raw epoch), length code_bins; once/epoch.    */
-    float _Complex *wide_prod; /**< Rolled-spectrum * wide_ref_spec product,
-                                    length code_bins; reused per hypothesis. */
+    /* The one delay-Doppler map (docs/design/acq-surface.md §18; internal,
+     * native/src/corr2d/corr2d_map.h), built by acq_regrid() with the grid
+     * and run once a dwell's block is whole, on every path: one tile
+     * (narrow) or window_bins (wideband). */
+    struct dp__dd_map *map; /**< The map: its plans, a slot per worker.   */
+    float _Complex *ref_spec; /**< conj(FFT(replica)), code_bins: the
+                                   template every tile's weights carry.  */
+    float _Complex *map_spec; /**< The block's epoch spectra,
+                                   coherent_bins x code_bins.           */
+    float _Complex *map_work; /**< The map's scratch for its schedule
+                                   (dp__dd_map_work_len).               */
+    struct dp__dd_tile *map_tiles; /**< window_bins tiles: roll, ramp
+                                        offsets, weights, rows.        */
+    size_t  *map_rows; /**< window_bins x D*interp: each slow row's
+                            surface row (acq_block_row).                */
+    int32_t *map_off;  /**< window_bins x code_bins rounded-ramp offsets;
+                            NULL when no tile ramps (map_f == 1).       */
+    float _Complex *map_wt; /**< The tiles' weights: window_bins x
+                                 code_bins with a ramp, else one shared
+                                 code_bins (ref_spec / code_bins).      */
+    size_t map_f;      /**< The ramp's fine grid: 4 when a carrier is
+                            set, the engine is tiled and D > 1; else 1. */
+    float _Complex *prompt_scratch; /**< dp_acq_block_prompt()'s: an
+                                         epoch's spectrum, its weights
+                                         and a row (2 code_bins +
+                                         lag_bins); made on first use. */
 
     size_t
         coherent_bins; /**< Coherent depth = slow-time FFT length (<= reps
@@ -563,23 +572,19 @@ extern "C"
                                  coupled to, Hz (dp_acq_set_carrier_freq_hz());
                                  0 = uncoupled: no code-rate hypothesis per
                                  tile, no dwell advance in the hand-off. */
-    float _Complex *blk; /**< window_bins * coherent_bins * lag_bins: the
-                              block's per-tile epoch correlations; NULL
-                              unless both exceed 1.                     */
     float _Complex *blk_raw; /**< coherent_bins * code_bins: the block's raw
-                                  epochs as pushed, for the tile-edge test
-                                  of acq_resolve_tile_alias(); NULL unless
-                                  blk is.                                */
+                                  epochs as pushed, which the map reads at
+                                  the block's end (and the tile-edge test
+                                  of acq_resolve_tile_alias()); NULL unless
+                                  the engine is tiled with D > 1.       */
     size_t blk_epoch;    /**< Epochs gathered in the current block
                               (0 … coherent_bins-1).                    */
     /* The roll per thread (docs/design/acq-surface.md §13): the tiles are
        independent after the one forward transform, so the per-epoch tile
-       loop and the block-end column loop run through a persistent pool.
-       The scratch is
-       PER TILE, not per thread -- a pocketfft plan carries its own work
-       buffers, and a tile lands on whichever worker takes it -- so the
-       serial and the fanned paths run the same code on the same buffers
-       and the surface is bit-identical either way. */
+       map's stages run through a persistent pool, one fan a stage. The
+       map's scratch is per worker slot -- a pocketfft plan carries its own
+       work buffers -- and every output row is one slot's same arithmetic,
+       so the surface is bit-identical at any thread count. */
     dp_pool_t       *pool;      /**< NULL or one thread = serial          */
     int              threads;   /**< workers the pool runs on, the caller
                                      included; 1 without a pool          */
@@ -618,21 +623,6 @@ extern "C"
     double sl_ctile[ACQ_SIDELOBE_SLOTS]; /**< and the tile centre, Hz    */
     size_t sl_cn;    /**< slots filled                                  */
     size_t sl_cnext; /**< the slot a full cache overwrites next        */
-    dp_fft_state_t    **tile_inv;  /**< window_bins inverse plans (lag_bins) */
-    float _Complex **tile_prod; /**< window_bins product buffers: code_bins
-                                     bins, then lag_bins padded ones when
-                                     the lag axis is padded            */
-    dp_fft_state_t    **tile_slow; /**< window_bins slow-time plans (D*interp),
-                                     NULL at D == 1                      */
-    float _Complex **tile_col;  /**< window_bins column scratch: a chunk of
-                                     ACQ_COL_CHUNK columns of D*interp
-                                     (zero tails) in, then out; NULL at
-                                     D == 1                              */
-    size_t **tile_rows;         /**< window_bins tables of D*interp: the
-                                     surface row of each slow-time row of
-                                     the tile (acq_block_row), once per
-                                     grid rather than per cell; NULL at
-                                     D == 1                              */
     acq_part_t *parts;          /**< window_bins partial slots of the
                                      decided surface's per-tile passes  */
 
@@ -771,6 +761,12 @@ extern "C"
                              engine's -- it sizes the search and changes
                              what a surface means.                       */
     uint32_t _pad2;     /**< Alignment padding; written as 0.          */
+    double carrier_freq_hz; /**< v8: the carrier (a mutator's value,
+                                 #2022): the block's raw epochs are
+                                 ramped at its end by the map, so a
+                                 restore takes the carrier through
+                                 dp_acq_set_carrier_freq_hz()'s
+                                 rebuild.                            */
   } acq_extra_t;
 
 /** FourCC type tag ("ACQR") stamped in an acquisition state blob. */
@@ -781,20 +777,17 @@ extern "C"
    v6: acq_extra_t carries the rate-hypothesis count.
    v7: a held twin's column is a lag column (lag_bins), not a sample: on
    the padded lag grid the same bytes mean another code phase, and at
-   D = 1 the blob's size does not change, so only the version tells. */
-#define ACQ_STATE_VERSION 7u
+   D = 1 the blob's size does not change, so only the version tells.
+   v8: the tiles' post-inverse block (blk) leaves the blob -- the one
+   delay-Doppler map runs from the raw epochs at the block's end -- and
+   acq_extra_t carries the carrier. */
+#define ACQ_STATE_VERSION 8u
 
 /** The largest `max_peaks` dp_acq_set_max_peaks() accepts: the bindings'
  *  push result arrays (1024) are at least this many, so one dwell can
  *  always be reported whole. */
 #define ACQ_MAX_PEAKS 64u
 
-/** Columns the block-end transform gathers per pass
- *  (docs/design/acq-surface.md §4, #1243):
- *  a cache line holds 8 cf32 cells, so a chunk of 32 columns reads four
- *  lines per slow-time row of the block and writes four per surface row,
- *  where a column at a time read and wrote one line per CELL. */
-#define ACQ_COL_CHUNK 32u
 
 /** Most Doppler-rate hypotheses an engine searches. Each one costs a full
  *  slow-time pass per dwell, so this bounds the cost of a typo, not a
@@ -1304,9 +1297,13 @@ extern "C"
    * - **Inside a coherent block** of D epochs every tile's epoch
    *   correlations are shifted along the code axis by the drift the
    *   tile's own frequency implies, `f_tile / carrier` chips per chip,
-   *   aligned to the block's middle, before the slow-time transform
-   *   (a linear phase on each epoch's product, exact to a fraction of a
-   *   sample). Measured at the specification's 20 ppm with D = 154 (3.1 chips of
+   *   aligned to the block's middle (a linear phase on each epoch's
+   *   product). The one delay-Doppler map applies it at the block's end,
+   *   read on a slow-time grid 4 times finer and rounded, a loss of at most
+   *   0.09 dB measured (docs/design/acq-surface.md §18.1);
+   *   dp_acq_block_prompt() applies it exactly. A change of carrier
+   *   mid-block applies to the whole block. Measured at the specification's
+   *   20 ppm with D = 154 (3.1 chips of
    *   drift across the block): without it the block's peak is 13 dB
    *   down and 3 chips wide and the depth detects nothing at 34 dB-Hz;
    *   with it the block reads as a still one.
@@ -1315,14 +1312,19 @@ extern "C"
    *   peak is the phase at the dwell's middle, the seed is wanted at its
    *   end: 0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
    *
-   * Config, not running state: it is not in the state blob, so a resumed
-   * engine wants it set again by its holder, as at create. Default 0.0
-   * (uncoupled) is the engine exactly as it ran without it.
+   * A mutator's value (#2022): it rides in the state blob (v8), and a
+   * restore takes it through this setter's rebuild, so a resumed engine
+   * carries it on. Setting it rebuilds the map's fine grid and every
+   * tile's ramp tables when they move (the regrid that re-applies the
+   * thread request). Default 0.0 (uncoupled) is the engine exactly as it
+   * ran without it.
    *
    * @param state           Must be non-NULL.
    * @param carrier_freq_hz RF carrier, Hz; 0.0 = uncoupled.
-   * @return `DP_OK`, or `DP_ERR_INVALID` for a carrier outside
-   *         dp_acq_carrier_freq_ok() at this engine's sample rate.
+   * @return `DP_OK`, `DP_ERR_INVALID` for a carrier outside
+   *         dp_acq_carrier_freq_ok() at this engine's sample rate, or
+   *         `DP_ERR_MEMORY` when the rebuild cannot allocate (the engine
+   *         is left as it was).
    * @code
    * >>> import numpy as np
    * >>> from doppler.acquire import Acquisition

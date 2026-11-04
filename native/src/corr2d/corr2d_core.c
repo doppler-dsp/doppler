@@ -762,7 +762,8 @@ dp_corr2d_create_delay_doppler (const float _Complex *code, size_t code_len,
      Rows first (fused) inverts into work_fft and needs no scratch of the
      map's own; only the run (slow first, or one slow row) does. */
   state->dd_fused
-      = nyo > 1 && dp__dd_map_pick (state->dd_map, 1, 1) == DP__DD_ROWS_FIRST;
+      = nyo > 1
+        && dp__dd_map_pick (state->dd_map, 1, 1, 1) == DP__DD_ROWS_FIRST;
   if (!state->dd_fused)
     state->dd_fine
         = dp_xmalloc (corr2d_dd_work (state) * sizeof (float _Complex));
@@ -1486,7 +1487,7 @@ corr2d_bank_run (const dp_corr2d_state_t *s, const float _Complex *x,
      one slow row is the run's own case. */
   const int slow_first
       = s->delay_doppler && s->ny_out > 1
-        && dp__dd_map_pick (s->dd_map, (b->C + b->L - 1) / b->L, b->R)
+        && dp__dd_map_pick (s->dd_map, (b->C + b->L - 1) / b->L, b->R, 0)
                == DP__DD_SLOW_FIRST;
   corr2d_bank_mem_t m;
   if (!corr2d_bank_alloc (s, b, slow_first, &m))
@@ -2371,6 +2372,29 @@ dp__dd_map_columns (dp__dd_map_t *m, dp_pool_t *pool, int slot,
   dd_run (&c, pool, dd_columns_body);
 }
 
+/* One slow row: each tile's one epoch through the epoch stage, inverted
+   straight onto the tile's one row -- there is no slow time, so the
+   epoch's inverse is the row. Fanned over tiles. */
+static void
+dd_rows1_body (size_t t, void *ctx)
+{
+  const dd_run_t *c = (const dd_run_t *)ctx;
+  size_t          a, b;
+  dd_slot_t      *s;
+  dd_range (c, t, &a, &b, &s);
+  for (size_t q = a; q < b; q++)
+    dd_epoch (c->m, s, c->in, 0, &c->tiles[q],
+              c->out + c->tiles[q].rows[0] * c->m->g.l);
+}
+
+/* The schedule rule's resolution: two counts within 1/16 of each other are
+   a tie. A transform counted as n log2 n is that close to its cost at
+   best -- radix, padding and memory traffic all move it -- so a smaller
+   difference is not one the count can see (acq's 3-tile D = 150 block
+   counts 0.08% apart, record §18.6). Not fitted to a machine: it states
+   what the count can resolve. */
+#define DD_COUNT_RESOLUTION (1.0 / 16.0)
+
 /* n log2 n, the cost of one length-n transform; 0 for n <= 1. */
 static double
 dd_tcost (size_t n)
@@ -2379,21 +2403,28 @@ dd_tcost (size_t n)
 }
 
 int
-dp__dd_schedule (const dp__dd_geom_t *g, size_t n_tiles, size_t n_rates)
+dp__dd_schedule (const dp__dd_geom_t *g, size_t n_tiles, size_t n_rates,
+                 int fused)
 {
   const double W = (double)n_tiles, R = (double)n_rates;
   const double D = (double)g->d, DI = (double)g->di;
   /* Slow first: N slow transforms of F DI and W DI inverses, per rate.
      Rows first: W D inverses once, then W L slow transforms of DI per
-     rate. A tie goes to rows first: it reads its rows in place, where slow
-     first gathers every row out of bin-major S (#2831: at DelayDoppler's
-     equal count, 1.1 of a 2.15 ms row stage). */
+     rate -- the inverses left out for a fused caller, which runs them
+     inside a frame stage it runs anyway, on rows still in cache. Rows first
+     only when it counts fewer by more than DD_COUNT_RESOLUTION: within it
+     the count cannot tell the two apart (n log2 n ignores radix and memory
+     traffic), and such a tie goes to slow first, which on acq's working
+     sets (blocks of megabytes) measured faster at every near-equal count
+     (record §18.6). */
   const double slow
       = R
         * ((double)g->n * dd_tcost (g->f * g->di) + W * DI * dd_tcost (g->l));
-  const double rows
-      = W * D * dd_tcost (g->l) + R * W * (double)g->l * dd_tcost (g->di);
-  return g->di <= 1 || rows <= slow ? DP__DD_ROWS_FIRST : DP__DD_SLOW_FIRST;
+  const double rows = (fused ? 0.0 : W * D * dd_tcost (g->l))
+                      + R * W * (double)g->l * dd_tcost (g->di);
+  return g->di <= 1 || rows < slow * (1.0 - DD_COUNT_RESOLUTION)
+             ? DP__DD_ROWS_FIRST
+             : DP__DD_SLOW_FIRST;
 }
 
 void
@@ -2403,15 +2434,17 @@ dp__dd_map_force (dp__dd_map_t *m, int schedule)
 }
 
 int
-dp__dd_map_pick (const dp__dd_map_t *m, size_t n_tiles, size_t n_rates)
+dp__dd_map_pick (const dp__dd_map_t *m, size_t n_tiles, size_t n_rates,
+                 int fused)
 {
-  return m->force >= 0 ? m->force : dp__dd_schedule (&m->g, n_tiles, n_rates);
+  return m->force >= 0 ? m->force
+                       : dp__dd_schedule (&m->g, n_tiles, n_rates, fused);
 }
 
 size_t
 dp__dd_map_work_len (const dp__dd_map_t *m, size_t n_tiles, size_t n_rates)
 {
-  if (dp__dd_map_pick (m, n_tiles, n_rates) == DP__DD_ROWS_FIRST)
+  if (dp__dd_map_pick (m, n_tiles, n_rates, 0) == DP__DD_ROWS_FIRST)
     return m->g.di > 1 ? n_tiles * m->g.d * m->g.l : 0;
   return m->fdi > 1 ? m->fdi * m->g.n : 0;
 }
@@ -2424,14 +2457,21 @@ dp__dd_map_run (dp__dd_map_t *m, dp_pool_t *pool, int slot,
                 void *ctx)
 {
   const size_t D = m->g.d, R = n_rates ? n_rates : 1;
-  const int    sch = dp__dd_map_pick (m, n_tiles, R);
+  const int    sch = dp__dd_map_pick (m, n_tiles, R, 0);
   if (m->g.di <= 1 || m->fdi <= 1)
     {
       /* One slow row: no slow time in either order, and a rate's weight is
-         one scalar an epoch of one: the rows read X itself. */
+         one scalar an epoch of one: each tile's epoch is its row, through
+         the epoch stage's straight gather. */
       for (size_t r = 0; r < R; r++)
         {
-          dp__dd_map_rows (m, pool, slot, X, tiles, n_tiles, out);
+          dd_run_t c1 = { .m     = m,
+                          .slot  = slot,
+                          .items = n_tiles,
+                          .in    = X,
+                          .out   = out,
+                          .tiles = tiles };
+          dd_run (&c1, pool, dd_rows1_body);
           if (rates)
             for (size_t c = 0; c < n_tiles * m->g.l; c++)
               out[tiles[c / m->g.l].rows[0] * m->g.l + c % m->g.l]

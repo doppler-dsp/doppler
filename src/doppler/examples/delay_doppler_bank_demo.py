@@ -2,8 +2,9 @@
 
 A code delayed by 37 samples arrives on a carrier 1.3 code bins off
 nominal, in noise. A delay-Doppler map corrects no carrier within a code
-period, so a whole-bin offset puts the correlation into its Dirichlet null
-and a fraction of a bin costs up to 3.9 dB. The bank searches the carrier:
+period, so an offset costs the Dirichlet factor of its distance from the
+grid: 3.9 dB at half a bin, 19 dB at 0.9 bin, a null at a whole bin. The
+bank searches the carrier:
 ``bank_detect`` makes one map per carrier on a coarse grid (half bins),
 picks the candidates, refines each at its own cell on a fine grid (quarter
 bins), and keeps what clears the confirm threshold. Every carrier shares
@@ -113,18 +114,14 @@ print("OK")
 
 import matplotlib.pyplot as plt  # noqa: E402 -- after the gated compute
 
-g_coarse = int(
-    np.arange(*COARSE)[
-        np.argmax(
-            [
-                float(
-                    dd.bank_power_max(x, 2, int(g), int(g), NO_RATES)[0].max()
-                )
-                for g in range(*COARSE)
-            ]
-        )
+coarse_g = np.arange(*COARSE)  # the coarse carriers g, on the 1/(2 NX) grid
+coarse_pk = np.array(
+    [
+        float(dd.bank_power_max(x, 2, int(g), int(g), NO_RATES)[0].max())
+        for g in coarse_g
     ]
 )
+g_coarse = int(coarse_g[np.argmax(coarse_pk)])
 cmap = dd.bank_power_max(x, 2, g_coarse, g_coarse, NO_RATES)[0].reshape(NY, NX)
 
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4.2))
@@ -163,19 +160,8 @@ ax2.plot(
     label="eighth-bin grid",
 )
 ax2.plot(
-    np.arange(*COARSE) / 2,
-    10
-    * np.log10(
-        np.array(
-            [
-                float(
-                    dd.bank_power_max(x, 2, int(g), int(g), NO_RATES)[0].max()
-                )
-                for g in range(*COARSE)
-            ]
-        )
-        / best
-    ),
+    coarse_g / 2,
+    10 * np.log10(coarse_pk / best),
     "o",
     color="tab:orange",
     label="coarse grid (half bins)",

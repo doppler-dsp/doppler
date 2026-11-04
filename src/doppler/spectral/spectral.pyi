@@ -1010,9 +1010,12 @@ class Corr2D:
         Doppler on row ny_out / 2) and axis 1 is delay (the lag, in samples).
 
         **Ownership.** In Python, a call that dumps returns a new array when no
-        `out=` is given, and a view of `out=` when one is (it must hold n_out;
-        it is written on a dump only, and the next dump overwrites it). A call
-        that does not dump returns None and touches neither.
+        `out=` is given, and a view of `out=` when one is (a 1-D array holding
+        at least n_out values; it is written on a dump only, and the next dump
+        overwrites it). The binding also asks `out=` for as many elements as
+        the input frame has (ny * nx), which a `col_out` object, whose n_out is
+        ny, never needs: #2818. A call that does not dump returns None and
+        touches neither.
 
         Parameters
         ----------
@@ -1072,8 +1075,8 @@ class Corr2D:
         the map of frame h (in C, map h is at `out + h * n_out`).
 
         Python: `x` is the H frames back to back, a flat array of H * ny * nx
-        samples (H >= 1; frame h is the samples from h * ny * nx up to, not
-        including, (h + 1) * ny * nx). With no `out=` each call returns a new
+        samples (H >= 1): frame h is the samples from h * ny * nx up to, not
+        including, (h + 1) * ny * nx. With no `out=` each call returns a new
         array; with `out=` it returns a view of it, and the next call into the
         same `out=` overwrites that view. `out=` is a 2-D complex64 array of
         shape (rows, n_out) with at least H rows (a shorter one is refused);
@@ -1832,9 +1835,12 @@ class DelayDoppler:
         Doppler on row ny_out / 2) and axis 1 is delay (the lag, in samples).
 
         **Ownership.** In Python, a call that dumps returns a new array when no
-        `out=` is given, and a view of `out=` when one is (it must hold n_out;
-        it is written on a dump only, and the next dump overwrites it). A call
-        that does not dump returns None and touches neither.
+        `out=` is given, and a view of `out=` when one is (a 1-D array holding
+        at least n_out values; it is written on a dump only, and the next dump
+        overwrites it). The binding also asks `out=` for as many elements as
+        the input frame has (ny * nx), which a `col_out` object, whose n_out is
+        ny, never needs: #2818. A call that does not dump returns None and
+        touches neither.
 
         Parameters
         ----------
@@ -1894,8 +1900,8 @@ class DelayDoppler:
         the map of frame h (in C, map h is at `out + h * n_out`).
 
         Python: `x` is the H frames back to back, a flat array of H * ny * nx
-        samples (H >= 1; frame h is the samples from h * ny * nx up to, not
-        including, (h + 1) * ny * nx). With no `out=` each call returns a new
+        samples (H >= 1): frame h is the samples from h * ny * nx up to, not
+        including, (h + 1) * ny * nx. With no `out=` each call returns a new
         array; with `out=` it returns a view of it, and the next call into the
         same `out=` overwrites that view. `out=` is a 2-D complex64 array of
         shape (rows, n_out) with at least H rows (a shorter one is refused);

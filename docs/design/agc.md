@@ -1,3 +1,5 @@
+<!-- domain: agc -->
+
 # Automatic Gain Control
 
 An AGC holds the average power of a stream at a reference level so that

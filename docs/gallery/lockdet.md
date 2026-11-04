@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Lock Detection: Verify Counts + Hysteresis
 
 ![LockDet vs naive comparator on a marginal signal](../assets/lockdet_demo.png)

@@ -1,3 +1,5 @@
+<!-- domain: source -->
+
 # The NCO
 
 Everything in doppler that has a *rate* — a carrier, a symbol clock, a code

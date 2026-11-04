@@ -1,3 +1,5 @@
+<!-- domain: telemetry -->
+
 # Telemetry — zero-cost scalar taps for running pipelines
 
 Doppler's loops already *compute* every diagnostic worth watching — the

@@ -1,3 +1,5 @@
+<!-- domain: ddc -->
+
 # Ddcr — Real Passband to Baseband
 
 ![Ddcr spectral demo](../assets/ddc_fn_demo.png)

@@ -1,3 +1,5 @@
+<!-- domain: mpsk -->
+
 # M-PSK constellation (Gray-coded map / demap)
 
 ![M-PSK constellations and BER](../assets/mpsk_constellation_demo.png)

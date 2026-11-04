@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # Corr2D hypothesis bank: operation order
 
 A bank of hypotheses on one frame, many carrier offsets each with several

@@ -1,3 +1,5 @@
+<!-- domain: ccsds -->
+
 # A CCSDS CADU, as a Frame Description
 
 ![what an outer code repairs, and what it refuses](../assets/ccsds_link_demo.png)

@@ -1,3 +1,5 @@
+<!-- domain: detection -->
+
 # Lock Detection — the reasoning
 
 **Scope:** why lock detection in doppler has the shape it does. Not how to

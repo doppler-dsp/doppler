@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # Streaming Async Despreader
 
 ![Code lock statistic and loop filter output, unaided and aided, at this link's Doppler and at an inflated one, and the despread output](../assets/async_despread_demo.png)

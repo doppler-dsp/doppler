@@ -1,3 +1,5 @@
+<!-- domain: buffer -->
+
 # The ring buffer — measurements and the record
 
 The dated companion to [The Ring Buffer](ring-buffer.md), which states what

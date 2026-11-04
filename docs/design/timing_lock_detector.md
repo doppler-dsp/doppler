@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # SymbolSync Timing Lock Detector
 
 `track.SymbolSync` (Gardner/DTTL symbol-timing recovery) had no lock concept

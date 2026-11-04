@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # AsyncDsssReceiver: a signal's lifecycle
 
 ![State and symbol lock, the lock metric, and the carrier the receiver handed over and tracked, through noise, arrival, a fade, a departure and a return](../assets/async_dsss_receiver_lifecycle.png)

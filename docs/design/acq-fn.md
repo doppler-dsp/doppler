@@ -1,3 +1,5 @@
+<!-- domain: acquire -->
+
 # Design — pure-functional acquisition kernel (elastic fleet)
 
 **Status:** model + naming locked; build sequenced below. Companion to

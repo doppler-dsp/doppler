@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # Composing a Scene — `.sum()`, `.add()`, and Headroom
 
 ![waveform composition demo](../assets/wfm_composition_demo.png)

@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # Delay-Doppler Search
 
 `doppler.spectral.DelayDoppler` answers one question about a stretch of

@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # AsyncDsssPool: emitters that come and go
 
 ![What each receiver holds over time, receiver 1's symbols and symbol lock through a release and a new emitter, and each receiver's last 600 symbols](../assets/async_dsss_pool_demo.png)

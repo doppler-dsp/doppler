@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # DLL Code Loop — Theory Validation
 
 ![DLL theory validation](../assets/dll_theory_demo.png)

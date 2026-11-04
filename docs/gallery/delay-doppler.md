@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # Delay-Doppler Search
 
 ![A bank search: the map, the coarse straddle and the refine](../assets/delay_doppler_bank_demo.png)

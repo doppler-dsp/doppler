@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # Four WCDMA Carriers — `PSD`, `band_power`, `AccTrace`
 
 ![four WCDMA carriers measured with PSD and AccTrace](../assets/wcdma_carriers_demo.png)

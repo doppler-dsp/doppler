@@ -1,3 +1,5 @@
+<!-- domain: stream -->
+
 # Streaming — one envelope, six roles, two planes
 
 doppler's transport moves framed sample blocks between threads, processes,

@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # DsssReceiver — the Composed Continuous DSSS Receiver
 
 ![Constellation, running BER, windowed correctness, and carrier pull-in](../assets/dsss_receiver_demo.png)

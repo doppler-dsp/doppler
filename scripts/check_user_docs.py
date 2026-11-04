@@ -33,6 +33,12 @@ For every example script:
     why it has no figure. That list is a decision, so it may grow; a
     reason is mandatory and an entry naming no script fails.
 
+The domain tree is held here too (``gen_domains.gate``): every module has a
+title and an area in ``docs/domains.toml``, every guide, gallery and design
+page names a ``domain:`` that exists, and a module with classes has a guide
+page filed under it (today's gaps in ``docs/.domain-guides-exempt``, which
+only shrinks).
+
 Today's gaps sit in ``docs/.user-docs-exempt``, one ``<key> <rule>: <why>``
 per line. It is a RATCHET: compared with the merge base, it may only
 shrink, and an entry whose gap has closed (or whose class is gone) fails
@@ -380,6 +386,10 @@ def main() -> int:
                 f"{EXEMPT}: '{key} {rule}' is new; the list only shrinks. "
                 f"Do the work instead: {FIX[rule].format(key=key)}"
             )
+
+    import gen_domains
+
+    errors += gen_domains.gate(root, a.base, not a.no_ratchet)
 
     if errors:
         print("user-docs-check: FAILED", file=sys.stderr)

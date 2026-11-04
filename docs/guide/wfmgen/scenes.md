@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # Scenes — composing in time
 
 A scene is segments in sequence: what plays, for how long, what follows,

@@ -1,3 +1,5 @@
+<!-- domain: telemetry -->
+
 # Capturing All Receiver Telemetry
 
 ![Every BpskReceiver probe captured from one ring](../assets/mpsk_telemetry_capture_demo.png)

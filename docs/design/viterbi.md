@@ -1,3 +1,5 @@
+<!-- domain: coding -->
+
 # The Viterbi Decoder
 
 A maximum-likelihood sequence decoder for rate-1/n convolutional codes: the

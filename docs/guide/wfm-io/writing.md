@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # Writing captures — output & file types
 
 The sample **type** (the datatype), the **file type** (the file format), and the

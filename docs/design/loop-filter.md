@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # The Loop Filter
 
 Every tracking loop in doppler — carrier, code, symbol timing, gain — is the

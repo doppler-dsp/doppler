@@ -1,3 +1,5 @@
+<!-- domain: coding -->
+
 # The FEC Receive Half
 
 The decoder, the synchronization it needs first, and the lock it owes its

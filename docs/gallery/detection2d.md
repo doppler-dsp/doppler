@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # 2-D Acquisition Grid
 
 ![2-D acquisition demo](../assets/detection2d_demo.png)

@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # Ending a capture — spooling an endless stream to disk while reading it back
 
 [Ending a Wait](io-termination.md) is one contract across three

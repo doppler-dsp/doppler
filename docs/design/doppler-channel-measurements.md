@@ -1,3 +1,5 @@
+<!-- domain: impairment -->
+
 # The Doppler channel — the measurement record
 
 *The dated record behind [the design page](doppler-channel.md): what each step

@@ -1,3 +1,5 @@
+<!-- domain: detection -->
+
 # Detection Theory Curves
 
 ![Detection theory curves](../assets/detection_curves.png)

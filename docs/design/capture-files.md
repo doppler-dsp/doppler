@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # Capture files — one reader, one writer, four containers
 
 A capture has to survive leaving the process. `wfm_writer` and

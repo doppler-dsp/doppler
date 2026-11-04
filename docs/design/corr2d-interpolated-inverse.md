@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # Corr2D: decoupled (interpolated) inverse length
 
 **Status:** shipped (PR #241) — `ny_out`/`nx_out`, zero-pad interpolation,

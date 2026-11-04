@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Arbitrary-Rate Symbol Recovery
 
 ![Arbitrary-rate matched filtering and timing recovery](../assets/ratesync_demo.png)

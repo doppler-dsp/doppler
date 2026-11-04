@@ -1,3 +1,5 @@
+<!-- domain: cvt -->
+
 # ADC Quantisation — 3–8 Bits
 
 ![ADC quantisation demo](../assets/adc_demo.png)

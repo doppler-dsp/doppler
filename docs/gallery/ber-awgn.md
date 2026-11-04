@@ -1,3 +1,5 @@
+<!-- domain: ber -->
+
 # Measuring an Error Rate, Defensibly
 
 ![M-PSK symbol error rate in AWGN, measured with BerMeter](../assets/ber_awgn_demo.png)

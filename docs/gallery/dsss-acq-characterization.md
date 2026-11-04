@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # DSSS Acquisition — Pd / Pfa vs Es/N0
 
 ![DSSS acquisition characterisation](../assets/dsss_acq_characterization.png)

@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Lock Detection Across `doppler.track`
 
 Every continuous tracking loop in this codebase needs to answer one

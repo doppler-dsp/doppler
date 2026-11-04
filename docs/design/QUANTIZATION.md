@@ -1,3 +1,5 @@
+<!-- domain: cvt -->
+
 # Quantization Design
 
 Doppler's signal chain begins with real hardware that delivers quantized

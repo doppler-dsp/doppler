@@ -1,3 +1,5 @@
+<!-- domain: util -->
+
 # State Serialization — the standard bytes interface
 
 This is the internals doc — the envelope, the cursor helpers, and the CI

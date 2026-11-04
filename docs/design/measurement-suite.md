@@ -1,3 +1,5 @@
+<!-- domain: measure -->
+
 # Measurement Suite — single-tone ADC / spectral metrics
 
 `doppler.measure` turns a captured waveform into the figures of merit used to

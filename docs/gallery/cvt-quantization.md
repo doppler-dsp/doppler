@@ -1,3 +1,5 @@
+<!-- domain: cvt -->
+
 # cvt Quantization Noise
 
 ![cvt quantization noise comparison](../assets/cvt_quantization_demo.png)

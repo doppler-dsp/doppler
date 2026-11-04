@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # `DsssBurstReceiver`: the burst chain, composed in C
 
 **Status:** shipped — the object exists, is certified (every limit holds

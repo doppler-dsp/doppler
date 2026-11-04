@@ -18,9 +18,16 @@ delay; within half a bin the loss is at most 3.9 dB
 was. Neither touches the object's dwell. The C twin is
 ``native/examples/delay_doppler_batch_demo.c``.
 
+Saves a two-panel figure to delay_doppler_batch_demo.png: each hypothesis's
+own peak-to-mean, and the delay-Doppler map of the hypothesis that won.
+
 Run:
   python delay_doppler_batch_demo.py
 """
+
+import matplotlib
+
+matplotlib.use("Agg")  # headless: no display required
 
 # --8<-- [start:setup]
 import numpy as np
@@ -78,3 +85,45 @@ near = np.abs(OFFSET_BINS - removed) < 0.5
 assert np.all(col[near] == DELAY), col
 assert dd.count == 0
 print("OK")
+
+import matplotlib.pyplot as plt  # noqa: E402 -- after the gated compute
+
+maps = dd.execute_all(batch)  # every map, (H, NY * NX)
+win = maps[best].reshape(NY, NX)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.2))
+
+# Panel 1 -- each hypothesis's own peak-to-mean
+colors = ["tab:green" if h == best else "tab:gray" for h in range(H)]
+ax1.bar(removed, ratio, width=0.35, color=colors)
+ax1.axvline(
+    OFFSET_BINS,
+    color="tab:red",
+    ls="--",
+    lw=1,
+    label=f"true offset {OFFSET_BINS} bins",
+)
+ax1.set_xlabel("offset removed from the frame (code bins)")
+ax1.set_ylabel("peak / mean of the map")
+ax1.set_title("one batch, eight hypotheses")
+ax1.legend(fontsize=8)
+ax1.grid(alpha=0.3, axis="y")
+
+# Panel 2 -- the winner's map
+im = ax2.imshow(
+    10 * np.log10(np.abs(win) ** 2 / (np.abs(win) ** 2).max() + 1e-6),
+    origin="lower",
+    aspect="auto",
+    extent=(-0.5, NX - 0.5, -NY // 2 - 0.5, NY - NY // 2 - 0.5),
+    cmap="viridis",
+    vmin=-40,
+)
+ax2.set_xlabel("delay (samples)")
+ax2.set_ylabel("Doppler row (0 = zero Doppler)")
+ax2.set_title(f"hypothesis {best}'s map: delay {int(col[best])}")
+fig.colorbar(im, ax=ax2, fraction=0.046, label="dB re peak")
+
+fig.tight_layout()
+out_path = "delay_doppler_batch_demo.png"
+fig.savefig(out_path, dpi=120)
+print(f"wrote {out_path}")

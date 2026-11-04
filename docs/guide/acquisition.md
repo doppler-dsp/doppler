@@ -361,5 +361,7 @@ ______________________________________________________________________
     history ring and the timing guarantees
 - [DSSS acquisition guide](dsss-acquisition.md): spread-spectrum preambles,
     continuous signals and wide Doppler banks
+- [Delay-Doppler search guide](delay-doppler.md): the map under the search,
+    for when you want the map itself, batches of frames or a carrier bank
 - [Detection statistics](../api/python-detection.md): the threshold and Pd
     functions the sizer is built on

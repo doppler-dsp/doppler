@@ -2409,6 +2409,8 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/detection_curves.py \
     src/doppler/examples/detection_sim.py \
     src/doppler/examples/detection2d_demo.py \
+    src/doppler/examples/delay_doppler_batch_demo.py \
+    src/doppler/examples/delay_doppler_bank_demo.py \
     src/doppler/examples/lockdet_demo.py \
     src/doppler/examples/telemetry_fanin_demo.py \
     src/doppler/examples/mpsk_telemetry_capture_demo.py \

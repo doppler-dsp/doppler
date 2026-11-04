@@ -1,3 +1,5 @@
+<!-- domain: agc -->
+
 # AGC Settling — a design chart
 
 ![Settling in units of the filter's time constant, and the collapse that makes it reusable](../assets/agc_settling_design.png)

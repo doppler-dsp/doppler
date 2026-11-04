@@ -1,3 +1,5 @@
+<!-- domain: util -->
+
 # The Exponential Moving Average
 
 Almost every estimator in doppler is, at its centre, one line: a running

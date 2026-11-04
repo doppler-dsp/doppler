@@ -286,7 +286,7 @@ RUFF_PATHS = .
 # each object's results.md, written by that folder's own validate.py, so
 # reformatting it would drift against the next regeneration. vendor/ is not
 # ours.
-MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/guide/wfmgen/options\.md$$|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/(.*/)?tests/validation/)
+MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/domains/|docs/api/a-z\.md$$|docs/guide/wfmgen/options\.md$$|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/(.*/)?tests/validation/)
 
 LINT_ruff        = $(RUFF) check --fix --unsafe-fixes $(RUFF_PATHS)
 LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
@@ -1130,6 +1130,7 @@ $(UV) run python scripts/check_docstring_coverage.py --check
 $(UV) run python scripts/check_nav_index.py
 $(UV) run python scripts/check_wfmgen_flag_docs.py
 $(UV) run python scripts/gen_related_pages.py --check
+$(UV) run python scripts/gen_domains.py --check
 $(UV) run python scripts/check_user_docs.py --no-ratchet $(GALLERY_SCRIPTS)
 $(UV) run python scripts/gen_readme.py --check
 $(UV) run python scripts/gen_install_scripts.py --check
@@ -3544,6 +3545,7 @@ wfmgen-flag-matrix: build ## Regenerate native/tests/wfmgen_flag_matrix.json
 
 docs-relink: ## Regenerate every generated doc region
 	$(UV) run python scripts/gen_related_pages.py --write
+	$(UV) run python scripts/gen_domains.py --write
 	$(UV) run python scripts/gen_readme.py --write
 	$(UV) run python scripts/gen_install_scripts.py --write
 	$(UV) run python scripts/gen_validation_log.py --write
@@ -3557,6 +3559,7 @@ docs-relink: ## Regenerate every generated doc region
 # about what "drifted" means. If it trips: run `make docs-relink`.
 docs-drift-check: ## Check the generated doc regions are up to date
 	$(UV) run python scripts/gen_related_pages.py --check
+	$(UV) run python scripts/gen_domains.py --check
 	$(UV) run python scripts/gen_readme.py --check
 	$(UV) run python scripts/gen_install_scripts.py --check
 	$(UV) run python scripts/gen_validation_log.py --check

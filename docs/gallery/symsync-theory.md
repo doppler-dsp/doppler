@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Timing Loop — Theory Validation
 
 ![SymbolSync theory validation](../assets/symsync_theory_demo.png)

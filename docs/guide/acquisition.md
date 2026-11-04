@@ -1,3 +1,5 @@
+<!-- domain: acquire -->
+
 # Acquiring a Repeated Preamble
 
 `doppler.acquire` finds bursts that open with a **repeated preamble**: one

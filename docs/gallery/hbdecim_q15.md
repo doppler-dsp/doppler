@@ -1,3 +1,5 @@
+<!-- domain: resample -->
+
 # HalfbandDecimatorQ15 — Fixed-Point Halfband Decimator
 
 ![](../assets/hbdecim_q15_demo.png)

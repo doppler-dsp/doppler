@@ -6,6 +6,10 @@ The C layer is the source of truth — every algorithm is implemented here once.
 
 - [**C API Reference**](../c-api/index.md) — file list, data structures, function index
 
+## A-Z
+
+- [**A-Z index**](a-z.md) — every public class and function, alphabetically, with its domain, API entry, guides, gallery pages and examples (generated; see also the [Domains](../domains/index.md))
+
 ## Python API
 
 The Python modules are thin CPython extensions over the C ABI — no reimplementation.

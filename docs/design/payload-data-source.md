@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # The Payload as a Data Source
 
 A frame's payload stops being one block of bits and becomes **a place bits

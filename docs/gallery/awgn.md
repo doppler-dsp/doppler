@@ -1,3 +1,5 @@
+<!-- domain: source -->
+
 # AWGN Generator
 
 ![AWGN demo](../assets/awgn_demo.png)

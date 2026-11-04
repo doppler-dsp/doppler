@@ -1,3 +1,5 @@
+<!-- domain: stream -->
+
 # Real-Time Pacing & Timestamping
 
 doppler can emit samples **at their real sample rate** — mimicking a hardware

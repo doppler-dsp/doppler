@@ -1,3 +1,5 @@
+<!-- domain: util -->
+
 # Checkpoint & Resume
 
 Every stateful doppler object — a filter's delay line, a tracking loop's

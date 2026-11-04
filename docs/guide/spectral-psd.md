@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # Power Spectra & Measurements
 
 doppler computes spectral metrics through **one pipeline**:

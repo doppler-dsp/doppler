@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # Corr2D batches: many maps in one call
 
 `Corr2D` and `DelayDoppler` make one map per dump, and the only way two maps

@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # type="symbols" — Bring Your Own Constellation
 
 ![symbols demo](../assets/symbols_demo.png)

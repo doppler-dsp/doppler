@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # Reading captures
 
 `doppler.wfm.Reader` is the dual of [`Writer`](writing.md): it opens a capture,

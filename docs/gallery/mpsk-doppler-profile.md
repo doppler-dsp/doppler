@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # M-PSK Receiver — Sizing the Carrier Loop, and Riding a Doppler Profile
 
 ![A Doppler profile the loop rides, what it costs, and how acquisition time varies with loop bandwidth](../assets/mpsk_doppler_profile_demo.png)

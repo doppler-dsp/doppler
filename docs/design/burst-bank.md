@@ -1,3 +1,5 @@
+<!-- domain: acquire -->
+
 # BurstBank — the coarse-Doppler bank as one C object
 
 *Phase 1 of [adding an algorithm](../dev/contributing/adding-algorithms.md).

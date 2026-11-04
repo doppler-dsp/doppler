@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Full-Chain Lock-Up
 
 ![Three loops' lock decisions on one shared timeline](../assets/receiver_lock_demo.png)

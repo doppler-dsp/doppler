@@ -1,3 +1,5 @@
+<!-- domain: coding -->
+
 # Interleaving — spreading a burst across codewords
 
 An interleaver adds no redundancy, detects nothing, and returns exactly as many

@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # wfmgen — the waveform generator
 
 !!! note "Certified per object, not per scene"

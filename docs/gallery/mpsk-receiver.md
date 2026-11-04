@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # M-PSK Receiver — Pull-in, Lock, and BER
 
 ![MpskReceiver constellation pull-in, carrier acquisition, and BER](../assets/mpsk_receiver_demo.png)

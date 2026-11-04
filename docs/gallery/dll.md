@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Code Loop Tracking
 
 ![DLL code-loop tracking demo](../assets/dll_demo.png)

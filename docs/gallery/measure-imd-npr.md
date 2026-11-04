@@ -1,3 +1,5 @@
+<!-- domain: measure -->
+
 # Measurement Suite — two-tone IMD/TOI & notched-noise NPR
 
 ![measure IMD/NPR demo](../assets/measure_imd_npr_demo.png)

@@ -1,3 +1,5 @@
+<!-- domain: util -->
+
 # API taxonomy: the DSP building-block hierarchy and its naming axis
 
 **Status:** hierarchy + naming axis still live design reference; all 5

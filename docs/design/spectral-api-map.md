@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # Spectral & Measurement API Map
 
 How doppler's spectral surface fits together after the

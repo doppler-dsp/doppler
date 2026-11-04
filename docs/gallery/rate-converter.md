@@ -1,3 +1,5 @@
+<!-- domain: resample -->
+
 # RateConverter — Automatic Cascade Selection
 
 ![RateConverter spectral demo](../assets/rate_converter_demo.png)

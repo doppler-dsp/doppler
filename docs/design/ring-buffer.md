@@ -1,3 +1,5 @@
+<!-- domain: buffer -->
+
 # The ring buffer — one contiguous view of a stream
 
 `native/inc/doppler/buffer/buffer.h` is a lock-free, single-producer /

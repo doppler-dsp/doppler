@@ -1,3 +1,5 @@
+<!-- domain: coding -->
+
 # Reed-Solomon
 
 A general Reed-Solomon code over `GF(2^J)`: the description, the encoder, the

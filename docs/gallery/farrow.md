@@ -1,3 +1,5 @@
+<!-- domain: resample -->
+
 # Farrow Interpolator
 
 ![Farrow interpolator response by order](../assets/farrow_demo.png)

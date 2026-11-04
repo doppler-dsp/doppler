@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Carrier Loop Stress
 
 ![Costas carrier-loop stress demo](../assets/costas_demo.png)

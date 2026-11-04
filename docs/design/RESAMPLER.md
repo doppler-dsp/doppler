@@ -1,3 +1,5 @@
+<!-- domain: resample -->
+
 # Continuously Variable Resampler
 
 - Any rate change: from imperceptible to several orders of magnitude

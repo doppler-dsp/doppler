@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # DSSS Burst Acquisition
 
 `doppler.acquire.BurstAcquisition` acquires a direct-sequence spread-spectrum burst —

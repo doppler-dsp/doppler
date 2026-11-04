@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # DsssBurstReceiver — the Composed Burst Chain
 
 ![Four bursts decoded at their exact samples, the same answer at every block size, and every per-burst read-back checked against the scene](../assets/dsss_burst_receiver_demo.png)

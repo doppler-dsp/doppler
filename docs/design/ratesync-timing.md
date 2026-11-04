@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Symbol Timing on a Rate Cascade
 
 Symbol-timing recovery is usually built as two things: a matched filter, and

@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # A Crowded Band — Many Signals, One Parallel `prepare`
 
 ![Twenty RRC carriers rendered from one Plan, and the same cache with every other carrier disabled](../assets/crowded_band_demo.png)

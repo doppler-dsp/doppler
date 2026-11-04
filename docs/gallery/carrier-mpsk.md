@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # M-PSK Carrier Loop — Theory Validation
 
 ![M-PSK carrier loop theory validation](../assets/mpsk_carrier_theory_demo.png)

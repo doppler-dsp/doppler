@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # Waveform amplitude & composition
 
 *Part of [wfmgen](wfmgen.md), which owns the tool's goals, what it

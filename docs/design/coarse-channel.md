@@ -1,3 +1,5 @@
+<!-- domain: acquire -->
+
 # CoarseChannel — is a channel an object, or a slice of the bank?
 
 *Question 1 of [`burst-bank.md`](burst-bank.md), opened 2026-09-01. Context,

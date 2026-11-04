@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # The Polynomial-Phase Estimator — the reasoning
 
 **Scope:** why `PolynomialPhaseEstimator` (`ppe`) has the shape it does — a

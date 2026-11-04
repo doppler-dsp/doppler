@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # The Spectrogram — chunks in, rows out
 
 A stream arrives in whatever pieces the transport made of it; a spectrogram

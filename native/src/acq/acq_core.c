@@ -2631,17 +2631,16 @@ static void
 acq_ramp (const float _Complex *x, size_t n, double w, int signed_bins,
           float _Complex *out)
 {
-  const size_t half  = n / 2;
   double _Complex ph = 1.0, step = cexp (I * w);
   for (size_t k = 0; k < n; k++)
     {
-      const int jump = signed_bins && k == half + (n % 2);
+      /* The signed index jumps where dp_fftfreq_index turns negative. */
+      const int jump = signed_bins && k == (n + 1) / 2;
       if ((k & 255) == 0 || jump)
         {
-          const double kk = (signed_bins && k >= half + (n % 2))
-                                ? (double)k - (double)n
-                                : (double)k;
-          ph              = cexp (I * w * kk);
+          const double kk
+              = signed_bins ? (double)dp_fftfreq_index (k, n) : (double)k;
+          ph = cexp (I * w * kk);
         }
       out[k] = x[k] * (float _Complex)ph;
       ph *= step;

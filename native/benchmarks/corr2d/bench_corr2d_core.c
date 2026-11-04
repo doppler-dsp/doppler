@@ -110,7 +110,10 @@ bench_batches (jm_bench_t *bench, uint32_t *seed)
  * that a caller would otherwise build, and the coarse search ruling 9
  * prefers: L = 2 alone, and bank_detect's L = 2 search with an L = 4 refine
  * on a frame holding one signal.  64 x 512, one thread; setup (create, the
- * copies, the stimulus) is outside the timed region. */
+ * copies, the stimulus) is outside the timed region.  And the same L = 4
+ * bank with R = 12 Doppler-rate weightings, 144 hypotheses: the case where
+ * a rate costs only a slow-time column, today, so the one delay-Doppler
+ * map (#2752 step 2.3, #2831) is measured against it before it lands. */
 static void
 bench_bank (jm_bench_t *bench, uint32_t *seed)
 {
@@ -128,6 +131,21 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
   int32_t        *rg     = malloc (n * sizeof *rg);
   uint32_t       *ra = malloc (n * sizeof *ra), *rr = malloc (n * sizeof *rr);
   uint32_t       *rc = malloc (n * sizeof *rc);
+  enum
+  {
+    R = 12
+  };
+  /* Rate r's per-period de-chirp, exp(-j pi a_r t^2) with t in periods from
+     the frame's middle and a_r spread over +-0.01 cycles a period^2. */
+  float _Complex *rates = malloc (R * ny * sizeof *rates);
+  for (size_t r = 0; r < R; r++)
+    for (size_t i = 0; i < ny; i++)
+      {
+        const double ar   = 0.01 * (2.0 * (double)r / (R - 1) - 1.0);
+        const double ti   = (double)i - 0.5 * (double)(ny - 1);
+        const double a    = -3.14159265358979323846 * ar * ti * ti;
+        rates[r * ny + i] = (float)cos (a) + (float)sin (a) * I;
+      }
   for (size_t j = 0; j < nx; j++)
     code[j] = (_xorshift32 (seed) & 1u) ? 1.0f : -1.0f;
   /* the code at lag 77 on a carrier a quarter bin off nominal, in noise */
@@ -155,13 +173,14 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
   for (size_t k = 0; k < n; k++)
     top = pw[k] > top ? pw[k] : top;
   const float        t = 0.5f * top;
-  static const char *name[4]
+  static const char *name[5]
       = { "bank_64x512_c12_corrected_batch_1t", "bank_64x512_c12_l4_1t",
-          "bank_64x512_c6_l2_1t", "bank_64x512_detect_l2_l4_1t" };
+          "bank_64x512_c6_l2_1t", "bank_64x512_detect_l2_l4_1t",
+          "bank_64x512_c12_l4_r12_1t" };
   double bt[KREPS];
-  double best[4];
+  double best[5];
   size_t recs = 0;
-  for (int which = 0; which < 4; which++)
+  for (int which = 0; which < 5; which++)
     {
       best[which] = 1e30;
       for (int r = 0; r < KREPS; r++)
@@ -173,6 +192,9 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
             dp_corr2d_bank_power_max (dd, x, n, 4, -4, 7, NULL, 0, pw, idx, n);
           else if (which == 2)
             dp_corr2d_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx, n);
+          else if (which == 4)
+            dp_corr2d_bank_power_max (dd, x, n, 4, -4, 7, rates, R * ny, pw,
+                                      idx, n);
           else
             recs = dp_corr2d_bank_detect (dd, x, n, 2, 4, -2, 3, t, t, NULL, 0,
                                           rp, rg, ra, rr, rc, n);
@@ -187,9 +209,11 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
           "\n",
           best[0] / best[1], 100.0 * best[2] / best[1], recs,
           (best[3] - best[2]) * 1e3);
+  printf ("  %d rates cost %.2fx the bank without them\n", (int)R,
+          best[4] / best[1]);
   dp_corr2d_destroy (dd);
   free (code), free (x), free (copies), free (pw), free (idx), free (rp);
-  free (rg), free (ra), free (rr), free (rc);
+  free (rg), free (ra), free (rr), free (rc), free (rates);
 }
 
 int
@@ -278,31 +302,37 @@ main (void)
     {
       size_t      ny, nx;
       int         nthreads;
+      size_t      ny_out; /* 0 = ny; 2 ny interpolates the Doppler axis */
       const char *name;
     } dd_cases[] = {
-      { 32, 1024, 1, "delay_doppler_32x1024_1t" },
-      { 256, 4096, 1, "delay_doppler_256x4096_1t" },
-      { 256, 4096, 0, "delay_doppler_256x4096_all" },
+      { 32, 1024, 1, 0, "delay_doppler_32x1024_1t" },
+      { 256, 4096, 1, 0, "delay_doppler_256x4096_1t" },
+      { 256, 4096, 0, 0, "delay_doppler_256x4096_all" },
+      /* Doppler interpolated twofold: the one map (#2752 step 2.3) takes
+         slow time first and pays ny_out inverses where today pays ny. */
+      { 32, 1024, 1, 64, "delay_doppler_32x1024_o64_1t" },
     };
     for (size_t c = 0; c < sizeof dd_cases / sizeof *dd_cases; c++)
       {
-        const size_t    dny = dd_cases[c].ny, dnx = dd_cases[c].nx;
-        const size_t    dn   = dny * dnx;
+        const size_t dny = dd_cases[c].ny, dnx = dd_cases[c].nx;
+        const size_t dn = dny * dnx;
+        const size_t dno
+            = (dd_cases[c].ny_out ? dd_cases[c].ny_out : dny) * dnx;
         float _Complex *code = malloc (dnx * sizeof *code);
         float _Complex *x    = malloc (dn * sizeof *x);
-        float _Complex *map  = malloc (dn * sizeof *map);
+        float _Complex *map  = malloc (dno * sizeof *map);
         for (size_t j = 0; j < dnx; j++)
           code[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
         for (size_t k = 0; k < dn; k++)
           x[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
         dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
-            code, dnx, dny, 1, dd_cases[c].nthreads, 0);
-        dp_corr2d_execute (dd, x, dn, map, dn); /* warmup */
+            code, dnx, dny, 1, dd_cases[c].nthreads, dd_cases[c].ny_out);
+        dp_corr2d_execute (dd, x, dn, map, dno); /* warmup */
         double sum = 0.0;
         for (int r = 0; r < ITERATIONS; r++)
           {
             t0 = jm_bench_now_ns ();
-            dp_corr2d_execute (dd, x, dn, map, dn);
+            dp_corr2d_execute (dd, x, dn, map, dno);
             t1       = jm_bench_now_ns ();
             times[r] = jm_bench_elapsed_sec (t0, t1);
             sum += times[r];

@@ -843,6 +843,12 @@ unit = "sample"
 definition = "One DelayDoppler execute on 32 code periods of 1,024 samples: 32 row correlations against the code, then 1,024 length-32 slow-time FFTs, on one thread; throughput counts input samples, 32,768 per map."
 samples = 1
 
+["c:corr2d::delay_doppler_32x1024_o64_1t"]
+name = "Delay-Doppler map, 32 x 1,024, Doppler interpolated to 64 rows, one thread"
+unit = "sample"
+definition = "One DelayDoppler execute on 32 code periods of 1,024 samples with ny_out = 64: 32 row correlations against the code, then 1,024 slow-time FFTs of the 32 periods zero-padded to 64, on one thread; throughput counts input samples, 32,768 per map."
+samples = 1
+
 ["c:corr2d::delay_doppler_256x4096_1t"]
 name = "Delay-Doppler map, 256 x 4,096, one thread"
 unit = "sample"
@@ -901,6 +907,12 @@ samples = 1
 name = "Hypothesis bank, 12 carriers (L = 4), 64 x 512, one thread"
 unit = "sample"
 definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
+samples = 1
+
+["c:corr2d::bank_64x512_c12_l4_r12_1t"]
+name = "Hypothesis bank, 12 carriers (L = 4) x 12 Doppler rates, 64 x 512, one thread"
+unit = "sample"
+definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) times 12 per-period Doppler-rate weightings, 144 hypotheses, on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
 samples = 1
 
 ["c:corr2d::bank_64x512_c6_l2_1t"]

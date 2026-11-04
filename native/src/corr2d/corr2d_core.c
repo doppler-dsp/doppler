@@ -1,9 +1,11 @@
 #include "doppler/corr2d/corr2d_core.h"
+#include "corr2d_map.h"
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifndef M_PI
@@ -269,14 +271,13 @@ dp_corr2d_destroy (dp_corr2d_state_t *state)
         dp_fft_destroy (state->row_fwd[t]);
       if (state->row_inv && state->row_inv[t])
         dp_fft_destroy (state->row_inv[t]);
-      if (state->slow_fft && state->slow_fft[t])
-        dp_fft_destroy (state->slow_fft[t]);
     }
   free (state->row_fwd);
   free (state->row_inv);
-  free (state->slow_fft);
-  free (state->col_gather);
-  free (state->col_spec);
+  dp__dd_map_destroy (state->dd_map);
+  free (state->dd_fine);
+  free (state->dd_rows);
+  free (state->bat_fine);
   free (state->bat_acc);
   free (state->bat_work);
   free (state->bat_pad);
@@ -457,6 +458,31 @@ corr2d_row (const dp_corr2d_state_t *s, size_t t, const float _Complex *x,
   memset (a, 0, nx * sizeof *a);
 }
 
+/* Does the delay-Doppler flavor run its map rows first?  Then the dump
+   frame's row stage inverts each row as it accumulates it (the map's own
+   epoch stage, dp__dd_map_epoch1, while the row is hot) and the dump runs
+   the map's column stage; slow first accumulates and runs the map whole. */
+static int
+corr2d_dd_fused (const dp_corr2d_state_t *s)
+{
+  return s->dd_fused;
+}
+
+/* One delay-Doppler row: accumulated; on the dump frame of a fused map,
+   inverted through the map's epoch stage into blk and cleared. */
+static void
+corr2d_dd_row (const dp_corr2d_state_t *s, size_t t, size_t i,
+               const float _Complex *x, float _Complex *a, float _Complex *w,
+               float _Complex *blk, int dump)
+{
+  corr2d_row (s, t, x, a, w, NULL, NULL, 0);
+  if (!dump || !corr2d_dd_fused (s))
+    return;
+  const dp__dd_tile_t tile = { 0, NULL, NULL, s->dd_rows };
+  dp__dd_map_epoch1 (s->dd_map, (int)t, a, i, &tile, blk);
+  memset (a, 0, s->nx * sizeof *a);
+}
+
 /* One fast-path frame, per-row stage: chunk t runs rows r0..r1-1 through
  * corr2d_row on worker t's plans.  The accumulator, spectrum and pad
  * surfaces are named here rather than read from the state, so execute()
@@ -482,70 +508,51 @@ corr2d_rows_body (size_t t, void *ctx)
   size_t               r0, r1;
   corr2d_chunk (s->ny, t, s->nworkers, &r0, &r1);
   for (size_t i = r0; i < r1; i++)
-    corr2d_row (s, t, c->in + i * nx, c->acc + i * nx, c->work + i * nx,
-                c->pad ? c->pad + i * nxo : NULL, c->dst + i * nxo, c->dump);
+    if (s->delay_doppler)
+      corr2d_dd_row (s, t, i, c->in + i * nx, c->acc + i * nx,
+                     c->work + i * nx, c->work + i * nx, c->dump);
+    else
+      corr2d_row (s, t, c->in + i * nx, c->acc + i * nx, c->work + i * nx,
+                  c->pad ? c->pad + i * nxo : NULL, c->dst + i * nxo, c->dump);
 }
 
-/* Delay-Doppler dump, per-column stage: the slow-time FFT down every delay
- * column of the (ny, nx) correlation surface.  corr2d_col_tile does tile b
- * of CORR2D_COL_TILE columns on worker t's plan and scratch;
- * corr2d_cols_body runs chunk t's tiles b0..b1-1.
- *
- * A tile is gathered into contiguous columns of length ny_out, whose rows
- * ny..ny_out-1 were zeroed at create() and are never written: that trailing
- * zero-pad of the slow-time samples is what interpolates the Doppler axis
- * (the ny_out-point DFT of ny samples samples their DTFT on a grid ny_out/ny
- * times finer).  Each column is transformed unnormalized, as numpy's fft is,
- * and scattered back FFT-shifted: Doppler bin k lands on output row
- * (k + ny_out/2) mod ny_out, so zero Doppler is row ny_out/2. */
+/* The delay-Doppler dump: the one block map (corr2d_map.h) on the dwell's
+ * product spectra `acc` (ny rows of nx, each already times the conjugated
+ * code spectrum), every row at 1/nx onto its centered output row (zero
+ * Doppler at row ny_out/2), in the schedule the map's rule picks (one tile,
+ * one rate: rows first, today's order, at every ny_out), and acc cleared.
+ * The map runs on the pool when slot < 0, or whole on worker `slot`'s plans
+ * (a batch's map per worker); either way a row is the same arithmetic, so
+ * the map is the same bit for bit.  `work` holds corr2d_dd_work() values. */
 static void
-corr2d_col_tile (const dp_corr2d_state_t *s, size_t t,
-                 const float _Complex *surf, float _Complex *out, size_t b,
-                 const float _Complex *w)
+corr2d_dd_none (void *ctx, size_t r, const float _Complex *out)
 {
-  const size_t    ny = s->ny, nx = s->nx, nyo = s->ny_out, half = nyo / 2;
-  float _Complex *g  = s->col_gather + t * CORR2D_COL_TILE * nyo;
-  float _Complex *o  = s->col_spec + t * CORR2D_COL_TILE * nyo;
-  const size_t    j0 = b * CORR2D_COL_TILE;
-  const size_t    nb = (nx - j0 < CORR2D_COL_TILE) ? nx - j0 : CORR2D_COL_TILE;
-  /* w, when given, weights slow-time sample i (a bank's rate hypothesis);
-     NULL multiplies nothing, so execute() is unchanged bit for bit. */
-  for (size_t i = 0; i < ny; i++)
-    {
-      const float _Complex *src = surf + i * nx + j0;
-      if (w)
-        for (size_t q = 0; q < nb; q++)
-          g[q * nyo + i] = src[q] * w[i];
-      else
-        for (size_t q = 0; q < nb; q++)
-          g[q * nyo + i] = src[q];
-    }
-  for (size_t q = 0; q < nb; q++)
-    dp_fft_execute_cf32 (s->slow_fft[t], g + q * nyo, nyo, o + q * nyo, nyo);
-  for (size_t k = 0; k < nyo; k++)
-    {
-      float _Complex *dst = out + ((k + half) % nyo) * nx + j0;
-      for (size_t q = 0; q < nb; q++)
-        dst[q] = o[q * nyo + k];
-    }
+  (void)ctx, (void)r, (void)out; /* the map is already in out */
 }
 
-typedef struct
+static size_t
+corr2d_dd_work (const dp_corr2d_state_t *s)
 {
-  dp_corr2d_state_t    *s;
-  const float _Complex *surf; /**< the (ny, nx) correlation surface */
-  float _Complex       *out;  /**< the (ny_out, nx) map             */
-} corr2d_cols_t;
+  const size_t w = dp__dd_map_work_len (s->dd_map, 1, 1);
+  return w ? w : 1;
+}
 
+/* `blk` holds the dump frame's rows as the fused row stage inverted them
+   (rows first); slow first reads `acc` instead and clears it. */
 static void
-corr2d_cols_body (size_t t, void *ctx)
+corr2d_dd_dump (dp_corr2d_state_t *s, int slot, float _Complex *acc,
+                const float _Complex *blk, float _Complex *work,
+                float _Complex *out)
 {
-  const corr2d_cols_t *c      = (const corr2d_cols_t *)ctx;
-  const size_t         ntiles = corr2d_ntiles (c->s->nx);
-  size_t               b0, b1;
-  corr2d_chunk (ntiles, t, c->s->nworkers, &b0, &b1);
-  for (size_t b = b0; b < b1; b++)
-    corr2d_col_tile (c->s, t, c->surf, c->out, b, NULL);
+  const dp__dd_tile_t tile = { 0, NULL, NULL, s->dd_rows };
+  if (corr2d_dd_fused (s))
+    {
+      dp__dd_map_columns (s->dd_map, s->pool, slot, blk, NULL, &tile, 1, out);
+      return;
+    }
+  (void)dp__dd_map_run (s->dd_map, s->pool, slot, acc, NULL, 1, &tile, 1, work,
+                        out, corr2d_dd_none, NULL);
+  memset (acc, 0, s->n * sizeof *acc);
 }
 
 /* Known-lag frame (col_out >= 0): row i's correlation at the one lag, a
@@ -583,8 +590,8 @@ corr2d_col_frame (const dp_corr2d_state_t *s, const float _Complex *in,
  * extra factor of ny that turns 1/n into 1/nx — see the derivation).
  *
  * The rows are independent, so they run as nworkers chunks on the pool
- * (corr2d_rows_body); the delay-Doppler flavor then runs its slow-time
- * column stage the same way (corr2d_cols_body). */
+ * (corr2d_rows_body); the delay-Doppler flavor then makes its map from the
+ * accumulated product spectra (corr2d_dd_dump). */
 static size_t
 corr2d_execute_fast (dp_corr2d_state_t *state, const float _Complex *in,
                      float _Complex *out)
@@ -603,19 +610,13 @@ corr2d_execute_fast (dp_corr2d_state_t *state, const float _Complex *in,
       return state->n_out;
     }
 
-  /* Dump decided up front: the per-row stage inverts each row as soon as
-     it is accumulated, rather than in a second pass over the surface. */
-  const int dump = (state->count + 1 == state->dwell);
-  /* The delay-Doppler flavor inverts into work_fft (each row's forward
-     spectrum is spent once it is accumulated) and the column stage writes
-     `out`; Corr2D inverts straight into `out`. */
-  corr2d_rows_t rows = { state,
-                         in,
-                         state->accum,
-                         state->work_fft,
-                         state->work_pad,
-                         state->delay_doppler ? state->work_fft : out,
-                         dump };
+  /* Dump decided up front: Corr2D's per-row stage inverts each row as soon
+     as it is accumulated, rather than in a second pass over the surface.
+     The delay-Doppler flavor only accumulates, and the map makes the dump
+     from the product spectra (slow time first, corr2d_dd_dump). */
+  const int     dump = (state->count + 1 == state->dwell);
+  corr2d_rows_t rows = { state,           in,  state->accum, state->work_fft,
+                         state->work_pad, out, dump };
   dp_pool_run (state->pool, (size_t)state->nworkers, corr2d_rows_body, &rows);
   if (!dump)
     {
@@ -623,11 +624,8 @@ corr2d_execute_fast (dp_corr2d_state_t *state, const float _Complex *in,
       return 0;
     }
   if (state->delay_doppler)
-    {
-      corr2d_cols_t cols = { state, state->work_fft, out };
-      dp_pool_run (state->pool, (size_t)state->nworkers, corr2d_cols_body,
-                   &cols);
-    }
+    corr2d_dd_dump (state, -1, state->accum, state->work_fft, state->dd_fine,
+                    out);
   state->count = 0;
   return state->n_out;
 }
@@ -755,16 +753,18 @@ dp_corr2d_create_delay_doppler (const float _Complex *code, size_t code_len,
   const size_t ntiles = corr2d_ntiles (nx);
   corr2d_build_fast (state, code, nx, nx, nthreads, ny > ntiles ? ny : ntiles);
 
-  const size_t nw = (size_t)state->nworkers;
-  state->slow_fft = dp_xcalloc (nw, sizeof *state->slow_fft);
-  for (size_t t = 0; t < nw; t++)
-    state->slow_fft[t] = dp_xnn (dp_fft_create (nyo, -1, 1));
-  /* calloc, not malloc: rows ny..ny_out-1 of every gathered column are the
-     slow-time zero-pad, written here once and never again. */
-  state->col_gather
-      = dp_xcalloc (nw * CORR2D_COL_TILE * nyo, sizeof (float _Complex));
-  state->col_spec
-      = dp_xmalloc (nw * CORR2D_COL_TILE * nyo * sizeof (float _Complex));
+  /* The one block map (corr2d_map.h): ny epochs of nx, read on ny_out
+     slow rows, no code-rate ramp (F = 1), a slot per worker. */
+  const dp__dd_geom_t geom = { nx, nx, ny, nyo, 1 };
+  state->dd_map = dp_xnn (dp__dd_map_create (&geom, state->nworkers));
+  state->dd_fine
+      = dp_xmalloc (corr2d_dd_work (state) * sizeof (float _Complex));
+  state->dd_rows = dp_xmalloc (nyo * sizeof *state->dd_rows);
+  /* The schedule, decided once: the rule's, for one tile and one rate. */
+  state->dd_fused
+      = nyo > 1 && dp__dd_map_pick (state->dd_map, 1, 1) == DP__DD_ROWS_FIRST;
+  for (size_t i = 0; i < nyo; i++)
+    state->dd_rows[i] = (i + nyo / 2) % nyo;
 
   state->delay_doppler = 1;
   state->fast_path     = 1;
@@ -807,6 +807,8 @@ corr2d_batch_alloc (dp_corr2d_state_t *s)
   s->bat_map      = dp_xmalloc (nw * s->n_out * sizeof *s->bat_map);
   if (s->fast_path && s->nx_out != s->nx)
     s->bat_pad = dp_xmalloc (nw * s->ny * s->nx_out * sizeof *s->bat_pad);
+  if (s->delay_doppler)
+    s->bat_fine = dp_xmalloc (nw * corr2d_dd_work (s) * sizeof *s->bat_fine);
 }
 
 /* One frame into slot 0 of the batch scratch, split across the workers as
@@ -828,21 +830,17 @@ corr2d_batch_frame (dp_corr2d_state_t *s, const float _Complex *x,
       return;
     }
   corr2d_rows_t rows
-      = { s,           x,          s->bat_acc,
-          s->bat_work, s->bat_pad, s->delay_doppler ? s->bat_work : dst,
-          dump };
+      = { s, x, s->bat_acc, s->bat_work, s->bat_pad, dst, dump };
   dp_pool_run (s->pool, (size_t)s->nworkers, corr2d_rows_body, &rows);
   if (dump && s->delay_doppler)
-    {
-      corr2d_cols_t cols = { s, s->bat_work, dst };
-      dp_pool_run (s->pool, (size_t)s->nworkers, corr2d_cols_body, &cols);
-    }
+    corr2d_dd_dump (s, -1, s->bat_acc, s->bat_work, s->bat_fine, dst);
 }
 
 /* Whole maps, one per worker: chunk t makes the map of frame h0 + t on
-   worker t's plans and scratch slot t, every row and then every column
-   tile, serially.  A row or tile is the same arithmetic on any worker's
-   plans, so the map equals the split one bit for bit. */
+   worker t's plans and scratch slot t, every row and then, for the
+   delay-Doppler flavor, the map on worker t's map slot, serially.  A row
+   is the same arithmetic on any worker's plans, so the map equals the
+   split one bit for bit. */
 typedef struct
 {
   dp_corr2d_state_t    *s;
@@ -861,13 +859,16 @@ corr2d_whole_body (size_t t, void *ctx)
   float _Complex       *work = s->bat_work + t * n;
   float _Complex       *pad = s->bat_pad ? s->bat_pad + t * s->ny * nxo : NULL;
   float _Complex       *map = s->bat_map + t * s->n_out;
-  float _Complex       *surf = s->delay_doppler ? work : map;
   for (size_t i = 0; i < s->ny; i++)
-    corr2d_row (s, t, x + i * nx, acc + i * nx, work + i * nx,
-                pad ? pad + i * nxo : NULL, surf + i * nxo, 1);
+    if (s->delay_doppler)
+      corr2d_dd_row (s, t, i, x + i * nx, acc + i * nx, work + i * nx,
+                     work + i * nx, 1);
+    else
+      corr2d_row (s, t, x + i * nx, acc + i * nx, work + i * nx,
+                  pad ? pad + i * nxo : NULL, map + i * nxo, 1);
   if (s->delay_doppler)
-    for (size_t b = 0; b < corr2d_ntiles (nx); b++)
-      corr2d_col_tile (s, t, work, map, b, NULL);
+    corr2d_dd_dump (s, (int)t, acc, work, s->bat_fine + t * corr2d_dd_work (s),
+                    map);
 }
 
 /* The coherent sum on the fast path, one dispatch for the whole batch:
@@ -893,10 +894,15 @@ corr2d_coh_body (size_t t, void *ctx)
   corr2d_chunk (s->ny, t, s->nworkers, &r0, &r1);
   for (size_t h = 0; h < c->H; h++)
     for (size_t i = r0; i < r1; i++)
-      corr2d_row (s, t, c->in + h * s->n + i * nx, s->bat_acc + i * nx,
-                  s->bat_work + i * nx,
-                  s->bat_pad ? s->bat_pad + i * nxo : NULL, c->dst + i * nxo,
-                  h + 1 == c->H);
+      if (s->delay_doppler)
+        corr2d_dd_row (s, t, i, c->in + h * s->n + i * nx, s->bat_acc + i * nx,
+                       s->bat_work + i * nx, s->bat_work + i * nx,
+                       h + 1 == c->H);
+      else
+        corr2d_row (s, t, c->in + h * s->n + i * nx, s->bat_acc + i * nx,
+                    s->bat_work + i * nx,
+                    s->bat_pad ? s->bat_pad + i * nxo : NULL, c->dst + i * nxo,
+                    h + 1 == c->H);
 }
 
 /* The one batch loop.  coherent = 0 makes every frame's map and folds each
@@ -914,14 +920,11 @@ corr2d_batch (dp_corr2d_state_t *s, const float _Complex *in, size_t n_in,
   const int    split = s->fast_path && s->col_out < 0;
   if (coherent && split)
     {
-      corr2d_coh_t c
-          = { s, in, H, s->delay_doppler ? s->bat_work : s->bat_map };
+      corr2d_coh_t c = { s, in, H, s->bat_map };
       dp_pool_run (s->pool, nw, corr2d_coh_body, &c);
       if (s->delay_doppler)
-        {
-          corr2d_cols_t cols = { s, s->bat_work, s->bat_map };
-          dp_pool_run (s->pool, nw, corr2d_cols_body, &cols);
-        }
+        corr2d_dd_dump (s, -1, s->bat_acc, s->bat_work, s->bat_fine,
+                        s->bat_map);
       fold->fold (fold->ctx, 0, s->bat_map, s->n_out);
       return H;
     }
@@ -1246,6 +1249,12 @@ typedef struct
   float _Complex *maps;  /**< R x n_out: one carrier's maps, one per rate  */
   float _Complex *acc;   /**< n: a fresh accumulator; unshared paths only */
   float _Complex *copy;  /**< n: one corrected frame; unshared paths only */
+  float _Complex *fine;  /**< L x R x ny_out x nx: fraction j's slow time
+                              under rate r, made once (delay-Doppler)     */
+  unsigned char  *have_fine; /**< L x R flags for @ref fine              */
+  float _Complex *wt;  /**< nx: the code's weights at 1/nx              */
+  float _Complex *blk; /**< n: one carrier's inverted epochs (rows
+                            first, delay-Doppler)                       */
 } corr2d_bank_mem_t;
 
 static void
@@ -1260,6 +1269,10 @@ corr2d_bank_free (corr2d_bank_mem_t *m)
   free (m->maps);
   free (m->acc);
   free (m->copy);
+  free (m->fine);
+  free (m->have_fine);
+  free (m->wt);
+  free (m->blk);
 }
 
 /* The fraction spectra, phases and flags follow the caller's L, and the
@@ -1279,10 +1292,30 @@ corr2d_bank_alloc (const dp_corr2d_state_t *s, const corr2d_bank_t *b,
   m->have  = calloc (L, 1);
   m->phase = malloc (L * s->nx * sizeof *m->phase);
   m->maps  = malloc (b->R * s->n_out * sizeof *m->maps);
-  if (!m->spec || !m->have || !m->phase || !m->maps)
+  int ok   = m->spec && m->have && m->phase && m->maps;
+  if (ok && s->delay_doppler)
+    {
+      /* Every fraction's slow time under every rate, made once and shared
+         by the whole-bin carriers that roll it. */
+      const size_t fl = dp__dd_map_fine_len (s->dd_map);
+      ok              = L * b->R <= SIZE_MAX / fl / sizeof (float _Complex);
+      m->fine         = ok ? malloc (L * b->R * fl * sizeof *m->fine) : NULL;
+      m->have_fine    = calloc (L * b->R, 1);
+      ok              = m->fine && m->have_fine;
+    }
+  if (!ok)
     {
       corr2d_bank_free (m);
       return 0;
+    }
+  if (s->delay_doppler)
+    {
+      /* The object's own sizes, allocated once by create(): abort on OOM
+         (clib_common.h), as m->prod is. */
+      m->wt  = dp_xmalloc (s->nx * sizeof *m->wt);
+      m->blk = dp_xmalloc (s->n * sizeof *m->blk);
+      for (size_t q = 0; q < s->nx; q++)
+        m->wt[q] = s->row_ref_spec[q] / (float)s->nx;
     }
   m->prod = dp_xmalloc (nw * s->nx * sizeof *m->prod);
   if (s->nx_out != s->nx)
@@ -1374,33 +1407,6 @@ corr2d_bank_rows_body (size_t t, void *ctx)
     }
 }
 
-/* One carrier's slow-time stage for every rate: the R x ntiles items split
-   into nworkers chunks, rate innermost so each tile of the surface is read
-   while it is warm. */
-typedef struct
-{
-  const dp_corr2d_state_t *s;
-  const float _Complex    *surf;
-  const corr2d_bank_t     *b;
-  float _Complex          *maps; /**< R x n_out */
-} corr2d_bank_cols_t;
-
-static void
-corr2d_bank_cols_body (size_t t, void *ctx)
-{
-  const corr2d_bank_cols_t *c      = (const corr2d_bank_cols_t *)ctx;
-  const dp_corr2d_state_t  *s      = c->s;
-  const size_t              ntiles = corr2d_ntiles (s->nx), R = c->b->R;
-  size_t                    i0, i1;
-  corr2d_chunk (ntiles * R, t, s->nworkers, &i0, &i1);
-  for (size_t it = i0; it < i1; it++)
-    {
-      const size_t          b = it / R, r = it % R;
-      const float _Complex *w = c->b->rates ? c->b->rates + r * s->ny : NULL;
-      corr2d_col_tile (s, t, c->surf, c->maps + r * s->n_out, b, w);
-    }
-}
-
 /* Run a stage's chunks in order on the caller.  Same chunks, same per-worker
    plans, so a bank is bit-identical for any worker count; but one frame is
    never split across the pool, which costs more than it saves at the frame
@@ -1479,18 +1485,59 @@ corr2d_bank_run (const dp_corr2d_state_t *s, const float _Complex *x,
         }
       const long long kn   = (long long)s->nx;
       const size_t    roll = (size_t)(((k % kn) + kn) % kn);
-      /* Corr2D with rates, like DelayDoppler, keeps the carrier's rows in
-         the surface and makes one map per rate from them. */
-      const int          keep = s->delay_doppler || b->rates;
-      float _Complex    *dst  = keep ? m.surf : m.maps;
-      corr2d_bank_rows_t rows = { s, m.spec + j * n, roll, &m, dst };
-      corr2d_bank_stage (s, corr2d_bank_rows_body, &rows);
       if (s->delay_doppler)
         {
-          corr2d_bank_cols_t cols = { s, m.surf, b, m.maps };
-          corr2d_bank_stage (s, corr2d_bank_cols_body, &cols);
+          /* The one block map: fraction j's slow time under rate r (made
+             once, shared by every carrier of the fraction), then the rows
+             rolled k whole bins, times the code at 1/nx, onto the centered
+             axis.  One frame is never split across the pool, so the map
+             runs whole on slot 0, the same arithmetic as execute()'s. */
+          const size_t        fl   = dp__dd_map_fine_len (s->dd_map);
+          const dp__dd_tile_t tile = { roll, NULL, m.wt, s->dd_rows };
+          /* The rule, over the carriers a fraction's slow time serves and
+             the rates: slow first shares slow time across a fraction's
+             carriers, rows first shares each carrier's inverses across its
+             rates (corr2d_map.h). */
+          if (s->ny_out > 1 /* one slow row: the copy below */
+              && dp__dd_map_pick (s->dd_map, (b->C + L - 1) / L, b->R)
+                     == DP__DD_ROWS_FIRST)
+            {
+              dp__dd_map_epochs (s->dd_map, NULL, 0, m.spec + j * n, &tile, 1,
+                                 m.blk);
+              for (size_t r = 0; r < b->R; r++)
+                dp__dd_map_columns (s->dd_map, NULL, 0, m.blk,
+                                    b->rates ? b->rates + r * s->ny : NULL,
+                                    &tile, 1, m.maps + r * s->n_out);
+            }
+          else
+            for (size_t r = 0; r < b->R; r++)
+              {
+                float _Complex       *S = m.fine + (j * b->R + r) * fl;
+                const float _Complex *w
+                    = b->rates ? b->rates + r * s->ny : NULL;
+                if (!m.have_fine[j * b->R + r])
+                  {
+                    if (s->ny_out > 1)
+                      dp__dd_map_slow (s->dd_map, NULL, 0, m.spec + j * n, w,
+                                       S);
+                    else /* one period: no slow time, the weight alone */
+                      for (size_t q = 0; q < s->nx; q++)
+                        S[q] = m.spec[j * n + q] * (w ? w[0] : 1.0f);
+                    m.have_fine[j * b->R + r] = 1;
+                  }
+                dp__dd_map_rows (s->dd_map, NULL, 0, S, &tile, 1,
+                                 m.maps + r * s->n_out);
+              }
         }
-      else if (b->rates)
+      else
+        {
+          /* Corr2D with rates keeps the carrier's rows in the surface and
+             makes one map per rate from them. */
+          float _Complex    *dst  = b->rates ? m.surf : m.maps;
+          corr2d_bank_rows_t rows = { s, m.spec + j * n, roll, &m, dst };
+          corr2d_bank_stage (s, corr2d_bank_rows_body, &rows);
+        }
+      if (!s->delay_doppler && b->rates)
         /* Corr2D's rows are its periods: weighting period i weights map
            row i, the correlation being linear in the row. */
         for (size_t r = 0; r < b->R; r++)
@@ -1738,4 +1785,657 @@ dp_corr2d_bank_detect (const dp_corr2d_state_t *state, const float _Complex *x,
     }
   free (pw), free (ix), free (code), free (ph);
   return ok ? nrec : SIZE_MAX;
+}
+
+/* ── The one delay-Doppler block map (#2752 step 2, corr2d_map.h) ─────────
+ *
+ * Every stage fans over chunks fixed by the chunk index alone, and chunk t
+ * runs on slot t: its own plans (forward N, slow F DI, inverse L) and its
+ * own scratch. A pocketfft plan keeps scratch of its own, so plans are
+ * never shared between chunks; the arithmetic of a row does not depend on
+ * which chunk computes it, so the map is bit-identical at every count. */
+
+/* Bins a slow-time chunk gathers at once (the column stage's transpose
+   tile, CORR2D_COL_TILE, measured for exactly this access). */
+#define DD_SLOW_TILE CORR2D_COL_TILE
+/* Bins the row stage gathers at once: their fine rows stay in cache while
+   every slow row of the group reads them (proto-2732's CHUNK). */
+#define DD_GATHER 8
+/* Rows the row stage gathers before inverting them. */
+#define DD_ROW_GROUP 16
+
+typedef struct
+{
+  dp_fft_state_t *fwd;  /* N, forward                         */
+  dp_fft_state_t *slow; /* F DI, forward; NULL when F DI = 1  */
+  dp_fft_state_t *inv;  /* L, inverse                         */
+  float _Complex *col;  /* DD_SLOW_TILE x F DI, the zero tail
+                           written by calloc and never again */
+  float _Complex *prod; /* DD_ROW_GROUP x N gathered products */
+  float _Complex *pad;  /* L, the padded product; NULL L = N  */
+  /* Rows-first's column stage (DI > 1): */
+  dp_fft_state_t *slowr; /* DI, forward                       */
+  float _Complex *colr;  /* DD_SLOW_TILE x DI, zero tail      */
+  float _Complex *colo;  /* DD_SLOW_TILE x DI, transformed    */
+} dd_slot_t;
+
+struct dp__dd_map
+{
+  dp__dd_geom_t   g;
+  size_t          fdi;   /* F DI                              */
+  int             slots; /* slots built                       */
+  dd_slot_t      *slot;  /* [slots]                           */
+  float           unit;  /* 1/N, the weight of a NULL wt      */
+  float _Complex *tw;    /* F DI: e^{-j 2 pi m / (F DI)}, the
+                            rows-first ramp's phases; NULL at
+                            F DI = 1                          */
+  int force;             /* -1 the rule; else a schedule      */
+};
+
+static void
+dd_slot_free (dd_slot_t *s)
+{
+  dp_fft_destroy (s->fwd);
+  dp_fft_destroy (s->slow);
+  dp_fft_destroy (s->inv);
+  dp_fft_destroy (s->slowr);
+  free (s->colr);
+  free (s->colo);
+  free (s->col);
+  free (s->prod);
+  free (s->pad);
+  memset (s, 0, sizeof *s);
+}
+
+/* One slot's plans and scratch; 0, or -1 with nothing left allocated. */
+static int
+dd_slot_build (const dp__dd_map_t *m, dd_slot_t *s)
+{
+  const dp__dd_geom_t *g = &m->g;
+  memset (s, 0, sizeof *s);
+  s->fwd  = dp_fft_create (g->n, -1, 1);
+  s->inv  = dp_fft_create (g->l, +1, 1);
+  s->prod = malloc (DD_ROW_GROUP * g->n * sizeof *s->prod);
+  int ok  = s->fwd && s->inv && s->prod;
+  if (ok && m->fdi > 1)
+    {
+      s->slow = dp_fft_create (m->fdi, -1, 1);
+      s->col  = calloc (DD_SLOW_TILE * m->fdi, sizeof *s->col);
+      ok      = s->slow && s->col;
+    }
+  if (ok && g->l != g->n)
+    {
+      s->pad = malloc (g->l * sizeof *s->pad);
+      ok     = s->pad != NULL;
+    }
+  if (ok && g->di > 1)
+    {
+      s->slowr = dp_fft_create (g->di, -1, 1);
+      s->colr  = calloc (DD_SLOW_TILE * g->di, sizeof *s->colr);
+      s->colo  = malloc (DD_SLOW_TILE * g->di * sizeof *s->colo);
+      ok       = s->slowr && s->colr && s->colo;
+    }
+  if (!ok)
+    dd_slot_free (s);
+  return ok ? 0 : -1;
+}
+
+dp__dd_map_t *
+dp__dd_map_create (const dp__dd_geom_t *g, int slots)
+{
+  if (!g || g->n == 0 || g->l < g->n || g->d == 0 || g->di < g->d
+      || (g->f != 1 && g->f != DP__DD_MAP_FINE) || slots < 1
+      || g->di > SIZE_MAX / g->f)
+    return NULL;
+  dp__dd_map_t *m = calloc (1, sizeof *m);
+  if (!m)
+    return NULL;
+  m->g     = *g;
+  m->fdi   = g->f * g->di;
+  m->unit  = 1.0f / (float)g->n;
+  m->force = -1;
+  if (m->fdi > 1)
+    {
+      m->tw = malloc (m->fdi * sizeof *m->tw);
+      if (!m->tw)
+        {
+          free (m);
+          return NULL;
+        }
+      for (size_t k = 0; k < m->fdi; k++)
+        m->tw[k] = (float _Complex)cexp (-2.0 * M_PI * I * (double)k
+                                         / (double)m->fdi);
+    }
+  if (dp__dd_map_reserve (m, slots) != 0)
+    {
+      dp__dd_map_destroy (m);
+      return NULL;
+    }
+  return m;
+}
+
+int
+dp__dd_map_reserve (dp__dd_map_t *m, int slots)
+{
+  if (slots <= m->slots)
+    return 0;
+  dd_slot_t *grown = realloc (m->slot, (size_t)slots * sizeof *grown);
+  if (!grown)
+    return -1;
+  m->slot = grown;
+  for (int t = m->slots; t < slots; t++)
+    {
+      if (dd_slot_build (m, &m->slot[t]) != 0)
+        return -1; /* the slots built so far stand */
+      m->slots = t + 1;
+    }
+  return 0;
+}
+
+void
+dp__dd_map_destroy (dp__dd_map_t *m)
+{
+  if (!m)
+    return;
+  for (int t = 0; t < m->slots; t++)
+    dd_slot_free (&m->slot[t]);
+  free (m->slot);
+  free (m->tw);
+  free (m);
+}
+
+const dp__dd_geom_t *
+dp__dd_map_geom (const dp__dd_map_t *m)
+{
+  return &m->g;
+}
+
+size_t
+dp__dd_map_fine_len (const dp__dd_map_t *m)
+{
+  return m->fdi * m->g.n;
+}
+
+/* Chunks a stage fans into: one per slot the pool can run at once. */
+static size_t
+dd_chunks (const dp__dd_map_t *m, dp_pool_t *pool, size_t items)
+{
+  size_t k = (size_t)dp_pool_threads (pool);
+  if (k > (size_t)m->slots)
+    k = (size_t)m->slots;
+  if (k > items)
+    k = items;
+  return k ? k : 1;
+}
+
+/* Run body over k chunks on the pool, or, given a slot, as one chunk of
+   one on that slot. The body reads its slot and range from the context. */
+typedef struct
+{
+  dp__dd_map_t         *m;
+  size_t                k;    /* chunks                         */
+  int                   slot; /* >= 0: one chunk, on this slot  */
+  size_t                items;
+  const float _Complex *in;
+  const float _Complex *w;
+  float _Complex       *out;
+  const dp__dd_tile_t  *tiles;
+} dd_run_t;
+
+static void
+dd_range (const dd_run_t *c, size_t t, size_t *a, size_t *b, dd_slot_t **s)
+{
+  if (c->slot >= 0)
+    {
+      *a = 0;
+      *b = c->items;
+      *s = &c->m->slot[c->slot];
+      return;
+    }
+  *a = t * c->items / c->k;
+  *b = (t + 1) * c->items / c->k;
+  *s = &c->m->slot[t];
+}
+
+static void
+dd_run (dd_run_t *c, dp_pool_t *pool, void (*body) (size_t, void *))
+{
+  if (c->slot >= 0)
+    {
+      body (0, c);
+      return;
+    }
+  c->k = dd_chunks (c->m, pool, c->items);
+  dp_pool_run (pool, c->k, body, c);
+}
+
+static void
+dd_forward_body (size_t t, void *ctx)
+{
+  const dd_run_t *c = (const dd_run_t *)ctx;
+  const size_t    N = c->m->g.n;
+  size_t          a, b;
+  dd_slot_t      *s;
+  dd_range (c, t, &a, &b, &s);
+  for (size_t k = a; k < b; k++)
+    dp_fft_execute_cf32 (s->fwd, c->in + k * N, N, c->out + k * N, N);
+}
+
+void
+dp__dd_map_forward (dp__dd_map_t *m, dp_pool_t *pool, int slot,
+                    const float _Complex *x, float _Complex *X)
+{
+  dd_run_t c = { .m = m, .slot = slot, .items = m->g.d, .in = x, .out = X };
+  dd_run (&c, pool, dd_forward_body);
+}
+
+/* Slow time for bins [p0, p0 + nb): each bin's D weighted values gathered
+   into a column of the slot's tile (rows D .. F DI - 1 stay zero: the
+   pad), transformed straight into S's bin-major row for that bin. */
+static void
+dd_slow_body (size_t t, void *ctx)
+{
+  const dd_run_t *c = (const dd_run_t *)ctx;
+  const size_t    N = c->m->g.n, D = c->m->g.d, fdi = c->m->fdi;
+  size_t          a, b;
+  dd_slot_t      *s;
+  dd_range (c, t, &a, &b, &s);
+  for (size_t tile = a; tile < b; tile++)
+    {
+      const size_t p0 = tile * DD_SLOW_TILE;
+      const size_t nb = N - p0 < DD_SLOW_TILE ? N - p0 : DD_SLOW_TILE;
+      for (size_t k = 0; k < D; k++)
+        {
+          const float _Complex *src = c->in + k * N + p0;
+          if (c->w)
+            for (size_t q = 0; q < nb; q++)
+              s->col[q * fdi + k] = src[q] * c->w[k];
+          else
+            for (size_t q = 0; q < nb; q++)
+              s->col[q * fdi + k] = src[q];
+        }
+      for (size_t q = 0; q < nb; q++)
+        dp_fft_execute_cf32 (s->slow, s->col + q * fdi, fdi,
+                             c->out + (p0 + q) * fdi, fdi);
+    }
+}
+
+void
+dp__dd_map_slow (dp__dd_map_t *m, dp_pool_t *pool, int slot,
+                 const float _Complex *X, const float _Complex *w,
+                 float _Complex *S)
+{
+  dd_run_t c = { .m     = m,
+                 .slot  = slot,
+                 .items = (m->g.n + DD_SLOW_TILE - 1) / DD_SLOW_TILE,
+                 .in    = X,
+                 .w     = w,
+                 .out   = S };
+  dd_run (&c, pool, dd_slow_body);
+}
+
+/* A gathered product of N bins, padded to L the way dp_fft_pad_spectrum
+   pads, and inverted (unnormalized) into dst: the one inverse both
+   schedules end a row or an epoch with. */
+static void
+dd_pad_inverse (const dp__dd_map_t *m, dd_slot_t *s, float _Complex *pr,
+                float _Complex *dst)
+{
+  const size_t N = m->g.n, L = m->g.l;
+  if (s->pad)
+    {
+      dp_fft_pad_spectrum (pr, N, s->pad, L);
+      pr = s->pad;
+    }
+  dp_fft_execute_cf32 (s->inv, pr, L, dst, L);
+}
+
+/* Rows [i0, i1) of one tile: gathered DD_GATHER bins at a time, each bin's
+   fine row advancing by F a slow row with one compare to wrap it (no
+   division in the loop), then padded and inverted row by row. `fdi` is S's
+   fine rows a bin (1 when S is X) and `f` the step a slow row moves. */
+static void
+dd_tile_rows (const dp__dd_map_t *m, dd_slot_t *s, const float _Complex *S,
+              size_t fdi, size_t f, const dp__dd_tile_t *tl, size_t i0,
+              size_t i1, float _Complex *out, float _Complex *row1)
+{
+  const size_t N = m->g.n, L = m->g.l;
+  for (size_t g0 = i0; g0 < i1; g0 += DD_ROW_GROUP)
+    {
+      const size_t g1 = i1 - g0 < DD_ROW_GROUP ? i1 : g0 + DD_ROW_GROUP;
+      for (size_t j0 = 0; j0 < N; j0 += DD_GATHER)
+        {
+          const size_t          nc = N - j0 < DD_GATHER ? N - j0 : DD_GATHER;
+          const float _Complex *col[DD_GATHER];
+          float _Complex cw[DD_GATHER];
+          size_t n0[DD_GATHER];
+          for (size_t q = 0; q < nc; q++)
+            {
+              const size_t j = j0 + q;
+              const size_t p
+                  = j + tl->roll < N ? j + tl->roll : j + tl->roll - N;
+              col[q] = S + p * fdi;
+              cw[q]  = tl->wt ? tl->wt[j] : m->unit;
+              /* The fine row slow row g0 reads, wrapped into [0, fdi). */
+              n0[q] = ((tl->off ? (size_t)tl->off[j] : 0) + (f * g0) % fdi)
+                      % fdi;
+            }
+          for (size_t i = g0; i < g1; i++)
+            {
+              float _Complex *pr = s->prod + (i - g0) * N + j0;
+              for (size_t q = 0; q < nc; q++)
+                {
+                  pr[q] = col[q][n0[q]] * cw[q];
+                  n0[q] += f;
+                  if (n0[q] >= fdi)
+                    n0[q] -= fdi;
+                }
+            }
+        }
+      for (size_t i = g0; i < g1; i++)
+        dd_pad_inverse (m, s, s->prod + (i - g0) * N,
+                        row1 ? row1 : out + tl->rows[i] * L);
+    }
+}
+
+/* Rows over the flat index of every tile's DI rows, so chunks balance
+   across tiles; a chunk's range is cut where a tile ends. */
+static void
+dd_rows_body (size_t t, void *ctx)
+{
+  const dd_run_t *c   = (const dd_run_t *)ctx;
+  const size_t    DI  = c->m->g.di;
+  const size_t    fdi = c->m->fdi;
+  size_t          a, b;
+  dd_slot_t      *s;
+  dd_range (c, t, &a, &b, &s);
+  while (a < b)
+    {
+      const size_t q = a / DI, i0 = a % DI;
+      const size_t i1 = (b - q * DI < DI) ? b - q * DI : DI;
+      dd_tile_rows (c->m, s, c->in, fdi, fdi > 1 ? c->m->g.f : 0, &c->tiles[q],
+                    i0, i1, c->out, NULL);
+      a = q * DI + i1;
+    }
+}
+
+void
+dp__dd_map_rows (dp__dd_map_t *m, dp_pool_t *pool, int slot,
+                 const float _Complex *S, const dp__dd_tile_t *tiles,
+                 size_t n_tiles, float _Complex *out)
+{
+  dd_run_t c = { .m     = m,
+                 .slot  = slot,
+                 .items = n_tiles * m->g.di,
+                 .in    = S,
+                 .out   = out,
+                 .tiles = tiles };
+  dd_run (&c, pool, dd_rows_body);
+}
+
+void
+dp__dd_map_row1 (dp__dd_map_t *m, int slot, const float _Complex *X,
+                 size_t roll, const float _Complex *wt, float _Complex *row)
+{
+  const dp__dd_tile_t tl = { roll, NULL, wt, NULL };
+  dd_tile_rows (m, &m->slot[slot], X, 1, 0, &tl, 0, 1, NULL, row);
+}
+
+void
+dp__dd_ramp_table (const dp__dd_geom_t *g, double dq,
+                   const float _Complex *base, int32_t *off,
+                   float _Complex *wt)
+{
+  const double fdi = (double)(g->f * g->di);
+  const double mid = 0.5 * (double)(g->d - 1);
+  for (size_t j = 0; j < g->n; j++)
+    {
+      const long r  = lround (fdi * dq * (double)dp_fftfreq_index (j, g->n)
+                              / (double)g->n);
+      const long fw = (long)(g->f * g->di);
+      off[j]        = (int32_t)(((r % fw) + fw) % fw);
+      wt[j] = base[j]
+              * (float _Complex)cexp (2.0 * M_PI * I * mid * (double)r / fdi);
+    }
+}
+
+/* ── Rows first: the same map in the other order ──────────────────────────
+ *
+ * The slow-time weight and the rounded ramp are per-epoch, per-bin factors,
+ * so they commute with the per-epoch row transforms: each epoch's product
+ * X_k[(j + roll) mod N] wt_j e^{-j 2 pi k off_j / (F DI)} is inverted first
+ * and slow time taken last, down every lag column at DI points. That is the
+ * same function as slow time first, whose fine-grid transform puts the
+ * phase e^{-j 2 pi k r_j / (F DI)} on epoch k itself (r_j = off_j mod
+ * F DI): the two differ by float rounding alone. The phases come from one
+ * table of F DI unit phasors indexed by (k off_j) mod F DI, integers, so
+ * every epoch's factor is exact to the table. */
+
+/* Tile q's epochs [k0, k1): gathered, ramped, padded and inverted into the
+   tile's D x L block. */
+static void
+dd_epoch (const dp__dd_map_t *m, dd_slot_t *s, const float _Complex *x,
+          size_t k, const dp__dd_tile_t *tl, float _Complex *dst)
+{
+  const size_t    N = m->g.n, fdi = m->fdi, roll = tl->roll;
+  float _Complex *pr = s->prod;
+  /* The roll as two straight runs, and the weight and the ramp hoisted out
+     of the loop: per bin, the same products in the same order. */
+  const float _Complex *xa = x + roll, *xb = x + roll - N;
+  const size_t          ja = N - roll;
+  if (!tl->wt && !tl->off)
+    {
+      for (size_t j = 0; j < ja; j++)
+        pr[j] = xa[j] * m->unit;
+      for (size_t j = ja; j < N; j++)
+        pr[j] = xb[j] * m->unit;
+    }
+  else if (!tl->off)
+    {
+      for (size_t j = 0; j < ja; j++)
+        pr[j] = xa[j] * tl->wt[j];
+      for (size_t j = ja; j < N; j++)
+        pr[j] = xb[j] * tl->wt[j];
+    }
+  else
+    for (size_t j = 0; j < N; j++)
+      {
+        const float _Complex v
+            = (j < ja ? xa[j] : xb[j]) * (tl->wt ? tl->wt[j] : m->unit);
+        pr[j] = v * m->tw[(k * (size_t)tl->off[j]) % fdi];
+      }
+  dd_pad_inverse (m, s, pr, dst);
+}
+
+static void
+dd_epochs (const dp__dd_map_t *m, dd_slot_t *s, const float _Complex *X,
+           const dp__dd_tile_t *tl, size_t k0, size_t k1, float _Complex *blk)
+{
+  for (size_t k = k0; k < k1; k++)
+    dd_epoch (m, s, X + k * m->g.n, k, tl, blk + k * m->g.l);
+}
+
+void
+dp__dd_map_epoch1 (dp__dd_map_t *m, int slot, const float _Complex *x,
+                   size_t k, const dp__dd_tile_t *tl, float _Complex *dst)
+{
+  dd_epoch (m, &m->slot[slot], x, k, tl, dst);
+}
+
+static void
+dd_epochs_body (size_t t, void *ctx)
+{
+  const dd_run_t *c = (const dd_run_t *)ctx;
+  const size_t    D = c->m->g.d, L = c->m->g.l;
+  size_t          a, b;
+  dd_slot_t      *s;
+  dd_range (c, t, &a, &b, &s);
+  while (a < b)
+    {
+      const size_t q = a / D, k0 = a % D;
+      const size_t k1 = (b - q * D < D) ? b - q * D : D;
+      dd_epochs (c->m, s, c->in, &c->tiles[q], k0, k1, c->out + q * D * L);
+      a = q * D + k1;
+    }
+}
+
+void
+dp__dd_map_epochs (dp__dd_map_t *m, dp_pool_t *pool, int slot,
+                   const float _Complex *X, const dp__dd_tile_t *tiles,
+                   size_t n_tiles, float _Complex *blk)
+{
+  dd_run_t c = { .m     = m,
+                 .slot  = slot,
+                 .items = n_tiles * m->g.d,
+                 .in    = X,
+                 .out   = blk,
+                 .tiles = tiles };
+  dd_run (&c, pool, dd_epochs_body);
+}
+
+/* Slow time down lag columns [l0, l0 + nc) of tile q's block: each column's
+   D values weighted per epoch, zero-padded to DI (rows D .. DI - 1 of the
+   slot's tile stay zero), transformed, and scattered onto the tile's rows. */
+static void
+dd_columns_body (size_t t, void *ctx)
+{
+  const dd_run_t *c = (const dd_run_t *)ctx;
+  const size_t    D = c->m->g.d, DI = c->m->g.di, L = c->m->g.l;
+  const size_t    nt = (L + DD_SLOW_TILE - 1) / DD_SLOW_TILE;
+  size_t          a, b;
+  dd_slot_t      *s;
+  dd_range (c, t, &a, &b, &s);
+  for (size_t it = a; it < b; it++)
+    {
+      const size_t          q = it / nt, l0 = (it % nt) * DD_SLOW_TILE;
+      const size_t          nc = L - l0 < DD_SLOW_TILE ? L - l0 : DD_SLOW_TILE;
+      const float _Complex *blk  = c->in + q * D * L + l0;
+      const size_t         *rows = c->tiles[q].rows;
+      for (size_t k = 0; k < D; k++)
+        {
+          const float _Complex *src = blk + k * L;
+          if (c->w)
+            for (size_t q2 = 0; q2 < nc; q2++)
+              s->colr[q2 * DI + k] = src[q2] * c->w[k];
+          else
+            for (size_t q2 = 0; q2 < nc; q2++)
+              s->colr[q2 * DI + k] = src[q2];
+        }
+      for (size_t q2 = 0; q2 < nc; q2++)
+        dp_fft_execute_cf32 (s->slowr, s->colr + q2 * DI, DI,
+                             s->colo + q2 * DI, DI);
+      for (size_t i = 0; i < DI; i++)
+        {
+          float _Complex *dst = c->out + rows[i] * L + l0;
+          for (size_t q2 = 0; q2 < nc; q2++)
+            dst[q2] = s->colo[q2 * DI + i];
+        }
+    }
+}
+
+void
+dp__dd_map_columns (dp__dd_map_t *m, dp_pool_t *pool, int slot,
+                    const float _Complex *blk, const float _Complex *w,
+                    const dp__dd_tile_t *tiles, size_t n_tiles,
+                    float _Complex *out)
+{
+  const size_t nt = (m->g.l + DD_SLOW_TILE - 1) / DD_SLOW_TILE;
+  dd_run_t     c  = { .m     = m,
+                      .slot  = slot,
+                      .items = n_tiles * nt,
+                      .in    = blk,
+                      .w     = w,
+                      .out   = out,
+                      .tiles = tiles };
+  dd_run (&c, pool, dd_columns_body);
+}
+
+/* n log2 n, the cost of one length-n transform; 0 for n <= 1. */
+static double
+dd_tcost (size_t n)
+{
+  return n > 1 ? (double)n * log2 ((double)n) : 0.0;
+}
+
+int
+dp__dd_schedule (const dp__dd_geom_t *g, size_t n_tiles, size_t n_rates)
+{
+  const double W = (double)n_tiles, R = (double)n_rates;
+  const double D = (double)g->d, DI = (double)g->di;
+  /* Slow first: N slow transforms of F DI and W DI inverses, per rate.
+     Rows first: W D inverses once, then W L slow transforms of DI per
+     rate. A tie goes to rows first: it reads its rows in place, where slow
+     first gathers every row out of bin-major S (#2831: at DelayDoppler's
+     equal count, 1.1 of a 2.15 ms row stage). */
+  const double slow
+      = R
+        * ((double)g->n * dd_tcost (g->f * g->di) + W * DI * dd_tcost (g->l));
+  const double rows
+      = W * D * dd_tcost (g->l) + R * W * (double)g->l * dd_tcost (g->di);
+  return g->di <= 1 || rows <= slow ? DP__DD_ROWS_FIRST : DP__DD_SLOW_FIRST;
+}
+
+void
+dp__dd_map_force (dp__dd_map_t *m, int schedule)
+{
+  m->force = schedule;
+}
+
+int
+dp__dd_map_pick (const dp__dd_map_t *m, size_t n_tiles, size_t n_rates)
+{
+  return m->force >= 0 ? m->force : dp__dd_schedule (&m->g, n_tiles, n_rates);
+}
+
+size_t
+dp__dd_map_work_len (const dp__dd_map_t *m, size_t n_tiles, size_t n_rates)
+{
+  if (dp__dd_map_pick (m, n_tiles, n_rates) == DP__DD_ROWS_FIRST)
+    return m->g.di > 1 ? n_tiles * m->g.d * m->g.l : 0;
+  return m->fdi > 1 ? m->fdi * m->g.n : 0;
+}
+
+int
+dp__dd_map_run (dp__dd_map_t *m, dp_pool_t *pool, int slot,
+                const float _Complex *X, const float _Complex *rates,
+                size_t n_rates, const dp__dd_tile_t *tiles, size_t n_tiles,
+                float _Complex *work, float _Complex *out, dp__dd_fold_fn fold,
+                void *ctx)
+{
+  const size_t D = m->g.d, R = n_rates ? n_rates : 1;
+  const int    sch = dp__dd_map_pick (m, n_tiles, R);
+  if (m->g.di <= 1 || m->fdi <= 1)
+    {
+      /* One slow row: no slow time in either order, and a rate's weight is
+         one scalar an epoch of one: the rows read X itself. */
+      for (size_t r = 0; r < R; r++)
+        {
+          dp__dd_map_rows (m, pool, slot, X, tiles, n_tiles, out);
+          if (rates)
+            for (size_t c = 0; c < n_tiles * m->g.l; c++)
+              out[tiles[c / m->g.l].rows[0] * m->g.l + c % m->g.l]
+                  *= rates[r * D];
+          fold (ctx, r, out);
+        }
+      return DP__DD_ROWS_FIRST; /* one slow row: there is only one order */
+    }
+  if (sch == DP__DD_ROWS_FIRST)
+    {
+      dp__dd_map_epochs (m, pool, slot, X, tiles, n_tiles, work);
+      for (size_t r = 0; r < R; r++)
+        {
+          dp__dd_map_columns (m, pool, slot, work,
+                              rates ? rates + r * D : NULL, tiles, n_tiles,
+                              out);
+          fold (ctx, r, out);
+        }
+      return sch;
+    }
+  for (size_t r = 0; r < R; r++)
+    {
+      dp__dd_map_slow (m, pool, slot, X, rates ? rates + r * D : NULL, work);
+      dp__dd_map_rows (m, pool, slot, work, tiles, n_tiles, out);
+      fold (ctx, r, out);
+    }
+  return sch;
 }

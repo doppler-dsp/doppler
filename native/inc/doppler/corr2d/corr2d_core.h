@@ -116,8 +116,8 @@ typedef struct {
    *  here and copying the prefix. Allocated lazily; the sized path never
    *  touches it. */
   float _Complex *work_trunc;
-  /* Worker fan-out (#2666).  The fast path's per-row stage and the
-   * delay-Doppler flavor's per-column stage are each a set of independent
+  /* Worker fan-out (#2666).  The fast path's per-row stage and each stage
+   * of the delay-Doppler flavor's map are each a set of independent
    * transforms, run over `nworkers` contiguous chunks on `pool`.  A pocketfft
    * plan keeps scratch of its own, so it cannot be shared between threads:
    * every worker owns one plan per stage, and chunk t always runs on plan t,
@@ -131,21 +131,26 @@ typedef struct {
                                    nx_out; worker 0's is @ref inv1d.  Fast
                                    path only.                             */
   /* Delay-Doppler flavor (dp_corr2d_create_delay_doppler).  The flavor is
-   * the fast path plus a slow-time FFT down every delay column at dump
-   * time; it is fixed at create() and changes what the state blob means,
-   * so the blob carries its own magic. */
+   * the fast path's accumulation plus the library's one delay-Doppler map
+   * at dump time (docs/design/acq-surface.md §18); it is fixed at create()
+   * and changes what the state blob means, so the blob carries its own
+   * magic. */
   int              delay_doppler; /**< 1 for the delay-Doppler flavor.     */
   double           doppler_step;  /**< Doppler spacing between adjacent
                                        output rows, cycles/sample:
                                        1 / (ny_out * nx).  0 for Corr2D.   */
-  dp_fft_state_t **slow_fft;  /**< Per-worker slow-time plans, length
-                                   ny_out.  Delay-Doppler only.           */
-  float _Complex  *col_gather;/**< Per-worker column tiles, nworkers x
-                                   CORR2D_COL_TILE x ny_out; rows ny..
-                                   ny_out-1 of each column stay zero (the
-                                   slow-time zero-pad).  Delay-Doppler.   */
-  float _Complex  *col_spec;  /**< Per-worker transformed tiles, same
-                                   shape as @ref col_gather.              */
+  struct dp__dd_map *dd_map;  /**< The one delay-Doppler block map
+                                   (docs/design/acq-surface.md §18.1),
+                                   one slot per worker.  Delay-Doppler
+                                   only; internal.                        */
+  float _Complex  *dd_fine;   /**< The map's slow-time output, ny_out x
+                                   nx, bin-major.  Delay-Doppler only.    */
+  size_t          *dd_rows;   /**< Output row of slow row i: the
+                                   centered (i + ny_out/2) mod ny_out.    */
+  int              dd_fused;  /**< 1 when the map runs rows first (its
+                                   rule at one tile, one rate): the dump
+                                   frame's rows are inverted as they are
+                                   accumulated.                           */
   /* Batch scratch (dp_corr2d_execute_fold and the typed batch calls),
    * allocated on the first batch, one slot per worker.  A batch makes its
    * maps here and never touches accum or count, so it is not state and is
@@ -156,6 +161,9 @@ typedef struct {
   float _Complex  *bat_pad;   /**< Per-worker row zero-pad, nworkers x ny x
                                    nx_out; fast path with nx_out > nx only. */
   float _Complex  *bat_map;   /**< Per-worker maps, nworkers x n_out.    */
+  float _Complex  *bat_fine;  /**< Per-worker slow-time output for the
+                                   delay-Doppler map, nworkers x ny_out x
+                                   nx.  Delay-Doppler only.               */
 } dp_corr2d_state_t;
 
 /**
@@ -223,6 +231,9 @@ dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t
  * Corr2D's single-row fast path does (FFT, multiply by `conj(FFT(code))`,
  * coherent @p dwell accumulation of the product spectrum, inverse scaled by
  * `1/nx`), and on the dump the slow-time FFT runs down every delay column.
+ * The library's one delay-Doppler map computes it (docs/design/acq-surface.md
+ * §18), in whichever of its two orders has fewer transforms: here, one
+ * code and one rate, the rows first, each row inverted as it is accumulated.
  * In numpy terms, for one frame `x` (dwell 1):
  *
  *     C   = np.conj(np.fft.fft(code))
@@ -808,9 +819,13 @@ size_t dp_corr2d_execute_peaks (dp_corr2d_state_t *state,
  * Every path runs a bank, and only the single-row fast path and DelayDoppler
  * share work: whole bins (g a multiple of L) are a roll of the row spectrum,
  * each fraction `g mod L` mixes and transforms the rows once for every whole
- * bin that shares it, and each carrier inverts its rows once for all its
- * rates.  On DelayDoppler a rate pays only the slow-time FFT; on Corr2D,
- * whose rows are its periods, it scales the carrier's rows.  The general 2-D
+ * bin that shares it.  On DelayDoppler the one delay-Doppler map then runs
+ * in whichever of its two orders has fewer transforms for the bank's
+ * carriers per fraction and its rates (docs/design/acq-surface.md §18):
+ * rows first inverts each carrier's rows once for all its rates and pays a
+ * slow-time FFT per rate; slow first shares each fraction's slow time across
+ * its whole-bin carriers and pays their rows per rate.  On Corr2D, whose
+ * rows are its periods, a rate scales the carrier's rows.  The general 2-D
  * path and a known column run each hypothesis's corrected frame through
  * their own frame code, which is the definition with nothing shared.
  *

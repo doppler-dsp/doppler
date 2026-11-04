@@ -45,8 +45,15 @@ where $x_r[n]$ is period $r$ and $n$ counts within it, $0 \le n < n_x$.
     frame: the row FFT always, and the row correlation when only $w$ varies.
 1. **Carrier outer, rate inner.** $f$ acts on the row spectrum before the
     reference multiply, so each carrier hypothesis pays the row inverses.
-    $w_r$ is a per-period scalar after them, so each rate hypothesis pays only
-    the slow-time FFT.
+    $w_r$ is a per-period scalar, so it commutes with the per-period
+    transforms and each rate hypothesis can share them. Since #2752 step 2.3
+    the map that runs it is the library's one delay-Doppler map
+    ([acq-surface §18](acq-surface.md#18-one-delay-doppler-map)), which takes
+    the order with fewer transforms for a call's carriers per fraction and
+    rates. Rows first, each carrier's inverses are shared by its rates and a
+    rate pays only the slow-time FFT. Slow first, a fraction's slow time is
+    shared by its whole-bin carriers and a rate pays their rows. A bank with
+    many rates runs rows first.
 1. **The carrier is corrected within a period only.** The mix restarts at
     every period ($n$ counts within the period, above). The phase a carrier
     adds *between* periods is slow-time Doppler, which the slow-time FFT

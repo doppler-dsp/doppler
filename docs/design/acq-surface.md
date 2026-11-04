@@ -1163,6 +1163,34 @@ the two orders do the same transforms, $D$ forward, $D$ inverse and $N$
 slow, so its rows should not move. A dwell of several frames sums the epoch
 spectra, which is linear, and runs the map once at the dump.
 
+**Two schedules, one map.** Slow time first is one order of the map; rows
+first is the other. Each epoch's product is gathered, ramped and inverted,
+then slow time runs down every lag column. The rate weight and the rounded
+ramp are per-epoch factors, so they commute with the per-epoch transforms.
+The ramp enters rows first as the phase $e^{-j 2\pi k\, r_{qj}/(FDI)}$ on
+epoch $k$, read from one table of $F\,DI$ unit phasors at
+$(k\, r_{qj}) \bmod F\,DI$. That is the factor the fine-grid transform
+puts on epoch $k$ when slow time comes first, so both orders compute one
+function and differ by float rounding alone. Both run the same stage code
+(the row gather, the pad and inverse, the slow transform), so there is
+still one implementation.
+
+One rule, `dp__dd_schedule` in `corr2d_map.h`, picks the order with fewer
+transforms, counted as $n \log_2 n$ each:
+
+- slow first pays, per rate, $N$ slow transforms of $F\,DI$ points and
+    $W\,DI$ inverses;
+- rows first pays $W D$ inverses once and, per rate, $W L$ slow transforms of
+    $DI$ points;
+- a tie goes to rows first, which reads its rows in place where slow first
+    gathers them out of the bin-major slow-time output.
+
+That puts acq's wideband engines (21 and 53 tiles) on slow first, where
+§18.1's table is measured. One tile, a few tiles at a small $D$,
+`DelayDoppler` and the bank with many rates go on rows first: today's order
+for each, so their speed does not move. At `DelayDoppler`'s equal count,
+slow first measured about 20% slower for the gather alone (record §18.6).
+
 **Rate hypotheses** (burst engines) repeat slow time and the rows for each
 hypothesis, where the wideband path repeats only its columns. From the
 same run's stage times at 3 tiles and $D = 150$, $R$ hypotheses cost

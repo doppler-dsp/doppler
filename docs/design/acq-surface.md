@@ -1087,18 +1087,23 @@ For one block of $D$ epochs, with the epoch spectra $X_k = \mathrm{FFT}\{x_k\}$
 1. **Slow time first, shared by every carrier hypothesis.** For each
     capture bin $j$, the $D$ values $X_k[j]$, each weighted by the rate
     hypothesis' de-chirp when there is one, zero-padded to $F \cdot DI$
-    points and transformed:
-    $S[n, j] = \mathrm{FFT}_{FDI}\{w_{k} X_k[j]\}$. That is $N$ transforms a
-    block, however many tiles there are.
+    points and transformed: $S[n, j] = \mathrm{FFT}_{FDI}\{w_{k} X_k[j]\}$.
+    That is $N$ transforms a block, however many tiles there are, stored bin
+    by bin.
 
-1. **Rows per carrier and slow row.** For tile $q$ and slow row $i$, the
-    rolled bins at the row the carrier's code-rate ramp shifts them to,
-    times the template, padded to $L$ and inverted:
+1. **Rows per carrier and slow row.** For tile $q$ and slow row $i$, each
+    bin read at the fine row its code-rate ramp shifts it to, times the
+    phase that leaves, times the template, padded to $L$ and inverted:
 
-    $$Z_q[i, \cdot] = \mathrm{IFFT}_L\Big\{\mathrm{pad}\big(S[n_q(i, j),\, (j + q) \bmod N]\; e^{j 2\pi c\, d_q j'/N}\; C_T[j]\big)\Big\}, \qquad n_q(i, j) = \mathrm{round}\Big(F\big(i + DI\, d_q j'/N\big)\Big)$$
+    $$Z_q[i, \cdot] = \mathrm{IFFT}_L\Big\{\mathrm{pad}\big(S[F i + r_{qj},\, (j + q) \bmod N]\; e^{j 2\pi c\, r_{qj}/(FDI)}\; C_T[j]\big)\Big\}, \qquad r_{qj} = \mathrm{round}\big(F\, DI\, d_q j'/N\big)$$
 
     with $j'$ the signed bin (`dp_fftfreq_index`), $c = (D-1)/2$ the block's
     middle and $d_q$ the tile's dilation in samples an epoch (§4's ramp).
+    The offsets $r_{qj}$ and the phases are tables built at regrid, one per
+    tile and bin. A tile's product is gathered a chunk of bins at a time, so
+    those bins' fine rows stay in cache while every slow row reads them,
+    with no division in the loop. With no ramp, every $r_{qj} = 0$, every
+    phase is 1 and $F = 1$: the same row stage, not a second one.
 
 1. **The output row map** writes row $i$ of tile $q$ to its surface row:
     acq's combined FFT-order axis (`acq_block_row`), or `DelayDoppler`'s
@@ -1108,56 +1113,135 @@ For one block of $D$ epochs, with the epoch spectra $X_k = \mathrm{FFT}\{x_k\}$
 The map's parameters: $N$, $L$ (`nx_out`, the padded lag grid of §3.1,
 which Corr2D's general and fast paths already carry), $D$ and $I$
 (`ny_out`), the carriers as whole-bin rolls (the bank's fractional carriers
-are a mix before the forward transform, as today), a dilation per carrier
-($d_q = 0$ when no carrier frequency is set), the rate weights, the row map,
-and an external `dp_pool_t`. The scale is one: $1/N$ on the inverse, which
-the narrow path has today and the wideband path does not, so the wideband
-engine's `peak_mag`, `noise_est`, `surface_complex` and `block_prompt` fall
-by $N$. `test_stat` and every decision are ratios and do not move.
+are a mix before the forward transform, as today), a dilation per carrier,
+the rate weights, the row map, and an external `dp_pool_t`. $F = 4$ when any
+tile has $d_q \ne 0$, which needs a carrier frequency and more than one tile
+(tile 0's dilation is 0), and $F = 1$ otherwise.
+
+**One scale, $1/N$ on the inverse.** The narrow path has it today and the
+wideband path does not, so every wideband surface falls by $N$. The
+continuous engine is wideband whenever it has more than one tile, and the
+burst door is too when its uncertainty exceeds its span
+(`acq_auto_config_burst`, `acq_core.c:1395`).
+What reads the absolute scale:
+
+- the hits' and the engine's `peak_mag` and `noise_est`, `surface_complex`
+    and `block_prompt`, on `Acquisition` and `BurstAcquisition`;
+- `BurstCapture`'s `peak_mag` (`burst_capture_core.c:1179`), whose tie-break
+    compares hits of one engine, so its order does not move;
+- the telemetry probes `.peak` and `.noise` (`acq_core.c:465-466`);
+- the header's "the signal's units" (`acq_core.h:893`);
+- `src/doppler/acquire/tests/validation/acq/results.md` §2.8, which quotes
+    `noise_est` values: step 2.3 regenerates it if its engine is wideband.
+
+`test_stat`, the thresholds and C/N0 are ratios and do not move. The change
+gets a `changed` changelog entry.
 
 **Why slow time first.** The slow-time transform is linear, so it commutes
 with the roll, the template product and the inverse. Taking it on the epoch
 spectra does it once a block for all $W$ tiles, $N$ transforms against the
 wideband path's $WL$; the price is $WDI$ inverse transforms against $WD$.
-Measured on the bench box, single-threaded, against the code that runs
-today:
+Measured on the bench box, single-threaded, as the ratio of slow time first
+to the code that runs today (record §18.1):
 
-| geometry                                                      | today   | slow time first |
-| ------------------------------------------------------------- | ------- | --------------- |
-| 21 tiles, $D = 150$ (pool `push[full]`, acq `op5M_U50k_D150`) | 78.7 ms | 0.52            |
-| 53 tiles, $D = 60$ (acq `op2M_U50k_D60`)                      | 71.5 ms | 0.56            |
-| 3 tiles, $D = 150$ (acq `op5M_U5k_D150`)                      | 11.3 ms | 0.70            |
-| 1 tile, $D = 150$ (the narrow path)                           | 7.3 ms  | 0.82            |
-| 1 tile, $D = 10$ (the narrow path)                            | 0.43 ms | 0.75            |
+| geometry                                                      | no carrier | carrier set ($F = 4$) |
+| ------------------------------------------------------------- | ---------- | --------------------- |
+| 21 tiles, $D = 150$ (pool `push[full]`, acq `op5M_U50k_D150`) | 0.42       | 0.48                  |
+| 53 tiles, $D = 60$ (acq `op2M_U50k_D60`)                      | 0.44       | 0.39                  |
+| 3 tiles, $D = 150$ (acq `op5M_U5k_D150`)                      | 0.61       | 0.87                  |
+| 3 tiles, $D = 10$                                             | 0.84       | 0.91                  |
+| 1 tile, $D = 150$, against the narrow path                    | 0.79       | the same, $F = 1$     |
+| 1 tile, $D = 10$, against the narrow path                     | 0.69       | the same, $F = 1$     |
 
 At $D = 1$ there is no slow time and nothing changes. At one tile, the
-wideband path's order (inverses first) would be about 8% cheaper still; it
-is not adopted, because it would be a second implementation of the same
-map. `DelayDoppler` runs inverses first today, and its pinned rows do not
-interpolate ($I = 1$, `ny_out = 0`); there the two orders do the same
-transforms, $D$ forward, $D$ inverse and $N$ slow, so its rows should not
-move. A dwell of several frames sums the epoch spectra, which is linear,
-and runs the map once at the dump.
+wideband path's order (inverses first) would be cheaper still: slow time
+first costs 6% more than it at $D = 150$ and 23% more at $D = 10$. It is not
+adopted, because it would be a second implementation of the same map, and
+no engine runs it at one tile today. `DelayDoppler` runs inverses first
+today, and its pinned rows do not interpolate ($I = 1$, `ny_out = 0`); there
+the two orders do the same transforms, $D$ forward, $D$ inverse and $N$
+slow, so its rows should not move. A dwell of several frames sums the epoch
+spectra, which is linear, and runs the map once at the dump.
+
+**Rate hypotheses** (burst engines) repeat slow time and the rows for each
+hypothesis, where the wideband path repeats only its columns. From the
+same run's stage times at 3 tiles and $D = 150$, $R$ hypotheses cost
+$R \cdot 6.9$ ms against $2.8 + R \cdot 8.5$ ms, a win at every $R$ that tends
+to 0.81; at one tile the narrow path repeats everything, a larger win. The
+speed gate measures the burst rows.
 
 **The code-rate ramp on a shared transform.** Today's ramp is exact per tile
 and epoch. On a shared transform it becomes a shift of each bin's slow-time
-row by $DI\, d_q j'/N$ rows, which is read on a grid $F$ times finer than
-the output. $F = 1$ when no carrier is set: then the map is an exact
-reordering, and none of the pinned rows sets one. With a carrier, $F = 4$:
-the worst loss over a row is 0.05 dB, against 0.43 dB at $F = 1$ and 0.04 dB
-at $F = 8$, and the shared transform still costs a quarter of the per-tile
-one. The carrier validator (`acq_block_coherent`) is re-run against it in
-step 2.3.
+row by $DI\, d_q j'/N$, read on a grid $F$ times finer and rounded. The
+transform's origin is the block's middle, so the rounding leaves only the
+phase $e^{j 2\pi c\, r_{qj}/(FDI)}$ above, the same for every row: with the
+origin at epoch 0 it left a phase error of $2\pi c$ times the rounding, which
+differs bin to bin, and capped $F = 8$ at 0.04 dB. Over 33 tones across a
+row and dilations of 0.0045, 0.0455 and 0.2 samples an epoch (shifts of
+0.7 to 30 rows), the worst loss against the exact ramp (record §18.2):
 
-### 18.2 Cadence and state
+| $F$ | worst loss       | mean loss        | slow time, $N$ bins |
+| --- | ---------------- | ---------------- | ------------------- |
+| 1   | 0.40–0.58 dB     | 0.29–0.34 dB     | 2.1 ms              |
+| 2   | 0.07–0.20 dB     | 0.02–0.07 dB     | 5.0 ms              |
+| 3   | 0.06–0.09 dB     | 0.02–0.03 dB     | 8.1 ms              |
+| 4   | **0.08–0.09 dB** | **0.01–0.02 dB** | **5.8 ms**          |
+| 8   | 0.01–0.03 dB     | 0.00–0.01 dB     | 12.1 ms             |
+
+$F = 4$: under 0.1 dB at every dilation, and its 1,200 points are a length
+the fast FFT backend takes (`pffft`, a multiple of 16), which 900 is not;
+$F = 8$ halves the loss again for twice the slow-time cost. The rounding
+error does not grow with the shift.
+
+**The verdicts with a carrier.** The shared map with the rounded ramp
+computes exactly what today's per-tile path computes with each bin's ramp
+rounded to the same grid, so an engine changed only in that rounding
+(`ACQ_EMUL_F`, a scratch build, not merged) runs the validators as the map
+will. Of the five that set a carrier (record §18.4):
+
+- `acq_block_coherent` passes. Its compensated rows lose 0.03–0.04 dB (its
+    statistic 1457 against 1451 at $D = 150$, the row's worst −3.61 against
+    −3.65 dB).
+- `refine_bias` passes, unchanged except its timing line.
+- `async_dsss_receiver_release` and `tracker_through_window` pass with
+    byte-identical output: their engines never ramp (one tile, or $D = 1$).
+- `rx_dynamics` builds but is registered with no test, so nothing runs it.
+
+The Pd, near-far and rate validators (`acq_template_pd`,
+`async_dsss_near_far`, `acq_rate_pd`) set no carrier, so for them the map is
+an exact reordering, held to the bound of §18.4; they run again on the
+built map in step 2.3.
+
+### 18.2 Cadence, state and the carrier
 
 The block's epochs are held raw until the block ends (`blk_raw`, which
 exists today for the tile-alias resolver), and every stage of §18.1 runs at
-the block end. A push's per-epoch work becomes a copy. `blk`, the tiles'
-post-inverse rows ($WDL$ complex values, 51 MB at the pool's full span),
-leaves the engine and its state blob, which is a version bump.
-`dp_acq_block_prompt`, its only other reader, computes the one column it is
-asked for from `blk_raw` on demand.
+the block end. A push's per-epoch work becomes a copy, and the push that
+crosses a block end carries the whole block's work: the worst-case latency
+of one push rises, which the speed gate, a throughput measure, does not see.
+`blk`, the tiles' post-inverse rows ($WDL$ complex values, 51 MB at the
+pool's full span), leaves the engine and its state blob, which is a version
+bump.
+
+**`dp_acq_block_prompt`**, `blk`'s only other reader, runs the map on one
+epoch: a block of $D = 1$, no slow time, with the exact ramp
+$e^{-j 2\pi (k - c) d_q j'/N}$ as the row stage's per-bin phase, for the
+one tile it is asked for. It stays the exactly ramped per-epoch column its
+contract states, through the same row stage rather than a second
+correlator. Two things move: its scale falls by $N$ with the surface, and
+it can differ from the surface's peak by the grid's rounding, under 0.1 dB.
+
+**`carrier_freq_hz` enters the blob** in the same version bump. The ramp
+used to be baked into `blk` at push time; it is now applied at the block end
+from `blk_raw`, so a restore into an engine holding another carrier would
+silently compute a different block. It is a mutator's value (#2022),
+restored by `set_state`, and not a reject key: $F$ sizes the fine slow-time
+buffer, not the blob, which holds raw epochs. `dp_acq_set_carrier_freq_hz`,
+which only sets a field today, rebuilds the fine buffer and the per-tile
+offset and phase tables when $F$ or a $d_q$ moves, through `acq_regrid`,
+which re-applies the requested thread count (#2797). Its line in
+`scripts/.mutator-state-exempt` retires when `Acquisition` gets its row in
+the serialization matrix (#2078, family #2083).
 
 ### 18.3 Threading ([#2744](https://github.com/doppler-dsp/doppler/issues/2744))
 
@@ -1169,35 +1253,44 @@ so the surface stays bit-identical at every thread count. FFT plans and
 scratch are per worker, not per tile, since a task is no longer tied to a
 tile.
 
-What #2744 measured, a fan costing 5–10× its work, was a fan **every
-epoch**. That dispatch goes away for $D > 1$. At $D = 1$ a block is one
-epoch, so the per-epoch question remains, and the caller's `epoch_fan`
-(#2775) keeps deciding it, with
-[#2778](https://github.com/doppler-dsp/doppler/issues/2778)'s
-host calibration as the follow-up. #2744 closes with step 2.3's speed gate,
-which covers the threaded rows (`t4`, `t8`, `threads=4`).
+What this fixes and what it does not. #2744's 5–10× rows are all $D = 1$
+one-epoch pushes, and at $D = 1$ a block is one epoch: this design leaves
+that case as it is, decided by the caller's `epoch_fan` (#2775), with
+[#2778](https://github.com/doppler-dsp/doppler/issues/2778)'s host
+calibration to follow. At $D = 150$ #2744 measured the fanned search about
+1.5× slower (286.7 against 194.0 ns a sample), with a dispatch every epoch;
+here that becomes one dispatch per stage per block. The speed gate's
+threaded rows (`t4`, `t8`, `threads=4`) decide whether that closes #2744 for
+$D > 1$.
 
 ### 18.4 Oracle and gate
 
 - **Before the switch (step 2.2):** an equivalence test in
     `test_acq_core.c` compares today's surface and hits with the map's, on
     seeded scenes covering $D = 1$ and $D > 1$, several tiles, the tile-alias
-    hop and rate hypotheses. It passes on today's code and is shown red by
-    sabotage. The bound is the one decided for #2752:
-    $|\Delta| \le c\,\varepsilon_{f32}\,(\log_2 N + \log_2 L + \log_2 DI)\,\sqrt{D}\,\lVert x\rVert_2 \lVert r\rVert_2$.
-    The reordering alone moves a surface by $1.7 \times 10^{-7}$ of its RMS
-    (§18 of the record), so $c$ is of order one; step 2.2 measures it on
-    acq's own scenes.
+    hop, rate hypotheses and a carrier. It passes on today's code and is
+    shown red by sabotage. Two tolerances, both measured (record §18.1–18.4):
+    - **No carrier**, an exact reordering: the bound decided for #2752,
+        $|\Delta| \le c\,\varepsilon_{f32}\,(\log_2 N + \log_2 L + \log_2 DI)\,\sqrt{D}\,\lVert x\rVert_2 \lVert r\rVert_2$,
+        with $c = 4$. Over 5 seeds and 3 geometries the reordering needed $c$
+        from 0.71 to 3.04, the most at small $D$.
+    - **A carrier**, where the rounding is not float error: every hit
+        in the same cell, and each peak within 0.1 dB of today's (measured
+        at most 0.09 dB on the prototype and 0.04 dB on
+        `acq_block_coherent`).
 - **The verdicts:** every acq and Corr2D C test, and every validator's
     `--check`, unchanged.
 - **The speed gate:** `make bench-ab` on the bench box, A = main and B = the
-    branch, for every acq, pool and Corr2D row, with no row slower. A row
-    flagged SLOWER counts only when the same row is flagged in a second run
-    (the owner's rule of 2026-11-03): the baseline's A-against-A run flagged
-    three Corr2D all-core rows by noise alone.
+    branch, for every acq, pool and Corr2D row, with no row slower. Carrier
+    rows join the acq and pool benches in step 2.2, so main measures them
+    before the switch. A row flagged SLOWER counts only when the same row is
+    flagged in a second run (the owner's rule of 2026-11-03): the baseline's
+    A-against-A run flagged three Corr2D all-core rows by noise alone.
 - **Fixed first:** the ramp's signed bin at $N/2$ for an odd $N$
-    ([#2815](https://github.com/doppler-dsp/doppler/issues/2815)), so the
-    oracle compares like with like.
+    ([#2815](https://github.com/doppler-dsp/doppler/issues/2815)). The
+    carrier scenes compare the map's exact signed-bin ramp with today's, so
+    today's mis-signed bin would read as a difference that is not the
+    map's.
 
 ## Related
 

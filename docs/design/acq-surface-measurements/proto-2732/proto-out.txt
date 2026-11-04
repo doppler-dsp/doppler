@@ -1,0 +1,59 @@
+# 2026-11-04 11:19 UTC cachyos-x8664-ai465 df7ce744c cc (GCC) 16.2.1 20260810
+# load before: 0.71 0.69 0.61 1/1061 3233918
+## timing: no carrier (N L D I W reps)
+  oracle: max |A-B| = 7.003e-05, bound/c = 8.938e-05, c needed = 7.835e-01
+cb=2046 lb=2048 D=150 I=2 W=21  A=79.21 ms (rows 19.35 + cols 59.85)  B=33.08 ms (slow 2.23 + rows 30.84)  B/A=0.418  rel_rms=1.71e-07 max_abs/max=1.79e-07
+  oracle: max |A-B| = 4.578e-05, bound/c = 3.444e-05, c needed = 1.329e+00
+cb=2046 lb=2048 D=60 I=2 W=53  A=71.41 ms (rows 19.60 + cols 51.76)  B=31.62 ms (slow 0.75 + rows 30.86)  B/A=0.443  rel_rms=1.71e-07 max_abs/max=2.04e-07
+  oracle: max |A-B| = 7.003e-05, bound/c = 8.938e-05, c needed = 7.835e-01
+cb=2046 lb=2048 D=150 I=2 W=3  A=11.31 ms (rows 2.80 + cols 8.50)  B=6.92 ms (slow 2.22 + rows 4.69)  B/A=0.612  rel_rms=1.71e-07 max_abs/max=1.79e-07
+  oracle: max |A-B| = 1.548e-05, bound/c = 5.190e-06, c needed = 2.983e+00
+cb=2046 lb=2048 D=10 I=2 W=3  A=0.43 ms (rows 0.17 + cols 0.25)  B=0.36 ms (slow 0.08 + rows 0.28)  B/A=0.838  rel_rms=1.71e-07 max_abs/max=2.07e-07
+  narrow today (slow + dI x (fwd+inv)) = 7.26 ms;  B + D forwards = 5.70 ms;  (B+fwd)/narrow = 0.786
+  oracle: max |A-B| = 6.340e-05, bound/c = 8.938e-05, c needed = 7.094e-01
+cb=2046 lb=2048 D=150 I=2 W=1  A=3.52 ms (rows 0.92 + cols 2.60)  B=3.74 ms (slow 2.10 + rows 1.64)  B/A=1.064  rel_rms=1.71e-07 max_abs/max=1.84e-07
+  narrow today (slow + dI x (fwd+inv)) = 0.43 ms;  B + D forwards = 0.30 ms;  (B+fwd)/narrow = 0.692
+  oracle: max |A-B| = 1.349e-05, bound/c = 5.190e-06, c needed = 2.598e+00
+cb=2046 lb=2048 D=10 I=2 W=1  A=0.14 ms (rows 0.06 + cols 0.08)  B=0.17 ms (slow 0.08 + rows 0.09)  B/A=1.227  rel_rms=1.70e-07 max_abs/max=1.87e-07
+## timing: carrier set, F = 4 (dil = fs / carrier: 10 MSa/s or 4 MSa/s at 2.2 GHz)
+cb=2046 lb=2048 D=150 I=2 W=21  A=90.66 ms (rows 30.85 + cols 59.78)  B=43.38 ms (slow 4.43 + rows 38.93)  B/A=0.478  rel_rms=6.41e-02 max_abs/max=6.82e-02
+cb=2046 lb=2048 D=60 I=2 W=53  A=83.99 ms (rows 31.48 + cols 52.49)  B=32.87 ms (slow 1.58 + rows 31.27)  B/A=0.391  rel_rms=6.46e-02 max_abs/max=7.11e-02
+cb=2046 lb=2048 D=150 I=2 W=3  A=12.37 ms (rows 3.91 + cols 8.45)  B=10.75 ms (slow 4.39 + rows 6.36)  B/A=0.869  rel_rms=5.54e-02 max_abs/max=6.91e-02
+cb=2046 lb=2048 D=10 I=2 W=3  A=0.50 ms (rows 0.25 + cols 0.25)  B=0.45 ms (slow 0.17 + rows 0.29)  B/A=0.908  rel_rms=1.93e-02 max_abs/max=2.49e-02
+## oracle c over seeds (no carrier)
+  oracle: max |A-B| = 6.662e-05, bound/c = 9.049e-05, c needed = 7.362e-01
+  oracle: max |A-B| = 4.719e-05, bound/c = 3.451e-05, c needed = 1.367e+00
+  oracle: max |A-B| = 1.395e-05, bound/c = 5.233e-06, c needed = 2.666e+00
+  oracle: max |A-B| = 6.824e-05, bound/c = 8.931e-05, c needed = 7.641e-01
+  oracle: max |A-B| = 4.602e-05, bound/c = 3.479e-05, c needed = 1.323e+00
+  oracle: max |A-B| = 1.431e-05, bound/c = 5.253e-06, c needed = 2.723e+00
+  oracle: max |A-B| = 7.629e-05, bound/c = 9.131e-05, c needed = 8.356e-01
+  oracle: max |A-B| = 4.641e-05, bound/c = 3.428e-05, c needed = 1.354e+00
+  oracle: max |A-B| = 1.490e-05, bound/c = 5.163e-06, c needed = 2.885e+00
+  oracle: max |A-B| = 7.639e-05, bound/c = 9.057e-05, c needed = 8.434e-01
+  oracle: max |A-B| = 4.768e-05, bound/c = 3.423e-05, c needed = 1.393e+00
+  oracle: max |A-B| = 1.564e-05, bound/c = 5.283e-06, c needed = 2.960e+00
+  oracle: max |A-B| = 6.519e-05, bound/c = 8.945e-05, c needed = 7.288e-01
+  oracle: max |A-B| = 4.768e-05, bound/c = 3.438e-05, c needed = 1.387e+00
+  oracle: max |A-B| = 1.573e-05, bound/c = 5.168e-06, c needed = 3.044e+00
+## ramp loss (N D I d F center tones)
+nx=2046 D=150 I=2 d=0.0045 F=1 center=1 tones=33  max shift=0.68 rows  worst loss=0.582 dB  mean loss=0.341 dB  slow on 300 pts for nx bins=2.13 ms
+nx=2046 D=150 I=2 d=0.0045 F=2 center=1 tones=33  max shift=0.68 rows  worst loss=0.198 dB  mean loss=0.024 dB  slow on 600 pts for nx bins=4.97 ms
+nx=2046 D=150 I=2 d=0.0045 F=3 center=1 tones=33  max shift=0.68 rows  worst loss=0.076 dB  mean loss=0.025 dB  slow on 900 pts for nx bins=8.08 ms
+nx=2046 D=150 I=2 d=0.0045 F=4 center=1 tones=33  max shift=0.68 rows  worst loss=0.076 dB  mean loss=0.011 dB  slow on 1200 pts for nx bins=5.77 ms
+nx=2046 D=150 I=2 d=0.0045 F=8 center=1 tones=33  max shift=0.68 rows  worst loss=0.026 dB  mean loss=0.003 dB  slow on 2400 pts for nx bins=12.12 ms
+nx=2046 D=150 I=2 d=0.0455 F=1 center=1 tones=33  max shift=6.83 rows  worst loss=0.400 dB  mean loss=0.287 dB  slow on 300 pts for nx bins=2.10 ms
+nx=2046 D=150 I=2 d=0.0455 F=2 center=1 tones=33  max shift=6.83 rows  worst loss=0.110 dB  mean loss=0.072 dB  slow on 600 pts for nx bins=4.99 ms
+nx=2046 D=150 I=2 d=0.0455 F=3 center=1 tones=33  max shift=6.83 rows  worst loss=0.064 dB  mean loss=0.021 dB  slow on 900 pts for nx bins=8.06 ms
+nx=2046 D=150 I=2 d=0.0455 F=4 center=1 tones=33  max shift=6.83 rows  worst loss=0.080 dB  mean loss=0.015 dB  slow on 1200 pts for nx bins=5.77 ms
+nx=2046 D=150 I=2 d=0.0455 F=8 center=1 tones=33  max shift=6.83 rows  worst loss=0.006 dB  mean loss=0.005 dB  slow on 2400 pts for nx bins=12.15 ms
+nx=2046 D=150 I=2 d=0.2000 F=1 center=1 tones=33  max shift=30.00 rows  worst loss=0.398 dB  mean loss=0.311 dB  slow on 300 pts for nx bins=2.13 ms
+nx=2046 D=150 I=2 d=0.2000 F=2 center=1 tones=33  max shift=30.00 rows  worst loss=0.071 dB  mean loss=0.053 dB  slow on 600 pts for nx bins=4.97 ms
+nx=2046 D=150 I=2 d=0.2000 F=3 center=1 tones=33  max shift=30.00 rows  worst loss=0.088 dB  mean loss=0.021 dB  slow on 900 pts for nx bins=8.00 ms
+nx=2046 D=150 I=2 d=0.2000 F=4 center=1 tones=33  max shift=30.00 rows  worst loss=0.086 dB  mean loss=0.023 dB  slow on 1200 pts for nx bins=5.80 ms
+nx=2046 D=150 I=2 d=0.2000 F=8 center=1 tones=33  max shift=30.00 rows  worst loss=0.014 dB  mean loss=0.004 dB  slow on 2400 pts for nx bins=12.13 ms
+nx=2046 D=150 I=2 d=0.0455 F=1 center=0 tones=33  max shift=6.83 rows  worst loss=0.445 dB  mean loss=0.339 dB  slow on 300 pts for nx bins=2.12 ms
+nx=2046 D=150 I=2 d=0.0455 F=2 center=0 tones=33  max shift=6.83 rows  worst loss=0.422 dB  mean loss=0.315 dB  slow on 600 pts for nx bins=4.96 ms
+nx=2046 D=150 I=2 d=0.0455 F=4 center=0 tones=33  max shift=6.83 rows  worst loss=0.060 dB  mean loss=0.001 dB  slow on 1200 pts for nx bins=5.82 ms
+nx=2046 D=150 I=2 d=0.0455 F=8 center=0 tones=33  max shift=6.83 rows  worst loss=0.040 dB  mean loss=0.039 dB  slow on 2400 pts for nx bins=12.14 ms
+# load after: 1.10 0.79 0.64 1/1061 3233982

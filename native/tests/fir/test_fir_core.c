@@ -1,8 +1,70 @@
 #include "doppler/dp_complex.h"
 #include "doppler/fir/fir_core.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
+
+/* The output must not depend on how the caller splits the stream (#2805,
+ * after #1893): the same input pulled whole, in odd chunks, and one sample at
+ * a time is the same bits. A kernel whose vector body and scalar tail round
+ * differently (an FMA target under -ffast-math) breaks that for the samples
+ * that fall in a tail. Real taps and complex taps are separate kernels. */
+static int
+chunk_invariant (int complex_taps, size_t ntaps)
+{
+  enum
+  {
+    N = 1031
+  };
+  float _Complex taps[64], in[N], whole[N], got[N];
+  float    rt[64];
+  unsigned r = 12345u;
+  for (size_t k = 0; k < ntaps; k++)
+    {
+      rt[k] = (float)(dp_xs32 (&r) >> 8) / 16777216.0f - 0.5f;
+      taps[k]
+          = complex_taps
+                ? rt[k] + ((float)(dp_xs32 (&r) >> 8) / 16777216.0f - 0.5f) * I
+                : rt[k];
+    }
+  for (size_t i = 0; i < N; i++)
+    {
+      float a = (float)(dp_xs32 (&r) >> 8) / 16777216.0f - 0.5f;
+      in[i]   = a + ((float)(dp_xs32 (&r) >> 8) / 16777216.0f - 0.5f) * I;
+    }
+  dp_fir_state_t *w = complex_taps ? dp_fir_create (taps, ntaps)
+                                   : dp_fir_create_real (rt, ntaps);
+  DP_REQUIRE_MSG (w != NULL, "chunk: create");
+  dp_fir_execute (w, in, N, whole);
+  dp_fir_destroy (w);
+  static const size_t pulls[] = { 1, 3, 7, 16, 100, 257, 1000 };
+  int                 bad     = 0;
+  for (size_t pi = 0; pi < sizeof pulls / sizeof *pulls; pi++)
+    {
+      dp_fir_state_t *c = complex_taps ? dp_fir_create (taps, ntaps)
+                                       : dp_fir_create_real (rt, ntaps);
+      DP_REQUIRE_MSG (c != NULL, "chunk: create");
+      for (size_t at = 0; at < N; at += pulls[pi])
+        {
+          size_t m = (N - at < pulls[pi]) ? N - at : pulls[pi];
+          dp_fir_execute (c, in + at, m, got + at);
+        }
+      dp_fir_destroy (c);
+      size_t nd = 0;
+      for (size_t i = 0; i < N; i++)
+        nd += memcmp (&whole[i], &got[i], sizeof whole[i]) != 0;
+      if (nd)
+        {
+          DP_TEST_ERR (
+              "FAIL: %s taps=%zu pull=%zu: %zu of %d samples differ\n",
+              complex_taps ? "complex" : "real", ntaps, pulls[pi], nd, N);
+          bad = 1;
+        }
+    }
+  return bad;
+}
 
 int
 main (void)
@@ -84,6 +146,15 @@ main (void)
           || cimagf (outA[i]) != cimagf (outB[i]))
         ok = 0;
     DP_CHECK (ok);
+  }
+
+  /* ── pull-size invariance ─────────────────────────────────────────── */
+  {
+    int bad = 0;
+    for (int c = 0; c < 2; c++)
+      for (size_t nt = 1; nt <= 33; nt += (nt < 9 ? 1 : 8))
+        bad |= chunk_invariant (c, nt);
+    DP_CHECK_MSG (!bad, "the same input in any pull size is the same bits");
   }
 
   DP_TEST_END ("test_fir_core");

@@ -843,8 +843,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
            * does not stomp them with stale values. */
           wfm_synth_shape (state, out, m, shaper_syms);
           if (has_lo)
-            for (size_t i = 0; i < m; i++)
-              out[i] = out[i] * carrier[i];
+            wfm_mix_carrier (out, carrier, m);
           if (has_awgn)
             wfm_synth_add_noise (out, noise, m);
           bit_idx = state->bit_idx;
@@ -890,8 +889,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
                 }
               dp_fir_execute (state->fir, out, m, out);
               if (has_lo)
-                for (size_t i = 0; i < m; i++)
-                  out[i] = out[i] * carrier[i];
+                wfm_mix_carrier (out, carrier, m);
               if (has_awgn)
                 wfm_synth_add_noise (out, noise, m);
             }
@@ -954,8 +952,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
                 }
               dp_fir_execute (state->fir, out, m, out);
               if (has_lo)
-                for (size_t i = 0; i < m; i++)
-                  out[i] = out[i] * carrier[i];
+                wfm_mix_carrier (out, carrier, m);
               if (has_awgn)
                 wfm_synth_add_noise (out, noise, m);
             }
@@ -1041,8 +1038,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
             }
           dp_fir_execute (state->fir, out, m, out);
           if (has_lo)
-            for (size_t i = 0; i < m; i++)
-              out[i] = out[i] * carrier[i];
+            wfm_mix_carrier (out, carrier, m);
           if (has_awgn)
             wfm_synth_add_noise (out, noise, m);
           done += m;
@@ -1063,8 +1059,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
           cim = cimagf (out[m - 1]);
           /* sym_pos remains 0 when nsps == 1 */
           if (has_lo)
-            for (size_t i = 0; i < m; i++)
-              out[i] *= carrier[i];
+            wfm_mix_carrier (out, carrier, m);
           if (has_awgn)
             wfm_synth_add_noise (out, noise, m);
         }

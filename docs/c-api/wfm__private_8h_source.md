@@ -30,6 +30,14 @@ wfm_add_scaled (float _Complex *restrict out, const float _Complex *restrict in,
     out[i] += gain * in[i];
 }
 
+static void
+wfm_mix_carrier (float _Complex *restrict out,
+                 const float _Complex *restrict carrier, size_t n)
+{
+  for (size_t i = 0; i < n; i++)
+    out[i] = out[i] * carrier[i];
+}
+
 #endif /* WFM_PRIVATE_H */
 ```
 

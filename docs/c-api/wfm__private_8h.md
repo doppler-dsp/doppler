@@ -55,6 +55,7 @@ _Shared internals of the wfm composer, the Plan and the synth._ [More...](#detai
 | Type | Name |
 | ---: | :--- |
 |  [**WFM\_NOINLINE**](wfm__private_8h.md#define-wfm_noinline) void | [**wfm\_add\_scaled**](#function-wfm_add_scaled) (float \_Complex \*restrict out, const float \_Complex \*restrict in, size\_t n, float gain) <br>`out[i] += gain * in[i]` __ _the ONE real-gain accumulate every wfm path uses to add a scaled stream (a noise stream, a source) into a sum. (A phase-rotated source, whose gain is complex, is the Plan's own override and has no compose twin to agree with.)_ |
+|  void | [**wfm\_mix\_carrier**](#function-wfm_mix_carrier) (float \_Complex \*restrict out, const float \_Complex \*restrict carrier, size\_t n) <br>`out[i] *= carrier[i]` _(complex)_ _the carrier mix._ |
 
 
 
@@ -84,7 +85,7 @@ _Shared internals of the wfm composer, the Plan and the synth._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**WFM\_NOINLINE**](wfm__private_8h.md#define-wfm_noinline)  <br> |
+| define  | [**WFM\_NOINLINE**](wfm__private_8h.md#define-wfm_noinline)  <br>_Keep a function out of line: a loop of its own no caller can fuse._  |
 
 ## Detailed Description
 
@@ -134,6 +135,40 @@ A compose and a Plan must produce the same bits for the same scene. Each adds th
         
 
 <hr>
+
+
+
+### function wfm\_mix\_carrier 
+
+`out[i] *= carrier[i]` _(complex)_ _the carrier mix._
+```C++
+static void wfm_mix_carrier (
+    float _Complex *restrict out,
+    const float _Complex *restrict carrier,
+    size_t n
+) 
+```
+
+
+
+A complex multiply is `a*c - b*d`, and a compiler with baseline FMA fuses one of the two products into the subtract. A vectorised loop has a body and a scalar tail of its own, which choose differently, so the same sample came out different bits depending on where the caller's block boundary fell (a Plan builds its cache in one run; a composer pulls 257 at a time)  doppler#2805. The cure is not in this function: it is that wfm\_synth\_core.c is compiled with `-ffp-contract=off` (native/src/wfm\_synth/ wfm\_synth\_extra.cmake), so every multiply-add of the file, here and at the sites that mix inline, rounds each product separately and is a property of the sample, not of its position in the block.
+
+
+
+
+**Parameters:**
+
+
+* `out` Signal, mixed in place; length `n`. 
+* `carrier` The carrier, length `n`; must not overlap `out`. 
+* `n` Samples. 
+
+
+
+
+        
+
+<hr>
 ## Macro Definition Documentation
 
 
@@ -142,6 +177,7 @@ A compose and a Plan must produce the same bits for the same scene. Each adds th
 
 ### define WFM\_NOINLINE 
 
+_Keep a function out of line: a loop of its own no caller can fuse._ 
 ```C++
 #define WFM_NOINLINE 
 ```

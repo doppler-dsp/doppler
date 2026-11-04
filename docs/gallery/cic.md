@@ -1,3 +1,5 @@
+<!-- domain: resample -->
+
 # CIC Decimation Filter
 
 ![CIC decimation spectrum](../assets/cic_demo_spectrum.png)

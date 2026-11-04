@@ -1,3 +1,5 @@
+<!-- domain: acquire -->
+
 # `BurstCapture`: acquisition's output, turned into bursts
 
 **Status:** shipped, as `doppler.acquire.BurstCapture` and its file-backed

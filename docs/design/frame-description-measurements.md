@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # A Frame as a Description — the measurement record
 
 *The dated record behind [the design page](frame-description.md): what was

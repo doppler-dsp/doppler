@@ -138,6 +138,52 @@ nav:
       - Build from Source: install/source.md
       - Rust: install/rust.md
       - Docker: install/docker.md
+# domains-nav:start
+  - Domains:
+      - Domains: domains/index.md
+      - Sources:
+          - "Signal sources": domains/source.md
+          - "Waveform generation (wfm)": domains/wfm.md
+      - Impairment:
+          - "Channel impairment": domains/impairment.md
+      - Filtering:
+          - "Filtering": domains/filter.md
+          - "Interpolation": domains/interp.md
+          - "Delay lines": domains/delay.md
+      - Rate conversion:
+          - "Rate conversion & resampling": domains/resample.md
+      - Down-conversion:
+          - "Down-conversion (DDC)": domains/ddc.md
+      - Spectral:
+          - "Spectral analysis": domains/spectral.md
+          - "Spectrum analyzer": domains/analyzer.md
+          - "Measurement suite": domains/measure.md
+      - Synchronization:
+          - "Acquisition": domains/acquire.md
+          - "Tracking & synchronization": domains/track.md
+          - "Automatic gain control (AGC)": domains/agc.md
+      - Receivers:
+          - "Spread spectrum (DSSS)": domains/dsss.md
+      - Modulation:
+          - "M-PSK modulation": domains/mpsk.md
+      - Coding:
+          - "Channel coding": domains/coding.md
+          - "CCSDS literals": domains/ccsds.md
+      - Estimation:
+          - "Detection statistics": domains/detection.md
+          - "Bit-error rate (BER)": domains/ber.md
+          - "SNR estimation": domains/snr.md
+      - I/O:
+          - "Streaming": domains/stream.md
+          - "Buffers": domains/buffer.md
+          - "Telemetry": domains/telemetry.md
+          - "Stopping a run (interrupt)": domains/interrupt.md
+      - Numeric:
+          - "Accumulators": domains/accumulator.md
+          - "Fixed-point arithmetic": domains/arith.md
+          - "Sample-format conversion (cvt)": domains/cvt.md
+          - "Utilities": domains/util.md
+# domains-nav:end
   - Examples:
       - Examples: examples/index.md
       - Sources & Waveforms:

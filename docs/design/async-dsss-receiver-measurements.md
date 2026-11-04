@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # AsyncDsssReceiver and AsyncDsssPool — the measurement record
 
 *The dated record behind [the design page](async-dsss-receiver.md): the

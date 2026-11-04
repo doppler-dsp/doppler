@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # Fields — bits, written as text
 
 Every place wfmgen takes a run of bits takes it the same way: as one

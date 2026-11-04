@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # MPSK Receiver
 
 **Status:** `track.MpskReceiver` and `track.MpskReceiverR` are shipped and

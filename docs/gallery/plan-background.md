@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # One Cache Slot for a Whole Background Field
 
 ![Cache footprint vs population, and one gain moving the whole field](../assets/plan_background_demo.png)

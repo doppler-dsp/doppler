@@ -1,3 +1,5 @@
+<!-- domain: impairment -->
+
 # The Doppler channel — one parameter, both clocks and the carrier
 
 `native/inc/doppler/doppler_channel/doppler_channel_core.h` applies clock

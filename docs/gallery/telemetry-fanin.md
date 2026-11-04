@@ -1,3 +1,5 @@
+<!-- domain: telemetry -->
+
 # Telemetry: Many Emitters, One Consumer
 
 ![Three emitters, one ring, one consumer](../assets/telemetry_fanin_demo.png)

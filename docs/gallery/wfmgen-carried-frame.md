@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # A Frame You Built, Generated
 
 wfmgen frames a waveform two ways, and they are not two representations.

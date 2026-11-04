@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Receiver Test Harness
 
 **Status:** goals (§0), inventory (§1–§6), the frame descriptor (§7) and the

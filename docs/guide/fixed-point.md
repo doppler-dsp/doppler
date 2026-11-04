@@ -1,3 +1,5 @@
+<!-- domain: arith -->
+
 # Getting Started with Fixed-Point Arithmetic
 
 Fixed-point arithmetic is floating-point with the decimal point nailed to one

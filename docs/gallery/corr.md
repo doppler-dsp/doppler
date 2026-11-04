@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # Correlation and Detection
 
 ![Corr / Corr2D / CorrDetector demo](../assets/corr_demo.png)

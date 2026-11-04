@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # One home for the waveform enum tables
 
 *Part of [wfmgen](wfmgen.md), which owns the tool's goals, what it

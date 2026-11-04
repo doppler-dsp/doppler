@@ -1,3 +1,5 @@
+<!-- domain: resample -->
+
 # CIC Decimator — the fixed-point input budget
 
 The CIC is doppler's cheap bulk decimator: no multipliers, four integrators and

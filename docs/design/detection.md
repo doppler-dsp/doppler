@@ -1,3 +1,5 @@
+<!-- domain: detection -->
+
 # Detection Sizing — the four laws behind one prefix
 
 **Scope:** why `detection` has the shape it does. Not how to use it — that is

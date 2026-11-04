@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object
 
 *`AsyncDsssReceiver` is one C object that searches for a continuous DSSS

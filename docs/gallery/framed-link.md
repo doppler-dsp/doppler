@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # A Framed Link, Checked by Its Description
 
 One `FrameDesc` describes a frame — a sync word, a payload, a CRC-16 — and

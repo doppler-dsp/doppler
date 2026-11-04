@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Symbol Timing Recovery
 
 ![Symbol timing recovery demo](../assets/symsync_demo.png)

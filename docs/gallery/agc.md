@@ -1,3 +1,5 @@
+<!-- domain: agc -->
+
 # AGC — Step Response
 
 ![AGC convergence](../assets/agc_convergence.png)

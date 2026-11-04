@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # A Frame as a Description
 
 A frame is a list of **fields** that appear on the wire and a list of

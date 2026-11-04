@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # NDA Carrier Loop — Theory Validation
 
 ![NDA carrier loop theory validation](../assets/mpsk_nda_theory_demo.png)

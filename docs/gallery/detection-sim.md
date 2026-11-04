@@ -1,3 +1,5 @@
+<!-- domain: detection -->
+
 # Monte Carlo vs Marcum Q Theory
 
 ![Monte Carlo vs theory](../assets/detection_sim.png)

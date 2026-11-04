@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # AsyncDsssReceiver: the specification link
 
 ![The constellation after symbol lock, the live carrier through the TCA crossing, the time to symbol lock for every draw, and the symbol lock with the spans spent searching](../assets/async_dsss_receiver_spec_demo.png)

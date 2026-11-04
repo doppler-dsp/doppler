@@ -1,3 +1,5 @@
+<!-- domain: measure -->
+
 # Measurement Suite — ADC characterisation
 
 ![measure demo](../assets/measure_demo.png)

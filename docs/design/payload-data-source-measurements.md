@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # The Payload as a Data Source — the measurement record
 
 The dated record behind [the design page](payload-data-source.md), under

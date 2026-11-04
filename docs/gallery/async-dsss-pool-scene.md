@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # AsyncDsssPool: ten emitters through six receivers
 
 ![Each emitter's Doppler ramp on the air with the carrier of the receiver that holds it, and every receiver's symbol lock coloured by the emitter it holds](../assets/async_dsss_pool_scene.png)

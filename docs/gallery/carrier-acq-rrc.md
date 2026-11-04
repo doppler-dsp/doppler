@@ -1,3 +1,5 @@
+<!-- domain: acquire -->
+
 # CarrierAcquisition: RRC Pulse Shaping
 
 ![Measured spectrum vs. matched RRC template, and estimate error at two Es/N0 points](../assets/carrier_acq_rrc_demo.png)

@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # Streaming Spectrograms
 
 A spectrogram turns a stream into **rows**: one spectrum every `hop` samples,

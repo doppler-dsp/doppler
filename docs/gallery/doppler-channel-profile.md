@@ -1,3 +1,5 @@
+<!-- domain: impairment -->
+
 # Doppler Channel — a Doppler Profile Driven by a Cosine
 
 ![DopplerChannel.execute_profile driven by one cosine period: the control, the carrier offset following it, and the code slip rising and returning to zero](../assets/doppler_channel_profile_demo.png)

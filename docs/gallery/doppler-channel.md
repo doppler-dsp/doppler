@@ -1,3 +1,5 @@
+<!-- domain: impairment -->
+
 # Doppler Channel — Clock Doppler as a Propagation Impairment
 
 ![DopplerChannel: carrier offset linear in ppm, code slip accumulating at 61.4 chips/s, and a Doppler ramp integrating to 500 Hz/s](../assets/doppler_channel_demo.png)

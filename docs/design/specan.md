@@ -1,3 +1,5 @@
+<!-- domain: analyzer -->
+
 # Spectrum Analyzer
 
 `doppler.analyzer.Specan` (C: `dp_specan_create`) takes the instrument

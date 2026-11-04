@@ -1,3 +1,5 @@
+<!-- domain: acquire -->
+
 # The acquisition surface: the DSSS search engine
 
 The design of the DSSS search engine (`dp_acq_*`,

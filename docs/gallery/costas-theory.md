@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # Costas Loop — Theory Validation
 
 ![Costas theory validation](../assets/costas_theory_demo.png)

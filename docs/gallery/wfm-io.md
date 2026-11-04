@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # Waveform I/O — One Capture, Four File Types
 
 ![waveform I/O demo](../assets/wfm_io_demo.png)

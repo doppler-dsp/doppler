@@ -1,3 +1,5 @@
+<!-- domain: track -->
+
 # M-PSK Receiver — Performance Characterisation
 
 ![Eight-panel Monte-Carlo characterisation of MpskReceiver and MpskReceiverR](../assets/mpsk_receiver_performance_demo.png)

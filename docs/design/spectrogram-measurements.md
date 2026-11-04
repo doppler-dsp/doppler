@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # The Spectrogram — the measurement record
 
 *The dated record behind [the design page](spectrogram.md): what each step of

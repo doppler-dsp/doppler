@@ -1,3 +1,5 @@
+<!-- domain: dsss -->
+
 # A Message Over DSSS, Received and Deframed
 
 A message is split into 48-bit chunks, one chunk per frame, and each frame

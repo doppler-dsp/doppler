@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # A Receiver Built from a Frame Description
 
 `BurstDemod` and `DsssBurstReceiver` take the frame's description, the same

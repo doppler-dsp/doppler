@@ -1,3 +1,5 @@
+<!-- domain: wfm -->
+
 # wfmgen — One Engine, Every Waveform
 
 ![wfmgen engine demo](../assets/wfmgen_demo.png)

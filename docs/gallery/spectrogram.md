@@ -1,3 +1,5 @@
+<!-- domain: spectral -->
+
 # A Streaming Spectrogram
 
 ![A crowded band as a dB waterfall: a steady carrier, a chirp, a QPSK burst and a BPSK burst over the noise floor](../assets/spectrogram_scene.png)

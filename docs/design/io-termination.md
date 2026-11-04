@@ -1,3 +1,5 @@
+<!-- domain: interrupt -->
+
 # Ending a wait — one contract for network, memory and disk
 
 doppler moves samples over three transports. A NATS subject, a

@@ -1455,6 +1455,83 @@ _acq_hit_chip_phase_check (void)
   return 0;
 }
 
+/* The tile path's code-rate ramp over an ODD period (#2815). Every tile's
+ * per-epoch row of one block (dp_acq_block_prompt) must equal a direct
+ * double-precision reference built from the block's raw epochs: the
+ * epoch's DFT, rolled to the tile, times the engine's template spectrum,
+ * times the exact ramp exp(-j 2 pi s j'/N) over numpy's signed bins j'
+ * (dp_fftfreq_index), inverted unscaled. A 7-chip code at one sample a
+ * chip makes N = 7, whose middle bin j = 3 is +3, not -4. Sabotage: switch
+ * acq_ramp's signed branch at n/2 rather than n/2 + n%2 (the old private
+ * copy's rule) -> red on the ramped tiles. */
+static int
+_acq_ramp_odd_period_check (void)
+{
+  const double    PI_ = acos (-1.0);
+  dp_acq_state_t *c   = dp_acq_create_continuous (
+      CODE7, 7, 1.0e6, 1.0e6, 0.0, 60.0, 200.0e3, 1e-2, 0.9, 0, 8, 0.0);
+  DP_REQUIRE (c != NULL);
+  DP_REQUIRE (dp_acq_set_carrier_freq_hz (c, 2.5e9) == DP_OK);
+  const size_t N = c->code_bins, D = c->coherent_bins, W = c->window_bins;
+  DP_REQUIRE_MSG (N % 2 == 1 && c->lag_bins == N, "an odd, unpadded period");
+  DP_REQUIRE_MSG (D > 1 && W > 1, "a tiled block, so the ramp runs");
+  /* One whole block of noise, so every bin carries energy. */
+  float _Complex *x = malloc (D * N * sizeof *x);
+  DP_REQUIRE (x != NULL);
+  uint32_t rng = 0x2815u;
+  for (size_t k = 0; k < D * N; k++)
+    x[k] = dp_cgauss (&rng);
+  acq_result_t hits[4];
+  (void)dp_acq_push (c, x, D * N, hits, 4);
+  free (x);
+  float _Complex *raw = malloc (D * N * sizeof *raw);
+  float _Complex *got = malloc (D * sizeof *got);
+  DP_REQUIRE (raw != NULL && got != NULL);
+  DP_REQUIRE_MSG (dp_acq_block_raw (c, raw, D * N) == D * N,
+                  "the block is whole");
+  double worst = 0.0, scale = 0.0;
+  for (size_t r = 0; r < W; r++)
+    {
+      const long   sr   = dp_fftfreq_index (r, W);
+      const size_t roll = (size_t)(((sr % (long)N) + (long)N) % (long)N);
+      const double d    = (double)sr * c->fs / c->carrier_freq_hz;
+      for (size_t m = 0; m < N; m++)
+        {
+          DP_REQUIRE (dp_acq_block_prompt (c, r, m, got, D) == D);
+          for (size_t k = 0; k < D; k++)
+            {
+              const double s    = ((double)k - 0.5 * (double)(D - 1)) * d;
+              double _Complex z = 0.0;
+              for (size_t j = 0; j < N; j++)
+                {
+                  const size_t jj   = (j + roll) % N;
+                  double _Complex X = 0.0;
+                  for (size_t n = 0; n < N; n++)
+                    X += (double _Complex)raw[k * N + n]
+                         * cexp (-2.0 * PI_ * I * (double)(jj * n % N)
+                                 / (double)N);
+                  const double jp = (double)dp_fftfreq_index (j, N);
+                  z += X * (double _Complex)c->wide_ref_spec[j]
+                       * cexp (-2.0 * PI_ * I * s * jp / (double)N)
+                       * cexp (2.0 * PI_ * I * (double)(j * m % N)
+                               / (double)N);
+                }
+              const double e = cabs ((double _Complex)got[k] - z);
+              if (e > worst)
+                worst = e;
+              if (cabs (z) > scale)
+                scale = cabs (z);
+            }
+        }
+    }
+  DP_CHECK_MSG (scale > 0.0 && worst <= 1e-4 * scale,
+                "every tile's ramped row matches the exact signed-bin ramp");
+  free (raw);
+  free (got);
+  dp_acq_destroy (c);
+  return 0;
+}
+
 /* The wideband grid's real contract is COVERAGE, not bin count: every
  * Doppler in [-du, +du] must have a hypothesis within half a bin, and
  * the search and dp_acq_build_handoff() must agree on which one.
@@ -3189,6 +3266,7 @@ main (void)
   (void)_acq_tiled_burst_offcentre_check ();
   (void)_acq_tile_alias_hop_check ();
   (void)_acq_hit_chip_phase_check ();
+  (void)_acq_ramp_odd_period_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_chunk_invariance_check ();
   (void)_acq_resume_check ();

@@ -283,9 +283,10 @@ def test_jm_still_compares_every_committed_header(
     release that reclassified one of these would leave the gate green for
     good. Ask the pinned jm directly, for every header each project
     commits."""
-    # Imported, not importorskip'd: a jm that moved this module would
-    # otherwise skip on every leg, and nothing fails a run on a skip.
-    from just_makeit import _createonly as createonly
+    # Imported, not importorskip'd: a jm that dropped it would otherwise
+    # skip on every leg, and nothing fails a run on a skip. Public since
+    # jm 0.117.0 (just-makeit#2455).
+    from just_makeit import is_versioned
 
     proj = ROOT / project
     out = _RUN(
@@ -298,7 +299,7 @@ def test_jm_still_compares_every_committed_header(
     headers = [p for p in out.split("\0") if mod.VENDORED.search(p)]
     assert headers, f"no committed jm_*.h under {project}"
     for rel in headers:
-        assert createonly.is_versioned(rel, proj), rel
+        assert is_versioned(rel, proj), rel
 
 
 def test_an_inherited_git_dir_is_ignored(monkeypatch, tmp_path: Path):

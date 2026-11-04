@@ -429,6 +429,18 @@ unit = "sample"
 definition = "The op5M_U5k_D150_t1 search with a 2.2 GHz carrier set, so both side tiles run their code-rate ramp over the block: the continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150, on 1 thread; throughput counts searched input samples."
 samples = 1
 
+["c:acq::op5M_U10k_D150_t1_nc1"]
+name = "DSSS search, 5 Mcps, ±10 kHz, depth 150, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±10 kHz of Doppler (5 tiles), block-coherent depth D = 150, on 1 thread: the row the one delay-Doppler map's schedule rule runs slow first near its crossover (docs/design/acq-surface.md §18.1); throughput counts searched input samples."
+samples = 1
+
+["c:acq::op5M_U10k_D150_t1_fc_nc1"]
+name = "DSSS search, 5 Mcps, ±10 kHz, depth 150, 1 thread, 2.2 GHz carrier"
+unit = "sample"
+definition = "The op5M_U10k_D150_t1 search with a 2.2 GHz carrier set, so every side tile runs its code-rate ramp: the row the one delay-Doppler map's schedule rule runs rows first near its crossover (docs/design/acq-surface.md §18.1); throughput counts searched input samples."
+samples = 1
+
 ["c:psd::frame_linear[nfft=16384]"]
 name = "PSD frame, linear power, 16,384 points"
 unit = "frame"

@@ -39,6 +39,7 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 |  uint16\_t | [**\_pad**](#variable-_pad)  <br> |
 |  uint32\_t | [**\_pad2**](#variable-_pad2)  <br> |
 |  uint32\_t | [**blk\_epoch**](#variable-blk_epoch)  <br> |
+|  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
 |  uint16\_t | [**has\_nc**](#variable-has_nc)  <br> |
 |  uint32\_t | [**max\_peaks**](#variable-max_peaks)  <br> |
 |  uint64\_t | [**n**](#variable-n)  <br> |
@@ -154,6 +155,24 @@ uint32_t acq_extra_t::blk_epoch;
 
 
 v3: epochs gathered in the block being built 
+
+
+        
+
+<hr>
+
+
+
+### variable carrier\_freq\_hz 
+
+```C++
+double acq_extra_t::carrier_freq_hz;
+```
+
+
+
+v8: the carrier (a mutator's value, #2022): the block's raw epochs are ramped at its end by the map, so a restore takes the carrier through [**dp\_acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-dp_acq_set_carrier_freq_hz)'s rebuild. 
+ 
 
 
         

@@ -41,9 +41,19 @@ SABOTAGES = [
         "row1 ? row1 : out + tl->rows[(i + 1) % m->g.di] * L);",
     ),
     (
-        "the rule: a tie to slow first",
-        "return g->di <= 1 || rows <= slow ? DP__DD_ROWS_FIRST",
-        "return g->di <= 1 || rows < slow ? DP__DD_ROWS_FIRST",
+        "the rule: a tie to rows first",
+        "return g->di <= 1 || rows < slow * (1.0 - DD_COUNT_RESOLUTION)",
+        "return g->di <= 1 || rows < slow * (1.0 + DD_COUNT_RESOLUTION)",
+    ),
+    (
+        "the rule: no resolution band",
+        "rows < slow * (1.0 - DD_COUNT_RESOLUTION)",
+        "rows < slow",
+    ),
+    (
+        "the rule: fused ignored",
+        "const double rows = (fused ? 0.0 : W * D * dd_tcost (g->l))",
+        "const double rows = (W * D * dd_tcost (g->l))",
     ),
     (
         "refusal: a fine grid at one slow row accepted",

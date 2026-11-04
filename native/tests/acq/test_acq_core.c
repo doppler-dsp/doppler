@@ -15,6 +15,7 @@
  * The list on real emitters (two found, a data-split twin held) is the
  * shipped generator's job: validate_acq_peak_list's --check.
  */
+#include "../../src/corr2d/corr2d_map.h"
 #include "doppler/acq/acq_core.h"
 #include "doppler/acq/acq_private.h"
 #include "doppler/detector/det_private.h"
@@ -977,7 +978,7 @@ _acq_wideband_default_depth_check (void)
       DP_CHECK (none->window_bins > 1);
       DP_CHECK (none->coherent_bins == 1);
       /* No block buffers at all: the default object is the D = 1 engine. */
-      DP_CHECK (none->blk == NULL && none->blk_raw == NULL);
+      DP_CHECK (none->blk_raw == NULL);
       DP_CHECK (none->n == none->window_bins * none->code_bins);
       /* And a stated C/N0 still buys depth (the point of the sizer). */
       dp_acq_state_t *some
@@ -1460,10 +1461,10 @@ _acq_hit_chip_phase_check (void)
  * double-precision reference built from the block's raw epochs: the
  * epoch's DFT, rolled to the tile, times the engine's template spectrum,
  * times the exact ramp exp(-j 2 pi s j'/N) over numpy's signed bins j'
- * (dp_fftfreq_index), inverted unscaled. A 7-chip code at one sample a
- * chip makes N = 7, whose middle bin j = 3 is +3, not -4. Sabotage: switch
- * acq_ramp's signed branch at n/2 rather than n/2 + n%2 (the old private
- * copy's rule) -> red on the ramped tiles. */
+ * (dp_fftfreq_index), inverted, at the one scale 1/N. A 7-chip code at one
+ * sample a chip makes N = 7, whose middle bin j = 3 is +3, not -4. Sabotage:
+ * switch acq_ramp's signed branch at n/2 rather than n/2 + n%2 (the old
+ * private copy's rule) -> red on the ramped tiles. */
 static int
 _acq_ramp_odd_period_check (void)
 {
@@ -1511,7 +1512,7 @@ _acq_ramp_odd_period_check (void)
                          * cexp (-2.0 * PI_ * I * (double)(jj * n % N)
                                  / (double)N);
                   const double jp = (double)dp_fftfreq_index (j, N);
-                  z += X * (double _Complex)c->wide_ref_spec[j]
+                  z += X * (double _Complex)c->ref_spec[j] / (double)N
                        * cexp (-2.0 * PI_ * I * s * jp / (double)N)
                        * cexp (2.0 * PI_ * I * (double)(j * m % N)
                                / (double)N);
@@ -1579,13 +1580,13 @@ _acq_ramp_odd_period_check (void)
 #define EQ_PEAK_DB 0.2
 #define EQ_SEEDS 8
 
-/* Today's scale per path, the one place 2.3 changes: the narrow path's
-   corr2d inverse divides by N, the wideband path's tile inverse does not.
-   The map's decided scale (§18.1) is 1/N on both. */
+/* The surface's scale: the map's one scale, 1/N on every path
+   (docs/design/acq-surface.md §18.1; before step 2.3 the wideband path's
+   inverse was unscaled). */
 static double
 eq_today_scale (const dp_acq_state_t *st)
 {
-  return st->window_bins > 1 ? 1.0 : 1.0 / (double)st->code_bins;
+  return 1.0 / (double)st->code_bins;
 }
 
 /* The rate hypotheses the engine runs for a block (acq: none below D = 3). */
@@ -1733,6 +1734,7 @@ typedef struct
   int    hit_ok;    /* the first hit is within one native row of it */
   long   peak_tile; /* the signed tile of the reference's peak */
   size_t rate_h;    /* the rate hypothesis the engine kept */
+  double bound;     /* the cell bound's value at c = 1, with sqrt(D) */
 } eq_score_t;
 
 /* Push one block of `x` (D * N samples) into a reset engine, read its
@@ -1740,7 +1742,8 @@ typedef struct
    hypothesis the engine kept. Returns 0, or -1 when the engine decided no
    coherent surface or an allocation failed. */
 static int
-eq_score (dp_acq_state_t *st, const float _Complex *x, eq_score_t *sc)
+eq_score (dp_acq_state_t *st, const float _Complex *x, eq_score_t *sc,
+          float _Complex *keep)
 {
   const size_t N = st->code_bins, L = st->lag_bins, D = st->coherent_bins;
   const size_t DI = D * st->interp, n = st->n_surf, cols = L;
@@ -1779,6 +1782,9 @@ eq_score (dp_acq_state_t *st, const float _Complex *x, eq_score_t *sc)
       = eq_today_scale (st) * (double)N * eps
         * (log2 ((double)N) + log2 ((double)L) + log2 ((double)DI)) * sqrt (xx)
         * sqrt (rr);
+  if (keep)
+    memcpy (keep, got, n * sizeof *got);
+  sc->bound     = flat * sqrt ((double)D);
   sc->c_flat    = worst / flat;
   sc->c_sqrt    = worst / (flat * sqrt ((double)D));
   sc->peak_db   = 20.0 * log10 (cabsf (got[ga]) / cabs (want[wa]));
@@ -1799,6 +1805,20 @@ eq_score (dp_acq_state_t *st, const float _Complex *x, eq_score_t *sc)
   free (got);
   free (want);
   return 0;
+}
+
+/* Run the engine's map in one schedule (corr2d_map.h), or by its rule
+   (-1), and give it the scratch that schedule needs: the test runs every
+   scene in both, which compute one function (docs/design/acq-surface.md
+   §18.1). */
+static void
+eq_force (dp_acq_state_t *a, int schedule)
+{
+  const size_t W = a->window_bins > 1 ? a->window_bins : 1;
+  dp__dd_map_force (a->map, schedule);
+  const size_t wl = dp__dd_map_work_len (a->map, W, eq_rate_count (a));
+  free (a->map_work);
+  a->map_work = malloc ((wl ? wl : 1) * sizeof *a->map_work);
 }
 
 /* The code at `spc` samples a chip, its chip clock dilated by (1 + f/fc)
@@ -1991,29 +2011,52 @@ _acq_map_equivalence_check (void)
       const size_t len = a->coherent_bins * a->code_bins;
       eq_score_t   r   = { 0 };
       r.same_cell = r.hit_ok = 1;
+      /* Each draw runs in both of the map's schedules: each is held to
+         the scene's tolerances against the reference, and the two to
+         each other at the cell bound, carrier scenes included -- they
+         compute one function, the rounded ramp and all (§18.1). */
+      float _Complex *both[2];
+      both[0]      = malloc (a->n_surf * sizeof *both[0]);
+      both[1]      = malloc (a->n_surf * sizeof *both[1]);
+      double sch_c = 0.0; /* the schedules against each other */
+      DP_REQUIRE (both[0] && both[1]);
       for (size_t seed = 0; seed < EQ_SEEDS; seed++)
         {
-          eq_score_t      one = { 0 };
           float _Complex *x
               = eq_signal (code, sf, spc, len, f, rate, a->fs, fc, 0.2, &rng);
           DP_REQUIRE (x != NULL);
-          DP_REQUIRE_MSG (eq_score (a, x, &one) == 0, sc.name);
+          double bound = 0.0;
+          for (int sch = DP__DD_SLOW_FIRST; sch <= DP__DD_ROWS_FIRST; sch++)
+            {
+              eq_score_t one = { 0 };
+              eq_force (a, sch);
+              DP_REQUIRE_MSG (eq_score (a, x, &one, both[sch]) == 0, sc.name);
+              bound     = one.bound;
+              r.c_flat  = fmax (r.c_flat, one.c_flat);
+              r.c_sqrt  = fmax (r.c_sqrt, one.c_sqrt);
+              r.peak_db = fabs (one.peak_db) > fabs (r.peak_db) ? one.peak_db
+                                                                : r.peak_db;
+              r.same_cell &= one.same_cell;
+              r.hit_ok &= one.hit_ok;
+              DP_CHECK_MSG (one.peak_tile == sc.tile, sc.name);
+              DP_CHECK_MSG (sc.rate_h == SIZE_MAX || one.rate_h == sc.rate_h,
+                            sc.name);
+            }
+          double d = 0.0;
+          for (size_t k = 0; k < a->n_surf; k++)
+            d = fmax (d, cabsf (both[0][k] - both[1][k]));
+          sch_c = fmax (sch_c, d / bound);
           free (x);
-          r.c_flat  = fmax (r.c_flat, one.c_flat);
-          r.c_sqrt  = fmax (r.c_sqrt, one.c_sqrt);
-          r.peak_db = fabs (one.peak_db) > fabs (r.peak_db) ? one.peak_db
-                                                            : r.peak_db;
-          r.same_cell &= one.same_cell;
-          r.hit_ok &= one.hit_ok;
-          DP_CHECK_MSG (one.peak_tile == sc.tile, sc.name);
-          DP_CHECK_MSG (sc.rate_h == SIZE_MAX || one.rate_h == sc.rate_h,
-                        sc.name);
         }
+      eq_force (a, -1);
+      free (both[0]);
+      free (both[1]);
+      DP_CHECK_MSG (sch_c <= EQ_C, "the two schedules are one map");
       printf ("  map equivalence %-14s N=%3zu L=%3zu D=%3zu I=%zu W=%zu "
               "tile=%+ld R=%zu: c=%.3f (with sqrt(D): %.3f), peak %+.4f "
-              "dB%s%s\n",
+              "dB, schedules apart c=%.3f%s%s\n",
               sc.name, sc.N, sc.L, sc.D, sc.Ip, sc.W, sc.tile,
-              eq_rate_count (a), r.c_flat, r.c_sqrt, r.peak_db,
+              eq_rate_count (a), r.c_flat, r.c_sqrt, r.peak_db, sch_c,
               r.same_cell ? "" : " MOVED", r.hit_ok ? "" : " HIT-OFF");
       DP_CHECK_MSG (r.same_cell, sc.name);
       DP_CHECK_MSG (r.hit_ok, sc.name);
@@ -2887,6 +2930,101 @@ _Static_assert (ACQ_AT (doppler_bin, 0) && ACQ_AT (code_phase, 8)
                 "acq_results_equal");
 #undef ACQ_AT
 #endif
+
+/* The carrier rides in the state blob, and a restore takes it through its
+ * setter's rebuild (docs/design/acq-surface.md §18.2, #2831). The map
+ * ramps a tiled block's raw epochs at the block's end on a fine grid the
+ * carrier sizes, so a blob taken mid-block at a carrier and restored into
+ * an engine built without one must rebuild that grid and every tile's
+ * tables, then resume bit for bit against the run that was never split.
+ * The other way round too; and a blob whose carrier is not one is refused
+ * with the engine's bytes untouched. Sabotage: set_state writes the field
+ * instead of the regrid -> the restored engine keeps F = 1 and its surface
+ * moves. */
+static int
+_acq_set_state_carrier_check (void)
+{
+  const double span31 = 1.0e6 / (2.0 * 31.0), fc = 1.0e7;
+  uint32_t     rng = 0x2831u;
+  for (int way = 0; way < 2; way++)
+    {
+      /* way 0: the blob is taken at fc and restored into a carrier-0
+         engine; way 1: taken at 0 and restored into an fc engine. */
+      const double    from = way == 0 ? fc : 0.0, into = way == 0 ? 0.0 : fc;
+      dp_acq_state_t *a
+          = dp_acq_create_continuous (CODE31, 31, 4.0e6, 1.0e6, 0.0, 75.0,
+                                      3.5 * span31, 1e-3, 0.9, 0, 31, 0.0);
+      dp_acq_state_t *p
+          = dp_acq_create_continuous (CODE31, 31, 4.0e6, 1.0e6, 0.0, 75.0,
+                                      3.5 * span31, 1e-3, 0.9, 0, 31, 0.0);
+      dp_acq_state_t *b
+          = dp_acq_create_continuous (CODE31, 31, 4.0e6, 1.0e6, 0.0, 75.0,
+                                      3.5 * span31, 1e-3, 0.9, 0, 31, 0.0);
+      DP_REQUIRE (a && p && b);
+      DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, from) == DP_OK);
+      DP_REQUIRE (dp_acq_set_carrier_freq_hz (p, from) == DP_OK);
+      DP_REQUIRE (dp_acq_set_carrier_freq_hz (b, into) == DP_OK);
+      const size_t D = a->coherent_bins, N = a->code_bins;
+      DP_REQUIRE_MSG (a->window_bins > 1 && D > 1, "a tiled block");
+      DP_REQUIRE_MSG (p->map_f == (from > 0.0 ? DP__DD_MAP_FINE : 1u)
+                          && b->map_f == (into > 0.0 ? DP__DD_MAP_FINE : 1u),
+                      "the carrier sets the fine grid");
+      const size_t    len = 3 * D * N;
+      float _Complex *x   = eq_signal (CODE31, 31, 4.0, len, 2.2 * span31, 0.0,
+                                       a->fs, fc, 0.2, &rng);
+      DP_REQUIRE (x != NULL);
+      const size_t    n_surf = a->n_surf;
+      float _Complex *sa     = malloc (n_surf * sizeof *sa);
+      float _Complex *sb     = malloc (n_surf * sizeof *sb);
+      DP_REQUIRE (sa && sb);
+
+      /* The run that is never split. */
+      acq_result_t ha[16], hp[16], hb[16];
+      const size_t na = dp_acq_push (a, x, len, ha, 16);
+      DP_REQUIRE_MSG (na >= 2, "the emitter is found in every block");
+      DP_REQUIRE (dp_acq_surface_complex (a, sa, n_surf) == n_surf);
+
+      /* The split: 1.5 blocks and 3 samples, mid-block. */
+      const size_t cut = D * N + (D / 2) * N + 3;
+      const size_t np  = dp_acq_push (p, x, cut, hp, 16);
+      DP_REQUIRE_MSG (p->blk_epoch > 0 && p->blk_epoch < D, "mid-block");
+      void *blob = malloc (dp_acq_state_bytes (p));
+      DP_REQUIRE (blob != NULL);
+      dp_acq_get_state (p, blob);
+      DP_CHECK (dp_acq_set_state (b, blob) == DP_OK);
+      DP_CHECK_MSG (b->carrier_freq_hz == from, "the carrier is restored");
+      DP_CHECK_MSG (b->map_f == p->map_f, "and its fine grid rebuilt");
+      const size_t nb = dp_acq_push (b, x + cut, len - cut, hb, 16);
+      DP_CHECK_MSG (np + nb == na, "the split finds what the run found");
+      DP_CHECK_MSG (nb <= na && acq_results_equal (hb, ha + (na - nb), nb),
+                    "the resumed engine's hits are the run's, bit for bit");
+      DP_CHECK (dp_acq_surface_complex (b, sb, n_surf) == n_surf);
+      DP_CHECK_MSG (memcmp (sa, sb, n_surf * sizeof *sa) == 0,
+                    "and so is its surface");
+
+      /* A blob whose carrier is not one is refused, before anything is
+         written: the engine's own blob is the same bytes after. */
+      const size_t sz     = dp_acq_state_bytes (b);
+      void        *before = malloc (sz), *after = malloc (sz);
+      DP_REQUIRE (before && after);
+      dp_acq_get_state (b, before);
+      for (int bad = 0; bad < 2; bad++)
+        {
+          acq_extra_t ex;
+          memcpy (&ex, (char *)blob + sizeof (dp_state_hdr_t), sizeof ex);
+          ex.carrier_freq_hz = bad == 0 ? NAN : 0.25 * a->fs; /* < fs/2 */
+          memcpy ((char *)blob + sizeof (dp_state_hdr_t), &ex, sizeof ex);
+          DP_CHECK (dp_acq_set_state (b, blob) == DP_ERR_INVALID);
+          dp_acq_get_state (b, after);
+          DP_CHECK_MSG (memcmp (before, after, sz) == 0,
+                        "a refused carrier leaves the engine untouched");
+        }
+      free (before), free (after), free (blob), free (x), free (sa);
+      free (sb);
+      dp_acq_destroy (a), dp_acq_destroy (p), dp_acq_destroy (b);
+    }
+  return 0;
+}
 
 /* The hits are a function of the input stream, not of how push() calls
  * cut it: a partial frame, a dwell's coherent sum, its non-coherent
@@ -3772,6 +3910,7 @@ main (void)
   (void)_acq_hit_chip_phase_check ();
   (void)_acq_ramp_odd_period_check ();
   (void)_acq_map_equivalence_check ();
+  (void)_acq_set_state_carrier_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_chunk_invariance_check ();
   (void)_acq_resume_check ();
@@ -4229,7 +4368,8 @@ main (void)
       acq_result_t own[16];
       DP_REQUIRE (bc != NULL);
       const size_t D = bc->coherent_bins;
-      DP_REQUIRE_MSG (D > 1 && bc->blk != NULL, "code_only_epochs 7: a depth");
+      DP_REQUIRE_MSG (D > 1 && bc->blk_raw != NULL,
+                      "code_only_epochs 7: a depth");
       float _Complex *xb = malloc (D * nx * sizeof *xb);
       float _Complex *rb = malloc (D * nx * sizeof *rb);
       float _Complex *pb = malloc (D * sizeof *pb);
@@ -4416,7 +4556,7 @@ main (void)
         = dp_acq_create_continuous (CODE7, sf, crate * (double)spc, crate, 0.0,
                                     60.0, 200.0e3, 1e-2, 0.9, 0, 7, rate);
     DP_REQUIRE (w1 && w7 && wr);
-    DP_CHECK (w1->coherent_bins == 1 && w1->blk == NULL);
+    DP_CHECK (w1->coherent_bins == 1 && w1->blk_raw == NULL);
     DP_CHECK_MSG (w7->coherent_bins == D, "D = (code_only_epochs + 1) / 2");
     DP_CHECK_MSG (wr->coherent_bins == 2, "the Doppler rate bounds D");
     /* Both bounds are ceilings, and D runs at the largest 7-smooth length
@@ -4466,7 +4606,7 @@ main (void)
     dp_acq_state_t *c = w7;
     DP_CHECK (c->window_bins == tiles && c->interp == 2);
     DP_CHECK (c->n == tiles * D * nx && c->n_surf == 2 * c->n);
-    DP_CHECK (c->blk != NULL && c->frame_n == nx);
+    DP_CHECK (c->blk_raw != NULL && c->frame_n == nx);
     DP_CHECK_MSG (c->searched_bins == tiles * D,
                   "the CFAR counts every row of every tile");
     /* ...and the gate's split is over every one of those rows, all
@@ -4590,7 +4730,9 @@ main (void)
       size_t nb   = dp_acq_state_bytes (c);
       void  *blob = malloc (nb);
       DP_REQUIRE (blob != NULL);
-      DP_CHECK (nb >= tiles * D * nx * sizeof (float _Complex));
+      /* The block's raw epochs ride in the blob (v8): the map runs on
+         them at the block's end, so they are all a resumed engine needs. */
+      DP_CHECK (nb >= D * c->code_bins * sizeof (float _Complex));
       dp_acq_get_state (c, blob);
       DP_CHECK (dp_acq_set_state (b, blob) == DP_OK);
       DP_CHECK (b->blk_epoch == D / 2);
@@ -4657,7 +4799,7 @@ main (void)
     /* A standalone engine fans its per-epoch stages too (#2775); only a
        composition clears it. Sabotage: create's default 0 -> red. */
     DP_CHECK_MSG (c->epoch_fan == 1, "the per-epoch stages fan by default");
-    DP_CHECK (c->tile_inv != NULL && c->tile_slow != NULL);
+    DP_CHECK (c->map != NULL && c->map_tiles != NULL);
     dp_acq_state_t *one
         = dp_acq_create_continuous (CODE7, sf, crate * (double)spc, crate, 0.0,
                                     70.0, 0.0, 1e-2, 0.9, 0, 1, 0.0);

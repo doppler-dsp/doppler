@@ -8,6 +8,7 @@ the real script on a synthetic tree and break each rule in turn.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -260,24 +261,49 @@ def test_a_cross_domain_class_is_found_from_both_sides() -> None:
     assert "guide/acquisition.md" in out["docs/domains/spectral.md"]
 
 
-def test_every_page_is_in_the_nav_exactly_once() -> None:
-    """Guides, Gallery and Design list each filed page once (the tool pages
-    are nav'd under Tools); the hand-kept index lists nothing that is gone."""
+def _nav_entries() -> list[str]:
+    """Every `.md` target in the WHOLE of mkdocs.yml's nav, in order."""
+    text = (REPO / "mkdocs.yml").read_text(encoding="utf-8")
+    nav = text[text.index("\nnav:") :]
+    return re.findall(r":\s*([\w./-]+\.md)\s*$", nav, re.MULTILINE)
+
+
+def test_every_filed_page_is_in_the_nav_exactly_once() -> None:
+    """Counted over all of mkdocs.yml, hand-kept entries (Tools) included,
+    so a duplicate or an orphan cannot hide in the part nobody generated."""
     gd = _gd()
-    nav = "".join(gd.nav_blocks(REPO).values())
+    entries = _nav_entries()
     for _fam, path in gd.pages(REPO):
         rel = path.relative_to(REPO / "docs").as_posix()
-        n = nav.count(f": {rel}\n")
-        want = 0 if rel.startswith(("guide/wfmgen/", "guide/wfm-io/")) else 1
-        assert n == want, f"{rel}: in the generated nav {n}x, want {want}"
+        assert entries.count(rel) == 1, (rel, entries.count(rel))
 
 
 def test_a_section_index_lists_what_the_nav_does() -> None:
+    """Each generated index names the pages mkdocs.yml's nav gives that
+    family, read back from the file, not from the generator."""
     gd = _gd()
-    for rel, text in gd.index_blocks(REPO).items():
+    nav = set(_nav_entries())
+    for rel, full in gd.index_blocks(REPO).items():
         fam = rel.split("/")[1]
-        skip = gd.TOOL_PAGES if fam == "guide" else ()
-        for _m, items in gd._by_domain(REPO, fam, skip):
-            for title, page in items:
-                link = page.split("/", 1)[1]
-                assert f"[{title}]({link})" in text, (rel, page)
+        text = full[full.index(gd.IDX_START) : full.index(gd.IDX_END)]
+        listed = {
+            f"{fam}/{m}"
+            for m in re.findall(r"\]\(([^)#]+\.md)\)", text)
+            if "/" not in m or fam == "guide"
+        }
+        in_nav = {
+            n
+            for n in nav
+            if n.startswith(f"{fam}/")
+            and not gd.in_subsection(REPO, REPO / "docs" / n)
+            and n != f"{fam}/index.md"
+        }
+        assert listed == in_nav, (rel, listed ^ in_nav)
+
+
+def test_a_duplicated_marker_pair_is_refused() -> None:
+    gd = _gd()
+    text = (REPO / "mkdocs.yml").read_text(encoding="utf-8")
+    block = gd.nav_blocks(REPO)["design-nav"]
+    with pytest.raises(SystemExit):
+        gd.apply_nav(text + block, "design-nav", block)

@@ -22,7 +22,8 @@ symbols ``_pydocs.discover()`` finds, this script writes:
 the Domains, Guides and Gallery entries of ``mkdocs.yml``
     Between ``# domains-nav:start`` and ``# domains-nav:end``: each page
     listed once, under its domain, domains in ``domains.toml`` order. The
-    pages under ``TOOL_PAGES`` are left out; they are nav'd under Tools.
+    pages of a sub-section (a directory below the family with its own
+    ``index.md``: wfmgen, wfm-io) are left out; they are nav'd under Tools.
 the Design entries of ``mkdocs.yml``
     Between ``# design-nav:start`` and ``# design-nav:end``.
 ``docs/{guide,gallery,design}/index.md``
@@ -104,9 +105,6 @@ SELF = "scripts/gen_domains.py"
 # Gallery) and the Design group, which sits under Internals.
 NAV_BROWSE = "domains-nav"
 NAV_DESIGN = "design-nav"
-# Pages the nav shows under Tools, not under Guides: they have their own
-# sub-sections (and an index each), whatever their domain.
-TOOL_PAGES = ("guide/wfmgen/", "guide/wfm-io/")
 # The generated list inside a section index.md.
 IDX_START = "<!-- domain-index:start -->"
 IDX_END = "<!-- domain-index:end -->"
@@ -582,8 +580,16 @@ def _nav_label(text: str) -> str:
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def in_subsection(root: Path, path: Path) -> bool:
+    """True for a page in a directory below its family that has its own
+    ``index.md``: a sub-section (wfmgen, wfm-io) the nav shows under Tools.
+    The structure says it, so no list does."""
+    family_dir = root / "docs" / path.relative_to(root / "docs").parts[0]
+    return path.parent != family_dir and (path.parent / "index.md").exists()
+
+
 def _by_domain(
-    root: Path, fam: str, skip: tuple[str, ...] = ()
+    root: Path, fam: str, skip_sub: bool = False
 ) -> list[tuple[str, list[tuple[str, str]]]]:
     """``[(domain, [(title, path under docs/)])]`` for one page family.
 
@@ -595,10 +601,16 @@ def _by_domain(
     for f, path in pages(root):
         rel = path.relative_to(root / "docs").as_posix()
         dom = page_domain(path)
-        if f != fam or dom not in doms or rel.startswith(skip):
+        if f != fam or dom not in doms:
+            continue
+        if skip_sub and in_subsection(root, path):
             continue
         found[dom].append((page_title(path), rel))
-    return [(m, sorted(found[m])) for m in doms if m in found]
+    return [
+        (m, sorted(found[m], key=lambda t: (t[0].casefold(), t[1])))
+        for m in doms
+        if m in found
+    ]
 
 
 def nav_blocks(root: Path = ROOT) -> dict[str, str]:
@@ -621,8 +633,8 @@ def nav_blocks(root: Path = ROOT) -> dict[str, str]:
                 f"          - {_nav_label(d['title'])}: domains/{m}.md"
             )
     for fam, head, skip in (
-        ("guide", "Guides", TOOL_PAGES),
-        ("gallery", "Gallery", ()),
+        ("guide", "Guides", True),
+        ("gallery", "Gallery", False),
     ):
         lines += [f"  - {head}:", f"      - {head}: {fam}/index.md"]
         for m, items in _by_domain(root, fam, skip):
@@ -647,8 +659,10 @@ def apply_nav(text: str, name: str, block: str) -> str:
         r"^" + re.escape(start) + r"\n.*?^" + re.escape(end) + r"\n",
         re.DOTALL | re.MULTILINE,
     )
-    if not pat.search(text):
-        raise SystemExit(f"{MKDOCS}: no {start} / {end} markers to fill")
+    if len(pat.findall(text)) != 1:
+        raise SystemExit(
+            f"{MKDOCS}: want exactly one {start} / {end} marker pair"
+        )
     return pat.sub(lambda _m: block, text, count=1)
 
 
@@ -658,8 +672,7 @@ def index_blocks(root: Path = ROOT) -> dict[str, str]:
     out: dict[str, str] = {}
     for fam, rel in INDEXES.items():
         lines = [IDX_START, ""]
-        skip = TOOL_PAGES if fam == "guide" else ()
-        for m, items in _by_domain(root, fam, skip):
+        for m, items in _by_domain(root, fam, fam == "guide"):
             lines += [f"## {doms[m]['title']}", "", doms[m]["summary"], ""]
             for title, page in items:
                 link = os.path.relpath(page, fam).replace(os.sep, "/")
@@ -670,8 +683,10 @@ def index_blocks(root: Path = ROOT) -> dict[str, str]:
         pat = re.compile(
             re.escape(IDX_START) + r".*?" + re.escape(IDX_END), re.DOTALL
         )
-        if not pat.search(text):
-            raise SystemExit(f"{rel}: no {IDX_START} / {IDX_END} markers")
+        if len(pat.findall(text)) != 1:
+            raise SystemExit(
+                f"{rel}: want exactly one {IDX_START} / {IDX_END} pair"
+            )
         block = "\n".join(lines)
         out[rel] = pat.sub(lambda _m, b=block: b, text, count=1)
     return out

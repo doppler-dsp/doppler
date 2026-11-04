@@ -146,7 +146,7 @@ def test_a_page_with_an_unknown_domain_fails(tmp_path: Path) -> None:
     assert "domain `nope` is not a module in docs/domains.toml" in r.stderr
 
 
-def test_an_index_page_and_an_archive_owe_no_domain(tmp_path: Path) -> None:
+def test_a_family_index_and_an_archive_owe_no_domain(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
     _w(root, "docs/guide/index.md", "# Guides\n")
     _w(root, "docs/design/archive/old.md", "# Old\n")
@@ -206,3 +206,55 @@ def test_the_guide_exemptions_only_shrink(tmp_path: Path) -> None:
     )
     assert r.returncode == 1
     assert "'sig guide' is new; the list only shrinks" in r.stderr
+
+
+def test_a_nested_index_is_a_real_page_and_owes_a_domain(
+    tmp_path: Path,
+) -> None:
+    root = _fixture(tmp_path)
+    _w(root, "docs/guide/sub/index.md", "# Sub guide\n")
+    r = _run(root)
+    assert r.returncode == 1
+    assert "docs/guide/sub/index.md: no domain" in r.stderr
+
+
+def _gd():
+    sys.path.insert(0, str(REPO / "scripts"))
+    import gen_domains as gd
+
+    return gd
+
+
+def test_the_banner_holds_no_comment_terminator() -> None:
+    """A `-->` inside the banner closes it early and leaks onto the page."""
+    for rel, text in _gd().render(REPO).items():
+        first = text.splitlines()[0]
+        assert first.count("-->") == 1 and first.endswith("-->"), rel
+
+
+def test_a_symbols_kind_is_read_from_its_own_module(tmp_path: Path) -> None:
+    """The kind comes from the module's own sources, so a same-named `def`
+    elsewhere (an example) cannot relabel a class, and a name with neither
+    is a constant."""
+    root = _fixture(tmp_path)
+    _w(
+        root,
+        "src/doppler/sig/__init__.py",
+        '__all__ = ["Widget", "make", "N"]\n',
+    )
+    _w(root, "src/doppler/sig/sig.pyi", "class Widget: ...\ndef make(): ...\n")
+    _w(root, f"{EX}/widget_demo.py", "def Widget():\n    pass\n")
+    sys.path.insert(0, str(REPO / "scripts"))
+    from _pydocs import kinds
+
+    assert kinds(str(root / "src" / "doppler")) == {
+        "doppler.sig": {"Widget": "class", "make": "function", "N": "constant"}
+    }
+
+
+def test_a_cross_domain_class_is_found_from_both_sides() -> None:
+    """DelayDoppler lives in `spectral` but is an acquisition search: its
+    guide is filed under `spectral`, and the acquisition guide links it."""
+    out = _gd().render(REPO)
+    assert "guide/delay-doppler.md" in out["docs/domains/acquire.md"]
+    assert "guide/acquisition.md" in out["docs/domains/spectral.md"]

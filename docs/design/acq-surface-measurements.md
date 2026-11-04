@@ -210,69 +210,101 @@ The C suites, on the same build at $F = 4$ through
 *2026-11-04, the WSL2 dev box. Step 2.2 ([#2825](https://github.com/doppler-dsp/doppler/issues/2825)).*
 
 `_acq_map_equivalence_check` (`test_acq_core.c`) evaluates the map's
-definition (§18.1 of the design page) in double precision by direct DFTs,
-reading only the engine's template, its grid and its public rate grid. It
-compares that against acq's decided complex surface, over 12 scenes, 8 noise
-draws each, and keeps each scene's worst. Its output on today's code is
-`equiv-2825/today.log`; on the rounded-ramp scratch engine of §18.4, at
-$F = 4$, it is `equiv-2825/rounded.log`. The constant is solved in the
-map's units, a correlation (scale $1/N$), with and without the bound's
-$\sqrt{D}$:
+definition (§18.1 of the design page) in double precision by direct DFTs.
+It writes out its own signed index and the de-chirp's closed form, and
+reads from the engine only its template, its grid and its public rate grid.
+It compares that against acq's decided complex surface and first hit, over
+13 scenes with 8 noise draws each, and keeps each scene's worst. Each scene
+asserts the regime it claims: its $N$, $L$, $D$, $I$ and $W$, the signed
+tile its peak lands in, and, for a rate scene, the hypothesis that must win.
+The two rate scenes carry a chirp at the grid's $+$span and $-$span, so
+the de-chirp is not all ones.
 
-| scene         | $N$ | $L$ | $D$ | $I$ | $W$ | rates | $c$, with $\sqrt{D}$ | $c$, without |
-| ------------- | --: | --: | --: | --: | --: | ----: | -------------------: | -----------: |
-| narrow        |  62 |  62 |   1 |   1 |   1 |     1 |                0.050 |        0.050 |
-| narrow        |  62 |  62 |   4 |   2 |   1 |     1 |                0.047 |        0.093 |
-| narrow, rates |  62 |  62 |   7 |   2 |   1 |     3 |                0.034 |        0.090 |
-| narrow        |  62 |  62 |  32 |   2 |   1 |     1 |                0.042 |        0.239 |
-| narrow        |  62 |  62 | 150 |   2 |   1 |     1 |                0.022 |        0.269 |
-| tiles         |  62 |  62 |   1 |   1 |   5 |     1 |                0.026 |        0.026 |
-| tiles, side   |  14 |  14 |   5 |   2 |   5 |     1 |                0.043 |        0.096 |
-| tiles, padded | 124 | 128 |   4 |   2 |   5 |     1 |                0.037 |        0.074 |
-| tiles, rates  |  14 |  14 |   5 |   2 |   5 |     3 |                0.032 |        0.072 |
-| tiles         |  62 |  64 |  16 |   2 |   5 |     1 |                0.028 |        0.112 |
+Its output on today's code is `equiv-2825/today.log`. On the rounded-ramp
+scratch engine of §18.4, at $F = 4$, it is `equiv-2825/rounded.log`. The
+constant is solved in the map's units, a correlation (scale $1/N$), with
+and without the bound's $\sqrt{D}$:
+
+| scene         | $N$ | $L$ | $D$ | $I$ | $W$ | tile | rates | $c$, with $\sqrt{D}$ | $c$, without |
+| ------------- | --: | --: | --: | --: | --: | ---: | ----: | -------------------: | -----------: |
+| narrow        |  62 |  62 |   1 |   1 |   1 |    0 |     1 |                0.050 |        0.050 |
+| narrow        |  62 |  62 |   4 |   2 |   1 |    0 |     1 |                0.047 |        0.093 |
+| narrow, rates |  62 |  62 |   7 |   2 |   1 |    0 |     3 |                0.045 |        0.118 |
+| narrow        |  62 |  62 |  32 |   2 |   1 |    0 |     1 |                0.045 |        0.253 |
+| narrow        |  62 |  62 | 150 |   2 |   1 |    0 |     1 |                0.025 |        0.312 |
+| tiles         |  62 |  62 |   1 |   1 |   5 |   +1 |     1 |                0.026 |        0.026 |
+| tiles, side   |  14 |  14 |   5 |   2 |   5 |   −1 |     1 |                0.043 |        0.096 |
+| tiles, padded | 124 | 128 |   4 |   2 |   5 |   +1 |     1 |                0.037 |        0.074 |
+| tiles, rates  |  14 |  14 |   5 |   2 |   5 |   +1 |     3 |                0.046 |        0.103 |
+| tiles         |  62 |  64 |  16 |   2 |   5 |   −1 |     1 |                0.042 |        0.166 |
 
 **Two corrections to §18.1.**
 
 - **The bound's $\sqrt{D}$ stays.** With it, every scene needs at most
-    0.050, at $D = 1$, falling to 0.022 at $D = 150$. Without it the
-    constant grows with $D$, to 0.27 at $D = 150$: a coherent peak grows as
-    $D$, and so does its rounding. §18.1's reading, that the constant fell
-    as $1/\sqrt{D}$, came from geometries that changed $N$ with $D$.
+    0.050, at $D = 1$, falling to 0.025 at $D = 150$. Without it the
+    constant grows with $D$, to 0.31 at $D = 150$: the rounding grows faster
+    than $\sqrt{D}$, between it and $D$, as a coherent peak grows as $D$.
+    §18.1's reading, that the constant fell as $1/\sqrt{D}$, came from
+    geometries that changed $N$ with $D$.
 - **§18.1's constant carried a factor of $N$.** It was solved on
     unnormalized surfaces, which are $N$ times a correlation, so 0.73–3.04
     there is about 0.05 here. The decided constant is $c = 0.1$ in the
     map's units, twice the worst scene.
 
-**The carrier scenes,** a 124-sample (even, padded) and a 31-sample (odd)
-period at $D = 4$, $I = 2$, with ramps of 0.4 and 0.2 samples an epoch for
-each tile step. Today's engine meets the reference at the cell bound too.
+**The carrier scenes,** all at $D = 16$ and $I = 2$:
+
+- a 124-sample (even, padded) period on tile $+1$ and on tile $-1$, at a
+    10 MHz carrier, so 0.4 samples an epoch for each tile step;
+- a 31-sample (odd) period on tile $+2$ at 5 MHz, 0.4 samples an epoch.
+
+Today's engine meets the reference at the cell bound there too ($c$ 0.031–0.057).
 The rounded engine keeps every peak cell and every first hit. Its peaks lose
-0.028 and 0.024 dB, and its only other red is §18.4's #2815 pin. The test
-holds a carrier peak to 0.2 dB, 2.3 times the worst loss measured, §18.2's
-0.086 dB. That is a measured tolerance, not a bound from the grid. A first
-draft took $-20\log_{10}\mathrm{sinc}(1/(2FI))$, 0.056 dB at $I = 2$, as
-one, but §18.2's tones ran at $I = 2$ and lost 0.076–0.086 dB: the
-argument holds only for a peak on a row, and a tone between rows reads the
+0.020, 0.026 and 0.022 dB, and its only other red is §18.4's #2815 pin.
+
+The test holds a carrier peak to 0.2 dB, 2.3 times the worst loss measured,
+§18.2's 0.086 dB. That is a measured tolerance, not a bound from the grid. A
+first draft took $-20\log_{10}\mathrm{sinc}(1/(2FI))$, 0.056 dB at
+$I = 2$, as one, but §18.2's tones ran at $I = 2$ and lost 0.076–0.086 dB.
+The argument holds only for a peak on a row; a tone between rows reads the
 slow-time kernel on its slope, where the same rounding costs more.
 
-**Sabotage**, in `acq_core.c`, one at a time:
+**Sabotage**, in `acq_core.c`, one at a time, by
+`equiv-2825/sabotage.py`; its output is `equiv-2825/sabotage.log`:
 
-| sabotage                                               | red                                                                 |
-| ------------------------------------------------------ | ------------------------------------------------------------------- |
-| the ramp's sign flipped                                | both carrier scenes: −1.2 dB, and −5.0 dB with the peak moved       |
-| the slow-time epochs written after the pad, not before | the four narrow $D > 1$ scenes, cell by cell; their hits stay       |
-| `acq_block_row` reading the slow row unsigned          | every tiled $D > 1$ scene, and the tiled checks already in the file |
+| sabotage                                           | red                                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------------- |
+| the ramp's sign flipped                            | every carrier scene: −10.6, −10.6, −9.6 dB, the peaks moved         |
+| no ramp                                            | every carrier scene: −4.7, −4.8, −14.4 dB                           |
+| the ramp 1.5 times too long                        | every carrier scene: −1.16, −1.15, −8.3 dB                          |
+| the ramp's tile index absolute, $\lvert s_q\rvert$ | the tile $-1$ scene: −10.6 dB, the peak moved                       |
+| the ramp's tile index unsigned, $q$                | the tile $-1$ scene: −13.4 dB, the peak moved                       |
+| the de-chirp conjugated                            | both rate scenes, cell by cell, and the winning hypothesis          |
+| the slow-time epochs written after the pad         | the four narrow $D > 1$ scenes, cell by cell; their hits stay       |
+| `acq_block_row` reading the slow row unsigned      | every tiled $D > 1$ scene, and the tiled checks already in the file |
 
 `acq_block_row` taking the tile index unsigned is no sabotage: $(r - W) DI$
-and $r DI$ are one row modulo $W DI$. The even carrier scene first ran at a
-80 MHz carrier, a ramp of 0.05 samples an epoch, and passed the flipped
-sign. It now runs at 10 MHz.
+and $r DI$ are one row modulo $W DI$. The ramp's tile index is another
+matter, because it scales the shift, not a row.
+
+**How the carrier scenes got here.** The first draft ran them at $D = 4$, on
+positive tiles only:
+
+- The even scene, at an 80 MHz carrier (a ramp of 0.05 samples an epoch),
+    passed the flipped sign. Moving it to 10 MHz fixed that.
+- Review then found that a missing ramp cost only about 0.3 dB there, a
+    ramp 1.5 times too long about 0.075 dB, and that an unsigned or absolute
+    tile index went unseen. $D = 16$ and the tile $-1$ scene are the fix.
+- The rate scenes fed no chirp, so the middle, zero-rate hypothesis won and
+    the de-chirp was all ones. They now feed one.
 
 **Carrier bench rows.** The acq bench gains `op5M_U50k_D150_t1_fc`,
-`op2M_U50k_D60_t1_fc` and `op5M_U5k_D150_t1_fc`, and the pool bench gains
-`push[full,n=1,threads=1,carrier]` and `push[full,n=4,threads=4,carrier]`,
-all at 2.2 GHz. One run each on the dev box, not a gate, carrier against
-none: acq 69.2 against 59.0 ms, 64.1 against 55.1 ms and 12.3 against
-10.5 ms (min of 15); pool 70.8 against 60.3 ms and 43.3 against 32.2 ms
-(mean of 10). The speed gate measures them on the bench box.
+`op2M_U50k_D60_t1_fc` and `op5M_U5k_D150_t1_fc`; the pool bench gains
+`push[full,n=1,threads=1,carrier]` and `push[full,n=4,threads=4,carrier]`.
+All run at 2.2 GHz. One run each on the dev box, not a gate, carrier against
+none:
+
+- acq: 69.2 against 59.0 ms, 64.1 against 55.1 ms and 12.3 against 10.5 ms
+    (min of 15);
+- pool: 70.8 against 60.3 ms and 43.3 against 32.2 ms (mean of 10).
+
+The speed gate measures them on the bench box.

@@ -1281,22 +1281,25 @@ threaded rows (`t4`, `t8`, `threads=4`) settle #2744 for $D > 1$.
 - **Before the switch (step 2.2):** `_acq_map_equivalence_check` in
     `test_acq_core.c` compares today's decided complex surface and hits
     with the map's definition, evaluated in double precision by direct DFTs
-    in the test. It runs 12 seeded scenes, 8 draws each, covering $D = 1$ to
-    150, narrow and tiled, a side tile, a padded lag axis, rate hypotheses
-    and a carrier at an even and an odd period. It passes on today's code
-    and is shown red by sabotage (record §18.5). Two tolerances, both
-    measured:
+    in the test. It runs 13 seeded scenes, 8 draws each, each asserting the
+    regime it claims: $D = 1$ to 150, narrow and tiled, a side tile, a padded
+    lag axis, a chirp at a grid rate of either sign, and a carrier at
+    $D = 16$ on an even period's tiles $\pm 1$ and an odd period's tile
+    $+2$. It passes on today's code and is shown red by eight sabotages
+    (record §18.5). Two tolerances, both measured:
     - **No carrier**, an exact reordering, cell by cell:
         $|\Delta| \le c\,\varepsilon_{f32}\,(\log_2 N + \log_2 L + \log_2 DI)\,\sqrt{D}\,\lVert x\rVert_2 \lVert r\rVert_2$
         in the map's units, a correlation (scale $1/N$), with $c = 0.1$:
-        twice the worst scene's 0.050. The $\sqrt{D}$ is right: a coherent
-        peak and its rounding both grow as $D$, and without it the constant
-        a scene needs grows to 0.27 at $D = 150$.
+        twice the worst scene's 0.050. The $\sqrt{D}$ is right: without it
+        the constant a scene needs grows to 0.31 at $D = 150$, because the
+        rounding grows faster than $\sqrt{D}$ (a coherent peak grows as $D$).
     - **A carrier**, where the rounding is not float error: the peak in the
-        same cell, the first hit on it, and the peak within 0.2 dB of the
+        same cell, the first hit on it (within one native row), and the peak within 0.2 dB of the
         reference's: 2.3 times the worst loss measured, 0.086 dB over 33
         tones and three dilations on the prototype. The rounded-ramp engine
-        loses 0.028 and 0.024 dB on the test's carrier scenes.
+        loses 0.020–0.026 dB on the test's carrier scenes, while a missing
+        ramp, a ramp 1.5 times too long, or a ramp signed wrongly or from an
+        unsigned tile index costs 1.2–14 dB.
 - **The verdicts:** every acq and Corr2D C test, and every validator's
     `--check`, unchanged.
 - **The speed gate:** `make bench-ab` on the bench box, A = main and B = the

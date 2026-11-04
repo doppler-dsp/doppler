@@ -102,8 +102,8 @@ ______________________________________________________________________
 A receiver rarely has one frame. It tries a frame under several hypotheses,
 or ranks the candidate frames from several antennas, and keeps the best.
 Looping over `execute` works but leaves the loop in Python and, with a
-`dwell` above 1, mixes the frames into one dwell. A **batch** is `H` frames back to back
-(`H * ny * nx` samples) handed over in one call:
+`dwell` above 1, mixes the frames into one dwell. A **batch** is `H` frames
+back to back (`H * ny * nx` samples) handed over in one call:
 
 - the object's dwell is **never touched**, so a batch can run in the middle
     of a dwell;
@@ -148,11 +148,12 @@ ______________________________________________________________________
 
 ## Unknown carrier: the hypothesis bank
 
-A map corrects no carrier **within** a code period, so a carrier off the
-grid costs the Dirichlet factor of its offset: about 0.9 dB at a quarter
-bin, 3.9 dB at half a bin, 19 dB at 0.9 bin, and at a whole bin the
-correlation falls into its null (the delay is not even found). When the offset is unknown and
-can be larger than a bin, you search it, and a batch of corrected frame
+A map corrects no carrier **within** a code period, so a carrier that is
+`d` code bins off costs the Dirichlet factor of `d`: about 0.9 dB at a
+quarter bin, 3.9 dB at half a bin, 19 dB at 0.9 bin, and at a whole bin the
+correlation falls into its null (the delay is not even found). When the
+offset is unknown and can be larger than a bin, you search it, and a batch
+of corrected frame
 copies is the slow way to do that. The **bank** does the same search without
 the copies: every carrier shares the frame's row transforms.
 

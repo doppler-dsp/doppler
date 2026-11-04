@@ -29,9 +29,11 @@ multiply-adds per carrier, with no FFT.
 ## How it works
 
 A delay-Doppler map corrects no carrier **within** a code period, so a
-carrier off the grid costs the Dirichlet factor of its offset (about 0.9 dB
-at a quarter bin, 3.9 dB at half a bin, 19 dB at 0.9 bin, and a null at a
-whole bin): an unknown offset is searched. The
+carrier `d` code bins off costs the Dirichlet factor of `d` (about 0.9 dB at
+a quarter bin, 3.9 dB at half a bin, 19 dB at 0.9 bin, and a null at a whole
+bin): an unknown offset is searched. A bank corrects each frame to the
+nearest carrier of its grid, so what it loses is the factor of the residual
+to that carrier. The
 **bank** makes one map per carrier on a coarse grid, and every carrier
 shares the frame's row transforms, so a half-bin grid costs half what a
 quarter-bin grid does. Each candidate is then refined at its own cell:

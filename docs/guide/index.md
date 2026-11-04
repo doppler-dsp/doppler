@@ -7,17 +7,54 @@ its gallery page.
 
 !!! note "Looking for the Waveform Generator?"
 
-    [Waveform Generator (wfmgen)](wfmgen/index.md) has its own top-level nav
-    section — composing and streaming waveforms — so it isn't listed below.
-    Nor does [Capture I/O](wfm-io/index.md), which is the other half: reading
-    a capture back and writing one out, whoever generated it.
+    [Waveform Generator (wfmgen)](wfmgen/index.md) and
+    [Capture I/O](wfm-io/index.md) are under **Tools** in the nav, with
+    their own sections, so they are not listed below.
 
-- [Acquiring a Repeated Preamble](acquisition.md) — finding bursts of any repeated preamble with `BurstCapture` and `BurstAcquisition`
-- [DSSS Burst Acquisition](dsss-acquisition.md) — acquiring a spread-spectrum preamble's code phase and Doppler with `BurstAcquisition`, and continuous signals with `Acquisition`
-- [Delay-Doppler Search](delay-doppler.md) — where a code is and how fast it is rotating: one map, batches of frames, and the hypothesis bank for an unknown carrier, with `DelayDoppler`
-- [Lock Detection Across doppler.track](lock-detection.md) — which `configure_lock` to call, and why, for every tracking loop
-- [Power Spectra & Measurements](spectral-psd.md) — PSD estimation, tone and NPR measurement
-- [Streaming Spectrograms](spectrogram.md) — any-size chunks in, every row of a waterfall out, the same rows however the stream is cut (C and Python)
-- [Real-Time Pacing & Timestamping](timing.md) — sample-accurate playback timing
-- [Fixed-Point Arithmetic](fixed-point.md) — Q15 / UQ15 types and quantization
-- [Checkpoint & Resume](state-serialization.md) — bit-exact `get_state`/`set_state`, composed receivers, and elastic pod hand-off
+<!-- domain-index:start -->
+
+## Spectral analysis
+
+FFTs, correlators, power spectra and spectrograms.
+
+- [Delay-Doppler Search](delay-doppler.md)
+- [Power Spectra & Measurements](spectral-psd.md)
+- [Streaming Spectrograms](spectrogram.md)
+
+## Acquisition
+
+Finding a signal before anything tracks it: bursts, preambles and carriers.
+
+- [Acquiring a Repeated Preamble](acquisition.md)
+
+## Tracking & synchronization
+
+Loop filters, carrier and timing recovery, and the narrowband receivers built on them.
+
+- [Lock Detection Across doppler.track](lock-detection.md)
+
+## Spread spectrum (DSSS)
+
+Despreading, polynomial-phase estimation and the DSSS receivers.
+
+- [DSSS Burst Acquisition](dsss-acquisition.md)
+
+## Streaming
+
+Publish/subscribe, push/pull and request/reply of IQ over NATS.
+
+- [Real-Time Pacing & Timestamping](timing.md)
+
+## Fixed-point arithmetic
+
+Q8 and Q15 accumulators with exact integer arithmetic.
+
+- [Getting Started with Fixed-Point Arithmetic](fixed-point.md)
+
+## Utilities
+
+Numeric helpers shared across the modules.
+
+- [Checkpoint & Resume](state-serialization.md)
+
+<!-- domain-index:end -->

@@ -141,7 +141,6 @@ nav:
 # domains-nav:start
   - Domains:
       - Domains: domains/index.md
-      - "A-Z index": api/a-z.md
       - Sources:
           - "Signal sources": domains/source.md
           - "Waveform generation (wfm)": domains/wfm.md
@@ -184,86 +183,114 @@ nav:
           - "Fixed-point arithmetic": domains/arith.md
           - "Sample-format conversion (cvt)": domains/cvt.md
           - "Utilities": domains/util.md
+  - Guides:
+      - Guides: guide/index.md
+      - "Spectral analysis":
+          - "Delay-Doppler Search": guide/delay-doppler.md
+          - "Power Spectra & Measurements": guide/spectral-psd.md
+          - "Streaming Spectrograms": guide/spectrogram.md
+      - "Acquisition":
+          - "Acquiring a Repeated Preamble": guide/acquisition.md
+      - "Tracking & synchronization":
+          - "Lock Detection Across doppler.track": guide/lock-detection.md
+      - "Spread spectrum (DSSS)":
+          - "DSSS Burst Acquisition": guide/dsss-acquisition.md
+      - "Streaming":
+          - "Real-Time Pacing & Timestamping": guide/timing.md
+      - "Fixed-point arithmetic":
+          - "Getting Started with Fixed-Point Arithmetic": guide/fixed-point.md
+      - "Utilities":
+          - "Checkpoint & Resume": guide/state-serialization.md
+  - Gallery:
+      - Gallery: gallery/index.md
+      - "Signal sources":
+          - "AWGN Generator": gallery/awgn.md
+      - "Waveform generation (wfm)":
+          - "A Crowded Band — Many Signals, One Parallel prepare": gallery/crowded-band.md
+          - "A Frame You Built, Generated": gallery/wfmgen-carried-frame.md
+          - "A Framed Link, Checked by Its Description": gallery/framed-link.md
+          - "Composing a Scene — .sum(), .add(), and Headroom": gallery/wfm-composition.md
+          - "One Cache Slot for a Whole Background Field": gallery/plan-background.md
+          - "Waveform I/O — One Capture, Four File Types": gallery/wfm-io.md
+          - "type=\"symbols\" — Bring Your Own Constellation": gallery/symbols.md
+          - "wfmgen — One Engine, Every Waveform": gallery/wfmgen.md
+      - "Channel impairment":
+          - "Doppler Channel — Clock Doppler as a Propagation Impairment": gallery/doppler-channel.md
+          - "Doppler Channel — a Doppler Profile Driven by a Cosine": gallery/doppler-channel-profile.md
+      - "Rate conversion & resampling":
+          - "CIC Decimation Filter": gallery/cic.md
+          - "Farrow Interpolator": gallery/farrow.md
+          - "HalfbandDecimatorQ15 — Fixed-Point Halfband Decimator": gallery/hbdecim_q15.md
+          - "RateConverter — Automatic Cascade Selection": gallery/rate-converter.md
+      - "Down-conversion (DDC)":
+          - "Ddcr — Real Passband to Baseband": gallery/ddc-fn.md
+      - "Spectral analysis":
+          - "2-D Acquisition Grid": gallery/detection2d.md
+          - "A Streaming Spectrogram": gallery/spectrogram.md
+          - "Correlation and Detection": gallery/corr.md
+          - "Delay-Doppler Search": gallery/delay-doppler.md
+          - "Four WCDMA Carriers — PSD, band_power, AccTrace": gallery/wcdma-carriers.md
+      - "Measurement suite":
+          - "Measurement Suite — ADC characterisation": gallery/measure.md
+          - "Measurement Suite — two-tone IMD/TOI & notched-noise NPR": gallery/measure-imd-npr.md
+      - "Acquisition":
+          - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md
+      - "Tracking & synchronization":
+          - "Arbitrary-Rate Symbol Recovery": gallery/ratesync.md
+          - "Carrier Loop Stress": gallery/costas.md
+          - "Code Loop Tracking": gallery/dll.md
+          - "Costas Loop — Theory Validation": gallery/costas-theory.md
+          - "DLL Code Loop — Theory Validation": gallery/dll-theory.md
+          - "Full-Chain Lock-Up": gallery/receiver-lock.md
+          - "Lock Detection: Verify Counts + Hysteresis": gallery/lockdet.md
+          - "M-PSK Carrier Loop — Theory Validation": gallery/carrier-mpsk.md
+          - "M-PSK Receiver — Performance Characterisation": gallery/mpsk-receiver-performance.md
+          - "M-PSK Receiver — Pull-in, Lock, and BER": gallery/mpsk-receiver.md
+          - "M-PSK Receiver — Sizing the Carrier Loop, and Riding a Doppler Profile": gallery/mpsk-doppler-profile.md
+          - "NDA Carrier Loop — Theory Validation": gallery/carrier-nda.md
+          - "Symbol Timing Recovery": gallery/symsync.md
+          - "Timing Loop — Theory Validation": gallery/symsync-theory.md
+      - "Automatic gain control (AGC)":
+          - "AGC Settling — a design chart": gallery/agc-settling-design.md
+          - "AGC — Step Response": gallery/agc.md
+      - "Detection statistics":
+          - "Detection Theory Curves": gallery/detection-curves.md
+          - "Monte Carlo vs Marcum Q Theory": gallery/detection-sim.md
+      - "Spread spectrum (DSSS)":
+          - "A Message Over DSSS, Received and Deframed": gallery/data-source-link.md
+          - "AsyncDsssPool: emitters that come and go": gallery/async-dsss-pool-demo.md
+          - "AsyncDsssPool: ten emitters through six receivers": gallery/async-dsss-pool-scene.md
+          - "AsyncDsssReceiver: a signal's lifecycle": gallery/async-dsss-receiver-lifecycle.md
+          - "AsyncDsssReceiver: the specification link": gallery/async-dsss-receiver-spec.md
+          - "DSSS Acquisition — Pd / Pfa vs Es/N0": gallery/dsss-acq-characterization.md
+          - "DsssBurstReceiver — the Composed Burst Chain": gallery/dsss-burst-receiver.md
+          - "DsssReceiver — the Composed Continuous DSSS Receiver": gallery/dsss-receiver.md
+          - "Streaming Async Despreader": gallery/async-despread.md
+      - "M-PSK modulation":
+          - "M-PSK constellation (Gray-coded map / demap)": gallery/mpsk.md
+      - "Channel coding":
+          - "Name Your Own Code — and What Happens Past the Radius": gallery/coding.md
+      - "CCSDS literals":
+          - "A CCSDS CADU, as a Frame Description": gallery/ccsds-link.md
+      - "Bit-error rate (BER)":
+          - "Measuring an Error Rate, Defensibly": gallery/ber-awgn.md
+      - "Telemetry":
+          - "Capturing All Receiver Telemetry": gallery/mpsk-telemetry-capture.md
+          - "Telemetry: Many Emitters, One Consumer": gallery/telemetry-fanin.md
+      - "Sample-format conversion (cvt)":
+          - "ADC Quantisation — 3–8 Bits": gallery/adc.md
+          - "Q15 vs UQ15 Quantization": gallery/q15-uq15.md
+          - "cvt Quantization Noise": gallery/cvt-quantization.md
 # domains-nav:end
   - Examples:
       - Examples: examples/index.md
-      - Sources & Waveforms:
-          - Waveform Generator: gallery/wfmgen.md
-          - "Symbols: Bring Your Own Constellation": gallery/symbols.md
-          - Composing a Scene: gallery/wfm-composition.md
-          - Waveform I/O: gallery/wfm-io.md
-          - A CCSDS CADU: gallery/ccsds-link.md
-          - "A Frame You Built, Generated": gallery/wfmgen-carried-frame.md
-          - Name Your Own Code: gallery/coding.md
-          - WCDMA Carriers: gallery/wcdma-carriers.md
-          - "One Cache Slot for a Whole Background Field": gallery/plan-background.md
-          - "A Crowded Band (parallel prepare)": gallery/crowded-band.md
-          - AWGN: gallery/awgn.md
-          - Doppler Channel: gallery/doppler-channel.md
-          - "Doppler Channel: a Doppler Profile": gallery/doppler-channel-profile.md
+      - Python:
           - LO: examples/python-lo.md
           - NCO: examples/python-nco.md
-      - Filters & Resampling:
-          - CIC Decimation: gallery/cic.md
-          - RateConverter: gallery/rate-converter.md
-          - Farrow Interpolator: gallery/farrow.md
-          - "HalfbandDecimatorQ15: Fixed-Point Halfband": gallery/hbdecim_q15.md
-      - Down-Conversion (DDC):
-          - Real-input DDC: gallery/ddc-fn.md
-      - Detection & Acquisition:
-          - Correlation: gallery/corr.md
-          - Detection Curves: gallery/detection-curves.md
-          - Monte Carlo: gallery/detection-sim.md
-          - "Lock Detection: Verify Counts": gallery/lockdet.md
-          - 2-D Acquisition: gallery/detection2d.md
-          - Delay-Doppler Search: gallery/delay-doppler.md
-          - "DSSS Acquisition: Pd/Pfa": gallery/dsss-acq-characterization.md
-          - Streaming Async Despreader: gallery/async-despread.md
-          - Full-Chain Lock-Up: gallery/receiver-lock.md
-          - DsssReceiver (Composed Object): gallery/dsss-receiver.md
-          - DsssBurstReceiver (Composed Burst Chain): gallery/dsss-burst-receiver.md
-          - "A Message Over DSSS, Received and Deframed": gallery/data-source-link.md
-          - "AsyncDsssReceiver: the specification link": gallery/async-dsss-receiver-spec.md
-          - "AsyncDsssReceiver: a signal's lifecycle": gallery/async-dsss-receiver-lifecycle.md
-          - "AsyncDsssPool: ten emitters through six receivers": gallery/async-dsss-pool-scene.md
-          - "AsyncDsssPool: emitters that come and go": gallery/async-dsss-pool-demo.md
-          - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md
-      - Synchronization Loops:
-          - Carrier Loop Stress: gallery/costas.md
-          - Costas Loop (theory): gallery/costas-theory.md
-          - Code Loop Tracking: gallery/dll.md
-          - DLL Code Loop (theory): gallery/dll-theory.md
-          - Symbol Timing Recovery: gallery/symsync.md
-          - Timing Loop (theory): gallery/symsync-theory.md
-          - Arbitrary-Rate Symbol Recovery: gallery/ratesync.md
-          - M-PSK Carrier Loop (theory): gallery/carrier-mpsk.md
-          - NDA Carrier Loop (theory): gallery/carrier-nda.md
-      - Constellations & Receivers:
-          - M-PSK Constellation: gallery/mpsk.md
-          - M-PSK Receiver: gallery/mpsk-receiver.md
-          - "M-PSK Receiver: Performance": gallery/mpsk-receiver-performance.md
-          - "M-PSK Receiver: Doppler Profile": gallery/mpsk-doppler-profile.md
-          - "A Framed Link, Checked by Its Description": gallery/framed-link.md
-      - Measurement:
-          - Measurement Suite: gallery/measure.md
-          - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md
-          - "Measuring an Error Rate, Defensibly": gallery/ber-awgn.md
-          - A Streaming Spectrogram: gallery/spectrogram.md
-      - Quantization & Fixed-Point:
-          - ADC Quantisation: gallery/adc.md
-          - Q15 vs UQ15: gallery/q15-uq15.md
-          - cvt Quantization: gallery/cvt-quantization.md
-      - Gain Control:
-          - AGC: gallery/agc.md
-          - AGC Settling Design: gallery/agc-settling-design.md
-      - Telemetry:
-          - "Many Emitters, One Consumer": gallery/telemetry-fanin.md
-          - "Capturing All Receiver Telemetry": gallery/mpsk-telemetry-capture.md
-      - Streaming: examples/streaming.md
-      - Fundamentals:
           - FFT: examples/python-fft.md
           - Ring Buffers: examples/python-buffers.md
-          - C Examples: examples/c.md
+      - C Examples: examples/c.md
+      - Streaming: examples/streaming.md
       - Example Projects:
           - Example Projects: example-projects/index.md
           - "consumer: Link doppler from Your Build": example-projects/consumer.md
@@ -272,6 +299,7 @@ nav:
           - "uno-q: An RTL-SDR Front End on an Arduino": example-projects/uno-q.md
   - API Reference:
       - API Reference: api/index.md
+      - "A-Z index": api/a-z.md
       - C API: c-api/index.md
       - "Python: FFT": api/python-fft.md
       - "Python: Correlation & Detection": api/python-spectral.md
@@ -305,109 +333,123 @@ nav:
       - "Polyphase → Resample": api/python-polyphase.md
       - "Python: Interp (InterpolatedTable)": api/python-interp.md
       - "Python: Utilities": api/python-util.md
-  - Type System: types.md
-  - Memory Management: memory_management.md
-  - Benchmarks: benchmarks.md
-  - Guides:
-      - Guides: guide/index.md
-      - Acquiring a Repeated Preamble: guide/acquisition.md
-      - DSSS Burst Acquisition: guide/dsss-acquisition.md
-      - Delay-Doppler Search: guide/delay-doppler.md
-      - Lock Detection Across doppler.track: guide/lock-detection.md
-      - Power Spectra & Measurements: guide/spectral-psd.md
-      - Streaming Spectrograms: guide/spectrogram.md
-      - Real-Time Pacing & Timestamping: guide/timing.md
-      - Fixed-Point Arithmetic: guide/fixed-point.md
-      - Checkpoint & Resume: guide/state-serialization.md
-  - Design:
-      - Design: design/index.md
-      - API Taxonomy: design/api-taxonomy.md
-      - The NCO: design/nco.md
-      - Exponential Moving Average: design/ema.md
-      - The Loop Filter: design/loop-filter.md
-      - Quantization: design/QUANTIZATION.md
-      - CIC Decimator: design/cic.md
-      - Measurement Suite: design/measurement-suite.md
-      - Spectrum Analyzer: design/specan.md
-      - State Serialization: design/state-serialization.md
-      - Telemetry: design/telemetry.md
-      - Streaming: design/streaming.md
-      - Ending a Wait: design/io-termination.md
-      - The Ring Buffer: design/ring-buffer.md
-      - The Ring Buffer — Measurements: design/ring-buffer-measurements.md
-      - The Spectrogram: design/spectrogram.md
-      - The Spectrogram — Measurements: design/spectrogram-measurements.md
-      - The Doppler Channel: design/doppler-channel.md
-      - The Doppler Channel — Measurements: design/doppler-channel-measurements.md
-      - Capture Files: design/capture-files.md
-      - Ending a Capture: design/end-of-capture.md
-      - DSSS Acquisition: design/acq-surface.md
-      - "DSSS Acquisition: the measurement record": design/acq-surface-measurements.md
-      - Polynomial-Phase Estimator: design/ppe.md
-      - "AsyncDsssReceiver and AsyncDsssPool": design/async-dsss-receiver.md
-      - "AsyncDsssReceiver and AsyncDsssPool: the measurement record": design/async-dsss-receiver-measurements.md
-      - DsssBurstReceiver: design/dsss-burst-receiver.md
-      - BurstCapture: design/burst-capture.md
-      - BurstBank: design/burst-bank.md
-      - CoarseChannel: design/coarse-channel.md
-      - Automatic Gain Control: design/agc.md
-      - Detection Sizing: design/detection.md
-      - Timing Lock Detector: design/timing_lock_detector.md
-      - Symbol Timing on a Rate Cascade: design/ratesync-timing.md
-      - MPSK Receiver: design/mpsk.md
-      - The Viterbi Decoder: design/viterbi.md
-      - Reed-Solomon: design/reed-solomon.md
-      - The FEC Receive Half: design/fec-receive.md
-      - Receiver Test Harness: design/rx-test.md
-      - A Frame as a Description: design/frame-description.md
-      - "A Frame as a Description: the measurement record": design/frame-description-measurements.md
-      - The Payload as a Data Source: design/payload-data-source.md
-      - "The Payload as a Data Source: the measurement record": design/payload-data-source-measurements.md
-      - A Receiver Built from a Frame Description: design/rx-frame-description.md
-      - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
-      - Corr2D Hypothesis Bank: design/corr2d-hypotheses.md
-      - Corr2D Batches: design/corr2d-batch.md
-      - Spectral & Measurement API Map: design/spectral-api-map.md
-      - wfmgen — the waveform generator: design/wfmgen.md
-      - Waveform Amplitude & Composition: design/wfmgen-composition.md
-      - Waveform Enum Tables: design/waveform-enum-ssot.md
-      - Continuously Variable Resampler: design/RESAMPLER.md
-      - Acquisition Kernel: design/acq-fn.md
-  - Waveform Generator (wfmgen):
-      - Waveform Generator (wfmgen): guide/wfmgen/index.md
-      - Waveforms: guide/wfmgen/waveforms.md
-      - Scenes: guide/wfmgen/scenes.md
-      - "Fields: Bits as Text": guide/wfmgen/fields.md
-      - Field Reference: guide/wfmgen/options.md
-  - Capture I/O:
-      - Capture I/O: guide/wfm-io/index.md
-      - Writing Captures: guide/wfm-io/writing.md
-      - Reading Captures: guide/wfm-io/reading.md
-  - Spectrum Analyzer: specan/index.md
-  - CLI & Pipelines:
-      - CLI & Pipelines: cli/index.md
-      - Dopplerfile: cli/dopplerfile.md
-  - Contributing:
-      - Contributing: dev/index.md
-      - Contributing guide:
-          - Adding an Algorithm: dev/contributing/adding-algorithms.md
-          - Repository Map: dev/contributing/repository-map.md
-          - Module Layout: dev/contributing/module-layout.md
-          - Adding a Module: dev/contributing/adding-a-module.md
-          - Error Convention: dev/contributing/error-convention.md
-          - "DSSS acquisition use cases": dev/contributing/dsss-use-cases.md
-          - Benchmarking: dev/contributing/benchmarking.md
-          - Measuring a Receiver: dev/contributing/measuring-a-receiver.md
-          - Object Validation: dev/contributing/validation.md
-          - Validation Log: dev/contributing/validation-log.md
-          - Doc Examples (tested): dev/contributing/doc-examples.md
-          - Docstring Authoring: dev/contributing/docstring-authoring.md
-          - Docs Conventions: dev/contributing/docs-conventions.md
-      - Maintainer internals:
-          - Open Issues: dev/issues.md
-          - How We Work: dev/workflow.md
-          - Continuous Integration: dev/ci.md
-          - Release: dev/release.md
-          - Build Internals: dev/build-internals.md
-          - Coverage: dev/coverage.md
-          - Quantization Discussion: dev/quantization-discussion.md
+      - Type System: types.md
+      - Memory Management: memory_management.md
+  - Tools:
+      - Waveform Generator (wfmgen):
+          - Waveform Generator (wfmgen): guide/wfmgen/index.md
+          - Waveforms: guide/wfmgen/waveforms.md
+          - Scenes: guide/wfmgen/scenes.md
+          - "Fields: Bits as Text": guide/wfmgen/fields.md
+          - Field Reference: guide/wfmgen/options.md
+      - Capture I/O:
+          - Capture I/O: guide/wfm-io/index.md
+          - Writing Captures: guide/wfm-io/writing.md
+          - Reading Captures: guide/wfm-io/reading.md
+      - Spectrum Analyzer: specan/index.md
+      - CLI & Pipelines:
+          - CLI & Pipelines: cli/index.md
+          - Dopplerfile: cli/dopplerfile.md
+  - Internals:
+# design-nav:start
+      - Design:
+          - Design: design/index.md
+          - "Signal sources":
+              - "The NCO": design/nco.md
+          - "Waveform generation (wfm)":
+              - "A Frame as a Description": design/frame-description.md
+              - "A Frame as a Description — the measurement record": design/frame-description-measurements.md
+              - "A Receiver Built from a Frame Description": design/rx-frame-description.md
+              - "Capture files — one reader, one writer, four containers": design/capture-files.md
+              - "Ending a capture — spooling an endless stream to disk while reading it back": design/end-of-capture.md
+              - "One home for the waveform enum tables": design/waveform-enum-ssot.md
+              - "The Payload as a Data Source": design/payload-data-source.md
+              - "The Payload as a Data Source — the measurement record": design/payload-data-source-measurements.md
+              - "Waveform amplitude & composition": design/wfmgen-composition.md
+              - "wfmgen — the waveform generator": design/wfmgen.md
+          - "Channel impairment":
+              - "The Doppler channel — one parameter, both clocks and the carrier": design/doppler-channel.md
+              - "The Doppler channel — the measurement record": design/doppler-channel-measurements.md
+          - "Rate conversion & resampling":
+              - "CIC Decimator — the fixed-point input budget": design/cic.md
+              - "Continuously Variable Resampler": design/RESAMPLER.md
+          - "Spectral analysis":
+              - "Corr2D batches: many maps in one call": design/corr2d-batch.md
+              - "Corr2D hypothesis bank: operation order": design/corr2d-hypotheses.md
+              - "Corr2D: decoupled (interpolated) inverse length": design/corr2d-interpolated-inverse.md
+              - "Spectral & Measurement API Map": design/spectral-api-map.md
+              - "The Spectrogram — chunks in, rows out": design/spectrogram.md
+              - "The Spectrogram — the measurement record": design/spectrogram-measurements.md
+          - "Spectrum analyzer":
+              - "Spectrum Analyzer": design/specan.md
+          - "Measurement suite":
+              - "Measurement Suite — single-tone ADC / spectral metrics": design/measurement-suite.md
+          - "Acquisition":
+              - "BurstBank — the coarse-Doppler bank as one C object": design/burst-bank.md
+              - "BurstCapture: acquisition's output, turned into bursts": design/burst-capture.md
+              - "CoarseChannel — is a channel an object, or a slice of the bank?": design/coarse-channel.md
+              - "Design — pure-functional acquisition kernel (elastic fleet)": design/acq-fn.md
+              - "The acquisition surface — the measurement record": design/acq-surface-measurements.md
+              - "The acquisition surface: the DSSS search engine": design/acq-surface.md
+          - "Tracking & synchronization":
+              - "MPSK Receiver": design/mpsk.md
+              - "Receiver Test Harness": design/rx-test.md
+              - "Symbol Timing on a Rate Cascade": design/ratesync-timing.md
+              - "SymbolSync Timing Lock Detector": design/timing_lock_detector.md
+              - "The Loop Filter": design/loop-filter.md
+          - "Automatic gain control (AGC)":
+              - "Automatic Gain Control": design/agc.md
+          - "Detection statistics":
+              - "Detection Sizing — the four laws behind one prefix": design/detection.md
+              - "Lock Detection — the reasoning": design/lock-detect.md
+          - "Spread spectrum (DSSS)":
+              - "AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object": design/async-dsss-receiver.md
+              - "AsyncDsssReceiver and AsyncDsssPool — the measurement record": design/async-dsss-receiver-measurements.md
+              - "DsssBurstReceiver: the burst chain, composed in C": design/dsss-burst-receiver.md
+              - "The Polynomial-Phase Estimator — the reasoning": design/ppe.md
+          - "Channel coding":
+              - "Interleaving — spreading a burst across codewords": design/interleaving.md
+              - "Reed-Solomon": design/reed-solomon.md
+              - "The FEC Receive Half": design/fec-receive.md
+              - "The Viterbi Decoder": design/viterbi.md
+          - "Streaming":
+              - "Streaming — one envelope, six roles, two planes": design/streaming.md
+          - "Buffers":
+              - "The ring buffer — measurements and the record": design/ring-buffer-measurements.md
+              - "The ring buffer — one contiguous view of a stream": design/ring-buffer.md
+          - "Telemetry":
+              - "Telemetry — zero-cost scalar taps for running pipelines": design/telemetry.md
+          - "Stopping a run (interrupt)":
+              - "Ending a wait — one contract for network, memory and disk": design/io-termination.md
+          - "Sample-format conversion (cvt)":
+              - "Quantization Design": design/QUANTIZATION.md
+          - "Utilities":
+              - "API taxonomy: the DSP building-block hierarchy and its naming axis": design/api-taxonomy.md
+              - "State Serialization — the standard bytes interface": design/state-serialization.md
+              - "The Exponential Moving Average": design/ema.md
+# design-nav:end
+      - Benchmarks: benchmarks.md
+      - Contributing:
+          - Contributing: dev/index.md
+          - Contributing guide:
+              - Adding an Algorithm: dev/contributing/adding-algorithms.md
+              - Repository Map: dev/contributing/repository-map.md
+              - Module Layout: dev/contributing/module-layout.md
+              - Adding a Module: dev/contributing/adding-a-module.md
+              - Error Convention: dev/contributing/error-convention.md
+              - "DSSS acquisition use cases": dev/contributing/dsss-use-cases.md
+              - Benchmarking: dev/contributing/benchmarking.md
+              - Measuring a Receiver: dev/contributing/measuring-a-receiver.md
+              - Object Validation: dev/contributing/validation.md
+              - Validation Log: dev/contributing/validation-log.md
+              - Doc Examples (tested): dev/contributing/doc-examples.md
+              - Docstring Authoring: dev/contributing/docstring-authoring.md
+              - Docs Conventions: dev/contributing/docs-conventions.md
+          - Maintainer internals:
+              - Open Issues: dev/issues.md
+              - How We Work: dev/workflow.md
+              - Continuous Integration: dev/ci.md
+              - Release: dev/release.md
+              - Build Internals: dev/build-internals.md
+              - Coverage: dev/coverage.md
+              - Quantization Discussion: dev/quantization-discussion.md

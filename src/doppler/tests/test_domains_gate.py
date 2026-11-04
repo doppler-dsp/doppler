@@ -258,3 +258,26 @@ def test_a_cross_domain_class_is_found_from_both_sides() -> None:
     out = _gd().render(REPO)
     assert "guide/delay-doppler.md" in out["docs/domains/acquire.md"]
     assert "guide/acquisition.md" in out["docs/domains/spectral.md"]
+
+
+def test_every_page_is_in_the_nav_exactly_once() -> None:
+    """Guides, Gallery and Design list each filed page once (the tool pages
+    are nav'd under Tools); the hand-kept index lists nothing that is gone."""
+    gd = _gd()
+    nav = "".join(gd.nav_blocks(REPO).values())
+    for _fam, path in gd.pages(REPO):
+        rel = path.relative_to(REPO / "docs").as_posix()
+        n = nav.count(f": {rel}\n")
+        want = 0 if rel.startswith(("guide/wfmgen/", "guide/wfm-io/")) else 1
+        assert n == want, f"{rel}: in the generated nav {n}x, want {want}"
+
+
+def test_a_section_index_lists_what_the_nav_does() -> None:
+    gd = _gd()
+    for rel, text in gd.index_blocks(REPO).items():
+        fam = rel.split("/")[1]
+        skip = gd.TOOL_PAGES if fam == "guide" else ()
+        for _m, items in gd._by_domain(REPO, fam, skip):
+            for title, page in items:
+                link = page.split("/", 1)[1]
+                assert f"[{title}]({link})" in text, (rel, page)

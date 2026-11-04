@@ -293,6 +293,7 @@ nav:
       - Capture Files: design/capture-files.md
       - Ending a Capture: design/end-of-capture.md
       - DSSS Acquisition: design/acq-surface.md
+      - "DSSS Acquisition: the measurement record": design/acq-surface-measurements.md
       - Polynomial-Phase Estimator: design/ppe.md
       - "AsyncDsssReceiver and AsyncDsssPool": design/async-dsss-receiver.md
       - "AsyncDsssReceiver and AsyncDsssPool: the measurement record": design/async-dsss-receiver-measurements.md

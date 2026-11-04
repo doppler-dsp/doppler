@@ -5,7 +5,9 @@
  * nominal, in noise.  dp_corr2d_bank_detect() searches the carrier on a
  * coarse grid (half bins), picks the candidates, refines each at its own
  * cell on a fine grid (quarter bins) and keeps what clears the confirm
- * threshold (docs/design/corr2d-hypotheses.md section 6).  What a C caller
+ * threshold (docs/design/corr2d-hypotheses.md section 6); it then measures,
+ * on an eighth-bin grid, how much the coarse grid's half-bin steps lose to
+ * the best carrier and how much the refine wins back.  What a C caller
  * manages, and the Python binding does for you:
  *
  *   - create once; the bank never touches the dwell, so execute() is free
@@ -123,9 +125,34 @@ main (void)
     printf ("  %zu      %3u      %3u          %+5.2f           %.3f\n", k,
             col[k], row[k], g[k] / 4.0, (double)(pow_[k] / peak));
 
+  /* What the straddle looks like: the strongest cell's power under each
+     carrier of an eighth-bin grid (-2 to +3 bins), one single-carrier bank
+     apiece.  The Python twin draws this curve. */
+  float best   = 0.0f;
+  int   best_g = 0;
+  for (int gi = -16; gi <= 24; gi++)
+    {
+      if (dp_corr2d_bank_power_max (dd, x, N, 8, gi, gi, NULL, 0, pw, ix, N)
+          != N)
+        return 1;
+      for (size_t k = 0; k < N; k++)
+        if (pw[k] > best)
+          best = pw[k], best_g = gi;
+    }
+  const double loss_coarse  = nrec == 1 ? 10.0 * log10 (peak / best) : 0.0;
+  const double loss_refined = nrec == 1 ? 10.0 * log10 (pow_[0] / best) : 0.0;
+  printf ("best carrier on the eighth-bin grid: %+.3f bins; coarse grid "
+          "%+.2f dB, refined %+.2f dB\n",
+          best_g / 8.0, loss_coarse, loss_refined);
+
   /* One signal, one record: at the code's delay, on the quarter-bin carrier
-     nearest 1.3 bins, and stronger than the coarse grid saw it. */
-  const int ok = nrec == 1 && col[0] == DELAY && g[0] == 5 && pow_[0] > peak;
+     nearest 1.3 bins, and stronger than the coarse grid saw it.  The coarse
+     grid sits below the best carrier (1.3 falls between its 1.0 and 1.5), the
+     refine recovers most of it, and the best carrier is the true one. */
+  const int ok = nrec == 1 && col[0] == DELAY && g[0] == 5 && pow_[0] > peak
+                 && loss_coarse < -0.2 && loss_refined > loss_coarse + 0.2
+                 && loss_refined > -0.25
+                 && fabs (best_g / 8.0 - CARRIER_BINS) <= 0.25;
   printf ("%s\n", ok ? "OK" : "FAILED");
 
   dp_corr2d_destroy (dd);

@@ -115,7 +115,12 @@ size_t dp_corr2d_execute(dp_corr2d_state_t *state, const float _Complex *in,
 
 /* ── Batches: many frames in one call (#2683) ──────────────────────────────
  *
- * A batch is H frames back to back, n_in = H * ny * nx.  Map h is exactly
+ * A batch is H frames back to back, n_in = H * ny * nx: frame h is samples
+ * h*ny*nx .. (h+1)*ny*nx - 1, each laid out as execute() takes it.  What a
+ * hypothesis or a frame IS, is the caller's: the batch only knows H.  Each
+ * map is n_out values (reshape to (ny_out, nx_out); Doppler is axis 0 and
+ * delay axis 1 on a DelayDoppler), and map h is row h of the (H, n_out)
+ * result.  Map h is exactly
  * what a fresh object with dwell 1 returns for frame h -- the same
  * arithmetic, bit for bit, on every path (general 2-D, single-row fast
  * path, col_out, delay-Doppler) and at every thread count.  A batch never

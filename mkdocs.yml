@@ -169,6 +169,7 @@ nav:
           - Monte Carlo: gallery/detection-sim.md
           - "Lock Detection: Verify Counts": gallery/lockdet.md
           - 2-D Acquisition: gallery/detection2d.md
+          - Delay-Doppler Search: gallery/delay-doppler.md
           - "DSSS Acquisition: Pd/Pfa": gallery/dsss-acq-characterization.md
           - Streaming Async Despreader: gallery/async-despread.md
           - Full-Chain Lock-Up: gallery/receiver-lock.md
@@ -264,6 +265,7 @@ nav:
       - Guides: guide/index.md
       - Acquiring a Repeated Preamble: guide/acquisition.md
       - DSSS Burst Acquisition: guide/dsss-acquisition.md
+      - Delay-Doppler Search: guide/delay-doppler.md
       - Lock Detection Across doppler.track: guide/lock-detection.md
       - Power Spectra & Measurements: guide/spectral-psd.md
       - Streaming Spectrograms: guide/spectrogram.md

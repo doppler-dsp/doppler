@@ -18,7 +18,7 @@
 # A class whose task is not its module's (DelayDoppler is an acquisition
 # search that lives in `spectral`) is NOT re-filed here. The generator lists
 # such a class on both domain pages as a cross-link, and the boundary goes to
-# an issue: move the class, or rename or split the module. When section 6's
+# an issue (#2830): move the class, or rename or split the module. When section 6's
 # package tree is applied, the module names below are what change; this file
 # is the one place.
 #

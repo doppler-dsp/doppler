@@ -2,7 +2,7 @@
 # scripts/gen_domains.py (run by scripts/check_user_docs.py on `make lint`).
 #
 # A domain is a Python module (docs/domains.toml). It owes at least one guide
-# page whose front matter says `domain: <module>`: a reader who finds the
+# page whose first line says `<!-- domain: <module> -->`: a reader who finds the
 # domain can learn to use what is in it. THIS LIST ONLY SHRINKS. A line may
 # not be added (the gate compares with the merge base), and a line whose guide
 # now exists fails as stale: delete it in the PR that writes the guide. The

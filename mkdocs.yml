@@ -141,6 +141,7 @@ nav:
 # domains-nav:start
   - Domains:
       - Domains: domains/index.md
+      - "A-Z index": api/a-z.md
       - Sources:
           - "Signal sources": domains/source.md
           - "Waveform generation (wfm)": domains/wfm.md

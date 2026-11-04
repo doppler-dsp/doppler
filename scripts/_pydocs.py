@@ -85,3 +85,39 @@ def discover(pkg_dir: str = PKG_DIR) -> list[tuple[str, list[str]]]:
         if os.path.exists(p):
             mods.append((name, public_defs(p)))
     return mods
+
+
+def kinds(pkg_dir: str = PKG_DIR) -> dict[str, dict[str, str]]:
+    """``{module: {symbol: "class" | "function" | "constant"}}``.
+
+    The kind of every symbol ``discover()`` lists, read from the SAME
+    module's sources and stubs (never matched by bare name across the
+    package, so an unrelated ``def`` in an example cannot relabel it). A
+    symbol with no ``class`` or ``def`` in its module is a constant.
+    """
+    extra = dict(EXTRA_MODULES)
+    out: dict[str, dict[str, str]] = {}
+    for mod, syms in discover(pkg_dir):
+        if mod in extra:
+            files = [os.path.join(pkg_dir, extra[mod])]
+        else:
+            d = os.path.join(pkg_dir, mod.split(".", 1)[1])
+            files = sorted(
+                os.path.join(d, f)
+                for f in os.listdir(d)
+                if f.endswith((".py", ".pyi"))
+            )
+        found: dict[str, str] = {}
+        for f in files:
+            try:
+                with open(f, encoding="utf-8") as fh:
+                    tree = ast.parse(fh.read())
+            except (OSError, SyntaxError):
+                continue
+            for n in tree.body:
+                if isinstance(n, ast.ClassDef):
+                    found[n.name] = "class"
+                elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    found.setdefault(n.name, "function")
+        out[mod] = {s: found.get(s, "constant") for s in syms}
+    return out

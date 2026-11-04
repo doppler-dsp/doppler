@@ -1,4 +1,4 @@
-<!-- domain: acquire; summary: the DSSS search engine's design, burst and continuous doors over one engine: its arithmetic as equations, from $x[n]$ and the code template $c[n]$ to a hand-off: the de-rotated per-tile correlation, the slow-time block, the CFAR gate, the peak list, and the code's ambiguity sidelobes that set a ranked search's near-far limit; then the architecture, the trade space, what `pfa` means for a peak detector, the fan-out, the compute cost and what is open -->
+<!-- domain: acquire; summary: the DSSS search engine's arithmetic as equations, from the de-rotated per-tile correlation to the CFAR gate and the peak list, then the architecture, what `pfa` means for a peak detector, the compute cost and what is open -->
 
 # The acquisition surface: the DSSS search engine
 

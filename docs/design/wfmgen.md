@@ -1,4 +1,4 @@
-<!-- domain: wfm; summary: the spine for the tool: modulations, impairments and output streams from three interchangeable faces, what it promises and which gate keeps each promise, the seventeen primitives it composes rather than re-implements, and the eight things still unknown about it — including that it states no throughput and no certified envelope -->
+<!-- domain: wfm; summary: the spine for the tool: modulations, impairments and output streams from three interchangeable faces, which gate keeps each promise, and the eight things still unknown about it -->
 
 # wfmgen — the waveform generator
 

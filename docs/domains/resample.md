@@ -27,7 +27,7 @@ Python module `doppler.resample`. Area: [Rate conversion](index.md#rateconversio
 
 - [CIC Decimation Filter](../gallery/cic.md) — wideband IQ → CIC → narrowband slice; 84 dB measured alias rejection (R=8, N=4).
 - [Farrow Interpolator](../gallery/farrow.md) — fractional-delay resampling.
-- [HalfbandDecimatorQ15 — Fixed-Point Halfband Decimator](../gallery/hbdecim_q15.md) — fixed-point Q15 halfband 2:1 decimator for interleaved IQ int16. ## Down-Conversion (DDC)
+- [HalfbandDecimatorQ15 — Fixed-Point Halfband Decimator](../gallery/hbdecim_q15.md) — fixed-point Q15 halfband 2:1 decimator for interleaved IQ int16.
 - [RateConverter — Automatic Cascade Selection](../gallery/rate-converter.md) — automatic CIC / halfband / polyphase cascade for any rate ratio.
 
 ## Design pages in this domain

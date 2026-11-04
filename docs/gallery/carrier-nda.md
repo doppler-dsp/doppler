@@ -1,4 +1,4 @@
-<!-- domain: track; summary: non-data-aided carrier recovery. ## Constellations & Receivers -->
+<!-- domain: track; summary: non-data-aided carrier recovery. -->
 
 # NDA Carrier Loop — Theory Validation
 

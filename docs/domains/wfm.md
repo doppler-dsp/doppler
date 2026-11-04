@@ -80,7 +80,7 @@ Python module `doppler.wfm`. Area: [Sources](index.md#sources).
 
 - [A Crowded Band — Many Signals, One Parallel prepare](../gallery/crowded-band.md) — twenty RRC carriers in one segment, prepared in parallel across cores; `Plan.render(enable=...)` thins them for free.
 - [A Frame You Built, Generated](../gallery/wfmgen-carried-frame.md) — `wfm_source_t.frame`: a source carries the description a caller built, so a layout no flag spells reaches the samples; `--acq-code`, `--sync` and `--crc` build one through `dp_wfm_frame_fixed()`
-- [A Framed Link, Checked by Its Description](../gallery/framed-link.md) — framed BPSK/QPSK from one `FrameDesc`, received by `MpskReceiver`, judged by `FrameDesc.check`. ## Measurement
+- [A Framed Link, Checked by Its Description](../gallery/framed-link.md) — framed BPSK/QPSK from one `FrameDesc`, received by `MpskReceiver`, judged by `FrameDesc.check`.
 - [Composing a Scene — .sum(), .add(), and Headroom](../gallery/wfm-composition.md) — sum, add, headroom; a SoI under a CW interferer over one noise floor.
 - [One Cache Slot for a Whole Background Field](../gallery/plan-background.md) — `background=True` folds a static emitter population into a single pre-summed cache entry: 67x smaller, and the whole field becomes one overridable control.
 - [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md) — one capture written to raw / CSV / BLUE / SigMF and read back.
@@ -89,7 +89,7 @@ Python module `doppler.wfm`. Area: [Sources](index.md#sources).
 
 ## Design pages in this domain
 
-- [A Frame as a Description](../design/frame-description.md) — a frame as a list of fields and a list of stages, each stage carrying the span it covers: why a chain of optional transforms is the representation that cannot express CCSDS, how a caller adds a stage doppler has never heard of, how far that openness actually reaches, and the Field: one text form for a run of bits, passed by every face
+- [A Frame as a Description](../design/frame-description.md) — a frame as a list of fields and a list of stages, each carrying the span it covers: why a chain of optional transforms cannot express CCSDS, and how a caller adds a stage doppler has never heard of
 - [A Frame as a Description — the measurement record](../design/frame-description-measurements.md) — the dated record behind it: the survey that counted seven spellings of a field, the prototype that proved one grammar lossless, and how the CCSDS sites were settled, under the same section letters
 - [A Receiver Built from a Frame Description](../design/rx-frame-description.md) — `BurstDemod` and `DsssBurstReceiver` told the frame instead of its length: the sync word, the frame and burst lengths and the CRC verdict derived from one description, the callers that compute them by hand today, and the order of work
 - [Capture files — one reader, one writer, four containers](../design/capture-files.md) — the file I/O subsystem underneath `Reader`/`Writer`: why the file type is decided by content, why one keyword codec serves both directions, why provenance is a value rather than a caveat, and what a streaming writer costs at close
@@ -98,7 +98,7 @@ Python module `doppler.wfm`. Area: [Sources](index.md#sources).
 - [The Payload as a Data Source](../design/payload-data-source.md) — a frame declares `data:LEN` and `--data` names where the bits come from (a file, a literal, stdin, a seeded stream): fill, idle frames, run length, what is deleted, and the unknowns
 - [The Payload as a Data Source — the measurement record](../design/payload-data-source-measurements.md) — the chunker prototyped before any C, and the three rules it changed
 - [Waveform amplitude & composition](../design/wfmgen-composition.md) — level/power conventions for wfmgen
-- [wfmgen — the waveform generator](../design/wfmgen.md) — the spine for the tool: modulations, impairments and output streams from three interchangeable faces, what it promises and which gate keeps each promise, the seventeen primitives it composes rather than re-implements, and the eight things still unknown about it — including that it states no throughput and no certified envelope
+- [wfmgen — the waveform generator](../design/wfmgen.md) — the spine for the tool: modulations, impairments and output streams from three interchangeable faces, which gate keeps each promise, and the eight things still unknown about it
 
 ## Used in other domains
 

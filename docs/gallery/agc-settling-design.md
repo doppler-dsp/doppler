@@ -1,4 +1,4 @@
-<!-- domain: agc; summary: how long to wait, when `1/(4·loop_bw)` is only a floor. ## Telemetry -->
+<!-- domain: agc; summary: how long to wait, when `1/(4·loop_bw)` is only a floor. -->
 
 # AGC Settling — a design chart
 

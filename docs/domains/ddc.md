@@ -17,7 +17,7 @@ Python module `doppler.ddc`. Area: [Down-conversion](index.md#downconversion).
 
 ## Gallery pages in this domain
 
-- [Ddcr — Real Passband to Baseband](../gallery/ddc-fn.md) — real passband in, complex baseband out, caller-owned buffer, thread-per-shard scaling. ## Detection & Acquisition
+- [Ddcr — Real Passband to Baseband](../gallery/ddc-fn.md) — real passband in, complex baseband out, caller-owned buffer, thread-per-shard scaling.
 
 ## Used in other domains
 

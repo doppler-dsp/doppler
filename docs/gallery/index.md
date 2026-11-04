@@ -28,7 +28,7 @@ Compose, generate and stream any waveform: the Synth, scenes and Plans, codes, f
 
 - [A Crowded Band — Many Signals, One Parallel prepare](crowded-band.md) — twenty RRC carriers in one segment, prepared in parallel across cores; `Plan.render(enable=...)` thins them for free.
 - [A Frame You Built, Generated](wfmgen-carried-frame.md) — `wfm_source_t.frame`: a source carries the description a caller built, so a layout no flag spells reaches the samples; `--acq-code`, `--sync` and `--crc` build one through `dp_wfm_frame_fixed()`
-- [A Framed Link, Checked by Its Description](framed-link.md) — framed BPSK/QPSK from one `FrameDesc`, received by `MpskReceiver`, judged by `FrameDesc.check`. ## Measurement
+- [A Framed Link, Checked by Its Description](framed-link.md) — framed BPSK/QPSK from one `FrameDesc`, received by `MpskReceiver`, judged by `FrameDesc.check`.
 - [Composing a Scene — .sum(), .add(), and Headroom](wfm-composition.md) — sum, add, headroom; a SoI under a CW interferer over one noise floor.
 - [One Cache Slot for a Whole Background Field](plan-background.md) — `background=True` folds a static emitter population into a single pre-summed cache entry: 67x smaller, and the whole field becomes one overridable control.
 - [type="symbols" — Bring Your Own Constellation](symbols.md) — pi/4-QPSK and 16-QAM from an arbitrary complex stream.
@@ -40,7 +40,7 @@ Compose, generate and stream any waveform: the Synth, scenes and Plans, codes, f
 What a channel does to a signal: a Doppler channel with clock Doppler, delay and noise.
 
 - [Doppler Channel — a Doppler Profile Driven by a Cosine](doppler-channel-profile.md) — one cosine period as the Doppler: the carrier follows `fc·d(t)` to 1.4 Hz of 50 kHz, the code slip peaks at 2.5 chips (2.44 in theory) and returns to zero, and no straight line explains any of it.
-- [Doppler Channel — Clock Doppler as a Propagation Impairment](doppler-channel.md) — clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies. ## Filters & Resampling
+- [Doppler Channel — Clock Doppler as a Propagation Impairment](doppler-channel.md) — clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies.
 
 ## Rate conversion & resampling
 
@@ -48,21 +48,21 @@ Polyphase resampling, rate converters and halfband decimators.
 
 - [CIC Decimation Filter](cic.md) — wideband IQ → CIC → narrowband slice; 84 dB measured alias rejection (R=8, N=4).
 - [Farrow Interpolator](farrow.md) — fractional-delay resampling.
-- [HalfbandDecimatorQ15 — Fixed-Point Halfband Decimator](hbdecim_q15.md) — fixed-point Q15 halfband 2:1 decimator for interleaved IQ int16. ## Down-Conversion (DDC)
+- [HalfbandDecimatorQ15 — Fixed-Point Halfband Decimator](hbdecim_q15.md) — fixed-point Q15 halfband 2:1 decimator for interleaved IQ int16.
 - [RateConverter — Automatic Cascade Selection](rate-converter.md) — automatic CIC / halfband / polyphase cascade for any rate ratio.
 
 ## Down-conversion (DDC)
 
 Complex- and real-input digital down-converters, and their matched flavors.
 
-- [Ddcr — Real Passband to Baseband](ddc-fn.md) — real passband in, complex baseband out, caller-owned buffer, thread-per-shard scaling. ## Detection & Acquisition
+- [Ddcr — Real Passband to Baseband](ddc-fn.md) — real passband in, complex baseband out, caller-owned buffer, thread-per-shard scaling.
 
 ## Spectral analysis
 
 FFTs, correlators, power spectra and spectrograms.
 
 - [2-D Acquisition Grid](detection2d.md) — GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR.
-- [A Streaming Spectrogram](spectrogram.md) — a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis. ## Quantization & Fixed-Point
+- [A Streaming Spectrogram](spectrogram.md) — a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis.
 - [Correlation and Detection](corr.md) — coherent integration, 2-D template matching, streaming CFAR.
 - [Delay-Doppler Search](delay-doppler.md) — a delay-Doppler map, a coarse carrier bank and the refine that recovers its straddle loss, plus a batch of hypotheses in one call.
 - [Four WCDMA Carriers — PSD, band_power, AccTrace](wcdma-carriers.md) — four RRC channels measured with `PSD` and `AccTrace`.
@@ -78,7 +78,7 @@ Tone, NPR and two-tone IMD metrics returned as named records.
 
 Finding a signal before anything tracks it: bursts, preambles and carriers.
 
-- [CarrierAcquisition: RRC Pulse Shaping](carrier-acq-rrc.md) — PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters. ## Synchronization Loops
+- [CarrierAcquisition: RRC Pulse Shaping](carrier-acq-rrc.md) — PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters.
 
 ## Tracking & synchronization
 
@@ -95,7 +95,7 @@ Loop filters, carrier and timing recovery, and the narrowband receivers built on
 - [M-PSK Receiver — Performance Characterisation](mpsk-receiver-performance.md) — EVM, SER, lock time, false alarm and level invariance over random geometries.
 - [M-PSK Receiver — Pull-in, Lock, and BER](mpsk-receiver.md) — integrated carrier + timing + bit recovery.
 - [M-PSK Receiver — Sizing the Carrier Loop, and Riding a Doppler Profile](mpsk-doppler-profile.md) — sizing bn_carrier for a predictable acquisition, and what a step and two ramps actually cost.
-- [NDA Carrier Loop — Theory Validation](carrier-nda.md) — non-data-aided carrier recovery. ## Constellations & Receivers
+- [NDA Carrier Loop — Theory Validation](carrier-nda.md) — non-data-aided carrier recovery.
 - [Symbol Timing Recovery](symsync.md) — timing-error-detector-driven resampling.
 - [Timing Loop — Theory Validation](symsync-theory.md) — the timing loop's transfer function.
 
@@ -103,7 +103,7 @@ Loop filters, carrier and timing recovery, and the narrowband receivers built on
 
 A log-domain feedback AGC.
 
-- [AGC Settling — a design chart](agc-settling-design.md) — how long to wait, when `1/(4·loop_bw)` is only a floor. ## Telemetry
+- [AGC Settling — a design chart](agc-settling-design.md) — how long to wait, when `1/(4·loop_bw)` is only a floor.
 - [AGC — Step Response](agc.md) — closed-loop power controller with decimated and per-sample loop updates.
 
 ## Detection statistics
@@ -121,9 +121,9 @@ Despreading, polynomial-phase estimation and the DSSS receivers.
 - [AsyncDsssPool: emitters that come and go](async-dsss-pool-demo.md) — three receivers, four emitters on one Gold code: each held by one receiver, a departure freeing its receiver, and the newcomer taking it, read from the pool's own status after every push.
 - [AsyncDsssPool: ten emitters through six receivers](async-dsss-pool-scene.md) — ten emitters on one Gold code, each on its own Doppler ramp and within ±8 dB of the others, come and go through six receivers: each held by one receiver from soon after it arrives, a freed receiver taking the next, and a weak emitter waiting for the strong one that masks it.
 - [AsyncDsssReceiver: a signal's lifecycle](async-dsss-receiver-lifecycle.md) — one packaged receiver through an emitter's life: searched, tracked through a fade, released when it departs, reset, and re-acquired on its return, read from its own state after every push
-- [AsyncDsssReceiver: the specification link](async-dsss-receiver-spec.md) — one packaged receiver on a link whose Doppler stretches the chip clock as well as the carrier, through both regimes of a pass (the TCA crossing and the ±50 kHz extremum) over a set of noise draws: carrier-to-code aiding, a missed hand-off released and searched again, and the decode scored by BER, EVM and M2M4.
+- [AsyncDsssReceiver: the specification link](async-dsss-receiver-spec.md) — one packaged receiver on a link whose Doppler stretches the chip clock as well as the carrier, through both regimes of a pass: carrier-to-code aiding, a missed hand-off searched again, and the decode scored by BER, EVM and M2M4
 - [DSSS Acquisition — Pd / Pfa vs Es/N0](dsss-acq-characterization.md) — detection characterisation curves.
-- [DsssBurstReceiver — the Composed Burst Chain](dsss-burst-receiver.md) — the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, byte-identical, then `BurstAcquisition -> refine -> BurstDemod` behind one `push()` and the frames checked against the description; the same answer at every block size, a burst split across two calls held rather than lost, and `refine_span` as the minimum burst spacing.
+- [DsssBurstReceiver — the Composed Burst Chain](dsss-burst-receiver.md) — the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, then `BurstAcquisition -> refine -> BurstDemod` behind one `push()`, the same answer at every block size
 - [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md) — `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator.
 - [Streaming Async Despreader](async-despread.md) — `Dll(segments)` despreading a Doppler-dilated code on an asynchronous data clock, unaided and with the carrier's rate aid.
 
@@ -163,7 +163,7 @@ In-band probes that record loop internals.
 Converters between float IQ and fixed-point integers.
 
 - [ADC Quantisation — 3–8 Bits](adc.md) — staircase resolution and noise floor across 3–8 bits.
-- [cvt Quantization Noise](cvt-quantization.md) — the three cvt formats overlaid at identical noise floor. ## Gain Control
+- [cvt Quantization Noise](cvt-quantization.md) — the three cvt formats overlaid at identical noise floor.
 - [Q15 vs UQ15 Quantization](q15-uq15.md) — bipolar vs offset-binary encodings of the same Q15 step.
 
 <!-- domain-index:end -->

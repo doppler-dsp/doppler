@@ -14,7 +14,7 @@ Python module `doppler.impairment`. Area: [Impairment](index.md#impairment).
 
 ## Gallery pages in this domain
 
-- [Doppler Channel — Clock Doppler as a Propagation Impairment](../gallery/doppler-channel.md) — clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies. ## Filters & Resampling
+- [Doppler Channel — Clock Doppler as a Propagation Impairment](../gallery/doppler-channel.md) — clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies.
 - [Doppler Channel — a Doppler Profile Driven by a Cosine](../gallery/doppler-channel-profile.md) — one cosine period as the Doppler: the carrier follows `fc·d(t)` to 1.4 Hz of 50 kHz, the code slip peaks at 2.5 chips (2.44 in theory) and returns to zero, and no straight line explains any of it.
 
 ## Design pages in this domain

@@ -1,4 +1,4 @@
-<!-- domain: util -->
+<!-- domain: util; summary: the running average every estimator in the library is built on: which of its two algebraic forms is the right one and why that was measured, what its boundaries guarantee, and why an EMA is not a loop filter -->
 
 # The Exponential Moving Average
 

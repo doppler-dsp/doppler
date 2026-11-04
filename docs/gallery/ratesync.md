@@ -1,4 +1,4 @@
-<!-- domain: track -->
+<!-- domain: track; summary: matched filtering and symbol timing in one dot product, at a non-integer samples-per-symbol. -->
 
 # Arbitrary-Rate Symbol Recovery
 

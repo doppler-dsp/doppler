@@ -63,7 +63,7 @@ Python module `doppler.wfm`. Area: [Sources](index.md#sources).
 | `wfm_awgn_amplitude` | function | [wfm_awgn_amplitude](../api/python-wfmgen.md) | &nbsp; | [AsyncDsssReceiver: a signal's lifecycle](../gallery/async-dsss-receiver-lifecycle.md)<br>[AsyncDsssReceiver: the specification link](../gallery/async-dsss-receiver-spec.md) | [async_despread_demo](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/async_despread_demo.py)<br>[async_dsss_pool_demo](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/async_dsss_pool_demo.py)<br>[async_dsss_pool_scene](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/async_dsss_pool_scene.py)<br>+4 more | [Waveform amplitude & composition](../design/wfmgen-composition.md)<br>[wfmgen — the waveform generator](../design/wfmgen.md) |
 | `wfm_ebno_to_snr_db` | function | [wfm_ebno_to_snr_db](../api/python-wfmgen.md) | &nbsp; | &nbsp; | &nbsp; | [Waveform amplitude & composition](../design/wfmgen-composition.md) |
 | `write_blue_header` | function | [write_blue_header](../api/python-wfm-io.md) | &nbsp; | [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md) | &nbsp; | &nbsp; |
-| `Writer` | class | [Writer](../api/python-wfm-io.md) | [Reading captures](../guide/wfm-io/reading.md)<br>[Waveforms — what you can generate](../guide/wfmgen/waveforms.md)<br>[Writing captures — output & file types](../guide/wfm-io/writing.md) | [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md)<br>[Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md)<br>[type="symbols" — Bring Your Own Constellation](../gallery/symbols.md)<br>+1 more | [wfm_composition_demo](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/wfm_composition_demo.py)<br>[wfm_io_demo](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/wfm_io_demo.py) | [wfmgen — the waveform generator](../design/wfmgen.md)<br>[Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md) |
+| `Writer` | class | [Writer](../api/python-wfm-io.md) | [Reading captures](../guide/wfm-io/reading.md)<br>[Waveforms — what you can generate](../guide/wfmgen/waveforms.md)<br>[Writing captures — output & file types](../guide/wfm-io/writing.md) | [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md)<br>[Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md)<br>[type="symbols" — Bring Your Own Constellation](../gallery/symbols.md)<br>+1 more | [wfm_composition_demo](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/wfm_composition_demo.py)<br>[wfm_io_demo](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/wfm_io_demo.py) | [Capture files — one reader, one writer, four containers](../design/capture-files.md)<br>[wfmgen — the waveform generator](../design/wfmgen.md)<br>[Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md) |
 
 ## Guide pages in this domain
 
@@ -78,27 +78,27 @@ Python module `doppler.wfm`. Area: [Sources](index.md#sources).
 
 ## Gallery pages in this domain
 
-- [A Crowded Band — Many Signals, One Parallel prepare](../gallery/crowded-band.md)
-- [A Frame You Built, Generated](../gallery/wfmgen-carried-frame.md)
-- [A Framed Link, Checked by Its Description](../gallery/framed-link.md)
-- [Composing a Scene — .sum(), .add(), and Headroom](../gallery/wfm-composition.md)
-- [One Cache Slot for a Whole Background Field](../gallery/plan-background.md)
-- [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md)
-- [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md)
-- [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md)
+- [A Crowded Band — Many Signals, One Parallel prepare](../gallery/crowded-band.md) — twenty RRC carriers in one segment, prepared in parallel across cores; `Plan.render(enable=...)` thins them for free.
+- [A Frame You Built, Generated](../gallery/wfmgen-carried-frame.md) — `wfm_source_t.frame`: a source carries the description a caller built, so a layout no flag spells reaches the samples; `--acq-code`, `--sync` and `--crc` build one through `dp_wfm_frame_fixed()`
+- [A Framed Link, Checked by Its Description](../gallery/framed-link.md) — framed BPSK/QPSK from one `FrameDesc`, received by `MpskReceiver`, judged by `FrameDesc.check`. ## Measurement
+- [Composing a Scene — .sum(), .add(), and Headroom](../gallery/wfm-composition.md) — sum, add, headroom; a SoI under a CW interferer over one noise floor.
+- [One Cache Slot for a Whole Background Field](../gallery/plan-background.md) — `background=True` folds a static emitter population into a single pre-summed cache entry: 67x smaller, and the whole field becomes one overridable control.
+- [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md) — one capture written to raw / CSV / BLUE / SigMF and read back.
+- [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md) — pi/4-QPSK and 16-QAM from an arbitrary complex stream.
+- [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md) — tone / PN / QPSK / BPSK from one declarative `Synth`.
 
 ## Design pages in this domain
 
-- [A Frame as a Description](../design/frame-description.md)
-- [A Frame as a Description — the measurement record](../design/frame-description-measurements.md)
-- [A Receiver Built from a Frame Description](../design/rx-frame-description.md)
-- [Capture files — one reader, one writer, four containers](../design/capture-files.md)
-- [Ending a capture — spooling an endless stream to disk while reading it back](../design/end-of-capture.md)
-- [One home for the waveform enum tables](../design/waveform-enum-ssot.md)
-- [The Payload as a Data Source](../design/payload-data-source.md)
-- [The Payload as a Data Source — the measurement record](../design/payload-data-source-measurements.md)
-- [Waveform amplitude & composition](../design/wfmgen-composition.md)
-- [wfmgen — the waveform generator](../design/wfmgen.md)
+- [A Frame as a Description](../design/frame-description.md) — a frame as a list of fields and a list of stages, each stage carrying the span it covers: why a chain of optional transforms is the representation that cannot express CCSDS, how a caller adds a stage doppler has never heard of, how far that openness actually reaches, and the Field: one text form for a run of bits, passed by every face
+- [A Frame as a Description — the measurement record](../design/frame-description-measurements.md) — the dated record behind it: the survey that counted seven spellings of a field, the prototype that proved one grammar lossless, and how the CCSDS sites were settled, under the same section letters
+- [A Receiver Built from a Frame Description](../design/rx-frame-description.md) — `BurstDemod` and `DsssBurstReceiver` told the frame instead of its length: the sync word, the frame and burst lengths and the CRC verdict derived from one description, the callers that compute them by hand today, and the order of work
+- [Capture files — one reader, one writer, four containers](../design/capture-files.md) — the file I/O subsystem underneath `Reader`/`Writer`: why the file type is decided by content, why one keyword codec serves both directions, why provenance is a value rather than a caveat, and what a streaming writer costs at close
+- [Ending a capture — spooling an endless stream to disk while reading it back](../design/end-of-capture.md) — the disk third of that contract: spooling an endless stream to disk while reading it back, why Ctrl+C must reach the reader through the file rather than around it, and what owning both ends of the file buys
+- [One home for the waveform enum tables](../design/waveform-enum-ssot.md) — a name table's ORDER is the C enum value, so a second copy mis-maps a flag instead of failing: what owns the tables, and the gate that holds the manifest, the header and the C enums to each other
+- [The Payload as a Data Source](../design/payload-data-source.md) — a frame declares `data:LEN` and `--data` names where the bits come from (a file, a literal, stdin, a seeded stream): fill, idle frames, run length, what is deleted, and the unknowns
+- [The Payload as a Data Source — the measurement record](../design/payload-data-source-measurements.md) — the chunker prototyped before any C, and the three rules it changed
+- [Waveform amplitude & composition](../design/wfmgen-composition.md) — level/power conventions for wfmgen
+- [wfmgen — the waveform generator](../design/wfmgen.md) — the spine for the tool: modulations, impairments and output streams from three interchangeable faces, what it promises and which gate keeps each promise, the seventeen primitives it composes rather than re-implements, and the eight things still unknown about it — including that it states no throughput and no certified envelope
 
 ## Used in other domains
 

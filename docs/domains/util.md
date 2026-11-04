@@ -25,13 +25,13 @@ Python module `doppler.util`. Area: [Numeric](index.md#numeric).
 
 ## Guide pages in this domain
 
-- [Checkpoint & Resume](../guide/state-serialization.md)
+- [Checkpoint & Resume](../guide/state-serialization.md) — bit-exact `get_state`/`set_state`, composed receivers, and elastic pod hand-off
 
 ## Design pages in this domain
 
-- [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)
-- [State Serialization — the standard bytes interface](../design/state-serialization.md)
-- [The Exponential Moving Average](../design/ema.md)
+- [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md) — the DSP building-block hierarchy and its naming axis, plus concrete rename proposals
+- [State Serialization — the standard bytes interface](../design/state-serialization.md) — the standard bytes interface for bit-exact checkpoint/resume
+- [The Exponential Moving Average](../design/ema.md) — the running average every estimator in the library is built on: which of its two algebraic forms is the right one and why that was measured, what its boundaries guarantee, and why an EMA is not a loop filter
 
 ## Used in other domains
 

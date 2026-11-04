@@ -15,12 +15,12 @@ Python module `doppler.agc`. Area: [Synchronization](index.md#synchronization).
 
 ## Gallery pages in this domain
 
-- [AGC Settling — a design chart](../gallery/agc-settling-design.md)
-- [AGC — Step Response](../gallery/agc.md)
+- [AGC Settling — a design chart](../gallery/agc-settling-design.md) — how long to wait, when `1/(4·loop_bw)` is only a floor. ## Telemetry
+- [AGC — Step Response](../gallery/agc.md) — closed-loop power controller with decimated and per-sample loop updates.
 
 ## Design pages in this domain
 
-- [Automatic Gain Control](../design/agc.md)
+- [Automatic Gain Control](../design/agc.md) — the log-domain level loop every receiver stands on: why the filter is in dB and the detector is not, why the loop must be total under any input, and what level alone cannot tell it
 
 ## Used in other domains
 

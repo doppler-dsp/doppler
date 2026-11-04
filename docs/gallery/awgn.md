@@ -1,4 +1,4 @@
-<!-- domain: source -->
+<!-- domain: source; summary: complex Box-Muller noise, amplitude histogram, and flat PSD. -->
 
 # AWGN Generator
 

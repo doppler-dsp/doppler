@@ -1,4 +1,4 @@
-<!-- domain: acquire -->
+<!-- domain: acquire; summary: finding bursts of any repeated preamble with `BurstCapture` and `BurstAcquisition` -->
 
 # Acquiring a Repeated Preamble
 

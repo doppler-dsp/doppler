@@ -1,4 +1,4 @@
-<!-- domain: spectral -->
+<!-- domain: spectral; summary: GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR. -->
 
 # 2-D Acquisition Grid
 

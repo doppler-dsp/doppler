@@ -1,4 +1,4 @@
-<!-- domain: dsss -->
+<!-- domain: dsss; summary: detection characterisation curves. -->
 
 # DSSS Acquisition — Pd / Pfa vs Es/N0
 

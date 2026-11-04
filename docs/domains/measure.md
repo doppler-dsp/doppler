@@ -24,12 +24,12 @@ Python module `doppler.measure`. Area: [Spectral](index.md#spectral).
 
 ## Gallery pages in this domain
 
-- [Measurement Suite — ADC characterisation](../gallery/measure.md)
-- [Measurement Suite — two-tone IMD/TOI & notched-noise NPR](../gallery/measure-imd-npr.md)
+- [Measurement Suite — ADC characterisation](../gallery/measure.md) — SNR / SINAD / THD / SFDR / ENOB from `ToneMeasure`.
+- [Measurement Suite — two-tone IMD/TOI & notched-noise NPR](../gallery/measure-imd-npr.md) — two-tone IMD/IM3, TOI, and notched-noise NPR.
 
 ## Design pages in this domain
 
-- [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md)
+- [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md) — tone, NPR, and IMD metric internals
 
 ## Used in other domains
 

@@ -1,4 +1,4 @@
-<!-- domain: cvt -->
+<!-- domain: cvt; summary: staircase resolution and noise floor across 3–8 bits. -->
 
 # ADC Quantisation — 3–8 Bits
 

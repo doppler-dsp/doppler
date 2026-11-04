@@ -1,4 +1,4 @@
-<!-- domain: spectral -->
+<!-- domain: spectral; summary: module dependency graph -->
 
 # Spectral & Measurement API Map
 

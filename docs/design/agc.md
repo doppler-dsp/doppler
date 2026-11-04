@@ -1,4 +1,4 @@
-<!-- domain: agc -->
+<!-- domain: agc; summary: the log-domain level loop every receiver stands on: why the filter is in dB and the detector is not, why the loop must be total under any input, and what level alone cannot tell it -->
 
 # Automatic Gain Control
 

@@ -1,4 +1,4 @@
-<!-- domain: track -->
+<!-- domain: track; summary: integrated carrier + timing + bit recovery. -->
 
 # M-PSK Receiver — Pull-in, Lock, and BER
 

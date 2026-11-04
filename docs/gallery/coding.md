@@ -1,4 +1,4 @@
-<!-- domain: coding -->
+<!-- domain: coding; summary: a Reed-Solomon outer code and a convolutional inner code that are nobody's standard, run end to end; and what a bounded-distance decoder does past its radius, where a refusal is safe and a miscorrection is not -->
 
 # Name Your Own Code — and What Happens Past the Radius
 

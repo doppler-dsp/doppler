@@ -1,4 +1,4 @@
-<!-- domain: resample -->
+<!-- domain: resample; summary: automatic CIC / halfband / polyphase cascade for any rate ratio. -->
 
 # RateConverter — Automatic Cascade Selection
 

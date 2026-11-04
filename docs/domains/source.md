@@ -16,11 +16,11 @@ Python module `doppler.source`. Area: [Sources](index.md#sources).
 
 ## Gallery pages in this domain
 
-- [AWGN Generator](../gallery/awgn.md)
+- [AWGN Generator](../gallery/awgn.md) — complex Box-Muller noise, amplitude histogram, and flat PSD.
 
 ## Design pages in this domain
 
-- [The NCO](../design/nco.md)
+- [The NCO](../design/nco.md) — the 32-bit phase accumulator every rate in the library stands on: why an integer register instead of a double, the one float boundary, and how carrier and timing read the same thing
 
 ## Used in other domains
 

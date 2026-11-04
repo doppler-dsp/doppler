@@ -1,4 +1,4 @@
-<!-- domain: telemetry -->
+<!-- domain: telemetry; summary: three emitters fanning into one ring, one consumer. -->
 
 # Telemetry: Many Emitters, One Consumer
 

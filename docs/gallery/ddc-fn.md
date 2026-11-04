@@ -1,4 +1,4 @@
-<!-- domain: ddc -->
+<!-- domain: ddc; summary: real passband in, complex baseband out, caller-owned buffer, thread-per-shard scaling. ## Detection & Acquisition -->
 
 # Ddcr — Real Passband to Baseband
 

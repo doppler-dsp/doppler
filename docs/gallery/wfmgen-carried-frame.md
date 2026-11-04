@@ -1,4 +1,4 @@
-<!-- domain: wfm -->
+<!-- domain: wfm; summary: `wfm_source_t.frame`: a source carries the description a caller built, so a layout no flag spells reaches the samples; `--acq-code`, `--sync` and `--crc` build one through `dp_wfm_frame_fixed()` -->
 
 # A Frame You Built, Generated
 

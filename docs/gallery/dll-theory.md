@@ -1,4 +1,4 @@
-<!-- domain: track -->
+<!-- domain: track; summary: discriminator and loop-filter derivation. -->
 
 # DLL Code Loop — Theory Validation
 

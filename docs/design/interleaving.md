@@ -1,4 +1,4 @@
-<!-- domain: coding -->
+<!-- domain: coding; summary: the permutation, the three ways to reason about it wrongly, and the measured gain: E to E×depth, and the bound that still bites -->
 
 # Interleaving — spreading a burst across codewords
 

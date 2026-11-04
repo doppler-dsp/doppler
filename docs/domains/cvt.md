@@ -34,13 +34,13 @@ Python module `doppler.cvt`. Area: [Numeric](index.md#numeric).
 
 ## Gallery pages in this domain
 
-- [ADC Quantisation — 3–8 Bits](../gallery/adc.md)
-- [Q15 vs UQ15 Quantization](../gallery/q15-uq15.md)
-- [cvt Quantization Noise](../gallery/cvt-quantization.md)
+- [ADC Quantisation — 3–8 Bits](../gallery/adc.md) — staircase resolution and noise floor across 3–8 bits.
+- [Q15 vs UQ15 Quantization](../gallery/q15-uq15.md) — bipolar vs offset-binary encodings of the same Q15 step.
+- [cvt Quantization Noise](../gallery/cvt-quantization.md) — the three cvt formats overlaid at identical noise floor. ## Gain Control
 
 ## Design pages in this domain
 
-- [Quantization Design](../design/QUANTIZATION.md)
+- [Quantization Design](../design/QUANTIZATION.md) — fixed-point pipeline design
 
 ## Used in other domains
 

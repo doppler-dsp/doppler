@@ -14,7 +14,7 @@ Python module `doppler.analyzer`. Area: [Spectral](index.md#spectral).
 
 ## Design pages in this domain
 
-- [Spectrum Analyzer](../design/specan.md)
+- [Spectrum Analyzer](../design/specan.md) — how span and RBW set the rate, the transform length and the Kaiser beta, and why every RBW gets the same −90 dB skirt
 
 ## Used in other domains
 

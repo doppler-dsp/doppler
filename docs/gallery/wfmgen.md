@@ -1,4 +1,4 @@
-<!-- domain: wfm -->
+<!-- domain: wfm; summary: tone / PN / QPSK / BPSK from one declarative `Synth`. -->
 
 # wfmgen — One Engine, Every Waveform
 

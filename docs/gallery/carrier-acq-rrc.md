@@ -1,4 +1,4 @@
-<!-- domain: acquire -->
+<!-- domain: acquire; summary: PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters. ## Synchronization Loops -->
 
 # CarrierAcquisition: RRC Pulse Shaping
 

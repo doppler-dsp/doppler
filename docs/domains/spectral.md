@@ -35,26 +35,26 @@ Python module `doppler.spectral`. Area: [Spectral](index.md#spectral).
 
 ## Guide pages in this domain
 
-- [Delay-Doppler Search](../guide/delay-doppler.md)
-- [Power Spectra & Measurements](../guide/spectral-psd.md)
-- [Streaming Spectrograms](../guide/spectrogram.md)
+- [Delay-Doppler Search](../guide/delay-doppler.md) — where a code is and how fast it is rotating: one map, batches of frames, and the hypothesis bank for an unknown carrier, with `DelayDoppler`
+- [Power Spectra & Measurements](../guide/spectral-psd.md) — PSD estimation, tone and NPR measurement
+- [Streaming Spectrograms](../guide/spectrogram.md) — any-size chunks in, every row of a waterfall out, the same rows however the stream is cut (C and Python)
 
 ## Gallery pages in this domain
 
-- [2-D Acquisition Grid](../gallery/detection2d.md)
-- [A Streaming Spectrogram](../gallery/spectrogram.md)
-- [Correlation and Detection](../gallery/corr.md)
-- [Delay-Doppler Search](../gallery/delay-doppler.md)
-- [Four WCDMA Carriers — PSD, band_power, AccTrace](../gallery/wcdma-carriers.md)
+- [2-D Acquisition Grid](../gallery/detection2d.md) — GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR.
+- [A Streaming Spectrogram](../gallery/spectrogram.md) — a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis. ## Quantization & Fixed-Point
+- [Correlation and Detection](../gallery/corr.md) — coherent integration, 2-D template matching, streaming CFAR.
+- [Delay-Doppler Search](../gallery/delay-doppler.md) — a delay-Doppler map, a coarse carrier bank and the refine that recovers its straddle loss, plus a batch of hypotheses in one call.
+- [Four WCDMA Carriers — PSD, band_power, AccTrace](../gallery/wcdma-carriers.md) — four RRC channels measured with `PSD` and `AccTrace`.
 
 ## Design pages in this domain
 
-- [Corr2D batches: many maps in one call](../design/corr2d-batch.md)
-- [Corr2D hypothesis bank: operation order](../design/corr2d-hypotheses.md)
-- [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md)
-- [Spectral & Measurement API Map](../design/spectral-api-map.md)
-- [The Spectrogram — chunks in, rows out](../design/spectrogram.md)
-- [The Spectrogram — the measurement record](../design/spectrogram-measurements.md)
+- [Corr2D batches: many maps in one call](../design/corr2d-batch.md) — many frames in one call: every map, or a coherent, power-sum, power-max or per-map-peak reduction, on one C fold loop that never touches the dwell
+- [Corr2D hypothesis bank: operation order](../design/corr2d-hypotheses.md) — pre-design study for #2683/#2670: which stages a bank of carrier and rate hypotheses shares, fractional carrier offsets mixed per fraction on an L = 4 grid, and the cost each ordering saves, timed in C
+- [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
+- [Spectral & Measurement API Map](../design/spectral-api-map.md) — module dependency graph
+- [The Spectrogram — chunks in, rows out](../design/spectrogram.md) — chunks in, rows out: the use cases, the seven guarantees and the six things not yet known, why a spectrogram is PSD per frame rather than a second kernel, and the order the program is built in
+- [The Spectrogram — the measurement record](../design/spectrogram-measurements.md) — the dated record: PSD's kernel promoted byte-for-byte, a timing that turned out bimodal, and the prototype that found a bug in its own test
 
 ## Used in other domains
 

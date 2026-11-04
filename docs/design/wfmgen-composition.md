@@ -1,4 +1,4 @@
-<!-- domain: wfm -->
+<!-- domain: wfm; summary: level/power conventions for wfmgen -->
 
 # Waveform amplitude & composition
 

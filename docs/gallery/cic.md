@@ -1,4 +1,4 @@
-<!-- domain: resample -->
+<!-- domain: resample; summary: wideband IQ → CIC → narrowband slice; 84 dB measured alias rejection (R=8, N=4). -->
 
 # CIC Decimation Filter
 

@@ -1012,10 +1012,8 @@ class Corr2D:
         **Ownership.** In Python, a call that dumps returns a new array when no
         `out=` is given, and a view of `out=` when one is (a 1-D array holding
         at least n_out values; it is written on a dump only, and the next dump
-        overwrites it). The binding also asks `out=` for as many elements as
-        the input frame has (ny * nx), which a `col_out` object, whose n_out is
-        ny, never needs: #2818. A call that does not dump returns None and
-        touches neither.
+        overwrites it). A call that does not dump returns None and touches
+        neither.
 
         Parameters
         ----------
@@ -1181,9 +1179,7 @@ class Corr2D:
         NDArray[np.complex64]
             Python: the one map, a new (n_out,) array; a refused batch is a
             ValueError with nothing written. C: n_out, or SIZE_MAX for the
-            refused batch. (Do not size `out=` from `execute_coherent_max_out`:
-            the binding asks `out=` for as many elements as the input has,
-            #2818.)
+            refused batch.
 
         Raises
         ------
@@ -1260,8 +1256,7 @@ class Corr2D:
         NDArray[np.float32]
             Python: the (n_out,) float32 powers, a new array; a refused batch
             is a ValueError with nothing written. C: n_out, or SIZE_MAX for the
-            refused batch. (Do not size `out=` from the `_max_out` call: the
-            binding asks `out=` for as many elements as the input has, #2818.)
+            refused batch.
 
         Raises
         ------
@@ -1837,10 +1832,8 @@ class DelayDoppler:
         **Ownership.** In Python, a call that dumps returns a new array when no
         `out=` is given, and a view of `out=` when one is (a 1-D array holding
         at least n_out values; it is written on a dump only, and the next dump
-        overwrites it). The binding also asks `out=` for as many elements as
-        the input frame has (ny * nx), which a `col_out` object, whose n_out is
-        ny, never needs: #2818. A call that does not dump returns None and
-        touches neither.
+        overwrites it). A call that does not dump returns None and touches
+        neither.
 
         Parameters
         ----------
@@ -2006,9 +1999,7 @@ class DelayDoppler:
         NDArray[np.complex64]
             Python: the one map, a new (n_out,) array; a refused batch is a
             ValueError with nothing written. C: n_out, or SIZE_MAX for the
-            refused batch. (Do not size `out=` from `execute_coherent_max_out`:
-            the binding asks `out=` for as many elements as the input has,
-            #2818.)
+            refused batch.
 
         Raises
         ------
@@ -2085,8 +2076,7 @@ class DelayDoppler:
         NDArray[np.float32]
             Python: the (n_out,) float32 powers, a new array; a refused batch
             is a ValueError with nothing written. C: n_out, or SIZE_MAX for the
-            refused batch. (Do not size `out=` from the `_max_out` call: the
-            binding asks `out=` for as many elements as the input has, #2818.)
+            refused batch.
 
         Raises
         ------

@@ -359,9 +359,7 @@ size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
  * **Ownership.**  In Python, a call that dumps returns a new array when no
  * `out=` is given, and a view of `out=` when one is (a 1-D array holding at
  * least n_out values; it is written on a dump only, and the next dump
- * overwrites it).  The binding also asks `out=` for as many elements as the
- * input frame has (ny * nx), which a `col_out` object, whose n_out is ny,
- * never needs: #2818.  A call that does not dump returns None and touches
+ * overwrites it).  A call that does not dump returns None and touches
  * neither.
  *
  * @param state  Allocated 2-D correlator (non-NULL).
@@ -587,9 +585,7 @@ size_t dp_corr2d_execute_coherent_max_out (const dp_corr2d_state_t *state);
  * @param max_out  Capacity of @p out; at least n_out.
  * @return Python: the one map, a new (n_out,) array; a refused batch is a
  *         ValueError with nothing written.  C: n_out, or SIZE_MAX for the
- *         refused batch.  (Do not size `out=` from `execute_coherent_max_out`:
- *         the binding asks `out=` for as many elements as the input has,
- *         #2818.)
+ *         refused batch.
  * @code
  * >>> import numpy as np
  * >>> from doppler.spectral import DelayDoppler
@@ -646,8 +642,7 @@ size_t dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state);
  * @param max_out  Capacity of @p out; at least n_out.
  * @return Python: the (n_out,) float32 powers, a new array; a refused batch
  *         is a ValueError with nothing written.  C: n_out, or SIZE_MAX for the
- *         refused batch.  (Do not size `out=` from the `_max_out` call: the
- *         binding asks `out=` for as many elements as the input has, #2818.)
+ *         refused batch.
  * @code
  * >>> import numpy as np
  * >>> from doppler.spectral import DelayDoppler

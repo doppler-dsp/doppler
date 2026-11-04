@@ -2619,6 +2619,35 @@ dp_acq_reset (dp_acq_state_t *st)
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
+/* out[k] = x[k] * e^{j w k'} for k' = k, or the signed bin (k - n past n/2,
+   `signed_bins`, numpy's fftfreq: an odd n's middle bin stays positive):
+   a phasor recurrence resynced from an exact cexp() every 256 steps and
+   where the signed index jumps. In place is allowed (x == out). The one
+   ramp: acq_tile_epoch()'s code-rate ramp and the per-cell rule-2 model
+   both run it; a private copy in the tile path mis-signed an odd period's
+   middle bin (#2815). One cexp() a sample made the rule-2 model a third of
+   a pool's run under libm alone. */
+static void
+acq_ramp (const float _Complex *x, size_t n, double w, int signed_bins,
+          float _Complex *out)
+{
+  const size_t half  = n / 2;
+  double _Complex ph = 1.0, step = cexp (I * w);
+  for (size_t k = 0; k < n; k++)
+    {
+      const int jump = signed_bins && k == half + (n % 2);
+      if ((k & 255) == 0 || jump)
+        {
+          const double kk = (signed_bins && k >= half + (n % 2))
+                                ? (double)k - (double)n
+                                : (double)k;
+          ph              = cexp (I * w * kk);
+        }
+      out[k] = x[k] * (float _Complex)ph;
+      ph *= step;
+    }
+}
+
 /* One tile of one epoch (a body of the fan): roll the shared spectrum to
  * the tile's hypothesis against the fixed replica spectrum, one inverse
  * transform into the tile's own row -- of the surface at D == 1, of the
@@ -2656,21 +2685,10 @@ acq_tile_epoch (size_t r, void *ctx)
          standing peak. The hand-off's half-dwell advance
          (dp_acq_build_handoff) then reads the block's peak as its middle,
          which it is. */
-      const double d    = (double)signed_r * st->fs / st->carrier_freq_hz;
-      const double s    = ((double)st->blk_epoch - 0.5 * (double)(D - 1)) * d;
-      const double w    = -2.0 * M_PI * s / (double)nx;
-      const size_t half = nx / 2;
-      /* Positive frequencies j' = j for j < half, then negative j' = j - nx:
-         each run a recurrence from an exact start, resynced every 256. */
-      double _Complex ph = 1.0, step = cexp (I * w);
-      for (size_t j = 0; j < nx; j++)
-        {
-          if (j == half || (j & 255) == 0)
-            ph = cexp (I * w
-                       * (double)(j < half ? (long)j : (long)j - (long)nx));
-          prod[j] *= (float _Complex)ph;
-          ph *= step;
-        }
+      const double d = (double)signed_r * st->fs / st->carrier_freq_hz;
+      const double s = ((double)st->blk_epoch - 0.5 * (double)(D - 1)) * d;
+      const double w = -2.0 * M_PI * s / (double)nx;
+      acq_ramp (prod, nx, w, 1, prod); /* over the signed bins */
     }
   /* The inverse at lag_bins: the cross-spectrum zero-padded first when the
      lag axis is padded (dp_fft_pad_spectrum: the circular correlation,
@@ -3113,32 +3131,6 @@ acq_tiles_of (const dp_acq_state_t *st, double f, double tol, double *out)
           }
     }
   return n;
-}
-
-/* out[k] = x[k] * e^{j w k'} for k' = k, or the signed bin (k - n past n/2,
-   `signed_bins`): a phasor recurrence resynced from an exact cexp() every
-   256 steps and where the signed index jumps, as acq_tile_epoch() ramps its
-   products. One cexp() a sample made the per-cell rule-2 model (below) a
-   third of a pool's run under libm alone. */
-static void
-acq_ramp (const float _Complex *x, size_t n, double w, int signed_bins,
-          float _Complex *out)
-{
-  const size_t half  = n / 2;
-  double _Complex ph = 1.0, step = cexp (I * w);
-  for (size_t k = 0; k < n; k++)
-    {
-      const int jump = signed_bins && k == half + (n % 2);
-      if ((k & 255) == 0 || jump)
-        {
-          const double kk = (signed_bins && k >= half + (n % 2))
-                                ? (double)k - (double)n
-                                : (double)k;
-          ph              = cexp (I * w * kk);
-        }
-      out[k] = x[k] * (float _Complex)ph;
-      ph *= step;
-    }
 }
 
 /* The cell value a replica delayed to `refd` (time domain, code_bins) puts

@@ -249,6 +249,25 @@ choice. Three ways to land a long line, in the order to reach for them:
 
 ______________________________________________________________________
 
+## What a caller needs to know { #caller-checklist }
+
+A public class's docstrings, written once in the header, answer what a caller
+has to know without reading the C. Check each against this list:
+
+- the layout and axes of every array in and out: which axis is time,
+    Doppler or lag, and how frames sit end to end in a batch;
+- the shape each call returns, and its ordering;
+- **ownership**: whether a result is a fresh array, a view of `out=`, or a
+    buffer the next call overwrites;
+- what state a call reads or changes (a dwell, a phase, a counter), and what
+    it leaves alone;
+- what it refuses, in the face's own words: a Python docstring says what
+    raises, never `SIZE_MAX` or `out + h * n_out`.
+
+This is the API entry phase 9 of
+[Adding an algorithm](adding-algorithms.md#9-the-user-story-and-carry-it-back)
+owes for every public class.
+
 ## Per-surface guidance
 
 | Python surface                       | Where the doc comes from                                                       | Notes                                                                                                                                                                                                                                                                                                                                                               |

@@ -18,7 +18,7 @@ suspiciously uniform or mechanical:
 | `docs/api/*.md` — `## Related pages` block                             | `scripts/gen_related_pages.py`                                                         | `make docs-relink`                                                                  |
 | `README.md` — entire body below the badges                             | `scripts/gen_readme.py`, from `docs/index.md`                                          | `make docs-relink`                                                                  |
 | `tests/install/build-*-deps.sh` (rendered into install docs)           | `scripts/gen_install_scripts.py`, from `bootstrap.toml`'s `[dev.*]` lists              | `make docs-relink`                                                                  |
-| `docs/design/index.md`, `docs/dev/index.md`, `docs/gallery/index.md`   | *(hand-written — completeness CI-enforced)*                                            | add a bullet by hand; gated by `check_nav_index.py`                                 |
+| `docs/{api,design,dev,gallery,guide}/index.md`                         | *(hand-written — completeness CI-enforced)*                                            | add a bullet by hand; gated by `check_nav_index.py`                                 |
 | `docs/guide/wfmgen/options.md` (field reference)                       | `scripts/gen_wfm_defaults.py`, from `modules/wfm_compose.toml` and `wfm/wfm_compose.h` | edit the field's header comment or manifest row, then `gen_wfm_defaults.py --write` |
 | `docs/schema/wfmgen.schema.json` — the source/segment field properties | `scripts/gen_wfm_defaults.py` (the rest of the file is hand-owned)                     | as above; `--check` runs in `make lint`                                             |
 | `docs/benchmarks.md`                                                   | `make bench-docs`                                                                      | `make bench-docs`                                                                   |
@@ -86,7 +86,8 @@ Run it locally: `python scripts/check_init_param_optionality.py`.
 
 ## Nav-index coverage (`check_nav_index.py`)
 
-For `docs/design/`, `docs/dev/`, and `docs/gallery/`, this unions every
+For `docs/api/`, `docs/design/`, `docs/dev/`, `docs/gallery/` and
+`docs/guide/` (the script's `SECTIONS`), this unions every
 on-disk `*.md` file (excluding `archive/`) with every `mkdocs.yml` nav entry
 under that section, and fails if any of them has no bullet in that section's
 `index.md`.

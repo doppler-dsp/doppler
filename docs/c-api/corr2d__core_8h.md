@@ -656,7 +656,7 @@ size_t dp_corr2d_execute (
 **Layout.** A frame is ny\*nx complex samples in row-major order: row i is samples i\*nx .. (i+1)\*nx - 1. For Corr2D that is a (ny, nx) image; for DelayDoppler it is the raw stream, ny code periods of nx = code\_len samples back to back. The map a dump produces is flat, n\_out = ny\_out \* nx\_out values (ny values with `col_out`), also row-major: reshape it to (ny\_out, nx\_out). On a DelayDoppler, axis 0 is Doppler (centered, zero Doppler on row ny\_out / 2) and axis 1 is delay (the lag, in samples).
 
 
-**Ownership.** In Python, a call that dumps returns a new array when no `out=` is given, and a view of `out=` when one is (it must hold n\_out; it is written on a dump only, and the next dump overwrites it). A call that does not dump returns None and touches neither.
+**Ownership.** In Python, a call that dumps returns a new array when no `out=` is given, and a view of `out=` when one is (a 1-D array holding at least n\_out values; it is written on a dump only, and the next dump overwrites it). The binding also asks `out=` for as many elements as the input frame has (ny \* nx), which a `col_out` object, whose n\_out is ny, never needs: #2818. A call that does not dump returns None and touches neither.
 
 
 
@@ -713,7 +713,7 @@ size_t dp_corr2d_execute_all (
 
 
 
-Python: `x` is the H frames back to back, a flat array of H \* ny \* nx samples (H &gt;= 1; frame h is the samples from h \* ny \* nx up to, not including, (h + 1) \* ny \* nx). With no `out=` each call returns a new array; with `out=` it returns a view of it, and the next call into the same `out=` overwrites that view. `out=` is a 2-D complex64 array of shape (rows, n\_out) with at least H rows (a shorter one is refused); the result is its first H rows. The object's dwell is untouched.
+Python: `x` is the H frames back to back, a flat array of H \* ny \* nx samples (H &gt;= 1): frame h is the samples from h \* ny \* nx up to, not including, (h + 1) \* ny \* nx. With no `out=` each call returns a new array; with `out=` it returns a view of it, and the next call into the same `out=` overwrites that view. `out=` is a 2-D complex64 array of shape (rows, n\_out) with at least H rows (a shorter one is refused); the result is its first H rows. The object's dwell is untouched.
 
 
 

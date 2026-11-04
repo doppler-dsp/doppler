@@ -1278,39 +1278,36 @@ threaded rows (`t4`, `t8`, `threads=4`) settle #2744 for $D > 1$.
 
 ### 18.4 Oracle and gate
 
-- **Before the switch (step 2.2):** an equivalence test in
-    `test_acq_core.c` compares today's surface and hits with the map's, on
-    seeded scenes covering $D = 1$ and $D > 1$, several tiles, the tile-alias
-    hop, rate hypotheses and a carrier. It passes on today's code and is
-    shown red by sabotage. Two tolerances, both measured (record §18.1–18.4):
-    - **No carrier**, an exact reordering: the bound decided for #2752,
-        $|\Delta| \le c\,\varepsilon_{f32}\,(\log_2 N + \log_2 L + \log_2 DI)\,\sqrt{D}\,\lVert x\rVert_2 \lVert r\rVert_2$,
-        with $c = 4$. Over 5 seeds and 3 geometries the reordering needed $c$
-        from 0.71 to 3.04, the most at small $D$.
-    - **A carrier**, where the rounding is not float error: every hit
-        in the same cell, and each peak within 0.1 dB of today's (measured
-        at most 0.09 dB on the prototype and 0.04 dB on
-        `acq_block_coherent`).
-    - **Step 2.2 owes two things back to these numbers.** $c = 4$ is
-        fitted, and the $c$ each geometry needed falls about as
-        $1/\sqrt{D}$ (3.0 at $D = 10$, 1.4 at 60, 0.8 at 150), which says the
-        bound's $\sqrt{D}$ factor is spurious: 2.2 re-derives the bound's $D$
-        dependence on acq's own scenes before fixing $c$. And 0.1 dB leaves
-        0.01 dB over the worst loss measured, so 2.2 sets the carrier
-        tolerance from acq's own carrier scenes with a stated margin.
+- **Before the switch (step 2.2):** `_acq_map_equivalence_check` in
+    `test_acq_core.c` compares today's decided complex surface and hits
+    with the map's definition, evaluated in double precision by direct DFTs
+    in the test. It runs 12 seeded scenes, 8 draws each, covering $D = 1$ to
+    150, narrow and tiled, a side tile, a padded lag axis, rate hypotheses
+    and a carrier at an even and an odd period. It passes on today's code
+    and is shown red by sabotage (record §18.5). Two tolerances, both
+    measured:
+    - **No carrier**, an exact reordering, cell by cell:
+        $|\Delta| \le c\,\varepsilon_{f32}\,(\log_2 N + \log_2 L + \log_2 DI)\,\sqrt{D}\,\lVert x\rVert_2 \lVert r\rVert_2$
+        in the map's units, a correlation (scale $1/N$), with $c = 0.1$:
+        twice the worst scene's 0.050. The $\sqrt{D}$ is right: a coherent
+        peak and its rounding both grow as $D$, and without it the constant
+        a scene needs grows to 0.27 at $D = 150$.
+    - **A carrier**, where the rounding is not float error: the peak in the
+        same cell, the first hit on it, and the peak within 0.2 dB of the
+        reference's: 2.3 times the worst loss measured, 0.086 dB over 33
+        tones and three dilations on the prototype. The rounded-ramp engine
+        loses 0.028 and 0.024 dB on the test's carrier scenes.
 - **The verdicts:** every acq and Corr2D C test, and every validator's
     `--check`, unchanged.
 - **The speed gate:** `make bench-ab` on the bench box, A = main and B = the
-    branch, for every acq, pool and Corr2D row, with no row slower. Carrier
-    rows join the acq and pool benches in step 2.2, so main measures them
-    before the switch. A row flagged SLOWER counts only when the same row is
+    branch, for every acq, pool and Corr2D row, with no row slower. The acq
+    and pool benches carry rows at a 2.2 GHz carrier (`*_fc`, `[…,carrier]`),
+    so main measures the ramp before the switch. A row flagged SLOWER counts only when the same row is
     flagged in a second run (the owner's rule of 2026-11-03): the baseline's
     A-against-A run flagged three Corr2D all-core rows by noise alone.
 - **Fixed first:** the ramp's signed bin at $N/2$ for an odd $N$
-    ([#2815](https://github.com/doppler-dsp/doppler/issues/2815)). The
-    carrier scenes compare the map's exact signed-bin ramp with today's, so
-    today's mis-signed bin would read as a difference that is not the
-    map's.
+    ([#2815](https://github.com/doppler-dsp/doppler/issues/2815), merged),
+    so an odd-period carrier scene's difference is the map's alone.
 
 ## Related
 

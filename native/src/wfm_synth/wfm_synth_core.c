@@ -843,8 +843,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
            * does not stomp them with stale values. */
           wfm_synth_shape (state, out, m, shaper_syms);
           if (has_lo)
-            for (size_t i = 0; i < m; i++)
-              out[i] = out[i] * carrier[i];
+            wfm_mix_carrier (out, carrier, m);
           if (has_awgn)
             wfm_synth_add_noise (out, noise, m);
           bit_idx = state->bit_idx;
@@ -890,8 +889,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
                 }
               dp_fir_execute (state->fir, out, m, out);
               if (has_lo)
-                for (size_t i = 0; i < m; i++)
-                  out[i] = out[i] * carrier[i];
+                wfm_mix_carrier (out, carrier, m);
               if (has_awgn)
                 wfm_synth_add_noise (out, noise, m);
             }
@@ -954,8 +952,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
                 }
               dp_fir_execute (state->fir, out, m, out);
               if (has_lo)
-                for (size_t i = 0; i < m; i++)
-                  out[i] = out[i] * carrier[i];
+                wfm_mix_carrier (out, carrier, m);
               if (has_awgn)
                 wfm_synth_add_noise (out, noise, m);
             }
@@ -1041,8 +1038,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
             }
           dp_fir_execute (state->fir, out, m, out);
           if (has_lo)
-            for (size_t i = 0; i < m; i++)
-              out[i] = out[i] * carrier[i];
+            wfm_mix_carrier (out, carrier, m);
           if (has_awgn)
             wfm_synth_add_noise (out, noise, m);
           done += m;
@@ -1063,8 +1059,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
           cim = cimagf (out[m - 1]);
           /* sym_pos remains 0 when nsps == 1 */
           if (has_lo)
-            for (size_t i = 0; i < m; i++)
-              out[i] *= carrier[i];
+            wfm_mix_carrier (out, carrier, m);
           if (has_awgn)
             wfm_synth_add_noise (out, noise, m);
         }
@@ -1130,9 +1125,10 @@ dp_wfm_synth_prod (dp_wfm_synth_state_t *state, const float _Complex *in,
    * synth therefore advances exactly as dp_wfm_synth_steps(state, ., n)
    * would: a split call sequence leaves the same synth state as one call
    * (steps is chunk invariant). The PRODUCT agrees across such sequences to
-   * rounding, not to the bit -- the compiler may contract the multiply into
-   * an FMA differently on different paths (arm64 under -ffast-math, see the
-   * note on dp_wfm_synth_steps' kernel) -- so callers compare it with a few
+   * rounding, not to the bit -- the product here is a plain loop over a
+   * vector body and a scalar tail, which a compiler with FCMLA (clang on
+   * ARMv8.3+) rounds differently, unlike the carrier mix in steps, which goes
+   * through wfm_mix_block (wfm_private.h) -- so callers compare it with a few
    * ulp of |in| * |y|. Reading in[i] only after scratch[i] exists, and
    * writing out[i] last, is what makes out == in safe. */
   enum

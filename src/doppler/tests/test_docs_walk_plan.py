@@ -9,7 +9,9 @@ network (doppler#2857).
 
 from __future__ import annotations
 
+import fnmatch
 import os
+import re
 import shutil
 import subprocess
 from typing import TYPE_CHECKING
@@ -63,7 +65,11 @@ def test_the_walk_scripts_parse(script: str) -> None:
         ("tarball", 'PREFIX="$HOME/.local/doppler"'),
         ("clone", "git clone --branch v"),
         ("clone", "make build"),
-        ("deb", "consumer-walk.sh"),
+        ("pip", "python3 -m venv .venv"),
+        ("pip", "sudo apt install python3-venv"),
+        ("deb", "sudo apt install ./libdoppler-dsp0"),
+        ("deb", "tar -xz --strip-components=2"),
+        ("deb", "make run"),
         ("docker", "docker run --rm ghcr.io/doppler-dsp/doppler:"),
     ],
 )
@@ -96,3 +102,27 @@ def test_a_page_that_stops_yielding_a_command_fails_the_plan(
     r = _plan("docker", repo=tmp_path)
     assert r.returncode != 0
     assert "extracted nothing" in r.stderr
+
+
+def test_the_candidate_workflow_triggers_on_every_file_the_walk_reads() -> (
+    None
+):
+    """A page the walk extracts from can break it, so a PR that edits one must
+    run the candidate face. The list is the script's own (`pages`), not a
+    second copy that drifts."""
+    read = subprocess.run(
+        ["bash", str(WALK), "pages"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    assert len(read) >= 8, read
+    wf = (REPO / ".github" / "workflows" / "docs-walk.yml").read_text(
+        encoding="utf-8"
+    )
+    block = wf.split("    paths:\n", 1)[1].split("  workflow_dispatch:", 1)[0]
+    filters = re.findall(r"^      - (\S+)$", block, re.M)
+    missing = [
+        f for f in read if not any(fnmatch.fnmatch(f, g) for g in filters)
+    ]
+    assert not missing, f"docs-walk.yml's paths miss: {missing}"

@@ -6,7 +6,7 @@ name: Docs walk (candidate)
 # the published face after the tag; this is what makes its first failure not be
 # a shipped release. It runs where the answer can change it:
 #   - a PR that touches pyproject.toml (a release PR bumps the version there),
-#   - a PR that touches the walk itself or the pages' extraction,
+#   - a PR that touches the walk itself or any page or script it reads,
 #   - by hand.
 # It is not in ci-passed: see doppler#2881 for making it a required gate.
 on:
@@ -15,8 +15,22 @@ on:
       - pyproject.toml
       - tests/install/docs-walk*.sh
       - tests/install/consumer-walk.sh
-      - tests/install/fence.sh
       - .github/workflows/docs-walk.yml
+      # Every file the walk READS (`tests/install/docs-walk.sh pages`): the pages
+      # it extracts from and the scripts they include. test_docs_walk_plan.py
+      # holds this list to that output.
+      - docs/example-projects/consumer.md
+      - docs/examples/c.md
+      - docs/gallery/delay-doppler.md
+      - docs/install/c.md
+      - docs/install/docker.md
+      - docs/install/source.md
+      - docs/quickstart-c.md
+      - docs/quickstart.md
+      - example-projects/consumer/README.md
+      - tests/install/build-apt-deps.sh
+      - tests/install/fence.sh
+      - tests/install/stream-consumer/build-three-ways.sh
   workflow_dispatch:
 
 permissions:

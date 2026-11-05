@@ -9,7 +9,7 @@
 # from the page that tells the reader to do it (tests/install/fence.sh), so a
 # wrong URL, flag or target on a page fails here, and an extraction that comes
 # back empty is an error rather than a stage that passes by running nothing.
-# `plan` prints those scripts; src/doppler/tests/test_docs_walk_plan.py runs it
+# `pages` lists the files they read; `plan` prints those scripts; src/doppler/tests/test_docs_walk_plan.py runs it
 # on every PR, so the extraction is declared once, here.
 #
 # Two faces. PUBLISHED runs the pages' commands as written, against PyPI, the
@@ -24,7 +24,7 @@
 #
 # What is NOT a page's command, and so is stated here: the machine a reader
 # starts from. Each stage's container is the bare image plus `curl` and
-# `ca-certificates` (to fetch anything), `git` for the clone stage, and Python
+# `ca-certificates` (to fetch anything), `git` for the clone stage (no page says to install curl or git: #2883), and Python
 # with pip for the pip stage. A build tool the pages do not install is NOT
 # provided: the clone stage gets its compiler from source.md's own apt block.
 set -euo pipefail
@@ -48,17 +48,18 @@ fenced_lines() { # fenced_lines <page> <heading> <anchor line regex> <keep regex
 }
 
 emit_pip() {
+    echo "# --- docs/quickstart.md, Get it!: the virtual environment a Debian/Ubuntu pip needs"
+    fenced_lines docs/quickstart.md '^## Get it' 'python3-venv' '^sudo apt install python3-venv' bash
+    fenced_lines docs/quickstart.md '^## Get it' 'python3 -m venv' '^(python3 -m venv|\. )' bash
     echo "# --- docs/gallery/delay-doppler.md: install the [examples] extra, run the demo"
-    local inst mods
-    inst="$(fenced_lines docs/gallery/delay-doppler.md '^# ' '^pip install' '^pip install ')"
-    mods="$(fenced_lines docs/gallery/delay-doppler.md '^# ' '^pip install' '^python -m ')"
+    local lines
+    lines="$(fenced_lines docs/gallery/delay-doppler.md '^# ' '^python3 -m venv' '^(python3 -m venv|pip install |python -m )')"
     if [ "$MODE" = candidate ]; then
         # The one substitution: the package name becomes the wheel.
-        inst="$(sed 's#doppler-dsp#'"${WALK_WHEEL:-<wheel>}"'#' <<<"$inst")"
+        lines="$(sed 's#doppler-dsp#'"${WALK_WHEEL:-<wheel>}"'#' <<<"$lines")"
     fi
-    printf '%s\n' "$inst"
+    printf '%s\n' "$lines"
     echo 'python -c "import doppler, matplotlib, scipy; print(\"doppler\", doppler.__version__)"'
-    printf '%s\n' "$mods"
     echo "ls -l *.png"
     echo "# --- docs/quickstart.md: the Python blocks that need no broker"
     fenced_lines docs/quickstart.md '^## ' '^pip install' '^pip install ' bash \
@@ -122,11 +123,31 @@ emit_clone() {
 }
 
 emit_deb() {
-    echo "# consumer-walk.sh runs docs/install/c.md and docs/example-projects/consumer.md's own blocks"
+    # The architecture the page's file names carry (they say amd64).
+    local arch="\$(dpkg --print-architecture)"
+    echo "# --- docs/install/c.md: the .debs, the page's own block"
+    local blk
+    blk="$(fence "$REPO/docs/install/c.md" '^Debian / Ubuntu:' 'libdoppler-dsp-dev_' | nonempty 'c.md .deb block')"
+    # The page names amd64; the machine says its own.
+    blk="$(sed "s/amd64/$arch/g" <<<"$blk")"
     if [ "$MODE" = candidate ]; then
-        echo "export WALK_DEB_DIR=$ART WALK_SRC_TARBALL=$ART/src.tar.gz"
+        # The one substitution: the release URL becomes the candidate's directory.
+        blk="$(sed -E "s#^base=https://[^ ]+#base=file://$ART#" <<<"$blk")"
     fi
-    echo "bash $REPO/tests/install/consumer-walk.sh $REPO"
+    printf '%s\n' "$blk"
+    echo "# --- docs/install/c.md: the build tools"
+    fence "$REPO/docs/install/c.md" '^### Build something against it' 'apt install' | nonempty 'c.md build tools'
+    echo "# --- docs/example-projects/consumer.md: fetch the consumer project"
+    local get
+    get="$(fence "$REPO/docs/example-projects/consumer.md" '^## Get the code' 'tar -xz' | nonempty 'consumer.md fetch')"
+    if [ "$MODE" = candidate ]; then
+        # The one substitution: the release archive becomes the tree's own.
+        get="$(sed -E "s#https://[^ ]+\.tar\.gz#file://$ART/src.tar.gz#" <<<"$get")"
+    fi
+    printf '%s\n' "$get"
+    echo "# --- the consumer README: build and run"
+    echo "cd consumer"
+    fence "$REPO/example-projects/consumer/README.md" '^## ' '^make run' | nonempty 'consumer README make run'
 }
 
 emit_docker() {
@@ -144,6 +165,15 @@ plan)
         emit "$s"
     done
     ;;
+pages)
+    # Every file the plan reads: the pages it extracts from and the scripts the
+    # pages include. The candidate workflow's path filter must cover them all
+    # (src/doppler/tests/test_docs_walk_plan.py).
+    { grep -ohE "(docs|example-projects)/[A-Za-z0-9_./-]+\.md" "$HERE/docs-walk.sh"
+      echo tests/install/build-apt-deps.sh
+      echo tests/install/stream-consumer/build-three-ways.sh
+      echo tests/install/fence.sh; } | sort -u
+    ;;
 run)
     MODE="$2"; stage="$3"; REPO="$4"; ART="$5"; V="$6"
     export WALK_MODE="$MODE" WALK_REPO="$REPO" WALK_ART="$ART" WALK_VERSION="$V"
@@ -160,11 +190,10 @@ run)
     base="curl ca-certificates"
     case "$stage" in
     clone) base="$base git" ;;
-    pip) base="$base python3 python3-pip python-is-python3" ;;
+    pip) base="$base python3" ;;
     esac
     apt-get install -y -qq $base >/dev/null
     git config --global --add safe.directory '*' 2>/dev/null || true
-    export PIP_BREAK_SYSTEM_PACKAGES=1   # Ubuntu's PEP 668 marker; a venv is the reader's choice
     if [ "$MODE" = candidate ]; then
         export WALK_WHEEL="$(ls "$ART"/doppler_dsp-*.whl 2>/dev/null | head -1 || true)"
         export WALK_TARBALL="$(ls "$ART"/doppler-*linux*.tar.gz 2>/dev/null | head -1 || true)"

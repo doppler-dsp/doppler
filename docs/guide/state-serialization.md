@@ -267,6 +267,19 @@ runs in CI and fails if any `objects/*.toml` entry declares neither
 `serializable = "true"` nor a reviewed stateless opt-out. To see the current
 roster yourself rather than trust a number that will drift out of date here:
 
+These run from a clone of the repository at the release you installed
+(skip this if you have one):
+
+<!-- docs-snippet: no-exec=clones the repository -->
+
+<!-- doc-version:start -->
+
+```sh
+git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler
+```
+
+<!-- doc-version:end -->
+
 ```sh
 python scripts/check_serializable.py --list   # anything undeclared (should be empty)
 grep -l 'serializable = "true"' objects/*.toml # everything that resumes

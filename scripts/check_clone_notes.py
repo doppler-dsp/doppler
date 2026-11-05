@@ -10,7 +10,10 @@ code fence runs one must also carry a ``git clone --branch v<version>`` -- the
 pinned form ``scripts/check_repo_links.py`` already requires, inside a
 ``doc-version`` region so each release re-stamps it.
 
-Discovered, not registered: every page under ``docs/`` is scanned. Pages that
+Discovered, not registered: every page under ``docs/`` is scanned (page
+discovery and the exempt file's format are shared with the other docs gates,
+in ``_docs_pages``). The clone must come BEFORE the first such command: a
+reader follows a page top to bottom. Pages that
 are about the tree itself (the contributor and design pages) are listed in
 ``docs/.clone-note-exempt`` as ``<glob> <why>``; the reason is mandatory.
 
@@ -21,61 +24,67 @@ Usage
 
 from __future__ import annotations
 
-import fnmatch
 import re
 import sys
 from pathlib import Path
 
+from _docs_pages import exempt_globs, is_exempt, pages
+
 ROOT = Path(__file__).resolve().parent.parent
 EXEMPT = "docs/.clone-note-exempt"
 
-# A fence line that runs a command only a clone has.
-REPO_CMD = re.compile(r"^\s*(?:\$ )?(?:make [a-z]|\./build/|docker compose)")
+# A fence line that runs a command only a clone has: a make target, a built
+# example, compose, one of the repo's own scripts, a CMake configure/build of
+# the tree, the install walks, or `uv run` (the repo's venv).
+REPO_CMD = re.compile(
+    r"^\s*(?:\$ )?(?:"
+    r"make [a-z]|\./build/|docker compose|"
+    r"python3? (?:-m )?scripts/|bash tests/|\./scripts/|"
+    r"cmake -[BS]|cmake --build|uv run"
+    r")"
+)
+FENCE = re.compile(r"^\s*(```|~~~)")
 PINNED_CLONE = re.compile(r"git\s+clone\b[^\n]*(?:--branch|\s-b\s)")
-
-
-def exempt(root: Path) -> list[str]:
-    f = root / EXEMPT
-    if not f.exists():
-        return []
-    out: list[str] = []
-    for line in f.read_text(encoding="utf-8").splitlines():
-        s = line.strip()
-        if not s or s.startswith("#"):
-            continue
-        glob, _, why = s.partition(" ")
-        if not why.strip():
-            raise SystemExit(f"{EXEMPT}: '{glob}' needs a reason")
-        out.append(glob)
-    return out
 
 
 def first_repo_command(text: str) -> int | None:
     """Line number of the first repository command inside a code fence."""
-    infence = False
+    fence = None
     for n, line in enumerate(text.splitlines(), start=1):
-        if line.lstrip().startswith("```"):
-            infence = not infence
-        elif infence and REPO_CMD.match(line):
+        m = FENCE.match(line)
+        if m:
+            fence = None if fence == m[1] else (fence or m[1])
+        elif fence and REPO_CMD.match(line):
+            return n
+    return None
+
+
+def first_pinned_clone(text: str) -> int | None:
+    for n, line in enumerate(text.splitlines(), start=1):
+        if PINNED_CLONE.search(line):
             return n
     return None
 
 
 def problems(root: Path = ROOT) -> list[str]:
-    skip = exempt(root)
+    skip = exempt_globs(root, EXEMPT)
     out: list[str] = []
-    for page in sorted((root / "docs").rglob("*.md")):
+    for page in pages(root):
         rel = page.relative_to(root).as_posix()
-        if "c-api" in page.parts or any(fnmatch.fnmatch(rel, g) for g in skip):
+        if is_exempt(rel, skip):
             continue
         text = page.read_text(encoding="utf-8")
         line = first_repo_command(text)
-        if line is not None and not PINNED_CLONE.search(text):
+        if line is None:
+            continue
+        clone = first_pinned_clone(text)
+        if clone is None or clone > line:
+            where = "after it" if clone else "nowhere on the page"
             out.append(
-                f"{rel}:{line}: runs a command that exists only in a clone "
-                "but the page has no `git clone --branch v<version>` (in a "
-                f"doc-version region); add one, or list the page in {EXEMPT} "
-                "with a reason"
+                f"{rel}:{line}: runs a command that exists only in a clone, "
+                f"but the pinned `git clone --branch v<version>` is {where}; "
+                "put one (in a doc-version region) before the first such "
+                f"command, or list the page in {EXEMPT} with a reason"
             )
     return out
 

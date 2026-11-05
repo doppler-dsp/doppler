@@ -1,3 +1,4 @@
 # <glob>  <why>   -- pages allowed to run repository commands without a clone note
 docs/dev/** contributor pages: the reader is already in a clone of the tree
 docs/design/** design pages describe the tree and how it is checked, for contributors
+docs/install/c.md its `cmake -B build` configures the reader's OWN project against an installed prefix; the one clone on the page (vcpkg) is for a different step

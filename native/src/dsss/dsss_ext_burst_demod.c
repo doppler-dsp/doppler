@@ -1344,9 +1344,8 @@ static PyTypeObject BurstDemodObjType = {
   .tp_dealloc                             = (destructor)BurstDemodObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "The Python binding's constructor: dp_burst_demod_create_desc without "
-    "the\n"
-    "`why` out-parameter.\n"
+  = "Demodulate one captured burst's frame, feedforward and with no tracking\n"
+    "loops.\n"
     "\n"
     "Parameters\n"
     "----------\n"

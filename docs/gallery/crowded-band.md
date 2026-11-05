@@ -61,6 +61,7 @@ independent per-source work the fan-out spreads.
 ## Reproduce
 
 ```sh
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.crowded_band_demo crowded_band_demo.png
 ```
 

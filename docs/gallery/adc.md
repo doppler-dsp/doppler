@@ -64,5 +64,6 @@ full-scale reference and optional TPDF dither.
 | `.clipped` | `bool`  | Sticky flag — set if any sample saturated since last `reset()`                |
 
 ```bash
-python src/doppler/examples/adc_demo.py   # → adc_demo.png
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.adc_demo   # → adc_demo.png
 ```

@@ -141,6 +141,7 @@ question of Es/N0, not of the confirm time.
 ## Reproduce
 
 ```sh
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.async_dsss_receiver_spec_demo out.png
 ```
 

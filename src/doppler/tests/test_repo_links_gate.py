@@ -212,3 +212,24 @@ def test_an_example_added_since_the_tag_is_named_not_linked(
         gd._links([("new", None), ("a", "https://x/a")])
         == "new<br>[a](https://x/a)"
     )
+
+
+def test_an_example_run_by_its_repository_path_is_refused(
+    tmp_path: Path,
+) -> None:
+    """`python src/doppler/examples/x.py` works only in a clone; the wheel
+    ships `python -m doppler.examples.x` (doppler#2857)."""
+    for line in (
+        "python src/doppler/examples/x.py",
+        "uv run python src/doppler/examples/x.py --n 4",
+        "python3 -u ./src/doppler/examples/x.py",
+    ):
+        root = tmp_path / str(abs(hash(line)))
+        root.mkdir()
+        _repo(root, f"```sh\n{line}\n```\n")
+        rc, out = _g().run(root, ci=True)
+        assert rc == 1 and "repository path" in out, line
+    ok = tmp_path / "ok"
+    ok.mkdir()
+    _repo(ok, "```sh\npython -m doppler.examples.x\n```\n")
+    assert _g().run(ok, ci=True)[0] == 0

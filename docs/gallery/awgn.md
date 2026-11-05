@@ -53,7 +53,8 @@ produced a *different* sequence from the same seed, so it was removed
 would have to reproduce.
 
 ```bash
-python src/doppler/examples/awgn_demo.py   # → ./awgn_demo.png
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.awgn_demo   # → ./awgn_demo.png
 ```
 
 ## Using the Python API

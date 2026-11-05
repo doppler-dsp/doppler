@@ -40,7 +40,8 @@ peaks at the optimal loading — ≈ −13 dBFS RMS, ≈ 52 dB for 10 bits.
 ## Reproduce
 
 ```sh
-python src/doppler/examples/measure_imd_npr_demo.py
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.measure_imd_npr_demo
 ```
 
 ## The measurement objects

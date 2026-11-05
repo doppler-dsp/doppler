@@ -21,7 +21,7 @@ property) plus an AWGN contribution that grows as `1/SNR` (signal×noise) and
 `1/SNR²` (noise×noise); the `floor + a/ρ + b/ρ²` model fits the measurements to
 within 10 %.
 
-Source: `src/doppler/examples/symsync_theory_demo.py`;
+Source: [`src/doppler/examples/symsync_theory_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/symsync_theory_demo.py);
 tests in `src/doppler/track/tests/test_theory_symsync.py`.
 
 !!! note "DTTL (`ted="dttl"`)"

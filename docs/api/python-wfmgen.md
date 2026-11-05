@@ -696,7 +696,7 @@ Python callback would make the one surface that must stay fast the one that
 cannot be ([#1125](https://github.com/doppler-dsp/doppler/issues/1125)). So
 `build()` refuses a kind it has no kernel for, and a Python caller reaches the
 same end by running the transform itself and handing the wire the result:
-`src/doppler/examples/frame_own_stage_demo.py` does exactly that, end to end,
+[`src/doppler/examples/frame_own_stage_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/frame_own_stage_demo.py) does exactly that, end to end,
 and `native/examples/wfmgen_frame_demo.c` §6 does it the C way with an ops
 table. Both are self-validating.
 

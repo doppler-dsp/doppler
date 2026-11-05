@@ -20,5 +20,5 @@ high-SNR regime (ratio ≈ 0.98 for SNR ≥ 10 dB). Because doppler's discrimina
 is normalised by `|P|` it is bounded to `[-1,1]` and so falls *below* the
 (divergent) law at low SNR — shown for honesty rather than hidden.
 
-Source: `src/doppler/examples/costas_theory_demo.py`;
+Source: [`src/doppler/examples/costas_theory_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/costas_theory_demo.py);
 tests in `src/doppler/track/tests/test_theory_costas.py`.

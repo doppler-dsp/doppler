@@ -295,5 +295,6 @@ bits on that stream — `Dll(segments) → MpskReceiver`.
 ## Reproduce
 
 ```bash
-python src/doppler/examples/mpsk_receiver_demo.py   # → mpsk_receiver_demo.png
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.mpsk_receiver_demo   # → mpsk_receiver_demo.png
 ```

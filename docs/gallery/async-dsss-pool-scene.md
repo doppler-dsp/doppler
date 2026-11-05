@@ -85,6 +85,7 @@ and assert the claims above from the pool's own reports.
 ## Reproduce
 
 ```sh
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.async_dsss_pool_scene out.png
 ```
 

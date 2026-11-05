@@ -56,7 +56,8 @@ the first M with `det_pd(snr, M, eta) >= pd_target`, or -1 if none
 reaches it.
 
 ```bash
-python src/doppler/examples/detection_curves.py   # → detection_curves.png
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.detection_curves   # → detection_curves.png
 ```
 
 See [Monte Carlo vs Marcum Q](detection-sim.md) for the 30,000-trial

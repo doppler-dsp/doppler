@@ -107,7 +107,8 @@ y2, rc = rate_convert(x, 0.5, rc=rc)   # reuses it — state preserved
 ```
 
 ```bash
-python src/doppler/examples/rate_converter_demo.py
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.rate_converter_demo
 ```
 
 See

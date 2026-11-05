@@ -1258,7 +1258,7 @@ own copy, and `frame=` is an input: read it back from `Composer.to_json()`.
 --8<-- "src/doppler/examples/wfmgen_frame_demo.py:frame"
 ```
 
-The whole script, `src/doppler/examples/wfmgen_frame_demo.py`, checks that
+The whole script, [`src/doppler/examples/wfmgen_frame_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/wfmgen_frame_demo.py), checks that
 the frame reaches the samples and that the record rebuilds them; its C twin
 is `native/examples/wfmgen_frame_demo.c`.
 

@@ -84,4 +84,4 @@ for the full link-budget validation (BER, code/timing-rate tracking,
 and independent symbol-clock drift) this composition is proven
 against.
 
-Source: `src/doppler/examples/receiver_lock_demo.py`.
+Source: [`src/doppler/examples/receiver_lock_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/receiver_lock_demo.py).

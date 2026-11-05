@@ -108,7 +108,8 @@ records across processes live, publish them as `TLM16` frames instead; see
 ## Run it
 
 ```bash
-python src/doppler/examples/mpsk_telemetry_capture_demo.py   # → mpsk_telemetry_capture_demo.png  (~2 s)
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.mpsk_telemetry_capture_demo   # → mpsk_telemetry_capture_demo.png  (~2 s)
 ```
 
 See the [telemetry API](../api/python-telemetry.md) for the probe tables

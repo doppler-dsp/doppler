@@ -28,5 +28,5 @@ This completes the three tracking loops' theory validation: the
 [Costas carrier loop](costas-theory.md), the [Gardner timing loop](symsync-theory.md),
 and the DLL code loop.
 
-Source: `src/doppler/examples/dll_theory_demo.py`;
+Source: [`src/doppler/examples/dll_theory_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/dll_theory_demo.py);
 tests in `src/doppler/track/tests/test_theory_dll.py`.

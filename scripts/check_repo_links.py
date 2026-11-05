@@ -11,7 +11,10 @@ have (doppler#2857 counted 642 such links and none pinned to a tag). So:
    about ``main`` itself (the contributing pages). The pinned form is
    ``.../blob/v0.79.0/path``; ``scripts/gen_doc_versions.py`` re-stamps it on
    every release, so write it once and it follows the version.
-2. **A pinned link must point at a file that exists.** In the working tree
+2. **No example is run by its repository path.** ``python
+   src/doppler/examples/x.py`` works only in a clone; the wheel ships the same
+   script as ``python -m doppler.examples.x`` (the same allow-list applies).
+3. **A pinned link must point at a file that exists.** In the working tree
    always; at the tag too, because a link to a file added since the last
    release would 404 for the reader until the next one.
 
@@ -49,6 +52,11 @@ REPO = r"https://github\.com/doppler-dsp/doppler"
 MAIN_LINK = re.compile(rf"{REPO}/(?:blob|tree)/main\b")
 PINNED = re.compile(rf"{REPO}/(?:blob|tree)/v\d+\.\d+\.\d+/([^)\s\"'>#`]+)")
 CLONE = re.compile(r"git\s+clone\b[^\n]*doppler-dsp/doppler")
+# An example run by its repository path exists only in a clone; the wheel ships
+# the same scripts as `python -m doppler.examples.<name>` (doppler#2857).
+RUN_BY_PATH = re.compile(
+    r"\bpython3?\s+(?:-u\s+)?(?:\./)?src/doppler/examples/"
+)
 
 
 def version(root: Path = ROOT) -> str:
@@ -107,6 +115,12 @@ def unpinned(root: Path) -> list[str]:
                     f"{rel}:{n}: links the repository at `main`; pin it to "
                     "the release (`.../blob/v<version>/...`) or, if the page "
                     f"is about main, list it in {ALLOWED}"
+                )
+            if RUN_BY_PATH.search(line):
+                out.append(
+                    f"{rel}:{n}: runs an example by its repository path, "
+                    "which exists only in a clone; use `python -m "
+                    "doppler.examples.<name>` (the wheel ships them)"
                 )
             if CLONE.search(line) and not re.search(r"--branch|\s-b\s", line):
                 out.append(

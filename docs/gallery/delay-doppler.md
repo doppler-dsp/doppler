@@ -87,8 +87,9 @@ was. Neither touches the object's dwell.
 ## Run it
 
 ```sh
-python src/doppler/examples/delay_doppler_bank_demo.py
-python src/doppler/examples/delay_doppler_batch_demo.py
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.delay_doppler_bank_demo
+python -m doppler.examples.delay_doppler_batch_demo
 ./build/native/examples/delay_doppler_bank_demo      # the C twins
 ./build/native/examples/delay_doppler_batch_demo
 ```

@@ -163,7 +163,9 @@ lost.
     correlations of the template with itself, and whether the 1-D shape is
     as fast for a one-shot setup cost.
 
-## 6. Decided (owner, 2026-11-05)
+## 6. Two decisions
+
+The owner made both on 2026-11-05.
 
 - **One hit record in C.** `det_result_t` (lag), `det_result2d_t` (row,
     col) and `acq_result_t` (row, col and the search's fields) are three

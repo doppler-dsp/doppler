@@ -6,6 +6,11 @@ no_state = "true"
 no_step = "true"
 class_name = "Acquisition"
 serializable = "true"
+# A blob at another carrier rebuilds the map, which can fail to allocate:
+# that is MemoryError. A refused blob keeps the fallback ValueError (#2846).
+set_state_status_errors = [
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "set_state: the blob's carrier needs the delay-Doppler map rebuilt, and the rebuild could not allocate; the engine is unchanged" },
+]
 # A refused create is a caller's argument, not a memory failure: a caller
 # still passing the retired spc positionally lands it in sample_rate.
 create_error = "ValueError"
@@ -178,6 +183,9 @@ doc = "Couple the code clock to the carrier: the chip rate dilates by doppler_hz
 arg_type = "void"
 return_type = "int"
 status_return = true
+status_errors = [
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "set_carrier_freq_hz: rebuilding the delay-Doppler map for the new carrier could not allocate; the engine is unchanged" },
+]
 params = [
   { name = "carrier_freq_hz", type = "double" },
 ]

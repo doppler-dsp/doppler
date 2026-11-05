@@ -1388,6 +1388,9 @@ dp_async_dsss_receiver_set_telemetry (dp_async_dsss_receiver_state_t *state,
       adr_tlm_detach (state);
       dp_tlm_destroy (scratch);
     }
+  /* No scratch is no memory, not a bad argument: refused like the others,
+     but said as what it is (#2846). */
+  const int rc = scratch ? DP_ERR_INVALID : DP_ERR_MEMORY;
   if (fits)
     {
       state->tlm = tlm;
@@ -1404,7 +1407,7 @@ dp_async_dsss_receiver_set_telemetry (dp_async_dsss_receiver_state_t *state,
   state->tlm       = old_tlm;
   if (old_tlm)
     (void)adr_tlm_attach (state);
-  return DP_ERR_INVALID;
+  return rc;
 }
 
 size_t

@@ -16,6 +16,8 @@ so its round trip is bespoke here rather than in the generic
 own pre-split tests and ``DsssReceiver``'s).
 """
 
+import subprocess
+import sys
 import warnings
 
 import numpy as np
@@ -348,3 +350,84 @@ def test_carrier_and_prior_refusals_are_raised():
     assert a.carrier_freq_hz == 2.5e9
     with pytest.raises(ValueError, match="finite doppler_uncertainty"):
         Acquisition(code, doppler_uncertainty=float("nan"), **kw)
+
+
+# An allocation failure raises MemoryError, not a refused argument's
+# ValueError (doppler#2846, just-makeit#2470). The carrier rebuilds the
+# delay-Doppler map, about 9 MB more on this engine, so a child process caps
+# its address space just above its current size and makes the change: the
+# rebuild's allocation fails, and nothing else in the call allocates that
+# much. The message is the one the manifest declares for DP_ERR_MEMORY, so
+# Python running out of memory itself cannot pass the test. With the cap
+# lifted, the engine's blob is byte for byte the one before.
+_OOM_CHILD = r"""
+import resource, sys
+import numpy as np
+from doppler.acquire import Acquisition
+from doppler.wfm import Gold
+
+def vm_bytes():
+    for line in open("/proc/self/status"):
+        if line.startswith("VmSize"):
+            return int(line.split()[1]) * 1024
+
+code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+kw = dict(sample_rate=10.0e6, chip_rate=5.0e6, symbol_rate=2700.0,
+          cn0_dbhz=37.31, doppler_uncertainty=50000.0, pfa=1e-3, pd=0.9,
+          code_only_epochs=150, doppler_rate=500.0)
+a = Acquisition(code, **kw)
+if sys.argv[1] == "set_state":
+    b = Acquisition(code, **kw)
+    b.set_carrier_freq_hz(2.2e9)
+    blob = b.get_state()
+    call = lambda: a.set_state(blob)
+else:
+    call = lambda: a.set_carrier_freq_hz(2.2e9)
+before = a.get_state()
+soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+resource.setrlimit(resource.RLIMIT_AS, (vm_bytes() + (2 << 20), hard))
+try:
+    call()
+    outcome = "no error"
+except MemoryError as e:
+    outcome = "MemoryError: " + str(e)
+except Exception as e:
+    outcome = type(e).__name__ + ": " + str(e)
+resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
+print(outcome)
+print("unchanged" if a.get_state() == before else "CHANGED")
+print("carrier", a.carrier_freq_hz)
+"""
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"), reason="reads /proc/self/status"
+)
+@pytest.mark.parametrize(
+    ("entry", "message"),
+    [
+        (
+            "set_carrier_freq_hz",
+            "set_carrier_freq_hz: rebuilding the delay-Doppler map for the "
+            "new carrier could not allocate; the engine is unchanged",
+        ),
+        (
+            "set_state",
+            "set_state: the blob's carrier needs the delay-Doppler map "
+            "rebuilt, and the rebuild could not allocate; the engine is "
+            "unchanged",
+        ),
+    ],
+)
+def test_a_carrier_rebuild_that_cannot_allocate_raises_memoryerror(
+    entry: str, message: str
+) -> None:
+    r = subprocess.run(
+        [sys.executable, "-c", _OOM_CHILD, entry],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    lines = r.stdout.splitlines()
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert lines == [f"MemoryError: {message}", "unchanged", "carrier 0.0"]

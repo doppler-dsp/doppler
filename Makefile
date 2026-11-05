@@ -674,14 +674,20 @@ LINT_stimulus-sources = $(UV) run python scripts/check_stimulus_sources.py
 
 # mdformat needs Python >=3.10 (see pyproject's dev group, where it carries a
 # marker). On a 3.9 dev env it is simply absent, so skip with a notice rather
-# than failing — the CI lint job runs a modern Python and enforces it there.
+# than failing -- the CI lint job runs a modern Python and enforces it there.
+#
+# The skip is decided by the PYTHON VERSION, never by whether the tool started.
+# It used to be `$(MDFORMAT) --version`, so a venv with a missing dependency
+# (mdurl, or the mkdocs plugin) read as "unavailable", the target returned 0,
+# and `make lint` was green locally while CI's mdformat rewrote the file
+# (doppler#2857: docs/quickstart.md). A broken tool on Python >=3.10 now FAILS.
 define LINT_mdformat
-@if $(MDFORMAT) --version > /dev/null 2>&1; then \
+@if $(UV) run python -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then \
     git ls-files '*.md' \
         | grep -Ev '$(MD_EXCLUDE_RE)' \
         | xargs -r $(MDFORMAT); \
 else \
-    echo "mdformat unavailable (needs Python >=3.10) — skipping"; \
+    echo "mdformat needs Python >=3.10; this venv is older -- skipping"; \
 fi
 endef
 

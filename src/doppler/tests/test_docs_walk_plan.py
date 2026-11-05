@@ -126,3 +126,10 @@ def test_the_candidate_workflow_triggers_on_every_file_the_walk_reads() -> (
         f for f in read if not any(fnmatch.fnmatch(f, g) for g in filters)
     ]
     assert not missing, f"docs-walk.yml's paths miss: {missing}"
+
+
+def test_the_deb_plan_is_the_debian_block_not_the_rpm_one() -> None:
+    r = _plan("deb")
+    assert r.returncode == 0, r.stderr
+    assert "dnf" not in r.stdout
+    assert "sudo apt install ./libdoppler-dsp0" in r.stdout

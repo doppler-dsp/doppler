@@ -653,14 +653,19 @@ def test_telemetry_reports_every_loop_and_survives_a_reseed():
 
 
 # set_telemetry first attaches the loops to a scratch context, whose ring
-# is a mapping of its own (DECLARE_DP_BUFFER). A child process caps its
-# address space at its current size, so that mapping fails and nothing
-# before it in the call needs one: the attach must raise MemoryError with
-# the manifest's DP_ERR_MEMORY message, not the ValueError of a bad prefix
-# (doppler#2846). Once the cap is lifted, the context holds no probe of the
+# is a mapping of its own (DECLARE_DP_BUFFER), and the searcher's attach
+# builds a scratch of its own. The whole attach needs about 13 to 16 KiB
+# (measured: it fails at every cap up to 12 KiB above the process's size and
+# succeeds from 16 KiB), so a margin of mebibytes is not possible. A child
+# process caps its address space 4 KiB and 8 KiB above its current size,
+# where its own scratch fails and where the searcher's does: either way the
+# attach must raise MemoryError with the manifest's DP_ERR_MEMORY message,
+# not the ValueError of a bad prefix (doppler#2846). The 8 KiB case is the
+# one the receiver once read as ValueError, swallowing the searcher's
+# DP_ERR_MEMORY. Once the cap is lifted, the context holds no probe of the
 # refused attach, and the same attach succeeds.
 _TLM_OOM_CHILD = r"""
-import resource
+import resource, sys
 import numpy as np
 from doppler.dsss import AsyncDsssReceiver
 from doppler.telemetry import Telemetry
@@ -676,7 +681,7 @@ rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
                        sample_rate=6.138e6, doppler_uncertainty=500.0)
 tlm = Telemetry(1 << 12)
 soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-resource.setrlimit(resource.RLIMIT_AS, (vm_bytes(), hard))
+resource.setrlimit(resource.RLIMIT_AS, (vm_bytes() + int(sys.argv[1]), hard))
 try:
     rx.set_telemetry(tlm, "rx")
     outcome = "no error"
@@ -695,17 +700,20 @@ print(sum(p.startswith("rx.") for p in tlm.probe_names) > 0)
 @pytest.mark.skipif(
     not sys.platform.startswith("linux"), reason="reads /proc/self/status"
 )
-def test_a_telemetry_attach_that_cannot_allocate_raises_memoryerror() -> None:
+@pytest.mark.parametrize("margin", [4 << 10, 8 << 10])
+def test_a_telemetry_attach_that_cannot_allocate_raises_memoryerror(
+    margin: int,
+) -> None:
     r = subprocess.run(
-        [sys.executable, "-c", _TLM_OOM_CHILD],
+        [sys.executable, "-c", _TLM_OOM_CHILD, str(margin)],
         capture_output=True,
         text=True,
         timeout=300,
     )
     assert r.returncode == 0, r.stderr[-2000:]
     assert r.stdout.splitlines() == [
-        "MemoryError: set_telemetry: the scratch context that checks the "
-        "names could not be allocated; the receiver is unchanged",
+        "MemoryError: set_telemetry: the attach could not allocate (its "
+        "scratch context, or a loop's own); the receiver is unchanged",
         "0",
         "True",
     ]

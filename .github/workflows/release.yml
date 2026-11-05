@@ -1055,6 +1055,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: make release-smoke-packages VERSION="${{ needs.verify-version.outputs.version }}"
 
+      - name: Walk the docs as a new .deb user (the pages' own commands)
+        run: make consumer-walk
+
   # ------------------------------------------------------------------
   # Post-release Python smoke: install doppler-dsp FROM PyPI and run the
   # same end-to-end that smoke-wheel runs before the upload.

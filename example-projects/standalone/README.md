@@ -1,5 +1,7 @@
 # standalone — one AWGN call, in C and in Python
 
+<!-- --8<-- [start:body] -->
+
 The smallest useful doppler program, written twice. `main.c` draws 4096
 complex Gaussian samples and prints their mean and standard deviation;
 `example.py` does the same thing through the wheel. Between them they show
@@ -68,3 +70,5 @@ cc main.c -o awgn_example -I ../../native/inc -I ../../build/native/inc \
 `CMakeLists.txt` is the interesting file: its `DOPPLER_BUILD_DIR` branch is
 worth keeping if your project is developed alongside doppler, and the
 `find_package(doppler)` fallback is what you ship.
+
+<!-- --8<-- [end:body] -->

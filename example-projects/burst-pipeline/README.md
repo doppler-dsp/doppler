@@ -1,5 +1,7 @@
 # burst-pipeline — a burst waveform end to end
 
+<!-- --8<-- [start:body] -->
+
 Describe a frame, generate the train, sweep it, write a BLUE file, read it
 back. Copy this directory as the starting point for a downstream that
 generates realistic burst traffic and then does something with it.
@@ -127,3 +129,5 @@ read:
     may use either name. Calling both, as a create/destroy pair invites, closes
     the `FILE` twice and segfaults inside `ferror()`. Call one, and check its
     status.
+
+<!-- --8<-- [end:body] -->

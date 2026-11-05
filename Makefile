@@ -5249,10 +5249,14 @@ endif
 # benchmarking.md). BENCH_ARGS narrows the suite as it does for
 # `make bench`. Writes nothing under benchmarks/published/. By hand: nothing
 # in CI runs it (a bench box and minutes).
-bench-ab: ## A/B two commits, per row min-of-K, band and verdict (A= B= [K>=3] [BUILD=])
+# ALIAS pairs a renamed family across the two commits: `ALIAS=corr2d=correlator`
+# compares A's corr2d::<row> with B's correlator::<row>, suffix for suffix
+# (#2752 step 3.2). Declared here, per run, and printed with the verdict;
+# there is no default table. An aliased row on one side only fails.
+bench-ab: ## A/B two commits, per row min-of-K, band and verdict (A= B= [K>=3] [BUILD=] [ALIAS=old=new])
 ifndef A
 	@echo "usage: make bench-ab A=<ref> B=<ref> [K=5] [BUILD=portable|native]"
-	@echo "       [JSON=out.json] [BENCH_ARGS=...]"
+	@echo "       [JSON=out.json] [BENCH_ARGS=...] [ALIAS=old=new,...]"
 	@exit 2
 endif
 ifndef B
@@ -5260,7 +5264,8 @@ ifndef B
 	@exit 2
 endif
 	$(UV) run python scripts/bench_ab.py $(A) $(B) $(if $(K),-k $(K),) \
-	    $(if $(BUILD),--build $(BUILD),) $(if $(JSON),--json $(JSON),)
+	    $(if $(BUILD),--build $(BUILD),) $(if $(JSON),--json $(JSON),) \
+	    $(if $(ALIAS),--alias '$(ALIAS)',)
 
 bench-publish: ## Stamp one build's numbers for a release (VERSION= BUILD=)
 ifndef VERSION

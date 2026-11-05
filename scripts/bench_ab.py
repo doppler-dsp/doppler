@@ -28,12 +28,20 @@ B (a gate cannot pass on a row it never saw), and writes nothing under
 ``benchmarks/published/``. ``BENCH_ARGS`` narrows the suite exactly as it
 does for ``make bench``, e.g. ``BENCH_ARGS="--c-only acq"``.
 
+``ALIAS=old=new`` judges a family renamed between the two commits: A's
+``old::<row>`` against B's ``new::<row>``, suffix for suffix, so a rename
+keeps every row comparable (#2752 step 3.2: ``corr2d`` became
+``correlator``). It is declared per run, never defaulted, and printed with
+the verdict. Within an aliased family a row on one side only is UNPAIRED
+and fails, and an alias that pairs nothing refuses the run.
+
 Examples
 --------
     make bench-ab A=origin/main B=HEAD                     # whole suite, K=5
     make bench-ab A=origin/main B=HEAD K=7 \\
         BENCH_ARGS="--c-only async_dsss_pool"              # one C component
     make bench-ab A=v0.78.0 B=HEAD BUILD=native JSON=ab.json
+    make bench-ab A=origin/main B=HEAD ALIAS=corr2d=correlator  # a rename
 """
 
 from __future__ import annotations
@@ -196,8 +204,102 @@ def compare(a: dict, b: dict) -> dict:
     return out
 
 
+def parse_aliases(spec: str) -> list:
+    """`old=new` family renames, separated by commas or spaces.
+
+    A family is a row's prefix before its first ``::`` (``corr2d`` in
+    ``corr2d::single_row_fast_path``). Only whole families are renamed, and
+    a row's suffix must match exactly, so nothing pairs by resemblance.
+
+    >>> parse_aliases("corr2d=correlator")
+    [('corr2d', 'correlator')]
+    >>> parse_aliases("a=b, c=d")
+    [('a', 'b'), ('c', 'd')]
+    >>> parse_aliases("corr2d")
+    Traceback (most recent call last):
+    ...
+    ValueError: alias 'corr2d' is not old=new
+    """
+    out = []
+    for item in spec.replace(",", " ").split():
+        old, eq, new = item.partition("=")
+        if not eq or not old or not new or "::" in old + new or old == new:
+            raise ValueError(f"alias {item!r} is not old=new")
+        out.append((old, new))
+    return out
+
+
+def apply_aliases(a: dict, b: dict, aliases: list) -> tuple:
+    """A's rows renamed into B's families; which rows the aliases govern.
+
+    Returns ``(a_renamed, governed, problems)``:
+
+    - ``a_renamed`` is A with every ``old::suffix`` row keyed
+      ``new::suffix``, so `compare` pairs it with B's row of that name;
+    - ``governed`` maps each key an alias covers (every renamed A row, and
+      every B row in a ``new`` family) to the A name it was measured under,
+      or ``None`` for a B row A never had;
+    - ``problems`` names what refuses the run before any verdict: an alias
+      matching no row on one side (an alias that pairs nothing passes
+      nothing), or a renamed row colliding with a row A already has.
+
+    >>> a = {"corr2d::x": [1.0], "fft::y": [1.0]}
+    >>> b = {"correlator::x": [1.0], "fft::y": [1.0]}
+    >>> ar, gov, bad = apply_aliases(a, b, [("corr2d", "correlator")])
+    >>> sorted(ar), gov, bad
+    (['correlator::x', 'fft::y'], {'correlator::x': 'corr2d::x'}, [])
+    """
+    renamed = dict(a)
+    governed: dict = {}
+    problems = []
+    for old, new in aliases:
+        olds = [k for k in a if k.startswith(f"{old}::")]
+        news = [k for k in b if k.startswith(f"{new}::")]
+        if not olds:
+            problems.append(f"alias {old}={new}: A has no {old}:: row")
+        if not news:
+            problems.append(f"alias {old}={new}: B has no {new}:: row")
+        for k in olds:
+            to = f"{new}::{k[len(old) + 2 :]}"
+            if to in a:
+                problems.append(
+                    f"alias {old}={new}: {k} would replace A's own {to}"
+                )
+                continue
+            renamed[to] = renamed.pop(k)
+            governed[to] = k
+        for k in news:
+            governed.setdefault(k, None)
+    return renamed, governed, problems
+
+
+def pair_governed(result: dict, governed: dict) -> dict:
+    """Refuse every aliased row that did not pair: absent is not a pass.
+
+    Within a renamed family, a row on one side only would otherwise read as
+    MISSING (A only) or, worse, NEW (B only), which the gate lets through.
+    Either is UNPAIRED here, and UNPAIRED fails. A paired row keeps its
+    verdict and records the A name it was measured under.
+
+    >>> r = {"n::x": {"verdict": "TIE", "ratio": 1.0}}
+    >>> r["n::y"] = {"verdict": "NEW"}
+    >>> out = pair_governed(r, {"n::x": "o::x", "n::y": None})
+    >>> out["n::x"]["alias_from"], out["n::y"]["verdict"]
+    ('o::x', 'UNPAIRED')
+    """
+    out = dict(result)
+    for key, was in governed.items():
+        v = dict(out.get(key, {"verdict": "MISSING"}))
+        if "ratio" in v:
+            v["alias_from"] = was
+        else:
+            v = {"verdict": "UNPAIRED", "alias_from": was}
+        out[key] = v
+    return out
+
+
 def failures(result: dict) -> list:
-    """The rows that fail the gate: SLOWER or MISSING, in row order.
+    """The rows that fail the gate: SLOWER, MISSING or UNPAIRED, in order.
 
     >>> failures(
     ...     {
@@ -205,13 +307,46 @@ def failures(result: dict) -> list:
     ...         "y": {"verdict": "SLOWER"},
     ...         "z": {"verdict": "MISSING"},
     ...         "w": {"verdict": "NEW"},
+    ...         "u": {"verdict": "UNPAIRED"},
     ...     }
     ... )
-    ['y', 'z']
+    ['y', 'z', 'u']
     """
     return [
-        r for r, v in result.items() if v["verdict"] in ("SLOWER", "MISSING")
+        r
+        for r, v in result.items()
+        if v["verdict"] in ("SLOWER", "MISSING", "UNPAIRED")
     ]
+
+
+def judge(samples: dict, aliases: list) -> tuple:
+    """Both suites' verdicts, with the aliases applied: (result, problems).
+
+    The aliases are applied to each suite's rows; an alias is refused only
+    when it pairs nothing in EITHER suite (a C family has no Python rows),
+    so `problems` keeps the per-alias complaints that hold in both.
+
+    >>> c = {"benchmarks": [{"fullname": "old::x", "stats": {"min": 1.0}}]}
+    >>> d = {"benchmarks": [{"fullname": "new::x", "stats": {"min": 1.0}}]}
+    >>> s = {"A": {"c": [c] * 3, "py": []}, "B": {"c": [d] * 3, "py": []}}
+    >>> r, bad = judge(s, [("old", "new")])
+    >>> r["c:new::x"]["verdict"], r["c:new::x"]["alias_from"], bad
+    ('TIE', 'old::x', [])
+    """
+    result: dict = {}
+    seen: dict = {}
+    for suite in ("c", "py"):
+        a = best_rounds(samples["A"][suite])
+        b = best_rounds(samples["B"][suite])
+        a, governed, bad = apply_aliases(a, b, aliases)
+        for p in bad:
+            seen.setdefault(p, set()).add(suite)
+        part = pair_governed(compare(a, b), governed)
+        result.update({f"{suite}:{row}": v for row, v in part.items()})
+    # A "has no row" complaint counts only when it holds in both suites; a
+    # collision is a problem wherever it happens.
+    problems = [p for p, s in seen.items() if "has no" not in p or len(s) == 2]
+    return result, problems
 
 
 def render(result: dict) -> str:
@@ -224,7 +359,10 @@ def render(result: dict) -> str:
     """
     head = ("row", "A us", "B us", "B/A", "tol us", "verdict")
     lines = []
-    for row, v in result.items():
+    for key, v in result.items():
+        # An aliased row names what A measured it as, so the pairing is in
+        # the verdict table and not only in the alias line above it.
+        row = f"{key} <- {v['alias_from']}" if v.get("alias_from") else key
         if "ratio" in v:
             lines.append(
                 (
@@ -305,7 +443,17 @@ def main(argv=None) -> int:
         help="the flags BOTH sides build at",
     )
     ap.add_argument("--json", help="also write the result here")
+    ap.add_argument(
+        "--alias",
+        default="",
+        help="old=new family renames, pairing A's old::row with B's new::row",
+    )
     args = ap.parse_args(argv)
+    try:
+        aliases = parse_aliases(args.alias)
+    except ValueError as e:
+        print(f"bench-ab: {e}")
+        return 2
     if args.k < 3:
         # The band is second-best minus best. At K = 2 that is max - min,
         # which one slow pass widens enough to hide a regression (#2771).
@@ -351,12 +499,13 @@ def main(argv=None) -> int:
     finally:
         _remove_worktrees(wts)
 
-    result = {}
-    for suite in ("c", "py"):
-        part = compare(
-            best_rounds(samples["A"][suite]), best_rounds(samples["B"][suite])
-        )
-        result.update({f"{suite}:{row}": v for row, v in part.items()})
+    result, problems = judge(samples, aliases)
+    for a_, b_ in aliases:
+        print(f"alias in force: A {a_}::<row> is B {b_}::<row>")
+    if problems:
+        for p in problems:
+            print(f"bench-ab: {p}")
+        return 1
     if not any("ratio" in v for v in result.values()):
         print("bench-ab: no row was measured on both sides")
         return 1
@@ -369,6 +518,7 @@ def main(argv=None) -> int:
                     "b": commits["B"],
                     "k": args.k,
                     "build": args.build,
+                    "aliases": [f"{o}={n}" for o, n in aliases],
                     "rows": result,
                 },
                 fh,
@@ -378,7 +528,7 @@ def main(argv=None) -> int:
     bad = failures(result)
     counts = {
         v: sum(r["verdict"] == v for r in result.values())
-        for v in ("FASTER", "TIE", "SLOWER", "MISSING", "NEW")
+        for v in ("FASTER", "TIE", "SLOWER", "MISSING", "UNPAIRED", "NEW")
     }
     print(", ".join(f"{n} {v.lower()}" for v, n in counts.items() if n))
     if bad:

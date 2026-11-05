@@ -29,11 +29,12 @@ from source): [Install → C Library](install/c.md).
 
 ## The consumer
 
-Any `main.c` works; this is the one the commands below build — the FFT example plus one
-*optional* streaming call. `dp_pub_*`/`dp_sub_*` live in the optional
-`libdoppler_stream`, and publishing needs a running
-[NATS broker](install/broker.md); drop that call and the `_stream` bits below for a
-core-only app (then the whole link line is `libdoppler.a -lm -lpthread`):
+Save this as `app.c` in an empty folder; the commands below build that
+file. It is the FFT example plus one *optional* streaming call.
+`dp_pub_*`/`dp_sub_*` live in the optional `libdoppler_stream`, and
+publishing needs a running [NATS broker](install/broker.md); drop that call
+and the `_stream` bits below for a core-only app (then the whole link line is
+`libdoppler.a -lm -lpthread`):
 
 ```c
 --8<-- "tests/install/stream-consumer/app.c:app"
@@ -57,9 +58,13 @@ PREFIX="$HOME/.local/doppler"
 
 === "CMake"
 
+    Save as `CMakeLists.txt` next to `app.c`:
+
     ```cmake
     --8<-- "tests/install/stream-consumer/CMakeLists.txt:cmake"
     ```
+
+    then, from that folder:
 
     ```sh
     --8<-- "tests/install/stream-consumer/build-three-ways.sh:cmake-commands"

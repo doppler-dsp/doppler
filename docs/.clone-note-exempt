@@ -1,0 +1,3 @@
+# <glob>  <why>   -- pages allowed to run repository commands without a clone note
+docs/dev/** contributor pages: the reader is already in a clone of the tree
+docs/design/** design pages describe the tree and how it is checked, for contributors

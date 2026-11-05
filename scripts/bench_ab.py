@@ -30,10 +30,14 @@ does for ``make bench``, e.g. ``BENCH_ARGS="--c-only acq"``.
 
 ``ALIAS=old=new`` judges a family renamed between the two commits: A's
 ``old::<row>`` against B's ``new::<row>``, suffix for suffix, so a rename
-keeps every row comparable (#2752 step 3.2: ``corr2d`` became
-``correlator``). It is declared per run, never defaulted, and printed with
-the verdict. Within an aliased family a row on one side only is UNPAIRED
-and fails, and an alias that pairs nothing refuses the run.
+keeps every row comparable. Rows are keyed by their ``fullname``, whose
+family for a C row is the BENCH BINARY, ``bench_corr2d_core``, not the
+published name's ``corr2d``. So #2752 step 3.2's rename is
+``ALIAS=bench_corr2d_core=bench_correlator_core``. It is declared per run,
+never defaulted, and printed with the verdict. Within an aliased family a
+row on one side only is UNPAIRED and fails. An alias that pairs nothing
+refuses the run, and is caught after the first pass of each side, not
+after all of them.
 
 Examples
 --------
@@ -41,7 +45,8 @@ Examples
     make bench-ab A=origin/main B=HEAD K=7 \\
         BENCH_ARGS="--c-only async_dsss_pool"              # one C component
     make bench-ab A=v0.78.0 B=HEAD BUILD=native JSON=ab.json
-    make bench-ab A=origin/main B=HEAD ALIAS=corr2d=correlator  # a rename
+    make bench-ab A=origin/main B=HEAD \\
+        ALIAS=bench_corr2d_core=bench_correlator_core      # a renamed bench
 """
 
 from __future__ import annotations
@@ -204,12 +209,26 @@ def compare(a: dict, b: dict) -> dict:
     return out
 
 
+def families(snaps: list) -> list:
+    """The row families in some snapshots, sorted: what an alias can name.
+
+    >>> row = {"fullname": "bench_x_core::r", "stats": {"min": 1.0}}
+    >>> families([{"benchmarks": [row]}])
+    ['bench_x_core']
+    """
+    return sorted(
+        {k.split("::", 1)[0] for k in best_rounds(snaps) if "::" in k}
+    )
+
+
 def parse_aliases(spec: str) -> list:
     """`old=new` family renames, separated by commas or spaces.
 
-    A family is a row's prefix before its first ``::`` (``corr2d`` in
-    ``corr2d::single_row_fast_path``). Only whole families are renamed, and
-    a row's suffix must match exactly, so nothing pairs by resemblance.
+    A family is a row's prefix before its first ``::``, in the key bench-ab
+    compares, the ``fullname``: ``bench_corr2d_core`` in
+    ``bench_corr2d_core::single_row_fast_path``. Only whole families are
+    renamed, and a row's suffix must match exactly, so nothing pairs by
+    resemblance.
 
     >>> parse_aliases("corr2d=correlator")
     [('corr2d', 'correlator')]
@@ -496,6 +515,18 @@ def main(argv=None) -> int:
                 py, c = bench_once(wts[side], cpus)
                 samples[side]["py"].append(py)
                 samples[side]["c"].append(c)
+            # An alias that pairs nothing is known once each side has run
+            # once: stop then, not after every pass (#2752 step 3.2 lost a
+            # full K=5 run to a mis-keyed alias).
+            if i == 0 and aliases:
+                early = judge(samples, aliases)[1]
+                if early:
+                    for p in early:
+                        print(f"bench-ab: {p}")
+                    for side in ("A", "B"):
+                        fams = families(samples[side]["c"])
+                        print(f"  {side}'s C families: {', '.join(fams)}")
+                    return 1
     finally:
         _remove_worktrees(wts)
 

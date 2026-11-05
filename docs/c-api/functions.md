@@ -1676,6 +1676,7 @@
 * **dp\_wfm\_scene\_fs** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_scene\_segments** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_segment\_sets\_length** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_segment\_snr\_and\_level** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_snr\_over\_fs** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_attach\_dsss** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_attach\_frame** ([**wfm\_compose.h**](wfm__compose_8h.md))

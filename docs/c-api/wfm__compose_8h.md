@@ -71,6 +71,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const char | [**dp\_wfm\_why\_retired\_bits**](#variable-dp_wfm_why_retired_bits)  <br>_The reason_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_bits` _set: Python's retired_`bits=` _(and_`payload=` _,_`pattern=` _), named once. The CLI's and a scene's RETIRED tables say the same in their own spelling (doppler#1718)._ |
 |  const char | [**dp\_wfm\_why\_retired\_crc**](#variable-dp_wfm_why_retired_crc)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_sync` _and_`retired_crc` _set._ |
 |  const char | [**dp\_wfm\_why\_retired\_sync**](#variable-dp_wfm_why_retired_sync)  <br>_The reasons_ [_**dp\_wfm\_source\_error()**_](wfm__compose_8h.md#function-dp_wfm_source_error) _gives for_`retired_sync` _and_`retired_crc` _set._ |
+|  const char | [**dp\_wfm\_why\_snr\_and\_level**](#variable-dp_wfm_why_snr_and_level)  <br>_The reason_ [_**dp\_wfm\_scene\_error()**_](wfm__compose_8h.md#function-dp_wfm_scene_error) _gives a segment with a source that sets both_`snr` _and_`level` _beside a noise floor (_[_**dp\_wfm\_segment\_snr\_and\_level()**_](wfm__compose_8h.md#function-dp_wfm_segment_snr_and_level) _). Static, like every reason here: it names the rule, not the segment; the offending source's index is the predicate's return value (doppler#2834)._ |
 
 
 
@@ -126,6 +127,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_resolve\_noise**](#function-dp_wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
 |  const char \* | [**dp\_wfm\_scene\_error**](#function-dp_wfm_scene_error) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Why a scene cannot be composed, or NULL: the one validator._  |
 |  int | [**dp\_wfm\_segment\_sets\_length**](#function-dp_wfm_segment_sets_length) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* seg) <br>_Whether a segment's sources SET its on-time, so its_ `num_samples` _is derived and a count given beside them refused._ |
+|  int | [**dp\_wfm\_segment\_snr\_and\_level**](#function-dp_wfm_segment_snr_and_level) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* g) <br>_The source in a segment that sets both_ `snr` _and a_`level` _where only one is allowed, or -1 when there is none._ |
 |  double | [**dp\_wfm\_snr\_over\_fs**](#function-dp_wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double sym\_span, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
 |  int | [**dp\_wfm\_source\_attach\_dsss**](#function-dp_wfm_source_attach_dsss) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
 |  int | [**dp\_wfm\_source\_attach\_frame**](#function-dp_wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
@@ -561,6 +563,20 @@ One sentence each, naming `frame=`; the CLI and a scene say the same in their ow
 
 
         
+
+<hr>
+
+
+
+### variable dp\_wfm\_why\_snr\_and\_level 
+
+_The reason_ [_**dp\_wfm\_scene\_error()**_](wfm__compose_8h.md#function-dp_wfm_scene_error) _gives a segment with a source that sets both_`snr` _and_`level` _beside a noise floor (_[_**dp\_wfm\_segment\_snr\_and\_level()**_](wfm__compose_8h.md#function-dp_wfm_segment_snr_and_level) _). Static, like every reason here: it names the rule, not the segment; the offending source's index is the predicate's return value (doppler#2834)._
+```C++
+const char dp_wfm_why_snr_and_level[];
+```
+
+
+
 
 <hr>
 ## Public Functions Documentation
@@ -2138,6 +2154,52 @@ if (dp_wfm_scene_error (&seg, 1, 0, 0) != dp_wfm_why_count_derived)
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_segment\_snr\_and\_level 
+
+_The source in a segment that sets both_ `snr` _and a_`level` _where only one is allowed, or -1 when there is none._
+```C++
+int dp_wfm_segment_snr_and_level (
+    const wfm_segment_t * g
+) 
+```
+
+
+
+One multi-source segment has one noise floor: an explicit noise source sets it, else the first snr-bearing signal source anchors it. Every OTHER snr-bearing source is placed `snr` dB above that floor, so its `level` is derived, and giving it a nonzero `level` too says the same thing twice and could disagree. [**dp\_wfm\_resolve\_noise()**](wfm__compose_8h.md#function-dp_wfm_resolve_noise) refuses such a segment, and [**dp\_wfm\_scene\_error()**](wfm__compose_8h.md#function-dp_wfm_scene_error) reports it as dp\_wfm\_why\_snr\_and\_level; both ask THIS function, so they cannot disagree about which scene it is (doppler#2834).
+
+
+
+
+**Parameters:**
+
+
+* `g` A segment, as the caller built it (before resolve). 
+
+
+
+**Returns:**
+
+Index into `g->sources` of the first offender, or -1: a lone source, a segment with no floor (all clean, no explicit noise), or one where no non-anchor source gives both.
+
+
+
+```C++
+wfm_source_t s[2] = { { .type = WFM_SYNTH_BPSK, .snr = 20.0, .level = -6.0 },
+                      { .type = WFM_SYNTH_NOISE, .level = -40.0 } };
+wfm_segment_t g = { .sources = s, .n_sources = 2 };
+dp_wfm_segment_snr_and_level (&g);   // 0: the BPSK source has both
+s[0].level = 0.0;
+dp_wfm_segment_snr_and_level (&g);   // -1: snr alone is fine
+```
+ 
 
 
         

@@ -627,13 +627,14 @@ class Acquisition:
           own frequency implies, `f_tile / carrier` chips per chip, aligned to
           the block's middle (a linear phase on each epoch's product). The one
           delay-Doppler map applies it at the block's end, read on a slow-time
-          grid 4 times finer and rounded, a loss of at most 0.09 dB measured
-          (docs/design/acq-surface.md §18.1); dp_acq_block_prompt() applies it
-          exactly. A change of carrier mid-block applies to the whole block.
-          Measured at the specification's 20 ppm with D = 154 (3.1 chips of
-          drift across the block): without it the block's peak is 13 dB down
-          and 3 chips wide and the depth detects nothing at 34 dB-Hz; with it
-          the block reads as a still one.
+          grid 4 times finer and rounded. The bound is 0.09 dB, the worst over
+          33 tones and three dilations (docs/design/acq-surface.md §18.1); the
+          engine measures 0.020-0.026 dB on its equivalence test's carrier
+          scenes. dp_acq_block_prompt() applies it exactly. A change of carrier
+          mid-block applies to the whole block. Measured at the specification's
+          20 ppm with D = 154 (3.1 chips of drift across the block): without it
+          the block's peak is 13 dB down and 3 chips wide and the depth detects
+          nothing at 34 dB-Hz; with it the block reads as a still one.
         - **The hand-off** (dp_acq_build_handoff()) advances the hit's code
           phase by the drift over half the dwell -- the non-coherent sum's peak
           is the phase at the dwell's middle, the seed is wanted at its end:

@@ -1827,27 +1827,21 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
         return DP_ERR_INVALID;
     }
 
-  /* The acquisition child, before anything of the parent is committed: acq
-     validates its blob whole before applying it, so a refusal there leaves
-     both untouched. Accepted, it must stand where the parent says the
-     stream is -- a hit's epoch is acq's position and the ring's head is the
-     parent's, and a child from another stream position would shift every
-     epoch after the resume, silently (doppler#2015). On a mismatch the child
-     gets its own state back, so the refusal still leaves nothing changed. */
-  void *undo = dp_xmalloc (s->acq_blob_max);
-  dp_acq_get_state (s->acq->engine, undo);
-  if (dp_acq_set_state (s->acq->engine, acq) != DP_OK)
-    {
-      free (undo);
-      return DP_ERR_INVALID;
-    }
-  if (dp_acq_position (s->acq->engine) != fed)
-    {
-      (void)dp_acq_set_state (s->acq->engine, undo);
-      free (undo);
-      return DP_ERR_INVALID;
-    }
-  free (undo);
+  /* The acquisition child must stand where the parent says the stream is
+     -- a hit's epoch is acq's position and the ring's head is the parent's,
+     and a child from another stream position would shift every epoch after
+     the resume, silently (doppler#2015). Its blob's position is read
+     before anything is applied, so a mismatch has nothing to undo. Then the
+     child, the last thing that can fail: acq checks its blob whole and its
+     carrier rebuild commits nothing on failure, so a refusal there still
+     leaves both untouched. */
+  uint64_t child_at;
+  if (dp_acq_state_position (s->acq->engine, acq, &child_at) != DP_OK
+      || child_at != fed)
+    return DP_ERR_INVALID;
+  const int crc = dp_acq_set_state (s->acq->engine, acq);
+  if (crc != DP_OK)
+    return crc;
 
   /* COMMIT. Every check has passed; nothing below can fail. */
   s->samples_fed       = fed;

@@ -111,6 +111,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  int | [**dp\_acq\_set\_threads**](#function-dp_acq_set_threads) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, int n) <br>_Set how many threads the searcher fans its tiles across (docs/design/acq-surface.md §13: a roll per thread on persistent workers)._  |
 |  double | [**dp\_acq\_sidelobe\_ratio**](#function-dp_acq_sidelobe_ratio) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* from, const [**acq\_result\_t**](structacq__result__t.md) \* to) <br>_How far up the sidelobes of the emitter behind one hit can reach at another hit's cell, relative to that emitter's own peak._  |
 |  size\_t | [**dp\_acq\_state\_bytes**](#function-dp_acq_state_bytes) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob: the envelope and the engine's position, the framer's snapshot of the carry, the non-coherent sum (n\_noncoh &gt; 1), the last dwell's twins, and a tiled block's epochs._ |
+|  int | [**dp\_acq\_state\_position**](#function-dp_acq_state_position) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, const void \* blob, uint64\_t \* position) <br>_The stream position a blob records_  __[_**dp\_acq\_position()**_](acq__core_8h.md#function-dp_acq_position) _of the engine it would restore_ _read without restoring it._ |
 |  size\_t | [**dp\_acq\_surface**](#function-dp_acq_surface) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \* out, size\_t n\_out) <br>_The last decided dwell's surface, in the gate's own units._  |
 |  size\_t | [**dp\_acq\_surface\_chip\_phase**](#function-dp_acq_surface_chip_phase) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's code-phase axis: the chip phase of each column._  |
 |  size\_t | [**dp\_acq\_surface\_complex**](#function-dp_acq_surface_complex) ([**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last decided dwell's surface, complex: amplitude and carrier phase per cell, before the magnitude the gate reads._  |
@@ -1463,7 +1464,7 @@ int dp_acq_set_carrier_freq_hz (
 
 
 A physically-coupled Doppler moves the code as well as the carrier  100 chips/s at 20 ppm of 5 Mcps  and the engine's two long integrations both smear over it (doppler#1256, #1254):
-* **Inside a coherent block** of D epochs every tile's epoch correlations are shifted along the code axis by the drift the tile's own frequency implies, `f_tile / carrier` chips per chip, aligned to the block's middle (a linear phase on each epoch's product). The one delay-Doppler map applies it at the block's end, read on a slow-time grid 4 times finer and rounded, a loss of at most 0.09 dB measured (docs/design/acq-surface.md §18.1); [**dp\_acq\_block\_prompt()**](acq__core_8h.md#function-dp_acq_block_prompt) applies it exactly. A change of carrier mid-block applies to the whole block. Measured at the specification's 20 ppm with D = 154 (3.1 chips of drift across the block): without it the block's peak is 13 dB down and 3 chips wide and the depth detects nothing at 34 dB-Hz; with it the block reads as a still one.
+* **Inside a coherent block** of D epochs every tile's epoch correlations are shifted along the code axis by the drift the tile's own frequency implies, `f_tile / carrier` chips per chip, aligned to the block's middle (a linear phase on each epoch's product). The one delay-Doppler map applies it at the block's end, read on a slow-time grid 4 times finer and rounded. The bound is 0.09 dB, the worst over 33 tones and three dilations (docs/design/acq-surface.md §18.1); the engine measures 0.020-0.026 dB on its equivalence test's carrier scenes. [**dp\_acq\_block\_prompt()**](acq__core_8h.md#function-dp_acq_block_prompt) applies it exactly. A change of carrier mid-block applies to the whole block. Measured at the specification's 20 ppm with D = 154 (3.1 chips of drift across the block): without it the block's peak is 13 dB down and 3 chips wide and the depth detects nothing at 34 dB-Hz; with it the block reads as a still one.
 * **The hand-off** ([**dp\_acq\_build\_handoff()**](acq__core_8h.md#function-dp_acq_build_handoff)) advances the hit's code phase by the drift over half the dwell  the non-coherent sum's peak is the phase at the dwell's middle, the seed is wanted at its end: 0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
 
 
@@ -1586,7 +1587,7 @@ int dp_acq_set_state (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or its n/n\_noncoh/max\_peaks disagree with `state` (rebuild the engine from the matching descriptor first), or its carry is not one a run could have left, or the carry's frames and the stream position disagree. A refused blob changes nothing. 
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope or its n/n\_noncoh/max\_peaks disagree with `state` (rebuild the engine from the matching descriptor first), or its carry is not one a run could have left, or the carry's frames and the stream position disagree, or its carrier is not one [**dp\_acq\_carrier\_freq\_ok()**](acq__core_8h.md#function-dp_acq_carrier_freq_ok) accepts; DP\_ERR\_MEMORY if the blob's carrier differs from `state's` and the rebuild it needs cannot allocate. A refused blob changes nothing. 
 
 
 
@@ -1827,6 +1828,70 @@ size_t dp_acq_state_bytes (
 **Returns:**
 
 The blob size in bytes; it depends on the engine's geometry, so query it per instance. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_acq\_state\_position 
+
+_The stream position a blob records_  __[_**dp\_acq\_position()**_](acq__core_8h.md#function-dp_acq_position) _of the engine it would restore_ _read without restoring it._
+```C++
+int dp_acq_state_position (
+    const dp_acq_state_t * state,
+    const void * blob,
+    uint64_t * position
+) 
+```
+
+
+
+What lets a composition check its child's blob against its own count before it writes anything, so a refusal never has to be undone (an undo is a second set\_state, and set\_state can fail). Accepts exactly the blobs [**dp\_acq\_set\_state()**](acq__core_8h.md#function-dp_acq_set_state) checks and accepts before its carrier rebuild, through the same check.
+
+
+
+```C++
+float _Complex pre[124];               // a 31-chip code at 4x
+for (size_t i = 0; i < 124; i++)
+  pre[i] = (i / 4) % 3 ? 1.0f : -1.0f;
+dp_acq_state_t *a = dp_acq_create_burst (pre, 124, 16, 4.0e6, 45.0,
+                                         0.0, 1e-3, 0.9, 0, 0.0, 1);
+float _Complex x[300] = { 0 };
+acq_result_t   hit;
+(void)dp_acq_push (a, x, 300, &hit, 1);
+void    *blob = dp_xmalloc (dp_acq_state_bytes (a));
+uint64_t at   = 0;
+dp_acq_get_state (a, blob);
+int ok = dp_acq_state_position (a, blob, &at); // DP_OK, 300
+int same = at == dp_acq_position (a);
+free (blob);
+dp_acq_destroy (a);
+if (ok != DP_OK || at != 300 || !same)
+  return 1;
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` The engine the blob would be restored into. 
+* `blob` A blob from [**dp\_acq\_get\_state()**](acq__core_8h.md#function-dp_acq_get_state). 
+* `position` Out: the blob's position. Unchanged on a refusal. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID where [**dp\_acq\_set\_state()**](acq__core_8h.md#function-dp_acq_set_state) would refuse the blob as invalid. 
 
 
 

@@ -1299,8 +1299,10 @@ extern "C"
    *   tile's own frequency implies, `f_tile / carrier` chips per chip,
    *   aligned to the block's middle (a linear phase on each epoch's
    *   product). The one delay-Doppler map applies it at the block's end,
-   *   read on a slow-time grid 4 times finer and rounded, a loss of at most
-   *   0.09 dB measured (docs/design/acq-surface.md §18.1);
+   *   read on a slow-time grid 4 times finer and rounded. The bound is
+   *   0.09 dB, the worst over 33 tones and three dilations
+   *   (docs/design/acq-surface.md §18.1); the engine measures 0.020-0.026
+   *   dB on its equivalence test's carrier scenes.
    *   dp_acq_block_prompt() applies it exactly. A change of carrier
    *   mid-block applies to the whole block. Measured at the specification's
    *   20 ppm with D = 154 (3.1 chips of
@@ -2238,9 +2240,51 @@ extern "C"
    *         n/n_noncoh/max_peaks disagree with @p state (rebuild the engine
    *         from the matching descriptor first), or its carry is not
    *         one a run could have left, or the carry's frames and the
-   *         stream position disagree. A refused blob changes nothing.
+   *         stream position disagree, or its carrier is not one
+   *         dp_acq_carrier_freq_ok() accepts; DP_ERR_MEMORY if the blob's
+   *         carrier differs from @p state's and the rebuild it needs
+   *         cannot allocate. A refused blob changes nothing.
    */
   int dp_acq_set_state (dp_acq_state_t *state, const void *blob);
+
+  /**
+   * @brief The stream position a blob records -- dp_acq_position() of the
+   *        engine it would restore -- read without restoring it.
+   *
+   * What lets a composition check its child's blob against its own count
+   * before it writes anything, so a refusal never has to be undone (an
+   * undo is a second set_state, and set_state can fail). Accepts exactly
+   * the blobs dp_acq_set_state() checks and accepts before its carrier
+   * rebuild, through the same check.
+   *
+   * @code
+   * float _Complex pre[124];               // a 31-chip code at 4x
+   * for (size_t i = 0; i < 124; i++)
+   *   pre[i] = (i / 4) % 3 ? 1.0f : -1.0f;
+   * dp_acq_state_t *a = dp_acq_create_burst (pre, 124, 16, 4.0e6, 45.0,
+   *                                          0.0, 1e-3, 0.9, 0, 0.0, 1);
+   * float _Complex x[300] = { 0 };
+   * acq_result_t   hit;
+   * (void)dp_acq_push (a, x, 300, &hit, 1);
+   * void    *blob = dp_xmalloc (dp_acq_state_bytes (a));
+   * uint64_t at   = 0;
+   * dp_acq_get_state (a, blob);
+   * int ok = dp_acq_state_position (a, blob, &at); // DP_OK, 300
+   * int same = at == dp_acq_position (a);
+   * free (blob);
+   * dp_acq_destroy (a);
+   * if (ok != DP_OK || at != 300 || !same)
+   *   return 1;
+   * @endcode
+   *
+   * @param state     The engine the blob would be restored into.
+   * @param blob      A blob from dp_acq_get_state().
+   * @param position  Out: the blob's position. Unchanged on a refusal.
+   * @return DP_OK, or DP_ERR_INVALID where dp_acq_set_state() would refuse
+   *         the blob as invalid.
+   */
+  int dp_acq_state_position (const dp_acq_state_t *state, const void *blob,
+                             uint64_t *position);
 
   /**
    * @brief Pure run: inject @p state_in, stream @p in, emit hits, export

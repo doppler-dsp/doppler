@@ -686,23 +686,6 @@ dp_acq_cell_corr_grid (const dp_acq_state_t *st, const float _Complex *x,
   free (rm);
 }
 
-/* The rate hypotheses an engine at coherent depth `D` really searches.
- *
- * The de-chirp is exp(-j pi a t^2) over the block's epochs, t = (i - (D-1)/2)
- * T. At D = 1 that is t = 0, and at D = 2 it is t = +-T/2: equal t^2, so every
- * hypothesis multiplies the block by ONE constant phase and the surfaces are
- * identical. N looks that are one look must not be priced as N (the gate
- * rose 3.868 -> 4.214 for nothing), run N times (N times the cost), or pick
- * among (a strict > keeps hypothesis 0, which reports -R whatever the
- * carrier does: 1240 of 1240 hits at a true rate of 0, doppler#2221
- * review). A rate is invisible to a block of one or two epochs; the count
- * there is 1 and the reported rate is 0. */
-static size_t
-acq_rate_count_at (size_t rate_hyps, size_t D)
-{
-  return D > 2 ? rate_hyps : 1;
-}
-
 static size_t
 acq_rate_count (const dp_acq_state_t *st)
 {
@@ -3383,8 +3366,11 @@ dp_acq_get_state (const dp_acq_state_t *st, void *blob)
     }
 }
 
-int
-dp_acq_set_state (dp_acq_state_t *st, const void *blob)
+/* Every check set_state makes before it writes anything, and the one
+   dp_acq_state_position() makes: a blob is accepted by both or by neither.
+   Reads, never writes; @p ex is the blob's extra block on DP_OK. */
+static int
+acq_state_check (const dp_acq_state_t *st, const void *blob, acq_extra_t *out)
 {
   int rc = dp_state_validate (blob, dp_acq_state_bytes (st), ACQ_STATE_MAGIC,
                               ACQ_STATE_VERSION);
@@ -3424,6 +3410,33 @@ dp_acq_set_state (dp_acq_state_t *st, const void *blob)
   if (ex.blk_epoch != frames % D
       || ex.nc_count != (st->n_noncoh > 1 ? dumps % st->n_noncoh : 0))
     return DP_ERR_INVALID;
+  *out = ex;
+  return DP_OK;
+}
+
+int
+dp_acq_state_position (const dp_acq_state_t *st, const void *blob,
+                       uint64_t *position)
+{
+  acq_extra_t ex;
+  uint64_t    pending;
+  if (acq_state_check (st, blob, &ex) != DP_OK
+      || dp_f32_framer_state_pending (&st->framer,
+                                      acq_state_carry ((void *)blob), &pending)
+             != DP_OK)
+    return DP_ERR_INVALID;
+  /* dp_acq_position()'s sum, read from the blob. */
+  *position = ex.samples_consumed + pending;
+  return DP_OK;
+}
+
+int
+dp_acq_set_state (dp_acq_state_t *st, const void *blob)
+{
+  acq_extra_t ex;
+  int         rc = acq_state_check (st, blob, &ex);
+  if (rc != DP_OK)
+    return rc;
 
   /* The carrier is a mutator's value (#2022): restored through its
      setter's rebuild (acq_regrid), never by writing the field, so a blob

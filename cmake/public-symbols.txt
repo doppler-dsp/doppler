@@ -185,6 +185,7 @@ dp_acq_set_telemetry function
 dp_acq_set_threads function
 dp_acq_sidelobe_ratio function
 dp_acq_state_bytes function
+dp_acq_state_position function
 dp_acq_surface function
 dp_acq_surface_chip_phase function
 dp_acq_surface_complex function

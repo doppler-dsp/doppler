@@ -16,7 +16,7 @@ peak. Three of its four modes were exercised by nothing at all before this
 certification (§3 finding `noise_modes_unexercised`).
 
 `Corr2D`'s own envelope is certified separately and not re-derived here; see
-`src/doppler/spectral/tests/validation/corr2d/results.md`.
+`src/doppler/spectral/tests/validation/correlator/results.md`.
 """
 
 from __future__ import annotations
@@ -138,7 +138,7 @@ def section_object() -> None:
                 "surface and what the interpolated form changes about it",
             ],
             [
-                "[`corr2d`'s report](../corr2d/results.md)",
+                "[`correlator`'s report](../correlator/results.md)",
                 "the correlation surface this object decides on — not "
                 "re-derived here",
             ],

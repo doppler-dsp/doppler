@@ -19,8 +19,9 @@ The rules:
   changelog, the published benchmarks, the dated measurement records, and
   the design page, which describes main as it was measured. `docs/c-api`
   is generated from the headers and is regenerated, not edited. The
-  validation reports under `validation/corr2d/` keep their directory until
-  step 3.5 re-certifies the one object. The `corr/` sources this step
+  validation report under `validation/corr2d/` is out of scope too: it moved
+  to `validation/correlator/` by git mv after the run, and its validator and
+  the links to it were edited by hand. The `corr/` sources this step
   deletes are not rewritten, since nothing of them survives.
 
 Usage::

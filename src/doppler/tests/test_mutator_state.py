@@ -1117,12 +1117,13 @@ def probe(mut: Mutator, make, feed) -> Verdict:
 # ── the list ────────────────────────────────────────────────────────────────
 
 
-def _entries() -> list[tuple[str, str, str]]:
+def _entries() -> list[Any]:
+    """The list's rows, as its one reader returns them (MutatorEntry)."""
     return _ssot().parse_mutator_list(LIST.read_text("utf-8"))
 
 
 def _listed() -> dict[str, tuple[str, str]]:
-    return {k: (v, r) for k, v, r in _entries()}
+    return {e.key: (e.verdict, e.reason) for e in _entries()}
 
 
 _RECIPES = _recipes()
@@ -1280,7 +1281,7 @@ def test_every_entry_names_a_mutator() -> None:
 def test_the_list_names_each_mutator_once() -> None:
     """A key written twice is two claims about one mutator, and only one
     of them can be its verdict: refused, rather than the last one winning."""
-    keys = [k for k, _, _ in _entries()]
+    keys = [e.key for e in _entries()]
     twice = sorted({k for k in keys if keys.count(k) > 1})
     assert not twice, f"{LIST.name} lists these more than once: {twice}"
 

@@ -14,6 +14,15 @@
 # test_resamp_core.c) obey a different law -- chunking MOVES the number by
 # exactly the input count -- and stay a bespoke test.
 #
+# A RENAME carries its line with a last field naming the keys it takes over:
+#
+#   dp_new | <reason> | replaces: dp_old dp_older
+#
+# It is not "added" only when every replaced key was on the merge base's
+# list, every one is gone now, and none backs a second new line -- so a
+# rename can merge entries, never multiply them (scripts/check_tests_ssot.py,
+# ratchet_added). Anything else on a new line is ADDED, and fails.
+#
 # Burn-down: doppler#1896.   Derived, not curated:
 #   python scripts/check_tests_ssot.py   # names every uncovered object
 dp_HalfbandDecimator | no chunk-invariance test yet (#1896)

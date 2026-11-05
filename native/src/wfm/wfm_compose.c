@@ -684,6 +684,13 @@ const char dp_wfm_why_dsss_cont_rate[]
       "segment's default 1.0 is a normalised rate), lower sps, or lower "
       "symbol_rate";
 
+const char dp_wfm_why_snr_and_level[]
+    = "in a scene with several sources, a signal source sets its snr or its "
+      "level, not both: an explicit noise source (or, with none, the first "
+      "source that sets snr) defines the shared noise floor, so another "
+      "source's snr is its dB above that floor and its level is derived "
+      "from it -- drop the snr or drop the level";
+
 const char dp_wfm_why_count_derived[]
     = "a finite data source -- data, or a carried frame of fixed bits -- "
       "or a lone dsss burst sets its segment's length (its frames, or one "
@@ -792,8 +799,17 @@ dp_wfm_scene_error (const wfm_segment_t *segs, size_t n_segs, int repeat,
         if (++n_stream > 1)
           return "stdin can feed one data source in a scene, not two";
       }
-  /* After every source's own reason, so a source that cannot be built
-     says so first. A count beside sources that set the length would be
+  /* The noise model: dp_wfm_resolve_noise() refuses a segment whose
+     non-anchor source gives both snr and level, and composing used to say
+     only "create_why failed" (doppler#2834). The predicate is the one
+     resolve asks, dp_wfm_segment_snr_and_level(). It is asked AFTER every
+     source's own reason, so a source that cannot be built says so first.
+     A static reason names the rule, as every other reason here does; the
+     index of the offending source is the predicate's return value. */
+  for (size_t i = 0; i < n_segs; i++)
+    if (dp_wfm_segment_snr_and_level (&segs[i]) >= 0)
+      return dp_wfm_why_snr_and_level;
+  /* A count beside sources that set the length would be
      dropped by the resolution below, so it is refused -- here, where
      every face lands (doppler#1729). */
   for (size_t i = 0; i < n_segs; i++)

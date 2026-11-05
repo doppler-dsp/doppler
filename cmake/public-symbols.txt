@@ -1722,6 +1722,7 @@ dp_wfm_rrc_polyphase_bank function
 dp_wfm_rrc_taps function
 dp_wfm_scene_error function
 dp_wfm_segment_sets_length function
+dp_wfm_segment_snr_and_level function
 dp_wfm_seq_bits function
 dp_wfm_seq_pn_create function
 dp_wfm_sigmf_meta_json function
@@ -1803,6 +1804,7 @@ dp_wfm_why_pn_poly data
 dp_wfm_why_retired_bits data
 dp_wfm_why_retired_crc data
 dp_wfm_why_retired_sync data
+dp_wfm_why_snr_and_level data
 dp_wfm_writer_add_keyword function
 dp_wfm_writer_annotate function
 dp_wfm_writer_clip_fraction function

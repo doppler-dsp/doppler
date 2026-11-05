@@ -112,6 +112,51 @@ dp_wfm_source_create_snr (const wfm_source_t *src, double fs, double snr,
   return snr;
 }
 
+/* Where a multi-source segment's shared noise floor comes from: an explicit
+ * noise source sets it (noise_idx; the anchor stays -1, so every snr source
+ * is sugar), else the first snr-bearing signal source anchors it. Both -1
+ * means the segment has no floor to resolve. The ONE place this is decided,
+ * for dp_wfm_segment_snr_and_level() and dp_wfm_resolve_noise() alike. */
+static void
+floor_source (const wfm_segment_t *g, int *noise_idx, int *anchor)
+{
+  *noise_idx = -1;
+  *anchor    = -1;
+  for (size_t k = 0; k < g->n_sources; k++)
+    if (g->sources[k].type == WFM_SYNTH_NOISE)
+      {
+        *noise_idx = (int)k;
+        return;
+      }
+  for (size_t k = 0; k < g->n_sources; k++)
+    if (g->sources[k].snr < WFM_SYNTH_SNR_CLEAN)
+      {
+        *anchor = (int)k;
+        return;
+      }
+}
+
+int
+dp_wfm_segment_snr_and_level (const wfm_segment_t *g)
+{
+  if (g->n_sources <= 1)
+    return -1; /* lone source: the bundled path, nothing is placed */
+  int noise_idx, anchor;
+  floor_source (g, &noise_idx, &anchor);
+  if (noise_idx < 0 && anchor < 0)
+    return -1; /* no floor: all clean, no AWGN */
+  for (size_t k = 0; k < g->n_sources; k++)
+    {
+      const wfm_source_t *s = &g->sources[k];
+      if (s->type == WFM_SYNTH_NOISE || s->snr >= WFM_SYNTH_SNR_CLEAN
+          || (int)k == anchor)
+        continue;
+      if (s->level != 0.0)
+        return (int)k; /* a non-anchor with both snr and a level */
+    }
+  return -1;
+}
+
 int
 dp_wfm_resolve_noise (wfm_segment_t *segs, size_t n)
 {
@@ -121,36 +166,20 @@ dp_wfm_resolve_noise (wfm_segment_t *segs, size_t n)
       if (g->n_sources <= 1)
         continue; /* lone source → bundled path, byte-identical */
 
-      /* explicit noise source sets the floor directly; else the first
-       * snr-bearing signal source anchors it. */
-      int    noise_idx  = -1;
-      int    anchor     = -1;
-      int    have_floor = 0;
-      double floor_db   = 0.0;
-      for (size_t k = 0; k < g->n_sources; k++)
-        if (g->sources[k].type == WFM_SYNTH_NOISE)
-          {
-            noise_idx = (int)k;
-            break;
-          }
+      /* Over-specified is the same question dp_wfm_scene_error() asks, by the
+       * same function, so the two cannot disagree about which scene it is. */
+      if (dp_wfm_segment_snr_and_level (g) >= 0)
+        return -1;
+
+      int noise_idx, anchor;
+      floor_source (g, &noise_idx, &anchor);
+      double floor_db = 0.0;
       if (noise_idx >= 0)
-        {
-          floor_db   = g->sources[noise_idx].level;
-          have_floor = 1; /* anchor stays -1: every snr source is sugar */
-        }
+        floor_db = g->sources[noise_idx].level;
+      else if (anchor >= 0)
+        floor_db = g->sources[anchor].level
+                   - snr_over_fs (&g->sources[anchor], g->fs);
       else
-        {
-          for (size_t k = 0; k < g->n_sources; k++)
-            if (g->sources[k].snr < WFM_SYNTH_SNR_CLEAN)
-              {
-                anchor     = (int)k;
-                floor_db   = g->sources[k].level
-                             - snr_over_fs (&g->sources[k], g->fs);
-                have_floor = 1;
-                break;
-              }
-        }
-      if (!have_floor)
         continue; /* all sources clean, no explicit noise → no AWGN */
 
       /* clean every signal source; sugar a non-anchor snr to a level. */
@@ -160,13 +189,8 @@ dp_wfm_resolve_noise (wfm_segment_t *segs, size_t n)
           if (s->type == WFM_SYNTH_NOISE || s->snr >= WFM_SYNTH_SNR_CLEAN)
             continue;
           if ((int)k != anchor)
-            {
-              if (s->level != 0.0)
-                return -1; /* over-specified: both snr and level on a
-                              non-anchor */
-              s->level
-                  = floor_db + s->snr; /* place me `snr` dB above the floor */
-            }
+            s->level
+                = floor_db + s->snr; /* place me `snr` dB above the floor */
           s->snr = (double)
               WFM_SYNTH_SNR_CLEAN; /* its synth makes no bundled AWGN */
         }

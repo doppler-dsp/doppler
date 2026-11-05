@@ -1,5 +1,7 @@
 # uno-q — an RTL-SDR receive front end on a small ARM board
 
+<!-- --8<-- [start:body] -->
+
 The first stages of a receiver fed by an RTL-SDR, as a downstream project:
 
 ```text
@@ -369,3 +371,5 @@ point of offset tuning.
 **Two `rtl_tcp` quirks.** It prints "Signal caught, exiting!" each time a
 client disconnects, yet keeps serving. And it sends the 12-byte header before
 the samples, which `tail -c +13` removes.
+
+<!-- --8<-- [end:body] -->

@@ -1,5 +1,7 @@
 # consumer — the smallest project that links doppler
 
+<!-- --8<-- [start:body] -->
+
 One source file, one `find_package(doppler)`, two link modes. If you are
 adding doppler to an existing build, start here: everything else in
 `example-projects/` is this plus a subject.
@@ -23,20 +25,30 @@ macOS and Windows. The oscillator is not the point — the link line is.
 
 ## Build and run
 
-You need doppler installed somewhere CMake can find it. From a source tree:
+If doppler came from the `.deb` or `.rpm` packages (or any system install), it
+is already on the compiler's paths and this is all of it. You need `cmake`,
+`gcc`, `make` and `pkg-config`; on Debian or Ubuntu that is
+`sudo apt install cmake gcc make pkg-config`.
 
 ```sh
-cmake --install /path/to/doppler/build --prefix ~/.local
+make run
 ```
 
-Then:
+If doppler is in a prefix of your own (the release tarball, `jbx get-doppler`,
+`~/.local`), say where:
 
 ```sh
 make PREFIX=~/.local run
 ```
 
-Drop `PREFIX=` if doppler is installed system-wide. `make help` lists the
-knobs; `make clean` removes `build/`.
+From a source tree, install it into a prefix first, then the same:
+
+```sh
+cmake --install /path/to/doppler/build --prefix ~/.local
+make PREFIX=~/.local run
+```
+
+`make help` lists the knobs; `make clean` removes `build/`.
 
 The Makefile is a thin wrapper — the two commands it runs are:
 
@@ -63,3 +75,5 @@ cc main.c -o consumer $(PKG_CONFIG_PATH=~/.local/lib/pkgconfig pkg-config --cfla
 
 Take `CMakeLists.txt` and the `find_package` block. `main.c` is a placeholder
 for your program.
+
+<!-- --8<-- [end:body] -->

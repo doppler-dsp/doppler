@@ -210,6 +210,33 @@ path of yours on the command line. Three things to know:
     (`libdoppler-dsp0.53` for the 0.53 series), so two minors install side by side and a program
     built against one keeps running after you install the next.
 
+### Build something against it
+
+A fresh machine also needs a toolchain to build your own code. One line:
+
+```sh
+sudo apt install cmake gcc make pkg-config              # Debian / Ubuntu
+sudo dnf install cmake gcc make pkgconf-pkg-config      # Fedora / RHEL
+```
+
+**Try it:** the [consumer example](../example-projects/consumer.md) is the
+smallest project that links doppler. Its page has a one-line fetch of the
+folder, and with the packages installed you build and run it with the
+folder's own Makefile (its `run` goal), shared and static.
+
+On Debian and Ubuntu, `find_package(doppler)` depends on three things, each of
+which fails to configure when it is missing (reproduced on Ubuntu 24.04 with
+the arm64 packages):
+
+- **The `-dev` package.** The CMake config lives in `libdoppler-dsp-dev`;
+    with only the runtime package installed, CMake does not find doppler.
+- **`project()` enables C before `find_package`.** CMake searches
+    `/usr/lib/<triplet>/cmake` only once it knows the compiler's triplet, so
+    `project(x NONE)`, or a `find_package(doppler)` placed above `project()`,
+    does not find it.
+- **A version the install satisfies.** `find_package(doppler X.Y.Z)` is
+    refused when the installed release is older than the one you ask for.
+
 These are release assets, not an apt or yum repository: upgrading means
 downloading the next release's files.
 
@@ -296,6 +323,14 @@ gcc -o app main.c $(pkg-config --cflags doppler) \
     "$(pkg-config --variable=libdir doppler)/libdoppler.a" \
     -lpthread -lm
 ```
+
+`pkg-config --cflags doppler` includes a feature-test macro on its own:
+`-D_GNU_SOURCE` on Linux (`-D_DARWIN_C_SOURCE` on macOS). That is deliberate.
+The installed headers call `syscall()` and `ftruncate()` and name
+`MAP_ANONYMOUS`, which a strict `-std=c99` hides on older glibc unless the
+macro is defined before libc is first included; a `#define` inside a header is
+already too late, so only the compile line can carry it. The CMake targets
+carry the same definition, so every route compiles the same headers.
 
 These recipes assume the library is on the loader path, which it is after an
 `apt` or `dnf` install. From a prefix that is not (the release tarball,

@@ -286,7 +286,7 @@ RUFF_PATHS = .
 # each object's results.md, written by that folder's own validate.py, so
 # reformatting it would drift against the next regeneration. vendor/ is not
 # ours.
-MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/domains/|docs/api/a-z\.md$$|docs/guide/wfmgen/options\.md$$|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/(.*/)?tests/validation/)
+MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/domains/|docs/api/a-z\.md$$|docs/example-projects/|docs/guide/wfmgen/options\.md$$|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/(.*/)?tests/validation/)
 
 LINT_ruff        = $(RUFF) check --fix --unsafe-fixes $(RUFF_PATHS)
 LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
@@ -1145,6 +1145,7 @@ $(UV) run python scripts/check_nav_index.py
 $(UV) run python scripts/check_wfmgen_flag_docs.py
 $(UV) run python scripts/gen_related_pages.py --check
 $(UV) run python scripts/gen_domains.py --check
+$(UV) run python scripts/gen_example_projects.py --check
 $(MAKE) -s user-docs-check USER_DOCS_FLAGS=--no-ratchet
 $(UV) run python scripts/gen_readme.py --check
 $(UV) run python scripts/gen_install_scripts.py --check
@@ -1898,7 +1899,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
                 check-wheel-tags release-wheel-tags \
-                release-smoke-packages \
+                release-smoke-packages consumer-walk \
                 bench-python bench-rx \
                 bench-preflight bench-interleaved bench-ab bench-publish \
                 bench-docs \
@@ -3252,6 +3253,22 @@ package-linux-smoke: package-linux ## Install the built packages in each of $(PK
 # takes the first glob match, so a second arch's file in the directory would
 # be installed on the wrong machine, and a missing one would fail as "no
 # package matching" rather than naming the release as short.
+# Walk the docs as a new .deb user would, in a clean container, running the
+# pages' OWN commands (tests/install/consumer-walk.sh extracts them): install the
+# published packages, the build tools, fetch the consumer project, `make run`,
+# and the Debian multiarch conditions failing as the page says (doppler#2856).
+# Needs the release the pages name to be published, so it runs after the
+# release (release.yml) and on demand: `make consumer-walk`.
+CONSUMER_WALK_IMAGE ?= $(STOCK_REGISTRY)/ubuntu:24.04
+consumer-walk: ## Do what the docs tell a new .deb user to do, in a clean ubuntu container
+	@./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
+	    env $(STOCK_PULL) $(CONSUMER_WALK_IMAGE) \
+	    || { echo "consumer-walk: could not pull $(CONSUMER_WALK_IMAGE)"; exit 1; }
+	@./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
+	    docker run --rm --init --pull=never -v "$(CURDIR)":/w:ro -w /w \
+	        $(CONSUMER_WALK_IMAGE) bash tests/install/consumer-walk.sh /w \
+	    || { echo "consumer-walk: FAILED (the line above says why)"; exit 1; }
+
 RELEASE_PKG_DIR ?= $(DIST_DIR)/release-packages
 release-smoke-packages: ## Install the PUBLISHED .deb/.rpm for this arch in each of $(PKG_SMOKE_DISTROS) (VERSION=x.y.z)
 ifndef VERSION
@@ -3561,6 +3578,7 @@ wfmgen-flag-matrix: build ## Regenerate native/tests/wfmgen_flag_matrix.json
 docs-relink: ## Regenerate every generated doc region
 	$(UV) run python scripts/gen_related_pages.py --write
 	$(UV) run python scripts/gen_domains.py --write
+	$(UV) run python scripts/gen_example_projects.py --write
 	$(UV) run python scripts/gen_readme.py --write
 	$(UV) run python scripts/gen_install_scripts.py --write
 	$(UV) run python scripts/gen_validation_log.py --write
@@ -3575,6 +3593,7 @@ docs-relink: ## Regenerate every generated doc region
 docs-drift-check: ## Check the generated doc regions are up to date
 	$(UV) run python scripts/gen_related_pages.py --check
 	$(UV) run python scripts/gen_domains.py --check
+	$(UV) run python scripts/gen_example_projects.py --check
 	$(UV) run python scripts/gen_readme.py --check
 	$(UV) run python scripts/gen_install_scripts.py --check
 	$(UV) run python scripts/gen_validation_log.py --check

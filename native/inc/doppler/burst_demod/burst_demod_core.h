@@ -178,13 +178,17 @@ extern "C"
   } dp_burst_demod_state_t;
 
   /**
-   * @brief The Python binding's constructor: @ref dp_burst_demod_create_desc
-   *        without the `why` out-parameter.
+   * @brief Demodulate one captured burst's frame, feedforward and with no
+   *        tracking loops.
    *
-   * An object's generated constructor has no channel for a reason, so a
-   * refused description surfaces as the manifest's `create_error_message`,
-   * which names the rules. C callers that want the reason call the `_desc`
-   * form.
+   * Give it the data spreading code and the frame description the
+   * transmitter spread; `demod(x)` then estimates the residual Doppler and
+   * Doppler rate from the preamble, dechirps the burst, despreads it to soft
+   * BPSK symbols, frame-syncs against the description's first field and checks
+   * the CRC. It is one-shot per burst, seeded from acquisition. A description
+   * or parameter it cannot use raises `ValueError` naming the rules. C: this
+   * is dp_burst_demod_create_desc() without its `why` out-parameter, so a
+   * refusal is a NULL return; call the `_desc` form to be told why.
    *
    * @param data_code      the data spreading code, 0/1 chips.
    * @param data_code_len  its length (the spreading factor).

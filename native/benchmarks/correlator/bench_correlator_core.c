@@ -251,12 +251,19 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
   free (rg), free (ra), free (rr), free (rc), free (rates), free (xr);
 }
 
+/* Defined in bench_correlator_1d.c, compiled into this binary by
+   correlator_extra.cmake: the 1-D flavor's rows, Corr's on main. */
+int bench_correlator_1d (jm_bench_t *bench);
+
 int
 main (void)
 {
   jm_bench_t _bench = { 0 };
   uint64_t   t0, t1;
   double     times[ITERATIONS];
+
+  if (bench_correlator_1d (&_bench) != 0)
+    return 1;
 
   /* ny=16, nx=2046 mirrors docs/design/acq-surface.md §14's worked
    * case (L=1023, spc=2 -> code_bins=2046; doppler_bins=16). */

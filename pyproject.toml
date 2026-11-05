@@ -217,9 +217,19 @@ dev = [
 # Docs toolchain is intentionally separate from dev so wheel builds can
 # uv sync --no-group docs and avoid a docs-dep network blip failing a release.
 docs = [
-    "zensical>=0.0.29; python_version >= '3.10'",
+    # zensical 0.0.45 with mkdocstrings 1.0.4 grew to >4 GB on a cold build
+    # (about 6 MB per page held; 918 pages) and was OOM-killed at the memory
+    # guard's ceiling (#2840). The matched set below builds the same site cold
+    # in about 520 MB. The floors (3.11+; 3.10 keeps the old set, whose autorefs needs 3.11) move TOGETHER: zensical 0.0.55+ against the
+    # old mkdocstrings fails to render every API page (Highlight.__init__()
+    # missing 'md').
+    "zensical>=0.0.74; python_version >= '3.11'",
+    "zensical>=0.0.29; python_version == '3.10'",
     "mkdocs-glightbox>=0.4; python_version >= '3.10'",
-    "mkdocstrings[python]>=0.29; python_version >= '3.10'",
+    "mkdocstrings[python]>=1.0.8; python_version >= '3.11'",
+    "mkdocstrings[python]>=0.29; python_version == '3.10'",
+    "mkdocstrings-python>=2.0.10; python_version >= '3.11'",
+    "mkdocs-autorefs>=1.4.5; python_version >= '3.11'",
     "mkdoxy>=1.2.8",
 ]
 

@@ -1812,7 +1812,7 @@ Setup path, never hot; the context is borrowed and must outlive the attachment, 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID on decim 0, a prefix too long for some probe's name  refused before anything registers on `tlm`, because the loops are first attached to a scratch context that finds the refusal  or a probe table with no room for every probe (found the same way, from the names the scratch holds). Every refusal leaves `tlm's` table untouched and the receiver as it was: detached, or still on its previous context under its previous prefix. 
+DP\_OK, or DP\_ERR\_INVALID on decim 0, a prefix too long for some probe's name  refused before anything registers on `tlm`, because the loops are first attached to a scratch context that finds the refusal  or a probe table with no room for every probe (found the same way, from the names the scratch holds); DP\_ERR\_MEMORY when the scratch context cannot be allocated. Every refusal leaves `tlm's` table untouched and the receiver as it was: detached, or still on its previous context under its previous prefix. 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import AsyncDsssReceiver

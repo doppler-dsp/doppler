@@ -958,6 +958,17 @@ AsyncDsssReceiverObj_set_telemetry (AsyncDsssReceiverObject *self,
                                                   decim);
   if (_rc != 0)
     {
+      switch (_rc)
+        {
+        case DP_ERR_MEMORY:
+          PyErr_SetString (PyExc_MemoryError,
+                           "set_telemetry: the scratch context that checks "
+                           "the names could not "
+                           "be allocated; the receiver is unchanged");
+          return NULL;
+        default:
+          break;
+        }
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
                     (long long)_rc);
       return NULL;
@@ -2154,9 +2165,14 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "\n"
     "Raises\n"
     "------\n"
+    "MemoryError\n"
+    "    If the C call returns ``DP_ERR_MEMORY``. The exception message is\n"
+    "    ``set_telemetry: the scratch context that checks the names could\n"
+    "    not be allocated; the receiver is unchanged``.\n"
     "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``set_telemetry failed``, with the return code appended (gh-869).\n"
+    "    If the C call returns any other non-zero status. The exception\n"
+    "    message is ``set_telemetry failed``, with the return code appended\n"
+    "    (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"

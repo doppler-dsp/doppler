@@ -30,17 +30,14 @@ target_include_directories(test_correlator_1d
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_correlator_1d COMMAND test_correlator_1d)
 
-# bench_correlator_1d: Corr's bench, against the 1-D flavor. It still writes
-# the `corr` family, so `make bench-ab` pairs its rows with main's through
-# step 3 (docs/design/correlator.md section 7.1). pn_core and cvt_core: the
-# short rows (step 3.1b) correlate an m-sequence from the shipped generator,
-# mapped by the shipped NRZ mapper.
-add_executable(
-  bench_correlator_1d
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/correlator/bench_correlator_1d.c)
-target_link_libraries(bench_correlator_1d
-                      PRIVATE correlator_core Threads::Threads fft2d_core
-                              fft_core pn_core cvt_core ${JM_MATH_LIBRARY})
-target_include_directories(
-  bench_correlator_1d PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
-                              ${CMAKE_SOURCE_DIR}/native/benchmarks)
+# bench_correlator_1d.c: Corr's bench, against the 1-D flavor. It is a
+# second source of jm's bench_correlator_core, because jm bench runs only
+# bench_<component>_core: as its own executable it was built and never run.
+# `make bench-ab` pairs its rows with main's bench_corr_core by alias
+# through step 3 (docs/design/correlator.md section 7.1). pn_core and
+# cvt_core: the short rows (step 3.1b) correlate an m-sequence from the
+# shipped generator, mapped by the shipped NRZ mapper.
+target_sources(
+  bench_correlator_core
+  PRIVATE ${CMAKE_SOURCE_DIR}/native/benchmarks/correlator/bench_correlator_1d.c)
+target_link_libraries(bench_correlator_core PRIVATE pn_core cvt_core)

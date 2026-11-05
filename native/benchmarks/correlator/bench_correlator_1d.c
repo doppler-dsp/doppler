@@ -1,4 +1,4 @@
-/* bench_corr_core.c -- what a dwell buys, and what the dump costs.
+/* bench_correlator_1d.c -- what a dwell buys, and what the dump costs.
  *
  * `dp_correlator_execute` has two prices behind one signature. Every call runs
  * a forward FFT of the frame, multiplies pointwise by the stored reference
@@ -152,10 +152,13 @@ bench_small (jm_bench_t *bench)
   return 0;
 }
 
+/* The 1-D flavor's rows, recorded into the bench_correlator_core binary.
+   jm bench runs only bench_<component>_core, so a separate executable
+   would be built and never run; bench_correlator_core.c's main calls this
+   first. Returns 0, or 1 when an allocation or a plant check fails. */
 int
-main (void)
+bench_correlator_1d (jm_bench_t *bench)
 {
-  jm_bench_t             _bench = { 0 };
   uint64_t               t0, t1;
   static double          t[N_CFG][ITERATIONS];
   dp_correlator_state_t *corr[N_LEN] = { 0 };
@@ -223,7 +226,7 @@ main (void)
       {
         (void)snprintf (name, sizeof name, "%s[n=%zu]", kind_name[k],
                         frame_n[l]);
-        dp_bench_record (&_bench, name, t[l * N_KIND + k], ITERATIONS,
+        dp_bench_record (bench, name, t[l * N_KIND + k], ITERATIONS,
                          frame_n[l], "sample");
       }
 
@@ -252,8 +255,5 @@ main (void)
   free (ref);
   free (in);
   free (out);
-  if (bench_small (&_bench) != 0)
-    return 1;
-  jm_bench_write_json (&_bench, "corr");
-  return 0;
+  return bench_small (bench) != 0;
 }

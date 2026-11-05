@@ -16,15 +16,21 @@ Usage
     python scripts/peak_rss.py --max-mb 1536 -- <command> [args...]
 
 The command's own exit status is returned when it fails; a pass that went over
-budget returns 1. One line on stderr reports the peak either way.
+budget returns 1. Where there is no ``resource`` module (Windows) it refuses
+with status 2 and says why, rather than failing on the import. One line on
+stderr reports the peak either way.
 """
 
 from __future__ import annotations
 
 import argparse
-import resource
 import subprocess
 import sys
+
+try:
+    import resource
+except ImportError:  # Windows: no getrusage, so no peak to read
+    resource = None  # type: ignore[assignment]
 
 
 def peak_mb() -> float:
@@ -37,6 +43,13 @@ def peak_mb() -> float:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if resource is None:
+        print(
+            "peak_rss: peak RSS needs POSIX getrusage; the docs build runs "
+            "on Linux and macOS",
+            file=sys.stderr,
+        )
+        return 2
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--max-mb", type=float, required=True)
     ap.add_argument("cmd", nargs=argparse.REMAINDER)

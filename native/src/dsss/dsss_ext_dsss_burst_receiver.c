@@ -1746,8 +1746,8 @@ static PyTypeObject DsssBurstReceiverObjType = {
   .tp_dealloc = (destructor)DsssBurstReceiverObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "The Python binding's constructor: dp_dsss_burst_receiver_create_desc\n"
-    "without the `why` out-parameter.\n"
+  = "Find each burst by its preamble, capture it and demodulate its frame,\n"
+    "all behind one push().\n"
     "\n"
     "Parameters\n"
     "----------\n"

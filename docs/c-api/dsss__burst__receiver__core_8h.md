@@ -83,7 +83,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 | ---: | :--- |
 |  int | [**dp\_dsss\_burst\_receiver\_configure\_search\_raw**](#function-dp_dsss_burst_receiver_configure_search_raw) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the acquisition search grid, bypassing the auto-sizing._  |
 |  [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* | [**dp\_dsss\_burst\_receiver\_create\_desc**](#function-dp_dsss_burst_receiver_create_desc) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments, const char \*\* why) <br>_Create a receiver from the frame DESCRIPTION the transmitter spread, and no hand-counted frame length._  |
-|  [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* | [**dp\_dsss\_burst\_receiver\_create\_frame**](#function-dp_dsss_burst_receiver_create_frame) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments) <br>_The Python binding's constructor:_ [_**dp\_dsss\_burst\_receiver\_create\_desc**_](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_create_desc) _without the_`why` _out-parameter._ |
+|  [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* | [**dp\_dsss\_burst\_receiver\_create\_frame**](#function-dp_dsss_burst_receiver_create_frame) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double carrier\_hz, double max\_rate, size\_t est\_segments) <br>_Find each burst by its preamble, capture it and demodulate its frame, all behind one push()._  |
 |  void | [**dp\_dsss\_burst\_receiver\_destroy**](#function-dp_dsss_burst_receiver_destroy) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Destroy a dsss\_burst\_receiver instance and release all memory._  |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_events**](#function-dp_dsss_burst_receiver_events) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state, size\_t n, [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
 |  size\_t | [**dp\_dsss\_burst\_receiver\_events\_max\_out**](#function-dp_dsss_burst_receiver_events_max_out) ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) \* state) <br>_Max records events() writes: one per burst the last push() returned._  |
@@ -322,7 +322,7 @@ dp_dsss_burst_receiver_destroy (rx);
 
 ### function dp\_dsss\_burst\_receiver\_create\_frame 
 
-_The Python binding's constructor:_ [_**dp\_dsss\_burst\_receiver\_create\_desc**_](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_create_desc) _without the_`why` _out-parameter._
+_Find each burst by its preamble, capture it and demodulate its frame, all behind one push()._ 
 ```C++
 dp_dsss_burst_receiver_state_t * dp_dsss_burst_receiver_create_frame (
     const uint8_t * acq_code,
@@ -345,7 +345,7 @@ dp_dsss_burst_receiver_state_t * dp_dsss_burst_receiver_create_frame (
 
 
 
-An object's generated constructor has no channel for a reason, so a refused description surfaces as the manifest's `create_error_message`, which names the rules. C callers that want the reason call the `_desc` form.
+Give it the preamble and payload spreading codes and the frame description the transmitter spread (a `Frame` or `FrameDesc`): the frame's first field is the sync word the receiver correlates for and its layout is the frame's length, so no length is counted by hand. The description is copied, so it need not outlive the receiver. A description the receiver cannot use raises `ValueError` naming the rules. C: this is [**dp\_dsss\_burst\_receiver\_create\_desc()**](dsss__burst__receiver__core_8h.md#function-dp_dsss_burst_receiver_create_desc) without its `why` out-parameter, so a refusal is a NULL return; call the `_desc` form to be told why.
 
 
 

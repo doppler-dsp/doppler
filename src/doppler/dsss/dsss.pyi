@@ -3908,8 +3908,8 @@ class AsyncDsssPool:
 
 @final
 class DsssBurstReceiver:
-    """The Python binding's constructor: dp_dsss_burst_receiver_create_desc
-    without the `why` out-parameter.
+    """Find each burst by its preamble, capture it and demodulate its frame,
+    all behind one push().
 
     Parameters
     ----------

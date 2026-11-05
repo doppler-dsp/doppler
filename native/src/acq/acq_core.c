@@ -2680,7 +2680,6 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
 {
   size_t       ndet     = 0;
   size_t       off      = 0;
-  const size_t n        = st->n;
   const size_t frame_n  = st->frame_n;
   const size_t nx       = st->code_bins;
   const size_t wideband = st->window_bins > 1;

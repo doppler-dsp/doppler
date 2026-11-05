@@ -70,8 +70,8 @@ validate_acq_peak_list                  13.0  # CI sweep jobs 2026-11-02, 9.08 (
 validate_acq_surface                     2.6  # NEW (#2526): CI's sweep job on 3e2715d1c, 1.68 s (job 119503044425) on a fast runner, 331 s for the whole sweep against 668-911 s on others; 2.6 keeps a runner 2.75x slower under the 2x tolerance. chi through the library's FFT, two windows' tables and two 600-symbol streams
 validate_acq_template_pd                2.0  # prices the CFAR reference (doppler#1501): ~2x per construction
 validate_capture_dwell_pd               2.7  # prices the CFAR reference (doppler#1501): ~2x per construction
-validate_acq_rate_pd                   93.1  # MEASURED: 93.07 s in CI's sweep job 116442895466 (#2347 at 1469638d2), with the PN rows (doppler#2219); the base before them, 76.04 s, was measured in job 116385654164 (#2343)
-validate_acq_rate_pd_pfa               51.9  # MEASURED: 51.87 s in CI's sweep job 116442895466 (#2347 at 1469638d2), and 51.33 s in job 116385654164 (#2343), against 48.0 estimated in doppler#2324
+validate_acq_rate_pd                   24.0  # MEASURED: 23.97 s in CI's sweep job 127004305376 (#2843 at ce814c01d), the rate search on the one delay-Doppler map (#2831); 93.07 s before it, in job 116442895466 (#2347 at 1469638d2)
+validate_acq_rate_pd_pfa               12.9  # MEASURED: 12.92 s in CI's sweep job 127004305376 (#2843 at ce814c01d), on the one map (#2831); 51.87 s before it, in job 116442895466 (#2347)
 validate_ratesync_scurve                22.1
 validate_tracker_through_window         10.1
 validate_acq_block_coherent             21.4  # its Pfa row went 100 -> 400 blocks (doppler#2218 review): +2.8 s here x the 2.35 CI factor, so it DETECTS the native pricing instead of pinning one draw

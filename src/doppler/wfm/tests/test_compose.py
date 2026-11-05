@@ -36,6 +36,7 @@ from doppler.wfm.compose import (
     Synth,
     Timeline,
     Writer,
+    bpsk,
     draws,
     noise,
     prepare,
@@ -1381,8 +1382,38 @@ def test_sum_reject_overspecified():
         tone(snr=5, level=-3),  # over-specified: snr AND level
         num_samples=4096,
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not both"):
         Composer([seg]).compose()
+
+
+def _issue_2834_segment(**bpsk_kw):
+    """The report's own scene: a signal beside an EXPLICIT noise source."""
+    return Segment.sum(
+        bpsk(sps=8, pulse="rrc", seed=1, **bpsk_kw),
+        noise(level=-40),
+        num_samples=50000,
+        fs=2e6,
+    )
+
+
+def test_explicit_noise_with_snr_and_level_says_why():
+    """doppler#2834: an explicit noise source defines the floor, so a signal
+    with BOTH snr and level is refused -- and the error says so, instead of
+    the bare "dp_wfm_compose_create_why failed"."""
+    with pytest.raises(ValueError) as e:
+        Composer(_issue_2834_segment(snr=20, level=-6)).compose()
+    msg = str(e.value)
+    assert "create_why failed" not in msg
+    assert "snr or its level, not both" in msg
+    assert "noise floor" in msg
+
+
+def test_explicit_noise_with_snr_or_level_alone_composes():
+    """...and either one alone is fine (the rule is a diagnosis, not a new
+    restriction): finite complex64 samples either way."""
+    for kw in ({"snr": 20}, {"level": -6}):
+        iq = Composer(_issue_2834_segment(**kw)).compose()
+        assert iq.dtype == np.complex64 and np.isfinite(iq).all(), kw
 
 
 def test_sum_needs_a_source():

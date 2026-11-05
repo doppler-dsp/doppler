@@ -63,6 +63,7 @@
 * **dp\_wfm\_why\_retired\_bits** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_why\_retired\_crc** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_why\_retired\_sync** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_why\_snr\_and\_level** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **DOPPLER\_LIFETIME\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **dp\_wfm\_reader\_state\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **dp\_wfm\_writer\_state\_t** ([**wfm\_writer\_core.h**](wfm__writer__core_8h.md))

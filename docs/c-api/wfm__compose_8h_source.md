@@ -195,6 +195,8 @@ char *dp_wfm_draws_json(const wfm_segment_t *segs, size_t n_segs);
 
 int dp_wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
+int dp_wfm_segment_snr_and_level(const wfm_segment_t *g);
+
 double dp_wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
                        double sym_span, double snr);
 
@@ -240,6 +242,8 @@ const char *dp_wfm_scene_error(const wfm_segment_t *segs, size_t n_segs,
                                int repeat, int continuous);
 
 extern const char dp_wfm_why_dsss_cont_rate[];
+
+extern const char dp_wfm_why_snr_and_level[];
 
 #define WFM_NUM_SAMPLES_PLAIN ((size_t)1024)
 

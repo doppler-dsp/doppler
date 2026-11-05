@@ -644,6 +644,34 @@ char *dp_wfm_draws_json(const wfm_segment_t *segs, size_t n_segs);
 int dp_wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
 /**
+ * @brief The source in a segment that sets both `snr` and a `level` where
+ *        only one is allowed, or -1 when there is none.
+ *
+ * One multi-source segment has one noise floor: an explicit noise source
+ * sets it, else the first snr-bearing signal source anchors it. Every OTHER
+ * snr-bearing source is placed `snr` dB above that floor, so its `level` is
+ * derived, and giving it a nonzero `level` too says the same thing twice and
+ * could disagree. dp_wfm_resolve_noise() refuses such a segment, and
+ * dp_wfm_scene_error() reports it as dp_wfm_why_snr_and_level; both ask THIS
+ * function, so they cannot disagree about which scene it is (doppler#2834).
+ *
+ * @param g  A segment, as the caller built it (before resolve).
+ * @return Index into `g->sources` of the first offender, or -1: a lone
+ *         source, a segment with no floor (all clean, no explicit noise),
+ *         or one where no non-anchor source gives both.
+ *
+ * @code
+ * wfm_source_t s[2] = { { .type = WFM_SYNTH_BPSK, .snr = 20.0, .level = -6.0 },
+ *                       { .type = WFM_SYNTH_NOISE, .level = -40.0 } };
+ * wfm_segment_t g = { .sources = s, .n_sources = 2 };
+ * dp_wfm_segment_snr_and_level (&g);   // 0: the BPSK source has both
+ * s[0].level = 0.0;
+ * dp_wfm_segment_snr_and_level (&g);   // -1: snr alone is fine
+ * @endcode
+ */
+int dp_wfm_segment_snr_and_level(const wfm_segment_t *g);
+
+/**
  * @brief SNR (dB) referred to fs, from a source's snr/snr_mode/sps/type.
  *
  * The single source of truth for the Es/No, Eb/No, and over-fs conventions
@@ -1017,6 +1045,15 @@ const char *dp_wfm_scene_error(const wfm_segment_t *segs, size_t n_segs,
  *        CLI can name the values beside it, by identity.
  */
 extern const char dp_wfm_why_dsss_cont_rate[];
+
+/**
+ * @brief The reason dp_wfm_scene_error() gives a segment with a source that
+ *        sets both `snr` and `level` beside a noise floor
+ *        (dp_wfm_segment_snr_and_level()). Static, like every reason here:
+ *        it names the rule, not the segment; the offending source's index is
+ *        the predicate's return value (doppler#2834).
+ */
+extern const char dp_wfm_why_snr_and_level[];
 
 /**
  * @brief A plain segment's on-time when its `num_samples` is 0 and no

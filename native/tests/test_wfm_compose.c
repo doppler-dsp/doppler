@@ -2984,6 +2984,85 @@ main (void)
         = { .sources = bad, .n_sources = 2, .fs = 1e6, .num_samples = 16 };
     DP_REQUIRE_MSG (!dp_wfm_compose_create (&seg, 1, 0, 0),
                     "reject non-anchor snr + level");
+    /* ...and it says so (doppler#2834): the composer used to refuse it
+     * with no reason at all, which Python showed as "create_why failed". */
+    const char *why = NULL;
+    DP_REQUIRE_MSG (!dp_wfm_compose_create_why (&seg, 1, 0, 0, &why)
+                        && why == dp_wfm_why_snr_and_level,
+                    "the refusal carries dp_wfm_why_snr_and_level");
+    DP_REQUIRE_MSG (dp_wfm_scene_error (&seg, 1, 0, 0)
+                        == dp_wfm_why_snr_and_level,
+                    "the scene rule every face asks says it too");
+    DP_REQUIRE_MSG (dp_wfm_segment_snr_and_level (&seg) == 1,
+                    "the offender is source 1, the non-anchor");
+  }
+
+  /* ── doppler#2834, the report's own scene (a tone here, a bpsk there: the
+   * rule never looks at the type): an EXPLICIT noise source makes
+   * every snr-bearing signal a non-anchor, so a signal with snr AND level is
+   * refused -- and either one alone composes. */
+  {
+    wfm_source_t srcs[2] = {
+      { .type  = WFM_SYNTH_TONE,
+        .sps   = 8,
+        .snr   = 20.0,
+        .level = -6.0,
+        .seed  = 1 },
+      { .type = WFM_SYNTH_NOISE, .level = -40.0 },
+    };
+    wfm_segment_t seg
+        = { .sources = srcs, .n_sources = 2, .fs = 2e6, .num_samples = 5000 };
+    const char *why = NULL;
+    DP_REQUIRE_MSG (dp_wfm_segment_snr_and_level (&seg) == 0,
+                    "explicit noise: the signal (source 0) is the offender");
+    DP_REQUIRE_MSG (!dp_wfm_compose_create_why (&seg, 1, 0, 0, &why)
+                        && why == dp_wfm_why_snr_and_level,
+                    "the reported scene is refused WITH the reason");
+    /* The reason is the rule, in words a caller can act on. */
+    DP_REQUIRE_MSG (strstr (why, "not both") && strstr (why, "noise floor"),
+                    "the reason names the rule and the floor");
+
+    /* Resolve and the predicate agree on this scene. */
+    wfm_source_t  copy[2] = { srcs[0], srcs[1] };
+    wfm_segment_t rseg    = seg;
+    rseg.sources          = copy;
+    DP_REQUIRE_MSG (dp_wfm_resolve_noise (&rseg, 1) != 0,
+                    "dp_wfm_resolve_noise refuses what the predicate names");
+
+    srcs[0].level = 0.0; /* snr alone */
+    why           = NULL;
+    dp_wfm_compose_state_t *c
+        = dp_wfm_compose_create_why (&seg, 1, 0, 0, &why);
+    DP_REQUIRE_MSG (c && !why, "snr alone composes");
+    dp_wfm_compose_destroy (c);
+    DP_REQUIRE_MSG (dp_wfm_segment_snr_and_level (&seg) == -1,
+                    "...and names no offender");
+
+    srcs[0].level = -6.0;
+    srcs[0].snr   = (double)WFM_SYNTH_SNR_CLEAN; /* level alone */
+    c             = dp_wfm_compose_create_why (&seg, 1, 0, 0, &why);
+    DP_REQUIRE_MSG (c && !why, "level alone composes");
+    dp_wfm_compose_destroy (c);
+  }
+
+  /* ── what the rule must NOT refuse: a lone source with both (the bundled
+   * path places nothing), and a segment with no floor at all. */
+  {
+    wfm_source_t  one = { .type = WFM_SYNTH_TONE, .snr = 5.0, .level = -3.0 };
+    wfm_segment_t g1  = { .sources = &one, .n_sources = 1, .fs = 1e6 };
+    DP_REQUIRE_MSG (dp_wfm_segment_snr_and_level (&g1) == -1,
+                    "a lone source is never over-specified");
+    wfm_source_t clean[2] = {
+      { .type  = WFM_SYNTH_TONE,
+        .snr   = (double)WFM_SYNTH_SNR_CLEAN,
+        .level = -3.0 },
+      { .type  = WFM_SYNTH_TONE,
+        .snr   = (double)WFM_SYNTH_SNR_CLEAN,
+        .level = -9.0 },
+    };
+    wfm_segment_t g2 = { .sources = clean, .n_sources = 2, .fs = 1e6 };
+    DP_REQUIRE_MSG (dp_wfm_segment_snr_and_level (&g2) == -1,
+                    "all clean, no explicit noise: no floor, nothing to say");
   }
 
   /* ── JSON "sum" round-trip: a multi-source segment serialises + reparses ──

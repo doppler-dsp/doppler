@@ -237,9 +237,9 @@ POSIX, a child process on Windows, which has no exec), so argv, stdio and exit
 status all pass straight through. There is **no second CLI
 implementation in Python**. To build from source instead:
 
-<!-- docs-snippet: no-exec=clones the repository -->
-
 <!-- doc-version:start -->
+
+<!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
 git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler

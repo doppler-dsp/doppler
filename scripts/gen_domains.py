@@ -48,6 +48,7 @@ Usage
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 import sys
@@ -55,6 +56,8 @@ from collections import defaultdict
 from pathlib import Path
 
 from _pydocs import discover, kinds
+from _release_tag import reachable
+from _release_tag import version as _version
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -70,22 +73,27 @@ EXAMPLES = "src/doppler/examples"
 # Example links are pinned to the RELEASE (doppler#2857): a reader of the
 # deployed page installed a release, not main. gen_doc_versions re-stamps the
 # same form on every release, so the two always agree.
+#
+# An example added since the last release is NOT in that tag, so a link
+# would 404 until the next one, and the repository-link gate rightly refuses
+# it. The example is named without a link until it ships: the reader's
+# installed wheel does not have it yet either. `_release_tag.reachable`
+# decides, by asking the tag, so this generator and the gate cannot disagree.
 REPO_BLOB_BASE = "https://github.com/doppler-dsp/doppler/blob/v"
 
 
-def _release() -> str:
-    """The version a release bumps (pyproject.toml), as gen_doc_versions."""
-    m = re.search(
-        r'^version\s*=\s*"([^"]+)"',
-        (ROOT / "pyproject.toml").read_text(encoding="utf-8"),
-        re.MULTILINE,
-    )
-    if not m:
-        raise SystemExit("gen_domains: no version in pyproject.toml")
-    return m[1]
+@functools.lru_cache(maxsize=1)
+def _in_release():
+    return reachable(ROOT, bool(os.environ.get("CI")))
 
 
-REPO_BLOB = f"{REPO_BLOB_BASE}{_release()}/"
+def _example_link(name: str) -> str | None:
+    """The pinned URL of an example, or None while it is not in the tag."""
+    path = f"{EXAMPLES}/{name}"
+    if not _in_release()(path):
+        return None
+    return f"{REPO_BLOB_BASE}{_version(ROOT)}/{path}"
+
 
 # api-taxonomy.md section 6's top-level areas, in display order. A domain's
 # `area` must be one of these, so a typo cannot create a new one.
@@ -404,11 +412,12 @@ def _page_links(
     return sorted(out)
 
 
-def _links(items: list[tuple[str, str]], cap: int = 3) -> str:
-    """A table cell: up to ``cap`` links, then a count."""
+def _links(items: list[tuple[str, str | None]], cap: int = 3) -> str:
+    """A table cell: up to ``cap`` links, then a count. An item with no URL
+    is named in plain text (an example not in the release yet)."""
     if not items:
         return "&nbsp;"
-    shown = [f"[{t}]({u})" for t, u in items[:cap]]
+    shown = [f"[{t}]({u})" if u else t for t, u in items[:cap]]
     if len(items) > cap:
         shown.append(f"+{len(items) - cap} more")
     return "<br>".join(shown)
@@ -442,7 +451,7 @@ def _symbol_row(
         by_fam[fam] = [(t, u) for _k, t, u in sorted(items)]
     api = [(sym, f"{rel}api/{api_page[sym]}")] if sym in api_page else []
     ex = [
-        (n.removesuffix(".py"), f"{REPO_BLOB}{EXAMPLES}/{n}")
+        (n.removesuffix(".py"), _example_link(n))
         for n, used in sorted(examples.items())
         if sym in used
     ]

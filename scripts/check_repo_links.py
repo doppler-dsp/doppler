@@ -36,9 +36,11 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
+
+from _release_tag import in_tag, tag_state
+from _release_tag import version as _version
 
 ROOT = Path(__file__).resolve().parent.parent
 ALLOWED = "docs/.main-links-allowed"
@@ -50,11 +52,7 @@ CLONE = re.compile(r"git\s+clone\b[^\n]*doppler-dsp/doppler")
 
 
 def version(root: Path = ROOT) -> str:
-    text = (root / "pyproject.toml").read_text(encoding="utf-8")
-    m = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
-    if not m:
-        raise SystemExit("check_repo_links: no version in pyproject.toml")
-    return m[1]
+    return _version(root)
 
 
 def pages(root: Path = ROOT) -> list[Path]:
@@ -119,49 +117,6 @@ def unpinned(root: Path) -> list[str]:
     return out
 
 
-def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-
-def tag_state(root: Path, tag: str, ci: bool) -> tuple[str, str]:
-    """``(state, message)``: ``present`` | ``unreleased`` | ``unchecked`` |
-    ``error``. See the module docstring for what each means."""
-    if (
-        _git(
-            root, "rev-parse", "-q", "--verify", f"refs/tags/{tag}"
-        ).returncode
-        == 0
-    ):
-        return "present", f"tag {tag} is local"
-    got = _git(root, "fetch", "--depth=1", "origin", "tag", tag)
-    if got.returncode == 0:
-        return "present", f"tag {tag} fetched"
-    ls = _git(root, "ls-remote", "--exit-code", "--tags", "origin", tag)
-    if ls.returncode == 2:
-        return "unreleased", (
-            f"{tag} does not exist on the remote: not released yet, so "
-            "links are checked against the working tree only"
-        )
-    why = (got.stderr or ls.stderr).strip().splitlines()[-1:] or ["no detail"]
-    if ci:
-        return "error", (
-            f"in CI the tag {tag} could not be fetched and its absence could "
-            f"not be proven ({why[0]}): the pinned links are unchecked, which "
-            "is a failure, not a pass"
-        )
-    return "unchecked", (
-        f"WARNING: tag {tag} is not available here ({why[0]}); pinned links "
-        "were checked against the working tree only. CI checks them against "
-        "the tag."
-    )
-
-
 def pinned_targets(root: Path) -> dict[str, list[str]]:
     """``{repo-relative path: [page:line, ...]}`` for every pinned link."""
     out: dict[str, list[str]] = {}
@@ -184,10 +139,7 @@ def dead_links(root: Path, tag: str, state: str) -> list[str]:
                 "in the working tree"
                 + (f" (+{len(where) - 1} more)" if len(where) > 1 else "")
             )
-        elif (
-            state == "present"
-            and _git(root, "cat-file", "-e", f"{tag}:{path}").returncode != 0
-        ):
+        elif state == "present" and not in_tag(root, tag, path):
             out.append(
                 f"{where[0]}: pinned link to {path}, which is not in {tag} "
                 "(added since the release, so the link would 404 for a "

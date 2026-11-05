@@ -51,6 +51,9 @@ def _repo(tmp: Path) -> Path:
     )
     (d / "CMakeLists.txt").write_text("project(p C)\n")
     (d / "main.c").write_text("int main(void) { return 0; }\n")
+    (tmp / "mkdocs.yml").write_text(
+        "nav:\n  - Example Projects:\n      - P: example-projects/p.md\n"
+    )
     _git(tmp, "add", "-A")
     return tmp
 
@@ -70,10 +73,7 @@ def test_a_generated_page_includes_every_file_and_tells_how_to_get_it(
     assert '--8<-- "example-projects/p/CMakeLists.txt"' in page
     assert '--8<-- "example-projects/p/main.c"' in page
     assert "README.md" not in page.split("## The files")[1]
-    assert (
-        "tar.gz/refs/tags/v1.2.3 " in page
-        or "tar.gz/refs/tags/v1.2.3\n" in page
-    )
+    assert "archive/refs/tags/v1.2.3.tar.gz" in page
     assert "doppler-1.2.3/example-projects/p" in page
     assert "tree/v1.2.3/example-projects/p" in page
     assert page.index("CMakeLists.txt") < page.index(
@@ -117,3 +117,44 @@ def test_every_tracked_file_of_every_real_project_is_on_its_page() -> None:
     g = _gen()
     assert g.projects(REPO), "no example projects found"
     assert g.missing_files(REPO) == []
+
+
+def test_a_project_without_a_readme_is_refused_by_name(tmp_path: Path) -> None:
+    g = _gen()
+    root = _repo(tmp_path)
+    (root / "example-projects" / "p" / "README.md").unlink()
+    _git(root, "add", "-A")
+    with pytest.raises(SystemExit, match=r"without a README.*\bp\b"):
+        g.projects(root)
+
+
+def test_an_orphan_page_and_a_missing_nav_entry_are_found(
+    tmp_path: Path,
+) -> None:
+    g = _gen()
+    root = _repo(tmp_path)
+    _write(g, root)
+    assert g.page_problems(root) == []
+    (root / "docs" / "example-projects" / "ghost.md").write_text("# ghost\n")
+    assert any("ghost.md" in x for x in g.page_problems(root))
+    (root / "mkdocs.yml").write_text("nav:\n  - Home: index.md\n")
+    assert any(
+        "p.md is in the nav 0 times" in x for x in g.page_problems(root)
+    )
+
+
+def test_a_binary_file_is_named_on_the_page_not_a_crash(
+    tmp_path: Path,
+) -> None:
+    g = _gen()
+    root = _repo(tmp_path)
+    (root / "example-projects" / "p" / "data.bin").write_bytes(
+        b"\xff\xfe\x00\x80"
+    )
+    _git(root, "add", "-A")
+    _write(g, root)
+    page = (root / "docs" / "example-projects" / "p.md").read_text(
+        encoding="utf-8"
+    )
+    assert "data.bin" in page and "binary file" in page
+    assert g.missing_files(root) == []

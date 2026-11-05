@@ -4,13 +4,13 @@
 
 ## Get the code
 
-The files are listed [at the bottom of this page](#the-files). This fetches the project's folder as of this release:
+The files are listed [at the bottom of this page](#the-files). The tabs there show the project on the development branch; this fetches the project's folder from the latest release, which can differ from them until the next release:
 
 <!-- doc-version:start -->
 
 <!-- docs-snippet: no-exec=downloads the release tarball; the clean-container walk (tests/install) runs it for real -->
 ```sh
-curl -fsSL https://codeload.github.com/doppler-dsp/doppler/tar.gz/refs/tags/v0.79.0 \
+curl -fsSL https://github.com/doppler-dsp/doppler/archive/refs/tags/v0.79.0.tar.gz \
   | tar -xz --strip-components=2 doppler-0.79.0/example-projects/consumer
 ```
 

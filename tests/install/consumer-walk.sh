@@ -10,9 +10,12 @@
 #   5. the three Debian-multiarch conditions each FAIL to configure when broken,
 #      and the good case configures          (docs/install/c.md)
 #
-# The commands are EXTRACTED from the pages, not retyped here, so the page is
-# the thing under test: a page whose command stops working fails this walk
-# (doppler#2856: the pages were README-only and the .deb path led nowhere).
+# Steps 1-3 run the commands EXTRACTED from the pages (tests/install/fence.sh),
+# not retyped here, so the page is the thing under test: a page whose command
+# stops working fails this walk. Steps 4 and 5 are this script's own: `make run`
+# is the README's instruction, and the cmake projects are minimal stand-ins for
+# the conditions the page states (doppler#2856: the pages were README-only and
+# the .deb path led nowhere).
 #
 # Usage: consumer-walk.sh <repo dir, read-only>     (needs network)
 set -euo pipefail
@@ -32,16 +35,11 @@ sudo() { "$@"; }
 apt() { command apt -y -q "$@"; }
 export -f sudo apt
 
-# fence <file> <heading regex> <line regex>: the first ```sh block after the
-# heading that contains the line, printed without its fences.
-fence() {
-    awk -v h="$2" -v l="$3" '
-        $0 ~ h { on = 1 }
-        on && /^```sh$/ { blk = ""; infence = 1; next }
-        infence && /^```$/ { if (blk ~ l) { printf "%s", blk; exit } infence = 0; next }
-        infence { blk = blk $0 "\n" }
-    ' "$1"
-}
+# The extraction is a script of its own (fence.sh), so the PR-time test and
+# this walk read the pages the same way.
+fence() { bash "$SRC/tests/install/fence.sh" "$@"; }
+# Every extracted step must be non-empty: an empty step would "pass" silently.
+need() { [ -s "$1" ] || die "extracting $1 from the page gave nothing"; }
 
 apt-get update -qq >/dev/null
 apt-get install -y -qq curl ca-certificates >/dev/null
@@ -50,18 +48,20 @@ cd /root
 say "1. install the published .deb packages (the page's own block, $deb)"
 fence "$SRC/docs/install/c.md" '^Debian / Ubuntu:' 'libdoppler-dsp-dev_' \
     | sed "s/amd64/$deb/g" > step1.sh
+need step1.sh
 cat step1.sh
 bash -euo pipefail step1.sh > step1.log 2>&1 || { tail -n 15 step1.log; die "the .deb block did not install"; }
 dpkg -s libdoppler-dsp-dev >/dev/null || die "-dev not installed"
 
 say "2. the build tools, the page's one apt line"
-fence "$SRC/docs/install/c.md" '^### Build something against it' 'apt install' \
-    | grep -E 'apt install' | sed 's/ *#.*//' > step2.sh
+fence "$SRC/docs/install/c.md" '^### Build something against it' 'apt install' > step2.sh
+need step2.sh
 cat step2.sh
 bash -euo pipefail step2.sh > step2.log 2>&1 || { tail -n 15 step2.log; die "the build-tools line failed"; }
 
 say "3. fetch the consumer project (the consumer page's own command)"
 fence "$SRC/docs/example-projects/consumer.md" '^## Get the code' 'tar -xz' > step3.sh
+need step3.sh
 cat step3.sh
 bash -euo pipefail step3.sh || die "the one-line fetch failed"
 [ -f consumer/CMakeLists.txt ] && [ -f consumer/main.c ] || die "fetch gave no project"

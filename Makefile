@@ -3253,22 +3253,6 @@ package-linux-smoke: package-linux ## Install the built packages in each of $(PK
 # takes the first glob match, so a second arch's file in the directory would
 # be installed on the wrong machine, and a missing one would fail as "no
 # package matching" rather than naming the release as short.
-# Walk the docs as a new .deb user would, in a clean container, running the
-# pages' OWN commands (tests/install/consumer-walk.sh extracts them): install the
-# published packages, the build tools, fetch the consumer project, `make run`,
-# and the Debian multiarch conditions failing as the page says (doppler#2856).
-# Needs the release the pages name to be published, so it runs after the
-# release (release.yml) and on demand: `make consumer-walk`.
-CONSUMER_WALK_IMAGE ?= $(STOCK_REGISTRY)/ubuntu:24.04
-consumer-walk: ## Do what the docs tell a new .deb user to do, in a clean ubuntu container
-	@./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
-	    env $(STOCK_PULL) $(CONSUMER_WALK_IMAGE) \
-	    || { echo "consumer-walk: could not pull $(CONSUMER_WALK_IMAGE)"; exit 1; }
-	@./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
-	    docker run --rm --init --pull=never -v "$(CURDIR)":/w:ro -w /w \
-	        $(CONSUMER_WALK_IMAGE) bash tests/install/consumer-walk.sh /w \
-	    || { echo "consumer-walk: FAILED (the line above says why)"; exit 1; }
-
 RELEASE_PKG_DIR ?= $(DIST_DIR)/release-packages
 release-smoke-packages: ## Install the PUBLISHED .deb/.rpm for this arch in each of $(PKG_SMOKE_DISTROS) (VERSION=x.y.z)
 ifndef VERSION
@@ -3291,6 +3275,22 @@ endif
 	 fi; \
 	 ls -1 $(RELEASE_PKG_DIR)
 	@$(call PKG_SMOKE_RUN,release-smoke-packages,$(RELEASE_PKG_DIR))
+
+# Walk the docs as a new .deb user would, in a clean container, running the
+# pages' OWN commands (tests/install/consumer-walk.sh extracts them): install the
+# published packages, the build tools, fetch the consumer project, `make run`,
+# and the Debian multiarch conditions failing as the page says (doppler#2856).
+# Needs the release the pages name to be published, so it runs after the
+# release (release.yml) and on demand: `make consumer-walk`.
+CONSUMER_WALK_IMAGE ?= $(STOCK_REGISTRY)/ubuntu:24.04
+consumer-walk: ## Do what the docs tell a new .deb user to do, in a clean ubuntu container
+	@./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
+	    env $(STOCK_PULL) $(CONSUMER_WALK_IMAGE) \
+	    || { echo "consumer-walk: could not pull $(CONSUMER_WALK_IMAGE)"; exit 1; }
+	@./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
+	    docker run --rm --init --pull=never -v "$(CURDIR)":/w:ro -w /w \
+	        $(CONSUMER_WALK_IMAGE) bash tests/install/consumer-walk.sh /w \
+	    || { echo "consumer-walk: FAILED (the line above says why)"; exit 1; }
 
 # The packaged archive, consumed the way a downstream consumes the published
 # one: extract it into a fresh prefix and run the release smoke against that

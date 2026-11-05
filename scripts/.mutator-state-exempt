@@ -62,7 +62,7 @@ _SynthEngine.set_symbols                                UNPROBED          hand-b
 # -- C_ONLY (16)
 Acquisition.dp_acq_set_surface_sink                     C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)
 BerMeter.dp_ber_meter_set_align                         C_ONLY            family 5 (#2083); C twin #2077
-Corr2D.dp_correlator_set_ref                            C_ONLY            family 3 (#2081); C twin #2077
+Corr2D.dp_correlator_set_ref                            C_ONLY            family 3 (#2081); C twin #2077; replaces: Corr2D.dp_corr2d_set_ref
 CorrDetector.dp_detector_set_ref                        C_ONLY            family 3 (#2081); C twin #2077
 CorrDetector.dp_detector_set_threshold                  C_ONLY            family 3 (#2081); C twin #2077
 CorrDetector2D.dp_detector2d_set_ref                    C_ONLY            family 3 (#2081); C twin #2077

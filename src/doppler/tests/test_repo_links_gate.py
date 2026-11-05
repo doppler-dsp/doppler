@@ -223,6 +223,8 @@ def test_an_example_run_by_its_repository_path_is_refused(
         "python src/doppler/examples/x.py",
         "uv run python src/doppler/examples/x.py --n 4",
         "python3 -u ./src/doppler/examples/x.py",
+        ".venv/bin/python src/doppler/examples/x.py",
+        "python3.12 src/doppler/examples/x.py",
     ):
         root = tmp_path / str(abs(hash(line)))
         root.mkdir()

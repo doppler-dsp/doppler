@@ -13,7 +13,9 @@ docs_dir: docs
 # docs/api.md is the stub just-makeit generates (a `::: doppler` directive);
 # api/index.md is the real API page, and both map to api/index.html. zensical
 # 0.0.74 refuses two owners of one page (0.0.45 let one silently win), so the
-# stub is left out of the build, not deleted: the manifest-drift gate wants it.
+# stub is left out of the build, not deleted: the manifest-drift gate wants it
+# (deleting it turns `make drift-check` red). Filed upstream as
+# just-buildit/just-makeit#2471; drop this when jm stops scaffolding the stub.
 exclude_docs: |
   /api.md
 site_dir: site

@@ -347,6 +347,15 @@ gh pr merge --rebase   # (or --squash) ONLY once `CI passed` is green — never 
 The release tag will point at this merged commit, so CI passing here is what
 makes the release safe.
 
+**Check the docs walk by hand.** The release PR touches `pyproject.toml`, so the
+`Docs walk (candidate)` workflow runs on it: every install path the docs name,
+walked from a bare container against artifacts built from this tree (both
+architectures). It is **not** in `CI passed` ([#2881](https://github.com/doppler-dsp/doppler/issues/2881)),
+so a red run does not block the merge. Until it does, confirm both legs are
+green before merging (`gh pr checks`, the two `Docs walk, candidate` rows);
+`release.yml` runs the published face after the tag, and a failure there is a
+shipped release.
+
 The release PR is a version bump alone, so `changes` classifies it
 `src=false` and the heavy matrix its parent already passed is skipped. The
 cheap gates (lint, manifest drift, the CI-image pin) still run. See

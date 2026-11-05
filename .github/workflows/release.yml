@@ -1070,8 +1070,12 @@ jobs:
   # ------------------------------------------------------------------
   docs-walk:
     name: Post-release docs walk (${{ matrix.arch.tag }})
+    # publish-container-merge: docs-walk-docker pulls the versioned image the
+    # merge job publishes; github-release already waits for it, and naming it
+    # keeps that true if github-release's own needs change.
     needs:
       - verify-version
+      - publish-container-merge
       - github-release
     strategy:
       fail-fast: false

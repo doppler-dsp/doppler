@@ -100,7 +100,11 @@ git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler
 
 ## Run it
 
+In a virtual environment (see [Get it](../quickstart.md#get-it) for why, and
+for Debian and Ubuntu's one extra package):
+
 ```sh
+python3 -m venv .venv && . .venv/bin/activate
 pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.delay_doppler_bank_demo
 python -m doppler.examples.delay_doppler_batch_demo

@@ -41,6 +41,7 @@ import sys
 # --8<-- [start:signal]
 import numpy as np
 
+from doppler.examples._extra import require
 from doppler.wfm import rrc_taps
 
 SYM_RATE_HZ = 1000.0
@@ -98,7 +99,7 @@ def rrc_template_for(nfft: int) -> np.ndarray:
 
 
 # --8<-- [start:compare]
-from doppler.acquire import CarrierAcquisition  # noqa: E402
+from doppler.acquire import CarrierAcquisition
 
 # An empty template selects the object's built-in rectangular-pulse sinc^2.
 NO_TEMPLATE = np.array([], dtype=np.float32)
@@ -133,16 +134,12 @@ def run_condition(esn0_db: float):
 # --8<-- [end:compare]
 
 
-from doppler.spectral import PSD  # noqa: E402
+from doppler.spectral import PSD
 
 
 def main(out_path: str = "carrier_acq_rrc_demo.png") -> None:
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

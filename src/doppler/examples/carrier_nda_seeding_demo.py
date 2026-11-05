@@ -38,6 +38,7 @@ import sys
 # --8<-- [start:seed]
 import numpy as np
 
+from doppler.examples._extra import require
 from doppler.mpsk import mpsk_map
 from doppler.spectral import FFT
 from doppler.telemetry import Telemetry
@@ -151,12 +152,8 @@ def qpsk_at(f0: float, nsym: int = 6000, esno_db: float = 20.0) -> np.ndarray:
 
 
 def main(out_path: str) -> None:
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

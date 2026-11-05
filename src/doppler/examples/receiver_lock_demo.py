@@ -27,6 +27,7 @@ import sys
 # --8<-- [start:chain]
 import numpy as np
 
+from doppler.examples._extra import require
 from doppler.telemetry import Telemetry
 from doppler.track import Costas, Dll, SymbolSync
 from doppler.wfm import PN, Composer, Segment
@@ -104,12 +105,8 @@ def run_chain(code, rx, tlm=None, block=2 * TE):
 
 
 def main(out_path="receiver_lock_demo.png"):
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

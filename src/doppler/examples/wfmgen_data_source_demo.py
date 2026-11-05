@@ -56,7 +56,7 @@ seg = Segment(
 x = np.asarray(Composer([seg]).compose())
 # --8<-- [end:data]
 
-import math  # noqa: E402
+import math
 
 
 def check(ok: bool, what: str) -> None:

@@ -1,9 +1,18 @@
-# Pages that name a NATS broker without linking docs/install/broker.md
-# (scripts/check_broker_links.py). Every other page that names `nats-server` or
-# a `nats://` endpoint must link it. Format: <glob> <why>.
-docs/design/** design records and reference prose, not instructions a reader follows
-docs/dev/** contributing pages and the archive are about the codebase, not a first run
-docs/api/** API reference: the endpoint appears in a docstring example, not as a step
-docs/domains/** generated index pages
+# Pages that reach a NATS broker without linking docs/install/broker.md
+# (scripts/check_broker_links.py). Every other page that names a broker, an
+# endpoint, or the stream classes must link it. Format: <glob> <why>. Each row
+# names a page or a frozen tree, not a directory of live pages: a new page in
+# docs/design/ or docs/api/ must earn its own row.
+docs/design/streaming.md the streaming design record; the quick start links the how-to
+docs/design/telemetry.md the telemetry design record
+docs/design/wfmgen.md the wfmgen design record
+docs/api/python-streaming.md API reference: the endpoint is a docstring example, not a step
+docs/api/python-telemetry.md API reference: the endpoint is a docstring example, not a step
+docs/api/python-wfmgen.md API reference: the endpoint is a docstring example, not a step
+docs/dev/archive/** frozen records, not instructions
+docs/dev/ci.md describes the CI broker, not a first run
+docs/dev/coverage.md describes the coverage broker, not a first run
+docs/dev/issues.md rendered issue titles
 docs/install/docker.md the Docker page bundles its own broker
 docs/install/broker.md this IS the page
+docs/design/archive/** frozen design records

@@ -31,12 +31,10 @@ Run:
 
 from __future__ import annotations
 
-try:
-    import matplotlib
-except ImportError as e:  # an extra, not a dependency
-    raise SystemExit(
-        "needs matplotlib: pip install 'doppler-dsp[examples]'"
-    ) from e
+from doppler.examples._extra import require
+
+require("matplotlib")
+import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -68,7 +66,7 @@ x = Composer(timeline).compose()  # → complex64
 # The narrative block above must stay self-contained (the gallery page
 # includes it verbatim), so this import follows it. noqa: E402 — import
 # not at top of file, by design.
-from doppler.spectral import PSD, Spectrogram  # noqa: E402
+from doppler.spectral import PSD, Spectrogram
 
 N = 1 << 16  # == the scene's num_samples above
 

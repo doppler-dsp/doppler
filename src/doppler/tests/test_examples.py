@@ -121,7 +121,9 @@ def _pair_halves(pairs: dict[str, str]) -> list[tuple[str, str]]:
 
 def _discover(paired: set[str]) -> list[Path]:
     scripts = sorted(
-        s for s in EXAMPLES_DIR.glob("*.py") if s.name not in paired
+        s
+        for s in EXAMPLES_DIR.glob("*.py")
+        if s.name not in paired and not s.name.startswith("_")
     )
     scripts.extend(EXTRA_EXAMPLES)
     return scripts

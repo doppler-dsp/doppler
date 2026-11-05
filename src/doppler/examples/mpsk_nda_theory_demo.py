@@ -22,6 +22,7 @@ import sys
 # --8<-- [start:track]
 import numpy as np
 
+from doppler.examples._extra import require
 from doppler.mpsk import mpsk_map
 from doppler.track import CarrierNda
 
@@ -120,12 +121,8 @@ def _jitter_bound(kd):
 
 
 def main(out_path="mpsk_nda_theory_demo.png"):
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

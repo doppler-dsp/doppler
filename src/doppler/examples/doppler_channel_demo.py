@@ -51,6 +51,7 @@ import sys
 # --8<-- [start:channel]
 import numpy as np
 
+from doppler.examples._extra import require
 from doppler.impairment import DopplerChannel
 
 # The async DSSS receiver spec's geometry (docs/design/async-dsss-receiver.md
@@ -149,12 +150,8 @@ def ramp_trace(rate_ppm_s: float, n_blocks: int = 48):
 
 
 def main(out_path: str = "doppler_channel_demo.png") -> None:
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

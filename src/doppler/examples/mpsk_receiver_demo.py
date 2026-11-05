@@ -21,6 +21,7 @@ import sys
 import numpy as np
 
 from doppler.ber import ber_settle_syms, ber_theory_ser
+from doppler.examples._extra import require
 from doppler.track import MpskReceiver
 from doppler.wfm import Composer, Segment
 
@@ -188,12 +189,8 @@ def _ser(out, idx, m, settle):
 
 
 def main(out_path: str = "mpsk_receiver_demo.png") -> None:
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

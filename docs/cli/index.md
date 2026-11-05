@@ -232,6 +232,8 @@ source:
   address: nats://192.168.1.10:4222/iq
 ```
 
+A `nats://` endpoint needs a running [NATS broker](../install/broker.md); one command starts one.
+
 !!! note
 
     A `socket` source block is planned for a future release. In the

@@ -30,6 +30,8 @@ doppler-specan --source file --address capture.cf32 --fs 2.048e6 --web
 doppler-specan --source socket --address nats://127.0.0.1:4222/iq --web
 ```
 
+A `nats://` endpoint needs a running [NATS broker](../install/broker.md); one command starts one.
+
 Install:
 
 ```sh

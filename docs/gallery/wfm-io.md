@@ -109,7 +109,7 @@ assert (y == x).all()
 For a live feed, pace a `Composer.stream` against wall-clock with a
 `SampleClock` and publish each block over NATS with a `StreamSink`. A
 `doppler.stream` `Subscriber` receives the frames with their `fs`/`fc` header.
-Requires a `nats-server` reachable at the endpoint (plain `nats-server` is
+Requires a [`nats-server`](../install/broker.md) reachable at the endpoint (plain `nats-server` is
 enough for this PUB/SUB feed):
 
 <!-- docs-snippet: skip=blocking NATS publish/paced recv; see stream tests -->

@@ -520,6 +520,8 @@ if (dp_pull_recv(rx, &msg, &rhdr) == DP_OK) {
 dp_pull_destroy(rx);
 ```
 
+A `nats://` endpoint needs a running [NATS broker](../install/broker.md); one command starts one.
+
 Build and run the in-process demo (producer + consumer threads, 100
 batches):
 

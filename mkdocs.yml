@@ -149,6 +149,7 @@ nav:
       - Build from Source: install/source.md
       - Rust: install/rust.md
       - Docker: install/docker.md
+      - NATS Broker: install/broker.md
 # domains-nav:start
   - Domains:
       - Domains: domains/index.md

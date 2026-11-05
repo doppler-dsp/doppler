@@ -53,7 +53,7 @@ value (`DPSTREAM`), and three messaging patterns, each addressed by a
 Every block speaks the same framing format. A C transmitter can
 push to a Python subscriber and vice versa. The transport is
 optional — if you only need the DSP primitives, skip it entirely. It
-requires a running `nats-server` (e.g. `nats-server -js`) to connect
+requires a running [NATS server](install/broker.md) (e.g. `nats-server -js`) to connect
 to.
 
 See [API: Streaming](api/python-streaming.md).

@@ -279,6 +279,9 @@ format, so it sends each code as `x - 128` (`ci8`). The receiver decodes
 that with `I8ToF32`, which is bit-identical to `U8ToF32("shift")` on the
 original bytes.
 
+The first line below starts a NATS broker; if you have none, the docs say [how
+to get one](https://doppler-dsp.github.io/doppler/install/broker/).
+
 ```sh
 nats-server -js                                                  # a broker
 rtl_sdr -f 100e6 -s 2.4e6 - | build/uno_q_pub --nats nats://127.0.0.1:4222/rtl --fs 2.4e6 --fc 100e6

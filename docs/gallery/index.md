@@ -6,6 +6,11 @@ grouped below by DSP domain. Most pages render a figure; **run `make gallery`
 to regenerate every image**, or run a single script directly (each page lists
 its command under *Reproduce* / *Run it*).
 
+The scripts draw with matplotlib and some design filters with scipy, which are
+not dependencies of the library. Install both once with
+`pip install "doppler-dsp[examples]"`; a script that needs one and does not
+find it says so and names that command.
+
 A page whose subject is a C API instead carries a compiled-and-run `c` fence
 and points at its demo under
 [`native/examples/`](https://github.com/doppler-dsp/doppler/tree/v0.79.0/native/examples).

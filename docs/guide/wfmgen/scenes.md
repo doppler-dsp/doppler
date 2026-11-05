@@ -588,6 +588,8 @@ wfmgen --type qpsk --fs 1e6 --sps 8 --continuous --realtime \
        --output nats://127.0.0.1:4222/iq
 ```
 
+A `nats://` endpoint needs a running [NATS broker](../../install/broker.md); one command starts one.
+
 The schedule is **drift-free**: each deadline is recomputed from the cumulative
 sample count against a fixed epoch, so sleep jitter never accumulates — the
 long-run rate is exactly `fs`. Pacing does **not** alter the samples; a file

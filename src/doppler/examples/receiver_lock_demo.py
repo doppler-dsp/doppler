@@ -104,7 +104,12 @@ def run_chain(code, rx, tlm=None, block=2 * TE):
 
 
 def main(out_path="receiver_lock_demo.png"):
-    import matplotlib
+    try:
+        import matplotlib
+    except ImportError as e:  # an extra, not a dependency
+        raise SystemExit(
+            "needs matplotlib: pip install 'doppler-dsp[examples]'"
+        ) from e
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

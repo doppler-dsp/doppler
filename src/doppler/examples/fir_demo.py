@@ -10,7 +10,11 @@ Run:
 """
 
 import numpy as np
-from scipy.signal import firwin
+
+try:
+    from scipy.signal import firwin
+except ImportError as e:  # an extra, not a dependency
+    raise SystemExit("needs scipy: pip install 'doppler-dsp[examples]'") from e
 
 from doppler.filter import FIR
 

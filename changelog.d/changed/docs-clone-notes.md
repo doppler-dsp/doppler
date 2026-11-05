@@ -1,0 +1,1 @@
+Pages that run `make build`, `./build/...` or `docker compose` now say how to get the repository (`git clone --branch v<version>`, re-stamped each release), and the C quick start names `app.c` and `CMakeLists.txt` as the files its commands build. A new lint gate, `clone-notes`, fails any page that runs a repository-only command without that clone (#2857).

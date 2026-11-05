@@ -139,6 +139,20 @@ description with fields called `"preamble"`, `"sync"`, `"payload"` and
 **byte-identically** — which is what makes "one frame representation" a
 measurement rather than a claim.
 
+These commands run from a clone of the repository at the release you
+installed; the `make` targets and the `./build/` binaries are not in the wheel.
+Skip this if you already have one:
+
+<!-- docs-snippet: no-exec=clones the repository -->
+
+<!-- doc-version:start -->
+
+```sh
+git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler
+```
+
+<!-- doc-version:end -->
+
 The worked version of that check, and of every claim above, is
 [`native/examples/wfmgen_frame_demo.c`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/native/examples/wfmgen_frame_demo.c):
 it composes framed against unframed, demodulates the frame back to the

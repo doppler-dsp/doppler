@@ -257,7 +257,7 @@ wfmgen --type dsss --data-code 0x1d --symbol-rate 2700 --sps 2 \
 From Python, `data=` takes the bits -- a file's bytes become bits through
 `cvt.bytes_to_bin` -- and there is no file face of its own. The message comes
 back frame by frame, each with its own CRC
-([`wfmgen_data_source_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/wfmgen_data_source_demo.py),
+([`wfmgen_data_source_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/wfmgen_data_source_demo.py),
 whose C twin is `native/examples/wfmgen_data_source_demo.c`):
 
 ```python

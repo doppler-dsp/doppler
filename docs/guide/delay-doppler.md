@@ -205,9 +205,9 @@ ______________________________________________________________________
 - [Gallery: Delay-Doppler Search](../gallery/delay-doppler.md): the map, the
     coarse straddle loss and the refine that recovers it, drawn
 - The runnable examples
-    [`delay_doppler_batch_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/delay_doppler_batch_demo.py)
+    [`delay_doppler_batch_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/delay_doppler_batch_demo.py)
     and
-    [`delay_doppler_bank_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/delay_doppler_bank_demo.py),
+    [`delay_doppler_bank_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/delay_doppler_bank_demo.py),
     each with a C twin in `native/examples/`
 - [Acquiring a Repeated Preamble](acquisition.md): the burst-level search
     that uses this map

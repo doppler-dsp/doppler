@@ -16,7 +16,7 @@ from doppler.wfm import Reader, Writer, write_blue_header
 | [`write_blue_header`](#module-level-helpers) | out       | Write a **detached** BLUE header beside a payload written separately |
 
 Source:
-[`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/__init__.py)
+[`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/wfm/__init__.py)
 
 The narrative versions of both sides are [Writing
 captures](../guide/wfm-io/writing.md) and [Reading

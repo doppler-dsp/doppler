@@ -258,7 +258,7 @@ LOCK_CMD   = $(UV) lock --upgrade-package $(PY_PROJECT)
 # owns the version, so there is no `additional_dependencies` left to drift.
 LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
-               retired-names ci-pipefail rust-abi header-example-arity \
+               retired-names repo-links ci-pipefail rust-abi header-example-arity \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
                version-literals text-encoding cmake-script-policy \
@@ -513,6 +513,14 @@ lint-alloc-helpers-baseline: ## Re-record the alloc ratchet after converting som
 # five of them the NAME a C test prints, which no compiler can notice. The
 # list is data, added by the commit that retires a name.
 LINT_retired-names = $(UV) run python scripts/check_retired_names.py
+
+# The docs point at the RELEASE the reader installed, not at main
+# (doppler#2857): no `blob/main` link and no `git clone` without --branch outside
+# the pages docs/.main-links-allowed names, and every pinned link names a file
+# that exists in the tree and at the tag. The tag is fetched when it is not
+# local, and a CI run that cannot get it FAILS: a skip would make this check
+# nothing where checkouts carry no tags.
+LINT_repo-links = $(UV) run python scripts/check_repo_links.py
 
 # A `cmake -P` script inherits no policies: without its own
 # cmake_minimum_required every policy is OLD, which CMake 4 hides and the CMake

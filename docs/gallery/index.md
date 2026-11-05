@@ -1,14 +1,14 @@
 # Gallery
 
 Worked examples across every doppler subsystem — nearly all of them a
-runnable script under [`src/doppler/examples/`](https://github.com/doppler-dsp/doppler/tree/main/src/doppler/examples),
+runnable script under [`src/doppler/examples/`](https://github.com/doppler-dsp/doppler/tree/v0.79.0/src/doppler/examples),
 grouped below by DSP domain. Most pages render a figure; **run `make gallery`
 to regenerate every image**, or run a single script directly (each page lists
 its command under *Reproduce* / *Run it*).
 
 A page whose subject is a C API instead carries a compiled-and-run `c` fence
 and points at its demo under
-[`native/examples/`](https://github.com/doppler-dsp/doppler/tree/main/native/examples).
+[`native/examples/`](https://github.com/doppler-dsp/doppler/tree/v0.79.0/native/examples).
 
 Looking for a runnable script that isn't a rendered walkthrough — LO, NCO,
 FFT, ring buffers, the C API reference programs, or the NATS streaming demo?

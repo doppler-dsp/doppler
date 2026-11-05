@@ -79,4 +79,4 @@ keeps a Python sweep and a CI gate measuring the same thing.
 uv run python src/doppler/examples/ber_awgn_demo.py
 ```
 
-Source: [`src/doppler/examples/ber_awgn_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/ber_awgn_demo.py)
+Source: [`src/doppler/examples/ber_awgn_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/ber_awgn_demo.py)

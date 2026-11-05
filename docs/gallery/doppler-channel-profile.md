@@ -82,4 +82,4 @@ chunk dependence.
 python -m doppler.examples.doppler_channel_profile_demo doppler_channel_profile_demo.png
 ```
 
-Source: [`src/doppler/examples/doppler_channel_profile_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/doppler_channel_profile_demo.py)
+Source: [`src/doppler/examples/doppler_channel_profile_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/doppler_channel_profile_demo.py)

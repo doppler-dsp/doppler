@@ -5,7 +5,7 @@ Dual-write circular delay line for complex128 samples, backed by
 contiguous window of history with no modulo arithmetic.
 
 Source:
-[`src/doppler/delay/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/delay/__init__.py)
+[`src/doppler/delay/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/delay/__init__.py)
 
 ______________________________________________________________________
 

@@ -10,7 +10,7 @@ equations and conventions, and the
 module composes with the shared `PSD` core.
 
 Source:
-[`src/doppler/measure/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/measure/__init__.py)
+[`src/doppler/measure/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/measure/__init__.py)
 
 ______________________________________________________________________
 

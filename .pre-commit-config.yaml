@@ -365,6 +365,13 @@ repos:
         language: system
         pass_filenames: false
 
+      # The docs link the release the reader installed, never main (#2857).
+      - id: repo-links
+        name: docs link the release, not main
+        entry: make -s lint-repo-links
+        language: system
+        pass_filenames: false
+
       # A `cmake -P` script declares its own policy level (#1578).
       - id: cmake-script-policy
         name: cmake -P scripts declare cmake_minimum_required

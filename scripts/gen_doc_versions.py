@@ -86,6 +86,19 @@ VERSION_TOKEN = re.compile(
 # no other two-part number is ever rewritten.
 SERIES_TOKEN = re.compile(r"(?<=libdoppler-dsp)\d+\.\d+(?![0-9.])")
 
+# A link to a file of THIS repository at a release tag. Unlike a version in a
+# command, it appears in running prose and in tables, where a marked region
+# would be a wrapper around every link, so the pin is stamped WHEREVER it
+# appears: write ``.../blob/v0.1.0/path`` once and each release rewrites it
+# (doppler#2857). The reader of a deployed page is then shown the code they
+# installed, not whatever ``main`` has become. ``scripts/check_repo_links.py``
+# refuses the unpinned ``.../blob/main`` form in the docs, so a link cannot
+# go unstamped by being written the other way.
+LINK_PIN = re.compile(
+    r"(https://github\.com/doppler-dsp/doppler/(?:blob|tree)/)"
+    r"v\d+\.\d+\.\d+(?=/)"
+)
+
 REGION = re.compile(
     rf"({re.escape(START)}\n)(.*?)(\n?{re.escape(END)})",
     re.DOTALL,
@@ -150,7 +163,9 @@ def unfloored(text: str) -> list[int]:
 
 
 def render(text: str, version: str) -> str:
-    """Rewrite every version token inside every marked region."""
+    """Rewrite every version token inside every marked region, and every
+    repository link pinned to a release tag (:data:`LINK_PIN`) anywhere."""
+    text = LINK_PIN.sub(rf"\g<1>v{version}", text)
 
     def one(m: re.Match[str]) -> str:
         head, body, tail = m.group(1), m.group(2), m.group(3)
@@ -174,8 +189,6 @@ def main() -> int:
 
     for page in pages():
         text = page.read_text(encoding="utf-8")
-        if START not in text:
-            continue
         new = render(text, version)
         if new == text:
             continue

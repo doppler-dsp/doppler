@@ -8,7 +8,7 @@ the integrator holds the running frequency/rate estimate and `kp·e` is the
 instantaneous (phase) correction.
 
 Source:
-[`src/doppler/track/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/track/__init__.py)
+[`src/doppler/track/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/track/__init__.py)
 
 ______________________________________________________________________
 

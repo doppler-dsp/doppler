@@ -157,7 +157,7 @@ row. Nothing checks that at PR time yet
 where a forgotten or mistyped label first shows. A label the new set was measured with but that names no row it
 recorded is reported as dead: a retired row, or a mistyped ID.
 
-The run takes about two hours (2 h 02 min for v0.80.0, pinned to the
+The run takes about two hours (2 h 02 min measured 2026-11-05, pinned to the
 fastest core class), so over ssh it is launched in the background, and it leaves its outcome where a watcher can wait on it: the log
 at `build/bench-runs/X.Y.Z.log` and, written last, the exit code at
 `build/bench-runs/X.Y.Z.rc` -- on success and on every failure

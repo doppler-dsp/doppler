@@ -144,7 +144,7 @@ release you installed (skip this if you have one):
 <!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
-git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler
+git clone --branch v0.80.0 https://github.com/doppler-dsp/doppler && cd doppler
 ```
 
 <!-- doc-version:end -->
@@ -165,7 +165,7 @@ one each.
 
 In C the same record is `dp_tlm_capture_open (tlm, TE, "rx.tlm", &clk)` in place
 of `dp_tlm_capture_open_memory()`; the
-[C twin](https://github.com/doppler-dsp/doppler/blob/v0.79.0/native/examples/async_dsss_receiver_lifecycle.c)
+[C twin](https://github.com/doppler-dsp/doppler/blob/v0.80.0/native/examples/async_dsss_receiver_lifecycle.c)
 shows the attach, the stamping and the read-back.
 
 ## What you're seeing
@@ -195,7 +195,7 @@ python -m doppler.examples.async_dsss_receiver_lifecycle out.png
 ```
 
 The C twin is
-[`async_dsss_receiver_lifecycle.c`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/native/examples/async_dsss_receiver_lifecycle.c).
+[`async_dsss_receiver_lifecycle.c`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/native/examples/async_dsss_receiver_lifecycle.c).
 It runs the same draw, the same seeds into the same sources, and checks the same
 physics, so it prints the same five lines as the script; a test runs both and
 requires that. It also shows what the binding does for you: the caller-owned
@@ -204,4 +204,4 @@ buffers, the telemetry context, and the teardown.
 The design, including the state machine and the release rule, is in
 [the async DSSS receiver design](../design/async-dsss-receiver.md).
 
-Source: [`async_dsss_receiver_lifecycle.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/async_dsss_receiver_lifecycle.py).
+Source: [`async_dsss_receiver_lifecycle.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/async_dsss_receiver_lifecycle.py).

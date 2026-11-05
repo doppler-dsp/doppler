@@ -181,7 +181,7 @@ repository, once (all it needs is a C compiler — see
 <!-- doc-version:start -->
 
 ```bash
-git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler
+git clone --branch v0.80.0 https://github.com/doppler-dsp/doppler
 cd doppler
 make          # builds ./build/native/examples/transmitter, receiver, etc.
 ```
@@ -307,7 +307,7 @@ the Rust FFI bindings, running the test suite, or contributing.
 <!-- doc-version:start -->
 
 ```bash
-git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler
+git clone --branch v0.80.0 https://github.com/doppler-dsp/doppler
 cd doppler
 make install-deps  # bootstrap jbx (if needed) + install system deps
 make               # C library + examples
@@ -323,7 +323,7 @@ optional stream component, which vendors `nats.c`, are both pure C99).
 
 ??? note "Installing system deps by hand instead"
 
-    `make install-deps` reads [`bootstrap.toml`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/bootstrap.toml),
+    `make install-deps` reads [`bootstrap.toml`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/bootstrap.toml),
     the single source of truth for doppler's system deps, so it stays in
     sync automatically. To install them yourself instead:
 

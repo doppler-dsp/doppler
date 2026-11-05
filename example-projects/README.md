@@ -4,7 +4,7 @@ Four self-contained projects that consume doppler the way you would: their
 own `CMakeLists.txt`, their own `Makefile`, `find_package(doppler)` against an
 install rather than a path into this source tree.
 
-That is what separates them from [`native/examples/`](https://github.com/doppler-dsp/doppler/tree/v0.79.0/native/examples),
+That is what separates them from [`native/examples/`](https://github.com/doppler-dsp/doppler/tree/v0.80.0/native/examples),
 which builds against this repo's headers and links its targets directly.
 Those demonstrate the API; these demonstrate *depending on it*.
 

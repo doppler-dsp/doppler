@@ -7,7 +7,7 @@ view `PersistentBurstCapture`; `DsssBurstReceiver` composes it. §1–§6 are th
 rationale written before it was built, and describe the receiver as it was
 then: where they say "today's receiver", read "the receiver before
 `BurstCapture`". The certification is its
-[validation report](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/acquire/tests/validation/burst_capture/results.md).
+[validation report](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/acquire/tests/validation/burst_capture/results.md).
 **Scope:** a C object — `BurstCapture` — that sits between a detector
 and whatever consumes a burst. It searches, refines, retains, and emits the
 burst's SAMPLES. It stops there.

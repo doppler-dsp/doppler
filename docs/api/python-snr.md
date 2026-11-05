@@ -18,7 +18,7 @@ scalar:
     needed at all.
 
 Source:
-[`src/doppler/snr/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/snr/__init__.py)
+[`src/doppler/snr/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/snr/__init__.py)
 
 The blind estimator, `snr_m2m4_db`, is used against real receiver output in the
 [M-PSK Receiver](../gallery/mpsk-receiver.md) and

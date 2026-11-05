@@ -4,7 +4,7 @@ Running-sum accumulators backed by `dp_acc_f32_state_t` and `dp_acc_cf64_state_t
 Used as the integrate-and-dump register in polyphase resamplers.
 
 Source:
-[`src/doppler/accumulator/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/accumulator/__init__.py)
+[`src/doppler/accumulator/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/accumulator/__init__.py)
 
 ______________________________________________________________________
 

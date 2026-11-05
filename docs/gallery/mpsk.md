@@ -69,4 +69,4 @@ carrier loop (`track.CarrierMpsk`) and the MPSK receiver inline per symbol —
 the decision-directed carrier error is `Im(y · conj(â))` where `â` is the sliced
 point. Differential map/demap accumulate / difference the index across the array.
 
-Source: `src/doppler/examples/mpsk_constellation_demo.py`.
+Source: [`src/doppler/examples/mpsk_constellation_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/mpsk_constellation_demo.py).

@@ -177,10 +177,11 @@ Two further demos exercise the modulation chain end to end:
 ## Reproduce
 
 ```sh
-python src/doppler/examples/wfmgen_demo.py        # the four-waveform figure (.png)
-python src/doppler/examples/pn_codes.py           # PN MLS / Galois vs Fibonacci
-python src/doppler/examples/wfm_rrc_response.py   # RRC impulse/freq/no-ISI (.png)
-python src/doppler/examples/wfm_receiver_ber.py   # BER vs Eb/No vs theory (.png)
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.wfmgen_demo        # the four-waveform figure (.png)
+python -m doppler.examples.pn_codes           # PN MLS / Galois vs Fibonacci
+python -m doppler.examples.wfm_rrc_response   # RRC impulse/freq/no-ISI (.png)
+python -m doppler.examples.wfm_receiver_ber   # BER vs Eb/No vs theory (.png)
 ```
 
 ## From Python — the composer API

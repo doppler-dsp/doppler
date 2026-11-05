@@ -114,7 +114,8 @@ struct. Two shipped loops already run on it:
 ## Run it
 
 ```bash
-python src/doppler/examples/lockdet_demo.py   # → lockdet_demo.png  (~10 s)
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.lockdet_demo   # → lockdet_demo.png  (~10 s)
 ```
 
 See the [detection API](../api/python-detection.md) for the full

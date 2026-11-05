@@ -121,7 +121,8 @@ Output is byte-identical to the Python `Synth`/`Composer` faces.
 ## Reproduce
 
 ```sh
-python src/doppler/examples/symbols_demo.py     # the four-panel figure (.png)
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.symbols_demo     # the four-panel figure (.png)
 ```
 
 ## See also

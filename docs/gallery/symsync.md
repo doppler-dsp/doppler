@@ -78,4 +78,4 @@ set the loop bandwidth and damping. The synchronizer tracks residual clock
 offsets up to roughly ±1 % cleanly — it follows acquisition, just as the
 carrier loops track the residual after the FFT search.
 
-Source: `src/doppler/examples/symsync_demo.py`.
+Source: [`src/doppler/examples/symsync_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/symsync_demo.py).

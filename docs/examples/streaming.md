@@ -128,8 +128,8 @@ with Subscriber("nats://127.0.0.1:4222/iq") as sub:
 For a complete runnable example with live dashboard and graceful shutdown:
 
 ```bash
-python src/doppler/examples/transmitter.py nats://127.0.0.1:4222/iq
-python src/doppler/examples/receiver.py nats://127.0.0.1:4222/iq
+python -m doppler.examples.transmitter nats://127.0.0.1:4222/iq
+python -m doppler.examples.receiver nats://127.0.0.1:4222/iq
 ```
 
 ## Python: Push / Pull pipeline
@@ -161,11 +161,11 @@ Run multiple workers for parallel processing:
 
 ```bash
 # Terminal 1 — sender
-python src/doppler/examples/pipeline_send.py nats://127.0.0.1:4222/work
+python -m doppler.examples.pipeline_send nats://127.0.0.1:4222/work
 
 # Terminals 2 and 3 — two parallel workers
-python src/doppler/examples/pipeline_recv.py nats://127.0.0.1:4222/work 0
-python src/doppler/examples/pipeline_recv.py nats://127.0.0.1:4222/work 1
+python -m doppler.examples.pipeline_recv nats://127.0.0.1:4222/work 0
+python -m doppler.examples.pipeline_recv nats://127.0.0.1:4222/work 1
 ```
 
 ## Python: Requester / Replier
@@ -201,10 +201,10 @@ Complete standalone examples:
 
 ```bash
 # Terminal 1 — server (start first)
-python src/doppler/examples/replier.py nats://127.0.0.1:4222/ctrl --gain 0.5
+python -m doppler.examples.replier nats://127.0.0.1:4222/ctrl --gain 0.5
 
 # Terminal 2 — client
-python src/doppler/examples/requester.py nats://127.0.0.1:4222/ctrl --count 20
+python -m doppler.examples.requester nats://127.0.0.1:4222/ctrl --count 20
 ```
 
 ______________________________________________________________________

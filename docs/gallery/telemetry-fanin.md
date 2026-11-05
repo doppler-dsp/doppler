@@ -128,7 +128,8 @@ producers and Python consumers mix freely.
 ## Run it
 
 ```bash
-python src/doppler/examples/telemetry_fanin_demo.py   # → telemetry_fanin_demo.png  (~10 s)
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.telemetry_fanin_demo   # → telemetry_fanin_demo.png  (~10 s)
 ```
 
 See the [telemetry API](../api/python-telemetry.md) for the probe

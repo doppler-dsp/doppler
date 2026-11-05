@@ -143,8 +143,9 @@ print(clock.samples, clock.underruns, clock.max_lateness)
 ## Reproduce
 
 ```sh
-python src/doppler/examples/wfm_io_demo.py          # the four-file type figure (.png)
-python src/doppler/examples/wfm_realtime_stream.py  # paced NATS publish + recv stats
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.wfm_io_demo          # the four-file type figure (.png)
+python -m doppler.examples.wfm_realtime_stream  # paced NATS publish + recv stats
 ```
 
 See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink)

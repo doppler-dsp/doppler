@@ -57,5 +57,6 @@ of `decim`, for an AGC embedded inside a per-sample feedback loop (e.g. the
 buffering. As with `decim`, `loop_bw` keeps its per-sample meaning.
 
 ```bash
-python src/doppler/examples/agc_demo.py   # → agc_convergence.png
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.agc_demo   # → agc_convergence.png
 ```

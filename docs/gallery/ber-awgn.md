@@ -76,7 +76,8 @@ keeps a Python sweep and a CI gate measuring the same thing.
 ## Reproduce
 
 ```sh
-uv run python src/doppler/examples/ber_awgn_demo.py
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.ber_awgn_demo
 ```
 
 Source: [`src/doppler/examples/ber_awgn_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/ber_awgn_demo.py)

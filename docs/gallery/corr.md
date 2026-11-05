@@ -75,5 +75,6 @@ for lag, peak_mag, noise_est, test_stat in det.push(block):
 acquisition search — see the [2-D Acquisition gallery](detection2d.md).
 
 ```bash
-python src/doppler/examples/corr_demo.py   # → corr_demo.png
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.corr_demo   # → corr_demo.png
 ```

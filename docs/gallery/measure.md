@@ -33,7 +33,8 @@ level.
 ## Reproduce
 
 ```sh
-python src/doppler/examples/measure_demo.py
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.measure_demo
 ```
 
 ## The measurement object

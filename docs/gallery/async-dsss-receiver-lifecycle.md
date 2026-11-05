@@ -177,6 +177,7 @@ shows the attach, the stamping and the read-back.
 ## Reproduce
 
 ```sh
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.async_dsss_receiver_lifecycle out.png
 ```
 

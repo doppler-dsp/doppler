@@ -64,7 +64,8 @@ print(enc2.clipped)                 # False
 ```
 
 ```bash
-python src/doppler/examples/cvt_quantization_demo.py   # → cvt_quantization_demo.png
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.cvt_quantization_demo   # → cvt_quantization_demo.png
 ```
 
 See [`docs/design/QUANTIZATION.md`](../design/QUANTIZATION.md) for the

@@ -51,5 +51,5 @@ tracking threshold that **tightens as M grows** (BPSK still locked at 6 dB where
 QPSK/8PSK have lost lock); and the FLL assist's frequency pull-in range exceeding
 the bare PLL's, by ~2.5× for 8PSK.
 
-Source: `src/doppler/examples/mpsk_carrier_theory_demo.py`; tests in
+Source: [`src/doppler/examples/mpsk_carrier_theory_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/mpsk_carrier_theory_demo.py); tests in
 `src/doppler/track/tests/test_theory_carrier_mpsk.py` and the C harnesses above.

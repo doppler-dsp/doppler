@@ -148,17 +148,18 @@ arrives in whatever blocks your transport hands you.
 Every panel is independently selectable, so a single question is cheap to ask:
 
 ```bash
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 # the two panels above (the default, and what the figure is)
-python src/doppler/examples/mpsk_receiver_performance_demo.py
+python -m doppler.examples.mpsk_receiver_performance_demo
 
 # every panel, including the six pass/fail ones
-python src/doppler/examples/mpsk_receiver_performance_demo.py --only all
+python -m doppler.examples.mpsk_receiver_performance_demo --only all
 
 # one question at a time
-python src/doppler/examples/mpsk_receiver_performance_demo.py --only falsealarm
+python -m doppler.examples.mpsk_receiver_performance_demo --only falsealarm
 
 # more draws for a tighter distribution
-python src/doppler/examples/mpsk_receiver_performance_demo.py --trials 400
+python -m doppler.examples.mpsk_receiver_performance_demo --trials 400
 ```
 
 !!! note "Run by the examples gate"

@@ -13,6 +13,354 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.80.0] - 2026-11-05
+
+### Breaking
+
+- **`dp_symsync_create` refuses an interpolator order outside 0..2.** It
+    used to read any other order as cubic; it now returns NULL, as
+    `dp_farrow_create` does. See [#2142](https://github.com/doppler-dsp/doppler/issues/2142).
+
+- **`dp_wfm_synth_set_wtype` returns `int` and refuses a type it cannot
+    run.** A type outside the enum, or one whose generator `create()` did
+    not build, is `DP_ERR_INVALID` with the type unchanged. In Python,
+    `_SynthEngine.set_wtype` raises `ValueError` and takes the keyword `val`
+    (was positional-only `value`); a v5 synth blob is refused by its version.
+    See [#2095](https://github.com/doppler-dsp/doppler/issues/2095).
+
+- **`dp_wfm_synth_set_nsps`/`set_sym_pos` return `int` and refuse a bad
+    value.** A hold at or below the current `sym_pos` is
+    `DP_ERR_INVALID`, so set `sym_pos` first. In Python,
+    `_SynthEngine.set_nsps`/`set_sym_pos` raise `ValueError`, and their
+    argument is the keyword `val` (was positional-only `value`). See [#2142](https://github.com/doppler-dsp/doppler/issues/2142).
+
+### Added
+
+- **The acq and pool benchmarks time a search with a carrier set.** There
+    are three new acq rows (`op5M_U50k_D150_t1_fc`, `op2M_U50k_D60_t1_fc`
+    and `op5M_U5k_D150_t1_fc`) and two new pool rows (`push[full,…,carrier]`),
+    all at a 2.2 GHz carrier, so every side tile runs its code-rate ramp. On
+    one dev box the ramp costs 16–19% of each block-coherent search. The
+    rows exist so main measures them before the one delay-Doppler map
+    replaces that ramp (#2825, #2752).
+
+- **`make bench-ab ALIAS=old=new`** judges a benchmark family renamed
+    between the two commits, pairing A's `old::<row>` with B's `new::<row>`
+    suffix for suffix. A row on one side only fails as UNPAIRED, and every
+    alias in force is printed with the verdict (#2752 step 3.2).
+
+- **`make bench-ab A=<ref> B=<ref>` compares two commits.** It builds both at
+    one set of flags, alternates them K times, and reports per row each
+    side's min of the best rounds, its spread, the ratio and a verdict. A row
+    ties within the larger spread, and the run fails on a slower or missing
+    row (#2759). `make bench-interleaved` stays the release tool.
+
+- **The Corr2D benchmark times a bank with Doppler rates and an
+    interpolated delay-Doppler map.** `bank_64x512_c12_l4_r12_1t` runs the
+    L = 4 bank through 12 per-period rate weightings, 144 hypotheses.
+    `delay_doppler_32x1024_o64_1t` reads 32 periods on 64 Doppler rows. They
+    are the two cases where the one delay-Doppler map changes the transform
+    count, so main measures them before it lands (#2831).
+
+- **`DelayDoppler` has a guide, a gallery page and Python-first docstrings.**
+    A "Delay-Doppler Search" guide (the map, batches, the hypothesis bank), a
+    gallery page with both demos drawn, and every batch and bank docstring
+    saying the frame layout, the output axes and who owns the result. See
+    [#2683](https://github.com/doppler-dsp/doppler/issues/2683).
+
+- **The docs group by domain, and every class is in an A-Z index.** A domain
+    is a Python module with a task title (`docs/domains.toml`); each guide,
+    gallery and design page names its domain, and `gen_domains.py` writes the
+    domain pages, the [A-Z index](docs/api/a-z.md) and the Domains nav. See
+    [#2723](https://github.com/doppler-dsp/doppler/issues/2723).
+
+- **`make docs-walk` walks every install path the docs name from a bare
+    container.** Each stage (pip with the `[examples]` extra, the C tarball's
+    three compile faces, a clone and `make build`, the .debs) runs the commands
+    its own page gives; `WALK_MODE=candidate` is the pre-release dry run, and
+    `release.yml` runs the published face after every release (#2857, #2879).
+    Details: [the install paths the docs walk](https://doppler-dsp.github.io/doppler/dev/contributing/docs-conventions/#the-install-paths-the-docs-walk).
+
+- **Short-frame benchmark rows for `Corr` and `CorrDetector`**, at the PN
+    periods 31, 63 and 127 (#2752 step 3.1b):
+
+    - `corr::execute[accumulate]` and `[dump]` at `[n=31]`, `[n=63]` and
+        `[n=127]`;
+    - `detector::push[frame=31]`, `[frame=63]` and `[frame=127]`.
+
+    They time 64 calls a round, since one call is near the clock's
+    granularity. Each checks what it timed, an m-sequence detected at its
+    planted lag, or the bench fails. They are the baseline the one
+    correlator must meet (its design, #2863, U1).
+
+### Changed
+
+- **`Acquisition` and `BurstAcquisition` run on the library's one
+    delay-Doppler map**, 0.26–0.91 of the time on the dev box. A tiled
+    engine's absolute magnitudes fall by `code_bins` (one scale,
+    1/`code_bins`): `peak_mag`, `noise_est`, `surface_complex` and
+    `block_prompt`, `BurstCapture.peak_mag`, and the telemetry probes
+    `.peak` and `.noise`. Every ratio and decision is unchanged. The state
+    blob is version 8 and carries the carrier
+    ([design §18](docs/design/acq-surface.md), #2831).
+
+- **Four classes get an API entry, and two docstrings stop opening with an
+    internal note.** `Spectrogram`, `DsssBurstReceiver`, `wfm.Gold` and
+    `BerInterval` are documented in the API pages; `DsssBurstReceiver` and
+    `BurstDemod` now say what they do. See
+    [#2723](https://github.com/doppler-dsp/doppler/issues/2723) and
+    [#2855](https://github.com/doppler-dsp/doppler/issues/2855).
+
+- **`AsyncDsssPool`'s search runs on the pool's thread count again,** capped
+    at one worker a Doppler tile. Its once-an-epoch stages run inline and its
+    once-a-block ones fan when a block is more than one epoch, so a ±50 kHz
+    dwell takes 0.47 to 0.68 of its serial time at 2 threads to all cores on
+    both bare metal and WSL2, and one-epoch pushes tie serial. A standalone
+    `Acquisition` keeps fanning every stage (#2773, #2775).
+
+- **`make bench-ab`'s tie rule resists an outlier and states its floor.** A
+    row's band is now the gap between its two best passes, since one slow
+    pass widened a max − min band enough to hide a 50% regression. A tie is
+    never under 1% of A's min, twice the bias a null run of one commit
+    measured. It counts only a snapshot its own pass wrote, cleans up a
+    failed build's worktree, and refuses a dirty `HEAD` (#2771).
+
+- **How to run a NATS broker, and an `[examples]` extra.** A new
+    [Run a NATS broker](https://doppler-dsp.github.io/doppler/install/broker/)
+    page is linked from every page that needs one (a lint gate holds it), and
+    `pip install "doppler-dsp[examples]"` installs matplotlib and scipy, which
+    an example that needs one now names instead of failing on the import. See
+    [#2857](https://github.com/doppler-dsp/doppler/issues/2857).
+
+- **`DelayDoppler` and the Corr2D hypothesis bank run on the library's one
+    delay-Doppler map.** The map computes the delay-Doppler surface in the
+    order with fewer transforms: rows first, with each row inverted as it is
+    accumulated, or slow time first, shared across a fraction's carriers.
+    The maps are unchanged to float rounding. The bank without rate
+    hypotheses runs about 20% faster on the dev box, and every other row
+    ties (#2831, #2752).
+    `dp_corr2d_state_t`'s layout changes (the delay-Doppler fields), an ABI
+    change for code that allocates or reads it directly; every signature is
+    unchanged.
+
+- **Pages that need a clone say how to get one** (#2857). Pages that run
+    `make build`, `./build/...`, `docker compose`, `python scripts/...`,
+    `cmake -B build`, `bash tests/...` or `uv run` now show the
+    `git clone --branch v<version>` (re-stamped each release) before the
+    first such command, and the C quick start names `app.c` and
+    `CMakeLists.txt` as the files its commands build. A lint gate,
+    `clone-notes`, fails a page that runs a repository-only command without
+    it. A `docs-snippet:` marker must now sit directly above the fence it
+    governs: a paragraph inserted between them used to detach it silently,
+    so the gates ran or compiled a fence they were told to skip.
+
+- **The docs link the release you installed, not `main`.** Repository links
+    and `git clone` lines in the pages are pinned to the release tag and
+    re-stamped on every release; `make lint` refuses a `blob/main` link or an
+    unpinned clone outside the contributing pages, and checks each pinned link
+    against the tag. See
+    [#2857](https://github.com/doppler-dsp/doppler/issues/2857).
+
+- **The docs run examples as `python -m doppler.examples.<name>`.** The 44 run
+    lines that said `python src/doppler/examples/<name>.py` worked only in a
+    clone; the installed wheel ships the same scripts, so every page now uses
+    the module form, names the `[examples]` extra where a script needs it, and
+    links the script behind a figure at the release. Lint refuses the old form.
+    See [#2857](https://github.com/doppler-dsp/doppler/issues/2857).
+
+- **The example-project pages show the code and how to get it.** Each page
+    lists every file of its project, with a one-line fetch of the folder at the
+    release; the `.deb` section now leads to the consumer example, names the
+    build tools and the three CMake conditions, and the consumer README starts
+    with the package case. `make consumer-walk` runs the pages' own commands in
+    a clean container. See
+    [#2856](https://github.com/doppler-dsp/doppler/issues/2856).
+
+- **Each page declares its own index line.** `<!-- domain: spectral; summary:   ... -->` on a page's first line is the description its bullet carries in
+    the section index and on the domain page; a page without one fails
+    `make lint`. See [#2836](https://github.com/doppler-dsp/doppler/issues/2836).
+
+- **just-makeit pin 0.114.0 → 0.114.2, and each module's manifest is its
+    own file.** `make jm-migrate-fragments` moved every `[module.X]` table
+    out of `just-makeit.toml` into `modules/<name>.toml`, beside
+    `objects/`. 0.114.1 made the move lossless for values: no new
+    `jm status` entry, and every package's `__all__` unchanged. 0.114.2
+    made it lossless for comments: each table takes its own comments to
+    its fragment, byte for byte (just-makeit gh-2437).
+
+- **just-makeit pin 0.114.2 → 0.115.0: a view's docs describe the view, not
+    its parent.** `DelayDoppler`, `BpskReceiver` and `MpskReceiverR` quote
+    their own constructor error; the matched DDCs and `MatchedRateConverter`
+    document their `narrow_pulse` warning
+    ([#2791](https://github.com/doppler-dsp/doppler/pull/2791)).
+
+- **just-makeit pin 0.115.0 → 0.116.0: doppler's scripts no longer import
+    jm's private modules.** `check_bench_coverage` takes the component list
+    from the public `just_makeit.components()` (just-makeit#2452).
+
+- **just-makeit pin 0.116.0 → 0.117.0: doppler imports no private jm
+    module.** `test_check_jm_status` asks the public
+    `just_makeit.is_versioned()` (just-makeit#2455).
+
+- **just-makeit pin 0.117.0 → 0.119.0: a status code can name its own
+    exception.** A `status_return` method's `status_errors` and a
+    serializable object's `set_state_status_errors` map a C status to a
+    Python exception (just-makeit#2470), which the next entry uses for
+    `MemoryError`. 0.118.1 also refuses a manifest parameter order that
+    does not match a sacred `_core.c` definition (just-makeit#2465). With
+    no table, the bindings are byte-identical.
+
+- **Manifest readers go through jm's public `load_manifest`.** Six callers
+    left the private `just_makeit._config`, and `check_wfm_enum_tables` now
+    sees an `[[enum]]` declared in a fragment. `check_user_docs` refuses a
+    manifest with no `record_name`. See
+    [#2751](https://github.com/doppler-dsp/doppler/issues/2751).
+
+- **The nav is grouped by domain.** Guides, Gallery and Design list their
+    pages under the domain each page names, and the lists in those three
+    `index.md` files are generated; the top level is Domains, Guides, Gallery,
+    Examples, API, Tools, Internals. See
+    [#2723](https://github.com/doppler-dsp/doppler/issues/2723).
+    The index pages list titles only until [#2836](https://github.com/doppler-dsp/doppler/issues/2836) restores per-page summaries.
+
+- **One checked POD serializer, and a shared forged-field test.**
+    `DP_DEFINE_POD_STATE` and `_TLM` are now the checked forms with an
+    always-true predicate, so the macro family has one body each, and
+    `DP_STATE_FORGE_TEST` asserts a refusal leaves `get_state`
+    byte-identical. See [#2142](https://github.com/doppler-dsp/doppler/issues/2142).
+
+- **A shrink-only list can carry a rename, and nothing else** (#2880). The
+    state, chunk-invariance and mutator-state lists let a new entry take over
+    the keys it names, under one rule (`carry_refusals`), so a rename never
+    grows a list, trades a fixed entry for a new one, or changes a verdict.
+
+### Fixed
+
+- **A tiled `Acquisition` with a carrier set ramps an odd period's middle
+    bin with the right sign.** The tile path's code-rate ramp took bin
+    `(N-1)/2` of an odd period `N` as negative, `-(N+1)/2`, so that one bin
+    of each ramped tile's cross-spectrum had the wrong phase. It now runs
+    the engine's one ramp, which follows numpy's `fftfreq`; an even period
+    is unchanged bit for bit (#2815).
+
+- **A failed acq regrid commits nothing.** The per-tile scratch is built with
+    the other replacements and adopted at the one commit, so a plan that will
+    not build leaves the engine on its old grid with nothing leaked, where it
+    used to leave the new window and Doppler counts over the old surface, a
+    stale `n`/`interp`/`n_surf`/`n_noncoh`, and a leaked ring and accumulator.
+    Only the constructor reaches this today, so no caller saw it. See [#2761](https://github.com/doppler-dsp/doppler/issues/2761).
+
+- **The `validate_acq_surface` time waiver is re-recorded** from 2.6 s to
+    1.8 s, the slowest of four recent CI sweep measurements (1.02-1.82 s), so
+    the stale-waiver check in the sweep job passes again with headroom.
+
+- **A regrid re-applies the caller's thread request.** A regrid to one
+    tile left a tiled engine's pool and `threads` in place, so a three-tile
+    `Acquisition` kept reading 3 workers, and a receiver's state blob carried
+    that stale count. It now drops to serial, as `set_threads()` would (#2746).
+    The request itself is kept apart from the count that runs, so widening
+    again comes back to min(request, tiles) rather than staying at 1 (#2797).
+
+- **`make bench-ab ALIAS=` names bench binaries, and a bad alias stops after
+    one pass.** Rows are keyed by `fullname`, whose C family is the bench
+    binary (`ALIAS=bench_corr2d_core=bench_correlator_core`). The examples
+    named the published family instead, and an alias pairing nothing was
+    found only after all K passes (#2752 step 3.2).
+
+- **A scene that gives a source both `snr` and `level` beside a noise floor
+    now says so.** The Composer refused it with only
+    `dp_wfm_compose_create_why failed`; the reason now names the rule (the
+    floor is shared, so a source sets its `snr` or its `level`, not both) on
+    every face. See [#2834](https://github.com/doppler-dsp/doppler/issues/2834).
+
+- **`execute`, `execute_coherent` and `execute_power_sum` take an `out=` of
+    exactly the result.** They asked for as many elements as the input had, so
+    an `out=` sized by `*_max_out()` was refused. See [#2818](https://github.com/doppler-dsp/doppler/issues/2818).
+
+- **Corr2D refuses a forged count.** The plain restore took a `count` at
+    or past the dwell, which never dumps again; it is refused now, as the
+    delay-Doppler flavor already did. See [#2142](https://github.com/doppler-dsp/doppler/issues/2142).
+
+- **The docs build no longer runs away.** A cold strict build grew past 4 GB
+    with zensical 0.0.45 and mkdocstrings 1.0.4 and was OOM-killed at the
+    shared guard's ceiling; the matched upgrade builds the same 918 pages in
+    about 520 MB. `docs-check` now fails a build whose peak exceeds 1536 MB on any machine (a local 2G ceiling too), and the docs need Python 3.11 or newer. See
+    [#2840](https://github.com/doppler-dsp/doppler/issues/2840).
+
+- **`make drift-check` shows the report of the run that failed.** On a
+    failing `jm status`, `scripts/check_jm_status.py` used to discard that
+    run's JSON and print a second, separate `jm status --check`. When the
+    tree changed between the two, the reader saw "OK — up to date" over a
+    gate that had failed, and the failure's only evidence was gone. It now
+    renders the failing run's own report (every file that differs, with
+    its state, and every other finding) and never runs jm twice.
+
+- **lockdet, farrow, adc, symsync, costas, carrier_nda and carrier_mpsk
+    refuse a forged blob.** Each `set_state` now refuses what its create
+    and setters refuse (a verdict, an order, a zero rng or avgs, a loop
+    filter, an FLL assist), with the object unchanged. See [#2142](https://github.com/doppler-dsp/doppler/issues/2142).
+
+- **The halfband decimators refuse a forged ring head.** `hbdecim`,
+    `hbdecim_r2c` and `hbdecim_q15` check their ring heads, pending flag
+    and (r2c) parity before writing anything. See [#2142](https://github.com/doppler-dsp/doppler/issues/2142).
+
+- **A forged boxcar or delay index is refused, not written.** A boxcar
+    `pos` past its ring was an out-of-bounds write, and a delay `head` past
+    its capacity read outside the window; `set_state` now refuses both
+    with the object unchanged. See [#2142](https://github.com/doppler-dsp/doppler/issues/2142).
+
+- **`hbdecim_q15` stays inside its ring on AVX2 builds with few taps.** A fold shorter than the padded tap count read before the window; it now takes the scalar path, with the same output (#2142).
+
+- **`make lint` no longer skips mdformat because the tool failed to start.**
+    The markdown formatter was skipped whenever `mdformat --version` failed, so
+    a venv with a missing dependency made lint pass locally while CI's formatter
+    rewrote the file. It now skips only on Python below 3.10, and a broken tool
+    on newer Pythons fails.
+
+- **An allocation failure raises `MemoryError`, not `ValueError`**
+    (#2846). `Acquisition.set_carrier_freq_hz` and `Acquisition.set_state`
+    (a carrier change rebuilds the delay-Doppler map), `BurstCapture.set_state`
+    and `AsyncDsssReceiver.set_telemetry`. `set_telemetry`'s C core now
+    returns `DP_ERR_MEMORY` when the attach cannot allocate, its scratch
+    context or a loop's own, where it returned `DP_ERR_INVALID`. It also
+    attaches the searcher first, so an out-of-memory refusal leaves no name
+    on the caller's table, as its header promises. A refused argument or
+    blob still raises the same `ValueError`.
+
+- **A synth's output no longer depends on how the caller pulls it.** The
+    carrier mix runs through one fixed-size block and `wfm_synth_core.c` is
+    built with `-ffp-contract=off`, so no FMA or FCMLA compiler rounds a
+    vector body and its tail differently. Costs +2.0% to +6.9% on 12 of 18
+    `wfm_synth` bench-ab rows (6 tie). See [#2805](https://github.com/doppler-dsp/doppler/issues/2805).
+
+- **A forged `sym_idx` no longer hangs `wfm_synth.set_state`.** The
+    continuous-DSSS symbol clock is checked against the chips emitted
+    before anything commits, so a blob whose `sym_idx` or `chip_n` is not
+    one the kernel could have reached is refused with the synth unchanged.
+    It used to spin forever in `dp_wfm_dsss_cont_edge`. See [#2745](https://github.com/doppler-dsp/doppler/issues/2745).
+
+- **wfm_synth refuses a forged `sym_pos` or `sym_read_idx`, and checks
+    before it writes.** A refused blob used to leave 13 fields restored; the
+    synth now decodes, checks the whole set (the DSSS window included), then
+    commits. See [#2142](https://github.com/doppler-dsp/doppler/issues/2142).
+
+- **A Plan renders what compose() composes on compilers that fuse
+    multiply-adds.** The synth wrote `sig * carrier + noise` as one expression,
+    which AArch64 GCC 16 fuses into a single rounding while a Plan caches the
+    signal and adds the noise afterwards, so 263 of 2048 floats of a bundled
+    source differed. The synth now stores the signal and adds its noise through
+    `wfm_add_scaled`, the one accumulate the Plan and the composer use too, so
+    the paths are the same instructions on every compiler. The `noise (AWGN)`
+    bench row (the standalone noise generator) is about 4% slower for the
+    second pass. See [#2789](https://github.com/doppler-dsp/doppler/issues/2789).
+
+- **`_SynthEngine.set_wtype` refuses a type its engine cannot run, and the
+    type travels in the blob.** A tone engine switched to PN, BPSK or QPSK
+    read a PN source `create()` never built and segfaulted; that now raises
+    `ValueError`. The type is the first payload word (blob v6), and a restore
+    refuses one the target cannot run, unchanged.
+    See [#2095](https://github.com/doppler-dsp/doppler/issues/2095).
+
 ## [0.79.0] - 2026-11-02
 
 ### Breaking
@@ -18353,5 +18701,6 @@ ______________________________________________________________________
 [0.78.0]: https://github.com/doppler-dsp/doppler/compare/v0.77.0...v0.78.0
 [0.79.0]: https://github.com/doppler-dsp/doppler/compare/v0.78.0...v0.79.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
+[0.80.0]: https://github.com/doppler-dsp/doppler/compare/v0.79.0...v0.80.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.79.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.80.0...HEAD

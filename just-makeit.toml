@@ -3,7 +3,7 @@ include = ["objects/*.toml", "modules/*.toml"]
 [project]
 jm_version = "0.119.0"
 name = "doppler"
-version = "0.79.0"
+version = "0.80.0"
 build = "cmake"
 # c_prefix (jm#1591, #1545): every C symbol jm derives carries dp_, so two
 # installed jm libraries that share a component name (fir, fft, agc) link

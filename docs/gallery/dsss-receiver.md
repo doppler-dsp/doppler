@@ -87,6 +87,6 @@ searching or tracking — the layout doesn't change, only the values do,
 so a receiver mid-search and one already locked serialize and restore
 through the identical interface.
 
-Source: [`src/doppler/examples/dsss_receiver_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/dsss_receiver_demo.py). See also
+Source: [`src/doppler/examples/dsss_receiver_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/dsss_receiver_demo.py). See also
 [AsyncDsssReceiver: the specification waveform](async-dsss-receiver-spec.md)
 (the same chain packaged for a coupled-Doppler specification waveform).

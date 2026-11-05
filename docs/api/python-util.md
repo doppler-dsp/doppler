@@ -11,7 +11,7 @@ straddle loss of a correlator or DFT bin; and the quadrature rules
 numeric: `fromto`, the path a script writes an artifact to.
 
 Source:
-[`src/doppler/util/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/util/__init__.py)
+[`src/doppler/util/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/util/__init__.py)
 
 ______________________________________________________________________
 

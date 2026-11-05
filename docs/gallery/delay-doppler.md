@@ -93,7 +93,7 @@ Skip this if you already have one:
 <!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
-git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler
+git clone --branch v0.80.0 https://github.com/doppler-dsp/doppler && cd doppler
 ```
 
 <!-- doc-version:end -->

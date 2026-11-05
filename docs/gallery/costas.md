@@ -59,4 +59,4 @@ than the per-symbol integration bandwidth must be removed upstream by the FFT
 acquisition search, not by the loop. The FLL assist's own unambiguous range is
 about ±¼ of the symbol rate (the cross product is monotonic to ±π/2 per symbol).
 
-Source: [`src/doppler/examples/costas_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/costas_demo.py).
+Source: [`src/doppler/examples/costas_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/costas_demo.py).

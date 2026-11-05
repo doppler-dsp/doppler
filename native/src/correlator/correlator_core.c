@@ -699,6 +699,25 @@ dp_correlator_execute (dp_correlator_state_t *state, const float _Complex *in,
       cap = max_out;
     }
 
+  /* The 1-D flavor is one row on worker 0's plans, called directly: no
+     pool dispatch and none of the other flavors' branches. Through
+     corr2d_execute_fast the short frames ran 1-2% slower than Corr's own
+     path did on main (n = 31 and 63, docs/design/correlator.md U1); this
+     call is the same corr2d_row, so test_corr_equiv still holds it to the
+     2-D flavor at one row byte for byte. */
+  if (state->flavor == DP_CORRELATOR_1D)
+    {
+      const int dump = (++state->count == state->dwell);
+      corr2d_row (state, 0, in, state->accum, state->work_fft, state->work_pad,
+                  dst, dump);
+      if (!dump)
+        return 0;
+      state->count = 0;
+      if (dst != out)
+        memcpy (out, dst, cap * sizeof *out);
+      return cap;
+    }
+
   if (state->fast_path)
     {
       size_t n = corr2d_execute_fast (state, in, dst);

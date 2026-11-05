@@ -353,7 +353,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 status_errors = [
-  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "set_telemetry: the scratch context that checks the names could not be allocated; the receiver is unchanged" },
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "set_telemetry: the attach could not allocate (its scratch context, or a loop's own); the receiver is unchanged" },
 ]
 params = [
   { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", retain = true, header = "doppler/dp_tlm/dp_tlm_core.h" },

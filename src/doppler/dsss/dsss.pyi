@@ -2964,8 +2964,8 @@ class AsyncDsssReceiver:
         ------
         MemoryError
             If the C call returns ``DP_ERR_MEMORY``. The exception message is
-            ``set_telemetry: the scratch context that checks the names could
-            not be allocated; the receiver is unchanged``.
+            ``set_telemetry: the attach could not allocate (its scratch
+            context, or a loop's own); the receiver is unchanged``.
         ValueError
             If the C call returns any other non-zero status. The exception
             message is ``set_telemetry failed``, with the return code appended

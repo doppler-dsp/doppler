@@ -305,9 +305,14 @@ Each is its own PR, tracked by an issue of its own under #2752.
         test), then against the flavors;
     1. `correlator/` is created from `corr2d/`, and `Corr` becomes the
         single-row flavor (D1, D4);
-    1. **`CorrDetector` is repointed in the same PR:** `detector_core.c:99`
-        calls `dp_corr_create`, so it composes the single-row flavor before
-        `corr/` and `corr2d/` are deleted.
+    1. **Both detectors are repointed in the same PR:** `detector_core.c:99`
+        calls `dp_corr_create` and `detector2d_core.c:83` calls
+        `dp_corr2d_create`, so they compose `create_1d` and `create_2d`
+        before `corr/` and `corr2d/` are deleted. Their blobs, `DET1` and
+        `DET2`, then nest a `CORL` child and bump, and so does `CAQR`, which
+        nests `DET1`. 3.3's further change to all three rides the same
+        unreleased versions, so no release is cut between 3.2 and the end
+        of 3.4; if one is, each bumps again.
 
     The oracle:
 
@@ -385,6 +390,12 @@ join once they land):
 | 3.4      | `async_dsss_pool::push`      | `[native,n=1,threads=1]`, `[native,n=4,threads=1]`, `[native,n=4,threads=4]`, `[full,n=1,threads=1]`, `[full,n=4,threads=1]`                                                                                                                                  |
 | 3.4      | `async_dsss_receiver::steps` | `[track,sf=1023,3.069Mcps]`, `[search,sf=1023,3.069Mcps]`                                                                                                                                                                                                     |
 | 3.4      | `burst_capture::push`        | `[4 bursts]`                                                                                                                                                                                                                                                  |
+
+**The family names stay through step 3.** The benches keep writing `corr`,
+`corr2d`, `detector`, `detector2d` and `acq`, so `bench-ab` pairs each row on
+main with the same row on the sub-step's head. Step 4 renames them, once, to
+`correlator::` with each row's flavor in its brackets, and relabels them in
+`benchmarks/labels.toml`.
 
 acq's carrier and five-tile rows from step 2 (`op5M_U10k_D150_t1`, the
 `_fc` rows) are on main's bench but not yet in a published set; 3.4's PR

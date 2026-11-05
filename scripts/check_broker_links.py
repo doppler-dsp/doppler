@@ -24,11 +24,12 @@ Usage
 
 from __future__ import annotations
 
-import fnmatch
 import posixpath
 import re
 import sys
 from pathlib import Path
+
+from _docs_pages import exempt_globs, is_exempt, pages
 
 ROOT = Path(__file__).resolve().parent.parent
 EXEMPT = "docs/.broker-link-exempt"
@@ -49,19 +50,7 @@ INCLUDE = re.compile(
 
 
 def exempt(root: Path) -> list[str]:
-    f = root / EXEMPT
-    if not f.exists():
-        return []
-    out: list[str] = []
-    for line in f.read_text(encoding="utf-8").splitlines():
-        s = line.strip()
-        if not s or s.startswith("#"):
-            continue
-        glob, _, why = s.partition(" ")
-        if not why.strip():
-            raise SystemExit(f"{EXEMPT}: '{glob}' needs a reason")
-        out.append(glob)
-    return out
+    return exempt_globs(root, EXEMPT)
 
 
 def rendered(root: Path, page: Path) -> str:
@@ -106,9 +95,9 @@ def links_broker_page(rel: str, text: str) -> bool:
 def problems(root: Path = ROOT) -> list[str]:
     skip = exempt(root)
     out: list[str] = []
-    for page in sorted((root / "docs").rglob("*.md")):
+    for page in pages(root):
         rel = page.relative_to(root).as_posix()
-        if "c-api" in page.parts or any(fnmatch.fnmatch(rel, g) for g in skip):
+        if is_exempt(rel, skip):
             continue
         text = rendered(root, page)
         if NEEDS.search(text) and not links_broker_page(rel, text):

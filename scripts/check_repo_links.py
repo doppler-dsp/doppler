@@ -36,12 +36,13 @@ Usage
 
 from __future__ import annotations
 
-import fnmatch
 import os
 import re
 import sys
 from pathlib import Path
 
+from _docs_pages import exempt_globs, is_exempt
+from _docs_pages import pages as _pages
 from _release_tag import in_tag, tag_state
 from _release_tag import version as _version
 
@@ -64,39 +65,15 @@ def version(root: Path = ROOT) -> str:
 
 
 def pages(root: Path = ROOT) -> list[Path]:
-    """Every markdown page that can reach a reader, generated ones included.
-
-    ``docs/c-api`` (Doxygen's output) and ``archive/`` (frozen) are left out;
-    build trees under the examples are not pages.
-    """
-    out = [root / "README.md"]
-    for top in ("docs", "examples", "example-projects"):
-        for p in sorted((root / top).rglob("*.md")):
-            parts = p.relative_to(root).parts
-            if "build" in parts or "archive" in parts:
-                continue
-            if parts[:2] == ("docs", "c-api"):
-                continue
-            out.append(p)
-    return [p for p in out if p.is_file()]
+    """Every markdown page that can reach a reader, generated ones included
+    (``docs/c-api`` and ``archive/`` are left out; see ``_docs_pages``)."""
+    return _pages(root, ("docs", "examples", "example-projects"), readme=True)
 
 
 def allowed(root: Path) -> list[str]:
     """Globs of pages that may link ``main``, from ``docs/.main-links-allowed``
     (``<glob>  <why>`` per line; the reason is mandatory)."""
-    f = root / ALLOWED
-    if not f.exists():
-        return []
-    out: list[str] = []
-    for line in f.read_text(encoding="utf-8").splitlines():
-        s = line.strip()
-        if not s or s.startswith("#"):
-            continue
-        glob, _, why = s.partition(" ")
-        if not why.strip():
-            raise SystemExit(f"{ALLOWED}: '{glob}' needs a reason")
-        out.append(glob)
-    return out
+    return exempt_globs(root, ALLOWED)
 
 
 def unpinned(root: Path) -> list[str]:
@@ -105,7 +82,7 @@ def unpinned(root: Path) -> list[str]:
     out: list[str] = []
     for page in pages(root):
         rel = page.relative_to(root).as_posix()
-        if any(fnmatch.fnmatch(rel, g) for g in ok):
+        if is_exempt(rel, ok):
             continue
         for n, line in enumerate(
             page.read_text(encoding="utf-8").splitlines(), start=1

@@ -788,7 +788,12 @@ def ratchet_added(path: pathlib.Path, base: str) -> list[str]:
     1. every replaced key was on the merge base's list;
     2. every replaced key is gone at head;
     3. no replaced key backs a second new line, so a carry can merge entries
-       but never multiply them, and the list cannot grow by count.
+       but never multiply them, and the list cannot grow by count;
+    4. no replaced key names a live object at head (`serializable()`, the
+       derived `_set_state` prefixes both ratchets judge). Without it, an
+       object that got its test could hand its line to a NEW object
+       instead of the list shrinking: a fixed entry traded for a fresh
+       exemption.
 
     Any one missing, and the line is ADDED, with the condition named.
     """
@@ -807,6 +812,7 @@ def ratchet_added(path: pathlib.Path, base: str) -> list[str]:
     now = read_ratchet(path)
     added = sorted(set(now) - set(before))
     backs = Counter(o for k in added for o in now[k].replaces)
+    live = serializable() if backs else set()
     bad: list[str] = []
     for k in added:
         old = now[k].replaces
@@ -820,6 +826,11 @@ def ratchet_added(path: pathlib.Path, base: str) -> list[str]:
                 why.append(f"it replaces {kept}, still listed at head")
             if twice := [o for o in old if backs[o] > 1]:
                 why.append(f"{twice} would back more than one new line")
+            if alive := [o for o in old if o in live]:
+                why.append(
+                    f"it replaces {alive}, still a live object (a fixed "
+                    "entry is deleted, not traded)"
+                )
         if why:
             bad.append(
                 f"{rel}: '{k}' ADDED -- {'; '.join(why)}; fix the cause "

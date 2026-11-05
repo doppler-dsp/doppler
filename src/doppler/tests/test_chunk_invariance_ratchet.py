@@ -249,7 +249,9 @@ def _renamed(seed: Seed, head: str) -> list[str]:
 
 
 def test_a_rename_carries_its_lines(seed: Seed) -> None:
-    """Two entries merged into one, each named and each gone: a rename."""
+    """Two entries merged into one, each named and each gone: a rename.
+    The fixture header declares only `dp_foo`, so neither replaced key is a
+    live object (condition 4 holds)."""
     assert _renamed(seed, "dp_ab | merged | replaces: dp_a dp_b\n") == []
 
 
@@ -283,6 +285,26 @@ def test_one_key_backing_two_new_lines_is_added(seed: Seed) -> None:
     bad = _renamed(seed, head)
     assert len(bad) == 2
     assert all("more than one new line" in b for b in bad)
+
+
+def test_trading_a_fixed_entry_for_a_new_object_is_added(
+    seed: Seed,
+) -> None:
+    """Condition 4: `dp_a` got its test, so its line must go -- not be
+    handed to a new object. Its `_set_state` is still declared at head, so
+    it is a live object, and the carry is refused."""
+    mod = seed(
+        header=HEADER + "int dp_a_set_state (void *s, const void *b);\n",
+        ratchet=RENAME_BASE,
+    )
+    assert "dp_a" in mod.serializable()  # the premise, not an `if`
+    mod.CHUNK_RATCHET.write_text(
+        "dp_b | no test yet\ndp_new | x | replaces: dp_a\n"
+    )
+    bad = mod.ratchet_added(mod.CHUNK_RATCHET, "HEAD")
+    assert len(bad) == 1
+    assert "'dp_new' ADDED" in bad[0]
+    assert "still a live object" in bad[0]
 
 
 def test_a_new_line_with_no_replaces_is_still_added(seed: Seed) -> None:

@@ -26,10 +26,20 @@
  * dump adds a second FFT and an O(n) scale, so the ratio between them
  * should be close to flat in n and any drift in it is the O(n) parts
  * moving against the O(n log n) ones.
+ *
+ * Three short lengths besides (#2752 step 3.1b): the PN periods 31, 63 and
+ * 127, where per-call overhead is a large share of the work. They are the
+ * baseline the one correlator's single-row flavor must meet (design page
+ * docs/design/correlator.md, U1). Each correlates an m-sequence against
+ * itself delayed by PLANT samples, and checks after its timing that the
+ * map peaks at that lag, or the bench fails.
  */
 #include "doppler/corr/corr_core.h"
+#include "doppler/cvt/cvt_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/pn/pn_core.h"
 #include "dp_bench.h"
+#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,6 +65,115 @@ static const char *kind_name[N_KIND]
     = { "execute[accumulate]", "execute[dump]" };
 
 #define N_CFG (N_LEN * N_KIND)
+
+/* The short rows: register widths 5, 6 and 7, so periods 31, 63 and 127. */
+#define N_SMALL 3
+static const uint32_t small_bits[N_SMALL] = { 5, 6, 7 };
+#define PLANT 5 /* the input's delay, so the map's peak lag */
+
+/* One period of the m-sequence of an n-bit register as +-1 NRZ samples, from
+   the shipped generator and mapper. Returns the period, or 0. */
+static size_t
+pn_nrz (uint32_t bits, float _Complex *out, size_t cap)
+{
+  const size_t   n    = ((size_t)1 << bits) - 1;
+  dp_pn_state_t *pn   = dp_pn_create_mls (0, 1, bits, 0);
+  uint8_t       *chip = malloc (n);
+  float         *nrz  = malloc (n * sizeof *nrz);
+  size_t         got  = 0;
+  if (pn && chip && nrz && n <= cap && dp_pn_generate (pn, n, chip, n) == n
+      && dp_bin_to_nrz (chip, n, nrz, n) == n)
+    {
+      for (size_t i = 0; i < n; i++)
+        out[i] = nrz[i];
+      got = n;
+    }
+  dp_pn_destroy (pn);
+  free (chip);
+  free (nrz);
+  return got;
+}
+
+/* One call at these lengths is a few hundred ns, near the clock's own
+   granularity, so a round times REPS calls. The accumulate rows run on a
+   correlator whose dwell is REPS + 1, so no dump lands in the batch; the
+   dump rows on one whose dwell is 1, so every call is a dump. */
+#define REPS 64
+
+/* The lag at which a correlator's next dump peaks: runs it from reset to
+   its dump. Returns n (an impossible lag) if no dump came. */
+static size_t
+dump_peak (dp_corr_state_t *c, size_t dwell, const float _Complex *in,
+           size_t n, float _Complex *out)
+{
+  dp_corr_reset (c);
+  size_t got = 0;
+  for (size_t f = 0; f < dwell; f++)
+    got = dp_corr_execute (c, in, n, out, n);
+  if (got != n)
+    return n;
+  size_t peak = 0;
+  for (size_t k = 1; k < n; k++)
+    if (cabsf (out[k]) > cabsf (out[peak]))
+      peak = k;
+  return peak;
+}
+
+/* The short rows: REPS calls a round, then checked. Each row's correlator
+   runs once more to its dump, whose magnitude must peak at PLANT. Returns 0,
+   or 1 when a row's map does not show what it was timed computing. */
+static int
+bench_small (jm_bench_t *bench)
+{
+  static double t[N_SMALL * N_KIND][ITERATIONS];
+  float _Complex ref[127], in[127], out[127];
+  char name[64];
+  for (int s = 0; s < N_SMALL; s++)
+    {
+      const size_t n = pn_nrz (small_bits[s], ref, 127);
+      if (n == 0)
+        return 1;
+      for (size_t i = 0; i < n; i++)
+        in[i] = ref[(i + n - PLANT) % n];
+      dp_corr_state_t *acc  = dp_corr_create (ref, n, REPS + 1, 1, n);
+      dp_corr_state_t *dump = dp_corr_create (ref, n, 1, 1, n);
+      if (!acc || !dump)
+        return 1;
+      for (int r = 0; r < ITERATIONS; r++)
+        {
+          dp_corr_reset (acc);
+          uint64_t t0 = jm_bench_now_ns ();
+          for (int q = 0; q < REPS; q++)
+            (void)dp_corr_execute (acc, in, n, out, n);
+          uint64_t t1                = jm_bench_now_ns ();
+          t[s * N_KIND + CFG_ACC][r] = jm_bench_elapsed_sec (t0, t1);
+          t0                         = jm_bench_now_ns ();
+          for (int q = 0; q < REPS; q++)
+            (void)dp_corr_execute (dump, in, n, out, n);
+          t1                          = jm_bench_now_ns ();
+          t[s * N_KIND + CFG_DUMP][r] = jm_bench_elapsed_sec (t0, t1);
+        }
+      const size_t pa = dump_peak (acc, REPS + 1, in, n, out);
+      const size_t pd = dump_peak (dump, 1, in, n, out);
+      dp_corr_destroy (acc);
+      dp_corr_destroy (dump);
+      if (pa != PLANT || pd != PLANT)
+        {
+          (void)fprintf (stderr,
+                         "bench_corr: n=%zu peaks at lag %zu (accumulate) "
+                         "and %zu (dump), not %d\n",
+                         n, pa, pd, PLANT);
+          return 1;
+        }
+      for (int k = 0; k < N_KIND; k++)
+        {
+          (void)snprintf (name, sizeof name, "%s[n=%zu]", kind_name[k], n);
+          dp_bench_record (bench, name, t[s * N_KIND + k], ITERATIONS,
+                           REPS * n, "sample");
+        }
+    }
+  return 0;
+}
 
 int
 main (void)
@@ -155,6 +274,8 @@ main (void)
   free (ref);
   free (in);
   free (out);
+  if (bench_small (&_bench) != 0)
+    return 1;
   jm_bench_write_json (&_bench, "corr");
   return 0;
 }

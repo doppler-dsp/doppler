@@ -24,9 +24,18 @@
  * three are a single pass, so it is a different algorithm rather than a
  * configuration of this one. Left for whoever needs it, named here so the
  * absence is a decision rather than an oversight.
+ *
+ * Three short frames besides (#2752 step 3.1b): the PN periods 31, 63 and
+ * 127, one frame a push, where per-call overhead is a large share of the
+ * work. They are the baseline the one correlator's 1-D detector flavor must
+ * meet (docs/design/correlator.md, U1). Each detects an m-sequence delayed
+ * by PLANT samples, and checks after its timing that a push reports one
+ * hit at that lag, or the bench fails.
  */
+#include "doppler/cvt/cvt_core.h"
 #include "doppler/detector/detector_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/pn/pn_core.h"
 #include "dp_bench.h"
 #include <math.h>
 #include <stdio.h>
@@ -46,6 +55,84 @@ static const size_t chunk[N_CFG] = { 64, FRAME, 16384, FRAME };
 static const float thresh[N_CFG] = { 0.0f, 0.0f, 0.0f, 1e30f };
 #define FIRING_FRAME_IDX 1
 #define SILENT_FRAME_IDX 3
+
+/* The short rows: register widths 5, 6 and 7, so periods 31, 63 and 127. */
+#define N_SMALL 3
+static const uint32_t small_bits[N_SMALL] = { 5, 6, 7 };
+#define PLANT 5   /* the stream's delay, so the hit's lag */
+#define REPS 64   /* frames a round, one a push */
+#define GATE 3.0f /* peak over noise: an m-sequence clears it by far */
+
+/* One period of the m-sequence of an n-bit register as +-1 NRZ samples, from
+   the shipped generator and mapper. Returns the period, or 0. */
+static size_t
+pn_nrz (uint32_t bits, float _Complex *out, size_t cap)
+{
+  const size_t   n    = ((size_t)1 << bits) - 1;
+  dp_pn_state_t *pn   = dp_pn_create_mls (0, 1, bits, 0);
+  uint8_t       *chip = malloc (n);
+  float         *nrz  = malloc (n * sizeof *nrz);
+  size_t         got  = 0;
+  if (pn && chip && nrz && n <= cap && dp_pn_generate (pn, n, chip, n) == n
+      && dp_bin_to_nrz (chip, n, nrz, n) == n)
+    {
+      for (size_t i = 0; i < n; i++)
+        out[i] = nrz[i];
+      got = n;
+    }
+  dp_pn_destroy (pn);
+  free (chip);
+  free (nrz);
+  return got;
+}
+
+/* The short rows: REPS one-frame pushes a round, then checked. A fresh push
+   of one frame must report exactly one hit, at PLANT. Returns 0, or 1 when a
+   row does not detect what it was timed detecting. */
+static int
+bench_small (jm_bench_t *bench)
+{
+  static double t[N_SMALL][ITERATIONS];
+  static float _Complex in[REPS * 127];
+  float _Complex ref[127];
+  det_result_t hit[2];
+  char         name[72];
+  for (int s = 0; s < N_SMALL; s++)
+    {
+      const size_t n = pn_nrz (small_bits[s], ref, 127);
+      if (n == 0)
+        return 1;
+      for (size_t i = 0; i < REPS * n; i++)
+        in[i] = ref[(i % n + n - PLANT) % n];
+      dp_detector_state_t *d
+          = dp_detector_create (ref, n, 1, 1, n - 1, DET_NOISE_MEAN, GATE, 1);
+      if (!d)
+        return 1;
+      for (int r = 0; r < ITERATIONS; r++)
+        {
+          dp_detector_reset (d);
+          const uint64_t t0 = jm_bench_now_ns ();
+          for (int q = 0; q < REPS; q++)
+            (void)dp_detector_push (d, in + (size_t)q * n, n, hit, 2);
+          const uint64_t t1 = jm_bench_now_ns ();
+          t[s][r]           = jm_bench_elapsed_sec (t0, t1);
+        }
+      dp_detector_reset (d);
+      const size_t nh = dp_detector_push (d, in, n, hit, 2);
+      dp_detector_destroy (d);
+      if (nh != 1 || hit[0].lag != PLANT)
+        {
+          (void)fprintf (stderr,
+                         "bench_detector: frame=%zu gave %zu hit(s), lag "
+                         "%zu, not one at %d\n",
+                         n, nh, nh ? hit[0].lag : 0, PLANT);
+          return 1;
+        }
+      (void)snprintf (name, sizeof name, "push[frame=%zu]", n);
+      dp_bench_record (bench, name, t[s], ITERATIONS, REPS * n, "sample");
+    }
+  return 0;
+}
 
 int
 main (void)
@@ -136,6 +223,8 @@ main (void)
   free (ref);
   free (in);
   free (res);
+  if (bench_small (&_bench) != 0)
+    return 1;
   jm_bench_write_json (&_bench, "detector");
   return 0;
 }

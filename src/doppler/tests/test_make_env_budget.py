@@ -1,4 +1,4 @@
-"""What `make` exports to every recipe stays small.
+"""What the Makefile exports to every recipe stays small.
 
 GNU xargs on msys refuses to start when the environment plus the command
 line leave less than LINE_MAX of argument space (`assertion
@@ -14,8 +14,10 @@ within a hundred bytes of the limit, so one more gate line in the list
 calls a make target, which keeps the script list in its own argv, not in the
 environment of every other recipe.
 
-The case runs `make` with an otherwise EMPTY environment, so what it counts
-is exactly what the Makefile exports, on any box.
+The case runs a recipe that dumps its environment twice, once under a bare
+makefile and once under the repo's, and counts what the Makefile ADDED. A
+total would not do: PATH alone is 4.5 KB on the Windows runner (a first
+version of this test failed there for exactly that reason).
 """
 
 from __future__ import annotations
@@ -30,37 +32,52 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 REPO = repo_root(__file__)
-# Measured 2762 bytes (2026-11-04) with the list kept out; 5159 with it in.
-TOTAL_MAX = 4000
-VAR_MAX = 2600
+# What the Makefile ADDS to a recipe's environment, over what `make` and the
+# platform put there anyway (PATH alone is 4.5 KB on the Windows runner, which
+# is why the budget is a difference). Measured 2026-11-04 on Linux: 2556 bytes
+# with the list kept out, 4980 with it in; the largest variable 2548 then.
+ADDED_MAX = 3500
+VAR_MAX = 1800
 
 
-def test_the_environment_make_exports_is_small(tmp_path: Path) -> None:
-    probe = tmp_path / "probe.mk"
-    probe.write_text("envdump:\n\t@env -0\n", encoding="utf-8")
+def _env(cwd: Path, files: list[str], home: Path) -> dict[bytes, bytes]:
     r = subprocess.run(
         [
             "make",
             "-s",
             "-C",
-            str(REPO),
-            "-f",
-            "Makefile",
-            "-f",
-            str(probe),
+            str(cwd),
+            *[a for f in files for a in ("-f", f)],
             "envdump",
         ],
         capture_output=True,
-        env={"PATH": os.environ["PATH"], "HOME": str(tmp_path)},
+        env={"PATH": os.environ["PATH"], "HOME": str(home)},
         check=True,
     )
-    entries = [e for e in r.stdout.split(b"\0") if e]
-    total = sum(len(e) + 1 for e in entries)
-    biggest = max(entries, key=len)
-    assert total <= TOTAL_MAX, (
-        f"make exports {total} bytes (budget {TOTAL_MAX}); the largest is "
-        f"{biggest[:60]!r} at {len(biggest)}"
+    out: dict[bytes, bytes] = {}
+    for e in r.stdout.split(b"\0"):
+        k, _, v = e.partition(b"=")
+        if k:
+            out[k] = v
+    return out
+
+
+def test_the_environment_the_makefile_exports_is_small(
+    tmp_path: Path,
+) -> None:
+    probe = tmp_path / "probe.mk"
+    probe.write_text("envdump:\n\t@env -0\n", encoding="utf-8")
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    base = _env(bare, [str(probe)], tmp_path)
+    full = _env(REPO, ["Makefile", str(probe)], tmp_path)
+    added = {k: v for k, v in full.items() if base.get(k) != v}
+    total = sum(len(k) + len(v) + 2 for k, v in added.items())
+    big = max(added, key=lambda k: len(added[k]))
+    assert total <= ADDED_MAX, (
+        f"the Makefile exports {total} bytes to every recipe (budget "
+        f"{ADDED_MAX}); the largest is {big!r} at {len(added[big])}"
     )
-    assert len(biggest) <= VAR_MAX, (
-        f"{biggest[:60]!r} is {len(biggest)} bytes (budget {VAR_MAX})"
+    assert len(added[big]) <= VAR_MAX, (
+        f"{big!r} is {len(added[big])} bytes (budget {VAR_MAX})"
     )

@@ -13,7 +13,14 @@ import subprocess
 
 import pytest
 
+from doppler.tests._platform import posix_only
 from doppler.tests._repo import repo_root
+
+# `bash` is System32's WSL launcher on a Windows runner (searched ahead of
+# PATH, and exits 1 with no distribution installed), so these cases cannot run
+# there. The walk itself runs in a Linux container after a release, and the
+# extraction is the same awk on every Linux leg of CI.
+pytestmark = posix_only("execs bash; the walk runs on Linux release runners")
 
 REPO = repo_root(__file__)
 FENCE = str(REPO / "tests" / "install" / "fence.sh")
@@ -33,8 +40,9 @@ def test_a_walk_step_extracts_and_parses(
         ["bash", FENCE, str(REPO / page), heading, needle],
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
     )
+    assert r.returncode == 0, f"fence.sh exited {r.returncode}: {r.stderr}"
     assert r.stdout.strip(), f"{page}: nothing extracted for {needle!r}"
     assert needle in r.stdout
     syntax = subprocess.run(
@@ -50,7 +58,8 @@ def test_the_apt_step_is_the_whole_block_not_one_line_of_it() -> None:
         ["bash", FENCE, str(REPO / STEPS[1][0]), STEPS[1][1], "apt install"],
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
     )
+    assert r.returncode == 0, f"fence.sh exited {r.returncode}: {r.stderr}"
     assert "dnf" not in r.stdout
     assert r.stdout.strip().startswith("sudo apt install")

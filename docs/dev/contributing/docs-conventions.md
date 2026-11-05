@@ -302,3 +302,31 @@ from a plain `pip install doppler-dsp` with no clone. `python src/doppler/exampl
 draws or designs with matplotlib or scipy needs the `[examples]` extra, so its
 *Reproduce* block starts with `pip install "doppler-dsp[examples]"`
 (`test_docs_name_the_examples_extra.py` holds it, discovered over the docs).
+
+## The install paths the docs walk
+
+Every other gate here reads a page; this one **does what it says**, from a
+blank machine (doppler#2857). `make docs-walk` runs one bare container per
+stage with the commands the pages give, extracted from the pages
+(`tests/install/docs-walk.sh plan` prints them):
+
+| stage     | page                          | what it runs                                                                                                                    |
+| --------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `pip`     | gallery, quick start          | `pip install "doppler-dsp[examples]"`, a `python -m doppler.examples.…` demo, the broker-free Python blocks, the `wfmgen` lines |
+| `tarball` | C quick start                 | `jbx get-doppler`, then the three compile faces                                                                                 |
+| `clone`   | C examples, build from source | the pinned `git clone`, the page's apt packages, `make build`, a C example                                                      |
+| `deb`     | install C, consumer project   | `consumer-walk.sh`: the `.deb` install, then building and running the consumer project                                          |
+| `docker`  | Docker                        | `docker run … doppler --help`, on the host                                                                                      |
+
+A command that stops being extractable is an error, never a stage that runs
+nothing. **Published** (`release.yml`, after the tag) runs the commands as the
+pages write them against PyPI, the GitHub Release and the pinned tag.
+**Candidate** (`make docs-walk WALK_MODE=candidate`; `docs-walk.yml` on a PR
+that touches `pyproject.toml` or the walk) is the dry run for a tree with no
+tag: the wheel, C tarball and `.deb`s are built from a clone of HEAD in a
+container of the walk's own image, and each page command gets exactly ONE
+substitution (the package name becomes the wheel, `git clone --branch vX <url>`
+becomes a clone of the tree, `jbx get-doppler` becomes unpacking the tarball).
+The toolchain that builds the artifacts is confined to that build container;
+the walked containers stay bare, so a package a page forgets to install fails
+there. `CONTAINER=podman` works where the box has no docker.

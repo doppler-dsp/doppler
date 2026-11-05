@@ -87,7 +87,8 @@ power row. They also confirm the axis edges sit at ±0.5 MHz:
 ## Running it
 
 ```bash
-python src/doppler/examples/spectrogram_demo.py
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.spectrogram_demo
 ```
 
 The script writes `spectrogram_scene.png` and `spectrogram_demo.png` in the

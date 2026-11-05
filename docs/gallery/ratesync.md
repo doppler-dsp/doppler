@@ -212,7 +212,8 @@ integer `sps` and a Farrow interpolator is the cheaper shape.
 ## Reproduce
 
 ```sh
-uv run python src/doppler/examples/ratesync_demo.py ratesync_demo.png
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.ratesync_demo ratesync_demo.png
 ```
 
 Source: [`src/doppler/examples/ratesync_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/ratesync_demo.py)

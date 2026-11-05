@@ -407,6 +407,17 @@ def _validate_cli_line(line: str, blockid: str, make_dir: Path = REPO) -> None:
     for seg in _simple_commands(line):
         cmd, argv = seg[0], seg[1:]
         if cmd in ("python", "python3"):
+            if "-m" in argv[:-1]:
+                # `python -m doppler.examples.foo`: the module must exist as
+                # the file the wheel ships (src/doppler/examples/foo.py).
+                mod = argv[argv.index("-m") + 1]
+                if mod.startswith("doppler."):
+                    base = REPO / "src" / mod.replace(".", "/")
+                    assert base.with_suffix(".py").exists() or base.is_dir(), (
+                        f"{blockid}: documented run-line runs a module "
+                        f"that does not exist: {mod}"
+                    )
+                continue
             script = next((a for a in argv if a.endswith(".py")), None)
             if script and not script.startswith(("-", "/")):
                 assert (REPO / script).exists(), (
@@ -922,3 +933,17 @@ def test_wfmgen_is_checked_before_the_fence_runs(
     )
     with pytest.raises(AssertionError, match="does not succeed here"):
         _gate("! wfmgen --no-such-flag", tmp_path)
+
+
+def test_a_module_run_line_must_name_a_module_that_exists() -> None:
+    """`python -m doppler.examples.<name>` is how the docs run an example, so
+    the module must be a file the wheel ships (doppler#2857)."""
+    some = next(
+        p.stem
+        for p in sorted(
+            (REPO / "src" / "doppler" / "examples").glob("[a-z]*.py")
+        )
+    )
+    _validate_cli_line(f"python -m doppler.examples.{some}", "ok")
+    with pytest.raises(AssertionError, match="does not exist"):
+        _validate_cli_line("python -m doppler.examples.no_such_demo", "bad")

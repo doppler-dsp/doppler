@@ -85,5 +85,6 @@ with the quiet end on the right.
 - [Python AGC API](../api/python-agc.md)
 
 ```console
-python src/doppler/examples/agc_settling_design_demo.py   # → agc_settling_design.png  (~1 s)
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.agc_settling_design_demo   # → agc_settling_design.png  (~1 s)
 ```

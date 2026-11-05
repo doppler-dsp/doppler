@@ -184,7 +184,8 @@ zero-copy streaming pipeline wants.
 ## Run it
 
 ```sh
-python src/doppler/examples/ddc_fn_demo.py
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.ddc_fn_demo
 ```
 
 Source: [`src/doppler/examples/ddc_fn_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/ddc_fn_demo.py)

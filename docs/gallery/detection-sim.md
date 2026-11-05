@@ -41,7 +41,8 @@ The Rician draw uses a single non-central Gaussian pair:
 `hypot(re0, im0)` is exactly Rician-distributed.
 
 ```bash
-python src/doppler/examples/detection_sim.py   # → detection_sim.png  (~5 s)
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.detection_sim   # → detection_sim.png  (~5 s)
 ```
 
 See [Detection Theory Curves](detection-curves.md) for the closed-form

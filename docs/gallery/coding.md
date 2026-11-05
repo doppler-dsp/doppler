@@ -96,7 +96,8 @@ accounting — a CRC inside the codeword, or the `corrected` / `symbols` counts
 ## Run it
 
 ```console
-$ python src/doppler/examples/coding_demo.py
+$ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+$ python -m doppler.examples.coding_demo
 ```
 
 The script self-validates: it asserts the payload comes back bit-exact

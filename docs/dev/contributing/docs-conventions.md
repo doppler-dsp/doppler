@@ -292,3 +292,13 @@ at the tag**. The tag is fetched when it is not local; in CI a tag that cannot
 be fetched is a failure, and a version with no tag on the remote yet (the
 release PR) is checked against the working tree only, and says so. A link to a
 file added since the last release fails until that release ships.
+
+## Running an example from a page
+
+A page tells a reader to run an example as `python -m doppler.examples.<name>`:
+the wheel ships every script under `doppler/examples/`, so the command works
+from a plain `pip install doppler-dsp` with no clone. `python src/doppler/examples/<name>.py` exists only in a clone and
+`scripts/check_repo_links.py` refuses it outside `docs/dev/`. A script that
+draws or designs with matplotlib or scipy needs the `[examples]` extra, so its
+*Reproduce* block starts with `pip install "doppler-dsp[examples]"`
+(`test_docs_name_the_examples_extra.py` holds it, discovered over the docs).

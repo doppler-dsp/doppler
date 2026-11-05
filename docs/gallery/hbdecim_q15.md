@@ -170,5 +170,6 @@ because it never forms the 16-bit fold.
 ## Reproduce
 
 ```bash
-python src/doppler/examples/hbdecim_q15_demo.py   # → hbdecim_q15_demo.png
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.hbdecim_q15_demo   # → hbdecim_q15_demo.png
 ```

@@ -155,7 +155,7 @@ make build
 
 **From Python**, where there is no ops table by design, the same end is
 reached by running the transform in the caller and handing the wire the
-result — `src/doppler/examples/frame_own_stage_demo.py`, which describes the
+result — [`src/doppler/examples/frame_own_stage_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/frame_own_stage_demo.py), which describes the
 same generic frame, whitens it with its own kernel and checks the recovered
 bits against the same description. The trade is the one
 [#1125](https://github.com/doppler-dsp/doppler/issues/1125) chose: once per

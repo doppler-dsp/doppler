@@ -84,10 +84,11 @@ sum. A *non-coherent* combination (`Σ_k |IFFT2(P_k)|²`, accumulating magnitude
 is nonlinear and must transform each frame; it cannot defer the inverse.
 
 ```bash
-python src/doppler/examples/detection2d_demo.py  # → detection2d_demo.png  (~10 s)
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
+python -m doppler.examples.detection2d_demo  # → detection2d_demo.png  (~10 s)
 ```
 
 See [Correlation and Detection](corr.md) for the base `Corr2D` /
 `CorrDetector2D` classes, and the full script
-`src/doppler/examples/detection2d_demo.py` for the ROC construction and
+[`src/doppler/examples/detection2d_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/detection2d_demo.py) for the ROC construction and
 Monte Carlo validation behind the right-hand panels.

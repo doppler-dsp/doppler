@@ -138,6 +138,7 @@ for a higher C/N0 than the link has.
 ## Reproduce
 
 ```sh
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.async_despread_demo out.png
 ```
 

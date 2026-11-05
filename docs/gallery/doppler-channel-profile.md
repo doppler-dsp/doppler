@@ -79,6 +79,7 @@ chunk dependence.
 ## Reproduce
 
 ```sh
+pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.doppler_channel_profile_demo doppler_channel_profile_demo.png
 ```
 

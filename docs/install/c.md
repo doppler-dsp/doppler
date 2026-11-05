@@ -40,7 +40,7 @@ toolchain or build step.
     automatically if the new one fails a sanity check, and restorable any
     time with `--restore`.
 
-    Needs `jbx`: [Get `jbx`](#get-jbx). Source: [`scripts/get-doppler.sh`](https://github.com/doppler-dsp/doppler/blob/main/scripts/get-doppler.sh).
+    Needs `jbx`: [Get `jbx`](#get-jbx). Source: [`scripts/get-doppler.sh`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/scripts/get-doppler.sh).
 
 Or by hand. The version in the URL is the current release; change it to
 install another one from the [releases page](https://github.com/doppler-dsp/doppler/releases):

@@ -286,7 +286,7 @@ now exist; the ordering does not.
 
 ## The same thing in C
 
-The [C example](https://github.com/doppler-dsp/doppler/blob/main/native/examples/dsss_burst_receiver_demo.c)
+The [C example](https://github.com/doppler-dsp/doppler/blob/v0.79.0/native/examples/dsss_burst_receiver_demo.c)
 demonstrates the same sections and prints the same numbers,
 because both build their capture from **one wfmgen scene** through the same
 engine — `dp_wfm_compose_create()` in C, `Composer`/`Segment` in Python.
@@ -319,7 +319,7 @@ a trade.
 Rounding to 512 is the trap: no binary code of that length has good
 periodic autocorrelation (an extended m-sequence gives 8.0; the best of a
 4000-code random search reached 10.7), and this object's own
-[certification](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md)
+[certification](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md)
 brackets what that costs — ratio 31 found every burst offset, 1.07 lost
 50% of them.
 
@@ -333,7 +333,7 @@ and PN data, nothing else** — a `FrameDesc` of `[sync | data]` with no CRC —
 and the transmit bits and
 the scoring truth come from one Field string through `wfm.field_bits`. The
 script is its own gate,
-[`dsss_burst_ber_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/dsss_burst_ber_demo.py),
+[`dsss_burst_ber_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/dsss_burst_ber_demo.py),
 so the sweep's runtime (about 2 s by default) stays out of the sections
 above.
 

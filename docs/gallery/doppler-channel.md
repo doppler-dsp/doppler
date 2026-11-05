@@ -78,4 +78,4 @@ negligible.
 python -m doppler.examples.doppler_channel_demo doppler_channel_demo.png
 ```
 
-Source: [`src/doppler/examples/doppler_channel_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/doppler_channel_demo.py)
+Source: [`src/doppler/examples/doppler_channel_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/doppler_channel_demo.py)

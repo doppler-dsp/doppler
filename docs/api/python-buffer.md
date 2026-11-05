@@ -5,7 +5,7 @@ double-mapping so the consumer always sees a contiguous window across the
 wrap boundary — zero-copy, branch-free.
 
 Source:
-[`src/doppler/buffer/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/buffer/__init__.py)
+[`src/doppler/buffer/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/buffer/__init__.py)
 
 ______________________________________________________________________
 

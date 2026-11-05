@@ -11,7 +11,7 @@ Python module `doppler.filter`. Area: [Filtering](index.md#filtering).
 | Name | Kind | API | Guide | Gallery | Example | Design |
 | ---- | ---- | --- | ----- | ------- | ------- | ------ |
 | `design_lowpass` | function | [design_lowpass](../api/python-filter.md) | &nbsp; | &nbsp; | &nbsp; | &nbsp; |
-| `FIR` | class | [FIR](../api/python-filter.md) | [Checkpoint & Resume](../guide/state-serialization.md) | &nbsp; | [fir_demo](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/fir_demo.py) | [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)<br>[Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md)<br>[State Serialization — the standard bytes interface](../design/state-serialization.md) |
+| `FIR` | class | [FIR](../api/python-filter.md) | [Checkpoint & Resume](../guide/state-serialization.md) | &nbsp; | [fir_demo](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/fir_demo.py) | [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)<br>[Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md)<br>[State Serialization — the standard bytes interface](../design/state-serialization.md) |
 | `MovingAverage` | class | [MovingAverage](../api/python-filter.md) | &nbsp; | &nbsp; | &nbsp; | [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md) |
 
 ## Used in other domains

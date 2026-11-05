@@ -7,7 +7,7 @@ table is treated as one period of a repeating waveform. Purely a function
 of `(table, method, point)` — no running state.
 
 Source:
-[`src/doppler/interp/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/interp/__init__.py)
+[`src/doppler/interp/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/interp/__init__.py)
 
 ______________________________________________________________________
 

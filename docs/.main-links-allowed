@@ -1,0 +1,10 @@
+# Pages that may link the repository at `main` (scripts/check_repo_links.py).
+#
+# Every OTHER page pins its repository links to the release the reader
+# installed: `.../blob/v<version>/path`, re-stamped on each release by
+# scripts/gen_doc_versions.py. A page belongs here only if it is genuinely
+# ABOUT main: the contributing pages describe the working tree a contributor
+# is looking at, and a link to "the file as of the last release" would be wrong
+# for them. Format: <glob> <why>. The list is data; add a row with a reason, not
+# a page because its links were inconvenient to pin.
+docs/dev/** contributing and dev pages describe main, the tree a contributor works in

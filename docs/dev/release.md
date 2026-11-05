@@ -157,8 +157,8 @@ row. Nothing checks that at PR time yet
 where a forgotten or mistyped label first shows. A label the new set was measured with but that names no row it
 recorded is reported as dead: a retired row, or a mistyped ID.
 
-The run takes most of an hour, so over ssh it is launched in the
-background, and it leaves its outcome where a watcher can wait on it: the log
+The run takes about two hours (2 h 02 min for v0.80.0, pinned to the
+fastest core class), so over ssh it is launched in the background, and it leaves its outcome where a watcher can wait on it: the log
 at `build/bench-runs/X.Y.Z.log` and, written last, the exit code at
 `build/bench-runs/X.Y.Z.rc` -- on success and on every failure
 ([#2681](https://github.com/doppler-dsp/doppler/issues/2681)). Wait on that
@@ -172,7 +172,7 @@ nothing.
 ssh <box> 'bash -lc "cd ~/doppler-bench && \
   (nohup make bench-interleaved VERSION=X.Y.Z >/dev/null 2>&1 &)"'
 run=doppler-bench/build/bench-runs/X.Y.Z   # relative to the box's $HOME
-for _ in $(seq 90); do                      # 3 h cap; a run takes about 1 h
+for _ in $(seq 90); do                      # 3 h cap; a run takes about 2 h
   ssh <box> "test -f $run.rc" && break
   sleep 120
 done

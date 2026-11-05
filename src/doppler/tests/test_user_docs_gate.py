@@ -14,6 +14,7 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+from doppler.tests._docs_fixture import domain_line
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -24,7 +25,7 @@ SCRIPT = REPO / "scripts" / "check_user_docs.py"
 EX = "src/doppler/examples"
 EXEMPT = "docs/.user-docs-exempt"
 NO_FIGURE = f"{EX}/.no-figure"
-FM = "<!-- domain: sig -->\n\n"  # the guide page's domain line
+FM = domain_line("sig")  # the guide page's first line
 
 
 def _w(root: Path, rel: str, text: str) -> None:

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._docs_fixture import domain_line
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ SCRIPT = REPO / "scripts" / "check_user_docs.py"
 EX = "src/doppler/examples"
 TOML = "docs/domains.toml"
 GUIDES = "docs/.domain-guides-exempt"
-FM = "<!-- domain: sig; summary: About widgets. -->\n\n"
+FM = domain_line("sig", "About widgets.")
 TABLE = (
     '[domain.sig]\ntitle = "Signal widgets (sig)"\narea = "sources"\n'
     'summary = "Widgets."\n'
@@ -311,7 +312,7 @@ def test_a_duplicated_marker_pair_is_refused() -> None:
 
 def test_a_page_without_a_summary_fails(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
-    _w(root, "docs/guide/bare.md", "<!-- domain: sig -->\n\n# Bare\n")
+    _w(root, "docs/guide/bare.md", domain_line("sig", None) + "# Bare\n")
     r = _run(root)
     assert r.returncode == 1
     assert "docs/guide/bare.md: no summary" in r.stderr
@@ -323,7 +324,7 @@ def test_a_tool_page_owes_no_summary(tmp_path: Path) -> None:
         _w(
             root,
             f"docs/guide/wfmgen/{n}.md",
-            "<!-- domain: sig -->\n\n# A\n",
+            domain_line("sig", None) + "# A\n",
         )
     r = _run(root)
     assert r.returncode == 0, r.stdout + r.stderr

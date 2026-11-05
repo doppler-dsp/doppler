@@ -2192,12 +2192,29 @@ Index into `g->sources` of the first offender, or -1: a lone source, a segment w
 
 
 ```C++
-wfm_source_t s[2] = { { .type = WFM_SYNTH_BPSK, .snr = 20.0, .level = -6.0 },
-                      { .type = WFM_SYNTH_NOISE, .level = -40.0 } };
-wfm_segment_t g = { .sources = s, .n_sources = 2 };
-dp_wfm_segment_snr_and_level (&g);   // 0: the BPSK source has both
-s[0].level = 0.0;
-dp_wfm_segment_snr_and_level (&g);   // -1: snr alone is fine
+#include <doppler/wfm/wfm_compose.h>
+#include <stdio.h>
+
+int
+main (void)
+{
+  // A tone beside an explicit noise source: the noise sets the floor, so
+  // the tone may give its snr OR its level, not both.
+  wfm_source_t s[2] = {
+    { .type = WFM_SYNTH_TONE, .snr = 20.0, .level = -6.0 },
+    { .type = WFM_SYNTH_NOISE, .level = -40.0 },
+  };
+  wfm_segment_t g = { .sources = s, .n_sources = 2, .fs = 2e6 };
+
+  printf ("both: source %d\n", dp_wfm_segment_snr_and_level (&g)); // 0
+  puts (dp_wfm_scene_error (&g, 1, 0, 0) == dp_wfm_why_snr_and_level
+            ? "scene refused with dp_wfm_why_snr_and_level"
+            : "unexpected");
+
+  s[0].level = 0.0; // snr alone
+  printf ("snr alone: %d\n", dp_wfm_segment_snr_and_level (&g)); // -1
+  return 0;
+}
 ```
  
 

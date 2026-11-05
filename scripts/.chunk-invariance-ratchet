@@ -19,9 +19,11 @@
 #   dp_new | <reason> | replaces: dp_old dp_older
 #
 # It is not "added" only when every replaced key was on the merge base's
-# list, every one is gone now, and none backs a second new line -- so a
-# rename can merge entries, never multiply them (scripts/check_tests_ssot.py,
-# ratchet_added). Anything else on a new line is ADDED, and fails.
+# list, every one is gone now, none backs a second new line, and none still
+# names a live object -- so a rename can merge entries, never multiply them,
+# and a fixed entry is deleted, never traded for a new one
+# (scripts/check_tests_ssot.py, ratchet_added). Anything else on a new line
+# is ADDED, and fails.
 #
 # Burn-down: doppler#1896.   Derived, not curated:
 #   python scripts/check_tests_ssot.py   # names every uncovered object

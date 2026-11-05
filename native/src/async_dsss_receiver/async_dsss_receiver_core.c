@@ -401,7 +401,13 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       || dp_tlm_name_join (handover, p, "handover_hz") != DP_OK
       || dp_tlm_name_join (refused, p, "refused") != DP_OK)
     return DP_ERR_INVALID;
-  int r = dp_costas_set_telemetry (&s->car, t, car, d);
+  /* The searcher first: it is the one child whose attach allocates (a
+     scratch context of its own, checked before it registers anything), so
+     an out-of-memory refusal comes before any loop has put a name on the
+     caller's table (#2846). The loops after it only register. */
+  int r = s->acq ? dp_acq_set_telemetry (s->acq, t, acq, d) : DP_OK;
+  if (r == DP_OK)
+    r = dp_costas_set_telemetry (&s->car, t, car, d);
   if (r == DP_OK)
     r = dp_costas_set_telemetry (&s->car_held, t, car, d);
   if (r == DP_OK)
@@ -410,8 +416,6 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
     r = dp_RateConverter_set_telemetry (s->rc, t, rc, d);
   if (r == DP_OK)
     r = dp_mpsk_receiver_set_telemetry (s->rx, t, demod, d);
-  if (r == DP_OK && s->acq)
-    r = dp_acq_set_telemetry (s->acq, t, acq, d);
   /* The receiver's own decision, the one its users act on: the symbol-lock
      metric and the lockdet's flag, once per emitted symbol. */
   if (r == DP_OK)

@@ -46,14 +46,8 @@ apt-get install -y -qq curl ca-certificates >/dev/null
 cd /root
 
 say "1. install the published .deb packages (the page's own block, $deb)"
-if [ -n "${WALK_DEB_DIR:-}" ]; then
-    # Candidate: the packages are in a directory, not yet a release asset, so
-    # the page's download is replaced by installing them (the one substitution).
-    echo "sudo apt-get install -y -qq $WALK_DEB_DIR/libdoppler-dsp0*.deb $WALK_DEB_DIR/libdoppler-dsp-dev_*.deb" > step1.sh
-else
-    fence "$SRC/docs/install/c.md" '^Debian / Ubuntu:' 'libdoppler-dsp-dev_' \
-        | sed "s/amd64/$deb/g" > step1.sh
-fi
+fence "$SRC/docs/install/c.md" '^Debian / Ubuntu:' 'libdoppler-dsp-dev_' \
+    | sed "s/amd64/$deb/g" > step1.sh
 need step1.sh
 cat step1.sh
 bash -euo pipefail step1.sh > step1.log 2>&1 || { tail -n 15 step1.log; die "the .deb block did not install"; }
@@ -68,12 +62,6 @@ bash -euo pipefail step2.sh > step2.log 2>&1 || { tail -n 15 step2.log; die "the
 say "3. fetch the consumer project (the consumer page's own command)"
 fence "$SRC/docs/example-projects/consumer.md" '^## Get the code' 'tar -xz' > step3.sh
 need step3.sh
-# Candidate: the pinned release tarball does not carry this tree, so the page's
-# `curl` is replaced by reading a tarball of the tree (same `doppler-<V>/`
-# prefix); the page's `tar -xz` is untouched.
-if [ -n "${WALK_SRC_TARBALL:-}" ]; then
-    sed -i "s#curl -fsSL [^ ]*#cat $WALK_SRC_TARBALL#" step3.sh
-fi
 cat step3.sh
 bash -euo pipefail step3.sh || die "the one-line fetch failed"
 [ -f consumer/CMakeLists.txt ] && [ -f consumer/main.c ] || die "fetch gave no project"

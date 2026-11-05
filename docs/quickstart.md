@@ -12,6 +12,14 @@
 !!! note
 
     Isolate your install from system python with a virtual environment!
+    Debian and Ubuntu refuse a `pip install` outside one, and ship the module
+    that makes one as a separate package:
+
+    <!-- docs-snippet: no-exec=installs a system package; the docs walk runs it in a bare container -->
+
+    ```bash
+    sudo apt install python3-venv   # Debian / Ubuntu only
+    ```
 
     ```bash
     python3 -m venv .venv

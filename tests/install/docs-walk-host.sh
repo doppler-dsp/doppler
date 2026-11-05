@@ -42,11 +42,13 @@ walk)
     git -C "$src" checkout -q --detach FETCH_HEAD
     echo "walking commit $(git -C "$src" rev-parse HEAD) ($MODE, v$V, $IMAGE, $CONTAINER)"
     run() { "$CONTAINER" run --rm --init --pull=never "$@"; }
-    art="$WORK/docs-walk-art"
-    mkdir -p "$art"
+    # A directory of this run's own: an artifact left by an earlier run (an
+    # older wheel, other .debs) must never be walked as if it were this one's.
+    mkdir -p "$WORK"
+    art="$(mktemp -d "$WORK/docs-walk-art.XXXXXX")"
     stages="pip tarball clone deb"
     if [ "$MODE" = candidate ]; then
-        [ -z "${WALK_ARTIFACTS:-}" ] || cp -n "$WALK_ARTIFACTS"/* "$art"/
+        [ -z "${WALK_ARTIFACTS:-}" ] || cp "$WALK_ARTIFACTS"/* "$art"/
         echo "### BUILD the candidate artifacts (toolchain confined to this container)"
         run -e UV_VERSION="${UV_VERSION:?UV_VERSION}" -v "$src":/w:ro \
             -v "$art":/out "$IMAGE" bash /w/tests/install/docs-walk-build.sh /w /out "$V"
